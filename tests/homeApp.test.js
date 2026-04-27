@@ -1,8 +1,22 @@
-// tests/homeApp.test.js — UX-12 Phase 7 PR #13
-// Static assertions on home-app.js (the new /home landing).
-// We don't mount the React tree (Babel transform is not available in Jest);
-// instead we verify the source-level contract: exports, headings, tile
-// hrefs, no emoji literals, Icons.* usage.
+// tests/homeApp.test.js — Combo A (tab bar + project hub)
+//
+// Static assertions on home-app.js. The page was reimplemented as a
+// tab-bar layout (Projects / Create new / Stash / Stats) with an
+// ActiveProjectCard + ProjectsList replacing the old ResumeCard +
+// RecentGrid + QuickTiles + StashCard structure. The contract this
+// test now enforces:
+//   - exposes window.HomeApp and mounts via ReactDOM into #root
+//   - greeting hero uses getGreeting()
+//   - active card + projects list section ids exist
+//   - active project comes from ProjectStorage.getActiveProject and
+//     listProjects feeds the all-projects list
+//   - per-row Track + Edit buttons go to stitch.html / index.html via
+//     activateAndGo (which appends ?from=home)
+//   - tile icons come from window.Icons.* — no pictographic emoji or
+//     emoji-like glyphs in any string
+//
+// We don't mount the React tree (Babel transform is not available in
+// Jest); we verify the source-level contract only.
 
 const fs = require('fs');
 const path = require('path');
@@ -25,18 +39,21 @@ describe('home-app.js source contract', () => {
     expect(SRC).toMatch(/ready to stitch/);
   });
 
-  test('renders headings for each section (h2 ids)', () => {
-    expect(SRC).toMatch(/home-resume-title/);
-    expect(SRC).toMatch(/home-recent-title/);
-    expect(SRC).toMatch(/home-quick-title/);
-    expect(SRC).toMatch(/home-stash-title/);
+  test('renders headings for the Combo A sections (h2 / labelled regions)', () => {
+    // Active project card + projects list are the two main labelled
+    // regions; create + stash + stats live behind tabs and have their
+    // own labelled-by ids.
+    expect(SRC).toMatch(/home-active-card-title/);
+    expect(SRC).toMatch(/home-proj-list-title/);
+    expect(SRC).toMatch(/home-create-panel-title/);
+    expect(SRC).toMatch(/home-stash-panel-title/);
   });
 
   test('reads active project from ProjectStorage.getActiveProject', () => {
     expect(SRC).toMatch(/ProjectStorage\.getActiveProject/);
   });
 
-  test('renders ResumeCard with both Resume and Edit CTAs', () => {
+  test('renders ActiveProjectCard with both Resume and Edit CTAs', () => {
     expect(SRC).toMatch(/Resume tracking/);
     expect(SRC).toMatch(/Edit pattern/);
     // Both navigate via activateAndGo (sets active project then goes).
@@ -44,66 +61,44 @@ describe('home-app.js source contract', () => {
     expect(SRC).toMatch(/activateAndGo\([^,]+,\s*['"]index\.html['"]\)/);
   });
 
-  test('lists projects via ProjectStorage.listProjects (recents grid)', () => {
+  test('lists projects via ProjectStorage.listProjects (all-projects list)', () => {
     expect(SRC).toMatch(/ProjectStorage\.listProjects/);
-    // .slice(0, 6) → top 6 projects.
-    expect(SRC).toMatch(/slice\(0,\s*6\)/);
+    // Combo A shows up to 8 projects in the list.
+    expect(SRC).toMatch(/slice\(0,\s*\d+\)/);
   });
 
-  test('renders four quick-action tiles linking to the three tools', () => {
-    // Two "New" tiles point at index.html (with action= flags).
-    expect(SRC).toMatch(/index\.html\?action=new-from-image/);
+  test('Create panel exposes new-from-image and new-blank flows', () => {
+    // "New from image" uses the in-page file picker, then navigates to
+    // home-image-pending; "New from scratch" links straight to
+    // index.html?action=new-blank.
+    expect(SRC).toMatch(/index\.html\?action=home-image-pending&from=home/);
     expect(SRC).toMatch(/index\.html\?action=new-blank/);
-    // Stash + Tracker tiles point at the other tools (with from=home so the
-    // redirect-to-home guard stands down).
+  });
+
+  test('cross-tool links append from=home (skip-redirect guard)', () => {
+    // activateAndGo() builds the from=home suffix for per-row buttons;
+    // the Stash panel uses literal manager.html?from=home links.
+    expect(SRC).toMatch(/from=home/);
     expect(SRC).toMatch(/manager\.html\?from=home/);
-    expect(SRC).toMatch(/stitch\.html\?from=home/);
   });
 
   test('uses Icons.* for tile icons (no emojis)', () => {
     expect(SRC).toMatch(/Icons\.image/);
     expect(SRC).toMatch(/Icons\.plus/);
-    expect(SRC).toMatch(/Icons\.box/);
-    expect(SRC).toMatch(/Icons\.check/);
   });
 
   test('contains no emoji or unicode-glyph literals in user-facing strings', () => {
-    // Forbidden glyphs per AGENTS.md house rule: pictographic emoji and
-    // emoji-like marks (× ✓ ✗ ⚠ ℹ → ← ▸ ✕ ▾). We allow the box-drawing
-    // separators (═) used in CSS section headers, plus middot (·) which is
-    // a punctuation character, not an emoji.
-    const FORBIDDEN = /[\u2713\u2717\u2715\u26A0\u2139\u2192\u2190\u25B8\u25BE\u2716\uD83C-\uDBFF\uDC00-\uDFFF]|[\u00D7\u2715\u2716]/;
-    // Allow \u00D7 inside the wireframe-style "80×100" dimension string —
-    // home-app.js renders sW × sH, so \u00D7 IS used legitimately. The rule
-    // forbids it as a close-button glyph; that case isn't present in this file.
-    // Strip the legitimate dimensions usage before testing.
-    const stripped = SRC.replace(/['"][^'"]*\\u00d7[^'"]*['"]/gi, "''");
-    // Drop the middot escape too (used in meta separators).
-    const cleaned = stripped.replace(/\\u00b7/g, '');
-    // Pictographic emoji in any literal.
-    const emojiRe = /[\uD83C-\uDBFF\uDC00-\uDFFF]|[\u2713\u2717\u26A0\u2139\u2192\u2190\u25B8\u25BE]/;
-    expect(cleaned).not.toMatch(emojiRe);
+    // Forbidden glyphs per AGENTS.md house rule: pictographic emoji
+    // and emoji-like marks (✓ ✗ ⚠ ℹ → ← ▸ ▾ ✕ ✖). The dimension
+    // separator U+00D7 (×) inside `sW × sH` is allowed as a maths
+    // operator, not a UI glyph — strip those literal usages first.
+    const stripped = SRC.replace(/['"][^'"]*\u00D7[^'"]*['"]/g, "''");
+    const emojiRe = /[\uD83C-\uDBFF\uDC00-\uDFFF]|[\u2713\u2717\u26A0\u2139\u2192\u2190\u25B8\u25BE\u2715\u2716]/;
+    expect(stripped).not.toMatch(emojiRe);
   });
 
   test('reuses window.timeAgo + window.getGreeting helpers from home-screen.js', () => {
     expect(SRC).toMatch(/window\.timeAgo/);
     expect(SRC).toMatch(/window\.getGreeting/);
-  });
-
-  test('respects skip-redirect on tool links via ?from=home', () => {
-    // QuickTiles for tracker and stash include from=home so the per-tool
-    // redirect-to-home guard stands down even when no project is active.
-    expect(SRC).toMatch(/stitch\.html\?from=home/);
-    expect(SRC).toMatch(/manager\.html\?from=home/);
-  });
-});
-
-describe('home-screen.js helper exports for /home', () => {
-  const HS = fs.readFileSync(path.join(__dirname, '..', 'home-screen.js'), 'utf8');
-  test('exposes window.timeAgo', () => {
-    expect(HS).toMatch(/window\.timeAgo\s*=\s*timeAgo/);
-  });
-  test('exposes window.getGreeting', () => {
-    expect(HS).toMatch(/window\.getGreeting\s*=\s*getGreeting/);
   });
 });

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Option 2 — Project Hub</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --accent:       #B85C38;
+    --accent-hover: #9E4D2F;
+    --accent-light: #FBF0EB;
+    --bg:           #F4EEE6;
+    --surface:      #FFFFFF;
+    --surface-2:    #F9F5F0;
+    --surface-3:    #F0EAE0;
+    --border:       #E4D9CE;
+    --text:         #1B1814;
+    --text-2:       #5C5448;
+    --text-3:       #8A8270;
+    --radius:       10px;
+    --radius-sm:    6px;
+    --shadow:       0 1px 3px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+  }
+  body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
+
+  /* ── Header ── */
+  .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 20px; display: flex; align-items: center; gap: 16px; height: 44px; }
+  .header-logo { font-weight: 700; font-size: 15px; letter-spacing: -0.3px; color: var(--accent); }
+  .header-tabs { display: flex; gap: 2px; flex: 1; }
+  .tab { padding: 5px 10px; font-size: 12px; font-weight: 500; color: var(--text-3); border-radius: 6px; border: none; background: none; cursor: pointer; text-decoration: none; }
+  .tab:hover { background: var(--surface-3); color: var(--text-2); }
+  .tab.active { background: var(--surface-3); color: var(--text); font-weight: 600; }
+
+  /* ── Page ── */
+  .page { max-width: 760px; margin: 0 auto; padding: 28px 20px 60px; display: flex; flex-direction: column; gap: 24px; }
+
+  /* ── Top bar: greeting + new button ── */
+  .topbar { display: flex; align-items: center; justify-content: space-between; }
+  .topbar-greeting { font-size: 22px; font-weight: 700; letter-spacing: -0.4px; }
+  .topbar-sub { font-size: 13px; color: var(--text-3); margin-top: 2px; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; font-size: 12px; font-weight: 600; border-radius: var(--radius-sm); border: 1px solid transparent; cursor: pointer; font-family: inherit; text-decoration: none; }
+  .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-outline { background: var(--surface); color: var(--text-2); border-color: var(--border); }
+  .btn-outline:hover { background: var(--surface-3); }
+
+  /* ── Project list (replaces both ResumeCard + RecentGrid + QuickTiles nav) ── */
+  .proj-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .proj-row { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: flex; align-items: center; gap: 14px; box-shadow: var(--shadow); transition: border-color 0.15s; }
+  .proj-row:hover { border-color: var(--accent); }
+  .proj-row.active-row { border-color: var(--accent); border-width: 1.5px; }
+  .proj-row.active-row .proj-avatar { background: var(--accent); color: #fff; }
+
+  .proj-avatar { width: 44px; height: 44px; border-radius: 10px; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: var(--accent); flex-shrink: 0; }
+
+  .proj-body { flex: 1; min-width: 0; }
+  .proj-name { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .proj-meta { font-size: 12px; color: var(--text-3); display: flex; align-items: center; gap: 8px; }
+  .proj-meta-sep { color: var(--border); }
+  .proj-bar-wrap { margin-top: 8px; height: 3px; background: var(--surface-3); border-radius: 2px; }
+  .proj-bar-fill { height: 100%; border-radius: 2px; background: var(--accent); }
+
+  .active-chip { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; background: var(--accent-light); color: var(--accent); padding: 2px 7px; border-radius: 20px; flex-shrink: 0; }
+
+  .proj-actions { display: flex; gap: 7px; flex-shrink: 0; }
+  .proj-btn { padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text-2); cursor: pointer; font-family: inherit; white-space: nowrap; }
+  .proj-btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .proj-btn-primary:hover { background: var(--accent-hover); }
+  .proj-btn:hover { background: var(--surface-3); }
+
+  /* ── New project section (only creation actions — no nav duplication) ── */
+  .new-section { display: flex; gap: 10px; }
+  .new-tile { flex: 1; display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; cursor: pointer; text-decoration: none; box-shadow: var(--shadow); transition: border-color 0.15s; }
+  .new-tile:hover { border-color: var(--accent); }
+  .new-tile.primary { background: var(--accent); border-color: var(--accent); }
+  .new-tile-icon { width: 34px; height: 34px; border-radius: 8px; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+  .new-tile.primary .new-tile-icon { background: rgba(255,255,255,0.2); }
+  .new-tile-copy strong { display: block; font-size: 13px; font-weight: 600; color: var(--text); }
+  .new-tile-copy span { font-size: 11px; color: var(--text-3); }
+  .new-tile.primary .new-tile-copy strong { color: #fff; }
+  .new-tile.primary .new-tile-copy span { color: rgba(255,255,255,0.75); }
+
+  /* ── Stash compact ── */
+  .bottom-row { display: flex; gap: 10px; }
+  .stash-card { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
+  .stash-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .stash-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); }
+  .stash-link { font-size: 12px; color: var(--accent); text-decoration: none; font-weight: 500; }
+  .stash-stats { display: flex; gap: 16px; }
+  .stash-stat { text-align: center; }
+  .stash-val { font-size: 22px; font-weight: 700; color: var(--text); display: block; }
+  .stash-lbl { font-size: 11px; color: var(--text-3); }
+
+  /* ── Eliminated box ── */
+  .eliminated { border: 1.5px dashed #FECACA; background: #FEF2F2; border-radius: var(--radius); padding: 16px; }
+  .eliminated-title { font-size: 11px; font-weight: 700; color: #B91C1C; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+  .eliminated-item { font-size: 12px; color: #7F1D1D; padding: 5px 0; border-bottom: 1px solid #FECACA; display: flex; align-items: flex-start; gap: 8px; }
+  .eliminated-item:last-child { border-bottom: none; }
+  .removed-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 3px 8px; border-radius: 20px; background: #FEF2F2; color: #B91C1C; border: 1px solid #FECACA; font-weight: 500; }
+  .added-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 3px 8px; border-radius: 20px; background: #F0FDF4; color: #15803D; border: 1px solid #BBF7D0; font-weight: 500; }
+  .annotation { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); flex-wrap: wrap; }
+
+  /* Footer */
+  .footer { display: flex; gap: 16px; justify-content: center; }
+  .footer a { font-size: 12px; color: var(--text-3); text-decoration: none; }
+  .footer a:hover { color: var(--accent); }
+
+  /* Proposal label */
+  .proposal-label { background: #1B1814; color: #fff; padding: 12px 20px; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
+  .proposal-label span { font-weight: 400; color: #9CA3AF; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="proposal-label">
+  Option 2 — Project-Centric Hub
+  <span>Projects list is the primary surface; contextual Track/Edit per card; eliminates 4 separate sections</span>
+</div>
+
+<div class="header">
+  <div class="header-logo">stitch.</div>
+  <div class="header-tabs">
+    <a href="#" class="tab active">Home</a>
+    <a href="#" class="tab">Create</a>
+    <a href="#" class="tab">Track</a>
+    <a href="#" class="tab">Stash</a>
+    <a href="#" class="tab">Stats</a>
+  </div>
+</div>
+
+<div class="page">
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div>
+      <div class="topbar-greeting">Good afternoon, ready to stitch?</div>
+      <div class="topbar-sub">You have 3 projects in progress.</div>
+    </div>
+    <a href="#" class="btn btn-primary">+ New project</a>
+  </div>
+
+  <!-- ANNOTATION -->
+  <div class="annotation">
+    <span class="removed-badge">Removed</span> Standalone GreetingHero section
+    &nbsp;+&nbsp;
+    <span class="removed-badge">Removed</span> Separate ResumeCard section
+    &nbsp;+&nbsp;
+    <span class="removed-badge">Removed</span> Separate RecentGrid section
+    &nbsp;+&nbsp;
+    <span class="removed-badge">Removed</span> QuickTiles "Open Tracker" + "Open Stash Manager"
+    &nbsp;→&nbsp;
+    <span class="added-badge">Merged into</span> one unified projects list with per-card actions
+  </div>
+
+  <!-- UNIFIED PROJECT LIST -->
+  <div class="proj-list">
+
+    <!-- Active project (highlighted) -->
+    <div class="proj-row active-row">
+      <div class="proj-avatar">AS</div>
+      <div class="proj-body">
+        <div class="proj-name">Autumn Sampler</div>
+        <div class="proj-meta">16×16 <span class="proj-meta-sep">·</span> Updated 2 hours ago <span class="proj-meta-sep">·</span> 38% complete</div>
+        <div class="proj-bar-wrap"><div class="proj-bar-fill" style="width:38%"></div></div>
+      </div>
+      <span class="active-chip">Active</span>
+      <div class="proj-actions">
+        <button class="proj-btn proj-btn-primary">Resume tracking</button>
+        <button class="proj-btn">Edit pattern</button>
+      </div>
+    </div>
+
+    <!-- Other projects -->
+    <div class="proj-row">
+      <div class="proj-avatar">FC</div>
+      <div class="proj-body">
+        <div class="proj-name">Floral Crown</div>
+        <div class="proj-meta">32×32 <span class="proj-meta-sep">·</span> 3 days ago <span class="proj-meta-sep">·</span> 72% complete</div>
+        <div class="proj-bar-wrap"><div class="proj-bar-fill" style="width:72%"></div></div>
+      </div>
+      <div class="proj-actions">
+        <button class="proj-btn proj-btn-primary">Track</button>
+        <button class="proj-btn">Edit</button>
+      </div>
+    </div>
+
+    <div class="proj-row">
+      <div class="proj-avatar">WR</div>
+      <div class="proj-body">
+        <div class="proj-name">Winter Rose</div>
+        <div class="proj-meta">24×24 <span class="proj-meta-sep">·</span> 1 week ago <span class="proj-meta-sep">·</span> 15% complete</div>
+        <div class="proj-bar-wrap"><div class="proj-bar-fill" style="width:15%"></div></div>
+      </div>
+      <div class="proj-actions">
+        <button class="proj-btn proj-btn-primary">Track</button>
+        <button class="proj-btn">Edit</button>
+      </div>
+    </div>
+
+    <div class="proj-row">
+      <div class="proj-avatar">SS</div>
+      <div class="proj-body">
+        <div class="proj-name">Summer Sparrow</div>
+        <div class="proj-meta">20×20 <span class="proj-meta-sep">·</span> 2 weeks ago <span class="proj-meta-sep">·</span> 5% complete</div>
+        <div class="proj-bar-wrap"><div class="proj-bar-fill" style="width:5%"></div></div>
+      </div>
+      <div class="proj-actions">
+        <button class="proj-btn proj-btn-primary">Track</button>
+        <button class="proj-btn">Edit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NEW PROJECT (only creation actions) -->
+  <div class="new-section">
+    <a href="#" class="new-tile primary">
+      <div class="new-tile-icon">📷</div>
+      <div class="new-tile-copy">
+        <strong>New from image</strong>
+        <span>Convert a photo into stitches</span>
+      </div>
+    </a>
+    <a href="#" class="new-tile">
+      <div class="new-tile-icon" style="font-size:20px;font-weight:700;color:var(--accent)">+</div>
+      <div class="new-tile-copy">
+        <strong>New from scratch</strong>
+        <span>Start with a blank grid</span>
+      </div>
+    </a>
+  </div>
+
+  <!-- STASH COMPACT -->
+  <div class="bottom-row">
+    <div class="stash-card">
+      <div class="stash-head">
+        <div class="stash-title">Stash at a glance</div>
+        <a href="#" class="stash-link">Manage stash →</a>
+      </div>
+      <div class="stash-stats">
+        <div class="stash-stat"><span class="stash-val">47</span><span class="stash-lbl">Skeins owned</span></div>
+        <div class="stash-stat"><span class="stash-val">32</span><span class="stash-lbl">Unique threads</span></div>
+        <div class="stash-stat"><span class="stash-val">5</span><span class="stash-lbl">Patterns saved</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ELIMINATED -->
+  <div class="eliminated">
+    <div class="eliminated-title">What this option removes</div>
+    <div class="eliminated-item"><span>✕</span><div><strong>GreetingHero as a standalone section</strong> — greeting text absorbed into top bar next to the "New project" button. No wasted vertical space.</div></div>
+    <div class="eliminated-item"><span>✕</span><div><strong>ResumeCard as a separate section</strong> — the active project is now first in the list, highlighted with a border and "Active" chip. Same information, no extra section.</div></div>
+    <div class="eliminated-item"><span>✕</span><div><strong>RecentGrid as a separate section</strong> — merged into the same list. Projects don't appear twice on the same page (once in resume card, once in the grid).</div></div>
+    <div class="eliminated-item"><span>✕</span><div><strong>QuickTiles "Open Tracker" + "Open Stash Manager"</strong> — these are already in the header tabs. Contextual "Track" buttons on each card are more useful anyway.</div></div>
+    <div class="eliminated-item"><span>✕</span><div><strong>RecentGrid navigating to Tracker by default</strong> — the old grid only went to stitch.html. Now each card has both "Track" and "Edit" — user chooses the right destination.</div></div>
+  </div>
+
+  <div class="footer"><a href="#">Help</a><a href="#">Preferences</a><a href="#">About</a></div>
+</div>
+</body>
+</html>

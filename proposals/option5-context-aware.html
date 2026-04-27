@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Option 5 — Context-Aware Home</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --accent:       #B85C38;
+    --accent-hover: #9E4D2F;
+    --accent-light: #FBF0EB;
+    --bg:           #F4EEE6;
+    --surface:      #FFFFFF;
+    --surface-2:    #F9F5F0;
+    --surface-3:    #F0EAE0;
+    --border:       #E4D9CE;
+    --text:         #1B1814;
+    --text-2:       #5C5448;
+    --text-3:       #8A8270;
+    --radius:       10px;
+    --radius-sm:    6px;
+    --shadow:       0 1px 3px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+  }
+  body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
+
+  /* ── App Shell: Header + Sidebar ── */
+  .app-shell { display: grid; grid-template-rows: 44px 1fr; grid-template-columns: 220px 1fr; min-height: 100vh; }
+
+  .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 20px; display: flex; align-items: center; gap: 12px; grid-column: 1 / -1; }
+  .header-logo { font-weight: 700; font-size: 15px; letter-spacing: -0.3px; color: var(--accent); }
+  .header-spacer { flex: 1; }
+  .header-btn { padding: 4px 10px; font-size: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-2); cursor: pointer; font-family: inherit; }
+
+  /* ── Sidebar ── */
+  .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 16px 12px; display: flex; flex-direction: column; gap: 4px; }
+  .sidebar-section { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); padding: 12px 8px 4px; }
+  .sidebar-link { display: flex; align-items: center; gap: 10px; padding: 7px 10px; font-size: 13px; font-weight: 500; color: var(--text-2); border-radius: 7px; cursor: pointer; text-decoration: none; border: none; background: none; font-family: inherit; width: 100%; text-align: left; }
+  .sidebar-link:hover { background: var(--surface-3); color: var(--text); }
+  .sidebar-link.active { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+  .sidebar-link-icon { width: 18px; text-align: center; font-size: 13px; }
+  .sidebar-proj-chip { font-size: 10px; background: var(--accent); color: #fff; padding: 1px 5px; border-radius: 10px; margin-left: auto; }
+
+  /* ── Main content ── */
+  .main { padding: 28px 32px 60px; overflow-y: auto; }
+
+  /* ── STATE A: Has active project ── */
+  .state-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 6px 10px; border-radius: var(--radius-sm); margin-bottom: 24px; display: inline-flex; }
+  .state-a { background: var(--accent-light); color: var(--accent); }
+  .state-b { background: #F0FDF4; color: #15803D; border: 1px solid #BBF7D0; }
+
+  /* Resume card — full width, generous padding */
+  .resume-hero { background: var(--surface); border: 1.5px solid var(--accent); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); margin-bottom: 20px; }
+  .resume-hero-top { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
+  .resume-avatar { width: 60px; height: 60px; border-radius: 12px; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .resume-chip { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--accent); margin-bottom: 4px; }
+  .resume-name { font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -0.4px; margin-bottom: 4px; }
+  .resume-meta { font-size: 12px; color: var(--text-3); }
+  .resume-bar-outer { height: 6px; background: var(--surface-3); border-radius: 3px; margin-bottom: 18px; }
+  .resume-bar-fill { height: 100%; width: 38%; background: var(--accent); border-radius: 3px; }
+  .resume-pct { font-size: 12px; color: var(--text-3); margin-bottom: 14px; }
+  .resume-btns { display: flex; gap: 10px; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; font-size: 13px; font-weight: 600; border-radius: var(--radius-sm); border: 1px solid var(--border); cursor: pointer; font-family: inherit; text-decoration: none; white-space: nowrap; }
+  .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn:hover { background: var(--surface-3); color: var(--text); }
+
+  /* Recent row */
+  .recent-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin-bottom: 10px; }
+  .recent-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px; }
+  .recent-row { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; display: flex; align-items: center; gap: 12px; cursor: pointer; box-shadow: var(--shadow); }
+  .recent-row:hover { border-color: var(--accent); }
+  .recent-av { width: 30px; height: 30px; border-radius: 7px; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: var(--accent); }
+  .recent-name { font-size: 13px; font-weight: 500; color: var(--text); flex: 1; }
+  .recent-pct { font-size: 11px; color: var(--text-3); }
+  .recent-chevron { font-size: 12px; color: var(--text-3); }
+
+  /* Quick new buttons */
+  .quick-row { display: flex; gap: 8px; }
+  .quick-btn { flex: 1; display: flex; align-items: center; gap: 10px; padding: 11px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; text-decoration: none; box-shadow: var(--shadow); }
+  .quick-btn:hover { border-color: var(--accent); }
+  .quick-btn-icon { width: 28px; height: 28px; border-radius: 6px; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; color: var(--accent); font-weight: 700; }
+  .quick-btn-copy strong { display: block; font-size: 12px; font-weight: 600; color: var(--text); }
+  .quick-btn-copy span { font-size: 11px; color: var(--text-3); }
+
+  /* ── DIVIDER between State A and State B ── */
+  .state-divider { margin: 32px 0; border: none; border-top: 2px dashed var(--border); }
+  .state-divider-label { text-align: center; font-size: 12px; color: var(--text-3); margin: -22px 0 24px; }
+  .state-divider-inner { background: var(--bg); display: inline-block; padding: 0 12px; }
+
+  /* ── STATE B: No active project (first launch / onboarding) ── */
+  .welcome-hero { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; text-align: center; box-shadow: var(--shadow); margin-bottom: 20px; }
+  .welcome-icon { font-size: 40px; margin-bottom: 16px; }
+  .welcome-title { font-size: 22px; font-weight: 700; letter-spacing: -0.4px; color: var(--text); margin-bottom: 8px; }
+  .welcome-sub { font-size: 14px; color: var(--text-3); margin-bottom: 24px; max-width: 360px; margin-left: auto; margin-right: auto; }
+  .welcome-btns { display: flex; gap: 12px; justify-content: center; }
+  .welcome-btn { padding: 11px 20px; font-size: 13px; font-weight: 600; border-radius: var(--radius-sm); border: 1px solid transparent; cursor: pointer; font-family: inherit; }
+  .welcome-btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .welcome-btn-outline { background: var(--surface); color: var(--text-2); border-color: var(--border); }
+
+  /* ── Eliminated box ── */
+  .eliminated { border: 1.5px dashed #FECACA; background: #FEF2F2; border-radius: var(--radius); padding: 16px; margin-top: 20px; }
+  .eliminated-title { font-size: 11px; font-weight: 700; color: #B91C1C; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+  .eliminated-item { font-size: 12px; color: #7F1D1D; padding: 5px 0; border-bottom: 1px solid #FECACA; display: flex; align-items: flex-start; gap: 8px; }
+  .eliminated-item:last-child { border-bottom: none; }
+
+  /* Proposal label */
+  .proposal-label { background: #1B1814; color: #fff; padding: 12px 20px; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
+  .proposal-label span { font-weight: 400; color: #9CA3AF; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="proposal-label">
+  Option 5 — Context-Aware Home (sidebar nav + two distinct states)
+  <span>Layout is completely different depending on whether you have an active project or not; sidebar replaces duplicated tabs</span>
+</div>
+
+<div class="app-shell">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-logo">stitch.</div>
+    <div class="header-spacer"></div>
+    <button class="header-btn">Help</button>
+    <button class="header-btn">⚙ Preferences</button>
+  </div>
+
+  <!-- SIDEBAR (replaces top tab bar — navigation is never duplicated) -->
+  <nav class="sidebar">
+    <div class="sidebar-section">Workspace</div>
+    <a href="#" class="sidebar-link active">
+      <span class="sidebar-link-icon">⌂</span> Home
+    </a>
+    <a href="#" class="sidebar-link">
+      <span class="sidebar-link-icon">+</span> Create
+    </a>
+
+    <div class="sidebar-section">Projects</div>
+    <a href="#" class="sidebar-link">
+      <span class="sidebar-link-icon">●</span> Autumn Sampler
+      <span class="sidebar-proj-chip">Active</span>
+    </a>
+    <a href="#" class="sidebar-link">
+      <span class="sidebar-link-icon">○</span> Floral Crown
+    </a>
+    <a href="#" class="sidebar-link">
+      <span class="sidebar-link-icon">○</span> Winter Rose
+    </a>
+
+    <div class="sidebar-section">Tools</div>
+    <a href="#" class="sidebar-link">
+      <span class="sidebar-link-icon">✓</span> Tracker
+    </a>
+    <a href="#" class="sidebar-link">
+      <span class="sidebar-link-icon">◫</span> Stash Manager
+    </a>
+    <a href="#" class="sidebar-link">
+      <span class="sidebar-link-icon">↗</span> Stats
+    </a>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <div class="main">
+
+    <!-- ─── STATE A: User has an active project ─── -->
+    <div class="state-label state-a">State A — Active project detected</div>
+
+    <!-- Resume hero -->
+    <div class="resume-hero">
+      <div class="resume-hero-top">
+        <div class="resume-avatar">AS</div>
+        <div>
+          <div class="resume-chip">Continue stitching</div>
+          <div class="resume-name">Autumn Sampler</div>
+          <div class="resume-meta">16×16 · Updated 2 hours ago</div>
+        </div>
+      </div>
+      <div class="resume-bar-outer"><div class="resume-bar-fill"></div></div>
+      <div class="resume-pct">38% complete — 94 stitches remaining</div>
+      <div class="resume-btns">
+        <a href="#" class="btn btn-primary">Resume tracking</a>
+        <a href="#" class="btn">Edit pattern</a>
+      </div>
+    </div>
+
+    <!-- Recent compact list -->
+    <div class="recent-section-title">Switch project</div>
+    <div class="recent-list">
+      <div class="recent-row">
+        <div class="recent-av">FC</div>
+        <div class="recent-name">Floral Crown</div>
+        <div class="recent-pct">72% · 3 days ago</div>
+        <div class="recent-chevron">›</div>
+      </div>
+      <div class="recent-row">
+        <div class="recent-av">WR</div>
+        <div class="recent-name">Winter Rose</div>
+        <div class="recent-pct">15% · 1 week ago</div>
+        <div class="recent-chevron">›</div>
+      </div>
+    </div>
+
+    <!-- Compact creation shortcuts -->
+    <div class="recent-section-title">Start something new</div>
+    <div class="quick-row">
+      <a href="#" class="quick-btn">
+        <div class="quick-btn-icon">📷</div>
+        <div class="quick-btn-copy">
+          <strong>New from image</strong>
+          <span>Convert a photo</span>
+        </div>
+      </a>
+      <a href="#" class="quick-btn">
+        <div class="quick-btn-icon">+</div>
+        <div class="quick-btn-copy">
+          <strong>New from scratch</strong>
+          <span>Blank grid</span>
+        </div>
+      </a>
+    </div>
+
+    <!-- DIVIDER between states -->
+    <hr class="state-divider">
+    <p class="state-divider-label"><span class="state-divider-inner">vs.</span></p>
+
+    <!-- ─── STATE B: No active project (first launch) ─── -->
+    <div class="state-label state-b">State B — No project yet (first launch or all cleared)</div>
+
+    <div class="welcome-hero">
+      <div class="welcome-icon">🧵</div>
+      <div class="welcome-title">Welcome to stitch.</div>
+      <div class="welcome-sub">Your cross-stitch companion. Start by importing a photo or designing a pattern from scratch.</div>
+      <div class="welcome-btns">
+        <button class="welcome-btn welcome-btn-primary">New from image</button>
+        <button class="welcome-btn welcome-btn-outline">New from scratch</button>
+      </div>
+    </div>
+
+    <!-- Eliminated -->
+    <div class="eliminated">
+      <div class="eliminated-title">What this option eliminates</div>
+      <div class="eliminated-item"><span>✕</span><div><strong>Top tab bar that duplicated page navigation</strong> — the sidebar lists all tools and projects directly, with no duplication. Each destination appears exactly once.</div></div>
+      <div class="eliminated-item"><span>✕</span><div><strong>GreetingHero + ResumeCard as separate sections</strong> — State A shows a single large resume hero. The greeting is the hero's headline, not a standalone section above it.</div></div>
+      <div class="eliminated-item"><span>✕</span><div><strong>QuickTiles "Open Tracker" + "Open Stash Manager"</strong> — these are sidebar links. They no longer appear as tiles on the home page.</div></div>
+      <div class="eliminated-item"><span>✕</span><div><strong>Confusing redirect-to-home guard behaviour</strong> — the guard existed because tool pages (Tracker, Creator) were doubling as landing pages. With a context-aware home, tool pages only open with a project active — the home page IS the landing page, always.</div></div>
+      <div class="eliminated-item"><span>✕</span><div><strong>StashSummary on home page</strong> — stash stats live in the sidebar / Stash Manager page. The home page focuses on project work.</div></div>
+      <div class="eliminated-item"><span>✕</span><div><strong>home-screen.js legacy component</strong> — the new State B welcome screen replaces the old home-screen.js "empty home" without any of the duplication.</div></div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app-shell -->
+
+</body>
+</html>

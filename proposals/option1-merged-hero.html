@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Option 1 — Merged Hero</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --accent:       #B85C38;
+    --accent-hover: #9E4D2F;
+    --accent-light: #FBF0EB;
+    --bg:           #F4EEE6;
+    --surface:      #FFFFFF;
+    --surface-2:    #F9F5F0;
+    --surface-3:    #F0EAE0;
+    --border:       #E4D9CE;
+    --text:         #1B1814;
+    --text-2:       #5C5448;
+    --text-3:       #8A8270;
+    --radius:       10px;
+    --radius-sm:    6px;
+    --shadow:       0 1px 3px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+  }
+  body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
+
+  /* ── Header ── */
+  .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 20px; display: flex; align-items: center; gap: 16px; height: 44px; }
+  .header-logo { font-weight: 700; font-size: 15px; letter-spacing: -0.3px; color: var(--accent); }
+  .header-tabs { display: flex; gap: 2px; flex: 1; }
+  .tab { padding: 5px 10px; font-size: 12px; font-weight: 500; color: var(--text-3); border-radius: 6px; border: none; background: none; cursor: pointer; text-decoration: none; }
+  .tab:hover { background: var(--surface-3); color: var(--text-2); }
+  .tab.active { background: var(--surface-3); color: var(--text); font-weight: 600; }
+  .header-proj { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; background: var(--surface); }
+  .header-proj-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+
+  /* ── Page ── */
+  .page { max-width: 720px; margin: 0 auto; padding: 28px 20px 60px; display: flex; flex-direction: column; gap: 28px; }
+
+  /* ── OPTION 1 CHANGE: Smart Hero (replaces GreetingHero + ResumeCard) ── */
+  .smart-hero { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+  .smart-hero__head { padding: 20px 20px 0; }
+  .smart-hero__greeting { font-size: 13px; font-weight: 500; color: var(--text-3); margin-bottom: 4px; }
+  .smart-hero__title { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -0.4px; line-height: 1.2; }
+  .smart-hero__body { padding: 16px 20px 20px; display: flex; gap: 16px; align-items: flex-start; }
+  .smart-hero__avatar { width: 52px; height: 52px; border-radius: 10px; background: var(--accent-light); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; color: var(--accent); flex-shrink: 0; letter-spacing: -0.5px; }
+  .smart-hero__info { flex: 1; min-width: 0; }
+  .smart-hero__name { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .smart-hero__meta { font-size: 12px; color: var(--text-3); margin-bottom: 10px; }
+  .smart-hero__bar-wrap { height: 4px; background: var(--surface-3); border-radius: 2px; margin-bottom: 14px; }
+  .smart-hero__bar-fill { height: 100%; width: 38%; background: var(--accent); border-radius: 2px; }
+  .smart-hero__btns { display: flex; gap: 8px; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 12px; font-weight: 600; border-radius: var(--radius-sm); border: 1px solid var(--border); cursor: pointer; background: var(--surface); color: var(--text-2); font-family: inherit; text-decoration: none; }
+  .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn:hover { background: var(--surface-3); color: var(--text); }
+
+  /* Annotation */
+  .removed-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 3px 8px; border-radius: 20px; background: #FEF2F2; color: #B91C1C; border: 1px solid #FECACA; font-weight: 500; }
+  .added-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 3px 8px; border-radius: 20px; background: #F0FDF4; color: #15803D; border: 1px solid #BBF7D0; font-weight: 500; }
+  .annotation { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); margin-bottom: 8px; }
+
+  /* ── Section title ── */
+  .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin-bottom: 10px; }
+
+  /* ── Projects grid ── */
+  .projects-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .pj-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; cursor: pointer; display: flex; flex-direction: column; gap: 8px; box-shadow: var(--shadow); transition: border-color 0.15s; }
+  .pj-card:hover { border-color: var(--accent); }
+  .pj-avatar { width: 36px; height: 36px; border-radius: 8px; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--accent); }
+  .pj-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .pj-meta { font-size: 11px; color: var(--text-3); }
+  .pj-bar { height: 3px; background: var(--surface-3); border-radius: 2px; }
+  .pj-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; opacity: 0.6; }
+  .pj-actions { display: flex; gap: 6px; }
+  .pj-btn { flex: 1; font-size: 11px; padding: 5px 8px; border-radius: 5px; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); cursor: pointer; text-align: center; font-family: inherit; font-weight: 500; }
+  .pj-btn:hover { background: var(--surface-3); }
+  .pj-btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .pj-btn-primary:hover { background: var(--accent-hover); }
+
+  /* ── New project row (replaces QuickTiles for creation) ── */
+  .new-row { display: flex; gap: 10px; }
+  .new-tile { flex: 1; display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; cursor: pointer; text-decoration: none; box-shadow: var(--shadow); transition: border-color 0.15s; }
+  .new-tile:hover { border-color: var(--accent); }
+  .new-tile.primary { background: var(--accent); border-color: var(--accent); }
+  .new-tile-icon { width: 32px; height: 32px; border-radius: 8px; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .new-tile.primary .new-tile-icon { background: rgba(255,255,255,0.2); }
+  .new-tile-copy strong { display: block; font-size: 13px; font-weight: 600; color: var(--text); }
+  .new-tile-copy span { font-size: 11px; color: var(--text-3); }
+  .new-tile.primary .new-tile-copy strong { color: #fff; }
+  .new-tile.primary .new-tile-copy span { color: rgba(255,255,255,0.75); }
+
+  /* ── Stash ── */
+  .stash-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
+  .stash-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .stash-link { font-size: 12px; color: var(--accent); text-decoration: none; font-weight: 500; }
+  .stash-rows { display: flex; gap: 0; flex-direction: column; }
+  .stash-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .stash-row:last-child { border-bottom: none; }
+  .stash-val { font-weight: 600; color: var(--text); }
+
+  /* ── Eliminated sections box ── */
+  .eliminated { border: 1.5px dashed #FECACA; background: #FEF2F2; border-radius: var(--radius); padding: 16px; }
+  .eliminated-title { font-size: 11px; font-weight: 700; color: #B91C1C; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+  .eliminated-item { font-size: 12px; color: #7F1D1D; padding: 5px 0; border-bottom: 1px solid #FECACA; display: flex; align-items: flex-start; gap: 8px; }
+  .eliminated-item:last-child { border-bottom: none; }
+
+  /* Footer */
+  .footer { display: flex; gap: 16px; justify-content: center; }
+  .footer a { font-size: 12px; color: var(--text-3); text-decoration: none; }
+  .footer a:hover { color: var(--accent); }
+
+  /* Proposal header */
+  .proposal-label { background: #1B1814; color: #fff; padding: 12px 20px; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
+  .proposal-label span { font-weight: 400; color: #9CA3AF; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="proposal-label">
+  Option 1 — Merged Hero
+  <span>Collapse GreetingHero + ResumeCard into one smart section; strip duplicated nav tiles</span>
+</div>
+
+<!-- App chrome -->
+<div class="header">
+  <div class="header-logo">stitch.</div>
+  <div class="header-tabs">
+    <a href="#" class="tab active">Home</a>
+    <a href="#" class="tab">Create</a>
+    <a href="#" class="tab">Track</a>
+    <a href="#" class="tab">Stash</a>
+    <a href="#" class="tab">Stats</a>
+  </div>
+  <div class="header-proj"><span class="header-proj-dot"></span> Autumn Sampler</div>
+</div>
+
+<div class="page">
+
+  <!-- PROBLEM ANNOTATION -->
+  <div class="annotation">
+    <span class="removed-badge">Removed</span> Separate GreetingHero section (greeting-only, no actions)
+    &nbsp;+&nbsp;
+    <span class="removed-badge">Removed</span> Separate ResumeCard section
+    &nbsp;→&nbsp;
+    <span class="added-badge">Merged into</span> one Smart Hero
+  </div>
+
+  <!-- MERGED SMART HERO -->
+  <div class="smart-hero">
+    <div class="smart-hero__head">
+      <div class="smart-hero__greeting">Good afternoon, ready to stitch?</div>
+      <div class="smart-hero__title">Autumn Sampler</div>
+    </div>
+    <div class="smart-hero__body">
+      <div class="smart-hero__avatar">AS</div>
+      <div class="smart-hero__info">
+        <div class="smart-hero__meta">16×16 · Updated 2 hours ago · 38% complete</div>
+        <div class="smart-hero__bar-wrap"><div class="smart-hero__bar-fill"></div></div>
+        <div class="smart-hero__btns">
+          <a href="#" class="btn btn-primary">Resume tracking</a>
+          <a href="#" class="btn">Edit pattern</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- YOUR PROJECTS (unchanged) -->
+  <div>
+    <div class="section-title">Your projects</div>
+    <div class="projects-grid">
+      <div class="pj-card">
+        <div class="pj-avatar">AS</div>
+        <div class="pj-name">Autumn Sampler</div>
+        <div class="pj-meta">2 hours ago · 38%</div>
+        <div class="pj-bar"><div class="pj-bar-fill" style="width:38%"></div></div>
+        <div class="pj-actions">
+          <button class="pj-btn pj-btn-primary">Track</button>
+          <button class="pj-btn">Edit</button>
+        </div>
+      </div>
+      <div class="pj-card">
+        <div class="pj-avatar">FC</div>
+        <div class="pj-name">Floral Crown</div>
+        <div class="pj-meta">3 days ago · 72%</div>
+        <div class="pj-bar"><div class="pj-bar-fill" style="width:72%"></div></div>
+        <div class="pj-actions">
+          <button class="pj-btn pj-btn-primary">Track</button>
+          <button class="pj-btn">Edit</button>
+        </div>
+      </div>
+      <div class="pj-card">
+        <div class="pj-avatar">WR</div>
+        <div class="pj-name">Winter Rose</div>
+        <div class="pj-meta">1 week ago · 15%</div>
+        <div class="pj-bar"><div class="pj-bar-fill" style="width:15%"></div></div>
+        <div class="pj-actions">
+          <button class="pj-btn pj-btn-primary">Track</button>
+          <button class="pj-btn">Edit</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NEW PROJECT (only the 2 unique creation actions — Track/Stash/Stats are already in header tabs) -->
+  <div>
+    <div class="annotation">
+      <span class="removed-badge">Removed</span> "Open Tracker" tile (duplicate of Track tab)
+      &nbsp;&nbsp;
+      <span class="removed-badge">Removed</span> "Open Stash Manager" tile (duplicate of Stash tab)
+    </div>
+    <div class="section-title">Start something new</div>
+    <div class="new-row">
+      <a href="#" class="new-tile primary">
+        <div class="new-tile-icon">📷</div>
+        <div class="new-tile-copy">
+          <strong>New from image</strong>
+          <span>Convert a photo into stitches</span>
+        </div>
+      </a>
+      <a href="#" class="new-tile">
+        <div class="new-tile-icon">+</div>
+        <div class="new-tile-copy">
+          <strong>New from scratch</strong>
+          <span>Start with a blank grid</span>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <!-- STASH (unchanged) -->
+  <div>
+    <div class="stash-card">
+      <div class="stash-header">
+        <div class="section-title" style="margin-bottom:0">Stash at a glance</div>
+        <a href="#" class="stash-link">Manage</a>
+      </div>
+      <div class="stash-rows">
+        <div class="stash-row"><span>Owned skeins</span><span class="stash-val">47</span></div>
+        <div class="stash-row"><span>Unique threads</span><span class="stash-val">32</span></div>
+        <div class="stash-row"><span>Patterns saved</span><span class="stash-val">5</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WHAT WAS ELIMINATED -->
+  <div class="eliminated">
+    <div class="eliminated-title">What this option removes</div>
+    <div class="eliminated-item">
+      <span>✕</span>
+      <div><strong>Separate GreetingHero section</strong> — the greeting text ("Good afternoon, ready to stitch?") now lives inside the Smart Hero card. No standalone empty section.</div>
+    </div>
+    <div class="eliminated-item">
+      <span>✕</span>
+      <div><strong>Separate ResumeCard section</strong> — merged into Smart Hero above. One card, same information, fewer scroll sections.</div>
+    </div>
+    <div class="eliminated-item">
+      <span>✕</span>
+      <div><strong>"Open Tracker" quick tile</strong> — this is already "Track" in the top nav tabs. Duplicate removed.</div>
+    </div>
+    <div class="eliminated-item">
+      <span>✕</span>
+      <div><strong>"Open Stash Manager" quick tile</strong> — already "Stash" in the top nav tabs. Duplicate removed.</div>
+    </div>
+    <div class="eliminated-item">
+      <span>✕</span>
+      <div><strong>home-screen.js legacy component</strong> — scheduled for removal; same content now consolidated in home-app.js.</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <a href="#">Help</a>
+    <a href="#">Preferences</a>
+    <a href="#">About</a>
+  </div>
+</div>
+</body>
+</html>

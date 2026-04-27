@@ -340,12 +340,17 @@
 
   // ── StatsPanel ──────────────────────────────────────────────────────────
   function StatsPanel() {
+    var Icons = window.Icons || {};
     return h('section', { className: 'home-stats-panel' },
       h('p', { className: 'home-stats-panel__sub' }, 'View stitching statistics and your pattern showcase.'),
       h('a', {
         href: 'index.html?mode=stats',
         className: 'home-stats-panel__link'
-      }, 'Open Stats & Showcase →')
+      },
+        h('span', null, 'Open Stats & Showcase'),
+        h('span', { className: 'home-stats-panel__link-icon', 'aria-hidden': 'true' },
+          typeof Icons.pointing === 'function' ? Icons.pointing() : null)
+      )
     );
   }
 

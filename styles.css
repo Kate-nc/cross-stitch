@@ -4892,6 +4892,7 @@ html.pref-dark a { color: var(--accent); }
   .tb-proj-switcher__btn,
   .tb-proj-switcher__item { transition: none; }
 }
+/* === END Phase 6 (UX-12) — Header consolidation === */
 
 /* === UX-12 Phase 7 — /home landing ============================
    Workshop-styled cross-mode landing page (home.html / home-app.js).
@@ -5518,6 +5519,8 @@ html.pref-dark a { color: var(--accent); }
   text-decoration: none;
 }
 .home-stats-panel__link:hover { text-decoration: underline; }
+.home-stats-panel__link-icon { display: inline-flex; }
+.home-stats-panel__link-icon svg { width: 16px; height: 16px; }
 
 /* ── Mobile reflow for new components ── */
 @media (max-width: 599px) {

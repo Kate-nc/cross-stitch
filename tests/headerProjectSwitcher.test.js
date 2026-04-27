@@ -92,7 +92,9 @@ describe('HeaderProjectSwitcher (UX-12 Phase 6 PR #10)', () => {
   test('Phase 6 CSS uses Workshop tokens (no raw hex on switcher rules)', () => {
     const phase6Idx = STYLES_SRC.indexOf('Phase 6 (UX-12)');
     expect(phase6Idx).toBeGreaterThan(-1);
-    const phase6 = STYLES_SRC.slice(phase6Idx);
+    const endIdx = STYLES_SRC.indexOf('END Phase 6 (UX-12)', phase6Idx);
+    expect(endIdx).toBeGreaterThan(phase6Idx);
+    const phase6 = STYLES_SRC.slice(phase6Idx, endIdx);
     // Strip rgba(...) blocks (allowed inside box-shadow) and var(...)
     // fallbacks (e.g. var(--accent-soft, #F4DDCF)) before scanning.
     const stripped = phase6
