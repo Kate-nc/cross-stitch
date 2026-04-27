@@ -1531,27 +1531,10 @@ window.CreatorSidebar = function CreatorSidebar() {
           background:gen.busy?"var(--text-tertiary)":gen.hasGenerated?"var(--surface-tertiary)":"var(--accent)",
           color:gen.hasGenerated?"var(--text-primary)":"var(--surface)"}
       }, gen.busy ? "Generating\u2026" : (gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate Pattern")),
-      // Continue to Edit → (only after generation)
-      gen.hasGenerated && h("button", {
-        "aria-label":"Continue to Edit mode",
-        onClick:function(){
-          // Brief D — flush the freshly-generated pattern to IndexedDB now,
-          // so leaving Creator immediately doesn't lose the pattern and the
-          // Stash Manager pattern library + shopping list pick it up. The
-          // flush calls ProjectStorage.save() which in turn fires
-          // StashBridge.syncProjectToLibrary().
-          if (typeof window.__flushProjectToIDB === 'function') {
-            try { window.__flushProjectToIDB(); } catch (e) {}
-          }
-          app.setAppMode("edit");
-          app.setSidebarTab("palette");
-          if(window.__switchToEdit) window.__switchToEdit();
-          app.addToast("Switched to Edit mode", {type:"info", duration:2000});
-        },
-        style:{width:"100%",padding:"10px",fontSize:'var(--text-md)',fontWeight:600,cursor:"pointer",
-          border:"none",borderRadius:'var(--radius-md)',background:"var(--accent)",color:"var(--surface)",
-          display:"flex",alignItems:"center",justifyContent:"center",gap:6}
-      }, "Edit Pattern \u2192"),
+      // First-generation auto-switches to Edit mode (see useCreatorState.doGen),
+      // so no explicit "Edit Pattern →" button is needed here. After
+      // regeneration the user is already in Edit mode; the Setup tab strip
+      // takes them back to Image / Dimensions / Palette.
       // Hint text
       !gen.img && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textAlign:"center",padding:"4px 0"}},
         "Upload an image to get started")

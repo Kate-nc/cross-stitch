@@ -405,35 +405,87 @@ function ManagerApp() {
     window.addEventListener('cs:projectsChanged', handleProjectsOrPatternsChanged);
     window.addEventListener('cs:patternsChanged', handleProjectsOrPatternsChanged);
 
+    // External writers (StashBridge.setToBuyQty, markBought, etc.) mutate
+    // manager_state.threads directly and dispatch cs:stashChanged. We must
+    // re-load the threads slice from IDB so the React copy doesn't go stale —
+    // otherwise the next debounced auto-save will write the stale React state
+    // back over IDB and silently wipe the bridge's mutation.
+    const handleStashChanged = async () => {
+      try {
+        const db = await openManagerDB();
+        const fresh = await new Promise((resolve, reject) => {
+          const tx = db.transaction("manager_state", "readonly");
+          const req = tx.objectStore("manager_state").get("threads");
+          req.onsuccess = () => resolve(req.result || {});
+          req.onerror = () => reject(req.error);
+        });
+        // Suppress the auto-save that this setThreads would otherwise trigger;
+        // the IDB is already up-to-date so writing the same value back is just
+        // wasteful (and would re-fire cs:stashChanged in a loop).
+        initialLoadDoneRef.current.threads = false;
+        setThreads(fresh);
+      } catch (e) { console.warn('cs:stashChanged reload failed:', e); }
+    };
+    window.addEventListener('cs:stashChanged', handleStashChanged);
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('cs:backupRestored', handleBackupRestored);
       window.removeEventListener('cs:projectsChanged', handleProjectsOrPatternsChanged);
       window.removeEventListener('cs:patternsChanged', handleProjectsOrPatternsChanged);
+      window.removeEventListener('cs:stashChanged', handleStashChanged);
     };
   }, []);
 
   // Auto-save Manager Data
+  // Split per store so a debounced write of one slice (e.g. patterns) cannot
+  // overwrite another slice (e.g. threads) with the React copy that has gone
+  // stale because StashBridge mutated the IDB directly behind our back. The
+  // canonical bug this prevents: clicking "Add to My list" in the per-pattern
+  // ShoppingListModal calls StashBridge.setToBuyQtyMany which writes
+  // tobuy:true straight into manager_state.threads. If the React `threads`
+  // copy is then re-written wholesale by a patterns-triggered auto-save, the
+  // tobuy flag is silently wiped within ~1 s.
+  const initialLoadDoneRef = React.useRef({ threads: false, patterns: false, profile: false });
   useEffect(() => {
+    if (!initialLoadDoneRef.current.threads) { initialLoadDoneRef.current.threads = true; return; }
     const saveTimer = setTimeout(async () => {
       try {
         const db = await openManagerDB();
         const tx = db.transaction(["manager_state"], "readwrite");
-        const store = tx.objectStore("manager_state");
-        store.put(threads, "threads");
-        store.put(patterns, "patterns");
-        store.put(userProfile, "userProfile");
+        tx.objectStore("manager_state").put(threads, "threads");
         tx.oncomplete = () => {
-          // Notify other components/tabs (Home, Shopping, project library) that
-          // the patterns store changed. Dispatched once per debounced save.
-          try { window.dispatchEvent(new CustomEvent('cs:patternsChanged')); } catch (_) {}
+          try { window.dispatchEvent(new CustomEvent('cs:stashChanged')); } catch (_) {}
         };
-      } catch (err) {
-        console.error("Auto-save failed:", err);
-      }
+      } catch (err) { console.error("Threads auto-save failed:", err); }
     }, 1000);
     return () => clearTimeout(saveTimer);
-  }, [threads, patterns, userProfile]);
+  }, [threads]);
+  useEffect(() => {
+    if (!initialLoadDoneRef.current.patterns) { initialLoadDoneRef.current.patterns = true; return; }
+    const saveTimer = setTimeout(async () => {
+      try {
+        const db = await openManagerDB();
+        const tx = db.transaction(["manager_state"], "readwrite");
+        tx.objectStore("manager_state").put(patterns, "patterns");
+        tx.oncomplete = () => {
+          try { window.dispatchEvent(new CustomEvent('cs:patternsChanged')); } catch (_) {}
+        };
+      } catch (err) { console.error("Patterns auto-save failed:", err); }
+    }, 1000);
+    return () => clearTimeout(saveTimer);
+  }, [patterns]);
+  useEffect(() => {
+    if (!initialLoadDoneRef.current.profile) { initialLoadDoneRef.current.profile = true; return; }
+    const saveTimer = setTimeout(async () => {
+      try {
+        const db = await openManagerDB();
+        const tx = db.transaction(["manager_state"], "readwrite");
+        tx.objectStore("manager_state").put(userProfile, "userProfile");
+      } catch (err) { console.error("Profile auto-save failed:", err); }
+    }, 1000);
+    return () => clearTimeout(saveTimer);
+  }, [userProfile]);
 
   // Flush pending state to IDB on page unload so navigation doesn't lose recent changes
   useEffect(() => {

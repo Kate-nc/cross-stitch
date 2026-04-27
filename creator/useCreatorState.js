@@ -745,6 +745,14 @@ window.useCreatorState = function useCreatorState() {
       setDimOpen(false); setPalOpen(false); setFabOpen(false);
       setAdjOpen(false); setBgOpen(false); setCleanupOpen(false);
       setHasGenerated(true);
+      // Auto-switch to Edit mode on the *first* successful generation. Saving
+      // already happens automatically (see useProjectIO.js auto-save effect),
+      // and the previous "Edit Pattern →" button caused confusion because
+      // users assumed they had to click it before the pattern was persisted.
+      // Regenerations stay in the current mode so power users tweaking image
+      // settings aren't bounced back and forth.
+      setAppMode("edit");
+      setSidebarTab("palette");
     }
     var z = Math.min(3, Math.max(0.05, 750 / (sW * 20)));
     setTimeout(function() { setZoom(z); }, 0);
@@ -753,7 +761,7 @@ window.useCreatorState = function useCreatorState() {
     // notice the sidebar tabs and canvas tools have changed; the action
     // bar's "< Setup" button is the way back. (Polish B.)
     var colCount = result.pal ? result.pal.length : 0;
-    addToast("Pattern generated \u2014 now editing (" + sW + "\u00D7" + sH + ", " + colCount + " colours). Use the Setup button to revisit image, dimensions, or palette.", {type:"success", duration:5000});
+    addToast("Pattern generated and saved \u2014 now editing (" + sW + "\u00D7" + sH + ", " + colCount + " colours). Use the Setup button to revisit image, dimensions, or palette.", {type:"success", duration:5000});
   };
 
   // Lazily create (and reuse) the Web Worker. Falls back to 'unavailable' if
