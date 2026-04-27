@@ -229,6 +229,14 @@ function ManagerApp() {
     return reconciled;
   }
 
+  // Per-store gate so the debounced auto-save effects below skip the synthetic
+  // setState that fires once on mount with the initial empty value, AND skip
+  // re-write when an external listener (cs:stashChanged, cs:patternsChanged,
+  // visibilitychange) reloads a slice from IDB. Without these gates the
+  // listener -> setState -> auto-save -> dispatch -> listener cycle would loop
+  // and (worse) clobber concurrent writes from StashBridge by writing the
+  // stale React copy back over IDB.
+  const initialLoadDoneRef = React.useRef({ threads: false, patterns: false, profile: false });
 
   // Storage initialization
   useEffect(() => {
@@ -371,13 +379,21 @@ function ManagerApp() {
             req.onerror = () => reject(req.error);
           });
           const reconciled = await reconcileAutoSyncedPatterns(freshPatterns, meta);
+          // Suppress the auto-save that this setPatterns would otherwise trigger;
+          // IDB is already up-to-date (we just read from it). Without this, the
+          // write-back would race with concurrent Creator-side syncProjectToLibrary
+          // calls and could clobber a freshly-written entry from another tab.
+          initialLoadDoneRef.current.patterns = false;
           setPatterns(reconciled);
         } catch (e) {
           // Fallback: reconcile with current state only
           setPatterns(prev => {
             (async () => {
               const reconciled = await reconcileAutoSyncedPatterns(prev, meta);
-              if (reconciled !== prev) setPatterns(reconciled);
+              if (reconciled !== prev) {
+                initialLoadDoneRef.current.patterns = false;
+                setPatterns(reconciled);
+              }
             })();
             return prev;
           });
@@ -446,7 +462,6 @@ function ManagerApp() {
   // tobuy:true straight into manager_state.threads. If the React `threads`
   // copy is then re-written wholesale by a patterns-triggered auto-save, the
   // tobuy flag is silently wiped within ~1 s.
-  const initialLoadDoneRef = React.useRef({ threads: false, patterns: false, profile: false });
   useEffect(() => {
     if (!initialLoadDoneRef.current.threads) { initialLoadDoneRef.current.threads = true; return; }
     const saveTimer = setTimeout(async () => {
