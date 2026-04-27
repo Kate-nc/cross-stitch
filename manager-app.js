@@ -749,7 +749,9 @@ function ManagerApp() {
       {tab === "inventory" && (
         <div className="mgr-filter-bar">
           <input
-            type="text"
+            type="search"
+            aria-label="Search threads"
+            enterKeyHint="search"
             placeholder="Search thread number or name..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
@@ -1082,7 +1084,9 @@ function ManagerApp() {
         {tab === "patterns" && (
           <><div className="mgr-filter-bar">
             <input
-              type="text"
+              type="search"
+              aria-label="Search patterns"
+              enterKeyHint="search"
               placeholder="Search title, designer, or tags..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
@@ -1632,11 +1636,11 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div>
               <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 4 }}>Title</label>
-              <input type="text" value={edited.title} onChange={e => setEdited({ ...edited, title: e.target.value })} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid var(--border)", fontSize: 13 }} placeholder="Pattern Name" />
+              <input type="text" aria-label="Pattern title" value={edited.title} onChange={e => setEdited({ ...edited, title: e.target.value })} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid var(--border)", fontSize: 13 }} placeholder="Pattern Name" />
             </div>
             <div>
               <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 4 }}>Designer</label>
-              <input type="text" value={edited.designer} onChange={e => setEdited({ ...edited, designer: e.target.value })} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid var(--border)", fontSize: 13 }} placeholder="Creator/Shop" />
+              <input type="text" aria-label="Pattern designer" value={edited.designer} onChange={e => setEdited({ ...edited, designer: e.target.value })} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid var(--border)", fontSize: 13 }} placeholder="Creator/Shop" />
             </div>
             <div>
               <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 4 }}>Status</label>
@@ -1649,7 +1653,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
             </div>
             <div>
               <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 4 }}>Fabric & Dimensions</label>
-              <input type="text" value={edited.fabric} onChange={e => setEdited({ ...edited, fabric: e.target.value })} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid var(--border)", fontSize: 13 }} placeholder="e.g. 14ct Aida, 100x100" />
+              <input type="text" aria-label="Fabric and dimensions" value={edited.fabric} onChange={e => setEdited({ ...edited, fabric: e.target.value })} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid var(--border)", fontSize: 13 }} placeholder="e.g. 14ct Aida, 100x100" />
             </div>
             <div style={{ gridColumn: "1 / -1" }}>
               <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 4 }}>Tags (Press Enter to add)</label>
@@ -1660,7 +1664,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
                   </span>
                 ))}
               </div>
-              <input type="text" value={tagInput} onChange={e => setTagInput(e.target.value)} onKeyDown={handleAddTag} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid var(--border)", fontSize: 13 }} placeholder="Add tag..." />
+              <input type="text" aria-label="Add tag" value={tagInput} onChange={e => setTagInput(e.target.value)} onKeyDown={handleAddTag} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "0.5px solid var(--border)", fontSize: 13 }} placeholder="Add tag..." />
             </div>
           </div>
 

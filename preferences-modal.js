@@ -218,7 +218,7 @@
 
       h(Section, { title: "Designer details" },
         h(Row, { label: "Your name or studio name", desc: "Appears on PDF cover pages." },
-          h("input", { type: "text", style: Object.assign({}, styles.input, { width: 280 }), value: n[0],
+          h("input", { type: "text", autoComplete: "name", style: Object.assign({}, styles.input, { width: 280 }), value: n[0],
             placeholder: "e.g. Katie's Stitches", onChange: function (e) { n[1](e.target.value); } })
         ),
         h(Row, { label: "Copyright line", desc: "Shown in the PDF footer of every chart." },
@@ -226,7 +226,7 @@
             placeholder: "© 2026 Your Name", onChange: function (e) { cp[1](e.target.value); } })
         ),
         h(Row, { label: "Contact or website", desc: "Email or a link printed on PDF cover pages." },
-          h("input", { type: "text", style: Object.assign({}, styles.input, { width: 280 }), value: ct[0],
+          h("input", { type: "text", autoComplete: "email url", inputMode: "email", style: Object.assign({}, styles.input, { width: 280 }), value: ct[0],
             placeholder: "hello@example.com", onChange: function (e) { ct[1](e.target.value); } })
         ),
         h(Row, { last: true, label: "Logo", desc: "Up to 600 × 600 px. PNG or JPEG." },
@@ -286,7 +286,7 @@
       h(Section, { title: "Generation defaults" },
         h(Row, { label: "Maximum colours", desc: "How many DMC colours the Creator may use when matching an image." },
           h("input", { type: "range", min: 6, max: 60, value: pal[0], onChange: function (e) { pal[1](parseInt(e.target.value, 10)); }, style: { width: 160 } }),
-          h("input", { type: "number", min: 6, max: 60, value: pal[0], onChange: function (e) { pal[1](Math.max(6, Math.min(60, parseInt(e.target.value, 10) || 24))); }, style: Object.assign({}, styles.input, { width: 64 }) })
+          h("input", { type: "number", inputMode: "numeric", min: 6, max: 60, value: pal[0], onChange: function (e) { pal[1](Math.max(6, Math.min(60, parseInt(e.target.value, 10) || 24))); }, style: Object.assign({}, styles.input, { width: 64 }) })
         ),
         h(Row, { label: "Fabric count", desc: "How many stitches per inch (Aida count). 14 and 16 are the most common.",
           soon: false },
@@ -327,7 +327,7 @@
           h("span", { style: { fontSize: 12, color: COLOURS.slate, width: 16, textAlign: "right" } }, String(orphan[0]))
         ),
         h(Row, { label: "Minimum stitches per colour", desc: "Drops any colour used fewer times than this." },
-          h("input", { type: "number", min: 0, max: 200, value: minStit[0], onChange: function (e) { minStit[1](Math.max(0, parseInt(e.target.value, 10) || 0)); }, style: Object.assign({}, styles.input, { width: 80 }) })
+          h("input", { type: "number", inputMode: "numeric", min: 0, max: 200, value: minStit[0], onChange: function (e) { minStit[1](Math.max(0, parseInt(e.target.value, 10) || 0)); }, style: Object.assign({}, styles.input, { width: 80 }) })
         ),
         h(Row, { last: true, label: "Protect detailed areas", desc: "Skips tidying around faces, edges and other detail." },
           h(Switch, { checked: protect[0], onChange: protect[1] })
@@ -441,7 +441,7 @@
           ]})
         ),
         h(Row, { last: true, label: "Warn me when a thread runs low", desc: "Show a low‑stock badge when you have this many skeins or fewer." },
-          h("input", { type: "number", min: 0, max: 20, step: 1, value: lowStock[0],
+          h("input", { type: "number", inputMode: "numeric", min: 0, max: 20, step: 1, value: lowStock[0],
             onChange: function (e) { lowStock[1](Math.max(0, parseInt(e.target.value, 10) || 0)); },
             style: Object.assign({}, styles.input, { width: 70 }) }),
           h("span", { style: { fontSize: 12, color: COLOURS.slate2 } }, lowStock[0] === 1 ? "skein" : "skeins")
@@ -450,7 +450,7 @@
 
       h(Section, { title: "Skein calculations" },
         h(Row, { label: "Strands used per stitch", desc: "Most cross stitch uses 2 strands on 14‑ or 16‑count Aida." },
-          h("input", { type: "number", min: 1, max: 6, value: strands[0],
+          h("input", { type: "number", inputMode: "numeric", min: 1, max: 6, value: strands[0],
             onChange: function (e) { strands[1](Math.max(1, Math.min(6, parseInt(e.target.value, 10) || 2))); },
             style: Object.assign({}, styles.input, { width: 70 }) })
         ),
@@ -459,7 +459,7 @@
           h("span", { style: { fontSize: 12, color: COLOURS.slate, width: 38, textAlign: "right" } }, Math.round(waste[0] * 100) + "%")
         ),
         h(Row, { last: true, label: "Default skein price", desc: "Used to estimate thread cost. Currency follows your Regional setting." },
-          h("input", { type: "number", min: 0, max: 50, step: 0.05, value: skeinPrice[0],
+          h("input", { type: "number", inputMode: "decimal", min: 0, max: 50, step: 0.05, value: skeinPrice[0],
             onChange: function (e) { skeinPrice[1](parseFloat(e.target.value) || 0); },
             style: Object.assign({}, styles.input, { width: 90 }) })
         )
@@ -593,7 +593,7 @@
           ]})
         ),
         h(Row, { label: "Page margins", desc: "Distance between the chart and the edge of the page." },
-          h("input", { type: "number", min: 0, max: 50, value: marg[0], onChange: function (e) { marg[1](Math.max(0, parseInt(e.target.value, 10) || 0)); }, style: Object.assign({}, styles.input, { width: 70 }) }),
+          h("input", { type: "number", inputMode: "numeric", min: 0, max: 50, value: marg[0], onChange: function (e) { marg[1](Math.max(0, parseInt(e.target.value, 10) || 0)); }, style: Object.assign({}, styles.input, { width: 70 }) }),
           h("span", { style: { fontSize: 12, color: COLOURS.slate2 } }, "mm")
         ),
         h(Row, { last: true, label: "Stitches per page" },
@@ -607,7 +607,7 @@
         h(Row, { label: "Black & white chart" }, h(Switch, { checked: bw[0], onChange: bw[1] })),
         h(Row, { label: "Colour chart" }, h(Switch, { checked: col[0], onChange: col[1] })),
         h(Row, { label: "Show grid lines every…", desc: "Heavier grid lines every N stitches make counting easier." },
-          h("input", { type: "number", min: 5, max: 20, value: gridInt[0], onChange: function (e) { gridInt[1](Math.max(5, parseInt(e.target.value, 10) || 10)); }, style: Object.assign({}, styles.input, { width: 70 }) }),
+          h("input", { type: "number", inputMode: "numeric", min: 5, max: 20, value: gridInt[0], onChange: function (e) { gridInt[1](Math.max(5, parseInt(e.target.value, 10) || 10)); }, style: Object.assign({}, styles.input, { width: 70 }) }),
           h("span", { style: { fontSize: 12, color: COLOURS.slate2 } }, "stitches")
         ),
         h(Row, { label: "Centre marks", desc: "Small triangles on each axis showing the chart's centre." }, h(Switch, { checked: centreMarks[0], onChange: centreMarks[1] })),
@@ -687,7 +687,7 @@
           h(Switch, { checked: on[0], onChange: on[1] })
         ),
         h(Row, { last: true, label: "How many to show at once" },
-          h("input", { type: "number", min: 1, max: 6, value: maxToasts[0],
+          h("input", { type: "number", inputMode: "numeric", min: 1, max: 6, value: maxToasts[0],
             onChange: function (e) { maxToasts[1](Math.max(1, Math.min(6, parseInt(e.target.value, 10) || 3))); },
             style: Object.assign({}, styles.input, { width: 70 }) })
         )
@@ -727,7 +727,7 @@
           ]})
         ),
         h(Row, { last: true, label: "Default skein price", desc: "Cost of a single skein in the currency above." },
-          h("input", { type: "number", min: 0, max: 50, step: 0.05, value: skeinPrice[0],
+          h("input", { type: "number", inputMode: "decimal", min: 0, max: 50, step: 0.05, value: skeinPrice[0],
             onChange: function (e) { skeinPrice[1](parseFloat(e.target.value) || 0); },
             style: Object.assign({}, styles.input, { width: 100 }) })
         )
