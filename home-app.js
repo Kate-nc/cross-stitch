@@ -496,42 +496,101 @@
       return function () { window.removeEventListener('cs:openPreferences', open); };
     }, []);
 
+    // Load patterns directly from the manager IndexedDB. StashBridge has no
+    // public read for the pattern library, so mirror what home-screen.js does
+    // (raw IndexedDB) — keeps /home decoupled from manager-app.js state.
+    function loadManagerPatterns() {
+      return new Promise(function (resolve) {
+        try {
+          var req = indexedDB.open('stitch_manager_db', 1);
+          req.onsuccess = function (e) {
+            var db = e.target.result;
+            try {
+              if (!db.objectStoreNames.contains('manager_state')) { resolve([]); return; }
+              var tx = db.transaction('manager_state', 'readonly');
+              var store = tx.objectStore('manager_state');
+              var r = store.get('patterns');
+              r.onsuccess = function () { resolve(Array.isArray(r.result) ? r.result : []); };
+              r.onerror = function () { resolve([]); };
+            } catch (_) { resolve([]); }
+          };
+          req.onerror = function () { resolve([]); };
+        } catch (_) { resolve([]); }
+      });
+    }
+
+    var refreshAllRef = React.useRef(function () {});
     React.useEffect(function () {
       var cancelled = false;
-      if (window.ProjectStorage && window.ProjectStorage.getActiveProject) {
-        window.ProjectStorage.getActiveProject().then(function (p) {
-          if (!cancelled && p) setActive(p);
-        }).catch(function () {});
-      }
-      if (window.ProjectStorage && window.ProjectStorage.listProjects) {
-        window.ProjectStorage.listProjects().then(function (l) {
+      function refreshAll() {
+        if (window.ProjectStorage && window.ProjectStorage.getActiveProject) {
+          window.ProjectStorage.getActiveProject().then(function (p) {
+            if (!cancelled) setActive(p || null);
+          }).catch(function () {});
+        }
+        if (window.ProjectStorage && window.ProjectStorage.listProjects) {
+          window.ProjectStorage.listProjects().then(function (l) {
+            if (cancelled) return;
+            var sorted = (l || []).slice().sort(function (a, b) {
+              var at = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+              var bt = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+              return bt - at;
+            });
+            setList(sorted);
+          }).catch(function () {});
+        }
+        // Threads (StashBridge.getGlobalStash) + patterns (raw IDB read).
+        // The previous build called a non-existent StashBridge API so both
+        // numbers were always missing and the panel rendered the empty state
+        // regardless of what was actually in the manager DB.
+        var threadsPromise = (window.StashBridge && typeof window.StashBridge.getGlobalStash === 'function')
+          ? window.StashBridge.getGlobalStash().catch(function () { return {}; })
+          : Promise.resolve({});
+        Promise.all([threadsPromise, loadManagerPatterns()]).then(function (parts) {
           if (cancelled) return;
-          var sorted = (l || []).slice().sort(function (a, b) {
-            var at = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-            var bt = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-            return bt - at;
-          });
-          setList(sorted);
-        }).catch(function () {});
-      }
-      if (window.StashBridge && typeof window.StashBridge.loadStash === 'function') {
-        Promise.resolve(window.StashBridge.loadStash()).then(function (data) {
-          if (cancelled || !data) return;
-          var threads = data.threads || {};
+          var threads = parts[0] || {};
+          var patterns = parts[1] || [];
           var owned = 0, unique = 0;
           Object.keys(threads).forEach(function (k) {
             var t = threads[k];
-            var n = (t && typeof t.skeins === 'number') ? t.skeins : (t && t.owned ? 1 : 0);
+            // Stash entries use { owned: number } (see stash-bridge.js
+            // updateThreadOwned); keep the legacy { skeins } fallback for any
+            // older data still in users' IndexedDB.
+            var n = 0;
+            if (t && typeof t.owned === 'number') n = t.owned;
+            else if (t && typeof t.skeins === 'number') n = t.skeins;
+            else if (t && t.owned) n = 1;
             if (n > 0) { owned += n; unique += 1; }
           });
           setStash({
             ownedSkeins: owned,
             uniqueThreads: unique,
-            patternCount: Array.isArray(data.patterns) ? data.patterns.length : 0
+            patternCount: patterns.length
           });
         }).catch(function () {});
       }
+      refreshAllRef.current = refreshAll;
+      refreshAll();
       return function () { cancelled = true; };
+    }, []);
+
+    // Live refresh: keep /home in sync with changes made elsewhere in the app
+    // (Tracker saves, backup restore, manager edits in another tab, etc.).
+    React.useEffect(function () {
+      function reload() { try { refreshAllRef.current(); } catch (_) {} }
+      function onVisibility() { if (document.visibilityState === 'visible') reload(); }
+      window.addEventListener('cs:projectsChanged', reload);
+      window.addEventListener('cs:backupRestored', reload);
+      window.addEventListener('cs:patternsChanged', reload);
+      window.addEventListener('cs:stashChanged', reload);
+      document.addEventListener('visibilitychange', onVisibility);
+      return function () {
+        window.removeEventListener('cs:projectsChanged', reload);
+        window.removeEventListener('cs:backupRestored', reload);
+        window.removeEventListener('cs:patternsChanged', reload);
+        window.removeEventListener('cs:stashChanged', reload);
+        document.removeEventListener('visibilitychange', onVisibility);
+      };
     }, []);
 
     function onOpenProject() {

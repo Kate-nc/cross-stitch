@@ -103,4 +103,32 @@ describe('home-app.js source contract', () => {
     expect(SRC).toMatch(/window\.timeAgo/);
     expect(SRC).toMatch(/window\.getGreeting/);
   });
+
+  test('reads stash threads via StashBridge.getGlobalStash (not the legacy loadStash)', () => {
+    // Regression: the previous implementation called a non-existent
+    // StashBridge.loadStash() so the Stash panel always rendered the
+    // empty state even when threads + patterns were present.
+    expect(SRC).toMatch(/StashBridge\.getGlobalStash/);
+    expect(SRC).not.toMatch(/StashBridge\.loadStash/);
+  });
+
+  test('loads pattern library directly from stitch_manager_db', () => {
+    // Patterns are stored under the "patterns" key in the manager_state
+    // store; StashBridge has no public read for them so /home reads the
+    // raw IDB row, mirroring home-screen.js.
+    expect(SRC).toMatch(/stitch_manager_db/);
+    expect(SRC).toMatch(/manager_state/);
+    expect(SRC).toMatch(/store\.get\(['"]patterns['"]\)/);
+  });
+
+  test('live-refreshes on cross-app data events', () => {
+    // Without these listeners /home shows stale numbers after a backup
+    // restore, after a tracker save, or when the user comes back from
+    // another tab where they edited the manager.
+    expect(SRC).toMatch(/cs:projectsChanged/);
+    expect(SRC).toMatch(/cs:backupRestored/);
+    expect(SRC).toMatch(/cs:patternsChanged/);
+    expect(SRC).toMatch(/cs:stashChanged/);
+    expect(SRC).toMatch(/visibilitychange/);
+  });
 });
