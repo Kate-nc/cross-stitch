@@ -731,9 +731,11 @@ window.useCreatorState = function useCreatorState() {
     var z = Math.min(3, Math.max(0.05, 750 / (sW * 20)));
     setTimeout(function() { setZoom(z); }, 0);
     setBusy(false);
-    // Toast on successful generation
+    // Toast on successful generation. Mentions the phase flip so users
+    // notice the sidebar tabs and canvas tools have changed; the action
+    // bar's "< Setup" button is the way back. (Polish B.)
     var colCount = result.pal ? result.pal.length : 0;
-    addToast("Pattern generated \u2014 " + sW + "\u00D7" + sH + ", " + colCount + " colours", {type:"success", duration:3000});
+    addToast("Pattern generated \u2014 now editing (" + sW + "\u00D7" + sH + ", " + colCount + " colours). Use the Setup button to revisit image, dimensions, or palette.", {type:"success", duration:5000});
   };
 
   // Lazily create (and reuse) the Web Worker. Falls back to 'unavailable' if
