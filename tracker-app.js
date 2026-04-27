@@ -1612,7 +1612,9 @@ useEffect(()=>{
       const stitches=_getBlockStitchCount(focusBlock.bx,focusBlock.by);
       const curSessIdx=statsSessions?statsSessions.length:0;
       const seqN=breadcrumbs.filter(b=>b.sessionIdx===curSessIdx).length+1;
-      setBreadcrumbs(prev=>[...prev,{sessionIdx:curSessIdx,bx:focusBlock.bx,by:focusBlock.by,seqN,completedAt:Date.now()}]);
+      // PERF (perf-8 #9): cap breadcrumb history to last 500 entries to prevent unbounded growth
+      // over long projects with many focus blocks.
+      setBreadcrumbs(prev=>{const next=[...prev,{sessionIdx:curSessIdx,bx:focusBlock.bx,by:focusBlock.by,seqN,completedAt:Date.now()}];return next.length>500?next.slice(-500):next;});
       let next=null;
       if(stitchingStyle==="royal"){
         next=_getRoyalRowsNext(focusBlock.bx,focusBlock.by);
