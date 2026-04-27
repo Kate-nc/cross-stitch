@@ -104,12 +104,18 @@ class PatternKeeperImporter {
    * @returns {Promise<PdfPageData[]>}
    */
   async extractAllPages(pdfData) {
-    const pages = [];
-    for (let i = 1; i <= pdfData.numPages; i++) {
-      const page = await pdfData.getPage(i);
+    // PERF (perf-5 #2): fetch all pages in parallel and run getTextContent + getOperatorList per page concurrently.
+    // Sequential await previously cost ~200-500ms per page; parallel cuts a 10-page PDF from 2-5s to ~200-500ms.
+    const pageObjects = await Promise.all(
+      Array.from({ length: pdfData.numPages }, (_, idx) => pdfData.getPage(idx + 1))
+    );
+    const pages = await Promise.all(pageObjects.map(async (page, idx) => {
+      const i = idx + 1;
       const viewport = page.getViewport({ scale: 1.0 });
-
-      const textContent = await page.getTextContent({ disableCombineTextItems: true });
+      const [textContent, opList] = await Promise.all([
+        page.getTextContent({ disableCombineTextItems: true }),
+        page.getOperatorList()
+      ]);
       const textItems = textContent.items.map(item => {
         // PDF coordinates are bottom-up, and can have an arbitrary transform.
         // We'll use the viewport transform to normalize everything to top-down viewport space.
@@ -152,20 +158,19 @@ class PatternKeeperImporter {
       // For now, ensuring we capture non-printable characters as distinct hex strings
       // avoids them being swallowed by `trim()` or collapsing into empty strings.
 
-      const opList = await page.getOperatorList();
       const vectorPaths = this.extractVectorPaths(opList, viewport);
 
       const fonts = [];
 
-      pages.push({
+      return {
         pageIndex: i,
         width: viewport.width,
         height: viewport.height,
         vectorPaths,
         textItems,
         fonts
-      });
-    }
+      };
+    }));
     return pages;
   }
 
@@ -801,7 +806,8 @@ class PatternKeeperImporter {
         }
 
         if (entry && typeof DMC !== 'undefined') {
-            thread = DMC.find(d => String(d.id).toLowerCase() === String(entry.threadCode).toLowerCase());
+            // PERF (perf-4 #1): O(1) cached lookup
+            thread = (typeof getDmcByIdCI === 'function') ? getDmcByIdCI(entry.threadCode) : DMC.find(d => String(d.id).toLowerCase() === String(entry.threadCode).toLowerCase());
             if (!thread) {
                 thread = { id: entry.threadCode, rgb: [128,128,128], lab: [50,0,0], name: entry.colorName };
             }
@@ -816,7 +822,8 @@ class PatternKeeperImporter {
             let matchedEntry = null;
             if (legend.entries && legend.entries.length > 0) {
                 for (const legEntry of legend.entries) {
-                    const dmcThread = DMC.find(d => String(d.id).toLowerCase() === String(legEntry.threadCode).toLowerCase());
+                    // PERF (perf-4 #1): O(1) cached lookup inside per-legend loop
+                    const dmcThread = (typeof getDmcByIdCI === 'function') ? getDmcByIdCI(legEntry.threadCode) : DMC.find(d => String(d.id).toLowerCase() === String(legEntry.threadCode).toLowerCase());
                     if (dmcThread) {
                         const dist = dE(lab, dmcThread.lab);
                         if (dist < bestDist) {

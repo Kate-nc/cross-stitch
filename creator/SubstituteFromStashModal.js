@@ -513,7 +513,8 @@ function SubstituteFromStashModalInner(props) {
     var remap = {};
     enabledSubs.forEach(function(sub) {
       var target = getEffectiveTarget(sub);
-      var dmcEntry = DMC.find(function(d) { return d.id === target.id; });
+      // PERF (perf-4 #1): O(1) cached lookup
+      var dmcEntry = (typeof getDmcById === 'function') ? getDmcById(target.id) : DMC.find(function(d) { return d.id === target.id; });
       if (dmcEntry) {
         remap[sub.sourceId] = {
           id: dmcEntry.id,

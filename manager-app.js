@@ -1450,7 +1450,8 @@ function ManagerApp() {
                     <div className="rp-h">Missing Threads</div>
                     <div className="used-in">
                       {missingThreads.map(t => {
-                        const dmc = DMC.find(x => x.id === t.id);
+                        // PERF (perf-4 #1): O(1) map lookup vs O(n) DMC.find
+                        const dmc = (typeof getDmcById === 'function') ? getDmcById(t.id) : DMC.find(x => x.id === t.id);
                         const compositeKey = normaliseStashKey(t.id);
                         return (
                           <div key={t.id} className="ui-row" style={{ cursor: "pointer" }} title={"Open thread card for DMC " + t.id}
@@ -1546,7 +1547,8 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
 
   const handleAddThread = (e) => {
     e.preventDefault();
-    let match = DMC.find(d => d.id.toLowerCase() === threadInput.toLowerCase());
+    // PERF (perf-4 #1): cached case-insensitive map lookup
+    let match = (typeof getDmcByIdCI === 'function') ? getDmcByIdCI(threadInput) : DMC.find(d => d.id.toLowerCase() === threadInput.toLowerCase());
 
     if (!match && autocompleteResults.length > 0) {
       match = autocompleteResults[0];
@@ -1555,7 +1557,8 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
     if (match) {
       let blendMatch = null;
       if (isBlended) {
-        blendMatch = DMC.find(d => d.id.toLowerCase() === blendColorInput.toLowerCase());
+        // PERF (perf-4 #1): cached case-insensitive map lookup
+        blendMatch = (typeof getDmcByIdCI === 'function') ? getDmcByIdCI(blendColorInput) : DMC.find(d => d.id.toLowerCase() === blendColorInput.toLowerCase());
         if (!blendMatch && blendAutocompleteResults.length > 0) {
            blendMatch = blendAutocompleteResults[0];
         }

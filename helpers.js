@@ -82,7 +82,8 @@ var CSV_QUOTE_RE=/"/g;
 var FILENAME_SAFE_RE=/[^a-zA-Z0-9]/g;
 
 // Lazily-built lookup maps for thread palettes; avoids O(n) Array.find per call.
-var _DMC_BY_ID=null,_ANCHOR_BY_ID=null;
+// PERF (perf-4 #1): public getDmcById() and getDmcByIdCI() replace DMC.find() across manager-app, pdf-importer, SubstituteFromStashModal.
+var _DMC_BY_ID=null,_DMC_BY_ID_CI=null,_ANCHOR_BY_ID=null;
 function _getDmcById(){
   if(_DMC_BY_ID)return _DMC_BY_ID;
   if(typeof DMC==='undefined')return null;
@@ -90,6 +91,17 @@ function _getDmcById(){
   for(var i=0;i<DMC.length;i++)_DMC_BY_ID[DMC[i].id]=DMC[i];
   return _DMC_BY_ID;
 }
+function getDmcById(id){var m=_getDmcById();return (m&&id!=null)?(m[id]||null):null;}
+function getDmcByIdCI(id){
+  if(id==null)return null;
+  if(!_DMC_BY_ID_CI){
+    if(typeof DMC==='undefined')return null;
+    _DMC_BY_ID_CI=Object.create(null);
+    for(var k=0;k<DMC.length;k++)_DMC_BY_ID_CI[String(DMC[k].id).toLowerCase()]=DMC[k];
+  }
+  return _DMC_BY_ID_CI[String(id).toLowerCase()]||null;
+}
+if(typeof window!=='undefined'){window.getDmcById=getDmcById;window.getDmcByIdCI=getDmcByIdCI;}
 function _getAnchorById(){
   if(_ANCHOR_BY_ID)return _ANCHOR_BY_ID;
   if(typeof ANCHOR==='undefined')return null;
