@@ -76,6 +76,13 @@ const SharedModals = {
     const [search, setSearch] = React.useState("");
     const [swapCandidate, setSwapCandidate] = React.useState(null); // thread entry that was "In Use" and clicked
 
+    // PERF (perf-4 #3): wrap usedThreads in a Set so .has() is O(1) instead of
+    // .includes() being O(n) on each render of every list row.
+    const usedThreadSet = React.useMemo(
+      () => new Set(Array.isArray(usedThreads) ? usedThreads : []),
+      [usedThreads]
+    );
+
     // We expect DMC to be available globally
     const filteredThreads = React.useMemo(() => {
       if (!DMC) return [];
@@ -118,7 +125,7 @@ const SharedModals = {
         React.createElement("div", { style: { color: "var(--text-secondary)", fontSize: 14, marginBottom: 12 } }, "No threads found."),
         search.trim() !== "" ? React.createElement("button", {
           onClick: () => {
-            if (usedThreads.includes(search.trim())) {
+            if (usedThreadSet.has(search.trim())) {
               alert(`Thread ${search.trim()} is already assigned to another symbol.`);
               return;
             }
@@ -136,7 +143,7 @@ const SharedModals = {
 
     function renderThreadListItem(t) {
       const isCurrent = t.id === currentThreadId;
-      const isUsed = usedThreads.includes(t.id) && !isCurrent;
+      const isUsed = usedThreadSet.has(t.id) && !isCurrent;
       const isSwapCandidate = swapCandidate && swapCandidate.id === t.id;
       return React.createElement("div", {
         key: t.id,

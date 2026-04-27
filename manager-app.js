@@ -811,7 +811,12 @@ function ManagerApp() {
               <span className="app-info-chip__chevron" aria-hidden="true">{Icons.chevronDown ? Icons.chevronDown() : null}</span>
             </button>
             {stashChipOpen && window.AppInfoPopover && (() => {
-              const distinctOwned = Object.values(threads).filter(t => (t.owned || 0) > 0).length;
+              // PERF (perf-4 #10): single-pass count avoids Object.values() + .filter()
+              // intermediate arrays on every popover open.
+              let distinctOwned = 0;
+              for (const k in threads) {
+                if (Object.prototype.hasOwnProperty.call(threads, k) && (threads[k].owned || 0) > 0) distinctOwned++;
+              }
               const conflictCount = (conflicts && conflicts.length) || 0;
               const readyCount = (readyToStart && readyToStart.length) || 0;
               const lowNeeded = (lowStockNeeded && lowStockNeeded.length) || 0;

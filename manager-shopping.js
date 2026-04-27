@@ -76,10 +76,15 @@
               name: (t.threads && t.threads[k] && t.threads[k].name) || t.name || String(id),
               rgb: (t.threads && t.threads[k] && t.threads[k].rgb) || t.rgb || [200,200,200],
               totalNeeded: 0, owned: 0, deficit: 0, projectIds: [],
+              // PERF (perf-4 #7): O(1) project-id dedupe via Set; emit array only at the end.
+              _projectIdSet: new Set(),
             };
           }
           byKey[key].totalNeeded += needed;
-          if (byKey[key].projectIds.indexOf(pid) === -1) byKey[key].projectIds.push(pid);
+          if (!byKey[key]._projectIdSet.has(pid)) {
+            byKey[key]._projectIdSet.add(pid);
+            byKey[key].projectIds.push(pid);
+          }
         }
       }
     }
@@ -89,6 +94,7 @@
       var entry = s[key2] || s[key2.replace(/^[^:]+:/, '')] || {};
       byKey[key2].owned = entry.owned || 0;
       byKey[key2].deficit = Math.max(0, byKey[key2].totalNeeded - byKey[key2].owned);
+      delete byKey[key2]._projectIdSet;
       if (byKey[key2].deficit > 0) rows.push(byKey[key2]);
     }
     rows.sort(function (a, b) { return b.deficit - a.deficit; });
