@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Edit Mode — Option 1b: Materials / Output sub-tab</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --accent:#B85C38; --accent-hover:#9E4D2F; --accent-light:#FBF0EB;
+    --bg:#F4EEE6; --surface:#FFFFFF; --surface-2:#F9F5F0; --surface-3:#F0EAE0;
+    --border:#E4D9CE; --border-strong:#D0C4B4;
+    --text:#1B1814; --text-2:#5C5448; --text-3:#8A8270;
+    --success:#3F8A3A; --warn:#C97524;
+  }
+  body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--text); font-size:13px; min-height:100vh; }
+
+  .hdr { background:var(--surface); border-bottom:1px solid var(--border); padding:0 20px; height:48px; display:flex; align-items:center; gap:14px; }
+  .brand { font-weight:700; color:var(--accent); font-size:14px; }
+  .name { font-weight:600; font-size:14px; padding:4px 8px; border-radius:6px; }
+  .meta { color:var(--text-3); font-size:12px; }
+  .progress { flex:1; max-width:240px; height:6px; background:var(--surface-3); border-radius:3px; overflow:hidden; margin-left:auto; }
+  .progress-fill { height:100%; width:38%; background:var(--accent); }
+  .pct { color:var(--text-2); font-size:12px; font-weight:600; min-width:36px; text-align:right; }
+  .save { color:var(--success); font-size:11px; }
+
+  .ab { background:var(--surface); border-bottom:1px solid var(--border); padding:8px 20px; display:flex; align-items:center; gap:10px; }
+  .seg { display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:var(--surface-2); }
+  .seg button { border:none; background:transparent; padding:7px 14px; font:600 12px/1 inherit; color:var(--text-2); cursor:pointer; }
+  .seg button.active { background:var(--accent); color:#fff; }
+  .btn { display:inline-flex; align-items:center; gap:6px; padding:7px 12px; font:600 12px/1 inherit; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--text-2); cursor:pointer; }
+  .btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .btn-ghost { border-color:transparent; background:transparent; }
+  .pill { display:inline-block; background:var(--accent); color:#fff; font:700 9px/1 inherit; padding:2px 6px; border-radius:99px; margin-left:4px; vertical-align:middle; }
+
+  /* Materials hub sub-tabs */
+  .hub-tabs { background:var(--surface); border-bottom:1px solid var(--border); padding:0 20px; display:flex; gap:0; }
+  .hub-tab { padding:10px 16px; font:600 12px/1 inherit; color:var(--text-3); border:none; background:none; cursor:pointer; border-bottom:2px solid transparent; }
+  .hub-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+  .hub-tab .count { color:var(--text-3); font-weight:500; margin-left:4px; }
+
+  /* Output sub-tab content */
+  .hub { padding:20px; max-width:920px; margin:0 auto; display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px; }
+  .card h3 { font:700 12px/1 inherit; text-transform:uppercase; letter-spacing:.06em; color:var(--text-3); margin-bottom:10px; }
+
+  .preset { border:1.5px solid var(--border); border-radius:8px; padding:14px; cursor:pointer; transition:border-color .15s; }
+  .preset:hover { border-color:var(--accent); }
+  .preset.recommended { border-color:var(--accent); background:var(--accent-light); }
+  .preset-title { font-weight:700; font-size:14px; margin-bottom:4px; display:flex; align-items:center; gap:6px; }
+  .preset-desc { color:var(--text-2); font-size:12px; line-height:1.4; margin-bottom:10px; }
+  .preset-meta { color:var(--text-3); font-size:11px; display:flex; gap:8px; flex-wrap:wrap; }
+  .preset-tag { background:var(--surface-3); padding:2px 6px; border-radius:99px; }
+  .badge-rec { background:var(--accent); color:#fff; font-size:9px; font-weight:700; padding:2px 6px; border-radius:99px; }
+
+  .row { display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border); font-size:12px; }
+  .row:last-child { border-bottom:none; }
+  .row .k { color:var(--text-2); }
+  .row .v { font-weight:600; font-variant-numeric:tabular-nums; }
+
+  .actions { display:flex; gap:8px; padding:14px 0 0; border-top:1px solid var(--border); margin-top:8px; }
+
+  .menu-wrap { position:relative; }
+  .menu { position:absolute; top:calc(100% + 4px); right:0; background:var(--surface); border:1px solid var(--border); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.12); min-width:220px; padding:6px; z-index:1000; }
+  .menu button { display:block; width:100%; padding:8px 10px; border:none; background:none; color:var(--text); font:500 12px/1 inherit; cursor:pointer; border-radius:4px; text-align:left; }
+  .menu button:hover { background:var(--surface-3); }
+
+  .notes { position:fixed; right:14px; bottom:14px; max-width:300px; background:var(--text); color:#fff; padding:12px 14px; border-radius:8px; font-size:11px; line-height:1.45; opacity:.92; z-index:9999; }
+  .notes b { color:var(--accent-light); }
+</style>
+</head>
+<body>
+
+<!-- Same header + action bar as Option 1 main mockup -->
+<div class="hdr">
+  <div class="brand">CROSS STITCH</div>
+  <div class="name">Mountain Sunrise</div>
+  <div class="meta">80 × 80 stitches · 24 colours</div>
+  <div class="save" style="margin-left:0;">● Saved</div>
+  <div class="progress"><div class="progress-fill"></div></div>
+  <div class="pct">38%</div>
+</div>
+
+<div class="ab">
+  <div class="seg">
+    <button>Create</button>
+    <button class="active">Edit</button>
+    <button>Track</button>
+  </div>
+  <span style="color:var(--border-strong);">|</span>
+  <button class="btn btn-primary">Print PDF</button>
+  <div class="menu-wrap">
+    <button class="btn">Export… ▾</button>
+  </div>
+  <div style="flex:1;"></div>
+  <button class="btn btn-ghost">Materials <span class="pill">~9 sk</span></button>
+</div>
+
+<!-- Materials Hub sub-tabs -->
+<div class="hub-tabs" role="tablist">
+  <button class="hub-tab">Threads <span class="count">24</span></button>
+  <button class="hub-tab">Stash <span class="count">3 to buy</span></button>
+  <button class="hub-tab">Shopping <span class="count">£4.75</span></button>
+  <button class="hub-tab active">Output</button>
+</div>
+
+<main class="hub">
+
+  <!-- Quick presets -->
+  <section class="card" style="grid-column: 1 / -1;">
+    <h3>Quick presets</h3>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+      <div class="preset recommended">
+        <div class="preset-title">For Pattern Keeper <span class="badge-rec">Recommended</span></div>
+        <div class="preset-desc">Symbols + colour chart, page-numbered, optimised for the mobile tracker app.</div>
+        <div class="preset-meta">
+          <span class="preset-tag">PDF · A4</span>
+          <span class="preset-tag">Symbols + colour</span>
+          <span class="preset-tag">9 pages</span>
+        </div>
+      </div>
+      <div class="preset">
+        <div class="preset-title">For printing at home</div>
+        <div class="preset-desc">Black-and-white symbols + colour overview, larger cells for paper stitching.</div>
+        <div class="preset-meta">
+          <span class="preset-tag">PDF · A4</span>
+          <span class="preset-tag">B&amp;W + colour</span>
+          <span class="preset-tag">12 pages</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Settings -->
+  <section class="card">
+    <h3>Format &amp; settings</h3>
+    <div class="row"><div class="k">Format</div><div class="v">PDF</div></div>
+    <div class="row"><div class="k">Page size</div><div class="v">A4</div></div>
+    <div class="row"><div class="k">Stitches per page</div><div class="v">40 × 50</div></div>
+    <div class="row"><div class="k">Workshop theme</div><div class="v">Off</div></div>
+    <div class="row"><div class="k">Page count</div><div class="v">9</div></div>
+    <div class="actions">
+      <button class="btn btn-primary" style="flex:1;">Export PDF</button>
+      <button class="btn">Customise…</button>
+    </div>
+  </section>
+
+  <!-- Bundle -->
+  <section class="card">
+    <h3>Bundle &amp; alternatives</h3>
+    <p style="color:var(--text-2); font-size:12px; line-height:1.5; margin-bottom:12px;">
+      One zip with everything: PDF chart, OXS for KG-Chart, PNG preview, and the editable <code>.json</code>.
+    </p>
+    <div class="row"><div class="k">Includes</div><div class="v">PDF · OXS · PNG · JSON</div></div>
+    <div class="row"><div class="k">Estimated size</div><div class="v">~1.4 MB</div></div>
+    <div class="actions">
+      <button class="btn" style="flex:1;">Download bundle (.zip)</button>
+      <button class="btn">Open in Tracker →</button>
+    </div>
+  </section>
+
+</main>
+
+<div class="notes">
+  <b>Option 1b · Materials → Output</b><br>
+  • Same tightened header + action bar as Option 1 — segmented mode switch, no stats block.<br>
+  • Materials hub sub-tabs gain a count chip per tab so you can see at-a-glance: <i>Threads 24, Stash 3 to buy, Shopping £4.75</i>.<br>
+  • Output sub-tab keeps presets but reorganises into three clear cards: presets, settings, bundle.<br>
+  • Action bar's <i>Export… ▾</i> stays available for power users who already know what they want.
+</div>
+
+</body>
+</html>

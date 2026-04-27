@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Edit Mode — Option 1c: Mobile / narrow viewport</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --accent:#B85C38; --accent-hover:#9E4D2F; --accent-light:#FBF0EB;
+    --bg:#F4EEE6; --surface:#FFFFFF; --surface-2:#F9F5F0; --surface-3:#F0EAE0;
+    --border:#E4D9CE; --border-strong:#D0C4B4;
+    --text:#1B1814; --text-2:#5C5448; --text-3:#8A8270;
+  }
+  body { font-family:'Inter',system-ui,sans-serif; background:#1f1b16; color:var(--text); font-size:13px; min-height:100vh; padding:32px; display:flex; gap:32px; align-items:flex-start; flex-wrap:wrap; justify-content:center; }
+
+  /* Phone frame */
+  .phone { width:380px; background:var(--bg); border-radius:32px; padding:8px; box-shadow:0 12px 40px rgba(0,0,0,.4); position:relative; }
+  .phone::before { content:''; position:absolute; top:14px; left:50%; transform:translateX(-50%); width:80px; height:6px; background:#000; border-radius:99px; z-index:10; }
+  .phone-screen { background:var(--bg); border-radius:24px; overflow:hidden; height:760px; display:flex; flex-direction:column; padding-top:24px; }
+
+  .hdr { background:var(--surface); border-bottom:1px solid var(--border); padding:8px 14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .hdr-row1 { display:flex; align-items:center; gap:8px; width:100%; }
+  .hdr-row2 { display:flex; align-items:center; gap:8px; width:100%; }
+  .hamburger { width:32px; height:32px; border:none; background:transparent; font-size:18px; cursor:pointer; color:var(--text-2); }
+  .name { font-weight:700; font-size:14px; flex:1; }
+  .save-dot { width:8px; height:8px; border-radius:50%; background:#3F8A3A; }
+  .progress { flex:1; height:5px; background:var(--surface-3); border-radius:3px; overflow:hidden; }
+  .progress-fill { height:100%; width:38%; background:var(--accent); }
+  .pct { font-size:11px; font-weight:600; color:var(--text-2); }
+  .meta-line { width:100%; font-size:11px; color:var(--text-3); }
+
+  /* Action bar — collapses to two rows on mobile */
+  .ab { background:var(--surface); border-bottom:1px solid var(--border); padding:8px 12px; display:flex; flex-direction:column; gap:8px; }
+  .seg { display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:var(--surface-2); width:100%; }
+  .seg button { flex:1; border:none; background:transparent; padding:8px 0; font:600 12px/1 inherit; color:var(--text-2); cursor:pointer; }
+  .seg button.active { background:var(--accent); color:#fff; }
+  .ab-actions { display:flex; gap:6px; }
+  .btn { flex:1; padding:8px 10px; font:600 12px/1 inherit; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--text-2); cursor:pointer; display:flex; align-items:center; justify-content:center; gap:4px; }
+  .btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .pill { background:var(--accent-light); color:var(--accent); font:700 9px/1 inherit; padding:2px 5px; border-radius:99px; }
+
+  /* Tool strip — horizontal scroll on mobile */
+  .ts { background:var(--surface-2); border-bottom:1px solid var(--border); padding:6px 8px; display:flex; gap:4px; overflow-x:auto; scrollbar-width:none; }
+  .ts::-webkit-scrollbar { display:none; }
+  .ts-btn { width:32px; height:32px; flex-shrink:0; border:1px solid transparent; border-radius:5px; background:transparent; color:var(--text-2); font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .ts-btn.active { background:var(--accent-light); color:var(--accent); }
+
+  /* Canvas takes the remaining space */
+  .canvas { flex:1; background:repeating-conic-gradient(var(--surface-3) 0% 25%, var(--surface) 0% 50%) 50%/16px 16px; display:flex; align-items:center; justify-content:center; padding:14px; }
+  .canvas-inner { width:100%; aspect-ratio:1; background:var(--surface); border:1px solid var(--border-strong); border-radius:6px; }
+
+  /* Bottom palette sheet (closed state — peek) */
+  .sheet { background:var(--surface); border-top:1px solid var(--border); padding:10px 14px; display:flex; align-items:center; gap:10px; }
+  .sheet-handle { width:32px; height:4px; background:var(--border-strong); border-radius:2px; margin:0 auto; position:absolute; top:6px; left:50%; transform:translateX(-50%); }
+  .sheet-wrap { position:relative; }
+  .sw { width:24px; height:24px; border-radius:4px; border:1px solid var(--border-strong); flex-shrink:0; }
+  .sheet-label { font:600 11px/1 inherit; color:var(--text-2); }
+  .sheet-name { font-size:12px; flex:1; }
+
+  .caption { color:#fff; font-size:13px; max-width:300px; line-height:1.6; }
+  .caption b { color:var(--accent-light); }
+
+  /* Open menu state */
+  .menu { background:var(--surface); border:1px solid var(--border); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.12); padding:6px; position:absolute; top:100%; right:0; min-width:200px; z-index:1000; margin-top:4px; }
+  .menu button { display:block; width:100%; padding:8px 10px; border:none; background:none; text-align:left; font:500 12px/1 inherit; cursor:pointer; border-radius:4px; color:var(--text); }
+  .menu button:hover { background:var(--surface-3); }
+  .menu-wrap { position:relative; flex:1; }
+</style>
+</head>
+<body>
+
+<!-- Phone 1: edit mode default -->
+<div>
+  <div class="phone">
+    <div class="phone-screen">
+
+      <div class="hdr">
+        <div class="hdr-row1">
+          <button class="hamburger" aria-label="Menu">☰</button>
+          <div class="name">Mountain Sunrise</div>
+          <div class="save-dot" title="Saved"></div>
+        </div>
+        <div class="hdr-row2">
+          <div class="meta-line">80×80 · 24 colours</div>
+          <div class="progress"><div class="progress-fill"></div></div>
+          <div class="pct">38%</div>
+        </div>
+      </div>
+
+      <div class="ab">
+        <div class="seg" role="tablist">
+          <button>Create</button>
+          <button class="active">Edit</button>
+          <button>Track</button>
+        </div>
+        <div class="ab-actions">
+          <button class="btn btn-primary">Print</button>
+          <div class="menu-wrap">
+            <button class="btn">Export ▾</button>
+          </div>
+          <button class="btn">Materials <span class="pill">~9</span></button>
+        </div>
+      </div>
+
+      <div class="ts">
+        <button class="ts-btn active">✎</button>
+        <button class="ts-btn">▣</button>
+        <button class="ts-btn">⌫</button>
+        <button class="ts-btn">◉</button>
+        <button class="ts-btn">╲</button>
+        <button class="ts-btn">●</button>
+        <button class="ts-btn">−</button>
+        <button class="ts-btn">+</button>
+        <button class="ts-btn">⤢</button>
+        <button class="ts-btn">◇</button>
+      </div>
+
+      <div class="canvas">
+        <div class="canvas-inner"></div>
+      </div>
+
+      <div class="sheet sheet-wrap">
+        <div class="sheet-handle"></div>
+        <div class="sw" style="background:#bd3039;"></div>
+        <div class="sheet-name"><b>666</b> Bright Red</div>
+        <div class="sheet-label">↑ Palette</div>
+      </div>
+
+    </div>
+  </div>
+  <div class="caption" style="margin-top:14px;">
+    <b>Default state.</b> Header collapses to two rows so the project name + save dot stay first-class. Action bar splits: mode switch on row 1, primary actions on row 2. Palette is a peek-sheet at the bottom — tap to expand.
+  </div>
+</div>
+
+<!-- Phone 2: with export menu open -->
+<div>
+  <div class="phone">
+    <div class="phone-screen">
+
+      <div class="hdr">
+        <div class="hdr-row1">
+          <button class="hamburger">☰</button>
+          <div class="name">Mountain Sunrise</div>
+          <div class="save-dot"></div>
+        </div>
+        <div class="hdr-row2">
+          <div class="meta-line">80×80 · 24 colours</div>
+          <div class="progress"><div class="progress-fill"></div></div>
+          <div class="pct">38%</div>
+        </div>
+      </div>
+
+      <div class="ab">
+        <div class="seg">
+          <button>Create</button>
+          <button class="active">Edit</button>
+          <button>Track</button>
+        </div>
+        <div class="ab-actions">
+          <button class="btn btn-primary">Print</button>
+          <div class="menu-wrap">
+            <button class="btn">Export ▾</button>
+            <div class="menu">
+              <button>💾 Save .json</button>
+              <button>📦 Bundle .zip</button>
+              <button>🧵 Export OXS</button>
+              <button>🖼 PNG chart</button>
+              <button>⚙ More options…</button>
+            </div>
+          </div>
+          <button class="btn">Materials</button>
+        </div>
+      </div>
+
+      <div class="ts">
+        <button class="ts-btn active">✎</button>
+        <button class="ts-btn">▣</button>
+        <button class="ts-btn">⌫</button>
+        <button class="ts-btn">◉</button>
+        <button class="ts-btn">╲</button>
+        <button class="ts-btn">●</button>
+        <button class="ts-btn">−</button>
+        <button class="ts-btn">+</button>
+        <button class="ts-btn">⤢</button>
+      </div>
+
+      <div class="canvas">
+        <div class="canvas-inner" style="opacity:.4;"></div>
+      </div>
+
+      <div class="sheet sheet-wrap">
+        <div class="sheet-handle"></div>
+        <div class="sw" style="background:#bd3039;"></div>
+        <div class="sheet-name"><b>666</b> Bright Red</div>
+        <div class="sheet-label">↑ Palette</div>
+      </div>
+
+    </div>
+  </div>
+  <div class="caption" style="margin-top:14px;">
+    <b>Export menu open.</b> The z-index fix means the dropdown floats above the tool strip cleanly even on a 380 px viewport. Tap-outside or Escape closes it. Palette sheet stays put.
+  </div>
+</div>
+
+</body>
+</html>

@@ -115,7 +115,7 @@ window.loadPdfStack = function() {
 };
 /* Loads TrackerApp via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
-var TRACKER_CACHE_KEY = 'babel_tracker_b968574aae';
+var TRACKER_CACHE_KEY = 'babel_tracker_1e7e5c1b35';
 window.loadTrackerApp = function() {
   if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
   window.__trackerLoading = true;
@@ -147,7 +147,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_10edaa073c';
+var CREATOR_CACHE_KEY = 'babel_creator_7dc8ecdad1';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;
@@ -196,7 +196,7 @@ window.loadStatsActivity = function() {
   });
 };/* Loads stats-insights.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. (Brief E) */
-var INSIGHTS_CACHE_KEY = 'babel_insights_6b1e8001b2';
+var INSIGHTS_CACHE_KEY = 'babel_insights_3c0788349e';
 window.loadStatsInsights = function() {
   if (window.__statsInsightsLoading || window.__statsInsightsLoaded) return;
   window.__statsInsightsLoading = true;

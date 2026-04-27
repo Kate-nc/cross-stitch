@@ -13057,32 +13057,13 @@ window.CreatorSidebar = function CreatorSidebar() {
     )
   );
 
-  // ── Edit mode bottom action bar ──────────────────────────────────────────
-  var editActions = (ctx.pat && ctx.pal) ? h("div", {style:{
-    flexShrink:0, borderTop:"1px solid var(--border)", padding:"12px",
-    background:"var(--surface)", display:"flex", gap:'var(--s-2)'
-  }},
-    h("button", {
-      "aria-label":"Switch to Create mode",
-      onClick:function(){
-        if(cv.editHistory.length > 0 && !confirm("Switch to Create mode? Your edits are auto-saved.")) return;
-        app.setAppMode("create");
-        app.setSidebarTab("image");
-        if(window.__switchToCreate) window.__switchToCreate();
-        app.addToast("Switched to Create mode", {type:"info", duration:2000});
-      },
-      style:{flex:1,padding:"10px",fontSize:'var(--text-sm)',fontWeight:500,cursor:"pointer",
-        border:"1px solid var(--border)",borderRadius:'var(--radius-md)',background:"var(--surface)",
-        color:"var(--text-secondary)"}
-    }, "\u2190 Create"),
-    h("button", {
-      "aria-label":"Open pattern in Stitch Tracker",
-      onClick:function(){ app.handleOpenInTracker(); },
-      style:{flex:2,padding:"10px",fontSize:'var(--text-md)',fontWeight:600,cursor:"pointer",
-        border:"none",borderRadius:'var(--radius-md)',background:"var(--accent)",color:"var(--surface)",
-        display:"flex",alignItems:"center",justifyContent:"center",gap:6}
-    }, "Start Tracking \u2192")
-  ) : null;
+  // ── Edit mode bottom action bar (removed in Option 2) ───────────────────
+  // The `[← Create] [Start Tracking →]` row that used to sit at the bottom
+  // of the edit-mode sidebar has been promoted into the action bar's
+  // segmented mode switch (Create / Edit / Track). Removing it here gives
+  // the palette tab back ~50px of vertical space and removes a duplicate
+  // "Track" entry point — see creator/ActionBar.js.
+  var editActions = null;
 
   // ─── B3: mode-aware sidebar — hide on Materials, summarise on Project ─────
   // Only applies when a pattern is loaded (edit mode); the create-mode early
@@ -13639,9 +13620,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
 
 /* ─── ProjectTab.js ─── */
-/* creator/ProjectTab.js — Project statistics, time estimate, finished size, cost, thread organiser.
+/* creator/ProjectTab.js — Project planning: time estimate, finished size, cost, thread organiser.
    Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
-   Depends on: Section, SliderRow (components.js), window.confettiTier (helpers.js),
+   Depends on: Section, SliderRow (components.js),
                fmtTimeL, skeinEst (helpers.js), FABRIC_COUNTS (constants.js),
                StashBridge (stash-bridge.js, optional), CreatorContext (context.js) */
 
@@ -13655,81 +13636,12 @@ window.CreatorProjectTab = function CreatorProjectTab() {
   if (!(ctx.pat && ctx.pal)) return null;
   if (app.tab !== "project") return null;
 
-  var confettiTier = window.confettiTier;
-
-  // ── Pattern Summary ─────────────────────────────────────────────────────────
-  function renderPatternSummary() {
-    var rows = [
-      ["Pattern size", ctx.sW + " \xD7 " + ctx.sH + " stitches"],
-      ["Total cells", (ctx.sW * ctx.sH).toLocaleString()],
-      ["Stitchable", ctx.totalStitchable.toLocaleString()],
-      ["Skipped", (ctx.sW * ctx.sH - ctx.totalStitchable).toLocaleString()],
-      ["Colours", ctx.pal.length + " (" + ctx.blendCount + " blend" + (ctx.blendCount !== 1 ? "s" : "") + ")"],
-      ["Skeins needed", ctx.totalSkeins + " (at " + ctx.fabricCt + "ct)"]
-    ];
-
-    var difficultyBadge = ctx.difficulty && h("div", {
-      style:{marginTop:'var(--s-3)',padding:"8px 12px",background:"var(--surface-secondary)",borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",display:"flex",alignItems:"center",gap:10}
-    },
-      h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600}}, "Difficulty"),
-      h("div", {style:{display:"flex",gap:2}},
-        [1,2,3,4].map(function(s) {
-          return h("span", {key:s, style:{fontSize:'var(--text-xl)',color:s<=ctx.difficulty.stars?ctx.difficulty.color:"var(--border)"}}, "\u2605");
-        })
-      ),
-      h("span", {style:{fontSize:'var(--text-md)',fontWeight:700,color:ctx.difficulty.color}}, ctx.difficulty.label),
-      h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginLeft:"auto"}},
-        ctx.pal.length + " colours \xB7 " + (ctx.blendCount > 0 ? ctx.blendCount + " blends \xB7 " : "") + ctx.totalStitchable.toLocaleString() + " stitches"
-      )
-    );
-
-    var confettiBadge = app.confettiData && (function() {
-      var cd = app.confettiData.clean;
-      var t = confettiTier(cd.pct);
-      var barW = Math.max(3, Math.min(100, Math.round(100 - cd.pct * 5)));
-      return h("div", {style:{marginTop:'var(--s-2)',padding:"8px 12px",background:"var(--surface-secondary)",borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)"}},
-        h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:6}},
-          h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600}}, "Stitchability"),
-          h("span", {style:{fontSize:'var(--text-xs)',fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:'var(--radius-lg)',background:t.color+"18",marginLeft:"auto"}}, t.label)
-        ),
-        h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)'}},
-          h("div", {style:{flex:1,height:6,background:"var(--border)",borderRadius:3,overflow:"hidden"}},
-            h("div", {style:{height:"100%",width:barW+"%",background:t.color,borderRadius:3,transition:"width 0.4s"}})
-          ),
-          h("span", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:t.color,flexShrink:0}},
-            cd.singles.toLocaleString() + " isolated (" + cd.pct.toFixed(1) + "%)"
-          )
-        ),
-        app.confettiData.raw.singles !== cd.singles && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:'var(--s-1)'}},
-          app.confettiData.raw.singles.toLocaleString() + " before orphan removal"
-        )
-      );
-    })();
-
-    var progressBadge = ctx.done && ctx.doneCount > 0 && h("div", {
-      style:{marginTop:'var(--s-2)',padding:"8px 12px",background:"var(--success-soft)",borderRadius:'var(--radius-md)',border:"1px solid var(--success-soft)"}
-    },
-      h("div", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--success)"}},
-        "Progress: " + ctx.progressPct + "% \u2014 " + ctx.doneCount.toLocaleString() + " of " + ctx.totalStitchable.toLocaleString() + " stitches"
-      )
-    );
-
-    return h(Section, {title:"Pattern Summary"},
-      h("div", {
-        style:{marginTop:'var(--s-2)',display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px"}
-      },
-        rows.map(function(r, i) {
-          return h("div", {key:i},
-            h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, r[0]),
-            h("div", {style:{fontSize:'var(--text-lg)',fontWeight:600,color:"var(--text-primary)"}}, r[1])
-          );
-        })
-      ),
-      difficultyBadge,
-      confettiBadge,
-      progressBadge
-    );
-  }
+  // ── Pattern Summary (removed in Option 2) ──────────────────────────────────
+  // The Pattern Summary section that listed dimensions, fabric, colours,
+  // skeins, difficulty, stitchability and progress used to live here. All
+  // that data now lives behind the `Pattern info` chip in the action bar
+  // (see creator/PatternInfoPopover.js). The discoverability callout
+  // further down points users at it.
 
   // ── Time Estimate ───────────────────────────────────────────────────────────
   function renderTimeEstimate() {
@@ -14086,9 +13998,33 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     )
   );
 
+  // ── Pattern info discoverability callout ────────────────────────────────
+  // The Pattern Summary section that used to sit at the top of this tab was
+  // duplicating the dimensions / fabric / colours / skeins values that now
+  // live behind the `Pattern info` chip in the action bar. We point the
+  // user at the chip rather than reprinting the same numbers here.
+  var infoChipCallout = h("div", {
+      style: {
+        display: "flex", alignItems: "center", gap: 10,
+        padding: "10px 14px",
+        background: "var(--surface-secondary)",
+        border: "1px dashed var(--border)",
+        borderRadius: "var(--radius-md)",
+        fontSize: "var(--text-sm)",
+        color: "var(--text-secondary)"
+      }
+    },
+    window.Icons && window.Icons.info ? h("span", {style:{flexShrink:0,color:"var(--accent)"}}, window.Icons.info()) : null,
+    h("span", null,
+      "Pattern stats live in the ",
+      h("strong", {style:{color:"var(--text-primary)"}}, "Pattern info"),
+      " chip up top \u2014 size, fabric, colours, skeins, difficulty. This tab is for planning your stitching session."
+    )
+  );
+
   return h("div", {style:{display:"flex",flexDirection:"column",gap:'var(--s-3)'}},
     projectInfoSection,
-    renderPatternSummary(),
+    infoChipCallout,
     renderTimeEstimate(),
     renderFinishedSize(),
     renderCostEstimate(),
@@ -16093,33 +16029,180 @@ window.CreatorMaterialsHub = function CreatorMaterialsHub() {
 };
 
 
+/* ─── PatternInfoPopover.js ─── */
+/* creator/PatternInfoPopover.js — UX-12 Option 2: Pattern info popover.
+ *
+ * Replaces the four-stat block that used to live on the right of the
+ * Creator action bar. The bar now hosts a `Pattern info ▾` chip;
+ * clicking it opens this popover (or, on phones, a bottom sheet) with
+ * the canonical summary of dimensions, fabric, palette, skeins,
+ * difficulty, stitchability, and time estimate.
+ *
+ * Loaded as a plain <script> (concatenated into creator/bundle.js).
+ * Exposes window.CreatorPatternInfoPopover.
+ *
+ * Props:
+ *   open            — boolean; render only when true
+ *   onClose         — required; called on Escape, click-outside, scrim tap
+ *   triggerRef      — ref to the button that opened the popover; used to
+ *                     ignore its own clicks (mousedown delegation)
+ *   sW, sH          — pattern dimensions
+ *   fabricCt        — fabric count
+ *   colourCount     — palette length (live)
+ *   skeinEstimate   — pre-computed skein count (number, may be null)
+ *   totalStitchable — stitch count used for progress / time
+ *   difficulty      — { stars, color, label } object from useCreatorState
+ *   solidPct        — stitchability percentage (e.g. 92.4)
+ *   stitchSpeed     — stitches/hr (defaults to 30 if absent)
+ *   doneCount       — stitches completed (for "remaining" estimate)
+ *
+ * Read-only — no internal state, no IndexedDB.
+ */
+
+window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
+  var h = React.createElement;
+  var popoverRef = React.useRef(null);
+
+  React.useEffect(function() {
+    if (!props || !props.open) return undefined;
+    function onDoc(e) {
+      if (popoverRef.current && popoverRef.current.contains(e.target)) return;
+      if (props.triggerRef && props.triggerRef.current && props.triggerRef.current.contains(e.target)) return;
+      if (typeof props.onClose === "function") props.onClose();
+    }
+    function onKey(e) {
+      if (e.key === "Escape") {
+        if (typeof props.onClose === "function") props.onClose();
+        if (props.triggerRef && props.triggerRef.current && props.triggerRef.current.focus) {
+          props.triggerRef.current.focus();
+        }
+      }
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return function() {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [props && props.open, props && props.onClose, props && props.triggerRef]);
+
+  if (!props || !props.open) return null;
+
+  var sW = props.sW, sH = props.sH;
+  var hasDims = (typeof sW === "number" && typeof sH === "number");
+  var hasFabric = (typeof props.fabricCt === "number" && props.fabricCt > 0);
+  var hasColours = (typeof props.colourCount === "number" && props.colourCount >= 0);
+  var hasSkeins = (typeof props.skeinEstimate === "number" && isFinite(props.skeinEstimate));
+  var skeinsRounded = hasSkeins ? Math.max(1, Math.round(props.skeinEstimate)) : null;
+  var stitchable = (typeof props.totalStitchable === "number") ? props.totalStitchable : null;
+  var doneCount = (typeof props.doneCount === "number") ? props.doneCount : 0;
+  var stitchSpeed = (typeof props.stitchSpeed === "number" && props.stitchSpeed > 0) ? props.stitchSpeed : 30;
+  var fmt = (typeof window.fmtTimeL === "function") ? window.fmtTimeL : function(s) { return Math.round(s/3600) + "h"; };
+
+  function row(label, value) {
+    return [
+      h("div", { className: "creator-popover-info__label", key: label + "-k" }, label),
+      h("div", { className: "creator-popover-info__value", key: label + "-v" }, value)
+    ];
+  }
+
+  var patternRows = [];
+  if (hasDims) patternRows.push.apply(patternRows, row("Size", sW + " \u00D7 " + sH + " stitches"));
+  if (hasFabric) patternRows.push.apply(patternRows, row("Fabric", props.fabricCt + " ct Aida"));
+  if (stitchable != null) patternRows.push.apply(patternRows, row("Stitchable", stitchable.toLocaleString()));
+  if (hasColours) patternRows.push.apply(patternRows, row("Colours", String(props.colourCount)));
+  if (hasSkeins) patternRows.push.apply(patternRows, row("Skeins", "~" + skeinsRounded));
+
+  var estimateRows = [];
+  if (stitchable != null) {
+    var totalSeconds = Math.round(stitchable / stitchSpeed * 3600);
+    estimateRows.push.apply(estimateRows, row("Time @ " + stitchSpeed + "/hr", fmt(totalSeconds)));
+    if (doneCount > 0 && doneCount < stitchable) {
+      var remainSeconds = Math.round((stitchable - doneCount) / stitchSpeed * 3600);
+      estimateRows.push.apply(estimateRows, row("Remaining", fmt(remainSeconds)));
+    }
+  }
+
+  var badges = [];
+  if (props.difficulty && props.difficulty.label) {
+    badges.push(h("span", {
+      key: "difficulty",
+      className: "creator-popover-info__badge"
+    }, props.difficulty.label));
+  }
+  if (typeof props.solidPct === "number" && isFinite(props.solidPct)) {
+    badges.push(h("span", {
+      key: "solid",
+      className: "creator-popover-info__badge"
+    }, props.solidPct.toFixed(1) + "% solid"));
+  }
+
+  var children = [
+    h("h3", { key: "p-title", className: "creator-popover-info__title" }, "Pattern"),
+    h("div", { key: "p-grid", className: "creator-popover-info__grid" }, patternRows)
+  ];
+  if (estimateRows.length) {
+    children.push(h("hr", { key: "d1", className: "creator-popover-info__divider" }));
+    children.push(h("h3", { key: "e-title", className: "creator-popover-info__title" }, "Estimates"));
+    children.push(h("div", { key: "e-grid", className: "creator-popover-info__grid" }, estimateRows));
+  }
+  if (badges.length) {
+    children.push(h("hr", { key: "d2", className: "creator-popover-info__divider" }));
+    children.push(h("div", { key: "badges", className: "creator-popover-info__badges" }, badges));
+  }
+
+  return h(React.Fragment, null,
+    h("div", {
+      className: "creator-popover-info-scrim",
+      "aria-hidden": "true",
+      onClick: function() { if (typeof props.onClose === "function") props.onClose(); }
+    }),
+    h("div", {
+      ref: popoverRef,
+      className: "creator-popover-info",
+      role: "dialog",
+      "aria-label": "Pattern details"
+    }, children)
+  );
+};
+
+
 /* ─── ActionBar.js ─── */
-/* creator/ActionBar.js — UX-12 Phase 5: Creator outcome action bar.
+/* creator/ActionBar.js — UX-12 Phase 5 + Option 2: Creator outcome action bar.
  *
  * A persistent bar mounted above the Creator's tab-host content that
- * promotes the most common outcomes — Print PDF, Track this pattern,
- * and a small Export… menu — without removing or relocating any of the
- * existing per-tab controls. Strictly an alias / fast-path; every menu
- * item routes to a handler that already exists somewhere else in the
- * Creator.
+ * promotes the most common outcomes — Print PDF and a small Export…
+ * menu — and now also hosts a 3-button Create / Edit / Track mode switch
+ * (Option 2) and a `Pattern info` chip that opens a popover with the
+ * canonical pattern summary. The previous four-stat inline block was
+ * duplicating data shown elsewhere; collapsing it into the popover gives
+ * the bar room to breathe and replaces the duplicated `Start Tracking`
+ * button that used to live at the bottom of the sidebar.
  *
  * Loaded as a plain <script> (concatenated into creator/bundle.js).
  * Exposes window.CreatorActionBar.
  *
  * Props:
- *   onPrintPdf      — required; primary "Print PDF" click handler
- *   onTrackPattern  — required; "Track this pattern" click handler
- *   onSaveJson      — required; "Save project (.json)" menu item
- *   onMoreExports   — required; "More export options…" menu item
- *                     (jumps to Materials → Output sub-tab)
- *   sW, sH          — pattern dimensions
- *   fabricCt        — fabric count (e.g. 14)
- *   colourCount     — number of palette colours
- *   skeinEstimate   — pre-computed skein estimate (number, may be null)
- *   ready           — boolean; render nothing when no pattern is loaded
- *
- * Read-only — no internal state beyond the open/closed flag of the
- * Export dropdown menu. No data source wiring, no IndexedDB calls.
+ *   onPrintPdf       — required; primary "Print PDF" click handler
+ *   onTrackPattern   — required; "Track" mode-switch handler
+ *   onSwitchToCreate — required; "Create" mode-switch handler
+ *   onSaveJson       — required; "Save project (.json)" menu item
+ *   onMoreExports    — required; "More export options…" menu item
+ *                      (jumps to Materials → Output sub-tab)
+ *   appMode          — "create" | "edit" | "track"; selects the active
+ *                      mode-switch button. While mounted in the Creator
+ *                      this will always be "edit"; the Edit pip stays
+ *                      selected and is a no-op.
+ *   sW, sH           — pattern dimensions (popover only)
+ *   fabricCt         — fabric count (popover only)
+ *   colourCount      — palette length (popover only)
+ *   skeinEstimate    — pre-computed skein estimate (popover only)
+ *   totalStitchable  — stitch count (popover only)
+ *   difficulty       — { stars, color, label } object (popover only)
+ *   solidPct         — stitchability percentage (popover only)
+ *   stitchSpeed      — stitches/hr (popover only)
+ *   doneCount        — stitches completed (popover only)
+ *   ready            — boolean; render nothing when no pattern is loaded
  */
 
 window.CreatorActionBar = function CreatorActionBar(props) {
@@ -16131,6 +16214,13 @@ window.CreatorActionBar = function CreatorActionBar(props) {
   var setMenuOpen = menuOpenState[1];
   var menuRef = React.useRef(null);
   var btnRef = React.useRef(null);
+
+  var infoOpenState = React.useState(false);
+  var infoOpen = infoOpenState[0];
+  var setInfoOpen = infoOpenState[1];
+  var infoBtnRef = React.useRef(null);
+
+  var modeSwitchRef = React.useRef(null);
 
   // Click-outside / Escape to close the Export menu.
   React.useEffect(function() {
@@ -16166,7 +16256,6 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     }
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
-    // Move focus into the menu on open so keyboard users land inside it.
     var raf = (typeof requestAnimationFrame === "function") ? requestAnimationFrame : function(fn) { return setTimeout(fn, 0); };
     var cancel = (typeof cancelAnimationFrame === "function") ? cancelAnimationFrame : clearTimeout;
     var focusHandle = raf(function() {
@@ -16190,43 +16279,93 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     };
   }
 
-  function statSep() {
-    return h("span", {
-      className: "creator-actionbar__stat-sep",
-      "aria-hidden": "true"
-    }, " \u00B7 ");
+  // Roving tabindex keyboard handler for the segmented mode switch.
+  // Mirrors the CreatorMaterialsHub tablist pattern (creator/MaterialsHub.js).
+  function onModeKeyDown(e) {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight" && e.key !== "Home" && e.key !== "End") return;
+    if (!modeSwitchRef.current) return;
+    var items = Array.prototype.slice.call(
+      modeSwitchRef.current.querySelectorAll('[role="tab"]')
+    );
+    if (!items.length) return;
+    var idx = items.indexOf(document.activeElement);
+    var next = idx;
+    if (e.key === "ArrowRight") next = idx < 0 ? 0 : (idx + 1) % items.length;
+    else if (e.key === "ArrowLeft") next = idx <= 0 ? items.length - 1 : idx - 1;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = items.length - 1;
+    if (items[next] && items[next].focus) {
+      items[next].focus();
+      e.preventDefault();
+    }
   }
 
-  // Stats block — British English, ` · ` separator, tabular numerals via CSS.
-  var sW = props.sW, sH = props.sH;
-  var hasDims = (typeof sW === "number" && typeof sH === "number");
-  var hasFabric = (typeof props.fabricCt === "number" && props.fabricCt > 0);
-  var hasColours = (typeof props.colourCount === "number" && props.colourCount >= 0);
-  var hasSkeins = (typeof props.skeinEstimate === "number" && isFinite(props.skeinEstimate));
-  var skeinsRounded = hasSkeins ? Math.max(1, Math.round(props.skeinEstimate)) : null;
-  var statsAria = [
-    hasDims    ? (sW + " by " + sH + " stitches") : null,
-    hasFabric  ? (props.fabricCt + " count fabric") : null,
-    hasColours ? (props.colourCount + " colours") : null,
-    hasSkeins  ? ("about " + skeinsRounded + " skeins") : null
-  ].filter(Boolean).join(", ");
+  // Mode switch — Create / Edit / Track. The Edit button is the current
+  // surface, so it stays selected and is a no-op. Create and Track route
+  // back to the existing handlers. Roving tabindex keeps keyboard
+  // navigation predictable.
+  var appMode = props.appMode || "edit";
+  var modes = [
+    { id: "create", label: "Create", onClick: props.onSwitchToCreate, title: "Switch back to Create mode" },
+    { id: "edit",   label: "Edit",   onClick: null,                   title: "You're in Edit mode" },
+    { id: "track",  label: "Track",  onClick: props.onTrackPattern,   title: "Open this pattern in the Stitch Tracker" }
+  ];
 
-  var statsBlock = h("div", {
-      className: "creator-actionbar__stats",
-      role: "group",
-      "aria-label": "Pattern summary: " + statsAria
+  var modeSwitch = h("div", {
+      ref: modeSwitchRef,
+      className: "creator-actionbar__mode-switch",
+      role: "tablist",
+      "aria-label": "Pattern mode",
+      onKeyDown: onModeKeyDown
     },
-    hasDims    && h("span", { className: "creator-actionbar__stat" },
-      h("strong", null, sW + " \u00D7 " + sH)),
-    hasFabric  && (hasDims    ? statSep() : null),
-    hasFabric  && h("span", { className: "creator-actionbar__stat" },
-      props.fabricCt + "ct"),
-    hasColours && (hasDims || hasFabric ? statSep() : null),
-    hasColours && h("span", { className: "creator-actionbar__stat" },
-      props.colourCount + " colour" + (props.colourCount === 1 ? "" : "s")),
-    hasSkeins  && (hasDims || hasFabric || hasColours ? statSep() : null),
-    hasSkeins  && h("span", { className: "creator-actionbar__stat" },
-      "~" + skeinsRounded + " skein" + (skeinsRounded === 1 ? "" : "s"))
+    modes.map(function(m) {
+      var active = (appMode === m.id);
+      return h("button", {
+          key: m.id,
+          type: "button",
+          role: "tab",
+          className: "creator-actionbar__mode-btn",
+          "aria-selected": active ? "true" : "false",
+          tabIndex: active ? 0 : -1,
+          onClick: active ? undefined : m.onClick,
+          title: m.title
+        }, m.label);
+    })
+  );
+
+  // Pattern info chip — replaces the inline four-stat block. Opens the
+  // popover (or, on phones, a bottom sheet) with the canonical summary.
+  // British English: "Pattern info" / "colours" used inside the popover.
+  var infoChip = h("div", { className: "creator-actionbar__info-wrap" },
+    h("button", {
+        ref: infoBtnRef,
+        type: "button",
+        className: "creator-actionbar__info-trigger",
+        onClick: function() { setInfoOpen(!infoOpen); },
+        "aria-haspopup": "dialog",
+        "aria-expanded": infoOpen ? "true" : "false",
+        title: "Pattern dimensions, fabric, colours, skeins"
+      },
+      h("span", null, "Pattern info"),
+      Icons.chevronDown ? Icons.chevronDown() : null
+    ),
+    infoOpen && typeof window.CreatorPatternInfoPopover !== "undefined"
+      ? h(window.CreatorPatternInfoPopover, {
+          open: true,
+          onClose: function() { setInfoOpen(false); },
+          triggerRef: infoBtnRef,
+          sW: props.sW,
+          sH: props.sH,
+          fabricCt: props.fabricCt,
+          colourCount: props.colourCount,
+          skeinEstimate: props.skeinEstimate,
+          totalStitchable: props.totalStitchable,
+          difficulty: props.difficulty,
+          solidPct: props.solidPct,
+          stitchSpeed: props.stitchSpeed,
+          doneCount: props.doneCount
+        })
+      : null
   );
 
   return h("div", {
@@ -16234,6 +16373,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
       role: "toolbar",
       "aria-label": "Pattern actions"
     },
+    modeSwitch,
     h("div", { className: "creator-actionbar__primary" },
       h("button", {
           type: "button",
@@ -16243,15 +16383,6 @@ window.CreatorActionBar = function CreatorActionBar(props) {
         },
         Icons.printer ? Icons.printer() : null,
         h("span", null, "Print PDF")
-      ),
-      h("button", {
-          type: "button",
-          className: "creator-actionbar__btn",
-          onClick: props.onTrackPattern,
-          title: "Open this pattern in the Stitch Tracker"
-        },
-        Icons.thread ? Icons.thread() : null,
-        h("span", null, "Track this pattern")
       ),
       h("div", { className: "creator-actionbar__menu-wrap" },
         h("button", {
@@ -16294,6 +16425,6 @@ window.CreatorActionBar = function CreatorActionBar(props) {
         )
       )
     ),
-    statsBlock
+    infoChip
   );
 };

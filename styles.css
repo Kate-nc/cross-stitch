@@ -4633,7 +4633,9 @@ html.pref-dark a { color: var(--accent); }
   border-radius: var(--radius-md, 8px);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
   padding: 4px 0;
-  z-index: 50;
+  /* Sits above the sticky tool strip (z-index 99) and topbar (z-index 100).
+     Without this the Export menu was clipped behind those rows. */
+  z-index: 1000;
   display: flex;
   flex-direction: column;
 }
@@ -4683,7 +4685,393 @@ html.pref-dark a { color: var(--accent); }
   margin: 0 6px;
 }
 
-/* Phone reflow — primary CTA full-width, others wrap. */
+/* ─── Option 2 — Mode switch + Pattern info chip + popover ──────────── */
+.creator-actionbar__mode-switch {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--line, #E5DCCB);
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+  background: var(--surface-secondary, #F9F5F0);
+  margin-right: 8px;
+}
+
+.creator-actionbar__mode-btn {
+  border: 0;
+  background: transparent;
+  padding: 7px 14px;
+  font: 600 12px/1 inherit;
+  color: var(--text-secondary, #5C5448);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.creator-actionbar__mode-btn + .creator-actionbar__mode-btn {
+  border-left: 1px solid var(--line, #E5DCCB);
+}
+
+.creator-actionbar__mode-btn:hover:not([aria-selected="true"]) {
+  background: var(--accent-soft, #F4DDCF);
+  color: var(--text-primary);
+}
+
+.creator-actionbar__mode-btn[aria-selected="true"] {
+  background: var(--accent, #B85C38);
+  color: #FFFDF8;
+  cursor: default;
+}
+
+.creator-actionbar__mode-btn:focus-visible {
+  outline: 2px solid var(--accent, #B85C38);
+  outline-offset: -2px;
+}
+
+.creator-actionbar__info-wrap {
+  position: relative;
+  margin-left: auto;
+}
+
+.creator-actionbar__info-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--line, #E5DCCB);
+  border-radius: 999px;
+  background: var(--surface-raised, #FFFDF8);
+  font: 500 12px/1 inherit;
+  color: var(--text-secondary, #5C5448);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.creator-actionbar__info-trigger:hover,
+.creator-actionbar__info-trigger[aria-expanded="true"] {
+  background: var(--accent-soft, #F4DDCF);
+  border-color: var(--accent, #B85C38);
+  color: var(--text-primary);
+}
+
+.creator-actionbar__info-trigger:focus-visible {
+  outline: 2px solid var(--accent, #B85C38);
+  outline-offset: 2px;
+}
+
+.creator-popover-info {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 280px;
+  background: var(--surface-raised, #FFFDF8);
+  border: 1px solid var(--line, #E5DCCB);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  padding: 14px 16px;
+  z-index: 1001;
+  color: var(--text-primary);
+}
+
+.creator-popover-info__title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary, #8A8270);
+  margin: 0 0 8px;
+}
+
+.creator-popover-info__grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 18px;
+  font-size: 12px;
+}
+
+.creator-popover-info__label {
+  color: var(--text-tertiary, #8A8270);
+}
+
+.creator-popover-info__value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  text-align: right;
+}
+
+.creator-popover-info__divider {
+  height: 1px;
+  background: var(--line, #E5DCCB);
+  margin: 12px 0;
+  border: 0;
+}
+
+.creator-popover-info__badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.creator-popover-info__badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft, #F4DDCF);
+  color: var(--accent, #B85C38);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.creator-popover-info-scrim {
+  display: none;
+}
+
+@media (max-width: 599px) {
+  .creator-popover-info-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 1000;
+  }
+
+  .creator-popover-info {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto;
+    min-width: 0;
+    width: 100%;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.18);
+    padding: 18px 18px 22px;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+
+  .creator-popover-info::before {
+    content: "";
+    display: block;
+    width: 36px;
+    height: 4px;
+    background: var(--line, #E5DCCB);
+    border-radius: 2px;
+    margin: -4px auto 14px;
+  }
+
+  .creator-actionbar__mode-switch {
+    margin-right: 0;
+  }
+
+  .creator-actionbar__info-wrap {
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .creator-actionbar__mode-btn,
+  .creator-actionbar__info-trigger {
+    transition: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .creator-actionbar__mode-btn,
+  .creator-actionbar__info-trigger {
+    min-height: 44px;
+    padding: 10px 16px;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   AppInfoPopover — shared chip + popover (Plan B).
+   Used by Tracker, Manager, /home, and Stats.
+   ════════════════════════════════════════════════════════════════ */
+
+.app-info-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--line, #E5DCCB);
+  border-radius: 999px;
+  background: var(--surface, #FFFDF8);
+  font: 500 12px/1 inherit;
+  color: var(--text-secondary, #5C5448);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.app-info-chip:hover,
+.app-info-chip[aria-expanded="true"] {
+  background: var(--accent-soft, #F4DDCF);
+  border-color: var(--accent, #B85C38);
+  color: var(--text-primary);
+}
+
+.app-info-chip:focus-visible {
+  outline: 2px solid var(--accent, #B85C38);
+  outline-offset: 2px;
+}
+
+.app-info-chip__chevron {
+  display: inline-flex;
+  align-items: center;
+  width: 14px;
+  height: 14px;
+  opacity: 0.7;
+}
+
+.app-info-chip__label {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.app-info-chip-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.app-info-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 280px;
+  max-width: 360px;
+  background: var(--surface, #FFFDF8);
+  border: 1px solid var(--line, #E5DCCB);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  padding: 14px 16px;
+  z-index: 1001;
+  color: var(--text-primary);
+}
+
+.app-info-popover--left { right: auto; left: 0; }
+
+.app-info-popover__section + .app-info-popover__section {
+  margin-top: 12px;
+}
+
+.app-info-popover__title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary, #8A8270);
+  margin: 0 0 8px;
+}
+
+.app-info-popover__grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 18px;
+  font-size: 12px;
+}
+
+.app-info-popover__label {
+  color: var(--text-tertiary, #8A8270);
+}
+
+.app-info-popover__value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  text-align: right;
+}
+
+.app-info-popover__divider {
+  height: 1px;
+  background: var(--line, #E5DCCB);
+  margin: 12px 0;
+  border: 0;
+}
+
+.app-info-popover__badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.app-info-popover__badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft, #F4DDCF);
+  color: var(--accent, #B85C38);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.app-info-popover__badge--warning {
+  background: var(--warning-soft, #F2E2BE);
+  color: var(--warning, #C0883A);
+}
+
+.app-info-popover__badge--danger {
+  background: var(--danger-soft, #F1D2D2);
+  color: var(--danger, #A53D3D);
+}
+
+.app-info-popover__badge--success {
+  background: var(--success-soft, #DEE7D2);
+  color: var(--success, #4F7D3F);
+}
+
+.app-info-scrim { display: none; }
+
+@media (max-width: 599px) {
+  .app-info-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 1000;
+  }
+
+  .app-info-popover {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto;
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.18);
+    padding: 18px 18px 22px;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+
+  .app-info-popover::before {
+    content: "";
+    display: block;
+    width: 36px;
+    height: 4px;
+    background: var(--line, #E5DCCB);
+    border-radius: 2px;
+    margin: -4px auto 14px;
+  }
+}
+
+@media (pointer: coarse) {
+  .app-info-chip {
+    min-height: 44px;
+    padding: 10px 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-info-chip { transition: none; }
+}
+
+
 @media (max-width: 599px) {
   .creator-actionbar {
     padding: 8px 10px;

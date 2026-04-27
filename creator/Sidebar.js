@@ -1659,32 +1659,13 @@ window.CreatorSidebar = function CreatorSidebar() {
     )
   );
 
-  // ── Edit mode bottom action bar ──────────────────────────────────────────
-  var editActions = (ctx.pat && ctx.pal) ? h("div", {style:{
-    flexShrink:0, borderTop:"1px solid var(--border)", padding:"12px",
-    background:"var(--surface)", display:"flex", gap:'var(--s-2)'
-  }},
-    h("button", {
-      "aria-label":"Switch to Create mode",
-      onClick:function(){
-        if(cv.editHistory.length > 0 && !confirm("Switch to Create mode? Your edits are auto-saved.")) return;
-        app.setAppMode("create");
-        app.setSidebarTab("image");
-        if(window.__switchToCreate) window.__switchToCreate();
-        app.addToast("Switched to Create mode", {type:"info", duration:2000});
-      },
-      style:{flex:1,padding:"10px",fontSize:'var(--text-sm)',fontWeight:500,cursor:"pointer",
-        border:"1px solid var(--border)",borderRadius:'var(--radius-md)',background:"var(--surface)",
-        color:"var(--text-secondary)"}
-    }, "\u2190 Create"),
-    h("button", {
-      "aria-label":"Open pattern in Stitch Tracker",
-      onClick:function(){ app.handleOpenInTracker(); },
-      style:{flex:2,padding:"10px",fontSize:'var(--text-md)',fontWeight:600,cursor:"pointer",
-        border:"none",borderRadius:'var(--radius-md)',background:"var(--accent)",color:"var(--surface)",
-        display:"flex",alignItems:"center",justifyContent:"center",gap:6}
-    }, "Start Tracking \u2192")
-  ) : null;
+  // ── Edit mode bottom action bar (removed in Option 2) ───────────────────
+  // The `[← Create] [Start Tracking →]` row that used to sit at the bottom
+  // of the edit-mode sidebar has been promoted into the action bar's
+  // segmented mode switch (Create / Edit / Track). Removing it here gives
+  // the palette tab back ~50px of vertical space and removes a duplicate
+  // "Track" entry point — see creator/ActionBar.js.
+  var editActions = null;
 
   // ─── B3: mode-aware sidebar — hide on Materials, summarise on Project ─────
   // Only applies when a pattern is loaded (edit mode); the create-mode early

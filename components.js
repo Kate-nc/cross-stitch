@@ -2209,3 +2209,117 @@ function EmptyState(props) {
   );
 }
 window.EmptyState = EmptyState;
+
+/* ════════════════════════════════════════════════════════════════
+   AppInfoPopover — UX-12 Plan B: shared summary chip + popover.
+
+   Reusable across Tracker, Stash Manager, /home, and Stats. Owns
+   only its own dismissal lifecycle (Escape + click-outside via
+   `mousedown`). Renders a fixed-position dialog by default; on
+   phones (<600px) the matching CSS converts it to a bottom sheet.
+
+   Props:
+     open        — boolean; render only when true
+     onClose     — required; called on Escape, click-outside, scrim tap
+     triggerRef  — ref to the trigger button (so its own clicks are ignored)
+     ariaLabel   — dialog label, defaults to "Details"
+     children    — popover body. Use AppInfoSection / AppInfoGrid helpers.
+
+   Helpers:
+     window.AppInfoSection({ title, children }) — titled subsection
+     window.AppInfoGrid({ rows }) — rows: [[label, value], …]
+     window.AppInfoBadges({ items }) — pills, items: [{ label, kind? }]
+   ════════════════════════════════════════════════════════════════ */
+
+function AppInfoPopover(props) {
+  var h = React.createElement;
+  var popoverRef = React.useRef(null);
+
+  React.useEffect(function () {
+    if (!props || !props.open) return undefined;
+    function onDoc(e) {
+      if (popoverRef.current && popoverRef.current.contains(e.target)) return;
+      if (props.triggerRef && props.triggerRef.current && props.triggerRef.current.contains(e.target)) return;
+      if (typeof props.onClose === "function") props.onClose();
+    }
+    function onKey(e) {
+      if (e.key === "Escape") {
+        if (typeof props.onClose === "function") props.onClose();
+        if (props.triggerRef && props.triggerRef.current && props.triggerRef.current.focus) {
+          props.triggerRef.current.focus();
+        }
+      }
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return function () {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [props && props.open, props && props.onClose, props && props.triggerRef]);
+
+  if (!props || !props.open) return null;
+
+  return h(React.Fragment, null,
+    h("div", {
+      className: "app-info-scrim",
+      "aria-hidden": "true",
+      onClick: function () { if (typeof props.onClose === "function") props.onClose(); }
+    }),
+    h("div", {
+      ref: popoverRef,
+      className: "app-info-popover" + (props.className ? " " + props.className : ""),
+      role: "dialog",
+      "aria-label": props.ariaLabel || "Details"
+    }, props.children)
+  );
+}
+window.AppInfoPopover = AppInfoPopover;
+
+function AppInfoSection(props) {
+  var h = React.createElement;
+  if (!props) return null;
+  var children = [];
+  if (props.title) children.push(h("h3", { key: "t", className: "app-info-popover__title" }, props.title));
+  children.push(h("div", { key: "b" }, props.children));
+  return h("div", { className: "app-info-popover__section" }, children);
+}
+window.AppInfoSection = AppInfoSection;
+
+function AppInfoGrid(props) {
+  var h = React.createElement;
+  if (!props || !Array.isArray(props.rows)) return null;
+  var cells = [];
+  props.rows.forEach(function (row, i) {
+    if (!row || row.length < 2) return;
+    var label = row[0];
+    var value = row[1];
+    cells.push(h("div", { key: "k" + i, className: "app-info-popover__label" }, label));
+    cells.push(h("div", { key: "v" + i, className: "app-info-popover__value" }, value));
+  });
+  return h("div", { className: "app-info-popover__grid" }, cells);
+}
+window.AppInfoGrid = AppInfoGrid;
+
+function AppInfoBadges(props) {
+  var h = React.createElement;
+  if (!props || !Array.isArray(props.items) || !props.items.length) return null;
+  return h("div", { className: "app-info-popover__badges" },
+    props.items.map(function (item, i) {
+      if (!item || !item.label) return null;
+      var cls = "app-info-popover__badge";
+      if (item.kind === "warning") cls += " app-info-popover__badge--warning";
+      else if (item.kind === "danger") cls += " app-info-popover__badge--danger";
+      else if (item.kind === "success") cls += " app-info-popover__badge--success";
+      return h("span", { key: i, className: cls }, item.label);
+    })
+  );
+}
+window.AppInfoBadges = AppInfoBadges;
+
+function AppInfoDivider() {
+  return React.createElement("hr", { className: "app-info-popover__divider" });
+}
+window.AppInfoDivider = AppInfoDivider;
+
+

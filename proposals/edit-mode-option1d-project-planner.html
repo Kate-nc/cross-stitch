@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Edit Mode — Option 1d: Project planner tab</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --accent:#B85C38; --accent-hover:#9E4D2F; --accent-light:#FBF0EB;
+    --bg:#F4EEE6; --surface:#FFFFFF; --surface-2:#F9F5F0; --surface-3:#F0EAE0;
+    --border:#E4D9CE; --border-strong:#D0C4B4;
+    --text:#1B1814; --text-2:#5C5448; --text-3:#8A8270;
+    --diff-bg:#FFE9CA; --diff-text:#8A4500;
+    --conf-bg:#E8F1E8; --conf-text:#2F6B2A;
+  }
+  body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--text); font-size:13px; min-height:100vh; }
+
+  .hdr { background:var(--surface); border-bottom:1px solid var(--border); padding:0 20px; height:48px; display:flex; align-items:center; gap:14px; }
+  .brand { font-weight:700; color:var(--accent); font-size:14px; }
+  .name { font-weight:600; font-size:14px; padding:4px 8px; border-radius:6px; }
+  .meta { color:var(--text-3); font-size:12px; }
+  .progress { flex:1; max-width:240px; height:6px; background:var(--surface-3); border-radius:3px; overflow:hidden; margin-left:auto; }
+  .progress-fill { height:100%; width:38%; background:var(--accent); }
+  .pct { color:var(--text-2); font-size:12px; font-weight:600; min-width:36px; text-align:right; }
+
+  .ab { background:var(--surface); border-bottom:1px solid var(--border); padding:8px 20px; display:flex; align-items:center; gap:10px; }
+  .seg { display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:var(--surface-2); }
+  .seg button { border:none; background:transparent; padding:7px 14px; font:600 12px/1 inherit; color:var(--text-2); cursor:pointer; }
+  .seg button.active { background:var(--accent); color:#fff; }
+  .btn { display:inline-flex; align-items:center; gap:6px; padding:7px 12px; font:600 12px/1 inherit; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--text-2); cursor:pointer; }
+  .btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .btn-ghost { border-color:transparent; background:transparent; }
+  .pill { background:var(--accent); color:#fff; font:700 9px/1 inherit; padding:2px 6px; border-radius:99px; margin-left:4px; }
+
+  /* Hub tabs */
+  .hub-tabs { background:var(--surface); border-bottom:1px solid var(--border); padding:0 20px; display:flex; gap:0; }
+  .hub-tab { padding:10px 16px; font:600 12px/1 inherit; color:var(--text-3); border:none; background:none; cursor:pointer; border-bottom:2px solid transparent; }
+  .hub-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+
+  .hub { padding:20px; max-width:920px; margin:0 auto; display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px; }
+  .card.full { grid-column: 1 / -1; }
+  .card h3 { font:700 12px/1 inherit; text-transform:uppercase; letter-spacing:.06em; color:var(--text-3); margin-bottom:12px; }
+
+  /* Hero stats row at top of card */
+  .stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:0; }
+  .stat { padding:0 14px; border-right:1px solid var(--border); }
+  .stat:first-child { padding-left:0; }
+  .stat:last-child { border-right:none; padding-right:0; }
+  .stat-label { font-size:11px; color:var(--text-3); text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px; }
+  .stat-value { font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--text); }
+  .stat-sub { font-size:11px; color:var(--text-3); margin-top:2px; }
+
+  .badges { display:flex; gap:8px; margin-top:12px; }
+  .badge { font-size:11px; font-weight:700; padding:4px 10px; border-radius:99px; }
+  .badge-diff { background:var(--diff-bg); color:var(--diff-text); }
+  .badge-conf { background:var(--conf-bg); color:var(--conf-text); }
+  .badge-prog { background:var(--accent-light); color:var(--accent); }
+
+  /* Time card */
+  .slider-row { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .slider-row input { flex:1; }
+  .time-grid { display:grid; grid-template-columns:1fr auto; gap:8px 14px; font-size:13px; padding:10px 0; border-top:1px solid var(--border); }
+  .time-grid .k { color:var(--text-3); }
+  .time-grid .v { font-weight:600; font-variant-numeric:tabular-nums; }
+  .time-grid .v.big { font-size:16px; }
+
+  /* Finished size table */
+  table { width:100%; border-collapse:collapse; font-size:12px; font-variant-numeric:tabular-nums; }
+  th, td { padding:7px 10px; text-align:left; border-bottom:1px solid var(--border); }
+  th { font-size:11px; color:var(--text-3); text-transform:uppercase; letter-spacing:.05em; font-weight:600; }
+  tr.current { background:var(--accent-light); }
+  tr.current td { font-weight:600; }
+
+  .menu-wrap { position:relative; }
+  .notes { position:fixed; right:14px; bottom:14px; max-width:300px; background:var(--text); color:#fff; padding:12px 14px; border-radius:8px; font-size:11px; line-height:1.45; opacity:.92; z-index:9999; }
+  .notes b { color:var(--accent-light); }
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="brand">CROSS STITCH</div>
+  <div class="name">Mountain Sunrise</div>
+  <div class="meta">80 × 80 stitches · 24 colours</div>
+  <div class="progress"><div class="progress-fill"></div></div>
+  <div class="pct">38%</div>
+</div>
+
+<div class="ab">
+  <div class="seg">
+    <button>Create</button>
+    <button class="active">Edit</button>
+    <button>Track</button>
+  </div>
+  <span style="color:var(--border-strong);">|</span>
+  <button class="btn btn-primary">Print PDF</button>
+  <div class="menu-wrap"><button class="btn">Export… ▾</button></div>
+  <div style="flex:1;"></div>
+  <button class="btn btn-ghost">Materials <span class="pill">~9 sk</span></button>
+</div>
+
+<div class="hub-tabs">
+  <button class="hub-tab active">Project</button>
+  <button class="hub-tab">Threads</button>
+  <button class="hub-tab">Stash</button>
+  <button class="hub-tab">Shopping</button>
+  <button class="hub-tab">Output</button>
+</div>
+
+<main class="hub">
+
+  <!-- Hero stats — the canonical home for all four numbers -->
+  <section class="card full">
+    <h3>Pattern at a glance</h3>
+    <div class="stats-row">
+      <div class="stat">
+        <div class="stat-label">Size</div>
+        <div class="stat-value">80 × 80</div>
+        <div class="stat-sub">stitches · 6 400 cells</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Stitchable</div>
+        <div class="stat-value">5 824</div>
+        <div class="stat-sub">576 skipped (background)</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Colours</div>
+        <div class="stat-value">24</div>
+        <div class="stat-sub">22 solid · 2 blends</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Skeins</div>
+        <div class="stat-value">~9</div>
+        <div class="stat-sub">at 14 ct, 2 strands</div>
+      </div>
+    </div>
+    <div class="badges">
+      <span class="badge badge-diff">★★★ Intermediate</span>
+      <span class="badge badge-conf">94% solid (low confetti)</span>
+      <span class="badge badge-prog">38% complete</span>
+    </div>
+  </section>
+
+  <!-- Time -->
+  <section class="card">
+    <h3>Time estimate</h3>
+    <div class="slider-row">
+      <span style="font-size:11px; color:var(--text-3);">Slow</span>
+      <input type="range" min="10" max="120" value="30">
+      <span style="font-size:11px; color:var(--text-3);">Fast</span>
+      <span style="font-size:12px; font-weight:600; min-width:60px; text-align:right;">30 / hr</span>
+    </div>
+    <div class="time-grid">
+      <div class="k">Total time</div><div class="v big">~3 d 6 h</div>
+    </div>
+    <div class="time-grid" style="border-top:none;">
+      <div class="k">Done so far</div><div class="v">~1 d 5 h</div>
+      <div class="k">Remaining</div><div class="v">~2 d 1 h</div>
+      <div class="k">Your average</div><div class="v">28 / hr (12 sessions)</div>
+    </div>
+  </section>
+
+  <!-- Finished size -->
+  <section class="card">
+    <h3>Finished size</h3>
+    <table>
+      <thead>
+        <tr><th>Fabric</th><th>Width</th><th>Height</th><th>+ 2" margin</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>11 ct</td><td>18.5 cm</td><td>18.5 cm</td><td>23.6 × 23.6</td></tr>
+        <tr><td>12 ct</td><td>16.9 cm</td><td>16.9 cm</td><td>22.0 × 22.0</td></tr>
+        <tr class="current"><td>14 ct ●</td><td>14.5 cm</td><td>14.5 cm</td><td>19.6 × 19.6</td></tr>
+        <tr><td>16 ct</td><td>12.7 cm</td><td>12.7 cm</td><td>17.8 × 17.8</td></tr>
+        <tr><td>18 ct</td><td>11.3 cm</td><td>11.3 cm</td><td>16.4 × 16.4</td></tr>
+        <tr><td>22 ct</td><td>9.2 cm</td><td>9.2 cm</td><td>14.3 × 14.3</td></tr>
+        <tr><td>28 ct over 2</td><td>14.5 cm</td><td>14.5 cm</td><td>19.6 × 19.6</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</main>
+
+<div class="notes">
+  <b>Option 1d · Project planner tab</b><br>
+  • The Project tab survives — but becomes the <b>canonical home</b> for the stats that the action bar used to repeat.<br>
+  • Stats are presented as a hero strip with sub-context (eg. "576 skipped (background)") so the Project tab earns its place.<br>
+  • Difficulty / confetti / progress badges sit beneath the stats row.<br>
+  • Time + Finished-size cards keep the planning workflow intact.<br>
+  • Notice the action bar above is still calm — Materials chip shows <i>~9 sk</i> for at-a-glance.
+</div>
+
+</body>
+</html>

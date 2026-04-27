@@ -1,6 +1,6 @@
-/* creator/ProjectTab.js — Project statistics, time estimate, finished size, cost, thread organiser.
+/* creator/ProjectTab.js — Project planning: time estimate, finished size, cost, thread organiser.
    Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
-   Depends on: Section, SliderRow (components.js), window.confettiTier (helpers.js),
+   Depends on: Section, SliderRow (components.js),
                fmtTimeL, skeinEst (helpers.js), FABRIC_COUNTS (constants.js),
                StashBridge (stash-bridge.js, optional), CreatorContext (context.js) */
 
@@ -14,81 +14,12 @@ window.CreatorProjectTab = function CreatorProjectTab() {
   if (!(ctx.pat && ctx.pal)) return null;
   if (app.tab !== "project") return null;
 
-  var confettiTier = window.confettiTier;
-
-  // ── Pattern Summary ─────────────────────────────────────────────────────────
-  function renderPatternSummary() {
-    var rows = [
-      ["Pattern size", ctx.sW + " \xD7 " + ctx.sH + " stitches"],
-      ["Total cells", (ctx.sW * ctx.sH).toLocaleString()],
-      ["Stitchable", ctx.totalStitchable.toLocaleString()],
-      ["Skipped", (ctx.sW * ctx.sH - ctx.totalStitchable).toLocaleString()],
-      ["Colours", ctx.pal.length + " (" + ctx.blendCount + " blend" + (ctx.blendCount !== 1 ? "s" : "") + ")"],
-      ["Skeins needed", ctx.totalSkeins + " (at " + ctx.fabricCt + "ct)"]
-    ];
-
-    var difficultyBadge = ctx.difficulty && h("div", {
-      style:{marginTop:'var(--s-3)',padding:"8px 12px",background:"var(--surface-secondary)",borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",display:"flex",alignItems:"center",gap:10}
-    },
-      h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600}}, "Difficulty"),
-      h("div", {style:{display:"flex",gap:2}},
-        [1,2,3,4].map(function(s) {
-          return h("span", {key:s, style:{fontSize:'var(--text-xl)',color:s<=ctx.difficulty.stars?ctx.difficulty.color:"var(--border)"}}, "\u2605");
-        })
-      ),
-      h("span", {style:{fontSize:'var(--text-md)',fontWeight:700,color:ctx.difficulty.color}}, ctx.difficulty.label),
-      h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginLeft:"auto"}},
-        ctx.pal.length + " colours \xB7 " + (ctx.blendCount > 0 ? ctx.blendCount + " blends \xB7 " : "") + ctx.totalStitchable.toLocaleString() + " stitches"
-      )
-    );
-
-    var confettiBadge = app.confettiData && (function() {
-      var cd = app.confettiData.clean;
-      var t = confettiTier(cd.pct);
-      var barW = Math.max(3, Math.min(100, Math.round(100 - cd.pct * 5)));
-      return h("div", {style:{marginTop:'var(--s-2)',padding:"8px 12px",background:"var(--surface-secondary)",borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)"}},
-        h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:6}},
-          h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600}}, "Stitchability"),
-          h("span", {style:{fontSize:'var(--text-xs)',fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:'var(--radius-lg)',background:t.color+"18",marginLeft:"auto"}}, t.label)
-        ),
-        h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)'}},
-          h("div", {style:{flex:1,height:6,background:"var(--border)",borderRadius:3,overflow:"hidden"}},
-            h("div", {style:{height:"100%",width:barW+"%",background:t.color,borderRadius:3,transition:"width 0.4s"}})
-          ),
-          h("span", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:t.color,flexShrink:0}},
-            cd.singles.toLocaleString() + " isolated (" + cd.pct.toFixed(1) + "%)"
-          )
-        ),
-        app.confettiData.raw.singles !== cd.singles && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:'var(--s-1)'}},
-          app.confettiData.raw.singles.toLocaleString() + " before orphan removal"
-        )
-      );
-    })();
-
-    var progressBadge = ctx.done && ctx.doneCount > 0 && h("div", {
-      style:{marginTop:'var(--s-2)',padding:"8px 12px",background:"var(--success-soft)",borderRadius:'var(--radius-md)',border:"1px solid var(--success-soft)"}
-    },
-      h("div", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--success)"}},
-        "Progress: " + ctx.progressPct + "% \u2014 " + ctx.doneCount.toLocaleString() + " of " + ctx.totalStitchable.toLocaleString() + " stitches"
-      )
-    );
-
-    return h(Section, {title:"Pattern Summary"},
-      h("div", {
-        style:{marginTop:'var(--s-2)',display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px"}
-      },
-        rows.map(function(r, i) {
-          return h("div", {key:i},
-            h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, r[0]),
-            h("div", {style:{fontSize:'var(--text-lg)',fontWeight:600,color:"var(--text-primary)"}}, r[1])
-          );
-        })
-      ),
-      difficultyBadge,
-      confettiBadge,
-      progressBadge
-    );
-  }
+  // ── Pattern Summary (removed in Option 2) ──────────────────────────────────
+  // The Pattern Summary section that listed dimensions, fabric, colours,
+  // skeins, difficulty, stitchability and progress used to live here. All
+  // that data now lives behind the `Pattern info` chip in the action bar
+  // (see creator/PatternInfoPopover.js). The discoverability callout
+  // further down points users at it.
 
   // ── Time Estimate ───────────────────────────────────────────────────────────
   function renderTimeEstimate() {
@@ -445,9 +376,33 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     )
   );
 
+  // ── Pattern info discoverability callout ────────────────────────────────
+  // The Pattern Summary section that used to sit at the top of this tab was
+  // duplicating the dimensions / fabric / colours / skeins values that now
+  // live behind the `Pattern info` chip in the action bar. We point the
+  // user at the chip rather than reprinting the same numbers here.
+  var infoChipCallout = h("div", {
+      style: {
+        display: "flex", alignItems: "center", gap: 10,
+        padding: "10px 14px",
+        background: "var(--surface-secondary)",
+        border: "1px dashed var(--border)",
+        borderRadius: "var(--radius-md)",
+        fontSize: "var(--text-sm)",
+        color: "var(--text-secondary)"
+      }
+    },
+    window.Icons && window.Icons.info ? h("span", {style:{flexShrink:0,color:"var(--accent)"}}, window.Icons.info()) : null,
+    h("span", null,
+      "Pattern stats live in the ",
+      h("strong", {style:{color:"var(--text-primary)"}}, "Pattern info"),
+      " chip up top \u2014 size, fabric, colours, skeins, difficulty. This tab is for planning your stitching session."
+    )
+  );
+
   return h("div", {style:{display:"flex",flexDirection:"column",gap:'var(--s-3)'}},
     projectInfoSection,
-    renderPatternSummary(),
+    infoChipCallout,
     renderTimeEstimate(),
     renderFinishedSize(),
     renderCostEstimate(),

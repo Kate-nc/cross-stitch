@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Edit Mode — Option 2d: Project planner tab</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --accent:#B85C38; --accent-hover:#9E4D2F; --accent-light:#FBF0EB;
+    --bg:#F4EEE6; --surface:#FFFFFF; --surface-2:#F9F5F0; --surface-3:#F0EAE0;
+    --border:#E4D9CE; --border-strong:#D0C4B4;
+    --text:#1B1814; --text-2:#5C5448; --text-3:#8A8270;
+  }
+  body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--text); font-size:13px; min-height:100vh; }
+
+  .hdr { background:var(--surface); border-bottom:1px solid var(--border); padding:0 20px; height:48px; display:flex; align-items:center; gap:14px; }
+  .brand { font-weight:700; color:var(--accent); font-size:14px; }
+  .name { font-weight:600; font-size:14px; padding:4px 8px; border-radius:6px; }
+  .progress { flex:1; max-width:240px; height:6px; background:var(--surface-3); border-radius:3px; overflow:hidden; margin-left:auto; }
+  .progress-fill { height:100%; width:38%; background:var(--accent); }
+  .pct { color:var(--text-2); font-size:12px; font-weight:600; min-width:36px; text-align:right; }
+
+  .ab { background:var(--surface); border-bottom:1px solid var(--border); padding:8px 20px; display:flex; align-items:center; gap:10px; }
+  .seg { display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:var(--surface-2); }
+  .seg button { border:none; background:transparent; padding:7px 14px; font:600 12px/1 inherit; color:var(--text-2); cursor:pointer; }
+  .seg button.active { background:var(--accent); color:#fff; }
+  .btn { display:inline-flex; align-items:center; gap:6px; padding:7px 12px; font:600 12px/1 inherit; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--text-2); cursor:pointer; }
+  .btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .info-trigger { display:inline-flex; align-items:center; gap:8px; padding:6px 12px; border:1px solid var(--border); border-radius:99px; background:var(--surface); font:500 12px/1 inherit; color:var(--text-2); cursor:pointer; }
+  .info-trigger b { color:var(--text); font-weight:700; }
+
+  .hub-tabs { background:var(--surface); border-bottom:1px solid var(--border); padding:0 20px; display:flex; gap:0; }
+  .hub-tab { padding:10px 16px; font:600 12px/1 inherit; color:var(--text-3); border:none; background:none; cursor:pointer; border-bottom:2px solid transparent; }
+  .hub-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+
+  .hub { padding:20px; max-width:920px; margin:0 auto; display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px; }
+  .card.full { grid-column: 1 / -1; }
+  .card h3 { font:700 12px/1 inherit; text-transform:uppercase; letter-spacing:.06em; color:var(--text-3); margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; }
+  .card h3 .hint { font-weight:500; text-transform:none; letter-spacing:0; color:var(--text-3); font-size:11px; }
+
+  .slider-row { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .slider-row input { flex:1; }
+  .time-grid { display:grid; grid-template-columns:1fr auto; gap:8px 14px; font-size:13px; }
+  .time-grid .k { color:var(--text-3); }
+  .time-grid .v { font-weight:600; font-variant-numeric:tabular-nums; }
+  .time-grid .v.big { font-size:18px; color:var(--accent); }
+
+  table { width:100%; border-collapse:collapse; font-size:12px; font-variant-numeric:tabular-nums; }
+  th, td { padding:7px 10px; text-align:left; border-bottom:1px solid var(--border); }
+  th { font-size:11px; color:var(--text-3); text-transform:uppercase; letter-spacing:.05em; font-weight:600; }
+  tr.current { background:var(--accent-light); }
+  tr.current td { font-weight:600; }
+
+  .info-callout { background:var(--surface-2); border:1px dashed var(--border); border-radius:8px; padding:12px 14px; font-size:12px; color:var(--text-2); display:flex; align-items:center; gap:10px; }
+  .info-callout .ico { width:28px; height:28px; border-radius:50%; background:var(--accent-light); color:var(--accent); display:flex; align-items:center; justify-content:center; font-weight:700; flex-shrink:0; }
+
+  .notes { position:fixed; right:14px; bottom:14px; max-width:300px; background:var(--text); color:#fff; padding:12px 14px; border-radius:8px; font-size:11px; line-height:1.45; opacity:.92; z-index:9999; }
+  .notes b { color:var(--accent-light); }
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="brand">CROSS STITCH</div>
+  <div class="name">Mountain Sunrise</div>
+  <div style="color:var(--text-3); font-size:12px;">autosaved</div>
+  <div class="progress"><div class="progress-fill"></div></div>
+  <div class="pct">38%</div>
+</div>
+
+<div class="ab">
+  <div class="seg">
+    <button>Create</button>
+    <button class="active">Edit</button>
+    <button>Track</button>
+  </div>
+  <button class="btn btn-primary">Print PDF</button>
+  <button class="btn">Materials</button>
+  <button class="info-trigger"><b>Pattern info</b> ▾</button>
+  <button class="btn" style="margin-left:auto;">Export… ▾</button>
+</div>
+
+<div class="hub-tabs">
+  <button class="hub-tab active">Project</button>
+  <button class="hub-tab">Threads</button>
+  <button class="hub-tab">Stash</button>
+  <button class="hub-tab">Shopping</button>
+  <button class="hub-tab">Output</button>
+</div>
+
+<main class="hub">
+
+  <!-- The Option-2 difference: stats are NOT duplicated here.
+       The Project tab becomes a planner only — time + finished size. -->
+  <div class="info-callout" style="grid-column:1/-1;">
+    <div class="ico">i</div>
+    <div>
+      Pattern stats live in the <b>Pattern info ▾</b> chip up top — open it for size, fabric, colours, skeins, difficulty.
+      This tab is for <b>planning your stitching session</b>.
+    </div>
+  </div>
+
+  <section class="card">
+    <h3>Time estimate <span class="hint">drag to match your pace</span></h3>
+    <div class="slider-row">
+      <span style="font-size:11px; color:var(--text-3);">Slow</span>
+      <input type="range" min="10" max="120" value="30">
+      <span style="font-size:11px; color:var(--text-3);">Fast</span>
+      <span style="font-size:12px; font-weight:600; min-width:60px; text-align:right;">30 / hr</span>
+    </div>
+    <div class="time-grid">
+      <div class="k">Total time</div><div class="v big">~3 d 6 h</div>
+      <div class="k">Done so far</div><div class="v">~1 d 5 h</div>
+      <div class="k">Remaining</div><div class="v">~2 d 1 h</div>
+      <div class="k">Your average pace</div><div class="v">28 / hr</div>
+      <div class="k">Sessions logged</div><div class="v">12</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>Finished size <span class="hint">at different fabric counts</span></h3>
+    <table>
+      <thead>
+        <tr><th>Fabric</th><th>W × H</th><th>+ 2" margin</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>11 ct</td><td>18.5 × 18.5 cm</td><td>23.6 × 23.6</td></tr>
+        <tr><td>12 ct</td><td>16.9 × 16.9 cm</td><td>22.0 × 22.0</td></tr>
+        <tr class="current"><td>14 ct ●</td><td>14.5 × 14.5 cm</td><td>19.6 × 19.6</td></tr>
+        <tr><td>16 ct</td><td>12.7 × 12.7 cm</td><td>17.8 × 17.8</td></tr>
+        <tr><td>18 ct</td><td>11.3 × 11.3 cm</td><td>16.4 × 16.4</td></tr>
+        <tr><td>22 ct</td><td>9.2 × 9.2 cm</td><td>14.3 × 14.3</td></tr>
+        <tr><td>28 ct ÷ 2</td><td>14.5 × 14.5 cm</td><td>19.6 × 19.6</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</main>
+
+<div class="notes">
+  <b>Option 2d · Project planner tab</b><br>
+  • Stats <i>aren't</i> repeated here — the popover above is the canonical home.<br>
+  • Project tab earns its keep as a <b>planner</b>: time estimate + finished size.<br>
+  • The dashed callout helps users discover the <i>Pattern info</i> chip the first time.<br>
+  • Compare with Option 1d (which keeps a hero stats strip in this tab) — Option 2 is one source of truth, Option 1 is two.
+</div>
+
+</body>
+</html>
