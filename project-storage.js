@@ -47,6 +47,11 @@ const ProjectStorage = (() => {
   }
 
   // Build a lightweight stats summary for the global dashboard.
+  // PERF-REVIEW (perf-6 #3): statsSessions duplicates the full project sessions
+  // array and palette[].rgb duplicates DMC lookup. Stripping would shrink the
+  // stats_summaries store by ~40-60% but consumers (manager-app dashboard, /home)
+  // currently read sessions[] directly from the summary. Needs a consumer audit
+  // before removal — leaving as-is until then.
   function buildStatsSummary(p) {
     const totalSt = countTotalStitches(p);
     const completedSt = p.done ? countCompletedStitches(p.done) : (p.completedStitches || 0);
