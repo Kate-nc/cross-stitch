@@ -1,4 +1,4 @@
-const { useState, useEffect, useMemo, useCallback } = React;
+const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
 // Hoisted out of PartialGauge so the lookup table isn't reallocated each render.
 const PARTIAL_GAUGE_SEGMENTS = {
@@ -54,6 +54,9 @@ function ManagerApp() {
   const [conflicts, setConflicts] = useState(null);
   const [readyToStart, setReadyToStart] = useState(null);
   const [lowStockAlerts, setLowStockAlerts] = useState(null);
+  // Plan B Phase 2: Stash info chip + popover.
+  const [stashChipOpen, setStashChipOpen] = useState(false);
+  const stashChipRef = useRef(null);
   const [userProfile, setUserProfile] = useState(() => {
     const get = (k, fb) => { try { var v = window.UserPrefs && window.UserPrefs.get(k); return (v == null) ? fb : v; } catch (_) { return fb; } };
     return {
@@ -779,12 +782,74 @@ function ManagerApp() {
         </div>
       )}
 
-      {/* Stats strip — threads */}
+      {/* Stats strip — threads.
+          Plan B Phase 2: collapsed into a "Stash" info chip. The full
+          breakdown (owned / to-buy / low-stock / conflicts / ready-to-start)
+          opens in the shared AppInfoPopover one click away. The smart-hub
+          alert cards below stay intact — critical conflicts must remain
+          surfaced inline. */}
       {tab === "inventory" && (
         <div className="mgr-stats-strip">
-          <div className="stat">{Icons.check()} <span className="val">{totalOwnedCount}</span> skeins owned</div>
-          <div className="stat">{Icons.cart()} <span className="val">{toBuyCount}</span> to buy</div>
-          {lowStockNeeded && lowStockNeeded.length > 0 && <div className="stat">{Icons.warning()} <span className="val">{lowStockNeeded.length}</span> low stock (needed)</div>}
+          <div className="app-info-chip-wrap mgr-stash-chip-wrap">
+            <button
+              ref={stashChipRef}
+              type="button"
+              className="app-info-chip mgr-stash-chip"
+              aria-haspopup="dialog"
+              aria-expanded={stashChipOpen}
+              onClick={() => setStashChipOpen(o => !o)}
+              title="Stash overview"
+            >
+              <span className="app-info-chip__label">Stash</span>
+              <span className="mgr-stash-chip-summary">
+                {totalOwnedCount} skeins
+                {toBuyCount > 0 && (<>{" \u00B7 "}{toBuyCount} to buy</>)}
+                {lowStockNeeded && lowStockNeeded.length > 0 && (<>{" \u00B7 "}{lowStockNeeded.length} low</>)}
+              </span>
+              <span className="app-info-chip__chevron" aria-hidden="true">{Icons.chevronDown ? Icons.chevronDown() : null}</span>
+            </button>
+            {stashChipOpen && window.AppInfoPopover && (() => {
+              const distinctOwned = Object.values(threads).filter(t => (t.owned || 0) > 0).length;
+              const conflictCount = (conflicts && conflicts.length) || 0;
+              const readyCount = (readyToStart && readyToStart.length) || 0;
+              const lowNeeded = (lowStockNeeded && lowStockNeeded.length) || 0;
+              const lowNotNeeded = (lowStockNotNeeded && lowStockNotNeeded.length) || 0;
+              const inventoryRows = [
+                ['Total skeins owned', totalOwnedCount.toLocaleString()],
+                ['Distinct threads owned', distinctOwned.toLocaleString()],
+                ['Low-stock threshold', String(lowStockThreshold)]
+              ];
+              const statusRows = [['To buy', toBuyCount]];
+              if (lowNeeded > 0) statusRows.push(['Low stock (needed)', lowNeeded]);
+              if (lowNotNeeded > 0) statusRows.push(['Low stock (other)', lowNotNeeded]);
+              if (conflictCount > 0) statusRows.push(['Conflicts', conflictCount]);
+              if (readyCount > 0) statusRows.push(['Ready to start', readyCount]);
+              const badges = [];
+              if (conflictCount > 0) badges.push({ label: conflictCount + ' conflicts', kind: 'danger' });
+              if (lowNeeded > 0) badges.push({ label: lowNeeded + ' low', kind: 'warning' });
+              if (readyCount > 0) badges.push({ label: readyCount + ' ready', kind: 'success' });
+              const children = [
+                React.createElement(window.AppInfoSection, { key: 's-inv', title: 'Stash' },
+                  React.createElement(window.AppInfoGrid, { rows: inventoryRows })
+                ),
+                React.createElement(window.AppInfoDivider, { key: 'd1' }),
+                React.createElement(window.AppInfoSection, { key: 's-status', title: 'Status' },
+                  React.createElement(window.AppInfoGrid, { rows: statusRows })
+                )
+              ];
+              if (badges.length) {
+                children.push(React.createElement(window.AppInfoDivider, { key: 'd2' }));
+                children.push(React.createElement(window.AppInfoBadges, { key: 'b', items: badges }));
+              }
+              return React.createElement(window.AppInfoPopover, {
+                open: true,
+                onClose: () => setStashChipOpen(false),
+                triggerRef: stashChipRef,
+                ariaLabel: 'Stash overview',
+                className: 'app-info-popover--left'
+              }, children);
+            })()}
+          </div>
         </div>
       )}
 
