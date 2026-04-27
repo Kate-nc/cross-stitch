@@ -32,7 +32,16 @@ function PartialGauge({ status }) {
 }
 
 function ManagerApp() {
-  const [tab, setTab] = useState("inventory"); // 'inventory' or 'patterns'
+  const [tab, setTab] = useState(() => {
+    // Step 3 (Shopping List rebuild): allow deep-linking from /home and the
+    // Creator's "Open Stash list" button via ?tab=shopping (also accept
+    // 'inventory'/'patterns' for completeness).
+    try {
+      const p = new URLSearchParams(window.location.search).get('tab');
+      if (p === 'shopping' || p === 'inventory' || p === 'patterns') return p;
+    } catch (_) {}
+    return "inventory";
+  }); // 'inventory' | 'patterns' | 'shopping'
   const [modal, setModal] = useState(null); // 'help', 'about', 'add_pattern'
   const [threads, setThreads] = useState({}); // { [id]: { owned: number, tobuy: boolean } }
   const [patterns, setPatterns] = useState([]); // Array of pattern objects

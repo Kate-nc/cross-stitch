@@ -15731,6 +15731,10 @@ window.CreatorExportTab = function CreatorExportTab() {
     var profile = _profile[0], setProfile = _profile[1];
     var _copied = useState(false);
     var copied = _copied[0], setCopied = _copied[1];
+    var _pushed = useState(false);
+    var pushed = _pushed[0], setPushed = _pushed[1];
+    var _pushBusy = useState(false);
+    var pushBusy = _pushBusy[0], setPushBusy = _pushBusy[1];
 
     // Read user profile (for strands/waste) from manager DB. Defaults if unavailable.
     useEffect(function () {
@@ -15855,6 +15859,38 @@ window.CreatorExportTab = function CreatorExportTab() {
       } catch (_) {}
     }
 
+    function pushToStash() {
+      // Step 3 (Shopping List rebuild): one-tap push of the "need to buy" rows
+      // into the Stash Manager My-list view, seeding tobuy_qty so the manager
+      // shows the right quantity without the user re-typing it.
+      if (pushBusy || buyRows.length === 0) return;
+      if (!(window.StashBridge && typeof StashBridge.setToBuyQtyMany === 'function')) {
+        if (window.Toast) window.Toast.show({ message: 'StashBridge unavailable. Open the Stash Manager and try again.', type: 'error' });
+        return;
+      }
+      setPushBusy(true);
+      var qtyMap = {};
+      buyRows.forEach(function (r) {
+        qtyMap[r.brand + ':' + r.id] = r.missing > 0 ? r.missing : r.needed;
+      });
+      Promise.resolve(StashBridge.setToBuyQtyMany(qtyMap))
+        .then(function (n) {
+          setPushed(true);
+          setTimeout(function () { setPushed(false); }, 2500);
+          if (window.Toast) {
+            window.Toast.show({
+              message: 'Added ' + buyRows.length + ' thread' + (buyRows.length === 1 ? '' : 's') + ' to your Stash shopping list.',
+              type: 'success', duration: 3000
+            });
+          }
+        })
+        .catch(function (e) {
+          console.error('Push to Stash shopping list failed:', e);
+          if (window.Toast) window.Toast.show({ message: 'Could not add to Stash list: ' + (e && e.message || e), type: 'error' });
+        })
+        .then(function () { setPushBusy(false); });
+    }
+
     var sectionLabel = function (text, color) {
       return h('div', { style: { fontSize:'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.04, color: color, margin: '12px 0 6px' } }, text);
     };
@@ -15907,12 +15943,18 @@ window.CreatorExportTab = function CreatorExportTab() {
         h('div', {
           style: { padding: '14px 20px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-secondary)', gap:'var(--s-2)', flexWrap: 'wrap' }
         },
-          h('span', { style: { fontSize:'var(--text-sm)', color: 'var(--success)', fontWeight: 600, opacity: copied ? 1 : 0, transition: 'opacity 0.2s' } }, 'Copied!'),
-          h('div', { style: { display: 'flex', gap:'var(--s-2)', marginLeft: 'auto' } },
+          h('span', { style: { fontSize:'var(--text-sm)', color: 'var(--success)', fontWeight: 600, opacity: (copied || pushed) ? 1 : 0, transition: 'opacity 0.2s' } }, pushed ? 'Added to Stash list!' : 'Copied!'),
+          h('div', { style: { display: 'flex', gap:'var(--s-2)', marginLeft: 'auto', flexWrap: 'wrap' } },
             h('a', {
-              href: 'manager.html',
+              href: 'manager.html?tab=shopping',
               style: { padding: '7px 14px', borderRadius:'var(--radius-md)', border: '0.5px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontWeight: 600, fontSize:'var(--text-md)', textDecoration: 'none', color: 'var(--text-secondary)' }
-            }, 'Open in Stash Manager'),
+            }, 'Open Stash list'),
+            buyRows.length > 0 && h('button', {
+              type: 'button',
+              onClick: pushToStash,
+              disabled: pushBusy,
+              style: { padding: '7px 14px', borderRadius:'var(--radius-md)', border: '0.5px solid var(--accent)', background: 'var(--surface)', cursor: pushBusy ? 'wait' : 'pointer', fontWeight: 600, fontSize:'var(--text-md)', color: 'var(--accent)' }
+            }, pushBusy ? 'Adding…' : 'Add to my Stash list'),
             rows.length > 0 && h('button', {
               onClick: copyText,
               style: { padding: '7px 14px', borderRadius:'var(--radius-md)', border: 'none', background: 'var(--accent)', color: 'var(--surface)', cursor: 'pointer', fontWeight: 600, fontSize:'var(--text-md)' }
@@ -16088,7 +16130,11 @@ window.CreatorMaterialsHub = function CreatorMaterialsHub() {
             if (!(window.StashBridge && typeof StashBridge.markManyToBuy === 'function')) return;
             setBulkBusy(true);
             var keys = deficits.map(function (r) { return r.key; });
-            Promise.resolve(StashBridge.markManyToBuy(keys, true))
+            // Step 3 (Shopping List rebuild): seed tobuy_qty for each row so the
+            // Stash Manager My-list view shows the correct quantity, not 1.
+            var qtyMap = {};
+            deficits.forEach(function (r) { qtyMap[r.key] = r.deficit; });
+            Promise.resolve(StashBridge.markManyToBuy(keys, true, qtyMap))
               .then(function () {
                 if (window.Toast && typeof Toast.show === 'function') {
                   Toast.show({ message: 'Added ' + keys.length + ' thread' + (keys.length === 1 ? '' : 's') + ' to your shopping list.', type: 'success', duration: 3000 });

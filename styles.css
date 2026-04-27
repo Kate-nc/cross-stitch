@@ -5687,6 +5687,19 @@ html.pref-dark a { color: var(--accent); }
   border-bottom: 1px dashed var(--border-subtle);
 }
 .home-stash__row:last-child { border-bottom: none; }
+.home-stash__row--link {
+  text-decoration: none;
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  margin: 0 calc(-1 * var(--s-2, 8px));
+  padding-left: var(--s-2, 8px);
+  padding-right: var(--s-2, 8px);
+  border-radius: var(--radius-sm, 4px);
+}
+.home-stash__row--link:hover { background: var(--surface-tertiary); color: var(--accent); }
+.home-stash__row--link .home-stash__value { color: var(--accent); }
 .home-stash__value { color: var(--text-primary); font-weight: 600; }
 
 /* Footer */

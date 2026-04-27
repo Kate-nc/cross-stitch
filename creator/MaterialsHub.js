@@ -159,7 +159,11 @@ window.CreatorMaterialsHub = function CreatorMaterialsHub() {
             if (!(window.StashBridge && typeof StashBridge.markManyToBuy === 'function')) return;
             setBulkBusy(true);
             var keys = deficits.map(function (r) { return r.key; });
-            Promise.resolve(StashBridge.markManyToBuy(keys, true))
+            // Step 3 (Shopping List rebuild): seed tobuy_qty for each row so the
+            // Stash Manager My-list view shows the correct quantity, not 1.
+            var qtyMap = {};
+            deficits.forEach(function (r) { qtyMap[r.key] = r.deficit; });
+            Promise.resolve(StashBridge.markManyToBuy(keys, true, qtyMap))
               .then(function () {
                 if (window.Toast && typeof Toast.show === 'function') {
                   Toast.show({ message: 'Added ' + keys.length + ' thread' + (keys.length === 1 ? '' : 's') + ' to your shopping list.', type: 'success', duration: 3000 });
