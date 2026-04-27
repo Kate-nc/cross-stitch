@@ -238,7 +238,15 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const state = useCreatorStateHook();
   const history = useEditHistoryHook(state);
   const canvas = useCanvasInteractionHook(state, history);
-  const io = useProjectIOHook(state, history, {onSwitchToTrack});
+  // useProjectIO's auto-save, beforeunload flush, and active-project effect all
+  // gate on state.isActive. useCreatorState does NOT set isActive (it's a prop
+  // of CreatorApp tied to the design/track mode toggle in UnifiedApp), so we
+  // have to merge it in here exactly like the keyboard-shortcuts hook below.
+  // Without this merge state.isActive is undefined, the auto-save guard
+  // `if (!state.isActive) return;` always trips, and edits made in the Creator
+  // never reach IndexedDB or the Stash Manager — pattern saves only happen via
+  // the explicit handleOpenInTracker handoff (which bypasses the guard).
+  const io = useProjectIOHook(Object.assign({}, state, {isActive: isActive}), history, {onSwitchToTrack});
   usePreviewHook(state);
   useKeyboardShortcutsHook(Object.assign({}, state, {isActive: isActive}), history, io);
 

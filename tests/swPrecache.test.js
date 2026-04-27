@@ -14,8 +14,8 @@ const path = require('path');
 const SW = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
 
 describe('sw.js precache (UX-12 Phase 7 PR #13)', () => {
-  test('CACHE_NAME bumped to v22', () => {
-    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v22['"]/);
+  test('CACHE_NAME bumped to v23', () => {
+    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v23['"]/);
   });
 
   test('PRECACHE_URLS includes home.html', () => {
