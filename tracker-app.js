@@ -6031,7 +6031,7 @@ return(
           {speedNote&&<div className="resume-recap-note">{speedNote}</div>}
         </div>
         <div className="resume-recap-footer">
-          <button className="resume-recap-btn" onClick={()=>{dismiss();if(typeof onGoHome==='function')onGoHome();}}>Switch project</button>
+          <button className="resume-recap-btn" onClick={()=>{dismiss();if(typeof onGoHome==='function')onGoHome();else window.location.href='home.html';}}>Switch project</button>
           <button className="resume-recap-btn" onClick={()=>{dismiss();setStatsView(true);}}>Stats</button>
           <button className="resume-recap-btn resume-recap-btn--primary" onClick={dismiss} autoFocus>Continue stitching</button>
         </div>

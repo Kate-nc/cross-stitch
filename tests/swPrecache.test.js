@@ -1,5 +1,6 @@
-// tests/swPrecache.test.js — UX-12 Phase 7 PR #13, bumped to v11 by the audit
-// (I14 manifest icons require evicting the iconless v10 manifest from clients).
+// tests/swPrecache.test.js — UX-12 Phase 7 PR #13, bumped to v12 for the
+// Tier 2 homepage-predominance audit changes (the Creator no longer mounts
+// the legacy in-tool HomeScreen and standalone-mode initial state changed).
 // Verifies the service worker precache contract:
 //   - CACHE_NAME at the current ship version
 //   - home.html and home-app.js are in PRECACHE_URLS
@@ -11,8 +12,8 @@ const path = require('path');
 const SW = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
 
 describe('sw.js precache (UX-12 Phase 7 PR #13)', () => {
-  test('CACHE_NAME bumped to v11', () => {
-    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v11['"]/);
+  test('CACHE_NAME bumped to v12', () => {
+    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v12['"]/);
   });
 
   test('PRECACHE_URLS includes home.html', () => {

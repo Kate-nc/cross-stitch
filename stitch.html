@@ -17,7 +17,7 @@
     var active = localStorage.getItem('crossstitch_active_project');
     if (!active) {
       var qs = location.search || '';
-      var skip = /(\?|&)(from=home|action=|picker=)/.test(qs);
+      var skip = /(\?|&)(from=home|action=)/.test(qs);
       if (!skip) { location.replace('home.html'); return; }
     }
   } catch (_) { /* localStorage blocked → load tool normally */ }

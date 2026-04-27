@@ -22,13 +22,34 @@
   var h = React.createElement;
 
   // ── Helpers ────────────────────────────────────────────────────────────
+  // Inlined from home-screen.js so /home no longer depends on the legacy
+  // bundle (Tier 2 of the homepage-predominance audit retired the in-Creator
+  // HomeScreen). window.timeAgo / window.getGreeting remain the canonical
+  // implementations when home-screen.js is also loaded (e.g. on manager.html).
   function timeAgo(d) {
     if (typeof window.timeAgo === 'function') return window.timeAgo(d);
-    return '';
+    if (!d) return '';
+    var dt = typeof d === 'string' ? new Date(d) : d;
+    var diff = Date.now() - dt.getTime();
+    if (diff < 0) return 'just now';
+    var sec = Math.floor(diff / 1000);
+    if (sec < 60) return 'just now';
+    var min = Math.floor(sec / 60);
+    if (min < 60) return min + ' min ago';
+    var hr = Math.floor(min / 60);
+    if (hr < 24) return hr + 'h ago';
+    var days = Math.floor(hr / 24);
+    if (days === 1) return 'yesterday';
+    if (days < 7) return days + ' days ago';
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return months[dt.getMonth()] + ' ' + dt.getDate();
   }
   function getGreeting() {
     if (typeof window.getGreeting === 'function') return window.getGreeting();
-    return 'Hello';
+    var hr = new Date().getHours();
+    if (hr >= 5 && hr <= 11) return 'Good morning';
+    if (hr >= 12 && hr <= 16) return 'Good afternoon';
+    return 'Good evening';
   }
 
   function projectInitials(name) {
@@ -458,7 +479,7 @@
     }, []);
 
     function onOpenProject() {
-      window.location.href = 'stitch.html?picker=1&from=home';
+      window.location.href = 'stitch.html?from=home';
     }
 
     var Header = window.Header;

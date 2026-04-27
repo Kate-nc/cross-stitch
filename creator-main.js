@@ -969,12 +969,11 @@ function UnifiedApp(){
     if(p.get('mode')==='track') return 'track';
     if(p.get('mode')==='stats') return 'stats';
     if(p.get('mode')==='showcase'){window.history.replaceState({},'','?mode=stats&tab=showcase');return 'stats';}
-    // /home tile clicks land here with ?action=new-from-image / new-blank /
-    // home-image-pending. Skip the legacy in-tool home screen and drop the
-    // user straight into Creator.
-    var act=p.get('action');
-    if(act==='new-from-image'||act==='new-blank'||act==='open'||act==='home-image-pending') return 'design';
-    return 'home';
+    // The legacy in-Creator home screen has been retired (Tier 2 of the
+    // homepage-predominance audit). The Creator now always opens straight
+    // into design mode — the redirect guard in index.html bounces users
+    // without an active project to /home before this code runs.
+    return 'design';
   });
   // Process ?action= deep links from /home so the user lands directly in Creator
   // instead of bouncing through the legacy in-tool home screen.
@@ -1077,7 +1076,7 @@ function UnifiedApp(){
     const prev=prevModeRef.current;
     if(prev==='track'){window.history.replaceState({},'','?mode=track');setMode('track');}
     else if(prev==='design'){window.history.replaceState({},'',window.location.pathname);setMode('design');}
-    else{window.history.replaceState({},'',window.location.pathname);setHomeKey(k=>k+1);setMode('home');}
+    else{window.location.href='home.html';}
   },[]);
   const switchToShowcase=React.useCallback(()=>switchToStats({tab:'showcase'}),[]);
   const switchToStats=React.useCallback((params)=>{
@@ -1097,9 +1096,9 @@ function UnifiedApp(){
     setMode('stats');
   },[closeStats]);
   const goHome=React.useCallback(()=>{
-    window.history.replaceState({},'',window.location.pathname);
-    setHomeKey(k=>k+1);
-    setMode('home');
+    // Tier 2 of the homepage-predominance audit — the legacy in-Creator home
+    // screen is retired. Always navigate to the canonical /home landing.
+    window.location.href='home.html';
   },[]);
 
   React.useEffect(()=>{
@@ -1232,27 +1231,9 @@ function UnifiedApp(){
 
   const T=typeof window.TrackerApp!=='undefined'?window.TrackerApp:null;
   return <>
-    {mode==='home'&&<div>
-      <Header page="home" tab="" onPageChange={()=>{}} setModal={setHomeModal}
-        onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setHomePrefsOpen(true):undefined} />
-      {homePrefsOpen&&typeof window.PreferencesModal!=='undefined'&&React.createElement(window.PreferencesModal,{onClose:()=>setHomePrefsOpen(false)})}
-      {homeBulkAddOpen&&typeof window.BulkAddModal!=='undefined'&&React.createElement(window.BulkAddModal,{onClose:()=>setHomeBulkAddOpen(false)})}
-      <HomeScreen
-        key={homeKey}
-        onOpenCreatorWithImage={handleHomeOpenCreatorWithImage}
-        onOpenCreatorBlank={handleHomeOpenCreatorBlank}
-        onOpenFile={handleHomeOpenFile}
-        onImportPattern={handleHomeImportPattern}
-        onOpenProject={handleHomeOpenProject}
-        onNavigateToStash={handleHomeNavigateToStash}
-        onBulkAddThreads={typeof window.BulkAddModal!=='undefined'?()=>setHomeBulkAddOpen(true):undefined}
-        onOpenGlobalStats={switchToStats}
-        onOpenShowcase={switchToShowcase}
-      />
-      {homeModal==='help'&&<SharedModals.Help defaultTab="creator" onClose={()=>setHomeModal(null)} />}
-      {homeModal==='shortcuts'&&<SharedModals.Help defaultTab="shortcuts" onClose={()=>setHomeModal(null)} />}
-      {welcomeOpen&&mode==='home'&&window.WelcomeWizard&&React.createElement(window.WelcomeWizard,{page:'creator',onClose:()=>setWelcomeOpen(false)})}
-    </div>}
+    {/* Tier 2 of the homepage-predominance audit retired the legacy
+        in-Creator HomeScreen mount. The Creator now opens straight into
+        design mode; users navigate to /home via the topbar logo. */}
     <div key={creatorResetKey} style={{display:mode==='design'?'':'none'}}>
       <CreatorErrorBoundary><CreatorApp onSwitchToTrack={switchToTrack} isActive={mode==='design'}/></CreatorErrorBoundary>
     </div>

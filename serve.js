@@ -1,4 +1,5 @@
-// Minimal static file server — no clean-URL rewrites, no SPA fallback.
+// Minimal static file server with one rewrite for /home (matches the
+// vercel.json production rewrite so dev behaviour aligns with prod).
 // Usage: node serve.js [port]
 const http = require('http');
 const fs   = require('fs');
@@ -36,6 +37,14 @@ const server = http.createServer((req, res) => {
     res.writeHead(400, { 'Content-Type': 'text/plain' });
     res.end('400 Bad Request');
     return;
+  }
+
+  // Tier 2 of the homepage-predominance audit — mirror the vercel.json
+  // rewrite so `GET /home` (or `/home/`) serves the canonical landing
+  // page in development too. `GET /` is handled by the directory branch
+  // below.
+  if (decoded === '/home' || decoded === '/home/') {
+    decoded = '/home.html';
   }
 
   const resolvedRoot = path.resolve(ROOT);
