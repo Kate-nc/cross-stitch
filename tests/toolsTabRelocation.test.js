@@ -23,9 +23,9 @@ const SHORTCUTS_SRC = fs.readFileSync(
 );
 
 describe('Edit-mode toolbar consolidation — Tools sidebar tab', () => {
-  test('Tools tab is present in the edit-mode tab list, between Palette and View', () => {
+  test('Tools tab is present in the edit-mode tab list (Polish A: leads the row, Palette locked to slot 3)', () => {
     expect(SIDEBAR_SRC).toMatch(
-      /editTabs\s*=\s*\[\["palette","Palette"\],\["tools","Tools"\],\["view","View"\]/
+      /editTabs\s*=\s*\[[\s\S]*?\["tools","Tools"\][\s\S]*?\["view","View"\][\s\S]*?\["palette","Palette"\][\s\S]*?\["preview","Preview"\][\s\S]*?\["more","More"\]/
     );
   });
 

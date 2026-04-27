@@ -4726,44 +4726,59 @@ html.pref-dark a { color: var(--accent); }
 }
 
 /* ─── Option 2 — Mode switch + Pattern info chip + popover ──────────── */
+/* Polish A — switched from a 3-pip segmented "tablist" (Create / Edit /
+   Track) to a phase label + two real action buttons. The label is a
+   plain span so screen readers announce the current phase, and every
+   visible button now performs an action. */
 .creator-actionbar__mode-switch {
   display: inline-flex;
-  align-items: stretch;
-  border: 1px solid var(--line, #E5DCCB);
-  border-radius: var(--radius-md, 8px);
-  overflow: hidden;
-  background: var(--surface-secondary, #F9F5F0);
+  align-items: center;
+  gap: 6px;
   margin-right: 8px;
+  flex-wrap: wrap;
+}
+
+.creator-actionbar__mode-phase {
+  font: 600 12px/1 inherit;
+  color: var(--text-secondary, #5C5448);
+  padding: 0 4px;
+  white-space: nowrap;
 }
 
 .creator-actionbar__mode-btn {
-  border: 0;
-  background: transparent;
-  padding: 7px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--line, #E5DCCB);
+  background: var(--surface-secondary, #F9F5F0);
+  border-radius: var(--radius-md, 8px);
+  padding: 6px 10px;
   font: 600 12px/1 inherit;
   color: var(--text-secondary, #5C5448);
   cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
 
-.creator-actionbar__mode-btn + .creator-actionbar__mode-btn {
-  border-left: 1px solid var(--line, #E5DCCB);
-}
-
-.creator-actionbar__mode-btn:hover:not([aria-selected="true"]) {
+.creator-actionbar__mode-btn:hover {
   background: var(--accent-soft, #F4DDCF);
   color: var(--text-primary);
+  border-color: var(--accent, #B85C38);
 }
 
-.creator-actionbar__mode-btn[aria-selected="true"] {
+.creator-actionbar__mode-btn--forward {
   background: var(--accent, #B85C38);
   color: #FFFDF8;
-  cursor: default;
+  border-color: var(--accent, #B85C38);
+}
+
+.creator-actionbar__mode-btn--forward:hover {
+  background: var(--accent-2, var(--accent, #B85C38));
+  color: #FFFDF8;
 }
 
 .creator-actionbar__mode-btn:focus-visible {
   outline: 2px solid var(--accent, #B85C38);
-  outline-offset: -2px;
+  outline-offset: 2px;
 }
 
 .creator-actionbar__info-wrap {

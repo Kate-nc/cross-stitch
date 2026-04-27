@@ -12452,7 +12452,17 @@ window.CreatorSidebar = function CreatorSidebar() {
     ["preview","Preview"],
     ["project","Project"]
   ];
-  var editTabs = [["palette","Palette"],["tools","Tools"],["view","View"],["preview","Preview"],["more","More"]];
+  // Polish A — locked to share Palette/Preview slots with createTabs
+  // (positions 3 and 4) so users don't lose their place when the Generate
+  // step swaps the bar from create to edit. Tools/View take the first two
+  // slots that Image/Dimensions occupied; More keeps the trailing slot.
+  var editTabs = [
+    ["tools","Tools"],
+    ["view","View"],
+    ["palette","Palette"],
+    ["preview","Preview"],
+    ["more","More"]
+  ];
   var tabs = mode === "create" ? createTabs : editTabs;
 
   // Ensure sidebarTab is valid for current mode
@@ -16220,8 +16230,6 @@ window.CreatorActionBar = function CreatorActionBar(props) {
   var setInfoOpen = infoOpenState[1];
   var infoBtnRef = React.useRef(null);
 
-  var modeSwitchRef = React.useRef(null);
-
   // Click-outside / Escape to close the Export menu.
   React.useEffect(function() {
     if (!menuOpen) return undefined;
@@ -16279,58 +16287,52 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     };
   }
 
-  // Roving tabindex keyboard handler for the segmented mode switch.
-  // Mirrors the CreatorMaterialsHub tablist pattern (creator/MaterialsHub.js).
-  function onModeKeyDown(e) {
-    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight" && e.key !== "Home" && e.key !== "End") return;
-    if (!modeSwitchRef.current) return;
-    var items = Array.prototype.slice.call(
-      modeSwitchRef.current.querySelectorAll('[role="tab"]')
-    );
-    if (!items.length) return;
-    var idx = items.indexOf(document.activeElement);
-    var next = idx;
-    if (e.key === "ArrowRight") next = idx < 0 ? 0 : (idx + 1) % items.length;
-    else if (e.key === "ArrowLeft") next = idx <= 0 ? items.length - 1 : idx - 1;
-    else if (e.key === "Home") next = 0;
-    else if (e.key === "End") next = items.length - 1;
-    if (items[next] && items[next].focus) {
-      items[next].focus();
-      e.preventDefault();
-    }
-  }
-
-  // Mode switch — Create / Edit / Track. The Edit button is the current
-  // surface, so it stays selected and is a no-op. Create and Track route
-  // back to the existing handlers. Roving tabindex keeps keyboard
-  // navigation predictable.
+  // Mode switch (Polish A — was a 3-pip Create/Edit/Track segmented
+  // control where "Edit" looked active but did nothing because the bar
+  // only mounts in Edit mode. Now rendered as a phase label + two real
+  // actions, so every visible control performs an action and the
+  // current state is unambiguous.)
+  //   ◀ Setup   |   Editing pattern   |   Open in Tracker ▶
+  // The Setup button is shown only when there is something to go back
+  // to (props.onSwitchToCreate present); Track is always shown.
   var appMode = props.appMode || "edit";
-  var modes = [
-    { id: "create", label: "Create", onClick: props.onSwitchToCreate, title: "Switch back to Create mode" },
-    { id: "edit",   label: "Edit",   onClick: null,                   title: "You're in Edit mode" },
-    { id: "track",  label: "Track",  onClick: props.onTrackPattern,   title: "Open this pattern in the Stitch Tracker" }
-  ];
+  var setupBtn = (typeof props.onSwitchToCreate === "function") ? h("button", {
+      type: "button",
+      className: "creator-actionbar__mode-btn creator-actionbar__mode-btn--back",
+      onClick: props.onSwitchToCreate,
+      title: "Back to Setup (image, dimensions, palette)",
+      "aria-label": "Back to setup"
+    },
+    Icons.chevronLeft ? Icons.chevronLeft() : h("span", { "aria-hidden": "true" }, "\u2039"),
+    h("span", null, "Setup")
+  ) : null;
+
+  var phaseLabel = h("span", {
+      className: "creator-actionbar__mode-phase",
+      "aria-live": "polite"
+    },
+    appMode === "create" ? "Setting up" : "Editing pattern"
+  );
+
+  var trackBtn = (typeof props.onTrackPattern === "function") ? h("button", {
+      type: "button",
+      className: "creator-actionbar__mode-btn creator-actionbar__mode-btn--forward",
+      onClick: props.onTrackPattern,
+      title: "Open this pattern in the Stitch Tracker",
+      "aria-label": "Open in Tracker"
+    },
+    h("span", null, "Open in Tracker"),
+    Icons.chevronRight ? Icons.chevronRight() : h("span", { "aria-hidden": "true" }, "\u203A")
+  ) : null;
 
   var modeSwitch = h("div", {
-      ref: modeSwitchRef,
       className: "creator-actionbar__mode-switch",
-      role: "tablist",
-      "aria-label": "Pattern mode",
-      onKeyDown: onModeKeyDown
+      role: "group",
+      "aria-label": "Pattern phase"
     },
-    modes.map(function(m) {
-      var active = (appMode === m.id);
-      return h("button", {
-          key: m.id,
-          type: "button",
-          role: "tab",
-          className: "creator-actionbar__mode-btn",
-          "aria-selected": active ? "true" : "false",
-          tabIndex: active ? 0 : -1,
-          onClick: active ? undefined : m.onClick,
-          title: m.title
-        }, m.label);
-    })
+    setupBtn,
+    phaseLabel,
+    trackBtn
   );
 
   // Pattern info chip — replaces the inline four-stat block. Opens the

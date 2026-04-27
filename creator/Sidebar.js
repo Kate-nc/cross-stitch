@@ -1054,7 +1054,17 @@ window.CreatorSidebar = function CreatorSidebar() {
     ["preview","Preview"],
     ["project","Project"]
   ];
-  var editTabs = [["palette","Palette"],["tools","Tools"],["view","View"],["preview","Preview"],["more","More"]];
+  // Polish A — locked to share Palette/Preview slots with createTabs
+  // (positions 3 and 4) so users don't lose their place when the Generate
+  // step swaps the bar from create to edit. Tools/View take the first two
+  // slots that Image/Dimensions occupied; More keeps the trailing slot.
+  var editTabs = [
+    ["tools","Tools"],
+    ["view","View"],
+    ["palette","Palette"],
+    ["preview","Preview"],
+    ["more","More"]
+  ];
   var tabs = mode === "create" ? createTabs : editTabs;
 
   // Ensure sidebarTab is valid for current mode

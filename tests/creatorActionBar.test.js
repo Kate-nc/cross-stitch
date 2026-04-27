@@ -59,10 +59,11 @@ describe('Creator outcome action bar (UX-12 Phase 5 + Option 2)', () => {
     expect(ACTION_BAR_SRC).toMatch(/Export(\u2026|\\u2026)/);
     expect(ACTION_BAR_SRC).toMatch(/Save project \(\.json\)/);
     expect(ACTION_BAR_SRC).toMatch(/More export options/);
-    // Mode switch labels.
-    expect(ACTION_BAR_SRC).toMatch(/label:\s*"Create"/);
-    expect(ACTION_BAR_SRC).toMatch(/label:\s*"Edit"/);
-    expect(ACTION_BAR_SRC).toMatch(/label:\s*"Track"/);
+    // Mode switch (Polish A — phase label + Setup/Track buttons).
+    expect(ACTION_BAR_SRC).toMatch(/"Setup"/);
+    expect(ACTION_BAR_SRC).toMatch(/"Open in Tracker"/);
+    expect(ACTION_BAR_SRC).toMatch(/"Editing pattern"/);
+    expect(ACTION_BAR_SRC).toMatch(/"Setting up"/);
     // Pattern info chip.
     expect(ACTION_BAR_SRC).toMatch(/"Pattern info"/);
   });
@@ -79,23 +80,27 @@ describe('Creator outcome action bar (UX-12 Phase 5 + Option 2)', () => {
     expect(POPOVER_SRC).toMatch(/\\u00D7/);
   });
 
-  test('declares ARIA structure (toolbar + tablist + menu + labels)', () => {
+  test('declares ARIA structure (toolbar + menu + labels)', () => {
     expect(ACTION_BAR_SRC).toMatch(/role:\s*"toolbar"/);
-    expect(ACTION_BAR_SRC).toMatch(/role:\s*"tablist"/);
-    expect(ACTION_BAR_SRC).toMatch(/role:\s*"tab"/);
+    expect(ACTION_BAR_SRC).toMatch(/role:\s*"group"/);
     expect(ACTION_BAR_SRC).toMatch(/role:\s*"menu"/);
     expect(ACTION_BAR_SRC).toMatch(/role:\s*"menuitem"/);
     expect(ACTION_BAR_SRC).toMatch(/"aria-haspopup":\s*"menu"/);
     expect(ACTION_BAR_SRC).toMatch(/"aria-haspopup":\s*"dialog"/);
     expect(ACTION_BAR_SRC).toMatch(/"aria-expanded"/);
-    expect(ACTION_BAR_SRC).toMatch(/"aria-selected"/);
     expect(ACTION_BAR_SRC).toMatch(/"aria-label":\s*"Pattern actions"/);
-    expect(ACTION_BAR_SRC).toMatch(/"aria-label":\s*"Pattern mode"/);
+    expect(ACTION_BAR_SRC).toMatch(/"aria-label":\s*"Pattern phase"/);
+    expect(ACTION_BAR_SRC).toMatch(/"aria-live":\s*"polite"/);
   });
 
-  test('mode switch uses roving tabindex (0 / -1)', () => {
-    expect(ACTION_BAR_SRC).toMatch(/tabIndex:\s*active\s*\?\s*0\s*:\s*-1/);
-    expect(ACTION_BAR_SRC).toMatch(/ArrowLeft|ArrowRight/);
+  test('Polish A — Setup/Track buttons replace the no-op Edit pip', () => {
+    // Phase label is a span, not a tab; Setup and Track are real buttons.
+    expect(ACTION_BAR_SRC).toMatch(/creator-actionbar__mode-phase/);
+    expect(ACTION_BAR_SRC).toMatch(/creator-actionbar__mode-btn--back/);
+    expect(ACTION_BAR_SRC).toMatch(/creator-actionbar__mode-btn--forward/);
+    // No more aria-selected on the mode-switch buttons.
+    const oldRovingPattern = /tabIndex:\s*active\s*\?\s*0\s*:\s*-1/;
+    expect(oldRovingPattern.test(ACTION_BAR_SRC)).toBe(false);
   });
 
   test('uses Icons.* helpers (no emoji glyphs)', () => {
