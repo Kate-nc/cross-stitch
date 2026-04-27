@@ -277,6 +277,7 @@
     var grid = usePref("gridOverlayEnabled", false);
     var refOpac = usePref("creatorReferenceOpacity", 35);
     var importWiz = usePref("experimental.importWizard", false);
+    var embroidery = usePref("experimental.embroideryTool", false);
 
     return h("div", null,
       h(PageHeader, { title: "Pattern Creator",
@@ -345,9 +346,13 @@
       ),
 
       h(Section, { title: "Experimental" },
-        h(Row, { last: true, label: "Use guided import wizard (experimental)",
+        h(Row, { label: "Use guided import wizard (experimental)",
           desc: "Replaces the single‑step image import dialog with a five‑step wizard. Off by default while we iterate." },
           h(Switch, { checked: importWiz[0], onChange: importWiz[1] })
+        ),
+        h(Row, { last: true, label: "Show Embroidery planner link (experimental)",
+          desc: "Surfaces a link to the experimental embroidery pattern planner (embroidery.html). Direct access still works regardless of this toggle - it only controls whether the link appears in the UI." },
+          h(Switch, { checked: embroidery[0], onChange: embroidery[1] })
         )
       )
     );

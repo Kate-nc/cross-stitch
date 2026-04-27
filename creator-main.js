@@ -774,18 +774,30 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       <window.CreatorToolStrip/>
       <div className="cs-page-content">
         {state.loadError&&<div style={{background:"#FCEFEF",border:"1px solid #ECC8C8",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#A53D3D",marginBottom:12}}>{state.loadError}</div>}
-        {!state.img&&!state.pat&&<div
+        {/* Hide the legacy "Welcome to Cross Stitch Pattern Generator" card
+            while a /home handoff is in flight (image being decoded, scratch
+            project being built, JSON being loaded). Without this guard the
+            user sees the welcome flash for a beat and assumes their action
+            failed. The card still appears for direct entries that don't
+            carry an action= deep link (e.g. someone clicked "New project"
+            inside the Creator and resetAll wiped the canvas). */}
+        {!state.img&&!state.pat&&(state.isUploading||window.__pendingCreatorFile||window.__pendingCreatorAction||window.__pendingCreatorJsonFile)&&<div
+            style={{maxWidth:700,margin:"80px auto",textAlign:"center",padding:"40px",display:"flex",flexDirection:"column",alignItems:"center",gap:14,color:"#5C5448"}}
+            aria-live="polite">
+          <div style={{width:32,height:32,border:"2.5px solid #E5DCCB",borderTopColor:"#B85C38",borderRadius:"50%",animation:"spin 0.9s linear infinite"}} aria-hidden="true"/>
+          <div style={{fontSize:14,fontWeight:600}}>Preparing your pattern…</div>
+        </div>}
+        {!state.img&&!state.pat&&!state.isUploading&&!window.__pendingCreatorFile&&!window.__pendingCreatorAction&&!window.__pendingCreatorJsonFile&&<div
             style={{maxWidth:700,margin:"40px auto",textAlign:"center",padding:"40px",border:state.isDragging?"2px dashed #B85C38":"2px dashed transparent",borderRadius:"16px",background:state.isDragging?"#F4DDCF":"transparent",transition:"all 0.2s"}}
             onDragOver={(e)=>{e.preventDefault();state.setIsDragging(true);}}
             onDragEnter={(e)=>{e.preventDefault();state.setIsDragging(true);}}
             onDragLeave={(e)=>{e.preventDefault();state.setIsDragging(false);}}
             onDrop={(e)=>{e.preventDefault();state.setIsDragging(false);if(e.dataTransfer.files&&e.dataTransfer.files.length>0){io.handleFile(e.dataTransfer.files[0]);e.dataTransfer.clearData();}}}
           >
-          <h1 style={{fontSize:28,fontWeight:700,color:"#1B1814",marginBottom:8}}>Welcome to Cross Stitch Pattern Generator</h1>
-          <p style={{fontSize:15,color:"#5C5448",marginBottom:32}}>Turn any photo into a detailed pattern, drop an image anywhere here, or continue working on an existing project.</p>
+          <h1 style={{fontSize:28,fontWeight:700,color:"#1B1814",marginBottom:8}}>Start a new pattern</h1>
+          <p style={{fontSize:15,color:"#5C5448",marginBottom:32}}>Drop an image anywhere here, pick one with the tile below, or load a saved project to keep working.</p>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(260px, 1fr))",gap:24}}>
             <div onClick={()=>state.fRef.current.click()} className="upload-area" style={{position:"relative"}}>
-              {state.isUploading&&<div style={{position:"absolute",top:0,left:0,right:0,bottom:0,background:"rgba(255,255,255,0.8)",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:12,zIndex:10,fontWeight:600,color:"#B85C38"}}>Processing...</div>}
               <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
               <div><div style={{fontWeight:600,fontSize:18,color:"#1B1814",marginBottom:4}}>Create New Pattern</div><div style={{color:"#5C5448",fontSize:14}}>Upload an image (JPG, PNG)</div></div>
             </div>
@@ -975,49 +987,6 @@ function UnifiedApp(){
     // without an active project to /home before this code runs.
     return 'design';
   });
-  // Process ?action= deep links from /home so the user lands directly in Creator
-  // instead of bouncing through the legacy in-tool home screen.
-  React.useEffect(()=>{
-    var p=new URLSearchParams(window.location.search);
-    var act=p.get('action');
-    if(!act) return;
-    window.history.replaceState({},'',window.location.pathname);
-    if(typeof ProjectStorage!=='undefined'){try{ProjectStorage.clearActiveProject();}catch(_){}}
-    if(act==='new-blank'){
-      window.__pendingCreatorAction='scratch';
-      // Match handleHomeOpenCreatorBlank: scratch defaults to Edit, not Create.
-      setTimeout(()=>{if(window.__setCreatorAppMode) window.__setCreatorAppMode('edit');},0);
-    } else if(act==='home-image-pending'){
-      // home-app.js triggered the file picker in the same user gesture, stored
-      // the selected file as a data URL in sessionStorage, then navigated here.
-      // Reconstruct a File object from the stored data URL so the Creator can
-      // process it immediately without requiring a second click.
-      var pendingDataUrl=sessionStorage.getItem('cs_pending_image_dataurl');
-      var pendingName=sessionStorage.getItem('cs_pending_image_name')||'image.jpg';
-      var pendingType=sessionStorage.getItem('cs_pending_image_type')||'image/jpeg';
-      sessionStorage.removeItem('cs_pending_image_dataurl');
-      sessionStorage.removeItem('cs_pending_image_name');
-      sessionStorage.removeItem('cs_pending_image_type');
-      if(pendingDataUrl){
-        try{
-          var b64=pendingDataUrl.split(',')[1];
-          var byteStr=atob(b64);
-          var ab=new ArrayBuffer(byteStr.length);
-          var ia=new Uint8Array(ab);
-          for(var bi=0;bi<byteStr.length;bi++) ia[bi]=byteStr.charCodeAt(bi);
-          var blob=new Blob([ab],{type:pendingType});
-          window.__pendingCreatorFile=new File([blob],pendingName,{type:pendingType});
-        }catch(_){}
-      }
-    } else if(act==='new-from-image'){
-      // Fallback path (e.g. sessionStorage quota exceeded): Creator upload
-      // screen is already showing — guide user to click "Create New Pattern".
-      if(window.Toast) window.Toast.show({message:'Click "Create New Pattern" below to choose your image.',type:'info',duration:5000});
-    } else if(act==='open'){
-      // Same: the "Load Existing Project" tile in the upload screen handles this.
-      setTimeout(()=>{if(window.__setCreatorAppMode) window.__setCreatorAppMode('edit');},0);
-    }
-  },[]);
   const[creatorResetKey,setCreatorResetKey]=React.useState(0);
   const[trackerMounted,setTrackerMounted]=React.useState(()=>{
     const p=new URLSearchParams(window.location.search);
@@ -1262,5 +1231,57 @@ function UnifiedApp(){
     {window.HelpHintBanner&&<window.HelpHintBanner/>}
   </>;
 }
+
+// ── Pre-mount: process ?action= deep links from /home synchronously ─────
+// MUST run BEFORE ReactDOM.createRoot so window.__pendingCreatorFile (and
+// friends) are set BEFORE CreatorApp's child-level useEffect in
+// useProjectIO consumes them. If this ran inside a parent useEffect, the
+// child effect would fire FIRST (React effects: child → parent), miss the
+// pending mark, and the user would be stranded on the Welcome card with
+// their image silently dropped.
+(function processPendingAction(){
+  try {
+    var p = new URLSearchParams(window.location.search);
+    var act = p.get('action');
+    if (!act) return;
+    window.history.replaceState({}, '', window.location.pathname);
+    if (typeof ProjectStorage !== 'undefined') {
+      try { ProjectStorage.clearActiveProject(); } catch (_) {}
+    }
+    if (act === 'new-blank') {
+      window.__pendingCreatorAction = 'scratch';
+      // Match handleHomeOpenCreatorBlank: scratch defaults to Edit, not Create.
+      setTimeout(function(){ if (window.__setCreatorAppMode) window.__setCreatorAppMode('edit'); }, 0);
+    } else if (act === 'home-image-pending') {
+      var pendingDataUrl = sessionStorage.getItem('cs_pending_image_dataurl');
+      var pendingName    = sessionStorage.getItem('cs_pending_image_name') || 'image.jpg';
+      var pendingType    = sessionStorage.getItem('cs_pending_image_type') || 'image/jpeg';
+      sessionStorage.removeItem('cs_pending_image_dataurl');
+      sessionStorage.removeItem('cs_pending_image_name');
+      sessionStorage.removeItem('cs_pending_image_type');
+      if (pendingDataUrl) {
+        var b64 = pendingDataUrl.split(',')[1];
+        var byteStr = atob(b64);
+        var ab = new ArrayBuffer(byteStr.length);
+        var ia = new Uint8Array(ab);
+        for (var bi = 0; bi < byteStr.length; bi++) ia[bi] = byteStr.charCodeAt(bi);
+        var blob = new Blob([ab], { type: pendingType });
+        window.__pendingCreatorFile = new File([blob], pendingName, { type: pendingType });
+      }
+    } else if (act === 'new-from-image') {
+      // Fallback path (e.g. sessionStorage quota exceeded): mark so the
+      // Creator's upload card stays visible and surface a toast once it loads.
+      window.__pendingCreatorPickImage = true;
+      setTimeout(function(){
+        if (window.Toast) window.Toast.show({
+          message: 'Click "Create New Pattern" below to choose your image.',
+          type: 'info', duration: 5000
+        });
+      }, 200);
+    } else if (act === 'open') {
+      setTimeout(function(){ if (window.__setCreatorAppMode) window.__setCreatorAppMode('edit'); }, 0);
+    }
+  } catch (_) { /* never block render */ }
+})();
 
 ReactDOM.createRoot(document.getElementById("root")).render(<UnifiedApp/>);
