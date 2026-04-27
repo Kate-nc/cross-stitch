@@ -82,6 +82,14 @@ window.useCreatorState = function useCreatorState() {
   var skeinPrice = _skeinPrice[0], setSkeinPrice = _skeinPrice[1];
   var _stitchSpeed = useState(40);    var stitchSpeed = _stitchSpeed[0], setStitchSpeed = _stitchSpeed[1];
 
+  // Polish 13 step 4a — snapshot of source values at the time of last
+  // successful generation. Used by the Dimensions / Palette tabs to show
+  // a "Re-generate (values changed)" CTA when the user nudges sW/sH/
+  // fabricCt/maxC after generating, so they don't have to remember to go
+  // hunting in the More tab. null until the first generation completes.
+  var _lastGenSnap = useState(null);
+  var lastGenSnapshot = _lastGenSnap[0], setLastGenSnapshot = _lastGenSnap[1];
+
   // App mode: 'create' | 'edit' (track is handled by TrackerApp separately)
   var _appMode = useState("create"); var appMode = _appMode[0], setAppMode = _appMode[1];
 
@@ -565,6 +573,7 @@ window.useCreatorState = function useCreatorState() {
     setBsLines([]); setBsStart(null); setActiveTool(null); setSelectedColorId(null);
     setEditHistory([]); setRedoHistory([]); setExportPage(0); setDone(null);
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
+    setLastGenSnapshot(null);
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
     setDimOpen(true); setPalOpen(true); setFabOpen(false); setAdjOpen(false);
     setBgOpen(false); setCleanupOpen(false); setIsCropping(false); setCropRect(null);
@@ -704,6 +713,15 @@ window.useCreatorState = function useCreatorState() {
     setDone(new Uint8Array(result.mapped.length));
     setParkMarkers([]); setTab("pattern"); setThreadOwned({});
     setEditHistory([]); setRedoHistory([]);
+    // Polish 13 step 4a — snapshot the source values that produced this
+    // pattern so the Dimensions / Palette tabs can detect drift and
+    // surface a "Re-generate (values changed)" CTA. Stored fields must
+    // match the comparator in Sidebar.js (genStaleReason).
+    setLastGenSnapshot({
+      sW: sW, sH: sH, fabricCt: fabricCt, maxC: maxC,
+      bri: bri, con: con, sat: sat, dith: dith,
+      allowBlends: allowBlends, skipBg: skipBg
+    });
     // Compute cleanup diff mask from preCleanupIds
     setShowCleanupDiff(false);
     if (result.preCleanupIds && result.preCleanupIds.length === result.mapped.length) {
@@ -1084,6 +1102,7 @@ window.useCreatorState = function useCreatorState() {
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
     appMode, setAppMode, sidebarTab, setSidebarTab,
+    lastGenSnapshot, setLastGenSnapshot,
     tab, setTab, materialsTab, setMaterialsTab, sidebarOpen, setSidebarOpen, loadError, setLoadError,
     copied, setCopied, modal, setModal,
     view, setView, zoom, setZoom, hiId, setHiId, showCtr, setShowCtr,

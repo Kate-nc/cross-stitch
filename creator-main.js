@@ -427,6 +427,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const appCtx = useMemo(function() { return {
     appMode: state.appMode, setAppMode: state.setAppMode,
     sidebarTab: state.sidebarTab, setSidebarTab: state.setSidebarTab,
+    lastGenSnapshot: state.lastGenSnapshot,
     tab: state.tab, setTab: state.setTab,
     materialsTab: state.materialsTab, setMaterialsTab: state.setMaterialsTab,
     modal: state.modal, setModal: state.setModal,
@@ -485,6 +486,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     isActive: isActive,
   }; }, [
     state.appMode, state.sidebarTab,
+    state.lastGenSnapshot,
     state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError,
     state.copied, state.dimOpen, state.palOpen, state.fabOpen,
     state.adjOpen, state.bgOpen, state.palAdvanced, state.cleanupOpen,
@@ -731,6 +733,24 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     && !!state.pat
     && (!state.editHistory || state.editHistory.length === 0);
 
+  // ── Polish 13 step 4b — Tools tab unlock coachmark ───────────────────
+  // Fires once after the first generation, anchored on the Tools tab in
+  // the right-panel sidebar. The tab strip is unified across appModes
+  // (Polish 13 step 3) so the coachmark is meaningful in either appMode.
+  // We delay 600ms so the post-generate render and the layout shift
+  // from the unlocked tabs settle before the popover anchors.
+  const [_toolsCoachReady, _setToolsCoachReady] = React.useState(false);
+  React.useEffect(()=>{
+    _setToolsCoachReady(false);
+    if (!state.pat || !state.pal) return;
+    if (_coach.active !== 'toolsTab_unlocked') return;
+    const t = setTimeout(()=>_setToolsCoachReady(true), 600);
+    return ()=>clearTimeout(t);
+  }, [!!state.pat, !!state.pal, _coach.active]);
+  const _showToolsUnlockedCoach = _toolsCoachReady
+    && _coach.active === 'toolsTab_unlocked'
+    && !!state.pat && !!state.pal;
+
   return (
     <window.GenerationContext.Provider value={genCtx}>
     <window.AppContext.Provider value={appCtx}>
@@ -973,6 +993,16 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         showHighlight: false,
         onComplete: ()=>_coach.complete('firstStitch_creator'),
         onSkip: ()=>_coach.skip('firstStitch_creator')
+      })}
+      {_showToolsUnlockedCoach && window.Coachmark && React.createElement(window.Coachmark, {
+        id: 'toolsTab_unlocked',
+        target: '.creator-sidebar-tab[data-tab-id="tools"]',
+        title: 'Tools and View are now unlocked',
+        body: 'Open the Tools tab in the sidebar to brush, lasso, magic-wand, half-stitch, and add backstitch lines. Image, Dimensions, and Palette stay one click away.',
+        placement: 'left',
+        showHighlight: true,
+        onComplete: ()=>_coach.complete('toolsTab_unlocked'),
+        onSkip: ()=>_coach.skip('toolsTab_unlocked')
       })}
     </window.PatternDataContext.Provider>
     </window.CanvasContext.Provider>

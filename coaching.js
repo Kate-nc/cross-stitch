@@ -29,6 +29,9 @@
   var SEQUENCES = {
     creator: [
       // "import",        // Phase 2
+      "toolsTab_unlocked",  // Polish 13 step 4b — fires once after the
+                            // first generation, when the locked Tools/View
+                            // tabs become available.
       "firstStitch_creator",
       // "undo",          // Phase 2
       // "save"           // Phase 2

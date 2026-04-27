@@ -112,15 +112,17 @@ describe("useCoachingSequence — state machine", () => {
   test("returns the first un-coached step initially", () => {
     const { win } = loadCoaching({});
     const r = win.useCoachingSequence("creator");
-    expect(r.active).toBe("firstStitch_creator");
+    // Polish 13 step 4b — toolsTab_unlocked precedes firstStitch_creator.
+    expect(r.active).toBe("toolsTab_unlocked");
   });
 
   test("respects existing UserPrefs completion", () => {
     const { win } = loadCoaching({
+      "onboarding.coached.toolsTab_unlocked": true,
       "onboarding.coached.firstStitch_creator": true
     });
     const r = win.useCoachingSequence("creator");
-    // Phase 1 only has one creator step; once done, active === null.
+    // Polish 13 step 4b — with both creator steps done, active === null.
     expect(r.active).toBe(null);
   });
 
@@ -128,9 +130,9 @@ describe("useCoachingSequence — state machine", () => {
     const store = {};
     const { win } = loadCoaching(store);
     const r = win.useCoachingSequence("creator");
-    expect(r.active).toBe("firstStitch_creator");
-    r.complete("firstStitch_creator");
-    expect(store["onboarding.coached.firstStitch_creator"]).toBe(true);
+    expect(r.active).toBe("toolsTab_unlocked");
+    r.complete("toolsTab_unlocked");
+    expect(store["onboarding.coached.toolsTab_unlocked"]).toBe(true);
   });
 
   test("skip() does NOT persist to UserPrefs", () => {

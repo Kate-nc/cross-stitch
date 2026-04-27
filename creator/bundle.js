@@ -4381,6 +4381,14 @@ window.useCreatorState = function useCreatorState() {
   var skeinPrice = _skeinPrice[0], setSkeinPrice = _skeinPrice[1];
   var _stitchSpeed = useState(40);    var stitchSpeed = _stitchSpeed[0], setStitchSpeed = _stitchSpeed[1];
 
+  // Polish 13 step 4a — snapshot of source values at the time of last
+  // successful generation. Used by the Dimensions / Palette tabs to show
+  // a "Re-generate (values changed)" CTA when the user nudges sW/sH/
+  // fabricCt/maxC after generating, so they don't have to remember to go
+  // hunting in the More tab. null until the first generation completes.
+  var _lastGenSnap = useState(null);
+  var lastGenSnapshot = _lastGenSnap[0], setLastGenSnapshot = _lastGenSnap[1];
+
   // App mode: 'create' | 'edit' (track is handled by TrackerApp separately)
   var _appMode = useState("create"); var appMode = _appMode[0], setAppMode = _appMode[1];
 
@@ -4864,6 +4872,7 @@ window.useCreatorState = function useCreatorState() {
     setBsLines([]); setBsStart(null); setActiveTool(null); setSelectedColorId(null);
     setEditHistory([]); setRedoHistory([]); setExportPage(0); setDone(null);
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
+    setLastGenSnapshot(null);
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
     setDimOpen(true); setPalOpen(true); setFabOpen(false); setAdjOpen(false);
     setBgOpen(false); setCleanupOpen(false); setIsCropping(false); setCropRect(null);
@@ -5003,6 +5012,15 @@ window.useCreatorState = function useCreatorState() {
     setDone(new Uint8Array(result.mapped.length));
     setParkMarkers([]); setTab("pattern"); setThreadOwned({});
     setEditHistory([]); setRedoHistory([]);
+    // Polish 13 step 4a — snapshot the source values that produced this
+    // pattern so the Dimensions / Palette tabs can detect drift and
+    // surface a "Re-generate (values changed)" CTA. Stored fields must
+    // match the comparator in Sidebar.js (genStaleReason).
+    setLastGenSnapshot({
+      sW: sW, sH: sH, fabricCt: fabricCt, maxC: maxC,
+      bri: bri, con: con, sat: sat, dith: dith,
+      allowBlends: allowBlends, skipBg: skipBg
+    });
     // Compute cleanup diff mask from preCleanupIds
     setShowCleanupDiff(false);
     if (result.preCleanupIds && result.preCleanupIds.length === result.mapped.length) {
@@ -5383,6 +5401,7 @@ window.useCreatorState = function useCreatorState() {
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
     appMode, setAppMode, sidebarTab, setSidebarTab,
+    lastGenSnapshot, setLastGenSnapshot,
     tab, setTab, materialsTab, setMaterialsTab, sidebarOpen, setSidebarOpen, loadError, setLoadError,
     copied, setCopied, modal, setModal,
     view, setView, zoom, setZoom, hiId, setHiId, showCtr, setShowCtr,
@@ -12506,6 +12525,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           key: t.id,
           role: "tab",
           className: "creator-sidebar-tab",
+          "data-tab-id": t.id,
           "aria-selected": isActive ? "true" : "false",
           "aria-disabled": isDisabled ? "true" : "false",
           "aria-controls": "sidebar-panel-" + t.id,
@@ -12719,6 +12739,62 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ─── Create Mode Sidebar ─────────────────────────────────────────────────
   if (mode === "create") {
+    // ── Polish 13 step 4a — "Re-generate (values changed)" CTA ────────────
+    // When a pattern exists and its source values (sW/sH/fabricCt/maxC/
+    // colour adjustments) have drifted from the snapshot taken at the
+    // last successful generation, the user is in Dimensions or Palette
+    // probably to nudge those very values. Surface a one-click Re-gen
+    // button at the top of the relevant tab so they don't have to dig
+    // into the More tab. If there are manual edits, confirm first with
+    // a count so the destructive part of the action is explicit.
+    var regenSnap = app.lastGenSnapshot;
+    var dimensionsStale = regenSnap && (
+      regenSnap.sW !== ctx.sW || regenSnap.sH !== ctx.sH ||
+      regenSnap.fabricCt !== ctx.fabricCt ||
+      regenSnap.bri !== gen.bri || regenSnap.con !== gen.con || regenSnap.sat !== gen.sat
+    );
+    var paletteStale = regenSnap && (
+      regenSnap.maxC !== gen.maxC || regenSnap.dith !== gen.dith ||
+      regenSnap.allowBlends !== gen.allowBlends || regenSnap.skipBg !== gen.skipBg
+    );
+    function regenCta(forTab) {
+      if (!ctx.pat || !regenSnap) return null;
+      var stale = forTab === "dimensions" ? dimensionsStale : paletteStale;
+      if (!stale) return null;
+      var editCount = (cv.editHistory && cv.editHistory.length) || 0;
+      var label = editCount > 0
+        ? "Re-generate (will replace " + editCount + " edit" + (editCount === 1 ? "" : "s") + ")"
+        : "Re-generate (values changed)";
+      return h("div", {
+        style:{
+          margin:"8px 12px 0",padding:"10px 12px",
+          background:"var(--accent-soft, var(--surface-tertiary))",
+          border:"1px solid var(--accent)",borderRadius:'var(--radius-md)',
+          display:"flex",flexDirection:"column",gap:6
+        }
+      },
+        h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",lineHeight:1.4}},
+          "Source values have changed since the last generation. Re-generate to apply them."),
+        h("button", {
+          onClick:function(){
+            if (editCount > 0 && !confirm(
+              "Re-generating will discard " + editCount + " manual edit" +
+              (editCount === 1 ? "" : "s") + ". Continue?"
+            )) return;
+            if (typeof gen.generate === "function") gen.generate();
+          },
+          disabled: !!gen.busy,
+          style:{
+            padding:"7px 10px",fontSize:'var(--text-sm)',fontWeight:600,
+            border:"none",borderRadius:'var(--radius-sm)',
+            background:"var(--accent)",color:"var(--surface)",
+            cursor: gen.busy ? "wait" : "pointer",fontFamily:"inherit",
+            display:"flex",alignItems:"center",justifyContent:"center",gap:6
+          }
+        }, label)
+      );
+    }
+
     // Project info — name, designer, description. Always-visible at top so
     // users can name a pattern before generating it.
     var projectInfoSection = h(Section, {title:"Project info", defaultOpen:true},
@@ -12790,6 +12866,7 @@ window.CreatorSidebar = function CreatorSidebar() {
 
     // ── Dimensions tab — size controls + image adjustments + fabric count.
     var dimensionsContent = h(React.Fragment, null,
+      regenCta("dimensions"),
       dimSection,
       adjSection,
       fabSection
@@ -12799,6 +12876,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     //   Background-removal moved to the Preview tab so users can colocate
     //   "what to skip" with the canvas they click on to pick the colour.
     var paletteContent = h(React.Fragment, null,
+      regenCta("palette"),
       palSection,
       cleanupSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
