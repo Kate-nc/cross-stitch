@@ -3029,8 +3029,25 @@ kbd {
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 .gsd-tabs::-webkit-scrollbar { display: none; }
+.gsd-tabs-chip-wrap {
+  position: relative;
+  flex-shrink: 0;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+}
+.gsd-lifetime-chip__num {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-left: 4px;
+}
 .gsd-tabs-inner {
   display: flex;
   min-width: max-content;

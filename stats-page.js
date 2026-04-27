@@ -1188,6 +1188,14 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
   const vis = visibility;
   const show = key => vis[key] !== false;
 
+  // ── Plan B Phase 4: Lifetime overview chip ────────────────────
+  // Always-visible headline chip in the tab bar so users on Activity /
+  // Insights / Stash tabs can still see the lifetime number without flipping
+  // back to the Stitching dashboard. Opens the shared AppInfoPopover with
+  // the cross-tab summary (lifetime, active, finished YTD, coverage).
+  const [lifetimeChipOpen, setLifetimeChipOpen] = useState(false);
+  const lifetimeChipRef = useRef(null);
+
   // ── Shared tab bar (built after all hooks) ────────────────────
   const tabBar = h('div', { className: 'gsd-tabs', style: { paddingTop: 8 } },
     h('div', { className: 'gsd-tabs-inner' },
@@ -1196,6 +1204,56 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       h('button', { className: 'gsd-tab' + (tab === 'showcase' ? ' gsd-tab--on' : ''), onClick: () => switchTab('showcase') }, '\u2736 Showcase'),
       h('button', { className: 'gsd-tab' + (tab === 'activity' ? ' gsd-tab--on' : ''), onClick: () => switchTab('activity') }, '\u25ce Activity'),
       h('button', { className: 'gsd-tab' + (tab === 'insights' ? ' gsd-tab--on' : ''), onClick: () => switchTab('insights') }, '\u2728 Insights')
+    ),
+    h('div', { className: 'app-info-chip-wrap gsd-tabs-chip-wrap' },
+      h('button', {
+        ref: lifetimeChipRef,
+        type: 'button',
+        className: 'app-info-chip gsd-lifetime-chip',
+        'aria-haspopup': 'dialog',
+        'aria-expanded': lifetimeChipOpen ? 'true' : 'false',
+        onClick: () => setLifetimeChipOpen(o => !o),
+        title: 'Lifetime overview'
+      },
+        h('span', { className: 'app-info-chip__label' }, 'Lifetime'),
+        h('span', { className: 'gsd-lifetime-chip__num' }, fmtNum(lifetimeStitches || 0)),
+        h('span', { className: 'app-info-chip__chevron', 'aria-hidden': 'true' }, window.Icons && window.Icons.chevronDown ? window.Icons.chevronDown() : null)
+      ),
+      lifetimeChipOpen && window.AppInfoPopover && (() => {
+        const km = lifetimeStitches > 0 ? threadKm(lifetimeStitches) : 0;
+        const stitchRows = [
+          ['Lifetime stitches', fmtNum(lifetimeStitches || 0)]
+        ];
+        if (km > 0) stitchRows.push(['Thread used', '\u2248 ' + km + ' km']);
+        const projectRows = [
+          ['Active projects', fmtNum(activeProjectCount || 0)],
+          ['Finished this year', fmtNum(finishedThisYear || 0)]
+        ];
+        const stashRows = [];
+        if (typeof coverageRatio === 'number') stashRows.push(['Stash coverage', coverageRatio + '%']);
+        const children = [
+          h(window.AppInfoSection, { key: 's1', title: 'Stitches' },
+            h(window.AppInfoGrid, { rows: stitchRows })
+          ),
+          h(window.AppInfoDivider, { key: 'd1' }),
+          h(window.AppInfoSection, { key: 's2', title: 'Projects' },
+            h(window.AppInfoGrid, { rows: projectRows })
+          )
+        ];
+        if (stashRows.length) {
+          children.push(h(window.AppInfoDivider, { key: 'd2' }));
+          children.push(h(window.AppInfoSection, { key: 's3', title: 'Stash' },
+            h(window.AppInfoGrid, { rows: stashRows })
+          ));
+        }
+        return h(window.AppInfoPopover, {
+          open: true,
+          onClose: () => setLifetimeChipOpen(false),
+          triggerRef: lifetimeChipRef,
+          ariaLabel: 'Lifetime stats overview',
+          className: 'app-info-popover--left'
+        }, children);
+      })()
     )
   );
 
