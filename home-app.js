@@ -198,9 +198,75 @@
   // ── ProjectsList ────────────────────────────────────────────────────────
   // Replaces RecentGrid. Each row exposes both Track and Edit so the user
   // chooses their destination — no silent redirect to the Tracker.
+  // Plan B Phase 3: name + meta now open a metadata popover (powered by the
+  // shared AppInfoPopover). Track and Edit stay as inline primary actions —
+  // collapsing them into a `⋯` overflow menu would silently drop the
+  // one-click Track CTA most users rely on, which we'd rather not regress
+  // without explicit feedback.
   function ProjectsList(props) {
     var list = (props.projects || []).slice(0, 8);
+    var openState = React.useState(null);
+    var openFor = openState[0];
+    var setOpenFor = openState[1];
+    var triggerRefs = React.useRef({});
     if (!list.length) return null;
+
+    function metadataPopover(p) {
+      if (!window.AppInfoPopover) return null;
+      var dim = p.settings && (p.settings.sW + ' × ' + p.settings.sH + ' stitches');
+      var fabric = p.settings && p.settings.fabricCt ? (p.settings.fabricCt + ' ct Aida') : null;
+      var pct = projectPct(p);
+      var stitchable = 0;
+      var done = 0;
+      if (p.pattern) {
+        for (var i = 0; i < p.pattern.length; i += 1) {
+          var c = p.pattern[i];
+          if (c && c.id !== '__skip__' && c.id !== '__empty__') stitchable += 1;
+        }
+      }
+      if (p.done) {
+        for (var j = 0; j < p.done.length; j += 1) if (p.done[j] === 1) done += 1;
+      }
+      var distinctColours = 0;
+      if (p.pattern) {
+        var seen = {};
+        for (var k = 0; k < p.pattern.length; k += 1) {
+          var pc = p.pattern[k];
+          if (pc && pc.id && pc.id !== '__skip__' && pc.id !== '__empty__' && !seen[pc.id]) {
+            seen[pc.id] = 1;
+            distinctColours += 1;
+          }
+        }
+      }
+      var totalSec = (typeof p.totalTime === 'number') ? p.totalTime : 0;
+      var fmtL = window.fmtTimeL || function (s) { return Math.round(s/3600) + 'h'; };
+      var patternRows = [];
+      if (dim) patternRows.push(['Dimensions', dim]);
+      if (fabric) patternRows.push(['Fabric', fabric]);
+      if (stitchable > 0) patternRows.push(['Stitchable', stitchable.toLocaleString()]);
+      if (distinctColours > 0) patternRows.push(['Colours', String(distinctColours)]);
+      if (pct !== null) patternRows.push(['Progress', pct + '% (' + done.toLocaleString() + '/' + stitchable.toLocaleString() + ')']);
+      var metaRows = [];
+      if (p.createdAt) metaRows.push(['Created', new Date(p.createdAt).toLocaleDateString()]);
+      if (p.updatedAt) metaRows.push(['Last edited', timeAgo(p.updatedAt)]);
+      if (totalSec > 0) metaRows.push(['Time spent', fmtL(totalSec)]);
+      var children = [
+        h(window.AppInfoSection, { key: 'pat', title: 'Pattern' }, h(window.AppInfoGrid, { rows: patternRows }))
+      ];
+      if (metaRows.length) {
+        children.push(h(window.AppInfoDivider, { key: 'd1' }));
+        children.push(h(window.AppInfoSection, { key: 'meta', title: 'Metadata' }, h(window.AppInfoGrid, { rows: metaRows })));
+      }
+      var ref = { current: triggerRefs.current[p.id] || null };
+      return h(window.AppInfoPopover, {
+        open: true,
+        onClose: function () { setOpenFor(null); },
+        triggerRef: ref,
+        ariaLabel: (p.name || 'Project') + ' details',
+        className: 'app-info-popover--left'
+      }, children);
+    }
+
     return h('section', {
       className: 'home-proj-list',
       'aria-labelledby': 'home-proj-list-title'
@@ -215,17 +281,27 @@
             p.updatedAt ? timeAgo(p.updatedAt) : null,
             pct !== null ? pct + '%' : null
           ].filter(Boolean);
+          var isOpen = openFor === p.id;
           return h('div', {
             key: p.id,
             className: 'home-proj-row'
           },
             h('div', { className: 'home-proj-row__avatar', 'aria-hidden': 'true' }, projectInitials(p.name)),
-            h('div', { className: 'home-proj-row__body' },
-              h('div', { className: 'home-proj-row__name' }, p.name || 'Untitled'),
+            h('div', { className: 'home-proj-row__body app-info-chip-wrap' },
+              h('button', {
+                type: 'button',
+                ref: function (el) { triggerRefs.current[p.id] = el; },
+                className: 'home-proj-row__name home-proj-row__name--button',
+                'aria-haspopup': 'dialog',
+                'aria-expanded': isOpen ? 'true' : 'false',
+                onClick: function () { setOpenFor(isOpen ? null : p.id); },
+                title: 'Project details'
+              }, p.name || 'Untitled'),
               h('div', { className: 'home-proj-row__meta' }, metaParts.join(' · ')),
               pct !== null && h('div', { className: 'home-proj-row__bar', 'aria-hidden': 'true' },
                 h('div', { className: 'home-proj-row__bar-fill', style: { width: pct + '%' } })
-              )
+              ),
+              isOpen && metadataPopover(p)
             ),
             h('div', { className: 'home-proj-row__actions' },
               h('button', {

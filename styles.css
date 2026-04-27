@@ -5809,6 +5809,23 @@ html.pref-dark a { color: var(--accent); }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.home-proj-row__name--button {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  cursor: pointer;
+  display: inline-block;
+  max-width: 100%;
+  border-radius: var(--radius-sm, 4px);
+  transition: color var(--motion, 160ms ease);
+}
+.home-proj-row__name--button:hover { color: var(--accent); }
+.home-proj-row__name--button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 .home-proj-row__meta {
   font-size: var(--text-xs, 11px);
   color: var(--text-secondary);
