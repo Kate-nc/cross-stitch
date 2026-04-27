@@ -203,6 +203,7 @@
     var cp = usePref("designerCopyright", "");
     var ct = usePref("designerContact", "");
     var ac = usePref("appAccentColour", "#B85C38");
+    var showDone = usePref("homeShowCompleted", true);
     var err = useState(null);
 
     function onLogoFile(ev) {
@@ -255,7 +256,14 @@
       // App appearance section intentionally not rendered: accent-colour
       // tinting is not yet wired to runtime styles. Re-add a Section here
       // once `appAccentColour` updates a CSS variable on :root.
-      null
+      null,
+
+      h(Section, { title: "Home dashboard" },
+        h(Row, { last: true, label: "Show finished projects in the home list",
+          desc: "When off, projects at 100% complete are hidden from the All projects list on the home page. They remain in the Stash Manager library." },
+          h(Switch, { checked: showDone[0], onChange: showDone[1] })
+        )
+      )
     );
   }
 
@@ -362,6 +370,15 @@
   // STITCH TRACKER
   // ════════════════════════════════════════════════════════════════════
   function TrackerPanel() {
+    var defView = usePref("trackerDefaultView", "symbol");
+    var defHl = usePref("trackerDefaultHighlightMode", "isolate");
+    var dimLv = usePref("trackerDimLevel", 0.1);
+    var tintCol = usePref("trackerTintColour", "#FFD700");
+    var tintOp = usePref("trackerTintOpacity", 0.4);
+    var spotOp = usePref("trackerSpotDimOpacity", 0.15);
+    var skipDone = usePref("trackerHighlightSkipDone", true);
+    var onlyStarted = usePref("trackerOnlyStarted", false);
+    var idleMin = usePref("trackerIdleMinutes", 10);
     var style = usePref("trackerStitchingStyle", "freestyle");
     var block = usePref("trackerBlockShape", "10x10");
     var corner = usePref("trackerStartCorner", "top-left");
@@ -374,6 +391,68 @@
     return h("div", null,
       h(PageHeader, { title: "Stitch Tracker",
         subtitle: "How the Tracker behaves when you open a pattern. Each project can still override these in its session menu." }),
+
+      h(Section, { title: "Default view" },
+        h(Row, { label: "Chart view at session start", desc: "Which chart view the Tracker opens in. Switching the view inside a session also updates this setting." },
+          h(Segmented, { value: defView[0], onChange: defView[1], options: [
+            { value: "symbol",    label: "Symbol" },
+            { value: "colour",    label: "Col + Symbol" },
+            { value: "highlight", label: "Highlight" }
+          ]})
+        ),
+        h(Row, { last: true, label: "Highlight rendering", desc: "How the focused colour is emphasised in highlight view. Outline draws marching ants around matching cells; tint paints a translucent overlay; spotlight dims everything else; isolate hides non‑matching colours." },
+          h(Segmented, { value: defHl[0], onChange: defHl[1], options: [
+            { value: "isolate",   label: "Isolate" },
+            { value: "outline",   label: "Outline" },
+            { value: "tint",      label: "Tint" },
+            { value: "spotlight", label: "Spotlight" }
+          ]})
+        )
+      ),
+
+      h(Section, { title: "Highlight appearance" },
+        h(Row, { label: "Dim level for non-focused colours", desc: "How faded other colours look in highlight view. Lower values hide them more completely." },
+          h("input", { type: "range", min: 0, max: 1, step: 0.05, value: dimLv[0],
+            onChange: function (e) { dimLv[1](Number(e.target.value)); }, style: { width: 160 } }),
+          h("span", { style: { fontSize: 12, color: COLOURS.slate, minWidth: 32, textAlign: "right" } }, Math.round(dimLv[0] * 100) + "%")
+        ),
+        h(Row, { label: "Tint mode colour", desc: "Overlay colour painted on top of the focused colour in tint mode." },
+          h("input", { type: "color", value: tintCol[0], onChange: function (e) { tintCol[1](e.target.value); }, style: { width: 44, height: 30, padding: 0, border: "1px solid " + COLOURS.line2, borderRadius: 6 } }),
+          h("input", { type: "text", value: tintCol[0], onChange: function (e) { tintCol[1](e.target.value); }, style: Object.assign({}, styles.input, { width: 110 }) })
+        ),
+        h(Row, { label: "Tint mode opacity" },
+          h("input", { type: "range", min: 0, max: 1, step: 0.05, value: tintOp[0],
+            onChange: function (e) { tintOp[1](Number(e.target.value)); }, style: { width: 160 } }),
+          h("span", { style: { fontSize: 12, color: COLOURS.slate, minWidth: 32, textAlign: "right" } }, Math.round(tintOp[0] * 100) + "%")
+        ),
+        h(Row, { last: true, label: "Spotlight dim opacity", desc: "How dark everything else gets in spotlight mode." },
+          h("input", { type: "range", min: 0, max: 1, step: 0.05, value: spotOp[0],
+            onChange: function (e) { spotOp[1](Number(e.target.value)); }, style: { width: 160 } }),
+          h("span", { style: { fontSize: 12, color: COLOURS.slate, minWidth: 32, textAlign: "right" } }, Math.round(spotOp[0] * 100) + "%")
+        )
+      ),
+
+      h(Section, { title: "Palette filtering" },
+        h(Row, { label: "Skip finished colours", desc: "When a colour is fully stitched, jump past it in the palette filter." },
+          h(Switch, { checked: skipDone[0], onChange: skipDone[1] })
+        ),
+        h(Row, { last: true, label: "Only show started colours", desc: "Restrict the palette filter to colours you've already begun." },
+          h(Switch, { checked: onlyStarted[0], onChange: onlyStarted[1] })
+        )
+      ),
+
+      h(Section, { title: "Session timer" },
+        h(Row, { last: true, label: "Auto-pause after inactivity",
+          desc: "If you stop stitching for this long, the session timer pauses and the elapsed time is finalised." },
+          h("select", { value: String(idleMin[0]), onChange: function (e) { idleMin[1](Number(e.target.value)); }, style: styles.input },
+            h("option", { value: "5"  }, "5 minutes"),
+            h("option", { value: "10" }, "10 minutes (default)"),
+            h("option", { value: "15" }, "15 minutes"),
+            h("option", { value: "30" }, "30 minutes"),
+            h("option", { value: "0"  }, "Never auto-pause")
+          )
+        )
+      ),
 
       h(Section, { title: "Your stitching style" },
         h(Row, { label: "How you stitch", desc: "Block fills small areas at a time · cross‑country follows colour across the chart · freestyle is anything goes." },

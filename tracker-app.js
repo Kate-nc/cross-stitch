@@ -760,7 +760,17 @@ const justLoadedRef=useRef(false);
 const justLoadedSettlePassRef=useRef(0);
 const autoStatsRef=useRef({doneCount:0,totalStitchable:0});
 const finaliseAutoSessionRef=useRef(null);
-const IDLE_THRESHOLD_MS=10*60*1000;
+// Idle threshold is now driven by the trackerIdleMinutes preference. Read
+// fresh on each timer arm so a settings change applies on the next stroke
+// without restarting the session. 0 disables the auto-pause entirely.
+function getIdleThresholdMs(){
+  try{
+    var m=window.UserPrefs&&window.UserPrefs.get("trackerIdleMinutes");
+    if(m===0)return Infinity; // never auto-pause
+    if(typeof m==="number"&&m>0)return m*60*1000;
+  }catch(_){}
+  return 10*60*1000;
+}
 // Persistent milestones, session onboarding, session note toast
 const[achievedMilestones,setAchievedMilestones]=useState([]);
 const[sessionOnboardingShown,setSessionOnboardingShown]=useState(()=>{try{return !!localStorage.getItem("cs_sessionOnboardingDone");}catch(_){return false;}});
@@ -790,7 +800,10 @@ const inactivityPausedRef = useRef(false);
 const inactivityPauseTimeRef = useRef(null);
 
 const[stitchMode,setStitchMode]=useState("track");
-const[stitchView,setStitchView]=useState("symbol");
+const[stitchView,setStitchView]=useState(()=>{try{var v=window.UserPrefs&&window.UserPrefs.get("trackerDefaultView");return (v==="symbol"||v==="colour"||v==="highlight")?v:"symbol";}catch(_){return "symbol";}});
+// Persist sticky "default view" so the choice survives reloads (mirrors
+// the highlight-mode behaviour) — the prefs UI reads/writes the same key.
+useEffect(()=>{try{if(window.UserPrefs)window.UserPrefs.set("trackerDefaultView",stitchView);}catch(_){}},[stitchView]);
 const[stitchZoom,setStitchZoom]=useState(1);
 useEffect(()=>{stitchZoomRef.current=stitchZoom;},[stitchZoom]);
 const[isEditMode,setIsEditMode]=useState(false);
@@ -808,15 +821,44 @@ const[showExitEditModal,setShowExitEditModal]=useState(false);
 const[drawer,setDrawer]=useState(false);
 const[focusColour,setFocusColour]=useState(null);
 const[showNavHelp,setShowNavHelp]=useState(false);
-const[highlightSkipDone,setHighlightSkipDone]=useState(true);
-const[onlyStarted,setOnlyStarted]=useState(false);
-const[trackerDimLevel,setTrackerDimLevel]=useState(()=>{try{return parseFloat(localStorage.getItem("cs_trDimLv")||"0.1");}catch(_){return 0.1;}});
-const[highlightMode,setHighlightMode]=useState(()=>{try{return localStorage.getItem("cs_hlMode")||"isolate";}catch(_){return "isolate";}});
-const[tintColor,setTintColor]=useState(()=>{try{return localStorage.getItem("cs_tintColor")||"#FFD700";}catch(_){return "#FFD700";}});
-const[tintOpacity,setTintOpacity]=useState(()=>{try{return parseFloat(localStorage.getItem("cs_tintOp")||"0.4");}catch(_){return 0.4;}});
-const[spotDimOpacity,setSpotDimOpacity]=useState(()=>{try{return parseFloat(localStorage.getItem("cs_spotDimOp")||"0.15");}catch(_){return 0.15;}});
+const[highlightSkipDone,setHighlightSkipDone]=useState(()=>{try{var v=window.UserPrefs&&window.UserPrefs.get("trackerHighlightSkipDone");return v!==false;}catch(_){return true;}});
+const[onlyStarted,setOnlyStarted]=useState(()=>{try{return !!(window.UserPrefs&&window.UserPrefs.get("trackerOnlyStarted"));}catch(_){return false;}});
+useEffect(()=>{try{if(window.UserPrefs)window.UserPrefs.set("trackerHighlightSkipDone",highlightSkipDone);}catch(_){}},[highlightSkipDone]);
+useEffect(()=>{try{if(window.UserPrefs)window.UserPrefs.set("trackerOnlyStarted",onlyStarted);}catch(_){}},[onlyStarted]);
+const[trackerDimLevel,setTrackerDimLevel]=useState(()=>{
+  try{var pv=window.UserPrefs&&window.UserPrefs.get("trackerDimLevel");if(typeof pv==="number"&&pv>=0&&pv<=1)return pv;}catch(_){}
+  try{return parseFloat(localStorage.getItem("cs_trDimLv")||"0.1");}catch(_){return 0.1;}
+});
+useEffect(()=>{try{localStorage.setItem("cs_trDimLv",String(trackerDimLevel));}catch(_){}try{if(window.UserPrefs)window.UserPrefs.set("trackerDimLevel",trackerDimLevel);}catch(_){}},[trackerDimLevel]);
+const[highlightMode,setHighlightMode]=useState(()=>{
+  // Prefer UserPrefs (synced with the prefs modal); fall back to the legacy
+  // cs_hlMode key for users created before the pref existed; finally default.
+  try{
+    var pv=window.UserPrefs&&window.UserPrefs.get("trackerDefaultHighlightMode");
+    if(pv==="isolate"||pv==="outline"||pv==="tint"||pv==="spotlight")return pv;
+  }catch(_){}
+  try{return localStorage.getItem("cs_hlMode")||"isolate";}catch(_){return "isolate";}
+});
+const[tintColor,setTintColor]=useState(()=>{
+  try{var pv=window.UserPrefs&&window.UserPrefs.get("trackerTintColour");if(typeof pv==="string"&&/^#[0-9a-f]{6}$/i.test(pv))return pv;}catch(_){}
+  try{return localStorage.getItem("cs_tintColor")||"#FFD700";}catch(_){return "#FFD700";}
+});
+const[tintOpacity,setTintOpacity]=useState(()=>{
+  try{var pv=window.UserPrefs&&window.UserPrefs.get("trackerTintOpacity");if(typeof pv==="number"&&pv>=0&&pv<=1)return pv;}catch(_){}
+  try{return parseFloat(localStorage.getItem("cs_tintOp")||"0.4");}catch(_){return 0.4;}
+});
+const[spotDimOpacity,setSpotDimOpacity]=useState(()=>{
+  try{var pv=window.UserPrefs&&window.UserPrefs.get("trackerSpotDimOpacity");if(typeof pv==="number"&&pv>=0&&pv<=1)return pv;}catch(_){}
+  try{return parseFloat(localStorage.getItem("cs_spotDimOp")||"0.15");}catch(_){return 0.15;}
+});
+useEffect(()=>{try{localStorage.setItem("cs_tintColor",tintColor);}catch(_){}try{if(window.UserPrefs)window.UserPrefs.set("trackerTintColour",tintColor);}catch(_){}},[tintColor]);
+useEffect(()=>{try{localStorage.setItem("cs_tintOp",String(tintOpacity));}catch(_){}try{if(window.UserPrefs)window.UserPrefs.set("trackerTintOpacity",tintOpacity);}catch(_){}},[tintOpacity]);
+useEffect(()=>{try{localStorage.setItem("cs_spotDimOp",String(spotDimOpacity));}catch(_){}try{if(window.UserPrefs)window.UserPrefs.set("trackerSpotDimOpacity",spotDimOpacity);}catch(_){}},[spotDimOpacity]);
 const[antsOffset,setAntsOffset]=useState(0);
-useEffect(()=>{try{localStorage.setItem("cs_hlMode",highlightMode);}catch(_){}},[highlightMode]);
+useEffect(()=>{
+  try{localStorage.setItem("cs_hlMode",highlightMode);}catch(_){}
+  try{if(window.UserPrefs)window.UserPrefs.set("trackerDefaultHighlightMode",highlightMode);}catch(_){}
+},[highlightMode]);
 // Show one-time intro hint on first entry to Highlight mode (Option 4)
 useEffect(()=>{
   if(stitchView==="highlight"&&!hlIntroSeen){
@@ -1211,7 +1253,10 @@ function recordAutoActivity(completed,undone){
       pendingColoursRef.current.clear();
     }
     clearTimeout(autoIdleTimerRef.current);
-    autoIdleTimerRef.current=setTimeout(()=>{try{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();}catch(e){}},IDLE_THRESHOLD_MS);
+    var idleMs=getIdleThresholdMs();
+    if(isFinite(idleMs)){
+      autoIdleTimerRef.current=setTimeout(()=>{try{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();}catch(e){}},idleMs);
+    }
     // Reset inactivity pause timer (only if not manually paused)
     clearTimeout(inactivityTimerRef.current);
     const inactThresh=(statsSettings.inactivityPauseSec||0)*1000;

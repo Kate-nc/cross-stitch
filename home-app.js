@@ -675,8 +675,27 @@
 
     var Header = window.Header;
     // Projects tab excludes active project from "All projects" list since it
-    // already appears in ActiveProjectCard above.
-    var otherProjects = list.filter(function (p) { return !active || p.id !== active.id; });
+    // already appears in ActiveProjectCard above. The `homeShowCompleted`
+    // preference can additionally hide 100%-complete projects.
+    var showCompletedState = React.useState(function () {
+      try { var v = window.UserPrefs && window.UserPrefs.get('homeShowCompleted'); return v !== false; }
+      catch (_) { return true; }
+    });
+    var showCompleted = showCompletedState[0];
+    var setShowCompleted = showCompletedState[1];
+    React.useEffect(function () {
+      function onChange(e) {
+        if (!e || !e.detail || e.detail.key !== 'homeShowCompleted') return;
+        setShowCompleted(e.detail.value !== false);
+      }
+      window.addEventListener('cs:prefsChanged', onChange);
+      return function () { window.removeEventListener('cs:prefsChanged', onChange); };
+    }, []);
+    var otherProjects = list.filter(function (p) {
+      if (active && p.id === active.id) return false;
+      if (!showCompleted && projectPct(p) === 100) return false;
+      return true;
+    });
 
     return h('div', { className: 'home-shell' },
       Header

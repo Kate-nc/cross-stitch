@@ -67,6 +67,23 @@
     creatorReferenceOpacity:      35,           // 0..100
 
     // ─── Stitch Tracker behaviour defaults ──────────────────────────────
+    // Initial chart view used when a project opens. Also used as the
+    // sticky value the action menu writes to so the choice persists.
+    trackerDefaultView:          "symbol",      // symbol | colour | highlight
+    // Initial highlight rendering mode (used in highlight view). Updated
+    // in place by the highlight-mode picker so a per-session change
+    // survives reloads — see legacy localStorage key cs_hlMode.
+    trackerDefaultHighlightMode: "isolate",     // isolate | outline | tint | spotlight
+    // ─── Tracker highlight appearance (mirror legacy cs_* localStorage) ─
+    trackerDimLevel:        0.1,                // 0..1 — opacity of non-focused colours in highlight view
+    trackerTintColour:      "#FFD700",          // tint mode overlay colour
+    trackerTintOpacity:     0.4,                // 0..1 — tint mode overlay opacity
+    trackerSpotDimOpacity:  0.15,               // 0..1 — spotlight mode dim opacity
+    // Palette filter defaults (previously session-only)
+    trackerHighlightSkipDone: true,             // hide finished colours from the palette filter
+    trackerOnlyStarted:       false,            // restrict palette to colours with at least one stitch done
+    // Session timer idle threshold in minutes (0 = never auto-pause)
+    trackerIdleMinutes:       10,
     trackerStitchingStyle: "freestyle",         // freestyle | block | crosscountry | royal
     trackerBlockShape:     "10x10",             // WxH; "10x10" | "5x5" | etc.
     trackerStartCorner:    "TL",                // TL | TR | BL | BR | C
@@ -128,6 +145,9 @@
     autoSyncEnabled:        true,
     autoLibraryLink:        true,
     appAccentColour:        "#B85C38",
+
+    // ─── Home dashboard ─────────────────────────────────────────────────
+    homeShowCompleted:      true,               // include 100%-complete projects in the home list
 
     // ─── Advanced ───────────────────────────────────────────────────────
     commandPaletteHotkey:     "ctrl+k",         // ctrl+k | ctrl+/ | off
