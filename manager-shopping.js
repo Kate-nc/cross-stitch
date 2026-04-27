@@ -381,19 +381,30 @@
     }
 
     function markAllBought() {
-      if (!(window.StashBridge && typeof StashBridge.markBought === 'function')) return;
+      if (!window.StashBridge) return;
       if (listRows.length === 0) return;
       setBusy(true);
-      var rowsCopy = listRows.slice();
-      Promise.all(rowsCopy.map(function (r) {
-        var qty = r.tobuyQty > 0 ? r.tobuyQty : 1;
-        return StashBridge.markBought(r.key, qty).catch(function () { return null; });
-      }))
-        .then(function (results) {
-          var n = results.filter(Boolean).length;
-          toast('Added ' + n + ' thread' + (n === 1 ? '' : 's') + ' to your stash.');
-        })
-        .then(function () { setBusy(false); });
+      // Prefer the bulk path (single tx, single dispatch) when available, fall
+      // back to per-row markBought for older bridge builds.
+      var qtyMap = {};
+      listRows.forEach(function (r) { qtyMap[r.key] = r.tobuyQty > 0 ? r.tobuyQty : 1; });
+      var p;
+      if (typeof StashBridge.markBoughtMany === 'function') {
+        p = Promise.resolve(StashBridge.markBoughtMany(qtyMap)).then(function (results) {
+          return (results || []).length;
+        });
+      } else if (typeof StashBridge.markBought === 'function') {
+        var rowsCopy = listRows.slice();
+        p = Promise.all(rowsCopy.map(function (r) {
+          return StashBridge.markBought(r.key, qtyMap[r.key]).catch(function () { return null; });
+        })).then(function (results) { return results.filter(Boolean).length; });
+      } else {
+        setBusy(false);
+        return;
+      }
+      p.then(function (n) {
+        toast('Added ' + n + ' thread' + (n === 1 ? '' : 's') + ' to your stash.');
+      }).catch(function () {}).then(function () { setBusy(false); });
     }
 
     function clearList() {

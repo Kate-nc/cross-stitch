@@ -39,6 +39,7 @@ describe('Schema v4 — Shopping List bridge', () => {
       expect(SRC).toMatch(/async setToBuyQty\(/);
       expect(SRC).toMatch(/async setToBuyQtyMany\(/);
       expect(SRC).toMatch(/async markBought\(/);
+      expect(SRC).toMatch(/async markBoughtMany\(/);
       expect(SRC).toMatch(/async getShoppingList\(/);
       expect(SRC).toMatch(/async clearShoppingList\(/);
       expect(SRC).toMatch(/_buildShoppingListRows: _buildShoppingListRows/);
@@ -46,10 +47,19 @@ describe('Schema v4 — Shopping List bridge', () => {
 
     test('every writer dispatches cs:stashChanged', () => {
       // updateThreadOwned, updateThreadToBuy, markManyToBuy, setToBuyQty,
-      // setToBuyQtyMany, markBought (via updateThreadOwned + own clear),
-      // and clearShoppingList — at least 7 _dispatchStashChanged calls.
+      // setToBuyQtyMany, markBought, markBoughtMany, clearShoppingList —
+      // at least 8 _dispatchStashChanged call sites.
       const matches = SRC.match(/_dispatchStashChanged\(\)/g) || [];
-      expect(matches.length).toBeGreaterThanOrEqual(7);
+      expect(matches.length).toBeGreaterThanOrEqual(8);
+    });
+
+    test('markBought is a single-tx mutation (no nested await on updateThreadOwned)', () => {
+      // Bug-hunt: the original markBought updated owned in one tx and cleared
+      // tobuy in a second tx; a concurrent setToBuyQty between them could
+      // resurrect the row. Single-tx markBought avoids that race.
+      const m = SRC.match(/async markBought\(keyOrId, qty\)\s*\{[\s\S]*?async markBoughtMany/);
+      expect(m).not.toBeNull();
+      expect(m[0]).not.toMatch(/await StashBridge\.updateThreadOwned/);
     });
 
     test('markManyToBuy accepts an optional qtyMap parameter', () => {

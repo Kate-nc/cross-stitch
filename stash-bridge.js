@@ -751,43 +751,138 @@ const StashBridge = (() => {
     },
 
     // Schema v4 (Shopping List rebuild) — closes the loop: the user has bought
-    // `qty` skeins of `keyOrId`. Adds qty to owned (using updateThreadOwned so
-    // the V3 history tracking fires), then clears the shopping-list flags.
+    // `qty` skeins of `keyOrId`. Adds qty to owned (recording V3 history) AND
+    // clears the shopping-list flags in a single transaction so a concurrent
+    // writer (e.g. another setToBuyQty in flight) cannot land between the two
+    // mutations and leave the row in an inconsistent state.
     // qty defaults to the row's current tobuy_qty (or 1 if the row had no qty).
     async markBought(keyOrId, qty) {
       const key = _normaliseKey(keyOrId);
       try {
-        const stash = await StashBridge.getGlobalStash();
-        const entry = stash[key] || {};
-        let n = Number(qty);
-        if (!Number.isFinite(n) || n <= 0) {
-          n = Number(entry.tobuy_qty) > 0 ? Number(entry.tobuy_qty) : 1;
-        }
-        n = Math.max(1, Math.floor(n));
-        const newOwned = (entry.owned || 0) + n;
-        await StashBridge.updateThreadOwned(key, newOwned);
-        // Then clear the shopping-list state in a separate tx.
         const db = await openManagerDB();
-        await new Promise((resolve, reject) => {
+        return new Promise((resolve, reject) => {
           const tx = db.transaction("manager_state", "readwrite");
           const store = tx.objectStore("manager_state");
           const req = store.get("threads");
           req.onsuccess = () => {
             const threads = req.result || {};
-            if (threads[key]) {
-              threads[key].tobuy = false;
-              threads[key].tobuy_qty = 0;
-              threads[key].tobuy_added_at = null;
-              store.put(threads, "threads");
+            const isV3 = _schemaVersion >= 3;
+            if (!threads[key]) {
+              threads[key] = { owned: 0, tobuy: false, partialStatus: null };
+              if (isV3) {
+                threads[key].addedAt = new Date().toISOString();
+                threads[key].lastAdjustedAt = null;
+                threads[key].acquisitionSource = null;
+                threads[key].history = [];
+              }
             }
-            tx.oncomplete = () => { _dispatchStashChanged(); resolve(); };
+            const entry = threads[key];
+            let n = Number(qty);
+            if (!Number.isFinite(n) || n <= 0) {
+              n = Number(entry.tobuy_qty) > 0 ? Number(entry.tobuy_qty) : 1;
+            }
+            n = Math.max(1, Math.floor(n));
+            const oldOwned = entry.owned || 0;
+            const newOwned = oldOwned + n;
+            entry.owned = newOwned;
+            // V3 history tracking — same shape as updateThreadOwned writes.
+            if (isV3) {
+              const now = new Date().toISOString();
+              entry.lastAdjustedAt = now;
+              if (entry.addedAt === undefined) entry.addedAt = now;
+              if (entry.acquisitionSource === undefined) entry.acquisitionSource = null;
+              if (!Array.isArray(entry.history)) entry.history = [];
+              entry.history.push({ date: now, delta: n });
+              if (entry.history.length > 500) {
+                entry.history = entry.history.slice(entry.history.length - 500);
+              }
+            }
+            // Clear the shopping-list state in the same tx.
+            entry.tobuy = false;
+            entry.tobuy_qty = 0;
+            entry.tobuy_added_at = null;
+            store.put(threads, "threads");
+            tx.oncomplete = () => {
+              if (typeof invalidateStatsCache === 'function') invalidateStatsCache();
+              _dispatchStashChanged();
+              resolve({ key: key, addedSkeins: n, newOwned: newOwned });
+            };
           };
           req.onerror = () => reject(req.error);
         });
-        return { key: key, addedSkeins: n, newOwned: newOwned };
       } catch (e) {
         console.error("StashBridge.markBought failed:", e);
         return null;
+      }
+    },
+
+    // Schema v4 (Shopping List rebuild) — bulk version of markBought used by
+    // the "Mark all bought" header action. Single tx, single dispatch.
+    // qtyMap: { [keyOrId]: number } (qty defaults to current tobuy_qty when
+    // the value is missing, 0 or negative).
+    async markBoughtMany(qtyMap) {
+      if (!qtyMap || typeof qtyMap !== 'object') return [];
+      const entries = Object.keys(qtyMap).map(function (k) {
+        return { key: _normaliseKey(k), qty: Number(qtyMap[k]) };
+      });
+      if (entries.length === 0) return [];
+      try {
+        const db = await openManagerDB();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction("manager_state", "readwrite");
+          const store = tx.objectStore("manager_state");
+          const req = store.get("threads");
+          req.onsuccess = () => {
+            const threads = req.result || {};
+            const isV3 = _schemaVersion >= 3;
+            const now = new Date().toISOString();
+            const results = [];
+            for (const { key, qty } of entries) {
+              if (!threads[key]) {
+                threads[key] = { owned: 0, tobuy: false, partialStatus: null };
+                if (isV3) {
+                  threads[key].addedAt = now;
+                  threads[key].lastAdjustedAt = null;
+                  threads[key].acquisitionSource = null;
+                  threads[key].history = [];
+                }
+              }
+              const entry = threads[key];
+              let n = qty;
+              if (!Number.isFinite(n) || n <= 0) {
+                n = Number(entry.tobuy_qty) > 0 ? Number(entry.tobuy_qty) : 1;
+              }
+              n = Math.max(1, Math.floor(n));
+              const oldOwned = entry.owned || 0;
+              const newOwned = oldOwned + n;
+              entry.owned = newOwned;
+              if (isV3) {
+                entry.lastAdjustedAt = now;
+                if (entry.addedAt === undefined) entry.addedAt = now;
+                if (entry.acquisitionSource === undefined) entry.acquisitionSource = null;
+                if (!Array.isArray(entry.history)) entry.history = [];
+                entry.history.push({ date: now, delta: n });
+                if (entry.history.length > 500) {
+                  entry.history = entry.history.slice(entry.history.length - 500);
+                }
+              }
+              entry.tobuy = false;
+              entry.tobuy_qty = 0;
+              entry.tobuy_added_at = null;
+              results.push({ key: key, addedSkeins: n, newOwned: newOwned });
+            }
+            store.put(threads, "threads");
+            tx.oncomplete = () => {
+              if (typeof invalidateStatsCache === 'function') invalidateStatsCache();
+              _dispatchStashChanged();
+              resolve(results);
+            };
+          };
+          req.onerror = () => reject(req.error);
+        });
+      } catch (e) {
+        console.error("StashBridge.markBoughtMany failed:", e);
+        return [];
       }
     },
 
