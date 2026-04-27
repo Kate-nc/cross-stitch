@@ -242,7 +242,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   padding: 24px;
   width: 90%;
   max-width: min(90vw, 400px);
-  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
   overflow-y: auto;
   box-shadow: var(--shadow-md);
 }
@@ -274,7 +274,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   border: 1px solid var(--border, #E5DCCB);
   box-shadow: var(--shadow-md, 0 20px 60px rgba(0,0,0,0.3));
   overflow: hidden;
-  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
   display: flex;
   flex-direction: column;
 }
@@ -328,7 +328,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg, 0 20px 60px rgba(0,0,0,0.3));
-  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -348,8 +348,8 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 }
 
 .overlay-panel--drawer {
-  max-height: 100vh;
-  height: 100vh;
+  max-height: 100dvh;
+  height: 100dvh;
   max-width: min(420px, 92vw);
   border-radius: 0;
   border-top: none;
@@ -4024,8 +4024,8 @@ html.pref-dark a { color: var(--accent); }
   .resume-recap-overlay { padding: 0; align-items: stretch; }
   .resume-recap-modal {
     max-width: none;
-    height: 100vh;
-    max-height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh;
     border-radius: 0;
   }
   .resume-recap-body { flex: 1; overflow-y: auto; }
@@ -4577,7 +4577,7 @@ html.pref-dark a { color: var(--accent); }
 .iw-discard-buttons { display: flex; justify-content: flex-end; gap: 8px; }
 
 @media (max-width: 480px) {
-  .iw-wizard { width: 100vw; height: 100vh; max-height: 100vh; border-radius: 0; }
+  .iw-wizard { width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; }
   .iw-controls { position: sticky; bottom: 0; background: var(--surface); }
   .iw-btn { min-height: 48px; padding: 12px 18px; }
   .iw-grid-two { grid-template-columns: 1fr; }

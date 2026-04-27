@@ -753,7 +753,7 @@
         className: "cs-help-drawer",
         style: {
           position: "fixed", top: 0, right: 0,
-          width: 380, maxWidth: "100vw", height: "100vh",
+          width: 380, maxWidth: "100vw", height: "100dvh",
           background: "var(--surface)",
           boxShadow: "-4px 0 16px rgba(15, 23, 42, 0.12)",
           borderLeft: "1px solid var(--border)",
