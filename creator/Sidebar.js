@@ -1051,6 +1051,13 @@ window.CreatorSidebar = function CreatorSidebar() {
     {id:"image",      label:"Image",      icon:"image"},
     {id:"dimensions", label:"Dimensions", icon:"ruler"},
     {id:"palette",    label:"Palette",    icon:"palette"},
+    // Polish 13 step 2 — Tools and View are visible-but-locked pre-generate
+    // so new users see the editing destination from the start. Clicking
+    // them shows a locked-pill hint instead of activating the tab.
+    {id:"tools",      label:"Tools",      icon:"pencil", disabled:true,
+      disabledHint:"Generate a pattern to unlock brush, lasso, magic wand, half-stitches, and backstitch."},
+    {id:"view",       label:"View",       icon:"eye",    disabled:true,
+      disabledHint:"Generate a pattern to unlock symbols, gridlines, and zoom presets."},
     {id:"preview",    label:"Preview",    icon:"layers"},
     {id:"project",    label:"Project",    icon:"folder"}
   ];
