@@ -47,7 +47,9 @@ describe('Creator outcome action bar (UX-12 Phase 5 + Option 2)', () => {
   test('accepts the wired-up handler props', () => {
     expect(ACTION_BAR_SRC).toMatch(/props\.onPrintPdf/);
     expect(ACTION_BAR_SRC).toMatch(/props\.onTrackPattern/);
-    expect(ACTION_BAR_SRC).toMatch(/props\.onSwitchToCreate/);
+    // Polish 13 step 3 — onSwitchToCreate is gone; the unified sidebar
+    // tab strip handles "back to setup" by clicking Image/Dim/Project.
+    expect(ACTION_BAR_SRC).not.toMatch(/props\.onSwitchToCreate/);
     expect(ACTION_BAR_SRC).toMatch(/props\.onSaveJson/);
     expect(ACTION_BAR_SRC).toMatch(/props\.onMoreExports/);
     expect(ACTION_BAR_SRC).toMatch(/props\.appMode/);
@@ -59,8 +61,10 @@ describe('Creator outcome action bar (UX-12 Phase 5 + Option 2)', () => {
     expect(ACTION_BAR_SRC).toMatch(/Export(\u2026|\\u2026)/);
     expect(ACTION_BAR_SRC).toMatch(/Save project \(\.json\)/);
     expect(ACTION_BAR_SRC).toMatch(/More export options/);
-    // Mode switch (Polish A — phase label + Setup/Track buttons).
-    expect(ACTION_BAR_SRC).toMatch(/"Setup"/);
+    // Mode switch (Polish 13 step 3 — phase label + Track button only;
+    // the Setup back-button was removed when the sidebar tab strip
+    // unified across appModes).
+    expect(ACTION_BAR_SRC).not.toMatch(/"Setup"/);
     expect(ACTION_BAR_SRC).toMatch(/"Open in Tracker"/);
     expect(ACTION_BAR_SRC).toMatch(/"Editing pattern"/);
     expect(ACTION_BAR_SRC).toMatch(/"Setting up"/);
@@ -93,12 +97,12 @@ describe('Creator outcome action bar (UX-12 Phase 5 + Option 2)', () => {
     expect(ACTION_BAR_SRC).toMatch(/"aria-live":\s*"polite"/);
   });
 
-  test('Polish A — Setup/Track buttons replace the no-op Edit pip', () => {
-    // Phase label is a span, not a tab; Setup and Track are real buttons.
+  test('Polish 13 step 3 — only Track button + phase label remain (Setup removed)', () => {
     expect(ACTION_BAR_SRC).toMatch(/creator-actionbar__mode-phase/);
-    expect(ACTION_BAR_SRC).toMatch(/creator-actionbar__mode-btn--back/);
     expect(ACTION_BAR_SRC).toMatch(/creator-actionbar__mode-btn--forward/);
-    // No more aria-selected on the mode-switch buttons.
+    // The Setup back-button is gone.
+    expect(ACTION_BAR_SRC).not.toMatch(/creator-actionbar__mode-btn--back/);
+    // No more aria-selected / roving tabindex on the mode-switch buttons.
     const oldRovingPattern = /tabIndex:\s*active\s*\?\s*0\s*:\s*-1/;
     expect(oldRovingPattern.test(ACTION_BAR_SRC)).toBe(false);
   });
@@ -136,7 +140,8 @@ describe('Creator outcome action bar (UX-12 Phase 5 + Option 2)', () => {
     expect(CREATOR_MAIN_SRC).toMatch(/onSaveJson=\{io\.saveProject\}/);
     expect(CREATOR_MAIN_SRC).toMatch(/onMoreExports=\{[^}]*setTab\("materials"\)/);
     expect(CREATOR_MAIN_SRC).toMatch(/setMaterialsTab\("output"\)/);
-    expect(CREATOR_MAIN_SRC).toMatch(/onSwitchToCreate=\{/);
+    // Polish 13 step 3 — onSwitchToCreate prop is no longer wired.
+    expect(CREATOR_MAIN_SRC).not.toMatch(/onSwitchToCreate=\{/);
     expect(CREATOR_MAIN_SRC).toMatch(/appMode=\{state\.appMode\}/);
     expect(CREATOR_MAIN_SRC).toMatch(/totalStitchable=\{state\.totalStitchable\}/);
     expect(CREATOR_MAIN_SRC).toMatch(/difficulty=\{state\.difficulty\}/);

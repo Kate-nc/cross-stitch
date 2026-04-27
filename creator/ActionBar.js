@@ -107,26 +107,13 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     };
   }
 
-  // Mode switch (Polish A — was a 3-pip Create/Edit/Track segmented
-  // control where "Edit" looked active but did nothing because the bar
-  // only mounts in Edit mode. Now rendered as a phase label + two real
-  // actions, so every visible control performs an action and the
-  // current state is unambiguous.)
-  //   ◀ Setup   |   Editing pattern   |   Open in Tracker ▶
-  // The Setup button is shown only when there is something to go back
-  // to (props.onSwitchToCreate present); Track is always shown.
+  // Phase label (Polish 13 step 3 — was a Setup chip + label + Track
+  // chip. The Setup back-button is gone now that the sidebar tab strip
+  // is unified across appModes: clicking Image / Dimensions / Project
+  // takes the user back to setup automatically. The phase label remains
+  // as a quiet stage indicator; Track stays as the primary forward
+  // action.)
   var appMode = props.appMode || "edit";
-  var setupBtn = (typeof props.onSwitchToCreate === "function") ? h("button", {
-      type: "button",
-      className: "creator-actionbar__mode-btn creator-actionbar__mode-btn--back",
-      onClick: props.onSwitchToCreate,
-      title: "Back to Setup (image, dimensions, palette)",
-      "aria-label": "Back to setup"
-    },
-    Icons.chevronLeft ? Icons.chevronLeft() : h("span", { "aria-hidden": "true" }, "\u2039"),
-    h("span", null, "Setup")
-  ) : null;
-
   var phaseLabel = h("span", {
       className: "creator-actionbar__mode-phase",
       "aria-live": "polite"
@@ -150,7 +137,6 @@ window.CreatorActionBar = function CreatorActionBar(props) {
       role: "group",
       "aria-label": "Pattern phase"
     },
-    setupBtn,
     phaseLabel,
     trackBtn
   );

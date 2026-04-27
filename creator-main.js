@@ -772,13 +772,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         stitchSpeed={state.stitchSpeed}
         doneCount={state.doneCount}
         appMode={state.appMode}
-        onSwitchToCreate={()=>{
-          if(state.editHistory&&state.editHistory.length>0&&!confirm("Switch to Create mode? Your edits are auto-saved.")) return;
-          state.setAppMode("create");
-          if(state.setSidebarTab) state.setSidebarTab("image");
-          if(window.__switchToCreate) window.__switchToCreate();
-          if(state.addToast) state.addToast("Switched to Create mode",{type:"info",duration:2000});
-        }}
         onPrintPdf={()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},exportData)}
         onTrackPattern={io.handleOpenInTracker}
         onSaveJson={io.saveProject}

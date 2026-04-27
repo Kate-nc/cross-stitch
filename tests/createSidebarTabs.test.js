@@ -12,17 +12,18 @@ describe('Create-mode sidebar — five task tabs', () => {
   const stateSrc   = read('creator/useCreatorState.js');
   const stripSrc   = read('creator/ToolStrip.js');
 
-  it('declares Image / Dimensions / Palette / (locked Tools+View) / Preview / Project as the createTabs', () => {
-    const m = sidebarSrc.match(/var createTabs\s*=\s*\[([\s\S]*?)\];/);
+  it('declares Image / Dimensions / Palette / (locked Tools+View) / Preview / Project as the unifiedTabs', () => {
+    // Polish 13 step 3 — createTabs is now an alias of unifiedTabs (a
+    // single 7-tab array used in both appModes).
+    const m = sidebarSrc.match(/var unifiedTabs\s*=\s*\[([\s\S]*?)\];/);
     expect(m).toBeTruthy();
-    // Polish 13 — tabs are now {id,label,icon,...} objects (was [id,label] tuples).
-    // Step 2: Tools and View are visible-but-locked entries in the pre-generate strip.
     const ids = Array.from(m[1].matchAll(/id:\s*"([^"]+)"/g)).map(x => x[1]);
     expect(ids).toEqual(['image', 'dimensions', 'palette', 'tools', 'view', 'preview', 'project']);
-    // The two added entries must carry disabled:true so the tab strip
-    // renders them as locked pills.
-    expect(m[1]).toMatch(/id:\s*"tools"[\s\S]{0,120}disabled:\s*true/);
-    expect(m[1]).toMatch(/id:\s*"view"[\s\S]{0,120}disabled:\s*true/);
+    // Tools/View are locked (disabled) until a pattern exists.
+    expect(m[1]).toMatch(/id:\s*"tools"[\s\S]{0,160}disabled:\s*!hasPattern/);
+    expect(m[1]).toMatch(/id:\s*"view"[\s\S]{0,160}disabled:\s*!hasPattern/);
+    // createTabs is preserved as a back-compat alias of unifiedTabs.
+    expect(sidebarSrc).toMatch(/var createTabs\s*=\s*unifiedTabs;/);
   });
 
   it('no longer ships the legacy single-Settings tab', () => {

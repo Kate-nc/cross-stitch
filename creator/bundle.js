@@ -12440,43 +12440,55 @@ window.CreatorSidebar = function CreatorSidebar() {
           border:"none",borderRadius:'var(--radius-md)',cursor:gen.busy?"wait":"pointer"}
       }, gen.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
 
-  // ─── Mode-aware sidebar tab bar ────────────────────────────────────────────
+  // ─── Unified sidebar tab bar (Polish 13 step 3) ────────────────────────
+  // One tab strip across both appModes. Tools/View are locked until a
+  // pattern exists. Clicking a tab also flips appMode silently when the
+  // tab requires the other mode's content — no confirm dialog, no
+  // visible "Setup" chip in the action bar. Edits are autosaved so the
+  // round-trip is safe.
   var mode = app.appMode || "edit";
   var rawTab = app.sidebarTab;
   // Back-compat: legacy "settings" (single-Settings-accordion) → first new tab.
   if (rawTab === "settings") rawTab = "image";
+  var hasPattern = !!(ctx.pat && ctx.pal);
   var sTab = rawTab || (mode === "create" ? "image" : "palette");
 
-  var createTabs = [
-    {id:"image",      label:"Image",      icon:"image"},
-    {id:"dimensions", label:"Dimensions", icon:"ruler"},
+  // Per-tab metadata. `requires` declares which appMode owns the tab
+  // content; clicking flips appMode to match. Tools/View are disabled
+  // until generation completes.
+  var unifiedTabs = [
+    {id:"image",      label:"Image",      icon:"image",   requires:"create"},
+    {id:"dimensions", label:"Dimensions", icon:"ruler",   requires:"create"},
     {id:"palette",    label:"Palette",    icon:"palette"},
-    // Polish 13 step 2 — Tools and View are visible-but-locked pre-generate
-    // so new users see the editing destination from the start. Clicking
-    // them shows a locked-pill hint instead of activating the tab.
-    {id:"tools",      label:"Tools",      icon:"pencil", disabled:true,
+    {id:"tools",      label:"Tools",      icon:"pencil",  requires:"edit",
+      disabled: !hasPattern,
       disabledHint:"Generate a pattern to unlock brush, lasso, magic wand, half-stitches, and backstitch."},
-    {id:"view",       label:"View",       icon:"eye",    disabled:true,
+    {id:"view",       label:"View",       icon:"eye",     requires:"edit",
+      disabled: !hasPattern,
       disabledHint:"Generate a pattern to unlock symbols, gridlines, and zoom presets."},
     {id:"preview",    label:"Preview",    icon:"layers"},
-    {id:"project",    label:"Project",    icon:"folder"}
+    {id:"project",    label:"Project",    icon:"folder",  requires:"create"}
   ];
-  // Polish A — locked to share Palette/Preview slots with createTabs
-  // (positions 3 and 4) so users don't lose their place when the Generate
-  // step swaps the bar from create to edit. Tools/View take the first two
-  // slots that Image/Dimensions occupied; More keeps the trailing slot.
-  var editTabs = [
-    {id:"tools",   label:"Tools",   icon:"pencil"},
-    {id:"view",    label:"View",    icon:"eye"},
-    {id:"palette", label:"Palette", icon:"palette"},
-    {id:"preview", label:"Preview", icon:"layers"},
-    {id:"more",    label:"More",    icon:"menu"}
-  ];
-  var tabs = mode === "create" ? createTabs : editTabs;
 
-  // Ensure sidebarTab is valid for current mode
+  // Legacy aliases retained for tests / external callers; the bottom
+  // render branches still use these names. createTabs is the canonical
+  // 7-tab list; editTabs is a filtered subset for the edit-mode render
+  // path that hasn't been merged yet.
+  var createTabs = unifiedTabs;
+  var editTabs = unifiedTabs.filter(function(t) { return t.requires !== "create"; });
+  var tabs = unifiedTabs;
+
+  // Ensure sidebarTab is valid AND matches the current appMode's render
+  // branch. The bottom render path still has two arms (create vs edit);
+  // a tab whose `requires` doesn't match the current `mode` would render
+  // nothing. Clamp to the first tab the current mode can actually show.
   var validIds = tabs.map(function(t) { return t.id; });
   if (validIds.indexOf(sTab) === -1) sTab = validIds[0];
+  var sTabMeta = tabs.find(function(t) { return t.id === sTab; });
+  if (sTabMeta && sTabMeta.requires && sTabMeta.requires !== mode) {
+    var fallback = tabs.find(function(t) { return (!t.requires || t.requires === mode) && !t.disabled; });
+    if (fallback) sTab = fallback.id;
+  }
 
   var tabBar = h("div", {
     role:"tablist", "aria-label":mode === "create" ? "Create mode panels" : "Edit mode panels",
@@ -12501,6 +12513,14 @@ window.CreatorSidebar = function CreatorSidebar() {
           title: isDisabled ? (t.disabledHint || "Generate a pattern to unlock") : t.label,
           onClick: function() {
             if (isDisabled) return;
+            // Polish 13 step 3 — flip appMode to match the tab's `requires`
+            // so Image/Dimensions/Project always render the create-mode
+            // panels and Tools/View/More always render the edit-mode
+            // panels, regardless of which mode the user came from. No
+            // confirm dialog: edits are autosaved.
+            if (t.requires && t.requires !== mode && typeof app.setAppMode === "function") {
+              app.setAppMode(t.requires);
+            }
             var isMobile = window.matchMedia && window.matchMedia("(max-width: 899px)").matches;
             if (isMobile) {
               var panelIsOpen = typeof app.panelOpen === "boolean" ? app.panelOpen : !!app.sidebarOpen;
@@ -16303,26 +16323,13 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     };
   }
 
-  // Mode switch (Polish A — was a 3-pip Create/Edit/Track segmented
-  // control where "Edit" looked active but did nothing because the bar
-  // only mounts in Edit mode. Now rendered as a phase label + two real
-  // actions, so every visible control performs an action and the
-  // current state is unambiguous.)
-  //   ◀ Setup   |   Editing pattern   |   Open in Tracker ▶
-  // The Setup button is shown only when there is something to go back
-  // to (props.onSwitchToCreate present); Track is always shown.
+  // Phase label (Polish 13 step 3 — was a Setup chip + label + Track
+  // chip. The Setup back-button is gone now that the sidebar tab strip
+  // is unified across appModes: clicking Image / Dimensions / Project
+  // takes the user back to setup automatically. The phase label remains
+  // as a quiet stage indicator; Track stays as the primary forward
+  // action.)
   var appMode = props.appMode || "edit";
-  var setupBtn = (typeof props.onSwitchToCreate === "function") ? h("button", {
-      type: "button",
-      className: "creator-actionbar__mode-btn creator-actionbar__mode-btn--back",
-      onClick: props.onSwitchToCreate,
-      title: "Back to Setup (image, dimensions, palette)",
-      "aria-label": "Back to setup"
-    },
-    Icons.chevronLeft ? Icons.chevronLeft() : h("span", { "aria-hidden": "true" }, "\u2039"),
-    h("span", null, "Setup")
-  ) : null;
-
   var phaseLabel = h("span", {
       className: "creator-actionbar__mode-phase",
       "aria-live": "polite"
@@ -16346,7 +16353,6 @@ window.CreatorActionBar = function CreatorActionBar(props) {
       role: "group",
       "aria-label": "Pattern phase"
     },
-    setupBtn,
     phaseLabel,
     trackBtn
   );
