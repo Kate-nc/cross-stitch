@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>I3 · Tracker lpanel — restore desktop side-pane</title>
+<style>
+:root{--bg:#F4EFE8;--ink:#2A2118;--ink-2:#7A6D5E;--accent:#B85C38;--accent-2:#5C7A66;--surface:#FFFCF7;--line:#D6CCBC}
+body{margin:0;background:#EDE5D6;font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);padding:24px}
+.wf-frame{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:24px;max-width:1280px}
+.wf-meta{font-size:12px;color:var(--ink-2);margin-bottom:8px;letter-spacing:.04em;text-transform:uppercase}
+.wf-canvas{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px}
+.wf-chart{background:repeating-conic-gradient(var(--line) 0 25%,#fff 0 50%) 0/20px 20px;border:1px solid var(--line);border-radius:6px}
+.wf-note{margin-top:10px;padding:10px 12px;border-left:3px solid var(--accent);background:rgba(184,92,56,.06);font-size:13px;border-radius:4px}
+.wf-panel{background:#fff;border:1px solid var(--line);border-radius:6px;padding:12px}
+.wf-panel h3{font-size:13px;margin:0 0 8px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.05em}
+.wf-panel ul{margin:0;padding-left:18px;font-size:13px}
+h1{font-size:18px;margin:0 0 16px}
+h2{font-size:14px;margin:0 0 8px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.05em}
+.col2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.tag{display:inline-block;font-size:10px;padding:2px 6px;border-radius:3px;background:#C24545;color:#fff;letter-spacing:.05em;text-transform:uppercase;margin-left:6px}
+.tag.good{background:#5C7A66}
+</style></head>
+<body>
+<h1>I3 — Tracker lpanel (restore desktop side-pane)</h1>
+
+<div class="col2">
+  <div class="wf-frame">
+    <div class="wf-meta">Current behaviour at 1440 px <span class="tag">Bottom sheet eats canvas</span></div>
+    <div class="wf-canvas">
+      <div class="wf-chart" style="height:240px;margin-bottom:8px"></div>
+      <div class="wf-panel">
+        <h3>Options panel (sheet)</h3>
+        <ul><li>Show grid lines</li><li>Highlight current row</li><li>Show parking markers</li><li>Show focus block</li></ul>
+      </div>
+    </div>
+    <div class="wf-note">The lpanel docks below the chart at all viewports. On desktop the bottom 1/3 of the canvas is occluded whenever the panel is open.</div>
+  </div>
+
+  <div class="wf-frame">
+    <div class="wf-meta">Proposed (Alt A) at 1440 px <span class="tag good">Side pane</span></div>
+    <div class="wf-canvas">
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:10px">
+        <div class="wf-chart" style="height:340px"></div>
+        <div class="wf-panel" style="height:340px;overflow:auto">
+          <h3>Options panel</h3>
+          <ul><li>Show grid lines</li><li>Highlight current row</li><li>Show parking markers</li><li>Show focus block</li><li>Stitch counter</li><li>Symbol overlay</li></ul>
+        </div>
+      </div>
+    </div>
+    <div class="wf-note">CSS @media (min-width: 1024px) restores side-pane layout. Canvas wrapper uses <code>grid-template-columns: minmax(0, 1fr) auto</code> so the chart absorbs all remaining space — fixes the original "panel eats canvas" bug at the grid level. Below 1024px the existing bottom-sheet keeps working.</div>
+  </div>
+</div>
+
+<div class="wf-frame">
+  <div class="wf-meta">Phone (375 px) — unchanged</div>
+  <div class="wf-canvas" style="max-width:340px">
+    <div class="wf-chart" style="height:200px;margin-bottom:8px"></div>
+    <div class="wf-panel">
+      <h3>Options sheet</h3>
+      <ul><li>Show grid lines</li><li>Highlight row</li></ul>
+    </div>
+  </div>
+  <div class="wf-note">Below 1024px the bottom-sheet behaviour stays — it's correct on phone and tablet portrait where horizontal space is tight.</div>
+</div>
+
+<div class="wf-frame">
+  <div class="wf-meta">Decision · NEEDS APPROVAL before coding</div>
+  <p>Touches CSS that previously had a "panel eats canvas" bug. The grid-template-columns approach fixes it at the layout root, but should be eyeballed before shipping. Listed under report 8 P-I3 / report 9 deferred items.</p>
+</div>
+</body></html>

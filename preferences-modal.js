@@ -81,10 +81,17 @@
   }
 
   // ─── Reusable atoms ──────────────────────────────────────────────────
+  // NOTE: values are CSS custom-property references so this modal respects
+  // light AND dark theme tokens defined in styles.css. Hex fallbacks remain
+  // only for resilience if a token is somehow undefined at runtime.
   var COLOURS = {
-    teal: "#B85C38", tealDark: "#944526", tealBg: "#F4DDCF", tealBorder: "#E8B89A",
-    ink: "#0f172a", slate: "#5C5448", slate2: "#8A8270", hint: "#A89E89",
-    line: "#E5DCCB", line2: "#CFC4AC", bg: "#f8fafc", card: "#fff", danger: "#8A2E2E"
+    teal: "var(--accent, #B85C38)", tealDark: "var(--accent-hover, #944526)",
+    tealBg: "var(--accent-light, #F4DDCF)", tealBorder: "var(--accent-border, #E8B89A)",
+    ink: "var(--text-primary, #1B1814)", slate: "var(--text-secondary, #5C5448)",
+    slate2: "var(--text-secondary, #8A8270)", hint: "var(--text-tertiary, #A89E89)",
+    line: "var(--border, #E5DCCB)", line2: "var(--line-2, #CFC4AC)",
+    bg: "var(--surface-secondary, #f8fafc)", card: "var(--surface, #fff)",
+    danger: "var(--danger, #8A2E2E)"
   };
 
   var styles = {
@@ -245,14 +252,10 @@
         )
       ),
 
-      // App appearance section commented out — accent-colour tinting is not
-      // wired to runtime styles yet, so we hide it from users for now.
-      /* h(Section, { title: "App appearance" },
-        h(Row, { last: true, label: "Accent colour", desc: "Tints buttons, links and active tabs across the app." },
-          h("input", { type: "color", value: ac[0], onChange: function (e) { ac[1](e.target.value); },
-            style: { width: 44, height: 30, padding: 0, border: "1px solid " + COLOURS.line2, borderRadius: 6, cursor: "pointer" } })
-        )
-      ) */ null
+      // App appearance section intentionally not rendered: accent-colour
+      // tinting is not yet wired to runtime styles. Re-add a Section here
+      // once `appAccentColour` updates a CSS variable on :root.
+      null
     );
   }
 

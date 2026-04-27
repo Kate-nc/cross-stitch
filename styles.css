@@ -607,6 +607,22 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 }
 @keyframes lpanel-fade-in{from{opacity:0;}to{opacity:1;}}
 @media(prefers-reduced-motion:reduce){.lpanel-backdrop{animation:none;}}
+/* I3 (audit) — at desktop the lpanel docks as a left side-pane (320px wide,
+   full height) so users can keep settings open beside the canvas. The
+   canvas wrapper isn't resized — the panel sits over the leftmost strip
+   while the chart remains centre-pannable/zoomable. The backdrop scrim
+   is suppressed on desktop so the chart stays clickable. */
+@media(min-width:1024px){
+  .lpanel{
+    left:0;right:auto;top:0;bottom:0;
+    width:320px;max-width:320px;max-height:100vh;
+    border-radius:0;border-right:1px solid var(--border);border-top:none;
+    box-shadow:2px 0 12px rgba(0,0,0,0.08);
+    animation:lpanel-slide-right 0.22s ease-out;
+  }
+  @keyframes lpanel-slide-right{from{transform:translateX(-100%);}to{transform:translateX(0);}}
+  .lpanel-backdrop{display:none;}
+}
 @media(max-width:899px){
   /* Phase 5 — show the Legend tab + section only on mobile. */
   .lp-tab--mobile-only{display:inline-flex;}
@@ -1031,6 +1047,11 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .tb-context-btn:hover{background:var(--surface-tertiary);filter:none;}
 .tb-context-btn--primary{background:var(--accent);color:var(--surface);border-color:var(--accent);}
 .tb-context-btn--primary:hover{background:var(--accent-hover);filter:none;}
+/* I6 (audit) — mode-jump pill prominence: slightly larger padding +
+   bolder weight + icon gap so the cross-mode button reads as the
+   primary cross-surface affordance per UX-12 plan-c-header-switcher. */
+.tb-context-btn--mode{padding:5px 12px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:5px;}
+.tb-context-btn--mode svg{width:14px;height:14px;}
 
 /* Page fade-in */
 @keyframes cs-fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
@@ -4698,6 +4719,22 @@ html.pref-dark a { color: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
   .creator-actionbar__btn {
     transition: none;
+  }
+}
+
+/* Q2/I5 (audit) — at the smallest phones (<360px) the Track + Export
+   labels collapse to icon-only so the row stays single-line.
+   Title/aria-label preserved for accessibility. */
+@media (max-width: 359px) {
+  .creator-actionbar__btn:not(.creator-actionbar__btn--primary) span:not(.creator-actionbar__stat) {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+  .creator-actionbar__btn:not(.creator-actionbar__btn--primary) {
+    min-width: 44px;
+    padding: 8px 10px;
   }
 }
 

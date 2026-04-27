@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v10';
+var CACHE_NAME = 'cross-stitch-cache-v11';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -10,6 +10,7 @@ var PRECACHE_URLS = [
 
   // PWA manifest
   './manifest.json',
+  './assets/icons/app-icon.svg',
 
   // Shared local assets
   './styles.css',

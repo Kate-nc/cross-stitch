@@ -1220,6 +1220,11 @@ function ManagerApp() {
                         </div>
                         <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 12 }}>
                           <button
+                            onClick={() => { ProjectStorage.setActiveProject(p.id); window.location.href = "index.html?source=manager"; }}
+                            title="Open in Pattern Creator"
+                            style={{ padding: "5px 10px", fontSize: 12, fontWeight: 600, background: "var(--surface)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 6, cursor: "pointer" }}
+                          >Edit</button>
+                          <button
                             onClick={() => { ProjectStorage.setActiveProject(p.id); window.location.href = "stitch.html?source=manager"; }}
                             style={{ padding: "5px 10px", fontSize: 12, fontWeight: 600, background: "var(--accent-ink)", color: "var(--surface)", border: "none", borderRadius: 6, cursor: "pointer" }}
                           >Track</button>

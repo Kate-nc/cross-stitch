@@ -258,29 +258,34 @@
     }, [idx, step.target, step.placement, step.dismissOnTargetClick]);
 
     // Compute the popover style — either floating near the anchor, or centred.
-    var popoverStyle = { maxWidth: 420, padding: 22, position: "relative" };
+    // maxWidth is clamped to the viewport so the popover never overflows on
+    // narrow phones (the original 420 caused right-edge clipping at <440 px).
+    var vwInit = (typeof window !== 'undefined' ? window.innerWidth : 420);
+    var popoverMaxWidth = Math.min(420, Math.max(240, vwInit - 24));
+    var popoverStyle = { maxWidth: popoverMaxWidth, padding: 22, position: "relative" };
     var overlayStyle = null;        // when targeted, dim background but cut hole
     var arrowStyle = null;
     if (anchor) {
       var pad = 12, gap = 14;
       var vw = window.innerWidth, vh = window.innerHeight;
+      var pw = popoverMaxWidth;
       var top, left;
       if (anchor.placement === "right") {
         top = anchor.top + anchor.height / 2 - 80;
         left = anchor.right + gap;
       } else if (anchor.placement === "left") {
         top = anchor.top + anchor.height / 2 - 80;
-        left = anchor.left - 420 - gap;
+        left = anchor.left - pw - gap;
       } else if (anchor.placement === "top") {
         top = anchor.top - 200 - gap;
-        left = anchor.left + anchor.width / 2 - 210;
+        left = anchor.left + anchor.width / 2 - pw / 2;
       } else { // bottom
         top = anchor.bottom + gap;
-        left = anchor.left + anchor.width / 2 - 210;
+        left = anchor.left + anchor.width / 2 - pw / 2;
       }
       // Clamp into viewport.
       top = Math.max(pad, Math.min(top, vh - 200 - pad));
-      left = Math.max(pad, Math.min(left, vw - 420 - pad));
+      left = Math.max(pad, Math.min(left, vw - pw - pad));
       popoverStyle = Object.assign({}, popoverStyle, {
         position: "fixed", top: top, left: left, margin: 0
       });

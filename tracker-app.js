@@ -432,7 +432,7 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
 // the right. Both surfaces are CSS-gated to >=600px viewports; phone
 // keeps its existing chrome (action bar + dock + mode pill).
 // ═══════════════════════════════════════════════════════════════
-function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setFocusColour,stitchView,setStitchView,todayStitchesForBar,liveAutoElapsed,liveAutoStitches}){
+function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setFocusColour,stitchView,setStitchView,todayStitchesForBar,liveAutoElapsed,liveAutoStitches,onPickProject}){
   const[recent,setRecent]=React.useState([]);
   React.useEffect(function(){
     let cancelled=false;
@@ -450,6 +450,9 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
   },[activeId]);
   function openProject(id){
     if(!id||id===activeId)return;
+    // Switch in-place via the same path the project-picker modal uses.
+    // Falls back to reload only if the host App didn't supply a handler.
+    if(typeof onPickProject==='function'){onPickProject(id);return;}
     try{window.ProjectStorage.setActiveProject(id);}catch(_){}
     try{window.location.reload();}catch(_){}
   }
@@ -5546,6 +5549,16 @@ return(
     todayStitchesForBar={todayStitchesForBar}
     liveAutoElapsed={liveAutoElapsed}
     liveAutoStitches={liveAutoStitches}
+    onPickProject={(id)=>{
+      if(!id||id===projectIdRef.current)return;
+      ProjectStorage.get(id).then(p=>{
+        if(p&&p.pattern&&p.settings){
+          processLoadedProject(p);
+          try{ProjectStorage.setActiveProject(p.id);}catch(_){}
+          try{window.dispatchEvent(new Event('cs:projectsChanged'));}catch(_){}
+        }
+      }).catch(err=>console.error('Rail project switch failed:',err));
+    }}
   />}
   {/* ═══════════════════════════════════════════════════════════════
       Phase 4 (UX-12) — Workshop tracker chrome

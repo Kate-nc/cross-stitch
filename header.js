@@ -79,9 +79,9 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
       ),
       React.createElement('div', { className: 'tb-context-actions' },
         page === 'tracker' && onEdit &&
-          React.createElement('button', { className: 'tb-context-btn', onClick: onEdit }, Icons.pencil(), ' Edit Pattern'),
+          React.createElement('button', { className: 'tb-context-btn tb-context-btn--primary tb-context-btn--mode', onClick: onEdit, title: 'Open this pattern in the Pattern Creator' }, Icons.pencil(), ' Edit Pattern'),
         page === 'creator' && onTrack &&
-          React.createElement('button', { className: 'tb-context-btn tb-context-btn--primary', onClick: onTrack }, 'Track ›'),
+          React.createElement('button', { className: 'tb-context-btn tb-context-btn--primary tb-context-btn--mode', onClick: onTrack, title: 'Switch to Stitch Tracker' }, 'Track ›'),
         onSave &&
           React.createElement('button', {
             className: 'tb-context-btn',
@@ -529,6 +529,14 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
           })()
         ),
 
+        // Command palette trigger — touch users have no Ctrl/Cmd+K affordance.
+        // Mirrors the keyboard shortcut by calling window.CommandPalette.open().
+        window.CommandPalette ? React.createElement('button', {
+          className: 'tb-nav-link',
+          onClick: () => { try { window.CommandPalette.open(); } catch (_) {} },
+          'aria-label': 'Open command palette (Ctrl/Cmd+K)',
+          title: 'Open command palette (Ctrl/Cmd+K)'
+        }, window.Icons && window.Icons.magnify ? window.Icons.magnify() : 'Search') : null,
         React.createElement('button', { className: 'tb-nav-link', onClick: () => { if (window.HelpDrawer) window.HelpDrawer.open({ tab: 'shortcuts' }); else setModal('shortcuts'); }, 'aria-label': 'Keyboard shortcuts', title: 'Keyboard shortcuts' }, window.Icons && window.Icons.keyboard ? window.Icons.keyboard() : 'Shortcuts'),
         React.createElement('button', {
           className: 'tb-nav-link tb-help-btn',
