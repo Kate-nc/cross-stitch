@@ -47,8 +47,61 @@ const StashBridge = (() => {
   }
 
   let _migrationDone = false;
-  // Schema version tracked in stash data. V2 = composite keys, V3 = addedAt/history fields.
+  // Schema version tracked in stash data. V2 = composite keys, V3 = addedAt/history fields,
+  // V4 = tobuy_qty / tobuy_added_at fields on each entry (lazy: defaults to 0/null when absent).
   let _schemaVersion = 0;
+
+  // Fires the cross-app 'cs:stashChanged' event so listeners (Home, Manager,
+  // Tracker, Creator) reload from the live DB. Guarded for non-browser test
+  // environments where window/CustomEvent are unavailable.
+  function _dispatchStashChanged() {
+    if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
+    if (typeof CustomEvent !== 'function') return;
+    try { window.dispatchEvent(new CustomEvent('cs:stashChanged')); } catch (_) { /* swallow */ }
+  }
+
+  // Pure helper: builds the sorted shopping-list rows from a raw threads dict.
+  // Exposed for unit tests via window.StashBridge._buildShoppingListRows.
+  // infoLookup(brand, id) -> { name, rgb } | null. Defaults to a stub when
+  // catalog globals aren't available (Node tests).
+  function _buildShoppingListRows(threadsDict, infoLookup) {
+    const lookup = typeof infoLookup === 'function' ? infoLookup : function(brand, id) {
+      if (typeof findThreadInCatalog === 'function') return findThreadInCatalog(brand, id);
+      return null;
+    };
+    const rows = [];
+    if (!threadsDict || typeof threadsDict !== 'object') return rows;
+    for (const key of Object.keys(threadsDict)) {
+      const entry = threadsDict[key];
+      if (!entry || !entry.tobuy) continue;
+      const colon = key.indexOf(':');
+      const brand = colon < 0 ? 'dmc' : key.slice(0, colon);
+      const id = colon < 0 ? key : key.slice(colon + 1);
+      const info = lookup(brand, id) || null;
+      rows.push({
+        key: key,
+        brand: brand,
+        id: id,
+        name: info ? info.name : id,
+        rgb: info ? info.rgb : [200, 200, 200],
+        owned: entry.owned || 0,
+        tobuyQty: Number(entry.tobuy_qty) > 0 ? Number(entry.tobuy_qty) : 0,
+        tobuyAddedAt: entry.tobuy_added_at || null,
+      });
+    }
+    rows.sort(function(a, b) {
+      // Most recently added first; ties broken by brand then numeric id.
+      const at = a.tobuyAddedAt || '';
+      const bt = b.tobuyAddedAt || '';
+      if (at !== bt) return bt.localeCompare(at);
+      if (a.brand !== b.brand) return a.brand.localeCompare(b.brand);
+      const an = /^\d+$/.test(a.id) ? Number(a.id) : Infinity;
+      const bn = /^\d+$/.test(b.id) ? Number(b.id) : Infinity;
+      if (an !== bn) return an - bn;
+      return String(a.id).localeCompare(String(b.id));
+    });
+    return rows;
+  }
 
   // Legacy epoch: used for stash entries that existed before tracking was added.
   // Deliberately set to a fixed past date so the UI can show 'before tracking'
@@ -231,6 +284,7 @@ const StashBridge = (() => {
             store.put(threads, "threads");
             tx.oncomplete = () => {
               if (typeof invalidateStatsCache === 'function') invalidateStatsCache();
+              _dispatchStashChanged();
               resolve();
             };
           };
@@ -529,8 +583,13 @@ const StashBridge = (() => {
             const threads = req.result || {};
             if (!threads[key]) threads[key] = { owned: 0, tobuy: false, partialStatus: null };
             threads[key].tobuy = toBuy;
+            // Clear quantity when toggling off so the My-list view doesn't show stale rows.
+            if (!toBuy) {
+              threads[key].tobuy_qty = 0;
+              threads[key].tobuy_added_at = null;
+            }
             store.put(threads, "threads");
-            tx.oncomplete = () => resolve();
+            tx.oncomplete = () => { _dispatchStashChanged(); resolve(); };
           };
           req.onerror = () => reject(req.error);
         });
@@ -544,10 +603,19 @@ const StashBridge = (() => {
     // single transaction. Returns the number of entries actually changed
     // (i.e. ones whose tobuy flag was different from `toBuy` beforehand) so
     // callers can show "X added, Y already on the list" style toasts.
-    async markManyToBuy(keysOrIds, toBuy) {
+    //
+    // Optional 3rd arg `qtyMap`: { [keyOrId]: number } — when adding (toBuy=true)
+    // any key that has a positive qty in the map seeds tobuy_qty and bumps
+    // tobuy_added_at to now if the entry wasn't already on the list. Existing
+    // tobuy_qty values are preserved if the key is omitted from qtyMap.
+    async markManyToBuy(keysOrIds, toBuy, qtyMap) {
       if (!Array.isArray(keysOrIds) || keysOrIds.length === 0) return 0;
       const flag = !!toBuy;
       const keys = keysOrIds.map(_normaliseKey);
+      const qtyByKey = {};
+      if (qtyMap && typeof qtyMap === 'object') {
+        for (const k of Object.keys(qtyMap)) qtyByKey[_normaliseKey(k)] = Number(qtyMap[k]) || 0;
+      }
       try {
         const db = await openManagerDB();
         return new Promise((resolve, reject) => {
@@ -561,22 +629,209 @@ const StashBridge = (() => {
           const req = store.get("threads");
           req.onsuccess = () => {
             const threads = req.result || {};
+            const now = new Date().toISOString();
             let changed = 0;
             for (const key of keys) {
               if (!threads[key]) threads[key] = { owned: 0, tobuy: false, partialStatus: null };
-              if (!!threads[key].tobuy !== flag) {
+              const wasOn = !!threads[key].tobuy;
+              if (wasOn !== flag) {
                 threads[key].tobuy = flag;
                 changed++;
+              }
+              if (flag) {
+                const qty = qtyByKey[key];
+                if (qty > 0) {
+                  threads[key].tobuy_qty = qty;
+                }
+                if (!wasOn && !threads[key].tobuy_added_at) {
+                  threads[key].tobuy_added_at = now;
+                }
+              } else {
+                // Toggling off: drop the qty + added-at so My-list rows stay clean.
+                threads[key].tobuy_qty = 0;
+                threads[key].tobuy_added_at = null;
               }
             }
             const putReq = store.put(threads, "threads");
             putReq.onerror = () => rejectOnce(putReq.error);
-            tx.oncomplete = () => resolveOnce(changed);
+            tx.oncomplete = () => { _dispatchStashChanged(); resolveOnce(changed); };
           };
           req.onerror = () => rejectOnce(req.error);
         });
       } catch (e) {
         console.error("StashBridge.markManyToBuy failed:", e);
+        return 0;
+      }
+    },
+
+    // Schema v4 (Shopping List rebuild) — sets the desired purchase quantity
+    // on a single thread. qty <= 0 clears the row from the shopping list
+    // (tobuy=false). Otherwise tobuy is forced true and tobuy_added_at is
+    // stamped to now if the row wasn't already on the list.
+    async setToBuyQty(keyOrId, qty) {
+      const key = _normaliseKey(keyOrId);
+      const n = Math.max(0, Math.floor(Number(qty) || 0));
+      try {
+        const db = await openManagerDB();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction("manager_state", "readwrite");
+          const store = tx.objectStore("manager_state");
+          const req = store.get("threads");
+          req.onsuccess = () => {
+            const threads = req.result || {};
+            if (!threads[key]) threads[key] = { owned: 0, tobuy: false, partialStatus: null };
+            const wasOn = !!threads[key].tobuy;
+            if (n <= 0) {
+              threads[key].tobuy = false;
+              threads[key].tobuy_qty = 0;
+              threads[key].tobuy_added_at = null;
+            } else {
+              threads[key].tobuy = true;
+              threads[key].tobuy_qty = n;
+              if (!wasOn || !threads[key].tobuy_added_at) {
+                threads[key].tobuy_added_at = new Date().toISOString();
+              }
+            }
+            store.put(threads, "threads");
+            tx.oncomplete = () => { _dispatchStashChanged(); resolve(n); };
+          };
+          req.onerror = () => reject(req.error);
+        });
+      } catch (e) {
+        console.error("StashBridge.setToBuyQty failed:", e);
+        return 0;
+      }
+    },
+
+    // Schema v4 (Shopping List rebuild) — bulk version of setToBuyQty.
+    // qtyMap: { [keyOrId]: number }. Returns count of rows whose state changed.
+    async setToBuyQtyMany(qtyMap) {
+      if (!qtyMap || typeof qtyMap !== 'object') return 0;
+      const entries = Object.keys(qtyMap).map(function(k) {
+        return { key: _normaliseKey(k), qty: Math.max(0, Math.floor(Number(qtyMap[k]) || 0)) };
+      });
+      if (entries.length === 0) return 0;
+      try {
+        const db = await openManagerDB();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction("manager_state", "readwrite");
+          const store = tx.objectStore("manager_state");
+          const req = store.get("threads");
+          req.onsuccess = () => {
+            const threads = req.result || {};
+            const now = new Date().toISOString();
+            let changed = 0;
+            for (const { key, qty } of entries) {
+              if (!threads[key]) threads[key] = { owned: 0, tobuy: false, partialStatus: null };
+              const wasOn = !!threads[key].tobuy;
+              const wasQty = Number(threads[key].tobuy_qty) || 0;
+              if (qty <= 0) {
+                if (wasOn || wasQty > 0) {
+                  threads[key].tobuy = false;
+                  threads[key].tobuy_qty = 0;
+                  threads[key].tobuy_added_at = null;
+                  changed++;
+                }
+              } else {
+                if (!wasOn || wasQty !== qty) changed++;
+                threads[key].tobuy = true;
+                threads[key].tobuy_qty = qty;
+                if (!wasOn || !threads[key].tobuy_added_at) threads[key].tobuy_added_at = now;
+              }
+            }
+            store.put(threads, "threads");
+            tx.oncomplete = () => { _dispatchStashChanged(); resolve(changed); };
+          };
+          req.onerror = () => reject(req.error);
+        });
+      } catch (e) {
+        console.error("StashBridge.setToBuyQtyMany failed:", e);
+        return 0;
+      }
+    },
+
+    // Schema v4 (Shopping List rebuild) — closes the loop: the user has bought
+    // `qty` skeins of `keyOrId`. Adds qty to owned (using updateThreadOwned so
+    // the V3 history tracking fires), then clears the shopping-list flags.
+    // qty defaults to the row's current tobuy_qty (or 1 if the row had no qty).
+    async markBought(keyOrId, qty) {
+      const key = _normaliseKey(keyOrId);
+      try {
+        const stash = await StashBridge.getGlobalStash();
+        const entry = stash[key] || {};
+        let n = Number(qty);
+        if (!Number.isFinite(n) || n <= 0) {
+          n = Number(entry.tobuy_qty) > 0 ? Number(entry.tobuy_qty) : 1;
+        }
+        n = Math.max(1, Math.floor(n));
+        const newOwned = (entry.owned || 0) + n;
+        await StashBridge.updateThreadOwned(key, newOwned);
+        // Then clear the shopping-list state in a separate tx.
+        const db = await openManagerDB();
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction("manager_state", "readwrite");
+          const store = tx.objectStore("manager_state");
+          const req = store.get("threads");
+          req.onsuccess = () => {
+            const threads = req.result || {};
+            if (threads[key]) {
+              threads[key].tobuy = false;
+              threads[key].tobuy_qty = 0;
+              threads[key].tobuy_added_at = null;
+              store.put(threads, "threads");
+            }
+            tx.oncomplete = () => { _dispatchStashChanged(); resolve(); };
+          };
+          req.onerror = () => reject(req.error);
+        });
+        return { key: key, addedSkeins: n, newOwned: newOwned };
+      } catch (e) {
+        console.error("StashBridge.markBought failed:", e);
+        return null;
+      }
+    },
+
+    // Schema v4 (Shopping List rebuild) — returns the user's current shopping
+    // list as sorted rows. Reads the live stash and uses _buildShoppingListRows
+    // for the pure shaping/sort (testable without IndexedDB).
+    async getShoppingList() {
+      try {
+        const stash = await StashBridge.getGlobalStash();
+        return _buildShoppingListRows(stash);
+      } catch (e) {
+        console.error("StashBridge.getShoppingList failed:", e);
+        return [];
+      }
+    },
+
+    // Schema v4 (Shopping List rebuild) — clears every tobuy flag/qty in one
+    // transaction. Returns the number of rows cleared.
+    async clearShoppingList() {
+      try {
+        const db = await openManagerDB();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction("manager_state", "readwrite");
+          const store = tx.objectStore("manager_state");
+          const req = store.get("threads");
+          req.onsuccess = () => {
+            const threads = req.result || {};
+            let cleared = 0;
+            for (const key of Object.keys(threads)) {
+              const e = threads[key];
+              if (e && (e.tobuy || (Number(e.tobuy_qty) || 0) > 0)) {
+                e.tobuy = false;
+                e.tobuy_qty = 0;
+                e.tobuy_added_at = null;
+                cleared++;
+              }
+            }
+            store.put(threads, "threads");
+            tx.oncomplete = () => { _dispatchStashChanged(); resolve(cleared); };
+          };
+          req.onerror = () => reject(req.error);
+        });
+      } catch (e) {
+        console.error("StashBridge.clearShoppingList failed:", e);
         return 0;
       }
     },
@@ -729,6 +984,10 @@ const StashBridge = (() => {
 
     // Expose migration functions
     migrateSchemaToV3,
+
+    // Test surface for the Shopping List rebuild (Schema v4). Pure helper —
+    // exposes the row-shaping logic without requiring IndexedDB.
+    _buildShoppingListRows: _buildShoppingListRows,
   };
 })();
 
