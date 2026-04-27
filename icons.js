@@ -81,6 +81,10 @@ window.Icons = (function() {
     trash: function() {
       return svg(pl('3 6 5 6 21 6'), p('M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2'), l(10,11,10,17), l(14,11,14,17));
     },
+    // Copy / duplicate — used by the Shopping list "Copy" action.
+    copy: function() {
+      return svg(rc(9, 9, 13, 13, 2), p('M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'));
+    },
     // Settings gear — replaces ⚙️
     gear: function() {
       return svg(
