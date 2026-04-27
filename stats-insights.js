@@ -396,7 +396,7 @@
           title: 'Create your first pattern',
           description: 'Design a pattern in the Creator, then start stitching \u2014 your insights will appear here as you make progress.',
           ctaLabel: 'Open the creator',
-          ctaAction: () => { window.location.href = 'index.html'; }
+          ctaAction: () => { window.location.href = 'home.html?tab=create'; }
         });
       }
       return h('div', { style: { padding: '40px 20px', textAlign: 'center', color: 'var(--text-secondary)' } },

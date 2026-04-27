@@ -1269,15 +1269,13 @@ function UnifiedApp(){
         window.__pendingCreatorFile = new File([blob], pendingName, { type: pendingType });
       }
     } else if (act === 'new-from-image') {
-      // Fallback path (e.g. sessionStorage quota exceeded): mark so the
-      // Creator's upload card stays visible and surface a toast once it loads.
-      window.__pendingCreatorPickImage = true;
-      setTimeout(function(){
-        if (window.Toast) window.Toast.show({
-          message: 'Click "Create New Pattern" below to choose your image.',
-          type: 'info', duration: 5000
-        });
-      }, 200);
+      // Legacy fallback: a navigation hit create.html?action=new-from-image.
+      // No in-app code routes here any more (Header "Create", /home greeting
+      // "+ New project", and manager.html "Add new" all go to /home Create
+      // tab now). Bounce them there too rather than dumping them on the
+      // welcome card with no image picked.
+      window.location.replace('home.html?tab=create');
+      return;
     } else if (act === 'open') {
       setTimeout(function(){ if (window.__setCreatorAppMode) window.__setCreatorAppMode('edit'); }, 0);
     }

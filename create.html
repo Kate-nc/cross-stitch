@@ -22,10 +22,24 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<!-- No home-redirect: create.html is the dedicated Creator URL. Direct
-     hits, bookmarks, and /home -> create.html?action=... handoffs all
-     load straight into the Creator. The previous index.html redirect
-     gateway remains in place for legacy URLs. -->
+<!-- Defensive redirect: create.html is normally reached via a deliberate
+     action= deep link (home-image-pending, new-blank, open) OR with an
+     active project already set. If neither is true the user has typed the
+     URL or back-navigated to a stale state — send them to /home Create
+     tab where they can pick the canonical entry point, instead of showing
+     the bare welcome card. The check intentionally allows action= and
+     from=home through unconditionally so live handoffs always proceed. -->
+<script>
+(function(){
+  try {
+    var qs = location.search || '';
+    var hasAction = /(\?|&)(from=home|action=)/.test(qs);
+    if (hasAction) return;
+    var active = localStorage.getItem('crossstitch_active_project');
+    if (!active) { location.replace('home.html?tab=create'); return; }
+  } catch (_) { /* localStorage blocked → load tool normally */ }
+})();
+</script>
 <!-- Preconnect so CDN requests start immediately -->
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
@@ -141,7 +155,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_10edaa073a';
+var CREATOR_CACHE_KEY = 'babel_creator_10edaa073c';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;

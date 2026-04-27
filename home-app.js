@@ -126,9 +126,17 @@
         h('h1', { className: 'home-greeting-row__title' }, getGreeting() + ', ready to stitch?'),
         h('p', { className: 'home-greeting-row__sub' }, sub)
       ),
-      h('a', {
-        href: 'create.html?action=new-from-image',
-        className: 'btn btn-primary home-greeting-row__new-btn'
+      h('button', {
+        type: 'button',
+        className: 'btn btn-primary home-greeting-row__new-btn',
+        // The greeting "+ New project" button used to navigate to
+        // create.html?action=new-from-image, which dropped users on the
+        // welcome card with no image picked yet — different from clicking
+        // the "New from image" tile on the Create tab. Switching the tab
+        // in-page makes both entry points converge on the same UI.
+        onClick: function () {
+          if (typeof props.onTab === 'function') props.onTab('create');
+        }
       }, '+ New project')
     );
   }
@@ -309,15 +317,17 @@
           setPending(true);
           navigateAfterPaint('create.html?action=home-image-pending&from=home');
         } catch (_) {
-          // sessionStorage quota exceeded (very large image) — fall back to the
-          // existing two-click flow rather than silently failing.
-          setPending(true);
-          navigateAfterPaint('create.html?action=new-from-image&from=home');
+          // sessionStorage quota exceeded (very large image): the in-page
+          // file -> Creator handoff is impossible. Surface the failure
+          // immediately instead of bouncing through create.html with no
+          // image, which would just round-trip back to here.
+          setPending(false);
+          alert('That image is too large to hand off (over the browser session limit). Try a smaller file (under ~5 MB).');
         }
       };
       reader.onerror = function () {
-        setPending(true);
-        navigateAfterPaint('create.html?action=new-from-image&from=home');
+        setPending(false);
+        alert('Could not read the image file. Please try again or pick a different file.');
       };
       reader.readAsDataURL(file);
     }
@@ -456,7 +466,19 @@
 
   // ── Root component ──────────────────────────────────────────────────────
   function HomeApp() {
-    var tabState = React.useState('projects');
+    // Honour ?tab= so external entry points (Header "Create", manager.html
+    // "Add new", anywhere else in the app that wants to start a new pattern)
+    // can land directly on the Create tab. Keeping a single canonical Create
+    // surface stops the welcome card on create.html from being reachable via
+    // navigation — it now only shows defensively for direct URL hits.
+    var tabState = React.useState(function () {
+      try {
+        var p = new URLSearchParams(window.location.search);
+        var t = p.get('tab');
+        if (t === 'create' || t === 'stash' || t === 'stats' || t === 'projects') return t;
+      } catch (_) {}
+      return 'projects';
+    });
     var tab = tabState[0]; var setTab = tabState[1];
     var activeState = React.useState(null);
     var active = activeState[0]; var setActive = activeState[1];
@@ -536,7 +558,7 @@
       h(HomeTabBar, { tab: tab, onTab: setTab, projectCount: list.length }),
       h('div', { className: 'home-page', role: 'tabpanel' },
         tab === 'projects' && h(React.Fragment, null,
-          h(GreetingRow, { list: list }),
+          h(GreetingRow, { list: list, onTab: setTab }),
           h(ActiveProjectCard, { activeProject: active }),
           h(ProjectsList, { projects: otherProjects }),
           h(HomeFooter, null)

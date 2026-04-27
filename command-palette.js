@@ -82,7 +82,9 @@
         keywords: ['creator', 'create', 'design', 'new', 'pattern', 'image'],
         action: function () {
           if (typeof window.__switchToCreate === 'function') return window.__switchToCreate();
-          location.href = 'index.html';
+          // Single canonical Create entry-point: the /home Create tab.
+          // Avoids landing the user on create.html with no project.
+          location.href = 'home.html?tab=create';
         }
       },
       {
@@ -90,7 +92,7 @@
         keywords: ['editor', 'edit', 'modify', 'paint'],
         action: function () {
           if (typeof window.__switchToEdit === 'function') return window.__switchToEdit();
-          location.href = 'index.html';
+          location.href = 'create.html?action=open';
         }
       },
       {

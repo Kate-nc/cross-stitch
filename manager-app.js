@@ -1072,9 +1072,9 @@ function ManagerApp() {
                   onOpenProject: (proj, target) => {
                     if (!proj || !proj.id || proj.managerOnly) return;
                     try { ProjectStorage.setActiveProject(proj.id); } catch (e) {}
-                    window.location.href = (target === "creator" ? "index.html" : "stitch.html") + "?source=manager";
+                    window.location.href = (target === "creator" ? "create.html" : "stitch.html") + "?source=manager";
                   },
-                  onAddNew: () => { window.location.href = "create.html?action=new-from-image"; },
+                  onAddNew: () => { window.location.href = "home.html?tab=create"; },
                   onOpenGlobalStats: () => { window.location.href = "index.html?mode=stats&from=home"; },
                   onOpenManagerOnly: (proj) => {
                     // Scroll to the matching pattern card in the grid below.
@@ -1220,7 +1220,7 @@ function ManagerApp() {
                         </div>
                         <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 12 }}>
                           <button
-                            onClick={() => { ProjectStorage.setActiveProject(p.id); window.location.href = "index.html?source=manager"; }}
+                            onClick={() => { ProjectStorage.setActiveProject(p.id); window.location.href = "create.html?source=manager"; }}
                             title="Open in Pattern Creator"
                             style={{ padding: "5px 10px", fontSize: 12, fontWeight: 600, background: "var(--surface)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 6, cursor: "pointer" }}
                           >Edit</button>

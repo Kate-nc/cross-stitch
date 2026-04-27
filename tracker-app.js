@@ -2397,7 +2397,7 @@ function handleEditInCreator(){
   let project={version:9,id:projectIdRef.current||undefined,page:"tracker",name:projectName,createdAt:createdAtRef.current||new Date().toISOString(),updatedAt:new Date().toISOString(),settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"var(--surface)",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice,stitchSpeed,smooth:0,smoothType:"median",orphans:0},pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,hlRow,hlCol,threadOwned,imgData:null,originalPaletteState,singleStitchEdits:sseArrH,halfStitches:hsArrH,halfDone:hdArrH,statsSessions,statsSettings,achievedMilestones,doneSnapshots,breadcrumbs,stitchingStyle,blockW,blockH,focusBlock,startCorner,colourSequence};
   try{
     localStorage.setItem("crossstitch_handoff_to_creator", JSON.stringify(project));
-    window.location.href = "index.html?source=tracker";
+    window.location.href = "create.html?source=tracker";
   }catch(e){
     try{
       let str = JSON.stringify(project);
@@ -4906,7 +4906,7 @@ return(
 
       <div style={{marginTop:30, paddingTop:20, borderTop:"0.5px solid var(--border)"}}>
         <p style={{fontSize:'var(--text-lg)', color:"var(--text-secondary)", marginBottom:10}}>Need a pattern?</p>
-        <a href="index.html" style={{color:"var(--accent)", fontWeight:600, textDecoration:"none"}}>→ Pattern Creator</a>
+        <a href="home.html?tab=create" style={{color:"var(--accent)", fontWeight:600, textDecoration:"none"}}>→ Pattern Creator</a>
       </div>
     </div>
   </div>}
