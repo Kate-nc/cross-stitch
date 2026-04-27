@@ -111,13 +111,13 @@
         keywords: ['stats', 'statistics', 'dashboard', 'progress'],
         action: function () {
           if (typeof window.__switchToStats === 'function') return window.__switchToStats();
-          location.href = 'index.html?mode=stats';
+          location.href = 'index.html?mode=stats&from=home';
         }
       },
       {
         id: 'nav_showcase', label: 'View Showcase', section: 'navigate',
         keywords: ['showcase', 'journey', 'share'],
-        action: function () { location.href = 'index.html?mode=stats&tab=showcase'; }
+        action: function () { location.href = 'index.html?mode=stats&tab=showcase&from=home'; }
       },
       {
         id: 'act_backup', label: 'Export Backup', section: 'action',

@@ -4,7 +4,7 @@ A feature-rich, fully client-side web application suite for creating, managing, 
 
 ## The Suite
 
-The application is split into three main, integrated tools accessible from a Unified Home Screen (`index.html`).
+The application is split into three integrated tools accessible from a unified Home Screen at [`home.html`](home.html). The per-tool pages still work as direct entry points if you have a saved project loaded — see *Direct entry* below.
 
 ### Pattern Creator (`index.html?mode=design`)
 Turn your images into stitchable art or design patterns from scratch.
@@ -55,14 +55,24 @@ This project is a testament to what modern browsers can achieve without a backen
 Because it's fully client-side, you don't need a build environment to run it.
 
 1. Clone or download the repository.
-2. Open `index.html` in any modern web browser to access the Unified Home Screen.
+2. Open `home.html` in any modern web browser to access the unified Home Screen.
 
 ```bash
 git clone https://github.com/Kate-nc/cross-stitch.git
 cd cross-stitch
 # Just open the file:
-open index.html
+open home.html
 ```
+
+### Direct entry
+
+You can also open one of the per-tool pages directly:
+
+- `index.html` — Pattern Creator
+- `stitch.html` — Stitch Tracker
+- `manager.html` — Stash Manager
+
+If there's no active project the tool pages redirect to `home.html` so you always pick a project first; PWA shortcuts and bookmarks therefore remain valid.
 
 > **Note:** Browsers enforce strict CORS policies for `file://` protocols, which may block Web Workers or local storage. If the app doesn't load correctly, serve it using a simple local server:
 > ```bash
@@ -102,9 +112,11 @@ npm run test:e2e
 ## Key File Structure
 
 ```
-├── index.html          # Unified Home Screen & Pattern Creator app
-├── stitch.html         # Stitch Tracker standalone app
-├── manager.html        # Stash Manager standalone app
+├── home.html           # Unified Home Screen (canonical landing)
+├── home-app.js         # React app for the Home Screen
+├── index.html          # Pattern Creator (direct entry)
+├── stitch.html         # Stitch Tracker (direct entry)
+├── manager.html        # Stash Manager (direct entry)
 ├── styles.css          # Shared global styles
 ├── constants.js        # Configs: fabric counts, skein length, defaults
 ├── dmc-data.js         # Full DMC thread palette (ID, Name, RGB, Lab values)

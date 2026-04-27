@@ -358,7 +358,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
     { id: 'editor', label: 'Edit', href: 'index.html?action=open' },
     { id: 'tracker', label: 'Track',  href: 'stitch.html?from=home' },
     { id: 'manager', label: 'Stash',  href: 'manager.html?from=home' },
-    { id: 'stats', label: 'Stats', href: 'index.html?mode=stats' },
+    { id: 'stats', label: 'Stats', href: 'index.html?mode=stats&from=home' },
   ];
 
   // Active project summary for the badge (consumed from prop or read from ProjectStorage if available)
@@ -405,10 +405,21 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
   return React.createElement(React.Fragment, null,
     React.createElement('header', { className: 'tb-topbar' },
       React.createElement('div', { className: 'tb-topbar-inner' },
-        // Logo
+        // Logo — single source of truth for "go home". On /home itself
+        // we just scroll to top; on every tool page we navigate to the
+        // canonical landing page (home.html). The legacy in-Creator
+        // home-screen mode (window.__goHome) is retired from this entry
+        // point so the unified hub is always one click away.
         React.createElement('span', {
           className: 'tb-logo',
-          onClick: () => { if (typeof window.__goHome === 'function') { window.__goHome(); } else if (page === 'creator') { window.scrollTo(0, 0); } else { window.location.href = 'index.html'; } }
+          role: 'link',
+          tabIndex: 0,
+          title: page === 'home' ? 'Cross Stitch Studio' : 'Back to home',
+          onClick: () => {
+            if (page === 'home') { window.scrollTo(0, 0); return; }
+            window.location.href = 'home.html';
+          },
+          onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }
         }, '×∕× Cross Stitch'),
 
         // App-section navigation tabs — suppressed on home page because
@@ -510,7 +521,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
             : (syncStatus && syncStatus.hasWatchDir ? ' tb-sync-indicator--folder' : '')),
           onClick: () => {
             if (typeof window.__goHome === 'function') window.__goHome();
-            else window.location.href = 'index.html';
+            else window.location.href = 'home.html';
           },
           'aria-label': 'Sync status',
           title: (function() {

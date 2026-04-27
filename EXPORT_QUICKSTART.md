@@ -17,7 +17,7 @@ first-time user through the workflow.
 
 ## 1. Open a pattern in the Creator
 
-1. Launch the app and open the **Pattern Creator** (`index.html`).
+1. Launch the app from `home.html` (or open `index.html` directly if you already have an active project) and switch to the **Pattern Creator**.
 2. Generate a pattern from an image, or load a saved `.json` project from the **Project** tab.
 3. Use the **Pattern**, **Legend** and other tabs to edit the chart until you're happy.
 

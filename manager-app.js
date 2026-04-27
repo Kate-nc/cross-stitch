@@ -698,7 +698,7 @@ function ManagerApp() {
 
   return (
     <>
-      <Header page="manager" setModal={setModal} onBackupDownload={handleBackupDownload} onRestoreFile={handleRestoreFile} onOpenProject={typeof window.ProjectStorage!=='undefined'?()=>{window.location.href='index.html';}:undefined} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} storageUsage={storageUsage} />
+      <Header page="manager" setModal={setModal} onBackupDownload={handleBackupDownload} onRestoreFile={handleRestoreFile} onOpenProject={typeof window.ProjectStorage!=='undefined'?()=>{window.location.href='home.html';}:undefined} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} storageUsage={storageUsage} />
       {preferencesOpen && typeof window.PreferencesModal!=='undefined' && React.createElement(window.PreferencesModal,{onClose:()=>setPreferencesOpen(false)})}
       {backupStatus && (
         <div style={{ padding: "8px 20px 0" }}>
@@ -733,7 +733,7 @@ function ManagerApp() {
           </button>
         </div>
         <button
-          onClick={() => { window.location.href = "index.html?mode=stats&tab=showcase"; }}
+          onClick={() => { window.location.href = "index.html?mode=stats&tab=showcase&from=home"; }}
           title="See your stitching journey"
           style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)", background: "none", border: "none", cursor: "pointer", padding: "0 14px", fontFamily: "inherit", flexShrink: 0, whiteSpace: "nowrap" }}
           aria-label="Open Showcase view"
@@ -1074,8 +1074,8 @@ function ManagerApp() {
                     try { ProjectStorage.setActiveProject(proj.id); } catch (e) {}
                     window.location.href = (target === "creator" ? "index.html" : "stitch.html") + "?source=manager";
                   },
-                  onAddNew: () => { window.location.href = "index.html"; },
-                  onOpenGlobalStats: () => { window.location.href = "index.html?stats=1"; },
+                  onAddNew: () => { window.location.href = "index.html?action=new-from-image"; },
+                  onOpenGlobalStats: () => { window.location.href = "index.html?mode=stats&from=home"; },
                   onOpenManagerOnly: (proj) => {
                     // Scroll to the matching pattern card in the grid below.
                     const realId = proj && proj._managerPatternId;

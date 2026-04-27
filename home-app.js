@@ -230,10 +230,31 @@
   function CreatePanel() {
     var Icons = window.Icons || {};
     var fileInputRef = React.useRef(null);
+    var pendingState = React.useState(false);
+    var pending = pendingState[0]; var setPending = pendingState[1];
+
+    // bfcache restore: if the user lands back on /home via the browser back
+    // button after a successful image handoff, the spinner state from the
+    // previous render must not persist. `pageshow` fires whether the page
+    // came from bfcache or a fresh navigation.
+    React.useEffect(function () {
+      function reset() { setPending(false); }
+      window.addEventListener('pageshow', reset);
+      return function () { window.removeEventListener('pageshow', reset); };
+    }, []);
 
     function handleNewFromImage() {
       var input = fileInputRef.current;
       if (input) input.click();
+    }
+
+    function navigateAfterPaint(href) {
+      // Two rAFs guarantee the spinner has actually painted before the
+      // browser commits the navigation, so the visual hand-off feels
+      // continuous instead of a blank flash.
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () { window.location.href = href; });
+      });
     }
 
     function handleFileChange(e) {
@@ -248,15 +269,18 @@
           sessionStorage.setItem('cs_pending_image_dataurl', dataUrl);
           sessionStorage.setItem('cs_pending_image_name', file.name);
           sessionStorage.setItem('cs_pending_image_type', file.type || 'image/jpeg');
-          window.location.href = 'index.html?action=home-image-pending&from=home';
+          setPending(true);
+          navigateAfterPaint('index.html?action=home-image-pending&from=home');
         } catch (_) {
           // sessionStorage quota exceeded (very large image) — fall back to the
           // existing two-click flow rather than silently failing.
-          window.location.href = 'index.html?action=new-from-image';
+          setPending(true);
+          navigateAfterPaint('index.html?action=new-from-image&from=home');
         }
       };
       reader.onerror = function () {
-        window.location.href = 'index.html?action=new-from-image';
+        setPending(true);
+        navigateAfterPaint('index.html?action=new-from-image&from=home');
       };
       reader.readAsDataURL(file);
     }
@@ -279,7 +303,8 @@
         h('button', {
           type: 'button',
           className: 'home-create-tile home-create-tile--primary',
-          onClick: handleNewFromImage
+          onClick: handleNewFromImage,
+          disabled: pending
         },
           h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
             typeof Icons.image === 'function' ? Icons.image() : null),
@@ -290,7 +315,9 @@
         ),
         h('a', {
           href: 'index.html?action=new-blank',
-          className: 'home-create-tile'
+          className: 'home-create-tile' + (pending ? ' home-create-tile--disabled' : ''),
+          'aria-disabled': pending ? 'true' : undefined,
+          onClick: pending ? function (e) { e.preventDefault(); } : undefined
         },
           h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
             typeof Icons.plus === 'function' ? Icons.plus() : null),
@@ -299,6 +326,16 @@
             h('span', null, 'Start with a blank grid')
           )
         )
+      ),
+      // Transitional overlay shown between FileReader-load and the Creator
+      // page taking over. Stops the page change feeling like a teleport.
+      pending && h('div', {
+        className: 'home-create-pending',
+        role: 'status',
+        'aria-live': 'polite'
+      },
+        h('div', { className: 'home-create-pending__spinner', 'aria-hidden': 'true' }),
+        h('div', { className: 'home-create-pending__msg' }, 'Preparing your image\u2026')
       )
     );
   }
@@ -344,7 +381,7 @@
     return h('section', { className: 'home-stats-panel' },
       h('p', { className: 'home-stats-panel__sub' }, 'View stitching statistics and your pattern showcase.'),
       h('a', {
-        href: 'index.html?mode=stats',
+        href: 'index.html?mode=stats&from=home',
         className: 'home-stats-panel__link'
       },
         h('span', null, 'Open Stats & Showcase'),

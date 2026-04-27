@@ -5440,11 +5440,43 @@ html.pref-dark a { color: var(--accent); }
 
 /* ── Create new panel ── */
 .home-create-file-input { display: none; }
-.home-create-panel { padding: var(--s-3, 12px) 0 0; }
+.home-create-panel { padding: var(--s-3, 12px) 0 0; position: relative; }
 .home-create-panel__grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--s-3, 12px);
+}
+/* Disabled state for the secondary tile while the primary tile is mid-handoff. */
+.home-create-tile--disabled { opacity: 0.5; pointer-events: none; }
+/* Transitional overlay while the chosen image hands off to the Creator. */
+.home-create-pending {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-3, 12px);
+  background: var(--surface);
+  border-radius: var(--radius-lg, 10px);
+  z-index: 5;
+}
+.home-create-pending__spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: home-create-pending-spin 0.9s linear infinite;
+}
+.home-create-pending__msg {
+  font-size: var(--text-md, 13px);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+@keyframes home-create-pending-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .home-create-pending__spinner { animation: none; border-top-color: var(--accent); }
 }
 .home-create-tile {
   display: flex;

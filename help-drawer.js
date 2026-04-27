@@ -570,8 +570,8 @@
             return;
           }
         } catch (_) {}
-        // Fallback: navigate to home with Creator open.
-        window.location.href = "index.html";
+        // Fallback: navigate to the Home screen so the user can pick a project.
+        window.location.href = "home.html";
         close();
       } else if (act.kind === "wizard") {
         try {
