@@ -1052,8 +1052,12 @@ const effectiveCombinedDone=statsCountMode==='visible'?(layerVis.full?doneCount:
 const progressPct=effectiveCombinedTotal>0?Math.round(effectiveCombinedDone/effectiveCombinedTotal*1000)/10:0;
 // Today's stitches for progress bar accent segment
 const todayStitchesForBar=useMemo(()=>{if(!statsSessions)return 0;const deh=(statsSettings&&statsSettings.dayEndHour)||0;return getStatsTodayStitches(statsSessions,deh)+liveAutoStitches;},[statsSessions,liveAutoStitches,statsSettings]);
+const weekStitchesForChip=useMemo(()=>{if(!statsSessions)return 0;const deh=(statsSettings&&statsSettings.dayEndHour)||0;return getStatsThisWeekStitches(statsSessions,deh)+liveAutoStitches;},[statsSessions,liveAutoStitches,statsSettings]);
 const todayBarPct=effectiveCombinedTotal>0?Math.min((todayStitchesForBar/effectiveCombinedTotal)*100,Math.min(progressPct,100)):0;
 const prevBarPct=Math.max(0,Math.min(progressPct,100)-todayBarPct);
+// Plan B Phase 1: Progress info chip + AppInfoPopover state.
+const [progressInfoOpen,setProgressInfoOpen]=useState(false);
+const progressChipRef=useRef(null);
 
 const colourDoneCounts=countsVer>=0?colourDoneCountsRef.current:{};
 const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total,backstitch:bsLines.length,quarter:0,petite:0,french_knot:0,long_stitch:0}),[totalStitchable,halfStitchCounts.total,bsLines.length]);
@@ -4796,7 +4800,8 @@ return(
     </button>
   )}
 </div></div>
-{!isEditMode&&<div className="info-strip" aria-live="polite" role="button" tabIndex={0} title="Open session controls" onClick={()=>{
+{!isEditMode&&<div className="info-strip-wrap">
+<div className="info-strip" aria-live="polite" role="button" tabIndex={0} title="Open session controls" onClick={()=>{
   // Phase 3/5: tapping the live progress strip opens the left
   // sidebar Session tab so all start/stop/configure actions live in
   // one place. The strip itself remains glanceable.
@@ -4810,11 +4815,58 @@ return(
   </div>
   <div className="info-strip-row">
     <span className="info-strip-pct">{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</span>
-    {todayStitchesForBar>0&&<span className="info-strip-today-count">Today: {todayStitchesForBar}</span>}
     {liveAutoStitches>0&&<span className="info-strip-timer"><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused?(Icons.pause?Icons.pause():null):(Icons.clock?Icons.clock():null)}</span> {fmtTime(liveAutoElapsed)}</span>}
+    {/* Plan B Phase 1: inline "Today: X" text removed — see Progress
+        info chip beside the strip. todayStitchesForBar is now in the
+        popover, the bar's accent segment still visualises today. */}
     {/* Phase 3/5: explicit-session start/stop button removed; lives in
         the left sidebar Session tab. Tap the strip itself to open it. */}
   </div>
+</div>
+<div className="app-info-chip-wrap info-strip-chip-wrap">
+  <button
+    ref={progressChipRef}
+    type="button"
+    className="app-info-chip info-strip-chip"
+    aria-haspopup="dialog"
+    aria-expanded={progressInfoOpen}
+    title="Progress details"
+    onClick={()=>setProgressInfoOpen(o=>!o)}
+  >
+    <span className="app-info-chip__label">Progress info</span>
+    <span className="app-info-chip__chevron" aria-hidden="true">{Icons.chevronDown?Icons.chevronDown():null}</span>
+  </button>
+  {progressInfoOpen && window.AppInfoPopover && (() => {
+    const totalSec = (typeof totalTime === 'number' ? totalTime : 0);
+    const speedPerHour = totalSec > 0 && doneCount > 0 ? Math.round(doneCount / (totalSec/3600)) : 0;
+    const remainingStitches = Math.max(0, effectiveCombinedTotal - effectiveCombinedDone);
+    const fmtL = window.fmtTimeL || (s => Math.round(s/3600)+'h');
+    const progressRows = [
+      ['Done', `${Math.round(effectiveCombinedDone).toLocaleString()} / ${Math.round(effectiveCombinedTotal).toLocaleString()} (${progressPct.toFixed(1)}%)`],
+      ['Today', todayStitchesForBar.toLocaleString()],
+      ['This week', weekStitchesForChip.toLocaleString()]
+    ];
+    const timeRows = [['Time spent', fmtL(totalSec)]];
+    if (speedPerHour > 0) {
+      timeRows.push(['Average pace', `${speedPerHour.toLocaleString()} st/hr`]);
+      if (remainingStitches > 0) {
+        timeRows.push(['Remaining', fmtL(Math.round(remainingStitches/speedPerHour*3600))]);
+      }
+    }
+    return React.createElement(window.AppInfoPopover, {
+      open: true,
+      onClose: () => setProgressInfoOpen(false),
+      triggerRef: progressChipRef,
+      ariaLabel: 'Progress details'
+    },
+      React.createElement(window.AppInfoSection, { title: 'Pattern progress' },
+        React.createElement(window.AppInfoGrid, { rows: progressRows })),
+      React.createElement(window.AppInfoDivider),
+      React.createElement(window.AppInfoSection, { title: 'Time' },
+        React.createElement(window.AppInfoGrid, { rows: timeRows }))
+    );
+  })()}
+</div>
 </div>}
 {hlIntroBannerVisible&&!isEditMode&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--surface-secondary)",border:"1px solid var(--accent-light)",borderRadius:'var(--radius-sm)',padding:"6px 10px",fontSize:'var(--text-xs)',color:"var(--accent)",marginBottom:'var(--s-1)',gap:'var(--s-2)'}}>
   <span>Highlight mode — press <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>1</kbd>–<kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>4</kbd> to change style, <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>C</kbd> for counting aids, <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>[</kbd> <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>]</kbd> to cycle colours</span>

@@ -2664,6 +2664,10 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .tb-progress-today{background:var(--success);border-radius:0 2px 2px 0;animation:todayGlow 2s ease-in-out infinite alternate;}
 
 /* ═══ Info Strip (replaces Progress Bar + MiniStatsBar) ═══ */
+.info-strip-wrap{position:sticky;top:100px;z-index:98;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:stretch;}
+.info-strip-wrap > .info-strip{position:static;border-bottom:0;flex:1;min-width:0;}
+.info-strip-chip-wrap{display:flex;align-items:center;padding:0 12px 0 6px;flex-shrink:0;}
+.info-strip-chip{font-size:11px;padding:4px 10px;}
 .info-strip{position:sticky;top:100px;z-index:98;background:var(--surface);border-bottom:1px solid var(--border);height:28px;display:flex;flex-direction:column;justify-content:flex-end;}
 .info-strip-bar{height:4px;background:var(--border);display:flex;width:100%;flex-shrink:0;}
 .info-strip-fill{height:100%;background:var(--accent);transition:width 0.3s ease;}
