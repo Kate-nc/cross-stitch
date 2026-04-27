@@ -5514,6 +5514,23 @@ html.pref-dark a { color: var(--accent); }
 .home-create-tile__copy span { font-size: var(--text-sm, 12px); color: var(--text-secondary); }
 .home-create-tile--primary .home-create-tile__copy strong { color: #fff; }
 .home-create-tile--primary .home-create-tile__copy span { color: rgba(255, 255, 255, 0.78); }
+/* "Beta" badge inside the experimental embroidery tile in CreatePanel.
+   Inline-block so it sits on the same baseline as the strong title text.
+   Uses the warning surface colour so it reads as "use with care" without
+   needing a new accent token. */
+.home-create-tile__badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--warning, #B85C38);
+  color: #fff;
+  font-size: var(--text-xs, 10px);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: 1px;
+}
 
 /* ── Stash panel ── */
 .home-stash-panel { padding: var(--s-3, 12px) 0 0; }

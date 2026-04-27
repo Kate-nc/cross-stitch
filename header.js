@@ -354,8 +354,8 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
   // /home — Create opens the image picker, Edit opens the project file
   // picker, Track and Stash drop straight into their empty states.
   const appSections = [
-    { id: 'creator', label: 'Create', href: 'index.html?action=new-from-image' },
-    { id: 'editor', label: 'Edit', href: 'index.html?action=open' },
+    { id: 'creator', label: 'Create', href: 'create.html?action=new-from-image' },
+    { id: 'editor', label: 'Edit', href: 'create.html?action=open' },
     { id: 'tracker', label: 'Track',  href: 'stitch.html?from=home' },
     { id: 'manager', label: 'Stash',  href: 'manager.html?from=home' },
     { id: 'stats', label: 'Stats', href: 'index.html?mode=stats&from=home' },

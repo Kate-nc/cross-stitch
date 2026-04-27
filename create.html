@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdnjs.cloudflare.com; worker-src 'self'; frame-src 'self';">
+<title>Create a Pattern — Cross Stitch Studio</title>
+<link rel="manifest" href="./manifest.json">
+<!-- Dedicated Creator entry-point. Unlike index.html (which redirects to
+     /home when no project is active), create.html is reached only via
+     deliberate navigation from /home or via the Header "Create" link, so
+     no redirect logic runs here. This separation was introduced after the
+     /home -> index.html?action=home-image-pending hand-off was repeatedly
+     mis-diagnosed because index.html had two responsibilities (redirect
+     gateway AND Creator host). create.html does exactly one thing. -->
+<link rel="canonical" href="./create.html">
+<meta property="og:title" content="Cross Stitch Studio">
+<meta property="og:description" content="Design, track, and manage cross-stitch patterns — fully client-side.">
+<meta property="og:url" content="./home.html">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#B85C38">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<!-- No home-redirect: create.html is the dedicated Creator URL. Direct
+     hits, bookmarks, and /home -> create.html?action=... handoffs all
+     load straight into the Creator. The previous index.html redirect
+     gateway remains in place for legacy URLs. -->
+<!-- Preconnect so CDN requests start immediately -->
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+<!-- Prefetch lazy-loaded assets in the background at idle time -->
+<link rel="prefetch" href="tracker-app.js">
+<link rel="prefetch" href="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js">
+<link rel="prefetch" href="pdf-export-worker.js">
+<!-- Prefetch creator-main.js in the background so it is ready when the user switches to Creator mode -->
+<link rel="prefetch" href="creator-main.js">
+<link rel="prefetch" href="stats-page.js">
+<link rel="prefetch" href="stats-activity.js">
+<!-- Flag set before any Babel scripts so TrackerApp's guard fires correctly -->
+<script>
+window.__UNIFIED__=true;
+window.onerror=function(m,s,l,c,e){var d=document.getElementById('root');if(d){d.innerHTML='<pre style="color:red;padding:20px;font:14px monospace;white-space:pre-wrap">ERROR: '+m+'\nSource: '+s+'\nLine: '+l+':'+c+'\n'+(e&&e.stack?e.stack:'')+'</pre>';}};
+window.addEventListener('unhandledrejection',function(e){console.error('Unhandled rejection:',e.reason);});
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<!-- pako needed at startup (project data uses deflate/inflate) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<!-- JSZip (C6 bundle export) — loaded eagerly on the Creator page so the
+     "Download bundle" action is available without a CDN round-trip on click.
+     Pinned to 3.10.1 (immutable on cdnjs). -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<!-- pdf-lib (export), pdf.js (import) and pdf-importer are lazy-loaded on first use -->
+<link rel="stylesheet" href="styles.css">
+<script src="constants.js"></script>
+<script src="dmc-data.js"></script>
+<script src="anchor-data.js"></script>
+<script src="thread-conversions.js"></script>
+<script src="starter-kits.js"></script>
+<script src="colour-utils.js"></script>
+<script src="helpers.js"></script>
+<script src="coaching.js"></script>
+<script src="keyboard-utils.js"></script>
+<script src="shortcuts.js"></script>
+<script src="icons.js"></script>
+<script src="useDragMark.js"></script>
+<script src="import-formats.js"></script>
+<script src="components.js"></script>
+<script src="components/PartialStitchThumb.js"></script>
+<script src="components/Overlay.js"></script>
+<script src="header.js"></script>
+<script src="modals.js"></script>
+<script src="help-drawer.js"></script>
+<script src="onboarding-wizard.js"></script>
+<script src="threadCalc.js"></script>
+<script src="project-storage.js"></script>
+<script src="stash-bridge.js"></script>
+<script src="backup-restore.js"></script>
+<script src="sync-engine.js"></script>
+<script src="home-screen.js"></script>
+<script src="project-library.js"></script>
+<script src="palette-swap.js"></script>
+<script src="user-prefs.js"></script>
+<script src="apply-prefs.js"></script>
+<script src="toast.js"></script>
+<script>window.__csPageKind = 'creator';</script>
+<script src="command-palette.js"></script>
+<script src="preferences-modal.js"></script>
+<script src="insights-engine.js"></script>
+<script src="assets/fonts/CrossStitchSymbols.base64.js"></script>
+<script src="creator/bundle.js"></script>
+<!-- Lazy-load helpers — available to both regular and Babel scripts -->
+<script>
+window.loadScript = function(src) {
+  if (document.querySelector('script[src="' + src + '"]')) return Promise.resolve();
+  return new Promise(function(res, rej) {
+    var s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+};
+window.loadPdfStack = function() {
+  return window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js')
+    .then(function() {
+      if (typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
+      return window.loadScript('pdf-importer.js');
+    });
+};
+/* Loads TrackerApp via Babel, caching compiled output in localStorage.
+   Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
+var TRACKER_CACHE_KEY = 'babel_tracker_b968574aae';
+window.loadTrackerApp = function() {
+  if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
+  window.__trackerLoading = true;
+  // Clear stale cache from previous versions
+  try { localStorage.removeItem('babel_tracker_v2'); localStorage.removeItem('babel_tracker_v3'); localStorage.removeItem('babel_tracker_v4'); localStorage.removeItem('babel_tracker_v5'); localStorage.removeItem('babel_tracker_v6'); localStorage.removeItem('babel_tracker_v7'); localStorage.removeItem('babel_tracker_v8'); localStorage.removeItem('babel_tracker_v9'); localStorage.removeItem('babel_tracker_v10'); localStorage.removeItem('babel_tracker_v11'); localStorage.removeItem('babel_tracker_v12'); localStorage.removeItem('babel_tracker_v13'); localStorage.removeItem('babel_tracker_v14'); localStorage.removeItem('babel_tracker_v15'); } catch(e) {}
+  // Clear stale creator cache
+  try { localStorage.removeItem('babel_creator_v4'); localStorage.removeItem('babel_creator_v5'); localStorage.removeItem('babel_creator_v6'); localStorage.removeItem('babel_creator_v7'); localStorage.removeItem('babel_creator_v8'); localStorage.removeItem('babel_creator_v9'); } catch(e) {}
+  // Clear stale stats cache on tracker version bump
+  try { localStorage.removeItem('babel_stats_v0'); localStorage.removeItem('babel_stats_v1'); localStorage.removeItem('babel_stats_v2'); localStorage.removeItem('babel_stats_v3'); localStorage.removeItem('babel_stats_v4'); } catch(e) {}
+  var cached = null;
+  try { cached = localStorage.getItem(TRACKER_CACHE_KEY); } catch(e) {}
+  // Wrap in IIFE so const/let declarations don't collide with the inline Babel script
+  if (cached) {
+    var s = document.createElement('script'); s.textContent = '(function(){' + cached + '})();'; document.head.appendChild(s); return;
+  }
+  fetch('tracker-app.js').then(function(r) {
+    return r.ok ? r.text() : Promise.reject('fetch failed');
+  }).then(function(src) {
+    var compiled = Babel.transform(src, { presets: ['react'], filename: 'tracker-app.js' }).code;
+    try { localStorage.setItem(TRACKER_CACHE_KEY, compiled); } catch(e) {}
+    var s = document.createElement('script'); s.textContent = '(function(){' + compiled + '})();'; document.head.appendChild(s);
+  }).catch(function(err) {
+    /* file:// or network error — fall back to Babel MutationObserver path */
+    console.error('loadTrackerApp failed:', err);
+    window.__trackerLoading = false;
+    var s = document.createElement('script'); s.type = 'text/babel'; s.src = 'tracker-app.js';
+    document.head.appendChild(s);
+  });
+};
+/* Loads creator-main.js via Babel, caching compiled output in localStorage.
+   Falls back to direct text/babel tag if fetch is unavailable. */
+var CREATOR_CACHE_KEY = 'babel_creator_10edaa073a';
+window.loadCreatorMain = function() {
+  if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
+  window.__creatorMainLoading = true;
+  var cached = null;
+  try { cached = localStorage.getItem(CREATOR_CACHE_KEY); } catch(e) {}
+  if (cached) {
+    window.__creatorMainLoaded = true;
+    var s = document.createElement('script'); s.textContent = '(function(){' + cached + '})();'; document.head.appendChild(s); return;
+  }
+  fetch('creator-main.js').then(function(r) {
+    return r.ok ? r.text() : Promise.reject('fetch failed');
+  }).then(function(src) {
+    var compiled = Babel.transform(src, { presets: ['react'], filename: 'creator-main.js' }).code;
+    try { localStorage.setItem(CREATOR_CACHE_KEY, compiled); } catch(e) {}
+    window.__creatorMainLoaded = true;
+    var s = document.createElement('script'); s.textContent = '(function(){' + compiled + '})();'; document.head.appendChild(s);
+  }).catch(function() {
+    /* file:// or network error — fall back to Babel MutationObserver path */
+    window.__creatorMainLoading = false;
+    var s = document.createElement('script'); s.type = 'text/babel'; s.src = 'creator-main.js';
+    document.head.appendChild(s);
+  });
+};/* Loads stats-activity.js via Babel, caching compiled output in localStorage.
+   Falls back to direct text/babel tag if fetch is unavailable. */
+var ACTIVITY_CACHE_KEY = 'babel_activity_72bd86c8e4';
+window.loadStatsActivity = function() {
+  if (window.__statsActivityLoading || window.__statsActivityLoaded) return;
+  window.__statsActivityLoading = true;
+  var cached = null;
+  try { cached = localStorage.getItem(ACTIVITY_CACHE_KEY); } catch(e) {}
+  if (cached) {
+    window.__statsActivityLoaded = true;
+    var s = document.createElement('script'); s.textContent = '(function(){' + cached + '})();'; document.head.appendChild(s); return;
+  }
+  fetch('stats-activity.js').then(function(r) {
+    return r.ok ? r.text() : Promise.reject('fetch failed');
+  }).then(function(src) {
+    var compiled = Babel.transform(src, { presets: ['react'], filename: 'stats-activity.js' }).code;
+    try { localStorage.setItem(ACTIVITY_CACHE_KEY, compiled); } catch(e) {}
+    window.__statsActivityLoaded = true;
+    var s = document.createElement('script'); s.textContent = '(function(){' + compiled + '})();'; document.head.appendChild(s);
+  }).catch(function() {
+    window.__statsActivityLoading = false;
+    var s = document.createElement('script'); s.type = 'text/babel'; s.src = 'stats-activity.js';
+    document.head.appendChild(s);
+  });
+};/* Loads stats-insights.js via Babel, caching compiled output in localStorage.
+   Falls back to direct text/babel tag if fetch is unavailable. (Brief E) */
+var INSIGHTS_CACHE_KEY = 'babel_insights_6b1e8001b2';
+window.loadStatsInsights = function() {
+  if (window.__statsInsightsLoading || window.__statsInsightsLoaded) return;
+  window.__statsInsightsLoading = true;
+  var cached = null;
+  try { cached = localStorage.getItem(INSIGHTS_CACHE_KEY); } catch(e) {}
+  if (cached) {
+    window.__statsInsightsLoaded = true;
+    var s = document.createElement('script'); s.textContent = '(function(){' + cached + '})();'; document.head.appendChild(s); return;
+  }
+  fetch('stats-insights.js').then(function(r) {
+    return r.ok ? r.text() : Promise.reject('fetch failed');
+  }).then(function(src) {
+    var compiled = Babel.transform(src, { presets: ['react'], filename: 'stats-insights.js' }).code;
+    try { localStorage.setItem(INSIGHTS_CACHE_KEY, compiled); } catch(e) {}
+    window.__statsInsightsLoaded = true;
+    var s = document.createElement('script'); s.textContent = '(function(){' + compiled + '})();'; document.head.appendChild(s);
+  }).catch(function() {
+    window.__statsInsightsLoading = false;
+    var s = document.createElement('script'); s.type = 'text/babel'; s.src = 'stats-insights.js';
+    document.head.appendChild(s);
+  });
+};/* Loads stats-page.js via Babel, caching compiled output in localStorage.
+   Falls back to direct text/babel tag if fetch is unavailable. */
+var STATS_CACHE_KEY = 'babel_stats_62f0832faf';
+window.loadStatsPage = function() {
+  if (window.__statsPageLoading || window.__statsPageLoaded) return;
+  window.__statsPageLoading = true;
+  var cached = null;
+  try { cached = localStorage.getItem(STATS_CACHE_KEY); } catch(e) {}
+  if (cached) {
+    window.__statsPageLoaded = true;
+    var s = document.createElement('script'); s.textContent = '(function(){' + cached + '})();'; document.head.appendChild(s); return;
+  }
+  fetch('stats-page.js').then(function(r) {
+    return r.ok ? r.text() : Promise.reject('fetch failed');
+  }).then(function(src) {
+    var compiled = Babel.transform(src, { presets: ['react'], filename: 'stats-page.js' }).code;
+    try { localStorage.setItem(STATS_CACHE_KEY, compiled); } catch(e) {}
+    window.__statsPageLoaded = true;
+    var s = document.createElement('script'); s.textContent = '(function(){' + compiled + '})();'; document.head.appendChild(s);
+  }).catch(function() {
+    window.__statsPageLoading = false;
+    var s = document.createElement('script'); s.type = 'text/babel'; s.src = 'stats-page.js';
+    document.head.appendChild(s);
+  });
+};
+</script>
+<!-- TrackerApp is lazy-loaded (above) the first time the user switches to Track mode -->
+</head>
+<body>
+<a class="skip-to-content" href="#main-content">Skip to content</a>
+<main id="main-content" tabindex="-1">
+<div id="root"></div>
+</main>
+
+<script>window.loadCreatorMain();</script>
+<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+<script src="./sw-register.js"></script>
+</body>
+</html>

@@ -127,7 +127,7 @@
         h('p', { className: 'home-greeting-row__sub' }, sub)
       ),
       h('a', {
-        href: 'index.html?action=new-from-image',
+        href: 'create.html?action=new-from-image',
         className: 'btn btn-primary home-greeting-row__new-btn'
       }, '+ New project')
     );
@@ -180,7 +180,7 @@
           h('button', {
             type: 'button',
             className: 'btn',
-            onClick: function () { activateAndGo(p.id, 'index.html'); }
+            onClick: function () { activateAndGo(p.id, 'create.html'); }
           }, 'Edit pattern')
         )
       )
@@ -228,7 +228,7 @@
               h('button', {
                 type: 'button',
                 className: 'btn btn-sm',
-                onClick: function () { activateAndGo(p.id, 'index.html'); }
+                onClick: function () { activateAndGo(p.id, 'create.html'); }
               }, 'Edit')
             )
           );
@@ -243,16 +243,32 @@
   // "New from image": triggers the file picker in the same user-gesture as the
   // button click (so the browser allows it), serialises the selected file to
   // sessionStorage as a data URL, then navigates to
-  // index.html?action=home-image-pending where creator-main.js reconstructs the
-  // File object and passes it to the Creator without a second click.
+  // create.html?action=home-image-pending where creator-main.js reconstructs
+  // the File object and passes it to the Creator without a second click.
   //
-  // "New from scratch": navigates to index.html?action=new-blank which already
+  // "New from scratch": navigates to create.html?action=new-blank which already
   // sets mode='design' + pendingCreatorAction='scratch' in one step.
+  //
+  // "Embroidery planner (beta)": optional third tile, only rendered when the
+  // experimental.embroideryTool pref is on. Goes to embroidery.html (a
+  // separate prototype page).
   function CreatePanel() {
     var Icons = window.Icons || {};
     var fileInputRef = React.useRef(null);
     var pendingState = React.useState(false);
     var pending = pendingState[0]; var setPending = pendingState[1];
+
+    // Read the embroidery beta flag synchronously. UserPrefs.get returns the
+    // default (false) when the pref hasn't been set, so this is safe even on
+    // a first visit. We don't need a re-render listener here — the user
+    // toggling the flag in another tab/page won't move them mid-render of
+    // the Home Create panel; they'll see the new tile next time they land
+    // on /home, which matches every other UserPrefs surface.
+    var embroideryEnabled = false;
+    try {
+      embroideryEnabled = !!(window.UserPrefs && window.UserPrefs.get &&
+        window.UserPrefs.get('experimental.embroideryTool'));
+    } catch (_) { embroideryEnabled = false; }
 
     // bfcache restore: if the user lands back on /home via the browser back
     // button after a successful image handoff, the spinner state from the
@@ -291,17 +307,17 @@
           sessionStorage.setItem('cs_pending_image_name', file.name);
           sessionStorage.setItem('cs_pending_image_type', file.type || 'image/jpeg');
           setPending(true);
-          navigateAfterPaint('index.html?action=home-image-pending&from=home');
+          navigateAfterPaint('create.html?action=home-image-pending&from=home');
         } catch (_) {
           // sessionStorage quota exceeded (very large image) — fall back to the
           // existing two-click flow rather than silently failing.
           setPending(true);
-          navigateAfterPaint('index.html?action=new-from-image&from=home');
+          navigateAfterPaint('create.html?action=new-from-image&from=home');
         }
       };
       reader.onerror = function () {
         setPending(true);
-        navigateAfterPaint('index.html?action=new-from-image&from=home');
+        navigateAfterPaint('create.html?action=new-from-image&from=home');
       };
       reader.readAsDataURL(file);
     }
@@ -335,7 +351,7 @@
           )
         ),
         h('a', {
-          href: 'index.html?action=new-blank',
+          href: 'create.html?action=new-blank',
           className: 'home-create-tile' + (pending ? ' home-create-tile--disabled' : ''),
           'aria-disabled': pending ? 'true' : undefined,
           onClick: pending ? function (e) { e.preventDefault(); } : undefined
@@ -345,6 +361,24 @@
           h('span', { className: 'home-create-tile__copy' },
             h('strong', null, 'New from scratch'),
             h('span', null, 'Start with a blank grid')
+          )
+        ),
+        // Embroidery planner: experimental third tile, only rendered when the
+        // user has opted in via Preferences -> Creator -> Experimental. Carries a
+        // "Beta" badge so users know this lives outside the supported flows.
+        embroideryEnabled && h('a', {
+          href: 'embroidery.html?from=home',
+          className: 'home-create-tile' + (pending ? ' home-create-tile--disabled' : ''),
+          'aria-disabled': pending ? 'true' : undefined,
+          onClick: pending ? function (e) { e.preventDefault(); } : undefined
+        },
+          h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
+            typeof Icons.thread === 'function' ? Icons.thread()
+              : (typeof Icons.image === 'function' ? Icons.image() : null)),
+          h('span', { className: 'home-create-tile__copy' },
+            h('strong', null, 'Embroidery planner ',
+              h('span', { className: 'home-create-tile__badge' }, 'Beta')),
+            h('span', null, 'Sketch a freehand embroidery layout (experimental)')
           )
         )
       ),

@@ -58,7 +58,7 @@ describe('home-app.js source contract', () => {
     expect(SRC).toMatch(/Edit pattern/);
     // Both navigate via activateAndGo (sets active project then goes).
     expect(SRC).toMatch(/activateAndGo\([^,]+,\s*['"]stitch\.html['"]\)/);
-    expect(SRC).toMatch(/activateAndGo\([^,]+,\s*['"]index\.html['"]\)/);
+    expect(SRC).toMatch(/activateAndGo\([^,]+,\s*['"]create\.html['"]\)/);
   });
 
   test('lists projects via ProjectStorage.listProjects (all-projects list)', () => {
@@ -70,9 +70,11 @@ describe('home-app.js source contract', () => {
   test('Create panel exposes new-from-image and new-blank flows', () => {
     // "New from image" uses the in-page file picker, then navigates to
     // home-image-pending; "New from scratch" links straight to
-    // index.html?action=new-blank.
-    expect(SRC).toMatch(/index\.html\?action=home-image-pending&from=home/);
-    expect(SRC).toMatch(/index\.html\?action=new-blank/);
+    // create.html?action=new-blank. Both target the dedicated create.html
+    // entry-point introduced after the index.html redirect-gateway and
+    // Creator-host dual-role kept causing /home -> Creator hand-off bugs.
+    expect(SRC).toMatch(/create\.html\?action=home-image-pending&from=home/);
+    expect(SRC).toMatch(/create\.html\?action=new-blank/);
   });
 
   test('cross-tool links append from=home (skip-redirect guard)', () => {

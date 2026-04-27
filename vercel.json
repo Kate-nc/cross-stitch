@@ -5,6 +5,7 @@
   "trailingSlash": false,
   "rewrites": [
     { "source": "/", "destination": "/home.html" },
-    { "source": "/home", "destination": "/home.html" }
+    { "source": "/home", "destination": "/home.html" },
+    { "source": "/create", "destination": "/create.html" }
   ]
 }

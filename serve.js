@@ -46,6 +46,11 @@ const server = http.createServer((req, res) => {
   if (decoded === '/home' || decoded === '/home/') {
     decoded = '/home.html';
   }
+  // /create is the dedicated Creator entry-point. Mirrors the vercel.json
+  // rewrite so dev hits the same URL shape as production.
+  if (decoded === '/create' || decoded === '/create/') {
+    decoded = '/create.html';
+  }
 
   const resolvedRoot = path.resolve(ROOT);
   const filePathResolved = path.resolve(ROOT, decoded.replace(/^\//, ''));

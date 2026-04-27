@@ -1074,7 +1074,7 @@ function ManagerApp() {
                     try { ProjectStorage.setActiveProject(proj.id); } catch (e) {}
                     window.location.href = (target === "creator" ? "index.html" : "stitch.html") + "?source=manager";
                   },
-                  onAddNew: () => { window.location.href = "index.html?action=new-from-image"; },
+                  onAddNew: () => { window.location.href = "create.html?action=new-from-image"; },
                   onOpenGlobalStats: () => { window.location.href = "index.html?mode=stats&from=home"; },
                   onOpenManagerOnly: (proj) => {
                     // Scroll to the matching pattern card in the grid below.

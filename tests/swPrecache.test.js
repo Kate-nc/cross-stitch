@@ -14,8 +14,8 @@ const path = require('path');
 const SW = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
 
 describe('sw.js precache (UX-12 Phase 7 PR #13)', () => {
-  test('CACHE_NAME bumped to v13', () => {
-    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v13['"]/);
+  test('CACHE_NAME bumped to v14', () => {
+    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v14['"]/);
   });
 
   test('PRECACHE_URLS includes home.html', () => {
@@ -30,5 +30,11 @@ describe('sw.js precache (UX-12 Phase 7 PR #13)', () => {
     expect(SW).toMatch(/['"]\.\/index\.html['"]/);
     expect(SW).toMatch(/['"]\.\/stitch\.html['"]/);
     expect(SW).toMatch(/['"]\.\/manager\.html['"]/);
+  });
+
+  test('PRECACHE_URLS includes the dedicated Creator entry create.html', () => {
+    // create.html is the new no-redirect Creator entry that /home links to
+    // (separating Creator from index.html’s legacy redirect-gateway role).
+    expect(SW).toMatch(/['"]\.\/create\.html['"]/);
   });
 });
