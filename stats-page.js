@@ -1040,7 +1040,10 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
   useEffect(() => {
     if (!loading && highlightSection) {
       const el = document.getElementById('stats-' + highlightSection);
-      if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+      if (el) setTimeout(() => {
+        var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        el.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
+      }, 100);
     }
   }, [loading, highlightSection]);
 

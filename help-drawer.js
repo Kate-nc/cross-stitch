@@ -735,8 +735,10 @@
         onClick: close,
         "aria-hidden": "true",
         style: {
-          position: "fixed", top: 0, right: 380,
-          width: "calc(100vw - 380px)", height: "100vh",
+          // Use edge-anchored positioning so the scrim never gets a
+          // negative width when the viewport is narrower than the
+          // drawer (e.g. on phones where the drawer covers the screen).
+          position: "fixed", top: 0, left: 0, right: 380, bottom: 0,
           background: "transparent",
           zIndex: 9998,
           pointerEvents: "auto"

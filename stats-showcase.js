@@ -786,7 +786,10 @@ function StatsShowcase({ onClose, onNavigateToDashboard, onNavigateToActivity })
     const section = urlParams.get('section');
     if (section) {
       const el = document.getElementById('showcase-' + section);
-      if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+      if (el) setTimeout(() => {
+        var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        el.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+      }, 80);
     }
     // Open share modal if ?share=true
     if (urlParams.get('share') === 'true') {
