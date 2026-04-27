@@ -13,15 +13,43 @@ const ProjectStorage = (() => {
   // Legacy epoch: same constant as stash-bridge.js for consistent 'before tracking' display
   const LEGACY_EPOCH = '2020-01-01T00:00:00Z';
 
+  // PERF (perf-4 #2 / perf-2 #3): cache totalStitches per project; pattern.filter()
+  // scans up to N=w*h cells and was previously called twice per save (buildMeta +
+  // buildStatsSummary). Cache invalidates when pattern reference or length changes.
+  const _totalStitchCache = new WeakMap();
+  function countTotalStitches(p) {
+    if (!p || !p.pattern) return p && p.totalStitches || 0;
+    const cached = _totalStitchCache.get(p.pattern);
+    if (cached !== undefined) return cached;
+    let n = 0;
+    const pat = p.pattern;
+    for (let i = 0; i < pat.length; i++) {
+      const c = pat[i];
+      if (c && c.id !== "__skip__" && c.id !== "__empty__") n++;
+    }
+    _totalStitchCache.set(p.pattern, n);
+    return n;
+  }
+  // PERF (perf-4 #6): cache completedStitches per `done` reference (typed array
+  // or array). Invalidates whenever the done buffer is replaced.
+  const _completedCache = new WeakMap();
+  function countCompletedStitches(done) {
+    if (!done) return 0;
+    if (typeof done !== 'object') return 0;
+    const cached = _completedCache.get(done);
+    if (cached !== undefined) return cached;
+    let n = 0;
+    if (ArrayBuffer.isView(done) || Array.isArray(done)) {
+      for (let i = 0; i < done.length; i++) if (done[i] === 1) n++;
+    }
+    _completedCache.set(done, n);
+    return n;
+  }
+
   // Build a lightweight stats summary for the global dashboard.
   function buildStatsSummary(p) {
-    const totalSt = p.pattern
-      ? p.pattern.filter(c => c && c.id !== "__skip__" && c.id !== "__empty__").length
-      : (p.totalStitches || 0);
-    const done = p.done;
-    const completedSt = done
-      ? (ArrayBuffer.isView(done) || Array.isArray(done) ? Array.prototype.reduce.call(done, (n, v) => n + (v === 1 ? 1 : 0), 0) : 0)
-      : (p.completedStitches || 0);
+    const totalSt = countTotalStitches(p);
+    const completedSt = p.done ? countCompletedStitches(p.done) : (p.completedStitches || 0);
     return {
       id: p.id,
       name: p.name || 'Untitled',
@@ -40,12 +68,8 @@ const ProjectStorage = (() => {
   // Extract lightweight metadata from a full project object.
   function buildMeta(p) {
     const s = p.settings || {};
-    const totalSt = p.pattern
-      ? p.pattern.filter(c => c && c.id !== "__skip__" && c.id !== "__empty__").length
-      : 0;
-    const completedSt = p.done
-      ? p.done.reduce((count, val) => count + (val === 1 ? 1 : 0), 0)
-      : 0;
+    const totalSt = p.pattern ? countTotalStitches(p) : 0;
+    const completedSt = p.done ? countCompletedStitches(p.done) : 0;
     const sessions = p.statsSessions || [];
     const totalSeconds = sessions.reduce((sum, s) => sum + (s.durationSeconds != null ? s.durationSeconds : (s.durationMinutes || 0) * 60), 0);
     const totalMinutes = Math.round(totalSeconds / 60);
@@ -64,17 +88,21 @@ const ProjectStorage = (() => {
     // today). Drives the sparkline rendered on Manager pattern cards.
     const weeklyStitches = [0, 0, 0, 0, 0, 0, 0];
     const dayKeys = [];
+    // PERF (perf-5 #12): build dayKey -> idx map once instead of dayKeys.indexOf per session.
+    const dayKeyToIdx = Object.create(null);
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(now.getDate() - i);
-      dayKeys.push(d.toISOString().slice(0, 10));
+      const k = d.toISOString().slice(0, 10);
+      dayKeys.push(k);
+      dayKeyToIdx[k] = 6 - i;
     }
     for (const s2 of sessions) {
       if (s2.date >= weekStartStr) stitchesThisWeek += (s2.netStitches || 0);
       if (s2.date && s2.date.slice(0, 7) === monthStr) stitchesThisMonth += (s2.netStitches || 0);
       if (s2.date) {
-        const idx = dayKeys.indexOf(s2.date);
-        if (idx >= 0) weeklyStitches[idx] += (s2.netStitches || 0);
+        const idx = dayKeyToIdx[s2.date];
+        if (idx !== undefined) weeklyStitches[idx] += (s2.netStitches || 0);
       }
     }
     return {
@@ -156,28 +184,33 @@ const ProjectStorage = (() => {
     // Mark projects as synced (sets lastSyncedAt on each).
     async markSynced(projectIds, timestamp) {
       const ts = timestamp || new Date().toISOString();
-      for (const id of projectIds) {
-        try {
-          const p = await this.get(id);
-          if (p) {
-            if (!p.syncMeta) p.syncMeta = {};
-            p.syncMeta.lastSyncedAt = ts;
-            p.syncMeta.syncVersion = (p.syncMeta.syncVersion || 0) + 1;
-            // Save without bumping updatedAt — only sync metadata changed
-            const db = await getDB();
-            await new Promise((resolve, reject) => {
-              const tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE], "readwrite");
-              tx.objectStore(STORE_NAME).put(p, p.id);
-              tx.objectStore(META_STORE).put(buildMeta(p), p.id);
-              if (p.id && p.id.startsWith("proj_")) {
-                tx.objectStore(STATS_STORE).put(buildStatsSummary(p), p.id);
-              }
-              tx.oncomplete = () => resolve();
-              tx.onerror = () => reject(tx.error);
-            });
-          }
-        } catch (e) { console.warn("markSynced failed for", id, e); }
+      // PERF (perf-5 #1): batch reads in parallel and coalesce writes into a single
+      // transaction. Was N sequential get-then-put round-trips; now ~1 read fan-out + 1 tx.
+      const projects = await Promise.all(
+        projectIds.map(id => this.get(id).catch(e => { console.warn("markSynced get failed for", id, e); return null; }))
+      );
+      const toUpdate = projects.filter(p => p);
+      if (!toUpdate.length) return;
+      for (const p of toUpdate) {
+        if (!p.syncMeta) p.syncMeta = {};
+        p.syncMeta.lastSyncedAt = ts;
+        p.syncMeta.syncVersion = (p.syncMeta.syncVersion || 0) + 1;
       }
+      try {
+        const db = await getDB();
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE], "readwrite");
+          for (const p of toUpdate) {
+            tx.objectStore(STORE_NAME).put(p, p.id);
+            tx.objectStore(META_STORE).put(buildMeta(p), p.id);
+            if (p.id && p.id.startsWith("proj_")) {
+              tx.objectStore(STATS_STORE).put(buildStatsSummary(p), p.id);
+            }
+          }
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+      } catch (e) { console.warn("markSynced batch write failed", e); }
     },
 
     // Save a project. Assigns a new ID and createdAt if the project has none.
@@ -631,8 +664,9 @@ const ProjectStorage = (() => {
           const proj = await this.get(meta.id);
           if (!proj || proj.finishStatus !== 'active') continue;
           if (!oldest || (proj.lastTouchedAt && proj.lastTouchedAt < oldest.lastTouchedAt)) {
-            const totalSt = proj.pattern ? proj.pattern.filter(c => c && c.id !== '__skip__' && c.id !== '__empty__').length : 0;
-            const completedSt = proj.done ? Array.prototype.reduce.call(proj.done, (n, v) => n + (v === 1 ? 1 : 0), 0) : 0;
+            // PERF (perf-4 #2 / perf-4 #6): cached counts
+            const totalSt = countTotalStitches(proj);
+            const completedSt = countCompletedStitches(proj.done);
             oldest = {
               id: proj.id, name: proj.name || 'Untitled',
               lastTouchedAt: proj.lastTouchedAt || proj.updatedAt || LEGACY_EPOCH,
