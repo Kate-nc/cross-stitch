@@ -145,20 +145,32 @@ const SharedModals = {
       const isCurrent = t.id === currentThreadId;
       const isUsed = usedThreadSet.has(t.id) && !isCurrent;
       const isSwapCandidate = swapCandidate && swapCandidate.id === t.id;
-      return React.createElement("div", {
+      // Audit batch 2 fix #5: this row is interactive but isn't a native
+      // <button>, so Enter/Space don't fire onClick for free. Expose it as
+      // role=button + tabIndex=0 and forward keyboard activation manually
+      // so the swap-thread list is usable without a pointer.
+      const activate = () => {
+        if (isUsed) {
+          setSwapCandidate(t);
+          return;
+        }
+        onSelect(t);
+      };
+      return React.createElement("button", {
         key: t.id,
-        onClick: () => {
-          if (isUsed) {
-            setSwapCandidate(t);
-            return;
-          }
-          onSelect(t);
-        },
+        type: "button",
+        onClick: activate,
         style: {
           display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderBottom: "1px solid var(--border-subtle)",
           background: isCurrent ? "var(--accent-light)" : isSwapCandidate ? "#FAF5E1" : (isUsed ? "var(--surface-secondary)" : "var(--surface)"),
-          cursor: isUsed ? "pointer" : "pointer",
-          opacity: 1
+          cursor: "pointer",
+          opacity: 1,
+          width: "100%",
+          textAlign: "left",
+          font: "inherit",
+          color: "inherit",
+          border: "none",
+          borderRadius: 0
         }
       },
         React.createElement("div", { style: { width: 24, height: 24, borderRadius: 4, background: `rgb(${t.rgb[0]},${t.rgb[1]},${t.rgb[2]})`, border: "1px solid var(--line-2)", flexShrink: 0 } }),
