@@ -284,7 +284,7 @@ function StitchingStyleStepBody({onComplete,onBack,onSkip,startCorner:initCorner
         </div>}
         {showCustom&&(customW%10!==0||customH%10!==0)&&<div style={{fontSize:'var(--text-xs)',color:"var(--accent-ink)",background:"#FAF5E1",padding:"4px 10px",borderRadius:'var(--radius-sm)'}}>Custom sizes may not align with the 10-stitch grid lines.</div>}
       </div>
-      <button style={{marginTop:'var(--s-4)',background:"none",border:"none",color:"var(--text-tertiary)",cursor:"pointer",fontSize:'var(--text-sm)'}} onClick={()=>setScreen(1)}>← Back</button>
+      <button style={{marginTop:'var(--s-4)',background:"none",border:"none",color:"var(--text-tertiary)",cursor:"pointer",fontSize:'var(--text-sm)',display:'inline-flex',alignItems:'center',gap:4}} onClick={()=>setScreen(1)}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronLeft?Icons.chevronLeft():null}</span> Back</button>
     </div>
   );
   // Screen 3 — start-corner picker; commits on selection.
@@ -295,7 +295,7 @@ function StitchingStyleStepBody({onComplete,onBack,onSkip,startCorner:initCorner
       <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:'var(--s-4)'}}>
         {CORNERS.map(([k,l])=><button key={k} className={"modal-choice-btn"+(corner===k?" modal-choice-btn--on":"")} onClick={()=>commit(style||"block",bw,bh,k)}>{l}</button>)}
       </div>
-      <button style={{marginTop:'var(--s-4)',background:"none",border:"none",color:"var(--text-tertiary)",cursor:"pointer",fontSize:'var(--text-sm)'}} onClick={()=>setScreen(style==="block"||style==="royal"?2:1)}>← Back</button>
+      <button style={{marginTop:'var(--s-4)',background:"none",border:"none",color:"var(--text-tertiary)",cursor:"pointer",fontSize:'var(--text-sm)',display:'inline-flex',alignItems:'center',gap:4}} onClick={()=>setScreen(style==="block"||style==="royal"?2:1)}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronLeft?Icons.chevronLeft():null}</span> Back</button>
     </div>
   );
 }
@@ -4769,12 +4769,12 @@ return(
       {!isEditMode&&pat&&pal&&<><button className="tb-ovf-item" onClick={()=>{setTOverflowOpen(false);setEditDetailsOpen(true);}}>{Icons.pencil()} Edit project details…</button><div className="tb-ovf-sep"/></>}
       {!isEditMode&&<>
         {tStripCollapsed.stitch&&<><span className="tb-ovf-lbl">Stitch</span>
-          <button className={"tb-ovf-item"+(stitchMode==="track"?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("track");setTOverflowOpen(false);}}>Mark{stitchMode==="track"?" ✓":""}</button>
-          <button className={"tb-ovf-item"+(stitchMode==="navigate"?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("navigate");setTOverflowOpen(false);}}>Navigate{stitchMode==="navigate"?" ✓":""}</button>
+          <button className={"tb-ovf-item"+(stitchMode==="track"?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("track");setTOverflowOpen(false);}} style={{display:'inline-flex',alignItems:'center',gap:6}}>Mark{stitchMode==="track"&&Icons.check?<span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.check()}</span>:null}</button>
+          <button className={"tb-ovf-item"+(stitchMode==="navigate"?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("navigate");setTOverflowOpen(false);}} style={{display:'inline-flex',alignItems:'center',gap:6}}>Navigate{stitchMode==="navigate"&&Icons.check?<span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.check()}</span>:null}</button>
           <div className="tb-ovf-sep"/>
         </>}
         {tStripCollapsed.view&&<><span className="tb-ovf-lbl">View</span>
-          {[['symbol','Symbol'],['colour','Col+Symbol'],['highlight','Highlight']].map(([k,l])=><button key={k} className={"tb-ovf-item"+(stitchView===k?" tb-ovf-item--on":"")} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}setTOverflowOpen(false);}}>{l}{stitchView===k?" ✓":""}</button>)}
+          {[['symbol','Symbol'],['colour','Col+Symbol'],['highlight','Highlight']].map(([k,l])=><button key={k} className={"tb-ovf-item"+(stitchView===k?" tb-ovf-item--on":"")} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}setTOverflowOpen(false);}} style={{display:'inline-flex',alignItems:'center',gap:6}}>{l}{stitchView===k&&Icons.check?<span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.check()}</span>:null}</button>)}
           <div className="tb-ovf-sep"/>
         </>}
         {stitchMode==="navigate"&&<><span className="tb-ovf-lbl">Parking</span>
@@ -4784,16 +4784,16 @@ return(
           {parkMarkers.length>0&&<button className="tb-ovf-item" onClick={()=>{setParkMarkers([]);setTOverflowOpen(false);}}>Clear park markers</button>}
           <div className="tb-ovf-sep"/>
         </>}
-        {stitchMode==="track"&&trackHistory.length>0&&<button className="tb-ovf-item" onClick={()=>{undoTrack();setTOverflowOpen(false);}}>↩ Undo ({trackHistory.length})</button>}
+        {stitchMode==="track"&&trackHistory.length>0&&<button className="tb-ovf-item" onClick={()=>{undoTrack();setTOverflowOpen(false);}} style={{display:'inline-flex',alignItems:'center',gap:6}}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.undo?Icons.undo():null}</span>Undo ({trackHistory.length})</button>}
         {stitchMode==="track"&&redoStack.length>0&&<button className="tb-ovf-item" onClick={()=>{redoTrack();setTOverflowOpen(false);}}>↪ Redo ({redoStack.length})</button>}
         {done&&doneCount>0&&<button className="tb-ovf-item" style={{color:"var(--danger)"}} onClick={()=>{if(confirm("Clear all progress?")){var nd=new Uint8Array(pat.length);setDone(nd);recomputeAllCounts(pat,nd,halfStitches,halfDone);setTrackHistory([]);setRedoStack([]);}setTOverflowOpen(false);}}>Reset progress</button>}
         {pat&&pal&&<button className="tb-ovf-item" onClick={()=>{copyProgressSummary();setTOverflowOpen(false);}}>{Icons.clipboard()} Copy Progress Summary</button>}}
         <div className="tb-ovf-sep"/>
       </>}
       {isEditMode&&<>
-        {undoSnapshot&&<button className="tb-ovf-item" style={{color:"#A06F2D"}} onClick={()=>{applyUndo();setTOverflowOpen(false);}}>↩ Undo Edit</button>}
+        {undoSnapshot&&<button className="tb-ovf-item" style={{color:"#A06F2D"}} onClick={()=>{applyUndo();setTOverflowOpen(false);}}>{Icons.undo?Icons.undo():null} Undo Edit</button>}
         <button className="tb-ovf-item" style={{color:"var(--danger)"}} onClick={()=>{handleRevertToOriginal();setTOverflowOpen(false);}}>Revert to Original</button>
-        <button className="tb-ovf-item" onClick={()=>{if(undoSnapshot!==null){setShowExitEditModal(true);}else{setIsEditMode(false);setUndoSnapshot(null);setSessionStartSnapshot(null);}setTOverflowOpen(false);}}>← Exit correction mode</button>
+        <button className="tb-ovf-item" onClick={()=>{if(undoSnapshot!==null){setShowExitEditModal(true);}else{setIsEditMode(false);setUndoSnapshot(null);setSessionStartSnapshot(null);}setTOverflowOpen(false);}}><span aria-hidden="true" style={{display:'inline-flex',verticalAlign:'-3px',marginRight:4}}>{Icons.chevronLeft?Icons.chevronLeft():null}</span>Exit correction mode</button>
         <div className="tb-ovf-sep"/>
       </>}
       {!isEditMode&&<><button className="tb-ovf-item" style={{color:"var(--text-secondary)"}} onClick={()=>{
@@ -4922,26 +4922,26 @@ return(
 </div>}
 {hlIntroBannerVisible&&!isEditMode&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--surface-secondary)",border:"1px solid var(--accent-light)",borderRadius:'var(--radius-sm)',padding:"6px 10px",fontSize:'var(--text-xs)',color:"var(--accent)",marginBottom:'var(--s-1)',gap:'var(--s-2)'}}>
   <span>Highlight mode — press <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>1</kbd>–<kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>4</kbd> to change style, <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>C</kbd> for counting aids, <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>[</kbd> <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>]</kbd> to cycle colours</span>
-  <button onClick={()=>{setHlIntroBannerVisible(false);clearTimeout(hlIntroTimerRef.current);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:'var(--text-lg)',color:"var(--accent-light)",flexShrink:0,padding:0,lineHeight:1}}>✕</button>
+  <button onClick={()=>{setHlIntroBannerVisible(false);clearTimeout(hlIntroTimerRef.current);}} aria-label="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"var(--accent-light)",flexShrink:0,padding:0,lineHeight:1,display:'inline-flex'}}>{Icons.x?Icons.x():"\u00D7"}</button>
 </div>}
 {!sessionOnboardingShown&&liveAutoStitches>0&&statsSessions.length===0&&(
   <div className="session-onboarding-toast">
-    <span>ℹ Sessions are tracked automatically as you stitch. View stats via the 📊 button in the Session panel.</span>
+    <span style={{display:'inline-flex',alignItems:'center',gap:6}}>{Icons.info?Icons.info():null} Sessions are tracked automatically as you stitch. View stats via the {Icons.barChart?<span aria-hidden="true" style={{display:'inline-flex',verticalAlign:'-3px'}}>{Icons.barChart()}</span>:null} button in the Session panel.</span>
     <button onClick={()=>{setSessionOnboardingShown(true);try{localStorage.setItem("cs_sessionOnboardingDone","1");}catch(_){}}}>Got it</button>
   </div>
 )}
 {focusEnabled&&focusBlock&&stitchingStyle!=="crosscountry"&&(
   <div style={{display:"flex",alignItems:"center",gap:6,padding:"3px 10px 3px 8px",background:"var(--accent-light)",border:"1px solid var(--accent-border)",borderRadius:20,fontSize:'var(--text-xs)',fontWeight:600,color:"var(--accent)",cursor:"pointer",userSelect:"none",width:"fit-content",marginBottom:'var(--s-1)'}} onClick={()=>setStyleOnboardingOpen(true)} title="Tap to change stitching style">
-    🔦 {({block:"Block",royal:"Royal Rows",freestyle:"Freestyle"})[stitchingStyle]||stitchingStyle} · {focusBlock.by+1},{focusBlock.bx+1}
+    {({block:"Block",royal:"Royal Rows",freestyle:"Freestyle"})[stitchingStyle]||stitchingStyle} · {focusBlock.by+1},{focusBlock.bx+1}
   </div>
 )}
 {sessionSavedToast&&(
   <div className="session-toast">
     {!sessionSavedToast.showNoteInput?(
       <>
-        <span>✓ Session saved — {sessionSavedToast.stitches} {sessionSavedToast.stitches===1?"stitch":"stitches"} in {formatStatsDuration(sessionSavedToast.durationMin*60)}</span>
+        <span style={{display:'inline-flex',alignItems:'center',gap:6}}>{Icons.check?Icons.check():null} Session saved — {sessionSavedToast.stitches} {sessionSavedToast.stitches===1?"stitch":"stitches"} in {formatStatsDuration(sessionSavedToast.durationMin*60)}</span>
         <button onClick={()=>setSessionSavedToast(prev=>({...prev,showNoteInput:true}))}>Add note</button>
-        <button onClick={()=>setSessionSavedToast(null)} aria-label="Dismiss">✕</button>
+        <button onClick={()=>setSessionSavedToast(null)} aria-label="Dismiss" style={{display:'inline-flex',alignItems:'center'}}>{Icons.x?Icons.x():"\u00D7"}</button>
       </>
     ):(
       <>
@@ -4956,14 +4956,14 @@ return(
 </>}
 <div className="cs-page-content" style={{maxWidth:(!statsView&&pat&&pal)?'none':1100,margin:(!statsView&&pat&&pal)?0:"0 auto",padding:(!statsView&&pat&&pal)?0:"20px 16px"}}>
   {loadError&&<div style={{background:"var(--danger-soft)",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-md)',padding:"8px 14px",fontSize:'var(--text-sm)',color:"var(--danger)",marginBottom:'var(--s-3)'}}>{loadError}</div>}
-  {copied==="progress"&&<div style={{background:"var(--success-soft)",border:"1px solid var(--success-soft)",borderRadius:'var(--radius-md)',padding:"8px 14px",fontSize:'var(--text-sm)',color:"var(--success)",fontWeight:600,marginBottom:'var(--s-3)'}}>✓ Progress summary copied to clipboard!</div>}
+  {copied==="progress"&&<div style={{background:"var(--success-soft)",border:"1px solid var(--success-soft)",borderRadius:'var(--radius-md)',padding:"8px 14px",fontSize:'var(--text-sm)',color:"var(--success)",fontWeight:600,marginBottom:'var(--s-3)',display:'inline-flex',alignItems:'center',gap:6}}>{Icons.check?Icons.check():null} Progress summary copied to clipboard!</div>}
   {importSuccess && (
     <div style={{
       background: "var(--success-soft)", border: "1px solid var(--success-soft)", borderRadius:'var(--radius-md)',
       padding: "8px 14px", fontSize:'var(--text-sm)', color: "var(--success)", fontWeight: 600, marginBottom:'var(--s-3)',
       display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12
     }}>
-      <span>{'\u2713'} {importSuccess}</span>
+      <span style={{display:'inline-flex',alignItems:'center',gap:6}}>{Icons.check?Icons.check():null} {importSuccess}</span>
       <button onClick={()=>setImportSuccess(null)} style={{
         padding: "3px 10px", borderRadius:'var(--radius-sm)', border: "1px solid var(--success-soft)", background: "var(--surface)",
         cursor: "pointer", fontSize:'var(--text-xs)', fontWeight: 600, color: "var(--success)", flexShrink: 0
@@ -5010,7 +5010,7 @@ return(
 
       <div style={{marginTop:30, paddingTop:20, borderTop:"0.5px solid var(--border)"}}>
         <p style={{fontSize:'var(--text-lg)', color:"var(--text-secondary)", marginBottom:10}}>Need a pattern?</p>
-        <a href="home.html?tab=create" style={{color:"var(--accent)", fontWeight:600, textDecoration:"none"}}>→ Pattern Creator</a>
+        <a href="home.html?tab=create" style={{color:"var(--accent)", fontWeight:600, textDecoration:"none", display:'inline-flex', alignItems:'center', gap:4}}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronRight?Icons.chevronRight():null}</span>Pattern Creator</a>
       </div>
     </div>
   </div>}
@@ -5404,7 +5404,7 @@ return(
     <div style={{marginBottom:'var(--s-2)',padding:"14px 16px",background:"var(--surface)",border:"1px solid var(--accent-light)",borderRadius:'var(--radius-lg)',fontSize:'var(--text-sm)'}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
         <span style={{fontWeight:700,fontSize:'var(--text-md)',color:"var(--text-primary)"}}>Navigation &amp; Controls</span>
-        <button onClick={()=>setShowNavHelp(false)} style={{fontSize:'var(--text-sm)',background:"none",border:"none",color:"var(--text-tertiary)",cursor:"pointer",padding:"0 4px",lineHeight:1}}>✕</button>
+        <button onClick={()=>setShowNavHelp(false)} aria-label="Dismiss" style={{background:"none",border:"none",color:"var(--text-tertiary)",cursor:"pointer",padding:"0 4px",lineHeight:1,display:'inline-flex'}}>{Icons.x?Icons.x():"\u00D7"}</button>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 24px"}}>
         {[
@@ -5413,7 +5413,7 @@ return(
           ["Zoom to fit","Tap the Fit button"],
           ["Mark a stitch",isTouch?"Tap a cell":"Click a cell"],
           ["Mark multiple",isTouch?"Tap, then drag across cells":"Click + drag across cells — all set to same state"],
-          ["Undo last marks","↩ Undo button (top right)"],
+          ["Undo last marks","Undo button (top right)"],
           stitchView==="highlight"?["Cycle colours",isTouch?"Open the Highlight tab in the sidebar":"[ or ] keys"]:null,
           stitchView==="highlight"?["Clear focus","Tap the colour pill to show all colours"]:null,
           stitchMode==="navigate"?["Place crosshair","Click on any cell to drop a guide"]:null,
@@ -5436,9 +5436,9 @@ return(
     {/* ── Single banner slot (highest priority wins) ── */}
     {(()=>{
       if(isEditMode) return <div style={{fontSize:'var(--text-sm)',color:"#A06F2D",background:"#FAF5E1",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"1px solid #E5C97D", fontWeight: 600}}>EDITING — <span style={{fontWeight:400}}>Tap a <b>stitch on the grid</b> to edit that cell only · Tap a <b>colour in the list below</b> to reassign all stitches of that colour</span></div>;
-      if(advanceToast) return <div style={{fontSize:'var(--text-sm)',color:"var(--success)",background:"var(--success-soft)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"1px solid var(--success-soft)",fontWeight:600}}>✓ Complete! Next: {advanceToast}</div>;
+      if(advanceToast) return <div style={{fontSize:'var(--text-sm)',color:"var(--success)",background:"var(--success-soft)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"1px solid var(--success-soft)",fontWeight:600,display:'inline-flex',alignItems:'center',gap:6}}>{Icons.check?Icons.check():null} Complete! Next: {advanceToast}</div>;
       if(blockAdvanceToast) return <div style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"1px solid var(--accent-border)",fontWeight:600,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <span>✓ {blockAdvanceToast.label} complete — {blockAdvanceToast.stitches} stitches</span>
+        <span style={{display:'inline-flex',alignItems:'center',gap:6}}>{Icons.check?Icons.check():null} {blockAdvanceToast.label} complete — {blockAdvanceToast.stitches} stitches</span>
         <div style={{display:"flex",gap:'var(--s-2)'}}>
           {blockAdvanceToast.next&&<button onClick={()=>{setFocusBlock(blockAdvanceToast.next);setBlockAdvanceToast(null);}} style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:4,border:"1px solid var(--accent-border)",background:"var(--surface)",cursor:"pointer",fontWeight:600,color:"var(--accent)"}}>Next block</button>}
           <button onClick={()=>{setBlockAdvanceToast(null);setFocusBlock(null);}} style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:4,border:"none",background:"none",cursor:"pointer",color:"var(--text-tertiary)"}}>Stay</button>
@@ -5561,7 +5561,7 @@ return(
     {doneCount===0&&totalStitchable>0&&stitchMode==="track"&&<div style={{fontSize:'var(--text-xs)',color:"var(--accent-ink)",background:"#FAF5E1",border:"1px solid #E5C97D",borderRadius:'var(--radius-sm)',padding:"6px 10px",marginBottom:'var(--s-2)',textAlign:"center"}}>Tap any stitch on the canvas to mark it as done</div>}
 
     {/* Floating undo — mobile only (shown via CSS) */}
-    {!isEditMode&&stitchMode==="track"&&trackHistory.length>0&&<button className="fab-undo" onClick={undoTrack} onContextMenu={e=>{e.preventDefault();if(redoStack.length)redoTrack();}} aria-label="Undo last stitch" title="Tap to undo · Long-press for redo">↩</button>}
+    {!isEditMode&&stitchMode==="track"&&trackHistory.length>0&&<button className="fab-undo" onClick={undoTrack} onContextMenu={e=>{e.preventDefault();if(redoStack.length)redoTrack();}} aria-label="Undo last stitch" title="Tap to undo · Long-press for redo">{Icons.undo?Icons.undo():null}</button>}
 
     </div>{/* end canvas-area */}
 
@@ -6226,7 +6226,7 @@ return(
         }} style={{padding:"10px 20px",fontSize:'var(--text-lg)',borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",cursor:"pointer",fontWeight:500}}>Skip</button>
       </div>
       <div style={{marginTop:'var(--s-3)',paddingTop:10,borderTop:"1px solid var(--border)",display:"flex",justifyContent:"center"}}>
-        <button onClick={()=>{window.location.search='?mode=stats&tab=showcase';}} style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"none",border:"none",cursor:"pointer",fontWeight:600}}>See your updated stats →</button>
+        <button onClick={()=>{window.location.search='?mode=stats&tab=showcase';}} style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"none",border:"none",cursor:"pointer",fontWeight:600,display:'inline-flex',alignItems:'center',gap:4}}>See your updated stats <span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronRight?Icons.chevronRight():null}</span></button>
       </div>
     </div>
   </div>}
