@@ -233,7 +233,10 @@ window.CreatorSplitPane = function CreatorSplitPane() {
           cursor: "pointer", fontSize: 11, color: "#5C5448", fontWeight: 500, userSelect: "none",
         },
       },
-        h("span", null, previewOpen ? "\u25B2 Hide preview" : "\u25BC Show preview"),
+        h("span", {style:{display:"inline-flex",alignItems:"center",gap:4}},
+          window.Icons && (previewOpen ? window.Icons.chevronUp : window.Icons.chevronDown) ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, (previewOpen ? window.Icons.chevronUp : window.Icons.chevronDown)()) : null,
+          previewOpen ? "Hide preview" : "Show preview"
+        ),
         h("button", {
           onClick: function(e) { e.stopPropagation(); exitSplit(); },
           style: { background: "none", border: "none", cursor: "pointer", color: "#A89E89", fontSize: 14, padding: "0 2px", lineHeight: 1 },
@@ -343,7 +346,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
             },
           },
             MODE_LABELS[app.rightPaneMode || "level2"] || "Preview",
-            h("span", { style: { fontSize: 9, marginLeft: 2 } }, "\u25BE")
+            window.Icons && window.Icons.chevronDown ? h("span", {"aria-hidden":"true", style: { marginLeft: 2, display:"inline-flex" } }, window.Icons.chevronDown()) : null
           ),
           rightDropOpen && h("div", {
             style: {

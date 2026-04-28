@@ -8877,7 +8877,10 @@ window.CreatorSplitPane = function CreatorSplitPane() {
           cursor: "pointer", fontSize: 11, color: "#5C5448", fontWeight: 500, userSelect: "none",
         },
       },
-        h("span", null, previewOpen ? "\u25B2 Hide preview" : "\u25BC Show preview"),
+        h("span", {style:{display:"inline-flex",alignItems:"center",gap:4}},
+          window.Icons && (previewOpen ? window.Icons.chevronUp : window.Icons.chevronDown) ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, (previewOpen ? window.Icons.chevronUp : window.Icons.chevronDown)()) : null,
+          previewOpen ? "Hide preview" : "Show preview"
+        ),
         h("button", {
           onClick: function(e) { e.stopPropagation(); exitSplit(); },
           style: { background: "none", border: "none", cursor: "pointer", color: "#A89E89", fontSize: 14, padding: "0 2px", lineHeight: 1 },
@@ -8987,7 +8990,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
             },
           },
             MODE_LABELS[app.rightPaneMode || "level2"] || "Preview",
-            h("span", { style: { fontSize: 9, marginLeft: 2 } }, "\u25BE")
+            window.Icons && window.Icons.chevronDown ? h("span", {"aria-hidden":"true", style: { marginLeft: 2, display:"inline-flex" } }, window.Icons.chevronDown()) : null
           ),
           rightDropOpen && h("div", {
             style: {
@@ -9255,7 +9258,14 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         background:"var(--surface)", cursor:"pointer",
         color:"var(--text-secondary)", fontWeight:500, lineHeight:1, fontFamily:"inherit"
       }
-    }, swatchExpanded ? "\u25B4" : "+"+( palData.length - SWATCH_INIT)+  " \u25BE")
+    },
+      swatchExpanded
+        ? (window.Icons && window.Icons.chevronUp ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.chevronUp()) : "\u2212")
+        : h("span", {style:{display:"inline-flex",alignItems:"center",gap:3}},
+            "+" + (palData.length - SWATCH_INIT),
+            window.Icons && window.Icons.chevronDown ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.chevronDown()) : null
+          )
+    )
   ) : null;
 
   // Selection: simple Wand + Lasso primary buttons. Sub-modes
@@ -10542,7 +10552,10 @@ function SubstituteFromStashModalInner(props) {
                   color: "#4338ca", flexShrink: 0
                 },
                 title: "Show alternative substitutions"
-              }, isExpanded ? "\u25B4 Hide" : "\u25BE Alts")
+              }, h("span", {style:{display:"inline-flex",alignItems:"center",gap:3}},
+                  window.Icons && (isExpanded ? window.Icons.chevronUp : window.Icons.chevronDown) ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, (isExpanded ? window.Icons.chevronUp : window.Icons.chevronDown)()) : null,
+                  isExpanded ? "Hide" : "Alts"
+                ))
             : null
         ),
         // F4: Contrast warning detail row
@@ -10619,7 +10632,15 @@ function SubstituteFromStashModalInner(props) {
                 background: isNmOpen ? "#E5C99A" : "#F8EFD8",
                 color: "var(--accent-ink)", flexShrink: 0
               }
-            }, isNmOpen ? "\u25B4 Hide" : "Near misses \u25BE")
+            }, isNmOpen
+              ? h("span", {style:{display:"inline-flex",alignItems:"center",gap:3}},
+                  window.Icons && window.Icons.chevronUp ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.chevronUp()) : null,
+                  "Hide"
+                )
+              : h("span", {style:{display:"inline-flex",alignItems:"center",gap:3}},
+                  "Near misses",
+                  window.Icons && window.Icons.chevronDown ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.chevronDown()) : null
+                ))
           : h("span", { style: { fontSize: 10, color: "var(--border)", flexShrink: 0 } }, "no near misses")
       ),
       isNmOpen && hasNm
@@ -14952,7 +14973,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
           cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6
         }
       },
-        h('span', {style: {fontSize: 9, opacity: 0.6}}, fabOpen ? '\u25be' : '\u25b8'),
+        h('span', {"aria-hidden":"true", style: {display:"inline-flex", opacity: 0.6}}, window.Icons && (fabOpen ? window.Icons.chevronDown : window.Icons.chevronRight) ? (fabOpen ? window.Icons.chevronDown : window.Icons.chevronRight)() : null),
         'Fabric Calculator'
       ),
       fabOpen && h('div', {style: {padding: '14px'}},

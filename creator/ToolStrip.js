@@ -219,7 +219,14 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         background:"var(--surface)", cursor:"pointer",
         color:"var(--text-secondary)", fontWeight:500, lineHeight:1, fontFamily:"inherit"
       }
-    }, swatchExpanded ? "\u25B4" : "+"+( palData.length - SWATCH_INIT)+  " \u25BE")
+    },
+      swatchExpanded
+        ? (window.Icons && window.Icons.chevronUp ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.chevronUp()) : "\u2212")
+        : h("span", {style:{display:"inline-flex",alignItems:"center",gap:3}},
+            "+" + (palData.length - SWATCH_INIT),
+            window.Icons && window.Icons.chevronDown ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.chevronDown()) : null
+          )
+    )
   ) : null;
 
   // Selection: simple Wand + Lasso primary buttons. Sub-modes

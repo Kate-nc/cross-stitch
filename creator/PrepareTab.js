@@ -317,7 +317,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
           cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6
         }
       },
-        h('span', {style: {fontSize: 9, opacity: 0.6}}, fabOpen ? '\u25be' : '\u25b8'),
+        h('span', {"aria-hidden":"true", style: {display:"inline-flex", opacity: 0.6}}, window.Icons && (fabOpen ? window.Icons.chevronDown : window.Icons.chevronRight) ? (fabOpen ? window.Icons.chevronDown : window.Icons.chevronRight)() : null),
         'Fabric Calculator'
       ),
       fabOpen && h('div', {style: {padding: '14px'}},

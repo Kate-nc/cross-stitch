@@ -709,7 +709,10 @@ function SubstituteFromStashModalInner(props) {
                   color: "#4338ca", flexShrink: 0
                 },
                 title: "Show alternative substitutions"
-              }, isExpanded ? "\u25B4 Hide" : "\u25BE Alts")
+              }, h("span", {style:{display:"inline-flex",alignItems:"center",gap:3}},
+                  window.Icons && (isExpanded ? window.Icons.chevronUp : window.Icons.chevronDown) ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, (isExpanded ? window.Icons.chevronUp : window.Icons.chevronDown)()) : null,
+                  isExpanded ? "Hide" : "Alts"
+                ))
             : null
         ),
         // F4: Contrast warning detail row
@@ -786,7 +789,15 @@ function SubstituteFromStashModalInner(props) {
                 background: isNmOpen ? "#E5C99A" : "#F8EFD8",
                 color: "var(--accent-ink)", flexShrink: 0
               }
-            }, isNmOpen ? "\u25B4 Hide" : "Near misses \u25BE")
+            }, isNmOpen
+              ? h("span", {style:{display:"inline-flex",alignItems:"center",gap:3}},
+                  window.Icons && window.Icons.chevronUp ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.chevronUp()) : null,
+                  "Hide"
+                )
+              : h("span", {style:{display:"inline-flex",alignItems:"center",gap:3}},
+                  "Near misses",
+                  window.Icons && window.Icons.chevronDown ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.chevronDown()) : null
+                ))
           : h("span", { style: { fontSize: 10, color: "var(--border)", flexShrink: 0 } }, "no near misses")
       ),
       isNmOpen && hasNm
