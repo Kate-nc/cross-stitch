@@ -57,6 +57,15 @@ The only places emoji-like characters are allowed are:
 - Box-drawing dividers in source-file headers (e.g. `════` section markers in JS).
 - Test fixture / golden snapshot data that exists purely to verify legacy
   imports — never new UI strings.
+- **Keyboard legends inside `<kbd>` tags**: arrow glyphs (`↑ ↓ ← →`) and modifier
+  glyphs (`⌘ ⇧ ⌥ ⌃ ↵`) used to *represent the literal keyboard key the user
+  presses*. This is the universal HTML convention — every OS docs site and
+  command-palette UI uses it. Replacing these with SVG icons inside `<kbd>` would
+  break the visual vocabulary. Examples that are intentionally allowed:
+  [command-palette.js](command-palette.js) hint footer
+  (`<kbd>↑</kbd> <kbd>↓</kbd> navigate`), [help-drawer.js](help-drawer.js)
+  shortcut-key data (`keys: ["[", "←"]`), and
+  [shortcuts.js](shortcuts.js) `formatKey()`.
 
 ## Why
 
