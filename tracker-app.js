@@ -882,6 +882,12 @@ useEffect(()=>{
 useEffect(()=>{manuallyPausedRef.current=manuallyPaused;},[manuallyPaused]);
 const[advanceToast,setAdvanceToast]=useState(null);
 const[parkMarkers,setParkMarkers]=useState([]);
+// Multi-colour parking — Option C: per-colour visibility map.
+// Keys are DMC IDs (or blend IDs). Missing key = visible (default true).
+// Persisted per project alongside layerVis (cs_parkLayers_<projectId>).
+const[parkLayers,setParkLayers]=useState({});
+// Convenience: a marker is visible iff parkLayers[colourId] !== false.
+function isParkLayerVisible(cid){return parkLayers[cid]!==false;}
 // ── Stitching Style & Spatial Focus Area ──
 const[stitchingStyle,setStitchingStyle]=useState(()=>{try{var ls=localStorage.getItem("cs_stitchStyle");if(ls)return ls;var p=window.UserPrefs&&window.UserPrefs.get("trackerStitchingStyle");return p||"block";}catch(_){return"block";}});
 const[blockW,setBlockW]=useState(()=>{try{var ls=localStorage.getItem("cs_blockW");if(ls)return Math.max(5,Math.min(100,parseInt(ls)));var bs=(window.UserPrefs&&window.UserPrefs.get("trackerBlockShape"))||"10x10";var w=parseInt(String(bs).split("x")[0],10);return isFinite(w)?Math.max(5,Math.min(100,w)):10;}catch(_){return 10;}});
@@ -1102,6 +1108,31 @@ const effectiveCombinedDone=statsCountMode==='visible'?(layerVis.full?doneCount:
 const progressPct=effectiveCombinedTotal>0?Math.round(effectiveCombinedDone/effectiveCombinedTotal*1000)/10:0;
 // Today's stitches for progress bar accent segment
 const todayStitchesForBar=useMemo(()=>{if(!statsSessions)return 0;const deh=(statsSettings&&statsSettings.dayEndHour)||0;return getStatsTodayStitches(statsSessions,deh)+liveAutoStitches;},[statsSessions,liveAutoStitches,statsSettings]);
+// Multi-colour parking — per-colour count for the legend "park" pip.
+const parkCountsByColour=useMemo(()=>{
+  const out={};
+  if(!parkMarkers||!parkMarkers.length)return out;
+  for(let i=0;i<parkMarkers.length;i++){
+    const id=parkMarkers[i].colorId;
+    if(id)out[id]=(out[id]||0)+1;
+  }
+  return out;
+},[parkMarkers]);
+const totalParkedColours=useMemo(()=>Object.keys(parkCountsByColour).length,[parkCountsByColour]);
+const allParkLayersHidden=useMemo(()=>{
+  if(totalParkedColours===0)return false;
+  for(const id in parkCountsByColour){if(parkLayers[id]!==false)return false;}
+  return true;
+},[parkCountsByColour,parkLayers,totalParkedColours]);
+function toggleParkLayer(cid){setParkLayers(prev=>{const next=Object.assign({},prev);next[cid]=!(next[cid]!==false);if(next[cid])delete next[cid];return next;});}
+function setAllParkLayersVisible(visible){
+  setParkLayers(prev=>{
+    if(visible)return{};
+    const next=Object.assign({},prev);
+    for(const id in parkCountsByColour)next[id]=false;
+    return next;
+  });
+}
 const weekStitchesForChip=useMemo(()=>{if(!statsSessions)return 0;const deh=(statsSettings&&statsSettings.dayEndHour)||0;return getStatsThisWeekStitches(statsSessions,deh)+liveAutoStitches;},[statsSessions,liveAutoStitches,statsSettings]);
 const todayBarPct=effectiveCombinedTotal>0?Math.min((todayStitchesForBar/effectiveCombinedTotal)*100,Math.min(progressPct,100)):0;
 const prevBarPct=Math.max(0,Math.min(progressPct,100)-todayBarPct);
@@ -1114,6 +1145,7 @@ const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total
 // Full recompute only on structural changes (pattern load, half-stitch structure edits)
 useEffect(()=>{recomputeAllCounts(pat,done,halfStitches,halfDone);},[pat,halfStitches]);
 useEffect(()=>{const pid=projectIdRef.current;if(!pid)return;try{localStorage.setItem('cs_layerVis_'+pid,JSON.stringify(layerVis));}catch(_){}},[layerVis]);
+useEffect(()=>{const pid=projectIdRef.current;if(!pid)return;try{localStorage.setItem('cs_parkLayers_'+pid,JSON.stringify(parkLayers));}catch(_){}},[parkLayers]);
 useEffect(()=>{try{localStorage.setItem('cs_bsThickness',String(bsThickness));}catch(_){}},[bsThickness]);
 // ── Zoom-adaptive detail level ──
 const[lockDetailLevel,setLockDetailLevel]=useState(()=>{try{return !!JSON.parse(localStorage.getItem('cs_lockDetail')||'false');}catch(e){console.warn('cs_lockDetail corrupted, resetting:',e);try{localStorage.removeItem('cs_lockDetail');}catch(_){}return false;}});
@@ -2756,6 +2788,7 @@ function processLoadedProject(project){
   setProjectDescription(project.description||"");
   projectIdRef.current = project.id || null;
   try{const saved=localStorage.getItem('cs_layerVis_'+(project.id||''));if(saved)setLayerVis(JSON.parse(saved));else setLayerVis(ALL_LAYERS_VISIBLE);}catch(_){setLayerVis(ALL_LAYERS_VISIBLE);}
+  try{const saved=localStorage.getItem('cs_parkLayers_'+(project.id||''));setParkLayers(saved?JSON.parse(saved):{});}catch(_){setParkLayers({});}
   const normalisedCreatedAt=(()=>{
     const value=project.createdAt;
     if(value==null||value==="")return null;
@@ -3440,6 +3473,9 @@ function drawStitch(ctx,cSz,viewportRect){
     ctx.restore();
   }
   if(parkMarkers.length>0){parkMarkers.forEach(pm=>{
+    // Multi-colour parking — Option C: skip markers whose colour layer
+    // is hidden via the legend toggle.
+    if(parkLayers[pm.colorId]===false)return;
     const corner=pm.corner||"BL";
     const px2=gut+pm.x*cSz,py2=gut+pm.y*cSz;
     const ts=Math.max(3,Math.min(cSz*0.4,10));
@@ -3473,7 +3509,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
     };
   }
   drawStitch(canvas.getContext("2d"),scs,viewportRect);
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,parkLayers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade]);
 useEffect(()=>renderStitch(),[renderStitch]);
 // Keep renderStitchRef current so animation callbacks always call the latest closure
 useEffect(()=>{renderStitchRef.current=renderStitch;},[renderStitch]);
@@ -4046,7 +4082,25 @@ function handleStitchMouseDown(e){
     if(e.shiftKey||!selectedColorId||!cmap||!cmap[selectedColorId]){
       let gc2=gridCoord(stitchRef,e,scs,G,false);if(gc2&&gc2.gx>=0&&gc2.gx<sW&&gc2.gy>=0&&gc2.gy<sH){setHlRow(gc2.gy);setHlCol(gc2.gx);}
     }else{
-      if(gx>=0&&gx<=sW&&gy>=0&&gy<=sH){let existing=parkMarkers.findIndex(m=>m.x===gx&&m.y===gy&&m.colorId===selectedColorId);if(existing>=0)setParkMarkers(prev=>prev.filter((_,i)=>i!==existing));else setParkMarkers(prev=>[...prev,{x:gx,y:gy,colorId:selectedColorId,rgb:cmap[selectedColorId].rgb,corner:"BL"}]);}
+      if(gx>=0&&gx<=sW&&gy>=0&&gy<=sH){let existing=parkMarkers.findIndex(m=>m.x===gx&&m.y===gy&&m.colorId===selectedColorId);if(existing>=0)setParkMarkers(prev=>prev.filter((_,i)=>i!==existing));else setParkMarkers(prev=>{
+        // Multi-colour parking — Option A: auto-rotate corners.
+        // Pick the next free corner at this cell in [BL, BR, TR, TL]
+        // order so up to 4 colours can be parked on the same cell
+        // without visually overwriting each other. If all four are
+        // taken, replace the OLDEST marker at this cell (FIFO).
+        const ORDER=["BL","BR","TR","TL"];
+        const atCell=prev.filter(m=>m.x===gx&&m.y===gy);
+        const used=new Set(atCell.map(m=>m.corner||"BL"));
+        let corner=ORDER.find(c=>!used.has(c));
+        let next=prev;
+        if(!corner){
+          // All four corners occupied — evict the oldest at this cell.
+          const oldestIdx=prev.findIndex(m=>m===atCell[0]);
+          if(oldestIdx>=0)next=prev.filter((_,i)=>i!==oldestIdx);
+          corner=atCell[0].corner||"BL";
+        }
+        return[...next,{x:gx,y:gy,colorId:selectedColorId,rgb:cmap[selectedColorId].rgb,corner}];
+      });}
     }
     return;
   }
@@ -4806,7 +4860,8 @@ return(
           <div style={{padding:"4px 14px 6px"}}><select value={selectedColorId||""} onChange={e=>setSelectedColorId(e.target.value||null)} style={{fontSize:'var(--text-xs)',padding:"4px 8px",borderRadius:'var(--radius-sm)',border:"0.5px solid var(--border)",width:"100%"}}>
             <option value="">No parking colour</option>{pal.map(p=><option key={p.id} value={p.id}>DMC {p.id} — {p.name.slice(0,20)}</option>)}
           </select></div>
-          {parkMarkers.length>0&&<button className="tb-ovf-item" onClick={()=>{setParkMarkers([]);setTOverflowOpen(false);}}>Clear park markers</button>}
+          {parkMarkers.length>0&&<button className="tb-ovf-item" onClick={()=>{setParkMarkers([]);setParkLayers({});setTOverflowOpen(false);}}>Clear park markers</button>}
+          {totalParkedColours>0&&<button className="tb-ovf-item" onClick={()=>{setAllParkLayersVisible(allParkLayersHidden);setTOverflowOpen(false);}}>{allParkLayersHidden?"Show":"Hide"} all parked colours</button>}
           <div className="tb-ovf-sep"/>
         </>}
         {stitchMode==="track"&&trackHistory.length>0&&<button className="tb-ovf-item" onClick={()=>{undoTrack();setTOverflowOpen(false);}} style={{display:'inline-flex',alignItems:'center',gap:6}}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.undo?Icons.undo():null}</span>Undo ({trackHistory.length})</button>}
@@ -5413,6 +5468,9 @@ return(
                 {!isEditMode&&<>
                   <div className="prog"><div className="pf" style={{width:pct+"%"}}/></div>
                   <span className="ct">{dc.done}/{dc.total}</span>
+                  {/* Multi-colour parking — per-colour visibility toggle.
+                      Pip is hidden when this colour has no parked markers. */}
+                  {parkCountsByColour[p.id]>0&&<button onClick={e2=>{e2.stopPropagation();toggleParkLayer(p.id);}} title={(isParkLayerVisible(p.id)?"Hide":"Show")+" "+parkCountsByColour[p.id]+" parked marker"+(parkCountsByColour[p.id]===1?"":"s")+" for this colour"} aria-label={(isParkLayerVisible(p.id)?"Hide":"Show")+" parked markers for DMC "+p.id} aria-pressed={isParkLayerVisible(p.id)} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:9,padding:"1px 5px",borderRadius:4,border:"1px solid var(--border)",background:isParkLayerVisible(p.id)?`rgb(${p.rgb[0]},${p.rgb[1]},${p.rgb[2]})`:"var(--surface)",color:isParkLayerVisible(p.id)?(luminance(p.rgb)>140?"#000":"#fff"):"var(--text-tertiary)",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,fontWeight:600,opacity:isParkLayerVisible(p.id)?1:0.55}}>P{parkCountsByColour[p.id]>1?("\u00D7"+parkCountsByColour[p.id]):""}</button>}
                   <button onClick={e2=>{e2.stopPropagation();if(!complete){const unmarked=dc.total-dc.done;if(unmarked>50&&!confirm("Mark all "+unmarked+" stitches of DMC "+p.id+" as done?"))return;}markColourDone(p.id,!complete);}} style={{fontSize:9,padding:"1px 6px",borderRadius:4,border:"1px solid "+(complete?"var(--danger-soft)":"var(--success-soft)"),background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}} title={complete?"Mark colour as not done":"Mark colour as done"} aria-label={complete?"Mark colour as not done":"Mark colour as done"}>{complete?"Undo":(Icons.check?Icons.check():"\u2713")}</button>
                 </>}
               </div>;
@@ -5653,6 +5711,8 @@ return(
                 {!isEditMode&&<>
                   <div className="prog"><div className="pf" style={{width:pct+"%"}}/></div>
                   <span className="ct">{dc.done}/{dc.total}</span>
+                  {/* Multi-colour parking — per-colour visibility toggle. */}
+                  {parkCountsByColour[p.id]>0&&<button onClick={e2=>{e2.stopPropagation();toggleParkLayer(p.id);}} title={(isParkLayerVisible(p.id)?"Hide":"Show")+" "+parkCountsByColour[p.id]+" parked marker"+(parkCountsByColour[p.id]===1?"":"s")+" for this colour"} aria-label={(isParkLayerVisible(p.id)?"Hide":"Show")+" parked markers for DMC "+p.id} aria-pressed={isParkLayerVisible(p.id)} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:9,padding:"1px 5px",borderRadius:4,border:"1px solid var(--border)",background:isParkLayerVisible(p.id)?`rgb(${p.rgb[0]},${p.rgb[1]},${p.rgb[2]})`:"var(--surface)",color:isParkLayerVisible(p.id)?(luminance(p.rgb)>140?"#000":"#fff"):"var(--text-tertiary)",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,fontWeight:600,opacity:isParkLayerVisible(p.id)?1:0.55}}>P{parkCountsByColour[p.id]>1?("\u00D7"+parkCountsByColour[p.id]):""}</button>}
                   <button onClick={e2=>{e2.stopPropagation();if(!complete){const unmarked=dc.total-dc.done;if(unmarked>50&&!confirm("Mark all "+unmarked+" stitches of DMC "+p.id+" as done?"))return;}markColourDone(p.id,!complete);}} style={{fontSize:9,padding:"1px 6px",borderRadius:4,border:"1px solid "+(complete?"var(--danger-soft)":"var(--success-soft)"),background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}} title={complete?"Mark colour as not done":"Mark colour as done"} aria-label={complete?"Mark colour as not done":"Mark colour as done"}>{complete?"Undo":(Icons.check?Icons.check():"\u2713")}</button>
                 </>}
                 {isEditMode&&<span style={{fontSize:10,color:"#A06F2D",fontWeight:600}} aria-label="Edit colour">{Icons.pencil?Icons.pencil():"\u270E"}</span>}
