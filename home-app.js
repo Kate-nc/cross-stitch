@@ -540,9 +540,15 @@
 
   // ── HomeFooter ──────────────────────────────────────────────────────────
   // Simplified — Help is the header Help button; Preferences is File > Preferences.
-  function HomeFooter() {
+  // About is a real modal (SharedModals.About) so the link opens an in-app
+  // dialog rather than navigating off-site to a placeholder URL.
+  function HomeFooter(props) {
     return h('footer', { className: 'home-footer' },
-      h('a', { href: 'https://github.com/', className: 'home-footer__link', rel: 'noopener' }, 'About')
+      h('button', {
+        type: 'button',
+        className: 'home-footer__link',
+        onClick: function () { if (typeof props.onAbout === 'function') props.onAbout(); }
+      }, 'About')
     );
   }
 
@@ -570,6 +576,8 @@
     var stash = stashState[0]; var setStash = stashState[1];
     var prefsState = React.useState(false);
     var prefsOpen = prefsState[0]; var setPrefsOpen = prefsState[1];
+    var aboutState = React.useState(false);
+    var aboutOpen = aboutState[0]; var setAboutOpen = aboutState[1];
 
     // Listen for cs:openPreferences from the footer link, command palette, and Header.
     React.useEffect(function () {
@@ -721,23 +729,26 @@
           h(GreetingRow, { list: list, onTab: setTab }),
           h(ActiveProjectCard, { activeProject: active }),
           h(ProjectsList, { projects: otherProjects }),
-          h(HomeFooter, null)
+          h(HomeFooter, { onAbout: function () { setAboutOpen(true); } })
         ),
         tab === 'create' && h(React.Fragment, null,
           h(CreatePanel, null),
-          h(HomeFooter, null)
+          h(HomeFooter, { onAbout: function () { setAboutOpen(true); } })
         ),
         tab === 'stash' && h(React.Fragment, null,
           h(StashPanel, { stash: stash }),
-          h(HomeFooter, null)
+          h(HomeFooter, { onAbout: function () { setAboutOpen(true); } })
         ),
         tab === 'stats' && h(React.Fragment, null,
           h(StatsPanel, null),
-          h(HomeFooter, null)
+          h(HomeFooter, { onAbout: function () { setAboutOpen(true); } })
         )
       ),
       prefsOpen && typeof window.PreferencesModal !== 'undefined'
         ? h(window.PreferencesModal, { onClose: function () { setPrefsOpen(false); } })
+        : null,
+      aboutOpen && typeof SharedModals !== 'undefined' && SharedModals.About
+        ? h(SharedModals.About, { onClose: function () { setAboutOpen(false); } })
         : null
     );
   }
