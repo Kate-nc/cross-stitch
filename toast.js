@@ -119,12 +119,26 @@
       "max-width:min(480px, calc(100vw - 32px))"
     ].join(";");
 
-    var iconMap = { success: ["✓", "var(--success)"], error: ["✕", "var(--danger)"], warning: ["⚠", "var(--warning)"] };
-    if (iconMap[type]) {
+    // Status icon — prefer the SVG icon library so we match the rest of the
+    // app's visual language. Falls back to a coloured pip if the icon library
+    // hasn't loaded yet (toast.js can be invoked very early).
+    var iconMeta = {
+      success: { icon: "check",   color: "var(--success)" },
+      error:   { icon: "x",       color: "var(--danger)" },
+      warning: { icon: "warning", color: "var(--warning)" }
+    };
+    var meta = iconMeta[type];
+    if (meta) {
       var iconSpan = document.createElement("span");
       iconSpan.setAttribute("aria-hidden", "true");
-      iconSpan.textContent = iconMap[type][0];
-      iconSpan.style.cssText = "margin-right:8px;font-size:14px;flex-shrink:0;color:" + iconMap[type][1] + ";";
+      iconSpan.style.cssText = "margin-right:8px;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;flex-shrink:0;color:" + meta.color + ";";
+      var svgMarkup = (window.Icons && typeof window.Icons.svgString === "function") ? window.Icons.svgString(meta.icon) : "";
+      if (svgMarkup) {
+        iconSpan.innerHTML = svgMarkup;
+      } else {
+        // Pre-load fallback: solid coloured dot, never an emoji glyph.
+        iconSpan.style.cssText += "background:" + meta.color + ";border-radius:50%;width:8px;height:8px;";
+      }
       el.appendChild(iconSpan);
     }
 

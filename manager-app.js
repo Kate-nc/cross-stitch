@@ -1660,7 +1660,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
       <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 600, width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", padding: 0 }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 id="pattern-edit-title" style={{ margin: 0, fontSize: 18 }}>{pattern.title ? "Edit Pattern" : "Add Pattern"}</h2>
-          <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "var(--text-tertiary)" }}>×</button>
+          <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", display: "inline-flex", alignItems: "center", padding: 4 }}>{Icons.x ? Icons.x() : "\u00D7"}</button>
         </div>
 
         <div style={{ padding: 20, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1691,7 +1691,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
                 {edited.tags.map(tag => (
                   <span key={tag} style={{ padding: "4px 8px", background: "#EFE7D6", borderRadius: 6, fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}>
-                    {tag} <button onClick={() => removeTag(tag)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", padding: 0 }}>×</button>
+                    {tag} <button onClick={() => removeTag(tag)} aria-label={`Remove tag ${tag}`} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", padding: 0, display: "inline-flex", alignItems: "center" }}>{Icons.x ? Icons.x() : "\u00D7"}</button>
                   </span>
                 ))}
               </div>
@@ -1830,7 +1830,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
                       <span style={{ fontSize: 11, color: "var(--text-tertiary)", width: 16 }}>{displayUnit}</span>
                     </div>
 
-                    <button onClick={() => removeThread(idx)} style={{ background: "none", border: "none", color: "var(--text-tertiary)", cursor: "pointer", padding: "4px" }}>×</button>
+                    <button onClick={() => removeThread(idx)} aria-label="Remove thread" style={{ background: "none", border: "none", color: "var(--text-tertiary)", cursor: "pointer", padding: "4px", display: "inline-flex", alignItems: "center" }}>{Icons.x ? Icons.x() : "\u00D7"}</button>
                   </div>
                 );
               })}
@@ -1968,7 +1968,7 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads, userP
             <h2 id="pattern-detail-title" style={{ margin: 0, fontSize: 20, marginBottom: 4 }}>{pattern.title || "Untitled"}</h2>
             {pattern.designer && <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>by {pattern.designer}</div>}
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "var(--text-tertiary)" }}>×</button>
+          <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", display: "inline-flex", alignItems: "center", padding: 4 }}>{Icons.x ? Icons.x() : "\u00D7"}</button>
         </div>
 
         <div style={{ padding: 20, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
@@ -2073,7 +2073,7 @@ function UserProfileModal({ profile, onSave, onClose }) {
       <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 500, width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", padding: 0 }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 id="user-profile-title" style={{ margin: 0, fontSize: 18 }}>Default Thread Settings</h2>
-          <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "var(--text-tertiary)" }}>×</button>
+          <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", display: "inline-flex", alignItems: "center", padding: 4 }}>{Icons.x ? Icons.x() : "\u00D7"}</button>
         </div>
 
         <div style={{ padding: 20, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>

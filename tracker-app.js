@@ -381,7 +381,7 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
       <div onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",borderRadius:'var(--radius-xl)',padding:20,maxWidth:560,width:"100%",maxHeight:"80vh",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:'var(--s-3)'}}>
           <h3 style={{margin:0,fontSize:17,color:"var(--text-primary)"}}>Switch project</h3>
-          <button onClick={onClose} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"var(--text-tertiary)",padding:"0 4px"}}>×</button>
+          <button onClick={onClose} aria-label="Close" style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",padding:"0 4px",display:"inline-flex",alignItems:"center"}}>{Icons.x?Icons.x():"\u00D7"}</button>
         </div>
         <p style={{margin:"0 0 12px",fontSize:'var(--text-sm)',color:"var(--text-tertiary)"}}>Pick another saved project to track. Your current progress is auto-saved.</p>
         <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:'var(--s-2)',paddingRight:4}}>
@@ -3710,9 +3710,18 @@ useEffect(()=>{
       const isActive=focusBlock&&focusBlock.bx===bx&&focusBlock.by===by;
       const px=G+x0*scs+2,py=G+y0*scs+2;
       if(remaining===0){
-        ctx.fillStyle="#B85C38";ctx.font="bold 9px sans-serif";
-        ctx.textAlign="left";ctx.textBaseline="top";
-        ctx.fillText("✓",px,py);
+        // Draw a small checkmark using canvas strokes (matches Icons.check
+        // glyph) instead of rendering the "✓" character — keeps the canvas
+        // overlay font-independent and consistent with the SVG icon library.
+        ctx.strokeStyle="#B85C38";
+        ctx.lineWidth=1.4;
+        ctx.lineCap="round";
+        ctx.lineJoin="round";
+        ctx.beginPath();
+        ctx.moveTo(px+1,py+5);
+        ctx.lineTo(px+3.4,py+7.4);
+        ctx.lineTo(px+8,py+2);
+        ctx.stroke();
       }else if(isActive){
         const label=String(remaining);
         ctx.font="bold 10px sans-serif";
@@ -5446,7 +5455,7 @@ return(
       </div>;
       if(stitchMode==="track") return <div style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--accent-border)"}}>{hasTouchRef.current?"Tap or drag to mark · Long-press a cell, then tap the opposite corner to fill a rectangle · Pinch to zoom":"Click or drag to mark/unmark cross stitches · Shift+click or long-press for rectangle fill · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
       if(stitchMode==="navigate") return <div style={{fontSize:'var(--text-sm)',color:"var(--text-primary)",background:"var(--surface-tertiary)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)"}}>{selectedColorId?"Click to park. Shift+click to move guide.":"Click to place guide crosshair"}{hasTouchRef.current?"":" · T for track mode"}</div>;
-      if(!shortcutsHintDismissed&&pat) return <div style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",fontSize:15,lineHeight:1,padding:0}}>×</button></div>;
+      if(!shortcutsHintDismissed&&pat) return <div style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} aria-label="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",lineHeight:1,padding:0,display:"inline-flex",alignItems:"center"}}>{Icons.x?Icons.x():"\u00D7"}</button></div>;
       return null;
     })()}
 

@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Creator Proposal A — Desktop Mockup</title>
+<style>
+  :root {
+    --surface: #ffffff;
+    --surface-secondary: #f8fafc;
+    --border: #e2e8f0;
+    --text-primary: #1e293b;
+    --text-secondary: #475569;
+    --text-tertiary: #64748b;
+    --accent: #0d9488;
+    --accent-light: #f0fdfa;
+    --accent-border: #99f6e4;
+    --radius-md: 10px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
+    --shadow-md: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f5f9; color: var(--text-primary); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ── Header (merged) ── */
+  .header {
+    height: 48px; background: var(--surface); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 16px; gap: 8px; z-index: 100; flex-shrink: 0;
+  }
+  .logo { font-weight: 700; font-size: 14px; color: var(--accent); white-space: nowrap; }
+  .nav-tabs { display: flex; gap: 2px; margin-left: 12px; }
+  .nav-tab {
+    padding: 6px 12px; font-size: 12px; font-weight: 500; border-radius: 6px;
+    color: var(--text-secondary); cursor: pointer; text-decoration: none; transition: all 0.15s;
+  }
+  .nav-tab:hover { background: var(--surface-secondary); }
+  .nav-tab--active { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+  .header-spacer { flex: 1; }
+  .project-badge {
+    display: flex; align-items: center; gap: 6px; padding: 4px 10px;
+    background: var(--surface-secondary); border: 1px solid var(--border); border-radius: 6px;
+    font-size: 11px; color: var(--text-secondary); cursor: pointer;
+  }
+  .project-badge .name { font-weight: 600; color: var(--text-primary); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .project-badge .meta { color: var(--text-tertiary); }
+  .header-btn {
+    padding: 4px 10px; font-size: 11px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface); color: var(--text-secondary); cursor: pointer;
+  }
+
+  /* ── Toolbar (tightened pill) ── */
+  .toolbar-row {
+    background: var(--surface-secondary); border-bottom: 1px solid var(--border);
+    display: flex; flex-direction: column; align-items: center; flex-shrink: 0; z-index: 99;
+  }
+  .pill-row {
+    height: 44px; display: flex; align-items: center; justify-content: center; padding: 0 8px;
+  }
+  .pill {
+    display: inline-flex; align-items: center; gap: 1px;
+    background: var(--surface); border-radius: 12px; padding: 2px;
+    box-shadow: var(--shadow-sm); border: 1px solid var(--border);
+  }
+  .tb-btn {
+    display: flex; align-items: center; gap: 4px; padding: 4px 8px; font-size: 11px;
+    border: none; background: transparent; border-radius: 8px; cursor: pointer;
+    color: var(--text-secondary); white-space: nowrap; transition: all 0.1s; height: 32px;
+  }
+  .tb-btn:hover { background: var(--surface-secondary); }
+  .tb-btn--on { background: #f1f5f9; color: var(--text-primary); font-weight: 600; }
+  .tb-btn--green { background: var(--accent); color: white; }
+  .tb-div { width: 1px; height: 20px; background: var(--border); margin: 0 3px; flex-shrink: 0; }
+  .tb-chip {
+    display: flex; align-items: center; gap: 4px; padding: 2px 8px;
+    border-radius: 8px; font-size: 10px; color: var(--text-secondary); background: #f8fafc;
+  }
+  .colour-dot { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--border); flex-shrink: 0; }
+
+  /* ── Swatch Strip ── */
+  .swatch-strip {
+    height: 36px; display: flex; align-items: center; gap: 4px; padding: 0 12px;
+    overflow-x: auto; scrollbar-width: none; border-top: 1px solid #f1f5f9;
+  }
+  .swatch-strip::-webkit-scrollbar { display: none; }
+  .sw {
+    width: 24px; height: 24px; border-radius: 4px; border: 1.5px solid transparent;
+    cursor: pointer; flex-shrink: 0; transition: all 0.1s;
+  }
+  .sw--active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-light); }
+  .sw-expand { font-size: 10px; color: var(--text-tertiary); cursor: pointer; white-space: nowrap; flex-shrink: 0; padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; background: transparent; }
+
+  /* ── Main Layout ── */
+  .main { display: flex; flex: 1; min-height: 0; }
+
+  /* ── Canvas Area ── */
+  .canvas-area {
+    flex: 1; min-width: 0; overflow: auto; position: relative;
+    background: var(--surface-secondary); display: flex; flex-direction: column;
+  }
+  .canvas-placeholder {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    background: repeating-conic-gradient(#f1f5f9 0% 25%, #fff 0% 50%) 0 0 / 20px 20px;
+  }
+  .canvas-grid {
+    width: 500px; height: 500px; border: 1px solid var(--border); background: white;
+    display: grid; place-items: center; font-size: 11px; color: var(--text-tertiary);
+    position: relative;
+  }
+  .status-bar {
+    height: 24px; background: var(--surface); border-top: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 12px; gap: 12px;
+    font-size: 10px; color: var(--text-tertiary); flex-shrink: 0;
+  }
+
+  /* ── Right Panel (260px) ── */
+  .rpanel {
+    width: 260px; border-left: 1px solid var(--border); background: var(--surface);
+    display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
+  }
+  .rp-tabs {
+    display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .rp-tab {
+    flex: 1; text-align: center; padding: 8px 4px; font-size: 11px; font-weight: 500;
+    color: var(--text-tertiary); cursor: pointer; border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .rp-tab--active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+  .rp-body { flex: 1; overflow-y: auto; padding: 0; }
+
+  /* ── Sections ── */
+  .rp-section { border-bottom: 1px solid var(--border); }
+  .rp-section-hd {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px; cursor: pointer; font-size: 12px; font-weight: 600;
+    color: var(--text-primary); user-select: none;
+  }
+  .rp-section-hd:hover { background: var(--surface-secondary); }
+  .rp-section-hd .arrow { font-size: 10px; color: var(--text-tertiary); transition: transform 0.15s; }
+  .rp-section-hd .arrow--open { transform: rotate(90deg); }
+  .rp-section-bd { padding: 6px 12px 12px; font-size: 11px; color: var(--text-secondary); line-height: 1.5; }
+
+  /* ── Palette Chips ── */
+  .palette-chips { display: flex; flex-wrap: wrap; gap: 3px; padding: 8px 12px; }
+  .p-chip {
+    display: flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px;
+    border: 1px solid var(--border); font-size: 10px; cursor: pointer; background: var(--surface);
+    transition: all 0.1s;
+  }
+  .p-chip:hover { border-color: var(--accent-border); }
+  .p-chip--active { border-color: var(--accent); background: var(--accent-light); }
+  .p-chip .dot { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+
+  /* ── View Toggle ── */
+  .view-toggle { display: flex; gap: 2px; padding: 4px 12px 8px; }
+  .vt-btn {
+    flex: 1; padding: 4px 0; text-align: center; font-size: 10px; font-weight: 500;
+    border: 1px solid var(--border); background: var(--surface); border-radius: 6px;
+    cursor: pointer; color: var(--text-secondary); transition: all 0.1s;
+  }
+  .vt-btn--on { background: var(--accent-light); border-color: var(--accent-border); color: var(--accent); font-weight: 600; }
+
+  /* ── Image Card ── */
+  .img-card {
+    margin: 0 12px 8px; padding: 6px; border: 1px solid var(--border); border-radius: 8px;
+    display: flex; gap: 8px; align-items: center;
+  }
+  .img-thumb { width: 48px; height: 48px; border-radius: 4px; background: linear-gradient(135deg, #fecaca, #bfdbfe); flex-shrink: 0; }
+  .img-info { font-size: 10px; color: var(--text-tertiary); line-height: 1.6; }
+  .img-actions { display: flex; gap: 4px; margin-top: 2px; }
+  .img-btn { padding: 2px 8px; font-size: 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); cursor: pointer; color: var(--text-secondary); }
+
+  /* ── Generate Button ── */
+  .gen-btn-wrap { padding: 8px 12px; flex-shrink: 0; border-top: 1px solid var(--border); }
+  .gen-btn {
+    width: 100%; padding: 10px 0; border: none; border-radius: 8px;
+    background: var(--accent); color: white; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .gen-btn:hover { background: #0f766e; }
+
+  /* ── Slider row helper ── */
+  .slider-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .slider-row label { font-size: 11px; color: var(--text-secondary); min-width: 60px; }
+  .slider-row input[type=range] { flex: 1; accent-color: var(--accent); }
+  .slider-row .val { font-size: 10px; color: var(--text-tertiary); min-width: 28px; text-align: right; font-variant-numeric: tabular-nums; }
+  .checkbox-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 11px; color: var(--text-secondary); }
+</style>
+</head>
+<body>
+
+<!-- ═══ Header (merged — ContextBar eliminated) ═══ -->
+<div class="header">
+  <span class="logo">🧵 StitchCraft</span>
+  <nav class="nav-tabs">
+    <a class="nav-tab nav-tab--active">Create</a>
+    <a class="nav-tab">Track</a>
+    <a class="nav-tab">Stash</a>
+  </nav>
+  <div class="header-spacer"></div>
+  <div class="project-badge">
+    <span class="name">Victorian Roses</span>
+    <span class="meta">· 35 colours</span>
+  </div>
+  <button class="header-btn">File ▾</button>
+  <button class="header-btn" style="background: var(--accent); color: white; border-color: var(--accent);">Save</button>
+</div>
+
+<!-- ═══ Toolbar ═══ -->
+<div class="toolbar-row">
+  <div class="pill-row">
+    <div class="pill">
+      <!-- Brush group -->
+      <button class="tb-btn tb-btn--green" title="Paint (P)">✏ Paint</button>
+      <button class="tb-btn" title="Fill (F)">🪣 Fill</button>
+      <button class="tb-btn" title="Erase (5)">⌫</button>
+      <button class="tb-btn" title="Eyedropper (I)">💧</button>
+      <span class="tb-div"></span>
+      <!-- Stitch type -->
+      <button class="tb-btn" title="Stitch type">╳ Cross ▾</button>
+      <span class="tb-div"></span>
+      <!-- Brush size -->
+      <button class="tb-btn tb-btn--on" style="min-width:24px;justify-content:center;">1</button>
+      <button class="tb-btn" style="min-width:24px;justify-content:center;">2</button>
+      <button class="tb-btn" style="min-width:24px;justify-content:center;">3</button>
+      <span class="tb-div"></span>
+      <!-- Selection -->
+      <button class="tb-btn" title="Selection tools">🪄 Wand ▾</button>
+      <span class="tb-div"></span>
+      <!-- Colour chip -->
+      <div class="tb-chip">
+        <div class="colour-dot" style="background:#1e293b;"></div>
+        310
+      </div>
+      <span class="tb-div"></span>
+      <!-- Zoom -->
+      <button class="tb-btn" style="padding:4px 5px;">−</button>
+      <span style="font-size:10px;color:var(--text-tertiary);min-width:32px;text-align:center;">100%</span>
+      <button class="tb-btn" style="padding:4px 5px;">+</button>
+      <button class="tb-btn" style="font-size:10px;">Fit</button>
+      <span class="tb-div"></span>
+      <!-- Undo/Redo -->
+      <button class="tb-btn">↩</button>
+      <button class="tb-btn" style="opacity:0.3;">↪</button>
+      <span class="tb-div"></span>
+      <!-- Preview -->
+      <button class="tb-btn">👁 Chart ▾</button>
+      <span class="tb-div"></span>
+      <button class="tb-btn" title="Split view">⊞</button>
+      <span class="tb-div"></span>
+      <button class="tb-btn" title="Diagnostics">🔍</button>
+      <span class="tb-div"></span>
+      <button class="tb-btn">⋯</button>
+    </div>
+  </div>
+  <!-- Swatch strip -->
+  <div class="swatch-strip">
+    <div class="sw sw--active" style="background:#1e293b;" title="310 Black"></div>
+    <div class="sw" style="background:#dc2626;" title="321 Red"></div>
+    <div class="sw" style="background:#16a34a;" title="699 Green"></div>
+    <div class="sw" style="background:#2563eb;" title="797 Blue"></div>
+    <div class="sw" style="background:#f59e0b;" title="725 Topaz"></div>
+    <div class="sw" style="background:#ec4899;" title="603 Pink"></div>
+    <div class="sw" style="background:#8b5cf6;" title="333 Violet"></div>
+    <div class="sw" style="background:#f97316;" title="740 Orange"></div>
+    <div class="sw" style="background:#78716c;" title="645 Grey"></div>
+    <div class="sw" style="background:#fbbf24;" title="973 Yellow"></div>
+    <div class="sw" style="background:#6366f1;" title="791 Indigo"></div>
+    <div class="sw" style="background:#059669;" title="3818 Emerald"></div>
+    <div class="sw" style="background:#be185d;" title="915 Plum"></div>
+    <div class="sw" style="background:#92400e;" title="898 Coffee"></div>
+    <div class="sw" style="background:#fca5a5;" title="761 Salmon"></div>
+    <div class="sw" style="background:#a3e635;" title="704 Chartreuse"></div>
+    <div class="sw" style="background:#67e8f9;" title="964 Aqua"></div>
+    <div class="sw" style="background:#c084fc;" title="554 Lavender"></div>
+    <div class="sw" style="background:#fef08a;" title="727 Lemon"></div>
+    <div class="sw" style="background:#fda4af;" title="3708 Melon"></div>
+    <button class="sw-expand">+15 more</button>
+  </div>
+</div>
+
+<!-- ═══ Main Layout ═══ -->
+<div class="main">
+
+  <!-- Canvas Area -->
+  <div class="canvas-area">
+    <div class="canvas-placeholder">
+      <div class="canvas-grid">
+        <span>200 × 180 Pattern Canvas<br><small style="color:#94a3b8">Checkerboard grid · zoom 100%</small></span>
+      </div>
+    </div>
+    <div class="status-bar">
+      <span>Paint tool · Brush 1</span>
+      <span>|</span>
+      <span>Row 45, Col 72</span>
+      <span>|</span>
+      <span>DMC 310 Black</span>
+      <span style="margin-left:auto;">200 × 180 · 35 colours · 28,400 stitches</span>
+    </div>
+  </div>
+
+  <!-- Right Panel (260px) -->
+  <div class="rpanel">
+    <div class="rp-tabs">
+      <div class="rp-tab rp-tab--active">📐 Pattern</div>
+      <div class="rp-tab">📋 Project</div>
+      <div class="rp-tab">🧵 Threads</div>
+      <div class="rp-tab">📤 Export</div>
+    </div>
+    <div class="rp-body">
+
+      <!-- Palette Chips -->
+      <div class="palette-chips">
+        <div class="p-chip p-chip--active"><div class="dot" style="background:#1e293b;"></div>310</div>
+        <div class="p-chip"><div class="dot" style="background:#dc2626;"></div>321</div>
+        <div class="p-chip"><div class="dot" style="background:#16a34a;"></div>699</div>
+        <div class="p-chip"><div class="dot" style="background:#2563eb;"></div>797</div>
+        <div class="p-chip"><div class="dot" style="background:#f59e0b;"></div>725</div>
+        <div class="p-chip"><div class="dot" style="background:#ec4899;"></div>603</div>
+        <div class="p-chip"><div class="dot" style="background:#8b5cf6;"></div>333</div>
+        <div class="p-chip"><div class="dot" style="background:#f97316;"></div>740</div>
+        <div class="p-chip"><div class="dot" style="background:#78716c;"></div>645</div>
+        <div class="p-chip"><div class="dot" style="background:#fbbf24;"></div>973</div>
+      </div>
+
+      <!-- View Toggle -->
+      <div class="view-toggle">
+        <button class="vt-btn vt-btn--on">Colour</button>
+        <button class="vt-btn">Symbol</button>
+        <button class="vt-btn">Both</button>
+      </div>
+
+      <!-- Image Card -->
+      <div class="img-card">
+        <div class="img-thumb"></div>
+        <div>
+          <div class="img-info">Source: roses.jpg<br>1200 × 900px</div>
+          <div class="img-actions">
+            <button class="img-btn">Crop</button>
+            <button class="img-btn">Change</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dimensions & Fabric (merged) -->
+      <div class="rp-section">
+        <div class="rp-section-hd">
+          Dimensions & Fabric
+          <span class="arrow arrow--open">▶</span>
+        </div>
+        <div class="rp-section-bd">
+          <div class="checkbox-row"><input type="checkbox" checked> Lock aspect ratio</div>
+          <div class="slider-row"><label>Width</label><input type="range" min="10" max="300" value="200"><span class="val">200</span></div>
+          <div class="slider-row"><label>Height</label><input type="range" min="10" max="300" value="180"><span class="val">180</span></div>
+          <div class="slider-row"><label>Fabric</label><select style="flex:1;font-size:11px;padding:2px 4px;border:1px solid var(--border);border-radius:4px;"><option>14 count</option><option>16 count</option><option>18 count</option></select><span class="val"></span></div>
+        </div>
+      </div>
+
+      <!-- Palette -->
+      <div class="rp-section">
+        <div class="rp-section-hd">
+          Palette
+          <span class="arrow arrow--open">▶</span>
+        </div>
+        <div class="rp-section-bd">
+          <div class="slider-row"><label>Max colours</label><input type="range" min="10" max="40" value="35"><span class="val">35</span></div>
+          <div class="checkbox-row"><input type="checkbox" checked> Allow blended threads</div>
+          <div class="checkbox-row"><input type="checkbox"> Use only stash threads</div>
+          <div style="margin-top:6px;font-size:10px;color:var(--text-tertiary);cursor:pointer;">▸ Advanced (orphans, dithering, min stitches…)</div>
+        </div>
+      </div>
+
+      <!-- Stitch Cleanup -->
+      <div class="rp-section">
+        <div class="rp-section-hd">
+          Stitch Cleanup
+          <span class="arrow">▶</span>
+        </div>
+      </div>
+
+      <!-- Adjustments -->
+      <div class="rp-section">
+        <div class="rp-section-hd">
+          Adjustments
+          <span class="arrow">▶</span>
+        </div>
+      </div>
+
+      <!-- Background -->
+      <div class="rp-section">
+        <div class="rp-section-hd">
+          Background
+          <span class="arrow">▶</span>
+        </div>
+      </div>
+
+      <!-- Palette Swap -->
+      <div class="rp-section">
+        <div class="rp-section-hd">
+          Palette Swap
+          <span class="arrow">▶</span>
+        </div>
+      </div>
+
+    </div>
+    <!-- Generate button -->
+    <div class="gen-btn-wrap">
+      <button class="gen-btn">⟳ Regenerate</button>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

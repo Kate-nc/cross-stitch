@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Creator Proposal A — Mobile Mockup</title>
+<style>
+  :root {
+    --surface: #ffffff;
+    --surface-secondary: #f8fafc;
+    --border: #e2e8f0;
+    --text-primary: #1e293b;
+    --text-secondary: #475569;
+    --text-tertiary: #64748b;
+    --accent: #0d9488;
+    --accent-light: #f0fdfa;
+    --accent-border: #99f6e4;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f5f9; color: var(--text-primary); }
+
+  .phone-frame {
+    width: 375px; height: 667px; margin: 20px auto; border: 3px solid #1e293b;
+    border-radius: 32px; overflow: hidden; display: flex; flex-direction: column;
+    background: var(--surface-secondary); position: relative;
+  }
+
+  .header {
+    height: 48px; background: var(--surface); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 12px; gap: 6px; flex-shrink: 0;
+  }
+  .logo { font-weight: 700; font-size: 13px; color: var(--accent); }
+  .header-spacer { flex: 1; }
+  .project-name { font-size: 11px; font-weight: 600; color: var(--text-primary); max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hdr-btn { padding: 3px 8px; font-size: 10px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text-secondary); }
+
+  /* ── Toolbar ── */
+  .toolbar-row { background: var(--surface-secondary); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .pill-row { height: 44px; overflow-x: auto; display: flex; align-items: center; padding: 0 8px; scrollbar-width: none; }
+  .pill-row::-webkit-scrollbar { display: none; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 1px;
+    background: var(--surface); border-radius: 10px; padding: 2px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06); border: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .tb-btn {
+    display: flex; align-items: center; justify-content: center; gap: 3px;
+    min-width: 44px; min-height: 38px; padding: 4px 6px; font-size: 11px;
+    border: none; background: transparent; border-radius: 8px; cursor: pointer;
+    color: var(--text-secondary); white-space: nowrap;
+  }
+  .tb-btn--on { background: #f1f5f9; color: var(--text-primary); font-weight: 600; }
+  .tb-btn--green { background: var(--accent); color: white; }
+  .tb-div { width: 1px; height: 18px; background: var(--border); margin: 0 2px; flex-shrink: 0; }
+  .colour-dot { width: 12px; height: 12px; border-radius: 2px; border: 1px solid var(--border); }
+
+  .swatch-strip {
+    height: 36px; display: flex; align-items: center; gap: 5px; padding: 0 10px;
+    overflow-x: auto; scrollbar-width: none; border-top: 1px solid #f1f5f9;
+  }
+  .swatch-strip::-webkit-scrollbar { display: none; }
+  .sw { width: 28px; height: 28px; border-radius: 5px; border: 2px solid transparent; flex-shrink: 0; }
+  .sw--active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-light); }
+
+  /* ── Canvas ── */
+  .canvas-area {
+    flex: 1; overflow: auto; display: flex; align-items: center; justify-content: center;
+    background: repeating-conic-gradient(#f1f5f9 0% 25%, #fff 0% 50%) 0 0 / 16px 16px;
+  }
+  .canvas-box {
+    width: 340px; height: 340px; border: 1px solid var(--border); background: white;
+    display: grid; place-items: center; font-size: 11px; color: var(--text-tertiary);
+  }
+
+  /* ── Bottom Drawer (collapsed) ── */
+  .drawer {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: var(--surface); border-top: 1px solid var(--border);
+    border-radius: 16px 16px 0 0; box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
+    max-height: 44px; overflow: hidden; transition: max-height 0.25s ease; z-index: 500;
+  }
+  .drawer--open { max-height: 55%; overflow-y: auto; }
+  .drawer-handle {
+    width: 36px; height: 4px; border-radius: 2px; background: #cbd5e1;
+    margin: 6px auto 0;
+  }
+  .drawer-tabs {
+    display: flex; height: 44px; align-items: center; flex-shrink: 0;
+  }
+  .drawer-tab {
+    flex: 1; text-align: center; font-size: 10px; font-weight: 500;
+    color: var(--text-tertiary); padding: 8px 0; cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+  .drawer-tab--active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+  .drawer-body { padding: 8px 12px 16px; font-size: 11px; color: var(--text-secondary); }
+  .drawer-section { padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .drawer-section-hd { font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
+
+  /* ── Floating Undo FAB ── */
+  .fab-undo {
+    position: absolute; right: 16px; bottom: 56px; width: 48px; height: 48px;
+    border-radius: 50%; background: var(--surface); border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12); display: grid; place-items: center;
+    font-size: 18px; color: var(--text-secondary); z-index: 400;
+  }
+
+  /* ── Annotations ── */
+  .dim-label {
+    position: absolute; font-size: 9px; color: #e11d48; font-weight: 600;
+    background: rgba(255,255,255,0.9); padding: 1px 4px; border-radius: 3px;
+    border: 1px solid #fecdd3; z-index: 600;
+  }
+</style>
+</head>
+<body>
+
+<div class="phone-frame">
+
+  <!-- Header (merged) -->
+  <div class="header">
+    <span class="logo">🧵</span>
+    <span class="project-name">Victorian Roses</span>
+    <div class="header-spacer"></div>
+    <button class="hdr-btn">File ▾</button>
+    <button class="hdr-btn" style="background:var(--accent);color:white;border-color:var(--accent);">💾</button>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar-row">
+    <div class="pill-row">
+      <div class="pill">
+        <button class="tb-btn tb-btn--green" title="Paint">✏</button>
+        <button class="tb-btn" title="Fill">🪣</button>
+        <button class="tb-btn" title="Erase">⌫</button>
+        <button class="tb-btn" title="Pick">💧</button>
+        <span class="tb-div"></span>
+        <button class="tb-btn" title="Stitch type">╳▾</button>
+        <span class="tb-div"></span>
+        <button class="tb-btn" title="Wand">🪄▾</button>
+        <span class="tb-div"></span>
+        <div class="colour-dot" style="background:#1e293b;margin:0 4px;"></div>
+        <span class="tb-div"></span>
+        <button class="tb-btn">−</button>
+        <button class="tb-btn">+</button>
+        <button class="tb-btn" style="font-size:10px;">Fit</button>
+        <span class="tb-div"></span>
+        <button class="tb-btn">↩</button>
+        <button class="tb-btn">↪</button>
+        <span class="tb-div"></span>
+        <button class="tb-btn">👁▾</button>
+        <button class="tb-btn">⋯</button>
+      </div>
+    </div>
+    <div class="swatch-strip">
+      <div class="sw sw--active" style="background:#1e293b;"></div>
+      <div class="sw" style="background:#dc2626;"></div>
+      <div class="sw" style="background:#16a34a;"></div>
+      <div class="sw" style="background:#2563eb;"></div>
+      <div class="sw" style="background:#f59e0b;"></div>
+      <div class="sw" style="background:#ec4899;"></div>
+      <div class="sw" style="background:#8b5cf6;"></div>
+      <div class="sw" style="background:#f97316;"></div>
+      <div class="sw" style="background:#78716c;"></div>
+      <div class="sw" style="background:#fbbf24;"></div>
+      <div class="sw" style="background:#6366f1;"></div>
+    </div>
+  </div>
+
+  <!-- Canvas Area (495px on 667px phone minus 48+44+36+44 = 172 top + 44 bottom = 451px available) -->
+  <div class="canvas-area">
+    <div class="canvas-box">
+      200 × 180 Pattern<br><small style="color:#94a3b8">Canvas area: ~495px</small>
+    </div>
+  </div>
+
+  <!-- Floating Undo -->
+  <div class="fab-undo">↩</div>
+
+  <!-- Bottom Drawer (collapsed state) -->
+  <div class="drawer" id="drawer">
+    <div class="drawer-handle"></div>
+    <div class="drawer-tabs" onclick="document.getElementById('drawer').classList.toggle('drawer--open')">
+      <div class="drawer-tab drawer-tab--active">📐 Pattern</div>
+      <div class="drawer-tab">📋 Project</div>
+      <div class="drawer-tab">🧵 Threads</div>
+      <div class="drawer-tab">📤 Export</div>
+    </div>
+    <div class="drawer-body">
+      <div class="drawer-section">
+        <div class="drawer-section-hd">Dimensions & Fabric</div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;">
+          <label style="font-size:10px;min-width:36px;">Width</label>
+          <input type="range" min="10" max="300" value="200" style="flex:1;accent-color:var(--accent);">
+          <span style="font-size:10px;min-width:24px;text-align:right;">200</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;">
+          <label style="font-size:10px;min-width:36px;">Height</label>
+          <input type="range" min="10" max="300" value="180" style="flex:1;accent-color:var(--accent);">
+          <span style="font-size:10px;min-width:24px;text-align:right;">180</span>
+        </div>
+      </div>
+      <div class="drawer-section">
+        <div class="drawer-section-hd">Palette</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <label style="font-size:10px;min-width:56px;">Max colours</label>
+          <input type="range" min="10" max="40" value="35" style="flex:1;accent-color:var(--accent);">
+          <span style="font-size:10px;">35</span>
+        </div>
+      </div>
+      <div style="padding:8px 0;">
+        <button style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--accent);color:white;font-weight:600;font-size:13px;cursor:pointer;">⟳ Regenerate</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dimension annotations -->
+  <div class="dim-label" style="top:0;right:8px;">48px header</div>
+  <div class="dim-label" style="top:48px;right:8px;">44px toolbar</div>
+  <div class="dim-label" style="top:92px;right:8px;">36px swatches</div>
+  <div class="dim-label" style="bottom:46px;right:8px;">44px drawer bar</div>
+  <div class="dim-label" style="top:50%;right:8px;transform:translateY(-50%);">~495px canvas</div>
+
+</div>
+
+<p style="text-align:center;margin:16px;font-size:12px;color:#64748b;">
+  Tap drawer tabs to expand · Total chrome: 172px (top) + 44px (bottom) = 216px → <strong>495px canvas on 667px phone</strong>
+  <br>Current: 216px chrome → 451px canvas · <strong>Gain: 44px</strong> (ContextBar removal)
+</p>
+
+</body>
+</html>

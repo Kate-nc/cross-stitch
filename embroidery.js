@@ -706,15 +706,15 @@ function renderStitch(ctx,pts,b,type,dir){ctx.save();ctx.beginPath();ctx.moveTo(
 function renderArrow(ctx,b,dir){const len=Math.min(b.w,b.h)*.2;if(len<5)return;const cx=b.x+b.w/2,cy=b.y+b.h/2,rad=(dir||0)*Math.PI/180,cos=Math.cos(rad),sin=Math.sin(rad);ctx.save();ctx.strokeStyle="#fff";ctx.fillStyle="#fff";ctx.lineWidth=2.5;ctx.shadowColor="rgba(0,0,0,0.6)";ctx.shadowBlur=4;ctx.beginPath();ctx.moveTo(cx-cos*len,cy-sin*len);ctx.lineTo(cx+cos*len,cy+sin*len);ctx.stroke();const a=6;ctx.beginPath();ctx.moveTo(cx+cos*len,cy+sin*len);ctx.lineTo(cx+cos*len-cos*a-sin*a*.5,cy+sin*len-sin*a+cos*a*.5);ctx.lineTo(cx+cos*len-cos*a+sin*a*.5,cy+sin*len-sin*a-cos*a*.5);ctx.closePath();ctx.fill();ctx.restore();}
 
 function getRecommendations(region, allRegions){const recs=[];const{stitch,area,bounds,direction}=region;const aspect=bounds.w>0&&bounds.h>0?Math.max(bounds.w,bounds.h)/Math.min(bounds.w,bounds.h):1;const isNarrow=aspect>4,isTiny=area<300,isSmall=area<800,isMedium=area>=800&&area<3000,isLarge=area>=3000,isVLarge=area>=6000;
-  if(stitch==="satin"&&isLarge)recs.push({type:"warning",icon:"⚠️",msg:"Region may be too large for satin — threads can sag.",suggest:"Try Long & Short for better coverage.",fix:{stitch:"longshort"}});
-  if(stitch==="frenchknot"&&isLarge)recs.push({type:"tip",icon:"💡",msg:"Large area for French knots — very time-consuming.",suggest:"Seed stitch gives similar texture with less effort.",fix:{stitch:"seedstitch"}});
-  if(stitch==="longshort"&&isSmall)recs.push({type:"tip",icon:"💡",msg:"Small enough for clean satin stitch — smoother finish.",suggest:"Switch to Satin.",fix:{stitch:"satin"}});
-  if(stitch==="stemstitch"&&isVLarge)recs.push({type:"warning",icon:"⚠️",msg:"Stem stitch is for outlines, not large fills.",suggest:"Use Chain stitch for a looped fill.",fix:{stitch:"chainstitch"}});
-  if(isNarrow&&(stitch==="longshort"||stitch==="chainstitch"||stitch==="seedstitch"))recs.push({type:"tip",icon:"💡",msg:"Narrow shape — fill stitches may not read well.",suggest:"Stem stitch along the length works naturally.",fix:{stitch:"stemstitch",direction:bounds.w>bounds.h?0:90}});
-  if(isTiny&&(stitch==="longshort"||stitch==="chainstitch"||stitch==="seedstitch"))recs.push({type:"tip",icon:"💡",msg:"Very small region — a few French knots may be enough.",suggest:"Switch to French Knots.",fix:{stitch:"frenchknot"}});
-  if(stitch==="satin"&&isNarrow){const id=bounds.w>bounds.h?90:0;if(Math.abs(direction-id)>20&&Math.abs(direction-id-360)>20)recs.push({type:"tip",icon:"💡",msg:"Satin stitches look best across the narrow width.",suggest:`Try ${id}° for perpendicular stitches.`,fix:{direction:id}});}
-  if(stitch==="satin"&&!isNarrow&&isMedium&&direction===0&&bounds.w!==bounds.h)recs.push({type:"tip",icon:"🧭",msg:"Default direction may not suit this shape. Try adjusting for a natural flow.",suggest:"Rotate to follow the shape.",fix:null});
-  for(const other of allRegions){if(other.id===region.id)continue;const gap=15;const near=!(other.bounds.x>bounds.x+bounds.w+gap||other.bounds.x+other.bounds.w<bounds.x-gap||other.bounds.y>bounds.y+bounds.h+gap||other.bounds.y+other.bounds.h<bounds.y-gap);if(!near)continue;const cd=(region.avgColor[0]-other.avgColor[0])**2+(region.avgColor[1]-other.avgColor[1])**2+(region.avgColor[2]-other.avgColor[2])**2;if(cd<3000&&cd>200){recs.push({type:"tip",icon:"🎨",msg:`Similar colour to "${other.label}" nearby.`,suggest:"Long & Short can blend them at the boundary.",fix:{stitch:"longshort"}});break;}}
+  if(stitch==="satin"&&isLarge)recs.push({type:"warning",icon:"warning",msg:"Region may be too large for satin — threads can sag.",suggest:"Try Long & Short for better coverage.",fix:{stitch:"longshort"}});
+  if(stitch==="frenchknot"&&isLarge)recs.push({type:"tip",icon:"lightbulb",msg:"Large area for French knots — very time-consuming.",suggest:"Seed stitch gives similar texture with less effort.",fix:{stitch:"seedstitch"}});
+  if(stitch==="longshort"&&isSmall)recs.push({type:"tip",icon:"lightbulb",msg:"Small enough for clean satin stitch — smoother finish.",suggest:"Switch to Satin.",fix:{stitch:"satin"}});
+  if(stitch==="stemstitch"&&isVLarge)recs.push({type:"warning",icon:"warning",msg:"Stem stitch is for outlines, not large fills.",suggest:"Use Chain stitch for a looped fill.",fix:{stitch:"chainstitch"}});
+  if(isNarrow&&(stitch==="longshort"||stitch==="chainstitch"||stitch==="seedstitch"))recs.push({type:"tip",icon:"lightbulb",msg:"Narrow shape — fill stitches may not read well.",suggest:"Stem stitch along the length works naturally.",fix:{stitch:"stemstitch",direction:bounds.w>bounds.h?0:90}});
+  if(isTiny&&(stitch==="longshort"||stitch==="chainstitch"||stitch==="seedstitch"))recs.push({type:"tip",icon:"lightbulb",msg:"Very small region — a few French knots may be enough.",suggest:"Switch to French Knots.",fix:{stitch:"frenchknot"}});
+  if(stitch==="satin"&&isNarrow){const id=bounds.w>bounds.h?90:0;if(Math.abs(direction-id)>20&&Math.abs(direction-id-360)>20)recs.push({type:"tip",icon:"lightbulb",msg:"Satin stitches look best across the narrow width.",suggest:`Try ${id}° for perpendicular stitches.`,fix:{direction:id}});}
+  if(stitch==="satin"&&!isNarrow&&isMedium&&direction===0&&bounds.w!==bounds.h)recs.push({type:"tip",icon:"compass",msg:"Default direction may not suit this shape. Try adjusting for a natural flow.",suggest:"Rotate to follow the shape.",fix:null});
+  for(const other of allRegions){if(other.id===region.id)continue;const gap=15;const near=!(other.bounds.x>bounds.x+bounds.w+gap||other.bounds.x+other.bounds.w<bounds.x-gap||other.bounds.y>bounds.y+bounds.h+gap||other.bounds.y+other.bounds.h<bounds.y-gap);if(!near)continue;const cd=(region.avgColor[0]-other.avgColor[0])**2+(region.avgColor[1]-other.avgColor[1])**2+(region.avgColor[2]-other.avgColor[2])**2;if(cd<3000&&cd>200){recs.push({type:"tip",icon:"palette",msg:`Similar colour to "${other.label}" nearby.`,suggest:"Long & Short can blend them at the boundary.",fix:{stitch:"longshort"}});break;}}
   return recs;}
 
 // ============================================================
@@ -1464,13 +1464,15 @@ function EmbroideryApp(){
                 <div key={i} className={'emb-rec'+(isW?' emb-rec--warn':' emb-rec--tip')} style={{marginBottom:i<selRecs.length-1?4:0}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:6}}>
                     <div style={{flex:1}}>
-                      <div className="emb-rec-msg"><span style={{marginRight:'var(--s-1)'}}>{rec.icon}</span>{rec.msg}</div>
+                      <div className="emb-rec-msg"><span aria-hidden="true" style={{marginRight:'var(--s-1)',display:'inline-flex',verticalAlign:'-2px'}}>{Icons[rec.icon]?Icons[rec.icon]():null}</span>{rec.msg}</div>
                       <div className="emb-rec-suggest">{rec.suggest}</div>
                     </div>
-                    <button className="emb-rec-dismiss" onClick={()=>setDismissed(p=>new Set(p).add(`${sel.id}-${rec.msg.slice(0,20)}`))}>×</button>
+                    <button className="emb-rec-dismiss" aria-label="Dismiss" onClick={()=>setDismissed(p=>new Set(p).add(`${sel.id}-${rec.msg.slice(0,20)}`))}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.x?Icons.x():"\u00D7"}</span></button>
                   </div>
-                  {rec.fix&&<button className={'emb-btn emb-btn--sm'+(isW?' emb-btn--amber':' emb-btn--primary')} onClick={()=>updateR(sel.id,rec.fix)} style={{marginTop:6}}>
-                    Apply{rec.fix.stitch?` → ${STITCHES.find(s=>s.id===rec.fix.stitch)?.name||""}`:""}{rec.fix.direction!==undefined?` → ${rec.fix.direction}°`:""}
+                  {rec.fix&&<button className={'emb-btn emb-btn--sm'+(isW?' emb-btn--amber':' emb-btn--primary')} onClick={()=>updateR(sel.id,rec.fix)} style={{marginTop:6,display:'inline-flex',alignItems:'center',gap:4}}>
+                    <span>Apply</span>
+                    {rec.fix.stitch&&<><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronRight()}</span><span>{STITCHES.find(s=>s.id===rec.fix.stitch)?.name||""}</span></>}
+                    {rec.fix.direction!==undefined&&<><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronRight()}</span><span>{rec.fix.direction}°</span></>}
                   </button>}
                 </div>);})}</div>}
 

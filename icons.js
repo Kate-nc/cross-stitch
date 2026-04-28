@@ -505,6 +505,78 @@ window.Icons = (function() {
         l(5, 7, 11, 17),
         l(19, 7, 13, 17)
       );
+    },
+    // Compass — replaces 🧭 (embroidery direction tip)
+    compass: function() {
+      return svg(c(12, 12, 10), poly('16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76'));
     }
+  };
+})();
+
+// ─── SVG-string serializer ───────────────────────────────────────────────
+// Some legacy DOM helpers (toast.js, status banners) need icons as raw markup
+// rather than React elements. window.Icons.svgString(name) renders the same
+// React element tree to an inline <svg>…</svg> string suitable for
+// element.innerHTML. Returns "" if the icon is unknown.
+//
+// The serializer only handles the SVG primitives produced by the icon
+// factories above (svg/path/circle/line/polyline/rect/polygon) — adding new
+// element types to icons.js means adding them here too.
+(function() {
+  'use strict';
+  var ATTR_MAP = {
+    className: 'class',
+    strokeWidth: 'stroke-width',
+    strokeLinecap: 'stroke-linecap',
+    strokeLinejoin: 'stroke-linejoin',
+    strokeDasharray: 'stroke-dasharray',
+    strokeOpacity: 'stroke-opacity',
+    fillOpacity: 'fill-opacity',
+    textAnchor: 'text-anchor',
+    fontSize: 'font-size',
+    fontFamily: 'font-family',
+    viewBox: 'viewBox'
+  };
+  // Props that don't belong on the rendered SVG (React metadata or layout
+  // hints not needed inside markup-string consumers).
+  var SKIP = { children: 1, key: 1, ref: 1, style: 1 };
+
+  function escape(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function attrs(props) {
+    var out = '';
+    for (var k in props) {
+      if (!Object.prototype.hasOwnProperty.call(props, k)) continue;
+      if (SKIP[k]) continue;
+      var v = props[k];
+      if (v == null || v === false) continue;
+      var name = ATTR_MAP[k] || k;
+      out += ' ' + name + '="' + escape(v) + '"';
+    }
+    return out;
+  }
+
+  function serialize(node) {
+    if (node == null || typeof node === 'boolean') return '';
+    if (typeof node === 'string' || typeof node === 'number') return escape(node);
+    if (Array.isArray(node)) return node.map(serialize).join('');
+    if (typeof node !== 'object' || !node.type) return '';
+    if (typeof node.type !== 'string') return ''; // unsupported component
+    var inner = '';
+    var kids = node.props && node.props.children;
+    if (kids != null) inner = serialize(kids);
+    return '<' + node.type + attrs(node.props || {}) + (inner ? '>' + inner + '</' + node.type + '>' : '/>');
+  }
+
+  window.Icons.svgString = function(name) {
+    var fn = window.Icons && window.Icons[name];
+    if (typeof fn !== 'function') return '';
+    try { return serialize(fn()); } catch (_) { return ''; }
   };
 })();
