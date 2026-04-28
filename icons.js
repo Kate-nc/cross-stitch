@@ -171,6 +171,11 @@ window.Icons = (function() {
     plus: function() {
       return svg(l(12,5,12,19), l(5,12,19,12));
     },
+    // Minus — generic "remove / subtract" sign. Used by the threads-needed
+    // rail in the Stitch Tracker to indicate "remove from stash".
+    minus: function() {
+      return svg(l(5,12,19,12));
+    },
     // Park-marker flag — small triangular pennant. Used by the Tracker Phase 4
     // mobile dock to toggle the parking colour picker / clear marker affordance.
     parkFlag: function() {

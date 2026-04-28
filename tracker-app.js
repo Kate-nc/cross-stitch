@@ -432,7 +432,7 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
 // the right. Both surfaces are CSS-gated to >=600px viewports; phone
 // keeps its existing chrome (action bar + dock + mode pill).
 // ═══════════════════════════════════════════════════════════════
-function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setFocusColour,stitchView,setStitchView,todayStitchesForBar,liveAutoElapsed,liveAutoStitches,onPickProject}){
+function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setFocusColour,stitchView,setStitchView,todayStitchesForBar,liveAutoElapsed,liveAutoStitches,onPickProject,skeinData,globalStash,onToggleOwned}){
   const[recent,setRecent]=React.useState([]);
   React.useEffect(function(){
     let cancelled=false;
@@ -505,26 +505,81 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
         React.createElement('div',{className:'tsp-stat'},React.createElement('span',null,'Active'),React.createElement('strong',null,(liveAutoStitches||0).toLocaleString()+' st'))
       ),
       React.createElement('section',{className:'tsp-card'},
-        React.createElement('h3',{className:'tsp-h'},'Palette · '+(pal?pal.length:0)+' colours'),
-        React.createElement('div',{className:'tsp-pal'},
-          (pal||[]).map(function(p){
-            var dc=colourDoneCounts?colourDoneCounts[p.id]:null;
-            var rem=dc?Math.max(0,(dc.total||0)-(dc.done||0)):0;
-            var rgb=cmap&&cmap[p.id]?cmap[p.id].rgb:null;
-            var isOn=focusColour===p.id;
-            return React.createElement('button',{
-              key:p.id,type:'button',
-              className:'tsp-row'+(isOn?' tsp-row--on':''),
-              onClick:function(){if(stitchView!=='highlight')setStitchView('highlight');setFocusColour(p.id);},
-              title:'DMC '+p.id+' — '+(p.name||'')
-            },
-              React.createElement('span',{className:'tsp-sw',style:rgb?{background:'rgb('+rgb+')'}:{}}),
-              React.createElement('span',{className:'tsp-id'},p.id),
-              React.createElement('span',{className:'tsp-name'},p.name||''),
-              React.createElement('span',{className:'tsp-rem'},rem.toLocaleString())
+        // Threads-needed view (replaces the duplicate palette legend).
+        // Decomposes blends into individual DMC IDs via skeinData and
+        // splits "Owned" vs "Need to buy" using the global stash. The
+        // ownership toggle writes through StashBridge so /manager and
+        // the shopping list stay in sync.
+        (function(){
+          const rows=(skeinData||[]).map(function(d){
+            const gs=(globalStash&&(globalStash['dmc:'+d.id]||globalStash[d.id]))||null;
+            const owned=gs&&typeof gs.owned==='number'?gs.owned:0;
+            // "Have" if user owns at least the estimated skein count.
+            const have=owned>=d.skeins&&d.skeins>0;
+            // Find a palette entry whose stitches use this thread, so
+            // clicking a row sets a sensible focus colour. Prefer a
+            // solid match; fall back to any blend that contains it.
+            let focusId=null;
+            if(pal){
+              const solid=pal.find(function(pp){return pp.type==='solid'&&pp.id===d.id;});
+              if(solid)focusId=solid.id;
+              else{
+                const blend=pal.find(function(pp){return pp.type==='blend'&&pp.threads&&pp.threads.some(function(t){return t.id===d.id;});});
+                if(blend)focusId=blend.id;
+              }
+            }
+            return{d,owned,have,focusId};
+          });
+          const ownedRows=rows.filter(function(r){return r.have;});
+          const needRows=rows.filter(function(r){return !r.have;});
+          // Sort each group by skeins-needed descending so the biggest
+          // shopping items surface first; tie-break by DMC ID asc.
+          function _sortBySkeins(a,b){
+            if(b.d.skeins!==a.d.skeins)return b.d.skeins-a.d.skeins;
+            const an=parseInt(a.d.id,10),bn=parseInt(b.d.id,10);
+            if(isFinite(an)&&isFinite(bn))return an-bn;
+            return String(a.d.id).localeCompare(String(b.d.id));
+          }
+          ownedRows.sort(_sortBySkeins);
+          needRows.sort(_sortBySkeins);
+          function renderRow(r){
+            const d=r.d;
+            const isOn=focusColour&&r.focusId===focusColour;
+            return React.createElement('div',{key:d.id,className:'tsp-row tsp-row--thread'+(isOn?' tsp-row--on':'')},
+              React.createElement('button',{
+                type:'button',className:'tsp-thread-main',
+                onClick:function(){if(!r.focusId)return;if(stitchView!=='highlight')setStitchView('highlight');setFocusColour(r.focusId);},
+                title:'DMC '+d.id+(d.name?(' — '+d.name):'')+' · '+d.skeins+' skein'+(d.skeins===1?'':'s')+' needed'
+              },
+                React.createElement('span',{className:'tsp-sw',style:{background:'rgb('+(d.rgb||[128,128,128]).join(',')+')'}}),
+                React.createElement('span',{className:'tsp-id'},d.id),
+                React.createElement('span',{className:'tsp-name'},d.name||''),
+                React.createElement('span',{className:'tsp-rem',title:'Skeins needed'},d.skeins+'\u00D7'),
+                r.have
+                  ? React.createElement('span',{className:'tsp-own-pip tsp-own-pip--have',title:'You have '+r.owned+' skein'+(r.owned===1?'':'s')+' of DMC '+d.id+' in your stash','aria-label':'In stash'},window.Icons.check())
+                  : React.createElement('span',{className:'tsp-own-pip tsp-own-pip--need',title:'You have '+r.owned+' skein'+(r.owned===1?'':'s')+' \u2014 need '+(d.skeins-r.owned)+' more','aria-label':'Need to buy'},(d.skeins-r.owned)+'\u00D7')
+              ),
+              typeof onToggleOwned==='function' && React.createElement('button',{
+                type:'button',className:'tsp-stash-btn',
+                onClick:function(e){e.stopPropagation();onToggleOwned(d.id,r.have?Math.max(0,r.owned-d.skeins):d.skeins);},
+                title:r.have?('Remove '+d.skeins+' skein'+(d.skeins===1?'':'s')+' of DMC '+d.id+' from your stash'):('Mark '+d.skeins+' skein'+(d.skeins===1?'':'s')+' of DMC '+d.id+' as owned'),
+                'aria-label':r.have?'Remove from stash':'Add to stash'
+              },r.have?window.Icons.minus():window.Icons.plus())
             );
-          })
-        )
+          }
+          return React.createElement(React.Fragment,null,
+            React.createElement('h3',{className:'tsp-h'},'Threads needed \u00B7 '+rows.length),
+            (needRows.length>0)&&React.createElement('div',{className:'tsp-group'},
+              React.createElement('div',{className:'tsp-group-h'},'To buy \u00B7 '+needRows.length),
+              React.createElement('div',{className:'tsp-pal'},needRows.map(renderRow))
+            ),
+            (ownedRows.length>0)&&React.createElement('div',{className:'tsp-group'},
+              React.createElement('div',{className:'tsp-group-h'},'In stash \u00B7 '+ownedRows.length),
+              React.createElement('div',{className:'tsp-pal'},ownedRows.map(renderRow))
+            ),
+            rows.length===0&&React.createElement('div',{className:'tsp-empty'},'No threads in this pattern')
+          );
+        })()
       )
     )
   );
@@ -703,6 +758,14 @@ const showCtr=true;
 const[bsLines,setBsLines]=useState([]);
 
 const[done,setDone]=useState(null);
+// ── BUGFIX: live ref to latest `done` so toggle/bulk callbacks always
+//    read the freshest array even when invoked before React commits a
+//    prior setDone. Prevents the "marking a new stitch unmarks all
+//    previous in-session stitches" regression caused by stale closures
+//    in fast-tap sequences (incremental counters survive because they
+//    use refs; the visible `done` array did not).
+const doneRef=useRef(null);
+doneRef.current=done;
 const[doneSnapshots,setDoneSnapshots]=useState([]);
 const lastSnapshotDateRef=useRef(null);
 const[trackHistory,setTrackHistory]=useState([]);
@@ -874,6 +937,12 @@ useEffect(()=>{
 useEffect(()=>{manuallyPausedRef.current=manuallyPaused;},[manuallyPaused]);
 const[advanceToast,setAdvanceToast]=useState(null);
 const[parkMarkers,setParkMarkers]=useState([]);
+// Multi-colour parking — Option C: per-colour visibility map.
+// Keys are DMC IDs (or blend IDs). Missing key = visible (default true).
+// Persisted per project alongside layerVis (cs_parkLayers_<projectId>).
+const[parkLayers,setParkLayers]=useState({});
+// Convenience: a marker is visible iff parkLayers[colourId] !== false.
+function isParkLayerVisible(cid){return parkLayers[cid]!==false;}
 // ── Stitching Style & Spatial Focus Area ──
 const[stitchingStyle,setStitchingStyle]=useState(()=>{try{var ls=localStorage.getItem("cs_stitchStyle");if(ls)return ls;var p=window.UserPrefs&&window.UserPrefs.get("trackerStitchingStyle");return p||"block";}catch(_){return"block";}});
 const[blockW,setBlockW]=useState(()=>{try{var ls=localStorage.getItem("cs_blockW");if(ls)return Math.max(5,Math.min(100,parseInt(ls)));var bs=(window.UserPrefs&&window.UserPrefs.get("trackerBlockShape"))||"10x10";var w=parseInt(String(bs).split("x")[0],10);return isFinite(w)?Math.max(5,Math.min(100,w)):10;}catch(_){return 10;}});
@@ -1002,17 +1071,27 @@ const[leftSidebarTab,setLeftSidebarTab]=useState(()=>{
 useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLeftSidebarOpen",!!leftSidebarOpen);}catch(_){}},[leftSidebarOpen]);
 useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLeftSidebarTab",leftSidebarTab);}catch(_){}},[leftSidebarTab]);
 
-// Phase 4: palette-legend sort key persisted via UserPrefs.
+// Phase 4: palette-legend sort key persisted via UserPrefs (global default)
+// AND per-project (cs_legendSort_<pid>) overlay. Per-project takes
+// precedence when present — set in processLoadedProject. Writes go to
+// both so the next new project picks up the user's last preference.
 const[legendSort,setLegendSort]=useState(()=>{
   try{var p=window.UserPrefs&&window.UserPrefs.get("trackerLegendSort");return p||"id";}catch(_){return"id";}
 });
-useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLegendSort",legendSort);}catch(_){}},[legendSort]);
+useEffect(()=>{
+  try{window.UserPrefs&&window.UserPrefs.set("trackerLegendSort",legendSort);}catch(_){}
+  try{const pid=projectIdRef.current;if(pid)localStorage.setItem('cs_legendSort_'+pid,legendSort);}catch(_){}
+},[legendSort]);
 
-// Issue #6 — desktop palette legend collapsible. Persists via UserPrefs.
+// Issue #6 — desktop palette legend collapsible. Persists via UserPrefs
+// (global default) AND per-project (cs_legendCollapsed_<pid>) overlay.
 const[legendCollapsed,setLegendCollapsed]=useState(()=>{
   try{var p=window.UserPrefs&&window.UserPrefs.get("trackerLegendCollapsed");return !!p;}catch(_){return false;}
 });
-useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLegendCollapsed",!!legendCollapsed);}catch(_){}},[legendCollapsed]);
+useEffect(()=>{
+  try{window.UserPrefs&&window.UserPrefs.set("trackerLegendCollapsed",!!legendCollapsed);}catch(_){}
+  try{const pid=projectIdRef.current;if(pid)localStorage.setItem('cs_legendCollapsed_'+pid,legendCollapsed?'1':'0');}catch(_){}
+},[legendCollapsed]);
 
 // Phase 5: ESC closes the mobile lpanel drawer. Desktop ignores it
 // (the panel is sticky / persistent and ESC could clobber other modal
@@ -1094,6 +1173,31 @@ const effectiveCombinedDone=statsCountMode==='visible'?(layerVis.full?doneCount:
 const progressPct=effectiveCombinedTotal>0?Math.round(effectiveCombinedDone/effectiveCombinedTotal*1000)/10:0;
 // Today's stitches for progress bar accent segment
 const todayStitchesForBar=useMemo(()=>{if(!statsSessions)return 0;const deh=(statsSettings&&statsSettings.dayEndHour)||0;return getStatsTodayStitches(statsSessions,deh)+liveAutoStitches;},[statsSessions,liveAutoStitches,statsSettings]);
+// Multi-colour parking — per-colour count for the legend "park" pip.
+const parkCountsByColour=useMemo(()=>{
+  const out={};
+  if(!parkMarkers||!parkMarkers.length)return out;
+  for(let i=0;i<parkMarkers.length;i++){
+    const id=parkMarkers[i].colorId;
+    if(id)out[id]=(out[id]||0)+1;
+  }
+  return out;
+},[parkMarkers]);
+const totalParkedColours=useMemo(()=>Object.keys(parkCountsByColour).length,[parkCountsByColour]);
+const allParkLayersHidden=useMemo(()=>{
+  if(totalParkedColours===0)return false;
+  for(const id in parkCountsByColour){if(parkLayers[id]!==false)return false;}
+  return true;
+},[parkCountsByColour,parkLayers,totalParkedColours]);
+function toggleParkLayer(cid){setParkLayers(prev=>{const next=Object.assign({},prev);next[cid]=!(next[cid]!==false);if(next[cid])delete next[cid];return next;});}
+function setAllParkLayersVisible(visible){
+  setParkLayers(prev=>{
+    if(visible)return{};
+    const next=Object.assign({},prev);
+    for(const id in parkCountsByColour)next[id]=false;
+    return next;
+  });
+}
 const weekStitchesForChip=useMemo(()=>{if(!statsSessions)return 0;const deh=(statsSettings&&statsSettings.dayEndHour)||0;return getStatsThisWeekStitches(statsSessions,deh)+liveAutoStitches;},[statsSessions,liveAutoStitches,statsSettings]);
 const todayBarPct=effectiveCombinedTotal>0?Math.min((todayStitchesForBar/effectiveCombinedTotal)*100,Math.min(progressPct,100)):0;
 const prevBarPct=Math.max(0,Math.min(progressPct,100)-todayBarPct);
@@ -1106,6 +1210,7 @@ const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total
 // Full recompute only on structural changes (pattern load, half-stitch structure edits)
 useEffect(()=>{recomputeAllCounts(pat,done,halfStitches,halfDone);},[pat,halfStitches]);
 useEffect(()=>{const pid=projectIdRef.current;if(!pid)return;try{localStorage.setItem('cs_layerVis_'+pid,JSON.stringify(layerVis));}catch(_){}},[layerVis]);
+useEffect(()=>{const pid=projectIdRef.current;if(!pid)return;try{localStorage.setItem('cs_parkLayers_'+pid,JSON.stringify(parkLayers));}catch(_){}},[parkLayers]);
 useEffect(()=>{try{localStorage.setItem('cs_bsThickness',String(bsThickness));}catch(_){}},[bsThickness]);
 // ── Zoom-adaptive detail level ──
 const[lockDetailLevel,setLockDetailLevel]=useState(()=>{try{return !!JSON.parse(localStorage.getItem('cs_lockDetail')||'false');}catch(e){console.warn('cs_lockDetail corrupted, resetting:',e);try{localStorage.removeItem('cs_lockDetail');}catch(_){}return false;}});
@@ -1672,7 +1777,7 @@ const threadUsageSummary=useMemo(()=>{
   return{isolated,small,medium,large,total,estChanges,mostScattered,mostClustered};
 },[analysisResult,pat]);
 
-function markColourDone(cid,md){if(!pat||!done)return;let changes=[];let nd=new Uint8Array(done);for(let i=0;i<pat.length;i++)if(pat[i].id===cid){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0){pushTrackHistory(changes);applyDoneCountsDelta(changes,pat,nd);}setDone(nd);}
+function markColourDone(cid,md){const cur=doneRef.current;if(!pat||!cur)return;let changes=[];let nd=new Uint8Array(cur);for(let i=0;i<pat.length;i++)if(pat[i].id===cid){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0){pushTrackHistory(changes);applyDoneCountsDelta(changes,pat,nd);}doneRef.current=nd;setDone(nd);}
 function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);setTimeout(()=>setCopied(null),2000);}).catch(()=>{});}
 function copyProgressSummary(){
   let t=totalTime+liveAutoElapsed;
@@ -2748,6 +2853,11 @@ function processLoadedProject(project){
   setProjectDescription(project.description||"");
   projectIdRef.current = project.id || null;
   try{const saved=localStorage.getItem('cs_layerVis_'+(project.id||''));if(saved)setLayerVis(JSON.parse(saved));else setLayerVis(ALL_LAYERS_VISIBLE);}catch(_){setLayerVis(ALL_LAYERS_VISIBLE);}
+  try{const saved=localStorage.getItem('cs_parkLayers_'+(project.id||''));setParkLayers(saved?JSON.parse(saved):{});}catch(_){setParkLayers({});}
+  // Per-project legend overlay (sort + collapsed). When absent, the
+  // current global UserPrefs default is left in place.
+  try{const ls=localStorage.getItem('cs_legendSort_'+(project.id||''));if(ls)setLegendSort(ls);}catch(_){}
+  try{const lc=localStorage.getItem('cs_legendCollapsed_'+(project.id||''));if(lc!==null)setLegendCollapsed(lc==='1');}catch(_){}
   const normalisedCreatedAt=(()=>{
     const value=project.createdAt;
     if(value==null||value==="")return null;
@@ -3432,6 +3542,9 @@ function drawStitch(ctx,cSz,viewportRect){
     ctx.restore();
   }
   if(parkMarkers.length>0){parkMarkers.forEach(pm=>{
+    // Multi-colour parking — Option C: skip markers whose colour layer
+    // is hidden via the legend toggle.
+    if(parkLayers[pm.colorId]===false)return;
     const corner=pm.corner||"BL";
     const px2=gut+pm.x*cSz,py2=gut+pm.y*cSz;
     const ts=Math.max(3,Math.min(cSz*0.4,10));
@@ -3465,7 +3578,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
     };
   }
   drawStitch(canvas.getContext("2d"),scs,viewportRect);
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,parkLayers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade]);
 useEffect(()=>renderStitch(),[renderStitch]);
 // Keep renderStitchRef current so animation callbacks always call the latest closure
 useEffect(()=>{renderStitchRef.current=renderStitch;},[renderStitch]);
@@ -4038,7 +4151,25 @@ function handleStitchMouseDown(e){
     if(e.shiftKey||!selectedColorId||!cmap||!cmap[selectedColorId]){
       let gc2=gridCoord(stitchRef,e,scs,G,false);if(gc2&&gc2.gx>=0&&gc2.gx<sW&&gc2.gy>=0&&gc2.gy<sH){setHlRow(gc2.gy);setHlCol(gc2.gx);}
     }else{
-      if(gx>=0&&gx<=sW&&gy>=0&&gy<=sH){let existing=parkMarkers.findIndex(m=>m.x===gx&&m.y===gy&&m.colorId===selectedColorId);if(existing>=0)setParkMarkers(prev=>prev.filter((_,i)=>i!==existing));else setParkMarkers(prev=>[...prev,{x:gx,y:gy,colorId:selectedColorId,rgb:cmap[selectedColorId].rgb,corner:"BL"}]);}
+      if(gx>=0&&gx<sW&&gy>=0&&gy<sH){let existing=parkMarkers.findIndex(m=>m.x===gx&&m.y===gy&&m.colorId===selectedColorId);if(existing>=0)setParkMarkers(prev=>prev.filter((_,i)=>i!==existing));else setParkMarkers(prev=>{
+        // Multi-colour parking — Option A: auto-rotate corners.
+        // Pick the next free corner at this cell in [BL, BR, TR, TL]
+        // order so up to 4 colours can be parked on the same cell
+        // without visually overwriting each other. If all four are
+        // taken, replace the OLDEST marker at this cell (FIFO).
+        const ORDER=["BL","BR","TR","TL"];
+        const atCell=prev.filter(m=>m.x===gx&&m.y===gy);
+        const used=new Set(atCell.map(m=>m.corner||"BL"));
+        let corner=ORDER.find(c=>!used.has(c));
+        let next=prev;
+        if(!corner){
+          // All four corners occupied — evict the oldest at this cell.
+          const oldestIdx=prev.findIndex(m=>m===atCell[0]);
+          if(oldestIdx>=0)next=prev.filter((_,i)=>i!==oldestIdx);
+          corner=atCell[0].corner||"BL";
+        }
+        return[...next,{x:gx,y:gy,colorId:selectedColorId,rgb:cmap[selectedColorId].rgb,corner}];
+      });}
     }
     return;
   }
@@ -4332,6 +4463,96 @@ function ensureFocusColour(){
   if(first)setFocusColour(first.id);
 }
 
+// Jump to the next remaining stitch of the focus colour, honouring the
+// user's stitching preferences (startCorner from the wizard / preferences
+// modal). Scan order:
+//   TL (or default) — top→bottom, left→right
+//   TR              — top→bottom, right→left
+//   BL              — bottom→top, left→right
+//   BR              — bottom→top, right→left
+//   C               — nearest unmarked cell to the centre of the chart
+// Wraps around from the current crosshair position so repeated presses
+// step through every remaining stitch of the focus colour.
+function jumpToNextStitch(){
+  if(!pat||!sW||!sH)return;
+  let target=focusColour;
+  if(!target){
+    const first=focusableColors.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];
+    if(!first)return;
+    target=first.id;
+    setFocusColour(first.id);
+  }
+  const cur=doneRef.current;
+  function _matches(cell){
+    if(!cell||cell.id==="__skip__"||cell.id==="__empty__")return false;
+    if(cell.id===target)return true;
+    if(cell.type==="blend"){
+      if(typeof cell.id==="string"&&cell.id.split("+").indexOf(target)>=0)return true;
+      if(Array.isArray(cell.threads)&&cell.threads.some(function(t){return t&&t.id===target;}))return true;
+    }
+    return false;
+  }
+  function _isOpen(idx){return !cur||!cur[idx];}
+  let foundX=-1,foundY=-1;
+  if(startCorner==="C"){
+    // Nearest unmarked stitch of focus colour to the chart centre.
+    const cxC=Math.floor(sW/2),cyC=Math.floor(sH/2);
+    let best=Infinity;
+    for(let y=0;y<sH;y++){
+      for(let x=0;x<sW;x++){
+        const idx=y*sW+x;
+        if(!_matches(pat[idx])||!_isOpen(idx))continue;
+        const dx=x-cxC,dy=y-cyC;const d=dx*dx+dy*dy;
+        if(d<best){best=d;foundX=x;foundY=y;}
+      }
+    }
+  }else{
+    const xRev=startCorner==="TR"||startCorner==="BR";
+    const yRev=startCorner==="BL"||startCorner==="BR";
+    const stepX=xRev?-1:1,stepY=yRev?-1:1;
+    const startX=xRev?sW-1:0,endX=xRev?-1:sW;
+    const startY=yRev?sH-1:0,endY=yRev?-1:sH;
+    const fromX=hlCol>=0&&hlCol<sW?hlCol:startX;
+    const fromY=hlRow>=0&&hlRow<sH?hlRow:startY;
+    function scan(sx,sy,ex,ey,skipFirst){
+      let first=skipFirst;
+      for(let y=sy;y!==ey;y+=stepY){
+        const rowStart=(y===sy)?sx:startX;
+        for(let x=rowStart;x!==endX;x+=stepX){
+          if(first){first=false;continue;}
+          const idx=y*sW+x;
+          if(_matches(pat[idx])&&_isOpen(idx)){foundX=x;foundY=y;return true;}
+        }
+      }
+      return false;
+    }
+    // First pass: from current cursor (skip current cell) to end corner.
+    if(!scan(fromX,fromY,endX,endY,true)){
+      // Wrap-around: from start corner up to (and including) cursor.
+      foundX=-1;foundY=-1;
+      for(let y=startY;y!==fromY+stepY;y+=stepY){
+        const rowEnd=(y===fromY)?fromX+stepX:endX;
+        for(let x=startX;x!==rowEnd;x+=stepX){
+          const idx=y*sW+x;
+          if(_matches(pat[idx])&&_isOpen(idx)){foundX=x;foundY=y;break;}
+        }
+        if(foundX>=0)break;
+      }
+    }
+  }
+  if(foundX<0||foundY<0){
+    try{if(window.Toast&&window.Toast.show)window.Toast.show({message:"No remaining stitches for DMC "+target,type:"info"});}catch(_){}
+    return;
+  }
+  setHlRow(foundY);setHlCol(foundX);
+  if(stitchScrollRef.current){
+    const el=stitchScrollRef.current;
+    const px=G+foundX*scs+scs/2,py=G+foundY*scs+scs/2;
+    try{el.scrollTo({left:Math.max(0,px-el.clientWidth/2),top:Math.max(0,py-el.clientHeight/2),behavior:'smooth'});}
+    catch(_){el.scrollLeft=Math.max(0,px-el.clientWidth/2);el.scrollTop=Math.max(0,py-el.clientHeight/2);}
+  }
+}
+
 useShortcuts(!isActive ? [] : [
   // Esc cascade — preserves original priority order. Listed hidden because
   // Esc semantics are implicit and documented in every modal.
@@ -4487,6 +4708,13 @@ useShortcuts(!isActive ? [] : [
   { id: "tracker.hl.spotlight", keys: "4", scope: "tracker.view.highlight",
     description: "Highlight: spotlight",
     run: () => { ensureFocusColour(); setHighlightMode("spotlight"); } },
+  // Jump-to-next: hops the crosshair to the next remaining stitch of the
+  // focus colour using the wizard / preferences-modal startCorner setting
+  // (TL/TR/BL/BR/C). Available outside highlight view too \u2014 it sets the
+  // focus colour from the first incomplete one when none is selected.
+  { id: "tracker.jumpNext", keys: "j", scope: "tracker.notedit",
+    description: "Jump to next remaining stitch of focus colour",
+    run: () => jumpToNextStitch() },
 ],[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,tOverflowOpen,drawer,halfDisambig,focusColour,pat,pal,undoSnapshot,countsVer,trackHistory,redoStack,highlightMode,manuallyPaused,layerVis,colourDoneCounts,focusEnabled,focusBlock,stitchingStyle,blockW,blockH,sW,sH,startCorner]);
 
 // Update stable handler refs every render (cheap assignment, no DOM work)
@@ -4563,10 +4791,13 @@ const _pulseCells=useCallback(function(idxList){
 const[dragMarkPulse,setDragMarkPulse]=useState(null);
 
 const _commitBulk=useCallback(function(set,intent,source){
-  if(!pat||!done||!set||!set.size)return;
+  // BUGFIX: read live `done` via doneRef so back-to-back commits before
+  // React commits a prior setDone don't rewind earlier in-session marks.
+  const cur=doneRef.current;
+  if(!pat||!cur||!set||!set.size)return;
   const want=intent==='mark'?1:0;
   const changes=[];
-  const nd=new Uint8Array(done);
+  const nd=new Uint8Array(cur);
   set.forEach(function(idx){
     if(idx<0||idx>=pat.length)return;
     const cell=pat[idx];
@@ -4582,30 +4813,55 @@ const _commitBulk=useCallback(function(set,intent,source){
   if(!changes.length)return;
   pushBulkToggleHistory(changes,source);
   applyDoneCountsDelta(changes,pat,nd);
+  doneRef.current=nd;
   setDone(nd);
   if(typeof renderStitch==='function')renderStitch();
   _pulseCells(changes.map(function(c){return c.idx;}));
-},[pat,done,focusColour,_pulseCells]);
+  // BUGFIX (#2): explicitly start/extend the auto-session for drag-mark commits.
+  // The diff-based useEffect at line ~1419 sometimes misses bulk commits when
+  // setCountsVer + setDone batch into the same render but prevAutoCountRef has
+  // already been updated by an interleaving render. Calling recordAutoActivity
+  // here guarantees the session timer starts the moment a drag finishes, no
+  // matter how many cells were marked. We also pre-update prevAutoCountRef to
+  // the new value so the diff-based useEffect won't double-count.
+  let _bulkCompleted=0,_bulkUndone=0;
+  for(let _i=0;_i<changes.length;_i++){if(changes[_i].oldVal===0)_bulkCompleted++;else _bulkUndone++;}
+  if(_bulkCompleted>0||_bulkUndone>0){
+    recordAutoActivity(_bulkCompleted,_bulkUndone);
+    prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||(prevAutoCountRef.current&&prevAutoCountRef.current.halfDone)||0};
+  }
+},[pat,focusColour,_pulseCells,recordAutoActivity,halfStitchCounts]);
 
 const _dragMarkOnToggle=useCallback(function(idx){
   // C3: single-cell tap from useDragMark (touch + mouse). Uses the
   // standard pushTrackHistory machinery for a single-cell undo step.
-  if(!pat||!done)return;
+  // BUGFIX: read live `done` via doneRef so two taps inside one render
+  // frame each see the most-recent array, not a stale closure copy.
+  const cur=doneRef.current;
+  if(!pat||!cur)return;
   if(idx<0||idx>=pat.length)return;
   const cell=pat[idx];
   if(!cell||cell.id==='__skip__'||cell.id==='__empty__')return;
   // C3: colour-lock filter — match the legacy handlers' fullStitchMatchesFocus check.
   if(typeof isColourLocked==='function'&&isColourLocked()
      &&!fullStitchMatchesFocus(idx))return;
-  const oldVal=done[idx];
+  const oldVal=cur[idx];
   const nv=oldVal?0:1;
-  const nd=new Uint8Array(done);
+  const nd=new Uint8Array(cur);
   nd[idx]=nv;
   pushTrackHistory([{idx:idx,oldVal:oldVal}]);
   applyDoneCountsDelta([{idx:idx,oldVal:oldVal}],pat,nd);
+  doneRef.current=nd;
   setDone(nd);
   if(typeof renderStitch==='function')renderStitch();
-},[pat,done,focusColour]);
+  // BUGFIX (#2): mirror _commitBulk — explicitly record the single-tap so the
+  // session timer starts immediately rather than depending on the doneCount
+  // diff useEffect.
+  if(oldVal!==nv){
+    if(nv)recordAutoActivity(1,0);else recordAutoActivity(0,1);
+    prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||(prevAutoCountRef.current&&prevAutoCountRef.current.halfDone)||0};
+  }
+},[pat,focusColour,isColourLocked,fullStitchMatchesFocus,pushTrackHistory,applyDoneCountsDelta,renderStitch,recordAutoActivity,halfStitchCounts]);
 
 const _dragMarkOnCommitDrag=useCallback(function(set,intent){
   _commitBulk(set,intent,'drag');
@@ -4790,7 +5046,8 @@ return(
           <div style={{padding:"4px 14px 6px"}}><select value={selectedColorId||""} onChange={e=>setSelectedColorId(e.target.value||null)} style={{fontSize:'var(--text-xs)',padding:"4px 8px",borderRadius:'var(--radius-sm)',border:"0.5px solid var(--border)",width:"100%"}}>
             <option value="">No parking colour</option>{pal.map(p=><option key={p.id} value={p.id}>DMC {p.id} — {p.name.slice(0,20)}</option>)}
           </select></div>
-          {parkMarkers.length>0&&<button className="tb-ovf-item" onClick={()=>{setParkMarkers([]);setTOverflowOpen(false);}}>Clear park markers</button>}
+          {parkMarkers.length>0&&<button className="tb-ovf-item" onClick={()=>{setParkMarkers([]);setParkLayers({});setTOverflowOpen(false);}}>Clear park markers</button>}
+          {totalParkedColours>0&&<button className="tb-ovf-item" onClick={()=>{setAllParkLayersVisible(allParkLayersHidden);setTOverflowOpen(false);}}>{allParkLayersHidden?"Show":"Hide"} all parked colours</button>}
           <div className="tb-ovf-sep"/>
         </>}
         {stitchMode==="track"&&trackHistory.length>0&&<button className="tb-ovf-item" onClick={()=>{undoTrack();setTOverflowOpen(false);}} style={{display:'inline-flex',alignItems:'center',gap:6}}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.undo?Icons.undo():null}</span>Undo ({trackHistory.length})</button>}
@@ -5397,6 +5654,9 @@ return(
                 {!isEditMode&&<>
                   <div className="prog"><div className="pf" style={{width:pct+"%"}}/></div>
                   <span className="ct">{dc.done}/{dc.total}</span>
+                  {/* Multi-colour parking — per-colour visibility toggle.
+                      Pip is hidden when this colour has no parked markers. */}
+                  {parkCountsByColour[p.id]>0&&<button onClick={e2=>{e2.stopPropagation();toggleParkLayer(p.id);}} title={(isParkLayerVisible(p.id)?"Hide":"Show")+" "+parkCountsByColour[p.id]+" parked marker"+(parkCountsByColour[p.id]===1?"":"s")+" for this colour"} aria-label={(isParkLayerVisible(p.id)?"Hide":"Show")+" parked markers for DMC "+p.id} aria-pressed={isParkLayerVisible(p.id)} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:9,padding:"1px 5px",borderRadius:4,border:"1px solid var(--border)",background:isParkLayerVisible(p.id)?`rgb(${p.rgb[0]},${p.rgb[1]},${p.rgb[2]})`:"var(--surface)",color:isParkLayerVisible(p.id)?(luminance(p.rgb)>140?"#000":"#fff"):"var(--text-tertiary)",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,fontWeight:600,opacity:isParkLayerVisible(p.id)?1:0.55}}>P{parkCountsByColour[p.id]>1?("\u00D7"+parkCountsByColour[p.id]):""}</button>}
                   <button onClick={e2=>{e2.stopPropagation();if(!complete){const unmarked=dc.total-dc.done;if(unmarked>50&&!confirm("Mark all "+unmarked+" stitches of DMC "+p.id+" as done?"))return;}markColourDone(p.id,!complete);}} style={{fontSize:9,padding:"1px 6px",borderRadius:4,border:"1px solid "+(complete?"var(--danger-soft)":"var(--success-soft)"),background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}} title={complete?"Mark colour as not done":"Mark colour as done"} aria-label={complete?"Mark colour as not done":"Mark colour as done"}>{complete?"Undo":(Icons.check?Icons.check():"\u2713")}</button>
                 </>}
               </div>;
@@ -5605,8 +5865,8 @@ return(
       </div>
       {!legendCollapsed && <div className="rp-tab-content">
       {/* Palette legend (sortable). Single list — focus + highlight in one tap. */}
-      <div className="rp-section" style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-        <div className="col-list" style={{maxHeight:"none",flex:1}}>
+      <div className="rp-section" style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        <div className="col-list" style={{maxHeight:"none",flex:1,minHeight:0,overflowY:"auto"}}>
           {(()=>{
             const rows=pal.map(p=>{
               const dc=colourDoneCounts[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
@@ -5637,6 +5897,8 @@ return(
                 {!isEditMode&&<>
                   <div className="prog"><div className="pf" style={{width:pct+"%"}}/></div>
                   <span className="ct">{dc.done}/{dc.total}</span>
+                  {/* Multi-colour parking — per-colour visibility toggle. */}
+                  {parkCountsByColour[p.id]>0&&<button onClick={e2=>{e2.stopPropagation();toggleParkLayer(p.id);}} title={(isParkLayerVisible(p.id)?"Hide":"Show")+" "+parkCountsByColour[p.id]+" parked marker"+(parkCountsByColour[p.id]===1?"":"s")+" for this colour"} aria-label={(isParkLayerVisible(p.id)?"Hide":"Show")+" parked markers for DMC "+p.id} aria-pressed={isParkLayerVisible(p.id)} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:9,padding:"1px 5px",borderRadius:4,border:"1px solid var(--border)",background:isParkLayerVisible(p.id)?`rgb(${p.rgb[0]},${p.rgb[1]},${p.rgb[2]})`:"var(--surface)",color:isParkLayerVisible(p.id)?(luminance(p.rgb)>140?"#000":"#fff"):"var(--text-tertiary)",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,fontWeight:600,opacity:isParkLayerVisible(p.id)?1:0.55}}>P{parkCountsByColour[p.id]>1?("\u00D7"+parkCountsByColour[p.id]):""}</button>}
                   <button onClick={e2=>{e2.stopPropagation();if(!complete){const unmarked=dc.total-dc.done;if(unmarked>50&&!confirm("Mark all "+unmarked+" stitches of DMC "+p.id+" as done?"))return;}markColourDone(p.id,!complete);}} style={{fontSize:9,padding:"1px 6px",borderRadius:4,border:"1px solid "+(complete?"var(--danger-soft)":"var(--success-soft)"),background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}} title={complete?"Mark colour as not done":"Mark colour as done"} aria-label={complete?"Mark colour as not done":"Mark colour as done"}>{complete?"Undo":(Icons.check?Icons.check():"\u2713")}</button>
                 </>}
                 {isEditMode&&<span style={{fontSize:10,color:"#A06F2D",fontWeight:600}} aria-label="Edit colour">{Icons.pencil?Icons.pencil():"\u270E"}</span>}
@@ -5662,6 +5924,22 @@ return(
     todayStitchesForBar={todayStitchesForBar}
     liveAutoElapsed={liveAutoElapsed}
     liveAutoStitches={liveAutoStitches}
+    skeinData={skeinData}
+    globalStash={globalStash}
+    onToggleOwned={(id,newOwned)=>{
+      // Persist ownership change to the global stash and refresh the
+      // local mirror so the rail re-renders with the updated counts.
+      // Same code path used by the project-completion deduct prompt.
+      (async()=>{
+        try{
+          if(typeof StashBridge!=='undefined'&&StashBridge.updateThreadOwned){
+            await StashBridge.updateThreadOwned(id,newOwned);
+            const fresh=await StashBridge.getGlobalStash();
+            setGlobalStash(fresh);
+          }
+        }catch(err){console.warn('updateThreadOwned failed:',err);}
+      })();
+    }}
     onPickProject={(id)=>{
       if(!id||id===projectIdRef.current)return;
       ProjectStorage.get(id).then(p=>{

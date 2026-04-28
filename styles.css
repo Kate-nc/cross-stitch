@@ -2428,6 +2428,37 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
   .tsp-name{font-size:11px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .tsp-rem{font-size:10px;color:var(--text-tertiary);font-variant-numeric:tabular-nums;}
 
+  /* Threads-needed view (tracker rail). Decomposed individual threads,
+     grouped by stash ownership; ties into the global stash via
+     StashBridge.updateThreadOwned so /manager stays in sync. */
+  .tsp-group{margin-top:6px;}
+  .tsp-group:first-of-type{margin-top:0;}
+  .tsp-group-h{font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.06em;margin:6px 0 2px;padding:0 2px;}
+  .tsp-row--thread{grid-template-columns:1fr auto;padding:0;background:transparent;}
+  .tsp-row--thread:hover{background:transparent;}
+  .tsp-row--thread.tsp-row--on .tsp-thread-main{background:var(--accent-light,#F4DDCF);}
+  .tsp-thread-main{
+    display:grid;grid-template-columns:14px auto 1fr auto auto;gap:6px;align-items:center;
+    padding:4px 6px;border:none;background:transparent;border-radius:6px;
+    text-align:left;cursor:pointer;font:inherit;color:var(--text-primary);
+    width:100%;min-width:0;
+  }
+  .tsp-thread-main:hover{background:var(--surface-tertiary);}
+  .tsp-own-pip{
+    display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:16px;padding:0 4px;
+    font-size:9px;font-weight:700;border-radius:4px;font-variant-numeric:tabular-nums;
+  }
+  .tsp-own-pip--have{background:var(--success-soft);color:var(--success);}
+  .tsp-own-pip--need{background:var(--danger-soft);color:var(--danger);}
+  .tsp-stash-btn{
+    flex-shrink:0;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;
+    border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;
+    font-size:14px;font-weight:600;color:var(--text-secondary);font-family:inherit;line-height:1;
+    margin-left:4px;
+  }
+  .tsp-stash-btn:hover{background:var(--surface-tertiary);color:var(--text-primary);}
+  .tsp-empty{font-size:11px;color:var(--text-tertiary);font-style:italic;padding:6px;}
+
   /* Hide phone-only chrome on tablet+. */
   body.tracker-mobile .tracker-mode-pill{display:none;}
   body.tracker-mobile .tracker-tool-dock{display:none;}
