@@ -65,22 +65,12 @@
     }, [wizard.step]);
 
     // Escape -> confirm discard (don't lose the user's work silently).
-    React.useEffect(function () {
-      function onKey(e) {
-        if (e.key === "Escape") {
-          e.stopPropagation();
-          setDiscardOpen(true);
-        }
-      }
-      if (typeof document !== "undefined" && document.addEventListener) {
-        document.addEventListener("keydown", onKey, true);
-      }
-      return function () {
-        if (typeof document !== "undefined" && document.removeEventListener) {
-          document.removeEventListener("keydown", onKey, true);
-        }
-      };
-    }, []);
+    // Routed through the central useEscape stack so it composes correctly
+    // with any modal opened on top of the wizard (e.g. the discard
+    // confirmation, nested toasts).
+    if (typeof window !== "undefined" && window.useEscape) {
+      window.useEscape(function () { setDiscardOpen(true); }, { skipWhenEditingTextField: false });
+    }
 
     function onCancel() {
       wizard.reset();

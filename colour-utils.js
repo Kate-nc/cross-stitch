@@ -53,8 +53,9 @@ function quantize(data,w,h,n,allowedPalette,options){
   var maxN=Math.min(n,pool.length);
   let seed=(options&&options.seed!=null)?options.seed:1337;
   function random(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}
-  let px=[], len=w*h;
-  for(let i=0;i<len;i++){let j=i*4;px.push(rgbToLab(data[j],data[j+1],data[j+2]));}
+  // PERF (perf-1 #1): pre-allocate px[] (was push in tight per-pixel loop)
+  let len=w*h, px=new Array(len);
+  for(let i=0;i<len;i++){let j=i*4;px[i]=rgbToLab(data[j],data[j+1],data[j+2]);}
   let cs=[px[Math.floor(random()*px.length)]];
   let ds=new Float32Array(px.length);
   for(let i=0;i<px.length;i++){ds[i]=1e9;}
@@ -1430,10 +1431,16 @@ function dE2000(lab1, lab2) {
   );
 
   _de2000Cache.set(k, result);
-  // PERF (perf-8 #4): evict oldest entry if cache exceeds bound.
+  // PERF (perf-8 #10): batch-evict 10% of cap once full instead of one-at-a-time;
+  // the previous single-entry eviction churned a delete + rebalance per insert at the cap.
   if (_de2000Cache.size > _DE2000_CACHE_MAX) {
-    const firstKey = _de2000Cache.keys().next().value;
-    if (firstKey !== undefined) _de2000Cache.delete(firstKey);
+    const evictCount = (_DE2000_CACHE_MAX / 10) | 0;
+    const it = _de2000Cache.keys();
+    for (let _e = 0; _e < evictCount; _e++) {
+      const r = it.next();
+      if (r.done) break;
+      _de2000Cache.delete(r.value);
+    }
   }
   return result;
 }

@@ -81,6 +81,10 @@ window.Icons = (function() {
     trash: function() {
       return svg(pl('3 6 5 6 21 6'), p('M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2'), l(10,11,10,17), l(14,11,14,17));
     },
+    // Copy / duplicate — used by the Shopping list "Copy" action.
+    copy: function() {
+      return svg(rc(9, 9, 13, 13, 2), p('M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'));
+    },
     // Settings gear — replaces ⚙️
     gear: function() {
       return svg(
@@ -157,6 +161,26 @@ window.Icons = (function() {
     // Magnify with minus bar — replaces 🔎 (remove highlight)
     magnifyMinus: function() {
       return svg(c(11,11,8), l(21,21,16.65,16.65), l(8,11,14,11));
+    },
+    // Magnify with plus bar — used by the Tracker Phase 4 mobile dock for "Zoom in".
+    magnifyPlus: function() {
+      return svg(c(11,11,8), l(21,21,16.65,16.65), l(8,11,14,11), l(11,8,11,14));
+    },
+    // Plus — generic "add / new" sign. Used by the /home landing tiles and
+    // any other "create new …" affordance per UX-12 Phase 7.
+    plus: function() {
+      return svg(l(12,5,12,19), l(5,12,19,12));
+    },
+    // Park-marker flag — small triangular pennant. Used by the Tracker Phase 4
+    // mobile dock to toggle the parking colour picker / clear marker affordance.
+    parkFlag: function() {
+      return svg(l(5,21,5,4), p('M5 4h11l-2 4 2 4H5'));
+    },
+    // Half-stitch — diagonal slash inside a square. Used by the Tracker Phase 4
+    // mobile dock to switch the active stitch into "highlight" view, where
+    // half-stitch placement is exposed via the canvas tap interaction.
+    halfStitch: function() {
+      return svg(rc(4,4,16,16,2), l(4,20,20,4));
     },
     // Info circle — replaces ℹ️
     info: function() {
@@ -377,6 +401,14 @@ window.Icons = (function() {
     menu: function() {
       return svg(l(3, 6, 21, 6), l(3, 12, 21, 12), l(3, 18, 21, 18));
     },
+    // Printer — used by the Creator outcome action bar (UX-12 Phase 5).
+    printer: function() {
+      return svg(
+        pl('6 9 6 2 18 2 18 9'),
+        p('M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2'),
+        rc(6, 14, 12, 8)
+      );
+    },
     // Chevron up — replaces ▲ ↑
     chevronUp: function() {
       return svg(pl('18 15 12 9 6 15'));
@@ -439,6 +471,112 @@ window.Icons = (function() {
         l(13, 8, 15, 10),
         l(16, 5, 18, 7)
       );
+    },
+    // Sparkles — replaces 🤖 (used by the embroidery auto-detect card)
+    sparkles: function() {
+      return svg(
+        p('M12 3v4M12 17v4M3 12h4M17 12h4'),
+        p('M5.6 5.6l2.5 2.5M15.9 15.9l2.5 2.5M5.6 18.4l2.5-2.5M15.9 8.1l2.5-2.5')
+      );
+    },
+    // Arrows horizontal — replaces ⟺ (used by the split-view drag handle)
+    arrowsHorizontal: function() {
+      return svg(
+        l(3, 12, 21, 12),
+        p('M7 8l-4 4 4 4'),
+        p('M17 8l4 4-4 4')
+      );
+    },
+    // Lasso — replaces 🧲 (used by the embroidery lasso-select tool)
+    lasso: function() {
+      return svg(
+        p('M3 12c0-4 4-7 9-7s9 3 9 7-4 7-9 7c-1.4 0-2.7-.2-3.9-.6'),
+        p('M9 18.4c-.7 1-1.5 1.8-2.5 2.1-.9.3-1.6 0-1.6-.8 0-.7.5-1.4 1.3-1.9'),
+        c(6.5, 19, 1.2)
+      );
+    },
+    // Nodes / shape edit — replaces ◇ (used by the embroidery edit-shape tool)
+    nodes: function() {
+      return svg(
+        rc(3, 3, 4, 4, 0.5),
+        rc(17, 3, 4, 4, 0.5),
+        rc(10, 17, 4, 4, 0.5),
+        l(7, 5, 17, 5),
+        l(5, 7, 11, 17),
+        l(19, 7, 13, 17)
+      );
+    },
+    // Compass — replaces 🧭 (embroidery direction tip)
+    compass: function() {
+      return svg(c(12, 12, 10), poly('16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76'));
     }
+  };
+})();
+
+// ─── SVG-string serializer ───────────────────────────────────────────────
+// Some legacy DOM helpers (toast.js, status banners) need icons as raw markup
+// rather than React elements. window.Icons.svgString(name) renders the same
+// React element tree to an inline <svg>…</svg> string suitable for
+// element.innerHTML. Returns "" if the icon is unknown.
+//
+// The serializer only handles the SVG primitives produced by the icon
+// factories above (svg/path/circle/line/polyline/rect/polygon) — adding new
+// element types to icons.js means adding them here too.
+(function() {
+  'use strict';
+  var ATTR_MAP = {
+    className: 'class',
+    strokeWidth: 'stroke-width',
+    strokeLinecap: 'stroke-linecap',
+    strokeLinejoin: 'stroke-linejoin',
+    strokeDasharray: 'stroke-dasharray',
+    strokeOpacity: 'stroke-opacity',
+    fillOpacity: 'fill-opacity',
+    textAnchor: 'text-anchor',
+    fontSize: 'font-size',
+    fontFamily: 'font-family',
+    viewBox: 'viewBox'
+  };
+  // Props that don't belong on the rendered SVG (React metadata or layout
+  // hints not needed inside markup-string consumers).
+  var SKIP = { children: 1, key: 1, ref: 1, style: 1 };
+
+  function escape(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function attrs(props) {
+    var out = '';
+    for (var k in props) {
+      if (!Object.prototype.hasOwnProperty.call(props, k)) continue;
+      if (SKIP[k]) continue;
+      var v = props[k];
+      if (v == null || v === false) continue;
+      var name = ATTR_MAP[k] || k;
+      out += ' ' + name + '="' + escape(v) + '"';
+    }
+    return out;
+  }
+
+  function serialize(node) {
+    if (node == null || typeof node === 'boolean') return '';
+    if (typeof node === 'string' || typeof node === 'number') return escape(node);
+    if (Array.isArray(node)) return node.map(serialize).join('');
+    if (typeof node !== 'object' || !node.type) return '';
+    if (typeof node.type !== 'string') return ''; // unsupported component
+    var inner = '';
+    var kids = node.props && node.props.children;
+    if (kids != null) inner = serialize(kids);
+    return '<' + node.type + attrs(node.props || {}) + (inner ? '>' + inner + '</' + node.type + '>' : '/>');
+  }
+
+  window.Icons.svgString = function(name) {
+    var fn = window.Icons && window.Icons[name];
+    if (typeof fn !== 'function') return '';
+    try { return serialize(fn()); } catch (_) { return ''; }
   };
 })();

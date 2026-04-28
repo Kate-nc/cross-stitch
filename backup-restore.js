@@ -210,8 +210,14 @@ const BackupRestore = (() => {
         try {
           if (typeof window !== "undefined" && window.Toast && window.Toast.show) {
             window.Toast.show({ message: msg, type: "error", duration: 8000 });
-          } else if (typeof window !== "undefined" && window.alert) {
-            window.alert(msg);
+          } else if (typeof console !== "undefined" && console.error) {
+            // Toast is part of the standard script load order, so the
+            // fallback path should be unreachable in practice. Logging the
+            // message instead of calling window.alert() keeps us inside the
+            // app's modal styling and avoids the system-dialog violation
+            // (audit batch 2 fix #2). The error is still re-thrown below
+            // so callers can react.
+            console.error("[BackupRestore]", msg);
           }
         } catch (_) {}
         throw err;

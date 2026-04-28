@@ -2,10 +2,10 @@ const { useState, useRef, useEffect, useCallback, useMemo } = React;
 
 const CW = 400, CH = 400;
 const NODE_R = 6, NODE_HIT = 12, EDGE_HIT = 8;
-const ACCENT = '#0d9488';
-const ACCENT_DARK = '#0f766e';
-const ACCENT_LIGHT = '#f0fdfa';
-const ACCENT_BORDER = '#99f6e4';
+const ACCENT = '#B85C38';
+const ACCENT_DARK = '#944526';
+const ACCENT_LIGHT = '#F4DDCF';
+const ACCENT_BORDER = '#E8B89A';
 
 // ============================================================
 // Pipeline constants
@@ -65,12 +65,12 @@ const ZOOM_STEP_BUTTON = 0.25;  // per toolbar button click
 const ZOOM_STEP_SCROLL = 0.1;   // per scroll tick
 
 const STITCHES = [
-  { id:"satin",name:"Satin",desc:"Smooth parallel fill",color:"#0d9488"},
-  { id:"longshort",name:"Long & Short",desc:"Blended shading fill",color:"#0f766e"},
+  { id:"satin",name:"Satin",desc:"Smooth parallel fill",color:"var(--accent)"},
+  { id:"longshort",name:"Long & Short",desc:"Blended shading fill",color:"var(--accent-hover)"},
   { id:"frenchknot",name:"French Knots",desc:"Textured dots",color:"#ec4899"},
-  { id:"chainstitch",name:"Chain",desc:"Looped fill/outline",color:"#14b8a6"},
+  { id:"chainstitch",name:"Chain",desc:"Looped fill/outline",color:"var(--accent)"},
   { id:"seedstitch",name:"Seed",desc:"Random short stitches",color:"#f59e0b"},
-  { id:"stemstitch",name:"Stem",desc:"Outline stitch",color:"#64748b"},
+  { id:"stemstitch",name:"Stem",desc:"Outline stitch",color:"var(--text-tertiary)"},
 ];
 
 const EMB_COLORS=[
@@ -117,7 +117,7 @@ function simplify(pts,tol){if(pts.length<3)return pts;const o=[pts[0]];for(let i
 // Rebuild smooth curve from control nodes
 function buildCurve(nodes){if(nodes.length<3)return nodes.slice();return catmull(nodes,6);}
 
-function kMeans(data,w,h,k,iters=15){if(!data||!data.length||k<=0||w<=0||h<=0)return{labels:new Int32Array(Math.max(0,(w|0)*(h|0))).fill(-1),centroids:[]};const N=w*h,valid=[];for(let i=0;i<N;i++)if(data[i*4+3]>30)valid.push(i);if(!valid.length)return{labels:new Int32Array(N).fill(-1),centroids:[]};const centroids=[];let first=valid[Math.floor(Math.random()*valid.length)];centroids.push([data[first*4],data[first*4+1],data[first*4+2]]);for(let c=1;c<k;c++){const step=Math.max(1,Math.floor(valid.length/2000));let tD=0;const ds=[];for(let s=0;s<valid.length;s+=step){const idx=valid[s]*4;let mD=1e9;for(const ct of centroids){const d=(data[idx]-ct[0])**2+(data[idx+1]-ct[1])**2+(data[idx+2]-ct[2])**2;if(d<mD)mD=d;}ds.push({i:valid[s],d:mD});tD+=mD;}let r=Math.random()*tD,pick=ds[0].i;for(const{i:ii,d}of ds){r-=d;if(r<=0){pick=ii;break;}}centroids.push([data[pick*4],data[pick*4+1],data[pick*4+2]]);}const labels=new Int32Array(N).fill(-1);for(let iter=0;iter<iters;iter++){for(let i=0;i<N;i++){const idx=i*4;if(data[idx+3]<=30){labels[i]=-1;continue;}let best=0,bd=1e9;for(let c=0;c<k;c++){const d=(data[idx]-centroids[c][0])**2+(data[idx+1]-centroids[c][1])**2+(data[idx+2]-centroids[c][2])**2;if(d<bd){bd=d;best=c;}}labels[i]=best;}const sums=Array.from({length:k},()=>[0,0,0,0]);for(let i=0;i<N;i++){if(labels[i]<0)continue;const idx=i*4,l=labels[i];sums[l][0]+=data[idx];sums[l][1]+=data[idx+1];sums[l][2]+=data[idx+2];sums[l][3]++;}let conv=true;for(let c=0;c<k;c++){if(!sums[c][3])continue;const nr=sums[c][0]/sums[c][3],ng=sums[c][1]/sums[c][3],nb=sums[c][2]/sums[c][3];if(Math.abs(nr-centroids[c][0])>.5)conv=false;centroids[c]=[nr,ng,nb];}if(conv)break;}return{labels,centroids};}
+function kMeans(data,w,h,k,iters=15){if(!data||!data.length||k<=0||w<=0||h<=0)return{labels:new Int32Array(Math.max(0,(w|0)*(h|0))).fill(-1),centroids:[]};const N=w*h,valid=[];for(let i=0;i<N;i++)if(data[i*4+3]>30)valid.push(i);if(!valid.length)return{labels:new Int32Array(N).fill(-1),centroids:[]};const centroids=[];let first=valid[Math.floor(Math.random()*valid.length)];centroids.push([data[first*4],data[first*4+1],data[first*4+2]]);for(let c=1;c<k;c++){const step=Math.max(1,Math.floor(valid.length/2000));let tD=0;const ds=[];for(let s=0;s<valid.length;s+=step){const idx=valid[s]*4;let mD=1e9;for(const ct of centroids){const d=(data[idx]-ct[0])**2+(data[idx+1]-ct[1])**2+(data[idx+2]-ct[2])**2;if(d<mD)mD=d;}ds.push({i:valid[s],d:mD});tD+=mD;}let r=Math.random()*tD,pick=ds[0].i;for(const{i:ii,d}of ds){r-=d;if(r<=0){pick=ii;break;}}centroids.push([data[pick*4],data[pick*4+1],data[pick*4+2]]);}const labels=new Int32Array(N).fill(-1);/* PERF (perf-1 #3): hoisted sums Float64Array, .fill(0) per iter instead of allocating k arrays */const sums=new Float64Array(k*4);for(let iter=0;iter<iters;iter++){for(let i=0;i<N;i++){const idx=i*4;if(data[idx+3]<=30){labels[i]=-1;continue;}let best=0,bd=1e9;for(let c=0;c<k;c++){const d=(data[idx]-centroids[c][0])**2+(data[idx+1]-centroids[c][1])**2+(data[idx+2]-centroids[c][2])**2;if(d<bd){bd=d;best=c;}}labels[i]=best;}sums.fill(0);for(let i=0;i<N;i++){if(labels[i]<0)continue;const idx=i*4,base=labels[i]*4;sums[base]+=data[idx];sums[base+1]+=data[idx+1];sums[base+2]+=data[idx+2];sums[base+3]++;}let conv=true;for(let c=0;c<k;c++){const base=c*4,cnt=sums[base+3];if(!cnt)continue;const nr=sums[base]/cnt,ng=sums[base+1]/cnt,nb=sums[base+2]/cnt;if(Math.abs(nr-centroids[c][0])>.5)conv=false;centroids[c]=[nr,ng,nb];}if(conv)break;}return{labels,centroids};}
 function extractBoundary(mask,w,h){const b=[];for(let y=0;y<h;y++)for(let x=0;x<w;x++){if(!mask[y*w+x])continue;if(x===0||!mask[y*w+x-1]||x===w-1||!mask[y*w+x+1]||y===0||!mask[(y-1)*w+x]||y===h-1||!mask[(y+1)*w+x])b.push([x,y]);}return b;}
 function traceContour(mask,w,h){const out=[];let sx=-1,sy=-1;outer:for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(mask[y*w+x]){sx=x;sy=y;break outer;}if(sx<0)return out;const dirs=[[-1,0],[-1,-1],[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1]];let cx=sx,cy=sy,cd=0;const mk=new Uint8Array(w*h);do{out.push([cx,cy]);mk[cy*w+cx]=1;let found=false;const start=(cd+5)%8;for(let s=0;s<8;s++){const d=(start+s)%8,[dx,dy]=dirs[d],nx=cx+dx,ny=cy+dy;if(nx>=0&&nx<w&&ny>=0&&ny<h&&mask[ny*w+nx]){cx=nx;cy=ny;cd=d;found=true;break;}}if(!found)break;}while(cx!==sx||cy!==sy);if(out.length>2)out.push(out[0].slice());return out;}
 function downsample(pts,n){if(pts.length<=n)return pts;const al=[0];for(let i=1;i<pts.length;i++)al.push(al[i-1]+Math.sqrt((pts[i][0]-pts[i-1][0])**2+(pts[i][1]-pts[i-1][1])**2));const tot=al[al.length-1];if(tot<1)return pts.slice(0,n);const step=tot/n;const out=[pts[0]];let nd=step;for(let i=1;i<pts.length&&out.length<n;i++)while(al[i]>=nd&&out.length<n){const sl=al[i]-al[i-1],t=sl>0?(nd-al[i-1])/sl:0;out.push([pts[i-1][0]+t*(pts[i][0]-pts[i-1][0]),pts[i-1][1]+t*(pts[i][1]-pts[i-1][1])]);nd+=step;}return out;}
@@ -706,15 +706,15 @@ function renderStitch(ctx,pts,b,type,dir){ctx.save();ctx.beginPath();ctx.moveTo(
 function renderArrow(ctx,b,dir){const len=Math.min(b.w,b.h)*.2;if(len<5)return;const cx=b.x+b.w/2,cy=b.y+b.h/2,rad=(dir||0)*Math.PI/180,cos=Math.cos(rad),sin=Math.sin(rad);ctx.save();ctx.strokeStyle="#fff";ctx.fillStyle="#fff";ctx.lineWidth=2.5;ctx.shadowColor="rgba(0,0,0,0.6)";ctx.shadowBlur=4;ctx.beginPath();ctx.moveTo(cx-cos*len,cy-sin*len);ctx.lineTo(cx+cos*len,cy+sin*len);ctx.stroke();const a=6;ctx.beginPath();ctx.moveTo(cx+cos*len,cy+sin*len);ctx.lineTo(cx+cos*len-cos*a-sin*a*.5,cy+sin*len-sin*a+cos*a*.5);ctx.lineTo(cx+cos*len-cos*a+sin*a*.5,cy+sin*len-sin*a-cos*a*.5);ctx.closePath();ctx.fill();ctx.restore();}
 
 function getRecommendations(region, allRegions){const recs=[];const{stitch,area,bounds,direction}=region;const aspect=bounds.w>0&&bounds.h>0?Math.max(bounds.w,bounds.h)/Math.min(bounds.w,bounds.h):1;const isNarrow=aspect>4,isTiny=area<300,isSmall=area<800,isMedium=area>=800&&area<3000,isLarge=area>=3000,isVLarge=area>=6000;
-  if(stitch==="satin"&&isLarge)recs.push({type:"warning",icon:"⚠️",msg:"Region may be too large for satin — threads can sag.",suggest:"Try Long & Short for better coverage.",fix:{stitch:"longshort"}});
-  if(stitch==="frenchknot"&&isLarge)recs.push({type:"tip",icon:"💡",msg:"Large area for French knots — very time-consuming.",suggest:"Seed stitch gives similar texture with less effort.",fix:{stitch:"seedstitch"}});
-  if(stitch==="longshort"&&isSmall)recs.push({type:"tip",icon:"💡",msg:"Small enough for clean satin stitch — smoother finish.",suggest:"Switch to Satin.",fix:{stitch:"satin"}});
-  if(stitch==="stemstitch"&&isVLarge)recs.push({type:"warning",icon:"⚠️",msg:"Stem stitch is for outlines, not large fills.",suggest:"Use Chain stitch for a looped fill.",fix:{stitch:"chainstitch"}});
-  if(isNarrow&&(stitch==="longshort"||stitch==="chainstitch"||stitch==="seedstitch"))recs.push({type:"tip",icon:"💡",msg:"Narrow shape — fill stitches may not read well.",suggest:"Stem stitch along the length works naturally.",fix:{stitch:"stemstitch",direction:bounds.w>bounds.h?0:90}});
-  if(isTiny&&(stitch==="longshort"||stitch==="chainstitch"||stitch==="seedstitch"))recs.push({type:"tip",icon:"💡",msg:"Very small region — a few French knots may be enough.",suggest:"Switch to French Knots.",fix:{stitch:"frenchknot"}});
-  if(stitch==="satin"&&isNarrow){const id=bounds.w>bounds.h?90:0;if(Math.abs(direction-id)>20&&Math.abs(direction-id-360)>20)recs.push({type:"tip",icon:"💡",msg:"Satin stitches look best across the narrow width.",suggest:`Try ${id}° for perpendicular stitches.`,fix:{direction:id}});}
-  if(stitch==="satin"&&!isNarrow&&isMedium&&direction===0&&bounds.w!==bounds.h)recs.push({type:"tip",icon:"🧭",msg:"Default direction may not suit this shape. Try adjusting for a natural flow.",suggest:"Rotate to follow the shape.",fix:null});
-  for(const other of allRegions){if(other.id===region.id)continue;const gap=15;const near=!(other.bounds.x>bounds.x+bounds.w+gap||other.bounds.x+other.bounds.w<bounds.x-gap||other.bounds.y>bounds.y+bounds.h+gap||other.bounds.y+other.bounds.h<bounds.y-gap);if(!near)continue;const cd=(region.avgColor[0]-other.avgColor[0])**2+(region.avgColor[1]-other.avgColor[1])**2+(region.avgColor[2]-other.avgColor[2])**2;if(cd<3000&&cd>200){recs.push({type:"tip",icon:"🎨",msg:`Similar colour to "${other.label}" nearby.`,suggest:"Long & Short can blend them at the boundary.",fix:{stitch:"longshort"}});break;}}
+  if(stitch==="satin"&&isLarge)recs.push({type:"warning",icon:"warning",msg:"Region may be too large for satin — threads can sag.",suggest:"Try Long & Short for better coverage.",fix:{stitch:"longshort"}});
+  if(stitch==="frenchknot"&&isLarge)recs.push({type:"tip",icon:"lightbulb",msg:"Large area for French knots — very time-consuming.",suggest:"Seed stitch gives similar texture with less effort.",fix:{stitch:"seedstitch"}});
+  if(stitch==="longshort"&&isSmall)recs.push({type:"tip",icon:"lightbulb",msg:"Small enough for clean satin stitch — smoother finish.",suggest:"Switch to Satin.",fix:{stitch:"satin"}});
+  if(stitch==="stemstitch"&&isVLarge)recs.push({type:"warning",icon:"warning",msg:"Stem stitch is for outlines, not large fills.",suggest:"Use Chain stitch for a looped fill.",fix:{stitch:"chainstitch"}});
+  if(isNarrow&&(stitch==="longshort"||stitch==="chainstitch"||stitch==="seedstitch"))recs.push({type:"tip",icon:"lightbulb",msg:"Narrow shape — fill stitches may not read well.",suggest:"Stem stitch along the length works naturally.",fix:{stitch:"stemstitch",direction:bounds.w>bounds.h?0:90}});
+  if(isTiny&&(stitch==="longshort"||stitch==="chainstitch"||stitch==="seedstitch"))recs.push({type:"tip",icon:"lightbulb",msg:"Very small region — a few French knots may be enough.",suggest:"Switch to French Knots.",fix:{stitch:"frenchknot"}});
+  if(stitch==="satin"&&isNarrow){const id=bounds.w>bounds.h?90:0;if(Math.abs(direction-id)>20&&Math.abs(direction-id-360)>20)recs.push({type:"tip",icon:"lightbulb",msg:"Satin stitches look best across the narrow width.",suggest:`Try ${id}° for perpendicular stitches.`,fix:{direction:id}});}
+  if(stitch==="satin"&&!isNarrow&&isMedium&&direction===0&&bounds.w!==bounds.h)recs.push({type:"tip",icon:"compass",msg:"Default direction may not suit this shape. Try adjusting for a natural flow.",suggest:"Rotate to follow the shape.",fix:null});
+  for(const other of allRegions){if(other.id===region.id)continue;const gap=15;const near=!(other.bounds.x>bounds.x+bounds.w+gap||other.bounds.x+other.bounds.w<bounds.x-gap||other.bounds.y>bounds.y+bounds.h+gap||other.bounds.y+other.bounds.h<bounds.y-gap);if(!near)continue;const cd=(region.avgColor[0]-other.avgColor[0])**2+(region.avgColor[1]-other.avgColor[1])**2+(region.avgColor[2]-other.avgColor[2])**2;if(cd<3000&&cd>200){recs.push({type:"tip",icon:"palette",msg:`Similar colour to "${other.label}" nearby.`,suggest:"Long & Short can blend them at the boundary.",fix:{stitch:"longshort"}});break;}}
   return recs;}
 
 // ============================================================
@@ -1025,10 +1025,10 @@ function EmbroideryApp(){
       ctx.save();ctx.lineCap="round";ctx.lineJoin="round";
       const[bx0,by0]=cb(curPts[0][0],curPts[0][1]);ctx.beginPath();ctx.moveTo(bx0,by0);
       for(let i=1;i<curPts.length;i++){const[bxi,byi]=cb(curPts[i][0],curPts[i][1]);ctx.lineTo(bxi,byi);}
-      ctx.strokeStyle="#14b8a6";ctx.lineWidth=2.5;ctx.stroke();
+      ctx.strokeStyle="#B85C38";ctx.lineWidth=2.5;ctx.stroke();
       const[bxL,byL]=cb(curPts[curPts.length-1][0],curPts[curPts.length-1][1]);
-      ctx.setLineDash([4,4]);ctx.strokeStyle="#14b8a688";ctx.beginPath();ctx.moveTo(bxL,byL);ctx.lineTo(bx0,by0);ctx.stroke();ctx.setLineDash([]);
-      ctx.beginPath();ctx.arc(bx0,by0,6,0,Math.PI*2);ctx.fillStyle="#14b8a6";ctx.fill();ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.stroke();
+      ctx.setLineDash([4,4]);ctx.strokeStyle="#B85C3888";ctx.beginPath();ctx.moveTo(bxL,byL);ctx.lineTo(bx0,by0);ctx.stroke();ctx.setLineDash([]);
+      ctx.beginPath();ctx.arc(bx0,by0,6,0,Math.PI*2);ctx.fillStyle="#B85C38";ctx.fill();ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.stroke();
       ctx.restore();
     }
     // Magnetic lasso overlay (buffer-space)
@@ -1289,13 +1289,13 @@ function EmbroideryApp(){
       {modal==='help'&&typeof HelpModal!=='undefined'&&<HelpModal onClose={()=>setModal(null)}/>}
       {modal==='shortcuts'&&typeof ShortcutsModal!=='undefined'&&<ShortcutsModal onClose={()=>setModal(null)}/>}
       <div className="emb-container">
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <div style={{display:"flex",alignItems:"center",gap:'var(--s-2)'}}>
           <h2 className="emb-title" style={{margin:0}}>Embroidery Pattern Planner</h2>
           <span style={{display:"inline-block",backgroundColor:"#fbbf24",color:"#000",padding:"4px 8px",borderRadius:"4px",fontSize:"0.75em",fontWeight:"bold"}}>BETA</span>
         </div>
         <p className="emb-subtitle">Turn images into hand embroidery patterns with stitch annotations</p>
         <div className="upload-area" onClick={()=>fileRef.current?.click()}>
-          <div style={{fontSize:36}}>🧵</div>
+          <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--accent)",width:48,height:48}}>{Icons.thread()}</div>
           <p className="emb-upload-text">Upload your own image</p>
           <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{display:"none"}}/>
           <button className="emb-btn emb-btn--primary" onClick={e=>{e.stopPropagation();fileRef.current?.click();}}>Upload Image</button>
@@ -1312,7 +1312,7 @@ function EmbroideryApp(){
       {modal==='shortcuts'&&typeof ShortcutsModal!=='undefined'&&<ShortcutsModal onClose={()=>setModal(null)}/>}
       <div className="emb-container">
         <div className="emb-nav-row">
-          <button className="emb-back-btn" onClick={()=>{setPhase("upload");setImgSrc(null);imgRef.current=null;}}>←</button>
+          <button className="emb-back-btn" aria-label="Back" onClick={()=>{setPhase("upload");setImgSrc(null);imgRef.current=null;}}><span style={{display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{Icons.chevronLeft()}</span></button>
           <h2 className="emb-heading">Segmentation</h2>
         </div>
         <div className="card" style={{marginBottom:14}}>
@@ -1320,8 +1320,8 @@ function EmbroideryApp(){
         </div>
         <div className="emb-method-row">
           <div className="emb-method-card emb-method-card--auto">
-            <div style={{textAlign:"center",marginBottom:8}}>
-              <span style={{fontSize:26}}>🤖</span>
+            <div style={{textAlign:"center",marginBottom:'var(--s-2)'}}>
+              <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--accent)",width:32,height:32}}>{Icons.sparkles()}</span>
               <h3 className="emb-method-title">Auto Detect</h3>
               <p className="emb-method-desc">SLIC superpixel segmentation</p>
             </div>
@@ -1341,11 +1341,11 @@ function EmbroideryApp(){
           </div>
           <div className="emb-method-card emb-method-card--draw">
             <div style={{textAlign:"center"}}>
-              <span style={{fontSize:26}}>✏️</span>
+              <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--accent)",width:32,height:32}}>{Icons.pencil()}</span>
               <h3 className="emb-method-title">Draw by Hand</h3>
               <p className="emb-method-desc">Freehand trace regions</p>
             </div>
-            <button className="emb-btn emb-btn--secondary emb-btn--full" onClick={startDraw} style={{marginTop:12}}>Start Drawing</button>
+            <button className="emb-btn emb-btn--secondary emb-btn--full" onClick={startDraw} style={{marginTop:'var(--s-3)'}}>Start Drawing</button>
           </div>
         </div>
       </div>
@@ -1362,7 +1362,7 @@ function EmbroideryApp(){
       <div className="emb-container">
         <div className="emb-nav-row" style={{justifyContent:"space-between"}}>
           <div style={{display:"flex",alignItems:"center",gap:6}}>
-            <button className="emb-back-btn" onClick={()=>{setPhase("segment");setRegions([]);setSelId(null);setCurPts([]);isDraw.current=false;setEditMode("select");setDragNode(null);resetLasso();setZoom(1);setPan({x:0,y:0});zoomRef.current=1;panRef.current={x:0,y:0};}}>←</button>
+            <button className="emb-back-btn" aria-label="Back" onClick={()=>{setPhase("segment");setRegions([]);setSelId(null);setCurPts([]);isDraw.current=false;setEditMode("select");setDragNode(null);resetLasso();setZoom(1);setPan({x:0,y:0});zoomRef.current=1;panRef.current={x:0,y:0};}}><span style={{display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{Icons.chevronLeft()}</span></button>
             <h2 className="emb-heading">Edit Pattern</h2>
           </div>
           {totalRecs>0&&editMode==="select"&&<div className="emb-suggestion-badge">{totalRecs} suggestion{totalRecs>1?"s":""}</div>}
@@ -1371,23 +1371,23 @@ function EmbroideryApp(){
         {/* Toolbar */}
         <div className="tb-grp" style={{width:"100%",marginBottom:6}}>
           <button className={'tb-btn'+(editMode==="select"?' tb-btn--on':'')} onClick={()=>{setEditMode("select");setDragNode(null);}}>
-            👆 Select</button>
+            <span style={{display:"inline-flex",alignItems:"center",gap:4}}>{Icons.pointing()} Select</span></button>
           {sel&&<button className={'tb-btn'+(isNodeEdit?' tb-btn--on':'')} onClick={()=>{setEditMode("editNodes");setDragNode(null);}}>
-            ◇ Edit Shape</button>}
+            <span style={{display:"inline-flex",alignItems:"center",gap:4}}>{Icons.nodes()} Edit Shape</span></button>}
           <button className={'tb-btn'+(editMode==="draw"?' tb-btn--on':'')} onClick={()=>{setEditMode("draw");setSelId(null);setDragNode(null);}}>
-            ✏️ Add</button>
+            <span style={{display:"inline-flex",alignItems:"center",gap:4}}>{Icons.pencil()} Add</span></button>
           <button className={'tb-btn'+(editMode==="wand"?' tb-btn--on':'')} onClick={()=>{setEditMode("wand");setSelId(null);setDragNode(null);}}>
-            🪄 Wand</button>
+            <span style={{display:"inline-flex",alignItems:"center",gap:4}}>{Icons.wand()} Wand</span></button>
           <button className={'tb-btn'+(editMode==="lasso"?' tb-btn--on':'')} onClick={()=>{setEditMode("lasso");setSelId(null);setDragNode(null);resetLasso();}}>
-            🧲 Lasso</button>
+            <span style={{display:"inline-flex",alignItems:"center",gap:4}}>{Icons.lasso()} Lasso</span></button>
         </div>
 
         {/* Zoom toolbar */}
         <div className="tb-grp" style={{width:"100%",marginBottom:6,gap:2}}>
           <button className="tb-btn" onClick={()=>{const nz=Math.max(ZOOM_MIN,zoom-ZOOM_STEP_BUTTON);const np={x:CW*(1-nz)/2,y:CH*(1-nz)/2};setZoom(nz);setPan(np);zoomRef.current=nz;panRef.current=np;}} style={{width:28,flexShrink:0}}>−</button>
-          <span style={{fontSize:11,minWidth:38,textAlign:"center",color:"#64748b",padding:"0 2px"}}>{Math.round(zoom*100)}%</span>
+          <span style={{fontSize:'var(--text-xs)',minWidth:38,textAlign:"center",color:"var(--text-tertiary)",padding:"0 2px"}}>{Math.round(zoom*100)}%</span>
           <button className="tb-btn" onClick={()=>{const nz=Math.min(ZOOM_MAX,zoom+ZOOM_STEP_BUTTON);const np={x:CW*(1-nz)/2,y:CH*(1-nz)/2};setZoom(nz);setPan(np);zoomRef.current=nz;panRef.current=np;}} style={{width:28,flexShrink:0}}>+</button>
-          <button className="tb-btn" onClick={doFit} style={{marginLeft:4}}>Fit</button>
+          <button className="tb-btn" onClick={doFit} style={{marginLeft:'var(--s-1)'}}>Fit</button>
         </div>
         {/* Context hints */}
         {editMode==="draw"&&<div className="emb-hint emb-hint--teal">Drag on the canvas to draw a new region.</div>}
@@ -1398,7 +1398,7 @@ function EmbroideryApp(){
             <input type="range" min={0} max={100} value={wandTolerance} onChange={e=>setWandTolerance(+e.target.value)} style={{width:"100%"}}/>
             <div className="emb-range-labels"><span>Exact</span><span>Loose</span></div>
           </div>
-          <label style={{display:"flex",alignItems:"center",gap:6,marginTop:6,cursor:"pointer",fontSize:12}}>
+          <label style={{display:"flex",alignItems:"center",gap:6,marginTop:6,cursor:"pointer",fontSize:'var(--text-sm)'}}>
             <input type="checkbox" checked={wandEdgeSnap} onChange={e=>setWandEdgeSnap(e.target.checked)}/>
             Edge snap
           </label>
@@ -1415,7 +1415,7 @@ function EmbroideryApp(){
         </div>
 
         {/* Canvas */}
-        <div className="card" style={{marginBottom:8,touchAction:"none"}}>
+        <div className="card" style={{marginBottom:'var(--s-2)',touchAction:"none"}}>
           <canvas ref={mainC} width={CW} height={CH}
             onMouseDown={e=>{if(e.button===1)e.preventDefault();onDown(e);}} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
             onAuxClick={e=>{if(e.button===1)e.preventDefault();}}
@@ -1433,48 +1433,50 @@ function EmbroideryApp(){
 
         {/* Region editor */}
         {sel&&editMode!=="draw"?(
-          <div className="card" style={{padding:12,marginBottom:8}}>
+          <div className="card" style={{padding:12,marginBottom:'var(--s-2)'}}>
             <div className="emb-region-header">
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:'var(--s-2)'}}>
                 <span className="emb-color-swatch" style={{background:sel.dmc.h}}/>
                 <div>
                   <input value={sel.label} onChange={e=>updateR(sel.id,{label:e.target.value})} className="emb-region-name-input"/>
                   <div className="emb-region-dmc">DMC {sel.dmc.c} — {sel.dmc.n}</div>
                 </div>
               </div>
-              <button className="emb-delete-btn" onClick={()=>deleteR(sel.id)}>✕</button>
+              <button className="emb-delete-btn" aria-label="Delete region" onClick={()=>deleteR(sel.id)}><span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:14,height:14}}>{Icons.x()}</span></button>
             </div>
 
-            {isNodeEdit&&<div className="emb-hint emb-hint--amber" style={{marginBottom:8}}>{sel.nodes.length} control nodes</div>}
+            {isNodeEdit&&<div className="emb-hint emb-hint--amber" style={{marginBottom:'var(--s-2)'}}>{sel.nodes.length} control nodes</div>}
 
             {!isNodeEdit&&<>
-            <div style={{marginBottom:8}}>
+            <div style={{marginBottom:'var(--s-2)'}}>
               <label className="emb-label">Stitch Type</label>
               <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
                 {STITCHES.map(st=>(
                   <button key={st.id} onClick={()=>updateR(sel.id,{stitch:st.id})}
                     className={'emb-stitch-btn'+(sel.stitch===st.id?' emb-stitch-btn--active':'')}
-                    style={sel.stitch===st.id?{background:st.color,borderColor:st.color,color:"#fff"}:undefined}>{st.name}</button>))}
+                    style={sel.stitch===st.id?{background:st.color,borderColor:st.color,color:"var(--surface)"}:undefined}>{st.name}</button>))}
               </div>
               <p className="emb-stitch-desc">{STITCHES.find(s=>s.id===sel.stitch)?.desc}</p>
             </div>
 
-            {selRecs.length>0&&<div style={{marginBottom:8}}>
+            {selRecs.length>0&&<div style={{marginBottom:'var(--s-2)'}}>
               {selRecs.map((rec,i)=>{const isW=rec.type==="warning";return(
                 <div key={i} className={'emb-rec'+(isW?' emb-rec--warn':' emb-rec--tip')} style={{marginBottom:i<selRecs.length-1?4:0}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:6}}>
                     <div style={{flex:1}}>
-                      <div className="emb-rec-msg"><span style={{marginRight:4}}>{rec.icon}</span>{rec.msg}</div>
+                      <div className="emb-rec-msg"><span aria-hidden="true" style={{marginRight:'var(--s-1)',display:'inline-flex',verticalAlign:'-2px'}}>{Icons[rec.icon]?Icons[rec.icon]():null}</span>{rec.msg}</div>
                       <div className="emb-rec-suggest">{rec.suggest}</div>
                     </div>
-                    <button className="emb-rec-dismiss" onClick={()=>setDismissed(p=>new Set(p).add(`${sel.id}-${rec.msg.slice(0,20)}`))}>×</button>
+                    <button className="emb-rec-dismiss" aria-label="Dismiss" onClick={()=>setDismissed(p=>new Set(p).add(`${sel.id}-${rec.msg.slice(0,20)}`))}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.x?Icons.x():"\u00D7"}</span></button>
                   </div>
-                  {rec.fix&&<button className={'emb-btn emb-btn--sm'+(isW?' emb-btn--amber':' emb-btn--primary')} onClick={()=>updateR(sel.id,rec.fix)} style={{marginTop:6}}>
-                    Apply{rec.fix.stitch?` → ${STITCHES.find(s=>s.id===rec.fix.stitch)?.name||""}`:""}{rec.fix.direction!==undefined?` → ${rec.fix.direction}°`:""}
+                  {rec.fix&&<button className={'emb-btn emb-btn--sm'+(isW?' emb-btn--amber':' emb-btn--primary')} onClick={()=>updateR(sel.id,rec.fix)} style={{marginTop:6,display:'inline-flex',alignItems:'center',gap:4}}>
+                    <span>Apply</span>
+                    {rec.fix.stitch&&<><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronRight()}</span><span>{STITCHES.find(s=>s.id===rec.fix.stitch)?.name||""}</span></>}
+                    {rec.fix.direction!==undefined&&<><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronRight()}</span><span>{rec.fix.direction}°</span></>}
                   </button>}
                 </div>);})}</div>}
 
-            <div style={{marginBottom:8}}>
+            <div style={{marginBottom:'var(--s-2)'}}>
               <label className="emb-label">Direction: {sel.direction}°</label>
               <input type="range" min={0} max={359} value={sel.direction} onChange={e=>updateR(sel.id,{direction:+e.target.value})} style={{width:"100%"}}/>
               <div className="emb-range-labels"><span>0° →</span><span>90° ↓</span><span>180° ←</span><span>270° ↑</span></div>

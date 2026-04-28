@@ -51,9 +51,10 @@
   }
 
   function accentBorder(type) {
-    if (type === "success") return "#16a34a";
-    if (type === "error") return "#dc2626";
-    return "var(--accent, #0d9488)";
+    if (type === "success") return "var(--success)";
+    if (type === "error") return "var(--danger)";
+    if (type === "warning") return "var(--warning)";
+    return "var(--accent)";
   }
 
   function removeToast(entry, immediate) {
@@ -104,19 +105,42 @@
       "display:flex",
       "align-items:center",
       "background:var(--surface, #ffffff)",
-      "border:1px solid var(--border, #e2e8f0)",
+      "border:1px solid var(--border)",
       "border-left:3px solid " + accentBorder(type),
       "border-radius:var(--radius-lg, 12px)",
       "box-shadow:var(--shadow-md, 0 4px 12px rgba(0,0,0,0.08))",
       "padding:10px 16px",
       "font-size:13px",
-      "color:var(--text-primary, #1e293b)",
+      "color:var(--text-primary)",
       "font-family:inherit",
       "pointer-events:auto",
       "animation:toast-in 0.25s ease-out both",
       "transition:opacity 0.3s ease, transform 0.3s ease",
       "max-width:min(480px, calc(100vw - 32px))"
     ].join(";");
+
+    // Status icon — prefer the SVG icon library so we match the rest of the
+    // app's visual language. Falls back to a coloured pip if the icon library
+    // hasn't loaded yet (toast.js can be invoked very early).
+    var iconMeta = {
+      success: { icon: "check",   color: "var(--success)" },
+      error:   { icon: "x",       color: "var(--danger)" },
+      warning: { icon: "warning", color: "var(--warning)" }
+    };
+    var meta = iconMeta[type];
+    if (meta) {
+      var iconSpan = document.createElement("span");
+      iconSpan.setAttribute("aria-hidden", "true");
+      iconSpan.style.cssText = "margin-right:8px;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;flex-shrink:0;color:" + meta.color + ";";
+      var svgMarkup = (window.Icons && typeof window.Icons.svgString === "function") ? window.Icons.svgString(meta.icon) : "";
+      if (svgMarkup) {
+        iconSpan.innerHTML = svgMarkup;
+      } else {
+        // Pre-load fallback: solid coloured dot, never an emoji glyph.
+        iconSpan.style.cssText += "background:" + meta.color + ";border-radius:50%;width:8px;height:8px;";
+      }
+      el.appendChild(iconSpan);
+    }
 
     var msgSpan = document.createElement("span");
     msgSpan.textContent = message;
@@ -132,7 +156,7 @@
       undoBtn.setAttribute("aria-label", undoLabel);
       undoBtn.style.cssText = [
         "font-weight:600",
-        "color:var(--accent, #0d9488)",
+        "color:var(--accent)",
         "background:none",
         "border:none",
         "cursor:pointer",
@@ -155,7 +179,7 @@
     dismissBtn.setAttribute("aria-label", "Dismiss");
     dismissBtn.textContent = "×";
     dismissBtn.style.cssText = [
-      "color:var(--text-tertiary, #94a3b8)",
+      "color:var(--text-tertiary)",
       "font-size:16px",
       "line-height:1",
       "margin-left:8px",

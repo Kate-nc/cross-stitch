@@ -24,14 +24,24 @@ const DEFAULT_STATS_VISIBILITY = {
   activeProjects: true,
   finishedThisYear: true,
   coverage: true,
+  streak: true,
+  pace: true,
   sableIndex: true,
   stashComposition: true,
+  dmcCoverage: true,
   readyToStart: true,
+  useWhatYouHave: true,
+  buyingImpact: true,
   duplicateRisk: true,
   oldestWip: true,
   stashAge: true,
   mostUsedColours: true,
   threadsNeverUsed: true,
+  colourFingerprint: true,
+  designerLeaderboard: true,
+  brandAlignment: true,
+  quarterPortfolio: true,
+  difficultyVsCompletion: true,
   patternSource: true
 };
 
@@ -40,14 +50,24 @@ const SECTION_LABELS = {
   activeProjects: 'Active Projects',
   finishedThisYear: 'Finished This Year',
   coverage: 'Coverage Ratio',
+  streak: 'Weekly Streak',
+  pace: 'Recent Pace',
   sableIndex: 'SABLE Index',
-  stashComposition: 'Stash Composition',
+  stashComposition: 'Colour Families',
+  dmcCoverage: 'DMC Palette Coverage',
   readyToStart: 'Ready to Start',
+  useWhatYouHave: 'Use What You Have',
+  buyingImpact: 'Buying Impact',
   duplicateRisk: 'Duplicate Alerts',
-  oldestWip: 'Oldest WIP',
+  oldestWip: 'Oldest WIPs',
   stashAge: 'Stash Age',
   mostUsedColours: 'Most-Used Colours',
   threadsNeverUsed: 'Threads Never Used',
+  colourFingerprint: 'Colour Preference Fingerprint',
+  designerLeaderboard: 'Designer Leaderboard',
+  brandAlignment: 'Brand Alignment',
+  quarterPortfolio: 'Projects per Quarter',
+  difficultyVsCompletion: 'Difficulty vs Completion',
   patternSource: 'Pattern Source'
 };
 
@@ -96,18 +116,18 @@ function SableChart({ data }) {
   const ticks = [0, Math.round(maxVal / 2), Math.round(maxVal)];
   return h('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', maxWidth: 520, display: 'block' }, 'aria-label': 'SABLE index chart' },
     // Grid lines
-    ticks.map(t => h('line', { key: t, x1: PX, y1: toY(t), x2: W - 10, y2: toY(t), stroke: '#e2e8f0', strokeWidth: 1 })),
-    ticks.map(t => h('text', { key: 't' + t, x: PX - 6, y: toY(t) + 4, textAnchor: 'end', fontSize: 10, fill: '#64748b' }, t)),
+    ticks.map(t => h('line', { key: t, x1: PX, y1: toY(t), x2: W - 10, y2: toY(t), stroke: 'var(--border)', strokeWidth: 1 })),
+    ticks.map(t => h('text', { key: 't' + t, x: PX - 6, y: toY(t) + 4, textAnchor: 'end', fontSize: 10, fill: 'var(--text-tertiary)' }, t)),
     // Month labels
-    data.map((d, i) => i % 2 === 0 ? h('text', { key: 'l' + i, x: toX(i), y: H - 4, textAnchor: 'middle', fontSize: 9, fill: '#64748b' }, d.month.slice(5)) : null),
+    data.map((d, i) => i % 2 === 0 ? h('text', { key: 'l' + i, x: toX(i), y: H - 4, textAnchor: 'middle', fontSize: 9, fill: 'var(--text-tertiary)' }, d.month.slice(5)) : null),
     // Lines
     h('polyline', { points: addedPts, fill: 'none', stroke: '#f59e0b', strokeWidth: 2, strokeLinejoin: 'round' }),
-    h('polyline', { points: usedPts, fill: 'none', stroke: '#0d9488', strokeWidth: 2, strokeLinejoin: 'round' }),
+    h('polyline', { points: usedPts, fill: 'none', stroke: 'var(--accent)', strokeWidth: 2, strokeLinejoin: 'round' }),
     // Legend
     h('line', { x1: PX, y1: 8, x2: PX + 16, y2: 8, stroke: '#f59e0b', strokeWidth: 2 }),
-    h('text', { x: PX + 20, y: 11, fontSize: 10, fill: '#64748b' }, 'Added'),
-    h('line', { x1: PX + 64, y1: 8, x2: PX + 80, y2: 8, stroke: '#0d9488', strokeWidth: 2 }),
-    h('text', { x: PX + 84, y: 11, fontSize: 10, fill: '#64748b' }, 'Used')
+    h('text', { x: PX + 20, y: 11, fontSize: 10, fill: 'var(--text-tertiary)' }, 'Added'),
+    h('line', { x1: PX + 64, y1: 8, x2: PX + 80, y2: 8, stroke: 'var(--accent)', strokeWidth: 2 }),
+    h('text', { x: PX + 84, y: 11, fontSize: 10, fill: 'var(--text-tertiary)' }, 'Used')
   );
 }
 
@@ -115,7 +135,7 @@ function HueWheel({ bins, neutral }) {
   const R = 70, CX = 90, CY = 90, IR = 35;
   const total = bins.reduce((s, b) => s + b, 0) + neutral;
   if (total === 0) return null;
-  const hueColors = ['#f87171','#fb923c','#fbbf24','#a3e635','#4ade80','#34d399','#22d3ee','#38bdf8','#818cf8','#a78bfa','#e879f9','#fb7185'];
+  const hueColors = ['#f87171','#fb923c','#fbbf24','#a3e635','#4ade80','#34d399','#22d3ee','#38bdf8','#818cf8','var(--accent-light)','#e879f9','#fb7185'];
   const paths = [];
   let angle = -Math.PI / 2;
   for (let i = 0; i < 12; i++) {
@@ -132,9 +152,9 @@ function HueWheel({ bins, neutral }) {
   }
   return h('svg', { viewBox: '0 0 180 180', style: { width: 180, height: 180, display: 'block', margin: '0 auto' }, 'aria-label': 'Stash colour composition' },
     paths,
-    neutral > 0 && h('circle', { cx: CX, cy: CY, r: IR - 4, fill: '#94a3b8', opacity: 0.6 }),
-    h('text', { x: CX, y: CY + 4, textAnchor: 'middle', fontSize: 11, fill: '#475569', fontWeight: 600 }, fmtNum(total)),
-    h('text', { x: CX, y: CY + 16, textAnchor: 'middle', fontSize: 9, fill: '#64748b' }, 'threads')
+    neutral > 0 && h('circle', { cx: CX, cy: CY, r: IR - 4, fill: 'var(--text-tertiary)', opacity: 0.6 }),
+    h('text', { x: CX, y: CY + 4, textAnchor: 'middle', fontSize:'var(--text-xs)', fill: 'var(--text-secondary)', fontWeight: 600 }, fmtNum(total)),
+    h('text', { x: CX, y: CY + 16, textAnchor: 'middle', fontSize: 9, fill: 'var(--text-tertiary)' }, 'threads')
   );
 }
 
@@ -144,25 +164,198 @@ function AgeBar({ data }) {
     { key: 'bucket1to3Yr', label: '1–3 yr', color: '#38bdf8' },
     { key: 'bucket3to5Yr', label: '3–5 yr', color: '#818cf8' },
     { key: 'bucketOver5Yr', label: '5+ yr', color: '#f472b6' },
-    { key: 'legacy', label: 'Before tracking', color: '#94a3b8' }
+    { key: 'legacy', label: 'Before tracking', color: 'var(--text-tertiary)' }
   ];
   const total = buckets.reduce((s, b) => s + (data[b.key] || 0), 0);
   if (total === 0) return null;
   return h('div', null,
-    h('div', { style: { display: 'flex', borderRadius: 6, overflow: 'hidden', height: 24, marginBottom: 8 } },
+    h('div', { style: { display: 'flex', borderRadius:'var(--radius-sm)', overflow: 'hidden', height: 24, marginBottom:'var(--s-2)' } },
       buckets.map(b => {
         const pct = (data[b.key] || 0) / total * 100;
         if (pct === 0) return null;
         return h('div', { key: b.key, style: { width: pct + '%', background: b.color, minWidth: pct > 3 ? 'auto' : 2 }, title: `${b.label}: ${data[b.key]}` });
       })
     ),
-    h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '6px 14px', fontSize: 11, color: '#475569' } },
+    h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '6px 14px', fontSize:'var(--text-xs)', color: 'var(--text-secondary)' } },
       buckets.filter(b => data[b.key] > 0).map(b =>
-        h('span', { key: b.key, style: { display: 'flex', alignItems: 'center', gap: 4 } },
+        h('span', { key: b.key, style: { display: 'flex', alignItems: 'center', gap:'var(--s-1)' } },
           h('span', { style: { width: 8, height: 8, borderRadius: 2, background: b.color, display: 'inline-block' } }),
           b.label + ': ' + data[b.key]
         )
       )
+    )
+  );
+}
+
+// ── Colour family classification ─────────────────────────────────
+// Used by ColourFamilyWheel to bin every owned thread into one of 13
+// stitcher-friendly families (Reds → Metallics → Greys → Whites → Blacks).
+// Inputs: { lab: [L, a, b], rgb: [r, g, b], name: string }
+function classifyColourFamily(info) {
+  const lab = info.lab;
+  const rgb = info.rgb || [128, 128, 128];
+  const name = (info.name || '').toLowerCase();
+  // Metallics first — name-based; DMC names them "Light Effects"/"Jewel Effects"
+  if (/metalli|effect|jewel|gold|silver|copper|bronze|pearl|fluor/i.test(name)) return 'metallics';
+  if (!lab) return 'greys';
+  const L = lab[0], a = lab[1], b = lab[2];
+  const chroma = Math.sqrt(a * a + b * b);
+  if (L >= 92 && chroma < 14) return 'whites';
+  if (L <= 18 && chroma < 14) return 'blacks';
+  if (chroma < 10) return 'greys';
+  // Brown band: warm hue (a>0, b>0) + low–mid lightness + low–mid chroma
+  if (a > 6 && b > 6 && L < 60 && chroma < 38) return 'browns';
+  const hue = ((Math.atan2(b, a) * 180 / Math.PI) + 360) % 360;
+  if (hue >= 340 || hue < 12)  return 'reds';
+  if (hue < 30)                 return 'pinks';
+  if (hue < 55)                 return 'oranges';
+  if (hue < 75)                 return 'yellows';
+  if (hue < 165)                return 'greens';
+  if (hue < 200)                return 'teals';
+  if (hue < 260)                return 'blues';
+  if (hue < 320)                return 'purples';
+  return 'pinks';
+}
+const COLOUR_FAMILY_DEFS = [
+  { key: 'reds',      label: 'Reds',      swatch: '#dc2626' },
+  { key: 'pinks',     label: 'Pinks',     swatch: '#ec4899' },
+  { key: 'oranges',   label: 'Oranges',   swatch: '#f97316' },
+  { key: 'yellows',   label: 'Yellows',   swatch: '#eab308' },
+  { key: 'greens',    label: 'Greens',    swatch: '#16a34a' },
+  { key: 'teals',     label: 'Teals',     swatch: '#0d9488' },
+  { key: 'blues',     label: 'Blues',     swatch: '#2563eb' },
+  { key: 'purples',   label: 'Purples',   swatch: '#7c3aed' },
+  { key: 'browns',    label: 'Browns',    swatch: '#92400e' },
+  { key: 'greys',     label: 'Greys',     swatch: '#9ca3af' },
+  { key: 'whites',    label: 'Whites',    swatch: '#f5f5f4' },
+  { key: 'blacks',    label: 'Blacks',    swatch: '#1c1917' },
+  { key: 'metallics', label: 'Metallics', swatch: 'linear-gradient(135deg,#d4af37,#a8a29e)' }
+];
+
+function ColourFamilyWheel({ counts }) {
+  const R = 78, CX = 96, CY = 96, IR = 38;
+  const total = COLOUR_FAMILY_DEFS.reduce((s, f) => s + (counts[f.key] || 0), 0);
+  if (total === 0) return null;
+  const paths = []; let angle = -Math.PI / 2;
+  COLOUR_FAMILY_DEFS.forEach((f, i) => {
+    const c = counts[f.key] || 0;
+    if (c === 0) return;
+    const sweep = (c / total) * 2 * Math.PI;
+    const x1 = CX + R * Math.cos(angle), y1 = CY + R * Math.sin(angle);
+    const x2 = CX + R * Math.cos(angle + sweep), y2 = CY + R * Math.sin(angle + sweep);
+    const ix1 = CX + IR * Math.cos(angle), iy1 = CY + IR * Math.sin(angle);
+    const ix2 = CX + IR * Math.cos(angle + sweep), iy2 = CY + IR * Math.sin(angle + sweep);
+    const large = sweep > Math.PI ? 1 : 0;
+    const fill = f.swatch.startsWith('linear-gradient') ? 'url(#metallic-grad)' : f.swatch;
+    paths.push(h('path', { key: f.key, d: `M${ix1},${iy1} L${x1},${y1} A${R},${R} 0 ${large},1 ${x2},${y2} L${ix2},${iy2} A${IR},${IR} 0 ${large},0 ${ix1},${iy1}`, fill, opacity: 0.9 }));
+    angle += sweep;
+  });
+  return h('div', null,
+    h('svg', { viewBox: '0 0 192 192', style: { width: 180, height: 180, display: 'block', margin: '0 auto' }, 'aria-label': 'Stash colour families' },
+      h('defs', null,
+        h('linearGradient', { id: 'metallic-grad', x1: '0%', y1: '0%', x2: '100%', y2: '100%' },
+          h('stop', { offset: '0%', stopColor: '#d4af37' }), h('stop', { offset: '100%', stopColor: '#a8a29e' })
+        )
+      ),
+      paths,
+      h('text', { x: CX, y: CY + 4, textAnchor: 'middle', fontSize: 16, fontWeight: 700, fill: 'var(--text-primary)' }, fmtNum(total)),
+      h('text', { x: CX, y: CY + 20, textAnchor: 'middle', fontSize: 9, fill: 'var(--text-tertiary)' }, 'threads')
+    ),
+    h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '4px 10px', marginTop: 10, justifyContent: 'center', fontSize: 11, color: 'var(--text-secondary)' } },
+      COLOUR_FAMILY_DEFS.filter(f => (counts[f.key] || 0) > 0)
+        .sort((a, b) => (counts[b.key] || 0) - (counts[a.key] || 0))
+        .map(f => h('span', { key: f.key, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } },
+          h('span', { style: { width: 9, height: 9, borderRadius: '50%', background: f.swatch, border: f.key === 'whites' ? '1px solid var(--border)' : 'none', display: 'inline-block' } }),
+          f.label, ' ', h('span', { style: { color: 'var(--text-tertiary)' } }, counts[f.key])
+        ))
+    )
+  );
+}
+
+// Radial gauge (semi-circle) for percentage values, e.g. DMC palette coverage.
+function RadialGauge({ pct, label, sublabel, color }) {
+  const W = 200, H = 120, R = 80, CX = W / 2, CY = H - 8, SW = 14;
+  const safePct = Math.max(0, Math.min(100, pct || 0));
+  const startA = Math.PI, endA = startA + (safePct / 100) * Math.PI;
+  const x1 = CX + R * Math.cos(startA), y1 = CY + R * Math.sin(startA);
+  const x2 = CX + R * Math.cos(endA),   y2 = CY + R * Math.sin(endA);
+  const large = safePct > 50 ? 1 : 0;
+  const ringColor = color || 'var(--accent)';
+  return h('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', maxWidth: 220, display: 'block', margin: '0 auto' }, 'aria-label': label || 'Gauge' },
+    // Background arc
+    h('path', { d: `M ${CX - R} ${CY} A ${R} ${R} 0 0 1 ${CX + R} ${CY}`, fill: 'none', stroke: 'var(--border)', strokeWidth: SW, strokeLinecap: 'round' }),
+    // Foreground arc (only render if there's any progress)
+    safePct > 0 && h('path', { d: `M ${x1} ${y1} A ${R} ${R} 0 ${large} 1 ${x2} ${y2}`, fill: 'none', stroke: ringColor, strokeWidth: SW, strokeLinecap: 'round' }),
+    // Centre label
+    h('text', { x: CX, y: CY - 22, textAnchor: 'middle', fontSize: 28, fontWeight: 700, fill: 'var(--text-primary)' }, Math.round(safePct) + '%'),
+    sublabel && h('text', { x: CX, y: CY - 6, textAnchor: 'middle', fontSize: 11, fill: 'var(--text-tertiary)' }, sublabel)
+  );
+}
+
+// Quarter portfolio stacked area: started/finished/active per quarter.
+// data: [{ q: '2024 Q1', started: n, finished: n, active: n }, ...]
+function QuarterAreaChart({ data }) {
+  if (!data || data.length === 0) return null;
+  const W = 520, H = 150, PAD = { top: 14, right: 8, bottom: 30, left: 28 };
+  const IW = W - PAD.left - PAD.right, IH = H - PAD.top - PAD.bottom;
+  const max = Math.max(1, ...data.map(d => d.started + d.finished));
+  const bw = IW / data.length;
+  return h('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', maxWidth: W, display: 'block' }, role: 'img', 'aria-label': 'Projects per quarter' },
+    [0.5, 1].map(f => h('line', { key: f, x1: PAD.left, x2: W - PAD.right, y1: PAD.top + IH * (1 - f), y2: PAD.top + IH * (1 - f), stroke: 'var(--border)', strokeWidth: 1 })),
+    data.map((d, i) => {
+      const x = PAD.left + i * bw + 2;
+      const w = bw - 4;
+      const sH = (d.started / max) * IH;
+      const fH = (d.finished / max) * IH;
+      const sY = PAD.top + IH - sH;
+      const fY = sY - fH;
+      return h('g', { key: i },
+        d.started > 0 && h('rect', { x, y: sY, width: w, height: sH, fill: 'var(--accent)', opacity: 0.85 }),
+        d.finished > 0 && h('rect', { x, y: fY, width: w, height: fH, fill: '#34d399', opacity: 0.9 }),
+        i % Math.max(1, Math.ceil(data.length / 8)) === 0 && h('text', { x: x + w / 2, y: H - 8, textAnchor: 'middle', fontSize: 9, fill: 'var(--text-tertiary)' }, d.q)
+      );
+    }),
+    // Legend
+    h('rect', { x: PAD.left, y: 2, width: 8, height: 8, fill: 'var(--accent)' }),
+    h('text', { x: PAD.left + 12, y: 9, fontSize: 10, fill: 'var(--text-tertiary)' }, 'Started'),
+    h('rect', { x: PAD.left + 60, y: 2, width: 8, height: 8, fill: '#34d399' }),
+    h('text', { x: PAD.left + 72, y: 9, fontSize: 10, fill: 'var(--text-tertiary)' }, 'Finished')
+  );
+}
+
+// Difficulty vs completion scatter. points: [{ difficulty: 1-4, pct: 0-100, name, finished: bool }]
+function DifficultyScatter({ points }) {
+  if (!points || points.length === 0) return null;
+  const W = 480, H = 200, PAD = { top: 12, right: 12, bottom: 32, left: 32 };
+  const IW = W - PAD.left - PAD.right, IH = H - PAD.top - PAD.bottom;
+  const labels = ['Beg', 'Int', 'Adv', 'Exp'];
+  return h('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', maxWidth: W, display: 'block' }, role: 'img', 'aria-label': 'Difficulty vs completion percentage scatter' },
+    [0, 25, 50, 75, 100].map(t => h('g', { key: t },
+      h('line', { x1: PAD.left, x2: W - PAD.right, y1: PAD.top + IH * (1 - t / 100), y2: PAD.top + IH * (1 - t / 100), stroke: 'var(--border)', strokeWidth: 0.5 }),
+      h('text', { x: PAD.left - 4, y: PAD.top + IH * (1 - t / 100) + 3, textAnchor: 'end', fontSize: 9, fill: 'var(--text-tertiary)' }, t + '%')
+    )),
+    labels.map((l, i) => h('text', { key: l, x: PAD.left + (IW / 4) * (i + 0.5), y: H - 12, textAnchor: 'middle', fontSize: 10, fill: 'var(--text-tertiary)' }, l)),
+    points.map((p, i) => {
+      const cx = PAD.left + ((p.difficulty - 0.5) / 4) * IW + (((i * 13) % 11) - 5);
+      const cy = PAD.top + IH * (1 - (p.pct || 0) / 100);
+      return h('circle', { key: i, cx, cy, r: 5, fill: p.finished ? '#34d399' : 'var(--accent)', opacity: 0.75, stroke: 'var(--surface)', strokeWidth: 1 },
+        h('title', null, (p.name || 'Untitled') + ' — ' + (p.pct || 0) + '%' + (p.finished ? ' (finished)' : ''))
+      );
+    }),
+    h('text', { x: W - PAD.right, y: H - 2, textAnchor: 'end', fontSize: 9, fill: 'var(--text-tertiary)' }, 'difficulty')
+  );
+}
+
+// Horizontal divergence bar: top owned vs top used colour overlap.
+function FingerprintBar({ jaccardPct, overUsed, underUsed }) {
+  const safePct = Math.max(0, Math.min(100, jaccardPct || 0));
+  return h('div', null,
+    h('div', { style: { display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 } },
+      h('span', { style: { fontSize: 32, fontWeight: 700, color: 'var(--text-primary)' } }, Math.round(safePct) + '%'),
+      h('span', { style: { fontSize: 12, color: 'var(--text-secondary)' } }, 'overlap between what you own and what you use')
+    ),
+    h('div', { style: { height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden', marginBottom: 10 } },
+      h('div', { style: { width: safePct + '%', height: '100%', background: 'linear-gradient(90deg, #34d399, var(--accent))' } })
     )
   );
 }
@@ -189,13 +382,13 @@ function CustomiseModal({ visibility, onChange, onClose }) {
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
-  return h('div', { className: 'modal-overlay', onClick: onClose },
+  return h('div', { className: 'modal-overlay', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'stats-settings-title', onClick: onClose },
     h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 400, maxHeight: '80vh', overflowY: 'auto' } },
       h('button', { className: 'modal-close', onClick: onClose, 'aria-label': 'Close' }, '×'),
-      h('h3', { style: { marginTop: 0, marginBottom: 12, fontSize: 18, color: 'var(--text-primary)' } }, 'Customise Stats'),
-      h('p', { style: { fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 } }, 'Show or hide sections on your stats page.'),
+      h('h3', { id: 'stats-settings-title', style: { marginTop: 0, marginBottom:'var(--s-3)', fontSize: 18, color: 'var(--text-primary)' } }, 'Customise Stats'),
+      h('p', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)', marginBottom:'var(--s-4)' } }, 'Show or hide sections on your stats page.'),
       Object.entries(SECTION_LABELS).map(([key, label]) =>
-        h('label', { key, style: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border-subtle)', cursor: 'pointer', fontSize: 14 } },
+        h('label', { key, style: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border-subtle)', cursor: 'pointer', fontSize:'var(--text-lg)' } },
           h('input', { type: 'checkbox', checked: visibility[key] !== false, onChange: () => {
             const next = Object.assign({}, visibility, { [key]: !visibility[key] });
             onChange(next);
@@ -229,41 +422,41 @@ function ShareCardModal({ lifetimeStitches, onClose }) {
       ctx.fillStyle = '#faf9f7';
       ctx.fillRect(0, 0, W, H);
       // Decorative border
-      ctx.strokeStyle = '#0d9488';
+      ctx.strokeStyle = '#B85C38';
       ctx.lineWidth = 6;
       ctx.strokeRect(40, 40, W - 80, H - 80);
       // Inner decorative cross-stitch pattern
-      ctx.fillStyle = '#e2e8f0';
+      ctx.fillStyle = '#E5DCCB';
       for (let x = 80; x < W - 80; x += 30) {
         ctx.fillRect(x, 70, 4, 4);
         ctx.fillRect(x, H - 74, 4, 4);
       }
       // Title
-      ctx.fillStyle = '#64748b';
+      ctx.fillStyle = '#8A8270';
       ctx.font = '600 32px Inter, system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('LIFETIME STITCHES', W / 2, 280);
       // Main number
-      ctx.fillStyle = '#1e293b';
+      ctx.fillStyle = '#1B1814';
       ctx.font = '800 120px Inter, system-ui, sans-serif';
       ctx.fillText(fmtNum(lifetimeStitches), W / 2, 480);
       // Thread length
       const km = threadKm(lifetimeStitches);
-      ctx.fillStyle = '#0d9488';
+      ctx.fillStyle = '#B85C38';
       ctx.font = '500 36px Inter, system-ui, sans-serif';
       ctx.fillText(`≈ ${km} km of thread`, W / 2, 560);
       // Cross-stitch icon area
-      ctx.fillStyle = '#e2e8f0';
+      ctx.fillStyle = '#E5DCCB';
       const cx = W / 2, cy = 680;
       for (let i = -3; i <= 3; i++) {
         for (let j = -1; j <= 1; j++) {
           ctx.fillRect(cx + i * 22 - 8, cy + j * 22 - 8, 16, 16);
         }
       }
-      ctx.fillStyle = '#0d9488';
+      ctx.fillStyle = '#B85C38';
       ctx.fillRect(cx - 8, cy - 8, 16, 16);
       // Watermark
-      ctx.fillStyle = '#94a3b8';
+      ctx.fillStyle = '#A89E89';
       ctx.font = '400 20px Inter, system-ui, sans-serif';
       ctx.fillText('Cross Stitch Pattern Generator', W / 2, H - 100);
       setRendered(true);
@@ -296,14 +489,14 @@ function ShareCardModal({ lifetimeStitches, onClose }) {
     }
   }, []);
 
-  return h('div', { className: 'modal-overlay', onClick: onClose },
+  return h('div', { className: 'modal-overlay', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'share-stats-title', onClick: onClose },
     h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 480, textAlign: 'center' } },
       h('button', { className: 'modal-close', onClick: onClose, 'aria-label': 'Close' }, '×'),
-      h('h3', { style: { marginTop: 0, marginBottom: 12, fontSize: 18, color: 'var(--text-primary)' } }, 'Share Your Stats'),
-      h('canvas', { ref: canvasRef, style: { width: '100%', maxWidth: 360, borderRadius: 8, border: '1px solid var(--border)', marginBottom: 12 } }),
-      rendered && h('div', { style: { display: 'flex', gap: 8, justifyContent: 'center' } },
-        h('button', { onClick: handleDownload, style: { padding: '8px 16px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600, cursor: 'pointer' } }, 'Download PNG'),
-        h('button', { onClick: handleCopy, style: { padding: '8px 16px', background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600, cursor: 'pointer' } }, 'Copy to Clipboard')
+      h('h3', { id: 'share-stats-title', style: { marginTop: 0, marginBottom:'var(--s-3)', fontSize: 18, color: 'var(--text-primary)' } }, 'Share Your Stats'),
+      h('canvas', { ref: canvasRef, style: { width: '100%', maxWidth: 360, borderRadius:'var(--radius-md)', border: '1px solid var(--border)', marginBottom:'var(--s-3)' } }),
+      rendered && h('div', { style: { display: 'flex', gap:'var(--s-2)', justifyContent: 'center' } },
+        h('button', { onClick: handleDownload, style: { padding: '8px 16px', background: 'var(--accent)', color: 'var(--surface)', border: 'none', borderRadius: 'var(--radius-md)', fontSize:'var(--text-md)', fontWeight: 600, cursor: 'pointer' } }, 'Download PNG'),
+        h('button', { onClick: handleCopy, style: { padding: '8px 16px', background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize:'var(--text-md)', fontWeight: 600, cursor: 'pointer' } }, 'Copy to Clipboard')
       )
     )
   );
@@ -369,19 +562,19 @@ function SableLineChart({ data }) {
   const usedPts = data.map((d, i) => `${sx(i)},${sy(d.used)}`).join(' ');
   const labels = data.map((d, i) => {
     if (i % 2 !== 0 && i !== data.length - 1) return null;
-    return h('text', { key: i, x: sx(i), y: H - 4, textAnchor: 'middle', fontSize: 10, fill: '#94a3b8' }, fmtMonthShort(d.month));
+    return h('text', { key: i, x: sx(i), y: H - 4, textAnchor: 'middle', fontSize: 10, fill: 'var(--text-tertiary)' }, fmtMonthShort(d.month));
   });
-  return h('div', { style: { marginTop: 16 } },
+  return h('div', { style: { marginTop:'var(--s-4)' } },
     h('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', maxWidth: W, display: 'block' }, role: 'img', 'aria-label': `Thread acquisition and usage over ${data.length} months` },
-      [0.25, 0.5, 0.75, 1].map(f => h('line', { key: f, x1: PAD.left, x2: W - PAD.right, y1: PAD.top + IH * (1 - f), y2: PAD.top + IH * (1 - f), stroke: '#e2e8f0', strokeWidth: 1 })),
-      h('polyline', { points: addedPts, fill: 'none', stroke: '#0d9488', strokeWidth: 2.5, strokeLinejoin: 'round', strokeLinecap: 'round' }),
+      [0.25, 0.5, 0.75, 1].map(f => h('line', { key: f, x1: PAD.left, x2: W - PAD.right, y1: PAD.top + IH * (1 - f), y2: PAD.top + IH * (1 - f), stroke: 'var(--border)', strokeWidth: 1 })),
+      h('polyline', { points: addedPts, fill: 'none', stroke: 'var(--accent)', strokeWidth: 2.5, strokeLinejoin: 'round', strokeLinecap: 'round' }),
       h('polyline', { points: usedPts, fill: 'none', stroke: '#6ee7b7', strokeWidth: 2, strokeLinejoin: 'round', strokeLinecap: 'round', strokeDasharray: '5 3' }),
-      data.map((d, i) => h('circle', { key: 'a' + i, cx: sx(i), cy: sy(d.added), r: 3, fill: '#0d9488' })),
+      data.map((d, i) => h('circle', { key: 'a' + i, cx: sx(i), cy: sy(d.added), r: 3, fill: 'var(--accent)' })),
       data.map((d, i) => d.used > 0 && h('circle', { key: 'u' + i, cx: sx(i), cy: sy(d.used), r: 2.5, fill: '#6ee7b7' })),
       ...labels
     ),
-    h('div', { style: { display: 'flex', gap: 20, marginTop: 6, fontSize: 11, color: '#64748b' } },
-      h('span', { style: { display: 'flex', alignItems: 'center', gap: 5 } }, h('span', { style: { display: 'inline-block', width: 20, height: 2.5, background: '#0d9488', borderRadius: 2 } }), 'Added'),
+    h('div', { style: { display: 'flex', gap: 20, marginTop: 6, fontSize:'var(--text-xs)', color: 'var(--text-tertiary)' } },
+      h('span', { style: { display: 'flex', alignItems: 'center', gap: 5 } }, h('span', { style: { display: 'inline-block', width: 20, height: 2.5, background: 'var(--accent)', borderRadius: 2 } }), 'Added'),
       h('span', { style: { display: 'flex', alignItems: 'center', gap: 5 } }, h('span', { style: { display: 'inline-block', width: 20, height: 2, background: '#6ee7b7', borderRadius: 2 } }), 'Used')
     )
   );
@@ -392,20 +585,20 @@ function ShowcaseAgeBar({ ageData: ad }) {
     { key: 'bucketUnder1Yr', label: '<1 yr', color: '#34d399' },
     { key: 'bucket1to3Yr',   label: '1\u20133 yr', color: '#38bdf8' },
     { key: 'bucket3to5Yr',   label: '3\u20135 yr', color: '#818cf8' },
-    { key: 'bucketOver5Yr',  label: '5+ yr',  color: '#c4b5fd' },
+    { key: 'bucketOver5Yr',  label: '5+ yr',  color: 'var(--accent-light)' },
   ];
   const total = buckets.reduce((s, b) => s + (ad[b.key] || 0), 0);
   if (total === 0) return null;
   const ariaText = buckets.map(b => `${Math.round((ad[b.key] || 0) / total * 100)}% ${b.label}`).join(', ');
   return h('div', null,
-    h('div', { style: { display: 'flex', borderRadius: 8, overflow: 'hidden', height: 28 }, role: 'img', 'aria-label': `Stash age distribution: ${ariaText}` },
+    h('div', { style: { display: 'flex', borderRadius:'var(--radius-md)', overflow: 'hidden', height: 28 }, role: 'img', 'aria-label': `Stash age distribution: ${ariaText}` },
       buckets.map(b => {
         const pct = (ad[b.key] || 0) / total * 100;
         if (pct === 0) return null;
         return h('div', { key: b.key, style: { width: pct + '%', background: b.color }, title: `${b.label}: ${ad[b.key]}` });
       })
     ),
-    h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '8px 20px', marginTop: 10, fontSize: 12, color: '#64748b' } },
+    h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '8px 20px', marginTop: 10, fontSize:'var(--text-sm)', color: 'var(--text-tertiary)' } },
       buckets.filter(b => (ad[b.key] || 0) > 0).map(b => {
         const pct = Math.round((ad[b.key] || 0) / total * 100);
         return h('span', { key: b.key, style: { display: 'flex', alignItems: 'center', gap: 5 } },
@@ -418,9 +611,9 @@ function ShowcaseAgeBar({ ageData: ad }) {
 }
 
 function PatternChip({ pattern }) {
-  return h('div', { style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '10px 14px', minWidth: 0 } },
-    h('div', { style: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, pattern.title || 'Untitled'),
-    h('div', { style: { fontSize: 11, color: 'var(--text-tertiary)' } }, `${pattern.coveredThreads}/${pattern.totalThreads} threads ready`)
+  return h('div', { style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius:'var(--radius-xl)', padding: '10px 14px', minWidth: 0 } },
+    h('div', { style: { fontSize:'var(--text-md)', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, pattern.title || 'Untitled'),
+    h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)' } }, `${pattern.coveredThreads}/${pattern.totalThreads} threads ready`)
   );
 }
 
@@ -428,10 +621,10 @@ function ShowcaseDivider() {
   return h('hr', { style: { border: 'none', borderTop: '1px solid var(--border)', opacity: 0.3, margin: '40px 0' } });
 }
 function ShowcaseSectionLabel({ children }) {
-  return h('div', { style: { fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 10 } }, children);
+  return h('div', { style: { fontSize:'var(--text-xs)', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 10 } }, children);
 }
 function ShowcaseShareBtn({ onClick }) {
-  return h('button', { onClick, 'aria-label': 'Share this section', title: 'Share this section', style: { background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', color: 'var(--text-tertiary)', fontSize: 14, borderRadius: 6, display: 'inline-flex', alignItems: 'center', gap: 4 } },
+  return h('button', { onClick, 'aria-label': 'Share this section', title: 'Share this section', style: { background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', color: 'var(--text-tertiary)', fontSize:'var(--text-lg)', borderRadius:'var(--radius-sm)', display: 'inline-flex', alignItems: 'center', gap:'var(--s-1)' } },
     h('svg', { width: 15, height: 15, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': 'true' },
       h('circle', { cx: 18, cy: 5, r: 3 }), h('circle', { cx: 6, cy: 12, r: 3 }), h('circle', { cx: 18, cy: 19, r: 3 }),
       h('line', { x1: 8.59, y1: 13.51, x2: 15.42, y2: 17.49 }), h('line', { x1: 15.41, y1: 6.51, x2: 8.59, y2: 10.49 })
@@ -471,25 +664,25 @@ function ShowcaseShareModal({ title, drawFn, onClose }) {
       setCopied(true); setTimeout(() => setCopied(false), 2000);
     } catch(e) { console.warn('Copy failed:', e); }
   }, []);
-  return h('div', { className: 'modal-overlay', onClick: handleClose },
+  return h('div', { className: 'modal-overlay', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'share-image-title', onClick: handleClose },
     h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 500, textAlign: 'center' } },
       h('button', { ref: closeBtnRef, className: 'modal-close', onClick: handleClose, 'aria-label': 'Close share modal' }, '\xd7'),
-      h('h3', { style: { marginTop: 0, marginBottom: 12, fontSize: 18, color: 'var(--text-primary)' } }, title || 'Share'),
-      h('canvas', { ref: canvasRef, style: { width: '100%', maxWidth: 420, borderRadius: 8, border: '1px solid var(--border)', display: 'block', margin: '0 auto 12px' } }),
-      rendered && h('div', { style: { display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' } },
-        h('button', { onClick: handleDownload, style: { padding: '8px 18px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600, cursor: 'pointer' } }, 'Download PNG'),
-        h('button', { onClick: handleCopy, style: { padding: '8px 18px', background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600, cursor: 'pointer' } }, copied ? 'Copied!' : 'Copy to clipboard')
+      h('h3', { id: 'share-image-title', style: { marginTop: 0, marginBottom:'var(--s-3)', fontSize: 18, color: 'var(--text-primary)' } }, title || 'Share'),
+      h('canvas', { ref: canvasRef, style: { width: '100%', maxWidth: 420, borderRadius:'var(--radius-md)', border: '1px solid var(--border)', display: 'block', margin: '0 auto 12px' } }),
+      rendered && h('div', { style: { display: 'flex', gap:'var(--s-2)', justifyContent: 'center', flexWrap: 'wrap' } },
+        h('button', { onClick: handleDownload, style: { padding: '8px 18px', background: 'var(--accent)', color: 'var(--surface)', border: 'none', borderRadius: 'var(--radius-md)', fontSize:'var(--text-md)', fontWeight: 600, cursor: 'pointer' } }, 'Download PNG'),
+        h('button', { onClick: handleCopy, style: { padding: '8px 18px', background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize:'var(--text-md)', fontWeight: 600, cursor: 'pointer' } }, copied ? 'Copied!' : 'Copy to clipboard')
       )
     )
   );
 }
 
 // ── Canvas draw helpers (showcase share cards) ────────────────────
-const CARD_BG = '#faf9f7', CARD_ACCENT = '#0d9488', CARD_TEXT_PRI = '#1e293b', CARD_TEXT_SEC = '#64748b', CARD_BORDER = '#e2e8f0';
+const CARD_BG = '#faf9f7', CARD_ACCENT = '#B85C38', CARD_TEXT_PRI = '#1B1814', CARD_TEXT_SEC = '#8A8270', CARD_BORDER = '#E5DCCB';
 function drawCardBase(ctx, W, H) {
   ctx.fillStyle = CARD_BG; ctx.fillRect(0, 0, W, H);
   ctx.strokeStyle = CARD_BORDER; ctx.lineWidth = 1; ctx.strokeRect(0.5, 0.5, W - 1, H - 1);
-  ctx.fillStyle = '#e2e8f0';
+  ctx.fillStyle = '#E5DCCB';
   for (let cx = 20; cx < W - 20; cx += 22) ctx.fillRect(cx, 10, 5, 5);
 }
 function drawShowcaseLabel(ctx, text, x, y, size, color) {
@@ -498,7 +691,7 @@ function drawShowcaseLabel(ctx, text, x, y, size, color) {
   ctx.textAlign = 'center'; ctx.fillText(text.toUpperCase(), x, y);
 }
 function drawWatermark(ctx, W, H) {
-  ctx.fillStyle = '#cbd5e1'; ctx.font = '400 16px Inter, system-ui, sans-serif';
+  ctx.fillStyle = '#CFC4AC'; ctx.font = '400 16px Inter, system-ui, sans-serif';
   ctx.textAlign = 'center'; ctx.fillText('cross stitch pattern generator', W / 2, H - 20);
 }
 function makeLifetimeCanvas(canvas, stitches) {
@@ -528,7 +721,7 @@ function makeSableCanvas(canvas, sableData, headline) {
     const maxV = Math.max(...sableData.map(d => Math.max(d.added, d.used)), 1);
     const px = i => cX + (i / (sableData.length - 1)) * cW;
     const py = v => cY + cH - (v / maxV) * cH;
-    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+    ctx.strokeStyle = '#E5DCCB'; ctx.lineWidth = 1;
     [0.25, 0.5, 0.75, 1].forEach(f => { ctx.beginPath(); ctx.moveTo(cX, cY + cH * (1 - f)); ctx.lineTo(cX + cW, cY + cH * (1 - f)); ctx.stroke(); });
     ctx.strokeStyle = CARD_ACCENT; ctx.lineWidth = 4; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     ctx.beginPath(); sableData.forEach((d, i) => i === 0 ? ctx.moveTo(px(i), py(d.added)) : ctx.lineTo(px(i), py(d.added))); ctx.stroke();
@@ -545,7 +738,7 @@ function makeAgeCanvas(canvas, ageData) {
   const W = 1080, H = 1080; canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   drawCardBase(ctx, W, H); drawShowcaseLabel(ctx, 'stash age', W / 2, 150, 22, CARD_TEXT_SEC);
-  const bkts = [{ key: 'bucketUnder1Yr', label: '<1 yr', color: '#34d399' }, { key: 'bucket1to3Yr', label: '1\u20133 yr', color: '#38bdf8' }, { key: 'bucket3to5Yr', label: '3\u20135 yr', color: '#818cf8' }, { key: 'bucketOver5Yr', label: '5+ yr', color: '#c4b5fd' }];
+  const bkts = [{ key: 'bucketUnder1Yr', label: '<1 yr', color: '#34d399' }, { key: 'bucket1to3Yr', label: '1\u20133 yr', color: '#38bdf8' }, { key: 'bucket3to5Yr', label: '3\u20135 yr', color: '#818cf8' }, { key: 'bucketOver5Yr', label: '5+ yr', color: 'var(--accent-light)' }];
   const total = bkts.reduce((s, b) => s + (ageData[b.key] || 0), 0);
   if (total > 0) {
     const barX = 80, barY = 400, barW = W - 160, barH = 60; let bx = barX;
@@ -575,7 +768,7 @@ function makeFullPageCanvas(canvas, data) {
   const W = 1080, H = 1920; canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = CARD_BG; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#e2e8f0';
+  ctx.fillStyle = '#E5DCCB';
   for (let gx = 30; gx < W; gx += 30) for (let gy = 30; gy < H; gy += 30) ctx.fillRect(gx - 1, gy - 1, 2, 2);
   let cy = 80;
   const section = (label, draw) => {
@@ -612,7 +805,7 @@ function makeFullPageCanvas(canvas, data) {
   }
   if (ageData && hasMeaningfulAgeData(ageData)) {
     section('stash age', () => {
-      const bkts2 = [{ key: 'bucketUnder1Yr', color: '#34d399' }, { key: 'bucket1to3Yr', color: '#38bdf8' }, { key: 'bucket3to5Yr', color: '#818cf8' }, { key: 'bucketOver5Yr', color: '#c4b5fd' }];
+      const bkts2 = [{ key: 'bucketUnder1Yr', color: '#34d399' }, { key: 'bucket1to3Yr', color: '#38bdf8' }, { key: 'bucket3to5Yr', color: '#818cf8' }, { key: 'bucketOver5Yr', color: 'var(--accent-light)' }];
       const total = bkts2.reduce((s, b) => s + (ageData[b.key] || 0), 0);
       if (total > 0) { const barX = 80, barW = W - 160, barH = 40; let bx = barX; bkts2.forEach(b => { const bw = (ageData[b.key] || 0) / total * barW; if (bw > 0) { ctx.fillStyle = b.color; ctx.fillRect(bx, cy, bw, barH); bx += bw; } }); cy += barH + 16; }
     });
@@ -678,29 +871,29 @@ function StatsShowcase({ onNavigateToDashboard, onNavigateToActivity }) {
   const drawOldest = useCallback(canvas => makeOldestCanvas(canvas, oldestWip), [oldestWip]);
   const drawFullPage = useCallback(canvas => makeFullPageCanvas(canvas, { stitches: lifetimeStitches, sableData, headline, readyPatterns, ageData, oldestWip }), [lifetimeStitches, sableData, headline, readyPatterns, ageData, oldestWip]);
 
-  const lnk = { fontSize: 12, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600, fontFamily: 'inherit' };
+  const lnk = { fontSize:'var(--text-sm)', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600, fontFamily: 'inherit' };
   const wrap = { maxWidth: 680, margin: '0 auto', padding: '0 4px 80px' };
 
   if (loading) {
     return h('div', { style: Object.assign({}, wrap, { paddingTop: 40, textAlign: 'center', color: 'var(--text-tertiary)' }) },
-      h('div', { style: { width: 28, height: 28, border: '2.5px solid #e2e8f0', borderTopColor: '#0d9488', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' } }),
+      h('div', { style: { width: 28, height: 28, border: '2.5px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' } }),
       'Loading your showcase\u2026'
     );
   }
 
   return h('div', { style: wrap },
-    h('div', { style: { display: 'flex', justifyContent: 'flex-end', paddingTop: 12, paddingBottom: 8, gap: 16 } },
+    h('div', { style: { display: 'flex', justifyContent: 'flex-end', paddingTop: 12, paddingBottom: 8, gap:'var(--s-4)' } },
       h('button', { onClick: () => openShare('page'), style: lnk }, 'Share page \u2191'),
       onNavigateToActivity && h('button', { onClick: onNavigateToActivity, style: lnk }, 'Activity \u2192'),
       onNavigateToDashboard && h('button', { onClick: onNavigateToDashboard, style: lnk }, 'Full dashboard \u2192')
     ),
-    showBanner && h('div', { role: 'status', style: { background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 10, padding: '10px 14px', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, fontSize: 13, color: '#0f766e' } },
+    showBanner && h('div', { role: 'status', style: { background: 'var(--accent-light)', border: '1px solid var(--accent-border)', borderRadius:'var(--radius-lg)', padding: '10px 14px', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap:'var(--s-3)', fontSize:'var(--text-md)', color: 'var(--accent-hover)' } },
       h('span', null, 'Tracking since ' + (function() {
         let earliest = null;
         for (const e of Object.values(stash)) { if (e.addedAt && e.addedAt !== LEGACY_EPOCH) { if (!earliest || e.addedAt < earliest) earliest = e.addedAt; } }
         return earliest ? fmtDate(earliest) : 'recently';
       })() + ' \u2014 this page will get richer as your history builds.'),
-      h('button', { onClick: handleDismissBanner, style: { background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#0f766e', padding: '0 4px', lineHeight: 1 }, 'aria-label': 'Dismiss banner' }, '\xd7')
+      h('button', { onClick: handleDismissBanner, style: { background: 'none', border: 'none', cursor: 'pointer', fontSize:'var(--text-xl)', color: 'var(--accent-hover)', padding: '0 4px', lineHeight: 1 }, 'aria-label': 'Dismiss banner' }, '\xd7')
     ),
     h('section', { id: 'showcase-lifetime', 'aria-labelledby': 'showcase-lifetime-heading' },
       h('div', { style: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' } },
@@ -712,7 +905,7 @@ function StatsShowcase({ onNavigateToDashboard, onNavigateToActivity }) {
         lifetimeStitches > 0
           ? h('div', null,
               h('div', { style: { fontSize: 18, color: 'var(--accent)', marginTop: 6, fontWeight: 500 } }, `\u2248 ${threadKm(lifetimeStitches)} km of thread`),
-              h('div', { style: { marginTop: 8 } }, h('button', { onClick: () => openShare('lifetime'), style: Object.assign({}, lnk, { fontSize: 12 }) }, 'Share card \u2192'))
+              h('div', { style: { marginTop:'var(--s-2)' } }, h('button', { onClick: () => openShare('lifetime'), style: Object.assign({}, lnk, { fontSize:'var(--text-sm)' }) }, 'Share card \u2192'))
             )
           : h('div', { style: { fontSize: 15, color: 'var(--text-secondary)', marginTop: 10, maxWidth: 420, lineHeight: 1.6 } }, 'Your stitches will count here as you mark them off \u2014 see you soon.')
       )
@@ -730,7 +923,7 @@ function StatsShowcase({ onNavigateToDashboard, onNavigateToActivity }) {
     ),
     !showSable && earlyUser && h('div', null,
       h(ShowcaseDivider),
-      h('section', { id: 'showcase-sable', style: { color: 'var(--text-tertiary)', fontSize: 14, lineHeight: 1.6 } },
+      h('section', { id: 'showcase-sable', style: { color: 'var(--text-tertiary)', fontSize:'var(--text-lg)', lineHeight: 1.6 } },
         h(ShowcaseSectionLabel, null, 'Stash vs. Use'),
         "Your stash journey will chart here once there\u2019s a few months to draw from."
       )
@@ -756,7 +949,7 @@ function StatsShowcase({ onNavigateToDashboard, onNavigateToActivity }) {
           (() => { const t = (ageData.bucketUnder1Yr || 0) + (ageData.bucket1to3Yr || 0) + (ageData.bucket3to5Yr || 0) + (ageData.bucketOver5Yr || 0) + (ageData.legacy || 0); return `${fmtNum(t)} thread${t === 1 ? '' : 's'} in your stash.`; })()
         ),
         h(ShowcaseAgeBar, { ageData }),
-        ageData.oldest && h('div', { style: { marginTop: 12, fontSize: 13, color: 'var(--text-secondary)' } }, `Oldest: ${ageData.oldest.name} \u00b7 in stash since ${fmtDate(ageData.oldest.addedAt)}`)
+        ageData.oldest && h('div', { style: { marginTop:'var(--s-3)', fontSize:'var(--text-md)', color: 'var(--text-secondary)' } }, `Oldest: ${ageData.oldest.name} \u00b7 in stash since ${fmtDate(ageData.oldest.addedAt)}`)
       )
     ),
     showOldest && h('div', null,
@@ -767,10 +960,10 @@ function StatsShowcase({ onNavigateToDashboard, onNavigateToActivity }) {
           h(ShowcaseShareBtn, { onClick: () => openShare('oldest') })
         ),
         h('h3', { id: 'showcase-oldest-heading', style: { fontSize: 28, fontWeight: 700, margin: '0 0 6px', color: 'var(--text-primary)' } }, oldestWip.name || 'Untitled'),
-        h('p', { style: { fontSize: 16, color: 'var(--text-secondary)', margin: '0 0 4px', lineHeight: 1.6 } },
+        h('p', { style: { fontSize:'var(--text-xl)', color: 'var(--text-secondary)', margin: '0 0 4px', lineHeight: 1.6 } },
           (() => { const days = daysBetween(new Date(oldestWip.lastTouchedAt).getTime(), Date.now()); return `Together for ${days} day${days === 1 ? '' : 's'}, ${oldestWip.pct}% of the way through.`; })()
         ),
-        oldestWip.lastTouchedAt && h('p', { style: { fontSize: 13, color: 'var(--text-tertiary)', margin: 0 } }, `Last worked on ${fmtDaysSince(oldestWip.lastTouchedAt)}.`)
+        oldestWip.lastTouchedAt && h('p', { style: { fontSize:'var(--text-md)', color: 'var(--text-tertiary)', margin: 0 } }, `Last worked on ${fmtDaysSince(oldestWip.lastTouchedAt)}.`)
       )
     ),
     shareSection === 'lifetime' && h(ShowcaseShareModal, { key: 'share-lifetime', title: 'Share \u2014 Lifetime Stitches', drawFn: drawLifetime, onClose: closeShare }),
@@ -825,6 +1018,10 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
   const [coverageRatio, setCoverageRatio] = useState(null);
   const [mostUsedFilter, setMostUsedFilter] = useState('year');
   const [readyExpanded, setReadyExpanded] = useState(false);
+  // ── Extended analytics state ─────────────────────────────────
+  const [oldestWips, setOldestWips] = useState([]); // top-5 leaderboard
+  const [managerPatterns, setManagerPatterns] = useState([]);
+  const [richProjects, setRichProjects] = useState([]); // for difficulty / quarter / fingerprint
 
   // Run v3 migrations then load all data
   useEffect(() => {
@@ -849,6 +1046,8 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
         typeof ProjectStorage !== 'undefined' ? ProjectStorage.getOldestWIP() : null,
         typeof ProjectStorage !== 'undefined' ? ProjectStorage.getMostUsedColours(10) : [],
         typeof ProjectStorage !== 'undefined' ? ProjectStorage.getProjectsReadyToStart() : [],
+        typeof ProjectStorage !== 'undefined' && ProjectStorage.getOldestWIPs ? ProjectStorage.getOldestWIPs(5) : [],
+        typeof StashBridge !== 'undefined' && StashBridge.getManagerPatterns ? StashBridge.getManagerPatterns() : [],
       ]);
       if (cancelled) return;
 
@@ -860,6 +1059,8 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       setOldestWip(results[5]);
       setMostUsed(results[6]);
       setReadyToStart(results[7]);
+      setOldestWips(results[8] || []);
+      setManagerPatterns(results[9] || []);
 
       // Compute coverage ratio
       await computeCoverage(results[2]);
@@ -1040,7 +1241,10 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
   useEffect(() => {
     if (!loading && highlightSection) {
       const el = document.getElementById('stats-' + highlightSection);
-      if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+      if (el) setTimeout(() => {
+        var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        el.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
+      }, 100);
     }
   }, [loading, highlightSection]);
 
@@ -1052,12 +1256,44 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     async function loadDetails() {
       const metas = await ProjectStorage.listProjects();
       const details = [];
+      const rich = [];
       // PERF (perf-5 #7): parallel fetch.
       const fulls = await Promise.all(metas.map(m => ProjectStorage.get(m.id).catch(() => null)));
       for (const p of fulls) {
-        if (p) details.push({ id: p.id, name: p.name, finishStatus: p.finishStatus || 'active', completedAt: p.completedAt, startedAt: p.startedAt });
+        if (!p) continue;
+        details.push({ id: p.id, name: p.name, finishStatus: p.finishStatus || 'active', completedAt: p.completedAt, startedAt: p.startedAt });
+        // Compute difficulty + completion + palette stats once per project
+        let total = 0, completed = 0, blendCount = 0;
+        const palette = new Set();
+        if (p.pattern && p.pattern.length) {
+          const done = p.done && p.done.length === p.pattern.length ? p.done : null;
+          for (let i = 0; i < p.pattern.length; i++) {
+            const cell = p.pattern[i];
+            if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
+            total++;
+            if (done && done[i]) completed++;
+            palette.add(cell.id);
+          }
+          for (const id of palette) if (id.indexOf('+') >= 0) blendCount++;
+        }
+        const palLen = palette.size;
+        const diff = (typeof calcDifficulty === 'function' && palLen > 0)
+          ? calcDifficulty(palLen, blendCount, total)
+          : { stars: 1, label: 'Beginner', color: 'var(--success)' };
+        const pct = total > 0 ? Math.round(completed / total * 100) : 0;
+        rich.push({
+          id: p.id, name: p.name || 'Untitled',
+          finishStatus: p.finishStatus || 'active',
+          completedAt: p.completedAt, createdAt: p.createdAt, startedAt: p.startedAt,
+          designerName: p.designerName || null,
+          totalStitches: total, completedStitches: completed,
+          paletteIds: Array.from(palette), palLen, blendCount,
+          difficulty: diff.stars, difficultyLabel: diff.label, difficultyColor: diff.color,
+          pct, finished: (p.finishStatus === 'completed'),
+          statsSessions: Array.isArray(p.statsSessions) ? p.statsSessions : []
+        });
       }
-      if (!cancelled) setProjectDetails(details);
+      if (!cancelled) { setProjectDetails(details); setRichProjects(rich); }
     }
     loadDetails();
     return () => { cancelled = true; };
@@ -1092,6 +1328,246 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     return { bins, neutral };
   }, [stash]);
 
+  // ── Colour family counts (replaces hue wheel as primary composition view) ─
+  const familyData = useMemo(() => {
+    const counts = {};
+    for (const [key, entry] of Object.entries(stash)) {
+      if (!entry || !entry.owned || entry.owned <= 0) continue;
+      const parsed = key.indexOf(':') >= 0 ? { brand: key.split(':')[0], id: key.split(':').slice(1).join(':') } : { brand: 'dmc', id: key };
+      const info = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(parsed.brand, parsed.id) : null;
+      if (!info) continue;
+      const lab = info.lab || (typeof rgbToLab === 'function' ? rgbToLab(info.rgb[0], info.rgb[1], info.rgb[2]) : null);
+      const fam = classifyColourFamily({ lab, rgb: info.rgb, name: info.name });
+      counts[fam] = (counts[fam] || 0) + 1;
+    }
+    return counts;
+  }, [stash]);
+
+  // ── DMC palette coverage (unique owned DMC ids / total DMC palette) ────────
+  const dmcCoverage = useMemo(() => {
+    if (typeof DMC === 'undefined' || !Array.isArray(DMC) || DMC.length === 0) return null;
+    const ownedIds = new Set();
+    for (const [key, entry] of Object.entries(stash)) {
+      if (!entry || !entry.owned || entry.owned <= 0) continue;
+      const colon = key.indexOf(':');
+      const brand = colon >= 0 ? key.slice(0, colon) : 'dmc';
+      const id = colon >= 0 ? key.slice(colon + 1) : key;
+      if (brand !== 'dmc') continue;
+      ownedIds.add(id);
+    }
+    const total = DMC.length;
+    const owned = ownedIds.size;
+    const pct = total > 0 ? (owned / total) * 100 : 0;
+    return { owned, total, pct };
+  }, [stash]);
+
+  // ── Streak + Pace (uses InsightsEngine + sessions across all projects) ─────
+  const allSessions = useMemo(() => {
+    const out = [];
+    for (const p of richProjects) {
+      for (const s of (p.statsSessions || [])) out.push(s);
+    }
+    return out;
+  }, [richProjects]);
+
+  const streakData = useMemo(() => {
+    if (typeof window.InsightsEngine === 'undefined' || !window.InsightsEngine.computeWeeklyStreak) return { current: 0, longest: 0 };
+    const current = window.InsightsEngine.computeWeeklyStreak(allSessions);
+    // Longest streak: scan back over all weeks
+    if (allSessions.length === 0) return { current: 0, longest: current };
+    const weekKeys = new Set();
+    for (const s of allSessions) {
+      const ds = s.date || (s.startTime || '').slice(0, 10);
+      if (!ds) continue;
+      const d = new Date(ds + 'T12:00:00');
+      if (isNaN(d.getTime())) continue;
+      // ISO week-start (Monday)
+      const dow = d.getDay() === 0 ? 6 : d.getDay() - 1;
+      const m = new Date(d); m.setDate(d.getDate() - dow);
+      weekKeys.add(m.toISOString().slice(0, 10));
+    }
+    const sortedWeeks = Array.from(weekKeys).sort();
+    let longest = 0, run = 0, prev = null;
+    for (const wk of sortedWeeks) {
+      if (prev) {
+        const diff = (new Date(wk) - new Date(prev)) / 86400000;
+        if (Math.round(diff) === 7) run++; else run = 1;
+      } else run = 1;
+      if (run > longest) longest = run;
+      prev = wk;
+    }
+    return { current, longest: Math.max(longest, current) };
+  }, [allSessions]);
+
+  const paceData = useMemo(() => {
+    if (typeof window.InsightsEngine === 'undefined' || !window.InsightsEngine.calculateRecentPace) return null;
+    const now = new Date();
+    return window.InsightsEngine.calculateRecentPace(allSessions, now, 86400000);
+  }, [allSessions]);
+
+  // ── Buying Impact: for each non-owned thread referenced by wishlist
+  //    patterns, count the number of distinct patterns it appears in. ────────
+  const buyingImpact = useMemo(() => {
+    if (!managerPatterns || managerPatterns.length === 0) return [];
+    const ownedKeys = new Set();
+    for (const [key, entry] of Object.entries(stash)) {
+      if (!entry || !entry.owned || entry.owned <= 0) continue;
+      ownedKeys.add(key);
+      const colon = key.indexOf(':');
+      if (colon >= 0) ownedKeys.add(key.slice(colon + 1));
+    }
+    const tally = {};
+    for (const pat of managerPatterns) {
+      if (!pat || !pat.threads || pat.status === 'completed') continue;
+      const seen = new Set();
+      for (const t of pat.threads) {
+        if (!t || !t.id) continue;
+        if (ownedKeys.has(t.id) || ownedKeys.has('dmc:' + t.id)) continue;
+        if (seen.has(t.id)) continue;
+        seen.add(t.id);
+        if (!tally[t.id]) tally[t.id] = { id: t.id, name: t.name || t.id, brand: t.brand || 'dmc', patternCount: 0, patterns: [] };
+        tally[t.id].patternCount++;
+        if (tally[t.id].patterns.length < 3) tally[t.id].patterns.push(pat.title || 'Untitled');
+      }
+    }
+    // Look up rgb for each
+    for (const t of Object.values(tally)) {
+      const info = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(t.brand || 'dmc', t.id) : null;
+      t.rgb = info ? info.rgb : [128, 128, 128];
+    }
+    return Object.values(tally).sort((a, b) => b.patternCount - a.patternCount).slice(0, 10);
+  }, [managerPatterns, stash]);
+
+  // ── Use What You Have: for each owned-but-never-used thread, find
+  //    wishlist patterns that include it. ────────────────────────────────────
+  const useWhatYouHaveRecs = useMemo(() => {
+    if (!managerPatterns || managerPatterns.length === 0) return [];
+    if (!neverUsedData || !neverUsedData.samples || neverUsedData.samples.length === 0) return [];
+    const recs = [];
+    const dormantIds = new Set(neverUsedData.samples.map(s => s.id));
+    for (const pat of managerPatterns) {
+      if (!pat || !pat.threads || pat.status === 'completed' || pat.status === 'inprogress') continue;
+      const matches = [];
+      for (const t of pat.threads) {
+        if (t && t.id && dormantIds.has(t.id)) matches.push(t);
+      }
+      if (matches.length > 0) {
+        recs.push({ id: pat.id, title: pat.title || 'Untitled', matches: matches.length, sampleNames: matches.slice(0, 3).map(t => t.name || t.id) });
+      }
+    }
+    return recs.sort((a, b) => b.matches - a.matches).slice(0, 5);
+  }, [managerPatterns, neverUsedData]);
+
+  // ── Designer leaderboard: rank by project count + finished count. ─────────
+  const designerLeaderboard = useMemo(() => {
+    const tally = {};
+    for (const p of richProjects) {
+      if (!p.designerName) continue;
+      if (!tally[p.designerName]) tally[p.designerName] = { name: p.designerName, total: 0, finished: 0 };
+      tally[p.designerName].total++;
+      if (p.finished) tally[p.designerName].finished++;
+    }
+    return Object.values(tally).sort((a, b) => b.total - a.total).slice(0, 5);
+  }, [richProjects]);
+
+  // ── Brand alignment: for each pattern, % of its threads that are in the
+  //    user's preferred brand (most common brand owned). ─────────────────────
+  const brandAlignment = useMemo(() => {
+    if (!managerPatterns || managerPatterns.length === 0) return null;
+    // Determine preferred brand
+    const brandCounts = {};
+    for (const [key, entry] of Object.entries(stash)) {
+      if (!entry || !entry.owned || entry.owned <= 0) continue;
+      const brand = key.indexOf(':') >= 0 ? key.split(':')[0] : 'dmc';
+      brandCounts[brand] = (brandCounts[brand] || 0) + 1;
+    }
+    const preferred = Object.entries(brandCounts).sort(([, a], [, b]) => b - a)[0];
+    if (!preferred) return null;
+    const preferredBrand = preferred[0];
+    let aligned = 0, total = 0;
+    const conflicts = [];
+    for (const pat of managerPatterns) {
+      if (!pat || !pat.threads || pat.status === 'completed') continue;
+      const tn = pat.threads.length;
+      if (tn === 0) continue;
+      let okay = 0;
+      for (const t of pat.threads) {
+        if ((t.brand || 'dmc') === preferredBrand) okay++;
+      }
+      total += tn; aligned += okay;
+      const pct = Math.round((okay / tn) * 100);
+      if (pct < 80) conflicts.push({ id: pat.id, title: pat.title || 'Untitled', pct, brand: pat.threads[0].brand || 'dmc' });
+    }
+    return { preferredBrand, aligned, total, pct: total > 0 ? Math.round(aligned / total * 100) : 0, conflicts: conflicts.slice(0, 5) };
+  }, [managerPatterns, stash]);
+
+  // ── Colour fingerprint: Jaccard overlap of top-20 owned vs top-20 used. ───
+  const colourFingerprint = useMemo(() => {
+    if (!mostUsed || mostUsed.length === 0) return null;
+    const usedIds = new Set();
+    for (const c of mostUsed.slice(0, 20)) {
+      // Split blends into components
+      String(c.id).split('+').forEach(part => usedIds.add(part));
+    }
+    // Top 20 owned by skein count
+    const ownedByCount = Object.entries(stash)
+      .filter(([, e]) => e && e.owned > 0)
+      .map(([k, e]) => { const colon = k.indexOf(':'); return { id: colon >= 0 ? k.slice(colon + 1) : k, owned: e.owned }; })
+      .sort((a, b) => b.owned - a.owned).slice(0, 20);
+    const ownedIds = new Set(ownedByCount.map(o => o.id));
+    if (ownedIds.size === 0) return null;
+    const intersection = new Set([...usedIds].filter(x => ownedIds.has(x)));
+    const union = new Set([...usedIds, ...ownedIds]);
+    const jaccardPct = union.size > 0 ? (intersection.size / union.size) * 100 : 0;
+    // Find over-bought (in owned, not in used) and under-bought (in used, not in owned)
+    const usedNotOwned = [...usedIds].filter(x => !ownedIds.has(x)).slice(0, 5);
+    const ownedNotUsed = [...ownedIds].filter(x => !usedIds.has(x)).slice(0, 5);
+    return { jaccardPct, intersection: intersection.size, usedNotOwned, ownedNotUsed };
+  }, [mostUsed, stash]);
+
+  // ── Quarter portfolio: started + finished projects per quarter. ───────────
+  const quarterPortfolio = useMemo(() => {
+    const buckets = {};
+    function qFor(iso) {
+      if (!iso) return null;
+      const d = new Date(iso); if (isNaN(d.getTime())) return null;
+      return d.getFullYear() + ' Q' + (Math.floor(d.getMonth() / 3) + 1);
+    }
+    for (const p of richProjects) {
+      const startedQ = qFor(p.startedAt || p.createdAt);
+      const finishedQ = p.finished ? qFor(p.completedAt) : null;
+      if (startedQ) {
+        if (!buckets[startedQ]) buckets[startedQ] = { q: startedQ, started: 0, finished: 0 };
+        buckets[startedQ].started++;
+      }
+      if (finishedQ) {
+        if (!buckets[finishedQ]) buckets[finishedQ] = { q: finishedQ, started: 0, finished: 0 };
+        buckets[finishedQ].finished++;
+      }
+    }
+    return Object.values(buckets).sort((a, b) => a.q.localeCompare(b.q)).slice(-8); // last 8 quarters
+  }, [richProjects]);
+
+  // ── Difficulty vs completion: scatter of all projects with a palette. ─────
+  const difficultyPoints = useMemo(() => {
+    return richProjects.filter(p => p.palLen > 0).map(p => ({
+      difficulty: p.difficulty, pct: p.pct, name: p.name, finished: p.finished
+    }));
+  }, [richProjects]);
+
+  // ── Pattern queue smart-sort: ready-to-start with composite score
+  //    (closer to ready × more wishlist priority). Adds a 'recommended' badge.
+  const recommendedPatternId = useMemo(() => {
+    if (!readyToStart || readyToStart.length === 0) return null;
+    // Score: pct + (status === 'wishlist' ? 5 : 0)
+    let best = null, bestScore = -1;
+    for (const p of readyToStart) {
+      const score = (p.pct || 0) + (p.status === 'wishlist' ? 5 : 0);
+      if (score > bestScore) { bestScore = score; best = p; }
+    }
+    return best ? best.id : null;
+  }, [readyToStart]);
+
   // SABLE headline
   const sableHeadline = useMemo(() => {
     if (sableData.length < 3) return null;
@@ -1100,8 +1576,8 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     if (totalUsed === 0 && totalAdded === 0) return null;
     const ratio = totalUsed > 0 ? totalAdded / totalUsed : totalAdded > 0 ? Infinity : 1;
     if (ratio > 1.5) return { text: `Adding ${Math.round(ratio * 10) / 10}× the rate of using`, color: '#f59e0b' };
-    if (ratio >= 0.8) return { text: 'About balanced', color: '#0d9488' };
-    return { text: 'Using more than adding', color: '#0d9488' };
+    if (ratio >= 0.8) return { text: 'About balanced', color: 'var(--accent)' };
+    return { text: 'Using more than adding', color: 'var(--accent)' };
   }, [sableData]);
 
   // Duplicate detection
@@ -1188,14 +1664,80 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
   const vis = visibility;
   const show = key => vis[key] !== false;
 
+  // ── Plan B Phase 4: Lifetime overview chip ────────────────────
+  // Always-visible headline chip in the tab bar so users on Activity /
+  // Insights / Stash tabs can still see the lifetime number without flipping
+  // back to the Stitching dashboard. Opens the shared AppInfoPopover with
+  // the cross-tab summary (lifetime, active, finished YTD, coverage).
+  const [lifetimeChipOpen, setLifetimeChipOpen] = useState(false);
+  const lifetimeChipRef = useRef(null);
+
   // ── Shared tab bar (built after all hooks) ────────────────────
+  // Tab labels use Icons.* (sparkles/fire/lightbulb) prefixed inline so the
+  // chrome stays consistent with the rest of the app. Avoid raw unicode
+  // glyphs (✶ ◎ ✨) per the no-emoji house rule.
+  const _Icons = (typeof window !== 'undefined' && window.Icons) ? window.Icons : null;
+  function tabIcon(name) {
+    if (!_Icons || typeof _Icons[name] !== 'function') return null;
+    return h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex', verticalAlign: '-3px', marginRight: 4 } }, _Icons[name]());
+  }
   const tabBar = h('div', { className: 'gsd-tabs', style: { paddingTop: 8 } },
     h('div', { className: 'gsd-tabs-inner' },
       h('button', { className: 'gsd-tab' + (tab === 'stitching' ? ' gsd-tab--on' : ''), onClick: () => switchTab('stitching') }, 'Stitching'),
       h('button', { className: 'gsd-tab' + (tab === 'stash' ? ' gsd-tab--on' : ''), onClick: () => switchTab('stash') }, 'Stash'),
-      h('button', { className: 'gsd-tab' + (tab === 'showcase' ? ' gsd-tab--on' : ''), onClick: () => switchTab('showcase') }, '\u2736 Showcase'),
-      h('button', { className: 'gsd-tab' + (tab === 'activity' ? ' gsd-tab--on' : ''), onClick: () => switchTab('activity') }, '\u25ce Activity'),
-      h('button', { className: 'gsd-tab' + (tab === 'insights' ? ' gsd-tab--on' : ''), onClick: () => switchTab('insights') }, '\u2728 Insights')
+      h('button', { className: 'gsd-tab' + (tab === 'showcase' ? ' gsd-tab--on' : ''), onClick: () => switchTab('showcase') }, tabIcon('sparkles'), 'Showcase'),
+      h('button', { className: 'gsd-tab' + (tab === 'activity' ? ' gsd-tab--on' : ''), onClick: () => switchTab('activity') }, tabIcon('fire'), 'Activity'),
+      h('button', { className: 'gsd-tab' + (tab === 'insights' ? ' gsd-tab--on' : ''), onClick: () => switchTab('insights') }, tabIcon('lightbulb'), 'Insights')
+    ),
+    h('div', { className: 'app-info-chip-wrap gsd-tabs-chip-wrap' },
+      h('button', {
+        ref: lifetimeChipRef,
+        type: 'button',
+        className: 'app-info-chip gsd-lifetime-chip',
+        'aria-haspopup': 'dialog',
+        'aria-expanded': lifetimeChipOpen ? 'true' : 'false',
+        onClick: () => setLifetimeChipOpen(o => !o),
+        title: 'Lifetime overview'
+      },
+        h('span', { className: 'app-info-chip__label' }, 'Lifetime'),
+        h('span', { className: 'gsd-lifetime-chip__num' }, fmtNum(lifetimeStitches || 0)),
+        h('span', { className: 'app-info-chip__chevron', 'aria-hidden': 'true' }, window.Icons && window.Icons.chevronDown ? window.Icons.chevronDown() : null)
+      ),
+      lifetimeChipOpen && window.AppInfoPopover && (() => {
+        const km = lifetimeStitches > 0 ? threadKm(lifetimeStitches) : 0;
+        const stitchRows = [
+          ['Lifetime stitches', fmtNum(lifetimeStitches || 0)]
+        ];
+        if (km > 0) stitchRows.push(['Thread used', '\u2248 ' + km + ' km']);
+        const projectRows = [
+          ['Active projects', fmtNum(activeProjectCount || 0)],
+          ['Finished this year', fmtNum(finishedThisYear || 0)]
+        ];
+        const stashRows = [];
+        if (typeof coverageRatio === 'number') stashRows.push(['Stash coverage', coverageRatio + '%']);
+        const children = [
+          h(window.AppInfoSection, { key: 's1', title: 'Stitches' },
+            h(window.AppInfoGrid, { rows: stitchRows })
+          ),
+          h(window.AppInfoDivider, { key: 'd1' }),
+          h(window.AppInfoSection, { key: 's2', title: 'Projects' },
+            h(window.AppInfoGrid, { rows: projectRows })
+          )
+        ];
+        if (stashRows.length) {
+          children.push(h(window.AppInfoDivider, { key: 'd2' }));
+          children.push(h(window.AppInfoSection, { key: 's3', title: 'Stash' },
+            h(window.AppInfoGrid, { rows: stashRows })
+          ));
+        }
+        return h(window.AppInfoPopover, {
+          open: true,
+          onClose: () => setLifetimeChipOpen(false),
+          triggerRef: lifetimeChipRef,
+          ariaLabel: 'Lifetime stats overview',
+          className: 'app-info-popover--left'
+        }, children);
+      })()
     )
   );
 
@@ -1204,7 +1746,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     if (!insightsLoaded) {
       return h('div', null, tabBar,
         h('div', { style: { padding: '60px 0', textAlign: 'center', color: 'var(--text-tertiary)' } },
-          h('div', { style: { width: 28, height: 28, border: '2.5px solid #e2e8f0', borderTopColor: '#0d9488', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' } }),
+          h('div', { style: { width: 28, height: 28, border: '2.5px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' } }),
           'Loading insights\u2026'
         )
       );
@@ -1217,7 +1759,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     if (!activityLoaded) {
       return h('div', null, tabBar,
         h('div', { style: { padding: '60px 0', textAlign: 'center', color: 'var(--text-tertiary)' } },
-          h('div', { style: { width: 28, height: 28, border: '2.5px solid #e2e8f0', borderTopColor: '#0d9488', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' } }),
+          h('div', { style: { width: 28, height: 28, border: '2.5px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' } }),
           'Loading activity…'
         )
       );
@@ -1241,7 +1783,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     return h('div', { className: 'gsd', style: { padding: 40, textAlign: 'center', color: 'var(--text-secondary)' } },
       tabBar,
       h('div', { style: { padding: 40, textAlign: 'center', color: 'var(--text-secondary)' } },
-        h('div', { style: { width: 28, height: 28, border: '2.5px solid #e2e8f0', borderTopColor: '#0d9488', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' } }),
+        h('div', { style: { width: 28, height: 28, border: '2.5px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' } }),
         'Loading stats…'
       )
     );
@@ -1266,7 +1808,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
   return h('div', { className: 'gsd', style: { paddingBottom: 40 } },
     tabBar,
     h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '8px 0 4px' } },
-      h('button', { onClick: () => setShowCustomise(true), style: { padding: '6px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer' } }, 'Customise')
+      h('button', { onClick: () => setShowCustomise(true), style: { padding: '6px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize:'var(--text-sm)', fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer' } }, 'Customise')
     ),
 
     // ── Top row: 4 metric cards ──────────────────────────────────
@@ -1277,7 +1819,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
               h('div', { className: 'gsd-metric-value' }, fmtNum(lifetimeStitches)),
               h('div', { className: 'gsd-metric-sub' }, '≈ ' + threadKm(lifetimeStitches) + ' km of thread'),
               h('div', { style: { marginTop: 6, display: 'flex', gap: 6 } },
-                h('button', { onClick: e => { e.stopPropagation(); setShowShareCard(true); }, style: { fontSize: 11, padding: '3px 8px', background: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--accent-border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: 600 } }, 'Share card')
+                h('button', { onClick: e => { e.stopPropagation(); setShowShareCard(true); }, style: { fontSize:'var(--text-xs)', padding: '3px 8px', background: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--accent-border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: 600 } }, 'Share card')
               )
             )
           : h('div', null,
@@ -1296,12 +1838,34 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       show('coverage') && h(StatCard, { title: 'Coverage Ratio', id: 'stats-coverage', onClick: onNavigateToStash },
         coverageRatio !== null
           ? h('div', null,
-              h('div', { className: 'gsd-metric-value', style: { color: coverageRatio >= 80 ? '#0d9488' : coverageRatio >= 50 ? '#f59e0b' : '#ef4444' } }, coverageRatio + '%'),
+              h('div', { className: 'gsd-metric-value', style: { color: coverageRatio >= 80 ? 'var(--accent)' : coverageRatio >= 50 ? '#f59e0b' : '#ef4444' } }, coverageRatio + '%'),
               h('div', { className: 'gsd-metric-sub' }, 'of threads needed are in your stash')
             )
           : h('div', null,
               h('div', { className: 'gsd-metric-value', style: { color: 'var(--text-tertiary)' } }, '—'),
               h('div', { className: 'gsd-metric-sub' }, 'Add a pattern to see how your stash covers it')
+            )
+      ),
+      show('streak') && h(StatCard, { title: 'Stitching Streak', id: 'stats-streak' },
+        streakData.current > 0
+          ? h('div', null,
+              h('div', { className: 'gsd-metric-value' }, streakData.current),
+              h('div', { className: 'gsd-metric-sub' }, 'week' + (streakData.current === 1 ? '' : 's') + ' in a row' + (streakData.longest > streakData.current ? ' (best: ' + streakData.longest + ')' : ''))
+            )
+          : h('div', null,
+              h('div', { className: 'gsd-metric-value', style: { color: 'var(--text-tertiary)' } }, '0'),
+              h('div', { className: 'gsd-metric-sub' }, 'Stitch this week to start a streak')
+            )
+      ),
+      show('pace') && h(StatCard, { title: 'Recent Pace', id: 'stats-pace' },
+        paceData && paceData.activeDays > 0
+          ? h('div', null,
+              h('div', { className: 'gsd-metric-value' }, fmtNum(Math.round(paceData.pacePerDay))),
+              h('div', { className: 'gsd-metric-sub' }, 'stitches / day across ' + paceData.activeDays + ' active day' + (paceData.activeDays === 1 ? '' : 's'))
+            )
+          : h('div', null,
+              h('div', { className: 'gsd-metric-value', style: { color: 'var(--text-tertiary)' } }, '—'),
+              h('div', { className: 'gsd-metric-sub' }, 'No recent activity to measure pace')
             )
       )
     ),
@@ -1311,19 +1875,34 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       show('sableIndex') && h(StatCard, { title: 'SABLE Index', id: 'stats-sableIndex', style: { minHeight: 200 } },
         sableData.length >= 3
           ? h('div', null,
-              sableHeadline && h('div', { style: { fontSize: 14, fontWeight: 600, color: sableHeadline.color, marginBottom: 8 } }, sableHeadline.text),
+              sableHeadline && h('div', { style: { fontSize:'var(--text-lg)', fontWeight: 600, color: sableHeadline.color, marginBottom:'var(--s-2)' } }, sableHeadline.text),
               h(SableChart, { data: sableData }),
               h('div', { style: { fontSize: 10, color: 'var(--text-tertiary)', marginTop: 6 } }, 'SABLE = Stash Accumulated Beyond Life Expectancy')
             )
-          : h('div', { style: { fontSize: 13, color: 'var(--text-secondary)', padding: '20px 0' } },
+          : h('div', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)', padding: '20px 0' } },
               'Check back after a few months of tracking to see a trend'
             )
       ),
-      show('stashComposition') && h(StatCard, { title: 'Stash Composition', id: 'stats-stashComposition', style: { minHeight: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' } },
-        (hueData.bins.some(b => b > 0) || hueData.neutral > 0)
-          ? h(HueWheel, { bins: hueData.bins, neutral: hueData.neutral })
-          : h('div', { style: { fontSize: 13, color: 'var(--text-secondary)', padding: '20px 0' } },
+      show('stashComposition') && h(StatCard, { title: 'Colour Families', id: 'stats-stashComposition', style: { minHeight: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' } },
+        Object.keys(familyData).length > 0
+          ? h(ColourFamilyWheel, { counts: familyData })
+          : h('div', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)', padding: '20px 0' } },
               'Your stash is empty. Add threads to see your palette'
+            )
+      ),
+      show('dmcCoverage') && h(StatCard, { title: 'DMC Palette Coverage', id: 'stats-dmcCoverage', style: { minHeight: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' } },
+        dmcCoverage
+          ? h('div', { style: { textAlign: 'center', width: '100%' } },
+              h(RadialGauge, { pct: dmcCoverage.pct, sublabel: fmtNum(dmcCoverage.owned) + ' of ' + fmtNum(dmcCoverage.total) + ' DMC colours' }),
+              h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginTop: 6 } },
+                dmcCoverage.pct >= 90 ? 'Collector tier — nearly the whole library'
+                  : dmcCoverage.pct >= 50 ? 'Strong coverage of the DMC palette'
+                  : dmcCoverage.pct >= 20 ? 'A focused working palette'
+                  : 'Plenty of room to grow'
+              )
+            )
+          : h('div', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)', padding: '20px 0' } },
+              'No DMC threads in stash yet'
             )
       )
     ),
@@ -1334,52 +1913,62 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
         (() => {
           const full = readyToStart.filter(p => p.pct === 100);
           const nearly = readyToStart.filter(p => p.pct >= 80 && p.pct < 100);
-          if (full.length === 0 && !readyExpanded) return h('div', { style: { fontSize: 13, color: 'var(--text-secondary)' } }, "Nothing fully kitted yet. Check individual patterns to see what's missing");
+          if (full.length === 0 && !readyExpanded) return h('div', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)' } }, "Nothing fully kitted yet. Check individual patterns to see what's missing");
           const shown = readyExpanded ? readyToStart : full.slice(0, 3);
           return h('div', null,
-            shown.map(p => h('div', { key: p.id, onClick: () => navigateToProject(p.id), style: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border-subtle)', cursor: 'pointer', fontSize: 13 } },
-              h('span', { style: { color: p.pct === 100 ? '#0d9488' : '#f59e0b', fontWeight: 600, minWidth: 36 } }, p.pct + '%'),
-              h('span', { style: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, p.title || 'Untitled'),
-              h('span', { style: { fontSize: 11, color: 'var(--text-tertiary)' } }, p.totalThreads + ' threads')
+            shown.map(p => h('div', { key: p.id, onClick: () => navigateToProject(p.id), style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', padding: '6px 0', borderBottom: '1px solid var(--border-subtle)', cursor: 'pointer', fontSize:'var(--text-md)' } },
+              h('span', { style: { color: p.pct === 100 ? 'var(--accent)' : '#f59e0b', fontWeight: 600, minWidth: 36 } }, p.pct + '%'),
+              h('span', { style: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
+                p.title || 'Untitled',
+                recommendedPatternId === p.id && h('span', { style: { marginLeft: 6, fontSize: 9, padding: '1px 6px', borderRadius: 8, background: 'var(--accent-light)', color: 'var(--accent)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4 } }, 'Pick this')
+              ),
+              h('span', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)' } }, p.totalThreads + ' threads')
             )),
-            (nearly.length > 0 || full.length > 3) && !readyExpanded && h('button', { onClick: () => setReadyExpanded(true), style: { fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 4, padding: 0 } }, 'See all (' + readyToStart.length + ')'),
-            readyExpanded && h('button', { onClick: () => setReadyExpanded(false), style: { fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 4, padding: 0 } }, 'Show less')
+            (nearly.length > 0 || full.length > 3) && !readyExpanded && h('button', { onClick: () => setReadyExpanded(true), style: { fontSize:'var(--text-xs)', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', marginTop:'var(--s-1)', padding: 0 } }, 'See all (' + readyToStart.length + ')'),
+            readyExpanded && h('button', { onClick: () => setReadyExpanded(false), style: { fontSize:'var(--text-xs)', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', marginTop:'var(--s-1)', padding: 0 } }, 'Show less')
           );
         })()
       ),
       show('duplicateRisk') && h(StatCard, { title: 'Duplicate Alerts', id: 'stats-duplicateRisk' },
         duplicates.length > 0
           ? h('div', null,
-              duplicates.slice(0, 5).map(d => h('div', { key: d.key, style: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border-subtle)', fontSize: 13 } },
+              duplicates.slice(0, 5).map(d => h('div', { key: d.key, style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', padding: '6px 0', borderBottom: '1px solid var(--border-subtle)', fontSize:'var(--text-md)' } },
                 h(Swatch, { rgb: d.rgb }),
                 h('span', { style: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
                   d.brand.toUpperCase() + ' ' + d.id,
-                  d.type === 'repeat' && h('span', { style: { fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 4 } }, d.addCount + ' adds'),
-                  d.type === 'near' && h('span', { style: { fontSize: 11, color: '#f59e0b', marginLeft: 4 } }, 'near-duplicate')
+                  d.type === 'repeat' && h('span', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginLeft:'var(--s-1)' } }, d.addCount + ' adds'),
+                  d.type === 'near' && h('span', { style: { fontSize:'var(--text-xs)', color: '#f59e0b', marginLeft:'var(--s-1)' } }, 'near-duplicate')
                 ),
-                h('span', { style: { fontSize: 11, color: 'var(--text-tertiary)' } }, 'owns ' + d.owned),
-                h('button', { onClick: () => handleDismiss(d.key), 'aria-label': 'Dismiss', style: { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 16, padding: '0 4px', lineHeight: 1 } }, '×')
+                h('span', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)' } }, 'owns ' + d.owned),
+                h('button', { onClick: () => handleDismiss(d.key), 'aria-label': 'Dismiss', style: { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize:'var(--text-xl)', padding: '0 4px', lineHeight: 1 } }, '×')
               ))
             )
-          : h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)' } },
-              h('span', { style: { color: '#0d9488', fontSize: 18, display:'inline-flex', alignItems:'center' } }, window.Icons ? window.Icons.check() : null),
+          : h('div', { style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', fontSize:'var(--text-md)', color: 'var(--text-secondary)' } },
+              h('span', { style: { color: 'var(--accent)', fontSize: 18, display:'inline-flex', alignItems:'center' } }, window.Icons ? window.Icons.check() : null),
               'No duplicates spotted — nicely done'
             )
       ),
-      show('oldestWip') && h(StatCard, { title: 'Oldest WIP', id: 'stats-oldestWip', onClick: oldestWip ? () => navigateToProject(oldestWip.id) : undefined },
-        oldestWip
+      show('oldestWip') && h(StatCard, { title: 'Oldest WIPs', id: 'stats-oldestWip' },
+        oldestWips && oldestWips.length > 0
           ? h('div', null,
-              h('div', { style: { fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 } }, oldestWip.name),
-              h('div', { style: { fontSize: 12, color: 'var(--text-secondary)' } },
-                (() => {
-                  const days = Math.floor((Date.now() - new Date(oldestWip.lastTouchedAt).getTime()) / 86400000);
-                  return days + ' day' + (days !== 1 ? 's' : '') + ' since last touched';
-                })()
-              ),
-              h('div', { style: { fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 } }, oldestWip.pct + '% complete (' + fmtNum(oldestWip.completedStitches) + ' / ' + fmtNum(oldestWip.totalStitches) + ')'),
-              h('button', { onClick: e => { e.stopPropagation(); switchTab('activity'); const p = new URLSearchParams(window.location.search); p.set('tab', 'activity'); p.set('project', oldestWip.id); window.history.replaceState({}, '', '?' + p.toString()); }, style: { marginTop: 6, fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600, fontFamily: 'inherit' } }, 'See stitching pattern \u2192')
+              oldestWips.map((p, i) => {
+                const days = Math.floor((Date.now() - new Date(p.lastTouchedAt).getTime()) / 86400000);
+                return h('div', { key: p.id, onClick: () => navigateToProject(p.id), style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', padding: '6px 0', borderBottom: i < oldestWips.length - 1 ? '1px solid var(--border-subtle)' : 'none', cursor: 'pointer', fontSize:'var(--text-md)' } },
+                  h('span', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', width: 18, textAlign: 'right' } }, i + 1),
+                  h('span', { style: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-primary)', fontWeight: 500 } }, p.name || 'Untitled'),
+                  h('span', { style: { fontSize:'var(--text-xs)', color: days > 180 ? '#ef4444' : days > 60 ? '#f59e0b' : 'var(--text-tertiary)', whiteSpace: 'nowrap' } }, days + 'd · ' + p.pct + '%')
+                );
+              })
             )
-          : h('div', { style: { fontSize: 13, color: 'var(--text-secondary)' } }, 'No active projects right now')
+          : oldestWip
+            ? h('div', null,
+                h('div', { style: { fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom:'var(--s-1)' } }, oldestWip.name),
+                h('div', { style: { fontSize:'var(--text-sm)', color: 'var(--text-secondary)' } },
+                  (() => { const days = Math.floor((Date.now() - new Date(oldestWip.lastTouchedAt).getTime()) / 86400000); return days + ' day' + (days !== 1 ? 's' : '') + ' since last touched'; })()
+                ),
+                h('div', { style: { fontSize:'var(--text-sm)', color: 'var(--text-tertiary)', marginTop: 2 } }, oldestWip.pct + '% complete')
+              )
+            : h('div', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)' } }, 'No active projects right now')
       )
     ),
 
@@ -1389,36 +1978,36 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
         (ageData.bucketUnder1Yr > 0 || ageData.bucket1to3Yr > 0 || ageData.bucket3to5Yr > 0 || ageData.bucketOver5Yr > 0 || ageData.legacy > 0)
           ? h('div', null,
               h(AgeBar, { data: ageData }),
-              ageData.oldest && h('div', { style: { fontSize: 11, color: 'var(--text-secondary)', marginTop: 8 } },
+              ageData.oldest && h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-secondary)', marginTop:'var(--s-2)' } },
                 'Oldest tracked: ' + (ageData.oldest.name || ageData.oldest.id) + ' · ' + new Date(ageData.oldest.addedAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
               ),
               ageData.legacy > 0 && !ageData.bucketUnder1Yr && !ageData.bucket1to3Yr && !ageData.bucket3to5Yr && !ageData.bucketOver5Yr &&
-                h('div', { style: { fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 } }, 'Most of your stash was added before tracking started. Newly-added threads will appear here')
+                h('div', { style: { fontSize:'var(--text-sm)', color: 'var(--text-secondary)', marginTop:'var(--s-1)' } }, 'Most of your stash was added before tracking started. Newly-added threads will appear here')
             )
-          : h('div', { style: { fontSize: 13, color: 'var(--text-secondary)' } }, 'Your stash is empty. Add threads to see age data')
+          : h('div', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)' } }, 'Your stash is empty. Add threads to see age data')
       ),
       show('mostUsedColours') && h(StatCard, { title: 'Most-Used Colours', id: 'stats-mostUsedColours' },
         mostUsed.length > 0
           ? h('div', null,
-              h('div', { style: { display: 'flex', gap: 8, marginBottom: 8 } },
-                h('button', { onClick: () => setMostUsedFilter('year'), style: { fontSize: 11, padding: '2px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid ' + (mostUsedFilter === 'year' ? 'var(--accent)' : 'var(--border)'), background: mostUsedFilter === 'year' ? 'var(--accent-light)' : 'var(--surface)', color: mostUsedFilter === 'year' ? 'var(--accent)' : 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600 } }, 'This year'),
-                h('button', { onClick: () => setMostUsedFilter('all'), style: { fontSize: 11, padding: '2px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid ' + (mostUsedFilter === 'all' ? 'var(--accent)' : 'var(--border)'), background: mostUsedFilter === 'all' ? 'var(--accent-light)' : 'var(--surface)', color: mostUsedFilter === 'all' ? 'var(--accent)' : 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600 } }, 'All time')
+              h('div', { style: { display: 'flex', gap:'var(--s-2)', marginBottom:'var(--s-2)' } },
+                h('button', { onClick: () => setMostUsedFilter('year'), style: { fontSize:'var(--text-xs)', padding: '2px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid ' + (mostUsedFilter === 'year' ? 'var(--accent)' : 'var(--border)'), background: mostUsedFilter === 'year' ? 'var(--accent-light)' : 'var(--surface)', color: mostUsedFilter === 'year' ? 'var(--accent)' : 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600 } }, 'This year'),
+                h('button', { onClick: () => setMostUsedFilter('all'), style: { fontSize:'var(--text-xs)', padding: '2px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid ' + (mostUsedFilter === 'all' ? 'var(--accent)' : 'var(--border)'), background: mostUsedFilter === 'all' ? 'var(--accent-light)' : 'var(--surface)', color: mostUsedFilter === 'all' ? 'var(--accent)' : 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600 } }, 'All time')
               ),
               mostUsed.map((c, i) => h('div', { key: c.id, onClick: () => navigateToStashThread(c.id),
                 style: {
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0',
+                  display: 'flex', alignItems: 'center', gap:'var(--s-2)', padding: '5px 0',
                   borderBottom: i < mostUsed.length - 1 ? '1px solid var(--border-subtle)' : 'none',
-                  cursor: 'pointer', fontSize: 13,
+                  cursor: 'pointer', fontSize:'var(--text-md)',
                   background: highlightThread && (c.id === highlightThread || c.id === (highlightThread.split(':')[1] || highlightThread)) ? 'var(--accent-light)' : 'transparent',
                   borderRadius: 4, paddingLeft: 4, marginLeft: -4
                 } },
-                h('span', { style: { fontSize: 11, color: 'var(--text-tertiary)', width: 18, textAlign: 'right' } }, i + 1),
+                h('span', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', width: 18, textAlign: 'right' } }, i + 1),
                 h(Swatch, { rgb: c.rgb }),
                 h('span', { style: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, c.id + ' ' + c.name),
-                h('span', { style: { fontSize: 11, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' } }, fmtNum(c.count) + ' (' + c.pct + '%)')
+                h('span', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', whiteSpace: 'nowrap' } }, fmtNum(c.count) + ' (' + c.pct + '%)')
               ))
             )
-          : h('div', { style: { fontSize: 13, color: 'var(--text-secondary)' } }, 'Start stitching in the tracker to see your most-used colours build up')
+          : h('div', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)' } }, 'Start stitching in the tracker to see your most-used colours build up')
       )
     ),
 
@@ -1431,12 +2020,12 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
             'thread' + (neverUsedData.count === 1 ? '' : 's') + ' in your stash that\u2019ve never appeared in a project' +
             (neverUsedData.legacyCount > 0 ? ' (' + fmtNum(neverUsedData.legacyCount) + ' pre-tracking)' : '')
           ),
-          neverUsedData.samples.length > 0 && h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 } },
+          neverUsedData.samples.length > 0 && h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom:'var(--s-2)' } },
             neverUsedData.samples.map(s =>
               h('div', { key: s.key, title: s.brand.toUpperCase() + ' ' + s.id + ' ' + s.name, style: { width: 24, height: 24, borderRadius: 4, background: 'rgb(' + s.rgb[0] + ',' + s.rgb[1] + ',' + s.rgb[2] + ')', border: '1px solid rgba(0,0,0,0.1)', flexShrink: 0 } })
             )
           ),
-          onNavigateToStash && h('button', { onClick: () => onNavigateToStash(), style: { fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600, fontFamily: 'inherit' } }, 'View in stash \u2192')
+          onNavigateToStash && h('button', { onClick: () => onNavigateToStash(), style: { fontSize:'var(--text-xs)', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600, fontFamily: 'inherit' } }, 'View in stash \u2192')
         )
       )
     ),
@@ -1446,7 +2035,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       h(StatCard, { title: 'Pattern Source', id: 'stats-patternSource' },
         h('div', null,
           h('div', { className: 'gsd-metric-sub', style: { marginBottom: 10 } }, 'Size breakdown of your ' + (patternSourceData.buckets.small + patternSourceData.buckets.medium + patternSourceData.buckets.large) + ' patterns'),
-          h('div', { style: { display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 8 } },
+          h('div', { style: { display: 'flex', gap:'var(--s-2)', alignItems: 'flex-end', marginBottom:'var(--s-2)' } },
             (() => {
               const total = patternSourceData.buckets.small + patternSourceData.buckets.medium + patternSourceData.buckets.large;
               if (total === 0) return null;
@@ -1456,22 +2045,106 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
                 { label: 'Large\n25k+', count: patternSourceData.buckets.large, color: '#818cf8' },
               ];
               const maxCount = Math.max(...bars.map(b => b.count), 1);
-              return bars.map(bar => h('div', { key: bar.label, style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flex: 1 } },
-                h('div', { style: { fontSize: 11, fontWeight: 600, color: 'var(--text-primary)' } }, bar.count),
+              return bars.map(bar => h('div', { key: bar.label, style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap:'var(--s-1)', flex: 1 } },
+                h('div', { style: { fontSize:'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)' } }, bar.count),
                 h('div', { style: { width: '100%', height: Math.max(4, Math.round((bar.count / maxCount) * 60)), background: bar.color, borderRadius: '3px 3px 0 0' } }),
                 h('div', { style: { fontSize: 9, color: 'var(--text-tertiary)', textAlign: 'center', whiteSpace: 'pre-line', lineHeight: 1.3 } }, bar.label)
               ));
             })()
           ),
-          Object.keys(patternSourceData.designerMap).length >= 3 && h('div', { style: { marginTop: 8 } },
-            h('div', { className: 'gsd-metric-sub', style: { marginBottom: 4 } }, 'Top designers'),
+          Object.keys(patternSourceData.designerMap).length >= 3 && h('div', { style: { marginTop:'var(--s-2)' } },
+            h('div', { className: 'gsd-metric-sub', style: { marginBottom:'var(--s-1)' } }, 'Top designers'),
             Object.entries(patternSourceData.designerMap).sort(([,a],[,b]) => b - a).slice(0, 3).map(([name, count]) =>
-              h('div', { key: name, style: { fontSize: 12, color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between', padding: '2px 0' } },
+              h('div', { key: name, style: { fontSize:'var(--text-sm)', color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between', padding: '2px 0' } },
                 h('span', null, name), h('span', { style: { color: 'var(--text-tertiary)' } }, count)
               )
             )
           )
         )
+      )
+    ),
+
+    // ── What should I work on next? ─────────────────────────────
+    (show('useWhatYouHave') || show('buyingImpact')) && h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10, margin: '10px 0' } },
+      show('useWhatYouHave') && useWhatYouHaveRecs.length > 0 && h(StatCard, { title: 'Use What You Have', id: 'stats-useWhatYouHave' },
+        h('div', null,
+          h('div', { className: 'gsd-metric-sub', style: { marginBottom: 8 } }, 'Wishlist patterns that lean on threads already in your stash'),
+          useWhatYouHaveRecs.map(r => h('div', { key: r.id, style: { padding: '6px 0', borderBottom: '1px solid var(--border-subtle)', fontSize:'var(--text-md)' } },
+            h('div', { style: { fontWeight: 600, color: 'var(--text-primary)' } }, r.title),
+            h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginTop: 2 } },
+              r.matches + ' dormant thread' + (r.matches === 1 ? '' : 's') + ' would get used: ' + r.sampleNames.slice(0, 3).join(', ')
+            )
+          ))
+        )
+      ),
+      show('buyingImpact') && buyingImpact.length > 0 && h(StatCard, { title: 'Highest-Impact Threads to Buy', id: 'stats-buyingImpact' },
+        h('div', null,
+          h('div', { className: 'gsd-metric-sub', style: { marginBottom: 8 } }, 'Each of these unlocks multiple wishlist patterns'),
+          buyingImpact.slice(0, 6).map((t, i) => h('div', { key: t.id, style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', padding: '5px 0', borderBottom: i < Math.min(5, buyingImpact.length - 1) ? '1px solid var(--border-subtle)' : 'none', fontSize:'var(--text-md)' } },
+            h(Swatch, { rgb: t.rgb }),
+            h('span', { style: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, (t.brand || 'dmc').toUpperCase() + ' ' + t.id + ' · ' + t.name),
+            h('span', { style: { fontSize:'var(--text-xs)', color: 'var(--accent)', fontWeight: 600, whiteSpace: 'nowrap' } }, 'unlocks ' + t.patternCount)
+          ))
+        )
+      )
+    ),
+
+    // ── How does this all connect? ──────────────────────────────
+    show('colourFingerprint') && colourFingerprint && h('div', { style: { margin: '10px 0' } },
+      h(StatCard, { title: 'Your Colour Fingerprint', id: 'stats-colourFingerprint' },
+        h(FingerprintBar, { jaccardPct: colourFingerprint.jaccardPct }),
+        h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 8 } },
+          h('div', null,
+            h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 4 } }, 'Used a lot but not stocked'),
+            colourFingerprint.usedNotOwned.length > 0
+              ? colourFingerprint.usedNotOwned.map(id => h('div', { key: id, style: { fontSize:'var(--text-sm)', color: 'var(--text-primary)' } }, id))
+              : h('div', { style: { fontSize:'var(--text-sm)', color: 'var(--text-tertiary)' } }, 'Stocked everything you use')
+          ),
+          h('div', null,
+            h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 4 } }, 'Stocked but rarely used'),
+            colourFingerprint.ownedNotUsed.length > 0
+              ? colourFingerprint.ownedNotUsed.map(id => h('div', { key: id, style: { fontSize:'var(--text-sm)', color: 'var(--text-primary)' } }, id))
+              : h('div', { style: { fontSize:'var(--text-sm)', color: 'var(--text-tertiary)' } }, 'Everything earns its place')
+          )
+        )
+      )
+    ),
+
+    (show('designerLeaderboard') || show('brandAlignment')) && h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10, margin: '10px 0' } },
+      show('designerLeaderboard') && designerLeaderboard.length > 0 && h(StatCard, { title: 'Designer Leaderboard', id: 'stats-designerLeaderboard' },
+        h('div', null,
+          designerLeaderboard.map((d, i) => h('div', { key: d.name, style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', padding: '5px 0', borderBottom: i < designerLeaderboard.length - 1 ? '1px solid var(--border-subtle)' : 'none', fontSize:'var(--text-md)' } },
+            h('span', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', width: 18, textAlign: 'right' } }, i + 1),
+            h('span', { style: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-primary)', fontWeight: 500 } }, d.name),
+            h('span', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', whiteSpace: 'nowrap' } }, d.total + ' · ' + d.finished + ' done')
+          ))
+        )
+      ),
+      show('brandAlignment') && brandAlignment && h(StatCard, { title: 'Brand Alignment', id: 'stats-brandAlignment' },
+        h('div', null,
+          h('div', { className: 'gsd-metric-value' }, brandAlignment.pct + '%'),
+          h('div', { className: 'gsd-metric-sub', style: { marginBottom: 8 } }, 'of wishlist threads match your preferred brand (' + brandAlignment.preferredBrand.toUpperCase() + ')'),
+          brandAlignment.conflicts.length > 0 && h('div', null,
+            h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 4 } }, 'Patterns that’ll need conversion'),
+            brandAlignment.conflicts.slice(0, 4).map(c => h('div', { key: c.id, style: { fontSize:'var(--text-sm)', color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between', padding: '2px 0' } },
+              h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 } }, c.title),
+              h('span', { style: { color: '#f59e0b', fontSize:'var(--text-xs)', marginLeft: 8 } }, c.brand.toUpperCase() + ' ' + c.pct + '%')
+            ))
+          )
+        )
+      )
+    ),
+
+    show('quarterPortfolio') && quarterPortfolio.length > 0 && h('div', { style: { margin: '10px 0' } },
+      h(StatCard, { title: 'Started vs Finished by Quarter', id: 'stats-quarterPortfolio' },
+        h(QuarterAreaChart, { data: quarterPortfolio })
+      )
+    ),
+
+    show('difficultyVsCompletion') && difficultyPoints.length >= 3 && h('div', { style: { margin: '10px 0' } },
+      h(StatCard, { title: 'Difficulty vs Completion', id: 'stats-difficultyVsCompletion' },
+        h('div', { className: 'gsd-metric-sub', style: { marginBottom: 6 } }, 'Each dot is a project — hover for details'),
+        h(DifficultyScatter, { points: difficultyPoints })
       )
     ),
 

@@ -23,10 +23,16 @@ const SHORTCUTS_SRC = fs.readFileSync(
 );
 
 describe('Edit-mode toolbar consolidation — Tools sidebar tab', () => {
-  test('Tools tab is present in the edit-mode tab list, between Palette and View', () => {
-    expect(SIDEBAR_SRC).toMatch(
-      /editTabs\s*=\s*\[\["palette","Palette"\],\["tools","Tools"\],\["view","View"\]/
-    );
+  test('Tools tab is present in the edit-mode tab list (Polish 13 step 3: derived from unifiedTabs)', () => {
+    // editTabs is now derived from unifiedTabs by filtering out
+    // create-only tabs (Image, Dimensions, Project). Verify the unified
+    // source has Tools and the derivation is wired up.
+    const m = SIDEBAR_SRC.match(/var unifiedTabs\s*=\s*\[([\s\S]*?)\];/);
+    expect(m).toBeTruthy();
+    const ids = Array.from(m[1].matchAll(/id:\s*"([^"]+)"/g)).map(x => x[1]);
+    expect(ids).toContain('tools');
+    expect(ids).toContain('view');
+    expect(SIDEBAR_SRC).toMatch(/var editTabs\s*=\s*unifiedTabs\.filter/);
   });
 
   test('Tools tab is rendered when sTab === "tools"', () => {

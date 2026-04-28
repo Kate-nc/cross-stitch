@@ -13,8 +13,8 @@
   const DISMISS_TTL_MS = 30 * 86400000; // 30 days
   const HEATMAP_RAMP = ['var(--border)', '#9FE1CB', '#5DCAA5', '#1D9E75', '#0F6E56'];
   const TONE_COLOURS = {
-    celebrate: '#16a34a',
-    encourage: '#f59e0b',
+    celebrate: 'var(--success)',
+    encourage: 'var(--warning)',
     inform: 'var(--accent)',
     nudge: '#8b5cf6'
   };
@@ -165,16 +165,16 @@
     }, [thisWeek, lastWeek]);
     return h('div', {
       style: {
-        background: 'linear-gradient(135deg, #f0fdfa 0%, #ecfeff 100%)',
-        border: '1px solid #99f6e4', borderRadius: 'var(--radius-lg)',
-        padding: '16px 20px', marginBottom: 16
+        background: 'linear-gradient(135deg, var(--accent-light) 0%, #ecfeff 100%)',
+        border: '1px solid var(--accent-border)', borderRadius: 'var(--radius-lg)',
+        padding: '16px 20px', marginBottom:'var(--s-4)'
       }
     },
       h('div', {
-        style: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.06, color: '#0d9488', marginBottom: 8 }
+        style: { fontSize:'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.06, color: 'var(--accent)', marginBottom:'var(--s-2)' }
       }, 'This week'),
       h('p', {
-        style: { margin: 0, fontSize: 14, lineHeight: 1.6, color: 'var(--text-primary)' }
+        style: { margin: 0, fontSize:'var(--text-lg)', lineHeight: 1.6, color: 'var(--text-primary)' }
       }, text || 'Nothing to summarise yet \u2014 stitch a few sessions to see your weekly story.')
     );
   }
@@ -182,7 +182,7 @@
   function ProjectionCard({ p }) {
     const isComplete = p.status === 'complete';
     const isPaused = p.status === 'paused';
-    const accent = p.projectColor || '#0d9488';
+    const accent = p.projectColor || 'var(--accent)';
     return h('div', {
       className: 'gsd-project-card',
       style: {
@@ -190,21 +190,21 @@
         borderRadius: 'var(--radius-md)', padding: 14, minWidth: 200
       }
     },
-      h('div', { style: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, p.name),
+      h('div', { style: { fontSize:'var(--text-lg)', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, p.name),
       // Progress bar
       h('div', { style: { height: 6, background: 'var(--border-subtle)', borderRadius: 3, overflow: 'hidden', marginBottom: 6 } },
         h('div', { style: { height: '100%', width: p.percent + '%', background: accent, transition: 'width 0.3s' } })
       ),
-      h('div', { style: { fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 } },
+      h('div', { style: { fontSize:'var(--text-sm)', color: 'var(--text-secondary)', marginBottom: 6 } },
         p.percent + '% complete' + (isComplete ? '' : ' \u00b7 ' + fmtNum(p.remaining) + ' to go')
       ),
       isComplete
-        ? h('div', { style: { fontSize: 12, color: '#16a34a', fontWeight: 600 } }, '\u2713 Complete!')
+        ? h('div', { style: { fontSize:'var(--text-sm)', color: 'var(--success)', fontWeight: 600 } }, '\u2713 Complete!')
         : isPaused
-          ? h('div', { style: { fontSize: 11, color: 'var(--text-tertiary)', fontStyle: 'italic' } }, p.projectedText)
+          ? h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', fontStyle: 'italic' } }, p.projectedText)
           : h('div', null,
-              h('div', { style: { fontSize: 12, color: accent, fontWeight: 600 } }, p.projectedText),
-              p.stitchesPerHour > 0 && h('div', { style: { fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 } }, p.stitchesPerHour + ' st/hr recently')
+              h('div', { style: { fontSize:'var(--text-sm)', color: accent, fontWeight: 600 } }, p.projectedText),
+              p.stitchesPerHour > 0 && h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginTop: 2 } }, p.stitchesPerHour + ' st/hr recently')
             )
     );
   }
@@ -214,15 +214,15 @@
     return h('div', {
       style: {
         display: 'flex', alignItems: 'flex-start', gap: 10,
-        padding: '10px 12px', marginBottom: 8,
+        padding: '10px 12px', marginBottom:'var(--s-2)',
         background: 'var(--surface)', border: '1px solid var(--border-subtle)',
         borderLeft: '3px solid ' + colour, borderRadius: 'var(--radius-md)'
       }
     },
       h('div', { style: { color: colour, flexShrink: 0, display: 'flex', alignItems: 'center', height: 20 } },
-        resolveIcon(insight.iconName) || h('span', { style: { fontSize: 14 } }, '\u2022')
+        resolveIcon(insight.iconName) || h('span', { style: { fontSize:'var(--text-lg)' } }, '\u2022')
       ),
-      h('div', { style: { flex: 1, fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.45 } }, insight.text),
+      h('div', { style: { flex: 1, fontSize:'var(--text-md)', color: 'var(--text-primary)', lineHeight: 1.45 } }, insight.text),
       h('button', {
         onClick: () => onDismiss(insight.id),
         'aria-label': 'Dismiss insight',
@@ -234,7 +234,7 @@
   function ColourHeatmap({ mostUsed, totalColours, stash }) {
     const [expanded, setExpanded] = useState(false);
     if (!mostUsed || mostUsed.length === 0) {
-      return h('div', { style: { fontSize: 13, color: 'var(--text-secondary)', padding: '20px 0' } },
+      return h('div', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)', padding: '20px 0' } },
         'Start stitching to see which colours you reach for most.'
       );
     }
@@ -263,14 +263,14 @@
               width: 24, height: 24, borderRadius: 4,
               background: 'rgb(' + c.rgb.join(',') + ')',
               opacity: opacity,
-              border: stash ? (owned ? '2px solid #16a34a' : '1px solid var(--border)') : '1px solid var(--border)',
+              border: stash ? (owned ? '2px solid var(--success)' : '1px solid var(--border)') : '1px solid var(--border)',
               cursor: 'help', boxSizing: 'border-box'
             }
           },
           // Redundant non-colour cue for owned threads (M5 a11y).
           stash && owned && h('span', {
             'aria-hidden': 'true',
-            style: { position: 'absolute', top: -4, right: -4, fontSize: 10, lineHeight: '12px', width: 12, height: 12, background: '#16a34a', color: '#fff', borderRadius: '50%', textAlign: 'center', fontWeight: 700, pointerEvents: 'none' }
+            style: { position: 'absolute', top: -4, right: -4, fontSize: 10, lineHeight: '12px', width: 12, height: 12, background: 'var(--success)', color: 'var(--surface)', borderRadius: '50%', textAlign: 'center', fontWeight: 700, pointerEvents: 'none' }
           }, '\u2713')
           );
         })
@@ -278,10 +278,10 @@
       mostUsed.length >= 50 && totalColours > mostUsed.length && !expanded &&
         h('button', {
           onClick: () => setExpanded(true),
-          style: { marginTop: 8, fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600 }
+          style: { marginTop:'var(--s-2)', fontSize:'var(--text-xs)', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600 }
         }, '+' + (totalColours - mostUsed.length) + ' more'),
-      stash && h('div', { style: { fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 } },
-        h('span', { style: { display: 'inline-block', width: 10, height: 10, border: '2px solid #16a34a', borderRadius: 2, marginRight: 4, verticalAlign: 'middle' } }),
+      stash && h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginTop:'var(--s-2)' } },
+        h('span', { style: { display: 'inline-block', width: 10, height: 10, border: '2px solid var(--success)', borderRadius: 2, marginRight:'var(--s-1)', verticalAlign: 'middle' } }),
         'Threads in your stash'
       )
     );
@@ -293,7 +293,7 @@
       return InsightsEngine.buildRhythmMatrix(allSessions);
     }, [allSessions]);
     if (!allSessions || allSessions.length < 5) {
-      return h('div', { style: { fontSize: 13, color: 'var(--text-secondary)', padding: '20px 0' } },
+      return h('div', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)', padding: '20px 0' } },
         'Stitch across a few more sessions to see your rhythm pattern emerge.'
       );
     }
@@ -322,7 +322,7 @@
           key: dow,
           style: { display: 'flex', alignItems: 'center', gap: gap, marginBottom: gap }
         },
-          h('div', { style: { width: 18, fontSize: 10, color: 'var(--text-tertiary)', textAlign: 'right', marginRight: 4 }, 'aria-hidden': 'true' }, DAY_LABELS[dow]),
+          h('div', { style: { width: 18, fontSize: 10, color: 'var(--text-tertiary)', textAlign: 'right', marginRight:'var(--s-1)' }, 'aria-hidden': 'true' }, DAY_LABELS[dow]),
           row.map((count, hr) => h('div', {
             key: hr,
             title: DAY_LABELS_FULL[dow] + ' ' + fmtHour(hr) + ' \u2014 ' + fmtNum(count) + ' stitches',
@@ -377,7 +377,7 @@
 
     if (data.loading) {
       return h('div', { style: { padding: '60px 0', textAlign: 'center', color: 'var(--text-tertiary)' } },
-        h('div', { style: { width: 28, height: 28, border: '2.5px solid #e2e8f0', borderTopColor: '#0d9488', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' } }),
+        h('div', { style: { width: 28, height: 28, border: '2.5px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' } }),
         'Building your insights\u2026'
       );
     }
@@ -396,7 +396,7 @@
           title: 'Create your first pattern',
           description: 'Design a pattern in the Creator, then start stitching \u2014 your insights will appear here as you make progress.',
           ctaLabel: 'Open the creator',
-          ctaAction: () => { window.location.href = 'index.html'; }
+          ctaAction: () => { window.location.href = 'home.html?tab=create'; }
         });
       }
       return h('div', { style: { padding: '40px 20px', textAlign: 'center', color: 'var(--text-secondary)' } },
@@ -410,19 +410,19 @@
 
       // Projects section
       projections.length > 0 && h('div', null,
-        h('div', { className: 'gsd-section-label', style: { marginTop: 16 } }, 'Your projects'),
+        h('div', { className: 'gsd-section-label', style: { marginTop:'var(--s-4)' } }, 'Your projects'),
         h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10, margin: '8px 0 16px' } },
           projections.map(p => h(ProjectionCard, { key: p.id, p: p }))
         )
       ),
 
       // Insights list
-      h('div', { className: 'gsd-section-label', style: { marginTop: 16 } }, 'Insights'),
+      h('div', { className: 'gsd-section-label', style: { marginTop:'var(--s-4)' } }, 'Insights'),
       insights.length > 0
         ? h('div', { style: { margin: '8px 0 16px' } },
             insights.map(i => h(InsightCard, { key: i.id, insight: i, onDismiss: dismissInsight }))
           )
-        : h('div', { style: { fontSize: 13, color: 'var(--text-secondary)', padding: '16px 0' } },
+        : h('div', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)', padding: '16px 0' } },
             dismissedCount > 0
               ? 'No active insights right now \u2014 you may have dismissed them all.'
               : 'No insights yet \u2014 keep stitching and check back soon!'
@@ -430,17 +430,17 @@
       dismissedCount > 0 && h('button', {
         onClick: resetDismissed,
         title: 'Hidden insights reappear after 30 days. Click to show them now.',
-        style: { fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600, marginBottom: 16 }
+        style: { fontSize:'var(--text-xs)', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600, marginBottom:'var(--s-4)' }
       }, 'Show all insights (' + dismissedCount + ' hidden)'),
 
       // Colour heatmap
-      h('div', { className: 'gsd-section-label', style: { marginTop: 16 } }, 'Colour usage'),
+      h('div', { className: 'gsd-section-label', style: { marginTop:'var(--s-4)' } }, 'Colour usage'),
       h('div', { style: { background: 'var(--surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 14, margin: '8px 0 16px' } },
         h(ColourHeatmap, { mostUsed: data.mostUsed, totalColours: data.totalColours, stash: data.stash })
       ),
 
       // Rhythm heatmap
-      h('div', { className: 'gsd-section-label', style: { marginTop: 16 } }, 'Stitching rhythm'),
+      h('div', { className: 'gsd-section-label', style: { marginTop:'var(--s-4)' } }, 'Stitching rhythm'),
       h('div', { style: { background: 'var(--surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 14, margin: '8px 0 16px' } },
         h(RhythmHeatmap, { allSessions: data.allSessions })
       )

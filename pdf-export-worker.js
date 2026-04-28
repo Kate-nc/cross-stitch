@@ -185,6 +185,13 @@ async function buildPdf(project, options, reqId) {
   var paletteMap = Layout.buildCodepointMap(project.palette || [], FONT_SPEC || { baseCodepoint: 0xE000, glyphs: new Array(96) });
   var codepoints = paletteMap.map;
 
+  // UX-12 PR #14: optional Workshop print theme. theme === 'workshop' opts
+  // into terracotta major-grid + linen page background. Any other value
+  // (default, undefined, 'pk', …) MUST leave every drawing call bit-identical
+  // to the legacy PK-compat output.
+  var theme = (options.theme === "workshop") ? "workshop" : "pk";
+  var themeCols = Layout.themeColors(theme);
+
   // Compute per-thread stitch counts.
   var counts = countPalette(project);
 
@@ -215,20 +222,20 @@ async function buildPdf(project, options, reqId) {
   // 1. Cover page
   if (options.includeCover) {
     progress(reqId, "cover", pageDone, totalPages);
-    await drawCoverPage(pdfDoc, project, options, helvetica, helveticaBold, rgbColor, pageWpt, pageHpt, geom);
+    await drawCoverPage(pdfDoc, project, options, helvetica, helveticaBold, rgbColor, pageWpt, pageHpt, geom, themeCols);
     bumpPage("cover");
   }
 
   // 2. Info page
   if (options.includeInfo) {
     progress(reqId, "info", pageDone, totalPages);
-    drawInfoPage(pdfDoc, project, options, helvetica, helveticaBold, rgbColor, pageWpt, pageHpt, geom, counts);
+    drawInfoPage(pdfDoc, project, options, helvetica, helveticaBold, rgbColor, pageWpt, pageHpt, geom, counts, themeCols);
     bumpPage("info");
   }
 
   // 3. Thread legend (one or more pages)
   progress(reqId, "legend", pageDone, totalPages);
-  var legendPages = drawLegendPages(pdfDoc, project, paletteMap, counts, helvetica, helveticaBold, symbolFont, rgbColor, pageWpt, pageHpt, geom);
+  var legendPages = drawLegendPages(pdfDoc, project, paletteMap, counts, helvetica, helveticaBold, symbolFont, rgbColor, pageWpt, pageHpt, geom, themeCols);
   for (var lp = 0; lp < legendPages; lp++) bumpPage("legend");
 
   // 4. Chart pages — one section per mode
@@ -239,7 +246,7 @@ async function buildPdf(project, options, reqId) {
       progress(reqId, "chart-" + mode, pageDone, totalPages);
       drawChartPage(pdfDoc, project, seg, mode, geom, codepoints, counts,
                     symbolFont, helvetica, helveticaBold, rgbColor,
-                    pageWpt, pageHpt, options.miniLegend !== false, i, pages.length);
+                    pageWpt, pageHpt, options.miniLegend !== false, i, pages.length, themeCols);
       bumpPage("chart-" + mode);
     }
   }
@@ -247,7 +254,7 @@ async function buildPdf(project, options, reqId) {
   // 5. Chart index thumbnail
   if (options.includeIndex && pages.length > 1) {
     progress(reqId, "index", pageDone, totalPages);
-    drawChartIndexPage(pdfDoc, project, pages, geom, helvetica, helveticaBold, rgbColor, pageWpt, pageHpt);
+    drawChartIndexPage(pdfDoc, project, pages, geom, helvetica, helveticaBold, rgbColor, pageWpt, pageHpt, themeCols);
     bumpPage("index");
   }
 
@@ -285,6 +292,21 @@ function legendPageCount(palette, codepoints) {
   return Math.max(1, Math.ceil(n / 32));   // 32 rows per legend page
 }
 
+/**
+ * UX-12 PR #14 — paint a full-page linen background when the Workshop
+ * theme is active. No-op for the default PK-compat path so the byte
+ * stream remains identical to current output.
+ */
+function paintWorkshopBackground(page, pageW, pageH, rgbColor, themeCols) {
+  if (!themeCols || !themeCols.pageBg) return;
+  var bg = themeCols.pageBg;
+  page.drawRectangle({
+    x: 0, y: 0, width: pageW, height: pageH,
+    color: rgbColor(bg[0], bg[1], bg[2]),
+    borderWidth: 0,
+  });
+}
+
 // ─── cover page ──────────────────────────────────────────────────────────
 function computeLogoPosition(branding, marginPt, pageW, pageH, logoW, logoH) {
   if (branding.designerLogoPosition === "top-left") {
@@ -308,8 +330,9 @@ async function embedAndPlaceLogoImage(pdfDoc, page, branding, marginPt, pageW, p
   } catch (_) { /* logo failures shouldn't kill the export */ }
 }
 
-async function drawCoverPage(pdfDoc, project, options, font, bold, rgbColor, pageW, pageH, geom) {
+async function drawCoverPage(pdfDoc, project, options, font, bold, rgbColor, pageW, pageH, geom, themeCols) {
   var page = pdfDoc.addPage([pageW, pageH]);
+  paintWorkshopBackground(page, pageW, pageH, rgbColor, themeCols);
   var marginPt = Layout.mmToPt(geom.marginMm);
   var branding = options.branding || {};
 
@@ -416,8 +439,9 @@ function totalStitches(pattern) {
 }
 
 // ─── info page ───────────────────────────────────────────────────────────
-function drawInfoPage(pdfDoc, project, options, font, bold, rgbColor, pageW, pageH, geom, counts) {
+function drawInfoPage(pdfDoc, project, options, font, bold, rgbColor, pageW, pageH, geom, counts, themeCols) {
   var page = pdfDoc.addPage([pageW, pageH]);
+  paintWorkshopBackground(page, pageW, pageH, rgbColor, themeCols);
   var marginPt = Layout.mmToPt(geom.marginMm);
   var branding = options.branding || {};
   var y = pageH - marginPt - 22;
@@ -481,7 +505,7 @@ function drawInfoPage(pdfDoc, project, options, font, bold, rgbColor, pageW, pag
 }
 
 // ─── legend pages ────────────────────────────────────────────────────────
-function drawLegendPages(pdfDoc, project, paletteMap, counts, font, bold, symbolFont, rgbColor, pageW, pageH, geom) {
+function drawLegendPages(pdfDoc, project, paletteMap, counts, font, bold, symbolFont, rgbColor, pageW, pageH, geom, themeCols) {
   var marginPt = Layout.mmToPt(geom.marginMm);
   var rowsPerPage = 32;
   // Build sorted entries (matches the codepoint assignment order).
@@ -494,6 +518,7 @@ function drawLegendPages(pdfDoc, project, paletteMap, counts, font, bold, symbol
   var pages = Math.max(1, Math.ceil(entries.length / rowsPerPage));
   for (var pi = 0; pi < pages; pi++) {
     var page = pdfDoc.addPage([pageW, pageH]);
+    paintWorkshopBackground(page, pageW, pageH, rgbColor, themeCols);
     var y = pageH - marginPt - 22;
     var title = "Thread Legend" + (pages > 1 ? " (" + (pi + 1) + " of " + pages + ")" : "");
     page.drawText(title, { x: marginPt, y: y, size: 16, font: bold, color: rgbColor(0, 0, 0) });
@@ -562,8 +587,9 @@ function brandLabel(entry) {
 // ─── chart pages ─────────────────────────────────────────────────────────
 function drawChartPage(pdfDoc, project, seg, mode, geom, codepoints, counts,
                        symbolFont, font, bold, rgbColor, pageW, pageH,
-                       miniLegend, segIndex, segTotal) {
+                       miniLegend, segIndex, segTotal, themeCols) {
   var page = pdfDoc.addPage([pageW, pageH]);
+  paintWorkshopBackground(page, pageW, pageH, rgbColor, themeCols);
   var marginPt = Layout.mmToPt(geom.marginMm);
   var headerPt = Layout.mmToPt(geom.chartHeaderMm);
   var footerPt = Layout.mmToPt(geom.chartFooterMm);
@@ -650,6 +676,12 @@ function drawChartPage(pdfDoc, project, seg, mode, geom, codepoints, counts,
   var ny = seg.y1 - seg.y0;
   var minor = rgbColor(0, 0, 0);
   var major = rgbColor(0, 0, 0);
+  // UX-12 PR #14: Workshop theme repaints major lines in terracotta.
+  // Minor lines stay black (no spec change). PK theme: identical to legacy.
+  if (themeCols && themeCols.majorGrid) {
+    var mg = themeCols.majorGrid;
+    major = rgbColor(mg[0], mg[1], mg[2]);
+  }
   for (var gx = 0; gx <= nx; gx++) {
     var x = chartX0 + gx * cellPt;
     var absCol = seg.x0 + gx;
@@ -657,7 +689,7 @@ function drawChartPage(pdfDoc, project, seg, mode, geom, codepoints, counts,
     page.drawLine({
       start: { x: x, y: chartY0 }, end: { x: x, y: chartY1 },
       thickness: isMajor ? 0.6 : 0.18,
-      color: minor, opacity: isMajor ? 0.85 : 0.55,
+      color: isMajor ? major : minor, opacity: isMajor ? 0.85 : 0.55,
     });
   }
   for (var gy = 0; gy <= ny; gy++) {
@@ -667,7 +699,7 @@ function drawChartPage(pdfDoc, project, seg, mode, geom, codepoints, counts,
     page.drawLine({
       start: { x: chartX0, y: yy }, end: { x: chartX0 + nx * cellPt, y: yy },
       thickness: isMajor2 ? 0.6 : 0.18,
-      color: major, opacity: isMajor2 ? 0.85 : 0.55,
+      color: isMajor2 ? major : minor, opacity: isMajor2 ? 0.85 : 0.55,
     });
   }
 
@@ -726,8 +758,9 @@ function drawChartPage(pdfDoc, project, seg, mode, geom, codepoints, counts,
 }
 
 // ─── chart index ─────────────────────────────────────────────────────────
-function drawChartIndexPage(pdfDoc, project, pages, geom, font, bold, rgbColor, pageW, pageH) {
+function drawChartIndexPage(pdfDoc, project, pages, geom, font, bold, rgbColor, pageW, pageH, themeCols) {
   var page = pdfDoc.addPage([pageW, pageH]);
+  paintWorkshopBackground(page, pageW, pageH, rgbColor, themeCols);
   var marginPt = Layout.mmToPt(geom.marginMm);
   page.drawText("Chart Index", { x: marginPt, y: pageH - marginPt - 18, size: 16, font: bold, color: rgbColor(0, 0, 0) });
   page.drawText("Each numbered region below corresponds to a chart page.", {

@@ -49,6 +49,7 @@ const Icons = mockWindow.Icons;
 const sourceFiles = [
   '../header.js',
   '../home-screen.js',
+  '../home-app.js',
   '../components.js',
   '../modals.js',
   '../tracker-app.js',

@@ -1,4 +1,5 @@
-// Minimal static file server — no clean-URL rewrites, no SPA fallback.
+// Minimal static file server with one rewrite for /home (matches the
+// vercel.json production rewrite so dev behaviour aligns with prod).
 // Usage: node serve.js [port]
 const http = require('http');
 const fs   = require('fs');
@@ -38,6 +39,19 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Tier 2 of the homepage-predominance audit — mirror the vercel.json
+  // rewrite so `GET /home` (or `/home/`) serves the canonical landing
+  // page in development too. `GET /` is handled by the directory branch
+  // below.
+  if (decoded === '/home' || decoded === '/home/') {
+    decoded = '/home.html';
+  }
+  // /create is the dedicated Creator entry-point. Mirrors the vercel.json
+  // rewrite so dev hits the same URL shape as production.
+  if (decoded === '/create' || decoded === '/create/') {
+    decoded = '/create.html';
+  }
+
   const resolvedRoot = path.resolve(ROOT);
   const filePathResolved = path.resolve(ROOT, decoded.replace(/^\//, ''));
 
@@ -49,9 +63,10 @@ const server = http.createServer((req, res) => {
 
   let filePath = filePathResolved;
 
-  // Directory → index.html
+  // Directory → home.html (UX-12 Phase 7: /home is the new default landing).
   if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
-    filePath = path.join(filePath, 'index.html');
+    const homePath = path.join(filePath, 'home.html');
+    filePath = fs.existsSync(homePath) ? homePath : path.join(filePath, 'index.html');
   }
 
   if (!fs.existsSync(filePath)) {

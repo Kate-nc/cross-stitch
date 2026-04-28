@@ -55,7 +55,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   // Build status text
   var statusText;
   if (app.eyedropperEmpty) {
-    statusText = "\u26A0 That cell is empty \u2014 no colour to sample.";
+    statusText = "That cell is empty \u2014 no colour to sample.";
   } else if (cv.activeTool === "eyedropper") {
     statusText = "Eyedropper \u2014 click a cell to sample its colour.";
   } else if (cv.activeTool === "magicWand") {
@@ -87,15 +87,15 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
   return h("div", null,
     cv.cs < 6 && (cv.view === "symbol" || cv.view === "both") && h("div", {
-      style:{fontSize:12,color:"#475569",marginBottom:6,background:"#f1f5f9",padding:"6px 10px",borderRadius:8}
+      style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",marginBottom:6,background:"var(--surface-tertiary)",padding:"6px 10px",borderRadius:'var(--radius-md)'}
     }, "To see symbols, you may need to zoom in."),
 
     ctx.isScratchMode && (!ctx.displayPal || ctx.displayPal.length === 0) && h("div", {
-      style:{fontSize:12,color:"#94a3b8",padding:"8px 12px",background:"#f1f5f9",borderRadius:8,marginBottom:8,textAlign:"center"}
+      style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",padding:"8px 12px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',marginBottom:'var(--s-2)',textAlign:"center"}
     }, "Add colours using the Colours panel on the right, then select Paint or Fill to begin."),
 
     !app.shortcutsHintDismissed && h("div", {
-      style:{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 10px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}
+      style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 10px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}
     },
       h("span", null, Icons.lightbulb(), " Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
       h("button", {
@@ -103,7 +103,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
           localStorage.setItem("shortcuts_hint_dismissed", "1");
           app.setShortcutsHintDismissed(true);
         },
-        style:{background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:15,lineHeight:1,padding:0}
+        style:{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",fontSize:15,lineHeight:1,padding:0}
       }, "\xD7")
     ),
 
@@ -115,12 +115,12 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       var pctOfTotal = removed / Math.max(1, totalStitchable) * 100;
       if (pctOfTotal < 15) return null;
       return h("div", {
-        style:{padding:"8px 12px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,fontSize:12,color:"#991b1b",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}
+        style:{padding:"8px 12px",background:"var(--danger-soft)",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-md)',fontSize:'var(--text-sm)',color:"var(--danger)",marginBottom:'var(--s-2)',display:"flex",justifyContent:"space-between",alignItems:"center"}
       },
         h("span", null, Icons.warning(), " Cleanup removed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to regenerate with a lower orphan removal level."),
         h("button", {
           onClick:function(){setConfettiBannerDismissed(true);},
-          style:{background:"none",border:"none",color:"#991b1b",cursor:"pointer",fontSize:14,flexShrink:0,marginLeft:8}
+          style:{background:"none",border:"none",color:"var(--danger)",cursor:"pointer",fontSize:'var(--text-lg)',flexShrink:0,marginLeft:'var(--s-2)'}
         }, "\xD7")
       );
     })(),
@@ -131,7 +131,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       ? h(window.CreatorSplitPane, null)
       : h("div", {
       ref:app.scrollRef,
-      style:{overflow:"auto",maxHeight:550,border:"0.5px solid #e2e8f0",borderRadius:8,background:"#f1f5f9",cursor:(function(){
+      style:{overflow:"auto",maxHeight:550,border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',background:"var(--surface-tertiary)",cursor:(function(){
         var selTool = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
         if (cv.activeTool === "eyedropper") return "copy";
         if (selTool) return "crosshair";
@@ -182,42 +182,42 @@ window.CreatorPatternTab = function CreatorPatternTab() {
           parts.push("DMC " + info.id + (info.name ? " " + info.name : "") + " (" + (info.count || 0) + " st)");
         }
       }
-      return h("div", {className:"tb-status", style:{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}},
+      return h("div", {className:"tb-status", style:{display:"flex",gap:'var(--s-3)',alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}},
         h("span", null, parts[0]),
-        parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"#94a3b8",flexShrink:0}}, parts[1]),
+        parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"var(--text-tertiary)",flexShrink:0}}, parts[1]),
         parts.length > 2 && h("span", {style:{display:"flex",alignItems:"center",gap:3,flexShrink:0}},
           ctx.cmap && ctx.pat && cv.hoverCoords && (function() {
             var hIdx2 = cv.hoverCoords.gy * ctx.sW + cv.hoverCoords.gx;
             var hCell2 = ctx.pat[hIdx2];
             if (hCell2 && hCell2.id !== "__skip__" && hCell2.id !== "__empty__" && ctx.cmap[hCell2.id]) {
-              return h("span", {style:{width:8,height:8,borderRadius:2,display:"inline-block",border:"1px solid #cbd5e1",
+              return h("span", {style:{width:8,height:8,borderRadius:2,display:"inline-block",border:"1px solid var(--border)",
                 background:"rgb("+ctx.cmap[hCell2.id].rgb+")"}});
             }
             return null;
           })(),
-          h("span", {style:{fontSize:10,color:"#475569"}}, parts[2])
+          h("span", {style:{fontSize:10,color:"var(--text-secondary)"}}, parts[2])
         )
       );
     })(),
 
-    h("div", {style:{display:"flex",gap:4,justifyContent:"flex-end",marginTop:4,marginBottom:4}},
+    h("div", {style:{display:"flex",gap:'var(--s-1)',justifyContent:"flex-end",marginTop:'var(--s-1)',marginBottom:'var(--s-1)'}},
       cv.editHistory.length > 0 && h("button", {
         onClick: cv.undoEdit,
-        style:{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}
+        style:{fontSize:'var(--text-xs)',padding:"4px 10px",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-sm)',background:"var(--accent-light)",color:"var(--accent)",cursor:"pointer"}
       }, "\u21A9 Undo"),
       cv.redoHistory.length > 0 && h("button", {
         onClick: cv.redoEdit,
-        style:{fontSize:11,padding:"4px 10px",border:"1px solid #99f6e4",borderRadius:6,background:"#f0fdfa",color:"#0d9488",cursor:"pointer"}
+        style:{fontSize:'var(--text-xs)',padding:"4px 10px",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-sm)',background:"var(--accent-light)",color:"var(--accent)",cursor:"pointer"}
       }, "\u21AA Redo"),
       cv.hiId && h("button", {
         onClick: function(){cv.setHiId(null);},
-        style:{fontSize:11,padding:"4px 10px",border:"1px solid #fecaca",borderRadius:6,background:"#fef2f2",color:"#dc2626",cursor:"pointer"}
+        style:{fontSize:'var(--text-xs)',padding:"4px 10px",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-sm)',background:"var(--danger-soft)",color:"var(--danger)",cursor:"pointer"}
       }, "Clear \u2715")
     ),
 
-    cv.hiId && h("div", {style:{background:"#fff7ed",border:"0.5px solid #fed7aa",borderRadius:8,padding:"8px 10px",marginBottom:6,fontSize:11,color:"#92400e"}},
+    cv.hiId && h("div", {style:{background:"#F8EFD8",border:"0.5px solid #E5C99A",borderRadius:'var(--radius-md)',padding:"8px 10px",marginBottom:6,fontSize:'var(--text-xs)',color:"var(--accent-ink)"}},
       // ── Mode toggle segmented control ──
-      h("div", {style:{display:"flex",gap:0,marginBottom:6,borderRadius:6,overflow:"hidden",border:"1px solid #fdba74"}},
+      h("div", {style:{display:"flex",gap:0,marginBottom:6,borderRadius:'var(--radius-sm)',overflow:"hidden",border:"1px solid #D4A570"}},
         ["isolate","outline","tint","spotlight"].map(function(m) {
           var labels = {isolate:"Isolate",outline:"Outline",tint:"Tint",spotlight:"Spotlight"};
           var active = cv.highlightMode === m;
@@ -226,9 +226,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
             onClick: function() { cv.setHighlightMode(m); },
             style:{
               flex:1, padding:"4px 0", fontSize:10, fontWeight: active ? 700 : 500, cursor:"pointer",
-              border:"none", borderRight:"1px solid #fdba74",
-              background: active ? "#ea580c" : "#fff7ed",
-              color: active ? "#fff" : "#92400e"
+              border:"none", borderRight:"1px solid #D4A570",
+              background: active ? "var(--accent-hover)" : "#F8EFD8",
+              color: active ? "var(--surface)" : "var(--accent-ink)"
             }
           }, labels[m]);
         })
@@ -236,7 +236,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
       // ── Isolate settings ──
       cv.highlightMode === "isolate" && h("div", null,
-        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
+        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:'var(--s-1)'}},
           h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Background dimming"),
           h("input", {
             type:"range", min:5, max:60, step:1,
@@ -246,24 +246,24 @@ window.CreatorPatternTab = function CreatorPatternTab() {
               cv.setBgDimOpacity(op);
               if (!cv.hiAdvanced) cv.setBgDimDesaturation(Math.min(1, (100 - parseInt(e.target.value)) / 100));
             },
-            style:{flex:1,accentColor:"#ea580c"}
+            style:{flex:1,accentColor:"var(--accent-hover)"}
           }),
           h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.bgDimOpacity * 100) + "%")
         ),
-        cv.hiAdvanced && h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
+        cv.hiAdvanced && h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:'var(--s-1)'}},
           h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Desaturation"),
           h("input", {
             type:"range", min:0, max:100, step:1,
             value: Math.round(cv.bgDimDesaturation * 100),
             onChange: function(e) { cv.setBgDimDesaturation(parseInt(e.target.value) / 100); },
-            style:{flex:1,accentColor:"#ea580c"}
+            style:{flex:1,accentColor:"var(--accent-hover)"}
           }),
           h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.bgDimDesaturation * 100) + "%")
         ),
         h("div", {style:{display:"flex",justifyContent:"flex-end"}},
-          h("label", {style:{display:"flex",alignItems:"center",gap:4,cursor:"pointer",userSelect:"none"}},
-            h("input", {type:"checkbox", checked:cv.hiAdvanced, onChange:function(e){cv.setHiAdvanced(e.target.checked);}, style:{accentColor:"#ea580c"}}),
-            h("span", {style:{fontSize:10,color:"#92400e"}}, "Advanced (decouple sliders)")
+          h("label", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',cursor:"pointer",userSelect:"none"}},
+            h("input", {type:"checkbox", checked:cv.hiAdvanced, onChange:function(e){cv.setHiAdvanced(e.target.checked);}, style:{accentColor:"var(--accent-hover)"}}),
+            h("span", {style:{fontSize:10,color:"var(--accent-ink)"}}, "Advanced (decouple sliders)")
           )
         )
       ),
@@ -275,20 +275,20 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
       // ── Tint settings ──
       cv.highlightMode === "tint" && h("div", null,
-        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
+        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:'var(--s-1)'}},
           h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Tint colour"),
           h("input", {
             type:"color",
             value: cv.tintColor,
             onChange: function(e) { cv.setTintColor(e.target.value); },
-            style:{width:28,height:22,padding:0,border:"1px solid #fdba74",borderRadius:4,cursor:"pointer"}
+            style:{width:28,height:22,padding:0,border:"1px solid #D4A570",borderRadius:4,cursor:"pointer"}
           }),
-          h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f",marginLeft:8}}, "Opacity"),
+          h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f",marginLeft:'var(--s-2)'}}, "Opacity"),
           h("input", {
             type:"range", min:10, max:80, step:1,
             value: Math.round(cv.tintOpacity * 100),
             onChange: function(e) { cv.setTintOpacity(parseInt(e.target.value) / 100); },
-            style:{flex:1,accentColor:"#ea580c"}
+            style:{flex:1,accentColor:"var(--accent-hover)"}
           }),
           h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.tintOpacity * 100) + "%")
         )
@@ -296,13 +296,13 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
       // ── Spotlight settings ──
       cv.highlightMode === "spotlight" && h("div", null,
-        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4}},
+        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:'var(--s-1)'}},
           h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Dim strength"),
           h("input", {
             type:"range", min:5, max:50, step:1,
             value: Math.round(cv.spotDimOpacity * 100),
             onChange: function(e) { cv.setSpotDimOpacity(parseInt(e.target.value) / 100); },
-            style:{flex:1,accentColor:"#ea580c"}
+            style:{flex:1,accentColor:"var(--accent-hover)"}
           }),
           h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.spotDimOpacity * 100) + "%")
         )

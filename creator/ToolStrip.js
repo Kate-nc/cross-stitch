@@ -182,15 +182,15 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var swatchesShown = swatchExpanded ? palData : palData.slice(0, SWATCH_INIT);
   var showSwatchRow = ((cv.brushMode==="paint" || cv.brushMode==="fill") && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase" || cv.activeTool==="eyedropper") && palData.length > 0;
   var swatchRow = showSwatchRow ? h("div", {className:"swatch-strip-row"},
-    h("span", {style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",marginRight:4,flexShrink:0,letterSpacing:0.5}}, "Colour"),
+    h("span", {style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",marginRight:'var(--s-1)',flexShrink:0,letterSpacing:0.5}}, "Colour"),
     cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId] ? h("span", {
-      style:{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"1px 7px 1px 3px",borderRadius:10,background:"#f0fdfa",border:"1px solid #99f6e4",marginRight:6,flexShrink:0,maxWidth:"60vw",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},
+      style:{display:"inline-flex",alignItems:"center",gap:'var(--s-1)',fontSize:'var(--text-xs)',padding:"1px 7px 1px 3px",borderRadius:'var(--radius-lg)',background:"var(--accent-light)",border:"1px solid var(--accent-border)",marginRight:6,flexShrink:0,maxWidth:"60vw",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},
       title: ctx.cmap[cv.selectedColorId].name || cv.selectedColorId
     },
-      h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",border:"1px solid #cbd5e1",display:"inline-block",flexShrink:0}}),
-      h("span", {style:{fontWeight:600,color:"#0d9488",flexShrink:0}}, cv.selectedColorId),
-      ctx.cmap[cv.selectedColorId].name ? h("span", {style:{color:"#0f766e",fontWeight:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, "\u00B7 " + ctx.cmap[cv.selectedColorId].name) : null
-    ) : h("span", {style:{fontSize:10,color:"#94a3b8",marginRight:6,flexShrink:0}}, "none selected"),
+      h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",border:"1px solid var(--border)",display:"inline-block",flexShrink:0}}),
+      h("span", {style:{fontWeight:600,color:"var(--accent)",flexShrink:0}}, cv.selectedColorId),
+      ctx.cmap[cv.selectedColorId].name ? h("span", {style:{color:"var(--accent-hover)",fontWeight:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, "\u00B7 " + ctx.cmap[cv.selectedColorId].name) : null
+    ) : h("span", {style:{fontSize:10,color:"var(--text-tertiary)",marginRight:6,flexShrink:0}}, "none selected"),
     swatchesShown.map(function(p) {
       var isSel = cv.selectedColorId === p.id;
       return h("button", {
@@ -203,7 +203,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           width:20, height:20, flexShrink:0,
           borderRadius:4, cursor:"pointer", padding:0,
           background:"rgb("+p.rgb+")",
-          border: isSel ? "2px solid #0d9488" : "1.5px solid rgba(0,0,0,0.15)",
+          border: isSel ? "2px solid var(--accent)" : "1.5px solid rgba(0,0,0,0.15)",
           boxShadow: isSel ? "0 0 0 2px #fff inset" : "none",
           outline:"none"
         }
@@ -214,12 +214,19 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       onClick:function(){setSwatchExpanded(function(e){return !e;});},
       title:swatchExpanded?"Collapse":"Show all "+palData.length+" colours",
       style:{
-        flexShrink:0, marginLeft:4, fontSize:11, padding:"0 8px",
-        height:20, borderRadius:10, border:"1px solid var(--border)",
+        flexShrink:0, marginLeft:'var(--s-1)', fontSize:'var(--text-xs)', padding:"0 8px",
+        height:20, borderRadius:'var(--radius-lg)', border:"1px solid var(--border)",
         background:"var(--surface)", cursor:"pointer",
         color:"var(--text-secondary)", fontWeight:500, lineHeight:1, fontFamily:"inherit"
       }
-    }, swatchExpanded ? "\u25B4" : "+"+( palData.length - SWATCH_INIT)+  " \u25BE")
+    },
+      swatchExpanded
+        ? (window.Icons && window.Icons.chevronUp ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.chevronUp()) : "\u2212")
+        : h("span", {style:{display:"inline-flex",alignItems:"center",gap:3}},
+            "+" + (palData.length - SWATCH_INIT),
+            window.Icons && window.Icons.chevronDown ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.chevronDown()) : null
+          )
+    )
   ) : null;
 
   // Selection: simple Wand + Lasso primary buttons. Sub-modes
@@ -261,7 +268,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         onClick:function(){ if(cv.cancelLasso) cv.cancelLasso(); if(cv.clearSelection) cv.clearSelection(); },
         title:"Clear selection (Esc)",
         "aria-label":"Clear selection",
-        style:{fontSize:10,padding:"2px 6px",color:"#475569"}
+        style:{fontSize:10,padding:"2px 6px",color:"var(--text-secondary)"}
       }, (cv.selectionCount||0).toLocaleString()+" sel ", window.Icons.x())
     )
   ];
@@ -270,25 +277,25 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   // since the toolbar no longer carries a colour chip.
   var badgeLabel, badgeBg, badgeColor, badgeDot;
   if (cv.activeTool === "eyedropper") {
-    badgeLabel = "Eyedropper"; badgeBg = "#fef9c3"; badgeColor = "#854d0e"; badgeDot = "#eab308";
+    badgeLabel = "Eyedropper"; badgeBg = "#fef9c3"; badgeColor = "#854d0e"; badgeDot = "#B59230";
   } else if (cv.activeTool === "magicWand") {
-    badgeLabel = "Magic Wand"; badgeBg = "#f3e8ff"; badgeColor = "#6b21a8"; badgeDot = "#a855f7";
+    badgeLabel = "Magic Wand"; badgeBg = "var(--surface-secondary)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
   } else if (cv.activeTool === "lasso") {
     var lm = cv.lassoMode === "polygon" ? "Polygon" : cv.lassoMode === "magnetic" ? "Magnetic" : "Freehand";
-    badgeLabel = "Lasso \xB7 " + lm; badgeBg = "#fff7ed"; badgeColor = "#9a3412"; badgeDot = "#f97316";
+    badgeLabel = "Lasso \xB7 " + lm; badgeBg = "#F8EFD8"; badgeColor = "var(--accent-hover)"; badgeDot = "#f97316";
   } else if (cv.stitchType === "erase" || cv.activeTool === "eraseAll" || cv.activeTool === "eraseBs") {
-    badgeLabel = "Erase"; badgeBg = "#fef2f2"; badgeColor = "#991b1b"; badgeDot = "#ef4444";
+    badgeLabel = "Erase"; badgeBg = "var(--danger-soft)"; badgeColor = "var(--danger)"; badgeDot = "#B85555";
   } else if (cv.stitchType === "backstitch") {
-    badgeLabel = "Backstitch"; badgeBg = "#f5f5f5"; badgeColor = "#404040"; badgeDot = "#737373";
+    badgeLabel = "Backstitch"; badgeBg = "var(--surface-secondary)"; badgeColor = "#404040"; badgeDot = "#737373";
   } else if (cv.stitchType === "half-fwd") {
-    badgeLabel = "Half /"; badgeBg = "#e0f2fe"; badgeColor = "#075985"; badgeDot = "#0284c7";
+    badgeLabel = "Half /"; badgeBg = "#e0f2fe"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
   } else if (cv.stitchType === "half-bck") {
-    badgeLabel = "Half \\"; badgeBg = "#e0f2fe"; badgeColor = "#075985"; badgeDot = "#0284c7";
+    badgeLabel = "Half \\"; badgeBg = "#e0f2fe"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
   } else if (cv.brushMode === "fill") {
-    badgeLabel = "Fill"; badgeBg = "#f0fdf4"; badgeColor = "#166534"; badgeDot = "#22c55e";
+    badgeLabel = "Fill"; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "#5C8E4A";
   } else if (cv.brushMode === "paint") {
     var szTxt = cv.brushSize > 1 ? " " + cv.brushSize + "\xD7" + cv.brushSize : "";
-    badgeLabel = "Paint" + szTxt; badgeBg = "#f0fdf4"; badgeColor = "#166534"; badgeDot = "#22c55e";
+    badgeLabel = "Paint" + szTxt; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "#5C8E4A";
   } else {
     badgeLabel = null;
   }
@@ -297,8 +304,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     : "";
   var toolBadge = badgeLabel ? h("span", {
     title: badgeLabel + badgeColourTip,
-    style:{fontSize:10,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4,
-      padding:"2px 8px 2px 6px",borderRadius:10,background:badgeBg,color:badgeColor,
+    style:{fontSize:10,fontWeight:600,display:"inline-flex",alignItems:"center",gap:'var(--s-1)',
+      padding:"2px 8px 2px 6px",borderRadius:'var(--radius-lg)',background:badgeBg,color:badgeColor,
       flexShrink:0,letterSpacing:0.2,lineHeight:1.4,border:"1px solid " + badgeDot + "33"}
   },
     h("span", {style:{width:6,height:6,borderRadius:"50%",background:badgeDot,display:"inline-block",
@@ -342,11 +349,13 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("button", {
       key:"overlay-btn",
       className:"tb-ovf-item"+(cv.showOverlay?" tb-ovf-item--on":""),
-      onClick:function(){cv.setShowOverlay(function(v){return !v;});}
+      onClick:function(){cv.setShowOverlay(function(v){return !v;});},
+      style:{display:"inline-flex",alignItems:"center",gap:6}
     },
       h("span", {style:{width:14,height:14,borderRadius:3,flexShrink:0,display:"inline-block",
-        border:"2px solid "+(cv.showOverlay?"#0d9488":"#cbd5e1")}}),
-      " Overlay"+(cv.showOverlay?" \u2713":"")
+        border:"2px solid "+(cv.showOverlay?"var(--accent)":"var(--border)")}}),
+      " Overlay",
+      cv.showOverlay && window.Icons && window.Icons.check ? h("span", {"aria-hidden":"true", style:{display:"inline-flex",marginLeft:4}}, window.Icons.check()) : null
     ),
     cv.showOverlay && h("div", {key:"overlay-slider", style:{padding:"4px 14px 6px"}},
       h("input", {
@@ -364,8 +373,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       return h("button", {
         key:kl[0],
         className:"tb-ovf-item"+(cv.brushMode===kl[0]?" tb-ovf-item--on":""),
-        onClick:function(){cv.setBrushAndActivate(kl[0]); app.setOverflowOpen(false);}
-      }, kl[1]+(cv.brushMode===kl[0]?" \u2713":""));
+        onClick:function(){cv.setBrushAndActivate(kl[0]); app.setOverflowOpen(false);},
+        style:{display:"inline-flex",alignItems:"center",gap:6}
+      }, kl[1], cv.brushMode===kl[0] && window.Icons && window.Icons.check ? h("span", {"aria-hidden":"true", style:{display:"inline-flex",marginLeft:4}}, window.Icons.check()) : null);
     })
   ] : null;
 

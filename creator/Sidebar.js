@@ -58,18 +58,18 @@ window.CreatorSidebar = function CreatorSidebar() {
           props.onChange(!props.checked);
         }
       },
-      style:{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginBottom:8,userSelect:"none"}
+      style:{display:"flex",alignItems:"center",gap:'var(--s-2)',cursor:"pointer",marginBottom:'var(--s-2)',userSelect:"none"}
     },
       h("span", {"aria-hidden":"true", style:{position:"relative",display:"inline-block",width:32,height:18,flexShrink:0}},
         h("span", {style:{display:"block",position:"absolute",inset:0,borderRadius:9,
-          background:props.checked?"#0d9488":"#cbd5e1",transition:"background 0.15s"}}),
+          background:props.checked?"var(--accent)":"var(--border)",transition:"background 0.15s"}}),
         h("span", {style:{display:"block",position:"absolute",width:14,height:14,top:2,
-          left:props.checked?16:2,borderRadius:"50%",background:"#fff",
+          left:props.checked?16:2,borderRadius:"50%",background:"var(--surface)",
           transition:"left 0.15s",boxShadow:"0 1px 3px rgba(0,0,0,0.18)"}})
       ),
       h("span", {style:{flex:1}},
-        h("span", {style:{fontSize:12,fontWeight:500,color:"#1e293b",display:"block"}}, props.label),
-        props.help && h("span", {style:{fontSize:10,color:"#94a3b8",display:"block",marginTop:1}}, props.help)
+        h("span", {style:{fontSize:'var(--text-sm)',fontWeight:500,color:"var(--text-primary)",display:"block"}}, props.label),
+        props.help && h("span", {style:{fontSize:10,color:"var(--text-tertiary)",display:"block",marginTop:1}}, props.help)
       )
     );
   }
@@ -113,7 +113,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       }
       return worst;
     }
-    var STASH_DOT = { owned: '#16a34a', partial: '#f59e0b', needed: '#dc2626' };
+    var STASH_DOT = { owned: 'var(--success)', partial: 'var(--warning)', needed: 'var(--danger)' };
     var hiddenByFilter = 0;
     // A1 (UX Phase 5) — collect composite keys of unowned palette threads so
     // the warning panel can wire its CTAs honestly. Mirrors stashStatusForChip.
@@ -172,18 +172,18 @@ window.CreatorSidebar = function CreatorSidebar() {
         },
         style: {
           display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,
-          cursor:"pointer",fontSize:11,position:"relative",
-          border: ips ? "2px solid #0d9488" : ihs ? "2px solid #ea580c" : "0.5px solid #e2e8f0",
-          background: ips ? "#f0fdfa" : ihs ? "#fff7ed" : "#fff",
+          cursor:"pointer",fontSize:'var(--text-xs)',position:"relative",
+          border: ips ? "2px solid var(--accent)" : ihs ? "2px solid var(--accent-hover)" : "0.5px solid var(--border)",
+          background: ips ? "var(--accent-light)" : ihs ? "#F8EFD8" : "var(--surface)",
           opacity: isUnused ? 0.6 : 1
         }
       },
-        h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+p.rgb+")",border:"1px solid #cbd5e1",display:"inline-block",flexShrink:0}}),
-        h("span", {style:{fontFamily:"monospace",color:"#475569",fontSize:10}}, p.symbol),
+        h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+p.rgb+")",border:"1px solid var(--border)",display:"inline-block",flexShrink:0}}),
+        h("span", {style:{fontFamily:"monospace",color:"var(--text-secondary)",fontSize:10}}, p.symbol),
         h("span", {style:{fontWeight:500}}, p.id),
         isUnused && h("span", {
           onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); },
-          style:{fontSize:9,color:"#94a3b8",cursor:"pointer",marginLeft:2,lineHeight:1}
+          style:{fontSize:9,color:"var(--text-tertiary)",cursor:"pointer",marginLeft:2,lineHeight:1}
         }, "\xD7"),
         // Brief D — stash status dot (top-right corner). Hidden when stash empty.
         stashStatus && h("span", {
@@ -203,14 +203,14 @@ window.CreatorSidebar = function CreatorSidebar() {
       },
         h("div", {style:{display:"flex",alignItems:"center",gap:6}},
           h("span", {style:{fontSize:9,color:"var(--text-tertiary)",display:"inline-block",transform:palChipsOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
-          h("span", {style:{fontSize:12,fontWeight:600,color:"var(--text-secondary)"}}, "Palette")
+          h("span", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--text-secondary)"}}, "Palette")
         ),
-        h("span", {style:{fontSize:11,color:"var(--text-tertiary)"}}, displayPal.length + " colour" + (displayPal.length !== 1 ? "s" : ""))
+        h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, displayPal.length + " colour" + (displayPal.length !== 1 ? "s" : ""))
       ),
       palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
       // Brief D — stash filter toggle + "Need to buy" button (only when stash has data)
       stashHas && h("div", {
-        style:{display:"flex",alignItems:"center",gap:8,marginBottom:8,fontSize:11,color:"#475569",flexWrap:"wrap"}
+        style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:'var(--s-2)',fontSize:'var(--text-xs)',color:"var(--text-secondary)",flexWrap:"wrap"}
       },
         h("label", {style:{display:"flex",alignItems:"center",gap:5,cursor:"pointer",userSelect:"none"}},
           h("input", {
@@ -220,12 +220,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             style:{margin:0}
           }),
           h("span", null, "Only show threads I own")
-        ),
-        h("button", {
-          onClick: function() { if (typeof app.setModal === 'function') app.setModal('shopping_list'); },
-          title: "What do I need to buy?",
-          style:{marginLeft:"auto",fontSize:10,padding:"2px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",color:"#475569",fontWeight:500,display:"inline-flex",alignItems:"center",gap:4}
-        }, typeof Icons !== 'undefined' && Icons.cart ? Icons.cart() : null, "Shopping list")
+        )
       ),
       // A1 (UX Phase 5) — honest warning panel + actionable CTAs.
       // Always show when filter is on and unowned threads remain in the
@@ -234,7 +229,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       ctx.creatorStashFilter && stashHas && unownedKeys.length > 0 && h("div", {
         role: "status",
         "aria-live": "polite",
-        style:{marginBottom:8,padding:"8px 10px",borderRadius:7,background:"#fffbeb",border:"1px solid #fde68a",fontSize:11,color:"#92400e",display:"flex",flexDirection:"column",gap:6}
+        style:{marginBottom:'var(--s-2)',padding:"8px 10px",borderRadius:7,background:"#FAF5E1",border:"1px solid #E5C97D",fontSize:'var(--text-xs)',color:"var(--accent-ink)",display:"flex",flexDirection:"column",gap:6}
       },
         h("div", {style:{display:"flex",alignItems:"center",gap:6,fontWeight:600}},
           typeof Icons !== 'undefined' && Icons.warning ? Icons.warning() : null,
@@ -267,7 +262,7 @@ window.CreatorSidebar = function CreatorSidebar() {
                 if (app.addToast) app.addToast("Could not load your stash.", {type:"error", duration:3000});
               });
             },
-            style:{fontSize:11,padding:"5px 10px",borderRadius:6,border:"1px solid #fbbf24",background:"#fff",color:"#92400e",fontWeight:600,cursor:"pointer"}
+            style:{fontSize:'var(--text-xs)',padding:"5px 10px",borderRadius:'var(--radius-sm)',border:"1px solid #D49B45",background:"var(--surface)",color:"var(--accent-ink)",fontWeight:600,cursor:"pointer"}
           }, "Substitute from stash"),
           h("button", {
             onClick: function() {
@@ -289,45 +284,45 @@ window.CreatorSidebar = function CreatorSidebar() {
                 if (app.addToast) app.addToast("Could not update your shopping list.", {type:"error", duration:3000});
               });
             },
-            style:{fontSize:11,padding:"5px 10px",borderRadius:6,border:"1px solid #fbbf24",background:"#fef3c7",color:"#92400e",fontWeight:600,cursor:"pointer"}
+            style:{fontSize:'var(--text-xs)',padding:"5px 10px",borderRadius:'var(--radius-sm)',border:"1px solid #D49B45",background:"var(--warning-soft)",color:"var(--accent-ink)",fontWeight:600,cursor:"pointer"}
           }, "Add to shopping list")
         )
       ),
       // Brief D — banner when filter hides chips (kept as a quieter follow-up
       // line for users who still need the "turn off the filter" hint).
       ctx.creatorStashFilter && stashHas && hiddenByFilter > 0 && unownedKeys.length === 0 && h("div", {
-        style:{marginBottom:8,padding:"5px 8px",borderRadius:6,background:"#fffbeb",border:"0.5px solid #fde68a",fontSize:10,color:"#92400e"}
+        style:{marginBottom:'var(--s-2)',padding:"5px 8px",borderRadius:'var(--radius-sm)',background:"#FAF5E1",border:"0.5px solid #E5C97D",fontSize:10,color:"var(--accent-ink)"}
       }, hiddenByFilter + " unowned colour" + (hiddenByFilter !== 1 ? "s" : "") + " hidden \u2014 turn off the filter to see all."),
       ctx.creatorStashFilter && !stashHas && h("div", {
-        style:{marginBottom:8,padding:"5px 8px",borderRadius:6,background:"#fef2f2",border:"0.5px solid #fecaca",fontSize:10,color:"#991b1b"}
+        style:{marginBottom:'var(--s-2)',padding:"5px 8px",borderRadius:'var(--radius-sm)',background:"var(--danger-soft)",border:"0.5px solid var(--danger-soft)",fontSize:10,color:"var(--danger)"}
       }, "Your stash is empty \u2014 turn off this filter, or add threads in the Stash Manager."),
       isPaintMode && h("div", {
         style:{
-          marginBottom:8,padding:"5px 8px",borderRadius:7,
-          background: selInfo ? "#f0fdfa" : "#fffbeb",
-          border: selInfo ? "1px solid #99f6e4" : "1px solid #fde68a",
-          display:"flex",alignItems:"center",gap:7,fontSize:11,minHeight:30
+          marginBottom:'var(--s-2)',padding:"5px 8px",borderRadius:7,
+          background: selInfo ? "var(--accent-light)" : "#FAF5E1",
+          border: selInfo ? "1px solid var(--accent-border)" : "1px solid #E5C97D",
+          display:"flex",alignItems:"center",gap:7,fontSize:'var(--text-xs)',minHeight:30
         }
       },
         selInfo
           ? h(React.Fragment, null,
-              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+selInfo.rgb+")",border:"1px solid #cbd5e1"}}),
-              h("span", {style:{fontWeight:600,color:"#0d9488"}}, "DMC " + selInfo.id),
+              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+selInfo.rgb+")",border:"1px solid var(--border)"}}),
+              h("span", {style:{fontWeight:600,color:"var(--accent)"}}, "DMC " + selInfo.id),
               h("span", {style:{color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, selInfo.name || ""),
               h("button", {
                 onClick:function(){cv.setSelectedColorId(null);},
                 title:"Clear selection",
-                style:{marginLeft:"auto",background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",fontSize:13,lineHeight:1,padding:"0 2px",flexShrink:0}
+                style:{marginLeft:"auto",background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",fontSize:'var(--text-md)',lineHeight:1,padding:"0 2px",flexShrink:0}
               }, "\xD7")
             )
           : h(React.Fragment, null,
-              h("span", {style:{fontSize:12}}, Icons.pointing()),
-              h("span", {style:{color:"#92400e"}}, "Select a colour to paint \u2014 or right-click the canvas")
+              h("span", {style:{fontSize:'var(--text-sm)'}}, Icons.pointing()),
+              h("span", {style:{color:"var(--accent-ink)"}}, "Select a colour to paint \u2014 or right-click the canvas")
             )
       ),
       displayPal.length > 0
         ? h("div", {className:"creator-pattern-chips", style:{display:"flex",flexWrap:"wrap",gap:3}}, chips)
-        : h("div", {style:{fontSize:11,color:"var(--text-tertiary)",textAlign:"center",padding:"8px 0"}}, "No colours yet")
+        : h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textAlign:"center",padding:"8px 0"}}, "No colours yet")
       )
     );
   })() : null;
@@ -337,12 +332,12 @@ window.CreatorSidebar = function CreatorSidebar() {
   // prominent banner so the user knows this is the click target. ESC cancels
   // (wired in useKeyboardShortcuts.js).
   var imageCard = (ctx.pat && gen.img && gen.img.src) ? h("div", {id:"bg-pick-target", className:"card"+(gen.pickBg?" card--pickBg":"")},
-    gen.pickBg && h("div", {style:{padding:"10px 12px",fontSize:12,color:"#9a3412",fontWeight:600,background:"#fff7ed",borderBottom:"1px solid #fed7aa",display:"flex",alignItems:"center",gap:8}},
+    gen.pickBg && h("div", {style:{padding:"10px 12px",fontSize:'var(--text-sm)',color:"var(--accent-hover)",fontWeight:600,background:"#F8EFD8",borderBottom:"1px solid #E5C99A",display:"flex",alignItems:"center",gap:'var(--s-2)'}},
       h("span", {style:{flex:1}}, "Click anywhere on the image to set the background colour."),
       h("button", {
         onClick:function(){gen.setPickBg(false);},
         title:"Cancel pick (Esc)",
-        style:{fontSize:11,padding:"3px 8px",border:"1px solid #fdba74",borderRadius:6,background:"#fff",color:"#9a3412",cursor:"pointer",fontWeight:600}
+        style:{fontSize:'var(--text-xs)',padding:"3px 8px",border:"1px solid #D4A570",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--accent-hover)",cursor:"pointer",fontWeight:600}
       }, "Cancel")
     ),
     h("div", {
@@ -364,41 +359,41 @@ window.CreatorSidebar = function CreatorSidebar() {
       gen.isCropping && gen.cropRect && h("div", {style:{
         position:"absolute",left:gen.cropRect.x,top:gen.cropRect.y,
         width:gen.cropRect.w,height:gen.cropRect.h,
-        border:"2px dashed #0d9488",background:"rgba(13,148,136,0.2)",
+        border:"2px dashed var(--accent)",background:"rgba(184, 92, 56,0.2)",
         boxSizing:"border-box",pointerEvents:"none"
       }})
     ),
     gen.isCropping
-      ? h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}},
-          h("span", {style:{fontSize:11,color:"#94a3b8"}}, "Draw a rectangle"),
+      ? h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid var(--surface-tertiary)"}},
+          h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, "Draw a rectangle"),
           h("div", {style:{display:"flex",gap:6}},
             h("button", {
               onClick:function(){gen.setIsCropping(false); gen.setCropRect(null);},
-              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
+              style:{fontSize:'var(--text-xs)',padding:"3px 8px",cursor:"pointer",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface-secondary)"}
             }, "Cancel"),
             h("button", {
               onClick:gen.applyCrop,
-              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"none",borderRadius:6,background:"#0d9488",color:"#fff"}
+              style:{fontSize:'var(--text-xs)',padding:"3px 8px",cursor:"pointer",border:"none",borderRadius:'var(--radius-sm)',background:"var(--accent)",color:"var(--surface)"}
             }, "Apply")
           )
         )
-      : h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}},
-          h("span", {style:{fontSize:11,color:"#94a3b8"}}, gen.origW+"×"+gen.origH+"px"),
+      : h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid var(--surface-tertiary)"}},
+          h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, gen.origW+"×"+gen.origH+"px"),
           h("div", {style:{display:"flex",gap:6}},
             h("button", {
               onClick:function(){gen.setIsCropping(true); gen.setCropRect(null);},
-              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
+              style:{fontSize:'var(--text-xs)',padding:"3px 8px",cursor:"pointer",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface-secondary)"}
             }, "Crop"),
             h("button", {
               onClick:function(){gen.fRef.current.click();},
-              style:{fontSize:11,padding:"3px 8px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}
+              style:{fontSize:'var(--text-xs)',padding:"3px 8px",cursor:"pointer",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface-secondary)"}
             }, "Change")
           )
         )
   ) : null;
 
   // ── Colours section (scratch mode) ─────────────────────────────────────────
-  var coloursBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#0d9488",background:"#f0fdfa",padding:"1px 8px",borderRadius:10}},
+  var coloursBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--accent)",background:"var(--accent-light)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}},
     (ctx.displayPal ? ctx.displayPal.filter(function(p){return p.count>0;}).length : 0)+" used"
   );
   // ── Blend picker local state ──────────────────────────────────────────────
@@ -442,38 +437,38 @@ window.CreatorSidebar = function CreatorSidebar() {
   var coloursSection = ctx.pat ? h(Section, {
     title:"Colours", isOpen:ctx.colPickerOpen, onToggle:ctx.setColPickerOpen, badge:coloursBadge
   },
-    h("div", {style:{marginTop:8}},
-      ctx.isScratchMode && h("div", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4,marginBottom:8,padding:"6px 8px",background:"#f1f5f9",borderRadius:8}},
-        [["1","Add colour","\u2192"],["2","Select chip","\u2192"],["3","Paint!",""]].map(function(item,i) {
+    h("div", {style:{marginTop:'var(--s-2)'}},
+      ctx.isScratchMode && h("div", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:'var(--s-1)',marginBottom:'var(--s-2)',padding:"6px 8px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)'}},
+        [["1","Add colour",true],["2","Select chip",true],["3","Paint!",false]].map(function(item,i) {
           return h(React.Fragment, {key:i},
-            h("div", {style:{display:"flex",alignItems:"center",gap:4}},
-              h("span", {style:{width:16,height:16,borderRadius:"50%",background:"#0d9488",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}, item[0]),
+            h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)'}},
+              h("span", {style:{width:16,height:16,borderRadius:"50%",background:"var(--accent)",color:"var(--surface)",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}, item[0]),
               h("span", {style:{fontSize:10,color:"#52525b",fontWeight:500,whiteSpace:"nowrap"}}, item[1])
             ),
-            item[2] && h("span", {style:{fontSize:10,color:"#94a3b8"}}, item[2])
+            item[2] && h("span", {"aria-hidden":"true", style:{fontSize:10,color:"var(--text-tertiary)",display:"inline-flex"}}, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null)
           );
         })
       ),
       // Toggle between single thread and blend mode
-      h("div", {style:{display:"flex",gap:4,marginBottom:8}},
+      h("div", {style:{display:"flex",gap:'var(--s-1)',marginBottom:'var(--s-2)'}},
         h("button", {
           onClick:function(){ setBlendMode(false); },
-          style:{flex:1,padding:"4px 8px",fontSize:11,fontWeight:blendMode?500:700,cursor:"pointer",
-            border:blendMode?"1px solid #e2e8f0":"1px solid #0d9488",borderRadius:6,
-            background:blendMode?"#fff":"#f0fdfa",color:blendMode?"#475569":"#0d9488"}
+          style:{flex:1,padding:"4px 8px",fontSize:'var(--text-xs)',fontWeight:blendMode?500:700,cursor:"pointer",
+            border:blendMode?"1px solid var(--border)":"1px solid var(--accent)",borderRadius:'var(--radius-sm)',
+            background:blendMode?"var(--surface)":"var(--accent-light)",color:blendMode?"var(--text-secondary)":"var(--accent)"}
         }, "Single thread"),
         h("button", {
           onClick:function(){ setBlendMode(true); },
-          style:{flex:1,padding:"4px 8px",fontSize:11,fontWeight:blendMode?700:500,cursor:"pointer",
-            border:blendMode?"1px solid #0d9488":"1px solid #e2e8f0",borderRadius:6,
-            background:blendMode?"#f0fdfa":"#fff",color:blendMode?"#0d9488":"#475569"}
+          style:{flex:1,padding:"4px 8px",fontSize:'var(--text-xs)',fontWeight:blendMode?700:500,cursor:"pointer",
+            border:blendMode?"1px solid var(--accent)":"1px solid var(--border)",borderRadius:'var(--radius-sm)',
+            background:blendMode?"var(--accent-light)":"var(--surface)",color:blendMode?"var(--accent)":"var(--text-secondary)"}
         }, "Blend (2 threads)")
       ),
       !blendMode ? h(React.Fragment, null,
         h("input", {
-          type:"text", placeholder:"Search by DMC # or name\u2026",
+          type:"text", "aria-label":"Search DMC palette", placeholder:"Search by DMC # or name\u2026",
           value:ctx.dmcSearch, onChange:function(e){ctx.setDmcSearch(e.target.value);},
-          style:{width:"100%",padding:"6px 10px",border:"0.5px solid #e2e8f0",borderRadius:8,fontSize:12,marginBottom:8,boxSizing:"border-box"}
+          style:{width:"100%",padding:"6px 10px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-sm)',marginBottom:'var(--s-2)',boxSizing:"border-box"}
         }),
         h("div", {style:{maxHeight:200,overflow:"auto",display:"flex",flexDirection:"column",gap:2}},
           ctx.dmcFiltered.slice(0,60).map(function(d) {
@@ -481,49 +476,49 @@ window.CreatorSidebar = function CreatorSidebar() {
             return h(Tooltip, {key:d.id, text:inPal?"Already in your palette":"Click to add to your palette", width:160},
               h("div", {
                 onClick:function(){ctx.addScratchColour(d);},
-                style:{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,cursor:"pointer",
-                  background:inPal?"#f0fdfa":"#fff",
-                  border:inPal?"1px solid #99f6e4":"1px solid transparent",
+                style:{display:"flex",alignItems:"center",gap:'var(--s-2)',padding:"4px 8px",borderRadius:'var(--radius-sm)',cursor:"pointer",
+                  background:inPal?"var(--accent-light)":"var(--surface)",
+                  border:inPal?"1px solid var(--accent-border)":"1px solid transparent",
                   opacity:inPal?0.7:1,width:"100%"}
               },
-                h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #cbd5e1"}}),
-                h("span", {style:{fontFamily:"monospace",fontSize:12,fontWeight:600,minWidth:36,color:"#1e293b"}}, d.id),
-                h("span", {style:{fontSize:11,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-                inPal ? h("span", {style:{fontSize:10,color:"#0d9488"}}, "\u2713") : h("span", {style:{fontSize:10,color:"#94a3b8"}}, "+")
+                h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid var(--border)"}}),
+                h("span", {style:{fontFamily:"monospace",fontSize:'var(--text-sm)',fontWeight:600,minWidth:36,color:"var(--text-primary)"}}, d.id),
+                h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
+                inPal ? h("span", {"aria-hidden":"true", style:{fontSize:10,color:"var(--accent)",display:"inline-flex"}}, window.Icons && window.Icons.check ? window.Icons.check() : null) : h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "+")
               )
             );
           }),
-          ctx.dmcFiltered.length === 0 && h("div", {style:{fontSize:11,color:"#94a3b8",padding:"8px 0",textAlign:"center"}}, "No colours found")
+          ctx.dmcFiltered.length === 0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",padding:"8px 0",textAlign:"center"}}, "No colours found")
         )
       ) : h(React.Fragment, null,
         // Blend mode UI: pick two threads
-        h("div", {style:{display:"flex",gap:4,marginBottom:6,alignItems:"center"}},
-          h("div", {style:{flex:1,padding:"4px 8px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:11,minHeight:24,display:"flex",alignItems:"center",gap:4,background:blendThread1?"#f0fdfa":"#fff"}},
+        h("div", {style:{display:"flex",gap:'var(--s-1)',marginBottom:6,alignItems:"center"}},
+          h("div", {style:{flex:1,padding:"4px 8px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",fontSize:'var(--text-xs)',minHeight:24,display:"flex",alignItems:"center",gap:'var(--s-1)',background:blendThread1?"var(--accent-light)":"var(--surface)"}},
             blendThread1 ? h(React.Fragment, null,
-              h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread1.rgb+")",border:"1px solid #cbd5e1",flexShrink:0}}),
+              h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread1.rgb+")",border:"1px solid var(--border)",flexShrink:0}}),
               h("span", {style:{fontWeight:600}}, blendThread1.id),
-              h("span", {onClick:function(){setBlendThread1(null);},style:{cursor:"pointer",color:"#94a3b8",marginLeft:2}}, "\u2715")
-            ) : h("span", {style:{color:"#94a3b8"}}, "Thread 1\u2026")
+              h("span", {onClick:function(){setBlendThread1(null);},style:{cursor:"pointer",color:"var(--text-tertiary)",marginLeft:2}}, "\u2715")
+            ) : h("span", {style:{color:"var(--text-tertiary)"}}, "Thread 1\u2026")
           ),
-          h("span", {style:{fontSize:11,color:"#94a3b8",fontWeight:600}}, "+"),
-          h("div", {style:{flex:1,padding:"4px 8px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:11,minHeight:24,display:"flex",alignItems:"center",gap:4,background:blendThread2?"#f0fdfa":"#fff"}},
+          h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",fontWeight:600}}, "+"),
+          h("div", {style:{flex:1,padding:"4px 8px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",fontSize:'var(--text-xs)',minHeight:24,display:"flex",alignItems:"center",gap:'var(--s-1)',background:blendThread2?"var(--accent-light)":"var(--surface)"}},
             blendThread2 ? h(React.Fragment, null,
-              h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread2.rgb+")",border:"1px solid #cbd5e1",flexShrink:0}}),
+              h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread2.rgb+")",border:"1px solid var(--border)",flexShrink:0}}),
               h("span", {style:{fontWeight:600}}, blendThread2.id),
-              h("span", {onClick:function(){setBlendThread2(null);},style:{cursor:"pointer",color:"#94a3b8",marginLeft:2}}, "\u2715")
-            ) : h("span", {style:{color:"#94a3b8"}}, "Thread 2\u2026")
+              h("span", {onClick:function(){setBlendThread2(null);},style:{cursor:"pointer",color:"var(--text-tertiary)",marginLeft:2}}, "\u2715")
+            ) : h("span", {style:{color:"var(--text-tertiary)"}}, "Thread 2\u2026")
           )
         ),
         blendThread1 && blendThread2 && blendThread1.id !== blendThread2.id && h("button", {
           onClick:addBlend,
-          style:{width:"100%",padding:"6px 0",fontSize:12,fontWeight:600,cursor:"pointer",
-            border:"1px solid #0d9488",borderRadius:6,background:"#f0fdfa",color:"#0d9488",marginBottom:8}
+          style:{width:"100%",padding:"6px 0",fontSize:'var(--text-sm)',fontWeight:600,cursor:"pointer",
+            border:"1px solid var(--accent)",borderRadius:'var(--radius-sm)',background:"var(--accent-light)",color:"var(--accent)",marginBottom:'var(--s-2)'}
         }, "Add blend " + blendThread1.id + "+" + blendThread2.id),
-        blendThread1 && blendThread2 && blendThread1.id === blendThread2.id && h("div", {style:{fontSize:11,color:"#dc2626",marginBottom:8}}, "Pick two different threads"),
+        blendThread1 && blendThread2 && blendThread1.id === blendThread2.id && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--danger)",marginBottom:'var(--s-2)'}}, "Pick two different threads"),
         h("input", {
-          type:"text", placeholder:"Search DMC threads\u2026",
+          type:"text", "aria-label":"Search DMC threads", placeholder:"Search DMC threads\u2026",
           value:blendSearch, onChange:function(e){setBlendSearch(e.target.value);},
-          style:{width:"100%",padding:"6px 10px",border:"0.5px solid #e2e8f0",borderRadius:8,fontSize:12,marginBottom:8,boxSizing:"border-box"}
+          style:{width:"100%",padding:"6px 10px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-sm)',marginBottom:'var(--s-2)',boxSizing:"border-box"}
         }),
         h("div", {style:{maxHeight:200,overflow:"auto",display:"flex",flexDirection:"column",gap:2}},
           blendFiltered.slice(0,60).map(function(d) {
@@ -535,27 +530,27 @@ window.CreatorSidebar = function CreatorSidebar() {
                 if (!blendThread1) setBlendThread1(d);
                 else if (!blendThread2 && d.id !== blendThread1.id) setBlendThread2(d);
               },
-              style:{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,cursor:"pointer",
-                background:(isSel1||isSel2)?"#f0fdfa":"#fff",
-                border:(isSel1||isSel2)?"1px solid #99f6e4":"1px solid transparent",
+              style:{display:"flex",alignItems:"center",gap:'var(--s-2)',padding:"4px 8px",borderRadius:'var(--radius-sm)',cursor:"pointer",
+                background:(isSel1||isSel2)?"var(--accent-light)":"var(--surface)",
+                border:(isSel1||isSel2)?"1px solid var(--accent-border)":"1px solid transparent",
                 opacity:(isSel1||isSel2)?0.7:1,width:"100%"}
             },
-              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #cbd5e1"}}),
-              h("span", {style:{fontFamily:"monospace",fontSize:12,fontWeight:600,minWidth:36,color:"#1e293b"}}, d.id),
-              h("span", {style:{fontSize:11,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-              (isSel1||isSel2) ? h("span", {style:{fontSize:10,color:"#0d9488"}}, isSel1?"\u27981":"\u27982") : h("span", {style:{fontSize:10,color:"#94a3b8"}}, "+")
+              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid var(--border)"}}),
+              h("span", {style:{fontFamily:"monospace",fontSize:'var(--text-sm)',fontWeight:600,minWidth:36,color:"var(--text-primary)"}}, d.id),
+              h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
+              (isSel1||isSel2) ? h("span", {style:{fontSize:10,color:"var(--accent)"}}, isSel1?"\u27981":"\u27982") : h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "+")
             );
           }),
-          blendFiltered.length === 0 && h("div", {style:{fontSize:11,color:"#94a3b8",padding:"8px 0",textAlign:"center"}}, "No colours found")
+          blendFiltered.length === 0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",padding:"8px 0",textAlign:"center"}}, "No colours found")
         )
       )
     )
   ) : null;
 
   // ── Dimensions section ──────────────────────────────────────────────────────
-  var dimBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#475569",background:"#f1f5f9",padding:"1px 8px",borderRadius:10}}, ctx.sW+"×"+ctx.sH);
+  var dimBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--text-secondary)",background:"var(--surface-tertiary)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}}, ctx.sW+"×"+ctx.sH);
   var dimSection = h(Section, {title:"Dimensions", isOpen:app.dimOpen, onToggle:app.setDimOpen, badge:dimBadge},
-    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:8}},
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)'}},
       h("input", {type:"checkbox", checked:ctx.arLock, onChange:function(e){ctx.setArLock(e.target.checked);}}),
       h("span", null, "Lock aspect ratio"),
       h(InfoIcon, {text:"Keep width and height proportional when resizing", width:200})
@@ -563,50 +558,50 @@ window.CreatorSidebar = function CreatorSidebar() {
     ctx.arLock
       ? h("div", null,
           h(SliderRow, {label:"Size", value:ctx.sW, min:10, max:300, onChange:ctx.slRsz, suffix:" st"}),
-          h("div", {style:{fontSize:10,color:"#94a3b8",marginTop:2}}, "Pattern will be "+ctx.sW+"\xD7"+ctx.sH+" stitches (aspect ratio preserved)")
+          h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:2}}, "Pattern will be "+ctx.sW+"\xD7"+ctx.sH+" stitches (aspect ratio preserved)")
         )
       : h("div", {style:{display:"flex",gap:10}},
           h("div", {style:{flex:1}},
-            h("label", {style:{fontSize:11,color:"#94a3b8",display:"block",marginBottom:2}}, "Width"),
-            h("input", {type:"number", value:ctx.sW, onChange:function(e){ctx.chgW(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,fontSize:13}})
+            h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",display:"block",marginBottom:2}}, "Width"),
+            h("input", {type:"number", value:ctx.sW, onChange:function(e){ctx.chgW(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',fontSize:'var(--text-md)'}})
           ),
           h("div", {style:{flex:1}},
-            h("label", {style:{fontSize:11,color:"#94a3b8",display:"block",marginBottom:2}}, "Height"),
-            h("input", {type:"number", value:ctx.sH, onChange:function(e){ctx.chgH(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,fontSize:13}})
+            h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",display:"block",marginBottom:2}}, "Height"),
+            h("input", {type:"number", value:ctx.sH, onChange:function(e){ctx.chgH(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',fontSize:'var(--text-md)'}})
           )
         )
   );
 
   // ── Palette section (non-scratch) ───────────────────────────────────────────
   var palSection = !ctx.isScratchMode ? h(Section, {title:"Palette", isOpen:app.palOpen, onToggle:app.setPalOpen},
-    h("div", {style:{marginTop:8}},
+    h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Max colours", value:gen.maxC, min:10, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(10, gen.stashThreadCount) : 40, onChange:gen.setMaxC,
         helpText:"Limits the colour palette. Fewer colours = faster to stitch but less detail"}),
-      gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && h("div", {style:{fontSize:10,color:"#d97706",marginTop:2}},
+      gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && h("div", {style:{fontSize:10,color:"#A06F2D",marginTop:2}},
         "Clamped to " + gen.stashThreadCount + " (stash size)"
       )
     ),
-    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:gen.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:8,marginTop:8,opacity:gen.blendsAutoDisabled?0.5:1}},
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:gen.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)',opacity:gen.blendsAutoDisabled?0.5:1}},
       h("input", {type:"checkbox", checked:gen.allowBlends, disabled:gen.blendsAutoDisabled, onChange:function(e){gen.setAllowBlends(e.target.checked);}}),
       h("span", null, "Allow blended threads"),
       h(InfoIcon, {text:"Allow the algorithm to blend two DMC colours in a single stitch for smoother gradients", width:200})
     ),
-    gen.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"#94a3b8",marginBottom:8}},
+    gen.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginBottom:'var(--s-2)'}},
       "Auto-disabled \u2014 fewer than 6 stash threads"
     ),
     typeof StashBridge !== "undefined" && h("label", {
-      style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginBottom:8,marginTop:4}
+      style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-1)'}
     },
       h("input", {type:"checkbox", checked:gen.stashConstrained, onChange:function(e){gen.setStashConstrained(e.target.checked);}}),
       h("span", null, "Use only stash threads"),
       h(InfoIcon, {text:"Constrains the palette to threads you physically own. Produces a pattern you can stitch immediately without buying anything.", width:240})
     ),
     gen.stashConstrained && typeof StashBridge !== "undefined" && h(React.Fragment, null,
-      h("div", {style:{fontSize:11,color:"#0d9488",background:"#f0fdfa",border:"1px solid #99f6e4",borderRadius:8,padding:"6px 10px",marginBottom:8}},
+      h("div", {style:{fontSize:'var(--text-xs)',color:"var(--accent)",background:"var(--accent-light)",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-md)',padding:"6px 10px",marginBottom:'var(--s-2)'}},
         (gen.stashThreadCount || 0) + " thread" + ((gen.stashThreadCount || 0) !== 1 ? "s" : "") + " in stash" +
           (gen.effectiveMaxC && gen.effectiveMaxC < gen.maxC ? " \u2014 palette limited to " + gen.effectiveMaxC + " colours" : "")
       ),
-      gen.stashPalette && gen.stashPalette.length > 0 && h("div", {style:{marginBottom:8}},
+      gen.stashPalette && gen.stashPalette.length > 0 && h("div", {style:{marginBottom:'var(--s-2)'}},
         h("div", {style:{display:"flex",flexWrap:"wrap",gap:2,marginBottom:2}},
           (stashStripExpanded ? gen.stashPalette : gen.stashPalette.slice(0,60)).map(function(t) {
             return h(Tooltip, {key:t.id, text:"DMC " + t.id + " \u2014 " + t.name, width:140},
@@ -616,14 +611,14 @@ window.CreatorSidebar = function CreatorSidebar() {
         ),
         gen.stashPalette.length > 60 && h("button", {
           onClick:function(){setStashStripExpanded(function(o){return !o;});},
-          style:{fontSize:10,color:"#0d9488",background:"none",border:"none",cursor:"pointer",padding:"0 2px"}
+          style:{fontSize:10,color:"var(--accent)",background:"none",border:"none",cursor:"pointer",padding:"0 2px"}
         }, stashStripExpanded ? "Show less" : "+" + (gen.stashPalette.length - 60) + " more")
       ),
       gen.coverageGaps && gen.coverageGaps.hasGaps && h("div", {style:{
-        fontSize:11,background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,
-        padding:"6px 10px",marginBottom:8,color:"#991b1b",display:"flex",alignItems:"flex-start",gap:6
+        fontSize:'var(--text-xs)',background:"var(--danger-soft)",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-md)',
+        padding:"6px 10px",marginBottom:'var(--s-2)',color:"var(--danger)",display:"flex",alignItems:"flex-start",gap:6
       }},
-        h("span", {style:{fontSize:13,lineHeight:1,flexShrink:0}}, Icons.warning()),
+        h("span", {style:{fontSize:'var(--text-md)',lineHeight:1,flexShrink:0}}, Icons.warning()),
         h("span", null, "Your stash may lack coverage in: ",
           gen.coverageGaps.gaps.map(function(g, i) {
             return h("span", {key:g.hue},
@@ -634,14 +629,14 @@ window.CreatorSidebar = function CreatorSidebar() {
           })
         )
       ),
-      h("div", {style:{marginBottom:8}},
-        h("div", {style:{fontSize:11,color:"#475569",marginBottom:4,fontWeight:500}}, "Quick-add thread to stash"),
+      h("div", {style:{marginBottom:'var(--s-2)'}},
+        h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginBottom:'var(--s-1)',fontWeight:500}}, "Quick-add thread to stash"),
         h("div", {style:{display:"flex",alignItems:"center",gap:6}},
           h("input", {
             type:"text", value:qaVal,
             placeholder:"DMC number\u2026",
             onChange:function(e){setQaVal(e.target.value);},
-            style:{flex:1,padding:"4px 8px",fontSize:12,borderRadius:6,border:"0.5px solid #e2e8f0",fontFamily:"inherit"}
+            style:{flex:1,padding:"4px 8px",fontSize:'var(--text-sm)',borderRadius:'var(--radius-sm)',border:"0.5px solid var(--border)",fontFamily:"inherit"}
           }),
           (function(){
             var dmc = findThreadInCatalog('dmc', qaVal.trim());
@@ -665,16 +660,16 @@ window.CreatorSidebar = function CreatorSidebar() {
                 });
               }).catch(function(){ setQaLoading(false); });
             },
-            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #99f6e4",background:qaLoading?"#e2e8f0":"#f0fdfa",color:"#0d9488",cursor:"pointer",fontFamily:"inherit"}
+            style:{fontSize:'var(--text-xs)',padding:"4px 10px",borderRadius:'var(--radius-sm)',border:"0.5px solid var(--accent-border)",background:qaLoading?"var(--border)":"var(--accent-light)",color:"var(--accent)",cursor:"pointer",fontFamily:"inherit"}
           }, qaLoading ? "\u2026" : "+ Add")
         )
       ),
-      h("div", {style:{borderTop:"0.5px solid #e2e8f0",marginTop:8,paddingTop:10}},
-        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap"}},
+      h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-2)',paddingTop:10}},
+        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:'var(--s-1)',flexWrap:"wrap"}},
           h("button", {
             onClick:function(){ gen.randomise(); },
             disabled:!(gen.stashPalette && gen.stashPalette.length > 0) || !gen.img,
-            style:{display:"flex",alignItems:"center",gap:4,fontSize:12,fontWeight:500,padding:"5px 12px",borderRadius:8,border:"0.5px solid #99f6e4",background:"#f0fdfa",color:"#0d9488",cursor:"pointer",fontFamily:"inherit"}
+            style:{display:"flex",alignItems:"center",gap:'var(--s-1)',fontSize:'var(--text-sm)',fontWeight:500,padding:"5px 12px",borderRadius:'var(--radius-md)',border:"0.5px solid var(--accent-border)",background:"var(--accent-light)",color:"var(--accent)",cursor:"pointer",fontFamily:"inherit"}
           }, Icons.shuffle(), " Randomise"),
           gen.variationSeed ? (seedEditing ?
             h("span", {style:{display:"flex",alignItems:"center",gap:3}},
@@ -686,87 +681,87 @@ window.CreatorSidebar = function CreatorSidebar() {
                   else if(e.key==="Escape"){setSeedEditing(false);}
                 },
                 onBlur:function(){setSeedEditing(false);},
-                style:{width:70,padding:"2px 4px",fontSize:10,borderRadius:4,border:"0.5px solid #99f6e4",fontFamily:"inherit"}
+                style:{width:70,padding:"2px 4px",fontSize:10,borderRadius:4,border:"0.5px solid var(--accent-border)",fontFamily:"inherit"}
               })
             ) :
             h("span", {
               onClick:function(){setSeedEditing(true);setSeedTmp(String(gen.variationSeed));},
               title:"Click to enter a specific seed",
-              style:{fontSize:10,color:"#94a3b8",cursor:"pointer",userSelect:"none",fontVariantNumeric:"tabular-nums"}
+              style:{fontSize:10,color:"var(--text-tertiary)",cursor:"pointer",userSelect:"none",fontVariantNumeric:"tabular-nums"}
             }, "#" + gen.variationSeed)
           ) : null
         ),
         gen.stashConstrained && gen.variationSeed && gen.variationSubset && gen.stashPalette && gen.stashPalette.length >= 3 && h("div", {
-          style:{fontSize:10,color:"#0d9488",marginBottom:6,display:"flex",alignItems:"center",gap:4}
+          style:{fontSize:10,color:"var(--accent)",marginBottom:6,display:"flex",alignItems:"center",gap:'var(--s-1)'}
         }, Icons.dice(), " Roulette \u2014 using " + gen.variationSubset.length + " of " + gen.stashPalette.length + " threads"),
         h("button", {
           onClick:function(){
             gen.setGalleryOpen(function(o){return !o;});
             if (!gen.galleryOpen) gen.generateGallery();
           },
-          style:{fontSize:11,color:"#475569",background:"none",border:"none",cursor:"pointer",padding:"0",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4,marginBottom:4}
+          style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",background:"none",border:"none",cursor:"pointer",padding:"0",fontFamily:"inherit",display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}
         },
           h("span", {style:{fontSize:9,display:"inline-block",transform:gen.galleryOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
           "Explore variations"
         ),
-        gen.galleryOpen && h("div", {style:{marginTop:4}},
-          h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}},
+        gen.galleryOpen && h("div", {style:{marginTop:'var(--s-1)'}},
+          h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:'var(--s-2)'}},
             gen.gallerySlots.map(function(slot, i) {
               return h("div", {
                 key:i,
                 onClick:function(){ if (!slot.loading && slot.url) { gen.promoteVariation(slot); gen.setGalleryOpen(false); } },
                 style:{
-                  borderRadius:8,overflow:"hidden",border:"0.5px solid #e2e8f0",
+                  borderRadius:'var(--radius-md)',overflow:"hidden",border:"0.5px solid var(--border)",
                   cursor:(!slot.loading && slot.url) ? "pointer" : "default",
-                  background:"#f8fafc",transition:"border-color 0.15s"
+                  background:"var(--surface-secondary)",transition:"border-color 0.15s"
                 }
               },
                 slot.loading ?
-                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#94a3b8"}}, "\u2026") :
+                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"var(--text-tertiary)"}}, "\u2026") :
                 slot.url ?
                   h("div", null,
                     h("img", {src:slot.url, style:{width:"100%",display:"block",imageRendering:"pixelated"}}),
-                    h("div", {style:{padding:"3px 6px",fontSize:9,color:"#475569"}},
+                    h("div", {style:{padding:"3px 6px",fontSize:9,color:"var(--text-secondary)"}},
                       "#" + slot.seed + " \u00B7 " + slot.threadCount + " threads"
                     )
                   ) :
-                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#ef4444"}}, "Error")
+                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#B85555"}}, "Error")
               );
             })
           ),
           h("div", {style:{display:"flex",justifyContent:"center"}},
             h("button", {
               onClick:function(){ gen.generateGallery(); },
-              style:{fontSize:11,padding:"4px 12px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#fff",color:"#475569",cursor:"pointer",fontFamily:"inherit"}
+              style:{fontSize:'var(--text-xs)',padding:"4px 12px",borderRadius:'var(--radius-sm)',border:"0.5px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",cursor:"pointer",fontFamily:"inherit"}
             }, "New batch")
           )
         ),
-        gen.variationHistory.length > 0 && h("div", {style:{marginTop:8}},
-          h("div", {style:{fontSize:10,color:"#94a3b8",marginBottom:4}}, "Recent variations"),
-          h("div", {style:{display:"flex",gap:4,overflowX:"auto",paddingBottom:4}},
+        gen.variationHistory.length > 0 && h("div", {style:{marginTop:'var(--s-2)'}},
+          h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginBottom:'var(--s-1)'}}, "Recent variations"),
+          h("div", {style:{display:"flex",gap:'var(--s-1)',overflowX:"auto",paddingBottom:4}},
             gen.variationHistory.map(function(entry, i) {
               return h("div", {
                 key:(entry.timestamp || i) + "-" + i,
                 onClick:function(){ gen.applyVariationSeed(entry.seed, entry.subset !== undefined ? entry.subset : null); },
                 title:"Seed #" + entry.seed,
-                style:{flexShrink:0,cursor:"pointer",borderRadius:4,overflow:"hidden",border:"0.5px solid #e2e8f0"}
+                style:{flexShrink:0,cursor:"pointer",borderRadius:4,overflow:"hidden",border:"0.5px solid var(--border)"}
               },
                 entry.previewUrl ?
                   h("img", {src:entry.previewUrl, style:{width:32,height:32,display:"block",imageRendering:"pixelated",objectFit:"cover"}}) :
-                  h("div", {style:{width:32,height:32,background:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"#94a3b8"}}, "?"),
-                h("div", {style:{fontSize:7,color:"#94a3b8",textAlign:"center",padding:"1px 2px"}}, "#" + entry.seed)
+                  h("div", {style:{width:32,height:32,background:"var(--surface-tertiary)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"var(--text-tertiary)"}}, "?"),
+                h("div", {style:{fontSize:7,color:"var(--text-tertiary)",textAlign:"center",padding:"1px 2px"}}, "#" + entry.seed)
               );
             })
           )
         )
       )
     ),
-    h("div", {style:{marginTop:8}},
+    h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:50, onChange:gen.setMinSt,
         format:function(v){return v===0?"Off":v;},
         helpText:"Colours used fewer than this many times will be merged into the nearest similar colour"})
     ),
-    h("div", {style:{marginTop:8}},
+    h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Remove Orphans", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
         format:function(v){return v===0?"Off":String(v);},
         helpText:"Removes isolated stitches with no same-colour neighbours — reduces confetti and makes the pattern easier to stitch"}),
@@ -775,14 +770,14 @@ window.CreatorSidebar = function CreatorSidebar() {
         if (gen.orphans === 1) {
           desc = h("span", null, "Removes ", h("strong", null, "isolated single stitches"), " \u2014 cells with no same-colour neighbour. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this targets clusters of exactly 1 stitch.");
         } else if (gen.orphans === 2) {
-          desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20132 stitches"), " that are isolated from their colour group. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#d97706",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
+          desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20132 stitches"), " that are isolated from their colour group. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
         } else {
-          desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20133 stitches"), " that are isolated. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"#dc2626",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#d97706",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
+          desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20133 stitches"), " that are isolated. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"var(--danger)",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
         }
-        return h("div", {style:{fontSize:11,color:"#475569",marginTop:4,lineHeight:1.5}}, desc);
+        return h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginTop:'var(--s-1)',lineHeight:1.5}}, desc);
       })()
     ),
-    gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}},
+    gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}},
       "Preview estimate: removes ~", (app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
       " (", ((app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles) / Math.max(1, app.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
     ),
@@ -790,24 +785,24 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("button", {
         onClick:function(){gen.setShowCleanupDiff(function(d){return !d;});},
         style:{
-          fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",
-          border:gen.showCleanupDiff?"1px solid #0d9488":"0.5px solid #e2e8f0",
-          background:gen.showCleanupDiff?"#f0fdfa":"#fff",
-          color:gen.showCleanupDiff?"#0d9488":"#475569",
+          fontSize:'var(--text-xs)',padding:"3px 8px",borderRadius:'var(--radius-sm)',cursor:"pointer",
+          border:gen.showCleanupDiff?"1px solid var(--accent)":"0.5px solid var(--border)",
+          background:gen.showCleanupDiff?"var(--accent-light)":"var(--surface)",
+          color:gen.showCleanupDiff?"var(--accent)":"var(--text-secondary)",
           fontWeight:gen.showCleanupDiff?600:400,
-          display:"flex",alignItems:"center",gap:4,lineHeight:1.4
+          display:"flex",alignItems:"center",gap:'var(--s-1)',lineHeight:1.4
         }
       }, Icons.eye(), " " + (gen.showCleanupDiff ? "Hide changes" : "Show changes"))
     ),
     gen.showCleanupDiff && gen.cleanupDiff && h("div", {style:{
-      fontSize:11,color:"#475569",padding:"6px 10px",
-      background:"#fdf4ff",border:"1px solid #f0abfc",borderRadius:8,
-      marginTop:4,lineHeight:1.5
+      fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"6px 10px",
+      background:"var(--surface-secondary)",border:"1px solid #f0abfc",borderRadius:'var(--radius-md)',
+      marginTop:'var(--s-1)',lineHeight:1.5
     }},
-      h("span", {style:{color:"#a855f7",fontWeight:700,marginRight:4}}, "\u25CF"),
+      h("span", {style:{color:"var(--accent)",fontWeight:700,marginRight:'var(--s-1)'}}, "\u25CF"),
       gen.cleanupDiff.count.toLocaleString(), " stitches changed",
       ctx.totalStitchable > 0 ? " (" + (gen.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
-      Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:8,color:"#94a3b8"}},
+      Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:'var(--s-2)',color:"var(--text-tertiary)"}},
         Object.entries(gen.cleanupDiff.byColour)
           .sort(function(a,b){return b[1]-a[1];})
           .slice(0,4)
@@ -821,40 +816,40 @@ window.CreatorSidebar = function CreatorSidebar() {
       if (!warning) return null;
       var isDanger = warning.level === "danger";
       return h("div", {style:{
-        marginTop:6,padding:"8px 10px",borderRadius:8,fontSize:11,lineHeight:1.5,
-        background:isDanger?"#fef2f2":"#fffbeb",
-        border:"1px solid "+(isDanger?"#fecaca":"#fde68a"),
-        color:isDanger?"#991b1b":"#92400e",
+        marginTop:6,padding:"8px 10px",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',lineHeight:1.5,
+        background:isDanger?"var(--danger-soft)":"#FAF5E1",
+        border:"1px solid "+(isDanger?"var(--danger-soft)":"#E5C97D"),
+        color:isDanger?"var(--danger)":"var(--accent-ink)",
         display:"flex",alignItems:"flex-start",gap:6
       }},
-        h("span", {style:{fontSize:14,lineHeight:1,flexShrink:0}}, isDanger?Icons.warning():Icons.lightbulb()),
+        h("span", {style:{fontSize:'var(--text-lg)',lineHeight:1,flexShrink:0}}, isDanger?Icons.warning():Icons.lightbulb()),
         h("span", null, warning.message)
       );
     })(),
     h("button", {
       onClick:function(){app.setPalAdvanced(function(o){return !o;});},
-      style:{marginTop:8,display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#475569",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}
+      style:{marginTop:'var(--s-2)',display:"flex",alignItems:"center",gap:'var(--s-1)',fontSize:'var(--text-xs)',color:"var(--text-secondary)",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}
     },
       h("span", {style:{fontSize:9,display:"inline-block",transform:app.palAdvanced?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
       "Dithering",
-      gen.dith ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block",marginLeft:2}}) : null
+      gen.dith ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block",marginLeft:2}}) : null
     ),
     app.palAdvanced && h(React.Fragment, null,
-      h("div", {style:{marginTop:6,padding:"8px 10px",background:"#fff7ed",borderRadius:8,border:"0.5px solid #fed7aa",fontSize:10,color:"#b45309"}},
+      h("div", {style:{marginTop:6,padding:"8px 10px",background:"#F8EFD8",borderRadius:'var(--radius-md)',border:"0.5px solid #E5C99A",fontSize:10,color:"var(--accent-ink)"}},
         "Dithering blends colours by mixing stitches. Direct mapping uses solid colours only."
       ),
       h("div", {style:{display:"flex",gap:6,marginTop:6}},
-        h("div", {style:{display:"flex",gap:2,background:"#f1f5f9",borderRadius:8,padding:2,flex:1}},
+        h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2,flex:1}},
           h(Tooltip, {text:"Maps each pixel directly to its closest DMC colour. Fewer scattered stitches", width:200},
             h("button", {
               onClick:function(){gen.setDith(false);},
-              style:{padding:"5px 12px",fontSize:12,fontWeight:!gen.dith?500:400,background:!gen.dith?"#fff":"transparent",borderRadius:6,color:!gen.dith?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:!gen.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
+              style:{padding:"5px 12px",fontSize:'var(--text-sm)',fontWeight:!gen.dith?500:400,background:!gen.dith?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',color:!gen.dith?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",boxShadow:!gen.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
             }, "Direct")
           ),
           h(Tooltip, {text:"Uses Floyd-Steinberg error diffusion for smoother colour gradients, but creates more scattered stitches", width:220},
             h("button", {
               onClick:function(){gen.setDith(true);},
-              style:{padding:"5px 12px",fontSize:12,fontWeight:gen.dith?500:400,background:gen.dith?"#fff":"transparent",borderRadius:6,color:gen.dith?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:gen.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
+              style:{padding:"5px 12px",fontSize:'var(--text-sm)',fontWeight:gen.dith?500:400,background:gen.dith?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',color:gen.dith?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",boxShadow:gen.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
             }, "Dithered")
           )
         )
@@ -866,15 +861,15 @@ window.CreatorSidebar = function CreatorSidebar() {
   var cleanupSection = !ctx.isScratchMode ? (function() {
     var sc2 = gen.stitchCleanup;
     var scBadge = h("span", {style:{
-      fontSize:11,fontWeight:500,padding:"1px 8px",borderRadius:10,
-      color:sc2.enabled?"#0d9488":"#94a3b8",background:sc2.enabled?"#f0fdfa":"#f1f5f9"
+      fontSize:'var(--text-xs)',fontWeight:500,padding:"1px 8px",borderRadius:'var(--radius-lg)',
+      color:sc2.enabled?"var(--accent)":"var(--text-tertiary)",background:sc2.enabled?"var(--accent-light)":"var(--surface-tertiary)"
     }}, sc2.enabled ? "On \u2014 "+(sc2.strength[0].toUpperCase()+sc2.strength.slice(1)) : "Off");
     var strengthKeys=["gentle","balanced","thorough"];
     var strengthLabels=["Gentle","Balanced","Thorough"];
     var strengthDescs=["Keeps 2-stitch clusters. Best for detail-heavy designs.","Removes 3-stitch clusters. Balanced stitchability & detail.","Removes up to 5-stitch clusters. Smoothest, easiest to sew."];
     var strengthIdx=strengthKeys.indexOf(sc2.strength);
     return h(Section, {title:"Stitch Cleanup", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:scBadge},
-      h("div", {style:{marginTop:8}},
+      h("div", {style:{marginTop:'var(--s-2)'}},
         h(Toggle, {
           checked:sc2.enabled,
           onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{enabled:v});});},
@@ -882,24 +877,24 @@ window.CreatorSidebar = function CreatorSidebar() {
           help:"Automatically removes scattered single stitches that are hard to sew. Turn off if you want to keep the full dithered detail."
         }),
         sc2.enabled && h(React.Fragment, null,
-          h("div", {style:{marginBottom:10,padding:"8px 10px",background:"#f0fdfa",borderRadius:8,border:"0.5px solid #99f6e4",fontSize:11,color:"#0d9488",fontWeight:500}},
+          h("div", {style:{marginBottom:10,padding:"8px 10px",background:"var(--accent-light)",borderRadius:'var(--radius-md)',border:"0.5px solid var(--accent-border)",fontSize:'var(--text-xs)',color:"var(--accent)",fontWeight:500}},
             "Removes scattered single stitches (confetti) that are impractical to sew \u2014 especially in dithered areas and gradients."
           ),
-          h("div", {style:{marginTop:4,marginBottom:10}},
-            h("div", {style:{display:"flex",alignItems:"center",gap:4,marginBottom:4}},
-              h("span", {style:{fontSize:12,color:"#52525b",fontWeight:500}}, "Cleanup strength"),
+          h("div", {style:{marginTop:'var(--s-1)',marginBottom:10}},
+            h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
+              h("span", {style:{fontSize:'var(--text-sm)',color:"#52525b",fontWeight:500}}, "Cleanup strength"),
               h(InfoIcon, {text:"How aggressively scattered stitches are merged into nearby colours. Gentle keeps more detail. Thorough creates smoother, easier-to-sew blocks.", width:220})
             ),
             h("input", {
               type:"range",min:0,max:2,step:1,value:strengthIdx,
               onChange:function(e){gen.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[+e.target.value]});});},
-              style:{width:"100%",accentColor:"#0d9488"}
+              style:{width:"100%",accentColor:"var(--accent)"}
             }),
-            h("div", {style:{display:"flex",justifyContent:"space-between",marginTop:6,gap:4}},
+            h("div", {style:{display:"flex",justifyContent:"space-between",marginTop:6,gap:'var(--s-1)'}},
               strengthLabels.map(function(l,i) {
                 return h(Tooltip, {key:l, text:strengthDescs[i], width:160},
                   h("span", {
-                    style:{fontSize:10,color:strengthIdx===i?"#0d9488":"#94a3b8",fontWeight:strengthIdx===i?600:400,cursor:"pointer",padding:"2px 4px",borderRadius:4,transition:"all 0.15s",background:strengthIdx===i?"#e0f7f4":"transparent"},
+                    style:{fontSize:10,color:strengthIdx===i?"var(--accent)":"var(--text-tertiary)",fontWeight:strengthIdx===i?600:400,cursor:"pointer",padding:"2px 4px",borderRadius:4,transition:"all 0.15s",background:strengthIdx===i?"#e0f7f4":"transparent"},
                     onClick:function(){gen.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[i]});});}
                   }, l)
                 );
@@ -924,38 +919,38 @@ window.CreatorSidebar = function CreatorSidebar() {
   })() : null;
 
   // ── Fabric & Floss section ──────────────────────────────────────────────────
-  var fabBadge = h("span", {style:{fontSize:11,fontWeight:500,color:"#475569",background:"#f1f5f9",padding:"1px 8px",borderRadius:10}}, ctx.fabricCt+"ct");
+  var fabBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--text-secondary)",background:"var(--surface-tertiary)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}}, ctx.fabricCt+"ct");
   var fabSection = h(Section, {title:"Fabric & Floss", isOpen:app.fabOpen, onToggle:app.setFabOpen, badge:fabBadge},
-    h("div", {style:{marginTop:8}},
-      h("div", {style:{display:"flex",alignItems:"center",gap:4,marginBottom:4}},
-        h("span", {style:{fontSize:12,color:"#475569",fontWeight:600}}, "Fabric count"),
+    h("div", {style:{marginTop:'var(--s-2)'}},
+      h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
+        h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:600}}, "Fabric count"),
         h(InfoIcon, {text:"The thread count of your Aida or evenweave fabric — affects finished size and skein estimates", width:220})
       ),
       h("select", {
         value:ctx.fabricCt, onChange:function(e){ctx.setFabricCt(Number(e.target.value));},
-        style:{width:"100%",padding:"6px 10px",borderRadius:8,border:"0.5px solid #e2e8f0",fontSize:13,background:"#fff"}
+        style:{width:"100%",padding:"6px 10px",borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",fontSize:'var(--text-md)',background:"var(--surface)"}
       }, FABRIC_COUNTS.map(function(f) {
         return h("option", {key:f.ct, value:f.ct}, f.label);
       })),
-      h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:6}}, "Affects skein & finished size estimates. Assumes 2 strands, 8m per skein.")
+      h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:6}}, "Affects skein & finished size estimates. Assumes 2 strands, 8m per skein.")
     )
   );
 
   // ── Adjustments section (non-scratch) ──────────────────────────────────────
-  var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#0d9488",display:"inline-block"}}) : null;
+  var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
   var adjSection = !ctx.isScratchMode ? h(Section, {title:"Adjustments", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
-    h("div", {style:{marginTop:8}},
+    h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Smooth", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
         helpText:"Blur filter to reduce noise in grainy or low-resolution photos"}),
-      gen.smooth===0 && h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
+      gen.smooth===0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
       gen.smooth>0 && h("div", {style:{display:"flex",gap:6,margin:"6px 0"}},
-        h("div", {style:{display:"flex",gap:2,background:"#f1f5f9",borderRadius:8,padding:2,flex:1}},
+        h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2,flex:1}},
           h(Tooltip, {text:"Preserves edges better. Best for most photos", width:180},
-            h("button", {onClick:function(){gen.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:12,fontWeight:gen.smoothType==="median"?500:400,background:gen.smoothType==="median"?"#fff":"transparent",borderRadius:6,color:gen.smoothType==="median"?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median")
+            h("button", {onClick:function(){gen.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:'var(--text-sm)',fontWeight:gen.smoothType==="median"?500:400,background:gen.smoothType==="median"?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',color:gen.smoothType==="median"?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median")
           ),
           h(Tooltip, {text:"Stronger overall blur. Better for very grainy or pixelated images", width:180},
-            h("button", {onClick:function(){gen.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:12,fontWeight:gen.smoothType==="gaussian"?500:400,background:gen.smoothType==="gaussian"?"#fff":"transparent",borderRadius:6,color:gen.smoothType==="gaussian"?"#1e293b":"#475569",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian")
+            h("button", {onClick:function(){gen.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:'var(--text-sm)',fontWeight:gen.smoothType==="gaussian"?500:400,background:gen.smoothType==="gaussian"?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',color:gen.smoothType==="gaussian"?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian")
           )
         )
       ),
@@ -970,7 +965,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   // turned on so the user is never left wondering what to click. Re-toggling
   // off and on doesn't keep re-arming pick mode (only on the 0→1 transition
   // when no bgCol has been customised).
-  var bgBadge = gen.skipBg ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"#16a34a",display:"inline-block"}}) : null;
+  var bgBadge = gen.skipBg ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--success)",display:"inline-block"}}) : null;
   function armBgPick() {
     // Switch the user to the Image tab so the pick target is visible.
     if (app.appMode === "create" && app.setSidebarTab) app.setSidebarTab("image");
@@ -982,7 +977,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         window.requestAnimationFrame(function(){
           var el = document.getElementById("bg-pick-target");
           if (el && el.scrollIntoView) {
-            try { el.scrollIntoView({behavior:"smooth", block:"center"}); }
+            try { var __reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; el.scrollIntoView({behavior: __reduced ? "auto" : "smooth", block:"center"}); }
             catch (_) { el.scrollIntoView(); }
           }
         });
@@ -990,7 +985,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     }
   }
   var bgSection = !ctx.isScratchMode ? h(Section, {title:"Background", isOpen:app.bgOpen, onToggle:app.setBgOpen, badge:bgBadge},
-    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",marginTop:8}},
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginTop:'var(--s-2)'}},
       h("input", {type:"checkbox", checked:gen.skipBg, onChange:function(e){
         var on = e.target.checked;
         gen.setSkipBg(on);
@@ -1004,24 +999,24 @@ window.CreatorSidebar = function CreatorSidebar() {
       h(InfoIcon, {text:"Exclude pixels matching a chosen colour, leaving them unstitched. Good for solid colour backgrounds", width:220})
     ),
     gen.skipBg && h("div", {style:{marginTop:10}},
-      h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
+      h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:10}},
         h("div", {
           onClick:armBgPick,
           title:"Pick background colour from the source image",
-          style:{width:24,height:24,borderRadius:6,background:"rgb("+gen.bgCol+")",border:"2px solid #e2e8f0",cursor:"pointer"}
+          style:{width:24,height:24,borderRadius:'var(--radius-sm)',background:"rgb("+gen.bgCol+")",border:"2px solid var(--border)",cursor:"pointer"}
         }),
         h("button", {
           onClick:armBgPick,
-          style:{fontSize:11,padding:"3px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,background:gen.pickBg?"#fff7ed":"#f8f9fa",color:gen.pickBg?"#9a3412":"#1e293b",cursor:"pointer"}
+          style:{fontSize:'var(--text-xs)',padding:"3px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',background:gen.pickBg?"#F8EFD8":"var(--surface-secondary)",color:gen.pickBg?"var(--accent-hover)":"var(--text-primary)",cursor:"pointer"}
         }, gen.pickBg ? "Picking…" : "Pick")
       ),
       h(SliderRow, {label:"Tolerance", value:gen.bgTh, min:3, max:50, onChange:gen.setBgTh,
         helpText:"How closely a pixel must match the background colour to be skipped. Higher = more pixels removed"}),
-      ctx.pat && h("div", {style:{marginTop:10,padding:"8px",background:"#f1f5f9",borderRadius:8,fontSize:11,color:"#475569"}},
+      ctx.pat && h("div", {style:{marginTop:10,padding:"8px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
         h("div", {style:{marginBottom:6}}, "Want to shrink the pattern to fit only the stitches?"),
         h("button", {
           onClick:gen.autoCrop,
-          style:{width:"100%",padding:"6px",fontSize:12,fontWeight:500,background:"#fff",border:"1px solid #cbd5e1",borderRadius:6,cursor:"pointer",color:"#1e293b"}
+          style:{width:"100%",padding:"6px",fontSize:'var(--text-sm)',fontWeight:500,background:"var(--surface)",border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',cursor:"pointer",color:"var(--text-primary)"}
         }, "Auto-Crop to Stitches")
       )
     )
@@ -1031,35 +1026,64 @@ window.CreatorSidebar = function CreatorSidebar() {
   var actionBtn = ctx.isScratchMode
     ? h("button", {
         onClick:function(){ctx.initBlankGrid(ctx.sW, ctx.sH);},
-        style:{padding:"8px 14px",fontSize:12,fontWeight:600,background:"#dc2626",color:"#fff",border:"none",borderRadius:8,cursor:"pointer"}
+        style:{padding:"8px 14px",fontSize:'var(--text-sm)',fontWeight:600,background:"var(--danger)",color:"var(--surface)",border:"none",borderRadius:'var(--radius-md)',cursor:"pointer"}
       }, "Reset Canvas")
     : h("button", {
         onClick:gen.generate, disabled:gen.busy,
-        style:{padding:"8px 14px",fontSize:12,fontWeight:600,
-          background:gen.busy?"#94a3b8":"#0d9488",color:"#fff",
-          border:"none",borderRadius:8,cursor:gen.busy?"wait":"pointer"}
+        style:{padding:"8px 14px",fontSize:'var(--text-sm)',fontWeight:600,
+          background:gen.busy?"var(--text-tertiary)":"var(--accent)",color:"var(--surface)",
+          border:"none",borderRadius:'var(--radius-md)',cursor:gen.busy?"wait":"pointer"}
       }, gen.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
 
-  // ─── Mode-aware sidebar tab bar ────────────────────────────────────────────
+  // ─── Unified sidebar tab bar (Polish 13 step 3) ────────────────────────
+  // One tab strip across both appModes. Tools/View are locked until a
+  // pattern exists. Clicking a tab also flips appMode silently when the
+  // tab requires the other mode's content — no confirm dialog, no
+  // visible "Setup" chip in the action bar. Edits are autosaved so the
+  // round-trip is safe.
   var mode = app.appMode || "edit";
   var rawTab = app.sidebarTab;
   // Back-compat: legacy "settings" (single-Settings-accordion) → first new tab.
   if (rawTab === "settings") rawTab = "image";
+  var hasPattern = !!(ctx.pat && ctx.pal);
   var sTab = rawTab || (mode === "create" ? "image" : "palette");
 
-  var createTabs = [
-    ["image","Image"],
-    ["dimensions","Dimensions"],
-    ["palette","Palette"],
-    ["preview","Preview"],
-    ["project","Project"]
+  // Per-tab metadata. `requires` declares which appMode owns the tab
+  // content; clicking flips appMode to match. Tools/View are disabled
+  // until generation completes.
+  var unifiedTabs = [
+    {id:"image",      label:"Image",      icon:"image",   requires:"create"},
+    {id:"dimensions", label:"Dimensions", icon:"ruler",   requires:"create"},
+    {id:"palette",    label:"Palette",    icon:"palette"},
+    {id:"tools",      label:"Tools",      icon:"pencil",  requires:"edit",
+      disabled: !hasPattern,
+      disabledHint:"Generate a pattern to unlock brush, lasso, magic wand, half-stitches, and backstitch."},
+    {id:"view",       label:"View",       icon:"eye",     requires:"edit",
+      disabled: !hasPattern,
+      disabledHint:"Generate a pattern to unlock symbols, gridlines, and zoom presets."},
+    {id:"preview",    label:"Preview",    icon:"layers"},
+    {id:"project",    label:"Project",    icon:"folder",  requires:"create"}
   ];
-  var editTabs = [["palette","Palette"],["tools","Tools"],["view","View"],["preview","Preview"],["more","More"]];
-  var tabs = mode === "create" ? createTabs : editTabs;
 
-  // Ensure sidebarTab is valid for current mode
-  var validIds = tabs.map(function(t) { return t[0]; });
+  // Legacy aliases retained for tests / external callers; the bottom
+  // render branches still use these names. createTabs is the canonical
+  // 7-tab list; editTabs is a filtered subset for the edit-mode render
+  // path that hasn't been merged yet.
+  var createTabs = unifiedTabs;
+  var editTabs = unifiedTabs.filter(function(t) { return t.requires !== "create"; });
+  var tabs = unifiedTabs;
+
+  // Ensure sidebarTab is valid AND matches the current appMode's render
+  // branch. The bottom render path still has two arms (create vs edit);
+  // a tab whose `requires` doesn't match the current `mode` would render
+  // nothing. Clamp to the first tab the current mode can actually show.
+  var validIds = tabs.map(function(t) { return t.id; });
   if (validIds.indexOf(sTab) === -1) sTab = validIds[0];
+  var sTabMeta = tabs.find(function(t) { return t.id === sTab; });
+  if (sTabMeta && sTabMeta.requires && sTabMeta.requires !== mode) {
+    var fallback = tabs.find(function(t) { return (!t.requires || t.requires === mode) && !t.disabled; });
+    if (fallback) sTab = fallback.id;
+  }
 
   var tabBar = h("div", {
     role:"tablist", "aria-label":mode === "create" ? "Create mode panels" : "Edit mode panels",
@@ -1068,54 +1092,70 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("div", {"aria-hidden":"true", className:"rpanel-handle-wrap", style:{paddingTop:6,paddingBottom:2,display:"flex",justifyContent:"center"}},
       h("div", {className:"rpanel-handle-bar"})
     ),
-    h("div", {style:{display:"flex",borderBottom:"1px solid var(--border)",overflowX:"auto",scrollbarWidth:"none"}},
-      tabs.map(function(kl) {
+    h("div", {className:"creator-sidebar-tabs"},
+      tabs.map(function(t) {
+        var isActive = sTab === t.id;
+        var isDisabled = !!t.disabled;
+        var iconFn = (window.Icons && window.Icons[t.icon]) ? window.Icons[t.icon] : null;
         return h("button", {
-          key:kl[0],
-          role:"tab",
-          "aria-selected":sTab===kl[0],
-          "aria-controls":"sidebar-panel-"+kl[0],
-          onClick:function(){
+          key: t.id,
+          role: "tab",
+          className: "creator-sidebar-tab",
+          "data-tab-id": t.id,
+          "aria-selected": isActive ? "true" : "false",
+          "aria-disabled": isDisabled ? "true" : "false",
+          "aria-controls": "sidebar-panel-" + t.id,
+          tabIndex: isActive ? 0 : -1,
+          title: isDisabled ? (t.disabledHint || "Generate a pattern to unlock") : t.label,
+          onClick: function() {
+            if (isDisabled) return;
+            // Polish 13 step 3 — flip appMode to match the tab's `requires`
+            // so Image/Dimensions/Project always render the create-mode
+            // panels and Tools/View/More always render the edit-mode
+            // panels, regardless of which mode the user came from. No
+            // confirm dialog: edits are autosaved.
+            if (t.requires && t.requires !== mode && typeof app.setAppMode === "function") {
+              app.setAppMode(t.requires);
+            }
             var isMobile = window.matchMedia && window.matchMedia("(max-width: 899px)").matches;
             if (isMobile) {
               var panelIsOpen = typeof app.panelOpen === "boolean" ? app.panelOpen : !!app.sidebarOpen;
               var setPanelOpen = typeof app.setPanelOpen === "function" ? app.setPanelOpen : (typeof app.setSidebarOpen === "function" ? app.setSidebarOpen : null);
-              if (app.sidebarTab === kl[0] && panelIsOpen) {
+              if (app.sidebarTab === t.id && panelIsOpen) {
                 if (setPanelOpen) setPanelOpen(false);
               } else {
-                app.setSidebarTab(kl[0]);
+                app.setSidebarTab(t.id);
                 if (setPanelOpen) setPanelOpen(true);
               }
             } else {
-              app.setSidebarTab(kl[0]);
+              app.setSidebarTab(t.id);
             }
-          },
-          style:{
-            flex:"1 1 0",minWidth:0,padding:"8px 4px",fontSize:11,fontWeight:sTab===kl[0]?600:400,
-            border:"none",borderBottom:sTab===kl[0]?"2px solid var(--accent)":"2px solid transparent",
-            cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",
-            background:"transparent",
-            color:sTab===kl[0]?"var(--accent)":"var(--text-secondary)",
           }
-        }, kl[1]);
+        },
+          iconFn ? iconFn() : null,
+          h("span", {className:"creator-sidebar-tab__label"}, t.label),
+          isDisabled && window.Icons && window.Icons.lock
+            ? h("span", {className:"creator-sidebar-tab__lock", "aria-hidden":"true"}, window.Icons.lock())
+            : null
+        );
       })
     )
   );
 
   // ─── View toggle (shared between View tab content in both modes) ─────────
   var viewToggle = (ctx.pat && ctx.pal) ? h("div", {
-    style:{padding:"8px 12px",display:"flex",alignItems:"center",gap:8}
+    style:{padding:"8px 12px",display:"flex",alignItems:"center",gap:'var(--s-2)'}
   },
-    h("span", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginRight:4}}, "View"),
-    h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:8,padding:2,flex:1}},
+    h("span", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginRight:'var(--s-1)'}}, "View"),
+    h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2,flex:1}},
       [["color","Colour"],["symbol","Symbol"],["both","Both"]].map(function(kl) {
         return h("button", {
           key:kl[0],
           onClick:function(){cv.setView(kl[0]);},
           title:"Cycle view (V)",
           style:{
-            flex:1,padding:"4px 6px",fontSize:11,fontWeight:cv.view===kl[0]?600:400,
-            border:"none",cursor:"pointer",borderRadius:6,fontFamily:"inherit",
+            flex:1,padding:"4px 6px",fontSize:'var(--text-xs)',fontWeight:cv.view===kl[0]?600:400,
+            border:"none",cursor:"pointer",borderRadius:'var(--radius-sm)',fontFamily:"inherit",
             background:cv.view===kl[0]?"var(--surface)":"transparent",
             color:cv.view===kl[0]?"var(--text-primary)":"var(--text-secondary)",
             boxShadow:cv.view===kl[0]?"var(--shadow-sm)":"none"
@@ -1127,7 +1167,7 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ─── Highlight mode controls (shared between Edit and Track View tabs) ──
   var highlightControls = cv.hiId ? h("div", {style:{padding:"8px 12px",borderTop:"0.5px solid var(--border)"}},
-    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:6}}, "Highlight Mode"),
+    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:6}}, "Highlight Mode"),
     h("div", {style:{display:"flex",gap:3,flexWrap:"wrap"}},
       [["isolate","Isolate"],["outline","Outline"],["tint","Tint"],["spotlight","Spotlight"]].map(function(kl) {
         return h("button", {
@@ -1136,7 +1176,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           style:{
             flex:1,padding:"4px 6px",fontSize:10,fontWeight:cv.highlightMode===kl[0]?600:400,
             border:"1px solid "+(cv.highlightMode===kl[0]?"var(--accent)":"var(--border)"),
-            cursor:"pointer",borderRadius:6,fontFamily:"inherit",
+            cursor:"pointer",borderRadius:'var(--radius-sm)',fontFamily:"inherit",
             background:cv.highlightMode===kl[0]?"var(--accent-light)":"transparent",
             color:cv.highlightMode===kl[0]?"var(--accent)":"var(--text-secondary)",
           }
@@ -1144,20 +1184,20 @@ window.CreatorSidebar = function CreatorSidebar() {
       })
     ),
     cv.highlightMode === "isolate" && h("div", {style:{marginTop:6}},
-      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--text-secondary)"}},
+      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
         "Dim strength",
         h("input", {type:"range",min:0,max:1,step:0.05,value:cv.bgDimOpacity,
           onChange:function(e){cv.setBgDimOpacity(parseFloat(e.target.value));}})
       )
     ),
     cv.highlightMode === "tint" && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6}},
-      h("label", {style:{fontSize:11,color:"var(--text-secondary)"}}, "Tint"),
+      h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)"}}, "Tint"),
       h("input", {type:"color",value:cv.tintColor,onChange:function(e){cv.setTintColor(e.target.value);},style:{width:24,height:20,border:"none",padding:0,cursor:"pointer"}}),
       h("input", {type:"range",min:0,max:1,step:0.05,value:cv.tintOpacity,
         onChange:function(e){cv.setTintOpacity(parseFloat(e.target.value));}})
     ),
     cv.highlightMode === "spotlight" && h("div", {style:{marginTop:6}},
-      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--text-secondary)"}},
+      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
         "Dim strength",
         h("input", {type:"range",min:0,max:1,step:0.05,value:cv.spotDimOpacity,
           onChange:function(e){cv.setSpotDimOpacity(parseFloat(e.target.value));}})
@@ -1168,8 +1208,8 @@ window.CreatorSidebar = function CreatorSidebar() {
   // ─── Preview panel (shared between Create and Edit) ──────────────────────
   var isRealistic = app.previewMode === "realistic";
   var previewPanel = h("div", {style:{padding:"12px"}},
-    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:8}}, "Chart Mode"),
-    h("div", {style:{display:"flex",gap:3,marginBottom:12}},
+    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:'var(--s-2)'}}, "Chart Mode"),
+    h("div", {style:{display:"flex",gap:3,marginBottom:'var(--s-3)'}},
       [["chart","Chart"],["pixel","Pixel"],["realistic","Realistic"]].map(function(kl) {
         var active = (!app.previewActive && kl[0]==="chart") || (app.previewActive && app.previewMode===kl[0]);
         return h("button", {
@@ -1179,9 +1219,9 @@ window.CreatorSidebar = function CreatorSidebar() {
             else{app.setPreviewActive(true);app.setPreviewMode(kl[0]);}
           },
           style:{
-            flex:1,padding:"6px 4px",fontSize:11,fontWeight:active?600:400,
+            flex:1,padding:"6px 4px",fontSize:'var(--text-xs)',fontWeight:active?600:400,
             border:"1px solid "+(active?"var(--accent)":"var(--border)"),
-            cursor:"pointer",borderRadius:6,fontFamily:"inherit",
+            cursor:"pointer",borderRadius:'var(--radius-sm)',fontFamily:"inherit",
             background:active?"var(--accent-light)":"transparent",
             color:active?"var(--accent)":"var(--text-secondary)",
           }
@@ -1189,16 +1229,16 @@ window.CreatorSidebar = function CreatorSidebar() {
       })
     ),
     isRealistic && app.previewActive && h(React.Fragment, null,
-      h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:4}}, "Quality Level"),
-      h("div", {style:{display:"flex",gap:3,marginBottom:12}},
+      h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:'var(--s-1)'}}, "Quality Level"),
+      h("div", {style:{display:"flex",gap:3,marginBottom:'var(--s-3)'}},
         [1,2,3,4].map(function(lv) {
           return h("button", {
             key:lv,
             onClick:function(){app.setRealisticLevel(lv);},
             style:{
-              flex:1,padding:"5px 4px",fontSize:11,fontWeight:app.realisticLevel===lv?600:400,
+              flex:1,padding:"5px 4px",fontSize:'var(--text-xs)',fontWeight:app.realisticLevel===lv?600:400,
               border:"1px solid "+(app.realisticLevel===lv?"var(--accent)":"var(--border)"),
-              cursor:"pointer",borderRadius:6,fontFamily:"inherit",
+              cursor:"pointer",borderRadius:'var(--radius-sm)',fontFamily:"inherit",
               background:app.realisticLevel===lv?"var(--accent-light)":"transparent",
               color:app.realisticLevel===lv?"var(--accent)":"var(--text-secondary)",
             }
@@ -1206,8 +1246,8 @@ window.CreatorSidebar = function CreatorSidebar() {
         })
       )
     ),
-    h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:6}},
-      h("label", {style:{fontSize:11,color:"var(--text-secondary)",flexShrink:0}}, "Coverage"),
+    h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:6}},
+      h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flexShrink:0}}, "Coverage"),
       h("input", {type:"range",min:0,max:1,step:0.05,
         value:app.coverageOverride!=null?app.coverageOverride:0.5,
         onChange:function(e){app.setCoverageOverride(parseFloat(e.target.value));},
@@ -1218,7 +1258,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         style:{fontSize:10,padding:"2px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--surface)",cursor:"pointer",color:"var(--text-secondary)"}
       }, "\u21BA Auto")
     ),
-    h("div", {style:{display:"flex",gap:3,marginBottom:12}},
+    h("div", {style:{display:"flex",gap:3,marginBottom:'var(--s-3)'}},
       [["Sparse",0.25],["Standard",0.50],["Dense",0.80],["Full",0.95]].map(function(preset) {
         var active = app.coverageOverride!=null && Math.abs(app.coverageOverride - preset[1]) < 0.03;
         return h("button", {
@@ -1228,22 +1268,22 @@ window.CreatorSidebar = function CreatorSidebar() {
             flex:1,fontSize:9,padding:"3px 0",
             border:"1px solid "+(active?"var(--accent)":"var(--border)"),
             borderRadius:4,background:active?"var(--accent)":"transparent",
-            color:active?"#fff":"var(--text-secondary)",cursor:"pointer"
+            color:active?"var(--surface)":"var(--text-secondary)",cursor:"pointer"
           }
         }, preset[0]);
       })
     ),
-    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--text-secondary)",marginBottom:4}},
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginBottom:'var(--s-1)'}},
       h("input", {type:"checkbox",checked:app.previewShowGrid,onChange:function(){app.setPreviewShowGrid(!app.previewShowGrid);}}),
       "Grid overlay"
     ),
-    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--text-secondary)"}},
+    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
       h("input", {type:"checkbox",checked:app.previewFabricBg,onChange:function(){app.setPreviewFabricBg(!app.previewFabricBg);}}),
       "Fabric background"
     ),
     // ── Split / compare view (moved here from the top toolbar) ──────────
     (ctx.pat && ctx.pal) && h("div", {style:{marginTop:14,paddingTop:10,borderTop:"1px solid var(--border)"}},
-      h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:8}}, "Compare"),
+      h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:'var(--s-2)'}}, "Compare"),
       h("button", {
         onClick:function(){
           var next = !app.splitPaneEnabled;
@@ -1253,11 +1293,11 @@ window.CreatorSidebar = function CreatorSidebar() {
         "aria-pressed": app.splitPaneEnabled ? "true" : "false",
         title: app.splitPaneEnabled ? "Exit compare view (\\)" : "Compare chart vs realistic preview (\\)",
         style:{
-          width:"100%",padding:"8px 10px",fontSize:12,fontWeight:app.splitPaneEnabled?600:500,
+          width:"100%",padding:"8px 10px",fontSize:'var(--text-sm)',fontWeight:app.splitPaneEnabled?600:500,
           border:"1px solid "+(app.splitPaneEnabled?"var(--accent)":"var(--border)"),
           background:app.splitPaneEnabled?"var(--accent-light)":"transparent",
           color:app.splitPaneEnabled?"var(--accent)":"var(--text-secondary)",
-          borderRadius:6,cursor:"pointer",fontFamily:"inherit",
+          borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit",
           display:"flex",alignItems:"center",justifyContent:"center",gap:6
         }
       },
@@ -1275,35 +1315,91 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ─── Create Mode Sidebar ─────────────────────────────────────────────────
   if (mode === "create") {
+    // ── Polish 13 step 4a — "Re-generate (values changed)" CTA ────────────
+    // When a pattern exists and its source values (sW/sH/fabricCt/maxC/
+    // colour adjustments) have drifted from the snapshot taken at the
+    // last successful generation, the user is in Dimensions or Palette
+    // probably to nudge those very values. Surface a one-click Re-gen
+    // button at the top of the relevant tab so they don't have to dig
+    // into the More tab. If there are manual edits, confirm first with
+    // a count so the destructive part of the action is explicit.
+    var regenSnap = app.lastGenSnapshot;
+    var dimensionsStale = regenSnap && (
+      regenSnap.sW !== ctx.sW || regenSnap.sH !== ctx.sH ||
+      regenSnap.fabricCt !== ctx.fabricCt ||
+      regenSnap.bri !== gen.bri || regenSnap.con !== gen.con || regenSnap.sat !== gen.sat
+    );
+    var paletteStale = regenSnap && (
+      regenSnap.maxC !== gen.maxC || regenSnap.dith !== gen.dith ||
+      regenSnap.allowBlends !== gen.allowBlends || regenSnap.skipBg !== gen.skipBg
+    );
+    function regenCta(forTab) {
+      if (!ctx.pat || !regenSnap) return null;
+      var stale = forTab === "dimensions" ? dimensionsStale : paletteStale;
+      if (!stale) return null;
+      var editCount = (cv.editHistory && cv.editHistory.length) || 0;
+      var label = editCount > 0
+        ? "Re-generate (will replace " + editCount + " edit" + (editCount === 1 ? "" : "s") + ")"
+        : "Re-generate (values changed)";
+      return h("div", {
+        style:{
+          margin:"8px 12px 0",padding:"10px 12px",
+          background:"var(--accent-soft, var(--surface-tertiary))",
+          border:"1px solid var(--accent)",borderRadius:'var(--radius-md)',
+          display:"flex",flexDirection:"column",gap:6
+        }
+      },
+        h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",lineHeight:1.4}},
+          "Source values have changed since the last generation. Re-generate to apply them."),
+        h("button", {
+          onClick:function(){
+            if (editCount > 0 && !confirm(
+              "Re-generating will discard " + editCount + " manual edit" +
+              (editCount === 1 ? "" : "s") + ". Continue?"
+            )) return;
+            if (typeof gen.generate === "function") gen.generate();
+          },
+          disabled: !!gen.busy,
+          style:{
+            padding:"7px 10px",fontSize:'var(--text-sm)',fontWeight:600,
+            border:"none",borderRadius:'var(--radius-sm)',
+            background:"var(--accent)",color:"var(--surface)",
+            cursor: gen.busy ? "wait" : "pointer",fontFamily:"inherit",
+            display:"flex",alignItems:"center",justifyContent:"center",gap:6
+          }
+        }, label)
+      );
+    }
+
     // Project info — name, designer, description. Always-visible at top so
     // users can name a pattern before generating it.
     var projectInfoSection = h(Section, {title:"Project info", defaultOpen:true},
-      h("div", {style:{display:"flex",flexDirection:"column",gap:8,padding:"4px 0 2px"}},
-        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+      h("div", {style:{display:"flex",flexDirection:"column",gap:'var(--s-2)',padding:"4px 0 2px"}},
+        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
           "Pattern name",
           h("input", {
             type:"text", value: app.projectName || "", maxLength:60,
             placeholder: ctx.pat ? (ctx.sW + "\xD7" + ctx.sH + " pattern") : "e.g. Sunflower sampler",
             onChange: function(e) { var v = e.target.value.slice(0,60); if (typeof app.setProjectName === "function") app.setProjectName(v); },
-            style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
+            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
           })
         ),
-        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
           "Designer (optional)",
           h("input", {
             type:"text", value: app.projectDesigner || "", maxLength:80,
             placeholder: "Your name or studio",
             onChange: function(e) { var v = e.target.value.slice(0,80); if (typeof app.setProjectDesigner === "function") app.setProjectDesigner(v); },
-            style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
+            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
           })
         ),
-        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
           "Description / notes (optional)",
           h("textarea", {
             value: app.projectDescription || "", maxLength:500, rows:3,
             placeholder: "Source, copyright, stitching notes\u2026",
             onChange: function(e) { var v = e.target.value.slice(0,500); if (typeof app.setProjectDescription === "function") app.setProjectDescription(v); },
-            style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
+            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
           })
         )
       )
@@ -1312,14 +1408,14 @@ window.CreatorSidebar = function CreatorSidebar() {
     //   plus the canonical Source-overlay toggle + opacity slider. The
     //   toolbar overlay button still works as a quick toggle.
     var overlayRow = h("div", {style:{padding:"12px",borderTop:ctx.pat&&gen.img?"1px solid var(--border)":"none"}},
-      h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}, "Source overlay"),
-      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--text-secondary)",marginBottom:8,cursor:gen.img?"pointer":"not-allowed",opacity:gen.img?1:0.5}},
+      h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}, "Source overlay"),
+      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',color:"var(--text-secondary)",marginBottom:'var(--s-2)',cursor:gen.img?"pointer":"not-allowed",opacity:gen.img?1:0.5}},
         h("input", {type:"checkbox", disabled:!gen.img, checked:!!cv.showOverlay,
           onChange:function(){cv.setShowOverlay(function(v){return !v;});}}),
         h("span", null, "Show source image over chart")
       ),
-      h("div", {style:{display:"flex",alignItems:"center",gap:8,opacity:(gen.img&&cv.showOverlay)?1:0.4}},
-        h("label", {style:{fontSize:11,color:"var(--text-secondary)",flexShrink:0}}, "Opacity"),
+      h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',opacity:(gen.img&&cv.showOverlay)?1:0.4}},
+        h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flexShrink:0}}, "Opacity"),
         h("input", {type:"range",min:0,max:1,step:0.05,
           value:cv.overlayOpacity!=null?cv.overlayOpacity:0.3,
           disabled:!gen.img||!cv.showOverlay,
@@ -1332,12 +1428,12 @@ window.CreatorSidebar = function CreatorSidebar() {
         "Load an image to enable the overlay.")
     );
     var imageContent = h(React.Fragment, null,
-      h("div", {style:{padding:"12px",display:"flex",flexDirection:"column",gap:8}},
+      h("div", {style:{padding:"12px",display:"flex",flexDirection:"column",gap:'var(--s-2)'}},
         h("button", {
           onClick:function(){ if(gen.fRef && gen.fRef.current) gen.fRef.current.click(); },
-          style:{padding:"8px 14px",fontSize:12,fontWeight:600,border:"1px solid var(--border)",borderRadius:8,background:"var(--surface-tertiary)",color:"var(--text-primary)",cursor:"pointer",fontFamily:"inherit"}
+          style:{padding:"8px 14px",fontSize:'var(--text-sm)',fontWeight:600,border:"1px solid var(--border)",borderRadius:'var(--radius-md)',background:"var(--surface-tertiary)",color:"var(--text-primary)",cursor:"pointer",fontFamily:"inherit"}
         }, gen.img ? "Change image\u2026" : "Choose image\u2026"),
-        !gen.img && h("div", {style:{fontSize:11,color:"var(--text-tertiary)"}},
+        !gen.img && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}},
           "Pick a photo or drawing to convert into a cross-stitch chart.")
       ),
       imageCard,
@@ -1346,6 +1442,7 @@ window.CreatorSidebar = function CreatorSidebar() {
 
     // ── Dimensions tab — size controls + image adjustments + fabric count.
     var dimensionsContent = h(React.Fragment, null,
+      regenCta("dimensions"),
       dimSection,
       adjSection,
       fabSection
@@ -1355,6 +1452,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     //   Background-removal moved to the Preview tab so users can colocate
     //   "what to skip" with the canvas they click on to pick the colour.
     var paletteContent = h(React.Fragment, null,
+      regenCta("palette"),
       palSection,
       cleanupSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
@@ -1386,7 +1484,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         );
       }
       return h(Section, {title:"Live summary", defaultOpen:true},
-        h("div", {style:{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:12,padding:"4px 0"}},
+        h("div", {style:{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)',padding:"4px 0"}},
           row("Size", ctx.sW + " \u00D7 " + ctx.sH + " stitches"),
           row("Finished", finishedW + " \u00D7 " + finishedH + " in (" + fabricCt + "ct)"),
           row("Colours", ctx.pat ? (palLen + " colour" + (palLen === 1 ? "" : "s")) : "\u2014"),
@@ -1416,41 +1514,24 @@ window.CreatorSidebar = function CreatorSidebar() {
     // ── Create mode bottom action bar ─────────────────────────────────────
     var createActions = h("div", {style:{
       flexShrink:0, borderTop:"1px solid var(--border)", padding:"12px",
-      background:"var(--surface)", display:"flex", flexDirection:"column", gap:8
+      background:"var(--surface)", display:"flex", flexDirection:"column", gap:'var(--s-2)'
     }},
       // Generate / Regenerate button
       gen.img && h("button", {
         onClick:function(){ gen.generate(); },
         disabled:gen.busy,
         "aria-label":gen.hasGenerated?"Regenerate pattern":"Generate pattern",
-        style:{width:"100%",padding:"10px",fontSize:13,fontWeight:600,cursor:gen.busy?"wait":"pointer",
-          border:"none",borderRadius:8,
-          background:gen.busy?"#94a3b8":gen.hasGenerated?"var(--surface-tertiary)":"#0d9488",
-          color:gen.hasGenerated?"var(--text-primary)":"#fff"}
+        style:{width:"100%",padding:"10px",fontSize:'var(--text-md)',fontWeight:600,cursor:gen.busy?"wait":"pointer",
+          border:"none",borderRadius:'var(--radius-md)',
+          background:gen.busy?"var(--text-tertiary)":gen.hasGenerated?"var(--surface-tertiary)":"var(--accent)",
+          color:gen.hasGenerated?"var(--text-primary)":"var(--surface)"}
       }, gen.busy ? "Generating\u2026" : (gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate Pattern")),
-      // Continue to Edit → (only after generation)
-      gen.hasGenerated && h("button", {
-        "aria-label":"Continue to Edit mode",
-        onClick:function(){
-          // Brief D — flush the freshly-generated pattern to IndexedDB now,
-          // so leaving Creator immediately doesn't lose the pattern and the
-          // Stash Manager pattern library + shopping list pick it up. The
-          // flush calls ProjectStorage.save() which in turn fires
-          // StashBridge.syncProjectToLibrary().
-          if (typeof window.__flushProjectToIDB === 'function') {
-            try { window.__flushProjectToIDB(); } catch (e) {}
-          }
-          app.setAppMode("edit");
-          app.setSidebarTab("palette");
-          if(window.__switchToEdit) window.__switchToEdit();
-          app.addToast("Switched to Edit mode", {type:"info", duration:2000});
-        },
-        style:{width:"100%",padding:"10px",fontSize:13,fontWeight:600,cursor:"pointer",
-          border:"none",borderRadius:8,background:"#0d9488",color:"#fff",
-          display:"flex",alignItems:"center",justifyContent:"center",gap:6}
-      }, "Edit Pattern \u2192"),
+      // First-generation auto-switches to Edit mode (see useCreatorState.doGen),
+      // so no explicit "Edit Pattern →" button is needed here. After
+      // regeneration the user is already in Edit mode; the Setup tab strip
+      // takes them back to Image / Dimensions / Palette.
       // Hint text
-      !gen.img && h("div", {style:{fontSize:11,color:"var(--text-tertiary)",textAlign:"center",padding:"4px 0"}},
+      !gen.img && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textAlign:"center",padding:"4px 0"}},
         "Upload an image to get started")
     );
     return h(React.Fragment, null,
@@ -1481,7 +1562,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   ];
   var curStitch = cv.stitchType || "cross";
   var stitchTypeSection = h("div", {style:{padding:"12px"}},
-    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}},
+    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-2)'}},
       "Stitch type"),
     h("div", {role:"radiogroup", "aria-label":"Stitch type",
       style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}},
@@ -1493,11 +1574,11 @@ window.CreatorSidebar = function CreatorSidebar() {
           "aria-checked": on ? "true" : "false",
           onClick:function(){ cv.selectStitchType(kl[0]); },
           style:{
-            padding:"7px 8px",fontSize:12,fontWeight:on?600:400,
+            padding:"7px 8px",fontSize:'var(--text-sm)',fontWeight:on?600:400,
             border:"1px solid "+(on?"var(--accent)":"var(--border)"),
             background:on?"var(--accent-light)":"transparent",
             color:on?"var(--accent)":"var(--text-secondary)",
-            borderRadius:6,cursor:"pointer",fontFamily:"inherit",textAlign:"left"
+            borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit",textAlign:"left"
           }
         }, kl[1]);
       })
@@ -1509,9 +1590,9 @@ window.CreatorSidebar = function CreatorSidebar() {
   var bsContSection = (curStitch === "backstitch") ? h("div", {
     style:{padding:"0 12px 12px"}
   },
-    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}},
+    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}},
       "Backstitch options"),
-    h("label", {style:{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"var(--text-secondary)",cursor:"pointer"}},
+    h("label", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',fontSize:'var(--text-sm)',color:"var(--text-secondary)",cursor:"pointer"}},
       h("input", {type:"checkbox", checked: !!cv.bsContinuous,
         onChange:function(e){ cv.setBsContinuous(e.target.checked); cv.setBsStart(null); }}),
       h("span", null, "Continuous mode \u2014 chain segments without re-clicking the start")
@@ -1519,9 +1600,9 @@ window.CreatorSidebar = function CreatorSidebar() {
   ) : null;
 
   var brushSizeSection = h("div", {style:{padding:"0 12px 12px",borderTop:"1px solid var(--border)",paddingTop:12}},
-    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}},
+    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-2)'}},
       "Brush size"),
-    h("div", {style:{display:"flex",alignItems:"center",gap:8}},
+    h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)'}},
       h("input", {type:"range", min:1, max:3, step:1, value:cv.brushSize||1,
         onChange:function(e){ cv.setBrushSize(parseInt(e.target.value,10)); },
         "aria-label":"Brush size",
@@ -1534,11 +1615,11 @@ window.CreatorSidebar = function CreatorSidebar() {
             onClick:function(){ cv.setBrushSize(sz); },
             "aria-pressed": on ? "true" : "false",
             style:{
-              minWidth:28,padding:"4px 8px",fontSize:12,fontWeight:on?600:400,
+              minWidth:28,padding:"4px 8px",fontSize:'var(--text-sm)',fontWeight:on?600:400,
               border:"1px solid "+(on?"var(--accent)":"var(--border)"),
               background:on?"var(--accent-light)":"transparent",
               color:on?"var(--accent)":"var(--text-secondary)",
-              borderRadius:6,cursor:"pointer",fontFamily:"inherit"
+              borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
             }
           }, sz);
         })
@@ -1551,7 +1632,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   var lassoModes = [["freehand","Freehand"],["polygon","Polygon"],["magnetic","Magnetic"]];
   var curLasso = cv.lassoMode || "freehand";
   var selectionSection = h("div", {style:{padding:"0 12px 12px",borderTop:"1px solid var(--border)",paddingTop:12}},
-    h("div", {style:{fontSize:11,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}},
+    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-2)'}},
       "Selection"),
     h("div", {style:{display:"flex",gap:6,marginBottom:10}},
       h("button", {
@@ -1561,12 +1642,12 @@ window.CreatorSidebar = function CreatorSidebar() {
         },
         "aria-pressed": cv.activeTool === "magicWand" ? "true" : "false",
         style:{
-          flex:1,padding:"6px 8px",fontSize:12,
+          flex:1,padding:"6px 8px",fontSize:'var(--text-sm)',
           fontWeight:cv.activeTool==="magicWand"?600:400,
           border:"1px solid "+(cv.activeTool==="magicWand"?"var(--accent)":"var(--border)"),
           background:cv.activeTool==="magicWand"?"var(--accent-light)":"transparent",
           color:cv.activeTool==="magicWand"?"var(--accent)":"var(--text-secondary)",
-          borderRadius:6,cursor:"pointer",fontFamily:"inherit"
+          borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
         }
       }, "Magic Wand (W)"),
       h("button", {
@@ -1576,19 +1657,19 @@ window.CreatorSidebar = function CreatorSidebar() {
         },
         "aria-pressed": cv.activeTool === "lasso" ? "true" : "false",
         style:{
-          flex:1,padding:"6px 8px",fontSize:12,
+          flex:1,padding:"6px 8px",fontSize:'var(--text-sm)',
           fontWeight:cv.activeTool==="lasso"?600:400,
           border:"1px solid "+(cv.activeTool==="lasso"?"var(--accent)":"var(--border)"),
           background:cv.activeTool==="lasso"?"var(--accent-light)":"transparent",
           color:cv.activeTool==="lasso"?"var(--accent)":"var(--text-secondary)",
-          borderRadius:6,cursor:"pointer",fontFamily:"inherit"
+          borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
         }
       }, "Lasso")
     ),
     h("div", {style:{fontSize:10,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}},
       "Lasso mode"),
     h("div", {role:"radiogroup", "aria-label":"Lasso mode",
-      style:{display:"flex",gap:4,marginBottom:8}},
+      style:{display:"flex",gap:'var(--s-1)',marginBottom:'var(--s-2)'}},
       lassoModes.map(function(kl) {
         var on = curLasso === kl[0];
         return h("button", {
@@ -1603,11 +1684,11 @@ window.CreatorSidebar = function CreatorSidebar() {
             }
           },
           style:{
-            flex:1,padding:"5px 6px",fontSize:11,fontWeight:on?600:400,
+            flex:1,padding:"5px 6px",fontSize:'var(--text-xs)',fontWeight:on?600:400,
             border:"1px solid "+(on?"var(--accent)":"var(--border)"),
             background:on?"var(--accent-light)":"transparent",
             color:on?"var(--accent)":"var(--text-secondary)",
-            borderRadius:6,cursor:"pointer",fontFamily:"inherit"
+            borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
           }
         }, kl[1]);
       })
@@ -1617,8 +1698,8 @@ window.CreatorSidebar = function CreatorSidebar() {
     (cv.hasSelection || cv.lassoInProgress) && h("button", {
       onClick:function(){ if (cv.cancelLasso) cv.cancelLasso(); if (cv.clearSelection) cv.clearSelection(); },
       style:{
-        marginTop:8,width:"100%",padding:"6px 8px",fontSize:11,
-        border:"1px solid var(--border)",borderRadius:6,
+        marginTop:'var(--s-2)',width:"100%",padding:"6px 8px",fontSize:'var(--text-xs)',
+        border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',
         background:"var(--surface)",color:"var(--text-secondary)",
         cursor:"pointer",fontFamily:"inherit"
       }
@@ -1649,42 +1730,23 @@ window.CreatorSidebar = function CreatorSidebar() {
           gen.generate();
         },
         disabled:gen.busy,
-        style:{width:"100%",padding:"8px",fontSize:12,fontWeight:600,cursor:"pointer",border:"none",borderRadius:8,background:"var(--accent)",color:"#fff",marginTop:8}
+        style:{width:"100%",padding:"8px",fontSize:'var(--text-sm)',fontWeight:600,cursor:"pointer",border:"none",borderRadius:'var(--radius-md)',background:"var(--accent)",color:"var(--surface)",marginTop:'var(--s-2)'}
       }, "\u21BB Regenerate")
     ),
     h(Section, {title:"Project Info",defaultOpen:false},
-      h("div", {style:{fontSize:11,color:"var(--text-secondary)",padding:"4px 0"}},
+      h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"4px 0"}},
         ctx.sW + " \xD7 " + ctx.sH + " stitches \u00B7 " + (ctx.displayPal||ctx.pal||[]).length + " colours"
       )
     )
   );
 
-  // ── Edit mode bottom action bar ──────────────────────────────────────────
-  var editActions = (ctx.pat && ctx.pal) ? h("div", {style:{
-    flexShrink:0, borderTop:"1px solid var(--border)", padding:"12px",
-    background:"var(--surface)", display:"flex", gap:8
-  }},
-    h("button", {
-      "aria-label":"Switch to Create mode",
-      onClick:function(){
-        if(cv.editHistory.length > 0 && !confirm("Switch to Create mode? Your edits are auto-saved.")) return;
-        app.setAppMode("create");
-        app.setSidebarTab("image");
-        if(window.__switchToCreate) window.__switchToCreate();
-        app.addToast("Switched to Create mode", {type:"info", duration:2000});
-      },
-      style:{flex:1,padding:"10px",fontSize:12,fontWeight:500,cursor:"pointer",
-        border:"1px solid var(--border)",borderRadius:8,background:"var(--surface)",
-        color:"var(--text-secondary)"}
-    }, "\u2190 Create"),
-    h("button", {
-      "aria-label":"Open pattern in Stitch Tracker",
-      onClick:function(){ app.handleOpenInTracker(); },
-      style:{flex:2,padding:"10px",fontSize:13,fontWeight:600,cursor:"pointer",
-        border:"none",borderRadius:8,background:"#0d9488",color:"#fff",
-        display:"flex",alignItems:"center",justifyContent:"center",gap:6}
-    }, "Start Tracking \u2192")
-  ) : null;
+  // ── Edit mode bottom action bar (removed in Option 2) ───────────────────
+  // The `[← Create] [Start Tracking →]` row that used to sit at the bottom
+  // of the edit-mode sidebar has been promoted into the action bar's
+  // segmented mode switch (Create / Edit / Track). Removing it here gives
+  // the palette tab back ~50px of vertical space and removes a duplicate
+  // "Track" entry point — see creator/ActionBar.js.
+  var editActions = null;
 
   // ─── B3: mode-aware sidebar — hide on Materials, summarise on Project ─────
   // Only applies when a pattern is loaded (edit mode); the create-mode early
@@ -1695,8 +1757,8 @@ window.CreatorSidebar = function CreatorSidebar() {
   if (ctx.pat && ctx.pal && app && app.tab === 'project') {
     var palLen = (ctx.displayPal || ctx.pal || []).length;
     return h('aside', { className: 'cs-sidebar-fade', style: { padding: '12px', display: 'flex', flexDirection: 'column', gap: 10 } },
-      h('div', { style: { fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: 0.4 } }, 'Project at a glance'),
-      h('div', { style: { display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 10, rowGap: 4, fontSize: 12 } },
+      h('div', { style: { fontSize:'var(--text-xs)', fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: 0.4 } }, 'Project at a glance'),
+      h('div', { style: { display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 10, rowGap: 4, fontSize:'var(--text-sm)' } },
         h('span', { style: { color: 'var(--text-tertiary)' } }, 'Size'),
         h('span', null, ctx.sW + ' \u00D7 ' + ctx.sH + ' stitches'),
         h('span', { style: { color: 'var(--text-tertiary)' } }, 'Colours'),
@@ -1706,7 +1768,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         ctx.totalSkeins != null && h('span', { style: { color: 'var(--text-tertiary)' } }, 'Skeins'),
         ctx.totalSkeins != null && h('span', null, ctx.totalSkeins)
       ),
-      h('div', { style: { fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.4 } },
+      h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', lineHeight: 1.4 } },
         'Use the canvas tools on the Pattern page to edit. Generation parameters are above on this page.')
     );
   }

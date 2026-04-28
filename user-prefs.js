@@ -50,6 +50,7 @@
     exportMiniLegend:       true,
     exportGridInterval:     10,
     exportCentreMarks:      true,
+    "creator.pdfWorkshopTheme": false,       // UX-12 PR #14: opt-in Workshop print theme (terracotta + linen). OFF = bit-identical PK output.
 
     // ─── Pattern Creator generation defaults (read by Sidebar on init) ──
     creatorDefaultPaletteSize:    24,
@@ -66,6 +67,23 @@
     creatorReferenceOpacity:      35,           // 0..100
 
     // ─── Stitch Tracker behaviour defaults ──────────────────────────────
+    // Initial chart view used when a project opens. Also used as the
+    // sticky value the action menu writes to so the choice persists.
+    trackerDefaultView:          "symbol",      // symbol | colour | highlight
+    // Initial highlight rendering mode (used in highlight view). Updated
+    // in place by the highlight-mode picker so a per-session change
+    // survives reloads — see legacy localStorage key cs_hlMode.
+    trackerDefaultHighlightMode: "isolate",     // isolate | outline | tint | spotlight
+    // ─── Tracker highlight appearance (mirror legacy cs_* localStorage) ─
+    trackerDimLevel:        0.1,                // 0..1 — opacity of non-focused colours in highlight view
+    trackerTintColour:      "#FFD700",          // tint mode overlay colour
+    trackerTintOpacity:     0.4,                // 0..1 — tint mode overlay opacity
+    trackerSpotDimOpacity:  0.15,               // 0..1 — spotlight mode dim opacity
+    // Palette filter defaults (previously session-only)
+    trackerHighlightSkipDone: true,             // hide finished colours from the palette filter
+    trackerOnlyStarted:       false,            // restrict palette to colours with at least one stitch done
+    // Session timer idle threshold in minutes (0 = never auto-pause)
+    trackerIdleMinutes:       10,
     trackerStitchingStyle: "freestyle",         // freestyle | block | crosscountry | royal
     trackerBlockShape:     "10x10",             // WxH; "10x10" | "5x5" | etc.
     trackerStartCorner:    "TL",                // TL | TR | BL | BR | C
@@ -87,6 +105,10 @@
     trackerLeftSidebarTab:  "highlight",
     // Palette legend sort: id | done | count
     trackerLegendSort:      "id",
+    // Phase 4 (UX-12) — re-acquire the screen wake-lock on next session
+    // when the user toggles the header "Awake" chip on. Persisted as the
+    // user's last preference so the lock survives reloads.
+    trackerWakeLock:        false,
 
     // ─── Stash Manager defaults ─────────────────────────────────────────
     stashDefaultBrand:        "DMC",            // DMC | Anchor | both
@@ -122,7 +144,10 @@
     // ─── Sync, branding ─────────────────────────────────────────────────
     autoSyncEnabled:        true,
     autoLibraryLink:        true,
-    appAccentColour:        "#0d9488",
+    appAccentColour:        "#B85C38",
+
+    // ─── Home dashboard ─────────────────────────────────────────────────
+    homeShowCompleted:      true,               // include 100%-complete projects in the home list
 
     // ─── Advanced ───────────────────────────────────────────────────────
     commandPaletteHotkey:     "ctrl+k",         // ctrl+k | ctrl+/ | off
@@ -130,6 +155,7 @@
 
     // ─── Experimental features (opt-in, may change without notice) ──────
     "experimental.importWizard": false,         // C7: guided 5-step image-import wizard
+    "experimental.embroideryTool": false,       // Surfaces a link to the experimental embroidery planner (embroidery.html)
 
     // ─── Onboarding coaching (C8 — flattened keys, one per coachmark) ──
     // Phase 1 active:

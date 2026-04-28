@@ -44,7 +44,9 @@ describe("ImportWizard accessibility", () => {
   });
 
   test("Escape key opens a discard confirmation prompt (work not lost silently)", () => {
-    expect(SRC).toMatch(/e\.key\s*===\s*"Escape"/);
+    // ESC is now routed through window.useEscape so it composes with nested
+    // overlays (UX-12 Phase 3b). The handler must still call setDiscardOpen.
+    expect(SRC).toMatch(/window\.useEscape\s*\(/);
     expect(SRC).toMatch(/setDiscardOpen\(\s*true\s*\)/);
     // Confirm dialog uses role='alertdialog' and labels its title.
     expect(SRC).toMatch(/role:\s*"alertdialog"/);

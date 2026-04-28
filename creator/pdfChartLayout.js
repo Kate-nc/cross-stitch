@@ -231,6 +231,28 @@
     return y > 0.55 ? [0, 0, 0] : [1, 1, 1];
   }
 
+  /**
+   * UX-12 PR #14 — colour palette for chart pages, gated by `theme`.
+   *
+   * theme === 'workshop' opts the user into the Workshop print theme:
+   *   - majorGrid: terracotta (matches in-app --accent ≈ rgb(184,92,56))
+   *   - pageBg:    linen      (rgb(251,248,243))
+   *
+   * theme === 'pk' (default, or any other value) returns NULL for both
+   * channels so callers fall through to their existing legacy literals
+   * — guaranteeing the PK-compat path is bit-identical to today.
+   */
+  function themeColors(theme) {
+    if (theme === "workshop") {
+      return {
+        majorGrid: [0.722, 0.361, 0.220], // terracotta
+        pageBg:    [0.984, 0.973, 0.953], // linen
+      };
+    }
+    // pk / default: signal "do not change anything"
+    return { majorGrid: null, pageBg: null };
+  }
+
   var api = {
     PAGE_SIZES_MM: PAGE_SIZES_MM,
     mmToPt: mmToPt,
@@ -240,6 +262,7 @@
     paginate: paginate,
     buildCodepointMap: buildCodepointMap,
     contrastColor: contrastColor,
+    themeColors: themeColors,
   };
 
   if (typeof module !== "undefined" && module.exports) module.exports = api;

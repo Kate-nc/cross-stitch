@@ -82,6 +82,14 @@ window.useCreatorState = function useCreatorState() {
   var skeinPrice = _skeinPrice[0], setSkeinPrice = _skeinPrice[1];
   var _stitchSpeed = useState(40);    var stitchSpeed = _stitchSpeed[0], setStitchSpeed = _stitchSpeed[1];
 
+  // Polish 13 step 4a — snapshot of source values at the time of last
+  // successful generation. Used by the Dimensions / Palette tabs to show
+  // a "Re-generate (values changed)" CTA when the user nudges sW/sH/
+  // fabricCt/maxC after generating, so they don't have to remember to go
+  // hunting in the More tab. null until the first generation completes.
+  var _lastGenSnap = useState(null);
+  var lastGenSnapshot = _lastGenSnap[0], setLastGenSnapshot = _lastGenSnap[1];
+
   // App mode: 'create' | 'edit' (track is handled by TrackerApp separately)
   var _appMode = useState("create"); var appMode = _appMode[0], setAppMode = _appMode[1];
 
@@ -111,10 +119,10 @@ window.useCreatorState = function useCreatorState() {
   });
   var tab        = _tab[0],        setTabRaw     = _tab[1];
   // B4: which sub-tab inside MaterialsHub is active.
-  // 'threads' | 'stash' | 'shopping' | 'output'
+  // 'threads' | 'stash' | 'output'
   var _materialsTab = useState(function () {
     var v = loadUserPref("creator.materialsTab", null);
-    if (v === "threads" || v === "stash" || v === "shopping" || v === "output") return v;
+    if (v === "threads" || v === "stash" || v === "output") return v;
     // Honour legacy lastPage as a one-off seed so a user whose last visit
     // was the old Export tab lands on Output in the new hub.
     var lp = loadUserPref("creator.lastPage", null);
@@ -126,7 +134,7 @@ window.useCreatorState = function useCreatorState() {
   var materialsTab = _materialsTab[0];
   var setMaterialsTabRaw = _materialsTab[1];
   function setMaterialsTab(v) {
-    if (v !== "threads" && v !== "stash" && v !== "shopping" && v !== "output") return;
+    if (v !== "threads" && v !== "stash" && v !== "output") return;
     setMaterialsTabRaw(v);
     try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.materialsTab", v); } catch (_) {}
   }
@@ -565,6 +573,7 @@ window.useCreatorState = function useCreatorState() {
     setBsLines([]); setBsStart(null); setActiveTool(null); setSelectedColorId(null);
     setEditHistory([]); setRedoHistory([]); setExportPage(0); setDone(null);
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
+    setLastGenSnapshot(null);
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
     setDimOpen(true); setPalOpen(true); setFabOpen(false); setAdjOpen(false);
     setBgOpen(false); setCleanupOpen(false); setIsCropping(false); setCropRect(null);
@@ -704,6 +713,15 @@ window.useCreatorState = function useCreatorState() {
     setDone(new Uint8Array(result.mapped.length));
     setParkMarkers([]); setTab("pattern"); setThreadOwned({});
     setEditHistory([]); setRedoHistory([]);
+    // Polish 13 step 4a — snapshot the source values that produced this
+    // pattern so the Dimensions / Palette tabs can detect drift and
+    // surface a "Re-generate (values changed)" CTA. Stored fields must
+    // match the comparator in Sidebar.js (genStaleReason).
+    setLastGenSnapshot({
+      sW: sW, sH: sH, fabricCt: fabricCt, maxC: maxC,
+      bri: bri, con: con, sat: sat, dith: dith,
+      allowBlends: allowBlends, skipBg: skipBg
+    });
     // Compute cleanup diff mask from preCleanupIds
     setShowCleanupDiff(false);
     if (result.preCleanupIds && result.preCleanupIds.length === result.mapped.length) {
@@ -727,13 +745,23 @@ window.useCreatorState = function useCreatorState() {
       setDimOpen(false); setPalOpen(false); setFabOpen(false);
       setAdjOpen(false); setBgOpen(false); setCleanupOpen(false);
       setHasGenerated(true);
+      // Auto-switch to Edit mode on the *first* successful generation. Saving
+      // already happens automatically (see useProjectIO.js auto-save effect),
+      // and the previous "Edit Pattern →" button caused confusion because
+      // users assumed they had to click it before the pattern was persisted.
+      // Regenerations stay in the current mode so power users tweaking image
+      // settings aren't bounced back and forth.
+      setAppMode("edit");
+      setSidebarTab("palette");
     }
     var z = Math.min(3, Math.max(0.05, 750 / (sW * 20)));
     setTimeout(function() { setZoom(z); }, 0);
     setBusy(false);
-    // Toast on successful generation
+    // Toast on successful generation. Mentions the phase flip so users
+    // notice the sidebar tabs and canvas tools have changed; the action
+    // bar's "< Setup" button is the way back. (Polish B.)
     var colCount = result.pal ? result.pal.length : 0;
-    addToast("Pattern generated \u2014 " + sW + "\u00D7" + sH + ", " + colCount + " colours", {type:"success", duration:3000});
+    addToast("Pattern generated and saved \u2014 now editing (" + sW + "\u00D7" + sH + ", " + colCount + " colours). Use the Setup button to revisit image, dimensions, or palette.", {type:"success", duration:5000});
   };
 
   // Lazily create (and reuse) the Web Worker. Falls back to 'unavailable' if
@@ -1082,6 +1110,7 @@ window.useCreatorState = function useCreatorState() {
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
     appMode, setAppMode, sidebarTab, setSidebarTab,
+    lastGenSnapshot, setLastGenSnapshot,
     tab, setTab, materialsTab, setMaterialsTab, sidebarOpen, setSidebarOpen, loadError, setLoadError,
     copied, setCopied, modal, setModal,
     view, setView, zoom, setZoom, hiId, setHiId, showCtr, setShowCtr,

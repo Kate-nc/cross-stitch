@@ -12,15 +12,22 @@ describe('Create-mode sidebar — five task tabs', () => {
   const stateSrc   = read('creator/useCreatorState.js');
   const stripSrc   = read('creator/ToolStrip.js');
 
-  it('declares Image / Dimensions / Palette / Preview / Project as the five createTabs', () => {
-    const m = sidebarSrc.match(/var createTabs\s*=\s*\[([\s\S]*?)\];/);
+  it('declares Image / Dimensions / Palette / (locked Tools+View) / Preview / Project as the unifiedTabs', () => {
+    // Polish 13 step 3 — createTabs is now an alias of unifiedTabs (a
+    // single 7-tab array used in both appModes).
+    const m = sidebarSrc.match(/var unifiedTabs\s*=\s*\[([\s\S]*?)\];/);
     expect(m).toBeTruthy();
-    const ids = Array.from(m[1].matchAll(/\["([^"]+)","([^"]+)"\]/g)).map(x => x[1]);
-    expect(ids).toEqual(['image', 'dimensions', 'palette', 'preview', 'project']);
+    const ids = Array.from(m[1].matchAll(/id:\s*"([^"]+)"/g)).map(x => x[1]);
+    expect(ids).toEqual(['image', 'dimensions', 'palette', 'tools', 'view', 'preview', 'project']);
+    // Tools/View are locked (disabled) until a pattern exists.
+    expect(m[1]).toMatch(/id:\s*"tools"[\s\S]{0,160}disabled:\s*!hasPattern/);
+    expect(m[1]).toMatch(/id:\s*"view"[\s\S]{0,160}disabled:\s*!hasPattern/);
+    // createTabs is preserved as a back-compat alias of unifiedTabs.
+    expect(sidebarSrc).toMatch(/var createTabs\s*=\s*unifiedTabs;/);
   });
 
   it('no longer ships the legacy single-Settings tab', () => {
-    expect(sidebarSrc).not.toMatch(/\["settings","Settings"\]/);
+    expect(sidebarSrc).not.toMatch(/id:\s*"settings"/);
   });
 
   it('remaps a stored "settings" sidebarTab to "image" for back-compat', () => {

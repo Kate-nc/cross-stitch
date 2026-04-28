@@ -20,6 +20,15 @@
 
 A fully client-side Progressive Web App (PWA) for creating, managing, and tracking cross-stitch patterns. No build step is required to run the application — open an HTML file in a browser. The only build step in this project is bundling the `creator/` module (see below).
 
+## Workshop is the sole theme
+
+The Workshop visual direction (UX-12) is the only theme — see [AGENTS.md](../AGENTS.md#workshop-is-the-sole-theme) for the canonical summary. Key reminders:
+
+- All `--ws-*` aliases were removed in Phase 8. Use canonical token names directly (`--accent`, `--surface`, `--text-primary`, `--text-secondary`, `--radius-sm`, `--shadow-sm`, plus the non-conflicting Workshop tokens defined in [styles.css](../styles.css) such as `--line`, `--accent-2`, `--success`, `--motion`).
+- Light tokens live on `:root` in [styles.css](../styles.css); dark tokens on `[data-theme="dark"]`. The mirror reference is `reports/showcase/_workshop.css`.
+- `/home` ([home.html](../home.html) + [home-app.js](../home-app.js)) is the default landing. `index.html`, `stitch.html`, and `manager.html` URLs still work and skip the landing.
+- The Pattern Keeper-compatible PDF export path is bit-stable. The Workshop print theme is opt-in via the `creator.pdfWorkshopTheme` user preference. Do **not** modify [pdf-export-worker.js](../pdf-export-worker.js), [creator/pdfChartLayout.js](../creator/pdfChartLayout.js), or [creator/pdfExport.js](../creator/pdfExport.js) without an explicit PK-compat regression check.
+
 ## Architecture
 
 The project has **three main HTML entry points**, each a self-contained page:

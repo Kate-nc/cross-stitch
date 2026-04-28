@@ -76,12 +76,12 @@
 
     function clearLogo() { update("designerLogo", null); }
 
-    var inputStyle = { padding: "6px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 13, width: "100%", boxSizing: "border-box" };
+    var inputStyle = { padding: "6px 10px", borderRadius: 6, border: "1px solid #CFC4AC", fontSize: 13, width: "100%", boxSizing: "border-box" };
     var labelStyle = { fontSize: 11, fontWeight: 600, color: "#3f3f46", display: "block", marginBottom: 4 };
 
-    return h("div", { style: { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: 14 } },
+    return h("div", { style: { background: "#fff", border: "1px solid #E5DCCB", borderRadius: 8, padding: 14 } },
       h("h4", { style: { margin: "0 0 8px", fontSize: 13, color: "#0f172a" } }, "Designer branding"),
-      h("p", { style: { fontSize: 11, color: "#64748b", margin: "0 0 12px" } },
+      h("p", { style: { fontSize: 11, color: "#8A8270", margin: "0 0 12px" } },
         "These settings apply to every PDF you export. They live on this device only."),
 
       h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 } },
@@ -101,15 +101,15 @@
         h("div", { style: { flex: "0 0 110px" } },
           h("label", { style: labelStyle }, "Logo"),
           state.designerLogo
-            ? h("div", { style: { width: 100, height: 100, border: "1px solid #cbd5e1", borderRadius: 6, background: "#fafafa", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" } },
+            ? h("div", { style: { width: 100, height: 100, border: "1px solid #CFC4AC", borderRadius: 6, background: "#fafafa", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" } },
                 h("img", { src: state.designerLogo, alt: "logo", style: { maxWidth: "100%", maxHeight: "100%" } }))
             : h("button", { onClick: function () { fileRef.current && fileRef.current.click(); },
-                style: { width: 100, height: 100, border: "1.5px dashed #cbd5e1", borderRadius: 6, background: "#f8fafc", cursor: "pointer", fontSize: 11, color: "#64748b" } },
+                style: { width: 100, height: 100, border: "1.5px dashed #CFC4AC", borderRadius: 6, background: "#f8fafc", cursor: "pointer", fontSize: 11, color: "#8A8270" } },
                 "Upload logo"),
           h("input", { ref: fileRef, type: "file", accept: "image/png,image/jpeg", style: { display: "none" }, onChange: onPickLogo }),
           state.designerLogo && h("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
-            h("button", { onClick: function () { fileRef.current && fileRef.current.click(); }, style: { fontSize: 11, padding: "4px 8px", border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff", cursor: "pointer" } }, "Replace"),
-            h("button", { onClick: clearLogo, style: { fontSize: 11, padding: "4px 8px", border: "1px solid #fecaca", borderRadius: 6, background: "#fff", color: "#b91c1c", cursor: "pointer" } }, "Remove")
+            h("button", { onClick: function () { fileRef.current && fileRef.current.click(); }, style: { fontSize: 11, padding: "4px 8px", border: "1px solid #CFC4AC", borderRadius: 6, background: "#fff", cursor: "pointer" } }, "Replace"),
+            h("button", { onClick: clearLogo, style: { fontSize: 11, padding: "4px 8px", border: "1px solid #ECC8C8", borderRadius: 6, background: "#fff", color: "#8A2E2E", cursor: "pointer" } }, "Remove")
           )
         ),
         h("div", { style: { flex: 1 } },

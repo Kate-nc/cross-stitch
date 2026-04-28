@@ -513,7 +513,8 @@ function SubstituteFromStashModalInner(props) {
     var remap = {};
     enabledSubs.forEach(function(sub) {
       var target = getEffectiveTarget(sub);
-      var dmcEntry = DMC.find(function(d) { return d.id === target.id; });
+      // PERF (perf-4 #1): O(1) cached lookup
+      var dmcEntry = (typeof getDmcById === 'function') ? getDmcById(target.id) : DMC.find(function(d) { return d.id === target.id; });
       if (dmcEntry) {
         remap[sub.sourceId] = {
           id: dmcEntry.id,
@@ -626,7 +627,7 @@ function SubstituteFromStashModalInner(props) {
 
   // Stack-aware ESC support — defined after closeModal so the callback is
   // already available when registering with the global useEscape stack.
-  if (typeof window !== "undefined" && window.useEscape) window.useEscape(closeModal);
+  // ESC handling delegated to <Overlay>.
 
   // ─── Render helpers ───────────────────────────────────────────────────────────
   function swatch(rgb, size) {
@@ -636,17 +637,17 @@ function SubstituteFromStashModalInner(props) {
         display: "inline-block", width: size, height: size,
         borderRadius: 3,
         background: "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")",
-        border: "1px solid #cbd5e1", flexShrink: 0, verticalAlign: "middle"
+        border: "1px solid var(--border)", flexShrink: 0, verticalAlign: "middle"
       }
     });
   }
 
   function statusBadge(status) {
-    var s = { fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8, flexShrink: 0 };
-    if (status === "good")         return h("span", { style: Object.assign({}, s, { background: "#d1fae5", color: "#065f46" }) }, "Good");
-    if (status === "fair")         return h("span", { style: Object.assign({}, s, { background: "#fef3c7", color: "#92400e" }) }, "Fair");
-    if (status === "poor")         return h("span", { style: Object.assign({}, s, { background: "#fee2e2", color: "#991b1b" }) }, "Poor");
-    if (status === "insufficient") return h("span", { style: Object.assign({}, s, { background: "#ffedd5", color: "#7c2d12" }) }, "\u26A0 Low stock");
+    var s = { fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius:'var(--radius-md)', flexShrink: 0 };
+    if (status === "good")         return h("span", { style: Object.assign({}, s, { background: "var(--success-soft)", color: "var(--success)" }) }, "Good");
+    if (status === "fair")         return h("span", { style: Object.assign({}, s, { background: "var(--warning-soft)", color: "var(--accent-ink)" }) }, "Fair");
+    if (status === "poor")         return h("span", { style: Object.assign({}, s, { background: "var(--danger-soft)", color: "var(--danger)" }) }, "Poor");
+    if (status === "insufficient") return h("span", { style: Object.assign({}, s, { background: "var(--warning-soft)", color: "var(--danger)", display:"inline-flex", alignItems:"center", gap:3 }) }, window.Icons && window.Icons.warning ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.warning()) : null, "Low stock");
     if (status === "conflict")     return h("span", { style: Object.assign({}, s, { background: "#fce7f3", color: "#9d174d" }) }, "Conflict");
     return null;
   }
@@ -664,8 +665,8 @@ function SubstituteFromStashModalInner(props) {
     return h(React.Fragment, { key: key },
       h("div", {
         style: {
-          borderRadius: 6, overflow: "hidden",
-          border: "1px solid " + (isEnabled ? (hasContrastWarning ? "#fed7aa" : "#e2e8f0") : "#f1f5f9"),
+          borderRadius:'var(--radius-sm)', overflow: "hidden",
+          border: "1px solid " + (isEnabled ? (hasContrastWarning ? "#E5C99A" : "var(--border)") : "var(--surface-tertiary)"),
           opacity: isEnabled ? 1 : 0.55
         }
       },
@@ -673,30 +674,30 @@ function SubstituteFromStashModalInner(props) {
         h("div", {
           style: {
             display: "flex", alignItems: "center", gap: 6, padding: "6px 10px",
-            background: isEnabled ? (hasContrastWarning ? "#fffbeb" : "#fff") : "#f8f9fa"
+            background: isEnabled ? (hasContrastWarning ? "#FAF5E1" : "var(--surface)") : "var(--surface-secondary)"
           }
         },
           h("input", {
             type: "checkbox", checked: isEnabled, onChange: function() { toggleEnabled(sub); },
-            style: { flexShrink: 0, width: 14, height: 14, cursor: "pointer", accentColor: "#7c3aed" }
+            style: { flexShrink: 0, width: 14, height: 14, cursor: "pointer", accentColor: "var(--accent)" }
           }),
           swatch(sub.sourceRgb),
-          h("span", { style: { fontSize: 12, fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + sub.sourceId),
+          h("span", { style: { fontSize:'var(--text-sm)', fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + sub.sourceId),
           sub.isBlendComponent
-            ? h("span", { style: { fontSize: 10, color: "#94a3b8", flexShrink: 0 } }, "(blend)")
+            ? h("span", { style: { fontSize: 10, color: "var(--text-tertiary)", flexShrink: 0 } }, "(blend)")
             : null,
-          h("span", { style: { color: "#94a3b8", fontSize: 13, flexShrink: 0 } }, "\u2192"),
+          h("span", { "aria-hidden":"true", style: { color: "var(--text-tertiary)", fontSize:'var(--text-md)', flexShrink: 0, display:"inline-flex" } }, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
           swatch(target.rgb),
-          h("span", { style: { fontSize: 12, fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + target.id),
-          h("span", { style: { fontSize: 11, color: "#475569", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, target.name),
+          h("span", { style: { fontSize:'var(--text-sm)', fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + target.id),
+          h("span", { style: { fontSize:'var(--text-xs)', color: "var(--text-secondary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, target.name),
           sub.includedFromNearMiss
-            ? h("span", { style: { fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 8, background: "#fff7ed", color: "#c2410c", flexShrink: 0 } }, "manual\u00B7\u0394E\u202F" + target.deltaE)
+            ? h("span", { style: { fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius:'var(--radius-md)', background: "#F8EFD8", color: "#c2410c", flexShrink: 0 } }, "manual\u00B7\u0394E\u202F" + target.deltaE)
             : statusBadge(effStatus),
           !sub.includedFromNearMiss
-            ? h("span", { style: { fontSize: 10, color: "#94a3b8", flexShrink: 0, minWidth: 36, textAlign: "right" } }, "\u0394E\u202F" + target.deltaE)
+            ? h("span", { style: { fontSize: 10, color: "var(--text-tertiary)", flexShrink: 0, minWidth: 36, textAlign: "right" } }, "\u0394E\u202F" + target.deltaE)
             : null,
           h("span", {
-            style: { fontSize: 10, color: target.hasSufficient ? "#16a34a" : "#ea580c", flexShrink: 0, minWidth: 44, textAlign: "right" }
+            style: { fontSize: 10, color: target.hasSufficient ? "var(--success)" : "var(--accent-hover)", flexShrink: 0, minWidth: 44, textAlign: "right" }
           }, target.ownedSkeins + "/" + target.neededSkeins + "sk"),
           hasAlts
             ? h("button", {
@@ -704,11 +705,14 @@ function SubstituteFromStashModalInner(props) {
                 style: {
                   fontSize: 10, padding: "2px 7px", borderRadius: 5, cursor: "pointer",
                   border: "1px solid #e0e7ff",
-                  background: isExpanded ? "#e0e7ff" : "#fff",
+                  background: isExpanded ? "#e0e7ff" : "var(--surface)",
                   color: "#4338ca", flexShrink: 0
                 },
                 title: "Show alternative substitutions"
-              }, isExpanded ? "\u25B4 Hide" : "\u25BE Alts")
+              }, h("span", {style:{display:"inline-flex",alignItems:"center",gap:3}},
+                  window.Icons && (isExpanded ? window.Icons.chevronUp : window.Icons.chevronDown) ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, (isExpanded ? window.Icons.chevronUp : window.Icons.chevronDown)()) : null,
+                  isExpanded ? "Hide" : "Alts"
+                ))
             : null
         ),
         // F4: Contrast warning detail row
@@ -717,11 +721,13 @@ function SubstituteFromStashModalInner(props) {
               style: {
                 display: "flex", alignItems: "center", gap: 5,
                 padding: "4px 10px 5px 34px",
-                background: "#fef3c7", borderTop: "1px solid #fde68a",
-                fontSize: 11, color: "#92400e"
+                background: "var(--warning-soft)", borderTop: "1px solid #E5C97D",
+                fontSize:'var(--text-xs)', color: "var(--accent-ink)"
               }
             },
-              h("span", null, "\u26A0 Contrast: \u0394E\u202F" + sub.contrastWarning.pairDeltaE +
+              h("span", {style:{display:"inline-flex",alignItems:"center",gap:3}},
+                window.Icons && window.Icons.warning ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.warning()) : null,
+                "Contrast: \u0394E\u202F" + sub.contrastWarning.pairDeltaE +
                 " from DMC\u202F" + sub.contrastWarning.conflictsWith + " " + sub.contrastWarning.conflictsWithName +
                 " \u2014 pattern may lose colour distinction")
             )
@@ -736,17 +742,17 @@ function SubstituteFromStashModalInner(props) {
                 onClick: function() { selectOverride(sub, alt); },
                 style: {
                   display: "flex", alignItems: "center", gap: 6, padding: "5px 8px", borderRadius: 5,
-                  border: "1px solid " + (isSelected ? "#a78bfa" : "#e2e8f0"),
-                  background: isSelected ? "#f5f3ff" : "#fafafa",
-                  cursor: "pointer", fontSize: 11
+                  border: "1px solid " + (isSelected ? "var(--accent-light)" : "var(--border)"),
+                  background: isSelected ? "var(--surface-secondary)" : "var(--surface-secondary)",
+                  cursor: "pointer", fontSize:'var(--text-xs)'
                 }
               },
                 swatch(alt.rgb, 12),
                 h("span", { style: { fontWeight: 700, minWidth: 52, flexShrink: 0 } }, "DMC " + alt.id),
-                h("span", { style: { color: "#475569", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, alt.name),
-                h("span", { style: { color: "#94a3b8", flexShrink: 0 } }, "\u0394E\u202F" + alt.deltaE),
-                h("span", { style: { color: alt.hasSufficient ? "#16a34a" : "#ea580c", flexShrink: 0, minWidth: 40, textAlign: "right" } }, alt.ownedSkeins + "/" + alt.neededSkeins + "sk"),
-                isSelected ? h("span", { style: { color: "#7c3aed", fontWeight: 700, marginLeft: 4, flexShrink: 0 } }, "\u2713") : null
+                h("span", { style: { color: "var(--text-secondary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, alt.name),
+                h("span", { style: { color: "var(--text-tertiary)", flexShrink: 0 } }, "\u0394E\u202F" + alt.deltaE),
+                h("span", { style: { color: alt.hasSufficient ? "var(--success)" : "var(--accent-hover)", flexShrink: 0, minWidth: 40, textAlign: "right" } }, alt.ownedSkeins + "/" + alt.neededSkeins + "sk"),
+                isSelected ? h("span", { "aria-hidden":"true", style: { color: "var(--accent)", fontWeight: 700, marginLeft:'var(--s-1)', flexShrink: 0, display:"inline-flex" } }, window.Icons && window.Icons.check ? window.Icons.check() : null) : null
               );
             })
           )
@@ -766,49 +772,58 @@ function SubstituteFromStashModalInner(props) {
         : "blend component";
 
     return h(React.Fragment, { key: skk },
-      h("div", { style: { display: "flex", alignItems: "center", gap: 7, padding: "5px 8px", fontSize: 12 } },
+      h("div", { style: { display: "flex", alignItems: "center", gap: 7, padding: "5px 8px", fontSize:'var(--text-sm)' } },
         swatch(sk.sourceRgb || [128, 128, 128], 12),
         h("span", { style: { fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + sk.sourceId),
-        h("span", { style: { color: "#475569", flex: 1 } }, sk.sourceName),
+        h("span", { style: { color: "var(--text-secondary)", flex: 1 } }, sk.sourceName),
         sk.isBlendComponent
-          ? h("span", { style: { fontSize: 10, color: "#94a3b8", flexShrink: 0 } }, "(blend)")
+          ? h("span", { style: { fontSize: 10, color: "var(--text-tertiary)", flexShrink: 0 } }, "(blend)")
           : null,
-        h("span", { style: { color: "#94a3b8", fontSize: 11, flexShrink: 0 } }, reasonText),
+        h("span", { style: { color: "var(--text-tertiary)", fontSize:'var(--text-xs)', flexShrink: 0 } }, reasonText),
         hasNm
           ? h("button", {
               onClick: function() { setNmExpanded(function(prev) { var n = Object.assign({}, prev); n[skk] = !n[skk]; return n; }); },
               style: {
                 fontSize: 10, padding: "2px 7px", borderRadius: 5, cursor: "pointer",
-                border: "1px solid #fed7aa",
-                background: isNmOpen ? "#fed7aa" : "#fff7ed",
-                color: "#92400e", flexShrink: 0
+                border: "1px solid #E5C99A",
+                background: isNmOpen ? "#E5C99A" : "#F8EFD8",
+                color: "var(--accent-ink)", flexShrink: 0
               }
-            }, isNmOpen ? "\u25B4 Hide" : "Near misses \u25BE")
-          : h("span", { style: { fontSize: 10, color: "#cbd5e1", flexShrink: 0 } }, "no near misses")
+            }, isNmOpen
+              ? h("span", {style:{display:"inline-flex",alignItems:"center",gap:3}},
+                  window.Icons && window.Icons.chevronUp ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.chevronUp()) : null,
+                  "Hide"
+                )
+              : h("span", {style:{display:"inline-flex",alignItems:"center",gap:3}},
+                  "Near misses",
+                  window.Icons && window.Icons.chevronDown ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.chevronDown()) : null
+                ))
+          : h("span", { style: { fontSize: 10, color: "var(--border)", flexShrink: 0 } }, "no near misses")
       ),
       isNmOpen && hasNm
-        ? h("div", { style: { paddingLeft: 28, paddingBottom: 6, display: "flex", flexDirection: "column", gap: 4 } },
+        ? h("div", { style: { paddingLeft: 28, paddingBottom: 6, display: "flex", flexDirection: "column", gap:'var(--s-1)' } },
             sk.nearMisses.map(function(nm) {
               return h("div", {
                 key: nm.id,
                 style: {
                   display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 5,
-                  border: "1px solid #fed7aa", background: "#fff7ed", fontSize: 11
+                  border: "1px solid #E5C99A", background: "#F8EFD8", fontSize:'var(--text-xs)'
                 }
               },
                 swatch(nm.rgb, 12),
                 h("span", { style: { fontWeight: 700, minWidth: 52, flexShrink: 0 } }, "DMC " + nm.id),
-                h("span", { style: { color: "#475569", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, nm.name),
-                h("span", { style: { color: "#d97706", flexShrink: 0 } }, "\u0394E\u202F" + nm.deltaE),
-                h("span", { style: { color: nm.hasSufficient ? "#16a34a" : "#ea580c", flexShrink: 0, minWidth: 40, textAlign: "right" } }, nm.ownedSkeins + "/" + nm.neededSkeins + "sk"),
+                h("span", { style: { color: "var(--text-secondary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, nm.name),
+                h("span", { style: { color: "#A06F2D", flexShrink: 0 } }, "\u0394E\u202F" + nm.deltaE),
+                h("span", { style: { color: nm.hasSufficient ? "var(--success)" : "var(--accent-hover)", flexShrink: 0, minWidth: 40, textAlign: "right" } }, nm.ownedSkeins + "/" + nm.neededSkeins + "sk"),
                 h("button", {
                   onClick: function() { includeNearMiss(sk, nm); },
                   style: {
                     fontSize: 10, padding: "3px 9px", borderRadius: 5, cursor: "pointer",
-                    border: "1px solid #a78bfa", background: "#f5f3ff", color: "#7c3aed",
-                    fontWeight: 600, flexShrink: 0
+                    border: "1px solid var(--accent-light)", background: "var(--surface-secondary)", color: "var(--accent)",
+                    fontWeight: 600, flexShrink: 0,
+                    display:"inline-flex", alignItems:"center", gap:3
                   }
-                }, "Include anyway \u2192")
+                }, ["Include anyway", window.Icons && window.Icons.chevronRight ? h("span", {key:"a", "aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.chevronRight()) : null])
               );
             })
           )
@@ -819,13 +834,13 @@ function SubstituteFromStashModalInner(props) {
   // F2: Canvas preview section
   function renderPreview() {
     if (!ctx.pat || !ctx.sW || !ctx.sH) return null;
-    var sectionHeader = h("div", { style: { fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" } }, "Pattern Preview");
+    var sectionHeader = h("div", { style: { fontSize:'var(--text-xs)', color: "var(--text-tertiary)", textTransform: "uppercase", fontWeight: 700, marginBottom:'var(--s-2)', letterSpacing: "0.04em" } }, "Pattern Preview");
 
     // Still generating
     if (!originalThumb) {
       return h("div", { style: { marginBottom: 14 } },
         sectionHeader,
-        h("div", { style: { height: 90, display: "flex", alignItems: "center", justifyContent: "center", background: "#f8f9fa", borderRadius: 8, border: "1px solid #f1f5f9", color: "#94a3b8", fontSize: 12 } },
+        h("div", { style: { height: 90, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-secondary)", borderRadius:'var(--radius-md)', border: "1px solid var(--surface-tertiary)", color: "var(--text-tertiary)", fontSize:'var(--text-sm)' } },
           "Generating preview\u2026"
         )
       );
@@ -844,14 +859,14 @@ function SubstituteFromStashModalInner(props) {
             width: ctx.sW, height: ctx.sH,
             leftLabel: "Current", rightLabel: "After substitution"
           })
-        : h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 } },
+        : h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap:'var(--s-2)' } },
             h("div", { style: { textAlign: "center" } },
-              h("img", { src: originalThumb, alt: "Current pattern", draggable: false, style: { width: "100%", imageRendering: "pixelated", borderRadius: 6, border: "1px solid #e2e8f0" } }),
-              h("div", { style: { fontSize: 10, color: "#94a3b8", marginTop: 3 } }, "Current")
+              h("img", { src: originalThumb, alt: "Current pattern", draggable: false, style: { width: "100%", imageRendering: "pixelated", borderRadius:'var(--radius-sm)', border: "1px solid var(--border)" } }),
+              h("div", { style: { fontSize: 10, color: "var(--text-tertiary)", marginTop: 3 } }, "Current")
             ),
             h("div", { style: { textAlign: "center" } },
-              h("img", { src: afterSrc, alt: "After substitution", draggable: false, style: { width: "100%", imageRendering: "pixelated", borderRadius: 6, border: "1px solid #e2e8f0" } }),
-              h("div", { style: { fontSize: 10, color: "#94a3b8", marginTop: 3 } }, "After substitution")
+              h("img", { src: afterSrc, alt: "After substitution", draggable: false, style: { width: "100%", imageRendering: "pixelated", borderRadius:'var(--radius-sm)', border: "1px solid var(--border)" } }),
+              h("div", { style: { fontSize: 10, color: "var(--text-tertiary)", marginTop: 3 } }, "After substitution")
             )
           )
     );
@@ -860,7 +875,7 @@ function SubstituteFromStashModalInner(props) {
   // ─── Render ───────────────────────────────────────────────────────────────────
   var p = localProposal;
   var applyLabel = "Apply " + enabledSubs.length + " Substitution" + (enabledSubs.length !== 1 ? "s" : "");
-  if (contrastWarningCount > 0) applyLabel += " (\u26A0\u202F" + contrastWarningCount + " contrast)";
+  if (contrastWarningCount > 0) applyLabel += " (" + contrastWarningCount + " contrast warning" + (contrastWarningCount !== 1 ? "s" : "") + ")";
 
   return h("div", {
     onClick: function(e) { if (e.target === e.currentTarget) closeModal(); },
@@ -871,18 +886,18 @@ function SubstituteFromStashModalInner(props) {
   },
     h("div", {
       style: {
-        background: "#fff", borderRadius: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+        background: "var(--surface)", borderRadius:'var(--radius-xl)', boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
         width: "100%", maxWidth: 660, maxHeight: "90vh",
         display: "flex", flexDirection: "column", overflow: "hidden",
         margin: "0 16px"
       }
     },
       // ── Header ────────────────────────────────────────────────────────────────
-      h("div", { style: { display: "flex", alignItems: "center", padding: "16px 20px 14px", borderBottom: "1px solid #f1f5f9", flexShrink: 0 } },
-        h("h2", { style: { margin: 0, fontSize: 17, fontWeight: 700, color: "#1e293b", flex: 1 } }, "Replace with Stash Threads"),
+      h("div", { style: { display: "flex", alignItems: "center", padding: "16px 20px 14px", borderBottom: "1px solid var(--surface-tertiary)", flexShrink: 0 } },
+        h("h2", { style: { margin: 0, fontSize: 17, fontWeight: 700, color: "var(--text-primary)", flex: 1 } }, "Replace with Stash Threads"),
         h("button", {
           onClick: closeModal,
-          style: { background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#94a3b8", padding: "0 4px", borderRadius: 6, lineHeight: 1 }
+          style: { background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--text-tertiary)", padding: "0 4px", borderRadius:'var(--radius-sm)', lineHeight: 1 }
         }, "\xD7")
       ),
 
@@ -890,19 +905,19 @@ function SubstituteFromStashModalInner(props) {
       h("div", { style: { overflow: "auto", flex: 1, padding: "16px 20px" } },
 
         // Controls: ΔE slider + preserve contrast toggle
-        h("div", { style: { marginBottom: 16, padding: "12px 14px", background: "#f8f9fa", borderRadius: 8, border: "1px solid #f1f5f9" } },
-          h("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 8 } },
-            h("span", { style: { fontSize: 12, color: "#475569", fontWeight: 600 } }, "Max colour distance (\u0394E):"),
-            h("span", { style: { fontSize: 15, fontWeight: 700, color: "#1e293b", minWidth: 28 } }, localMaxDE),
-            analyzing ? h("span", { style: { fontSize: 11, color: "#7c3aed" } }, "Analysing\u2026") : null
+        h("div", { style: { marginBottom:'var(--s-4)', padding: "12px 14px", background: "var(--surface-secondary)", borderRadius:'var(--radius-md)', border: "1px solid var(--surface-tertiary)" } },
+          h("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom:'var(--s-2)' } },
+            h("span", { style: { fontSize:'var(--text-sm)', color: "var(--text-secondary)", fontWeight: 600 } }, "Max colour distance (\u0394E):"),
+            h("span", { style: { fontSize: 15, fontWeight: 700, color: "var(--text-primary)", minWidth: 28 } }, localMaxDE),
+            analyzing ? h("span", { style: { fontSize:'var(--text-xs)', color: "var(--accent)" } }, "Analysing\u2026") : null
           ),
           h("input", {
             type: "range", min: 1, max: 40, step: 1,
             value: localMaxDE,
             onChange: function(e) { handleSliderChange(parseInt(e.target.value)); },
-            style: { width: "100%", accentColor: "#7c3aed", cursor: "pointer" }
+            style: { width: "100%", accentColor: "var(--accent)", cursor: "pointer" }
           }),
-          h("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 10, color: "#94a3b8", marginTop: 2 } },
+          h("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-tertiary)", marginTop: 2 } },
             h("span", null, "1 \u2014 exact match"),
             h("span", null, "40 \u2014 broad")
           ),
@@ -911,10 +926,10 @@ function SubstituteFromStashModalInner(props) {
             h("input", {
               type: "checkbox", checked: preserveContrast,
               onChange: function(e) { handlePreserveContrastChange(e.target.checked); },
-              style: { width: 14, height: 14, accentColor: "#7c3aed", cursor: "pointer" }
+              style: { width: 14, height: 14, accentColor: "var(--accent)", cursor: "pointer" }
             }),
-            h("span", { style: { fontSize: 12, color: "#475569" } }, "Preserve colour contrast"),
-            h("span", { style: { fontSize: 10, color: "#94a3b8", marginLeft: 2 } },
+            h("span", { style: { fontSize:'var(--text-sm)', color: "var(--text-secondary)" } }, "Preserve colour contrast"),
+            h("span", { style: { fontSize: 10, color: "var(--text-tertiary)", marginLeft: 2 } },
               "(avoid substitutions that make palette colours too similar)"
             )
           )
@@ -927,9 +942,9 @@ function SubstituteFromStashModalInner(props) {
         p.substitutions.length > 0
           ? h("div", { style: { marginBottom: 14 } },
               h("div", {
-                style: { fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" }
+                style: { fontSize:'var(--text-xs)', color: "var(--text-tertiary)", textTransform: "uppercase", fontWeight: 700, marginBottom:'var(--s-2)', letterSpacing: "0.04em" }
               }, "Proposed Substitutions (" + p.substitutions.length + ")"),
-              h("div", { style: { display: "flex", flexDirection: "column", gap: 4 } },
+              h("div", { style: { display: "flex", flexDirection: "column", gap:'var(--s-1)' } },
                 p.substitutions.map(renderSubRow)
               )
             )
@@ -938,10 +953,10 @@ function SubstituteFromStashModalInner(props) {
         // Skipped (F3: with near-miss expansion)
         p.skipped.length > 0
           ? h("div", { style: { marginBottom: 14 } },
-              h("div", { style: { fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: 700, marginBottom: 8, letterSpacing: "0.04em" } },
+              h("div", { style: { fontSize:'var(--text-xs)', color: "var(--text-tertiary)", textTransform: "uppercase", fontWeight: 700, marginBottom:'var(--s-2)', letterSpacing: "0.04em" } },
                 "Skipped \u2014 No Suitable Match (" + p.skipped.length + ")"
               ),
-              h("div", { style: { background: "#f8f9fa", borderRadius: 8, border: "1px solid #f1f5f9", padding: "4px 8px", display: "flex", flexDirection: "column" } },
+              h("div", { style: { background: "var(--surface-secondary)", borderRadius:'var(--radius-md)', border: "1px solid var(--surface-tertiary)", padding: "4px 8px", display: "flex", flexDirection: "column" } },
                 p.skipped.map(renderSkipRow)
               )
             )
@@ -949,44 +964,44 @@ function SubstituteFromStashModalInner(props) {
 
         // No results at all
         p.substitutions.length === 0 && p.skipped.length === 0
-          ? h("div", { style: { padding: "20px", textAlign: "center", color: "#94a3b8", fontSize: 13 } },
+          ? h("div", { style: { padding: "20px", textAlign: "center", color: "var(--text-tertiary)", fontSize:'var(--text-md)' } },
               "No unowned threads found \u2014 all threads are already marked as owned."
             )
           : null,
 
         // Summary
-        h("div", { style: { padding: "10px 14px", background: "#f0f9ff", borderRadius: 8, border: "1px solid #bae6fd", fontSize: 12, color: "#0c4a6e" } },
+        h("div", { style: { padding: "10px 14px", background: "var(--surface-secondary)", borderRadius:'var(--radius-md)', border: "1px solid var(--accent-light)", fontSize:'var(--text-sm)', color: "var(--accent)" } },
           h("strong", null, enabledSubs.length + " substitution" + (enabledSubs.length !== 1 ? "s" : "") + " selected"),
           h("span", null, " \xB7 " + p.skipped.length + " skipped"),
           warningCount > 0
-            ? h("span", { style: { color: "#ea580c" } }, " \xB7 " + warningCount + " low stock")
+            ? h("span", { style: { color: "var(--accent-hover)" } }, " \xB7 " + warningCount + " low stock")
             : null,
           contrastWarningCount > 0
-            ? h("span", { style: { color: "#b45309" } }, " \xB7 " + contrastWarningCount + " contrast warning" + (contrastWarningCount !== 1 ? "s" : ""))
+            ? h("span", { style: { color: "var(--accent-ink)" } }, " \xB7 " + contrastWarningCount + " contrast warning" + (contrastWarningCount !== 1 ? "s" : ""))
             : null
         ),
-        h("div", { style: { marginTop: 8, fontSize: 11, color: "#94a3b8" } },
+        h("div", { style: { marginTop:'var(--s-2)', fontSize:'var(--text-xs)', color: "var(--text-tertiary)" } },
           "Tip: All changes can be undone with Ctrl+Z"
         )
       ),
 
       // ── Footer ────────────────────────────────────────────────────────────────
       h("div", {
-        style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderTop: "1px solid #f1f5f9", flexShrink: 0 }
+        style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderTop: "1px solid var(--surface-tertiary)", flexShrink: 0 }
       },
         h("button", {
           onClick: closeModal,
-          style: { padding: "8px 20px", fontSize: 13, borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: "#475569", cursor: "pointer", fontWeight: 500 }
+          style: { padding: "8px 20px", fontSize:'var(--text-md)', borderRadius:'var(--radius-md)', border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-secondary)", cursor: "pointer", fontWeight: 500 }
         }, "Cancel"),
         h("button", {
           onClick: applySubstitutions,
           disabled: enabledSubs.length === 0,
           style: {
-            padding: "8px 22px", fontSize: 13, borderRadius: 8, fontWeight: 700,
+            padding: "8px 22px", fontSize:'var(--text-md)', borderRadius:'var(--radius-md)', fontWeight: 700,
             cursor: enabledSubs.length === 0 ? "not-allowed" : "pointer",
-            border: enabledSubs.length === 0 ? "1px solid #e2e8f0" : "1px solid #a78bfa",
-            background: enabledSubs.length === 0 ? "#f8f9fa" : "#7c3aed",
-            color: enabledSubs.length === 0 ? "#94a3b8" : "#fff"
+            border: enabledSubs.length === 0 ? "1px solid var(--border)" : "1px solid var(--accent-light)",
+            background: enabledSubs.length === 0 ? "var(--surface-secondary)" : "var(--accent)",
+            color: enabledSubs.length === 0 ? "var(--text-tertiary)" : "var(--surface)"
           }
         }, applyLabel)
       )

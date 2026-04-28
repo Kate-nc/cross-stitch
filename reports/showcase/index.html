@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>stitch. · Workshop visual proposal · Index</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="_workshop.css">
+<style>
+  .hero-mark { font: 700 96px/1 var(--font-ui); letter-spacing: -.03em; }
+  .hero-mark::after { content: '.'; color: var(--accent); }
+  .toc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s-4); }
+  .toc-card {
+    display: block; padding: var(--s-5); border-radius: var(--radius);
+    background: var(--surface-raised); border: 1px solid var(--line);
+    color: var(--text-primary); text-decoration: none;
+    transition: transform var(--motion-fast), border-color var(--motion-fast);
+  }
+  .toc-card:hover { border-color: var(--accent); transform: translateY(-1px); text-decoration: none; }
+  .toc-card .num {
+    font: 600 var(--text-xs)/1 var(--font-ui); letter-spacing: .12em;
+    text-transform: uppercase; color: var(--accent-2);
+  }
+  .toc-card h3 { font-size: var(--text-xl); font-weight: 600; margin: var(--s-2) 0 var(--s-2); }
+  .toc-card p { color: var(--text-secondary); font-size: var(--text-md); margin: 0; }
+  .palette-strip { display: flex; gap: 0; border-radius: var(--radius); overflow: hidden; height: 80px; margin: var(--s-5) 0; }
+  .palette-strip > div { flex: 1; display: flex; align-items: flex-end; padding: var(--s-2); font: 500 var(--text-xs) ui-monospace,Menlo,monospace; }
+</style>
+</head>
+<body>
+<main class="sc-page">
+
+  <section class="sc-header">
+    <div class="eyebrow">Workshop visual direction · Phase 3 visual proposal</div>
+    <div class="hero-mark" style="margin-top: var(--s-3)">stitch</div>
+    <p style="margin-top: var(--s-4); font-size: var(--text-xl); color: var(--text-primary); max-width: 60ch;">
+      A warm, tactile, canvas-first design language for a cross-stitch app that wants to disappear behind the work.
+    </p>
+    <div class="palette-strip">
+      <div style="background:#FBF8F3;color:#5C5448">linen</div>
+      <div style="background:#F2EDE3;color:#5C5448">sunken</div>
+      <div style="background:#E5DCCB;color:#5C5448">line</div>
+      <div style="background:#B85C38;color:#FFF8F0">accent</div>
+      <div style="background:#944526;color:#FFF8F0">accent-2</div>
+      <div style="background:#4F7D3F;color:#FFF">success</div>
+      <div style="background:#C0883A;color:#FFF">warning</div>
+      <div style="background:#A53D3D;color:#FFF">danger</div>
+      <div style="background:#1F1B16;color:#F4EFE7">ink</div>
+    </div>
+    <p style="color: var(--text-secondary); font-size: var(--text-md); margin-top: var(--s-2);">
+      The five pages below explore what every surface of the app can look like in this language. They are still images — design proposals, not interactive prototypes.
+    </p>
+  </section>
+
+  <section class="sc-section">
+    <h2>The five proposals</h2>
+    <p class="sc-lede">Open each in a browser. Each page is self-contained and uses this shared <code>_workshop.css</code> token sheet.</p>
+
+    <div class="toc-grid">
+      <a class="toc-card" href="01-brand-and-system.html">
+        <div class="num">01 · Brand &amp; system</div>
+        <h3>Logo, palette, type, components</h3>
+        <p>Wordmark, app icon, the full token system rendered light and dark, button family, chip family, card variants, the icon set, motion principles, and the voice samples.</p>
+      </a>
+      <a class="toc-card" href="02-tracker.html">
+        <div class="num">02 · Tracker</div>
+        <h3>Phone, tablet, desktop · light + dark</h3>
+        <p>The dominant verb. Floating tool dock on phone, persistent project rail on tablet, full Workshop colour applied to a stitch-in-progress canvas. Park markers, wake-lock, safe-area handling.</p>
+      </a>
+      <a class="toc-card" href="03-creator.html">
+        <div class="num">03 · Creator</div>
+        <h3>Pattern desk · publishing flow</h3>
+        <p>Image-to-pattern flow, Materials sub-pane, symbol legend rendered at print scale, PDF preview, Convert palette modal, Export menu. Print PDF + Track promoted to a persistent action bar.</p>
+      </a>
+      <a class="toc-card" href="04-manager.html">
+        <div class="num">04 · Stash Manager</div>
+        <h3>Threads, library, shopping list</h3>
+        <p>The "tin of bobbins" — thread inventory table, pattern library grid with cover thumbnails, shopping list, thread-detail drawer, brand-intermix chips, empty state.</p>
+      </a>
+      <a class="toc-card" href="05-onboarding-and-artefacts.html" style="grid-column: 1 / -1;">
+        <div class="num">05 · First impressions &amp; artefacts</div>
+        <h3>Splash, install prompt, welcome wizard, home dashboard, printed PDF, marketing card, app icons, empty states</h3>
+        <p>Everything outside the three workspaces — the screens that decide whether a user installs at all, plus the printed artefact the app ships into the world.</p>
+      </a>
+    </div>
+  </section>
+
+  <section class="sc-section">
+    <h2>How to read these</h2>
+    <p class="sc-lede">A few notes before you click through.</p>
+    <div class="sc-grid cols-2">
+      <div class="card card--inset">
+        <h3 style="font-size: var(--text-lg); margin-bottom: var(--s-2);">These are still images.</h3>
+        <p style="font-size: var(--text-md); color: var(--text-secondary);">No JavaScript, no interactions, no real data. Every "screenshot" is rendered HTML/CSS — high enough fidelity to judge the design language but not a working prototype.</p>
+      </div>
+      <div class="card card--inset">
+        <h3 style="font-size: var(--text-lg); margin-bottom: var(--s-2);">Workshop is one direction of three.</h3>
+        <p style="font-size: var(--text-md); color: var(--text-secondary);">Studio (cool, indigo) and Folk (sage + pink) remain on offer in <a href="../ux-11-visual-direction.md">ux-11</a>. The Workshop showcase exists because you said you liked it; it's the most thorough render so you can see what "yes" would actually look like.</p>
+      </div>
+      <div class="card card--inset">
+        <h3 style="font-size: var(--text-lg); margin-bottom: var(--s-2);">Direction is separable from plan.</h3>
+        <p style="font-size: var(--text-md); color: var(--text-secondary);">A visual direction styles the app; a plan reorganises it. Workshop will look the same whether we ship Plan A, B, C or a hybrid. See the parent message for hybrid recipes.</p>
+      </div>
+      <div class="card card--inset">
+        <h3 style="font-size: var(--text-lg); margin-bottom: var(--s-2);">No emojis. British English.</h3>
+        <p style="font-size: var(--text-md); color: var(--text-secondary);">Per <a href="../../AGENTS.md">AGENTS.md</a>, all icons are inline SVG. All copy uses British spellings (colour, organiser, centre).</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="sc-section">
+    <h2>Reference</h2>
+    <p class="sc-lede">Where each design decision is sourced.</p>
+    <ul style="font-size: var(--text-md); color: var(--text-secondary); line-height: 1.8; padding-left: 18px;">
+      <li><a href="../ux-11-visual-direction.md">ux-11 — Visual Direction Proposals</a> · the canonical Workshop spec (palette, type, motion, voice).</li>
+      <li><a href="../ux-3-domain-reference.md">ux-3 — Domain reference</a> · principles P1–P12, anti-patterns A1–A10, vocabulary.</li>
+      <li><a href="../ux-9-prioritised-issues.md">ux-9 — Prioritised issues</a> · the audit IDs cited in each footnote.</li>
+      <li><a href="../wireframes/">reports/wireframes/</a> · grayscale structural wireframes that these colour renders are based on.</li>
+      <li><code>_workshop.css</code> · the single token sheet shared by all five proposals.</li>
+    </ul>
+  </section>
+
+</main>
+</body>
+</html>

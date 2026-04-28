@@ -64,7 +64,7 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
         meta && React.createElement('span', { className: 'tb-context-meta' }, meta),
         showAutosaved && React.createElement('span', {
           className: 'tb-context-meta',
-          style: { color:'#16a34a', fontSize:11, display:'inline-flex', alignItems:'center', gap:4 },
+          style: { color:'var(--success)', fontSize:'var(--text-xs)', display:'inline-flex', alignItems:'center', gap:'var(--s-1)' },
           title: 'Your work auto-saves to this device. Use Download to export a .json file.'
         },
           (window.Icons && window.Icons.check) ? window.Icons.check() : null,
@@ -79,9 +79,9 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
       ),
       React.createElement('div', { className: 'tb-context-actions' },
         page === 'tracker' && onEdit &&
-          React.createElement('button', { className: 'tb-context-btn', onClick: onEdit }, Icons.pencil(), ' Edit Pattern'),
+          React.createElement('button', { className: 'tb-context-btn tb-context-btn--primary tb-context-btn--mode', onClick: onEdit, title: 'Open this pattern in the Pattern Creator' }, Icons.pencil(), ' Edit Pattern'),
         page === 'creator' && onTrack &&
-          React.createElement('button', { className: 'tb-context-btn tb-context-btn--primary', onClick: onTrack }, 'Track ›'),
+          React.createElement('button', { className: 'tb-context-btn tb-context-btn--primary tb-context-btn--mode', onClick: onTrack, title: 'Switch to Stitch Tracker' }, 'Track ›'),
         onSave &&
           React.createElement('button', {
             className: 'tb-context-btn',
@@ -89,6 +89,176 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
             title: 'Download a .json copy of this project to your computer (work auto-saves to this device).'
           }, 'Download')
       )
+    )
+  );
+}
+
+// ─── HeaderProjectSwitcher (UX-12 Phase 6 PR #10) ───────────────────────
+// Compact button + dropdown showing the active project plus the five
+// most recently updated projects, with a fall-through to the existing
+// project-picker modal via onOpenAll. Reads from ProjectStorage; no new
+// state stores. Mirrors the focus / ARIA pattern from
+// creator/ActionBar.js (Escape, click-outside, ArrowUp/Down/Home/End
+// roving focus, auto-focus first menuitem on open).
+function HeaderProjectSwitcher({ activeProject, projectName, onOpenAll }) {
+  var h = React.createElement;
+  var Icons = window.Icons || {};
+  var openState = React.useState(false);
+  var open = openState[0];
+  var setOpen = openState[1];
+  var listState = React.useState([]);
+  var list = listState[0];
+  var setList = listState[1];
+  var btnRef = React.useRef(null);
+  var menuRef = React.useRef(null);
+  var wrapRef = React.useRef(null);
+
+  // Load + refresh the recent-project list. Refresh on cs:projectsChanged
+  // to stay in step with saves elsewhere in the app (Phase 4 pattern).
+  React.useEffect(function () {
+    if (typeof window.ProjectStorage === 'undefined' || !window.ProjectStorage.listProjects) return undefined;
+    var cancelled = false;
+    function load() {
+      window.ProjectStorage.listProjects().then(function (l) {
+        if (cancelled) return;
+        var sorted = (l || []).slice().sort(function (a, b) {
+          var at = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+          var bt = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+          return bt - at;
+        });
+        setList(sorted);
+      }).catch(function () { if (!cancelled) setList([]); });
+    }
+    load();
+    window.addEventListener('cs:projectsChanged', load);
+    return function () { cancelled = true; window.removeEventListener('cs:projectsChanged', load); };
+  }, []);
+
+  // Click-outside / Escape close + roving focus.
+  React.useEffect(function () {
+    if (!open) return undefined;
+    function onDoc(e) {
+      if (wrapRef.current && wrapRef.current.contains(e.target)) return;
+      setOpen(false);
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setOpen(false);
+        if (btnRef.current && btnRef.current.focus) btnRef.current.focus();
+        return;
+      }
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
+      if (!menuRef.current) return;
+      var items = Array.prototype.slice.call(menuRef.current.querySelectorAll('[role="menuitem"]'));
+      if (!items.length) return;
+      var idx = items.indexOf(document.activeElement);
+      var next = idx;
+      if (e.key === 'ArrowDown') next = idx < 0 ? 0 : (idx + 1) % items.length;
+      else if (e.key === 'ArrowUp') next = idx <= 0 ? items.length - 1 : idx - 1;
+      else if (e.key === 'Home') next = 0;
+      else if (e.key === 'End') next = items.length - 1;
+      if (items[next] && items[next].focus) { items[next].focus(); e.preventDefault(); }
+    }
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    var raf = (typeof requestAnimationFrame === 'function') ? requestAnimationFrame : function (fn) { return setTimeout(fn, 0); };
+    var cancel = (typeof cancelAnimationFrame === 'function') ? cancelAnimationFrame : clearTimeout;
+    var handle = raf(function () {
+      if (!menuRef.current) return;
+      var first = menuRef.current.querySelector('[role="menuitem"]');
+      if (first && first.focus) first.focus();
+    });
+    return function () {
+      cancel(handle);
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  function initials(name) {
+    var s = String(name || '').trim();
+    if (!s) return '?';
+    var parts = s.split(/\s+/);
+    if (parts.length === 1) return s.slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+
+  function pctOf(p) {
+    if (!p || !p.pattern) return null;
+    var total = 0;
+    for (var i = 0; i < p.pattern.length; i += 1) {
+      var c = p.pattern[i];
+      if (c && c.id !== '__skip__' && c.id !== '__empty__') total += 1;
+    }
+    if (total <= 0) return null;
+    var done = 0;
+    if (p.done) {
+      for (var j = 0; j < p.done.length; j += 1) if (p.done[j] === 1) done += 1;
+    }
+    return Math.round(done / total * 100);
+  }
+
+  var label = projectName || (activeProject && activeProject.name) || 'No project';
+  var activeId = (activeProject && activeProject.id) || (typeof window.ProjectStorage !== 'undefined'
+    && window.ProjectStorage.getActiveProjectId ? window.ProjectStorage.getActiveProjectId() : null);
+  var recents = list.filter(function (p) { return p && p.id !== activeId; }).slice(0, 5);
+
+  function pickProject(id) {
+    setOpen(false);
+    if (typeof window.ProjectStorage !== 'undefined' && window.ProjectStorage.setActiveProject) {
+      try { window.ProjectStorage.setActiveProject(id); } catch (_) {}
+    }
+    // Match command-palette.js: clicking a project means "go track it".
+    window.location.href = 'stitch.html';
+  }
+
+  return h('div', { className: 'tb-proj-switcher', ref: wrapRef },
+    h('button', {
+      ref: btnRef,
+      type: 'button',
+      className: 'tb-proj-switcher__btn',
+      'aria-haspopup': 'menu',
+      'aria-expanded': open ? 'true' : 'false',
+      'aria-label': 'Switch project',
+      onClick: function () { setOpen(function (o) { return !o; }); }
+    },
+      h('span', { className: 'tb-proj-switcher__avatar', 'aria-hidden': 'true' }, initials(label)),
+      h('span', { className: 'tb-proj-switcher__name' }, label),
+      h('span', { className: 'tb-proj-switcher__chev', 'aria-hidden': 'true' },
+        Icons.chevronDown ? Icons.chevronDown() : null)
+    ),
+    open && h('div', {
+      ref: menuRef,
+      className: 'tb-proj-switcher__menu',
+      role: 'menu',
+      'aria-label': 'Recent projects'
+    },
+      recents.length === 0 && h('div', { className: 'tb-proj-switcher__empty' }, 'No other projects yet'),
+      recents.map(function (p) {
+        var pct = pctOf(p);
+        return h('button', {
+          key: p.id,
+          type: 'button',
+          role: 'menuitem',
+          tabIndex: -1,
+          className: 'tb-proj-switcher__item',
+          onClick: function () { pickProject(p.id); }
+        },
+          h('span', { className: 'tb-proj-switcher__avatar', 'aria-hidden': 'true' }, initials(p.name)),
+          h('span', { className: 'tb-proj-switcher__item-text' },
+            h('span', { className: 'tb-proj-switcher__item-name' }, p.name || 'Untitled'),
+            pct !== null && h('span', { className: 'tb-proj-switcher__item-pct' }, pct + '%')
+          )
+        );
+      }),
+      onOpenAll && h('button', {
+        type: 'button',
+        role: 'menuitem',
+        tabIndex: -1,
+        className: 'tb-proj-switcher__item tb-proj-switcher__item--all',
+        onClick: function () { setOpen(false); onOpenAll(); }
+      }, 'All projects\u2026')
     )
   );
 }
@@ -178,13 +348,17 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
   ];
   const activeLabel = (creatorPages.find(p => p[0] === tab) || (tab === 'prepare' || tab === 'legend' || tab === 'export' ? ['materials','Materials & Output'] : null) || ['pattern', 'Pattern'])[1];
 
-  // App-section nav tabs — include Edit between Create and Track
+  // App-section nav tabs — include Edit between Create and Track.
+  // Hrefs use `?action=…` / `?from=home` so the per-tool no-project redirect
+  // in index.html / stitch.html / manager.html doesn't bounce users back to
+  // /home — Create opens the image picker, Edit opens the project file
+  // picker, Track and Stash drop straight into their empty states.
   const appSections = [
-    { id: 'creator', label: 'Create', href: 'index.html' },
-    { id: 'editor', label: 'Edit', href: 'index.html' },
-    { id: 'tracker', label: 'Track',  href: 'stitch.html' },
-    { id: 'manager', label: 'Stash',  href: 'manager.html' },
-    { id: 'stats', label: 'Stats', href: 'index.html?mode=stats' },
+    { id: 'creator', label: 'Create', href: 'home.html?tab=create' },
+    { id: 'editor', label: 'Edit', href: 'create.html?action=open' },
+    { id: 'tracker', label: 'Track',  href: 'stitch.html?from=home' },
+    { id: 'manager', label: 'Stash',  href: 'manager.html?from=home' },
+    { id: 'stats', label: 'Stats', href: 'index.html?mode=stats&from=home' },
   ];
 
   // Active project summary for the badge (consumed from prop or read from ProjectStorage if available)
@@ -231,14 +405,27 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
   return React.createElement(React.Fragment, null,
     React.createElement('header', { className: 'tb-topbar' },
       React.createElement('div', { className: 'tb-topbar-inner' },
-        // Logo
+        // Logo — single source of truth for "go home". On /home itself
+        // we just scroll to top; on every tool page we navigate to the
+        // canonical landing page (home.html). The legacy in-Creator
+        // home-screen mode (window.__goHome) is retired from this entry
+        // point so the unified hub is always one click away.
         React.createElement('span', {
           className: 'tb-logo',
-          onClick: () => { if (typeof window.__goHome === 'function') { window.__goHome(); } else if (page === 'creator') { window.scrollTo(0, 0); } else { window.location.href = 'index.html'; } }
+          role: 'link',
+          tabIndex: 0,
+          title: page === 'home' ? 'Cross Stitch Studio' : 'Back to home',
+          onClick: () => {
+            if (page === 'home') { window.scrollTo(0, 0); return; }
+            window.location.href = 'home.html';
+          },
+          onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }
         }, '×∕× Cross Stitch'),
 
-        // App-section navigation tabs
-        React.createElement('nav', { className: 'tb-app-nav', 'aria-label': 'App sections' },
+        // App-section navigation tabs — suppressed on home page because
+        // home.html has its own in-page tab bar (HomeTabBar in home-app.js)
+        // covering the same destinations. Shown on all other pages as before.
+        page !== 'home' && React.createElement('nav', { className: 'tb-app-nav', 'aria-label': 'App sections' },
           appSections.map(({ id, label, href }) => {
             const switchMap = { tracker: '__switchToTrack', creator: '__switchToCreate', editor: '__switchToEdit', stats: '__switchToStats' };
             const fn = window[switchMap[id]];
@@ -256,7 +443,8 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         (page === 'creator' || page === 'editor') && React.createElement('div', { ref: dropRef, style: { position: 'relative', flexShrink: 0, marginLeft: 6 } },
           React.createElement('button', { className: 'tb-page-btn', onClick: () => setPageDrop(o => !o), 'aria-haspopup': 'true', 'aria-expanded': pageDrop },
             activeLabel,
-            React.createElement('span', { style: { fontSize: 9, opacity: 0.6, marginLeft: 1 } }, '▾')
+            React.createElement('span', { className: 'tb-page-btn-chev', 'aria-hidden': 'true' },
+              window.Icons && window.Icons.chevronDown ? window.Icons.chevronDown() : null)
           ),
           pageDrop && React.createElement('div', { className: 'tb-page-dropdown', role: 'menu' },
             creatorPages.map(([id, label]) =>
@@ -271,6 +459,16 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         ),
 
         React.createElement('div', { className: 'tb-hgap' }),
+
+        // Project switcher (UX-12 Phase 6 PR #10) — recents dropdown +
+        // "All projects…" entry that delegates to the existing project
+        // picker. Always present so the active project is identifiable
+        // even before the badge has loaded its name.
+        React.createElement(HeaderProjectSwitcher, {
+          activeProject: projSummary,
+          projectName: propProjectName || projName,
+          onOpenAll: onOpenProject || undefined
+        }),
 
         // Active project badge — editable when onNameChange is provided
         (propProjectName || projName) && React.createElement('div', { className: 'tb-proj-badge' },
@@ -295,7 +493,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                   onClick: function(e) { e.stopPropagation(); setEditingName(true); },
                   title: 'Click to rename',
                   'aria-label': 'Rename project',
-                  style: { display: 'inline-flex', alignItems: 'center', gap: 4 }
+                  style: { display: 'inline-flex', alignItems: 'center', gap:'var(--s-1)' }
                 },
                 propProjectName || projName,
                 React.createElement('span', {
@@ -323,7 +521,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
             : (syncStatus && syncStatus.hasWatchDir ? ' tb-sync-indicator--folder' : '')),
           onClick: () => {
             if (typeof window.__goHome === 'function') window.__goHome();
-            else window.location.href = 'index.html';
+            else window.location.href = 'home.html';
           },
           'aria-label': 'Sync status',
           title: (function() {
@@ -342,6 +540,14 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
           })()
         ),
 
+        // Command palette trigger — touch users have no Ctrl/Cmd+K affordance.
+        // Mirrors the keyboard shortcut by calling window.CommandPalette.open().
+        window.CommandPalette ? React.createElement('button', {
+          className: 'tb-nav-link',
+          onClick: () => { try { window.CommandPalette.open(); } catch (_) {} },
+          'aria-label': 'Open command palette (Ctrl/Cmd+K)',
+          title: 'Open command palette (Ctrl/Cmd+K)'
+        }, window.Icons && window.Icons.magnify ? window.Icons.magnify() : 'Search') : null,
         React.createElement('button', { className: 'tb-nav-link', onClick: () => { if (window.HelpDrawer) window.HelpDrawer.open({ tab: 'shortcuts' }); else setModal('shortcuts'); }, 'aria-label': 'Keyboard shortcuts', title: 'Keyboard shortcuts' }, window.Icons && window.Icons.keyboard ? window.Icons.keyboard() : 'Shortcuts'),
         React.createElement('button', {
           className: 'tb-nav-link tb-help-btn',
@@ -357,11 +563,12 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         React.createElement('div', { ref: fileMenuRef, style: { position: 'relative', flexShrink: 0 } },
           React.createElement('button', { className: 'tb-page-btn', onClick: () => setFileMenuOpen(o => !o) },
             'File',
-            React.createElement('span', { style: { fontSize: 9, opacity: 0.6, marginLeft: 3 } }, '▾')
+            React.createElement('span', { className: 'tb-page-btn-chev', 'aria-hidden': 'true' },
+              window.Icons && window.Icons.chevronDown ? window.Icons.chevronDown() : null)
           ),
           fileMenuOpen && React.createElement('div', { className: 'tb-page-dropdown', style: { right: 0, left: 'auto', minWidth: 210 } },
             // Storage usage summary
-            storageUsage && React.createElement('div', { style: { padding: '8px 14px 6px', fontSize: 11, color: '#475569', borderBottom: '1px solid #f1f5f9' } },
+            storageUsage && React.createElement('div', { style: { padding: '8px 14px 6px', fontSize:'var(--text-xs)', color: 'var(--text-secondary)', borderBottom: '1px solid var(--surface-tertiary)' } },
               storageUsage.persistent ? React.createElement(React.Fragment, null, Icons.lock(), ' Protected') : React.createElement(React.Fragment, null, Icons.hourglass(), ' Temporary'),
               ' · ',
               (storageUsage.used / 1024 / 1024).toFixed(1) + ' MB'
@@ -401,7 +608,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
             // and the Stash Manager — no longer surfaced in the File menu.
             // Separator before backup/restore
             !!(onNewProject || onOpen || onSave || ((page === 'creator' || page === 'editor') && onTrack) || onExportPDF) &&
-              React.createElement('div', { style: { height: 1, background: '#f1f5f9', margin: '4px 0' } }),
+              React.createElement('div', { style: { height: 1, background: 'var(--surface-tertiary)', margin: '4px 0' } }),
             // Backup — use prop handler if provided (e.g. manager shows status feedback), else inline
             React.createElement('button', {
               className: 'tb-page-dropdown-item',
@@ -428,7 +635,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               })
             ),
             // Sync separator and options
-            typeof SyncEngine !== 'undefined' && React.createElement('div', { style: { height: 1, background: '#f1f5f9', margin: '4px 0' } }),
+            typeof SyncEngine !== 'undefined' && React.createElement('div', { style: { height: 1, background: 'var(--surface-tertiary)', margin: '4px 0' } }),
             typeof SyncEngine !== 'undefined' && React.createElement('button', {
               className: 'tb-page-dropdown-item',
               onClick: () => {

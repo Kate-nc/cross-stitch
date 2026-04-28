@@ -76,7 +76,7 @@ function sableSentence(sableData) {
   if (!isFinite(ratio) || ratio > 1.5)
     return `You're adding thread ${isFinite(ratio) ? Math.round(ratio * 10) / 10 + '×' : 'much'} faster than you're using it.`;
   if (ratio >= 0.8) return 'Your stash is beautifully balanced — adding and using in equal measure.';
-  return 'You're making real progress through your stash.';
+  return "You're making real progress through your stash.";
 }
 
 // ── SABLE Line Chart ─────────────────────────────────────────────
@@ -96,10 +96,10 @@ function SableLineChart({ data }) {
   // Show every other label to avoid crowding
   const labels = data.map((d, i) => {
     if (i % 2 !== 0 && i !== data.length - 1) return null;
-    return h('text', { key: i, x: x(i), y: H - 4, textAnchor: 'middle', fontSize: 10, fill: '#94a3b8' }, fmtMonthShort(d.month));
+    return h('text', { key: i, x: x(i), y: H - 4, textAnchor: 'middle', fontSize: 10, fill: 'var(--text-tertiary)' }, fmtMonthShort(d.month));
   });
 
-  return h('div', { style: { marginTop: 16 } },
+  return h('div', { style: { marginTop:'var(--s-4)' } },
     h('svg', {
       viewBox: `0 0 ${W} ${H}`,
       style: { width: '100%', maxWidth: W, display: 'block' },
@@ -108,23 +108,23 @@ function SableLineChart({ data }) {
     },
       // Grid lines
       [0.25, 0.5, 0.75, 1].map(f =>
-        h('line', { key: f, x1: PAD.left, x2: W - PAD.right, y1: PAD.top + IH * (1 - f), y2: PAD.top + IH * (1 - f), stroke: '#e2e8f0', strokeWidth: 1 })
+        h('line', { key: f, x1: PAD.left, x2: W - PAD.right, y1: PAD.top + IH * (1 - f), y2: PAD.top + IH * (1 - f), stroke: 'var(--border)', strokeWidth: 1 })
       ),
       // Added line (teal)
-      h('polyline', { points: addedPts, fill: 'none', stroke: '#0d9488', strokeWidth: 2.5, strokeLinejoin: 'round', strokeLinecap: 'round' }),
+      h('polyline', { points: addedPts, fill: 'none', stroke: 'var(--accent)', strokeWidth: 2.5, strokeLinejoin: 'round', strokeLinecap: 'round' }),
       // Used line (muted green)
       h('polyline', { points: usedPts, fill: 'none', stroke: '#6ee7b7', strokeWidth: 2, strokeLinejoin: 'round', strokeLinecap: 'round', strokeDasharray: '5 3' }),
       // Dots — added
-      data.map((d, i) => h('circle', { key: 'a' + i, cx: x(i), cy: y(d.added), r: 3, fill: '#0d9488' })),
+      data.map((d, i) => h('circle', { key: 'a' + i, cx: x(i), cy: y(d.added), r: 3, fill: 'var(--accent)' })),
       // Dots — used
       data.map((d, i) => d.used > 0 && h('circle', { key: 'u' + i, cx: x(i), cy: y(d.used), r: 2.5, fill: '#6ee7b7' })),
       // X-axis labels
       ...labels
     ),
     // Legend
-    h('div', { style: { display: 'flex', gap: 20, marginTop: 6, fontSize: 11, color: '#64748b' } },
+    h('div', { style: { display: 'flex', gap: 20, marginTop: 6, fontSize:'var(--text-xs)', color: 'var(--text-tertiary)' } },
       h('span', { style: { display: 'flex', alignItems: 'center', gap: 5 } },
-        h('span', { style: { display: 'inline-block', width: 20, height: 2.5, background: '#0d9488', borderRadius: 2 } }),
+        h('span', { style: { display: 'inline-block', width: 20, height: 2.5, background: 'var(--accent)', borderRadius: 2 } }),
         'Added'
       ),
       h('span', { style: { display: 'flex', alignItems: 'center', gap: 5 } },
@@ -138,10 +138,10 @@ function SableLineChart({ data }) {
 // ── Stash age bar ────────────────────────────────────────────────
 function AgeBar({ ageData }) {
   const buckets = [
-    { key: 'bucketUnder1Yr', label: '<1 yr', color: '#34d399' },
+    { key: 'bucketUnder1Yr', label: '<1 yr', color: '#88B077' },
     { key: 'bucket1to3Yr',   label: '1–3 yr', color: '#38bdf8' },
     { key: 'bucket3to5Yr',   label: '3–5 yr', color: '#818cf8' },
-    { key: 'bucketOver5Yr',  label: '5+ yr',  color: '#c4b5fd' },
+    { key: 'bucketOver5Yr',  label: '5+ yr',  color: 'var(--accent-light)' },
   ];
   const total = buckets.reduce((s, b) => s + (ageData[b.key] || 0), 0);
   if (total === 0) return null;
@@ -151,7 +151,7 @@ function AgeBar({ ageData }) {
   }).join(', ');
   return h('div', null,
     h('div', {
-      style: { display: 'flex', borderRadius: 8, overflow: 'hidden', height: 28 },
+      style: { display: 'flex', borderRadius:'var(--radius-md)', overflow: 'hidden', height: 28 },
       role: 'img',
       'aria-label': `Stash age distribution: ${ariaText}`
     },
@@ -161,7 +161,7 @@ function AgeBar({ ageData }) {
         return h('div', { key: b.key, style: { width: pct + '%', background: b.color }, title: `${b.label}: ${ageData[b.key]}` });
       })
     ),
-    h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '8px 20px', marginTop: 10, fontSize: 12, color: '#64748b' } },
+    h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '8px 20px', marginTop: 10, fontSize:'var(--text-sm)', color: 'var(--text-tertiary)' } },
       buckets.filter(b => (ageData[b.key] || 0) > 0).map(b => {
         const pct = Math.round((ageData[b.key] || 0) / total * 100);
         return h('span', { key: b.key, style: { display: 'flex', alignItems: 'center', gap: 5 } },
@@ -175,9 +175,9 @@ function AgeBar({ ageData }) {
 
 // ── Pattern chip ─────────────────────────────────────────────────
 function PatternChip({ pattern }) {
-  return h('div', { style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '10px 14px', minWidth: 0 } },
-    h('div', { style: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, pattern.title || 'Untitled'),
-    h('div', { style: { fontSize: 11, color: 'var(--text-tertiary)' } }, `${pattern.coveredThreads}/${pattern.totalThreads} threads ready`)
+  return h('div', { style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius:'var(--radius-xl)', padding: '10px 14px', minWidth: 0 } },
+    h('div', { style: { fontSize:'var(--text-md)', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, pattern.title || 'Untitled'),
+    h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)' } }, `${pattern.coveredThreads}/${pattern.totalThreads} threads ready`)
   );
 }
 
@@ -188,7 +188,7 @@ function Divider() {
 
 // ── Section label ────────────────────────────────────────────────
 function SectionLabel({ children }) {
-  return h('div', { style: { fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 10 } }, children);
+  return h('div', { style: { fontSize:'var(--text-xs)', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 10 } }, children);
 }
 
 // ── Share button ─────────────────────────────────────────────────
@@ -197,7 +197,7 @@ function ShareBtn({ onClick }) {
     onClick,
     'aria-label': 'Share this section',
     title: 'Share this section',
-    style: { background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', color: 'var(--text-tertiary)', fontSize: 14, borderRadius: 6, display: 'inline-flex', alignItems: 'center', gap: 4 }
+    style: { background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', color: 'var(--text-tertiary)', fontSize:'var(--text-lg)', borderRadius:'var(--radius-sm)', display: 'inline-flex', alignItems: 'center', gap:'var(--s-1)' }
   },
     h('svg', { width: 15, height: 15, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': 'true' },
       h('circle', { cx: 18, cy: 5, r: 3 }),
@@ -269,14 +269,14 @@ function ShareModal({ title, drawFn, onClose }) {
     } catch(e) { console.warn('Copy failed:', e); }
   }, []);
 
-  return h('div', { className: 'modal-overlay', onClick: handleClose },
+  return h('div', { className: 'modal-overlay', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'showcase-share-title', onClick: handleClose },
     h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 500, textAlign: 'center' } },
       h('button', { ref: closeBtnRef, className: 'modal-close', onClick: handleClose, 'aria-label': 'Close share modal' }, '×'),
-      h('h3', { style: { marginTop: 0, marginBottom: 12, fontSize: 18, color: 'var(--text-primary)' } }, title || 'Share'),
-      h('canvas', { ref: canvasRef, style: { width: '100%', maxWidth: 420, borderRadius: 8, border: '1px solid var(--border)', marginBottom: 12, display: 'block', margin: '0 auto 12px' } }),
-      rendered && h('div', { style: { display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' } },
-        h('button', { onClick: handleDownload, style: { padding: '8px 18px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600, cursor: 'pointer' } }, 'Download PNG'),
-        h('button', { onClick: handleCopy, style: { padding: '8px 18px', background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600, cursor: 'pointer' } }, copied ? 'Copied!' : 'Copy to clipboard')
+      h('h3', { id: 'showcase-share-title', style: { marginTop: 0, marginBottom:'var(--s-3)', fontSize: 18, color: 'var(--text-primary)' } }, title || 'Share'),
+      h('canvas', { ref: canvasRef, style: { width: '100%', maxWidth: 420, borderRadius:'var(--radius-md)', border: '1px solid var(--border)', marginBottom:'var(--s-3)', display: 'block', margin: '0 auto 12px' } }),
+      rendered && h('div', { style: { display: 'flex', gap:'var(--s-2)', justifyContent: 'center', flexWrap: 'wrap' } },
+        h('button', { onClick: handleDownload, style: { padding: '8px 18px', background: 'var(--accent)', color: 'var(--surface)', border: 'none', borderRadius: 'var(--radius-md)', fontSize:'var(--text-md)', fontWeight: 600, cursor: 'pointer' } }, 'Download PNG'),
+        h('button', { onClick: handleCopy, style: { padding: '8px 18px', background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize:'var(--text-md)', fontWeight: 600, cursor: 'pointer' } }, copied ? 'Copied!' : 'Copy to clipboard')
       )
     )
   );
@@ -284,10 +284,10 @@ function ShareModal({ title, drawFn, onClose }) {
 
 // ── Canvas draw helpers ──────────────────────────────────────────
 const CARD_BG = '#faf9f7';
-const CARD_ACCENT = '#0d9488';
-const CARD_TEXT_PRI = '#1e293b';
-const CARD_TEXT_SEC = '#64748b';
-const CARD_BORDER = '#e2e8f0';
+const CARD_ACCENT = '#B85C38';
+const CARD_TEXT_PRI = '#1B1814';
+const CARD_TEXT_SEC = '#8A8270';
+const CARD_BORDER = '#E5DCCB';
 
 function drawCardBase(ctx, W, H) {
   ctx.fillStyle = CARD_BG;
@@ -296,7 +296,7 @@ function drawCardBase(ctx, W, H) {
   ctx.lineWidth = 1;
   ctx.strokeRect(0.5, 0.5, W - 1, H - 1);
   // subtle cross-stitch pattern along top
-  ctx.fillStyle = '#e2e8f0';
+  ctx.fillStyle = '#E5DCCB';
   for (let x = 20; x < W - 20; x += 22) {
     ctx.fillRect(x, 10, 5, 5);
   }
@@ -317,7 +317,7 @@ function drawText(ctx, text, x, y, size, weight, color) {
 }
 
 function drawWatermark(ctx, W, H) {
-  ctx.fillStyle = '#cbd5e1';
+  ctx.fillStyle = '#CFC4AC';
   ctx.font = '400 16px Inter, system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText('cross stitch pattern generator', W / 2, H - 20);
@@ -367,7 +367,7 @@ function makeSableCanvas(canvas, sableData, headline) {
     const px = i => chartX + (i / (sableData.length - 1)) * chartW;
     const py = v => chartY + chartH - (v / maxV) * chartH;
     // Grid
-    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+    ctx.strokeStyle = '#E5DCCB'; ctx.lineWidth = 1;
     [0.25, 0.5, 0.75, 1].forEach(f => {
       ctx.beginPath(); ctx.moveTo(chartX, chartY + chartH * (1 - f)); ctx.lineTo(chartX + chartW, chartY + chartH * (1 - f)); ctx.stroke();
     });
@@ -406,10 +406,10 @@ function makeAgeCanvas(canvas, ageData) {
   drawCardBase(ctx, W, H);
   drawLabel(ctx, 'stash age', W / 2, 150, 22, CARD_TEXT_SEC);
   const buckets = [
-    { key: 'bucketUnder1Yr', label: '<1 yr', color: '#34d399' },
+    { key: 'bucketUnder1Yr', label: '<1 yr', color: '#88B077' },
     { key: 'bucket1to3Yr',   label: '1–3 yr', color: '#38bdf8' },
     { key: 'bucket3to5Yr',   label: '3–5 yr', color: '#818cf8' },
-    { key: 'bucketOver5Yr',  label: '5+ yr',  color: '#c4b5fd' },
+    { key: 'bucketOver5Yr',  label: '5+ yr',  color: 'var(--accent-light)' },
   ];
   const total = buckets.reduce((s, b) => s + (ageData[b.key] || 0), 0);
   if (total > 0) {
@@ -462,7 +462,7 @@ function makeFullPageCanvas(canvas, data) {
   ctx.fillStyle = CARD_BG;
   ctx.fillRect(0, 0, W, H);
   // Subtle dot-grid background
-  ctx.fillStyle = '#e2e8f0';
+  ctx.fillStyle = '#E5DCCB';
   for (let gx = 30; gx < W; gx += 30) for (let gy = 30; gy < H; gy += 30) ctx.fillRect(gx - 1, gy - 1, 2, 2);
 
   let cy = 80;
@@ -536,10 +536,10 @@ function makeFullPageCanvas(canvas, data) {
   if (ageData && hasMeaningfulAgeData(ageData)) {
     section('stash age', () => {
       const buckets = [
-        { key: 'bucketUnder1Yr', label: '<1 yr', color: '#34d399' },
+        { key: 'bucketUnder1Yr', label: '<1 yr', color: '#88B077' },
         { key: 'bucket1to3Yr',   label: '1–3 yr', color: '#38bdf8' },
         { key: 'bucket3to5Yr',   label: '3–5 yr', color: '#818cf8' },
-        { key: 'bucketOver5Yr',  label: '5+ yr',  color: '#c4b5fd' },
+        { key: 'bucketOver5Yr',  label: '5+ yr',  color: 'var(--accent-light)' },
       ];
       const total = buckets.reduce((s, b) => s + (ageData[b.key] || 0), 0);
       if (total > 0) {
@@ -646,7 +646,7 @@ function BrandDonut({ mix }) {
   const legend = entries.slice(0, 4).map(([brand, count]) => {
     const color = BRAND_COLORS[brand] || BRAND_COLORS.other;
     const pct = Math.round(count / total * 100);
-    return h('div', { key: brand, style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-primary)', marginBottom: 4 } },
+    return h('div', { key: brand, style: { display: 'flex', alignItems: 'center', gap: 6, fontSize:'var(--text-sm)', color: 'var(--text-primary)', marginBottom:'var(--s-1)' } },
       h('span', { style: { width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0 } }),
       h('span', null, brand.toUpperCase()),
       h('span', { style: { color: 'var(--text-tertiary)', marginLeft: 'auto', paddingLeft: 8 } }, pct + '%')
@@ -786,7 +786,10 @@ function StatsShowcase({ onClose, onNavigateToDashboard, onNavigateToActivity })
     const section = urlParams.get('section');
     if (section) {
       const el = document.getElementById('showcase-' + section);
-      if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+      if (el) setTimeout(() => {
+        var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        el.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+      }, 80);
     }
     // Open share modal if ?share=true
     if (urlParams.get('share') === 'true') {
@@ -796,11 +799,11 @@ function StatsShowcase({ onClose, onNavigateToDashboard, onNavigateToActivity })
 
   // ── Render ────────────────────────────────────────────────────
   const pageStyle = { maxWidth: 680, margin: '0 auto', padding: '0 20px 80px', fontFamily: 'inherit' };
-  const linkStyle = { fontSize: 12, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none' };
+  const linkStyle = { fontSize:'var(--text-sm)', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none' };
 
   if (loading) {
     return h('div', { style: Object.assign({}, pageStyle, { paddingTop: 60, textAlign: 'center', color: 'var(--text-tertiary)' }) },
-      h('div', { style: { width: 28, height: 28, border: '2.5px solid #e2e8f0', borderTopColor: '#0d9488', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' } }),
+      h('div', { style: { width: 28, height: 28, border: '2.5px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 14px' } }),
       'Loading your showcase…'
     );
   }
@@ -810,16 +813,16 @@ function StatsShowcase({ onClose, onNavigateToDashboard, onNavigateToActivity })
     // ── Page header ──────────────────────────────────────────────
     h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 24, paddingBottom: 8 } },
       h('div', null,
-        h('div', { style: { fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 2 } }, 'your stitching'),
+        h('div', { style: { fontSize:'var(--text-xs)', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 2 } }, 'your stitching'),
         h('h2', { style: { fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--text-primary)' } }, 'Showcase')
       ),
-      h('div', { style: { display: 'flex', alignItems: 'center', gap: 12 } },
-        h('button', { onClick: () => openShare('page'), style: Object.assign({}, linkStyle, { fontSize: 13 }), 'aria-label': 'Share this page as an image' },
-          'Share page ↑'
+      h('div', { style: { display: 'flex', alignItems: 'center', gap:'var(--s-3)' } },
+        h('button', { onClick: () => openShare('page'), style: Object.assign({}, linkStyle, { fontSize:'var(--text-md)', display:'inline-flex', alignItems:'center', gap:4 }), 'aria-label': 'Share this page as an image' },
+          'Share page', window.Icons && Icons.chevronUp && h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex' } }, Icons.chevronUp())
         ),
-        onNavigateToActivity && h('button', { onClick: onNavigateToActivity, style: linkStyle }, 'Activity \u2192'),
-        h('button', { onClick: onNavigateToDashboard, style: linkStyle },
-          'Full dashboard →'
+        onNavigateToActivity && h('button', { onClick: onNavigateToActivity, style: Object.assign({}, linkStyle, { display:'inline-flex', alignItems:'center', gap:4 }) }, 'Activity', window.Icons && Icons.chevronRight && h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex' } }, Icons.chevronRight())),
+        h('button', { onClick: onNavigateToDashboard, style: Object.assign({}, linkStyle, { display:'inline-flex', alignItems:'center', gap:4 }) },
+          'Full dashboard', window.Icons && Icons.chevronRight && h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex' } }, Icons.chevronRight())
         )
       )
     ),
@@ -827,7 +830,7 @@ function StatsShowcase({ onClose, onNavigateToDashboard, onNavigateToActivity })
     // ── Tracking since banner ────────────────────────────────────
     showBanner && h('div', {
       role: 'status',
-      style: { background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 10, padding: '10px 14px', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, fontSize: 13, color: '#0f766e' }
+      style: { background: 'var(--accent-light)', border: '1px solid var(--accent-border)', borderRadius:'var(--radius-lg)', padding: '10px 14px', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap:'var(--s-3)', fontSize:'var(--text-md)', color: 'var(--accent-hover)' }
     },
       h('span', null, 'Tracking since ' + (function() {
         let earliest = null;
@@ -838,7 +841,7 @@ function StatsShowcase({ onClose, onNavigateToDashboard, onNavigateToActivity })
         }
         return earliest ? fmtDate(earliest) : 'recently';
       })() + ' — this page will get richer as your history builds.'),
-      h('button', { onClick: handleDismissBanner, style: { background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#0f766e', padding: '0 4px', lineHeight: 1 }, 'aria-label': 'Dismiss banner' }, '×')
+      h('button', { onClick: handleDismissBanner, style: { background: 'none', border: 'none', cursor: 'pointer', fontSize:'var(--text-xl)', color: 'var(--accent-hover)', padding: '0 4px', lineHeight: 1 }, 'aria-label': 'Dismiss banner' }, '×')
     ),
 
     // ── Section 1: Lifetime hero ─────────────────────────────────
@@ -855,8 +858,8 @@ function StatsShowcase({ onClose, onNavigateToDashboard, onNavigateToActivity })
         lifetimeStitches > 0
           ? h('div', null,
               h('div', { style: { fontSize: 18, color: 'var(--accent)', marginTop: 6, fontWeight: 500 } }, `≈ ${threadKm(lifetimeStitches)} km of thread`),
-              h('div', { style: { marginTop: 8 } },
-                h('button', { onClick: () => openShare('lifetime'), style: Object.assign({}, linkStyle, { fontSize: 12 }) }, 'Share card →')
+              h('div', { style: { marginTop:'var(--s-2)' } },
+                h('button', { onClick: () => openShare('lifetime'), style: Object.assign({}, linkStyle, { fontSize:'var(--text-sm)', display:'inline-flex', alignItems:'center', gap:4 }) }, 'Share card', window.Icons && Icons.chevronRight && h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex' } }, Icons.chevronRight()))
               )
             )
           : h('div', { style: { fontSize: 15, color: 'var(--text-secondary)', marginTop: 10, maxWidth: 420, lineHeight: 1.6 } },
@@ -881,7 +884,7 @@ function StatsShowcase({ onClose, onNavigateToDashboard, onNavigateToActivity })
     // If SABLE hidden due to early user, show calm placeholder
     !showSable && earlyUser && h('div', null,
       h(Divider),
-      h('section', { id: 'showcase-sable', style: { color: 'var(--text-tertiary)', fontSize: 14, lineHeight: 1.6 } },
+      h('section', { id: 'showcase-sable', style: { color: 'var(--text-tertiary)', fontSize:'var(--text-lg)', lineHeight: 1.6 } },
         h(SectionLabel, null, 'Stash vs. Use'),
         'Your stash journey will chart here once there\'s a few months to draw from.'
       )
@@ -897,7 +900,7 @@ function StatsShowcase({ onClose, onNavigateToDashboard, onNavigateToActivity })
         ),
         brandSentence && h('h3', { id: 'showcase-brandmix-heading', style: { fontSize: 18, fontWeight: 600, margin: '0 0 14px', color: 'var(--text-primary)', lineHeight: 1.4 } }, brandSentence),
         h(BrandDonut, { mix: brandMix }),
-        h('div', { style: { marginTop: 8 } }, h('button', { onClick: () => openShare('brandmix'), style: Object.assign({}, linkStyle, { fontSize: 12 }) }, 'Share card \u2192'))
+        h('div', { style: { marginTop:'var(--s-2)' } }, h('button', { onClick: () => openShare('brandmix'), style: Object.assign({}, linkStyle, { fontSize:'var(--text-sm)' }) }, 'Share card \u2192'))
       )
     ),
 
@@ -930,7 +933,7 @@ function StatsShowcase({ onClose, onNavigateToDashboard, onNavigateToActivity })
           })()
         ),
         h(AgeBar, { ageData }),
-        ageData.oldest && h('div', { style: { marginTop: 12, fontSize: 13, color: 'var(--text-secondary)' } },
+        ageData.oldest && h('div', { style: { marginTop:'var(--s-3)', fontSize:'var(--text-md)', color: 'var(--text-secondary)' } },
           `Oldest: ${ageData.oldest.name} · in stash since ${fmtDate(ageData.oldest.addedAt)}`
         )
       )
@@ -945,13 +948,13 @@ function StatsShowcase({ onClose, onNavigateToDashboard, onNavigateToActivity })
           h(ShareBtn, { onClick: () => openShare('oldest') })
         ),
         h('h3', { id: 'showcase-oldest-heading', style: { fontSize: 28, fontWeight: 700, margin: '0 0 6px', color: 'var(--text-primary)' } }, oldestWip.name || 'Untitled'),
-        h('p', { style: { fontSize: 16, color: 'var(--text-secondary)', margin: '0 0 4px', lineHeight: 1.6 } },
+        h('p', { style: { fontSize:'var(--text-xl)', color: 'var(--text-secondary)', margin: '0 0 4px', lineHeight: 1.6 } },
           (() => {
             const days = daysBetween(new Date(oldestWip.lastTouchedAt).getTime(), Date.now());
             return `Together for ${days} day${days === 1 ? '' : 's'}, ${oldestWip.pct}% of the way through.`;
           })()
         ),
-        oldestWip.lastTouchedAt && h('p', { style: { fontSize: 13, color: 'var(--text-tertiary)', margin: 0 } },
+        oldestWip.lastTouchedAt && h('p', { style: { fontSize:'var(--text-md)', color: 'var(--text-tertiary)', margin: 0 } },
           `Last worked on ${fmtDaysSince(oldestWip.lastTouchedAt)}.`
         )
       )

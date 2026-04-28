@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proposal A — "Keeper" — Mobile Mockup</title>
+<style>
+  /* ───── Reset & Tokens ───── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f172a; --surface: #1e293b; --surface-hi: #334155;
+    --border: #475569; --text: #f1f5f9; --text-dim: #94a3b8;
+    --accent: #0d9488; --accent-fg: #ccfbf1;
+    --done: #22c55e; --undone: #64748b;
+    --radius: 10px;
+    --header-h: 44px; --colour-bar-h: 40px; --bottom-bar-h: 52px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  html { font-size: 14px; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    height: 100dvh; display: flex; flex-direction: column;
+    overflow: hidden; -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  /* ───── Header (44px) ───── */
+  .header {
+    height: var(--header-h); min-height: var(--header-h);
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 12px; gap: 10px;
+    z-index: 20;
+  }
+  .header .logo { font-weight: 700; font-size: 0.95rem; white-space: nowrap; }
+  .header .logo span { color: var(--accent); }
+  .header .page-select {
+    background: var(--surface-hi); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 8px; font-size: 0.85rem;
+  }
+  .header .spacer { flex: 1; }
+  .header .menu-btn {
+    width: 36px; height: 36px; display: grid; place-items: center;
+    background: none; border: none; color: var(--text-dim); font-size: 1.2rem;
+    border-radius: 8px; cursor: pointer;
+  }
+  .header .menu-btn:active { background: var(--surface-hi); }
+
+  /* ───── Colour Bar (40px) ───── */
+  .colour-bar {
+    height: var(--colour-bar-h); min-height: var(--colour-bar-h);
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 8px; gap: 6px;
+    z-index: 15;
+  }
+  .colour-bar .arrow {
+    width: 32px; height: 32px; display: grid; place-items: center;
+    background: none; border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text-dim); font-size: 0.9rem; cursor: pointer;
+  }
+  .colour-bar .arrow:active { background: var(--surface-hi); }
+  .colour-bar .swatch {
+    width: 24px; height: 24px; border-radius: 4px; border: 2px solid var(--text-dim);
+    flex-shrink: 0;
+  }
+  .colour-bar .colour-name {
+    font-weight: 600; font-size: 0.85rem; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; flex: 1;
+  }
+  .colour-bar .colour-name small { font-weight: 400; color: var(--text-dim); }
+  .colour-bar .progress-badge {
+    font-size: 0.8rem; font-weight: 600; color: var(--accent);
+    white-space: nowrap;
+  }
+
+  /* ───── Canvas Area (fills remaining space) ───── */
+  .canvas-area {
+    flex: 1; position: relative; overflow: hidden;
+    background: #1a1a2e;
+    /* Subtle grid hint */
+    background-image:
+      linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+  .canvas-placeholder {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    color: var(--text-dim); font-size: 0.9rem; text-align: center;
+    padding: 20px; line-height: 1.6;
+  }
+  .canvas-placeholder .grid {
+    width: 200px; height: 200px; display: grid;
+    grid-template-columns: repeat(10, 1fr); grid-template-rows: repeat(10, 1fr);
+    gap: 1px; opacity: 0.5;
+  }
+  .canvas-placeholder .cell {
+    border-radius: 2px;
+  }
+
+  /* ───── Floating Undo ───── */
+  .undo-fab {
+    position: absolute; bottom: 16px; left: 12px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 8px 14px;
+    color: var(--text-dim); font-size: 0.8rem;
+    display: flex; align-items: center; gap: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.4);
+    cursor: pointer; z-index: 10;
+  }
+  .undo-fab:active { background: var(--surface-hi); }
+
+  /* ───── Bottom Bar (52px + safe area) ───── */
+  .bottom-bar {
+    height: calc(var(--bottom-bar-h) + var(--safe-bottom));
+    min-height: calc(var(--bottom-bar-h) + var(--safe-bottom));
+    padding-bottom: var(--safe-bottom);
+    background: var(--surface); border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-around;
+    padding-left: 8px; padding-right: 8px;
+    z-index: 20;
+  }
+  .bottom-bar .bb-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    background: none; border: none; color: var(--text-dim);
+    font-size: 0.65rem; padding: 6px 12px; border-radius: 8px;
+    cursor: pointer; min-width: 56px;
+    /* Ensure 44×44 touch target */
+    min-height: 44px; justify-content: center;
+  }
+  .bottom-bar .bb-btn .icon { font-size: 1.25rem; }
+  .bottom-bar .bb-btn.active { color: var(--accent); }
+  .bottom-bar .bb-btn:active { background: var(--surface-hi); }
+  .bottom-bar .session-badge {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    background: none; border: none; color: var(--done);
+    font-size: 0.65rem; padding: 6px 12px; border-radius: 8px;
+    cursor: pointer; min-width: 56px; min-height: 44px; justify-content: center;
+  }
+  .bottom-bar .session-badge .count { font-size: 1.1rem; font-weight: 700; }
+
+  /* ───── Bottom Sheet (colour legend) ───── */
+  .sheet-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.5);
+    z-index: 50; display: none;
+  }
+  .sheet-overlay.open { display: block; }
+  .bottom-sheet {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    max-height: 60dvh; background: var(--surface);
+    border-radius: 16px 16px 0 0; z-index: 51;
+    transform: translateY(100%); transition: transform .25s ease;
+    display: flex; flex-direction: column;
+    padding-bottom: var(--safe-bottom);
+  }
+  .bottom-sheet.open { transform: translateY(0); }
+  .sheet-handle {
+    width: 36px; height: 4px; background: var(--border);
+    border-radius: 2px; margin: 8px auto;
+  }
+  .sheet-header {
+    padding: 4px 16px 8px; font-weight: 600; font-size: 0.9rem;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .sheet-body {
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 8px 0;
+  }
+  .colour-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px;
+    min-height: 48px; /* 44px touch target + padding */
+    cursor: pointer;
+  }
+  .colour-row:active { background: var(--surface-hi); }
+  .colour-row.active { background: rgba(13,148,136,.15); }
+  .colour-row .row-swatch {
+    width: 28px; height: 28px; border-radius: 6px;
+    border: 2px solid var(--border); flex-shrink: 0;
+  }
+  .colour-row .row-label { flex: 1; }
+  .colour-row .row-label .dmc-id { font-weight: 600; font-size: 0.85rem; }
+  .colour-row .row-label .dmc-name { font-size: 0.75rem; color: var(--text-dim); }
+  .colour-row .row-progress {
+    font-size: 0.8rem; color: var(--text-dim); text-align: right; white-space: nowrap;
+  }
+  .colour-row .row-progress .pct { font-weight: 600; color: var(--accent); }
+  .colour-row .row-done { color: var(--done); font-size: 0.8rem; font-weight: 600; }
+
+  /* ───── Annotations ───── */
+  .annotation {
+    position: absolute; font-size: 0.65rem; color: var(--accent);
+    background: rgba(13,148,136,.15); border: 1px dashed var(--accent);
+    border-radius: 4px; padding: 2px 6px; pointer-events: none;
+    white-space: nowrap; z-index: 30;
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════ HEADER ═══════ -->
+<div class="header">
+  <div class="logo">🧵 <span>Cross Stitch</span></div>
+  <select class="page-select">
+    <option>Create</option>
+    <option selected>Track</option>
+    <option>Stash</option>
+  </select>
+  <div class="spacer"></div>
+  <button class="menu-btn" title="Menu" aria-label="Menu">⋯</button>
+</div>
+
+<!-- ═══════ COLOUR BAR ═══════ -->
+<div class="colour-bar" aria-label="Active colour selector — swipe up for full legend">
+  <button class="arrow" aria-label="Previous colour">◀</button>
+  <div class="swatch" style="background:#000"></div>
+  <div class="colour-name">310 Black <small>· 45 st left</small></div>
+  <div class="progress-badge">73%</div>
+  <button class="arrow" aria-label="Next colour">▶</button>
+</div>
+
+<!-- ═══════ CANVAS AREA ═══════ -->
+<div class="canvas-area">
+  <!-- Simulated stitch grid -->
+  <div class="canvas-placeholder">
+    <div>
+      <div class="grid" id="grid"></div>
+      <div style="margin-top: 12px; font-size: 0.75rem; color: var(--text-dim)">
+        Canvas fills all remaining space<br>
+        ~136px chrome total (header + colour bar + bottom bar)
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating undo pill -->
+  <div class="undo-fab" aria-label="Undo last action">
+    ↩ Undo
+  </div>
+
+  <!-- Annotations showing dimensions -->
+  <div class="annotation" style="top: 8px; left: 50%; transform: translateX(-50%);">
+    header: 44px
+  </div>
+  <div class="annotation" style="bottom: 8px; left: 50%; transform: translateX(-50%);">
+    bottom bar: 52px (+ safe area)
+  </div>
+</div>
+
+<!-- ═══════ BOTTOM BAR ═══════ -->
+<div class="bottom-bar">
+  <button class="bb-btn" aria-label="Pan mode">
+    <span class="icon">✋</span>
+    Pan
+  </button>
+  <button class="bb-btn active" aria-label="Mark stitch mode">
+    <span class="icon">✏️</span>
+    Mark
+  </button>
+  <button class="bb-btn" aria-label="Range select" style="opacity:.5">
+    <span class="icon">⊞</span>
+    Range
+  </button>
+  <button class="session-badge" aria-label="Session progress: 1,230 stitches">
+    <span class="count">1,230</span>
+    stitches
+  </button>
+</div>
+
+<!-- ═══════ BOTTOM SHEET (colour legend) ═══════ -->
+<div class="sheet-overlay" id="sheetOverlay"></div>
+<div class="bottom-sheet" id="colourSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header">
+    <span>Colours (12)</span>
+    <span style="font-size: .75rem; color: var(--text-dim)">23.4% overall</span>
+  </div>
+  <div class="sheet-body">
+    <div class="colour-row active">
+      <div class="row-swatch" style="background:#000"></div>
+      <div class="row-label">
+        <div class="dmc-id">310</div>
+        <div class="dmc-name">Black</div>
+      </div>
+      <div class="row-progress"><span class="pct">73%</span> · 123/168</div>
+    </div>
+    <div class="colour-row">
+      <div class="row-swatch" style="background:#c4190a"></div>
+      <div class="row-label">
+        <div class="dmc-id">321</div>
+        <div class="dmc-name">Red</div>
+      </div>
+      <div class="row-progress"><span class="pct">37%</span> · 30/82</div>
+    </div>
+    <div class="colour-row">
+      <div class="row-swatch" style="background:#87428a"></div>
+      <div class="row-label">
+        <div class="dmc-id">550</div>
+        <div class="dmc-name">Very Dark Violet</div>
+      </div>
+      <div class="row-progress"><span class="pct">0%</span> · 0/23</div>
+    </div>
+    <div class="colour-row">
+      <div class="row-swatch" style="background:#3c3c3c"></div>
+      <div class="row-label">
+        <div class="dmc-id">3799</div>
+        <div class="dmc-name">Very Dark Pewter Grey</div>
+      </div>
+      <div class="row-progress"><span class="pct">53%</span> · 8/15</div>
+    </div>
+    <div class="colour-row">
+      <div class="row-swatch" style="background:#e8d568"></div>
+      <div class="row-label">
+        <div class="dmc-id">726</div>
+        <div class="dmc-name">Light Topaz</div>
+      </div>
+      <div class="row-done">✓ Done</div>
+    </div>
+    <div class="colour-row">
+      <div class="row-swatch" style="background:#2e5984"></div>
+      <div class="row-label">
+        <div class="dmc-id">931</div>
+        <div class="dmc-name">Medium Antique Blue</div>
+      </div>
+      <div class="row-progress"><span class="pct">12%</span> · 6/50</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Populate mock grid
+  const grid = document.getElementById('grid');
+  const colours = ['#000','#c4190a','#87428a','#3c3c3c','#e8d568','#2e5984','#0d9488','#fff'];
+  for (let i = 0; i < 100; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.style.background = colours[Math.floor(Math.random() * colours.length)];
+    if (Math.random() > 0.6) cell.style.opacity = '0.3'; // simulate "done" dim
+    grid.appendChild(cell);
+  }
+
+  // Bottom sheet toggle (tap colour bar to open, overlay to close)
+  const bar = document.querySelector('.colour-bar');
+  const sheet = document.getElementById('colourSheet');
+  const overlay = document.getElementById('sheetOverlay');
+  let open = false;
+
+  function toggleSheet() {
+    open = !open;
+    sheet.classList.toggle('open', open);
+    overlay.classList.toggle('open', open);
+  }
+  bar.addEventListener('click', e => {
+    if (e.target.closest('.arrow')) return; // let arrows cycle colour
+    toggleSheet();
+  });
+  overlay.addEventListener('click', toggleSheet);
+
+  // Mode switching
+  const btns = document.querySelectorAll('.bb-btn');
+  btns.forEach(btn => btn.addEventListener('click', () => {
+    btns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }));
+</script>
+</body>
+</html>

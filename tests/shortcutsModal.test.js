@@ -35,7 +35,27 @@ function flatten(arr) {
   });
   return out;
 }
-global.React = { createElement: ce, useEffect: () => {} };
+global.React = {
+  createElement: ce,
+  useEffect: () => {},
+  // Minimal useState stub: returns the initial value and a no-op setter.
+  // Sufficient for snapshot-style tests that only inspect the first render.
+  // The Shortcuts modal uses useState to track an inline confirm flow for
+  // the "Reset preview preferences" button (audit batch 2 fix #1) — the
+  // flow defaults to 'idle', which is what we need here.
+  useState: (initial) => [typeof initial === 'function' ? initial() : initial, () => {}]
+};
+
+// Stub window.Overlay primitive (UX-12 Phase 3b) — modals.js wraps the
+// Shortcuts dialog in <Overlay> and renders Overlay.CloseButton.
+function OverlayStub(props /*, ...children */) {
+  return ce('div', { 'data-overlay': true }, ...Array.prototype.slice.call(arguments, 1));
+}
+OverlayStub.CloseButton = function CloseButtonStub(p) { return ce('button', p, '×'); };
+OverlayStub.Title = function (p) { return ce('h2', p); };
+OverlayStub.Body = function (p) { return ce('div', p); };
+OverlayStub.Footer = function (p) { return ce('div', p); };
+global.Overlay = OverlayStub;
 
 // Load the registry + modals. Replace `const SharedModals` with a global
 // assignment so we can reach it from the test scope after eval.

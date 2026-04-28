@@ -16,12 +16,16 @@
     var useEffect = React.useEffect;
     var onClose = props.onClose;
 
-    if (typeof window.useEscape === 'function') window.useEscape(onClose);
+    // ESC + scrim + focus trap delegated to <Overlay>.
 
     var _profile = useState(null);
     var profile = _profile[0], setProfile = _profile[1];
     var _copied = useState(false);
     var copied = _copied[0], setCopied = _copied[1];
+    var _pushed = useState(false);
+    var pushed = _pushed[0], setPushed = _pushed[1];
+    var _pushBusy = useState(false);
+    var pushBusy = _pushBusy[0], setPushBusy = _pushBusy[1];
 
     // Read user profile (for strands/waste) from manager DB. Defaults if unavailable.
     useEffect(function () {
@@ -146,76 +150,108 @@
       } catch (_) {}
     }
 
+    function pushToStash() {
+      // Step 3 (Shopping List rebuild): one-tap push of the "need to buy" rows
+      // into the Stash Manager My-list view, seeding tobuy_qty so the manager
+      // shows the right quantity without the user re-typing it.
+      if (pushBusy || buyRows.length === 0) return;
+      if (!(window.StashBridge && typeof StashBridge.setToBuyQtyMany === 'function')) {
+        if (window.Toast) window.Toast.show({ message: 'StashBridge unavailable. Open the Stash Manager and try again.', type: 'error' });
+        return;
+      }
+      setPushBusy(true);
+      var qtyMap = {};
+      buyRows.forEach(function (r) {
+        qtyMap[r.brand + ':' + r.id] = r.missing > 0 ? r.missing : r.needed;
+      });
+      Promise.resolve(StashBridge.setToBuyQtyMany(qtyMap))
+        .then(function (n) {
+          setPushed(true);
+          setTimeout(function () { setPushed(false); }, 2500);
+          if (window.Toast) {
+            window.Toast.show({
+              message: 'Added ' + buyRows.length + ' thread' + (buyRows.length === 1 ? '' : 's') + ' to your Stash shopping list.',
+              type: 'success', duration: 3000
+            });
+          }
+        })
+        .catch(function (e) {
+          console.error('Push to Stash shopping list failed:', e);
+          if (window.Toast) window.Toast.show({ message: 'Could not add to Stash list: ' + (e && e.message || e), type: 'error' });
+        })
+        .then(function () { setPushBusy(false); });
+    }
+
     var sectionLabel = function (text, color) {
-      return h('div', { style: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.04, color: color, margin: '12px 0 6px' } }, text);
+      return h('div', { style: { fontSize:'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.04, color: color, margin: '12px 0 6px' } }, text);
     };
     var rowEl = function (r, kind) {
-      var bg = kind === 'owned' ? '#f0fdf4' : '#fef2f2';
-      var border = kind === 'owned' ? '#bbf7d0' : '#fecaca';
+      var bg = kind === 'owned' ? 'var(--success-soft)' : 'var(--danger-soft)';
+      var border = kind === 'owned' ? 'var(--success-soft)' : 'var(--danger-soft)';
       var note = kind === 'owned'
         ? 'own ' + r.owned + ', need ~' + r.needed
         : 'need ~' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + (r.owned > 0 ? ' (own ' + r.owned + ')' : '');
       return h('div', {
         key: r.id,
-        style: { display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', background: bg, borderRadius: 6, border: '1px solid ' + border, marginBottom: 4 }
+        style: { display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', background: bg, borderRadius:'var(--radius-sm)', border: '1px solid ' + border, marginBottom:'var(--s-1)' }
       },
-        h('div', { style: { width: 16, height: 16, borderRadius: 3, background: 'rgb(' + r.rgb + ')', border: '1px solid #cbd5e1', flexShrink: 0 } }),
-        h('div', { style: { width: 38, fontWeight: 700, fontSize: 12, flexShrink: 0 } }, r.id),
-        h('div', { style: { flex: 1, fontSize: 12, color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.name),
-        h('div', { style: { fontSize: 11, color: kind === 'owned' ? '#15803d' : '#b91c1c', fontWeight: 500, flexShrink: 0 } }, note)
+        h('div', { style: { width: 16, height: 16, borderRadius: 3, background: 'rgb(' + r.rgb + ')', border: '1px solid var(--border)', flexShrink: 0 } }),
+        h('div', { style: { width: 38, fontWeight: 700, fontSize:'var(--text-sm)', flexShrink: 0 } }, r.id),
+        h('div', { style: { flex: 1, fontSize:'var(--text-sm)', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.name),
+        h('div', { style: { fontSize:'var(--text-xs)', color: kind === 'owned' ? 'var(--success)' : 'var(--danger)', fontWeight: 500, flexShrink: 0 } }, note)
       );
     };
 
-    return h('div', { className: 'modal-overlay', onClick: onClose, style: { zIndex: 1000 } },
-      h('div', {
-        className: 'modal-content',
-        onClick: function (e) { e.stopPropagation(); },
-        style: { maxWidth: 540, width: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 0 }
-      },
-        h('div', { style: { padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-          h('h2', { style: { margin: 0, fontSize: 18 } }, 'What do I need to buy?'),
-          h('button', {
-            onClick: onClose,
-            style: { background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#94a3b8' }
-          }, '\u00D7')
+    return h(window.Overlay, {
+      onClose: onClose, className: 'modal-content', zIndex: 1000, labelledBy: 'shopping-list-title',
+      style: { maxWidth: 540, width: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 0 }
+    },
+        h('div', { style: { padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+          h('h2', { id: 'shopping-list-title', style: { margin: 0, fontSize: 18 } }, 'What do I need to buy?'),
+          h(window.Overlay.CloseButton, { onClose: onClose, style: { position: 'static' } })
         ),
         h('div', {
           style: {
-            padding: '10px 20px', background: buyRows.length === 0 ? '#f0fdf4' : '#fffbeb',
-            borderBottom: '1px solid #e2e8f0', fontSize: 12,
-            color: buyRows.length === 0 ? '#15803d' : '#92400e', fontWeight: 600
+            padding: '10px 20px', background: buyRows.length === 0 ? 'var(--success-soft)' : '#FAF5E1',
+            borderBottom: '1px solid var(--border)', fontSize:'var(--text-sm)',
+            color: buyRows.length === 0 ? 'var(--success)' : 'var(--accent-ink)', fontWeight: 600
           }
         },
           buyRows.length === 0
-            ? '\u2713 You have all ' + rows.length + ' colours \u2014 ready to stitch!'
+            ? [window.Icons && window.Icons.check ? h('span', {key:'i', 'aria-hidden':'true', style:{display:'inline-flex', verticalAlign:'middle', marginRight:4}}, window.Icons.check()) : null, 'You have all ' + rows.length + ' colours \u2014 ready to stitch!']
             : 'You have ' + ownedRows.length + ' of ' + rows.length + ' colours. Need to buy ' + buyRows.length + ' thread' + (buyRows.length !== 1 ? 's' : '') + ' (~' + totalNeedSkeins + ' skein' + (totalNeedSkeins !== 1 ? 's' : '') + ' total).'
         ),
         h('div', { style: { padding: '12px 20px', overflowY: 'auto', flex: 1 } },
           rows.length === 0
-            ? h('div', { style: { padding: 30, textAlign: 'center', color: '#94a3b8' } }, 'No threads in this pattern yet.')
+            ? h('div', { style: { padding: 30, textAlign: 'center', color: 'var(--text-tertiary)' } }, 'No threads in this pattern yet.')
             : h(React.Fragment, null,
-                buyRows.length > 0 && sectionLabel('Need to buy (' + buyRows.length + ')', '#dc2626'),
+                buyRows.length > 0 && sectionLabel('Need to buy (' + buyRows.length + ')', 'var(--danger)'),
                 buyRows.map(function (r) { return rowEl(r, 'needed'); }),
-                ownedRows.length > 0 && sectionLabel('Already in your stash (' + ownedRows.length + ')', '#16a34a'),
+                ownedRows.length > 0 && sectionLabel('Already in your stash (' + ownedRows.length + ')', 'var(--success)'),
                 ownedRows.map(function (r) { return rowEl(r, 'owned'); })
               )
         ),
         h('div', {
-          style: { padding: '14px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8f9fa', gap: 8, flexWrap: 'wrap' }
+          style: { padding: '14px 20px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-secondary)', gap:'var(--s-2)', flexWrap: 'wrap' }
         },
-          h('span', { style: { fontSize: 12, color: '#16a34a', fontWeight: 600, opacity: copied ? 1 : 0, transition: 'opacity 0.2s' } }, 'Copied!'),
-          h('div', { style: { display: 'flex', gap: 8, marginLeft: 'auto' } },
+          h('span', { style: { fontSize:'var(--text-sm)', color: 'var(--success)', fontWeight: 600, opacity: (copied || pushed) ? 1 : 0, transition: 'opacity 0.2s' } }, pushed ? 'Added to Stash list!' : 'Copied!'),
+          h('div', { style: { display: 'flex', gap:'var(--s-2)', marginLeft: 'auto', flexWrap: 'wrap' } },
             h('a', {
-              href: 'manager.html',
-              style: { padding: '7px 14px', borderRadius: 8, border: '0.5px solid #e2e8f0', background: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 13, textDecoration: 'none', color: '#475569' }
-            }, 'Open in Stash Manager'),
+              href: 'manager.html?tab=shopping',
+              style: { padding: '7px 14px', borderRadius:'var(--radius-md)', border: '0.5px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontWeight: 600, fontSize:'var(--text-md)', textDecoration: 'none', color: 'var(--text-secondary)' }
+            }, 'Open Stash list'),
+            buyRows.length > 0 && h('button', {
+              type: 'button',
+              onClick: pushToStash,
+              disabled: pushBusy,
+              style: { padding: '7px 14px', borderRadius:'var(--radius-md)', border: '0.5px solid var(--accent)', background: 'var(--surface)', cursor: pushBusy ? 'wait' : 'pointer', fontWeight: 600, fontSize:'var(--text-md)', color: 'var(--accent)' }
+            }, pushBusy ? 'Adding…' : 'Add to my Stash list'),
             rows.length > 0 && h('button', {
               onClick: copyText,
-              style: { padding: '7px 14px', borderRadius: 8, border: 'none', background: '#0d9488', color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 13 }
+              style: { padding: '7px 14px', borderRadius:'var(--radius-md)', border: 'none', background: 'var(--accent)', color: 'var(--surface)', cursor: 'pointer', fontWeight: 600, fontSize:'var(--text-md)' }
             }, 'Copy list')
           )
         )
-      )
     );
   }
 

@@ -21,11 +21,11 @@ describe('B4 — CreatorMaterialsHub', () => {
     expect(hubSrc).toMatch(/window\.CreatorMaterialsHub\s*=\s*function/);
   });
 
-  it('declares exactly four sub-tabs: threads, stash, shopping, output', () => {
+  it('declares exactly three sub-tabs: threads, stash, output', () => {
     const m = hubSrc.match(/var SUBTABS\s*=\s*\[([\s\S]*?)\];/);
     expect(m).toBeTruthy();
     const ids = Array.from(m[1].matchAll(/id:\s*'([^']+)'/g)).map(x => x[1]);
-    expect(ids).toEqual(['threads', 'stash', 'shopping', 'output']);
+    expect(ids).toEqual(['threads', 'stash', 'output']);
   });
 
   it('uses the British "Stash status" label (not "stash state" or US spelling)', () => {
@@ -53,10 +53,6 @@ describe('B4 — CreatorMaterialsHub', () => {
     expect(hubSrc).toMatch(/app\.tab !== 'materials'[\s\S]*?return null/);
   });
 
-  it('Shopping panel calls StashBridge.markManyToBuy with composite keys', () => {
-    expect(hubSrc).toMatch(/StashBridge\.markManyToBuy/);
-  });
-
   it('introduces no new emoji or forbidden glyph (✓ ✗ ⚠ ℹ → ← ▸ ✕ etc.)', () => {
     // U+2300–U+27BF block dingbats + arrows + emoji presentation; allow
     // typographic punctuation (en/em dash, curly quotes, middle dot, ellipsis).
@@ -64,19 +60,10 @@ describe('B4 — CreatorMaterialsHub', () => {
     expect(hubSrc).not.toMatch(FORBIDDEN);
   });
 
-  it('uses Icons.shoppingCart (or Icons.cart fallback) for the Shopping tab icon', () => {
-    expect(hubSrc).toMatch(/Icons\.shoppingCart|Icons\.cart/);
-  });
-
   // fix-3.2 — sub-tab differentiation from the top app tabs.
   it('wraps the sub-tab strip with a "View:" leading label (fix-3.2)', () => {
     expect(hubSrc).toMatch(/className:\s*'mh-subtabs-wrap'/);
     expect(hubSrc).toMatch(/className:\s*'mh-subtabs-label'/);
     expect(hubSrc).toMatch(/'View:'/);
-  });
-
-  // fix-3.10 — explicit signposting that Shopping is scoped to this pattern.
-  it('shopping panel includes the "Shopping for this pattern" caption (fix-3.10)', () => {
-    expect(hubSrc).toMatch(/Shopping for this pattern/);
   });
 });

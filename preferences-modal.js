@@ -81,10 +81,17 @@
   }
 
   // ─── Reusable atoms ──────────────────────────────────────────────────
+  // NOTE: values are CSS custom-property references so this modal respects
+  // light AND dark theme tokens defined in styles.css. Hex fallbacks remain
+  // only for resilience if a token is somehow undefined at runtime.
   var COLOURS = {
-    teal: "#0d9488", tealDark: "#0f766e", tealBg: "#f0fdfa", tealBorder: "#99f6e4",
-    ink: "#0f172a", slate: "#475569", slate2: "#64748b", hint: "#94a3b8",
-    line: "#e2e8f0", line2: "#cbd5e1", bg: "#f8fafc", card: "#fff", danger: "#b91c1c"
+    teal: "var(--accent, #B85C38)", tealDark: "var(--accent-hover, #944526)",
+    tealBg: "var(--accent-light, #F4DDCF)", tealBorder: "var(--accent-border, #E8B89A)",
+    ink: "var(--text-primary, #1B1814)", slate: "var(--text-secondary, #5C5448)",
+    slate2: "var(--text-secondary, #8A8270)", hint: "var(--text-tertiary, #A89E89)",
+    line: "var(--border, #E5DCCB)", line2: "var(--line-2, #CFC4AC)",
+    bg: "var(--surface-secondary, #f8fafc)", card: "var(--surface, #fff)",
+    danger: "var(--danger, #8A2E2E)"
   };
 
   var styles = {
@@ -97,7 +104,7 @@
     input:         { padding: "7px 10px", border: "1px solid " + COLOURS.line2, borderRadius: 6, fontSize: 13, fontFamily: "inherit", background: "#fff" },
     btn:           { padding: "7px 14px", borderRadius: 7, border: "1px solid " + COLOURS.line2, background: "#fff", fontSize: 13, fontFamily: "inherit", cursor: "pointer", color: COLOURS.slate },
     btnPrimary:    { padding: "7px 14px", borderRadius: 7, border: "1px solid " + COLOURS.teal, background: COLOURS.teal, color: "#fff", fontSize: 13, fontFamily: "inherit", cursor: "pointer", fontWeight: 600 },
-    btnDanger:     { padding: "7px 14px", borderRadius: 7, border: "1px solid #fecaca", background: "#fff1f2", color: COLOURS.danger, fontSize: 13, fontFamily: "inherit", cursor: "pointer" },
+    btnDanger:     { padding: "7px 14px", borderRadius: 7, border: "1px solid #ECC8C8", background: "#fff1f2", color: COLOURS.danger, fontSize: 13, fontFamily: "inherit", cursor: "pointer" },
     pageH:         { fontSize: 20, margin: "0 0 4px", color: COLOURS.ink, fontWeight: 700 },
     pageSub:       { color: COLOURS.slate2, margin: "0 0 18px", fontSize: 13 },
     crumb:         { fontSize: 12, color: COLOURS.hint, marginBottom: 6 }
@@ -114,7 +121,7 @@
       onClick: function () { if (!disabled && props.onChange) props.onChange(!on); },
       style: {
         position: "relative", width: 38, height: 22,
-        background: on ? COLOURS.teal : "#cbd5e1",
+        background: on ? COLOURS.teal : "#CFC4AC",
         borderRadius: 999, border: 0, padding: 0, cursor: disabled ? "not-allowed" : "pointer",
         transition: "background .15s", opacity: disabled ? 0.45 : 1, flexShrink: 0
       },
@@ -154,7 +161,7 @@
     return h("span", {
       style: {
         marginLeft: 8, fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 999,
-        background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", verticalAlign: "middle"
+        background: "#F2E2BE", color: "#6B461F", border: "1px solid #E5C97D", verticalAlign: "middle"
       },
       title: "This setting saves but isn't fully wired to the app yet."
     }, "Coming soon");
@@ -195,7 +202,8 @@
     var pos = usePref("designerLogoPosition", "top-right");
     var cp = usePref("designerCopyright", "");
     var ct = usePref("designerContact", "");
-    var ac = usePref("appAccentColour", "#0d9488");
+    var ac = usePref("appAccentColour", "#B85C38");
+    var showDone = usePref("homeShowCompleted", true);
     var err = useState(null);
 
     function onLogoFile(ev) {
@@ -211,7 +219,7 @@
 
       h(Section, { title: "Designer details" },
         h(Row, { label: "Your name or studio name", desc: "Appears on PDF cover pages." },
-          h("input", { type: "text", style: Object.assign({}, styles.input, { width: 280 }), value: n[0],
+          h("input", { type: "text", autoComplete: "name", style: Object.assign({}, styles.input, { width: 280 }), value: n[0],
             placeholder: "e.g. Katie's Stitches", onChange: function (e) { n[1](e.target.value); } })
         ),
         h(Row, { label: "Copyright line", desc: "Shown in the PDF footer of every chart." },
@@ -219,7 +227,7 @@
             placeholder: "© 2026 Your Name", onChange: function (e) { cp[1](e.target.value); } })
         ),
         h(Row, { label: "Contact or website", desc: "Email or a link printed on PDF cover pages." },
-          h("input", { type: "text", style: Object.assign({}, styles.input, { width: 280 }), value: ct[0],
+          h("input", { type: "text", autoComplete: "email url", inputMode: "email", style: Object.assign({}, styles.input, { width: 280 }), value: ct[0],
             placeholder: "hello@example.com", onChange: function (e) { ct[1](e.target.value); } })
         ),
         h(Row, { last: true, label: "Logo", desc: "Up to 600 × 600 px. PNG or JPEG." },
@@ -245,14 +253,17 @@
         )
       ),
 
-      // App appearance section commented out — accent-colour tinting is not
-      // wired to runtime styles yet, so we hide it from users for now.
-      /* h(Section, { title: "App appearance" },
-        h(Row, { last: true, label: "Accent colour", desc: "Tints buttons, links and active tabs across the app." },
-          h("input", { type: "color", value: ac[0], onChange: function (e) { ac[1](e.target.value); },
-            style: { width: 44, height: 30, padding: 0, border: "1px solid " + COLOURS.line2, borderRadius: 6, cursor: "pointer" } })
+      // App appearance section intentionally not rendered: accent-colour
+      // tinting is not yet wired to runtime styles. Re-add a Section here
+      // once `appAccentColour` updates a CSS variable on :root.
+      null,
+
+      h(Section, { title: "Home dashboard" },
+        h(Row, { last: true, label: "Show finished projects in the home list",
+          desc: "When off, projects at 100% complete are hidden from the All projects list on the home page. They remain in the Stash Manager library." },
+          h(Switch, { checked: showDone[0], onChange: showDone[1] })
         )
-      ) */ null
+      )
     );
   }
 
@@ -274,6 +285,7 @@
     var grid = usePref("gridOverlayEnabled", false);
     var refOpac = usePref("creatorReferenceOpacity", 35);
     var importWiz = usePref("experimental.importWizard", false);
+    var embroidery = usePref("experimental.embroideryTool", false);
 
     return h("div", null,
       h(PageHeader, { title: "Pattern Creator",
@@ -282,7 +294,7 @@
       h(Section, { title: "Generation defaults" },
         h(Row, { label: "Maximum colours", desc: "How many DMC colours the Creator may use when matching an image." },
           h("input", { type: "range", min: 6, max: 60, value: pal[0], onChange: function (e) { pal[1](parseInt(e.target.value, 10)); }, style: { width: 160 } }),
-          h("input", { type: "number", min: 6, max: 60, value: pal[0], onChange: function (e) { pal[1](Math.max(6, Math.min(60, parseInt(e.target.value, 10) || 24))); }, style: Object.assign({}, styles.input, { width: 64 }) })
+          h("input", { type: "number", inputMode: "numeric", min: 6, max: 60, value: pal[0], onChange: function (e) { pal[1](Math.max(6, Math.min(60, parseInt(e.target.value, 10) || 24))); }, style: Object.assign({}, styles.input, { width: 64 }) })
         ),
         h(Row, { label: "Fabric count", desc: "How many stitches per inch (Aida count). 14 and 16 are the most common.",
           soon: false },
@@ -323,7 +335,7 @@
           h("span", { style: { fontSize: 12, color: COLOURS.slate, width: 16, textAlign: "right" } }, String(orphan[0]))
         ),
         h(Row, { label: "Minimum stitches per colour", desc: "Drops any colour used fewer times than this." },
-          h("input", { type: "number", min: 0, max: 200, value: minStit[0], onChange: function (e) { minStit[1](Math.max(0, parseInt(e.target.value, 10) || 0)); }, style: Object.assign({}, styles.input, { width: 80 }) })
+          h("input", { type: "number", inputMode: "numeric", min: 0, max: 200, value: minStit[0], onChange: function (e) { minStit[1](Math.max(0, parseInt(e.target.value, 10) || 0)); }, style: Object.assign({}, styles.input, { width: 80 }) })
         ),
         h(Row, { last: true, label: "Protect detailed areas", desc: "Skips tidying around faces, edges and other detail." },
           h(Switch, { checked: protect[0], onChange: protect[1] })
@@ -342,9 +354,13 @@
       ),
 
       h(Section, { title: "Experimental" },
-        h(Row, { last: true, label: "Use guided import wizard (experimental)",
+        h(Row, { label: "Use guided import wizard (experimental)",
           desc: "Replaces the single‑step image import dialog with a five‑step wizard. Off by default while we iterate." },
           h(Switch, { checked: importWiz[0], onChange: importWiz[1] })
+        ),
+        h(Row, { last: true, label: "Show Embroidery planner link (experimental)",
+          desc: "Surfaces a link to the experimental embroidery pattern planner (embroidery.html). Direct access still works regardless of this toggle - it only controls whether the link appears in the UI." },
+          h(Switch, { checked: embroidery[0], onChange: embroidery[1] })
         )
       )
     );
@@ -354,6 +370,15 @@
   // STITCH TRACKER
   // ════════════════════════════════════════════════════════════════════
   function TrackerPanel() {
+    var defView = usePref("trackerDefaultView", "symbol");
+    var defHl = usePref("trackerDefaultHighlightMode", "isolate");
+    var dimLv = usePref("trackerDimLevel", 0.1);
+    var tintCol = usePref("trackerTintColour", "#FFD700");
+    var tintOp = usePref("trackerTintOpacity", 0.4);
+    var spotOp = usePref("trackerSpotDimOpacity", 0.15);
+    var skipDone = usePref("trackerHighlightSkipDone", true);
+    var onlyStarted = usePref("trackerOnlyStarted", false);
+    var idleMin = usePref("trackerIdleMinutes", 10);
     var style = usePref("trackerStitchingStyle", "freestyle");
     var block = usePref("trackerBlockShape", "10x10");
     var corner = usePref("trackerStartCorner", "top-left");
@@ -366,6 +391,68 @@
     return h("div", null,
       h(PageHeader, { title: "Stitch Tracker",
         subtitle: "How the Tracker behaves when you open a pattern. Each project can still override these in its session menu." }),
+
+      h(Section, { title: "Default view" },
+        h(Row, { label: "Chart view at session start", desc: "Which chart view the Tracker opens in. Switching the view inside a session also updates this setting." },
+          h(Segmented, { value: defView[0], onChange: defView[1], options: [
+            { value: "symbol",    label: "Symbol" },
+            { value: "colour",    label: "Col + Symbol" },
+            { value: "highlight", label: "Highlight" }
+          ]})
+        ),
+        h(Row, { last: true, label: "Highlight rendering", desc: "How the focused colour is emphasised in highlight view. Outline draws marching ants around matching cells; tint paints a translucent overlay; spotlight dims everything else; isolate hides non‑matching colours." },
+          h(Segmented, { value: defHl[0], onChange: defHl[1], options: [
+            { value: "isolate",   label: "Isolate" },
+            { value: "outline",   label: "Outline" },
+            { value: "tint",      label: "Tint" },
+            { value: "spotlight", label: "Spotlight" }
+          ]})
+        )
+      ),
+
+      h(Section, { title: "Highlight appearance" },
+        h(Row, { label: "Dim level for non-focused colours", desc: "How faded other colours look in highlight view. Lower values hide them more completely." },
+          h("input", { type: "range", min: 0, max: 1, step: 0.05, value: dimLv[0],
+            onChange: function (e) { dimLv[1](Number(e.target.value)); }, style: { width: 160 } }),
+          h("span", { style: { fontSize: 12, color: COLOURS.slate, minWidth: 32, textAlign: "right" } }, Math.round(dimLv[0] * 100) + "%")
+        ),
+        h(Row, { label: "Tint mode colour", desc: "Overlay colour painted on top of the focused colour in tint mode." },
+          h("input", { type: "color", value: tintCol[0], onChange: function (e) { tintCol[1](e.target.value); }, style: { width: 44, height: 30, padding: 0, border: "1px solid " + COLOURS.line2, borderRadius: 6 } }),
+          h("input", { type: "text", value: tintCol[0], onChange: function (e) { tintCol[1](e.target.value); }, style: Object.assign({}, styles.input, { width: 110 }) })
+        ),
+        h(Row, { label: "Tint mode opacity" },
+          h("input", { type: "range", min: 0, max: 1, step: 0.05, value: tintOp[0],
+            onChange: function (e) { tintOp[1](Number(e.target.value)); }, style: { width: 160 } }),
+          h("span", { style: { fontSize: 12, color: COLOURS.slate, minWidth: 32, textAlign: "right" } }, Math.round(tintOp[0] * 100) + "%")
+        ),
+        h(Row, { last: true, label: "Spotlight dim opacity", desc: "How dark everything else gets in spotlight mode." },
+          h("input", { type: "range", min: 0, max: 1, step: 0.05, value: spotOp[0],
+            onChange: function (e) { spotOp[1](Number(e.target.value)); }, style: { width: 160 } }),
+          h("span", { style: { fontSize: 12, color: COLOURS.slate, minWidth: 32, textAlign: "right" } }, Math.round(spotOp[0] * 100) + "%")
+        )
+      ),
+
+      h(Section, { title: "Palette filtering" },
+        h(Row, { label: "Skip finished colours", desc: "When a colour is fully stitched, jump past it in the palette filter." },
+          h(Switch, { checked: skipDone[0], onChange: skipDone[1] })
+        ),
+        h(Row, { last: true, label: "Only show started colours", desc: "Restrict the palette filter to colours you've already begun." },
+          h(Switch, { checked: onlyStarted[0], onChange: onlyStarted[1] })
+        )
+      ),
+
+      h(Section, { title: "Session timer" },
+        h(Row, { last: true, label: "Auto-pause after inactivity",
+          desc: "If you stop stitching for this long, the session timer pauses and the elapsed time is finalised." },
+          h("select", { value: String(idleMin[0]), onChange: function (e) { idleMin[1](Number(e.target.value)); }, style: styles.input },
+            h("option", { value: "5"  }, "5 minutes"),
+            h("option", { value: "10" }, "10 minutes (default)"),
+            h("option", { value: "15" }, "15 minutes"),
+            h("option", { value: "30" }, "30 minutes"),
+            h("option", { value: "0"  }, "Never auto-pause")
+          )
+        )
+      ),
 
       h(Section, { title: "Your stitching style" },
         h(Row, { label: "How you stitch", desc: "Block fills small areas at a time · cross‑country follows colour across the chart · freestyle is anything goes." },
@@ -433,7 +520,7 @@
           ]})
         ),
         h(Row, { last: true, label: "Warn me when a thread runs low", desc: "Show a low‑stock badge when you have this many skeins or fewer." },
-          h("input", { type: "number", min: 0, max: 20, step: 1, value: lowStock[0],
+          h("input", { type: "number", inputMode: "numeric", min: 0, max: 20, step: 1, value: lowStock[0],
             onChange: function (e) { lowStock[1](Math.max(0, parseInt(e.target.value, 10) || 0)); },
             style: Object.assign({}, styles.input, { width: 70 }) }),
           h("span", { style: { fontSize: 12, color: COLOURS.slate2 } }, lowStock[0] === 1 ? "skein" : "skeins")
@@ -442,7 +529,7 @@
 
       h(Section, { title: "Skein calculations" },
         h(Row, { label: "Strands used per stitch", desc: "Most cross stitch uses 2 strands on 14‑ or 16‑count Aida." },
-          h("input", { type: "number", min: 1, max: 6, value: strands[0],
+          h("input", { type: "number", inputMode: "numeric", min: 1, max: 6, value: strands[0],
             onChange: function (e) { strands[1](Math.max(1, Math.min(6, parseInt(e.target.value, 10) || 2))); },
             style: Object.assign({}, styles.input, { width: 70 }) })
         ),
@@ -451,7 +538,7 @@
           h("span", { style: { fontSize: 12, color: COLOURS.slate, width: 38, textAlign: "right" } }, Math.round(waste[0] * 100) + "%")
         ),
         h(Row, { last: true, label: "Default skein price", desc: "Used to estimate thread cost. Currency follows your Regional setting." },
-          h("input", { type: "number", min: 0, max: 50, step: 0.05, value: skeinPrice[0],
+          h("input", { type: "number", inputMode: "decimal", min: 0, max: 50, step: 0.05, value: skeinPrice[0],
             onChange: function (e) { skeinPrice[1](parseFloat(e.target.value) || 0); },
             style: Object.assign({}, styles.input, { width: 90 }) })
         )
@@ -585,7 +672,7 @@
           ]})
         ),
         h(Row, { label: "Page margins", desc: "Distance between the chart and the edge of the page." },
-          h("input", { type: "number", min: 0, max: 50, value: marg[0], onChange: function (e) { marg[1](Math.max(0, parseInt(e.target.value, 10) || 0)); }, style: Object.assign({}, styles.input, { width: 70 }) }),
+          h("input", { type: "number", inputMode: "numeric", min: 0, max: 50, value: marg[0], onChange: function (e) { marg[1](Math.max(0, parseInt(e.target.value, 10) || 0)); }, style: Object.assign({}, styles.input, { width: 70 }) }),
           h("span", { style: { fontSize: 12, color: COLOURS.slate2 } }, "mm")
         ),
         h(Row, { last: true, label: "Stitches per page" },
@@ -599,7 +686,7 @@
         h(Row, { label: "Black & white chart" }, h(Switch, { checked: bw[0], onChange: bw[1] })),
         h(Row, { label: "Colour chart" }, h(Switch, { checked: col[0], onChange: col[1] })),
         h(Row, { label: "Show grid lines every…", desc: "Heavier grid lines every N stitches make counting easier." },
-          h("input", { type: "number", min: 5, max: 20, value: gridInt[0], onChange: function (e) { gridInt[1](Math.max(5, parseInt(e.target.value, 10) || 10)); }, style: Object.assign({}, styles.input, { width: 70 }) }),
+          h("input", { type: "number", inputMode: "numeric", min: 5, max: 20, value: gridInt[0], onChange: function (e) { gridInt[1](Math.max(5, parseInt(e.target.value, 10) || 10)); }, style: Object.assign({}, styles.input, { width: 70 }) }),
           h("span", { style: { fontSize: 12, color: COLOURS.slate2 } }, "stitches")
         ),
         h(Row, { label: "Centre marks", desc: "Small triangles on each axis showing the chart's centre." }, h(Switch, { checked: centreMarks[0], onChange: centreMarks[1] })),
@@ -679,7 +766,7 @@
           h(Switch, { checked: on[0], onChange: on[1] })
         ),
         h(Row, { last: true, label: "How many to show at once" },
-          h("input", { type: "number", min: 1, max: 6, value: maxToasts[0],
+          h("input", { type: "number", inputMode: "numeric", min: 1, max: 6, value: maxToasts[0],
             onChange: function (e) { maxToasts[1](Math.max(1, Math.min(6, parseInt(e.target.value, 10) || 3))); },
             style: Object.assign({}, styles.input, { width: 70 }) })
         )
@@ -719,7 +806,7 @@
           ]})
         ),
         h(Row, { last: true, label: "Default skein price", desc: "Cost of a single skein in the currency above." },
-          h("input", { type: "number", min: 0, max: 50, step: 0.05, value: skeinPrice[0],
+          h("input", { type: "number", inputMode: "decimal", min: 0, max: 50, step: 0.05, value: skeinPrice[0],
             onChange: function (e) { skeinPrice[1](parseFloat(e.target.value) || 0); },
             style: Object.assign({}, styles.input, { width: 100 }) })
         )
@@ -840,8 +927,8 @@
       msg[0] ? h("div", {
         style: {
           marginTop: 8, padding: "10px 14px", borderRadius: 8, fontSize: 12,
-          background: msg[0].kind === "err" ? "#fef2f2" : COLOURS.tealBg,
-          border: "1px solid " + (msg[0].kind === "err" ? "#fecaca" : COLOURS.tealBorder),
+          background: msg[0].kind === "err" ? "#FCEFEF" : COLOURS.tealBg,
+          border: "1px solid " + (msg[0].kind === "err" ? "#ECC8C8" : COLOURS.tealBorder),
           color: msg[0].kind === "err" ? COLOURS.danger : COLOURS.tealDark
         }
       }, msg[0].text) : null
@@ -1019,8 +1106,8 @@
       msg[0] ? h("div", {
         style: {
           marginTop: 12, padding: "10px 14px", borderRadius: 8, fontSize: 12,
-          background: msg[0].kind === "err" ? "#fef2f2" : COLOURS.tealBg,
-          border: "1px solid " + (msg[0].kind === "err" ? "#fecaca" : COLOURS.tealBorder),
+          background: msg[0].kind === "err" ? "#FCEFEF" : COLOURS.tealBg,
+          border: "1px solid " + (msg[0].kind === "err" ? "#ECC8C8" : COLOURS.tealBorder),
           color: msg[0].kind === "err" ? COLOURS.danger : COLOURS.tealDark
         }
       }, msg[0].text) : null
@@ -1064,7 +1151,7 @@
     })();
     var t = useState(defaultId); var tab = t[0], setTab = t[1];
 
-    if (window.useEscape) window.useEscape(function () { onClose && onClose(); });
+    // ESC + scrim + focus trap + body-scroll-lock delegated to <Overlay>.
 
     var groups = useMemo(function () {
       var byGroup = {};
@@ -1098,30 +1185,31 @@
 
     var isMobile = useIsMobile();
 
-    return h("div", {
-      onClick: onClose,
-      "data-pref-modal": true,
-      style: { position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 1100, display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center", padding: isMobile ? 0 : 20 }
+    return h(window.Overlay, {
+      onClose: onClose,
+      variant: isMobile ? "sheet" : "dialog",
+      zIndex: 1100,
+      labelledBy: "prefs-modal-title",
+      // Legacy hook: html.pref-dark button:not(...):not([data-pref-modal] *)
+      // in styles.css excludes buttons inside the prefs modal from the
+      // global dark-mode override so the modal can theme its own controls.
+      panelProps: { "data-pref-modal": true },
+      style: isMobile ? {
+        background: COLOURS.card, borderRadius: "12px 12px 0 0",
+        width: "100%", maxHeight: "92vh",
+        display: "flex", flexDirection: "column",
+        boxShadow: "0 -8px 40px rgba(0,0,0,0.35)", overflow: "hidden", padding: 0
+      } : {
+        background: COLOURS.card, borderRadius: 14,
+        width: "100%", maxWidth: 1100, height: "min(92vh, 720px)",
+        display: "grid", gridTemplateRows: "auto 1fr auto",
+        boxShadow: "0 24px 60px rgba(0,0,0,0.45)", overflow: "hidden", padding: 0
+      }
     },
-      h("div", {
-        onClick: function (e) { e.stopPropagation(); },
-        style: isMobile ? {
-          background: COLOURS.card, borderRadius: "12px 12px 0 0",
-          width: "100%", maxHeight: "92vh",
-          display: "flex", flexDirection: "column",
-          boxShadow: "0 -8px 40px rgba(0,0,0,0.35)", overflow: "hidden"
-        } : {
-          background: COLOURS.card, borderRadius: 14,
-          width: "100%", maxWidth: 1100, height: "min(92vh, 720px)",
-          display: "grid", gridTemplateRows: "auto 1fr auto",
-          boxShadow: "0 24px 60px rgba(0,0,0,0.45)", overflow: "hidden"
-        }
-      },
         // Header
         h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 22px", borderBottom: "1px solid " + COLOURS.line } },
-          h("h2", { style: { margin: 0, fontSize: 18, color: COLOURS.ink } }, "Settings"),
-          h("button", { onClick: onClose, "aria-label": "Close",
-            style: { background: "none", border: "none", fontSize: 22, cursor: "pointer", color: COLOURS.slate2, padding: "0 4px", minWidth: 44, minHeight: 44 } }, "×")
+          h("h2", { id: "prefs-modal-title", style: { margin: 0, fontSize: 18, color: COLOURS.ink } }, "Settings"),
+          h(window.Overlay.CloseButton, { onClose: onClose, style: { position: "static" } })
         ),
 
         // Body: on mobile stack nav above panel, on desktop use sidebar grid
@@ -1156,7 +1244,6 @@
           h("span", { style: { fontSize: 11, color: COLOURS.hint } }, "Changes save automatically. ‘Coming soon’ settings are remembered but not yet active in the app."),
           h("button", { style: styles.btnPrimary, onClick: onClose }, "Done")
         )
-      )
     );
   }
 

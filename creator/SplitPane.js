@@ -199,7 +199,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
   // Sync icon SVG
   function renderSyncIcon(locked) {
     return h("svg", { width: 12, height: 12, viewBox: "0 0 14 14", fill: "none",
-      stroke: locked ? "#0d9488" : "#94a3b8", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" },
+      stroke: locked ? "#B85C38" : "#A89E89", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" },
       locked
         ? [h("path",  { key: "shackle", d: "M4 6V4.5a3 3 0 016 0V6" }),
            h("rect",  { key: "body",    x: "2.5", y: "6", width: "9", height: "6.5", rx: "1.5" })]
@@ -210,8 +210,8 @@ window.CreatorSplitPane = function CreatorSplitPane() {
 
   var hdrStyle = {
     display: "flex", alignItems: "center", gap: 4, padding: "3px 8px",
-    background: "#f8fafc", borderBottom: "0.5px solid #e2e8f0",
-    fontSize: 11, fontWeight: 600, color: "#475569", userSelect: "none", flexShrink: 0,
+    background: "#f8fafc", borderBottom: "0.5px solid #E5DCCB",
+    fontSize: 11, fontWeight: 600, color: "#5C5448", userSelect: "none", flexShrink: 0,
   };
 
   // ── Mobile / narrow stacked layout ─────────────────────────────────────────
@@ -220,7 +220,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       // Chart pane — full width
       h("div", {
         ref: app.scrollRef,
-        style: { overflow: "auto", maxHeight: 400, border: "0.5px solid #e2e8f0", borderRadius: "8px 8px 0 0", background: "#f1f5f9", cursor: leftCursor },
+        style: { overflow: "auto", maxHeight: 400, border: "0.5px solid #E5DCCB", borderRadius: "8px 8px 0 0", background: "#EFE7D6", cursor: leftCursor },
         onContextMenu: onLeftContextMenu,
       }, h(window.PatternCanvas, null)),
 
@@ -229,14 +229,17 @@ window.CreatorSplitPane = function CreatorSplitPane() {
         onClick: function() { setPreviewOpen(function(o) { return !o; }); },
         style: {
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "5px 10px", background: "#f1f5f9", border: "0.5px solid #e2e8f0",
-          cursor: "pointer", fontSize: 11, color: "#475569", fontWeight: 500, userSelect: "none",
+          padding: "5px 10px", background: "#EFE7D6", border: "0.5px solid #E5DCCB",
+          cursor: "pointer", fontSize: 11, color: "#5C5448", fontWeight: 500, userSelect: "none",
         },
       },
-        h("span", null, previewOpen ? "\u25B2 Hide preview" : "\u25BC Show preview"),
+        h("span", {style:{display:"inline-flex",alignItems:"center",gap:4}},
+          window.Icons && (previewOpen ? window.Icons.chevronUp : window.Icons.chevronDown) ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, (previewOpen ? window.Icons.chevronUp : window.Icons.chevronDown)()) : null,
+          previewOpen ? "Hide preview" : "Show preview"
+        ),
         h("button", {
           onClick: function(e) { e.stopPropagation(); exitSplit(); },
-          style: { background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 14, padding: "0 2px", lineHeight: 1 },
+          style: { background: "none", border: "none", cursor: "pointer", color: "#A89E89", fontSize: 14, padding: "0 2px", lineHeight: 1 },
           title: "Exit split view",
         }, "\xD7")
       ),
@@ -250,7 +253,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
         ref: rightScrollRef,
         "aria-hidden": previewOpen ? "false" : "true",
         style: previewOpen
-          ? { overflow: "auto", maxHeight: 220, border: "0.5px solid #e2e8f0", borderRadius: "0 0 8px 8px", background: "#f1f5f9" }
+          ? { overflow: "auto", maxHeight: 220, border: "0.5px solid #E5DCCB", borderRadius: "0 0 8px 8px", background: "#EFE7D6" }
           : { position: "absolute", left: -99999, top: -99999, width: 1, height: 1, overflow: "hidden", visibility: "hidden", pointerEvents: "none" },
       }, rightPaneCanvas())
     );
@@ -261,7 +264,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
     ref: containerRef,
     style: {
       display: "flex", width: "100%", height: 550,
-      border: "0.5px solid #e2e8f0", borderRadius: 8, overflow: "hidden", position: "relative",
+      border: "0.5px solid #E5DCCB", borderRadius: 8, overflow: "hidden", position: "relative",
     },
   },
 
@@ -279,13 +282,13 @@ window.CreatorSplitPane = function CreatorSplitPane() {
         h("span", { style: { flex: 1 } }),
         h("button", {
           onClick: exitSplit, title: "Exit split view",
-          style: { background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 14, padding: "0 2px", lineHeight: 1 },
+          style: { background: "none", border: "none", cursor: "pointer", color: "#A89E89", fontSize: 14, padding: "0 2px", lineHeight: 1 },
         }, "\xD7")
       ),
       // Chart scroll container — this IS app.scrollRef
       h("div", {
         ref: app.scrollRef,
-        style: { flex: 1, overflow: "auto", background: "#f1f5f9", cursor: leftCursor },
+        style: { flex: 1, overflow: "auto", background: "#EFE7D6", cursor: leftCursor },
         onContextMenu: onLeftContextMenu,
       }, h(window.PatternCanvas, null))
     ),
@@ -294,7 +297,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
     h("div", {
       style: {
         width: 6, flexShrink: 0, cursor: "col-resize",
-        background: "#e2e8f0", position: "relative",
+        background: "#E5DCCB", position: "relative",
         display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "center", gap: 4,
         zIndex: 10, userSelect: "none",
@@ -312,7 +315,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
         title: app.splitPaneSyncEnabled ? "Scroll sync on \u2014 click to disable" : "Scroll sync off \u2014 click to enable",
         style: {
           background: app.splitPaneSyncEnabled ? "#e0fdf4" : "#fff",
-          border: "1px solid " + (app.splitPaneSyncEnabled ? "#0d9488" : "#d1d5db"),
+          border: "1px solid " + (app.splitPaneSyncEnabled ? "#B85C38" : "#d1d5db"),
           borderRadius: 4, width: 20, height: 20, padding: 0, cursor: "pointer",
           display: "flex", alignItems: "center", justifyContent: "center",
           boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
@@ -321,9 +324,9 @@ window.CreatorSplitPane = function CreatorSplitPane() {
 
       // Drag handle dots
       h("div", { style: { display: "flex", flexDirection: "column", gap: 2, opacity: 0.4, marginTop: 4 } },
-        h("span", { style: { width: 3, height: 3, borderRadius: "50%", background: "#64748b" } }),
-        h("span", { style: { width: 3, height: 3, borderRadius: "50%", background: "#64748b" } }),
-        h("span", { style: { width: 3, height: 3, borderRadius: "50%", background: "#64748b" } })
+        h("span", { style: { width: 3, height: 3, borderRadius: "50%", background: "#8A8270" } }),
+        h("span", { style: { width: 3, height: 3, borderRadius: "50%", background: "#8A8270" } }),
+        h("span", { style: { width: 3, height: 3, borderRadius: "50%", background: "#8A8270" } })
       )
     ),
 
@@ -338,17 +341,17 @@ window.CreatorSplitPane = function CreatorSplitPane() {
             onClick: function() { setRightDropOpen(function(o) { return !o; }); },
             style: {
               background: "none", border: "none", cursor: "pointer",
-              fontSize: 11, fontWeight: 600, color: "#475569",
+              fontSize: 11, fontWeight: 600, color: "#5C5448",
               display: "flex", alignItems: "center", gap: 2, padding: 0,
             },
           },
             MODE_LABELS[app.rightPaneMode || "level2"] || "Preview",
-            h("span", { style: { fontSize: 9, marginLeft: 2 } }, "\u25BE")
+            window.Icons && window.Icons.chevronDown ? h("span", {"aria-hidden":"true", style: { marginLeft: 2, display:"inline-flex" } }, window.Icons.chevronDown()) : null
           ),
           rightDropOpen && h("div", {
             style: {
               position: "absolute", top: "100%", left: 0, marginTop: 2,
-              background: "#fff", border: "0.5px solid #e2e8f0",
+              background: "#fff", border: "0.5px solid #E5DCCB",
               borderRadius: 6, boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
               zIndex: 200, minWidth: 180, padding: "4px 0",
             },
@@ -363,9 +366,9 @@ window.CreatorSplitPane = function CreatorSplitPane() {
                 },
                 style: {
                   display: "block", width: "100%", textAlign: "left",
-                  padding: "5px 12px", background: app.rightPaneMode === m ? "#f0fdfa" : "none",
+                  padding: "5px 12px", background: app.rightPaneMode === m ? "#F4DDCF" : "none",
                   border: "none", cursor: "pointer", fontSize: 11,
-                  color: app.rightPaneMode === m ? "#0d9488" : "#475569",
+                  color: app.rightPaneMode === m ? "#B85C38" : "#5C5448",
                   fontWeight: app.rightPaneMode === m ? 600 : 400,
                 },
               }, MODE_LABELS[m]);
@@ -375,14 +378,14 @@ window.CreatorSplitPane = function CreatorSplitPane() {
         h("span", { style: { flex: 1 } }),
         h("button", {
           onClick: exitSplit, title: "Exit split view",
-          style: { background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 14, padding: "0 2px", lineHeight: 1 },
+          style: { background: "none", border: "none", cursor: "pointer", color: "#A89E89", fontSize: 14, padding: "0 2px", lineHeight: 1 },
         }, "\xD7")
       ),
 
       // Right pane scroll container
       h("div", {
         ref: rightScrollRef,
-        style: { flex: 1, overflow: "auto", background: "#f1f5f9" },
+        style: { flex: 1, overflow: "auto", background: "#EFE7D6" },
       }, rightPaneCanvas())
     )
   );

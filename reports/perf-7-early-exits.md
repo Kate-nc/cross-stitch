@@ -1,50 +1,56 @@
-# Performance Audit 7: Missing Early Exits and Short-Circuits
+# Perf Audit 7 — Missing early exits and short-circuits
 
-Performance issues where functions perform expensive operations before cheap precondition checks, or walk data structures multiple times instead of single fused passes.
+12 items. Estimated 50–200ms reduction per interaction on large patterns.
 
 ---
 
-### 🔴 1. `colour-utils.js` `findSolid()` — no early rejection threshold
-**File:** [colour-utils.js](colour-utils.js#L1)
-**Problem:** Loops the entire DMC palette computing `dE2` for every thread, even when distance is already imperceptible.
-**Fix:** Early return when `d < ~2.25` (ΔE² perceptual threshold).
+## 1. embroidery.js double-filter on adjacency list 🔴
+**File:** embroidery.js (~480)
+**Problem:** Two-pass filter where one fused pass + `break` would suffice.
+**Impact:** 50–100ms per image.
+**Fix:** Fuse into single loop with early break.
 
-### 🔴 2. `colour-utils.js` `quantize()` — triple-nested loop with redundant reductions
-**File:** [colour-utils.js](colour-utils.js#L60) — Lines 60–115
-**Fix:** (a) Sum & count during assignment pass instead of re-reducing; (b) break early when centroid movement < threshold; (c) fuse channel reductions.
+## 2. doDither confetti penalty: skips blend short-circuit 🔴
+**File:** colour-utils.js (doDither)
+**Problem:** Penalty loop runs through whole palette even when first acceptable neighbour already meets threshold.
+**Fix:** `break` once threshold satisfied (behaviour-preserving in confetti-only context — verify visual diff).
 
-### 🟡 3. `colour-utils.js` `doDither()` — palette loop without early rejection in confetti penalty check
-**File:** [colour-utils.js](colour-utils.js#L196) — Lines 196–210
-**Fix:** `break` when penalty satisfies threshold.
+## 3. useEditHistory rebuilds palette every undo/redo 🟡
+**File:** creator/useEditHistory.js
+**Fix:** Diff-only palette delta; skip when palette unchanged.
 
-### 🟡 4. `import-formats.js` `detectImportFormat()` — duplicated extension/MIME checks
-**File:** [import-formats.js](import-formats.js#L34) — Lines 34–50
-**Fix:** Single early-return chain.
+## 4. useMagicWand colour reduction O(N²) without early-out 🟡
+**File:** creator/useMagicWand.js
+**Fix:** Skip already-grouped pixels; visited Set early-return.
 
-### 🟡 5. `command-palette.js` `filterAndSort()` — evaluates all actions before filtering by score
-**File:** [command-palette.js](command-palette.js#L246) — Lines 246–258
-**Fix:** Skip `s === 0` results before push.
+## 5. useLassoSelect A* doesn't terminate on visited 🟠
+**File:** creator/useLassoSelect.js
+**Fix:** Visited Set guard.
 
-### 🟡 6. `tracker-app.js` — four individual localStorage writers instead of batched
-**File:** [tracker-app.js](tracker-app.js#L613) — Lines 613–616
-**Fix:** Single useEffect with combined deps & one batched write.
+## 6. tracker-app filter/map/sort/slice chains 🟡
+**File:** tracker-app.js
+**Fix:** Fuse passes; single sort with early `.slice(0,k)` (top-K via partial sort).
 
-### 🟡 7. `creator/LegendTab.js` & `creator/PrepareTab.js` — `useMemo(rows)` includes volatile `stash`
-**Files:** [creator/LegendTab.js](creator/LegendTab.js#L24); [creator/PrepareTab.js](creator/PrepareTab.js#L38)
-**Fix:** Memoise stash reference in context, or depend on a stable hash.
+## 7. canvasRenderer marching ants drawn twice per frame 🟠
+**File:** creator/canvasRenderer.js
+**Fix:** Single pass with offset for dash phase.
 
-### 🟡 8. `creator/RealisticCanvas.js` & `creator/PreviewCanvas.js` — full canvas render regardless of visibility
-**Files:** [creator/RealisticCanvas.js](creator/RealisticCanvas.js#L35); [creator/PreviewCanvas.js](creator/PreviewCanvas.js#L25)
-**Fix:** Guard `if (app.tab !== 'preview') return;` at top of effect.
+## 8. sw.js network-first on nav (slow networks) 🟠
+**File:** sw.js
+**Fix:** Cache-first with stale-while-revalidate for navigations.
 
-### 🟢 9. `creator/canvasRenderer.js` `_drawMarchingAnts()` — recomputes luminance every animation frame
-**File:** [creator/canvasRenderer.js](creator/canvasRenderer.js#L300) — Lines 300–340
-**Fix:** Cache luminance; recompute only when selection changes.
+## 9. sw.js always revalidates 🟠
+**File:** sw.js
+**Fix:** ETag/version-tagged cache; skip revalidate if fresh.
 
-### 🟡 10. `stats-insights.js` — three independent reduce passes over sessions
-**File:** [stats-insights.js](stats-insights.js#L142) — Lines 142–149
-**Fix:** Fuse into a single reduce.
+## 10. insights-engine recomputes when no relevant fields changed 🟢
+**File:** insights-engine.js
+**Fix:** Hash inputs; skip if unchanged.
 
-### 🟢 11. `tracker-app.js` `totalTime` — full reduce on every session change
-**File:** [tracker-app.js](tracker-app.js#L503)
-**Fix:** Maintain incrementally as state.
+## 11. canvas redraw without dirty check 🟢
+**File:** creator/canvasRenderer.js
+**Fix:** Compare last-draw signature.
+
+## 12. palette-swap rebuilds preview when only label changes 🟢
+**File:** palette-swap.js
+**Fix:** Guard recompute on relevant deps only.

@@ -94,24 +94,6 @@ describe('C4 — Materials Hub visual hierarchy refresh', () => {
   });
 
   describe('Empty-state shared layout', () => {
-    it('exposes a local emptyState() helper rendering .mh-empty', () => {
-      expect(hubSrc).toMatch(/function emptyState\(opts\)/);
-      expect(hubSrc).toMatch(/className:\s*'mh-empty'/);
-    });
-
-    it('shopping empty branch routes through emptyState() (no inline styles)', () => {
-      const m = hubSrc.match(/if \(deficits\.length === 0\) \{([\s\S]*?)\n\s*\}/);
-      expect(m).toBeTruthy();
-      expect(m[1]).toMatch(/return emptyState\(\{/);
-      // Old inline-style empty markup is gone.
-      expect(m[1]).not.toMatch(/mh-shopping-empty/);
-    });
-
-    it('empty state uses an SVG icon (Icons.shoppingCart) and not an emoji', () => {
-      const m = hubSrc.match(/if \(deficits\.length === 0\) \{([\s\S]*?)\n\s*\}/);
-      expect(m[1]).toMatch(/Icons\.shoppingCart|Icons\.cart/);
-    });
-
     it('CSS provides .mh-empty / .mh-empty-headline / .mh-empty-body classes', () => {
       expect(cssSrc).toMatch(/\.mh-empty\s*\{/);
       expect(cssSrc).toMatch(/\.mh-empty-headline\s*\{/);
@@ -159,10 +141,6 @@ describe('C4 — Materials Hub visual hierarchy refresh', () => {
   describe('Bundle freshness', () => {
     it('creator/bundle.js includes the new breadcrumb markup', () => {
       expect(bundleSrc).toMatch(/mh-breadcrumb/);
-    });
-
-    it('creator/bundle.js includes the empty-state helper', () => {
-      expect(bundleSrc).toMatch(/className:\s*'mh-empty'/);
     });
   });
 });

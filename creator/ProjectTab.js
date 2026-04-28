@@ -1,6 +1,6 @@
-/* creator/ProjectTab.js — Project statistics, time estimate, finished size, cost, thread organiser.
+/* creator/ProjectTab.js — Project planning: time estimate, finished size, cost, thread organiser.
    Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
-   Depends on: Section, SliderRow (components.js), window.confettiTier (helpers.js),
+   Depends on: Section, SliderRow (components.js),
                fmtTimeL, skeinEst (helpers.js), FABRIC_COUNTS (constants.js),
                StashBridge (stash-bridge.js, optional), CreatorContext (context.js) */
 
@@ -14,106 +14,37 @@ window.CreatorProjectTab = function CreatorProjectTab() {
   if (!(ctx.pat && ctx.pal)) return null;
   if (app.tab !== "project") return null;
 
-  var confettiTier = window.confettiTier;
-
-  // ── Pattern Summary ─────────────────────────────────────────────────────────
-  function renderPatternSummary() {
-    var rows = [
-      ["Pattern size", ctx.sW + " \xD7 " + ctx.sH + " stitches"],
-      ["Total cells", (ctx.sW * ctx.sH).toLocaleString()],
-      ["Stitchable", ctx.totalStitchable.toLocaleString()],
-      ["Skipped", (ctx.sW * ctx.sH - ctx.totalStitchable).toLocaleString()],
-      ["Colours", ctx.pal.length + " (" + ctx.blendCount + " blend" + (ctx.blendCount !== 1 ? "s" : "") + ")"],
-      ["Skeins needed", ctx.totalSkeins + " (at " + ctx.fabricCt + "ct)"]
-    ];
-
-    var difficultyBadge = ctx.difficulty && h("div", {
-      style:{marginTop:12,padding:"8px 12px",background:"#f8f9fa",borderRadius:8,border:"0.5px solid #e2e8f0",display:"flex",alignItems:"center",gap:10}
-    },
-      h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600}}, "Difficulty"),
-      h("div", {style:{display:"flex",gap:2}},
-        [1,2,3,4].map(function(s) {
-          return h("span", {key:s, style:{fontSize:16,color:s<=ctx.difficulty.stars?ctx.difficulty.color:"#e2e8f0"}}, "\u2605");
-        })
-      ),
-      h("span", {style:{fontSize:13,fontWeight:700,color:ctx.difficulty.color}}, ctx.difficulty.label),
-      h("span", {style:{fontSize:11,color:"#94a3b8",marginLeft:"auto"}},
-        ctx.pal.length + " colours \xB7 " + (ctx.blendCount > 0 ? ctx.blendCount + " blends \xB7 " : "") + ctx.totalStitchable.toLocaleString() + " stitches"
-      )
-    );
-
-    var confettiBadge = app.confettiData && (function() {
-      var cd = app.confettiData.clean;
-      var t = confettiTier(cd.pct);
-      var barW = Math.max(3, Math.min(100, Math.round(100 - cd.pct * 5)));
-      return h("div", {style:{marginTop:8,padding:"8px 12px",background:"#f8f9fa",borderRadius:8,border:"0.5px solid #e2e8f0"}},
-        h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:6}},
-          h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600}}, "Stitchability"),
-          h("span", {style:{fontSize:11,fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:10,background:t.color+"18",marginLeft:"auto"}}, t.label)
-        ),
-        h("div", {style:{display:"flex",alignItems:"center",gap:8}},
-          h("div", {style:{flex:1,height:6,background:"#e2e8f0",borderRadius:3,overflow:"hidden"}},
-            h("div", {style:{height:"100%",width:barW+"%",background:t.color,borderRadius:3,transition:"width 0.4s"}})
-          ),
-          h("span", {style:{fontSize:12,fontWeight:600,color:t.color,flexShrink:0}},
-            cd.singles.toLocaleString() + " isolated (" + cd.pct.toFixed(1) + "%)"
-          )
-        ),
-        app.confettiData.raw.singles !== cd.singles && h("div", {style:{fontSize:10,color:"#94a3b8",marginTop:4}},
-          app.confettiData.raw.singles.toLocaleString() + " before orphan removal"
-        )
-      );
-    })();
-
-    var progressBadge = ctx.done && ctx.doneCount > 0 && h("div", {
-      style:{marginTop:8,padding:"8px 12px",background:"#f0fdf4",borderRadius:8,border:"1px solid #bbf7d0"}
-    },
-      h("div", {style:{fontSize:12,fontWeight:600,color:"#16a34a"}},
-        "Progress: " + ctx.progressPct + "% \u2014 " + ctx.doneCount.toLocaleString() + " of " + ctx.totalStitchable.toLocaleString() + " stitches"
-      )
-    );
-
-    return h(Section, {title:"Pattern Summary"},
-      h("div", {
-        style:{marginTop:8,display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px"}
-      },
-        rows.map(function(r, i) {
-          return h("div", {key:i},
-            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, r[0]),
-            h("div", {style:{fontSize:14,fontWeight:600,color:"#1e293b"}}, r[1])
-          );
-        })
-      ),
-      difficultyBadge,
-      confettiBadge,
-      progressBadge
-    );
-  }
+  // ── Pattern Summary (removed in Option 2) ──────────────────────────────────
+  // The Pattern Summary section that listed dimensions, fabric, colours,
+  // skeins, difficulty, stitchability and progress used to live here. All
+  // that data now lives behind the `Pattern info` chip in the action bar
+  // (see creator/PatternInfoPopover.js). The discoverability callout
+  // further down points users at it.
 
   // ── Time Estimate ───────────────────────────────────────────────────────────
   function renderTimeEstimate() {
     return h(Section, {title:"Time Estimate"},
-      h("div", {style:{marginTop:8}},
+      h("div", {style:{marginTop:'var(--s-2)'}},
         h(SliderRow, {
           label:"Stitching speed", value:ctx.stitchSpeed, min:10, max:120, step:5,
           onChange:ctx.setStitchSpeed, format:function(v){return v+" stitches/hr";}
         }),
         h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px",marginTop:10}},
           h("div", null,
-            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Total estimate"),
-            h("div", {style:{fontSize:16,fontWeight:700,color:"#1e293b"}},
+            h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Total estimate"),
+            h("div", {style:{fontSize:'var(--text-xl)',fontWeight:700,color:"var(--text-primary)"}},
               fmtTimeL(Math.round(ctx.totalStitchable / ctx.stitchSpeed * 3600))
             )
           ),
           h("div", null,
-            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Remaining"),
-            h("div", {style:{fontSize:16,fontWeight:700,color:ctx.doneCount>=ctx.totalStitchable?"#16a34a":"#0d9488"}},
+            h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Remaining"),
+            h("div", {style:{fontSize:'var(--text-xl)',fontWeight:700,color:ctx.doneCount>=ctx.totalStitchable?"var(--success)":"var(--accent)"}},
               ctx.doneCount >= ctx.totalStitchable ? "Done!" : fmtTimeL(Math.round((ctx.totalStitchable - ctx.doneCount) / ctx.stitchSpeed * 3600))
             )
           )
         ),
         ctx.totalTime > 0 && ctx.doneCount > 0 && h("div", {
-          style:{marginTop:8,padding:"8px 12px",background:"#f8f9fa",borderRadius:8,border:"0.5px solid #e2e8f0",fontSize:12,color:"#475569"}
+          style:{marginTop:'var(--s-2)',padding:"8px 12px",background:"var(--surface-secondary)",borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",fontSize:'var(--text-sm)',color:"var(--text-secondary)"}
         }, "Based on your actual sessions: " + Math.round(ctx.doneCount / (ctx.totalTime / 3600)) + " stitches/hr average")
       )
     );
@@ -127,12 +58,12 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       {ct:25,label:"25 count Evenweave"},{ct:28,label:"28 count Evenweave (over 2)"}
     ];
     return h(Section, {title:"Finished Size"},
-      h("div", {style:{marginTop:8,overflow:"auto"}},
-        h("table", {style:{width:"100%",borderCollapse:"collapse",fontSize:12}},
+      h("div", {style:{marginTop:'var(--s-2)',overflow:"auto"}},
+        h("table", {style:{width:"100%",borderCollapse:"collapse",fontSize:'var(--text-sm)'}},
           h("thead", null,
-            h("tr", {style:{background:"#f8f9fa"}},
+            h("tr", {style:{background:"var(--surface-secondary)"}},
               ["Fabric","Width","Height","With margin"].map(function(hd, i) {
-                return h("th", {key:i, style:{padding:"7px 10px",textAlign:"left",borderBottom:"2px solid #e2e8f0",color:"#475569",fontWeight:600,fontSize:11,textTransform:"uppercase"}}, hd);
+                return h("th", {key:i, style:{padding:"7px 10px",textAlign:"left",borderBottom:"2px solid var(--border)",color:"var(--text-secondary)",fontWeight:600,fontSize:'var(--text-xs)',textTransform:"uppercase"}}, hd);
               })
             )
           ),
@@ -144,12 +75,19 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               var isCurrent = f.ct === ctx.fabricCt;
               return h("tr", {
                 key:f.ct,
-                style:{borderBottom:"0.5px solid #f1f5f9",background:isCurrent?"#f0fdfa":"transparent"}
+                style:{borderBottom:"0.5px solid var(--surface-tertiary)",background:isCurrent?"var(--accent-light)":"transparent"}
               },
-                h("td", {style:{padding:"6px 10px",fontWeight:isCurrent?700:400}}, f.label+(isCurrent?" \u2713":"")),
+                h("td", {style:{padding:"6px 10px",fontWeight:isCurrent?700:400}},
+                  isCurrent
+                    ? h("span", {style:{display:"inline-flex",alignItems:"center",gap:4}},
+                        f.label,
+                        window.Icons && window.Icons.check ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.check()) : null
+                      )
+                    : f.label
+                ),
                 h("td", {style:{padding:"6px 10px"}}, wIn.toFixed(1)+"\u2033 / "+wCm.toFixed(1)+" cm"),
                 h("td", {style:{padding:"6px 10px"}}, hIn.toFixed(1)+"\u2033 / "+hCm.toFixed(1)+" cm"),
-                h("td", {style:{padding:"6px 10px",fontSize:11,color:"#94a3b8"}}, (wIn+2).toFixed(0)+"\u2033 \xD7 "+(hIn+2).toFixed(0)+"\u2033")
+                h("td", {style:{padding:"6px 10px",fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, (wIn+2).toFixed(0)+"\u2033 \xD7 "+(hIn+2).toFixed(0)+"\u2033")
               );
             })
           )
@@ -161,32 +99,32 @@ window.CreatorProjectTab = function CreatorProjectTab() {
   // ── Cost Estimate ───────────────────────────────────────────────────────────
   function renderCostEstimate() {
     return h(Section, {title:"Cost Estimate", defaultOpen:false},
-      h("div", {style:{marginTop:8}},
-        h("div", {style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
-          h("span", {style:{fontSize:12,color:"#475569"}}, "Price per skein (\xA3)"),
+      h("div", {style:{marginTop:'var(--s-2)'}},
+        h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:10}},
+          h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}, "Price per skein (\xA3)"),
           h("input", {
             type:"number", inputMode:"decimal", value:ctx.skeinPrice, min:0, step:0.05,
             onChange:function(e){ctx.setSkeinPrice(Math.max(0,parseFloat(e.target.value)||0));},
-            style:{width:70,padding:"5px 8px",border:"0.5px solid #e2e8f0",borderRadius:6,fontSize:13,textAlign:"right"}
+            style:{width:70,padding:"5px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',fontSize:'var(--text-md)',textAlign:"right"}
           })
         ),
         h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 20px"}},
           h("div", null,
-            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Thread cost"),
-            h("div", {style:{fontSize:16,fontWeight:700,color:"#1e293b"}}, "\xA3"+(ctx.totalSkeins*ctx.skeinPrice).toFixed(2)),
-            h("div", {style:{fontSize:11,color:"#94a3b8"}}, ctx.totalSkeins+" skeins \xD7 \xA3"+ctx.skeinPrice.toFixed(2))
+            h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Thread cost"),
+            h("div", {style:{fontSize:'var(--text-xl)',fontWeight:700,color:"var(--text-primary)"}}, "\xA3"+(ctx.totalSkeins*ctx.skeinPrice).toFixed(2)),
+            h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, ctx.totalSkeins+" skeins \xD7 \xA3"+ctx.skeinPrice.toFixed(2))
           ),
           ctx.toBuyCount < ctx.skeinData.length && h("div", null,
-            h("div", {style:{fontSize:11,color:"#94a3b8",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Still to buy"),
-            h("div", {style:{fontSize:16,fontWeight:700,color:"#ea580c"}},
+            h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Still to buy"),
+            h("div", {style:{fontSize:'var(--text-xl)',fontWeight:700,color:"var(--accent-hover)"}},
               "\xA3"+(ctx.toBuyList.reduce(function(s,d){return s+d.skeins;},0)*ctx.skeinPrice).toFixed(2)
             ),
-            h("div", {style:{fontSize:11,color:"#94a3b8"}},
+            h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}},
               ctx.toBuyList.reduce(function(s,d){return s+d.skeins;},0)+" skeins"
             )
           )
         ),
-        h("div", {style:{fontSize:11,color:"#94a3b8",marginTop:8}},
+        h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:'var(--s-2)'}},
           "Doesn\u2019t include fabric, needles, hoop, or frame. DMC skeins typically \xA30.85\u2013\xA31.10 in UK shops."
         )
       )
@@ -206,27 +144,27 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       }
     }
     return h(Section, {title:"Thread Organiser"},
-      h("div", {style:{marginTop:8,display:"flex",gap:12,marginBottom:10}},
-        h("div", {style:{padding:"6px 14px",background:"#f0fdf4",borderRadius:8,border:"1px solid #bbf7d0",fontSize:12}},
-          h("span", {style:{fontWeight:700,color:"#16a34a"}}, ctx.ownedCount), " ",
-          h("span", {style:{color:"#475569"}}, "owned")
+      h("div", {style:{marginTop:'var(--s-2)',display:"flex",gap:'var(--s-3)',marginBottom:10}},
+        h("div", {style:{padding:"6px 14px",background:"var(--success-soft)",borderRadius:'var(--radius-md)',border:"1px solid var(--success-soft)",fontSize:'var(--text-sm)'}},
+          h("span", {style:{fontWeight:700,color:"var(--success)"}}, ctx.ownedCount), " ",
+          h("span", {style:{color:"var(--text-secondary)"}}, "owned")
         ),
-        h("div", {style:{padding:"6px 14px",background:"#fff7ed",borderRadius:8,border:"1px solid #fed7aa",fontSize:12}},
-          h("span", {style:{fontWeight:700,color:"#ea580c"}}, ctx.toBuyList.length), " ",
-          h("span", {style:{color:"#475569"}}, "to buy")
+        h("div", {style:{padding:"6px 14px",background:"#F8EFD8",borderRadius:'var(--radius-md)',border:"1px solid #E5C99A",fontSize:'var(--text-sm)'}},
+          h("span", {style:{fontWeight:700,color:"var(--accent-hover)"}}, ctx.toBuyList.length), " ",
+          h("span", {style:{color:"var(--text-secondary)"}}, "to buy")
         ),
-        h("div", {style:{marginLeft:"auto",display:"flex",gap:4}},
+        h("div", {style:{marginLeft:"auto",display:"flex",gap:'var(--s-1)'}},
           h("button", {
             onClick:function(){
               var n = {};
               ctx.skeinData.forEach(function(d){n[d.id]="owned";});
               ctx.setThreadOwned(n);
             },
-            style:{fontSize:11,padding:"4px 10px",border:"1px solid #bbf7d0",borderRadius:6,background:"#f0fdf4",color:"#16a34a",cursor:"pointer"}
+            style:{fontSize:'var(--text-xs)',padding:"4px 10px",border:"1px solid var(--success-soft)",borderRadius:'var(--radius-sm)',background:"var(--success-soft)",color:"var(--success)",cursor:"pointer"}
           }, "Own all"),
           h("button", {
             onClick:function(){ctx.setThreadOwned({});},
-            style:{fontSize:11,padding:"4px 10px",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#fff",color:"#475569",cursor:"pointer"}
+            style:{fontSize:'var(--text-xs)',padding:"4px 10px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-secondary)",cursor:"pointer"}
           }, "Clear")
         )
       ),
@@ -239,20 +177,20 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           var enough = owned >= d.skeins;
           return h(React.Fragment, {key:d.id},
             h("div", {
-              style:{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6,
-                background:isOwned?"#f0fdf4":"#fff",
-                border:"1px solid "+(isOwned?"#bbf7d0":"#f1f5f9")}
+              style:{display:"flex",alignItems:"center",gap:'var(--s-2)',padding:"4px 8px",borderRadius:'var(--radius-sm)',
+                background:isOwned?"var(--success-soft)":"var(--surface)",
+                border:"1px solid "+(isOwned?"var(--success-soft)":"var(--surface-tertiary)")}
             },
-              h("span", {style:{width:16,height:16,borderRadius:3,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid #cbd5e1",flexShrink:0}}),
-              h("span", {style:{fontWeight:700,fontSize:13,minWidth:44}}, "DMC "+d.id),
-              h("span", {style:{fontSize:11,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-              h("span", {style:{fontSize:11,color:"#94a3b8",flexShrink:0}}, d.skeins+"sk"),
+              h("span", {style:{width:16,height:16,borderRadius:3,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid var(--border)",flexShrink:0}}),
+              h("span", {style:{fontWeight:700,fontSize:'var(--text-md)',minWidth:44}}, "DMC "+d.id),
+              h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
+              h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",flexShrink:0}}, d.skeins+"sk"),
               h("button", {
                 onClick:function(){ctx.toggleOwned(d.id);},
-                style:{fontSize:11,padding:"3px 10px",borderRadius:5,cursor:"pointer",fontWeight:600,minWidth:55,textAlign:"center",
-                  border:"1px solid "+(isOwned?"#bbf7d0":"#fed7aa"),
-                  background:isOwned?"#f0fdf4":"#fff7ed",
-                  color:isOwned?"#16a34a":"#ea580c"
+                style:{fontSize:'var(--text-xs)',padding:"3px 10px",borderRadius:5,cursor:"pointer",fontWeight:600,minWidth:55,textAlign:"center",
+                  border:"1px solid "+(isOwned?"var(--success-soft)":"#E5C99A"),
+                  background:isOwned?"var(--success-soft)":"#F8EFD8",
+                  color:isOwned?"var(--success)":"var(--accent-hover)"
                 }
               }, isOwned ? "Owned" : "To buy"),
               h("span", {className:"stash-badge "+(enough?"stash-badge--in":"stash-badge--out")}, owned+"/"+d.skeins+" in stash"),
@@ -263,7 +201,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
                 },
                 style:{fontSize:10,padding:"2px 6px",borderRadius:4,cursor:"pointer",fontWeight:600,
                   border:"1px solid #e0e7ff",
-                  background:ctx.altOpen===d.id?"#e0e7ff":"#fff",
+                  background:ctx.altOpen===d.id?"#e0e7ff":"var(--surface)",
                   color:"#4338ca"
                 },
                 title:"Show similar threads from stash"
@@ -272,26 +210,26 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             ctx.altOpen === d.id && (function() {
               var alts = StashBridge.suggestAlternatives(d.id, 5, ctx.globalStash);
               return alts.length > 0
-                ? h("div", {style:{padding:"6px 12px 8px 36px",display:"flex",gap:6,flexWrap:"wrap",fontSize:11,alignItems:"center"}},
-                    h("span", {style:{color:"#475569",fontWeight:600}}, "Similar in stash:"),
+                ? h("div", {style:{padding:"6px 12px 8px 36px",display:"flex",gap:6,flexWrap:"wrap",fontSize:'var(--text-xs)',alignItems:"center"}},
+                    h("span", {style:{color:"var(--text-secondary)",fontWeight:600}}, "Similar in stash:"),
                     alts.map(function(a) {
-                      return h("span", {key:a.id, style:{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:10,background:"#f0f0ff",border:"1px solid #e0e7ff"}},
-                        h("span", {style:{width:10,height:10,borderRadius:2,background:"rgb("+a.rgb[0]+","+a.rgb[1]+","+a.rgb[2]+")",border:"1px solid #cbd5e1"}}),
+                      return h("span", {key:a.id, style:{display:"inline-flex",alignItems:"center",gap:'var(--s-1)',padding:"2px 8px",borderRadius:'var(--radius-lg)',background:"#f0f0ff",border:"1px solid #e0e7ff"}},
+                        h("span", {style:{width:10,height:10,borderRadius:2,background:"rgb("+a.rgb[0]+","+a.rgb[1]+","+a.rgb[2]+")",border:"1px solid var(--border)"}}),
                         h("span", {style:{fontWeight:600}}, "DMC "+a.id),
-                        h("span", {style:{color:"#475569"}}, a.name),
-                        h("span", {style:{color:"#94a3b8"}}, "\u0394E "+a.deltaE),
+                        h("span", {style:{color:"var(--text-secondary)"}}, a.name),
+                        h("span", {style:{color:"var(--text-tertiary)"}}, "\u0394E "+a.deltaE),
                         h("span", {style:{color:"#4338ca"}}, a.owned+"sk")
                       );
                     })
                   )
-                : h("div", {style:{padding:"6px 12px 8px 36px",fontSize:11,color:"#94a3b8"}},
+                : h("div", {style:{padding:"6px 12px 8px 36px",fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}},
                     "No similar threads found in your stash."
                   );
             })()
           );
         })
       ),
-      h("div", {style:{display:"flex",gap:8,marginTop:10,flexWrap:"wrap",alignItems:"center"}},
+      h("div", {style:{display:"flex",gap:'var(--s-2)',marginTop:10,flexWrap:"wrap",alignItems:"center"}},
         h("button", {
           onClick: function() {
             if (typeof StashBridge === "undefined") { alert("Stash bridge not loaded."); return; }
@@ -323,7 +261,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             if (!hasOwnedStash) return "Add threads to your stash first";
             return "Find stash alternatives for unowned threads";
           })(),
-          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #a78bfa",background:"#f5f3ff",color:"#7c3aed",cursor:"pointer",fontWeight:600,
+          style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"1px solid var(--accent-light)",background:"var(--surface-secondary)",color:"var(--accent)",cursor:"pointer",fontWeight:600,
             opacity:(function() {
               if (typeof StashBridge === "undefined" || !ctx.pat || ctx.toBuyList.length === 0) return 0.5;
               if (!hasOwnedStash) return 0.5;
@@ -345,36 +283,39 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               ctx.setKittingResult({missing:missing, short:short, total:ctx.skeinData.length});
             });
           },
-          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #a78bfa",background:"#f5f3ff",color:"#7c3aed",cursor:"pointer",fontWeight:600}
+          style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"1px solid var(--accent-light)",background:"var(--surface-secondary)",color:"var(--accent)",cursor:"pointer",fontWeight:600}
         }, "Kit This Project"),
         typeof window.ConvertPaletteModal !== "undefined"
           ? h("button", {
               onClick: function() { setConvertOpen(true); },
               disabled: !ctx.pat || !ctx.pal || ctx.pal.length === 0,
               title: "Convert this pattern's palette between DMC and Anchor thread brands",
-              style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"1px solid #bfdbfe",background:"#eff6ff",color:"#1d4ed8",cursor:"pointer",fontWeight:600,
+              style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"1px solid var(--accent-light)",background:"var(--surface-secondary)",color:"var(--accent)",cursor:"pointer",fontWeight:600,
                 opacity:(!ctx.pat || !ctx.pal || ctx.pal.length === 0) ? 0.5 : 1}
             }, "Change Thread Brand")
           : null
       ),
-      ctx.kittingResult && h("div", {style:{marginTop:8,padding:"10px 14px",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8f9fa",fontSize:12}},
-        h("div", {style:{fontWeight:700,marginBottom:4}}, "Kitting check ("+ctx.kittingResult.total+" colours)"),
-        ctx.kittingResult.missing.length===0 && ctx.kittingResult.short.length===0 && h("div", {style:{color:"#16a34a",fontWeight:600}}, "\u2713 You have everything!"),
+      ctx.kittingResult && h("div", {style:{marginTop:'var(--s-2)',padding:"10px 14px",borderRadius:'var(--radius-md)',border:"1px solid var(--border)",background:"var(--surface-secondary)",fontSize:'var(--text-sm)'}},
+        h("div", {style:{fontWeight:700,marginBottom:'var(--s-1)'}}, "Kitting check ("+ctx.kittingResult.total+" colours)"),
+        ctx.kittingResult.missing.length===0 && ctx.kittingResult.short.length===0 && h("div", {style:{color:"var(--success)",fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}},
+          window.Icons && window.Icons.check ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.check()) : null,
+          "You have everything!"
+        ),
         ctx.kittingResult.missing.length > 0 && h("div", null,
-          h("div", {style:{color:"#dc2626",fontWeight:600,marginBottom:2}}, "Missing ("+ctx.kittingResult.missing.length+"):"),
-          ctx.kittingResult.missing.map(function(m, i) { return h("div", {key:i, style:{color:"#dc2626",marginLeft:8}}, m); })
+          h("div", {style:{color:"var(--danger)",fontWeight:600,marginBottom:2}}, "Missing ("+ctx.kittingResult.missing.length+"):"),
+          ctx.kittingResult.missing.map(function(m, i) { return h("div", {key:i, style:{color:"var(--danger)",marginLeft:'var(--s-2)'}}, m); })
         ),
-        ctx.kittingResult.short.length > 0 && h("div", {style:{marginTop:4}},
-          h("div", {style:{color:"#d97706",fontWeight:600,marginBottom:2}}, "Low stock ("+ctx.kittingResult.short.length+"):"),
-          ctx.kittingResult.short.map(function(m, i) { return h("div", {key:i, style:{color:"#d97706",marginLeft:8}}, m); })
+        ctx.kittingResult.short.length > 0 && h("div", {style:{marginTop:'var(--s-1)'}},
+          h("div", {style:{color:"#A06F2D",fontWeight:600,marginBottom:2}}, "Low stock ("+ctx.kittingResult.short.length+"):"),
+          ctx.kittingResult.short.map(function(m, i) { return h("div", {key:i, style:{color:"#A06F2D",marginLeft:'var(--s-2)'}}, m); })
         ),
-        h("div", {style:{display:"flex",gap:6,marginTop:8}},
+        h("div", {style:{display:"flex",gap:6,marginTop:'var(--s-2)'}},
           h("button", {
             onClick:function(){
               var lines = ctx.kittingResult.missing.concat(ctx.kittingResult.short);
               app.copyText(lines.join("\n"), "kit");
             },
-            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer"}
+            style:{fontSize:'var(--text-xs)',padding:"4px 10px",borderRadius:'var(--radius-sm)',border:"0.5px solid var(--border)",background:"var(--surface)",cursor:"pointer"}
           }, "Copy gaps"),
           typeof StashBridge !== "undefined" && h("button", {
             onClick:function(){
@@ -384,11 +325,11 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               Promise.all(toBuy2.map(function(id){return StashBridge.updateThreadToBuy(id, true);}))
                 .then(function(){alert("Marked "+toBuy2.length+" thread(s) as To Buy in Stash Manager.");});
             },
-            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"1px solid #fed7aa",background:"#fff7ed",color:"#ea580c",cursor:"pointer",fontWeight:600}
+            style:{fontSize:'var(--text-xs)',padding:"4px 10px",borderRadius:'var(--radius-sm)',border:"1px solid #E5C99A",background:"#F8EFD8",color:"var(--accent-hover)",cursor:"pointer",fontWeight:600}
           }, "Mark all To Buy"),
           h("button", {
             onClick:function(){ctx.setKittingResult(null);},
-            style:{fontSize:11,padding:"4px 10px",borderRadius:6,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",marginLeft:"auto"}
+            style:{fontSize:'var(--text-xs)',padding:"4px 10px",borderRadius:'var(--radius-sm)',border:"0.5px solid var(--border)",background:"var(--surface)",cursor:"pointer",marginLeft:"auto"}
           }, "Dismiss")
         )
       ),
@@ -398,56 +339,80 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             var txt=ctx.toBuyList.map(function(d){return "DMC "+d.id+" "+d.name+" \xD7 "+d.skeins;}).join("\n");
             app.copyText(txt, "shopping");
           },
-          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:600}
+          style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"none",background:"var(--accent)",color:"var(--surface)",cursor:"pointer",fontWeight:600}
         }, "Copy To-Buy List"),
         h("button", {
           onClick:function(){
             var txt=ctx.skeinData.map(function(d){return "DMC "+d.id+" "+d.name+" \xD7 "+d.skeins;}).join("\n");
             app.copyText(txt, "full");
           },
-          style:{padding:"8px 18px",fontSize:13,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",fontWeight:500}
+          style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",background:"var(--surface)",cursor:"pointer",fontWeight:500}
         }, "Copy Full List")
       ),
-      app.copied && h("div", {style:{marginTop:6,fontSize:12,color:"#16a34a",fontWeight:600}}, "Copied!")
+      app.copied && h("div", {style:{marginTop:6,fontSize:'var(--text-sm)',color:"var(--success)",fontWeight:600}}, "Copied!")
     );
   }
 
   // ── Project info (name, designer, description) ─────────────────────────────
   var projectInfoSection = h(Section, {title:"Project info", defaultOpen:true},
-    h("div", {style:{display:"flex",flexDirection:"column",gap:8,padding:"4px 0 2px"}},
-      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+    h("div", {style:{display:"flex",flexDirection:"column",gap:'var(--s-2)',padding:"4px 0 2px"}},
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
         "Pattern name",
         h("input", {
           type:"text", value: app.projectName || "", maxLength:60,
           placeholder: ctx.sW + "\xD7" + ctx.sH + " pattern",
           onChange: function(e) { var v = e.target.value.slice(0,60); if (typeof app.setProjectName === "function") app.setProjectName(v); },
-          style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
+          style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
         })
       ),
-      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
         "Designer (optional)",
         h("input", {
           type:"text", value: app.projectDesigner || "", maxLength:80,
           placeholder: "Your name or studio",
           onChange: function(e) { var v = e.target.value.slice(0,80); if (typeof app.setProjectDesigner === "function") app.setProjectDesigner(v); },
-          style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)"}
+          style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
         })
       ),
-      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:11,color:"var(--text-secondary)"}},
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
         "Description / notes (optional)",
         h("textarea", {
           value: app.projectDescription || "", maxLength:500, rows:3,
           placeholder: "Source, copyright, stitching notes\u2026",
           onChange: function(e) { var v = e.target.value.slice(0,500); if (typeof app.setProjectDescription === "function") app.setProjectDescription(v); },
-          style:{padding:"6px 8px",fontSize:12,border:"1px solid var(--border)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
+          style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
         })
       )
     )
   );
 
-  return h("div", {style:{display:"flex",flexDirection:"column",gap:12}},
+  // ── Pattern info discoverability callout ────────────────────────────────
+  // The Pattern Summary section that used to sit at the top of this tab was
+  // duplicating the dimensions / fabric / colours / skeins values that now
+  // live behind the `Pattern info` chip in the action bar. We point the
+  // user at the chip rather than reprinting the same numbers here.
+  var infoChipCallout = h("div", {
+      style: {
+        display: "flex", alignItems: "center", gap: 10,
+        padding: "10px 14px",
+        background: "var(--surface-secondary)",
+        border: "1px dashed var(--border)",
+        borderRadius: "var(--radius-md)",
+        fontSize: "var(--text-sm)",
+        color: "var(--text-secondary)"
+      }
+    },
+    window.Icons && window.Icons.info ? h("span", {style:{flexShrink:0,color:"var(--accent)"}}, window.Icons.info()) : null,
+    h("span", null,
+      "Pattern stats live in the ",
+      h("strong", {style:{color:"var(--text-primary)"}}, "Pattern info"),
+      " chip up top \u2014 size, fabric, colours, skeins, difficulty. This tab is for planning your stitching session."
+    )
+  );
+
+  return h("div", {style:{display:"flex",flexDirection:"column",gap:'var(--s-3)'}},
     projectInfoSection,
-    renderPatternSummary(),
+    infoChipCallout,
     renderTimeEstimate(),
     renderFinishedSize(),
     renderCostEstimate(),

@@ -1,14 +1,18 @@
-var CACHE_NAME = 'cross-stitch-cache-v7';
+var CACHE_NAME = 'cross-stitch-cache-v27';
 
 var PRECACHE_URLS = [
   // HTML pages
+  './home.html',
   './index.html',
+  './create.html',
   './stitch.html',
   './manager.html',
-  './embroidery.html',
+  // PERF (perf-6 #9): embroidery.html/embroidery.js are opt-in experimental (default off);
+  // dropped from precache — runtime stale-while-revalidate caches them on first visit.
 
   // PWA manifest
   './manifest.json',
+  './assets/icons/app-icon.svg',
 
   // Shared local assets
   './styles.css',
@@ -30,6 +34,7 @@ var PRECACHE_URLS = [
 
   // Page-specific local scripts
   './home-screen.js',
+  './home-app.js',
   './palette-swap.js',
   './user-prefs.js',
   './sw-register.js',
@@ -39,7 +44,6 @@ var PRECACHE_URLS = [
   './creator-main.js',
   './tracker-app.js',
   './manager-app.js',
-  './embroidery.js',
 
   // Lazy-loaded local assets
   './pdf-importer.js',

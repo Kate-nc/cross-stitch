@@ -1,58 +1,78 @@
-# Performance Report 3: Synchronous Blocking on Main Thread
+# Perf Audit 3 — Synchronous blocking on the main thread
 
-CPU-intensive sync work that blocks UI/event loop and should be offloaded to Web Workers, chunked across rAF/idle callbacks, or streamed.
+15 items. Estimated total improvement: 500–2000 ms freed from main thread on typical workflows (sync, export, pattern creation).
 
 ---
 
-### 🔴 1. `JSON.parse` of huge cached project on tracker startup
-**File:** [tracker-app.js](tracker-app.js#L2555) — Lines 2555–2625 (autosave/load path)
-**Problem:** Full project (>500 KB stringified) parsed synchronously on the main thread on entry.
-**Fix:** Defer with `requestIdleCallback`, or stream via the existing IndexedDB get + structured-clone path; avoid `JSON.parse` of localStorage fallback unless needed.
+## 1. pako deflate/inflate on entire projects 🔴
+**File:** sync-engine.js (~230–270), backup-restore.js (~64–120), creator/useProjectIO.js (~175–185)
+**Problem:** Synchronous `pako.deflate()` on 10–50 MB blobs.
+**Impact:** 100–1000ms freeze on every save/export/sync/backup.
+**Fix:** Move to a deflate-worker.js; or chunk via setTimeout(0) yields.
 
-### 🔴 2. PDF export runs DMC font embed + chart layout on main thread
-**File:** [creator/pdfExport.js](creator/pdfExport.js#L1), [pdf-export-worker.js](pdf-export-worker.js#L1)
-**Problem:** Worker exists, but `pdfExport.js` posts the entire project synchronously and parses returned PDF bytes on main thread. For large patterns this is multi-second blocking.
-**Fix:** Confirm worker handles bulk; transfer result as `Uint8Array` (transferable) and stream into Blob without intermediate copy.
+## 2. JSON.stringify on whole project 🔴
+**File:** sync-engine.js (~230), backup-restore.js (~89), project-storage.js (~755)
+**Problem:** Full pattern serialised synchronously.
+**Impact:** 50–500 ms before deflate even starts.
+**Fix:** Stream via rIC chunks or worker.
 
-### 🔴 3. `colour-utils.quantize()` and `doDither()` run on main thread for in-app palette swap
-**Files:** [colour-utils.js](colour-utils.js#L60), [palette-swap.js](palette-swap.js#L1)
-**Problem:** Generation worker already exists, but palette-swap calls quantise/dither directly on main thread.
-**Fix:** Route through `generate-worker.js` (already imports colour-utils). Add a "swap" message type.
+## 3. Bilateral filter on main thread 🔴
+**File:** embroidery.js (~345–420)
+**Problem:** O(N·R²) triple loop without yield.
+**Impact:** 500–2000ms freeze on auto-segment.
+**Fix:** Move to generate-worker.js; rIC per scanline.
 
-### 🔴 4. `backup-restore` reads/writes entire IndexedDB store sync into one giant string
-**File:** [backup-restore.js](backup-restore.js#L19) — Lines 19–130
-**Problem:** All projects loaded into memory then `JSON.stringify` blocks UI for seconds with large libraries.
-**Fix:** Chunk/stream into a `Blob` builder; `await` between groups so the event loop can run.
+## 4. Canny edge detection on main thread 🔴
+**File:** embroidery.js (~420–520)
+**Impact:** 300–800ms freeze.
+**Fix:** Move to worker.
 
-### 🟡 5. `pdf-importer.js` parses pages synchronously
-**File:** [pdf-importer.js](pdf-importer.js#L1)
-**Problem:** PDF page → grid extraction is CPU-bound; performed in main thread.
-**Fix:** Move to a worker (pdf.js already supports worker mode for raster decode).
+## 5. SLIC superpixel segmentation 🔴
+**File:** embroidery.js (~540–750)
+**Impact:** 1000+ ms.
+**Fix:** Move whole pipeline to worker with progress callback.
 
-### 🟡 6. `import-formats.js` `.oxs` XML parsed synchronously and walked twice
-**File:** [import-formats.js](import-formats.js#L100) — Lines 100–200
-**Fix:** Single-pass parse; chunk over `requestIdleCallback` for huge patterns.
+## 6. Morphological operations 🔴
+**File:** embroidery.js (~350–370), colour-utils.js (~730–780)
+**Impact:** 100–300ms each, called multiple times per segmentation.
+**Fix:** Streaming with rIC or worker.
 
-### 🟡 7. `pako.deflate` on full pattern hash every save in sync-engine
-**File:** [sync-engine.js](sync-engine.js#L78)
-**Problem:** Deflate of multi-MB string blocks main thread.
-**Fix:** Use a tiny rolling-hash (FNV-1a / xxhash) on cells; reserve deflate for actual export.
+## 7. Auto-snapshot deflate in tracker on stitch event 🔴
+**File:** tracker-app.js (~1443–1480)
+**Problem:** `pako.deflate(done)` synchronously in useEffect after a click.
+**Impact:** 100–500ms stall mid-stitch.
+**Fix:** Debounce 2s + worker.
 
-### 🟡 8. `analysis-worker.js` results converted via `Array.from()` on main thread
-**File:** [analysis-worker.js](analysis-worker.js#L116)
-**Fix:** Keep typed arrays; transfer with `[buffer]`.
+## 8. Project load JSON.parse on main thread 🔴
+**File:** project-storage.js (~750–770)
+**Impact:** 50–200ms per project open.
+**Fix:** Worker-parse if size > 100 KB.
 
-### 🟡 9. `ProjectStorage.save` synchronously serialises full project + meta + summary
-**File:** [project-storage.js](project-storage.js#L100) — Lines 100–200
-**Fix:** Stage write in a separate microtask; let UI repaint first.
+## 9. Tracker full-grid re-render on cell click 🟡
+**File:** tracker-app.js (~400–600)
+**Impact:** 50–200ms per stitch click on large grids.
+**Fix:** Patch only changed cells.
 
-### 🟡 10. `command-palette.js` filtering scores all actions on each keystroke
-**File:** [command-palette.js](command-palette.js#L246)
-**Fix:** Debounce by 1 frame; cap to top-N early.
+## 10. Int8Array allocation per state update 🟡
+**File:** tracker-app.js (~50–100)
+**Fix:** Structural sharing or buffer reuse.
 
-### 🟢 11. `embroidery.js` Canny / Sobel / bilateral filters block when re-running on user crop
-**File:** [embroidery.js](embroidery.js#L26) — Lines 26–500
-**Fix:** Already cacheable (`_wandEdgeCache`); ensure cache hits avoid recomputation. Consider OffscreenCanvas + worker.
+## 11. URL-hash pattern handoff deflate on main thread 🟡
+**File:** creator/useProjectIO.js (~175–190)
+**Fix:** Worker-based compression for handoff.
 
-### 🟢 12. `home-screen.js` startup awaits multiple sequential reads (covered in report 5) — parallelise
-**Fix:** `Promise.all` across project list, settings, manager_state.
+## 12. Sync fingerprint deflate per project 🟡
+**File:** sync-engine.js (~100–130)
+**Fix:** Cache fingerprint in metadata; recompute only on change.
+
+## 13. Backup restore FileReader + sync inflate 🟢
+**File:** backup-restore.js (~150–200)
+**Fix:** Streaming readAsArrayBuffer + worker inflate.
+
+## 14. Symbol font subset build per export 🟢
+**File:** creator/pdfChartLayout.js (~200–250)
+**Fix:** Cache by palette.
+
+## 15. Insights recomputed every panel open 🟢
+**File:** insights-engine.js (~40–100)
+**Fix:** Memoise by (projectId, sessionCount, today).

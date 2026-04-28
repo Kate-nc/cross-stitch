@@ -50,6 +50,11 @@ const ORDER = [
   // B4: MaterialsHub renders LegendTab/PrepareTab/ExportTab as sub-tabs,
   // so it must be concatenated AFTER all three.
   'MaterialsHub.js',
+  // UX-12 Phase 5: outcome action bar mounted in creator-main.js.
+  // Option 2: PatternInfoPopover must load before ActionBar (which renders
+  // it) so window.CreatorPatternInfoPopover is defined at mount time.
+  'PatternInfoPopover.js',
+  'ActionBar.js',
 ];
 
 const parts = ORDER.map(name => {

@@ -10,10 +10,10 @@ const deepClone=typeof structuredClone==='function'?structuredClone:(x)=>JSON.pa
 // Hoisted module-scope constants (avoid per-render allocation).
 const START_CORNERS=[["TL","Top-left"],["TR","Top-right"],["C","Centre"],["BL","Bottom-left"],["BR","Bottom-right"]];
 const DEFAULT_PDF_SETTINGS={chartStyle:'symbols',cellSize:3,paper:'a4',orientation:'portrait',gridInterval:10,gridNumbers:true,centerMarks:true,legendLocation:'separate',legendColumns:2,coverPage:true,progressOverlay:false,separateBackstitch:false};
-const PDF_MODAL_LABEL_STYLE={fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",flexDirection:"column",gap:6};
-const PDF_MODAL_SELECT_STYLE={padding:"6px 8px",borderRadius:6,border:"1px solid #cbd5e1",fontSize:13,background:"#fff"};
-const PDF_MODAL_CHECKBOX_LABEL_STYLE={fontSize:12,fontWeight:600,color:"#3f3f46",display:"flex",alignItems:"center",gap:6,cursor:"pointer"};
-const PDF_MODAL_EXPORT_BTN_STYLE={flex:1,padding:"10px",borderRadius:8,border:"none",background:"#0d9488",color:"#fff",fontWeight:600,cursor:"pointer"};
+const PDF_MODAL_LABEL_STYLE={fontSize:'var(--text-sm)',fontWeight:600,color:"var(--text-secondary)",display:"flex",flexDirection:"column",gap:6};
+const PDF_MODAL_SELECT_STYLE={padding:"6px 8px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",fontSize:'var(--text-md)',background:"var(--surface)"};
+const PDF_MODAL_CHECKBOX_LABEL_STYLE={fontSize:'var(--text-sm)',fontWeight:600,color:"var(--text-secondary)",display:"flex",alignItems:"center",gap:6,cursor:"pointer"};
+const PDF_MODAL_EXPORT_BTN_STYLE={flex:1,padding:"10px",borderRadius:'var(--radius-md)',border:"none",background:"var(--accent)",color:"var(--surface)",fontWeight:600,cursor:"pointer"};
 
 // Standalone realistic preview modal for the tracker.
 // Adapted from creator/RealisticCanvas.js — no CreatorContext required.
@@ -212,23 +212,23 @@ function TrackerPreviewModal({pat,cmap,sW,sH,fabricCt,level,onLevelChange,onClos
   var lvlLabels=["","Flat","Shaded","Detailed","Detailed+blend"];
   var fc2=fabricCt||14;var sc2=fc2<=11?3:fc2<=17?2:1;
   return (
-    <div className="modal-overlay" onClick={function(e){if(e.target===e.currentTarget)onClose();}} style={{zIndex:1200}}>
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Realistic preview" onClick={function(e){if(e.target===e.currentTarget)onClose();}} style={{zIndex:1200}}>
       <div className="modal-box" style={{maxWidth:"min(90vw,900px)",maxHeight:"90vh",display:"flex",flexDirection:"column",padding:0,overflow:"hidden"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",borderBottom:"1px solid #e2e8f0",flexShrink:0}}>
-          <div style={{display:"flex",alignItems:"center",gap:12}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",borderBottom:"1px solid var(--border)",flexShrink:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:'var(--s-3)'}}>
             <span style={{fontWeight:700,fontSize:15}}>Realistic preview</span>
-            <div style={{display:"flex",gap:4}}>
+            <div style={{display:"flex",gap:'var(--s-1)'}}>
               {[1,2,3,4].map(function(l){
-                return <button key={l} onClick={function(){onLevelChange(l);}} style={{padding:"3px 8px",borderRadius:5,border:"1px solid "+(level===l?"#0d9488":"#e2e8f0"),background:level===l?"#f0fdfa":"#fff",color:level===l?"#0d9488":"#475569",fontSize:11,fontWeight:600,cursor:"pointer"}}>{lvlLabels[l]}</button>;
+                return <button key={l} onClick={function(){onLevelChange(l);}} style={{padding:"3px 8px",borderRadius:5,border:"1px solid "+(level===l?"var(--accent)":"var(--border)"),background:level===l?"var(--accent-light)":"var(--surface)",color:level===l?"var(--accent)":"var(--text-secondary)",fontSize:'var(--text-xs)',fontWeight:600,cursor:"pointer"}}>{lvlLabels[l]}</button>;
               })}
             </div>
           </div>
-          <button onClick={onClose} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#64748b",lineHeight:1,padding:"0 4px"}}>&times;</button>
+          <button onClick={onClose} aria-label="Close" style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"var(--text-tertiary)",lineHeight:1,padding:"0 4px"}}>{Icons.x?Icons.x():"×"}</button>
         </div>
-        <div style={{flex:1,overflow:"auto",display:"flex",alignItems:"center",justifyContent:"center",background:"#f8fafc",padding:16}}>
+        <div style={{flex:1,overflow:"auto",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--surface-secondary)",padding:'var(--s-4)'}}>
           <canvas ref={displayRef} style={{display:"block",maxWidth:"100%",maxHeight:"calc(90vh - 100px)",imageRendering:"auto"}}/>
         </div>
-        <div style={{padding:"8px 16px",borderTop:"1px solid #e2e8f0",flexShrink:0,fontSize:11,color:"#64748b"}}>
+        <div style={{padding:"8px 16px",borderTop:"1px solid var(--border)",flexShrink:0,fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>
           {sW}\u00D7{sH} \u00B7 {fc2}-count\u00B7 {sc2} strand{sc2!==1?"s":""}
         </div>
       </div>
@@ -257,7 +257,7 @@ function StitchingStyleStepBody({onComplete,onBack,onSkip,startCorner:initCorner
   if(screen===1)return(
     <div>
       <h3 style={{marginTop:0,fontSize:17}}>How do you usually work through a pattern?</h3>
-      <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:16}}>
+      <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:'var(--s-4)'}}>
         <button className="modal-choice-btn" onClick={()=>{setStyle("block");setScreen(2);}}>One section at a time</button>
         <button className="modal-choice-btn" onClick={()=>{setStyle("crosscountry");setScreen(3);}}>One colour at a time</button>
         <button className="modal-choice-btn" onClick={()=>{setStyle("freestyle");setScreen(3);}}>I don't have a fixed method</button>
@@ -270,21 +270,21 @@ function StitchingStyleStepBody({onComplete,onBack,onSkip,startCorner:initCorner
   if(screen===2)return(
     <div>
       <h3 style={{marginTop:0,fontSize:17}}>What shape are your sections?</h3>
-      <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:16}}>
+      <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:'var(--s-4)'}}>
         <button className="modal-choice-btn" onClick={()=>{setStyle("block");setBw(10);setBh(10);setScreen(3);}}>10×10 blocks</button>
         <button className="modal-choice-btn" onClick={()=>{setStyle("royal");setBw(10);setBh(20);setScreen(3);}}>Tall towers (10 wide × 20 tall)</button>
         <button className="modal-choice-btn" onClick={()=>{setStyle("block");setBw(20);setBh(20);setScreen(3);}}>Larger blocks (20×20)</button>
         <button className="modal-choice-btn" onClick={()=>setShowCustom(v=>!v)}>Other size…</button>
-        {showCustom&&<div style={{display:"flex",gap:8,alignItems:"center",padding:"8px 12px",background:"#f8fafc",borderRadius:8,border:"1px solid #e2e8f0"}}>
-          <label style={{fontSize:12,fontWeight:600}}>W:</label>
-          <input type="number" inputMode="numeric" value={customW} onChange={e=>setCustomW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:13}} min={5} max={100}/>
-          <label style={{fontSize:12,fontWeight:600}}>H:</label>
-          <input type="number" inputMode="numeric" value={customH} onChange={e=>setCustomH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:13}} min={5} max={100}/>
-          <button onClick={()=>{setStyle("block");setBw(customW);setBh(customH);setScreen(3);}} style={{padding:"4px 10px",borderRadius:4,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontSize:12,fontWeight:600}}>OK</button>
+        {showCustom&&<div style={{display:"flex",gap:'var(--s-2)',alignItems:"center",padding:"8px 12px",background:"var(--surface-secondary)",borderRadius:'var(--radius-md)',border:"1px solid var(--border)"}}>
+          <label style={{fontSize:'var(--text-sm)',fontWeight:600}}>W:</label>
+          <input type="number" inputMode="numeric" value={customW} onChange={e=>setCustomW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid var(--border)",fontSize:'var(--text-md)'}} min={5} max={100}/>
+          <label style={{fontSize:'var(--text-sm)',fontWeight:600}}>H:</label>
+          <input type="number" inputMode="numeric" value={customH} onChange={e=>setCustomH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid var(--border)",fontSize:'var(--text-md)'}} min={5} max={100}/>
+          <button onClick={()=>{setStyle("block");setBw(customW);setBh(customH);setScreen(3);}} style={{padding:"4px 10px",borderRadius:4,border:"none",background:"var(--accent)",color:"var(--surface)",cursor:"pointer",fontSize:'var(--text-sm)',fontWeight:600}}>OK</button>
         </div>}
-        {showCustom&&(customW%10!==0||customH%10!==0)&&<div style={{fontSize:11,color:"#92400e",background:"#fffbeb",padding:"4px 10px",borderRadius:6}}>Custom sizes may not align with the 10-stitch grid lines.</div>}
+        {showCustom&&(customW%10!==0||customH%10!==0)&&<div style={{fontSize:'var(--text-xs)',color:"var(--accent-ink)",background:"#FAF5E1",padding:"4px 10px",borderRadius:'var(--radius-sm)'}}>Custom sizes may not align with the 10-stitch grid lines.</div>}
       </div>
-      <button style={{marginTop:16,background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12}} onClick={()=>setScreen(1)}>← Back</button>
+      <button style={{marginTop:'var(--s-4)',background:"none",border:"none",color:"var(--text-tertiary)",cursor:"pointer",fontSize:'var(--text-sm)',display:'inline-flex',alignItems:'center',gap:4}} onClick={()=>setScreen(1)}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronLeft?Icons.chevronLeft():null}</span> Back</button>
     </div>
   );
   // Screen 3 — start-corner picker; commits on selection.
@@ -292,10 +292,10 @@ function StitchingStyleStepBody({onComplete,onBack,onSkip,startCorner:initCorner
   return(
     <div>
       <h3 style={{marginTop:0,fontSize:17}}>Where do you usually start?</h3>
-      <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:16}}>
+      <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:'var(--s-4)'}}>
         {CORNERS.map(([k,l])=><button key={k} className={"modal-choice-btn"+(corner===k?" modal-choice-btn--on":"")} onClick={()=>commit(style||"block",bw,bh,k)}>{l}</button>)}
       </div>
-      <button style={{marginTop:16,background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:12}} onClick={()=>setScreen(style==="block"||style==="royal"?2:1)}>← Back</button>
+      <button style={{marginTop:'var(--s-4)',background:"none",border:"none",color:"var(--text-tertiary)",cursor:"pointer",fontSize:'var(--text-sm)',display:'inline-flex',alignItems:'center',gap:4}} onClick={()=>setScreen(style==="block"||style==="royal"?2:1)}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronLeft?Icons.chevronLeft():null}</span> Back</button>
     </div>
   );
 }
@@ -306,7 +306,7 @@ function StitchingStyleStepBody({onComplete,onBack,onSkip,startCorner:initCorner
 // the WelcomeWizard (see UnifiedApp / TrackerApp welcome mount).
 function StitchingStyleOnboarding({onDone,startCorner:initCorner}){
   return(
-    <div className="modal-overlay">
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Stitching style">
       <div className="modal-content" style={{maxWidth:380}} onClick={e=>e.stopPropagation()}>
         <StitchingStyleStepBody onComplete={onDone} startCorner={initCorner} />
       </div>
@@ -319,24 +319,24 @@ function SessionConfigModal({onStart,onClose,liveAutoElapsed,liveAutoStitches}){
   const[timeChoice,setTimeChoice]=useState(null);
   const[goalStitches,setGoalStitches]=useState("");
   return(
-    <div className="modal-overlay modal-overlay--sheet" onClick={onClose}>
+    <div className="modal-overlay modal-overlay--sheet" role="dialog" aria-modal="true" aria-labelledby="session-config-title" onClick={onClose}>
       <div className="modal-content modal-content--sheet" style={{maxWidth:360}} onClick={e=>e.stopPropagation()}>
         <div className="sheet-handle" aria-hidden="true"/>
         <button className="modal-close" onClick={onClose} aria-label="Close" title="Close">{Icons.x?Icons.x():"\u00D7"}</button>
-        <h3 style={{marginTop:0,fontSize:17}}>Start Session</h3>
-        <div style={{marginBottom:16}}>
-          <div style={{fontWeight:600,fontSize:12,color:"#475569",marginBottom:8}}>Time available</div>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        <h3 id="session-config-title" style={{marginTop:0,fontSize:17}}>Start Session</h3>
+        <div style={{marginBottom:'var(--s-4)'}}>
+          <div style={{fontWeight:600,fontSize:'var(--text-sm)',color:"var(--text-secondary)",marginBottom:'var(--s-2)'}}>Time available</div>
+          <div style={{display:"flex",gap:'var(--s-2)',flexWrap:"wrap"}}>
             {[[900,"15 min"],[1800,"30 min"],[3600,"1 hr"],[7200,"2 hr"],[null,"Open-ended"]].map(([v,l])=>(
-              <button key={String(v)} onClick={()=>setTimeChoice(v)} style={{padding:"6px 12px",borderRadius:8,border:"1px solid "+(timeChoice===v?"#0d9488":"#e2e8f0"),background:timeChoice===v?"#f0fdfa":"#fff",color:timeChoice===v?"#0d9488":"#475569",cursor:"pointer",fontWeight:600,fontSize:12}}>{l}</button>
+              <button key={String(v)} onClick={()=>setTimeChoice(v)} style={{padding:"6px 12px",borderRadius:'var(--radius-md)',border:"1px solid "+(timeChoice===v?"var(--accent)":"var(--border)"),background:timeChoice===v?"var(--accent-light)":"var(--surface)",color:timeChoice===v?"var(--accent)":"var(--text-secondary)",cursor:"pointer",fontWeight:600,fontSize:'var(--text-sm)'}}>{l}</button>
             ))}
           </div>
         </div>
-        <div style={{marginBottom:16}}>
-          <div style={{fontWeight:600,fontSize:12,color:"#475569",marginBottom:8}}>Stitch goal (optional)</div>
-          <input type="number" inputMode="numeric" enterKeyHint="done" value={goalStitches} onChange={e=>setGoalStitches(e.target.value)} placeholder="e.g. 200" min={1} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #e2e8f0",fontSize:13,width:"100%",boxSizing:"border-box"}}/>
+        <div style={{marginBottom:'var(--s-4)'}}>
+          <div style={{fontWeight:600,fontSize:'var(--text-sm)',color:"var(--text-secondary)",marginBottom:'var(--s-2)'}}>Stitch goal (optional)</div>
+          <input type="number" inputMode="numeric" enterKeyHint="done" value={goalStitches} onChange={e=>setGoalStitches(e.target.value)} placeholder="e.g. 200" min={1} style={{padding:"6px 10px",borderRadius:'var(--radius-md)',border:"1px solid var(--border)",fontSize:'var(--text-md)',width:"100%",boxSizing:"border-box"}}/>
         </div>
-        <button onClick={()=>onStart({timeAvail:timeChoice,stitchGoal:goalStitches?parseInt(goalStitches)||null:null})} style={{width:"100%",padding:"10px",borderRadius:8,border:"none",background:"#0d9488",color:"#fff",fontWeight:600,cursor:"pointer",fontSize:14}}>Start</button>
+        <button onClick={()=>onStart({timeAvail:timeChoice,stitchGoal:goalStitches?parseInt(goalStitches)||null:null})} style={{width:"100%",padding:"10px",borderRadius:'var(--radius-md)',border:"none",background:"var(--accent)",color:"var(--surface)",fontWeight:600,cursor:"pointer",fontSize:'var(--text-lg)'}}>Start</button>
       </div>
     </div>
   );
@@ -350,20 +350,20 @@ function SessionSummaryModal({data,prevAvgSpeed,onViewBreadcrumbs,hasBreadcrumbs
   const speed=durationSeconds>0?Math.round(stitchesCompleted/(durationSeconds/3600)):0;
   const pctDiff=prevAvgSpeed>0?Math.round(((speed-prevAvgSpeed)/prevAvgSpeed)*100):null;
   return(
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="session-complete-title" onClick={onClose}>
       <div className="modal-content" style={{maxWidth:360}} onClick={e=>e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose}>×</button>
-        <h3 style={{marginTop:0,fontSize:18,color:"#1e293b"}}>Session complete</h3>
-        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:14}}><span style={{color:"#475569"}}>Time</span><span style={{fontWeight:700}}>{mins}m {secs}s</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:14}}><span style={{color:"#475569"}}>Stitches</span><span style={{fontWeight:700}}>{stitchesCompleted}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:14}}><span style={{color:"#475569"}}>Speed</span><span style={{fontWeight:700}}>{speed} st/hr{pctDiff!=null?<span style={{fontSize:11,fontWeight:400,color:pctDiff>=0?"#16a34a":"#dc2626",marginLeft:6}}>{pctDiff>=0?"+":""}{pctDiff}% vs avg</span>:null}</span></div>
-          {blocksCompleted>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:14}}><span style={{color:"#475569"}}>Blocks</span><span style={{fontWeight:700}}>{blocksCompleted}</span></div>}
-          {coloursCompleted&&coloursCompleted.length>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:14}}><span style={{color:"#475569"}}>Colours finished</span><span style={{fontWeight:700}}>{coloursCompleted.length}</span></div>}
+        <button className="modal-close" onClick={onClose} aria-label="Close">{Icons.x?Icons.x():"×"}</button>
+        <h3 id="session-complete-title" style={{marginTop:0,fontSize:18,color:"var(--text-primary)"}}>Session complete</h3>
+        <div style={{display:"flex",flexDirection:"column",gap:'var(--s-2)',marginBottom:'var(--s-4)'}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Time</span><span style={{fontWeight:700}}>{mins}m {secs}s</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Stitches</span><span style={{fontWeight:700}}>{stitchesCompleted}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Speed</span><span style={{fontWeight:700}}>{speed} st/hr{pctDiff!=null?<span style={{fontSize:'var(--text-xs)',fontWeight:400,color:pctDiff>=0?"var(--success)":"var(--danger)",marginLeft:6}}>{pctDiff>=0?"+":""}{pctDiff}% vs avg</span>:null}</span></div>
+          {blocksCompleted>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Blocks</span><span style={{fontWeight:700}}>{blocksCompleted}</span></div>}
+          {coloursCompleted&&coloursCompleted.length>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Colours finished</span><span style={{fontWeight:700}}>{coloursCompleted.length}</span></div>}
         </div>
-        <div style={{display:"flex",gap:8}}>
-          {hasBreadcrumbs&&<button onClick={onViewBreadcrumbs} style={{flex:1,padding:"8px",borderRadius:8,border:"1px solid #e2e8f0",background:"#fff",cursor:"pointer",fontSize:13,fontWeight:600,color:"#475569"}}>View breadcrumb trail</button>}
-          <button onClick={onClose} style={{flex:1,padding:"8px",borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontSize:13,fontWeight:600}}>Close</button>
+        <div style={{display:"flex",gap:'var(--s-2)'}}>
+          {hasBreadcrumbs&&<button onClick={onViewBreadcrumbs} style={{flex:1,padding:"8px",borderRadius:'var(--radius-md)',border:"1px solid var(--border)",background:"var(--surface)",cursor:"pointer",fontSize:'var(--text-md)',fontWeight:600,color:"var(--text-secondary)"}}>View breadcrumb trail</button>}
+          <button onClick={onClose} style={{flex:1,padding:"8px",borderRadius:'var(--radius-md)',border:"none",background:"var(--accent)",color:"var(--surface)",cursor:"pointer",fontSize:'var(--text-md)',fontWeight:600}}>Close</button>
         </div>
       </div>
     </div>
@@ -378,14 +378,14 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
   });
   return(
     <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.55)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:12,padding:20,maxWidth:560,width:"100%",maxHeight:"80vh",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-          <h3 style={{margin:0,fontSize:17,color:"#0f172a"}}>Switch project</h3>
-          <button onClick={onClose} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#64748b",padding:"0 4px"}}>×</button>
+      <div onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",borderRadius:'var(--radius-xl)',padding:20,maxWidth:560,width:"100%",maxHeight:"80vh",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:'var(--s-3)'}}>
+          <h3 style={{margin:0,fontSize:17,color:"var(--text-primary)"}}>Switch project</h3>
+          <button onClick={onClose} aria-label="Close" style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",padding:"0 4px",display:"inline-flex",alignItems:"center"}}>{Icons.x?Icons.x():"\u00D7"}</button>
         </div>
-        <p style={{margin:"0 0 12px",fontSize:12,color:"#64748b"}}>Pick another saved project to track. Your current progress is auto-saved.</p>
-        <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:8,paddingRight:4}}>
-          {sorted.length===0&&<div style={{padding:"24px 0",textAlign:"center",fontSize:13,color:"#94a3b8"}}>No saved projects yet.</div>}
+        <p style={{margin:"0 0 12px",fontSize:'var(--text-sm)',color:"var(--text-tertiary)"}}>Pick another saved project to track. Your current progress is auto-saved.</p>
+        <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:'var(--s-2)',paddingRight:4}}>
+          {sorted.length===0&&<div style={{padding:"24px 0",textAlign:"center",fontSize:'var(--text-md)',color:"var(--text-tertiary)"}}>No saved projects yet.</div>}
           {sorted.map(p=>{
             const isActive=p.id===currentId;
             const total=p.totalStitches||0;
@@ -393,24 +393,24 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
             const pct=total>0?Math.round(done/total*100):0;
             return(
               <button key={p.id} onClick={()=>!isActive&&onPick(p)} disabled={isActive} style={{
-                display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:8,
-                border:isActive?"2px solid #0d9488":"1px solid #e2e8f0",
-                background:isActive?"#f0fdfa":"#fff",
+                display:"flex",alignItems:"center",gap:'var(--s-3)',padding:"10px 12px",borderRadius:'var(--radius-md)',
+                border:isActive?"2px solid var(--accent)":"1px solid var(--border)",
+                background:isActive?"var(--accent-light)":"var(--surface)",
                 cursor:isActive?"default":"pointer",textAlign:"left",fontFamily:"inherit",
                 opacity:isActive?0.85:1
               }}>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:13,fontWeight:600,color:"#0f172a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                  <div style={{fontSize:'var(--text-md)',fontWeight:600,color:"var(--text-primary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                     {p.name||"Untitled"}
-                    {isActive&&<span style={{marginLeft:8,fontSize:10,fontWeight:700,color:"#0d9488",background:"#ccfbf1",padding:"1px 6px",borderRadius:8,verticalAlign:"middle"}}>ACTIVE</span>}
+                    {isActive&&<span style={{marginLeft:'var(--s-2)',fontSize:10,fontWeight:700,color:"var(--accent)",background:"var(--accent-light)",padding:"1px 6px",borderRadius:'var(--radius-md)',verticalAlign:"middle"}}>ACTIVE</span>}
                   </div>
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginTop:4}}>
-                    <div style={{flex:1,height:5,background:"#e2e8f0",borderRadius:3,overflow:"hidden"}}>
-                      <div style={{width:pct+"%",height:"100%",background:pct===100?"#16a34a":"#0d9488"}}/>
+                  <div style={{display:"flex",alignItems:"center",gap:'var(--s-2)',marginTop:'var(--s-1)'}}>
+                    <div style={{flex:1,height:5,background:"var(--border)",borderRadius:3,overflow:"hidden"}}>
+                      <div style={{width:pct+"%",height:"100%",background:pct===100?"var(--success)":"var(--accent)"}}/>
                     </div>
-                    <span style={{fontSize:11,color:"#64748b",fontVariantNumeric:"tabular-nums",minWidth:36,textAlign:"right"}}>{pct}%</span>
+                    <span style={{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",fontVariantNumeric:"tabular-nums",minWidth:36,textAlign:"right"}}>{pct}%</span>
                   </div>
-                  <div style={{fontSize:10,color:"#94a3b8",marginTop:3}}>
+                  <div style={{fontSize:10,color:"var(--text-tertiary)",marginTop:3}}>
                     {p.dimensions?(p.dimensions.width+"\u00D7"+p.dimensions.height+" \u00B7 "):""}
                     {done.toLocaleString()+" / "+total.toLocaleString()+" stitches"}
                     {p.updatedAt?(" \u00B7 updated "+new Date(p.updatedAt).toLocaleDateString()):""}
@@ -422,6 +422,111 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
         </div>
       </div>
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Phase 4 (UX-12) — Tracker tablet/desktop project rail + side panel.
+// Reads recent projects from ProjectStorage.listProjects() and renders a
+// fast switcher on the left, plus a stacked palette + Today stats card on
+// the right. Both surfaces are CSS-gated to >=600px viewports; phone
+// keeps its existing chrome (action bar + dock + mode pill).
+// ═══════════════════════════════════════════════════════════════
+function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setFocusColour,stitchView,setStitchView,todayStitchesForBar,liveAutoElapsed,liveAutoStitches,onPickProject}){
+  const[recent,setRecent]=React.useState([]);
+  React.useEffect(function(){
+    let cancelled=false;
+    function load(){
+      if(!window.ProjectStorage||!window.ProjectStorage.listProjects)return;
+      window.ProjectStorage.listProjects().then(function(list){
+        if(cancelled)return;
+        setRecent((list||[]).slice(0,8));
+      }).catch(function(){});
+    }
+    load();
+    var onChange=function(){load();};
+    window.addEventListener('cs:projectsChanged',onChange);
+    return function(){cancelled=true;window.removeEventListener('cs:projectsChanged',onChange);};
+  },[activeId]);
+  function openProject(id){
+    if(!id||id===activeId)return;
+    // Switch in-place via the same path the project-picker modal uses.
+    // Falls back to reload only if the host App didn't supply a handler.
+    if(typeof onPickProject==='function'){onPickProject(id);return;}
+    try{window.ProjectStorage.setActiveProject(id);}catch(_){}
+    try{window.location.reload();}catch(_){}
+  }
+  var sec=liveAutoElapsed||0;
+  var hh=Math.floor(sec/3600),mm=Math.floor((sec%3600)/60);
+  var timer=(hh>0?hh+"h ":"")+mm+"m";
+  return React.createElement('aside',{className:'tracker-project-rail',role:'complementary','aria-label':'Recent projects'},
+    React.createElement('h3',{className:'tpr-h'},'Projects'),
+    React.createElement('div',{className:'tpr-list'},
+      (recent.length===0
+        ? React.createElement('div',{className:'tpr-empty'},'No saved projects yet')
+        : recent.map(function(p){
+            var isActiveProj=p.id===activeId;
+            var pct=0;
+            if(p.totalStitchable&&p.doneCount!=null)pct=Math.round(p.doneCount/p.totalStitchable*100);
+            else if(p.progressPct!=null)pct=Math.round(p.progressPct);
+            var thumb=p.thumbDataUrl;
+            var initial=(p.name||'?').trim().charAt(0).toUpperCase()||'?';
+            var firstColour=p.firstPaletteRgb||null;
+            return React.createElement('button',{
+              key:p.id,type:'button',className:'tpr-row'+(isActiveProj?' tpr-row--on':''),
+              onClick:function(){openProject(p.id);},'aria-current':isActiveProj?'true':'false',
+              title:p.name||'Untitled project'
+            },
+              React.createElement('span',{className:'tpr-thumb',style:thumb?{backgroundImage:'url('+thumb+')'}:(firstColour?{background:'rgb('+firstColour+')'}:{background:'var(--surface-tertiary)'})},
+                thumb?null:React.createElement('span',{className:'tpr-initial'},initial)
+              ),
+              React.createElement('span',{className:'tpr-text'},
+                React.createElement('span',{className:'tpr-name'},p.name||'Untitled'),
+                React.createElement('span',{className:'tpr-pct'},pct+'% done')
+              )
+            );
+          })
+      )
+    ),
+    React.createElement('button',{
+      className:'tpr-more',type:'button',
+      onClick:function(){
+        try{
+          var btn=document.querySelector('.tracker-hamburger');
+          if(btn)btn.click();
+        }catch(_){}
+      }
+    },'More projects…'),
+    React.createElement('div',{className:'tracker-side-panel',role:'complementary','aria-label':'Today and palette'},
+      React.createElement('section',{className:'tsp-card'},
+        React.createElement('h3',{className:'tsp-h'},'Today'),
+        React.createElement('div',{className:'tsp-stat'},React.createElement('span',null,'Stitches'),React.createElement('strong',null,(todayStitchesForBar||0).toLocaleString())),
+        React.createElement('div',{className:'tsp-stat'},React.createElement('span',null,'Session'),React.createElement('strong',null,timer)),
+        React.createElement('div',{className:'tsp-stat'},React.createElement('span',null,'Active'),React.createElement('strong',null,(liveAutoStitches||0).toLocaleString()+' st'))
+      ),
+      React.createElement('section',{className:'tsp-card'},
+        React.createElement('h3',{className:'tsp-h'},'Palette · '+(pal?pal.length:0)+' colours'),
+        React.createElement('div',{className:'tsp-pal'},
+          (pal||[]).map(function(p){
+            var dc=colourDoneCounts?colourDoneCounts[p.id]:null;
+            var rem=dc?Math.max(0,(dc.total||0)-(dc.done||0)):0;
+            var rgb=cmap&&cmap[p.id]?cmap[p.id].rgb:null;
+            var isOn=focusColour===p.id;
+            return React.createElement('button',{
+              key:p.id,type:'button',
+              className:'tsp-row'+(isOn?' tsp-row--on':''),
+              onClick:function(){if(stitchView!=='highlight')setStitchView('highlight');setFocusColour(p.id);},
+              title:'DMC '+p.id+' — '+(p.name||'')
+            },
+              React.createElement('span',{className:'tsp-sw',style:rgb?{background:'rgb('+rgb+')'}:{}}),
+              React.createElement('span',{className:'tsp-id'},p.id),
+              React.createElement('span',{className:'tsp-name'},p.name||''),
+              React.createElement('span',{className:'tsp-rem'},rem.toLocaleString())
+            );
+          })
+        )
+      )
+    )
   );
 }
 
@@ -443,6 +548,55 @@ const[modal,setModal]=useState(null);
 // `quickColourOpen` toggles a dedicated bottom drawer that lets the user pick
 // the focus colour with one tap. It's only used on touch / narrow viewports.
 const[quickColourOpen,setQuickColourOpen]=useState(false);
+// ── Phase 4 (UX-12) — floating tool dock vertical position (phone) ──
+// User-draggable along the right edge. Persisted between sessions.
+const[dockY,setDockY]=useState(()=>{
+  try{const v=parseInt(localStorage.getItem("tracker_dock_y")||"",10);return Number.isFinite(v)?v:40;}catch(_){return 40;}
+});
+useEffect(()=>{try{localStorage.setItem("tracker_dock_y",String(dockY));}catch(_){}},[dockY]);
+// ── Phase 4 (UX-12) — wake-lock chip ──
+// Holds the WakeLockSentinel returned by navigator.wakeLock.request when active.
+// Re-acquired on next session if the user previously toggled it on (UserPrefs).
+const wakeLockRef=useRef(null);
+const[wakeLockActive,setWakeLockActive]=useState(false);
+const releaseWakeLock=useCallback(async()=>{
+  if(wakeLockRef.current){try{await wakeLockRef.current.release();}catch(_){}wakeLockRef.current=null;}
+  setWakeLockActive(false);
+},[]);
+const acquireWakeLock=useCallback(async()=>{
+  try{
+    if(typeof navigator==='undefined'||!navigator.wakeLock||!navigator.wakeLock.request)return false;
+    const sentinel=await navigator.wakeLock.request('screen');
+    wakeLockRef.current=sentinel;
+    setWakeLockActive(true);
+    sentinel.addEventListener&&sentinel.addEventListener('release',()=>{setWakeLockActive(false);wakeLockRef.current=null;});
+    return true;
+  }catch(_){setWakeLockActive(false);return false;}
+},[]);
+const toggleWakeLock=useCallback(async()=>{
+  if(wakeLockActive){
+    await releaseWakeLock();
+    try{if(window.UserPrefs)window.UserPrefs.set('trackerWakeLock',false);}catch(_){}
+  }else{
+    const ok=await acquireWakeLock();
+    try{if(window.UserPrefs)window.UserPrefs.set('trackerWakeLock',!!ok);}catch(_){}
+    if(!ok){try{if(window.Toast&&window.Toast.show)window.Toast.show({message:"Screen wake-lock not available on this browser.",type:"warn"});}catch(_){}}
+  }
+},[wakeLockActive,acquireWakeLock,releaseWakeLock]);
+useEffect(()=>{
+  let cancelled=false;
+  try{
+    const want=window.UserPrefs&&window.UserPrefs.get('trackerWakeLock');
+    if(want){acquireWakeLock().then(ok=>{if(cancelled&&ok)releaseWakeLock();});}
+  }catch(_){}
+  function onVis(){
+    if(document.visibilityState==='visible'){
+      try{const want=window.UserPrefs&&window.UserPrefs.get('trackerWakeLock');if(want&&!wakeLockRef.current)acquireWakeLock();}catch(_){}
+    }
+  }
+  document.addEventListener('visibilitychange',onVis);
+  return()=>{cancelled=true;document.removeEventListener('visibilitychange',onVis);releaseWakeLock();};
+},[acquireWakeLock,releaseWakeLock]);
 // Tag the document body with `tracker-mobile` while the Tracker is mounted on a
 // touch / narrow viewport. CSS scopes the new bottom action bar and quick-
 // switcher drawer to this class so desktop layout is untouched.
@@ -606,7 +760,17 @@ const justLoadedRef=useRef(false);
 const justLoadedSettlePassRef=useRef(0);
 const autoStatsRef=useRef({doneCount:0,totalStitchable:0});
 const finaliseAutoSessionRef=useRef(null);
-const IDLE_THRESHOLD_MS=10*60*1000;
+// Idle threshold is now driven by the trackerIdleMinutes preference. Read
+// fresh on each timer arm so a settings change applies on the next stroke
+// without restarting the session. 0 disables the auto-pause entirely.
+function getIdleThresholdMs(){
+  try{
+    var m=window.UserPrefs&&window.UserPrefs.get("trackerIdleMinutes");
+    if(m===0)return Infinity; // never auto-pause
+    if(typeof m==="number"&&m>0)return m*60*1000;
+  }catch(_){}
+  return 10*60*1000;
+}
 // Persistent milestones, session onboarding, session note toast
 const[achievedMilestones,setAchievedMilestones]=useState([]);
 const[sessionOnboardingShown,setSessionOnboardingShown]=useState(()=>{try{return !!localStorage.getItem("cs_sessionOnboardingDone");}catch(_){return false;}});
@@ -636,7 +800,10 @@ const inactivityPausedRef = useRef(false);
 const inactivityPauseTimeRef = useRef(null);
 
 const[stitchMode,setStitchMode]=useState("track");
-const[stitchView,setStitchView]=useState("symbol");
+const[stitchView,setStitchView]=useState(()=>{try{var v=window.UserPrefs&&window.UserPrefs.get("trackerDefaultView");return (v==="symbol"||v==="colour"||v==="highlight")?v:"symbol";}catch(_){return "symbol";}});
+// Persist sticky "default view" so the choice survives reloads (mirrors
+// the highlight-mode behaviour) — the prefs UI reads/writes the same key.
+useEffect(()=>{try{if(window.UserPrefs)window.UserPrefs.set("trackerDefaultView",stitchView);}catch(_){}},[stitchView]);
 const[stitchZoom,setStitchZoom]=useState(1);
 useEffect(()=>{stitchZoomRef.current=stitchZoom;},[stitchZoom]);
 const[isEditMode,setIsEditMode]=useState(false);
@@ -654,15 +821,44 @@ const[showExitEditModal,setShowExitEditModal]=useState(false);
 const[drawer,setDrawer]=useState(false);
 const[focusColour,setFocusColour]=useState(null);
 const[showNavHelp,setShowNavHelp]=useState(false);
-const[highlightSkipDone,setHighlightSkipDone]=useState(true);
-const[onlyStarted,setOnlyStarted]=useState(false);
-const[trackerDimLevel,setTrackerDimLevel]=useState(()=>{try{return parseFloat(localStorage.getItem("cs_trDimLv")||"0.1");}catch(_){return 0.1;}});
-const[highlightMode,setHighlightMode]=useState(()=>{try{return localStorage.getItem("cs_hlMode")||"isolate";}catch(_){return "isolate";}});
-const[tintColor,setTintColor]=useState(()=>{try{return localStorage.getItem("cs_tintColor")||"#FFD700";}catch(_){return "#FFD700";}});
-const[tintOpacity,setTintOpacity]=useState(()=>{try{return parseFloat(localStorage.getItem("cs_tintOp")||"0.4");}catch(_){return 0.4;}});
-const[spotDimOpacity,setSpotDimOpacity]=useState(()=>{try{return parseFloat(localStorage.getItem("cs_spotDimOp")||"0.15");}catch(_){return 0.15;}});
+const[highlightSkipDone,setHighlightSkipDone]=useState(()=>{try{var v=window.UserPrefs&&window.UserPrefs.get("trackerHighlightSkipDone");return v!==false;}catch(_){return true;}});
+const[onlyStarted,setOnlyStarted]=useState(()=>{try{return !!(window.UserPrefs&&window.UserPrefs.get("trackerOnlyStarted"));}catch(_){return false;}});
+useEffect(()=>{try{if(window.UserPrefs)window.UserPrefs.set("trackerHighlightSkipDone",highlightSkipDone);}catch(_){}},[highlightSkipDone]);
+useEffect(()=>{try{if(window.UserPrefs)window.UserPrefs.set("trackerOnlyStarted",onlyStarted);}catch(_){}},[onlyStarted]);
+const[trackerDimLevel,setTrackerDimLevel]=useState(()=>{
+  try{var pv=window.UserPrefs&&window.UserPrefs.get("trackerDimLevel");if(typeof pv==="number"&&pv>=0&&pv<=1)return pv;}catch(_){}
+  try{return parseFloat(localStorage.getItem("cs_trDimLv")||"0.1");}catch(_){return 0.1;}
+});
+useEffect(()=>{try{localStorage.setItem("cs_trDimLv",String(trackerDimLevel));}catch(_){}try{if(window.UserPrefs)window.UserPrefs.set("trackerDimLevel",trackerDimLevel);}catch(_){}},[trackerDimLevel]);
+const[highlightMode,setHighlightMode]=useState(()=>{
+  // Prefer UserPrefs (synced with the prefs modal); fall back to the legacy
+  // cs_hlMode key for users created before the pref existed; finally default.
+  try{
+    var pv=window.UserPrefs&&window.UserPrefs.get("trackerDefaultHighlightMode");
+    if(pv==="isolate"||pv==="outline"||pv==="tint"||pv==="spotlight")return pv;
+  }catch(_){}
+  try{return localStorage.getItem("cs_hlMode")||"isolate";}catch(_){return "isolate";}
+});
+const[tintColor,setTintColor]=useState(()=>{
+  try{var pv=window.UserPrefs&&window.UserPrefs.get("trackerTintColour");if(typeof pv==="string"&&/^#[0-9a-f]{6}$/i.test(pv))return pv;}catch(_){}
+  try{return localStorage.getItem("cs_tintColor")||"#FFD700";}catch(_){return "#FFD700";}
+});
+const[tintOpacity,setTintOpacity]=useState(()=>{
+  try{var pv=window.UserPrefs&&window.UserPrefs.get("trackerTintOpacity");if(typeof pv==="number"&&pv>=0&&pv<=1)return pv;}catch(_){}
+  try{return parseFloat(localStorage.getItem("cs_tintOp")||"0.4");}catch(_){return 0.4;}
+});
+const[spotDimOpacity,setSpotDimOpacity]=useState(()=>{
+  try{var pv=window.UserPrefs&&window.UserPrefs.get("trackerSpotDimOpacity");if(typeof pv==="number"&&pv>=0&&pv<=1)return pv;}catch(_){}
+  try{return parseFloat(localStorage.getItem("cs_spotDimOp")||"0.15");}catch(_){return 0.15;}
+});
+useEffect(()=>{try{localStorage.setItem("cs_tintColor",tintColor);}catch(_){}try{if(window.UserPrefs)window.UserPrefs.set("trackerTintColour",tintColor);}catch(_){}},[tintColor]);
+useEffect(()=>{try{localStorage.setItem("cs_tintOp",String(tintOpacity));}catch(_){}try{if(window.UserPrefs)window.UserPrefs.set("trackerTintOpacity",tintOpacity);}catch(_){}},[tintOpacity]);
+useEffect(()=>{try{localStorage.setItem("cs_spotDimOp",String(spotDimOpacity));}catch(_){}try{if(window.UserPrefs)window.UserPrefs.set("trackerSpotDimOpacity",spotDimOpacity);}catch(_){}},[spotDimOpacity]);
 const[antsOffset,setAntsOffset]=useState(0);
-useEffect(()=>{try{localStorage.setItem("cs_hlMode",highlightMode);}catch(_){}},[highlightMode]);
+useEffect(()=>{
+  try{localStorage.setItem("cs_hlMode",highlightMode);}catch(_){}
+  try{if(window.UserPrefs)window.UserPrefs.set("trackerDefaultHighlightMode",highlightMode);}catch(_){}
+},[highlightMode]);
 // Show one-time intro hint on first entry to Highlight mode (Option 4)
 useEffect(()=>{
   if(stitchView==="highlight"&&!hlIntroSeen){
@@ -812,6 +1008,12 @@ const[legendSort,setLegendSort]=useState(()=>{
 });
 useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLegendSort",legendSort);}catch(_){}},[legendSort]);
 
+// Issue #6 — desktop palette legend collapsible. Persists via UserPrefs.
+const[legendCollapsed,setLegendCollapsed]=useState(()=>{
+  try{var p=window.UserPrefs&&window.UserPrefs.get("trackerLegendCollapsed");return !!p;}catch(_){return false;}
+});
+useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLegendCollapsed",!!legendCollapsed);}catch(_){}},[legendCollapsed]);
+
 // Phase 5: ESC closes the mobile lpanel drawer. Desktop ignores it
 // (the panel is sticky / persistent and ESC could clobber other modal
 // dismiss semantics).
@@ -849,6 +1051,10 @@ const[projectDesigner,setProjectDesigner]=useState("");
 const[projectDescription,setProjectDescription]=useState("");
 const[namePromptOpen,setNamePromptOpen]=useState(false);
 const[editDetailsOpen,setEditDetailsOpen]=useState(false);
+// Command Palette → Preferences modal bridge (UX-12 Phase 6 PR #11).
+useEffect(()=>{const h=()=>{if(typeof window.PreferencesModal!=='undefined')setPreferencesOpen(true);};window.addEventListener('cs:openPreferences',h);return()=>window.removeEventListener('cs:openPreferences',h);},[]);
+// Command Palette → Rename current project bridge (UX-12 Phase 6 PR #11).
+useEffect(()=>{const h=()=>setEditDetailsOpen(true);window.addEventListener('cs:openRename',h);return()=>window.removeEventListener('cs:openRename',h);},[]);
 const G=28;
 const[tOverflowOpen,setTOverflowOpen]=useState(false);
 const[tStripCollapsed,setTStripCollapsed]=useState({view:false,stitch:false});
@@ -888,8 +1094,12 @@ const effectiveCombinedDone=statsCountMode==='visible'?(layerVis.full?doneCount:
 const progressPct=effectiveCombinedTotal>0?Math.round(effectiveCombinedDone/effectiveCombinedTotal*1000)/10:0;
 // Today's stitches for progress bar accent segment
 const todayStitchesForBar=useMemo(()=>{if(!statsSessions)return 0;const deh=(statsSettings&&statsSettings.dayEndHour)||0;return getStatsTodayStitches(statsSessions,deh)+liveAutoStitches;},[statsSessions,liveAutoStitches,statsSettings]);
+const weekStitchesForChip=useMemo(()=>{if(!statsSessions)return 0;const deh=(statsSettings&&statsSettings.dayEndHour)||0;return getStatsThisWeekStitches(statsSessions,deh)+liveAutoStitches;},[statsSessions,liveAutoStitches,statsSettings]);
 const todayBarPct=effectiveCombinedTotal>0?Math.min((todayStitchesForBar/effectiveCombinedTotal)*100,Math.min(progressPct,100)):0;
 const prevBarPct=Math.max(0,Math.min(progressPct,100)-todayBarPct);
+// Plan B Phase 1: Progress info chip + AppInfoPopover state.
+const [progressInfoOpen,setProgressInfoOpen]=useState(false);
+const progressChipRef=useRef(null);
 
 const colourDoneCounts=countsVer>=0?colourDoneCountsRef.current:{};
 const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total,backstitch:bsLines.length,quarter:0,petite:0,french_knot:0,long_stitch:0}),[totalStitchable,halfStitchCounts.total,bsLines.length]);
@@ -1043,7 +1253,10 @@ function recordAutoActivity(completed,undone){
       pendingColoursRef.current.clear();
     }
     clearTimeout(autoIdleTimerRef.current);
-    autoIdleTimerRef.current=setTimeout(()=>{try{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();}catch(e){}},IDLE_THRESHOLD_MS);
+    var idleMs=getIdleThresholdMs();
+    if(isFinite(idleMs)){
+      autoIdleTimerRef.current=setTimeout(()=>{try{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();}catch(e){}},idleMs);
+    }
     // Reset inactivity pause timer (only if not manually paused)
     clearTimeout(inactivityTimerRef.current);
     const inactThresh=(statsSettings.inactivityPauseSec||0)*1000;
@@ -1306,7 +1519,12 @@ useEffect(()=>{
         setAnalysisRunning(false);
       }
     };
-    w.onerror=function(err){setAnalysisRunning(false);};
+    w.onerror=function(err){
+      // PERF (perf-8 #12): terminate the worker on error so a wedged worker doesn't
+      // leak; null the ref so the analyse useEffect skips until next mount.
+      setAnalysisRunning(false);
+      try{if(analysisWorkerRef.current){analysisWorkerRef.current.terminate();analysisWorkerRef.current=null;}}catch(_){}
+    };
   }catch(e){}
   return()=>{clearTimeout(analysisThrottleRef.current);if(analysisWorkerRef.current){analysisWorkerRef.current.terminate();analysisWorkerRef.current=null;}};
 },[]);
@@ -1399,7 +1617,9 @@ useEffect(()=>{
       const stitches=_getBlockStitchCount(focusBlock.bx,focusBlock.by);
       const curSessIdx=statsSessions?statsSessions.length:0;
       const seqN=breadcrumbs.filter(b=>b.sessionIdx===curSessIdx).length+1;
-      setBreadcrumbs(prev=>[...prev,{sessionIdx:curSessIdx,bx:focusBlock.bx,by:focusBlock.by,seqN,completedAt:Date.now()}]);
+      // PERF (perf-8 #9): cap breadcrumb history to last 500 entries to prevent unbounded growth
+      // over long projects with many focus blocks.
+      setBreadcrumbs(prev=>{const next=[...prev,{sessionIdx:curSessIdx,bx:focusBlock.bx,by:focusBlock.by,seqN,completedAt:Date.now()}];return next.length>500?next.slice(-500):next;});
       let next=null;
       if(stitchingStyle==="royal"){
         next=_getRoyalRowsNext(focusBlock.bx,focusBlock.by);
@@ -2230,10 +2450,10 @@ function handleEditInCreator(){
   const sseArrH=[...singleStitchEdits.entries()];
   const hsArrH=[...halfStitches.entries()].map(([idx,hs])=>[idx,{fwd:hs.fwd?{id:hs.fwd.id,rgb:hs.fwd.rgb}:undefined,bck:hs.bck?{id:hs.bck.id,rgb:hs.bck.rgb}:undefined}]);
   const hdArrH=[...halfDone.entries()];
-  let project={version:9,id:projectIdRef.current||undefined,page:"tracker",name:projectName,createdAt:createdAtRef.current||new Date().toISOString(),updatedAt:new Date().toISOString(),settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"#ffffff",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice,stitchSpeed,smooth:0,smoothType:"median",orphans:0},pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,hlRow,hlCol,threadOwned,imgData:null,originalPaletteState,singleStitchEdits:sseArrH,halfStitches:hsArrH,halfDone:hdArrH,statsSessions,statsSettings,achievedMilestones,doneSnapshots,breadcrumbs,stitchingStyle,blockW,blockH,focusBlock,startCorner,colourSequence};
+  let project={version:9,id:projectIdRef.current||undefined,page:"tracker",name:projectName,createdAt:createdAtRef.current||new Date().toISOString(),updatedAt:new Date().toISOString(),settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"var(--surface)",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice,stitchSpeed,smooth:0,smoothType:"median",orphans:0},pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,hlRow,hlCol,threadOwned,imgData:null,originalPaletteState,singleStitchEdits:sseArrH,halfStitches:hsArrH,halfDone:hdArrH,statsSessions,statsSettings,achievedMilestones,doneSnapshots,breadcrumbs,stitchingStyle,blockW,blockH,focusBlock,startCorner,colourSequence};
   try{
     localStorage.setItem("crossstitch_handoff_to_creator", JSON.stringify(project));
-    window.location.href = "index.html?source=tracker";
+    window.location.href = "create.html?source=tracker";
   }catch(e){
     try{
       let str = JSON.stringify(project);
@@ -3098,7 +3318,7 @@ function drawStitch(ctx,cSz,viewportRect){
       let dimmed=stitchView==="highlight"&&focusColour&&m.id!==focusColour&&m.id!=="__skip__"&&m.id!=="__empty__";
       const effectiveDimmed=dimmed&&highlightMode!=="outline"&&highlightMode!=="tint";
       const dimR=Math.round(255-(255-m.rgb[0])*trackerDimLevel),dimG=Math.round(255-(255-m.rgb[1])*trackerDimLevel),dimB=Math.round(255-(255-m.rgb[2])*trackerDimLevel);
-      const dimFill=effectiveDimmed?`rgb(${dimR},${dimG},${dimB})`:'#f1f5f9';
+      const dimFill=effectiveDimmed?`rgb(${dimR},${dimG},${dimB})`:'#EFE7D6';
       if(m.id==="__skip__"||m.id==="__empty__"){drawCk(ctx,px,py,cSz);if(cSz>=4){ctx.strokeStyle=m.id==="__empty__"?"rgba(220,50,50,0.25)":"rgba(0,0,0,0.06)";ctx.strokeRect(px,py,cSz,cSz);}
         let hs=halfStitches.get(idx);
         if(hs&&layerVis.half&&bsHsAlpha>0.01){
@@ -3111,8 +3331,8 @@ function drawStitch(ctx,cSz,viewportRect){
       }
       if(layerVis.full){
       if(stitchView==="symbol"){
-        if(isDn){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
-        else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1e293b";ctx.font=fSym;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
+        if(isDn){ctx.fillStyle="#D5E5C8";ctx.fillRect(px,py,cSz,cSz);}
+        else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1B1814";ctx.font=fSym;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
       }else if(stitchView==="colour"){
         ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
         if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}
@@ -3126,7 +3346,7 @@ function drawStitch(ctx,cSz,viewportRect){
       }else{
         if(isDn){ctx.fillStyle=effectiveDimmed?dimFill:`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
         else if(dimmed){ctx.fillStyle=dimFill;ctx.fillRect(px,py,cSz,cSz);if(symAlpha>0.01&&trackerDimLevel<0.25&&info&&cSz>=8){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=`rgba(0,0,0,${Math.max(0.04,0.12-trackerDimLevel*0.4)})`;ctx.font=fHlDim;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}else if(symAlpha>0.01&&trackerDimLevel>=0.25&&info&&cSz>=8){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?'rgba(0,0,0,0.5)':'rgba(255,255,255,0.6)';ctx.font=fHlDim;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
-        else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1e293b";ctx.font=fHlFocus;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
+        else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1B1814";ctx.font=fHlFocus;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
       }
       // Tier 4: thread ID secondary label below the symbol (cell > 40px)
       if(tier>=4&&cSz>40&&info&&symAlpha>0.01&&m.id!=="__skip__"&&m.id!=="__empty__"){
@@ -3342,8 +3562,8 @@ useEffect(()=>{
       const rCol=rec.idx%RC,rRow=Math.floor(rec.idx/RC);
       const x=G+rCol*RS*scs,y=G+rRow*RS*scs;
       const w=Math.min(RS,W-rCol*RS)*scs,h=Math.min(RS,H-rRow*RS)*scs;
-      if(rank===0){ctx.strokeStyle=`rgba(13,148,136,${pulseAlpha})`;ctx.lineWidth=3;}
-      else{ctx.strokeStyle="rgba(13,148,136,0.2)";ctx.lineWidth=2;}
+      if(rank===0){ctx.strokeStyle=`rgba(184, 92, 56,${pulseAlpha})`;ctx.lineWidth=3;}
+      else{ctx.strokeStyle="rgba(184, 92, 56,0.2)";ctx.lineWidth=2;}
       ctx.strokeRect(x+1,y+1,w-2,h-2);
     });
   };
@@ -3388,7 +3608,7 @@ useEffect(()=>{
   ctx.fillRect(fx,fy,fw,fh);
   ctx.restore();
   // Focus block border
-  ctx.strokeStyle="rgba(13,148,136,0.9)";ctx.lineWidth=2;ctx.strokeRect(fx+1,fy+1,fw-2,fh-2);
+  ctx.strokeStyle="rgba(184, 92, 56,0.9)";ctx.lineWidth=2;ctx.strokeRect(fx+1,fy+1,fw-2,fh-2);
   // Neighbour dashed borders
   for(let dy=-1;dy<=1;dy++){for(let dx=-1;dx<=1;dx++){
     if(dx===0&&dy===0)continue;
@@ -3396,7 +3616,7 @@ useEffect(()=>{
     if(nbx<0||nbx>=bCols||nby<0||nby>=bRows)continue;
     const nx=G+nbx*blockW*scs,ny=G+nby*blockH*scs;
     const nw=Math.min(blockW,sW-nbx*blockW)*scs,nh=Math.min(blockH,sH-nby*blockH)*scs;
-    ctx.strokeStyle="rgba(13,148,136,0.25)";ctx.lineWidth=1;
+    ctx.strokeStyle="rgba(184, 92, 56,0.25)";ctx.lineWidth=1;
     ctx.setLineDash([3,3]);ctx.strokeRect(nx+0.5,ny+0.5,nw-1,nh-1);ctx.setLineDash([]);
   }}
 },[focusBlock,focusEnabled,stitchingStyle,scs,sW,sH,blockW,blockH]);
@@ -3490,19 +3710,28 @@ useEffect(()=>{
       const isActive=focusBlock&&focusBlock.bx===bx&&focusBlock.by===by;
       const px=G+x0*scs+2,py=G+y0*scs+2;
       if(remaining===0){
-        ctx.fillStyle="#0d9488";ctx.font="bold 9px sans-serif";
-        ctx.textAlign="left";ctx.textBaseline="top";
-        ctx.fillText("✓",px,py);
+        // Draw a small checkmark using canvas strokes (matches Icons.check
+        // glyph) instead of rendering the "✓" character — keeps the canvas
+        // overlay font-independent and consistent with the SVG icon library.
+        ctx.strokeStyle="#B85C38";
+        ctx.lineWidth=1.4;
+        ctx.lineCap="round";
+        ctx.lineJoin="round";
+        ctx.beginPath();
+        ctx.moveTo(px+1,py+5);
+        ctx.lineTo(px+3.4,py+7.4);
+        ctx.lineTo(px+8,py+2);
+        ctx.stroke();
       }else if(isActive){
         const label=String(remaining);
         ctx.font="bold 10px sans-serif";
         ctx.textAlign="left";ctx.textBaseline="top";
         const tw=ctx.measureText(label).width;
-        ctx.fillStyle="rgba(13,148,136,0.15)";
+        ctx.fillStyle="rgba(184, 92, 56,0.15)";
         ctx.beginPath();
         if(ctx.roundRect)ctx.roundRect(px-2,py-1,tw+6,13,3);else ctx.rect(px-2,py-1,tw+6,13);
         ctx.fill();
-        ctx.fillStyle="#0d9488";ctx.fillText(label,px,py);
+        ctx.fillStyle="#B85C38";ctx.fillText(label,px,py);
       }else{
         ctx.fillStyle="rgba(0,0,0,0.3)";ctx.font="8px sans-serif";
         ctx.textAlign="left";ctx.textBaseline="top";
@@ -3529,7 +3758,7 @@ useEffect(()=>{
                   const label=String(runLen);
                   ctx.font="bold 8px monospace";
                   const tw=Math.max(ctx.measureText(label).width+6,14);
-                  ctx.fillStyle="#0d9488";
+                  ctx.fillStyle="#B85C38";
                   ctx.beginPath();
                   if(ctx.roundRect)ctx.roundRect(bpx-tw,bpy,tw,11,5);else ctx.rect(bpx-tw,bpy,tw,11);
                   ctx.fill();
@@ -3691,8 +3920,8 @@ function drawCellDirectly(idx, nv) {
 
   if(layerVis.full){
     if(stitchView==="symbol"){
-      if(isDn){ctx.fillStyle="#d1fae5";ctx.fillRect(px,py,cSz,cSz);}
-      else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1e293b";ctx.font=`bold ${symPx}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
+      if(isDn){ctx.fillStyle="#D5E5C8";ctx.fillRect(px,py,cSz,cSz);}
+      else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1B1814";ctx.font=`bold ${symPx}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
     }else if(stitchView==="colour"){
       ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
       if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,Math.round(symPx*0.92))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}
@@ -3704,9 +3933,9 @@ function drawCellDirectly(idx, nv) {
       if(dimmed){ctx.fillStyle="#e8ecf0";ctx.fillRect(px,py,cSz,cSz);}
       else{ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=`bold ${Math.max(7,Math.round(symPx*0.92))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}if(cSz>=4){const lum2=luminance(m.rgb);ctx.strokeStyle=lum2>140?"rgba(26,26,46,0.85)":"rgba(255,255,255,0.85)";ctx.lineWidth=1.5;ctx.strokeRect(px+0.75,py+0.75,cSz-1.5,cSz-1.5);ctx.lineWidth=1;}}
     }else{
-      if(isDn){ctx.fillStyle=dimmed?"#f1f5f9":`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
-      else if(dimmed){ctx.fillStyle="#f1f5f9";ctx.fillRect(px,py,cSz,cSz);if(symAlpha>0.01&&info&&cSz>=8){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="rgba(0,0,0,0.06)";ctx.font=`${Math.max(6,Math.round(cSz*0.45))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
-      else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1e293b";ctx.font=`bold ${symPx}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
+      if(isDn){ctx.fillStyle=dimmed?"#EFE7D6":`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
+      else if(dimmed){ctx.fillStyle="#EFE7D6";ctx.fillRect(px,py,cSz,cSz);if(symAlpha>0.01&&info&&cSz>=8){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="rgba(0,0,0,0.06)";ctx.font=`${Math.max(6,Math.round(cSz*0.45))}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
+      else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1B1814";ctx.font=`bold ${symPx}px monospace`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
     }
   }
   // Tier 4 thread ID label
@@ -4444,7 +4673,7 @@ const _showTrFirstStitchCoach = _trCoachReady
 return(
 <>
 <input ref={loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={loadProject} style={{display:"none"}}/>
-<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='index.html';}}}:null} onOpenProject={typeof ProjectStorage!=='undefined'?()=>{ProjectStorage.listProjects().then(list=>{setProjectPickerList(list||[]);setProjectPickerOpen(true);}).catch(()=>{setProjectPickerList([]);setProjectPickerOpen(true);});}:undefined} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} setModal={setModal} projectName={pat&&pal?(projectName || (sW + '×' + sH + ' pattern')):undefined} projectPct={pat&&pal&&totalStitchable>0?Math.round(doneCount/totalStitchable*100):undefined} onNameChange={pat&&pal?(n=>setProjectName(n)):undefined} showAutosaved={!!(pat&&pal)} />
+<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='home.html';}}}:null} onOpenProject={typeof ProjectStorage!=='undefined'?()=>{ProjectStorage.listProjects().then(list=>{setProjectPickerList(list||[]);setProjectPickerOpen(true);}).catch(()=>{setProjectPickerList([]);setProjectPickerOpen(true);});}:undefined} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} setModal={setModal} projectName={pat&&pal?(projectName || (sW + '×' + sH + ' pattern')):undefined} projectPct={pat&&pal&&totalStitchable>0?Math.round(doneCount/totalStitchable*100):undefined} onNameChange={pat&&pal?(n=>setProjectName(n)):undefined} showAutosaved={!!(pat&&pal)} />
 {projectPickerOpen&&<TrackerProjectPicker
   list={projectPickerList}
   currentId={projectIdRef.current}
@@ -4513,6 +4742,15 @@ return(
     aria-expanded={leftSidebarOpen}
     title="Sidebar (Highlight, View, Session)"
   >{Icons.menu()}</button>
+  {/* Phase 4 (UX-12) — wake-lock chip. Tap to toggle screen-stays-on. */}
+  <button
+    type="button"
+    className={"tracker-wake-chip"+(wakeLockActive?" tracker-wake-chip--on":"")}
+    onClick={toggleWakeLock}
+    aria-pressed={wakeLockActive}
+    aria-label={wakeLockActive?"Screen wake-lock on, tap to release":"Screen wake-lock off, tap to keep screen awake"}
+    title={wakeLockActive?"Screen will stay awake — tap to release":"Tap to keep the screen awake while stitching"}
+  ><span className="twc-dot" aria-hidden="true">{Icons.dot()}</span><span className="twc-label">{wakeLockActive?"Awake":"Sleep"}</span></button>
   <div ref={tStripRef} className={"pill"+(isEditMode?" pill--edit":"")}>
   <div className={"tb-grp"+(tStripCollapsed.stitch?" tb-hidden":"")}>
     <button className={"tb-btn"+(stitchMode==="track"?(isEditMode?" tb-btn--red":" tb-btn--green"):"")} onClick={()=>{setStitchMode("track");}} title={isEditMode?"Modify stitches (T)":"Mark stitch (T)"}>
@@ -4528,9 +4766,9 @@ return(
   <div className="tb-flex"/>
   <div className="tb-zoom-grp tb-desktop-only">
     <span className="tb-zoom-lbl">Zoom</span>
-    <button onClick={()=>setStitchZoom(z=>Math.max(0.3,+(z-0.25).toFixed(2)))} title="Zoom out" style={{padding:"0 5px",fontSize:15,border:"0.5px solid #e2e8f0",borderRadius:4,background:"#f8f9fa",cursor:"pointer",lineHeight:"22px",fontWeight:600}}>−</button>
+    <button onClick={()=>setStitchZoom(z=>Math.max(0.3,+(z-0.25).toFixed(2)))} title="Zoom out" style={{padding:"0 5px",fontSize:15,border:"0.5px solid var(--border)",borderRadius:4,background:"var(--surface-secondary)",cursor:"pointer",lineHeight:"22px",fontWeight:600}}>−</button>
     <input type="range" min={0.1} max={3} step={0.05} value={stitchZoom} onChange={e=>setStitchZoom(Number(e.target.value))} style={{width:55}}/>
-    <button onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} title="Zoom in" style={{padding:"0 5px",fontSize:15,border:"0.5px solid #e2e8f0",borderRadius:4,background:"#f8f9fa",cursor:"pointer",lineHeight:"22px",fontWeight:600}}>+</button>
+    <button onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} title="Zoom in" style={{padding:"0 5px",fontSize:15,border:"0.5px solid var(--border)",borderRadius:4,background:"var(--surface-secondary)",cursor:"pointer",lineHeight:"22px",fontWeight:600}}>+</button>
     <span className="tb-zoom-pct">{Math.round(stitchZoom*100)}%</span>
     <button className="tb-fit-btn" onClick={fitSZ}>Fit</button>
   </div>
@@ -4540,34 +4778,34 @@ return(
       {!isEditMode&&pat&&pal&&<><button className="tb-ovf-item" onClick={()=>{setTOverflowOpen(false);setEditDetailsOpen(true);}}>{Icons.pencil()} Edit project details…</button><div className="tb-ovf-sep"/></>}
       {!isEditMode&&<>
         {tStripCollapsed.stitch&&<><span className="tb-ovf-lbl">Stitch</span>
-          <button className={"tb-ovf-item"+(stitchMode==="track"?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("track");setTOverflowOpen(false);}}>Mark{stitchMode==="track"?" ✓":""}</button>
-          <button className={"tb-ovf-item"+(stitchMode==="navigate"?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("navigate");setTOverflowOpen(false);}}>Navigate{stitchMode==="navigate"?" ✓":""}</button>
+          <button className={"tb-ovf-item"+(stitchMode==="track"?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("track");setTOverflowOpen(false);}} style={{display:'inline-flex',alignItems:'center',gap:6}}>Mark{stitchMode==="track"&&Icons.check?<span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.check()}</span>:null}</button>
+          <button className={"tb-ovf-item"+(stitchMode==="navigate"?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("navigate");setTOverflowOpen(false);}} style={{display:'inline-flex',alignItems:'center',gap:6}}>Navigate{stitchMode==="navigate"&&Icons.check?<span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.check()}</span>:null}</button>
           <div className="tb-ovf-sep"/>
         </>}
         {tStripCollapsed.view&&<><span className="tb-ovf-lbl">View</span>
-          {[['symbol','Symbol'],['colour','Col+Symbol'],['highlight','Highlight']].map(([k,l])=><button key={k} className={"tb-ovf-item"+(stitchView===k?" tb-ovf-item--on":"")} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}setTOverflowOpen(false);}}>{l}{stitchView===k?" ✓":""}</button>)}
+          {[['symbol','Symbol'],['colour','Col+Symbol'],['highlight','Highlight']].map(([k,l])=><button key={k} className={"tb-ovf-item"+(stitchView===k?" tb-ovf-item--on":"")} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}setTOverflowOpen(false);}} style={{display:'inline-flex',alignItems:'center',gap:6}}>{l}{stitchView===k&&Icons.check?<span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.check()}</span>:null}</button>)}
           <div className="tb-ovf-sep"/>
         </>}
         {stitchMode==="navigate"&&<><span className="tb-ovf-lbl">Parking</span>
-          <div style={{padding:"4px 14px 6px"}}><select value={selectedColorId||""} onChange={e=>setSelectedColorId(e.target.value||null)} style={{fontSize:11,padding:"4px 8px",borderRadius:6,border:"0.5px solid #e2e8f0",width:"100%"}}>
+          <div style={{padding:"4px 14px 6px"}}><select value={selectedColorId||""} onChange={e=>setSelectedColorId(e.target.value||null)} style={{fontSize:'var(--text-xs)',padding:"4px 8px",borderRadius:'var(--radius-sm)',border:"0.5px solid var(--border)",width:"100%"}}>
             <option value="">No parking colour</option>{pal.map(p=><option key={p.id} value={p.id}>DMC {p.id} — {p.name.slice(0,20)}</option>)}
           </select></div>
           {parkMarkers.length>0&&<button className="tb-ovf-item" onClick={()=>{setParkMarkers([]);setTOverflowOpen(false);}}>Clear park markers</button>}
           <div className="tb-ovf-sep"/>
         </>}
-        {stitchMode==="track"&&trackHistory.length>0&&<button className="tb-ovf-item" onClick={()=>{undoTrack();setTOverflowOpen(false);}}>↩ Undo ({trackHistory.length})</button>}
+        {stitchMode==="track"&&trackHistory.length>0&&<button className="tb-ovf-item" onClick={()=>{undoTrack();setTOverflowOpen(false);}} style={{display:'inline-flex',alignItems:'center',gap:6}}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.undo?Icons.undo():null}</span>Undo ({trackHistory.length})</button>}
         {stitchMode==="track"&&redoStack.length>0&&<button className="tb-ovf-item" onClick={()=>{redoTrack();setTOverflowOpen(false);}}>↪ Redo ({redoStack.length})</button>}
-        {done&&doneCount>0&&<button className="tb-ovf-item" style={{color:"#dc2626"}} onClick={()=>{if(confirm("Clear all progress?")){var nd=new Uint8Array(pat.length);setDone(nd);recomputeAllCounts(pat,nd,halfStitches,halfDone);setTrackHistory([]);setRedoStack([]);}setTOverflowOpen(false);}}>Reset progress</button>}
+        {done&&doneCount>0&&<button className="tb-ovf-item" style={{color:"var(--danger)"}} onClick={()=>{if(confirm("Clear all progress?")){var nd=new Uint8Array(pat.length);setDone(nd);recomputeAllCounts(pat,nd,halfStitches,halfDone);setTrackHistory([]);setRedoStack([]);}setTOverflowOpen(false);}}>Reset progress</button>}
         {pat&&pal&&<button className="tb-ovf-item" onClick={()=>{copyProgressSummary();setTOverflowOpen(false);}}>{Icons.clipboard()} Copy Progress Summary</button>}}
         <div className="tb-ovf-sep"/>
       </>}
       {isEditMode&&<>
-        {undoSnapshot&&<button className="tb-ovf-item" style={{color:"#d97706"}} onClick={()=>{applyUndo();setTOverflowOpen(false);}}>↩ Undo Edit</button>}
-        <button className="tb-ovf-item" style={{color:"#dc2626"}} onClick={()=>{handleRevertToOriginal();setTOverflowOpen(false);}}>Revert to Original</button>
-        <button className="tb-ovf-item" onClick={()=>{if(undoSnapshot!==null){setShowExitEditModal(true);}else{setIsEditMode(false);setUndoSnapshot(null);setSessionStartSnapshot(null);}setTOverflowOpen(false);}}>← Exit correction mode</button>
+        {undoSnapshot&&<button className="tb-ovf-item" style={{color:"#A06F2D"}} onClick={()=>{applyUndo();setTOverflowOpen(false);}}>{Icons.undo?Icons.undo():null} Undo Edit</button>}
+        <button className="tb-ovf-item" style={{color:"var(--danger)"}} onClick={()=>{handleRevertToOriginal();setTOverflowOpen(false);}}>Revert to Original</button>
+        <button className="tb-ovf-item" onClick={()=>{if(undoSnapshot!==null){setShowExitEditModal(true);}else{setIsEditMode(false);setUndoSnapshot(null);setSessionStartSnapshot(null);}setTOverflowOpen(false);}}><span aria-hidden="true" style={{display:'inline-flex',verticalAlign:'-3px',marginRight:4}}>{Icons.chevronLeft?Icons.chevronLeft():null}</span>Exit correction mode</button>
         <div className="tb-ovf-sep"/>
       </>}
-      {!isEditMode&&<><button className="tb-ovf-item" style={{color:"#475569"}} onClick={()=>{
+      {!isEditMode&&<><button className="tb-ovf-item" style={{color:"var(--text-secondary)"}} onClick={()=>{
         setSessionStartSnapshot({pat:[...pat],pal:deepClone(pal),threadOwned:deepClone(threadOwned),singleStitchEdits:new Map(singleStitchEdits)}); // PERF (perf-6 #5)
         setStitchMode("navigate");setFocusColour(null);setHoverInfo(null);setIsEditMode(true);setDrawer(true);setTOverflowOpen(false);
       }} title="Correct individual stitch colours — for imported patterns">Correct pattern colours…</button><div className="tb-ovf-sep"/></>
@@ -4587,21 +4825,21 @@ return(
       {focusEnabled&&focusBlock&&<button className="tb-ovf-item" onClick={()=>{setFocusBlock(null);setTOverflowOpen(false);}}>Clear focus block</button>}
       <button className={"tb-ovf-item"+(breadcrumbVisible?" tb-ovf-item--on":"")} onClick={()=>{setBreadcrumbVisible(v=>!v);setTOverflowOpen(false);}}>Breadcrumbs{breadcrumbVisible?" ":""}{breadcrumbVisible?Icons.check():null}</button>
       <button className="tb-ovf-item" onClick={()=>{setStyleOnboardingOpen(true);setTOverflowOpen(false);}}>Stitching style: {({block:"Block",royal:"Royal Rows",crosscountry:"Cross Country",freestyle:"Freestyle"})[stitchingStyle]||stitchingStyle}</button>
-      {stitchingStyle!=="crosscountry"&&stitchingStyle!=="freestyle"&&<div style={{padding:"4px 14px 6px",fontSize:11,color:"#475569"}}>Block size: {blockW}×{blockH}
-        <div style={{display:"flex",gap:4,marginTop:4,flexWrap:"wrap"}}>
-          {[[10,10,"10×10"],[20,20,"20×20"]].map(([w,h,l])=><button key={l} onClick={()=>{setBlockW(w);setBlockH(h);}} style={{padding:"2px 7px",borderRadius:5,border:"1px solid "+(blockW===w&&blockH===h?"#0d9488":"#e2e8f0"),background:blockW===w&&blockH===h?"#f0fdfa":"#fff",fontSize:10,cursor:"pointer"}}>{l}</button>)}
-          <input type="number" inputMode="numeric" title="Custom width" placeholder="W" value={blockW} onChange={e=>setBlockW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:36,padding:"2px 4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:10}} min={5} max={100}/>
+      {stitchingStyle!=="crosscountry"&&stitchingStyle!=="freestyle"&&<div style={{padding:"4px 14px 6px",fontSize:'var(--text-xs)',color:"var(--text-secondary)"}}>Block size: {blockW}×{blockH}
+        <div style={{display:"flex",gap:'var(--s-1)',marginTop:'var(--s-1)',flexWrap:"wrap"}}>
+          {[[10,10,"10×10"],[20,20,"20×20"]].map(([w,h,l])=><button key={l} onClick={()=>{setBlockW(w);setBlockH(h);}} style={{padding:"2px 7px",borderRadius:5,border:"1px solid "+(blockW===w&&blockH===h?"var(--accent)":"var(--border)"),background:blockW===w&&blockH===h?"var(--accent-light)":"var(--surface)",fontSize:10,cursor:"pointer"}}>{l}</button>)}
+          <input type="number" inputMode="numeric" title="Custom width" placeholder="W" value={blockW} onChange={e=>setBlockW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:36,padding:"2px 4px",borderRadius:4,border:"1px solid var(--border)",fontSize:10}} min={5} max={100}/>
           <span style={{fontSize:10,lineHeight:"22px"}}>×</span>
-          <input type="number" inputMode="numeric" title="Custom height" placeholder="H" value={blockH} onChange={e=>setBlockH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:36,padding:"2px 4px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:10}} min={5} max={100}/>
+          <input type="number" inputMode="numeric" title="Custom height" placeholder="H" value={blockH} onChange={e=>setBlockH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:36,padding:"2px 4px",borderRadius:4,border:"1px solid var(--border)",fontSize:10}} min={5} max={100}/>
         </div>
-        {(blockW%10!==0||blockH%10!==0)&&<div style={{fontSize:10,color:"#92400e",marginTop:3}}>May not align with 10-stitch grid lines.</div>}
+        {(blockW%10!==0||blockH%10!==0)&&<div style={{fontSize:10,color:"var(--accent-ink)",marginTop:3}}>May not align with 10-stitch grid lines.</div>}
       </div>}
       {(liveAutoStitches>0||totalTime>0)&&<>
         <div className="tb-ovf-sep"/>
         <span className="tb-ovf-lbl">Time Tracked</span>
-        <div style={{padding:"4px 14px 2px",fontSize:11,color:"#475569"}}>
-          {liveAutoStitches>0?<><span style={{color:"#16a34a"}}>● </span>{fmtTime(liveAutoElapsed)} · {liveAutoStitches} stitches active</>:<>Total: {fmtTime(totalTime)}</>}
-          {estCompletion&&<div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>~{fmtTime(estCompletion)} remaining</div>}
+        <div style={{padding:"4px 14px 2px",fontSize:'var(--text-xs)',color:"var(--text-secondary)"}}>
+          {liveAutoStitches>0?<><span style={{color:"var(--success)"}}>● </span>{fmtTime(liveAutoElapsed)} · {liveAutoStitches} stitches active</>:<>Total: {fmtTime(totalTime)}</>}
+          {estCompletion&&<div style={{fontSize:10,color:"var(--text-tertiary)",marginTop:2}}>~{fmtTime(estCompletion)} remaining</div>}
         </div>
       </>}
     </div>}
@@ -4623,7 +4861,8 @@ return(
     </button>
   )}
 </div></div>
-{!isEditMode&&<div className="info-strip" aria-live="polite" role="button" tabIndex={0} title="Open session controls" onClick={()=>{
+{!isEditMode&&<div className="info-strip-wrap">
+<div className="info-strip" aria-live="polite" role="button" tabIndex={0} title="Open session controls" onClick={()=>{
   // Phase 3/5: tapping the live progress strip opens the left
   // sidebar Session tab so all start/stop/configure actions live in
   // one place. The strip itself remains glanceable.
@@ -4637,34 +4876,81 @@ return(
   </div>
   <div className="info-strip-row">
     <span className="info-strip-pct">{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</span>
-    {todayStitchesForBar>0&&<span className="info-strip-today-count">Today: {todayStitchesForBar}</span>}
     {liveAutoStitches>0&&<span className="info-strip-timer"><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused?(Icons.pause?Icons.pause():null):(Icons.clock?Icons.clock():null)}</span> {fmtTime(liveAutoElapsed)}</span>}
+    {/* Plan B Phase 1: inline "Today: X" text removed — see Progress
+        info chip beside the strip. todayStitchesForBar is now in the
+        popover, the bar's accent segment still visualises today. */}
     {/* Phase 3/5: explicit-session start/stop button removed; lives in
         the left sidebar Session tab. Tap the strip itself to open it. */}
   </div>
+</div>
+<div className="app-info-chip-wrap info-strip-chip-wrap">
+  <button
+    ref={progressChipRef}
+    type="button"
+    className="app-info-chip info-strip-chip"
+    aria-haspopup="dialog"
+    aria-expanded={progressInfoOpen}
+    title="Progress details"
+    onClick={()=>setProgressInfoOpen(o=>!o)}
+  >
+    <span className="app-info-chip__label">Progress info</span>
+    <span className="app-info-chip__chevron" aria-hidden="true">{Icons.chevronDown?Icons.chevronDown():null}</span>
+  </button>
+  {progressInfoOpen && window.AppInfoPopover && (() => {
+    const totalSec = (typeof totalTime === 'number' ? totalTime : 0);
+    const speedPerHour = totalSec > 0 && doneCount > 0 ? Math.round(doneCount / (totalSec/3600)) : 0;
+    const remainingStitches = Math.max(0, effectiveCombinedTotal - effectiveCombinedDone);
+    const fmtL = window.fmtTimeL || (s => Math.round(s/3600)+'h');
+    const progressRows = [
+      ['Done', `${Math.round(effectiveCombinedDone).toLocaleString()} / ${Math.round(effectiveCombinedTotal).toLocaleString()} (${progressPct.toFixed(1)}%)`],
+      ['Today', todayStitchesForBar.toLocaleString()],
+      ['This week', weekStitchesForChip.toLocaleString()]
+    ];
+    const timeRows = [['Time spent', fmtL(totalSec)]];
+    if (speedPerHour > 0) {
+      timeRows.push(['Average pace', `${speedPerHour.toLocaleString()} st/hr`]);
+      if (remainingStitches > 0) {
+        timeRows.push(['Remaining', fmtL(Math.round(remainingStitches/speedPerHour*3600))]);
+      }
+    }
+    return React.createElement(window.AppInfoPopover, {
+      open: true,
+      onClose: () => setProgressInfoOpen(false),
+      triggerRef: progressChipRef,
+      ariaLabel: 'Progress details'
+    },
+      React.createElement(window.AppInfoSection, { title: 'Pattern progress' },
+        React.createElement(window.AppInfoGrid, { rows: progressRows })),
+      React.createElement(window.AppInfoDivider),
+      React.createElement(window.AppInfoSection, { title: 'Time' },
+        React.createElement(window.AppInfoGrid, { rows: timeRows }))
+    );
+  })()}
+</div>
 </div>}
-{hlIntroBannerVisible&&!isEditMode&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:6,padding:"6px 10px",fontSize:11,color:"#1d4ed8",marginBottom:4,gap:8}}>
-  <span>Highlight mode — press <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid #bfdbfe",borderRadius:3,background:"#fff"}}>1</kbd>–<kbd style={{fontSize:10,padding:"0 3px",border:"1px solid #bfdbfe",borderRadius:3,background:"#fff"}}>4</kbd> to change style, <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid #bfdbfe",borderRadius:3,background:"#fff"}}>C</kbd> for counting aids, <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid #bfdbfe",borderRadius:3,background:"#fff"}}>[</kbd> <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid #bfdbfe",borderRadius:3,background:"#fff"}}>]</kbd> to cycle colours</span>
-  <button onClick={()=>{setHlIntroBannerVisible(false);clearTimeout(hlIntroTimerRef.current);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#93c5fd",flexShrink:0,padding:0,lineHeight:1}}>✕</button>
+{hlIntroBannerVisible&&!isEditMode&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--surface-secondary)",border:"1px solid var(--accent-light)",borderRadius:'var(--radius-sm)',padding:"6px 10px",fontSize:'var(--text-xs)',color:"var(--accent)",marginBottom:'var(--s-1)',gap:'var(--s-2)'}}>
+  <span>Highlight mode — press <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>1</kbd>–<kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>4</kbd> to change style, <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>C</kbd> for counting aids, <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>[</kbd> <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>]</kbd> to cycle colours</span>
+  <button onClick={()=>{setHlIntroBannerVisible(false);clearTimeout(hlIntroTimerRef.current);}} aria-label="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"var(--accent-light)",flexShrink:0,padding:0,lineHeight:1,display:'inline-flex'}}>{Icons.x?Icons.x():"\u00D7"}</button>
 </div>}
 {!sessionOnboardingShown&&liveAutoStitches>0&&statsSessions.length===0&&(
   <div className="session-onboarding-toast">
-    <span>ℹ Sessions are tracked automatically as you stitch. View stats via the 📊 button in the Session panel.</span>
+    <span style={{display:'inline-flex',alignItems:'center',gap:6}}>{Icons.info?Icons.info():null} Sessions are tracked automatically as you stitch. View stats via the {Icons.barChart?<span aria-hidden="true" style={{display:'inline-flex',verticalAlign:'-3px'}}>{Icons.barChart()}</span>:null} button in the Session panel.</span>
     <button onClick={()=>{setSessionOnboardingShown(true);try{localStorage.setItem("cs_sessionOnboardingDone","1");}catch(_){}}}>Got it</button>
   </div>
 )}
 {focusEnabled&&focusBlock&&stitchingStyle!=="crosscountry"&&(
-  <div style={{display:"flex",alignItems:"center",gap:6,padding:"3px 10px 3px 8px",background:"#f0fdfa",border:"1px solid #99f6e4",borderRadius:20,fontSize:11,fontWeight:600,color:"#0d9488",cursor:"pointer",userSelect:"none",width:"fit-content",marginBottom:4}} onClick={()=>setStyleOnboardingOpen(true)} title="Tap to change stitching style">
-    🔦 {({block:"Block",royal:"Royal Rows",freestyle:"Freestyle"})[stitchingStyle]||stitchingStyle} · {focusBlock.by+1},{focusBlock.bx+1}
+  <div style={{display:"flex",alignItems:"center",gap:6,padding:"3px 10px 3px 8px",background:"var(--accent-light)",border:"1px solid var(--accent-border)",borderRadius:20,fontSize:'var(--text-xs)',fontWeight:600,color:"var(--accent)",cursor:"pointer",userSelect:"none",width:"fit-content",marginBottom:'var(--s-1)'}} onClick={()=>setStyleOnboardingOpen(true)} title="Tap to change stitching style">
+    {({block:"Block",royal:"Royal Rows",freestyle:"Freestyle"})[stitchingStyle]||stitchingStyle} · {focusBlock.by+1},{focusBlock.bx+1}
   </div>
 )}
 {sessionSavedToast&&(
   <div className="session-toast">
     {!sessionSavedToast.showNoteInput?(
       <>
-        <span>✓ Session saved — {sessionSavedToast.stitches} {sessionSavedToast.stitches===1?"stitch":"stitches"} in {formatStatsDuration(sessionSavedToast.durationMin*60)}</span>
+        <span style={{display:'inline-flex',alignItems:'center',gap:6}}>{Icons.check?Icons.check():null} Session saved — {sessionSavedToast.stitches} {sessionSavedToast.stitches===1?"stitch":"stitches"} in {formatStatsDuration(sessionSavedToast.durationMin*60)}</span>
         <button onClick={()=>setSessionSavedToast(prev=>({...prev,showNoteInput:true}))}>Add note</button>
-        <button onClick={()=>setSessionSavedToast(null)} aria-label="Dismiss">✕</button>
+        <button onClick={()=>setSessionSavedToast(null)} aria-label="Dismiss" style={{display:'inline-flex',alignItems:'center'}}>{Icons.x?Icons.x():"\u00D7"}</button>
       </>
     ):(
       <>
@@ -4678,18 +4964,18 @@ return(
 )}
 </>}
 <div className="cs-page-content" style={{maxWidth:(!statsView&&pat&&pal)?'none':1100,margin:(!statsView&&pat&&pal)?0:"0 auto",padding:(!statsView&&pat&&pal)?0:"20px 16px"}}>
-  {loadError&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#dc2626",marginBottom:12}}>{loadError}</div>}
-  {copied==="progress"&&<div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#16a34a",fontWeight:600,marginBottom:12}}>✓ Progress summary copied to clipboard!</div>}
+  {loadError&&<div style={{background:"var(--danger-soft)",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-md)',padding:"8px 14px",fontSize:'var(--text-sm)',color:"var(--danger)",marginBottom:'var(--s-3)'}}>{loadError}</div>}
+  {copied==="progress"&&<div style={{background:"var(--success-soft)",border:"1px solid var(--success-soft)",borderRadius:'var(--radius-md)',padding:"8px 14px",fontSize:'var(--text-sm)',color:"var(--success)",fontWeight:600,marginBottom:'var(--s-3)',display:'inline-flex',alignItems:'center',gap:6}}>{Icons.check?Icons.check():null} Progress summary copied to clipboard!</div>}
   {importSuccess && (
     <div style={{
-      background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8,
-      padding: "8px 14px", fontSize: 12, color: "#16a34a", fontWeight: 600, marginBottom: 12,
+      background: "var(--success-soft)", border: "1px solid var(--success-soft)", borderRadius:'var(--radius-md)',
+      padding: "8px 14px", fontSize:'var(--text-sm)', color: "var(--success)", fontWeight: 600, marginBottom:'var(--s-3)',
       display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12
     }}>
-      <span>{'\u2713'} {importSuccess}</span>
+      <span style={{display:'inline-flex',alignItems:'center',gap:6}}>{Icons.check?Icons.check():null} {importSuccess}</span>
       <button onClick={()=>setImportSuccess(null)} style={{
-        padding: "3px 10px", borderRadius: 6, border: "1px solid #bbf7d0", background: "#fff",
-        cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#16a34a", flexShrink: 0
+        padding: "3px 10px", borderRadius:'var(--radius-sm)', border: "1px solid var(--success-soft)", background: "var(--surface)",
+        cursor: "pointer", fontSize:'var(--text-xs)', fontWeight: 600, color: "var(--success)", flexShrink: 0
       }}>Dismiss</button>
     </div>
   )}
@@ -4700,40 +4986,40 @@ return(
 
   {!statsView&&!pat&&<div style={{maxWidth:500, margin:"40px auto", textAlign:"center"}}>
     <div className="card" style={{padding:"30px"}}>
-      <h2 style={{fontSize:24, fontWeight:700, color:"#1e293b", marginBottom:8}}>{Icons.thread()} Stitch Tracker</h2>
-      <p style={{fontSize:15, color:"#475569", marginBottom:24}}>Track your cross stitch progress</p>
+      <h2 style={{fontSize:24, fontWeight:700, color:"var(--text-primary)", marginBottom:'var(--s-2)'}}>{Icons.thread()} Stitch Tracker</h2>
+      <p style={{fontSize:15, color:"var(--text-secondary)", marginBottom:24}}>Track your cross stitch progress</p>
 
-      <div style={{display:"grid",gap:16}}>
-        <button onClick={()=>loadRef.current.click()} style={{padding:"14px",fontSize:16,borderRadius:12,border:"0.5px solid #e2e8f0",background:"#f8f9fa",cursor:"pointer",fontWeight:600,color:"#1e293b",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+      <div style={{display:"grid",gap:'var(--s-4)'}}>
+        <button onClick={()=>loadRef.current.click()} style={{padding:"14px",fontSize:'var(--text-xl)',borderRadius:'var(--radius-xl)',border:"0.5px solid var(--border)",background:"var(--surface-secondary)",cursor:"pointer",fontWeight:600,color:"var(--text-primary)",display:"flex",alignItems:"center",justifyContent:"center",gap:'var(--s-2)'}}>
           {Icons.folder()} Load Project
         </button>
       </div>
 
-      <div style={{marginTop:24, textAlign:"left", background:"#f8f9fa", padding:"16px", borderRadius:12, border:"0.5px solid #e2e8f0"}}>
-        <p style={{fontSize:13, fontWeight:600, color:"#475569", marginBottom:12, marginTop:0}}>Supported formats:</p>
+      <div style={{marginTop:24, textAlign:"left", background:"var(--surface-secondary)", padding:"16px", borderRadius:'var(--radius-xl)', border:"0.5px solid var(--border)"}}>
+        <p style={{fontSize:'var(--text-md)', fontWeight:600, color:"var(--text-secondary)", marginBottom:'var(--s-3)', marginTop:0}}>Supported formats:</p>
         <div style={{display:"flex", flexDirection:"column", gap:10}}>
-          <div style={{display:"flex", alignItems:"center", gap:10, fontSize:13, color:"#475569"}}>
-            <span style={{padding:"3px 8px", background:"#eff6ff", color:"#1e293b", borderRadius:6, border:"1px solid #bfdbfe", fontWeight:600, fontSize:11, width:64, textAlign:"center", flexShrink:0}}>.json</span>
+          <div style={{display:"flex", alignItems:"center", gap:10, fontSize:'var(--text-md)', color:"var(--text-secondary)"}}>
+            <span style={{padding:"3px 8px", background:"var(--surface-secondary)", color:"var(--text-primary)", borderRadius:'var(--radius-sm)', border:"1px solid var(--accent-light)", fontWeight:600, fontSize:'var(--text-xs)', width:64, textAlign:"center", flexShrink:0}}>.json</span>
             Cross Stitch Pattern Generator project files
           </div>
-          <div style={{display:"flex", alignItems:"center", gap:10, fontSize:13, color:"#475569"}}>
-            <span style={{padding:"3px 8px", background:"#f5f3ff", color:"#0d9488", borderRadius:6, border:"1px solid #d8b4fe", fontWeight:600, fontSize:11, width:64, textAlign:"center", flexShrink:0}}>.oxs</span>
+          <div style={{display:"flex", alignItems:"center", gap:10, fontSize:'var(--text-md)', color:"var(--text-secondary)"}}>
+            <span style={{padding:"3px 8px", background:"var(--surface-secondary)", color:"var(--accent)", borderRadius:'var(--radius-sm)', border:"1px solid var(--accent-light)", fontWeight:600, fontSize:'var(--text-xs)', width:64, textAlign:"center", flexShrink:0}}>.oxs</span>
             KG-Chart / Pattern Keeper XML format
           </div>
-          <div style={{display:"flex", alignItems:"center", gap:10, fontSize:13, color:"#475569"}}>
-            <span style={{padding:"3px 8px", background:"#f0fdf4", color:"#16a34a", borderRadius:6, border:"1px solid #bbf7d0", fontWeight:600, fontSize:11, width:64, textAlign:"center", flexShrink:0}}>.png .jpg</span>
+          <div style={{display:"flex", alignItems:"center", gap:10, fontSize:'var(--text-md)', color:"var(--text-secondary)"}}>
+            <span style={{padding:"3px 8px", background:"var(--success-soft)", color:"var(--success)", borderRadius:'var(--radius-sm)', border:"1px solid var(--success-soft)", fontWeight:600, fontSize:'var(--text-xs)', width:64, textAlign:"center", flexShrink:0}}>.png .jpg</span>
             Pixel art images (each pixel = one stitch)
           </div>
-          <div style={{display:"flex", alignItems:"center", gap:10, fontSize:13, color:"#475569"}}>
-            <span style={{padding:"3px 8px", background:"#fef2f2", color:"#dc2626", borderRadius:6, border:"1px solid #fecaca", fontWeight:600, fontSize:11, width:64, textAlign:"center", flexShrink:0}}>.pdf</span>
+          <div style={{display:"flex", alignItems:"center", gap:10, fontSize:'var(--text-md)', color:"var(--text-secondary)"}}>
+            <span style={{padding:"3px 8px", background:"var(--danger-soft)", color:"var(--danger)", borderRadius:'var(--radius-sm)', border:"1px solid var(--danger-soft)", fontWeight:600, fontSize:'var(--text-xs)', width:64, textAlign:"center", flexShrink:0}}>.pdf</span>
             Pattern Keeper compatible PDF charts
           </div>
         </div>
       </div>
 
-      <div style={{marginTop:30, paddingTop:20, borderTop:"0.5px solid #e2e8f0"}}>
-        <p style={{fontSize:14, color:"#475569", marginBottom:10}}>Need a pattern?</p>
-        <a href="index.html" style={{color:"#0d9488", fontWeight:600, textDecoration:"none"}}>→ Pattern Creator</a>
+      <div style={{marginTop:30, paddingTop:20, borderTop:"0.5px solid var(--border)"}}>
+        <p style={{fontSize:'var(--text-lg)', color:"var(--text-secondary)", marginBottom:10}}>Need a pattern?</p>
+        <a href="home.html?tab=create" style={{color:"var(--accent)", fontWeight:600, textDecoration:"none", display:'inline-flex', alignItems:'center', gap:4}}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronRight?Icons.chevronRight():null}</span>Pattern Creator</a>
       </div>
     </div>
   </div>}
@@ -4801,11 +5087,11 @@ return(
           <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:6}}>
             {focusColour&&cmap&&cmap[focusColour]?(()=>{const cp=cmap[focusColour];return(
               <>
-                <span style={{width:14,height:14,borderRadius:3,background:`rgb(${cp.rgb})`,border:"1px solid #cbd5e1",flexShrink:0}}/>
-                <span style={{fontSize:12,fontWeight:700}}>DMC {focusColour}</span>
-                <span style={{fontSize:11,color:"#64748b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cp.name||""}</span>
+                <span style={{width:14,height:14,borderRadius:3,background:`rgb(${cp.rgb})`,border:"1px solid var(--border)",flexShrink:0}}/>
+                <span style={{fontSize:'var(--text-sm)',fontWeight:700}}>DMC {focusColour}</span>
+                <span style={{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cp.name||""}</span>
               </>
-            );})():<span style={{fontSize:11,color:"#94a3b8"}}>No focus</span>}
+            );})():<span style={{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>No focus</span>}
           </div>
           <button className="lp-btn" onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const next=focusableColors[(idx+1)%focusableColors.length];if(stitchView!=="highlight")setStitchView("highlight");setFocusColour(next.id);}} title="Next colour (])" aria-label="Next colour">{Icons.chevronRight?Icons.chevronRight():">"}</button>
           {focusColour&&<button className="lp-btn lp-btn--ghost" onClick={()=>setFocusColour(null)} title="Clear focus" aria-label="Clear focus">{Icons.x?Icons.x():"\u00D7"}</button>}
@@ -4818,57 +5104,57 @@ return(
           )}
         </div>
 
-        {highlightMode==="isolate"&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,fontSize:11}}>
-          <span style={{color:"#475569",flexShrink:0,minWidth:60}}>Visibility</span>
-          <input type="range" min={0} max={60} value={Math.round(trackerDimLevel*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setTrackerDimLevel(v);try{localStorage.setItem("cs_trDimLv",v);}catch(_){}}} style={{flex:1,accentColor:"#0d9488"}}/>
+        {highlightMode==="isolate"&&<div style={{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:'var(--s-2)',fontSize:'var(--text-xs)'}}>
+          <span style={{color:"var(--text-secondary)",flexShrink:0,minWidth:60}}>Visibility</span>
+          <input type="range" min={0} max={60} value={Math.round(trackerDimLevel*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setTrackerDimLevel(v);try{localStorage.setItem("cs_trDimLv",v);}catch(_){}}} style={{flex:1,accentColor:"var(--accent)"}}/>
           <span style={{width:34,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{Math.round(trackerDimLevel*100)}%</span>
         </div>}
-        {highlightMode==="tint"&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,fontSize:11}}>
-          <input type="color" value={tintColor} onChange={e=>{setTintColor(e.target.value);try{localStorage.setItem("cs_tintColor",e.target.value);}catch(_){}}} style={{width:28,height:22,padding:0,border:"1px solid #e2e8f0",borderRadius:4,cursor:"pointer"}} aria-label="Tint colour"/>
-          <input type="range" min={10} max={80} value={Math.round(tintOpacity*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setTintOpacity(v);try{localStorage.setItem("cs_tintOp",v);}catch(_){}}} style={{flex:1,accentColor:"#0d9488"}} aria-label="Tint opacity"/>
+        {highlightMode==="tint"&&<div style={{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:'var(--s-2)',fontSize:'var(--text-xs)'}}>
+          <input type="color" value={tintColor} onChange={e=>{setTintColor(e.target.value);try{localStorage.setItem("cs_tintColor",e.target.value);}catch(_){}}} style={{width:28,height:22,padding:0,border:"1px solid var(--border)",borderRadius:4,cursor:"pointer"}} aria-label="Tint colour"/>
+          <input type="range" min={10} max={80} value={Math.round(tintOpacity*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setTintOpacity(v);try{localStorage.setItem("cs_tintOp",v);}catch(_){}}} style={{flex:1,accentColor:"var(--accent)"}} aria-label="Tint opacity"/>
           <span style={{width:34,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{Math.round(tintOpacity*100)}%</span>
         </div>}
-        {highlightMode==="spotlight"&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,fontSize:11}}>
-          <span style={{color:"#475569",flexShrink:0,minWidth:60}}>Dim</span>
-          <input type="range" min={5} max={50} value={Math.round(spotDimOpacity*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setSpotDimOpacity(v);try{localStorage.setItem("cs_spotDimOp",v);}catch(_){}}} style={{flex:1,accentColor:"#0d9488"}}/>
+        {highlightMode==="spotlight"&&<div style={{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:'var(--s-2)',fontSize:'var(--text-xs)'}}>
+          <span style={{color:"var(--text-secondary)",flexShrink:0,minWidth:60}}>Dim</span>
+          <input type="range" min={5} max={50} value={Math.round(spotDimOpacity*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setSpotDimOpacity(v);try{localStorage.setItem("cs_spotDimOp",v);}catch(_){}}} style={{flex:1,accentColor:"var(--accent)"}}/>
           <span style={{width:34,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{Math.round(spotDimOpacity*100)}%</span>
         </div>}
 
         <div className="lp-heading" style={{marginTop:10}}>Counting aids</div>
-        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:8,fontSize:11,cursor:"pointer"}}>
-          <input type="checkbox" checked={countingAidsEnabled} onChange={e=>setCountingAidsEnabled(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>
+        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:'var(--s-2)',fontSize:'var(--text-xs)',cursor:"pointer"}}>
+          <input type="checkbox" checked={countingAidsEnabled} onChange={e=>setCountingAidsEnabled(e.target.checked)} style={{cursor:"pointer",accentColor:"var(--accent)"}}/>
           <span>Show counting aids</span>
         </label>
         {countingAidsEnabled&&<>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,fontSize:11}}>
-            <span style={{color:"#475569",flexShrink:0,minWidth:60}}>Runs</span>
+          <div style={{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:6,fontSize:'var(--text-xs)'}}>
+            <span style={{color:"var(--text-secondary)",flexShrink:0,minWidth:60}}>Runs</span>
             <div className="lp-segmented" style={{flex:1}}>
               {[[0,"Off"],[1,"All"],[3,"3+"],[5,"5+"],[10,"10+"]].map(([v,l])=>
                 <button key={v} className={"lp-seg"+(countRunMin===v?" lp-seg--on":"")} onClick={()=>setCountRunMin(v)}>{l}</button>
               )}
             </div>
           </div>
-          {countRunMin>0&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,fontSize:11}}>
-            <span style={{color:"#475569",flexShrink:0,minWidth:60}}>Direction</span>
+          {countRunMin>0&&<div style={{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:6,fontSize:'var(--text-xs)'}}>
+            <span style={{color:"var(--text-secondary)",flexShrink:0,minWidth:60}}>Direction</span>
             <div className="lp-segmented" style={{flex:1}}>
               {[["h","Horizontal"],["v","Vertical"],["both","Both"]].map(([v,l])=>
                 <button key={v} className={"lp-seg"+(countRunDir===v?" lp-seg--on":"")} onClick={()=>setCountRunDir(v)}>{l}</button>
               )}
             </div>
           </div>}
-          <label style={{display:"flex",alignItems:"center",gap:6,fontSize:11,cursor:"pointer"}}>
-            <input type="checkbox" checked={countNinjaEnabled} onChange={e=>setCountNinjaEnabled(e.target.checked)} style={{cursor:"pointer",accentColor:"#ea580c"}}/>
+          <label style={{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-xs)',cursor:"pointer"}}>
+            <input type="checkbox" checked={countNinjaEnabled} onChange={e=>setCountNinjaEnabled(e.target.checked)} style={{cursor:"pointer",accentColor:"var(--accent-hover)"}}/>
             <span>Highlight ninja stitches</span>
           </label>
         </>}
 
         <div className="lp-heading" style={{marginTop:10}}>Skip</div>
-        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,fontSize:11,cursor:"pointer"}}>
-          <input type="checkbox" checked={highlightSkipDone} onChange={e=>setHighlightSkipDone(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>
+        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:'var(--s-1)',fontSize:'var(--text-xs)',cursor:"pointer"}}>
+          <input type="checkbox" checked={highlightSkipDone} onChange={e=>setHighlightSkipDone(e.target.checked)} style={{cursor:"pointer",accentColor:"var(--accent)"}}/>
           <span>Skip completed colours when cycling</span>
         </label>
-        <label style={{display:"flex",alignItems:"center",gap:6,fontSize:11,cursor:"pointer"}}>
-          <input type="checkbox" checked={onlyStarted} onChange={e=>setOnlyStarted(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>
+        <label style={{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-xs)',cursor:"pointer"}}>
+          <input type="checkbox" checked={onlyStarted} onChange={e=>setOnlyStarted(e.target.checked)} style={{cursor:"pointer",accentColor:"var(--accent)"}}/>
           <span>Only colours already started</span>
         </label>
       </div>}
@@ -4885,20 +5171,20 @@ return(
         <div className="lp-heading">Zoom</div>
         <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
           <button className="lp-btn" onClick={()=>setStitchZoom(z=>Math.max(0.1,+(z-0.25).toFixed(2)))} aria-label="Zoom out">−</button>
-          <input type="range" min={0.1} max={3} step={0.05} value={stitchZoom} onChange={e=>setStitchZoom(Number(e.target.value))} style={{flex:1,accentColor:"#0d9488"}} aria-label="Zoom level"/>
+          <input type="range" min={0.1} max={3} step={0.05} value={stitchZoom} onChange={e=>setStitchZoom(Number(e.target.value))} style={{flex:1,accentColor:"var(--accent)"}} aria-label="Zoom level"/>
           <button className="lp-btn" onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} aria-label="Zoom in">+</button>
-          <span style={{minWidth:40,textAlign:"right",fontSize:11,fontVariantNumeric:"tabular-nums"}}>{Math.round(stitchZoom*100)}%</span>
+          <span style={{minWidth:40,textAlign:"right",fontSize:'var(--text-xs)',fontVariantNumeric:"tabular-nums"}}>{Math.round(stitchZoom*100)}%</span>
           <button className="lp-btn lp-btn--ghost" onClick={fitSZ}>Fit</button>
         </div>
 
         <div className="lp-heading">Rendering</div>
-        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:11,cursor:"pointer"}}>
-          <input type="checkbox" checked={lockDetailLevel} onChange={e=>setLockDetailLevel(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>
+        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:'var(--text-xs)',cursor:"pointer"}}>
+          <input type="checkbox" checked={lockDetailLevel} onChange={e=>setLockDetailLevel(e.target.checked)} style={{cursor:"pointer",accentColor:"var(--accent)"}}/>
           <span>Lock detail tier</span>
         </label>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,fontSize:11}}>
-          <span style={{color:"#475569",flexShrink:0,minWidth:80}}>Zoomed-out fade</span>
-          <select value={String(lowZoomFade)} disabled={lockDetailLevel} onChange={e=>setLowZoomFade(parseFloat(e.target.value))} style={{flex:1,padding:"3px 6px",borderRadius:4,border:"1px solid #e2e8f0",background:lockDetailLevel?"#f1f5f9":"#fff"}}>
+        <div style={{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:10,fontSize:'var(--text-xs)'}}>
+          <span style={{color:"var(--text-secondary)",flexShrink:0,minWidth:80}}>Zoomed-out fade</span>
+          <select value={String(lowZoomFade)} disabled={lockDetailLevel} onChange={e=>setLowZoomFade(parseFloat(e.target.value))} style={{flex:1,padding:"3px 6px",borderRadius:4,border:"1px solid var(--border)",background:lockDetailLevel?"var(--surface-tertiary)":"var(--surface)"}}>
             <option value="0">Off</option>
             <option value="0.15">Subtle</option>
             <option value="0.55">Strong</option>
@@ -4909,10 +5195,10 @@ return(
         {STITCH_LAYERS.map(layer=>{
           const count=layerCounts[layer.id];
           const vis=layerVis[layer.id];
-          return <label key={layer.id} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 0",fontSize:11,cursor:"pointer",opacity:count>0?1:0.4}}>
-            <input type="checkbox" checked={vis} onChange={()=>{setSoloPreState(null);setLayerVis(v=>({...v,[layer.id]:!v[layer.id]}));}} style={{cursor:"pointer",accentColor:"#0d9488"}}/>
+          return <label key={layer.id} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 0",fontSize:'var(--text-xs)',cursor:"pointer",opacity:count>0?1:0.4}}>
+            <input type="checkbox" checked={vis} onChange={()=>{setSoloPreState(null);setLayerVis(v=>({...v,[layer.id]:!v[layer.id]}));}} style={{cursor:"pointer",accentColor:"var(--accent)"}}/>
             <span style={{flex:1}}>{layer.label}</span>
-            <span style={{fontSize:10,color:"#94a3b8"}}>{count.toLocaleString()}</span>
+            <span style={{fontSize:10,color:"var(--text-tertiary)"}}>{count.toLocaleString()}</span>
           </label>;
         })}
       </div>}
@@ -4926,13 +5212,13 @@ return(
           const timeRemaining=explicitSession.timeAvail?Math.max(0,explicitSession.timeAvail-elapsed):null;
           const goalReached=(explicitSession.stitchGoal&&stitchesDone>=explicitSession.stitchGoal)||(explicitSession.timeAvail&&elapsed>=explicitSession.timeAvail);
           return(<>
-            <div className="sess-card" style={{borderColor:"#99f6e4",background:"#f0fdfa"}}>
-              <div className="row"><span className="lbl">{timeRemaining!==null?"Remaining":"Elapsed"}</span><span className="val" style={{fontWeight:700,color:"#0d9488"}}>{fmtTime(timeRemaining!==null?timeRemaining:elapsed)}</span></div>
+            <div className="sess-card" style={{borderColor:"var(--accent-border)",background:"var(--accent-light)"}}>
+              <div className="row"><span className="lbl">{timeRemaining!==null?"Remaining":"Elapsed"}</span><span className="val" style={{fontWeight:700,color:"var(--accent)"}}>{fmtTime(timeRemaining!==null?timeRemaining:elapsed)}</span></div>
               <div className="row"><span className="lbl">Stitches</span><span className="val">{stitchesDone}{explicitSession.stitchGoal?` / ${explicitSession.stitchGoal}`:""}</span></div>
               {stitchesDone>0&&elapsed>0&&<div className="row"><span className="lbl">Speed</span><span className="val">{(stitchesDone/(elapsed/3600)).toFixed(0)} st/hr</span></div>}
             </div>
-            {goalReached&&<div style={{fontSize:12,color:"#16a34a",background:"#f0fdf4",padding:"6px 10px",borderRadius:6,marginTop:6,textAlign:"center",fontWeight:600}}>Goal reached!</div>}
-            <button className="lp-btn lp-btn--danger" style={{marginTop:8,width:"100%"}} onClick={()=>{
+            {goalReached&&<div style={{fontSize:'var(--text-sm)',color:"var(--success)",background:"var(--success-soft)",padding:"6px 10px",borderRadius:'var(--radius-sm)',marginTop:6,textAlign:"center",fontWeight:600}}>Goal reached!</div>}
+            <button className="lp-btn lp-btn--danger" style={{marginTop:'var(--s-2)',width:"100%"}} onClick={()=>{
               const dur=liveAutoElapsed>0?liveAutoElapsed:Math.floor((Date.now()-explicitSession.startTime)/1000);
               const bks=breadcrumbs.filter(b=>b.sessionIdx===(statsSessions?statsSessions.length:0)).length;
               setSessionSummaryData({durationSeconds:dur,stitchesCompleted:liveAutoStitches,blocksCompleted:bks,coloursCompleted:[]});
@@ -4946,9 +5232,9 @@ return(
             {liveAutoStitches>0&&liveAutoElapsed>0&&<div className="row"><span className="lbl">Speed</span><span className="val">{(liveAutoStitches/(liveAutoElapsed/60)).toFixed(1)} st/min</span></div>}
             <div className="row"><span className="lbl">Total time</span><span className="val">{fmtTime(totalTime+liveAutoElapsed)}</span></div>
           </div>
-          <button className="lp-btn lp-btn--primary" style={{marginTop:8,width:"100%"}} onClick={()=>setSessionConfigOpen(true)}>Start session</button>
+          <button className="lp-btn lp-btn--primary" style={{marginTop:'var(--s-2)',width:"100%"}} onClick={()=>setSessionConfigOpen(true)}>Start session</button>
         </>}
-        <button className="lp-btn lp-btn--ghost" style={{marginTop:8,width:'100%'}} onClick={()=>{if(!statsView){setStatsTab(projectIdRef.current||'all');}setStatsView(v=>!v);}}>{statsView?"Hide":"View"} full stats</button>
+        <button className="lp-btn lp-btn--ghost" style={{marginTop:'var(--s-2)',width:'100%'}} onClick={()=>{if(!statsView){setStatsTab(projectIdRef.current||'all');}setStatsView(v=>!v);}}>{statsView?"Hide":"View"} full stats</button>
       </div>}
 
       {/* ── Tab: Tools (phase 4) ──
@@ -4967,52 +5253,52 @@ return(
           <span>Thread usage</span>
           {threadUsageMode&&<button className="lp-btn lp-btn--ghost" style={{padding:"2px 8px",minHeight:0,fontSize:10}} onClick={()=>setThreadUsageMode(null)} title="Hide thread usage overlay">{Icons.x?Icons.x():"\u00D7"}</button>}
         </div>
-        <div className="lp-segmented" style={{marginBottom:8,width:"100%"}}>
+        <div className="lp-segmented" style={{marginBottom:'var(--s-2)',width:"100%"}}>
           {[["cluster","Cluster"],["distance","Isolation"]].map(([m,l])=>
             <button key={m} className={"lp-seg"+(threadUsageMode===m?" lp-seg--on":"")} onClick={()=>setThreadUsageMode(m)}>{l}</button>
           )}
         </div>
-        {threadUsageSummary&&<div style={{padding:"8px 10px",borderRadius:8,background:"#f8fafc",border:"1px solid #e2e8f0",fontSize:11,marginBottom:10}}>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"#475569"}}>Confetti</span><span style={{fontWeight:700,color:"#dc2626"}}>{threadUsageSummary.isolated.toLocaleString()} ({threadUsageSummary.total>0?((threadUsageSummary.isolated/threadUsageSummary.total)*100).toFixed(1):0}%)</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"#475569"}}>Small (2–4)</span><span style={{fontWeight:600,color:"#b45309"}}>{threadUsageSummary.small.toLocaleString()}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"#475569"}}>Medium (5–19)</span><span style={{fontWeight:600,color:"#475569"}}>{threadUsageSummary.medium.toLocaleString()}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{color:"#475569"}}>Large (20+)</span><span style={{fontWeight:600,color:"#16a34a"}}>{threadUsageSummary.large.toLocaleString()}</span></div>
-          {threadUsageSummary.estChanges>0&&<div style={{display:"flex",justifyContent:"space-between",paddingTop:5,borderTop:"0.5px solid #e2e8f0"}}><span style={{color:"#475569"}}>Est. thread changes</span><span style={{fontWeight:700}}>~{threadUsageSummary.estChanges.toLocaleString()}</span></div>}
+        {threadUsageSummary&&<div style={{padding:"8px 10px",borderRadius:'var(--radius-md)',background:"var(--surface-secondary)",border:"1px solid var(--border)",fontSize:'var(--text-xs)',marginBottom:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"var(--text-secondary)"}}>Confetti</span><span style={{fontWeight:700,color:"var(--danger)"}}>{threadUsageSummary.isolated.toLocaleString()} ({threadUsageSummary.total>0?((threadUsageSummary.isolated/threadUsageSummary.total)*100).toFixed(1):0}%)</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"var(--text-secondary)"}}>Small (2–4)</span><span style={{fontWeight:600,color:"var(--accent-ink)"}}>{threadUsageSummary.small.toLocaleString()}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"var(--text-secondary)"}}>Medium (5–19)</span><span style={{fontWeight:600,color:"var(--text-secondary)"}}>{threadUsageSummary.medium.toLocaleString()}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{color:"var(--text-secondary)"}}>Large (20+)</span><span style={{fontWeight:600,color:"var(--success)"}}>{threadUsageSummary.large.toLocaleString()}</span></div>
+          {threadUsageSummary.estChanges>0&&<div style={{display:"flex",justifyContent:"space-between",paddingTop:5,borderTop:"0.5px solid var(--border)"}}><span style={{color:"var(--text-secondary)"}}>Est. thread changes</span><span style={{fontWeight:700}}>~{threadUsageSummary.estChanges.toLocaleString()}</span></div>}
         </div>}
 
         <div className="lp-heading" style={{marginTop:6}}>Focus area</div>
-        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:11,cursor:"pointer"}}>
-          <input type="checkbox" checked={focusEnabled} onChange={e=>{const next=e.target.checked;setFocusEnabled(next);if(next&&!focusBlock)setFocusBlock(_getStartBlock());}} style={{cursor:"pointer",accentColor:"#0d9488"}}/>
+        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:'var(--text-xs)',cursor:"pointer"}}>
+          <input type="checkbox" checked={focusEnabled} onChange={e=>{const next=e.target.checked;setFocusEnabled(next);if(next&&!focusBlock)setFocusBlock(_getStartBlock());}} style={{cursor:"pointer",accentColor:"var(--accent)"}}/>
           <span>Spotlight focus block</span>
         </label>
         {stitchingStyle!=="crosscountry"&&stitchingStyle!=="freestyle"&&<>
-          <div style={{fontSize:11,color:"#475569",marginBottom:4}}>Block size: {blockW}×{blockH}</div>
-          <div style={{display:"flex",gap:4,marginBottom:8,flexWrap:"wrap"}}>
+          <div style={{fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginBottom:'var(--s-1)'}}>Block size: {blockW}×{blockH}</div>
+          <div style={{display:"flex",gap:'var(--s-1)',marginBottom:'var(--s-2)',flexWrap:"wrap"}}>
             {[[10,10,"10×10"],[20,20,"20×20"]].map(([w,h,l])=>
               <button key={l} className={"lp-btn"+(blockW===w&&blockH===h?" lp-btn--primary":"")} style={{padding:"3px 8px",minHeight:0,fontSize:10}} onClick={()=>{setBlockW(w);setBlockH(h);}}>{l}</button>
             )}
-            <input type="number" inputMode="numeric" aria-label="Custom block width" placeholder="W" value={blockW} onChange={e=>setBlockW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:42,padding:"3px 5px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:11}} min={5} max={100}/>
-            <span style={{fontSize:11,lineHeight:"24px",color:"#94a3b8"}}>×</span>
-            <input type="number" inputMode="numeric" aria-label="Custom block height" placeholder="H" value={blockH} onChange={e=>setBlockH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:42,padding:"3px 5px",borderRadius:4,border:"1px solid #e2e8f0",fontSize:11}} min={5} max={100}/>
+            <input type="number" inputMode="numeric" aria-label="Custom block width" placeholder="W" value={blockW} onChange={e=>setBlockW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:42,padding:"3px 5px",borderRadius:4,border:"1px solid var(--border)",fontSize:'var(--text-xs)'}} min={5} max={100}/>
+            <span style={{fontSize:'var(--text-xs)',lineHeight:"24px",color:"var(--text-tertiary)"}}>×</span>
+            <input type="number" inputMode="numeric" aria-label="Custom block height" placeholder="H" value={blockH} onChange={e=>setBlockH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:42,padding:"3px 5px",borderRadius:4,border:"1px solid var(--border)",fontSize:'var(--text-xs)'}} min={5} max={100}/>
           </div>
         </>}
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,fontSize:11}}>
-          <span style={{color:"#475569",flexShrink:0,minWidth:60}}>Style</span>
+        <div style={{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:6,fontSize:'var(--text-xs)'}}>
+          <span style={{color:"var(--text-secondary)",flexShrink:0,minWidth:60}}>Style</span>
           <button className="lp-btn lp-btn--ghost" style={{flex:1,justifyContent:"flex-start"}} onClick={()=>setStyleOnboardingOpen(true)} title="Change stitching style">
             {({block:"Block",royal:"Royal Rows",crosscountry:"Cross Country",freestyle:"Freestyle"})[stitchingStyle]||stitchingStyle}
           </button>
         </div>
-        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:10,fontSize:11,cursor:"pointer"}}>
-          <input type="checkbox" checked={breadcrumbVisible} onChange={e=>setBreadcrumbVisible(e.target.checked)} style={{cursor:"pointer",accentColor:"#0d9488"}}/>
+        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:10,fontSize:'var(--text-xs)',cursor:"pointer"}}>
+          <input type="checkbox" checked={breadcrumbVisible} onChange={e=>setBreadcrumbVisible(e.target.checked)} style={{cursor:"pointer",accentColor:"var(--accent)"}}/>
           <span>Show breadcrumbs</span>
         </label>
 
         <div className="lp-heading" style={{marginTop:6}}>Suggestions</div>
-        <label style={{display:"flex",alignItems:"center",gap:6,fontSize:11,cursor:"pointer"}}>
-          <input type="checkbox" checked={recEnabled} onChange={e=>{const v=e.target.checked;setRecEnabled(v);try{localStorage.setItem("cs_recEnabled",v?"1":"0");}catch(_){}}} style={{cursor:"pointer",accentColor:"#0d9488"}}/>
+        <label style={{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-xs)',cursor:"pointer"}}>
+          <input type="checkbox" checked={recEnabled} onChange={e=>{const v=e.target.checked;setRecEnabled(v);try{localStorage.setItem("cs_recEnabled",v?"1":"0");}catch(_){}}} style={{cursor:"pointer",accentColor:"var(--accent)"}}/>
           <span>Surface next-block suggestions</span>
         </label>
-        {recEnabled&&recommendations&&recommendations.top.length>0&&<div style={{marginTop:8,fontSize:11,color:"#64748b"}}>
+        {recEnabled&&recommendations&&recommendations.top.length>0&&<div style={{marginTop:'var(--s-2)',fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>
           {recommendations.top.length} block{recommendations.top.length===1?"":"s"} suggested · top: row {Math.floor(recommendations.top[0].idx/(analysisResult.regionCols||1))*(analysisResult.regionSize||10)+1}, col {(recommendations.top[0].idx%(analysisResult.regionCols||1))*(analysisResult.regionSize||10)+1}
         </div>}
       </div>}
@@ -5023,40 +5309,40 @@ return(
           existing project-storage path. */}
       {leftSidebarTab==="notes"&&<div className="lp-section">
         <div className="lp-heading">Designer</div>
-        <input type="text" value={projectDesigner} onChange={e=>setProjectDesigner(e.target.value)} placeholder="e.g. Satsuma Street" maxLength={120} style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:12,fontFamily:"inherit",marginBottom:10}}/>
+        <input type="text" value={projectDesigner} onChange={e=>setProjectDesigner(e.target.value)} placeholder="e.g. Satsuma Street" maxLength={120} style={{width:"100%",padding:"6px 8px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",fontSize:'var(--text-sm)',fontFamily:"inherit",marginBottom:10}}/>
 
         <div className="lp-heading">Description</div>
-        <textarea value={projectDescription} onChange={e=>setProjectDescription(e.target.value)} placeholder="Notes about this project…" maxLength={2000} rows={4} style={{width:"100%",padding:"6px 8px",borderRadius:6,border:"1px solid #e2e8f0",fontSize:12,fontFamily:"inherit",marginBottom:10,resize:"vertical"}}/>
+        <textarea value={projectDescription} onChange={e=>setProjectDescription(e.target.value)} placeholder="Notes about this project…" maxLength={2000} rows={4} style={{width:"100%",padding:"6px 8px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",fontSize:'var(--text-sm)',fontFamily:"inherit",marginBottom:10,resize:"vertical"}}/>
 
         <div className="lp-heading">Project info</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 16px",fontSize:11,marginBottom:10}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 16px",fontSize:'var(--text-xs)',marginBottom:10}}>
           <div>
-            <div style={{color:"#94a3b8",fontWeight:600,marginBottom:1}}>Started</div>
-            <div style={{fontWeight:600,color:"#1e293b"}}>{createdAtRef.current?new Date(createdAtRef.current).toLocaleDateString():"—"}</div>
+            <div style={{color:"var(--text-tertiary)",fontWeight:600,marginBottom:1}}>Started</div>
+            <div style={{fontWeight:600,color:"var(--text-primary)"}}>{createdAtRef.current?new Date(createdAtRef.current).toLocaleDateString():"—"}</div>
           </div>
           <div>
-            <div style={{color:"#94a3b8",fontWeight:600,marginBottom:1}}>Pattern size</div>
-            <div style={{fontWeight:600,color:"#1e293b"}}>{sW} × {sH}</div>
+            <div style={{color:"var(--text-tertiary)",fontWeight:600,marginBottom:1}}>Pattern size</div>
+            <div style={{fontWeight:600,color:"var(--text-primary)"}}>{sW} × {sH}</div>
           </div>
           <div>
-            <div style={{color:"#94a3b8",fontWeight:600,marginBottom:1}}>Stitchable</div>
-            <div style={{fontWeight:600,color:"#1e293b"}}>{totalStitchable.toLocaleString()}</div>
+            <div style={{color:"var(--text-tertiary)",fontWeight:600,marginBottom:1}}>Stitchable</div>
+            <div style={{fontWeight:600,color:"var(--text-primary)"}}>{totalStitchable.toLocaleString()}</div>
           </div>
           <div>
-            <div style={{color:"#94a3b8",fontWeight:600,marginBottom:1}}>Colours</div>
-            <div style={{fontWeight:600,color:"#1e293b"}}>{pal.length}</div>
+            <div style={{color:"var(--text-tertiary)",fontWeight:600,marginBottom:1}}>Colours</div>
+            <div style={{fontWeight:600,color:"var(--text-primary)"}}>{pal.length}</div>
           </div>
         </div>
 
         <div className="lp-heading">Time</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 16px",fontSize:11,marginBottom:10}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 16px",fontSize:'var(--text-xs)',marginBottom:10}}>
           <div>
-            <div style={{color:"#94a3b8",fontWeight:600,marginBottom:1}}>Total logged</div>
-            <div style={{fontWeight:600,color:"#1e293b"}}>{fmtTime(totalTime+liveAutoElapsed)}</div>
+            <div style={{color:"var(--text-tertiary)",fontWeight:600,marginBottom:1}}>Total logged</div>
+            <div style={{fontWeight:600,color:"var(--text-primary)"}}>{fmtTime(totalTime+liveAutoElapsed)}</div>
           </div>
           <div>
-            <div style={{color:"#94a3b8",fontWeight:600,marginBottom:1}}>Est. remaining</div>
-            <div style={{fontWeight:600,color:"#1e293b"}}>{estCompletion?fmtTime(estCompletion):"—"}</div>
+            <div style={{color:"var(--text-tertiary)",fontWeight:600,marginBottom:1}}>Est. remaining</div>
+            <div style={{fontWeight:600,color:"var(--text-primary)"}}>{estCompletion?fmtTime(estCompletion):"—"}</div>
           </div>
         </div>
 
@@ -5073,11 +5359,11 @@ return(
           desktop layout where the rpanel is already showing the same
           list. */}
       {leftSidebarTab==="legend"&&<div className="lp-section lp-section--mobile-only" style={{display:"flex",flexDirection:"column",flex:1,minHeight:0}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:'var(--s-2)'}}>
           <span className="lp-heading" style={{margin:0}}>Palette legend <span className="badge">{pal.length}</span></span>
-          <label style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,color:"var(--text-tertiary)"}}>
+          <label style={{display:"inline-flex",alignItems:"center",gap:'var(--s-1)',fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>
             <span>Sort</span>
-            <select value={legendSort} onChange={e=>setLegendSort(e.target.value)} style={{fontSize:11,padding:"2px 4px",borderRadius:4,border:"1px solid var(--border)",background:"var(--surface)",cursor:"pointer",fontFamily:"inherit"}} aria-label="Sort palette legend">
+            <select value={legendSort} onChange={e=>setLegendSort(e.target.value)} style={{fontSize:'var(--text-xs)',padding:"2px 4px",borderRadius:4,border:"1px solid var(--border)",background:"var(--surface)",cursor:"pointer",fontFamily:"inherit"}} aria-label="Sort palette legend">
               <option value="id">DMC ID</option>
               <option value="done">% done</option>
               <option value="count">Stitch count</option>
@@ -5106,12 +5392,12 @@ return(
               }} title={"Focus DMC "+p.id+" and open Highlight tab"}>
                 <div className="sw" style={{background:`rgb(${p.rgb})`}}/>
                 <span className="sym">{p.symbol}</span>
-                <span className="cid" style={{color:isFocused?"#0d9488":complete?"#16a34a":"inherit"}}>{p.id}</span>
+                <span className="cid" style={{color:isFocused?"var(--accent)":complete?"var(--success)":"inherit"}}>{p.id}</span>
                 <span className="nm">{p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name}</span>
                 {!isEditMode&&<>
                   <div className="prog"><div className="pf" style={{width:pct+"%"}}/></div>
                   <span className="ct">{dc.done}/{dc.total}</span>
-                  <button onClick={e2=>{e2.stopPropagation();if(!complete){const unmarked=dc.total-dc.done;if(unmarked>50&&!confirm("Mark all "+unmarked+" stitches of DMC "+p.id+" as done?"))return;}markColourDone(p.id,!complete);}} style={{fontSize:9,padding:"1px 6px",borderRadius:4,border:"1px solid "+(complete?"#fecaca":"#bbf7d0"),background:complete?"#fef2f2":"#f0fdf4",color:complete?"#dc2626":"#16a34a",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}} title={complete?"Mark colour as not done":"Mark colour as done"} aria-label={complete?"Mark colour as not done":"Mark colour as done"}>{complete?"Undo":(Icons.check?Icons.check():"\u2713")}</button>
+                  <button onClick={e2=>{e2.stopPropagation();if(!complete){const unmarked=dc.total-dc.done;if(unmarked>50&&!confirm("Mark all "+unmarked+" stitches of DMC "+p.id+" as done?"))return;}markColourDone(p.id,!complete);}} style={{fontSize:9,padding:"1px 6px",borderRadius:4,border:"1px solid "+(complete?"var(--danger-soft)":"var(--success-soft)"),background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}} title={complete?"Mark colour as not done":"Mark colour as done"} aria-label={complete?"Mark colour as not done":"Mark colour as done"}>{complete?"Undo":(Icons.check?Icons.check():"\u2713")}</button>
                 </>}
               </div>;
             });
@@ -5124,10 +5410,10 @@ return(
 
     <div className="canvas-area" style={{padding:"12px 16px"}}>
     {showNavHelp&&!isEditMode&&(()=>{const isTouch=hasTouchRef.current;return(
-    <div style={{marginBottom:8,padding:"14px 16px",background:"#fff",border:"1px solid #a5b4fc",borderRadius:10,fontSize:12}}>
+    <div style={{marginBottom:'var(--s-2)',padding:"14px 16px",background:"var(--surface)",border:"1px solid var(--accent-light)",borderRadius:'var(--radius-lg)',fontSize:'var(--text-sm)'}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-        <span style={{fontWeight:700,fontSize:13,color:"#1e293b"}}>Navigation &amp; Controls</span>
-        <button onClick={()=>setShowNavHelp(false)} style={{fontSize:12,background:"none",border:"none",color:"#94a3b8",cursor:"pointer",padding:"0 4px",lineHeight:1}}>✕</button>
+        <span style={{fontWeight:700,fontSize:'var(--text-md)',color:"var(--text-primary)"}}>Navigation &amp; Controls</span>
+        <button onClick={()=>setShowNavHelp(false)} aria-label="Dismiss" style={{background:"none",border:"none",color:"var(--text-tertiary)",cursor:"pointer",padding:"0 4px",lineHeight:1,display:'inline-flex'}}>{Icons.x?Icons.x():"\u00D7"}</button>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 24px"}}>
         {[
@@ -5136,46 +5422,46 @@ return(
           ["Zoom to fit","Tap the Fit button"],
           ["Mark a stitch",isTouch?"Tap a cell":"Click a cell"],
           ["Mark multiple",isTouch?"Tap, then drag across cells":"Click + drag across cells — all set to same state"],
-          ["Undo last marks","↩ Undo button (top right)"],
+          ["Undo last marks","Undo button (top right)"],
           stitchView==="highlight"?["Cycle colours",isTouch?"Open the Highlight tab in the sidebar":"[ or ] keys"]:null,
           stitchView==="highlight"?["Clear focus","Tap the colour pill to show all colours"]:null,
           stitchMode==="navigate"?["Place crosshair","Click on any cell to drop a guide"]:null,
           stitchMode==="navigate"?["Park marker","Select a colour, then click to place a marker"]:null,
         ].filter(Boolean).map(([label,tip],i)=>(
           <div key={i} style={{display:"contents"}}>
-            <div style={{color:"#475569",fontWeight:600,paddingTop:1}}>{label}</div>
-            <div style={{color:"#1e293b"}}>{tip}</div>
+            <div style={{color:"var(--text-secondary)",fontWeight:600,paddingTop:1}}>{label}</div>
+            <div style={{color:"var(--text-primary)"}}>{tip}</div>
           </div>
         ))}
       </div>
-      {!isTouch&&<div style={{marginTop:10,paddingTop:8,borderTop:"0.5px solid #f1f5f9",color:"#94a3b8",fontSize:11}}>
+      {!isTouch&&<div style={{marginTop:10,paddingTop:8,borderTop:"0.5px solid var(--surface-tertiary)",color:"var(--text-tertiary)",fontSize:'var(--text-xs)'}}>
         Tip: on a trackpad, two-finger scroll pans the canvas without any modifier key.
       </div>}
     </div>
     );})()}
 
-    {scs < 6 && !isEditMode && (stitchView === "symbol" || stitchView === "colour") && <div style={{fontSize: 12, color: "#475569", marginBottom: 6, background: "#f1f5f9", padding: "6px 10px", borderRadius: 8}}>To see symbols, you may need to zoom in.</div>}
+    {scs < 6 && !isEditMode && (stitchView === "symbol" || stitchView === "colour") && <div style={{fontSize:'var(--text-sm)', color: "var(--text-secondary)", marginBottom: 6, background: "var(--surface-tertiary)", padding: "6px 10px", borderRadius:'var(--radius-md)'}}>To see symbols, you may need to zoom in.</div>}
 
     {/* ── Single banner slot (highest priority wins) ── */}
     {(()=>{
-      if(isEditMode) return <div style={{fontSize:12,color:"#d97706",background:"#fffbeb",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #fde68a", fontWeight: 600}}>EDITING — <span style={{fontWeight:400}}>Tap a <b>stitch on the grid</b> to edit that cell only · Tap a <b>colour in the list below</b> to reassign all stitches of that colour</span></div>;
-      if(advanceToast) return <div style={{fontSize:12,color:"#16a34a",background:"#f0fdf4",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #bbf7d0",fontWeight:600}}>✓ Complete! Next: {advanceToast}</div>;
-      if(blockAdvanceToast) return <div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"1px solid #99f6e4",fontWeight:600,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <span>✓ {blockAdvanceToast.label} complete — {blockAdvanceToast.stitches} stitches</span>
-        <div style={{display:"flex",gap:8}}>
-          {blockAdvanceToast.next&&<button onClick={()=>{setFocusBlock(blockAdvanceToast.next);setBlockAdvanceToast(null);}} style={{fontSize:11,padding:"2px 8px",borderRadius:4,border:"1px solid #99f6e4",background:"#fff",cursor:"pointer",fontWeight:600,color:"#0d9488"}}>Next block</button>}
-          <button onClick={()=>{setBlockAdvanceToast(null);setFocusBlock(null);}} style={{fontSize:11,padding:"2px 8px",borderRadius:4,border:"none",background:"none",cursor:"pointer",color:"#94a3b8"}}>Stay</button>
+      if(isEditMode) return <div style={{fontSize:'var(--text-sm)',color:"#A06F2D",background:"#FAF5E1",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"1px solid #E5C97D", fontWeight: 600}}>EDITING — <span style={{fontWeight:400}}>Tap a <b>stitch on the grid</b> to edit that cell only · Tap a <b>colour in the list below</b> to reassign all stitches of that colour</span></div>;
+      if(advanceToast) return <div style={{fontSize:'var(--text-sm)',color:"var(--success)",background:"var(--success-soft)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"1px solid var(--success-soft)",fontWeight:600,display:'inline-flex',alignItems:'center',gap:6}}>{Icons.check?Icons.check():null} Complete! Next: {advanceToast}</div>;
+      if(blockAdvanceToast) return <div style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"1px solid var(--accent-border)",fontWeight:600,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span style={{display:'inline-flex',alignItems:'center',gap:6}}>{Icons.check?Icons.check():null} {blockAdvanceToast.label} complete — {blockAdvanceToast.stitches} stitches</span>
+        <div style={{display:"flex",gap:'var(--s-2)'}}>
+          {blockAdvanceToast.next&&<button onClick={()=>{setFocusBlock(blockAdvanceToast.next);setBlockAdvanceToast(null);}} style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:4,border:"1px solid var(--accent-border)",background:"var(--surface)",cursor:"pointer",fontWeight:600,color:"var(--accent)"}}>Next block</button>}
+          <button onClick={()=>{setBlockAdvanceToast(null);setFocusBlock(null);}} style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:4,border:"none",background:"none",cursor:"pointer",color:"var(--text-tertiary)"}}>Stay</button>
         </div>
       </div>;
-      if(stitchMode==="track") return <div style={{fontSize:12,color:"#0d9488",background:"#f0fdfa",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #99f6e4"}}>{hasTouchRef.current?"Tap or drag to mark · Long-press a cell, then tap the opposite corner to fill a rectangle · Pinch to zoom":"Click or drag to mark/unmark cross stitches · Shift+click or long-press for rectangle fill · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
-      if(stitchMode==="navigate") return <div style={{fontSize:12,color:"#1e293b",background:"#f1f5f9",padding:"6px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0"}}>{selectedColorId?"Click to park. Shift+click to move guide.":"Click to place guide crosshair"}{hasTouchRef.current?"":" · T for track mode"}</div>;
-      if(!shortcutsHintDismissed&&pat) return <div style={{fontSize:12,color:"#6b7280",background:"#f9fafb",padding:"5px 14px",borderRadius:8,marginBottom:6,border:"0.5px solid #e2e8f0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#9ca3af",fontSize:15,lineHeight:1,padding:0}}>×</button></div>;
+      if(stitchMode==="track") return <div style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--accent-border)"}}>{hasTouchRef.current?"Tap or drag to mark · Long-press a cell, then tap the opposite corner to fill a rectangle · Pinch to zoom":"Click or drag to mark/unmark cross stitches · Shift+click or long-press for rectangle fill · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
+      if(stitchMode==="navigate") return <div style={{fontSize:'var(--text-sm)',color:"var(--text-primary)",background:"var(--surface-tertiary)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)"}}>{selectedColorId?"Click to park. Shift+click to move guide.":"Click to place guide crosshair"}{hasTouchRef.current?"":" · T for track mode"}</div>;
+      if(!shortcutsHintDismissed&&pat) return <div style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} aria-label="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",lineHeight:1,padding:0,display:"inline-flex",alignItems:"center"}}>{Icons.x?Icons.x():"\u00D7"}</button></div>;
       return null;
     })()}
 
-    <div ref={stitchScrollRef} onScroll={()=>{if(!scrollRafRef.current){scrollRafRef.current=requestAnimationFrame(()=>{renderStitch();scrollRafRef.current=null;})}}} style={{overflow:"auto",maxHeight:drawer?340:600,border:"0.5px solid #e2e8f0",borderRadius:"8px 8px 0 0",background:"#f1f5f9",cursor:isPanning?"grabbing":isSpaceDownRef.current?"grab":(!isEditMode&&stitchMode==="track"?"crosshair":"default"),transition:"max-height 0.3s",position:"relative"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}>
-      <div style={{ position: 'sticky', top: 0, zIndex: 3, display: 'flex', width: 'max-content', background: '#fff', borderBottom: '1px solid #e2e8f0' }}>
-        <div style={{ width: G, height: G, flexShrink: 0, position: 'sticky', left: 0, background: '#fff', borderRight: '1px solid #e2e8f0', zIndex: 4 }}></div>
+    <div ref={stitchScrollRef} onScroll={()=>{if(!scrollRafRef.current){scrollRafRef.current=requestAnimationFrame(()=>{renderStitch();scrollRafRef.current=null;})}}} style={{overflow:"auto",maxHeight:drawer?340:600,border:"0.5px solid var(--border)",borderRadius:"8px 8px 0 0",background:"var(--surface-tertiary)",cursor:isPanning?"grabbing":isSpaceDownRef.current?"grab":(!isEditMode&&stitchMode==="track"?"crosshair":"default"),transition:"max-height 0.3s",position:"relative"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}>
+      <div style={{ position: 'sticky', top: 0, zIndex: 3, display: 'flex', width: 'max-content', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ width: G, height: G, flexShrink: 0, position: 'sticky', left: 0, background: 'var(--surface)', borderRight: '1px solid var(--border)', zIndex: 4 }}></div>
         {Array.from({length: sW}, (_, x) => {
           let step = scs < 6 ? 10 : scs < 14 ? 5 : 1;
           let show = ((x + 1) % step === 0 || x === 0);
@@ -5189,7 +5475,7 @@ return(
         })}
       </div>
       <div style={{ display: 'flex', width: 'max-content' }}>
-        <div style={{ position: 'sticky', left: 0, zIndex: 3, width: G, background: '#fff', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ position: 'sticky', left: 0, zIndex: 3, width: G, background: 'var(--surface)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
           {Array.from({length: sH}, (_, y) => {
             let step = scs < 6 ? 10 : scs < 14 ? 5 : 1;
             let show = ((y + 1) % step === 0 || y === 0);
@@ -5246,7 +5532,7 @@ return(
             left:(dragMarkState.anchor%sW)*scs,
             top:Math.floor(dragMarkState.anchor/sW)*scs,
             width:scs,height:scs,
-            border:'2px solid #3b82f6',
+            border:'2px solid var(--accent)',
             borderRadius:2,
             pointerEvents:'none',
             zIndex:5,
@@ -5268,7 +5554,7 @@ return(
       </div>
     </div>
 
-    <div style={{background:"#1e293b", color:"#fff", padding:"6px 10px", borderRadius:"0 0 8px 8px", fontSize:12, fontWeight:500, display:"flex", alignItems:"center", minHeight:30, marginBottom: 12}}>
+    <div style={{background:"var(--text-primary)", color:"var(--surface)", padding:"6px 10px", borderRadius:"0 0 8px 8px", fontSize:'var(--text-sm)', fontWeight:500, display:"flex", alignItems:"center", minHeight:30, marginBottom:'var(--s-3)'}}>
       {hoverInfoCell ? (
         <>
           Row: {hoverInfoCell.row + 1} &nbsp;&nbsp; Col: {hoverInfoCell.col + 1}
@@ -5281,10 +5567,10 @@ return(
       )}
     </div>
 
-    {doneCount===0&&totalStitchable>0&&stitchMode==="track"&&<div style={{fontSize:11,color:"#92400e",background:"#fffbeb",border:"1px solid #fde68a",borderRadius:6,padding:"6px 10px",marginBottom:8,textAlign:"center"}}>Tap any stitch on the canvas to mark it as done</div>}
+    {doneCount===0&&totalStitchable>0&&stitchMode==="track"&&<div style={{fontSize:'var(--text-xs)',color:"var(--accent-ink)",background:"#FAF5E1",border:"1px solid #E5C97D",borderRadius:'var(--radius-sm)',padding:"6px 10px",marginBottom:'var(--s-2)',textAlign:"center"}}>Tap any stitch on the canvas to mark it as done</div>}
 
     {/* Floating undo — mobile only (shown via CSS) */}
-    {!isEditMode&&stitchMode==="track"&&trackHistory.length>0&&<button className="fab-undo" onClick={undoTrack} onContextMenu={e=>{e.preventDefault();if(redoStack.length)redoTrack();}} aria-label="Undo last stitch" title="Tap to undo · Long-press for redo">↩</button>}
+    {!isEditMode&&stitchMode==="track"&&trackHistory.length>0&&<button className="fab-undo" onClick={undoTrack} onContextMenu={e=>{e.preventDefault();if(redoStack.length)redoTrack();}} aria-label="Undo last stitch" title="Tap to undo · Long-press for redo">{Icons.undo?Icons.undo():null}</button>}
 
     </div>{/* end canvas-area */}
 
@@ -5295,19 +5581,29 @@ return(
         the lpanel Notes and View tabs. The right panel is now a
         single sortable legend; tapping a row sets the focus colour
         AND opens the Highlight tab on the left. */}
-    <div className={"rpanel"+(mobileDrawerOpen?" rpanel--drawer-open":"")}>
+    <div className={"rpanel"+(mobileDrawerOpen?" rpanel--drawer-open":"")+(legendCollapsed?" rpanel--collapsed":"")}>
       <div className="rp-tabs" style={{paddingLeft:10,paddingRight:6,gap:6,alignItems:"center"}}>
-        <span style={{flex:1,fontSize:11,fontWeight:700,letterSpacing:"0.05em",textTransform:"uppercase",color:"var(--text-tertiary)"}}>Palette legend <span className="badge">{pal.length}</span></span>
-        <label style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,color:"var(--text-tertiary)"}}>
+        <button
+          type="button"
+          onClick={()=>setLegendCollapsed(c=>!c)}
+          className="rpanel-collapse-btn"
+          aria-expanded={!legendCollapsed}
+          aria-label={legendCollapsed?"Expand palette legend":"Collapse palette legend"}
+          title={legendCollapsed?"Expand palette legend":"Collapse palette legend"}
+        >
+          {window.Icons && (legendCollapsed?window.Icons.chevronLeft():window.Icons.chevronRight())}
+        </button>
+        <span style={{flex:1,fontSize:'var(--text-xs)',fontWeight:700,letterSpacing:"0.05em",textTransform:"uppercase",color:"var(--text-tertiary)"}}>Palette legend <span className="badge">{pal.length}</span></span>
+        {!legendCollapsed && <label style={{display:"inline-flex",alignItems:"center",gap:'var(--s-1)',fontSize:10,color:"var(--text-tertiary)"}}>
           <span>Sort</span>
           <select value={legendSort} onChange={e=>setLegendSort(e.target.value)} style={{fontSize:10,padding:"2px 4px",borderRadius:4,border:"1px solid var(--border)",background:"var(--surface)",cursor:"pointer",fontFamily:"inherit"}} aria-label="Sort palette legend">
             <option value="id">DMC ID</option>
             <option value="done">% done</option>
             <option value="count">Stitch count</option>
           </select>
-        </label>
+        </label>}
       </div>
-      <div className="rp-tab-content">
+      {!legendCollapsed && <div className="rp-tab-content">
       {/* Palette legend (sortable). Single list — focus + highlight in one tap. */}
       <div className="rp-section" style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
         <div className="col-list" style={{maxHeight:"none",flex:1}}>
@@ -5336,25 +5632,162 @@ return(
               }} title={"Focus DMC "+p.id+" and open Highlight tab"}>
                 <div className="sw" style={{background:`rgb(${p.rgb})`}}/>
                 <span className="sym">{p.symbol}</span>
-                <span className="cid" style={{color:isFocused?"#0d9488":complete?"#16a34a":"inherit"}}>{p.id}</span>
+                <span className="cid" style={{color:isFocused?"var(--accent)":complete?"var(--success)":"inherit"}}>{p.id}</span>
                 <span className="nm">{p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name}</span>
                 {!isEditMode&&<>
                   <div className="prog"><div className="pf" style={{width:pct+"%"}}/></div>
                   <span className="ct">{dc.done}/{dc.total}</span>
-                  <button onClick={e2=>{e2.stopPropagation();if(!complete){const unmarked=dc.total-dc.done;if(unmarked>50&&!confirm("Mark all "+unmarked+" stitches of DMC "+p.id+" as done?"))return;}markColourDone(p.id,!complete);}} style={{fontSize:9,padding:"1px 6px",borderRadius:4,border:"1px solid "+(complete?"#fecaca":"#bbf7d0"),background:complete?"#fef2f2":"#f0fdf4",color:complete?"#dc2626":"#16a34a",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}} title={complete?"Mark colour as not done":"Mark colour as done"} aria-label={complete?"Mark colour as not done":"Mark colour as done"}>{complete?"Undo":(Icons.check?Icons.check():"\u2713")}</button>
+                  <button onClick={e2=>{e2.stopPropagation();if(!complete){const unmarked=dc.total-dc.done;if(unmarked>50&&!confirm("Mark all "+unmarked+" stitches of DMC "+p.id+" as done?"))return;}markColourDone(p.id,!complete);}} style={{fontSize:9,padding:"1px 6px",borderRadius:4,border:"1px solid "+(complete?"var(--danger-soft)":"var(--success-soft)"),background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}} title={complete?"Mark colour as not done":"Mark colour as done"} aria-label={complete?"Mark colour as not done":"Mark colour as done"}>{complete?"Undo":(Icons.check?Icons.check():"\u2713")}</button>
                 </>}
-                {isEditMode&&<span style={{fontSize:10,color:"#d97706",fontWeight:600}} aria-label="Edit colour">{Icons.pencil?Icons.pencil():"\u270E"}</span>}
+                {isEditMode&&<span style={{fontSize:10,color:"#A06F2D",fontWeight:600}} aria-label="Edit colour">{Icons.pencil?Icons.pencil():"\u270E"}</span>}
               </div>;
             });
           })()}
         </div>
       </div>
-      </div>{/* end rp-tab-content */}
+      </div>}{/* end rp-tab-content (collapsed when legendCollapsed) */}
     </div>{/* end rpanel */}
   </div>{/* end cs-main */}
-  {/* ═══ MOBILE BOTTOM ACTION BAR ═══
-       Visibility scoped via CSS (`body.tracker-mobile`). Renders on every
-       page load but is `display:none` on desktop. Only shown in track mode. */}
+  {/* Phase 4 (UX-12) — tablet/desktop project rail (left) and side panel (right).
+      Hidden via CSS on phone. Reads from ProjectStorage and existing palette state. */}
+  {!statsView&&pat&&pal&&<TrackerProjectRail
+    activeId={projectIdRef.current}
+    pal={pal}
+    cmap={cmap}
+    colourDoneCounts={colourDoneCounts}
+    focusColour={focusColour}
+    setFocusColour={setFocusColour}
+    stitchView={stitchView}
+    setStitchView={setStitchView}
+    todayStitchesForBar={todayStitchesForBar}
+    liveAutoElapsed={liveAutoElapsed}
+    liveAutoStitches={liveAutoStitches}
+    onPickProject={(id)=>{
+      if(!id||id===projectIdRef.current)return;
+      ProjectStorage.get(id).then(p=>{
+        if(p&&p.pattern&&p.settings){
+          processLoadedProject(p);
+          try{ProjectStorage.setActiveProject(p.id);}catch(_){}
+          try{window.dispatchEvent(new Event('cs:projectsChanged'));}catch(_){}
+        }
+      }).catch(err=>console.error('Rail project switch failed:',err));
+    }}
+  />}
+  {/* ═══════════════════════════════════════════════════════════════
+      Phase 4 (UX-12) — Workshop tracker chrome
+      Floating tool dock (phone), bottom mode pill (phone), top
+      sticky current-colour chip (phone). Wake-lock chip lives in
+      the existing toolbar. Tablet/desktop project rail + side panel
+      are scoped via CSS media queries.
+      All position:fixed; layout untouched on >=1024px where existing
+      toolbar already exposes every action.
+      ═══════════════════════════════════════════════════════════════ */}
+  {!statsView&&pat&&pal&&(()=>{
+    const focusInfo=focusColour&&cmap?cmap[focusColour]:null;
+    const focusDC=focusColour&&colourDoneCounts?colourDoneCounts[focusColour]:null;
+    const focusRem=focusDC?Math.max(0,(focusDC.total||0)-(focusDC.done||0)):0;
+    const focusTotal=focusDC?(focusDC.total||0):0;
+    // Compute current "mode" for the bottom mode pill from existing state.
+    // Stitch = track + non-highlight, Find = highlight view, Edit = isEditMode.
+    const currentMode=isEditMode?"edit":(stitchView==="highlight"?"find":"stitch");
+    function setMode(next){
+      if(next===currentMode)return;
+      if(next==="stitch"){
+        if(isEditMode){if(undoSnapshot!==null){setShowExitEditModal(true);return;}setIsEditMode(false);}
+        setStitchMode("track");setStitchView("symbol");setFocusColour(null);
+      }else if(next==="find"){
+        if(isEditMode){if(undoSnapshot!==null){setShowExitEditModal(true);return;}setIsEditMode(false);}
+        setStitchView("highlight");
+        if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}
+      }else if(next==="edit"){
+        setSessionStartSnapshot({pat:[...pat],pal:deepClone(pal),threadOwned:deepClone(threadOwned),singleStitchEdits:new Map(singleStitchEdits)});
+        setStitchMode("navigate");setFocusColour(null);setHoverInfo(null);setIsEditMode(true);
+      }
+    }
+    function findNext(){
+      // Cycle to the next incomplete colour.
+      if(!pal||!pal.length)return;
+      const order=pal.filter(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;});
+      if(!order.length)return;
+      if(!focusColour){setFocusColour(order[0].id);return;}
+      const idx=order.findIndex(p=>p.id===focusColour);
+      const next=order[(idx+1)%order.length];
+      if(next)setFocusColour(next.id);
+    }
+    return <>
+      {/* ── Top sticky current-colour chip (phone) ──
+          Pinned at the top of the viewport so the active colour and
+          remaining count are always visible while scrolling the canvas. */}
+      <div className="tracker-colour-chip" role="status" aria-live="polite">
+        <button
+          type="button"
+          className="tcc-btn"
+          onClick={()=>{if(stitchView!=="highlight")setStitchView("highlight");setQuickColourOpen(o=>!o);}}
+          aria-label="Choose focus colour"
+        >
+          {focusInfo?<>
+            <span className="tcc-sw" style={{background:`rgb(${focusInfo.rgb})`}}/>
+            <span className="tcc-id">DMC {focusInfo.id}</span>
+            <span className="tcc-name">{focusInfo.name||""}</span>
+            {focusTotal>0&&<span className="tcc-rem">{focusRem.toLocaleString()} / {focusTotal.toLocaleString()} left</span>}
+          </>:<>
+            <span className="tcc-sw tcc-sw--empty" aria-hidden="true"/>
+            <span className="tcc-name">Tap to pick a colour</span>
+          </>}
+        </button>
+      </div>
+      {/* ── Floating tool dock (phone right edge, draggable Y) ── */}
+      <div className="tracker-tool-dock" role="toolbar" aria-label="Tracker tools" style={{top:dockY+"%"}}
+        onPointerDown={(e)=>{
+          if(!e.currentTarget.classList.contains("tracker-tool-dock--drag"))return;
+        }}>
+        <button className="ttd-btn ttd-handle" aria-label="Drag dock"
+          onPointerDown={(e)=>{
+            const dock=e.currentTarget.parentNode;
+            const startClientY=e.clientY;
+            const startTop=dock.getBoundingClientRect().top;
+            const vh=window.innerHeight||1;
+            // Suppress the .tracker-tool-dock 0.2s top transition during
+            // active drag — otherwise pointermove updates lag visibly.
+            dock.setAttribute('data-dragging','1');
+            function onMove(ev){
+              const delta=ev.clientY-startClientY;
+              const newTop=Math.min(vh-200,Math.max(60,startTop+delta));
+              setDockY(Math.round(newTop/vh*100));
+            }
+            function onUp(){
+              dock.removeAttribute('data-dragging');
+              window.removeEventListener('pointermove',onMove);
+              window.removeEventListener('pointerup',onUp);
+            }
+            window.addEventListener('pointermove',onMove);
+            window.addEventListener('pointerup',onUp);
+            e.preventDefault();
+          }}
+          title="Drag to reposition dock"
+        >{Icons.menu()}</button>
+        <button className="ttd-btn" onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} aria-label="Zoom in" title="Zoom in">{Icons.magnifyPlus()}</button>
+        <button className="ttd-btn" onClick={()=>setStitchZoom(z=>Math.max(0.1,+(z-0.25).toFixed(2)))} aria-label="Zoom out" title="Zoom out">{Icons.magnifyMinus()}</button>
+        <button className="ttd-btn" onClick={undoTrack} disabled={!trackHistory.length} aria-label="Undo" title="Undo">{Icons.undo()}</button>
+        <button className="ttd-btn" onClick={redoTrack} disabled={!redoStack.length} aria-label="Redo" title="Redo">{Icons.replay()}</button>
+        <button className="ttd-btn" onClick={findNext} aria-label="Find next colour" title="Cycle focus colour">{Icons.magnify()}</button>
+        <button className={"ttd-btn"+(stitchView==="highlight"?" ttd-btn--on":"")} onClick={()=>{setStitchView(v=>v==="highlight"?"symbol":"highlight");}} aria-label="Toggle highlight" title="Highlight mode (half-stitch placement)">{Icons.halfStitch()}</button>
+        <button className={"ttd-btn"+(stitchMode==="navigate"?" ttd-btn--on":"")} onClick={()=>{setStitchMode(m=>m==="navigate"?"track":"navigate");}} aria-label="Toggle parking" title="Navigate / parking mode">{Icons.parkFlag()}</button>
+        <button className="ttd-btn" onClick={()=>{if(stitchView!=="highlight")setStitchView("highlight");setQuickColourOpen(o=>!o);}} aria-label="Pick colour" title="Pick a colour">{Icons.palette()}</button>
+      </div>
+      {/* ── Bottom mode-pill (phone, above safe area) ── */}
+      <div className="tracker-mode-pill" role="tablist" aria-label="Tracker mode" aria-live="polite">
+        {[["stitch","Stitch"],["find","Find"],["edit","Edit"]].map(([k,l])=>
+          <button key={k} type="button" role="tab"
+            aria-selected={currentMode===k}
+            className={"tmp-seg"+(currentMode===k?" tmp-seg--on":"")}
+            onClick={()=>setMode(k)}
+          >{l}</button>
+        )}
+      </div>
+    </>;
+  })()}
+
   {!isEditMode&&!statsView&&stitchMode==="track"&&(()=>{
     const focusInfo=focusColour&&cmap?cmap[focusColour]:null;
     const undoDisabled=!trackHistory.length;
@@ -5378,7 +5811,7 @@ return(
             </span>
             <span className="ci-chev">{quickColourOpen?window.Icons.chevronDown():window.Icons.chevronUp()}</span>
           </>:<>
-            <span style={{display:"inline-flex",alignItems:"center",gap:8}}>
+            <span style={{display:"inline-flex",alignItems:"center",gap:'var(--s-2)'}}>
               {window.Icons.palette()} Pick a colour
               <span className="ci-chev">{quickColourOpen?window.Icons.chevronDown():window.Icons.chevronUp()}</span>
             </span>
@@ -5503,60 +5936,60 @@ return(
         }
       });
     }
-    return <div className="modal-overlay" onClick={()=>{setImportDialog(null);setImportImage(null);}}>
+    return <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="import-pattern-title" onClick={()=>{setImportDialog(null);setImportImage(null);}}>
     <div className="modal-content" style={{maxWidth:600}} onClick={e=>e.stopPropagation()}>
-      <button className="modal-close" onClick={()=>{setImportDialog(null);setImportImage(null);}}>×</button>
-      <h3 style={{marginTop:0,marginBottom:15}}>Import Image Pattern</h3>
-      <div style={{display:"flex", flexDirection:"column", gap:12, marginBottom:16}}>
-        <div style={{display:"flex", flexDirection:"column", gap:4}}>
-          <label style={{fontSize:12, fontWeight:600, color:"#475569"}}>Project Name</label>
+      <button className="modal-close" onClick={()=>{setImportDialog(null);setImportImage(null);}} aria-label="Close">{Icons.x?Icons.x():"×"}</button>
+      <h3 id="import-pattern-title" style={{marginTop:0,marginBottom:15}}>Import Image Pattern</h3>
+      <div style={{display:"flex", flexDirection:"column", gap:'var(--s-3)', marginBottom:'var(--s-4)'}}>
+        <div style={{display:"flex", flexDirection:"column", gap:'var(--s-1)'}}>
+          <label style={{fontSize:'var(--text-sm)', fontWeight:600, color:"var(--text-secondary)"}}>Project Name</label>
           <input type="text" maxLength={60} value={importName} onChange={e=>setImportName(e.target.value)}
-            placeholder="e.g. Rose Garden" style={{padding:"6px 10px", borderRadius:6, border:"0.5px solid #e2e8f0", fontSize:13}}/>
+            placeholder="e.g. Rose Garden" style={{padding:"6px 10px", borderRadius:'var(--radius-sm)', border:"0.5px solid var(--border)", fontSize:'var(--text-md)'}}/>
         </div>
       </div>
       <div style={{display:"flex", gap:20, flexWrap:"wrap"}}>
-        <div style={{width:140, display:"flex", flexDirection:"column", gap:8}}>
-          <div style={{width:140, height:140, background:"#f8f9fa", border:"0.5px solid #e2e8f0", borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden"}}>
+        <div style={{width:140, display:"flex", flexDirection:"column", gap:'var(--s-2)'}}>
+          <div style={{width:140, height:140, background:"var(--surface-secondary)", border:"0.5px solid var(--border)", borderRadius:'var(--radius-md)', display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden"}}>
             <img src={importImage.src} style={{maxWidth:"100%", maxHeight:"100%", objectFit:"contain", imageRendering:"pixelated"}}/>
           </div>
-          <div style={{fontSize:12, color:"#475569", textAlign:"center"}}>
+          <div style={{fontSize:'var(--text-sm)', color:"var(--text-secondary)", textAlign:"center"}}>
             {importImage.width} × {importImage.height} px
           </div>
         </div>
-        <div style={{flex:1, minWidth:250, display:"flex", flexDirection:"column", gap:16}}>
-          <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:12}}>
-            <div style={{display:"flex", flexDirection:"column", gap:4}}>
-              <label style={{fontSize:12, fontWeight:600, color:"#475569"}}>Max Width (stitches)</label>
+        <div style={{flex:1, minWidth:250, display:"flex", flexDirection:"column", gap:'var(--s-4)'}}>
+          <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:'var(--s-3)'}}>
+            <div style={{display:"flex", flexDirection:"column", gap:'var(--s-1)'}}>
+              <label style={{fontSize:'var(--text-sm)', fontWeight:600, color:"var(--text-secondary)"}}>Max Width (stitches)</label>
               <input type="number" inputMode="numeric" min={10} max={300} value={importMaxW} onChange={e=>{
                 let val = Number(e.target.value);
                 setImportMaxW(val);
                 if (importArLock) setImportMaxH(Math.max(10, Math.floor(val * (importImage.height / importImage.width))));
-              }} style={{padding:"6px 10px", borderRadius:6, border:"0.5px solid #e2e8f0"}}/>
+              }} style={{padding:"6px 10px", borderRadius:'var(--radius-sm)', border:"0.5px solid var(--border)"}}/>
             </div>
-            <div style={{display:"flex", flexDirection:"column", gap:4}}>
-              <label style={{fontSize:12, fontWeight:600, color:"#475569"}}>Max Height (stitches)</label>
+            <div style={{display:"flex", flexDirection:"column", gap:'var(--s-1)'}}>
+              <label style={{fontSize:'var(--text-sm)', fontWeight:600, color:"var(--text-secondary)"}}>Max Height (stitches)</label>
               <input type="number" inputMode="numeric" min={10} max={300} value={importMaxH} onChange={e=>{
                 let val = Number(e.target.value);
                 setImportMaxH(val);
                 if (importArLock) setImportMaxW(Math.max(10, Math.floor(val * (importImage.width / importImage.height))));
-              }} style={{padding:"6px 10px", borderRadius:6, border:"0.5px solid #e2e8f0"}}/>
+              }} style={{padding:"6px 10px", borderRadius:'var(--radius-sm)', border:"0.5px solid var(--border)"}}/>
             </div>
           </div>
-          <label style={{display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#1e293b", cursor:"pointer"}}>
+          <label style={{display:"flex", alignItems:"center", gap:'var(--s-2)', fontSize:'var(--text-md)', color:"var(--text-primary)", cursor:"pointer"}}>
             <input type="checkbox" checked={importArLock} onChange={e=>setImportArLock(e.target.checked)}/> Lock aspect ratio
           </label>
 
-          <div style={{display:"flex", flexDirection:"column", gap:4}}>
-            <label style={{fontSize:12, fontWeight:600, color:"#475569"}}>Fabric Count</label>
+          <div style={{display:"flex", flexDirection:"column", gap:'var(--s-1)'}}>
+            <label style={{fontSize:'var(--text-sm)', fontWeight:600, color:"var(--text-secondary)"}}>Fabric Count</label>
             <select value={importFabricCt} onChange={e=>setImportFabricCt(Number(e.target.value))}
-              style={{padding:"6px 10px", borderRadius:6, border:"0.5px solid #e2e8f0", fontSize:13, background:"#fff"}}>
+              style={{padding:"6px 10px", borderRadius:'var(--radius-sm)', border:"0.5px solid var(--border)", fontSize:'var(--text-md)', background:"var(--surface)"}}>
               {FABRIC_COUNTS.map(fc=><option key={fc.ct} value={fc.ct}>{fc.label}</option>)}
             </select>
           </div>
 
           <SliderRow label="Max Colours" val={importMaxColours} setVal={setImportMaxColours} min={5} max={40} />
 
-          <label style={{display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#1e293b", cursor:"pointer"}}>
+          <label style={{display:"flex", alignItems:"center", gap:'var(--s-2)', fontSize:'var(--text-md)', color:"var(--text-primary)", cursor:"pointer"}}>
             <input type="checkbox" checked={importSkipBg} onChange={e=>setImportSkipBg(e.target.checked)}/> Skip near-white background
           </label>
 
@@ -5564,8 +5997,8 @@ return(
 
         </div>
       </div>
-      <div style={{display:"flex", justifyContent:"flex-end", gap:10, marginTop:24, paddingTop:16, borderTop:"0.5px solid #e2e8f0"}}>
-        <button onClick={()=>{setImportDialog(null);setImportImage(null);}} style={{padding:"8px 16px", borderRadius:8, border:"0.5px solid #e2e8f0", background:"#fff", cursor:"pointer", fontWeight:600}}>Cancel</button>
+      <div style={{display:"flex", justifyContent:"flex-end", gap:10, marginTop:24, paddingTop:16, borderTop:"0.5px solid var(--border)"}}>
+        <button onClick={()=>{setImportDialog(null);setImportImage(null);}} style={{padding:"8px 16px", borderRadius:'var(--radius-md)', border:"0.5px solid var(--border)", background:"var(--surface)", cursor:"pointer", fontWeight:600}}>Cancel</button>
         <button onClick={()=>{
           try {
             let result = parseImagePattern(importImage, {
@@ -5588,7 +6021,7 @@ return(
             setImportImage(null);
             setTimeout(()=>setLoadError(null), 4000);
           }
-        }} style={{padding:"8px 16px", borderRadius:8, border:"none", background:"#0d9488", color:"#fff", cursor:"pointer", fontWeight:600}}>Import Pattern</button>
+        }} style={{padding:"8px 16px", borderRadius:'var(--radius-md)', border:"none", background:"var(--accent)", color:"var(--surface)", cursor:"pointer", fontWeight:600}}>Import Pattern</button>
       </div>
     </div>
   </div>;
@@ -5711,7 +6144,7 @@ return(
           {speedNote&&<div className="resume-recap-note">{speedNote}</div>}
         </div>
         <div className="resume-recap-footer">
-          <button className="resume-recap-btn" onClick={()=>{dismiss();if(typeof onGoHome==='function')onGoHome();}}>Switch project</button>
+          <button className="resume-recap-btn" onClick={()=>{dismiss();if(typeof onGoHome==='function')onGoHome();else window.location.href='home.html';}}>Switch project</button>
           <button className="resume-recap-btn" onClick={()=>{dismiss();setStatsView(true);}}>Stats</button>
           <button className="resume-recap-btn resume-recap-btn--primary" onClick={dismiss} autoFocus>Continue stitching</button>
         </div>
@@ -5719,11 +6152,11 @@ return(
     </div>;
   })()}
   {modal==="about"&&<SharedModals.About onClose={()=>setModal(null)} />}
-  {modal==="pdf_export"&&<div className="modal-overlay" onClick={()=>setModal(null)}>
+  {modal==="pdf_export"&&<div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="pdf-export-title" onClick={()=>setModal(null)}>
     <div className="modal-content" style={{maxWidth:400}} onClick={e=>e.stopPropagation()}>
-      <button className="modal-close" onClick={()=>setModal(null)}>×</button>
-      <h3 style={{marginTop:0,marginBottom:15}}>Export PDF</h3>
-      <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <button className="modal-close" onClick={()=>setModal(null)} aria-label="Close">{Icons.x?Icons.x():"×"}</button>
+      <h3 id="pdf-export-title" style={{marginTop:0,marginBottom:15}}>Export PDF</h3>
+      <div style={{display:"flex",flexDirection:"column",gap:'var(--s-4)'}}>
         <label style={PDF_MODAL_LABEL_STYLE}>
           Chart Mode:
           <select value={pdfSettings.chartStyle||"color_symbol"} onChange={e=>setPdfSettings({...pdfSettings,chartStyle:e.target.value})} style={PDF_MODAL_SELECT_STYLE}>
@@ -5743,7 +6176,7 @@ return(
         <label style={PDF_MODAL_CHECKBOX_LABEL_STYLE}>
           <input type="checkbox" checked={pdfSettings.singlePage||false} onChange={e=>setPdfSettings({...pdfSettings,singlePage:e.target.checked})}/> Single Page
         </label>
-        <div style={{display:"flex",gap:10,marginTop:8}}>
+        <div style={{display:"flex",gap:10,marginTop:'var(--s-2)'}}>
           <button onClick={()=>{setModal(null);exportPDF({displayMode:pdfSettings.chartStyle||"color_symbol",cellSize:pdfSettings.cellSize||3,singlePage:pdfSettings.singlePage||false});}} style={PDF_MODAL_EXPORT_BTN_STYLE}>Export PDF</button>
         </div>
       </div>
@@ -5753,12 +6186,12 @@ return(
   {modal==="shortcuts"&&<SharedModals.Help defaultTab="shortcuts" onClose={()=>setModal(null)} />}
 
 
-  {modal==="deduct_prompt"&&<div className="modal-overlay" onClick={()=>{setModal(null);setStashDeducted(true);}}>
+  {modal==="deduct_prompt"&&<div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="deduct-prompt-title" onClick={()=>{setModal(null);setStashDeducted(true);}}>
     <div className="modal-content" style={{maxWidth:460}} onClick={e=>e.stopPropagation()}>
-      <button className="modal-close" onClick={()=>{setModal(null);setStashDeducted(true);}}>×</button>
-      <h3 style={{marginTop:0,fontSize:20,color:"#1e293b"}}>Project Complete!</h3>
-      <p style={{fontSize:14,color:"#475569",marginBottom:16}}>Deduct the thread used from your global stash?</p>
-      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+      <button className="modal-close" onClick={()=>{setModal(null);setStashDeducted(true);}} aria-label="Close">{Icons.x?Icons.x():"×"}</button>
+      <h3 id="deduct-prompt-title" style={{marginTop:0,fontSize:20,color:"var(--text-primary)"}}>Project Complete!</h3>
+      <p style={{fontSize:'var(--text-lg)',color:"var(--text-secondary)",marginBottom:'var(--s-4)'}}>Deduct the thread used from your global stash?</p>
+      <div style={{display:"flex",flexDirection:"column",gap:'var(--s-2)'}}>
         <button onClick={()=>{
           (async()=>{
             const stash=await StashBridge.getGlobalStash();
@@ -5774,7 +6207,7 @@ return(
               v3FieldsRef.current=Object.assign(v3FieldsRef.current||{},{finishStatus:'completed',completedAt:new Date().toISOString()});
             }
           })().then(()=>{setStashDeducted(true);setModal(null);}).catch(()=>{setStashDeducted(true);setModal(null);});
-        }} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"none",background:"#7c3aed",color:"#fff",cursor:"pointer",fontWeight:600}}>Deduct Full Skeins</button>
+        }} style={{padding:"10px 20px",fontSize:'var(--text-lg)',borderRadius:'var(--radius-md)',border:"none",background:"var(--accent)",color:"var(--surface)",cursor:"pointer",fontWeight:600}}>Deduct Full Skeins</button>
         <button onClick={()=>{
           (async()=>{
             const stash=await StashBridge.getGlobalStash();
@@ -5791,7 +6224,7 @@ return(
               v3FieldsRef.current=Object.assign(v3FieldsRef.current||{},{finishStatus:'completed',completedAt:new Date().toISOString()});
             }
           })().then(()=>{setStashDeducted(true);setModal(null);}).catch(()=>{setStashDeducted(true);setModal(null);});
-        }} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"1px solid #d8b4fe",background:"#faf5ff",color:"#7c3aed",cursor:"pointer",fontWeight:600}}>Deduct Partial (keep 1 per colour)</button>
+        }} style={{padding:"10px 20px",fontSize:'var(--text-lg)',borderRadius:'var(--radius-md)',border:"1px solid var(--accent-light)",background:"var(--surface-secondary)",color:"var(--accent)",cursor:"pointer",fontWeight:600}}>Deduct Partial (keep 1 per colour)</button>
         <button onClick={()=>{
           (async()=>{
             if(typeof ProjectStorage!=='undefined'&&ProjectStorage.markProjectFinished&&projectIdRef.current){
@@ -5799,10 +6232,10 @@ return(
               v3FieldsRef.current=Object.assign(v3FieldsRef.current||{},{finishStatus:'completed',completedAt:new Date().toISOString()});
             }
           })().then(()=>{setStashDeducted(true);setModal(null);}).catch(()=>{setStashDeducted(true);setModal(null);});
-        }} style={{padding:"10px 20px",fontSize:14,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",color:"#475569",cursor:"pointer",fontWeight:500}}>Skip</button>
+        }} style={{padding:"10px 20px",fontSize:'var(--text-lg)',borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",cursor:"pointer",fontWeight:500}}>Skip</button>
       </div>
-      <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid #e2e8f0",display:"flex",justifyContent:"center"}}>
-        <button onClick={()=>{window.location.search='?mode=stats&tab=showcase';}} style={{fontSize:12,color:"#0d9488",background:"none",border:"none",cursor:"pointer",fontWeight:600}}>See your updated stats →</button>
+      <div style={{marginTop:'var(--s-3)',paddingTop:10,borderTop:"1px solid var(--border)",display:"flex",justifyContent:"center"}}>
+        <button onClick={()=>{window.location.search='?mode=stats&tab=showcase';}} style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"none",border:"none",cursor:"pointer",fontWeight:600,display:'inline-flex',alignItems:'center',gap:4}}>See your updated stats <span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronRight?Icons.chevronRight():null}</span></button>
       </div>
     </div>
   </div>}
@@ -5812,41 +6245,41 @@ return(
     const currentEntry = cell && cell.id !== "__empty__" ? cmap[cell.id] : null;
     const isEmpty = !cell || cell.id === "__empty__";
     return (
-      <div className="modal-overlay" onClick={()=>setCellEditPopover(null)}>
+      <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="cell-edit-title" onClick={()=>setCellEditPopover(null)}>
         <div className="modal-content" style={{maxWidth:440,display:"flex",flexDirection:"column",maxHeight:"80vh"}} onClick={e=>e.stopPropagation()}>
-          <button className="modal-close" onClick={()=>setCellEditPopover(null)}>×</button>
-          <h3 style={{marginTop:0,marginBottom:4,fontSize:18,color:"#1e293b"}}>Edit Stitch</h3>
-          <div style={{fontSize:12,color:"#94a3b8",marginBottom:12}}>Row {cellEditPopover.row}, Col {cellEditPopover.col}</div>
+          <button className="modal-close" onClick={()=>setCellEditPopover(null)} aria-label="Close">{Icons.x?Icons.x():"×"}</button>
+          <h3 id="cell-edit-title" style={{marginTop:0,marginBottom:'var(--s-1)',fontSize:18,color:"var(--text-primary)"}}>Edit Stitch</h3>
+          <div style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",marginBottom:'var(--s-3)'}}>Row {cellEditPopover.row}, Col {cellEditPopover.col}</div>
 
           {isEmpty ? (
-            <div style={{padding:"10px 12px",background:"#f1f5f9",borderRadius:8,marginBottom:12,fontSize:13,color:"#475569",fontStyle:"italic"}}>
+            <div style={{padding:"10px 12px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',marginBottom:'var(--s-3)',fontSize:'var(--text-md)',color:"var(--text-secondary)",fontStyle:"italic"}}>
               Empty — no stitch. Select a symbol below to assign one.
             </div>
           ) : currentEntry ? (
-            <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#f0fdfa",borderRadius:8,marginBottom:12,border:"1px solid #99f6e4"}}>
-              <span style={{width:22,height:22,borderRadius:4,background:`rgb(${currentEntry.rgb[0]},${currentEntry.rgb[1]},${currentEntry.rgb[2]})`,border:"1px solid #cbd5e1",flexShrink:0}}/>
-              <span style={{fontFamily:"monospace",fontWeight:700,fontSize:16}}>{currentEntry.symbol}</span>
-              <span style={{fontWeight:600,fontSize:13}}>DMC {currentEntry.id}</span>
-              <span style={{fontSize:12,color:"#475569",flex:1}}>{currentEntry.name}</span>
-              <span style={{fontSize:11,color:"#0d9488",fontWeight:600}}>Current</span>
+            <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"var(--accent-light)",borderRadius:'var(--radius-md)',marginBottom:'var(--s-3)',border:"1px solid var(--accent-border)"}}>
+              <span style={{width:22,height:22,borderRadius:4,background:`rgb(${currentEntry.rgb[0]},${currentEntry.rgb[1]},${currentEntry.rgb[2]})`,border:"1px solid var(--border)",flexShrink:0}}/>
+              <span style={{fontFamily:"monospace",fontWeight:700,fontSize:'var(--text-xl)'}}>{currentEntry.symbol}</span>
+              <span style={{fontWeight:600,fontSize:'var(--text-md)'}}>DMC {currentEntry.id}</span>
+              <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)",flex:1}}>{currentEntry.name}</span>
+              <span style={{fontSize:'var(--text-xs)',color:"var(--accent)",fontWeight:600}}>Current</span>
             </div>
           ) : null}
 
-          <div style={{fontSize:12,fontWeight:600,color:"#475569",marginBottom:6}}>Assign symbol:</div>
-          <div style={{flex:1,overflowY:"auto",border:"1px solid #e2e8f0",borderRadius:8,marginBottom:12}}>
+          <div style={{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--text-secondary)",marginBottom:6}}>Assign symbol:</div>
+          <div style={{flex:1,overflowY:"auto",border:"1px solid var(--border)",borderRadius:'var(--radius-md)',marginBottom:'var(--s-3)'}}>
             {pal.map(p=>{
               const isCurrent = !isEmpty && p.id === cell.id;
               return (
                 <div key={p.id} onClick={()=>{ if(!isCurrent) handleSingleStitchEdit(cellEditPopover.idx,p.id); }}
-                  style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderBottom:"1px solid #f1f5f9",
-                    background:isCurrent?"#f0fdfa":"#fff",cursor:isCurrent?"default":"pointer",
+                  style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderBottom:"1px solid var(--surface-tertiary)",
+                    background:isCurrent?"var(--accent-light)":"var(--surface)",cursor:isCurrent?"default":"pointer",
                     opacity:isCurrent?0.6:1}}>
-                  <span style={{width:20,height:20,borderRadius:4,background:`rgb(${p.rgb[0]},${p.rgb[1]},${p.rgb[2]})`,border:"1px solid #cbd5e1",flexShrink:0}}/>
-                  <span style={{fontFamily:"monospace",fontWeight:700,fontSize:14,width:18,textAlign:"center"}}>{p.symbol}</span>
-                  <span style={{fontWeight:600,fontSize:13,minWidth:52}}>DMC {p.id}</span>
-                  <span style={{fontSize:12,color:"#475569",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</span>
-                  <span style={{fontSize:11,color:"#94a3b8"}}>{p.count} st</span>
-                  {isCurrent&&<span style={{fontSize:11,fontWeight:600,color:"#0d9488",background:"#ccfbf1",padding:"2px 8px",borderRadius:10}}>Current</span>}
+                  <span style={{width:20,height:20,borderRadius:4,background:`rgb(${p.rgb[0]},${p.rgb[1]},${p.rgb[2]})`,border:"1px solid var(--border)",flexShrink:0}}/>
+                  <span style={{fontFamily:"monospace",fontWeight:700,fontSize:'var(--text-lg)',width:18,textAlign:"center"}}>{p.symbol}</span>
+                  <span style={{fontWeight:600,fontSize:'var(--text-md)',minWidth:52}}>DMC {p.id}</span>
+                  <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</span>
+                  <span style={{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>{p.count} st</span>
+                  {isCurrent&&<span style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--accent)",background:"var(--accent-light)",padding:"2px 8px",borderRadius:'var(--radius-lg)'}}>Current</span>}
                 </div>
               );
             })}
@@ -5857,7 +6290,7 @@ return(
               if(confirm(`Remove stitch at Row ${cellEditPopover.row}, Col ${cellEditPopover.col}? It will be marked as empty.`)){
                 handleStitchRemoval(cellEditPopover.idx);
               }
-            }} style={{padding:"9px 16px",borderRadius:8,border:"1px solid #fecaca",background:"#fef2f2",color:"#dc2626",cursor:"pointer",fontWeight:600,fontSize:13,textAlign:"left"}}>
+            }} style={{padding:"9px 16px",borderRadius:'var(--radius-md)',border:"1px solid var(--danger-soft)",background:"var(--danger-soft)",color:"var(--danger)",cursor:"pointer",fontWeight:600,fontSize:'var(--text-md)',textAlign:"left"}}>
               Remove Stitch
             </button>
           )}
@@ -5884,17 +6317,17 @@ return(
   />}
 
   {showExitEditModal && (
-    <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:10000}}>
-      <div style={{background:"#fff",padding:24,borderRadius:12,width:350,maxWidth:"90%",boxShadow:"0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)"}}>
-        <h3 style={{margin:"0 0 12px 0",fontSize:18,color:"#1e293b"}}>Apply changes?</h3>
-        <p style={{fontSize:14,color:"#475569",margin:"0 0 24px 0",lineHeight:1.5}}>You have made changes to the symbol assignments. Do you want to apply them?</p>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+    <div role="dialog" aria-modal="true" aria-labelledby="exit-edit-title" style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:10000}}>
+      <div style={{background:"var(--surface)",padding:24,borderRadius:'var(--radius-xl)',width:350,maxWidth:"90%",boxShadow:"0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)"}}>
+        <h3 id="exit-edit-title" style={{margin:"0 0 12px 0",fontSize:18,color:"var(--text-primary)"}}>Apply changes?</h3>
+        <p style={{fontSize:'var(--text-lg)',color:"var(--text-secondary)",margin:"0 0 24px 0",lineHeight:1.5}}>You have made changes to the symbol assignments. Do you want to apply them?</p>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}}>
           <button onClick={()=>{
             // Cancel
             setShowExitEditModal(false);
-          }} style={{padding:"8px 12px",fontSize:14,borderRadius:8,border:"0.5px solid #e2e8f0",background:"#fff",cursor:"pointer",fontWeight:500,color:"#475569"}}>Cancel</button>
+          }} style={{padding:"8px 12px",fontSize:'var(--text-lg)',borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",background:"var(--surface)",cursor:"pointer",fontWeight:500,color:"var(--text-secondary)"}}>Cancel</button>
 
-          <div style={{display:"flex",gap:8}}>
+          <div style={{display:"flex",gap:'var(--s-2)'}}>
             <button onClick={()=>{
               // Discard — restore the full state from when Edit Mode was entered
               if (sessionStartSnapshot) {
@@ -5910,7 +6343,7 @@ return(
               setSessionStartSnapshot(null);
               setIsEditMode(false);
               setShowExitEditModal(false);
-            }} style={{padding:"8px 12px",fontSize:14,borderRadius:8,border:"none",background:"#fef2f2",color:"#dc2626",cursor:"pointer",fontWeight:500}}>Discard</button>
+            }} style={{padding:"8px 12px",fontSize:'var(--text-lg)',borderRadius:'var(--radius-md)',border:"none",background:"var(--danger-soft)",color:"var(--danger)",cursor:"pointer",fontWeight:500}}>Discard</button>
 
             <button onClick={()=>{
               // Apply — commit edits; clear undo snapshot (edits are now permanent)
@@ -5918,7 +6351,7 @@ return(
               setSessionStartSnapshot(null);
               setIsEditMode(false);
               setShowExitEditModal(false);
-            }} style={{padding:"8px 12px",fontSize:14,borderRadius:8,border:"none",background:"#0d9488",color:"#fff",cursor:"pointer",fontWeight:500}}>Apply</button>
+            }} style={{padding:"8px 12px",fontSize:'var(--text-lg)',borderRadius:'var(--radius-md)',border:"none",background:"var(--accent)",color:"var(--surface)",cursor:"pointer",fontWeight:500}}>Apply</button>
           </div>
         </div>
       </div>
@@ -5929,21 +6362,21 @@ return(
   {halfDisambig&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:10001}} onClick={()=>setHalfDisambig(null)}>
     <div className="hs-scale-in" style={{
       position:"fixed",left:halfDisambig.x-50,top:halfDisambig.y-60,
-      background:"#fff",borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,0.2)",padding:"6px 8px",
-      display:"flex",flexDirection:"column",gap:4,border:"1px solid #e2e8f0",minWidth:100
+      background:"var(--surface)",borderRadius:'var(--radius-md)',boxShadow:"0 4px 16px rgba(0,0,0,0.2)",padding:"6px 8px",
+      display:"flex",flexDirection:"column",gap:'var(--s-1)',border:"1px solid var(--border)",minWidth:100
     }} onClick={e=>e.stopPropagation()}>
       <button onClick={()=>_markHalfDoneFromDisambig(halfDisambig.idx,"fwd")} style={{
-        display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:6,border:"none",
-        background:"#f0f9ff",cursor:"pointer",fontSize:12,fontWeight:500,color:"#0c4a6e"
+        display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:'var(--radius-sm)',border:"none",
+        background:"var(--surface-secondary)",cursor:"pointer",fontSize:'var(--text-sm)',fontWeight:500,color:"var(--accent)"
       }}>
-        <svg width="14" height="14" viewBox="0 0 14 14"><polygon points="0,0 0,14 14,14" fill="#7dd3fc"/></svg>
+        <svg width="14" height="14" viewBox="0 0 14 14"><polygon points="0,0 0,14 14,14" fill="var(--accent-light)"/></svg>
         Mark /
       </button>
       <button onClick={()=>_markHalfDoneFromDisambig(halfDisambig.idx,"bck")} style={{
-        display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:6,border:"none",
-        background:"#f0f9ff",cursor:"pointer",fontSize:12,fontWeight:500,color:"#0c4a6e"
+        display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:'var(--radius-sm)',border:"none",
+        background:"var(--surface-secondary)",cursor:"pointer",fontSize:'var(--text-sm)',fontWeight:500,color:"var(--accent)"
       }}>
-        <svg width="14" height="14" viewBox="0 0 14 14"><polygon points="0,0 14,0 0,14" fill="#7dd3fc"/></svg>
+        <svg width="14" height="14" viewBox="0 0 14 14"><polygon points="0,0 14,0 0,14" fill="var(--accent-light)"/></svg>
         Mark \
       </button>
     </div>

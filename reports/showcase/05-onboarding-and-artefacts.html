@@ -1,0 +1,821 @@
+﻿<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Workshop Â· Onboarding & Artefacts</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="_workshop.css">
+  <style>
+    .sampler-band svg { display: block; }
+    .phone-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: var(--s-6); justify-items: center; }
+    .pdf-mockups { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-6); }
+    .pdf-page { background: white; aspect-ratio: 8.5/11; max-width: 330px; border-radius: var(--radius); box-shadow: var(--shadow-lg); display: flex; flex-direction: column; position: relative; overflow: hidden; }
+    .pdf-header { padding: 16px 12px; border-bottom: 1px solid var(--line); font-size: var(--text-xs); color: var(--text-muted); }
+    .pdf-body { flex: 1; padding: 16px 12px; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+    .pdf-footer { padding: 8px 12px; border-top: 1px dashed var(--line); font-size: var(--text-xs); color: var(--text-muted); text-align: center; }
+    .chart-mini { background: #f5f3f0; border: 1px solid var(--line); border-radius: var(--radius-sm); height: 80px; position: relative; display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--text-muted); }
+    .icon-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--s-4); align-items: center; }
+    .icon-item { display: flex; flex-direction: column; align-items: center; gap: var(--s-3); }
+    .icon-item svg { width: 100%; height: auto; max-width: 192px; }
+    .icon-label { font-size: var(--text-xs); color: var(--text-muted); text-align: center; }
+    .empty-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s-5); }
+    .empty-card { display: flex; flex-direction: column; align-items: center; gap: var(--s-3); padding: var(--s-5); background: var(--surface-sunken); border-radius: var(--radius); }
+    .empty-card svg { width: 80px; height: 80px; }
+    .empty-card h3 { font-size: var(--text-lg); font-weight: 600; text-align: center; }
+    .empty-card .btn { margin-top: var(--s-2); }
+    .marketing-card { background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--s-6); display: flex; align-items: center; gap: var(--s-7); position: relative; overflow: hidden; }
+    .marketing-card::after { content: ''; position: absolute; right: 0; top: 0; width: 40%; height: 100%; background: linear-gradient(135deg, var(--accent-soft) 0%, transparent 100%); pointer-events: none; }
+    .marketing-content { position: relative; z-index: 1; flex: 1; }
+    .marketing-content .brand { font: 700 32px/1 var(--font-ui); letter-spacing: -.02em; color: var(--text-primary); margin-bottom: var(--s-3); }
+    .marketing-content .brand::after { content: '.'; color: var(--accent); font-size: 1.2em; }
+    .marketing-content .tagline { font-size: var(--text-lg); color: var(--text-secondary); margin-bottom: var(--s-4); max-width: 50ch; line-height: 1.55; }
+    .feature-pills { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+    .wizard-progress { display: flex; gap: 8px; justify-content: center; margin-bottom: var(--s-5); }
+    .wizard-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+    .wizard-dot.active { background: var(--accent); }
+    .radio-card { display: flex; gap: var(--s-4); padding: var(--s-4); border: 2px solid var(--line); border-radius: var(--radius); background: var(--surface-raised); cursor: pointer; transition: all var(--motion-fast); }
+    .radio-card:hover { border-color: var(--accent); background: var(--accent-soft); }
+    .radio-card input { display: none; }
+    .radio-card input:checked + label { color: var(--accent-ink); }
+    .radio-card svg { width: 60px; height: 60px; flex-shrink: 0; }
+    .radio-card label { cursor: pointer; flex: 1; }
+    .radio-card-title { font-weight: 600; margin-bottom: 4px; }
+    .radio-card-desc { font-size: var(--text-sm); color: var(--text-secondary); }
+    .screen-content { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+    .screen-content > * { flex-shrink: 0; }
+    .home-hero { padding: var(--s-5); border-bottom: 1px solid var(--line); }
+    .home-hero h1 { font-size: var(--text-hero); font-weight: 600; margin-bottom: var(--s-2); }
+    .home-hero .sub { font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--s-3); }
+    .home-projects { padding: var(--s-4); display: flex; flex-direction: column; gap: var(--s-3); }
+    .project-card { background: var(--surface-sunken); border-radius: var(--radius); padding: var(--s-3); display: flex; gap: var(--s-3); }
+    .project-thumb { width: 48px; height: 48px; border-radius: var(--radius-sm); background: var(--tint-fabric); border: 1px solid var(--line); flex-shrink: 0; }
+    .project-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .project-name { font: 600 var(--text-md)/1 var(--font-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .project-meta { font-size: var(--text-xs); color: var(--text-muted); }
+    .project-progress { height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; margin-top: 4px; }
+    .project-progress i { display: block; height: 100%; background: var(--accent); }
+    .home-activity { padding: var(--s-4); border-top: 1px solid var(--line); }
+    .activity-item { font-size: var(--text-sm); padding: 6px 0; border-bottom: 1px dashed var(--line); display: flex; justify-content: space-between; }
+    .activity-time { font-size: var(--text-xs); color: var(--text-muted); }
+    .qb { display: block; padding: var(--s-3); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-sunken); cursor: pointer; transition: all var(--motion-fast); text-align: left; font-size: var(--text-sm); }
+    .qb:hover { background: var(--surface); border-color: var(--accent); }
+    .qb.primary { background: var(--accent); color: var(--text-on-accent); border-color: var(--accent); }
+    .qb strong { display: block; margin-bottom: 2px; font-weight: 600; }
+    .qb span { display: block; opacity: 0.75; }
+    .quick-grid { display: grid; grid-template-columns: 1fr; gap: var(--s-2); }
+    .stash-stat { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed var(--line); font-size: var(--text-sm); }
+    .stash-stat .v { font-weight: 600; }
+    .dmc-swatch { display: inline-block; width: 16px; height: 16px; border-radius: 2px; border: 1px solid rgba(0,0,0,.2); margin-right: 4px; vertical-align: middle; }
+    @media (max-width: 800px) {
+      .pdf-mockups { grid-template-columns: 1fr; }
+      .marketing-card { flex-direction: column; }
+      .marketing-card::after { width: 100%; height: 40%; top: auto; bottom: 0; }
+      .icon-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<div class="sc-page">
+
+  <!-- 1. HERO ========================================== -->
+  <header class="sc-header">
+    <div class="eyebrow">Workshop Â· Visual proposal 5 of 5</div>
+    <h1>First impressions &amp; artefacts</h1>
+    <p>Everything users encounter before entering the three workspaces: the splash screen, install prompt, welcome wizard, home dashboard, and the printed patterns the app ships into the world. This direction emphasises warmth and craft, making first-time users feel the app was made by someone who understands their practice.</p>
+  </header>
+
+  <!-- 2. SPLASH & INSTALL ============================== -->
+  <section class="sc-section">
+    <h2>Splash &amp; install prompt</h2>
+    <p class="sc-lede">App launch showing the brand mark with a delicate sampler band, followed by the PWA install modal.</p>
+    <div class="phone-grid">
+      <!-- Splash -->
+      <div class="device-phone">
+        <div class="screen">
+          <div class="statusbar">
+            <span>9:41</span>
+            <span></span>
+          </div>
+          <div class="screen-content" style="justify-content: center; align-items: center; background: var(--surface);">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: var(--s-5);">
+              <div class="brand-mark" style="font-size: 28px;">stitch</div>
+              <svg class="sampler-band" viewBox="0 0 200 40" width="200" height="40" style="stroke: var(--accent); fill: none;">
+                <g stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <g transform="translate(10, 20)">
+                    <path d="M 0 -8 L 4 -4 L 8 -8 M 4 -4 L 4 4 M 0 4 L 8 4 M 0 0 L 8 0"></path>
+                  </g>
+                  <g transform="translate(30, 20)">
+                    <path d="M 0 -8 L 4 -4 L 8 -8 M 4 -4 L 4 4 M 0 4 L 8 4 M 0 0 L 8 0"></path>
+                  </g>
+                  <g transform="translate(50, 20)">
+                    <path d="M 0 -8 L 4 -4 L 8 -8 M 4 -4 L 4 4 M 0 4 L 8 4 M 0 0 L 8 0"></path>
+                  </g>
+                  <g transform="translate(70, 20)">
+                    <path d="M 0 -8 L 4 -4 L 8 -8 M 4 -4 L 4 4 M 0 4 L 8 4 M 0 0 L 8 0"></path>
+                  </g>
+                  <g transform="translate(90, 20)">
+                    <path d="M 0 -8 L 4 -4 L 8 -8 M 4 -4 L 4 4 M 0 4 L 8 4 M 0 0 L 8 0"></path>
+                  </g>
+                  <g transform="translate(110, 20)">
+                    <path d="M 0 -8 L 4 -4 L 8 -8 M 4 -4 L 4 4 M 0 4 L 8 4 M 0 0 L 8 0"></path>
+                  </g>
+                  <g transform="translate(130, 20)">
+                    <path d="M 0 -8 L 4 -4 L 8 -8 M 4 -4 L 4 4 M 0 4 L 8 4 M 0 0 L 8 0"></path>
+                  </g>
+                  <g transform="translate(150, 20)">
+                    <path d="M 0 -8 L 4 -4 L 8 -8 M 4 -4 L 4 4 M 0 4 L 8 4 M 0 0 L 8 0"></path>
+                  </g>
+                  <g transform="translate(170, 20)">
+                    <path d="M 0 -8 L 4 -4 L 8 -8 M 4 -4 L 4 4 M 0 4 L 8 4 M 0 0 L 8 0"></path>
+                  </g>
+                </g>
+              </svg>
+              <svg viewBox="0 0 40 40" width="32" height="32" style="animation: spin 1s linear infinite;">
+                <circle cx="20" cy="20" r="18" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="20 5"></circle>
+              </svg>
+            </div>
+          </div>
+          <div class="home-bar"></div>
+        </div>
+      </div>
+      <!-- Install prompt -->
+      <div class="device-phone">
+        <div class="screen">
+          <div class="statusbar">
+            <span>9:41</span>
+            <span></span>
+          </div>
+          <div class="screen-content" style="justify-content: flex-end; background: rgba(0,0,0,.5);">
+            <div style="background: var(--surface-raised); border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: var(--s-5); display: flex; flex-direction: column; gap: var(--s-4);">
+              <div style="display: flex; gap: var(--s-4);">
+                <svg viewBox="0 0 48 48" width="48" height="48">
+                  <rect x="8" y="8" width="32" height="32" rx="8" fill="var(--accent)"></rect>
+                  <path d="M 24 22 L 24 32 M 19 28 L 29 28" stroke="var(--text-on-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+                </svg>
+                <div>
+                  <div style="font-weight: 600; margin-bottom: 2px;">Install stitch.</div>
+                  <div style="font-size: var(--text-sm); color: var(--text-secondary);">Add to home screen</div>
+                </div>
+              </div>
+              <div style="font-size: var(--text-sm); color: var(--text-secondary);">Works offline. Keeps your screen awake while stitching.</div>
+              <div style="display: flex; gap: var(--s-2);">
+                <button class="btn btn--primary btn--lg" style="flex: 1;">Install</button>
+                <button class="btn btn--ghost btn--lg" style="flex: 1;">Not yet</button>
+              </div>
+            </div>
+          </div>
+          <div class="home-bar"></div>
+        </div>
+      </div>
+    </div>
+    <div class="footnote">
+      <ol>
+        <li><code>M-H2</code> brand consistency across all entry points</li>
+        <li><code>A-I1</code> PWA install affordance (offline + wake-lock benefits)</li>
+        <li><code>ux-11</code> Workshop tone: warm, tactile</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 3. WELCOME WIZARD ================================ -->
+  <section class="sc-section">
+    <h2>Welcome wizard â€” three steps</h2>
+    <p class="sc-lede">First-run onboarding for Bea, Eli, and Devi, asking their role and stash preferences before entering the app.</p>
+    <div class="phone-grid">
+      <!-- Step 1 -->
+      <div class="device-phone">
+        <div class="screen">
+          <div class="statusbar">
+            <span>9:41</span>
+            <span></span>
+          </div>
+          <div class="screen-content">
+            <div style="background: linear-gradient(180deg, var(--accent-soft) 0%, transparent 100%); padding: var(--s-5) var(--s-4) var(--s-4); text-align: center;">
+              <div class="wizard-progress">
+                <div class="wizard-dot active"></div>
+                <div class="wizard-dot"></div>
+                <div class="wizard-dot"></div>
+              </div>
+              <div style="font-size: var(--text-xs); color: var(--text-muted); margin-bottom: var(--s-4);">STEP 1 OF 3</div>
+              <h3 style="font-size: var(--text-hero); font-weight: 600; margin-bottom: var(--s-2);">Welcome to stitch.</h3>
+              <p style="color: var(--text-secondary); margin-bottom: var(--s-5);">Three things first.</p>
+            </div>
+            <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: var(--s-4);">
+              <button class="btn btn--primary btn--lg">Get started</button>
+            </div>
+          </div>
+          <div class="home-bar"></div>
+        </div>
+      </div>
+      <!-- Step 2 -->
+      <div class="device-phone">
+        <div class="screen">
+          <div class="statusbar">
+            <span>9:41</span>
+            <span></span>
+          </div>
+          <div class="screen-content" style="overflow: hidden;">
+            <div style="padding: var(--s-4); flex-shrink: 0;">
+              <div class="wizard-progress">
+                <div class="wizard-dot active"></div>
+                <div class="wizard-dot active"></div>
+                <div class="wizard-dot"></div>
+              </div>
+              <div style="font-size: var(--text-xs); color: var(--text-muted); margin-bottom: var(--s-3); text-align: center;">STEP 2 OF 3</div>
+              <h3 style="font-size: var(--text-lg); font-weight: 600; text-align: center; margin-bottom: var(--s-4);">What brings you here?</h3>
+            </div>
+            <div style="padding: 0 var(--s-4) var(--s-4); display: flex; flex-direction: column; gap: var(--s-3);">
+              <label class="radio-card">
+                <input type="radio" name="persona" checked>
+                <svg viewBox="0 0 60 60" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round">
+                  <circle cx="30" cy="18" r="6"></circle>
+                  <path d="M 20 30 Q 30 26 40 30"></path>
+                  <path d="M 24 40 L 24 48 M 36 40 L 36 48"></path>
+                </svg>
+                <div>
+                  <div class="radio-card-title">I&rsquo;m starting my first project</div>
+                  <div class="radio-card-desc">Bea&rsquo;s journey</div>
+                </div>
+              </label>
+              <label class="radio-card">
+                <input type="radio" name="persona">
+                <svg viewBox="0 0 60 60" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round">
+                  <circle cx="30" cy="18" r="6"></circle>
+                  <path d="M 24 28 Q 30 25 36 28"></path>
+                  <path d="M 20 40 L 20 48 M 40 40 L 40 48 M 25 45 L 35 45"></path>
+                </svg>
+                <div>
+                  <div class="radio-card-title">I have patterns I&rsquo;m tracking</div>
+                  <div class="radio-card-desc">Eli&rsquo;s journey</div>
+                </div>
+              </label>
+              <label class="radio-card">
+                <input type="radio" name="persona">
+                <svg viewBox="0 0 60 60" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round">
+                  <circle cx="30" cy="18" r="6"></circle>
+                  <path d="M 22 30 Q 30 27 38 30 Q 30 33 22 30"></path>
+                  <path d="M 24 40 L 24 48 M 36 40 L 36 48 M 24 44 L 36 44"></path>
+                </svg>
+                <div>
+                  <div class="radio-card-title">I design my own patterns</div>
+                  <div class="radio-card-desc">Devi&rsquo;s journey</div>
+                </div>
+              </label>
+            </div>
+          </div>
+          <div class="home-bar"></div>
+        </div>
+      </div>
+      <!-- Step 3 -->
+      <div class="device-phone">
+        <div class="screen">
+          <div class="statusbar">
+            <span>9:41</span>
+            <span></span>
+          </div>
+          <div class="screen-content" style="overflow: hidden;">
+            <div style="padding: var(--s-4); flex-shrink: 0;">
+              <div class="wizard-progress">
+                <div class="wizard-dot active"></div>
+                <div class="wizard-dot active"></div>
+                <div class="wizard-dot active"></div>
+              </div>
+              <div style="font-size: var(--text-xs); color: var(--text-muted); margin-bottom: var(--s-3); text-align: center;">STEP 3 OF 3</div>
+              <h3 style="font-size: var(--text-lg); font-weight: 600; text-align: center; margin-bottom: var(--s-4);">Set up your stash</h3>
+            </div>
+            <div style="padding: 0 var(--s-4) var(--s-4); display: flex; flex-direction: column; gap: var(--s-3);">
+              <button class="qb" style="background: var(--surface-sunken); border: 1px solid var(--line); padding: var(--s-3); text-align: left;">
+                <strong>I&rsquo;ll add threads later</strong>
+                <span style="font-size: var(--text-xs);">Import anytime</span>
+              </button>
+              <button class="qb" style="background: var(--surface-sunken); border: 1px solid var(--line); padding: var(--s-3); text-align: left;">
+                <strong>Import from CSV</strong>
+                <span style="font-size: var(--text-xs);">Upload your list</span>
+              </button>
+              <button class="qb primary" style="padding: var(--s-3);">
+                <strong>Start with 30-colour set</strong>
+                <span style="font-size: var(--text-xs);">Hobbycraft starter bundle</span>
+              </button>
+              <a href="#" style="text-align: center; color: var(--accent); font-size: var(--text-sm); margin-top: var(--s-2);">Skip</a>
+            </div>
+          </div>
+          <div class="home-bar"></div>
+        </div>
+      </div>
+    </div>
+    <div class="footnote">
+      <ol>
+        <li><code>UX-2</code> First-run personas (Bea / Eli / Devi) and their journeys</li>
+        <li><code>ux-2-M1</code> Bea avoids jargon and wizard complexity; simple three-step flow</li>
+        <li><code>M-O1</code> Progressive stash setup (skip allowed, CSV import, starter bundle)</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 4. HOME DASHBOARD â€” DESKTOP ===================== -->
+  <section class="sc-section">
+    <h2>Home dashboard â€” desktop</h2>
+    <p class="sc-lede">Unified entry point for all three modes. Plan C wireframe rendered in Workshop colours and tokens.</p>
+    <div class="device-desktop">
+      <div class="titlebar">
+        <i></i><i></i><i></i>
+        <span class="url">stitch.app/</span>
+      </div>
+      <div class="screen" style="height: auto; flex-direction: row;">
+        <!-- Header -->
+        <div style="background: var(--surface-raised); border-bottom: 1px solid var(--line); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between;">
+          <div class="brand-mark" style="font-size: 16px;">stitch</div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <div style="display: flex; gap: 4px; background: var(--surface-sunken); border-radius: var(--radius-pill); padding: 3px;">
+              <button class="btn btn--sm" style="border-radius: var(--radius-pill); background: transparent; border: none; padding: 6px 12px; cursor: pointer;">Designing</button>
+              <button class="btn btn--sm" style="border-radius: var(--radius-pill); background: transparent; border: none; padding: 6px 12px; cursor: pointer;">Tracking</button>
+              <button class="btn btn--sm" style="border-radius: var(--radius-pill); background: transparent; border: none; padding: 6px 12px; cursor: pointer;">Managing</button>
+            </div>
+            <button class="btn btn--ghost btn--sm">âŒ˜K</button>
+            <button class="btn btn--ghost btn--sm">Help</button>
+            <button class="btn btn--sm" style="width: 32px; border-radius: 50%; padding: 0;">EL</button>
+          </div>
+        </div>
+        <!-- Body -->
+        <div style="padding: 32px; background: var(--surface); flex: 1; display: grid; grid-template-columns: 1.7fr 1fr; gap: 24px; overflow: auto;">
+          <!-- Left column -->
+          <div>
+            <!-- Hero -->
+            <div style="margin-bottom: 24px;">
+              <h1 style="font-size: var(--text-hero); font-weight: 600; margin-bottom: 8px;">Welcome back, Eli</h1>
+              <p style="font-size: var(--text-md); color: var(--text-secondary); margin-bottom: 16px; line-height: 1.5;">You stitched 410 last night â€” keep going on Tudor Rose Sampler.</p>
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn--ghost">Importâ€¦</button>
+                <button class="btn btn--primary">+ New pattern</button>
+              </div>
+            </div>
+            <!-- Projects -->
+            <div style="margin-bottom: 24px;">
+              <h2 style="font-size: var(--text-lg); font-weight: 600; margin-bottom: 12px;">Your projects Â· 5</h2>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="project-card">
+                  <div class="project-thumb"></div>
+                  <div class="project-info">
+                    <div class="project-name">Tudor Rose Sampler</div>
+                    <div class="project-meta">Tracking Â· 1,408 / 3,360</div>
+                    <div class="project-progress"><i style="width: 42%"></i></div>
+                  </div>
+                </div>
+                <div class="project-card">
+                  <div class="project-thumb"></div>
+                  <div class="project-info">
+                    <div class="project-name">Heron Marsh</div>
+                    <div class="project-meta">Designing Â· 80Ã—100</div>
+                    <div class="project-progress"><i style="width: 8%"></i></div>
+                  </div>
+                </div>
+                <div class="project-card">
+                  <div class="project-thumb"></div>
+                  <div class="project-info">
+                    <div class="project-name">Cat Portrait (gift)</div>
+                    <div class="project-meta">Tracking Â· due 2 May</div>
+                    <div class="project-progress"><i style="width: 73%"></i></div>
+                  </div>
+                </div>
+                <div class="project-card">
+                  <div class="project-thumb"></div>
+                  <div class="project-info">
+                    <div class="project-name">Mum&rsquo;s Birthday</div>
+                    <div class="project-meta">Tracking Â· started yesterday</div>
+                    <div class="project-progress"><i style="width: 2%"></i></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Recent activity -->
+            <div>
+              <h2 style="font-size: var(--text-lg); font-weight: 600; margin-bottom: 12px;">Recent activity</h2>
+              <div class="activity-item">
+                <span>Stitched 410 on <strong>Tudor Rose Sampler</strong></span>
+                <span class="activity-time">Yesterday</span>
+              </div>
+              <div class="activity-item">
+                <span>Imported <strong>Heron Marsh.oxs</strong></span>
+                <span class="activity-time">Yesterday</span>
+              </div>
+              <div class="activity-item">
+                <span>Bought 6 skeins Â· DMC 310, 498, 934</span>
+                <span class="activity-time">Mon 7 Apr</span>
+              </div>
+              <div class="activity-item">
+                <span>Finished <strong>Sampler 2024</strong></span>
+                <span class="activity-time">Sun 6 Apr</span>
+              </div>
+            </div>
+          </div>
+          <!-- Right column -->
+          <div style="display: flex; flex-direction: column; gap: 24px;">
+            <!-- Quick actions -->
+            <div>
+              <h2 style="font-size: var(--text-lg); font-weight: 600; margin-bottom: 12px;">Pick up where you left off</h2>
+              <div class="quick-grid" style="grid-template-columns: 1fr;">
+                <button class="qb primary">
+                  <strong>Resume Tudor Rose</strong>
+                  <span>Tracking Â· 42% Â· 38 min</span>
+                </button>
+                <button class="qb">
+                  <strong>Print Heron Marsh</strong>
+                  <span>14-page PDF ready</span>
+                </button>
+                <button class="qb">
+                  <strong>Order shopping list</strong>
+                  <span>3 skeins missing</span>
+                </button>
+                <button class="qb">
+                  <strong>Restock stash</strong>
+                  <span>6 colours low</span>
+                </button>
+              </div>
+            </div>
+            <!-- Stash at a glance -->
+            <div>
+              <h2 style="font-size: var(--text-lg); font-weight: 600; margin-bottom: 12px;">Stash at a glance</h2>
+              <div class="stash-stat"><span>Owned skeins</span><span class="v">142</span></div>
+              <div class="stash-stat"><span>Unique DMC</span><span class="v">128</span></div>
+              <div class="stash-stat"><span>Anchor / WDW</span><span class="v">14</span></div>
+              <div class="stash-stat"><span>Low-stock alerts</span><span class="v">6</span></div>
+              <div class="stash-stat" style="border: none;"><span>Shopping list value</span><span class="v">Â£12.40</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footnote">
+      <ol>
+        <li><code>N-H1 / F-W7-M1</code> Unified home consolidates three separate landings</li>
+        <li><code>ux-2-M2</code> Eli&rsquo;s context: resume previous project, shopping integration</li>
+        <li><code>UX-10 Plan C</code> Outcomes over tabs: home is the primary landing for all modes</li>
+        <li><code>ux-11 Workshop</code> Warm neutrals, terracotta accent, readable typography</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 5. HOME DASHBOARD â€” PHONE ======================= -->
+  <section class="sc-section">
+    <h2>Home dashboard â€” phone</h2>
+    <p class="sc-lede">Same dashboard compacted for vertical scroll on mobile, with bottom mode tab bar.</p>
+    <div style="display: flex; justify-content: center;">
+      <div class="device-phone">
+        <div class="screen" style="height: 720px; overflow: hidden; display: flex; flex-direction: column;">
+          <div class="statusbar">
+            <span>9:41</span>
+            <span></span>
+          </div>
+          <div class="screen-content" style="overflow-y: auto;">
+            <!-- Hero -->
+            <div class="home-hero">
+              <h1>Welcome back, Eli</h1>
+              <p class="sub">You stitched 410 last night â€” keep going on Tudor Rose.</p>
+              <div style="display: flex; gap: var(--s-2);">
+                <button class="btn btn--ghost btn--sm">Importâ€¦</button>
+                <button class="btn btn--primary btn--sm">+ New</button>
+              </div>
+            </div>
+            <!-- Resume card -->
+            <div style="padding: var(--s-4);">
+              <button class="qb primary" style="width: 100%; padding: var(--s-4);">
+                <strong style="font-size: var(--text-lg);">Resume Tudor Rose</strong>
+                <span>Tracking Â· 42% Â· last 38 min</span>
+              </button>
+            </div>
+            <!-- Projects scroll (horizontal) -->
+            <div style="padding: var(--s-4) var(--s-4) var(--s-3);">
+              <h3 style="font-size: var(--text-lg); font-weight: 600; margin-bottom: var(--s-3);">Your projects</h3>
+              <div style="display: flex; gap: var(--s-3); overflow-x: auto; padding-bottom: var(--s-2);">
+                <div class="project-card" style="flex-shrink: 0; width: 160px;">
+                  <div style="width: 100%; margin-bottom: var(--s-2);">
+                    <div class="project-thumb" style="width: 100%; height: 60px;"></div>
+                  </div>
+                  <div class="project-info">
+                    <div class="project-name" style="font-size: var(--text-sm);">Tudor Rose</div>
+                    <div class="project-progress"><i style="width: 42%"></i></div>
+                  </div>
+                </div>
+                <div class="project-card" style="flex-shrink: 0; width: 160px;">
+                  <div style="width: 100%; margin-bottom: var(--s-2);">
+                    <div class="project-thumb" style="width: 100%; height: 60px;"></div>
+                  </div>
+                  <div class="project-info">
+                    <div class="project-name" style="font-size: var(--text-sm);">Heron Marsh</div>
+                    <div class="project-progress"><i style="width: 8%"></i></div>
+                  </div>
+                </div>
+                <div class="project-card" style="flex-shrink: 0; width: 160px;">
+                  <div style="width: 100%; margin-bottom: var(--s-2);">
+                    <div class="project-thumb" style="width: 100%; height: 60px;"></div>
+                  </div>
+                  <div class="project-info">
+                    <div class="project-name" style="font-size: var(--text-sm);">Cat Portrait</div>
+                    <div class="project-progress"><i style="width: 73%"></i></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Activity -->
+            <div class="home-activity">
+              <h3 style="font-size: var(--text-lg); font-weight: 600; margin-bottom: var(--s-3);">Recent activity</h3>
+              <div class="activity-item">
+                <span style="font-size: var(--text-sm);">Stitched on <strong>Tudor Rose</strong></span>
+                <span class="activity-time">Yesterday</span>
+              </div>
+              <div class="activity-item">
+                <span style="font-size: var(--text-sm);">Imported <strong>Heron</strong></span>
+                <span class="activity-time">Yesterday</span>
+              </div>
+              <div class="activity-item">
+                <span style="font-size: var(--text-sm);">Bought 6 skeins</span>
+                <span class="activity-time">Mon 7 Apr</span>
+              </div>
+            </div>
+            <div style="height: 60px;"></div>
+          </div>
+          <!-- Bottom mode tab bar -->
+          <div style="position: absolute; bottom: 0; left: 12px; right: 12px; background: var(--surface-raised); border-top: 1px solid var(--line); border-radius: var(--radius) var(--radius) 0 0; display: flex; justify-content: space-around; align-items: center; height: 56px; padding-bottom: 6px;">
+            <button style="flex: 1; padding: var(--s-2); text-align: center; font-size: var(--text-xs); color: var(--text-muted); background: transparent; border: none; cursor: pointer;">Designing</button>
+            <button style="flex: 1; padding: var(--s-2); text-align: center; font-size: var(--text-xs); background: var(--accent-soft); color: var(--accent-ink); border-radius: var(--radius-sm); border: none; cursor: pointer; font-weight: 600;">Tracking</button>
+            <button style="flex: 1; padding: var(--s-2); text-align: center; font-size: var(--text-xs); color: var(--text-muted); background: transparent; border: none; cursor: pointer;">Managing</button>
+          </div>
+          <div class="home-bar"></div>
+        </div>
+      </div>
+    </div>
+    <div class="footnote">
+      <ol>
+        <li><code>M-H4 / mobile-5</code> Safe-area compliance: tab bar above home indicator</li>
+        <li><code>P12</code> Horizontal project scroll for mobile, resume card prioritised</li>
+        <li><code>F-W7-M1</code> Mode switcher at bottom (Designing / Tracking / Managing)</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 6. PDF COVER SHEET =============================== -->
+  <section class="sc-section">
+    <h2>PDF cover sheet & chart page</h2>
+    <p class="sc-lede">Printed Pattern Keeper compatible pages featuring terracotta sampler-band header and symbol-on-grid chart.</p>
+    <div class="pdf-mockups">
+      <!-- Cover -->
+      <div class="pdf-page">
+        <div style="background: linear-gradient(180deg, var(--accent-soft) 0%, transparent 40%); padding: 16px 12px; text-align: center; border-bottom: 1px solid var(--line);">
+          <svg viewBox="0 0 200 20" width="160" height="16" style="margin: 0 auto 12px;">
+            <g stroke="var(--accent)" stroke-width="1.2" stroke-linecap="round" fill="none">
+              <g transform="translate(12, 10)">
+                <path d="M 0 -4 L 2 -2 L 4 -4 M 2 -2 L 2 2 M 0 2 L 4 2 M 0 0 L 4 0"></path>
+              </g>
+              <g transform="translate(24, 10)">
+                <path d="M 0 -4 L 2 -2 L 4 -4 M 2 -2 L 2 2 M 0 2 L 4 2 M 0 0 L 4 0"></path>
+              </g>
+              <g transform="translate(36, 10)">
+                <path d="M 0 -4 L 2 -2 L 4 -4 M 2 -2 L 2 2 M 0 2 L 4 2 M 0 0 L 4 0"></path>
+              </g>
+              <g transform="translate(48, 10)">
+                <path d="M 0 -4 L 2 -2 L 4 -4 M 2 -2 L 2 2 M 0 2 L 4 2 M 0 0 L 4 0"></path>
+              </g>
+              <g transform="translate(60, 10)">
+                <path d="M 0 -4 L 2 -2 L 4 -4 M 2 -2 L 2 2 M 0 2 L 4 2 M 0 0 L 4 0"></path>
+              </g>
+              <g transform="translate(72, 10)">
+                <path d="M 0 -4 L 2 -2 L 4 -4 M 2 -2 L 2 2 M 0 2 L 4 2 M 0 0 L 4 0"></path>
+              </g>
+              <g transform="translate(84, 10)">
+                <path d="M 0 -4 L 2 -2 L 4 -4 M 2 -2 L 2 2 M 0 2 L 4 2 M 0 0 L 4 0"></path>
+              </g>
+            </g>
+          </svg>
+        </div>
+        <div class="pdf-body">
+          <div style="text-align: center; margin-bottom: 12px;">
+            <div style="font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">Tudor Rose Sampler</div>
+            <div style="font-size: 10px; color: var(--text-secondary);">Devi Vance Â· Wickham Studio</div>
+          </div>
+          <div class="chart-mini"></div>
+          <div style="font-size: 10px; color: var(--text-muted); line-height: 1.4; text-align: center;">
+            80 Ã— 80 stitches<br>14 ct Aida Â· 5.7" Ã— 5.7"<br>38 colours Â· ~8 skeins
+          </div>
+          <p style="font-size: 9px; color: var(--text-secondary); line-height: 1.3; margin: 8px 0;">A traditional sampler band featuring roses and geometric borders, perfect for a first major project.</p>
+        </div>
+        <div class="pdf-footer">Page 1 of 14 Â· Pattern Keeper compatible Â· stitch.</div>
+      </div>
+      <!-- Chart page -->
+      <div class="pdf-page">
+        <div class="pdf-header">
+          Tudor Rose Sampler Â· Page 4 of 9 Â· Quadrant B
+          <div style="display: flex; gap: 4px; margin-top: 4px;">
+            <div style="width: 12px; height: 12px; border: 1px solid var(--line); display: inline-block;"></div>
+            <div style="width: 12px; height: 12px; border: 1px solid var(--accent); background: var(--accent-soft);"></div>
+            <div style="width: 12px; height: 12px; border: 1px solid var(--line);"></div>
+            <div style="width: 12px; height: 12px; border: 1px solid var(--line);"></div>
+            <div style="width: 12px; height: 12px; border: 1px solid var(--line);"></div>
+            <div style="width: 12px; height: 12px; border: 1px solid var(--line);"></div>
+            <div style="width: 12px; height: 12px; border: 1px solid var(--line);"></div>
+            <div style="width: 12px; height: 12px; border: 1px solid var(--line);"></div>
+            <div style="width: 12px; height: 12px; border: 1px solid var(--line);"></div>
+          </div>
+        </div>
+        <div class="pdf-body">
+          <div class="chart" style="height: 140px; background: #fafaf8; position: relative;">
+            <svg viewBox="0 0 100 100" style="position: absolute; inset: 0; width: 100%; height: 100%;">
+              <!-- Grid (simplified 10Ã—10 for display) -->
+              <g stroke="#e5dccb" stroke-width="0.5">
+                <line x1="50" y1="0" x2="50" y2="100"></line>
+                <line x1="0" y1="50" x2="100" y2="50"></line>
+              </g>
+              <!-- Sample stitch symbols (DMC colours) -->
+              <text x="15" y="25" font-size="8" text-anchor="middle" fill="#333">X</text>
+              <text x="35" y="35" font-size="8" text-anchor="middle" fill="#8B4513">X</text>
+              <text x="55" y="30" font-size="8" text-anchor="middle" fill="#C08081">X</text>
+              <text x="75" y="40" font-size="8" text-anchor="middle" fill="#A52A2A">X</text>
+              <text x="25" y="65" font-size="8" text-anchor="middle" fill="#666">X</text>
+              <text x="45" y="75" font-size="8" text-anchor="middle" fill="#2F4F4F">X</text>
+              <text x="70" y="70" font-size="8" text-anchor="middle" fill="#654321">X</text>
+            </svg>
+          </div>
+          <div style="font-size: 9px; margin-top: 8px; line-height: 1.3; border-top: 1px solid var(--line); padding-top: 6px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+              <span>310</span> <span style="color: #333;">â”</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+              <span>420</span> <span style="color: #8B4513;">â”</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+              <span>760</span> <span style="color: #C08081;">â”</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span>815</span> <span style="color: #A52A2A;">â”</span>
+            </div>
+          </div>
+        </div>
+        <div class="pdf-footer">stitch. Â· #stitchapp</div>
+      </div>
+    </div>
+    <div class="footnote">
+      <ol>
+        <li><code>P2</code> DMC swatch with ID and name (Pattern Keeper compatible)</li>
+        <li><code>C6</code> PDF export with page headers, legends, and sampler-band dividers</li>
+        <li><code>E-C1</code> Symbol-on-grid chart rendering with real DMC colours (310, 420, 760, 815)</li>
+        <li><code>ux-11 Workshop</code> Terracotta sampler-band accent matches app theme</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 7. MARKETING ONE-LINER ============================ -->
+  <section class="sc-section">
+    <h2>Marketing one-liner</h2>
+    <p class="sc-lede">Hero card suitable for a landing page or press kit, featuring the brand promise and key features.</p>
+    <div class="marketing-card">
+      <div class="marketing-content">
+        <div class="brand">stitch</div>
+        <div class="tagline">Patterns, threads and stitching â€” in one quiet place.</div>
+        <div class="feature-pills">
+          <span class="chip chip--accent">Free, no ads</span>
+          <span class="chip chip--accent">Works offline</span>
+          <span class="chip chip--accent">Pattern Keeper compatible</span>
+        </div>
+      </div>
+    </div>
+    <div class="footnote">
+      <ol>
+        <li><code>M-H2</code> Brand positioning: "quiet place" vs. other noisy tools</li>
+        <li><code>ux-11 Workshop</code> Warm gradient wash (terracotta soft) and calm typeface</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 8. APP ICON SET ================================== -->
+  <section class="sc-section">
+    <h2>App icon set</h2>
+    <p class="sc-lede">Five sizes of the app icon (48 / 64 / 96 / 128 / 192 px) for manifest.json, PWA install, and favicon.</p>
+    <div class="icon-grid">
+      <div class="icon-item">
+        <svg viewBox="0 0 48 48" width="48" height="48">
+          <rect x="4" y="4" width="40" height="40" rx="10" fill="var(--accent)"></rect>
+          <path d="M 18 18 L 24 24 L 18 30 M 30 18 L 24 24 L 30 30" stroke="var(--text-on-accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+        </svg>
+        <span class="icon-label">48 px</span>
+      </div>
+      <div class="icon-item">
+        <svg viewBox="0 0 64 64" width="64" height="64">
+          <rect x="4" y="4" width="56" height="56" rx="14" fill="var(--accent)"></rect>
+          <path d="M 24 24 L 32 32 L 24 40 M 40 24 L 32 32 L 40 40" stroke="var(--text-on-accent)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+        </svg>
+        <span class="icon-label">64 px</span>
+      </div>
+      <div class="icon-item">
+        <svg viewBox="0 0 96 96" width="96" height="96">
+          <rect x="6" y="6" width="84" height="84" rx="20" fill="var(--accent)"></rect>
+          <path d="M 36 36 L 48 48 L 36 60 M 60 36 L 48 48 L 60 60" stroke="var(--text-on-accent)" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+        </svg>
+        <span class="icon-label">96 px</span>
+      </div>
+      <div class="icon-item">
+        <svg viewBox="0 0 128 128" width="128" height="128">
+          <rect x="8" y="8" width="112" height="112" rx="26" fill="var(--accent)"></rect>
+          <path d="M 48 48 L 64 64 L 48 80 M 80 48 L 64 64 L 80 80" stroke="var(--text-on-accent)" stroke-width="6.4" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+        </svg>
+        <span class="icon-label">128 px</span>
+      </div>
+      <div class="icon-item">
+        <svg viewBox="0 0 192 192" width="192" height="192">
+          <rect x="12" y="12" width="168" height="168" rx="40" fill="var(--accent)"></rect>
+          <path d="M 72 72 L 96 96 L 72 120 M 120 72 L 96 96 L 120 120" stroke="var(--text-on-accent)" stroke-width="9.6" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+        </svg>
+        <span class="icon-label">192 px</span>
+      </div>
+    </div>
+    <div style="margin-top: var(--s-4); font-size: var(--text-sm); color: var(--text-secondary);">
+      <strong>Icon targets:</strong> manifest.json icons array (48, 96, 192), PWA install icon (192), favicon (all sizes). Rounded square (terracotta) with white cross-stitch X glyph.
+    </div>
+    <div class="footnote">
+      <ol>
+        <li><code>M-H2</code> Consistent brand mark across all app surfaces (splash, installer, home screen)</li>
+        <li><code>A-I1</code> PWA manifest compliance (multiple sizes for adaptive icon support)</li>
+        <li><code>ux-11 Workshop</code> Terracotta colour (var(--accent) #B85C38) used consistently</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 9. EMPTY STATES GALLERY ========================== -->
+  <section class="sc-section">
+    <h2>Empty states gallery</h2>
+    <p class="sc-lede">Four common empty-state moments with line-drawn illustrations and clear next actions.</p>
+    <div class="empty-grid">
+      <div class="empty-card">
+        <svg viewBox="0 0 80 80" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="40" cy="35" r="18"></circle>
+          <path d="M 30 50 Q 40 45 50 50"></path>
+          <path d="M 25 60 L 25 70 M 55 60 L 55 70"></path>
+        </svg>
+        <h3>No projects yet</h3>
+        <p style="font-size: var(--text-sm); color: var(--text-secondary); text-align: center;">Start your first pattern or import an existing one.</p>
+        <button class="btn btn--primary btn--sm">+ New pattern</button>
+      </div>
+      <div class="empty-card">
+        <svg viewBox="0 0 80 80" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="40" cy="30" r="10"></circle>
+          <path d="M 40 42 L 40 65"></path>
+          <circle cx="35" cy="70" r="3"></circle>
+          <circle cx="45" cy="70" r="3"></circle>
+        </svg>
+        <h3>Stash is empty</h3>
+        <p style="font-size: var(--text-sm); color: var(--text-secondary); text-align: center;">Add your thread colours to get started.</p>
+        <button class="btn btn--primary btn--sm">Add thread</button>
+      </div>
+      <div class="empty-card">
+        <svg viewBox="0 0 80 80" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M 25 35 L 55 55 M 55 35 L 25 55"></path>
+          <circle cx="40" cy="45" r="2"></circle>
+        </svg>
+        <h3>No connection</h3>
+        <p style="font-size: var(--text-sm); color: var(--text-secondary); text-align: center;">Check your network and try again.</p>
+        <button class="btn btn--primary btn--sm">Retry</button>
+      </div>
+      <div class="empty-card">
+        <svg viewBox="0 0 80 80" fill="none" stroke="var(--success)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="40" cy="40" r="28"></circle>
+          <path d="M 30 40 L 38 50 L 56 28"></path>
+        </svg>
+        <h3>Saved!</h3>
+        <p style="font-size: var(--text-sm); color: var(--text-secondary); text-align: center;">Your project is ready to open.</p>
+        <button class="btn btn--primary btn--sm">Open project</button>
+      </div>
+    </div>
+    <div class="footnote">
+      <ol>
+        <li><code>UX-9 empty states</code> Four canonical moments: no projects, empty stash, no connection, success completion</li>
+        <li><code>M-E1</code> Each empty state has inline SVG line drawing (no emoji) and clear call-to-action button</li>
+        <li><code>ux-11 Workshop</code> Terracotta for default states, sage for success state</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <section style="background: var(--surface-raised); border-radius: var(--radius-lg); padding: var(--s-6); border: 1px solid var(--line); text-align: center;">
+    <p style="color: var(--text-secondary); margin: 0 0 var(--s-3);">
+      <strong>Workshop visual direction</strong> Â· Onboarding, home, and artefacts proposal for stitch.
+    </p>
+    <p style="color: var(--text-muted); font-size: var(--text-sm); margin: 0;">
+      References: <code>ux-2</code> personas Â· <code>ux-11</code> visual direction Â· <code>ux-10 Plan C</code> outcomes-over-tabs Â· wireframes Â· <code>AGENTS.md</code> no-emoji rule
+    </p>
+  </section>
+
+</div>
+
+<script>
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    a { color: var(--accent-2); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  `;
+  document.head.appendChild(style);
+</script>
+
+</body>
+</html>

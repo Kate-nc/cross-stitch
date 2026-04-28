@@ -386,6 +386,13 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var f = e.target ? e.target.files[0] : e;
     if (!f) return;
     if (e.target) e.target.value = "";
+    // Uploading an image is inherently a create-mode action — it needs the
+    // Image / Dimensions / Palette panels and the Generate button. If the
+    // user arrived here in edit mode (e.g. via the header "Edit" tab which
+    // routes to create.html?action=open, then they uploaded a new image)
+    // they would otherwise be stranded with no way to generate. Force the
+    // app into create mode so the correct sidebar tabs render.
+    if (typeof state.setAppMode === "function") state.setAppMode("create");
     state.setIsUploading(true);
     var rd = new FileReader();
     rd.onload = function(ev) {

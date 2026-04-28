@@ -1,0 +1,914 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Workshop Â· Stash Manager Showcase</title>
+  <link rel="stylesheet" href="_workshop.css">
+  <style>
+    /* Manager-specific showcase styles */
+    .device-desktop .screen { flex-direction: column; height: auto; }
+    .app-tab-strip {
+      display: flex; gap: 2px; padding: 0 var(--s-4);
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+    }
+    .app-tab {
+      font: 500 var(--text-md)/1 var(--font-ui);
+      padding: var(--s-2) var(--s-4);
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      position: relative;
+    }
+    .app-tab.active {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+    .app-tab.active::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--accent);
+    }
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-4);
+      margin-bottom: var(--s-5);
+    }
+    .kpi-tile {
+      padding: var(--s-4);
+      background: var(--surface-raised);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .kpi-label { font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--s-1); }
+    .kpi-value { font-size: var(--text-h); font-weight: 600; color: var(--text-primary); }
+    .kpi-value.warning { color: var(--warning); }
+
+    .table-toolbar {
+      display: flex; align-items: center; gap: var(--s-3); margin-bottom: var(--s-4);
+    }
+    .search-input {
+      flex: 1; max-width: 200px;
+      padding: var(--s-2) var(--s-3);
+      border: 1px solid var(--line-2);
+      border-radius: var(--radius);
+      font-size: var(--text-sm);
+      background: var(--surface-raised);
+      color: var(--text-primary);
+    }
+    .search-input::placeholder { color: var(--text-muted); }
+
+    .thread-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--text-sm);
+    }
+    .thread-table th {
+      text-align: left;
+      padding: var(--s-3);
+      font-weight: 600;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--line);
+      background: var(--surface-sunken);
+      position: sticky;
+      top: 0;
+      font-size: var(--text-xs);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+    .thread-table td {
+      padding: var(--s-3);
+      border-bottom: 1px solid var(--line);
+      vertical-align: middle;
+    }
+    .thread-table tr:hover { background: var(--surface-sunken); }
+
+    .swatch-chip {
+      display: inline-flex; align-items: center; gap: var(--s-2);
+    }
+    .swatch-16 {
+      width: 16px; height: 16px;
+      border-radius: 2px;
+      border: 1px solid rgba(0,0,0,.1);
+      flex-shrink: 0;
+    }
+
+    .pattern-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-4);
+      margin-bottom: var(--s-5);
+    }
+    .pattern-card {
+      position: relative;
+      background: var(--surface-raised);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform var(--motion), box-shadow var(--motion);
+    }
+    .pattern-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
+      border-color: var(--accent-soft);
+    }
+    .pattern-cover {
+      width: 100%;
+      aspect-ratio: 1;
+      background: linear-gradient(135deg, #ddc9b6 0%, #e9dcc2 50%, #d4c4a8 100%);
+      position: relative;
+      overflow: hidden;
+    }
+    .pattern-cover-grid {
+      position: absolute; inset: 0;
+      display: grid; grid-template-columns: repeat(12, 1fr); grid-template-rows: repeat(12, 1fr);
+      gap: 1px; padding: 4px;
+      background: rgba(0,0,0,.04);
+    }
+    .grid-cell {
+      border-radius: 2px;
+    }
+    .pattern-info { padding: var(--s-3); }
+    .pattern-title { font-weight: 600; font-size: var(--text-md); margin-bottom: var(--s-1); }
+    .pattern-meta { font-size: var(--text-xs); color: var(--text-muted); margin-bottom: var(--s-2); }
+    .pattern-palette {
+      display: flex; gap: 2px; margin-top: var(--s-2);
+    }
+    .pattern-swatch {
+      width: 14px; height: 14px;
+      border-radius: 2px;
+      border: 1px solid rgba(0,0,0,.1);
+    }
+
+    .pattern-card.hovered {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-soft);
+    }
+    .pattern-card.hovered .pattern-actions {
+      display: flex;
+    }
+    .pattern-actions {
+      display: none;
+      position: absolute; bottom: var(--s-3); left: var(--s-3); right: var(--s-3);
+      gap: var(--s-2);
+    }
+    .pattern-actions .btn { flex: 1; }
+
+    .shopping-panel {
+      background: var(--surface-raised);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: var(--s-4);
+      box-shadow: var(--shadow);
+      max-width: 480px;
+    }
+    .shopping-header {
+      font: 600 var(--text-lg)/1 var(--font-ui);
+      margin-bottom: var(--s-2);
+      display: flex; justify-content: space-between; align-items: baseline;
+    }
+    .shopping-total { font: 600 var(--text-xl)/1 var(--font-ui); color: var(--accent); }
+
+    .shopping-line {
+      display: flex; gap: var(--s-3); align-items: center;
+      padding: var(--s-3); border-bottom: 1px solid var(--line);
+      font-size: var(--text-sm);
+    }
+    .shopping-line:last-child { border-bottom: none; }
+
+    .qty-stepper {
+      display: flex; gap: 2px; align-items: center;
+    }
+    .qty-stepper button {
+      width: 28px; height: 28px;
+      border: 1px solid var(--line-2);
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: var(--text-xs);
+      color: var(--text-secondary);
+    }
+    .qty-stepper button:hover { background: var(--surface-sunken); }
+    .qty-val {
+      width: 28px; text-align: center;
+      font-weight: 600;
+    }
+
+    .thread-drawer {
+      position: fixed; right: 0; top: 0;
+      width: 360px; height: 100vh;
+      background: var(--surface-raised);
+      border-left: 1px solid var(--line);
+      box-shadow: -4px 0 16px rgba(0,0,0,.1);
+      padding: var(--s-6);
+      overflow-y: auto;
+      z-index: 100;
+    }
+    .drawer-header {
+      font-size: var(--text-lg); font-weight: 600;
+      margin-bottom: var(--s-5);
+    }
+    .drawer-swatch {
+      width: 80px; height: 80px;
+      border-radius: var(--radius);
+      margin-bottom: var(--s-4);
+      border: 1px solid var(--line);
+    }
+    .drawer-row {
+      margin-bottom: var(--s-4);
+      font-size: var(--text-sm);
+    }
+    .drawer-row .label { color: var(--text-muted); margin-bottom: var(--s-1); }
+    .drawer-row .value { font-weight: 600; color: var(--text-primary); }
+    .drawer-actions {
+      display: flex; flex-direction: column; gap: var(--s-2); margin-top: var(--s-6);
+    }
+
+    .brand-example {
+      display: flex; align-items: center; gap: var(--s-4);
+      padding: var(--s-4);
+      background: var(--surface-sunken);
+      border-radius: var(--radius);
+      margin-bottom: var(--s-2);
+    }
+    .brand-chip {
+      width: 48px; height: 48px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--line);
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+      font-size: var(--text-xs);
+      font-weight: 600;
+      color: var(--text-muted);
+      background: #ddd;
+    }
+    .brand-band {
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+    }
+
+    .empty-state-panel {
+      background: var(--tint-thread);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: var(--s-6);
+      text-align: center;
+      max-width: 360px;
+      margin: 0 auto;
+    }
+    .empty-icon {
+      width: 80px; height: 80px;
+      margin: 0 auto var(--s-4);
+      color: var(--accent);
+    }
+    .empty-title {
+      font: 600 var(--text-h)/1.2 var(--font-ui);
+      margin-bottom: var(--s-2);
+    }
+    .empty-body {
+      color: var(--text-secondary);
+      font-size: var(--text-md);
+      margin-bottom: var(--s-5);
+    }
+    .empty-actions {
+      display: flex; flex-direction: column; gap: var(--s-2);
+    }
+  </style>
+</head>
+<body>
+
+<div class="sc-page">
+
+  <!-- â•â•â•â• HERO â•â•â•â• -->
+  <div class="sc-header">
+    <div class="eyebrow">Workshop Â· Visual proposal 4 of 5</div>
+    <h1>Stash Manager</h1>
+    <p>Manage your real-world inventory of thread bobbins and your personal library of cross-stitch patterns. The Stash Manager is the off-canvas page that feels like opening a tin of carefully organised floss â€” a warm, tactile system for tracking what you own and what you're working on.</p>
+  </div>
+
+  <!-- â•â•â•â• DESKTOP MANAGER â€” STASH DASHBOARD â•â•â•â• -->
+  <div class="sc-section">
+    <h2>Desktop Manager â€” Stash Dashboard</h2>
+    <div class="sc-lede">Thread inventory with real-time low-stock alerts and brand provenance tracking.</div>
+
+    <div class="device-desktop">
+      <div class="titlebar">
+        <i></i><i></i><i></i>
+        <span class="url">stitch.app/manage</span>
+      </div>
+
+      <!-- App Header -->
+      <div class="app-header">
+        <span class="brand-mark">stitch.</span>
+        <span style="flex: 1;"></span>
+        <div style="font: 600 var(--text-sm)/1 var(--font-ui); background: var(--surface-sunken); padding: 4px 12px; border-radius: var(--radius-pill); color: var(--accent);">Designing Â· Tracking Â· <span style="color: var(--accent);">Managing</span></div>
+        <div style="width: 32px; height: 32px; background: var(--line); border-radius: 50%; margin-left: var(--s-4);"></div>
+      </div>
+
+      <!-- Tab strip -->
+      <div class="app-tab-strip">
+        <button class="app-tab active">Stash</button>
+        <button class="app-tab">Patterns</button>
+        <button class="app-tab">Shopping list</button>
+        <button class="app-tab">History</button>
+      </div>
+
+      <!-- Main content with padding -->
+      <div style="padding: var(--s-5); background: var(--surface); overflow-y: auto; max-height: 600px;">
+
+        <!-- KPI tiles -->
+        <div class="kpi-grid">
+          <div class="kpi-tile">
+            <div class="kpi-label">Owned skeins</div>
+            <div class="kpi-value">142</div>
+          </div>
+          <div class="kpi-tile">
+            <div class="kpi-label">Unique DMC</div>
+            <div class="kpi-value">128</div>
+          </div>
+          <div class="kpi-tile">
+            <div class="kpi-label">Brands</div>
+            <div class="kpi-value" style="font-size: var(--text-lg);">DMC Â· Anchor Â· WDW</div>
+          </div>
+          <div class="kpi-tile">
+            <div class="kpi-label">Low stock</div>
+            <div class="kpi-value warning">6</div>
+          </div>
+        </div>
+
+        <!-- Table toolbar -->
+        <div class="table-toolbar">
+          <input type="text" class="search-input" placeholder="Filterâ€¦" />
+          <button class="btn btn--ghost btn--sm">Group by â–¾</button>
+          <button class="btn btn--primary btn--sm">Add bobbin</button>
+        </div>
+
+        <!-- Thread table -->
+        <table class="thread-table">
+          <thead>
+            <tr>
+              <th>Thread</th>
+              <th>Brand</th>
+              <th>Bobbins</th>
+              <th>Loose</th>
+              <th>Total</th>
+              <th>Last bought</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><div class="swatch-chip"><span class="swatch-16" style="background: #000;"></span> DMC 310 Black</div></td>
+              <td>DMC</td>
+              <td style="text-align: right; font-variant-numeric: tabular-nums;">6</td>
+              <td style="text-align: right; font-variant-numeric: tabular-nums;">0</td>
+              <td style="text-align: right; font-variant-numeric: tabular-nums;">6</td>
+              <td>12 Apr 2026</td>
+              <td><span class="chip chip--success">Stocked</span></td>
+            </tr>
+            <tr>
+              <td><div class="swatch-chip"><span class="swatch-16" style="background: #7C1A1A;"></span> DMC 498 Dark red</div></td>
+              <td>DMC</td>
+              <td style="text-align: right;">0</td>
+              <td style="text-align: right;">1</td>
+              <td style="text-align: right;">1</td>
+              <td>18 Mar 2026</td>
+              <td><span class="chip chip--warning">Low</span></td>
+            </tr>
+            <tr>
+              <td><div class="swatch-chip"><span class="swatch-16" style="background: #3A6B35;"></span> DMC 934 Dark green</div></td>
+              <td>DMC</td>
+              <td style="text-align: right;">4</td>
+              <td style="text-align: right;">0</td>
+              <td style="text-align: right;">4</td>
+              <td>02 Feb 2026</td>
+              <td><span class="chip chip--success">Stocked</span></td>
+            </tr>
+            <tr>
+              <td><div class="swatch-chip"><span class="swatch-16" style="background: #C93144;"></span> Anchor 47 Carmine red</div></td>
+              <td>Anchor</td>
+              <td style="text-align: right;">0</td>
+              <td style="text-align: right;">0</td>
+              <td style="text-align: right;">0</td>
+              <td>â€”</td>
+              <td><span class="chip chip--danger">Out</span></td>
+            </tr>
+            <tr>
+              <td><div class="swatch-chip"><span class="swatch-16" style="background: #6B8B5F;"></span> DMC 3051 Greenish brown</div></td>
+              <td>DMC</td>
+              <td style="text-align: right;">2</td>
+              <td style="text-align: right;">1</td>
+              <td style="text-align: right;">3</td>
+              <td>22 Jan 2026</td>
+              <td><span class="chip chip--success">Stocked</span></td>
+            </tr>
+            <tr>
+              <td><div class="swatch-chip"><span class="swatch-16" style="background: #D4B896;"></span> DMC 739 Tan</div></td>
+              <td>DMC</td>
+              <td style="text-align: right;">0</td>
+              <td style="text-align: right;">0</td>
+              <td style="text-align: right;">0</td>
+              <td>â€”</td>
+              <td><span class="chip chip--danger">Out</span></td>
+            </tr>
+            <tr>
+              <td><div class="swatch-chip"><span class="swatch-16" style="background: #E8D7C3;"></span> DMC 3047 Yellow beige</div></td>
+              <td>DMC</td>
+              <td style="text-align: right;">1</td>
+              <td style="text-align: right;">0</td>
+              <td style="text-align: right;">1</td>
+              <td>09 Dec 2025</td>
+              <td><span class="chip chip--warning">Low</span></td>
+            </tr>
+            <tr>
+              <td><div class="swatch-chip"><span class="swatch-16" style="background: #A84D35;"></span> DMC 3776 Light mahogany</div></td>
+              <td>DMC</td>
+              <td style="text-align: right;">3</td>
+              <td style="text-align: right;">0</td>
+              <td style="text-align: right;">3</td>
+              <td>14 Nov 2025</td>
+              <td><span class="chip chip--success">Stocked</span></td>
+            </tr>
+            <tr>
+              <td><div class="swatch-chip"><span class="swatch-16" style="background: #EBA18C;"></span> DMC 347 Salmon</div></td>
+              <td>DMC</td>
+              <td style="text-align: right;">0</td>
+              <td style="text-align: right;">2</td>
+              <td style="text-align: right;">2</td>
+              <td>06 Oct 2025</td>
+              <td><span class="chip chip--success">Stocked</span></td>
+            </tr>
+            <tr>
+              <td><div class="swatch-chip"><span class="swatch-16" style="background: #8B7355;"></span> WDW Aztec</div></td>
+              <td>Weeks Dye Works</td>
+              <td style="text-align: right;">â€”</td>
+              <td style="text-align: right;">1 hank</td>
+              <td style="text-align: right;">1</td>
+              <td>24 Aug 2025</td>
+              <td><span class="chip chip--success">Stocked</span></td>
+            </tr>
+            <tr>
+              <td><div class="swatch-chip"><span class="swatch-16" style="background: #DAA520;"></span> DMC 422 Light hazelnut</div></td>
+              <td>DMC</td>
+              <td style="text-align: right;">0</td>
+              <td style="text-align: right;">0</td>
+              <td style="text-align: right;">0</td>
+              <td>â€”</td>
+              <td><span class="chip chip--danger">Out</span></td>
+            </tr>
+            <tr>
+              <td><div class="swatch-chip"><span class="swatch-16" style="background: #F5F5F5;"></span> DMC B5200 Snow white</div></td>
+              <td>DMC</td>
+              <td style="text-align: right;">4</td>
+              <td style="text-align: right;">0</td>
+              <td style="text-align: right;">4</td>
+              <td>30 Jul 2025</td>
+              <td><span class="chip chip--success">Stocked</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+      </div>
+    </div>
+
+    <div class="footnote">
+      Addresses audit findings:
+      <ol>
+        <li><code>N-H4</code>: No visible "synced from Manager" badge. Proposal adds explicit colour-chip rendering from canonical Manager inventory.</li>
+        <li><code>V-H2</code>: Dark mode incomplete. Showcase uses full light-mode system; dark-mode support available in <code>_workshop.css</code>.</li>
+        <li><code>V-M5</code>: Density variation. Manager threads use roomy 12 px labels, 16 px swatches, 16 px row height to differentiate from dense Creator.</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- â•â•â•â• PATTERN LIBRARY â•â•â•â• -->
+  <div class="sc-section">
+    <h2>Pattern Library Grid</h2>
+    <div class="sc-lede">Browse your personal collection with status tracking and quick actions.</div>
+
+    <div class="device-desktop">
+      <div class="titlebar">
+        <i></i><i></i><i></i>
+        <span class="url">stitch.app/manage#patterns</span>
+      </div>
+
+      <div class="app-header">
+        <span class="brand-mark">stitch.</span>
+        <span style="flex: 1;"></span>
+        <div style="font: 600 var(--text-sm)/1 var(--font-ui); background: var(--surface-sunken); padding: 4px 12px; border-radius: var(--radius-pill); color: var(--accent);">Designing Â· Tracking Â· <span style="color: var(--accent);">Managing</span></div>
+        <div style="width: 32px; height: 32px; background: var(--line); border-radius: 50%; margin-left: var(--s-4);"></div>
+      </div>
+
+      <div class="app-tab-strip">
+        <button class="app-tab">Stash</button>
+        <button class="app-tab active">Patterns</button>
+        <button class="app-tab">Shopping list</button>
+        <button class="app-tab">History</button>
+      </div>
+
+      <div style="padding: var(--s-5); background: var(--surface);">
+
+        <!-- Grid toolbar -->
+        <div style="display: flex; gap: var(--s-3); align-items: center; margin-bottom: var(--s-4);">
+          <button class="btn btn--ghost btn--sm">Sort: Recent â–¾</button>
+          <button class="btn btn--ghost btn--sm">View: Grid</button>
+          <button class="btn btn--ghost btn--sm">Filter: All â–¾</button>
+          <span style="flex: 1;"></span>
+          <button class="btn btn--ghost btn--sm">Importâ€¦</button>
+          <button class="btn btn--primary btn--sm">+ New pattern</button>
+        </div>
+
+        <!-- Pattern grid -->
+        <div class="pattern-grid">
+          <div class="pattern-card">
+            <div class="pattern-cover">
+              <div class="pattern-cover-grid">
+                <div class="grid-cell" style="background: #C1272D; grid-column: 2; grid-row: 1;"></div>
+                <div class="grid-cell" style="background: #C1272D; grid-column: 3 / span 2; grid-row: 1;"></div>
+                <div class="grid-cell" style="background: #2E8B57; grid-column: 5 / span 2; grid-row: 2 / span 2;"></div>
+                <div class="grid-cell" style="background: #DEB887; grid-column: 7; grid-row: 1;"></div>
+              </div>
+            </div>
+            <div class="pattern-info">
+              <div class="pattern-title">Tudor Rose</div>
+              <div class="pattern-meta">240Ã—180 Â· 12 colours</div>
+              <span class="chip chip--accent">Tracking 42%</span>
+              <div class="pattern-palette">
+                <div class="pattern-swatch" style="background: #C1272D;"></div>
+                <div class="pattern-swatch" style="background: #2E8B57;"></div>
+                <div class="pattern-swatch" style="background: #DEB887;"></div>
+                <div class="pattern-swatch" style="background: #8B7355;"></div>
+                <div class="pattern-swatch" style="background: #F5DEB3;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="pattern-card">
+            <div class="pattern-cover" style="background: linear-gradient(135deg, #a8d5ba 0%, #b8e3cc 50%, #98c5aa 100%);"></div>
+            <div class="pattern-info">
+              <div class="pattern-title">Heron Marsh</div>
+              <div class="pattern-meta">160Ã—200 Â· 8 colours</div>
+              <span class="chip chip--accent">Tracking 18%</span>
+              <div class="pattern-palette">
+                <div class="pattern-swatch" style="background: #2E8B57;"></div>
+                <div class="pattern-swatch" style="background: #87CEEB;"></div>
+                <div class="pattern-swatch" style="background: #FFD700;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="pattern-card hovered">
+            <div class="pattern-cover" style="background: linear-gradient(135deg, #daa9a8 0%, #ead9d8 50%, #cfb9b8 100%);"></div>
+            <div class="pattern-info">
+              <div class="pattern-title">Cat Portrait</div>
+              <div class="pattern-meta">120Ã—140 Â· 18 colours</div>
+              <span class="chip chip--accent" style="background: var(--success-soft); color: var(--success);">Finished 100%</span>
+              <div class="pattern-palette">
+                <div class="pattern-swatch" style="background: #8B7355;"></div>
+                <div class="pattern-swatch" style="background: #D2B48C;"></div>
+                <div class="pattern-swatch" style="background: #000;"></div>
+                <div class="pattern-swatch" style="background: #CD853F;"></div>
+              </div>
+            </div>
+            <div class="pattern-actions">
+              <button class="btn btn--sm">Track</button>
+              <button class="btn btn--sm">Print</button>
+              <button class="btn btn--sm">Edit</button>
+            </div>
+          </div>
+
+          <div class="pattern-card">
+            <div class="pattern-cover" style="background: linear-gradient(135deg, #f8d7da 0%, #f9e5eb 50%, #efc7d1 100%);"></div>
+            <div class="pattern-info">
+              <div class="pattern-title">Mum's Birthday</div>
+              <div class="pattern-meta">80Ã—100 Â· 6 colours</div>
+              <span class="chip chip--accent">Tracking 65%</span>
+            </div>
+          </div>
+
+          <div class="pattern-card">
+            <div class="pattern-cover" style="background: linear-gradient(135deg, #dddacd 0%, #ede3d0 50%, #cdcab8 100%);"></div>
+            <div class="pattern-info">
+              <div class="pattern-title">Sampler 2024</div>
+              <div class="pattern-meta">200Ã—160 Â· 22 colours</div>
+              <span class="chip" style="background: var(--surface-sunken); border: 1px solid var(--line); color: var(--text-secondary);">Library</span>
+            </div>
+          </div>
+
+          <div class="pattern-card">
+            <div class="pattern-cover" style="background: linear-gradient(135deg, #b8cce2 0%, #cfe0f0 50%, #a8bcd2 100%);"></div>
+            <div class="pattern-info">
+              <div class="pattern-title">Anchor's Aweigh</div>
+              <div class="pattern-meta">180Ã—180 Â· 14 colours</div>
+              <span class="chip chip--accent">Designing</span>
+            </div>
+          </div>
+
+          <div class="pattern-card">
+            <div class="pattern-cover" style="background: linear-gradient(135deg, #e8e3d0 0%, #f4f0e1 50%, #d8cfbc 100%);"></div>
+            <div class="pattern-info">
+              <div class="pattern-title">Strawberry Whitework</div>
+              <div class="pattern-meta">100Ã—120 Â· 2 colours</div>
+              <span class="chip chip--accent">Finished 100%</span>
+            </div>
+          </div>
+
+          <div class="pattern-card">
+            <div class="pattern-cover" style="background: linear-gradient(135deg, #f5e6d3 0%, #faf3e8 50%, #e5d6c1 100%);"></div>
+            <div class="pattern-info">
+              <div class="pattern-title">Black-eyed Susan</div>
+              <div class="pattern-meta">140Ã—140 Â· 5 colours</div>
+              <span class="chip chip--accent">Tracking 28%</span>
+            </div>
+          </div>
+
+          <div class="pattern-card">
+            <div class="pattern-cover" style="background: linear-gradient(135deg, #c8d4e0 0%, #dce6f0 50%, #b8c4d0 100%);"></div>
+            <div class="pattern-info">
+              <div class="pattern-title">Folk House</div>
+              <div class="pattern-meta">200Ã—200 Â· 16 colours</div>
+              <span class="chip chip--accent">Tracking 51%</span>
+            </div>
+          </div>
+
+          <div class="pattern-card">
+            <div class="pattern-cover" style="background: linear-gradient(135deg, #ddd9cb 0%, #ebe8db 50%, #cdcabc 100%);"></div>
+            <div class="pattern-info">
+              <div class="pattern-title">Hares in March</div>
+              <div class="pattern-meta">160Ã—120 Â· 11 colours</div>
+              <span class="chip chip--accent">Finished 100%</span>
+            </div>
+          </div>
+
+          <div class="pattern-card">
+            <div class="pattern-cover" style="background: linear-gradient(135deg, #d4e8d4 0%, #e6f5e6 50%, #c4d8c4 100%);"></div>
+            <div class="pattern-info">
+              <div class="pattern-title">Norfolk Coast</div>
+              <div class="pattern-meta">240Ã—160 Â· 10 colours</div>
+              <span class="chip chip--accent">Tracking 34%</span>
+            </div>
+          </div>
+
+          <div class="pattern-card">
+            <div class="pattern-cover" style="background: linear-gradient(135deg, #ddd4c8 0%, #ede5d9 50%, #cdc4b8 100%);"></div>
+            <div class="pattern-info">
+              <div class="pattern-title">Owl Light</div>
+              <div class="pattern-meta">100Ã—160 Â· 9 colours</div>
+              <span class="chip chip--accent">Designing</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="footnote">
+      Addresses audit findings:
+      <ol>
+        <li><code>N-H1</code>: No cross-page pattern action from Manager. Proposal adds "Track" / "Print" / "Edit" quick-actions on pattern card hover.</li>
+        <li><code>F-W4-M2</code>: Search clears on tab switch. Proposal maintains filter state within Manager tab navigation.</li>
+        <li><code>V-H4</code>: Colour-only status signals. Proposal pairs tracking % with icon-less but distinct chip colours.</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- â•â•â•â• SHOPPING LIST â•â•â•â• -->
+  <div class="sc-section">
+    <h2>Shopping List Panel</h2>
+    <div class="sc-lede">Track what you need to buy with integrated retailer links and suggested-by-project annotation.</div>
+
+    <div style="max-width: 520px; margin: 0 auto;">
+      <div class="shopping-panel">
+        <div class="shopping-header">
+          <span>Shopping list Â· 3 items</span>
+          <span class="shopping-total">Â£2.85</span>
+        </div>
+
+        <div class="shopping-line">
+          <span class="swatch-16" style="background: #7C1A1A;"></span>
+          <div style="flex: 1;">
+            <div style="font-weight: 600;">DMC 498 Dark red</div>
+            <div style="color: var(--text-muted); font-size: var(--text-xs);">Used in Tudor Rose, Cat Portrait</div>
+          </div>
+          <div class="qty-stepper">
+            <button>âˆ’</button>
+            <div class="qty-val">2</div>
+            <button>+</button>
+          </div>
+          <div style="min-width: 50px; text-align: right;">
+            <div style="font: 600 var(--text-sm)/1 var(--font-ui);">Â£1.90</div>
+            <div style="color: var(--text-muted); font-size: var(--text-xs);">Â£0.95 ea</div>
+          </div>
+        </div>
+
+        <div class="shopping-line">
+          <span class="swatch-16" style="background: #4F7D3F;"></span>
+          <div style="flex: 1;">
+            <div style="font-weight: 600;">DMC 934 Dark green</div>
+            <div style="color: var(--text-muted); font-size: var(--text-xs);">Used in Heron Marsh</div>
+          </div>
+          <div class="qty-stepper">
+            <button>âˆ’</button>
+            <div class="qty-val">1</div>
+            <button>+</button>
+          </div>
+          <div style="min-width: 50px; text-align: right;">
+            <div style="font: 600 var(--text-sm)/1 var(--font-ui);">Â£0.95</div>
+            <div style="color: var(--text-muted); font-size: var(--text-xs);">Â£0.95 ea</div>
+          </div>
+        </div>
+
+        <div class="shopping-line">
+          <span class="swatch-16" style="background: #E8D7C3;"></span>
+          <div style="flex: 1;">
+            <div style="font-weight: 600;">DMC 3047 Yellow beige</div>
+            <div style="color: var(--text-muted); font-size: var(--text-xs);">Used in Sampler 2024</div>
+          </div>
+          <div class="qty-stepper">
+            <button>âˆ’</button>
+            <div class="qty-val">1</div>
+            <button>+</button>
+          </div>
+          <div style="min-width: 50px; text-align: right;">
+            <div style="font: 600 var(--text-sm)/1 var(--font-ui);">Â£0.95</div>
+            <div style="color: var(--text-muted); font-size: var(--text-xs);">Â£0.95 ea</div>
+          </div>
+        </div>
+
+        <div style="padding: var(--s-3); border-top: 1px solid var(--line); background: var(--surface-sunken); border-radius: 0 0 var(--radius) var(--radius); font-size: var(--text-xs); color: var(--text-secondary);">
+          Mark as bought when shop confirms
+        </div>
+
+        <button class="btn btn--primary" style="width: 100%; margin-top: var(--s-3);">Open in shop â–¾</button>
+      </div>
+    </div>
+
+    <div class="footnote">
+      Addresses audit findings:
+      <ol>
+        <li><code>N-H4</code>: Cross-page sync has no visible marker. Proposal shows "Used in X patterns" under each line item to signal Manager-to-shopping flow.</li>
+        <li><code>V-H4</code>: No colour-only state signals. Proposal uses colour swatches paired with explicit text labels for each item.</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- â•â•â•â• THREAD DETAIL DRAWER â•â•â•â• -->
+  <div class="sc-section">
+    <h2>Thread Detail Drawer</h2>
+    <div class="sc-lede">Inspect a thread's usage history, colour specs, and related projects. Renders as a right-side overlay.</div>
+
+    <div style="position: relative; height: 500px; background: var(--surface-sunken); border-radius: var(--radius); overflow: hidden;">
+      <div class="thread-drawer" style="position: static; width: 100%; height: 100%; border: 1px solid var(--line); box-shadow: none;">
+        <div class="drawer-header">DMC 498 Â· Dark red Â· in your stash</div>
+
+        <div class="drawer-swatch" style="background: #7C1A1A;"></div>
+
+        <div class="drawer-row">
+          <div class="label">Hex</div>
+          <div class="value">#7C1A1A</div>
+        </div>
+
+        <div class="drawer-row">
+          <div class="label">RGB</div>
+          <div class="value">124, 26, 26</div>
+        </div>
+
+        <div class="drawer-row">
+          <div class="label">Lab</div>
+          <div class="value">L 27.4 Â· a 36.2 Â· b 18.9</div>
+        </div>
+
+        <div class="drawer-row">
+          <div class="label">Owned</div>
+          <div class="value">1 loose skein</div>
+        </div>
+
+        <div class="drawer-row">
+          <div class="label">Acquired</div>
+          <div class="value">18 Mar 2026 from Sew &amp; So</div>
+        </div>
+
+        <div class="drawer-row">
+          <div class="label">Used in projects</div>
+          <div class="value" style="font-size: var(--text-sm); font-weight: 400;">
+            Tudor Rose Sampler (active)<br/>
+            Cat Portrait (finished)<br/>
+            Mum's Birthday (active)
+          </div>
+        </div>
+
+        <div class="drawer-row" style="margin-top: var(--s-5);">
+          <div class="label">Monthly usage</div>
+          <div style="height: 60px; background: var(--surface-sunken); border-radius: var(--radius); border: 1px solid var(--line); margin-top: var(--s-2); display: flex; align-items: flex-end; justify-content: space-around; padding: 0 8px;">
+            <div style="width: 8px; height: 20%; background: var(--accent); border-radius: 2px;"></div>
+            <div style="width: 8px; height: 45%; background: var(--accent); border-radius: 2px;"></div>
+            <div style="width: 8px; height: 30%; background: var(--accent); border-radius: 2px;"></div>
+            <div style="width: 8px; height: 60%; background: var(--accent); border-radius: 2px;"></div>
+            <div style="width: 8px; height: 40%; background: var(--accent); border-radius: 2px;"></div>
+            <div style="width: 8px; height: 15%; background: var(--accent); border-radius: 2px;"></div>
+          </div>
+        </div>
+
+        <div class="drawer-actions">
+          <button class="btn btn--primary">Add to shopping list</button>
+          <button class="btn btn--ghost">Mark out</button>
+          <button class="btn btn--ghost">Find substituteâ€¦</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="footnote">
+      Addresses audit findings:
+      <ol>
+        <li><code>N-H4</code>: Cross-page sync has no visible marker. Proposal shows "Used in 3 patterns" with explicit project names.</li>
+        <li><code>V-M5</code>: Density jars. Thread drawer uses roomy 16 px labels and large swatches â€” intentionally different from dense Tracker.</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- â•â•â•â• BRAND INTERMIX â•â•â•â• -->
+  <div class="sc-section">
+    <h2>Brand Provenance Signalling</h2>
+    <div class="sc-lede">Non-DMC brands are distinguished by a 3 px coloured band on the thread chip's left edge, keeping mixed stashes scannable.</div>
+
+    <div class="card" style="padding: var(--s-5);">
+      <div class="brand-example">
+        <div class="brand-chip" style="background: #000;">
+          310
+        </div>
+        <div>
+          <div style="font-weight: 600;">DMC 310 Black</div>
+          <div style="color: var(--text-muted); font-size: var(--text-sm);">No band = canonical DMC</div>
+        </div>
+      </div>
+
+      <div class="brand-example">
+        <div class="brand-chip" style="background: #C93144;">
+          47
+          <div class="brand-band" style="background: #E67E22;"></div>
+        </div>
+        <div>
+          <div style="font-weight: 600;">Anchor 47 Carmine red</div>
+          <div style="color: var(--text-muted); font-size: var(--text-sm);">Anchor brand band Â· #E67E22 (Anchor orange)</div>
+        </div>
+      </div>
+
+      <div class="brand-example">
+        <div class="brand-chip" style="background: #8B7355;">
+          Aztec
+          <div class="brand-band" style="background: #556B55;"></div>
+        </div>
+        <div>
+          <div style="font-weight: 600;">WDW Aztec Â· Weeks Dye Works</div>
+          <div style="color: var(--text-muted); font-size: var(--text-sm);">WDW brand band Â· #556B55 (WDW olive)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footnote">
+      Addresses audit findings:
+      <ol>
+        <li><code>V-M5</code>: Density / brand consistency. Proposal uses consistent 48 px thread chips across all pages, with brand bands always visible and scannable.</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- â•â•â•â• EMPTY STATE â•â•â•â• -->
+  <div class="sc-section">
+    <h2>Empty State</h2>
+    <div class="sc-lede">When the stash is new, a warm invitation to get started.</div>
+
+    <div class="empty-state-panel">
+      <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="2" width="16" height="18" rx="2" fill="currentColor" opacity="0.1"/>
+        <line x1="8" y1="6" x2="16" y2="6"/>
+        <line x1="8" y1="10" x2="16" y2="10"/>
+        <line x1="8" y1="14" x2="12" y2="14"/>
+      </svg>
+      <div class="empty-title">Stash is empty</div>
+      <div class="empty-body">Add your first bobbin to start tracking what you own.</div>
+      <div class="empty-actions">
+        <button class="btn btn--primary">Add bobbin</button>
+        <button class="btn btn--ghost">Import from CSVâ€¦</button>
+      </div>
+    </div>
+
+    <div class="footnote">
+      Addresses audit findings:
+      <ol>
+        <li><code>V-H4</code>: Colour-only state signals avoided. Proposal uses clear headline + body text + primary CTA for empty state (no icon-alone signal).</li>
+      </ol>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

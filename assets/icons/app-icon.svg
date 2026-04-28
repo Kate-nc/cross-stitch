@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Cross Stitch Pattern Generator">
+  <!-- I14 (audit) — PWA install icon. Workshop terracotta accent on linen
+       background. Maskable: glyph stays inside a 410px safe zone (80%) per
+       https://web.dev/maskable-icon/. -->
+  <rect width="512" height="512" fill="#FBF8F3"/>
+  <g transform="translate(51 51)" stroke="#B85C38" stroke-width="32" stroke-linecap="round" fill="none">
+    <!-- Cross-stitch X glyph composed of two crossed strokes -->
+    <line x1="64"  y1="64"  x2="346" y2="346"/>
+    <line x1="346" y1="64"  x2="64"  y2="346"/>
+    <!-- Corner anchor stitches forming a frame -->
+    <line x1="64"  y1="64"  x2="96"  y2="64"/>
+    <line x1="64"  y1="64"  x2="64"  y2="96"/>
+    <line x1="346" y1="64"  x2="314" y2="64"/>
+    <line x1="346" y1="64"  x2="346" y2="96"/>
+    <line x1="64"  y1="346" x2="96"  y2="346"/>
+    <line x1="64"  y1="346" x2="64"  y2="314"/>
+    <line x1="346" y1="346" x2="314" y2="346"/>
+    <line x1="346" y1="346" x2="346" y2="314"/>
+  </g>
+</svg>

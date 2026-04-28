@@ -46,8 +46,8 @@ describe('Tracker edit-mode strip (A2)', () => {
     expect(stylesSrc).toMatch(/\.toolbar-row--edit\s*\{/);
     // 40 px strip height per spec
     expect(stylesSrc).toMatch(/min-height:\s*40px/);
-    // Red border colour family
-    expect(stylesSrc).toMatch(/border-bottom:\s*2px solid #dc2626/);
+    // Red border colour family (Workshop brick palette: #A53D3D)
+    expect(stylesSrc).toMatch(/border-bottom:\s*2px solid (?:#A53D3D|var\(--danger\))/i);
   });
 
   test('exit button meets the 44 px coarse-pointer touch target on the link', () => {

@@ -2,13 +2,35 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdnjs.cloudflare.com; worker-src 'self'; frame-src 'self';">
 <title>Stitch Tracker</title>
 <link rel="manifest" href="./manifest.json">
-<meta name="theme-color" content="#0d9488">
+<!-- Canonical landing is /home (home.html). External links and search
+     results should route through the hub so users always pass through the
+     project picker. (Homepage-predominance audit, Tier 3 #11.) -->
+<link rel="canonical" href="./home.html">
+<meta property="og:title" content="Cross Stitch Studio">
+<meta property="og:description" content="Design, track, and manage cross-stitch patterns — fully client-side.">
+<meta property="og:url" content="./home.html">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#B85C38">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
+<!-- UX-12 Phase 7 PR #13: redirect to /home when no project is active.
+     Direct URLs and PWA shortcuts continue to work when a project IS active. -->
+<script>
+(function(){
+  try {
+    var active = localStorage.getItem('crossstitch_active_project');
+    if (!active) {
+      var qs = location.search || '';
+      var skip = /(\?|&)(from=home|action=)/.test(qs);
+      if (!skip) { location.replace('home.html'); return; }
+    }
+  } catch (_) { /* localStorage blocked → load tool normally */ }
+})();
+</script>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -41,6 +63,7 @@ window.loadPdfStack = function() {
 <script src="import-formats.js"></script>
 <script src="components.js"></script>
 <script src="components/PartialStitchThumb.js"></script>
+<script src="components/Overlay.js"></script>
 <script src="header.js"></script>
 <script src="modals.js"></script>
 <script src="help-drawer.js"></script>

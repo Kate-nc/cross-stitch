@@ -42,7 +42,7 @@ describe('calcDifficulty — properties', () => {
             VALID_LABELS.indexOf(r.label) >= 0 &&
             typeof r.stars === 'number' &&
             r.stars >= 1 && r.stars <= 4 &&
-            typeof r.color === 'string' && r.color.startsWith('#')
+            typeof r.color === 'string' && (r.color.startsWith('#') || r.color.startsWith('var(--'))
           );
         }
       ),

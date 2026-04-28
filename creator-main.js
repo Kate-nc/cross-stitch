@@ -20,11 +20,11 @@ class CreatorErrorBoundary extends React.Component {
 }
 
 function confettiTier(pct){
-  if(pct<2)return{color:"#16a34a",label:"Excellent"};
-  if(pct<5)return{color:"#65a30d",label:"Good"};
-  if(pct<8)return{color:"#d97706",label:"Moderate"};
-  if(pct<15)return{color:"#ea580c",label:"Challenging"};
-  return{color:"#dc2626",label:"High confetti"};
+  if(pct<2)return{color:"#4F7D3F",label:"Excellent"};
+  if(pct<5)return{color:"#5E8B2D",label:"Good"};
+  if(pct<8)return{color:"#A06F2D",label:"Moderate"};
+  if(pct<15)return{color:"#A04E11",label:"Challenging"};
+  return{color:"#A53D3D",label:"High confetti"};
 }
 
 function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, width, height, previewPw, previewPh, leftLabel, rightLabel}) {
@@ -144,7 +144,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
   return (
     <div>
       <div ref={containerRef}
-        style={{position:"relative",width:"100%",aspectRatio:`${width}/${height}`,overflow:"hidden",cursor:altDown?"zoom-in":"ew-resize",borderRadius:8,border:"0.5px solid #e2e8f0",userSelect:"none",touchAction:"none"}}
+        style={{position:"relative",width:"100%",aspectRatio:`${width}/${height}`,overflow:"hidden",cursor:altDown?"zoom-in":"ew-resize",borderRadius:8,border:"0.5px solid #E5DCCB",userSelect:"none",touchAction:"none"}}
         onPointerDown={function(e){
           if(altHeld.current)return;
           dragging.current=true; setSweeping(false);
@@ -181,7 +181,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
         {showHeatmap&&heatmapSrc&&<img src={heatmapSrc} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:5}} alt="" aria-hidden="true"/>}
         {highlightSrc&&<img src={highlightSrc} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:6}} alt="" aria-hidden="true"/>}
         <div style={{position:"absolute",top:0,bottom:0,left:`${splitPos}%`,width:3,background:"#fff",boxShadow:"0 0 4px rgba(0,0,0,0.3)",transform:"translateX(-50%)",zIndex:2,pointerEvents:"none",willChange:"left"}}>
-          <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:28,height:28,borderRadius:"50%",background:"#fff",boxShadow:"0 1px 4px rgba(0,0,0,0.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#475569"}}>⟺</div>
+          <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:28,height:28,borderRadius:"50%",background:"var(--surface)",boxShadow:"0 1px 4px rgba(0,0,0,0.2)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text-secondary)"}} aria-hidden="true"><span style={{display:"inline-flex",width:16,height:16}}>{Icons.arrowsHorizontal()}</span></div>
         </div>
         <span style={{position:"absolute",top:8,left:8,fontSize:10,fontWeight:600,color:"#fff",background:"rgba(0,0,0,0.5)",padding:"2px 8px",borderRadius:4,zIndex:3,pointerEvents:"none"}}>{leftLabel||"Original"}</span>
         <span style={{position:"absolute",top:8,right:8,fontSize:10,fontWeight:600,color:"#fff",background:"rgba(0,0,0,0.5)",padding:"2px 8px",borderRadius:4,zIndex:3,pointerEvents:"none"}}>{rightLabel||"Preview"}</span>
@@ -203,18 +203,18 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
       </div>
       <div style={{display:"flex",alignItems:"center",gap:8,marginTop:6,flexWrap:"wrap"}}>
         <button type="button" onClick={function(){setSweeping(function(s){if(!s){sweepDirRef.current=1;splitPosRef.current=splitPos;}return !s;});}}
-          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:sweeping?"#0d9488":"#f8f9fa",color:sweeping?"#fff":"#475569",fontWeight:500}}>
+          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:sweeping?"#B85C38":"#FBF8F3",color:sweeping?"#fff":"#5C5448",fontWeight:500}}>
           {sweeping?<>{Icons.pause()} Pause</>:<>{Icons.play()} Auto-sweep</>}
         </button>
         {diffUrl&&<button type="button" onClick={function(){setShowDiff(function(d){return !d;});}}
-          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showDiff?"#ea580c":"#e2e8f0"),borderRadius:6,background:showDiff?"#fff7ed":"#f8f9fa",color:showDiff?"#ea580c":"#475569",fontWeight:500}}>
+          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showDiff?"#A04E11":"#E5DCCB"),borderRadius:6,background:showDiff?"#F8EFD8":"#FBF8F3",color:showDiff?"#A04E11":"#5C5448",fontWeight:500}}>
           {showDiff?"Hide changes":"Show changes"}
         </button>}
         {heatmapSrc&&<button type="button" onClick={function(){setShowHeatmap(function(h){return !h;});}}
-          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showHeatmap?"#dc2626":"#e2e8f0"),borderRadius:6,background:showHeatmap?"#fef2f2":"#f8f9fa",color:showHeatmap?"#dc2626":"#475569",fontWeight:500}}>
+          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showHeatmap?"#A53D3D":"#E5DCCB"),borderRadius:6,background:showHeatmap?"#FCEFEF":"#FBF8F3",color:showHeatmap?"#A53D3D":"#5C5448",fontWeight:500}}>
           {showHeatmap?"Hide heatmap":<>{Icons.fire()} Heatmap</>}
         </button>}
-        <span style={{fontSize:10,color:"#94a3b8"}}>Hold Alt to zoom</span>
+        <span style={{fontSize:10,color:"#A89E89"}}>Hold Alt to zoom</span>
       </div>
     </div>
   );
@@ -238,7 +238,15 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const state = useCreatorStateHook();
   const history = useEditHistoryHook(state);
   const canvas = useCanvasInteractionHook(state, history);
-  const io = useProjectIOHook(state, history, {onSwitchToTrack});
+  // useProjectIO's auto-save, beforeunload flush, and active-project effect all
+  // gate on state.isActive. useCreatorState does NOT set isActive (it's a prop
+  // of CreatorApp tied to the design/track mode toggle in UnifiedApp), so we
+  // have to merge it in here exactly like the keyboard-shortcuts hook below.
+  // Without this merge state.isActive is undefined, the auto-save guard
+  // `if (!state.isActive) return;` always trips, and edits made in the Creator
+  // never reach IndexedDB or the Stash Manager — pattern saves only happen via
+  // the explicit handleOpenInTracker handoff (which bypasses the guard).
+  const io = useProjectIOHook(Object.assign({}, state, {isActive: isActive}), history, {onSwitchToTrack});
   usePreviewHook(state);
   useKeyboardShortcutsHook(Object.assign({}, state, {isActive: isActive}), history, io);
 
@@ -272,6 +280,20 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     return()=>window.removeEventListener('cs:openShortcuts',h);
   },[state.setModal]);
 
+  // Command Palette → Preferences modal bridge (UX-12 Phase 6 PR #11).
+  React.useEffect(()=>{
+    const h=()=>{ if(typeof window.PreferencesModal!=='undefined') state.setPreferencesOpen(true); };
+    window.addEventListener('cs:openPreferences',h);
+    return()=>window.removeEventListener('cs:openPreferences',h);
+  },[state.setPreferencesOpen]);
+
+  // Command Palette → Rename current project bridge (UX-12 Phase 6 PR #11).
+  React.useEffect(()=>{
+    const h=()=>{ state.setNamePromptOpen(true); };
+    window.addEventListener('cs:openRename',h);
+    return()=>window.removeEventListener('cs:openRename',h);
+  },[state.setNamePromptOpen]);
+
   // Register Creator-specific palette actions.
   React.useEffect(()=>{
     if (!window.CommandPalette) return;
@@ -280,11 +302,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         id: 'cre_save_project', label: 'Save Project', section: 'action',
         keywords: ['save', 'project'],
         action: () => { if (_ioRef.current) _ioRef.current.saveProject(); }
-      },
-      {
-        id: 'cre_shopping_list', label: 'What do I need to buy?', section: 'action',
-        keywords: ['shopping', 'buy', 'cart', 'stash', 'list', 'threads'],
-        action: () => { state.setModal('shopping_list'); }
       }
     ]);
     return () => { if (window.CommandPalette) window.CommandPalette.registerPage('creator', []); };
@@ -413,6 +430,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const appCtx = useMemo(function() { return {
     appMode: state.appMode, setAppMode: state.setAppMode,
     sidebarTab: state.sidebarTab, setSidebarTab: state.setSidebarTab,
+    lastGenSnapshot: state.lastGenSnapshot,
     tab: state.tab, setTab: state.setTab,
     materialsTab: state.materialsTab, setMaterialsTab: state.setMaterialsTab,
     modal: state.modal, setModal: state.setModal,
@@ -471,6 +489,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     isActive: isActive,
   }; }, [
     state.appMode, state.sidebarTab,
+    state.lastGenSnapshot,
     state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError,
     state.copied, state.dimOpen, state.palOpen, state.fabOpen,
     state.adjOpen, state.bgOpen, state.palAdvanced, state.cleanupOpen,
@@ -717,6 +736,24 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     && !!state.pat
     && (!state.editHistory || state.editHistory.length === 0);
 
+  // ── Polish 13 step 4b — Tools tab unlock coachmark ───────────────────
+  // Fires once after the first generation, anchored on the Tools tab in
+  // the right-panel sidebar. The tab strip is unified across appModes
+  // (Polish 13 step 3) so the coachmark is meaningful in either appMode.
+  // We delay 600ms so the post-generate render and the layout shift
+  // from the unlocked tabs settle before the popover anchors.
+  const [_toolsCoachReady, _setToolsCoachReady] = React.useState(false);
+  React.useEffect(()=>{
+    _setToolsCoachReady(false);
+    if (!state.pat || !state.pal) return;
+    if (_coach.active !== 'toolsTab_unlocked') return;
+    const t = setTimeout(()=>_setToolsCoachReady(true), 600);
+    return ()=>clearTimeout(t);
+  }, [!!state.pat, !!state.pal, _coach.active]);
+  const _showToolsUnlockedCoach = _toolsCoachReady
+    && _coach.active === 'toolsTab_unlocked'
+    && !!state.pat && !!state.pal;
+
   return (
     <window.GenerationContext.Provider value={genCtx}>
     <window.AppContext.Provider value={appCtx}>
@@ -729,6 +766,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onTrack={state.pat&&state.pal?io.handleOpenInTracker:null}
         onExportPDF={state.pat?()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},exportData):null}
         onNewProject={()=>{if(!state.pat||confirm("Start a new project? Unsaved changes will be lost."))state.resetAll();}}
+        onOpenProject={typeof window.ProjectStorage!=='undefined'?()=>{window.location.href='home.html';}:undefined}
         onPreferences={typeof window.PreferencesModal!=='undefined'?()=>state.setPreferencesOpen(true):undefined}
         setModal={state.setModal}
         projectName={state.pat&&state.pal?(state.projectName||(state.sW+'×'+state.sH+' pattern')):undefined}
@@ -745,31 +783,60 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
           if(state.addToast)state.addToast("Download cancelled \u2014 give your pattern a name to download a .json file.",{type:"info",duration:3500});
         }}
       />}
+      {state.pat&&state.pal&&window.CreatorActionBar&&<window.CreatorActionBar
+        ready={true}
+        sW={state.sW} sH={state.sH}
+        fabricCt={state.fabricCt}
+        colourCount={state.pal.length}
+        skeinEstimate={state.totalSkeins}
+        totalStitchable={state.totalStitchable}
+        difficulty={state.difficulty}
+        solidPct={state.confettiData?(100-state.confettiData.clean.pct):undefined}
+        stitchSpeed={state.stitchSpeed}
+        doneCount={state.doneCount}
+        appMode={state.appMode}
+        onPrintPdf={()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},exportData)}
+        onTrackPattern={io.handleOpenInTracker}
+        onSaveJson={io.saveProject}
+        onMoreExports={()=>{state.setTab("materials");if(state.setMaterialsTab)state.setMaterialsTab("output");}}
+      />}
       <window.CreatorToolStrip/>
       <div className="cs-page-content">
-        {state.loadError&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#dc2626",marginBottom:12}}>{state.loadError}</div>}
-        {!state.img&&!state.pat&&<div
-            style={{maxWidth:700,margin:"40px auto",textAlign:"center",padding:"40px",border:state.isDragging?"2px dashed #0d9488":"2px dashed transparent",borderRadius:"16px",background:state.isDragging?"#f0fdfa":"transparent",transition:"all 0.2s"}}
+        {state.loadError&&<div style={{background:"#FCEFEF",border:"1px solid #ECC8C8",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#A53D3D",marginBottom:12}}>{state.loadError}</div>}
+        {/* Hide the legacy "Welcome to Cross Stitch Pattern Generator" card
+            while a /home handoff is in flight (image being decoded, scratch
+            project being built, JSON being loaded). Without this guard the
+            user sees the welcome flash for a beat and assumes their action
+            failed. The card still appears for direct entries that don't
+            carry an action= deep link (e.g. someone clicked "New project"
+            inside the Creator and resetAll wiped the canvas). */}
+        {!state.img&&!state.pat&&(state.isUploading||window.__pendingCreatorFile||window.__pendingCreatorAction||window.__pendingCreatorJsonFile)&&<div
+            style={{maxWidth:700,margin:"80px auto",textAlign:"center",padding:"40px",display:"flex",flexDirection:"column",alignItems:"center",gap:14,color:"#5C5448"}}
+            aria-live="polite">
+          <div style={{width:32,height:32,border:"2.5px solid #E5DCCB",borderTopColor:"#B85C38",borderRadius:"50%",animation:"spin 0.9s linear infinite"}} aria-hidden="true"/>
+          <div style={{fontSize:14,fontWeight:600}}>Preparing your pattern…</div>
+        </div>}
+        {!state.img&&!state.pat&&!state.isUploading&&!window.__pendingCreatorFile&&!window.__pendingCreatorAction&&!window.__pendingCreatorJsonFile&&<div
+            style={{maxWidth:700,margin:"40px auto",textAlign:"center",padding:"40px",border:state.isDragging?"2px dashed #B85C38":"2px dashed transparent",borderRadius:"16px",background:state.isDragging?"#F4DDCF":"transparent",transition:"all 0.2s"}}
             onDragOver={(e)=>{e.preventDefault();state.setIsDragging(true);}}
             onDragEnter={(e)=>{e.preventDefault();state.setIsDragging(true);}}
             onDragLeave={(e)=>{e.preventDefault();state.setIsDragging(false);}}
             onDrop={(e)=>{e.preventDefault();state.setIsDragging(false);if(e.dataTransfer.files&&e.dataTransfer.files.length>0){io.handleFile(e.dataTransfer.files[0]);e.dataTransfer.clearData();}}}
           >
-          <h1 style={{fontSize:28,fontWeight:700,color:"#1e293b",marginBottom:8}}>Welcome to Cross Stitch Pattern Generator</h1>
-          <p style={{fontSize:15,color:"#475569",marginBottom:32}}>Turn any photo into a detailed pattern, drop an image anywhere here, or continue working on an existing project.</p>
+          <h1 style={{fontSize:28,fontWeight:700,color:"#1B1814",marginBottom:8}}>Start a new pattern</h1>
+          <p style={{fontSize:15,color:"#5C5448",marginBottom:32}}>Drop an image anywhere here, pick one with the tile below, or load a saved project to keep working.</p>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(260px, 1fr))",gap:24}}>
             <div onClick={()=>state.fRef.current.click()} className="upload-area" style={{position:"relative"}}>
-              {state.isUploading&&<div style={{position:"absolute",top:0,left:0,right:0,bottom:0,background:"rgba(255,255,255,0.8)",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:12,zIndex:10,fontWeight:600,color:"#0d9488"}}>Processing...</div>}
               <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-              <div><div style={{fontWeight:600,fontSize:18,color:"#1e293b",marginBottom:4}}>Create New Pattern</div><div style={{color:"#475569",fontSize:14}}>Upload an image (JPG, PNG)</div></div>
+              <div><div style={{fontWeight:600,fontSize:18,color:"#1B1814",marginBottom:4}}>Create New Pattern</div><div style={{color:"#5C5448",fontSize:14}}>Upload an image (JPG, PNG)</div></div>
             </div>
             <div onClick={()=>state.loadRef.current.click()} className="upload-area">
               <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-              <div><div style={{fontWeight:600,fontSize:18,color:"#1e293b",marginBottom:4}}>Load Existing Project</div><div style={{color:"#475569",fontSize:14}}>Open a saved JSON file</div></div>
+              <div><div style={{fontWeight:600,fontSize:18,color:"#1B1814",marginBottom:4}}>Load Existing Project</div><div style={{color:"#5C5448",fontSize:14}}>Open a saved JSON file</div></div>
             </div>
             <div onClick={state.startScratch} className="upload-area">
               <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-              <div><div style={{fontWeight:600,fontSize:18,color:"#1e293b",marginBottom:4}}>Design from Scratch</div><div style={{color:"#475569",fontSize:14}}>Start with a blank grid and paint by hand</div></div>
+              <div><div style={{fontWeight:600,fontSize:18,color:"#1B1814",marginBottom:4}}>Design from Scratch</div><div style={{color:"#5C5448",fontSize:14}}>Start with a blank grid and paint by hand</div></div>
             </div>
           </div>
         </div>}
@@ -783,20 +850,20 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             </div>}
             {!state.pat&&state.img&&<div style={{display:"flex",flexDirection:"column",gap:16,padding:"20px 16px"}}>
               {!state.previewUrl&&<div className="card" style={{overflow:"hidden"}}>
-                <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#475569"}}>Original Image</div>
+                <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#5C5448"}}>Original Image</div>
                 <img src={state.img.src} style={{width:"100%",display:"block"}} alt="Original"/>
               </div>}
               {state.previewUrl&&<div className="card">
-                <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#475569",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#5C5448",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span>Preview</span>
-                  {state.previewDims&&<span style={{fontSize:10,fontWeight:500,color:"#94a3b8"}}>{state.previewDims.pw}×{state.previewDims.ph} px{state.previewDims.pw===state.sW?" — full res":" — "+Math.round(state.previewDims.pw/state.sW*100)+"%"}</span>}
+                  {state.previewDims&&<span style={{fontSize:10,fontWeight:500,color:"#A89E89"}}>{state.previewDims.pw}×{state.previewDims.ph} px{state.previewDims.pw===state.sW?" — full res":" — "+Math.round(state.previewDims.pw/state.sW*100)+"%"}</span>}
                               {state.stitchCleanup&&state.stitchCleanup.enabled&&state.previewUrl&&<div style={{padding:"4px 14px 4px",display:"flex",alignItems:"center",gap:6}}>
                                 <button
                                   onClick={()=>state.setShowCleanupDiff(d=>!d)}
                                   style={{fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",
-                                    border:state.showCleanupDiff?"1px solid #0d9488":"0.5px solid #e2e8f0",
-                                    background:state.showCleanupDiff?"#f0fdfa":"#fff",
-                                    color:state.showCleanupDiff?"#0d9488":"#475569",
+                                    border:state.showCleanupDiff?"1px solid #B85C38":"0.5px solid #E5DCCB",
+                                    background:state.showCleanupDiff?"#F4DDCF":"#fff",
+                                    color:state.showCleanupDiff?"#B85C38":"#5C5448",
                                     fontWeight:state.showCleanupDiff?600:400,
                                     display:"flex",alignItems:"center",gap:4,lineHeight:1.4}}
                                 >{Icons.eye()} {state.showCleanupDiff?"Hide changes":"Show changes"}</button>
@@ -807,37 +874,37 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                 </div>
               </div>}
               {state.previewUrl&&state.previewStats&&<div className="card" style={{padding:"12px 14px"}}>
-                <div style={{fontSize:11,fontWeight:600,color:"#475569",textTransform:"uppercase",marginBottom:8}}>Preview Estimates</div>
+                <div style={{fontSize:11,fontWeight:600,color:"#5C5448",textTransform:"uppercase",marginBottom:8}}>Preview Estimates</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px"}}>
-                  <div><div style={{fontSize:10,color:"#94a3b8"}}>Stitchable</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{state.previewStats.stitchable.toLocaleString()}</div></div>
-                  {state.skipBg&&<div><div style={{fontSize:10,color:"#94a3b8"}}>Skipped</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{state.previewStats.skipped.toLocaleString()}</div></div>}
-                  <div><div style={{fontSize:10,color:"#94a3b8"}}>Colours</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{state.previewStats.uniqueColors}</div></div>
-                  {state.previewStats.stashUsage&&<div><div style={{fontSize:10,color:"#94a3b8"}}>Stash usage</div><div style={{fontSize:13,fontWeight:600,color:"#0d9488"}}>{state.previewStats.stashUsage.used} of {state.previewStats.stashUsage.available}</div></div>}
-                  <div><div style={{fontSize:10,color:"#94a3b8"}}>Skeins ({state.fabricCt}ct)</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{state.previewStats.estSkeins}</div></div>
-                  <div><div style={{fontSize:10,color:"#94a3b8"}}>Time</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>{fmtTimeL(Math.round(state.previewStats.stitchable/state.stitchSpeed*3600))}</div></div>
-                  <div><div style={{fontSize:10,color:"#94a3b8"}}>Thread Cost</div><div style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>£{(state.previewStats.estSkeins*state.skeinPrice).toFixed(2)}</div></div>
+                  <div><div style={{fontSize:10,color:"#A89E89"}}>Stitchable</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.stitchable.toLocaleString()}</div></div>
+                  {state.skipBg&&<div><div style={{fontSize:10,color:"#A89E89"}}>Skipped</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.skipped.toLocaleString()}</div></div>}
+                  <div><div style={{fontSize:10,color:"#A89E89"}}>Colours</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.uniqueColors}</div></div>
+                  {state.previewStats.stashUsage&&<div><div style={{fontSize:10,color:"#A89E89"}}>Stash usage</div><div style={{fontSize:13,fontWeight:600,color:"#B85C38"}}>{state.previewStats.stashUsage.used} of {state.previewStats.stashUsage.available}</div></div>}
+                  <div><div style={{fontSize:10,color:"#A89E89"}}>Skeins ({state.fabricCt}ct)</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.estSkeins}</div></div>
+                  <div><div style={{fontSize:10,color:"#A89E89"}}>Time</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{fmtTimeL(Math.round(state.previewStats.stitchable/state.stitchSpeed*3600))}</div></div>
+                  <div><div style={{fontSize:10,color:"#A89E89"}}>Thread Cost</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>£{(state.previewStats.estSkeins*state.skeinPrice).toFixed(2)}</div></div>
                 </div>
                 {state.previewStats.confettiPct!=null&&(()=>{
                   const t=confettiTier(state.previewStats.confettiPct);
                   const tips={"Excellent":"Great stitch flow","Good":"Low confetti — pleasant to stitch","Moderate":"Some isolated stitches — try the Remove Orphans slider","Challenging":"High confetti — reduce colours or use Remove Orphans","High confetti":"Very tedious — strongly consider removing orphans"};
                   return(
-                    <div style={{marginTop:10,paddingTop:10,borderTop:"0.5px solid #e2e8f0"}}>
+                    <div style={{marginTop:10,paddingTop:10,borderTop:"0.5px solid #E5DCCB"}}>
                       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
-                        <span style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase",fontWeight:600}}>Confetti stitches</span>
+                        <span style={{fontSize:10,color:"#A89E89",textTransform:"uppercase",fontWeight:600}}>Confetti stitches</span>
                         <span style={{fontSize:11,fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:10,background:t.color+"18"}}>{t.label}</span>
                       </div>
                       <div style={{display:"flex",alignItems:"center",gap:6}}>
-                        <div style={{flex:1,height:5,background:"#e2e8f0",borderRadius:3,overflow:"hidden"}}>
+                        <div style={{flex:1,height:5,background:"#E5DCCB",borderRadius:3,overflow:"hidden"}}>
                           <div style={{height:"100%",width:Math.min(100,state.previewStats.confettiPct*4)+"%",background:t.color,borderRadius:3}}/>
                         </div>
                         <span style={{fontSize:12,fontWeight:700,color:t.color,flexShrink:0}}>{state.previewStats.confettiSingles.toLocaleString()} ({state.previewStats.confettiPct.toFixed(1)}%)</span>
                       </div>
-                      <div style={{fontSize:10,color:"#94a3b8",marginTop:4}}>{tips[t.label]||""}{state.previewStats.confettiCleanSingles!=null&&state.previewStats.confettiCleanSingles<state.previewStats.confettiSingles?` · ${state.previewStats.confettiCleanSingles.toLocaleString()} after cleanup`:""}</div>
+                      <div style={{fontSize:10,color:"#A89E89",marginTop:4}}>{tips[t.label]||""}{state.previewStats.confettiCleanSingles!=null&&state.previewStats.confettiCleanSingles<state.previewStats.confettiSingles?` · ${state.previewStats.confettiCleanSingles.toLocaleString()} after cleanup`:""}</div>
                     </div>
                   );
                 })()}
-                {state.previewColors&&state.previewColors.length>0&&<div style={{marginTop:12,paddingTop:12,borderTop:"0.5px solid #e2e8f0"}}>
-                  <div style={{fontSize:10,fontWeight:600,color:"#94a3b8",textTransform:"uppercase",marginBottom:6}}>Colour Breakdown <span style={{fontWeight:400,textTransform:"none"}}>(hover to highlight)</span></div>
+                {state.previewColors&&state.previewColors.length>0&&<div style={{marginTop:12,paddingTop:12,borderTop:"0.5px solid #E5DCCB"}}>
+                  <div style={{fontSize:10,fontWeight:600,color:"#A89E89",textTransform:"uppercase",marginBottom:6}}>Colour Breakdown <span style={{fontWeight:400,textTransform:"none"}}>(hover to highlight)</span></div>
                   <div style={{maxHeight:200,overflowY:"auto",display:"flex",flexDirection:"column",gap:1}}>
                     {state.previewColors.map(function(pcol){
                       var sf=state.previewDims?(state.sW*state.sH)/(state.previewDims.pw*state.previewDims.ph):1;
@@ -860,9 +927,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                           }}
                           onMouseLeave={function(){state.setPreviewHighlight(null);}}>
                           <div style={{width:12,height:12,borderRadius:2,flexShrink:0,background:'rgb('+pcol.rgb[0]+','+pcol.rgb[1]+','+pcol.rgb[2]+')',border:"0.5px solid rgba(0,0,0,0.12)"}}/>
-                          <span style={{fontSize:10,fontWeight:600,color:"#475569",flexShrink:0,minWidth:28}}>{pcol.id}</span>
-                          <span style={{fontSize:10,color:"#94a3b8",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n?n.name:''}</span>
-                          <span style={{fontSize:10,fontWeight:600,color:"#1e293b",flexShrink:0}}>{Math.round(pcol.count*sf).toLocaleString()}</span>
+                          <span style={{fontSize:10,fontWeight:600,color:"#5C5448",flexShrink:0,minWidth:28}}>{pcol.id}</span>
+                          <span style={{fontSize:10,color:"#A89E89",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n?n.name:''}</span>
+                          <span style={{fontSize:10,fontWeight:600,color:"#1B1814",flexShrink:0}}>{Math.round(pcol.count*sf).toLocaleString()}</span>
                         </div>
                       );
                     })}
@@ -876,26 +943,26 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             <div className={"rpanel"+(state.panelOpen?" rpanel--open":"")}>
             <window.CreatorSidebar/>
             {!state.pat&&state.img&&<div id="bg-pick-target" className={"card"+(state.pickBg?" card--pickBg":"")} style={{overflow:"hidden"}}>
-              <div style={{padding:"7px 12px 4px",fontSize:11,fontWeight:600,color:"#475569"}}>Original Image</div>
-              {state.pickBg&&<div style={{padding:"8px 12px",fontSize:11,color:"#9a3412",fontWeight:600,background:"#fff7ed",borderTop:"1px solid #fed7aa",borderBottom:"1px solid #fed7aa",display:"flex",alignItems:"center",gap:8}}>
+              <div style={{padding:"7px 12px 4px",fontSize:11,fontWeight:600,color:"#5C5448"}}>Original Image</div>
+              {state.pickBg&&<div style={{padding:"8px 12px",fontSize:11,color:"#9a3412",fontWeight:600,background:"#F8EFD8",borderTop:"1px solid #E5C99A",borderBottom:"1px solid #E5C99A",display:"flex",alignItems:"center",gap:8}}>
                 <span style={{flex:1}}>Click anywhere on the image to set the background colour.</span>
-                <button onClick={()=>state.setPickBg(false)} title="Cancel pick (Esc)" style={{fontSize:10,padding:"2px 7px",border:"1px solid #fdba74",borderRadius:6,background:"#fff",color:"#9a3412",cursor:"pointer",fontWeight:600}}>Cancel</button>
+                <button onClick={()=>state.setPickBg(false)} title="Cancel pick (Esc)" style={{fontSize:10,padding:"2px 7px",border:"1px solid #D4A570",borderRadius:6,background:"#fff",color:"#9a3412",cursor:"pointer",fontWeight:600}}>Cancel</button>
               </div>}
               <div style={{position:"relative",touchAction:state.isCropping?"none":"auto"}} ref={state.cropRef} onPointerDown={canvas.handleCropPointerDown} onPointerMove={canvas.handleCropPointerMove} onPointerUp={canvas.handleCropPointerUp} onPointerCancel={canvas.handleCropPointerCancel}>
                 <img src={state.img.src} alt="Original" style={{width:"100%",display:"block",cursor:state.isCropping?"crosshair":(state.pickBg?"crosshair":"default"),opacity:state.isCropping?0.7:1}} onClick={canvas.srcClick}/>
-                {state.isCropping&&state.cropRect&&<div style={{position:"absolute",left:state.cropRect.x,top:state.cropRect.y,width:state.cropRect.w,height:state.cropRect.h,border:"2px dashed #0d9488",background:"rgba(13,148,136,0.2)",boxSizing:"border-box",pointerEvents:"none"}}/>}
+                {state.isCropping&&state.cropRect&&<div style={{position:"absolute",left:state.cropRect.x,top:state.cropRect.y,width:state.cropRect.w,height:state.cropRect.h,border:"2px dashed #B85C38",background:"rgba(184, 92, 56,0.2)",boxSizing:"border-box",pointerEvents:"none"}}/>}
               </div>
-              {state.isCropping?<div style={{padding:"5px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}}>
-                <span style={{fontSize:10,color:"#94a3b8"}}>Draw a rectangle</span>
+              {state.isCropping?<div style={{padding:"5px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #EFE7D6"}}>
+                <span style={{fontSize:10,color:"#A89E89"}}>Draw a rectangle</span>
                 <div style={{display:"flex",gap:6}}>
-                  <button onClick={()=>{state.setIsCropping(false);state.setCropRect(null);}} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}}>Cancel</button>
-                  <button onClick={canvas.applyCrop} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"none",borderRadius:6,background:"#0d9488",color:"#fff"}}>Apply</button>
+                  <button onClick={()=>{state.setIsCropping(false);state.setCropRect(null);}} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#FBF8F3"}}>Cancel</button>
+                  <button onClick={canvas.applyCrop} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"none",borderRadius:6,background:"#B85C38",color:"#fff"}}>Apply</button>
                 </div>
-              </div>:<div style={{padding:"5px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #f1f5f9"}}>
-                <span style={{fontSize:10,color:"#94a3b8"}}>{state.origW}×{state.origH}px</span>
+              </div>:<div style={{padding:"5px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #EFE7D6"}}>
+                <span style={{fontSize:10,color:"#A89E89"}}>{state.origW}×{state.origH}px</span>
                 <div style={{display:"flex",gap:6}}>
-                  <button onClick={()=>{state.setIsCropping(true);state.setCropRect(null);}} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}}>Crop</button>
-                  <button onClick={()=>state.fRef.current.click()} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #e2e8f0",borderRadius:6,background:"#f8f9fa"}}>Change</button>
+                  <button onClick={()=>{state.setIsCropping(true);state.setCropRect(null);}} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#FBF8F3"}}>Crop</button>
+                  <button onClick={()=>state.fRef.current.click()} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#FBF8F3"}}>Change</button>
                 </div>
               </div>}
             </div>}
@@ -905,7 +972,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         {state.modal==="help"&&<SharedModals.Help defaultTab="creator" onClose={()=>state.setModal(null)} />}
         {state.modal==="about"&&<SharedModals.About onClose={()=>state.setModal(null)} />}
         {state.modal==="shortcuts"&&<SharedModals.Help defaultTab="shortcuts" onClose={()=>state.setModal(null)} />}
-        {state.modal==="shopping_list"&&window.CreatorShoppingListModal&&<window.CreatorShoppingListModal onClose={()=>state.setModal(null)} />}
       </div>
       {state.busy&&<div style={{
         position:"fixed",top:0,left:0,right:0,bottom:0,
@@ -914,11 +980,11 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         flexDirection:"column",gap:12
       }}>
         <div style={{
-          width:32,height:32,border:"3px solid #e2e8f0",
-          borderTopColor:"#0d9488",borderRadius:"50%",
+          width:32,height:32,border:"3px solid #E5DCCB",
+          borderTopColor:"#B85C38",borderRadius:"50%",
           animation:"spin 0.8s linear infinite"
         }}/>
-        <div style={{fontSize:14,color:"#475569",fontWeight:500}}>Generating pattern\u2026</div>
+        <div style={{fontSize:14,color:"#5C5448",fontWeight:500}}>Generating pattern\u2026</div>
       </div>}
       <window.CreatorToastContainer/>
       {_showFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {
@@ -929,6 +995,16 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         showHighlight: false,
         onComplete: ()=>_coach.complete('firstStitch_creator'),
         onSkip: ()=>_coach.skip('firstStitch_creator')
+      })}
+      {_showToolsUnlockedCoach && window.Coachmark && React.createElement(window.Coachmark, {
+        id: 'toolsTab_unlocked',
+        target: '.creator-sidebar-tab[data-tab-id="tools"]',
+        title: 'Tools and View are now unlocked',
+        body: 'Open the Tools tab in the sidebar to brush, lasso, magic-wand, half-stitch, and add backstitch lines. Image, Dimensions, and Palette stay one click away.',
+        placement: 'left',
+        showHighlight: true,
+        onComplete: ()=>_coach.complete('toolsTab_unlocked'),
+        onSkip: ()=>_coach.skip('toolsTab_unlocked')
       })}
     </window.PatternDataContext.Provider>
     </window.CanvasContext.Provider>
@@ -943,7 +1019,11 @@ function UnifiedApp(){
     if(p.get('mode')==='track') return 'track';
     if(p.get('mode')==='stats') return 'stats';
     if(p.get('mode')==='showcase'){window.history.replaceState({},'','?mode=stats&tab=showcase');return 'stats';}
-    return 'home';
+    // The legacy in-Creator home screen has been retired (Tier 2 of the
+    // homepage-predominance audit). The Creator now always opens straight
+    // into design mode — the redirect guard in index.html bounces users
+    // without an active project to /home before this code runs.
+    return 'design';
   });
   const[creatorResetKey,setCreatorResetKey]=React.useState(0);
   const[trackerMounted,setTrackerMounted]=React.useState(()=>{
@@ -1003,7 +1083,7 @@ function UnifiedApp(){
     const prev=prevModeRef.current;
     if(prev==='track'){window.history.replaceState({},'','?mode=track');setMode('track');}
     else if(prev==='design'){window.history.replaceState({},'',window.location.pathname);setMode('design');}
-    else{window.history.replaceState({},'',window.location.pathname);setHomeKey(k=>k+1);setMode('home');}
+    else{window.location.href='home.html';}
   },[]);
   const switchToShowcase=React.useCallback(()=>switchToStats({tab:'showcase'}),[]);
   const switchToStats=React.useCallback((params)=>{
@@ -1023,9 +1103,9 @@ function UnifiedApp(){
     setMode('stats');
   },[closeStats]);
   const goHome=React.useCallback(()=>{
-    window.history.replaceState({},'',window.location.pathname);
-    setHomeKey(k=>k+1);
-    setMode('home');
+    // Tier 2 of the homepage-predominance audit — the legacy in-Creator home
+    // screen is retired. Always navigate to the canonical /home landing.
+    window.location.href='home.html';
   },[]);
 
   React.useEffect(()=>{
@@ -1158,34 +1238,16 @@ function UnifiedApp(){
 
   const T=typeof window.TrackerApp!=='undefined'?window.TrackerApp:null;
   return <>
-    {mode==='home'&&<div>
-      <Header page="home" tab="" onPageChange={()=>{}} setModal={setHomeModal}
-        onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setHomePrefsOpen(true):undefined} />
-      {homePrefsOpen&&typeof window.PreferencesModal!=='undefined'&&React.createElement(window.PreferencesModal,{onClose:()=>setHomePrefsOpen(false)})}
-      {homeBulkAddOpen&&typeof window.BulkAddModal!=='undefined'&&React.createElement(window.BulkAddModal,{onClose:()=>setHomeBulkAddOpen(false)})}
-      <HomeScreen
-        key={homeKey}
-        onOpenCreatorWithImage={handleHomeOpenCreatorWithImage}
-        onOpenCreatorBlank={handleHomeOpenCreatorBlank}
-        onOpenFile={handleHomeOpenFile}
-        onImportPattern={handleHomeImportPattern}
-        onOpenProject={handleHomeOpenProject}
-        onNavigateToStash={handleHomeNavigateToStash}
-        onBulkAddThreads={typeof window.BulkAddModal!=='undefined'?()=>setHomeBulkAddOpen(true):undefined}
-        onOpenGlobalStats={switchToStats}
-        onOpenShowcase={switchToShowcase}
-      />
-      {homeModal==='help'&&<SharedModals.Help defaultTab="creator" onClose={()=>setHomeModal(null)} />}
-      {homeModal==='shortcuts'&&<SharedModals.Help defaultTab="shortcuts" onClose={()=>setHomeModal(null)} />}
-      {welcomeOpen&&mode==='home'&&window.WelcomeWizard&&React.createElement(window.WelcomeWizard,{page:'creator',onClose:()=>setWelcomeOpen(false)})}
-    </div>}
+    {/* Tier 2 of the homepage-predominance audit retired the legacy
+        in-Creator HomeScreen mount. The Creator now opens straight into
+        design mode; users navigate to /home via the topbar logo. */}
     <div key={creatorResetKey} style={{display:mode==='design'?'':'none'}}>
       <CreatorErrorBoundary><CreatorApp onSwitchToTrack={switchToTrack} isActive={mode==='design'}/></CreatorErrorBoundary>
     </div>
     <div style={{display:mode==='track'?'':'none'}}>
       {trackerMounted&&!trackerReady&&(
-        <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',flexDirection:'column',gap:12,color:'#475569',fontSize:14}}>
-          <div style={{width:28,height:28,border:'2.5px solid #e2e8f0',borderTopColor:'#0d9488',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',flexDirection:'column',gap:12,color:'#5C5448',fontSize:14}}>
+          <div style={{width:28,height:28,border:'2.5px solid #E5DCCB',borderTopColor:'#B85C38',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/>
           Loading Stitch Tracker…
         </div>
       )}
@@ -1207,5 +1269,55 @@ function UnifiedApp(){
     {window.HelpHintBanner&&<window.HelpHintBanner/>}
   </>;
 }
+
+// ── Pre-mount: process ?action= deep links from /home synchronously ─────
+// MUST run BEFORE ReactDOM.createRoot so window.__pendingCreatorFile (and
+// friends) are set BEFORE CreatorApp's child-level useEffect in
+// useProjectIO consumes them. If this ran inside a parent useEffect, the
+// child effect would fire FIRST (React effects: child → parent), miss the
+// pending mark, and the user would be stranded on the Welcome card with
+// their image silently dropped.
+(function processPendingAction(){
+  try {
+    var p = new URLSearchParams(window.location.search);
+    var act = p.get('action');
+    if (!act) return;
+    window.history.replaceState({}, '', window.location.pathname);
+    if (typeof ProjectStorage !== 'undefined') {
+      try { ProjectStorage.clearActiveProject(); } catch (_) {}
+    }
+    if (act === 'new-blank') {
+      window.__pendingCreatorAction = 'scratch';
+      // Match handleHomeOpenCreatorBlank: scratch defaults to Edit, not Create.
+      setTimeout(function(){ if (window.__setCreatorAppMode) window.__setCreatorAppMode('edit'); }, 0);
+    } else if (act === 'home-image-pending') {
+      var pendingDataUrl = sessionStorage.getItem('cs_pending_image_dataurl');
+      var pendingName    = sessionStorage.getItem('cs_pending_image_name') || 'image.jpg';
+      var pendingType    = sessionStorage.getItem('cs_pending_image_type') || 'image/jpeg';
+      sessionStorage.removeItem('cs_pending_image_dataurl');
+      sessionStorage.removeItem('cs_pending_image_name');
+      sessionStorage.removeItem('cs_pending_image_type');
+      if (pendingDataUrl) {
+        var b64 = pendingDataUrl.split(',')[1];
+        var byteStr = atob(b64);
+        var ab = new ArrayBuffer(byteStr.length);
+        var ia = new Uint8Array(ab);
+        for (var bi = 0; bi < byteStr.length; bi++) ia[bi] = byteStr.charCodeAt(bi);
+        var blob = new Blob([ab], { type: pendingType });
+        window.__pendingCreatorFile = new File([blob], pendingName, { type: pendingType });
+      }
+    } else if (act === 'new-from-image') {
+      // Legacy fallback: a navigation hit create.html?action=new-from-image.
+      // No in-app code routes here any more (Header "Create", /home greeting
+      // "+ New project", and manager.html "Add new" all go to /home Create
+      // tab now). Bounce them there too rather than dumping them on the
+      // welcome card with no image picked.
+      window.location.replace('home.html?tab=create');
+      return;
+    } else if (act === 'open') {
+      setTimeout(function(){ if (window.__setCreatorAppMode) window.__setCreatorAppMode('edit'); }, 0);
+    }
+  } catch (_) { /* never block render */ }
+})();
 
 ReactDOM.createRoot(document.getElementById("root")).render(<UnifiedApp/>);

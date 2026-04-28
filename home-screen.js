@@ -1,6 +1,12 @@
 // home-screen.js
 // Dashboard hub — unified entry point for the cross-stitch app.
 // Renders when showHome === true or no current project is active.
+//
+// TODO(phase-8 follow-up): /home (home.html + home-app.js) is now the
+// default landing surface (UX-12 Phase 7). The standalone <HomeScreen>
+// here is still mounted by creator-main.js when mode === 'home', so it
+// stays for now. A future refactor should retire that Creator-mount
+// path and delete this file in one go.
 
 // ───────────────────────────────────────────────────────────────────────
 // Sample starter pattern (used by the empty-state "Try a sample" CTA).
@@ -85,6 +91,11 @@ function getGreeting() {
   if (h >= 5 && h <= 11) return 'Good morning';
   if (h >= 12 && h <= 16) return 'Good afternoon';
   return 'Good evening';
+}
+// UX-12 Phase 7: expose helpers so home-app.js (the new /home landing) can reuse them.
+if (typeof window !== 'undefined') {
+  window.timeAgo = timeAgo;
+  window.getGreeting = getGreeting;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -198,7 +209,7 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
   var fabricCt = proj.fabricCt ? proj.fabricCt + '-count' : '';
   // Thread count — meta sometimes carries it as `colourCount` or `threadCount`.
   var threadCount = proj.colourCount || proj.threadCount || (proj.threads && proj.threads.length) || 0;
-  var stashColor = stashOk === true ? '#16a34a' : stashOk === false ? '#b45309' : '#a1a1aa';
+  var stashColor = stashOk === true ? 'var(--success)' : stashOk === false ? 'var(--accent-ink)' : '#a1a1aa';
   var stashIconEl = stashOk === true ? (window.Icons && window.Icons.check && window.Icons.check())
     : stashOk === false ? (window.Icons && window.Icons.warning && window.Icons.warning())
     : (window.Icons && window.Icons.info && window.Icons.info());
@@ -339,11 +350,11 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
       // Manager pattern library but have no linked Creator/Tracker project.
       proj.managerOnly && h('div', { className: 'mpd-card-badge mpd-card-badge--manager-only',
         title: 'This entry was added directly in the Stash Manager and has no Creator/Tracker project linked.',
-        style: { display: 'inline-block', fontSize: 10, padding: '2px 8px', borderRadius: 10, background: '#fef3c7', color: '#92400e', fontWeight: 600, marginBottom: 6 } },
+        style: { display: 'inline-block', fontSize: 10, padding: '2px 8px', borderRadius:'var(--radius-lg)', background: 'var(--warning-soft)', color: 'var(--accent-ink)', fontWeight: 600, marginBottom: 6 } },
         'Stash Manager only'),
       // Optional per-card extras supplied by the parent (e.g. Manager
       // shopping-list checkbox + missing-thread badge).
-      cardExtras ? h('div', { className: 'mpd-card-extras', style: { marginBottom: 8 } }, cardExtras(proj)) : null,
+      cardExtras ? h('div', { className: 'mpd-card-extras', style: { marginBottom:'var(--s-2)' } }, cardExtras(proj)) : null,
       // Progress bar
       h('div', { className: 'mpd-card-progress-track', role: 'progressbar', 'aria-valuenow': pct, 'aria-valuemin': 0, 'aria-valuemax': 100 },
         h('div', { className: 'mpd-card-progress-fill', style: { width: Math.min(100, pct) + '%' } })
@@ -372,18 +383,21 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
       ),
       // Footer row: stash + continue
       h('div', { className: 'mpd-card-footer' },
-        h('div', { className: 'mpd-card-stash', style: { color: stashColor, display: 'inline-flex', alignItems: 'center', gap: 4 }, title: stashMsg || '' },
+        h('div', { className: 'mpd-card-stash', style: { color: stashColor, display: 'inline-flex', alignItems: 'center', gap:'var(--s-1)' }, title: stashMsg || '' },
           stashIconEl,
           h('span', null, stashMsg || (stashOk === true ? 'Ready' : stashOk === false ? 'Need threads' : 'Stash not checked'))
         ),
         h('div', { className: 'mpd-card-actions' },
           h('button', {
+            type: 'button',
             className: 'mpd-btn mpd-btn--primary',
             onClick: function() { onOpen(proj, 'tracker'); }
           }, 'Continue'),
           h('button', {
+            type: 'button',
             className: 'mpd-btn mpd-btn--ghost mpd-card-menu-btn',
             title: 'Change project state',
+            'aria-label': 'Change project state',
             onClick: function(e) {
               e.stopPropagation();
               onChangeState(proj);
@@ -430,13 +444,15 @@ function CompactProjectRow({ proj, state, onOpen, onChangeState }) {
       proj.managerOnly && h('span', {
         className: 'mpd-compact-badge',
         title: 'Stash Manager only',
-        style: { fontSize: 10, padding: '1px 6px', borderRadius: 8, background: '#fef3c7', color: '#92400e', fontWeight: 600, marginLeft: 6 }
+        style: { fontSize: 10, padding: '1px 6px', borderRadius:'var(--radius-md)', background: 'var(--warning-soft)', color: 'var(--accent-ink)', fontWeight: 600, marginLeft: 6 }
       }, 'Stash Manager only'),
       detail && h('span', { className: 'mpd-compact-detail' }, detail)
     ),
     h('button', {
+      type: 'button',
       className: 'mpd-btn mpd-btn--ghost mpd-compact-menu-btn',
       title: 'Change project state',
+      'aria-label': 'Change project state',
       onClick: function(e) { e.stopPropagation(); onChangeState(proj); }
     }, '\u2026')
   );
@@ -463,6 +479,7 @@ function StateChangeMenu({ proj, currentState, onSelect, onClose, onEditDetails 
 
   return h('div', { className: 'mpd-state-menu', onClick: function(e) { e.stopPropagation(); } },
     onEditDetails && h('button', {
+      type: 'button',
       className: 'mpd-state-menu-item mpd-state-menu-item--edit',
       onClick: function() { onClose(); onEditDetails(proj); }
     }, Icons.pencil(), ' Edit details…'),
@@ -470,6 +487,7 @@ function StateChangeMenu({ proj, currentState, onSelect, onClose, onEditDetails 
     h('div', { className: 'mpd-state-menu-title' }, 'Move to\u2026'),
     options.map(function(o) {
       return h('button', {
+        type: 'button',
         key: o.value,
         className: 'mpd-state-menu-item',
         onClick: function() { onSelect(proj, o.value); onClose(); }
@@ -510,11 +528,11 @@ function BulkDeleteModal({ projectIds, projectsById, onConfirm, onCancel }) {
     'aria-modal': 'true',
     'aria-labelledby': 'mpd-bulk-delete-title',
     onClick: function (e) { if (e.target === e.currentTarget) onCancel(); },
-    style: { position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16 }
+    style: { position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding:'var(--s-4)' }
   },
     h('div', {
       className: 'modal-content mpd-bulk-delete-modal',
-      style: { background: '#fff', borderRadius: 12, padding: 20, maxWidth: 440, width: '100%', boxShadow: '0 20px 60px rgba(15, 23, 42, 0.3)' },
+      style: { background: 'var(--surface)', borderRadius:'var(--radius-xl)', padding: 20, maxWidth: 440, width: '100%', boxShadow: '0 20px 60px rgba(15, 23, 42, 0.3)' },
     },
       h('h3', { id: 'mpd-bulk-delete-title' }, 'Delete ' + n + ' project' + (n === 1 ? '' : 's') + '?'),
       h('p', null, 'This permanently removes the selected project' + (n === 1 ? '' : 's') + ' and ' + (n === 1 ? 'its' : 'their') + ' progress, palettes, and stitch history. This cannot be undone.'),
@@ -523,7 +541,7 @@ function BulkDeleteModal({ projectIds, projectsById, onConfirm, onCancel }) {
           var name = (projectsById && projectsById[id]) || id;
           return h('li', { key: id }, name);
         }),
-        extra > 0 ? h('li', { key: '__more', style: { listStyle: 'none', marginLeft: -18, color: '#64748b' } }, '\u2026 and ' + extra + ' more') : null
+        extra > 0 ? h('li', { key: '__more', style: { listStyle: 'none', marginLeft: -18, color: 'var(--text-tertiary)' } }, '\u2026 and ' + extra + ' more') : null
       ),
       h('div', { className: 'mpd-bulk-delete-actions' },
         h('button', { type: 'button', ref: cancelRef, className: 'mpd-cancel-btn', onClick: onCancel }, 'Cancel'),
@@ -848,23 +866,23 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
       style: {
         background: 'var(--accent-light)', border: '1px solid var(--accent-border)',
         borderRadius: 'var(--radius-lg)', padding: '8px 14px',
-        display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, minHeight: 48
+        display: 'flex', alignItems: 'center', gap:'var(--s-3)', marginBottom:'var(--s-3)', minHeight: 48
       }
     },
       h('div', {
-        style: { width: 32, height: 32, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--surface)', border: '1px solid var(--border)' }
+        style: { width: 32, height: 32, borderRadius:'var(--radius-sm)', overflow: 'hidden', flexShrink: 0, background: 'var(--surface)', border: '1px solid var(--border)' }
       },
         continueProj.thumbnail
           ? h('img', { src: continueProj.thumbnail, alt: '', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' } })
           : null
       ),
       h('div', { style: { flex: 1, minWidth: 0 } },
-        h('div', { style: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, continueProj.name || 'Untitled'),
-        h('div', { style: { fontSize: 11, color: 'var(--text-secondary)' } }, continuePct + '% complete')
+        h('div', { style: { fontSize:'var(--text-md)', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, continueProj.name || 'Untitled'),
+        h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-secondary)' } }, continuePct + '% complete')
       ),
       h('button', {
         className: 'mpd-btn mpd-btn--primary',
-        style: { fontSize: 12, padding: '6px 12px', flexShrink: 0 },
+        style: { fontSize:'var(--text-sm)', padding: '6px 12px', flexShrink: 0 },
         onClick: function() { handleOpenProject(continueProj, 'tracker'); }
       }, 'Continue \u2192')
     ),
@@ -873,7 +891,7 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
     h('div', { className: 'mpd-summary-bar' },
       h('span', null, summary.activeCount + ' active project' + (summary.activeCount !== 1 ? 's' : '')),
       summary.monthStitches > 0 && h('span', null, '\u00B7 ' + summary.monthStitches.toLocaleString() + ' stitches this month'),
-      summary.streak > 1 && h('span', { className: 'mpd-streak', style: { display: 'inline-flex', alignItems: 'center', gap: 4 } },
+      summary.streak > 1 && h('span', { className: 'mpd-streak', style: { display: 'inline-flex', alignItems: 'center', gap:'var(--s-1)' } },
         window.Icons && window.Icons.fire ? window.Icons.fire() : null,
         h('span', null, summary.streak + '-day streak')
       )
@@ -1581,16 +1599,16 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
 
     // Showcase entry tile (shown alongside stats row when projects exist)
     !showDashboard && !isEmptyState && projectCount > 0 && onOpenShowcase && h('div', {
-      style: { display: 'flex', justifyContent: 'flex-end', marginTop: -8, marginBottom: 4, paddingRight: 2 }
+      style: { display: 'flex', justifyContent: 'flex-end', marginTop: -8, marginBottom:'var(--s-1)', paddingRight: 2 }
     },
       h('button', {
         onClick: onOpenShowcase,
         title: 'See your stitching journey',
         'aria-label': 'Open Showcase view',
-        style: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', fontFamily: 'inherit' }
+        style: { fontSize:'var(--text-sm)', fontWeight: 600, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', fontFamily: 'inherit' }
       },
         window.Icons && window.Icons.star ? window.Icons.star() : null,
-        h('span', { style: { marginLeft: 4 } }, 'See your Showcase \u2192')
+        h('span', { style: { marginLeft:'var(--s-1)' } }, 'See your Showcase \u2192')
       )
     ),
 
@@ -1628,7 +1646,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
           ),
           (heroProject.lastSessionStitches > 0 || heroProject.totalMinutes > 0) && h('div', {
             className: 'home-hero-last-session',
-            style: { fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }
+            style: { fontSize:'var(--text-sm)', color: 'var(--text-tertiary)', marginTop:'var(--s-1)' }
           },
             'Last session: '
               + (heroProject.lastSessionStitches > 0 ? heroProject.lastSessionStitches.toLocaleString() + ' stitches' : '\u2014')
@@ -1654,7 +1672,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       // Start New panel
       h('div', {
           className: 'home-panel',
-          style: { border: isDragging ? "2px dashed #0d9488" : undefined, background: isDragging ? "#f0fdfa" : undefined, transition: "all 0.2s" },
+          style: { border: isDragging ? "2px dashed var(--accent)" : undefined, background: isDragging ? "var(--accent-light)" : undefined, transition: "all 0.2s" },
           onDragOver: function(e) { e.preventDefault(); setIsDragging(true); },
           onDragEnter: function(e) { e.preventDefault(); setIsDragging(true); },
           onDragLeave: function(e) { e.preventDefault(); setIsDragging(false); },
@@ -1743,8 +1761,8 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
                     title: stashStatus === 'all' ? 'All threads in stash' : 'Some threads in stash',
                     style: {
                       width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                      background: stashStatus === 'all' ? '#16a34a' : '#f59e0b',
-                      display: 'inline-block', marginRight: 4
+                      background: stashStatus === 'all' ? 'var(--success)' : 'var(--warning)',
+                      display: 'inline-block', marginRight:'var(--s-1)'
                     }
                   }),
                   h('span', { className: 'home-recent-progress' + (isDone ? ' home-recent-progress--done' : '') },
@@ -1839,40 +1857,40 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
             },
               h('circle', {
                 cx: DONUT_SIZE/2, cy: DONUT_SIZE/2, r: R,
-                fill: 'none', stroke: '#e2e8f0', strokeWidth: STROKE
+                fill: 'none', stroke: 'var(--border)', strokeWidth: STROKE
               }),
               totalRatio > 0 && h('circle', {
                 cx: DONUT_SIZE/2, cy: DONUT_SIZE/2, r: R,
-                fill: 'none', stroke: '#0d9488', strokeWidth: STROKE,
+                fill: 'none', stroke: 'var(--accent)', strokeWidth: STROKE,
                 strokeDasharray: ownedDash + ' ' + (CIRC - ownedDash),
                 strokeDashoffset: CIRC / 4,
                 transform: 'rotate(-90 ' + (DONUT_SIZE/2) + ' ' + (DONUT_SIZE/2) + ')'
               }),
               h('text', {
                 x: DONUT_SIZE/2, y: DONUT_SIZE/2 + 4,
-                textAnchor: 'middle', fontSize: 13, fontWeight: 700, fill: '#0f172a'
+                textAnchor: 'middle', fontSize:'var(--text-md)', fontWeight: 700, fill: 'var(--text-primary)'
               }, totalRatio > 0 ? Math.round(ownedFrac * 100) + '%' : '–')
             ),
-            h('div', { style: { fontSize: 13, color: '#475569', lineHeight: 1.45 } },
-              h('div', null, h('strong', { style: { color: '#0f172a' } }, owned.toLocaleString() + ' threads owned'),
-                brandCount > 0 && h('span', { style: { color: '#94a3b8', marginLeft: 8 } }, '\u00B7 ' + brandCount + ' brand' + (brandCount === 1 ? '' : 's'))
+            h('div', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)', lineHeight: 1.45 } },
+              h('div', null, h('strong', { style: { color: 'var(--text-primary)' } }, owned.toLocaleString() + ' threads owned'),
+                brandCount > 0 && h('span', { style: { color: 'var(--text-tertiary)', marginLeft:'var(--s-2)' } }, '\u00B7 ' + brandCount + ' brand' + (brandCount === 1 ? '' : 's'))
               ),
               wishlist > 0
-                ? h('div', { style: { fontSize: 11, color: '#b45309', marginTop: 2 } }, wishlist.toLocaleString() + ' on wishlist (still to buy)')
-                : owned > 0 && h('div', { style: { fontSize: 11, color: '#16a34a', marginTop: 2 } }, 'No outstanding wishlist')
+                ? h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--accent-ink)', marginTop: 2 } }, wishlist.toLocaleString() + ' on wishlist (still to buy)')
+                : owned > 0 && h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--success)', marginTop: 2 } }, 'No outstanding wishlist')
             )
           );
         })(),
-        h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
+        h('div', { style: { display: 'flex', gap:'var(--s-2)', flexWrap: 'wrap' } },
           onBulkAddThreads && h('button', {
             onClick: onBulkAddThreads,
             'data-onboard': 'home-bulk-add',
-            style: { padding: '8px 14px', borderRadius: 8, border: 'none', background: '#0d9488', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
+            style: { padding: '8px 14px', borderRadius:'var(--radius-md)', border: 'none', background: 'var(--accent)', color: 'var(--surface)', fontSize:'var(--text-md)', fontWeight: 600, cursor: 'pointer' },
             title: 'Paste a list of DMC/Anchor IDs to add to your stash (shortcut: B)'
-          }, '+ Bulk Add Threads ', h('kbd', { style: { background: 'rgba(255,255,255,0.2)', color: '#fff', padding: '1px 5px', borderRadius: 3, fontSize: 10, marginLeft: 4 } }, 'B')),
+          }, '+ Bulk Add Threads ', h('kbd', { style: { background: 'rgba(255,255,255,0.2)', color: 'var(--surface)', padding: '1px 5px', borderRadius: 3, fontSize: 10, marginLeft:'var(--s-1)' } }, 'B')),
           h('button', {
             onClick: onNavigateToStash,
-            style: { padding: '8px 14px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer' }
+            style: { padding: '8px 14px', borderRadius:'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize:'var(--text-md)', fontWeight: 600, cursor: 'pointer' }
           }, 'Open Stash Manager \u2192')
         )
       )

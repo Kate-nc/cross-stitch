@@ -21,44 +21,50 @@ const SharedModals = {
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
     if (!showFallback) return null;
-    return React.createElement("div", { className: "modal-overlay", onClick: onClose },
-      React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 460 } },
-        React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "×"),
-        React.createElement("h3", { style: { marginTop: 0, marginBottom: 12, fontSize: 20, color: "#1e293b" } }, "Help"),
-        React.createElement("p", { style: { margin: 0, color: "#475569", fontSize: 14, lineHeight: 1.6 } },
-          "The help panel could not be opened. Please reload the page to restore full functionality."
-        ),
-        React.createElement("div", { style: { marginTop: 16, textAlign: "right" } },
-          React.createElement("button", { className: "btn btn-primary", onClick: onClose }, "Close")
+    return React.createElement(window.Overlay, {
+      onClose: onClose, variant: 'dialog', maxWidth: 460, labelledBy: 'help-fallback-title'
+    },
+        React.createElement(window.Overlay.CloseButton, { onClose: onClose }),
+        React.createElement('div', { style: { padding: 24 } },
+          React.createElement("h3", { id: 'help-fallback-title', style: { marginTop: 0, marginBottom: 12, fontSize: 20, color: "var(--text-primary)" } }, "Help"),
+          React.createElement("p", { style: { margin: 0, color: "var(--text-secondary)", fontSize: 14, lineHeight: 1.6 } },
+            "The help panel could not be opened. Please reload the page to restore full functionality."
+          ),
+          React.createElement("div", { style: { marginTop: 16, textAlign: "right" } },
+            React.createElement("button", { className: "btn btn-primary", onClick: onClose }, "Close")
+          )
         )
-      )
     );
   },
 
   About: ({ onClose }) => {
-    window.useEscape(onClose);
-    return React.createElement("div", { className: "modal-overlay", onClick: onClose },
-      React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 500 } },
-        React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "×"),
-        React.createElement("h3", { style: { marginTop: 0, marginBottom: 15, fontSize: 22, color: "#1e293b" } }, "About"),
-        React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 16 } },
-          React.createElement("p", { style: { margin: 0, color: "#475569", fontSize: 15, lineHeight: 1.5 } },
+    return React.createElement(window.Overlay, {
+      onClose: onClose,
+      variant: 'dialog',
+      maxWidth: 500,
+      labelledBy: 'about-title'
+    },
+      React.createElement(window.Overlay.CloseButton, { onClose: onClose }),
+      React.createElement('div', { style: { padding: 24 } },
+        React.createElement('h3', { id: 'about-title', style: { marginTop: 0, marginBottom: 15, fontSize: 22, color: 'var(--text-primary)' } }, 'About'),
+        React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 16 } },
+          React.createElement('p', { style: { margin: 0, color: 'var(--text-secondary)', fontSize: 15, lineHeight: 1.5 } },
             "Cross Stitch Pattern Generator is a free, client-side web application designed to help you create and track cross-stitch patterns directly in your browser."
           ),
-          React.createElement("p", { style: { margin: 0, color: "#475569", fontSize: 14, lineHeight: 1.5 } },
+          React.createElement('p', { style: { margin: 0, color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.5 } },
             "Because this app runs entirely in your browser, ",
-            React.createElement("strong", { style: { color: "#1e293b" } }, "no images or pattern data are ever uploaded to a server."),
+            React.createElement('strong', { style: { color: 'var(--text-primary)' } }, "no images or pattern data are ever uploaded to a server."),
             " Your projects remain private and local to your device."
           ),
-          React.createElement("div", { style: { padding: "12px", background: "#f8f9fa", borderRadius: 8, border: "0.5px solid #e2e8f0" } },
-            React.createElement("h4", { style: { margin: "0 0 8px 0", color: "#1e293b", fontSize: 14 } }, "Technologies Used:"),
-            React.createElement("ul", { style: { margin: 0, paddingLeft: 20, color: "#475569", fontSize: 13, lineHeight: 1.5 } },
-              React.createElement("li", null, "React (UI Framework)"),
-              React.createElement("li", null, "jsPDF (PDF Generation)"),
-              React.createElement("li", null, "pako (URL Compression)")
+          React.createElement('div', { style: { padding: "12px", background: 'var(--surface-secondary)', borderRadius: 8, border: "0.5px solid var(--border)" } },
+            React.createElement('h4', { style: { margin: "0 0 8px 0", color: 'var(--text-primary)', fontSize: 14 } }, "Technologies Used:"),
+            React.createElement('ul', { style: { margin: 0, paddingLeft: 20, color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5 } },
+              React.createElement('li', null, "React (UI Framework)"),
+              React.createElement('li', null, "jsPDF (PDF Generation)"),
+              React.createElement('li', null, "pako (URL Compression)")
             )
           ),
-          React.createElement("p", { style: { margin: 0, color: "#94a3b8", fontSize: 12, textAlign: "center", marginTop: 10 } },
+          React.createElement('p', { style: { margin: 0, color: 'var(--text-tertiary)', fontSize: 12, textAlign: "center", marginTop: 10 } },
             "Version 1.0.0"
           )
         )
@@ -69,6 +75,13 @@ const SharedModals = {
   ThreadSelector: ({ onClose, currentSymbol, currentThreadId, onSelect, usedThreads, onSwap, pal }) => {
     const [search, setSearch] = React.useState("");
     const [swapCandidate, setSwapCandidate] = React.useState(null); // thread entry that was "In Use" and clicked
+
+    // PERF (perf-4 #3): wrap usedThreads in a Set so .has() is O(1) instead of
+    // .includes() being O(n) on each render of every list row.
+    const usedThreadSet = React.useMemo(
+      () => new Set(Array.isArray(usedThreads) ? usedThreads : []),
+      [usedThreads]
+    );
 
     // We expect DMC to be available globally
     const filteredThreads = React.useMemo(() => {
@@ -82,11 +95,11 @@ const SharedModals = {
 
     function renderSwapBanner() {
       if (!swapCandidate) return null;
-      return React.createElement("div", { style: { margin: "0 0 12px 0", padding: "12px 14px", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8 } },
-        React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#92400e", marginBottom: 8 } },
+      return React.createElement("div", { style: { margin: "0 0 12px 0", padding: "12px 14px", background: "#FAF5E1", border: "1px solid #E5C97D", borderRadius: 8 } },
+        React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#6B461F", marginBottom: 8 } },
           `DMC ${swapCandidate.id} is already assigned to another symbol.`
         ),
-        React.createElement("div", { style: { fontSize: 12, color: "#475569", marginBottom: 10 } },
+        React.createElement("div", { style: { fontSize: 12, color: "var(--text-secondary)", marginBottom: 10 } },
           `Swap the two symbols' colour assignments? Both symbols will keep their shapes — only their thread colours will exchange.`
         ),
         React.createElement("div", { style: { display: "flex", gap: 8 } },
@@ -97,11 +110,11 @@ const SharedModals = {
                 if (conflictingPalEntry) onSwap(conflictingPalEntry);
               }
             },
-            style: { padding: "7px 14px", fontSize: 13, background: "#d97706", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }
+            style: { padding: "7px 14px", fontSize: 13, background: "#A06F2D", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }
           }, "Swap Colours"),
           React.createElement("button", {
             onClick: () => setSwapCandidate(null),
-            style: { padding: "7px 14px", fontSize: 13, background: "#fff", color: "#475569", border: "1px solid #e2e8f0", borderRadius: 6, cursor: "pointer" }
+            style: { padding: "7px 14px", fontSize: 13, background: "var(--surface)", color: "var(--text-secondary)", border: "1px solid var(--border)", borderRadius: 6, cursor: "pointer" }
           }, "Cancel")
         )
       );
@@ -109,10 +122,10 @@ const SharedModals = {
 
     function renderEmptyThreadList() {
       return React.createElement("div", { style: { padding: 20, textAlign: "center" } },
-        React.createElement("div", { style: { color: "#475569", fontSize: 14, marginBottom: 12 } }, "No threads found."),
+        React.createElement("div", { style: { color: "var(--text-secondary)", fontSize: 14, marginBottom: 12 } }, "No threads found."),
         search.trim() !== "" ? React.createElement("button", {
           onClick: () => {
-            if (usedThreads.includes(search.trim())) {
+            if (usedThreadSet.has(search.trim())) {
               alert(`Thread ${search.trim()} is already assigned to another symbol.`);
               return;
             }
@@ -123,46 +136,62 @@ const SharedModals = {
               lab: [80, 0, 0]
             });
           },
-          style: { padding: "8px 16px", fontSize: 13, background: "#0d9488", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 500 }
+          style: { padding: "8px 16px", fontSize: 13, background: "var(--accent)", color: "var(--text-on-accent)", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 500 }
         }, `Use "${search.trim()}" anyway`) : null
       );
     }
 
     function renderThreadListItem(t) {
       const isCurrent = t.id === currentThreadId;
-      const isUsed = usedThreads.includes(t.id) && !isCurrent;
+      const isUsed = usedThreadSet.has(t.id) && !isCurrent;
       const isSwapCandidate = swapCandidate && swapCandidate.id === t.id;
-      return React.createElement("div", {
+      // Audit batch 2 fix #5: this row is interactive but isn't a native
+      // <button>, so Enter/Space don't fire onClick for free. Expose it as
+      // role=button + tabIndex=0 and forward keyboard activation manually
+      // so the swap-thread list is usable without a pointer.
+      const activate = () => {
+        if (isUsed) {
+          setSwapCandidate(t);
+          return;
+        }
+        onSelect(t);
+      };
+      return React.createElement("button", {
         key: t.id,
-        onClick: () => {
-          if (isUsed) {
-            setSwapCandidate(t);
-            return;
-          }
-          onSelect(t);
-        },
+        type: "button",
+        onClick: activate,
         style: {
-          display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderBottom: "1px solid #f1f5f9",
-          background: isCurrent ? "#f0fdfa" : isSwapCandidate ? "#fffbeb" : (isUsed ? "#f8f9fa" : "#fff"),
-          cursor: isUsed ? "pointer" : "pointer",
-          opacity: 1
+          display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderBottom: "1px solid var(--border-subtle)",
+          background: isCurrent ? "var(--accent-light)" : isSwapCandidate ? "#FAF5E1" : (isUsed ? "var(--surface-secondary)" : "var(--surface)"),
+          cursor: "pointer",
+          opacity: 1,
+          width: "100%",
+          textAlign: "left",
+          font: "inherit",
+          color: "inherit",
+          border: "none",
+          borderRadius: 0
         }
       },
-        React.createElement("div", { style: { width: 24, height: 24, borderRadius: 4, background: `rgb(${t.rgb[0]},${t.rgb[1]},${t.rgb[2]})`, border: "1px solid #cbd5e1", flexShrink: 0 } }),
-        React.createElement("div", { style: { fontWeight: 600, fontSize: 14, minWidth: 60, color: "#1e293b" } }, "DMC " + t.id),
-        React.createElement("div", { style: { fontSize: 13, color: "#475569", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, t.name),
-        isCurrent && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#0d9488", background: "#ccfbf1", padding: "2px 8px", borderRadius: 10 } }, "Current"),
-        isUsed && !isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#d97706", background: "#fef3c7", padding: "2px 8px", borderRadius: 10 } }, "In Use — tap to swap"),
-        isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#92400e", background: "#fde68a", padding: "2px 8px", borderRadius: 10 } }, "Swap?")
+        React.createElement("div", { style: { width: 24, height: 24, borderRadius: 4, background: `rgb(${t.rgb[0]},${t.rgb[1]},${t.rgb[2]})`, border: "1px solid var(--line-2)", flexShrink: 0 } }),
+        React.createElement("div", { style: { fontWeight: 600, fontSize: 14, minWidth: 60, color: "var(--text-primary)" } }, "DMC " + t.id),
+        React.createElement("div", { style: { fontSize: 13, color: "var(--text-secondary)", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, t.name),
+        isCurrent && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "var(--accent)", background: "var(--accent-light)", padding: "2px 8px", borderRadius: 10 } }, "Current"),
+        isUsed && !isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#A06F2D", background: "#F2E2BE", padding: "2px 8px", borderRadius: 10 } }, "In Use — tap to swap"),
+        isSwapCandidate && React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#6B461F", background: "#E5C97D", padding: "2px 8px", borderRadius: 10 } }, "Swap?")
       );
     }
 
-    return React.createElement("div", { className: "modal-overlay", onClick: onClose },
-      React.createElement("div", { className: "modal-content", onClick: e => e.stopPropagation(), style: { maxWidth: 500, display: "flex", flexDirection: "column", maxHeight: "80vh" } },
-        React.createElement("button", { className: "modal-close", onClick: onClose, "aria-label": "Close" }, "×"),
-        React.createElement("h3", { style: { marginTop: 0, marginBottom: 15, fontSize: 20, color: "#1e293b" } },
+    return React.createElement(window.Overlay, {
+      onClose: onClose, variant: 'dialog',
+      labelledBy: 'thread-selector-title',
+      style: { maxWidth: 500, width: '100%', display: "flex", flexDirection: "column", maxHeight: "80vh" }
+    },
+        React.createElement(window.Overlay.CloseButton, { onClose: onClose }),
+        React.createElement('div', { style: { padding: 24, display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 } },
+        React.createElement("h3", { id: 'thread-selector-title', style: { marginTop: 0, marginBottom: 15, fontSize: 20, color: "#1B1814" } },
           "Choose a different colour for ",
-          React.createElement("span", { style: { fontFamily: "monospace", background: "#f1f5f9", padding: "2px 6px", borderRadius: 4, border: "1px solid #e2e8f0" } }, currentSymbol)
+          React.createElement("span", { style: { fontFamily: "monospace", background: "#EFE7D6", padding: "2px 6px", borderRadius: 4, border: "1px solid #E5DCCB" } }, currentSymbol)
         ),
 
         React.createElement("div", { style: { marginBottom: 15 } },
@@ -171,14 +200,14 @@ const SharedModals = {
             placeholder: "Search by DMC code or name...",
             value: search,
             onChange: e => setSearch(e.target.value),
-            style: { width: "100%", padding: "10px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 14, boxSizing: "border-box" },
+            style: { width: "100%", padding: "10px", borderRadius: 8, border: "1px solid #E5DCCB", fontSize: 14, boxSizing: "border-box" },
             autoFocus: true
           })
         ),
 
         renderSwapBanner(),
 
-        React.createElement("div", { style: { flex: 1, overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: 8 } },
+        React.createElement("div", { style: { flex: 1, overflowY: "auto", border: "1px solid #E5DCCB", borderRadius: 8 } },
           filteredThreads.length === 0 ? renderEmptyThreadList() : filteredThreads.map(renderThreadListItem)
         )
       )
@@ -190,28 +219,33 @@ const SharedModals = {
     // Falls back to a tiny static notice if the registry isn't loaded (e.g.
     // shortcuts.js script tag missing).
     const reg = (typeof window !== 'undefined') && window.Shortcuts;
+    // Inline confirm state for the destructive "Reset preview preferences"
+    // action. Replaces a previous browser confirm() + alert() pair (audit
+    // batch 2 fix #1) so the user stays inside the Workshop modal styling
+    // and the action is screen-reader-friendly.
+    const [resetState, setResetState] = React.useState('idle'); // 'idle' | 'arming' | 'done'
 
     function kbList(keys) {
       // keys: array of pre-formatted strings (e.g. ['Ctrl+Z', '⌘Z']).
       const out = [];
       keys.forEach((k, i) => {
-        if (i > 0) out.push(React.createElement('span', { key: 'sl'+i, style: { margin: '0 3px', color: '#94a3b8', fontSize: 10 } }, '/'));
+        if (i > 0) out.push(React.createElement('span', { key: 'sl'+i, style: { margin: '0 3px', color: '#A89E89', fontSize: 10 } }, '/'));
         out.push(React.createElement('kbd', { key: 'k'+i }, k));
       });
       return React.createElement('span', { style: { whiteSpace: 'nowrap' } }, ...out);
     }
 
     function shRow(keys, desc, key) {
-      return React.createElement('div', { key: key, style: { display: 'flex', alignItems: 'baseline', gap: 12, padding: '4px 0', borderBottom: '0.5px solid #f1f5f9' } },
+      return React.createElement('div', { key: key, style: { display: 'flex', alignItems: 'baseline', gap: 12, padding: '4px 0', borderBottom: '0.5px solid #EFE7D6' } },
         React.createElement('div', { style: { minWidth: 130, flexShrink: 0 } }, kbList(keys)),
-        React.createElement('div', { style: { fontSize: 13, color: '#475569' } }, desc)
+        React.createElement('div', { style: { fontSize: 13, color: '#5C5448' } }, desc)
       );
     }
 
     function section(title, rows, key) {
       if (!rows.length) return null;
       return React.createElement('div', { key: key, style: { marginBottom: 16 } },
-        React.createElement('div', { style: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.07em', marginBottom: 6, paddingBottom: 4, borderBottom: '1px solid #e2e8f0' } }, title),
+        React.createElement('div', { style: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#A89E89', letterSpacing: '0.07em', marginBottom: 6, paddingBottom: 4, borderBottom: '1px solid #E5DCCB' } }, title),
         ...rows
       );
     }
@@ -241,7 +275,7 @@ const SharedModals = {
 
     let content;
     if (!reg || typeof reg.list !== 'function') {
-      content = React.createElement('p', { style: { color: '#94a3b8', fontSize: 13 } },
+      content = React.createElement('p', { style: { color: '#A89E89', fontSize: 13 } },
         'Shortcut registry not loaded — keyboard shortcuts may be unavailable on this page.');
     } else {
       // Show shortcuts whose scope is currently active. The page hint lets
@@ -265,31 +299,64 @@ const SharedModals = {
       });
       content = sections.length
         ? sections
-        : React.createElement('p', { style: { color: '#94a3b8', fontSize: 13 } },
+        : React.createElement('p', { style: { color: '#A89E89', fontSize: 13 } },
             'No shortcuts available in the current view.');
     }
 
-    return React.createElement('div', { className: 'modal-overlay', onClick: onClose },
-      React.createElement('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 460, maxHeight: '80vh', overflowY: 'auto' } },
-        React.createElement('button', { className: 'modal-close', onClick: onClose, 'aria-label': 'Close' }, '×'),
-        React.createElement('h3', { style: { marginTop: 0, marginBottom: 16, fontSize: 20, color: '#1e293b' } }, 'Keyboard Shortcuts'),
+    return React.createElement(window.Overlay, {
+      onClose: onClose, variant: 'dialog',
+      labelledBy: 'shortcuts-title',
+      style: { maxWidth: 460, width: '100%', maxHeight: '80vh', overflowY: 'auto' }
+    },
+        React.createElement(window.Overlay.CloseButton, { onClose: onClose }),
+        React.createElement('div', { style: { padding: 24 } },
+        React.createElement('h3', { id: 'shortcuts-title', style: { marginTop: 0, marginBottom: 16, fontSize: 20, color: '#1B1814' } }, 'Keyboard Shortcuts'),
         content,
-        React.createElement('p', { style: { margin: '8px 0 0', fontSize: 12, color: '#94a3b8', textAlign: 'center' } },
+        React.createElement('p', { style: { margin: '8px 0 0', fontSize: 12, color: '#A89E89', textAlign: 'center' } },
           'Press ', React.createElement('kbd', null, '?'), ' anytime to toggle this panel'
         ),
-        React.createElement('div', { style: { marginTop: 16, paddingTop: 12, borderTop: '1px solid #f1f5f9', textAlign: 'center' } },
-          React.createElement('button', {
-            onClick: function() {
-              if (confirm('Reset all preview preferences and per-pattern view states to defaults?\n\nThis cannot be undone.')) {
-                if (typeof UserPrefs !== 'undefined') UserPrefs.reset();
-                onClose();
-                alert('Preferences reset. Reload the page to apply defaults.');
-              }
-            },
-            style: { fontSize: 11, color: '#94a3b8', background: 'none', border: '1px solid #e2e8f0', borderRadius: 4, padding: '4px 12px', cursor: 'pointer' }
-          }, 'Reset preview preferences…')
+        React.createElement('div', { style: { marginTop: 16, paddingTop: 12, borderTop: '1px solid #EFE7D6', textAlign: 'center' } },
+          resetState === 'idle' && React.createElement('button', {
+            onClick: function() { setResetState('arming'); },
+            style: { fontSize: 11, color: '#A89E89', background: 'none', border: '1px solid #E5DCCB', borderRadius: 4, padding: '4px 12px', cursor: 'pointer' }
+          }, 'Reset preview preferences\u2026'),
+          resetState === 'arming' && React.createElement('div', {
+            role: 'alertdialog',
+            'aria-labelledby': 'shortcuts-reset-msg',
+            style: { display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', padding: '8px 12px', background: 'var(--surface-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }
+          },
+            React.createElement('p', {
+              id: 'shortcuts-reset-msg',
+              style: { margin: 0, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4 }
+            }, 'Reset all preview preferences and per-pattern view states to defaults? This cannot be undone.'),
+            React.createElement('div', { style: { display: 'flex', gap: 8 } },
+              React.createElement('button', {
+                onClick: function() {
+                  if (typeof UserPrefs !== 'undefined') UserPrefs.reset();
+                  setResetState('done');
+                },
+                style: { fontSize: 11, color: 'var(--surface)', background: 'var(--danger)', border: '1px solid var(--danger)', borderRadius: 4, padding: '4px 12px', cursor: 'pointer', fontWeight: 600 }
+              }, 'Reset preferences'),
+              React.createElement('button', {
+                onClick: function() { setResetState('idle'); },
+                style: { fontSize: 11, color: 'var(--text-secondary)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 12px', cursor: 'pointer' }
+              }, 'Cancel')
+            )
+          ),
+          resetState === 'done' && React.createElement('div', {
+            role: 'status',
+            style: { display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', padding: '8px 12px', background: 'var(--success-soft)', border: '1px solid var(--success-soft)', borderRadius: 'var(--radius-sm)' }
+          },
+            React.createElement('p', {
+              style: { margin: 0, fontSize: 12, color: 'var(--success)', fontWeight: 600 }
+            }, 'Preferences reset. Reload the page to apply the defaults.'),
+            React.createElement('button', {
+              onClick: function() { try { location.reload(); } catch (_) { onClose(); } },
+              style: { fontSize: 11, color: 'var(--surface)', background: 'var(--accent)', border: '1px solid var(--accent)', borderRadius: 4, padding: '4px 12px', cursor: 'pointer', fontWeight: 600 }
+            }, 'Reload now')
+          )
         )
-      )
+        )
     );
   },
 
@@ -302,25 +369,31 @@ function NamePromptModal({ defaultName, onConfirm, onCancel }) {
   const inputRef = React.useRef(null);
   React.useEffect(() => { if (inputRef.current) inputRef.current.select(); }, []);
   const handleSubmit = () => { const trimmed = name.trim(); onConfirm(trimmed || defaultName || 'cross-stitch-project'); };
-  // Use the global ESC stack so this modal closes on top of any other open
-  // modal without conflicting with their handlers. skipWhenEditingTextField
-  // is disabled because the only focusable element here is the name input.
-  window.useEscape(onCancel, { skipWhenEditingTextField: false });
-  return React.createElement('div', { className: 'modal-overlay', onClick: onCancel },
-    React.createElement('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 400 } },
-      React.createElement('button', { className: 'modal-close', onClick: onCancel }, '×'),
-      React.createElement('h3', { style: { marginTop: 0, marginBottom: 12, fontSize: 18, color: '#1e293b' } }, 'Name Your Project'),
-      React.createElement('p', { style: { margin: '0 0 12px', fontSize: 13, color: '#475569' } }, 'Give your project a name before saving.'),
+  // skipWhenEditingTextField is disabled because the only focusable element
+  // here is the name input — without this, ESC would be swallowed by the
+  // input and the modal could never be dismissed by keyboard.
+  return React.createElement(window.Overlay, {
+    onClose: onCancel,
+    variant: 'dialog',
+    maxWidth: 400,
+    labelledBy: 'name-prompt-title',
+    escapeOptions: { skipWhenEditingTextField: false }
+  },
+    React.createElement(window.Overlay.CloseButton, { onClose: onCancel }),
+    React.createElement('div', { style: { padding: 24 } },
+      React.createElement('h3', { id: 'name-prompt-title', style: { marginTop: 0, marginBottom: 12, fontSize: 18, color: 'var(--text-primary)' } }, 'Name Your Project'),
+      React.createElement('p', { style: { margin: '0 0 12px', fontSize: 13, color: 'var(--text-secondary)' } }, 'Give your project a name before saving.'),
       React.createElement('input', {
         ref: inputRef, type: 'text', maxLength: 60, value: name,
+        'data-autofocus': true,
         onChange: e => setName(e.target.value),
         onKeyDown: e => { if (e.key === 'Enter') handleSubmit(); },
         placeholder: 'e.g. Rose Garden',
-        style: { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 14, boxSizing: 'border-box' }
+        style: { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 14, boxSizing: 'border-box' }
       }),
       React.createElement('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 } },
-        React.createElement('button', { onClick: onCancel, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' } }, 'Cancel'),
-        React.createElement('button', { onClick: handleSubmit, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none', background: '#0d9488', color: '#fff', cursor: 'pointer', fontWeight: 600 } }, 'Save')
+        React.createElement('button', { onClick: onCancel, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer' } }, 'Cancel'),
+        React.createElement('button', { onClick: handleSubmit, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontWeight: 600 } }, 'Save')
       )
     )
   );
@@ -341,7 +414,7 @@ function SyncSummaryModal({ plan, onApply, onCancel }) {
   var applying = _applying[0], setApplying = _applying[1];
 
   // Block ESC during apply so the user can't dismiss mid-import.
-  window.useEscape(function() { if (!applying) onCancel(); });
+  // (Routed through <Overlay> via escapeOptions below.)
 
   function setResolution(id, val) {
     setResolutions(function(prev) {
@@ -370,10 +443,15 @@ function SyncSummaryModal({ plan, onApply, onCancel }) {
     return h('span', { className: 'sync-stat-badge' + (cls ? ' ' + cls : '') }, count + ' ' + label);
   }
 
-  return h('div', { className: 'modal-overlay', onClick: onCancel },
-    h('div', { className: 'modal-content sync-summary-modal', onClick: function(e) { e.stopPropagation(); } },
-      h('button', { className: 'modal-close', onClick: onCancel, 'aria-label': 'Close' }, '\u00d7'),
-      h('h3', { className: 'sync-summary-title' },
+  return h(window.Overlay, {
+    onClose: function() { if (!applying) onCancel(); },
+    variant: 'dialog',
+    className: 'sync-summary-modal',
+    labelledBy: 'sync-summary-title',
+    dismissOnScrim: !applying
+  },
+      h(window.Overlay.CloseButton, { onClose: onCancel }),
+      h('h3', { id: 'sync-summary-title', className: 'sync-summary-title' },
         Icons.cloudSync(), ' Import Sync File'
       ),
 
@@ -471,7 +549,6 @@ function SyncSummaryModal({ plan, onApply, onCancel }) {
           applying ? 'Applying\u2026' : hasChanges ? 'Apply Sync' : 'Nothing to sync'
         )
       )
-    )
   );
 }
 
@@ -595,7 +672,7 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
 
   var nameRef = React.useRef(null);
   React.useEffect(function() { if (nameRef.current) nameRef.current.select(); }, []);
-  window.useEscape(onClose);
+  // ESC delegated to <Overlay>.
 
   function handleSave() {
     var trimmedName = (name || '').trim().slice(0, 60);
@@ -625,13 +702,17 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
     });
   }
 
-  var inputStyle = { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border, #e2e8f0)', fontSize: 14, boxSizing: 'border-box', background: 'var(--surface, #fff)', color: 'var(--text-primary, #1e293b)' };
-  var labelStyle = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #475569)' };
+  var inputStyle = { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border, #E5DCCB)', fontSize: 14, boxSizing: 'border-box', background: 'var(--surface, #fff)', color: 'var(--text-primary, #1B1814)' };
+  var labelStyle = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #5C5448)' };
 
-  return h('div', { className: 'modal-overlay', onClick: onClose },
-    h('div', { className: 'modal-content', onClick: function(e) { e.stopPropagation(); }, style: { maxWidth: 420 } },
-      h('button', { className: 'modal-close', onClick: onClose, 'aria-label': 'Close' }, '\u00d7'),
-      h('h3', { style: { marginTop: 0, marginBottom: 16, fontSize: 18, color: 'var(--text-primary, #1e293b)', display: 'flex', alignItems: 'center', gap: 8 } },
+  return h(window.Overlay, {
+    onClose: onClose, variant: 'dialog', maxWidth: 420,
+    labelledBy: 'edit-proj-title',
+    escapeOptions: { skipWhenEditingTextField: false }
+  },
+      h(window.Overlay.CloseButton, { onClose: onClose }),
+      h('div', { style: { padding: 24 } },
+      h('h3', { id: 'edit-proj-title', style: { marginTop: 0, marginBottom: 16, fontSize: 18, color: 'var(--text-primary, #1B1814)', display: 'flex', alignItems: 'center', gap: 8 } },
         Icons.pencil(), ' Edit project details'
       ),
       h('div', { style: { display: 'flex', flexDirection: 'column', gap: 14 } },
@@ -668,11 +749,11 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
           })
         )
       ),
-      err && h('p', { style: { margin: '10px 0 0', fontSize: 12, color: '#dc2626' } }, err),
+      err && h('p', { style: { margin: '10px 0 0', fontSize: 12, color: '#A53D3D' } }, err),
       h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 18 } },
-        h('button', { onClick: onClose, disabled: saving, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border, #e2e8f0)', background: 'var(--surface, #fff)', cursor: 'pointer', color: 'var(--text-primary, #1e293b)' } }, 'Cancel'),
-        h('button', { onClick: handleSave, disabled: saving, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none', background: '#0d9488', color: '#fff', cursor: saving ? 'wait' : 'pointer', fontWeight: 600 } }, saving ? 'Saving\u2026' : 'Save')
+        h('button', { onClick: onClose, disabled: saving, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border, #E5DCCB)', background: 'var(--surface, #fff)', cursor: 'pointer', color: 'var(--text-primary, #1B1814)' } }, 'Cancel'),
+        h('button', { onClick: handleSave, disabled: saving, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none', background: '#B85C38', color: '#fff', cursor: saving ? 'wait' : 'pointer', fontWeight: 600 } }, saving ? 'Saving\u2026' : 'Save')
       )
-    )
+      )
   );
 }
