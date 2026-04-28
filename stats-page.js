@@ -24,14 +24,24 @@ const DEFAULT_STATS_VISIBILITY = {
   activeProjects: true,
   finishedThisYear: true,
   coverage: true,
+  streak: true,
+  pace: true,
   sableIndex: true,
   stashComposition: true,
+  dmcCoverage: true,
   readyToStart: true,
+  useWhatYouHave: true,
+  buyingImpact: true,
   duplicateRisk: true,
   oldestWip: true,
   stashAge: true,
   mostUsedColours: true,
   threadsNeverUsed: true,
+  colourFingerprint: true,
+  designerLeaderboard: true,
+  brandAlignment: true,
+  quarterPortfolio: true,
+  difficultyVsCompletion: true,
   patternSource: true
 };
 
@@ -40,14 +50,24 @@ const SECTION_LABELS = {
   activeProjects: 'Active Projects',
   finishedThisYear: 'Finished This Year',
   coverage: 'Coverage Ratio',
+  streak: 'Weekly Streak',
+  pace: 'Recent Pace',
   sableIndex: 'SABLE Index',
-  stashComposition: 'Stash Composition',
+  stashComposition: 'Colour Families',
+  dmcCoverage: 'DMC Palette Coverage',
   readyToStart: 'Ready to Start',
+  useWhatYouHave: 'Use What You Have',
+  buyingImpact: 'Buying Impact',
   duplicateRisk: 'Duplicate Alerts',
-  oldestWip: 'Oldest WIP',
+  oldestWip: 'Oldest WIPs',
   stashAge: 'Stash Age',
   mostUsedColours: 'Most-Used Colours',
   threadsNeverUsed: 'Threads Never Used',
+  colourFingerprint: 'Colour Preference Fingerprint',
+  designerLeaderboard: 'Designer Leaderboard',
+  brandAlignment: 'Brand Alignment',
+  quarterPortfolio: 'Projects per Quarter',
+  difficultyVsCompletion: 'Difficulty vs Completion',
   patternSource: 'Pattern Source'
 };
 
@@ -163,6 +183,179 @@ function AgeBar({ data }) {
           b.label + ': ' + data[b.key]
         )
       )
+    )
+  );
+}
+
+// ── Colour family classification ─────────────────────────────────
+// Used by ColourFamilyWheel to bin every owned thread into one of 13
+// stitcher-friendly families (Reds → Metallics → Greys → Whites → Blacks).
+// Inputs: { lab: [L, a, b], rgb: [r, g, b], name: string }
+function classifyColourFamily(info) {
+  const lab = info.lab;
+  const rgb = info.rgb || [128, 128, 128];
+  const name = (info.name || '').toLowerCase();
+  // Metallics first — name-based; DMC names them "Light Effects"/"Jewel Effects"
+  if (/metalli|effect|jewel|gold|silver|copper|bronze|pearl|fluor/i.test(name)) return 'metallics';
+  if (!lab) return 'greys';
+  const L = lab[0], a = lab[1], b = lab[2];
+  const chroma = Math.sqrt(a * a + b * b);
+  if (L >= 92 && chroma < 14) return 'whites';
+  if (L <= 18 && chroma < 14) return 'blacks';
+  if (chroma < 10) return 'greys';
+  // Brown band: warm hue (a>0, b>0) + low–mid lightness + low–mid chroma
+  if (a > 6 && b > 6 && L < 60 && chroma < 38) return 'browns';
+  const hue = ((Math.atan2(b, a) * 180 / Math.PI) + 360) % 360;
+  if (hue >= 340 || hue < 12)  return 'reds';
+  if (hue < 30)                 return 'pinks';
+  if (hue < 55)                 return 'oranges';
+  if (hue < 75)                 return 'yellows';
+  if (hue < 165)                return 'greens';
+  if (hue < 200)                return 'teals';
+  if (hue < 260)                return 'blues';
+  if (hue < 320)                return 'purples';
+  return 'pinks';
+}
+const COLOUR_FAMILY_DEFS = [
+  { key: 'reds',      label: 'Reds',      swatch: '#dc2626' },
+  { key: 'pinks',     label: 'Pinks',     swatch: '#ec4899' },
+  { key: 'oranges',   label: 'Oranges',   swatch: '#f97316' },
+  { key: 'yellows',   label: 'Yellows',   swatch: '#eab308' },
+  { key: 'greens',    label: 'Greens',    swatch: '#16a34a' },
+  { key: 'teals',     label: 'Teals',     swatch: '#0d9488' },
+  { key: 'blues',     label: 'Blues',     swatch: '#2563eb' },
+  { key: 'purples',   label: 'Purples',   swatch: '#7c3aed' },
+  { key: 'browns',    label: 'Browns',    swatch: '#92400e' },
+  { key: 'greys',     label: 'Greys',     swatch: '#9ca3af' },
+  { key: 'whites',    label: 'Whites',    swatch: '#f5f5f4' },
+  { key: 'blacks',    label: 'Blacks',    swatch: '#1c1917' },
+  { key: 'metallics', label: 'Metallics', swatch: 'linear-gradient(135deg,#d4af37,#a8a29e)' }
+];
+
+function ColourFamilyWheel({ counts }) {
+  const R = 78, CX = 96, CY = 96, IR = 38;
+  const total = COLOUR_FAMILY_DEFS.reduce((s, f) => s + (counts[f.key] || 0), 0);
+  if (total === 0) return null;
+  const paths = []; let angle = -Math.PI / 2;
+  COLOUR_FAMILY_DEFS.forEach((f, i) => {
+    const c = counts[f.key] || 0;
+    if (c === 0) return;
+    const sweep = (c / total) * 2 * Math.PI;
+    const x1 = CX + R * Math.cos(angle), y1 = CY + R * Math.sin(angle);
+    const x2 = CX + R * Math.cos(angle + sweep), y2 = CY + R * Math.sin(angle + sweep);
+    const ix1 = CX + IR * Math.cos(angle), iy1 = CY + IR * Math.sin(angle);
+    const ix2 = CX + IR * Math.cos(angle + sweep), iy2 = CY + IR * Math.sin(angle + sweep);
+    const large = sweep > Math.PI ? 1 : 0;
+    const fill = f.swatch.startsWith('linear-gradient') ? 'url(#metallic-grad)' : f.swatch;
+    paths.push(h('path', { key: f.key, d: `M${ix1},${iy1} L${x1},${y1} A${R},${R} 0 ${large},1 ${x2},${y2} L${ix2},${iy2} A${IR},${IR} 0 ${large},0 ${ix1},${iy1}`, fill, opacity: 0.9 }));
+    angle += sweep;
+  });
+  return h('div', null,
+    h('svg', { viewBox: '0 0 192 192', style: { width: 180, height: 180, display: 'block', margin: '0 auto' }, 'aria-label': 'Stash colour families' },
+      h('defs', null,
+        h('linearGradient', { id: 'metallic-grad', x1: '0%', y1: '0%', x2: '100%', y2: '100%' },
+          h('stop', { offset: '0%', stopColor: '#d4af37' }), h('stop', { offset: '100%', stopColor: '#a8a29e' })
+        )
+      ),
+      paths,
+      h('text', { x: CX, y: CY + 4, textAnchor: 'middle', fontSize: 16, fontWeight: 700, fill: 'var(--text-primary)' }, fmtNum(total)),
+      h('text', { x: CX, y: CY + 20, textAnchor: 'middle', fontSize: 9, fill: 'var(--text-tertiary)' }, 'threads')
+    ),
+    h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '4px 10px', marginTop: 10, justifyContent: 'center', fontSize: 11, color: 'var(--text-secondary)' } },
+      COLOUR_FAMILY_DEFS.filter(f => (counts[f.key] || 0) > 0)
+        .sort((a, b) => (counts[b.key] || 0) - (counts[a.key] || 0))
+        .map(f => h('span', { key: f.key, style: { display: 'inline-flex', alignItems: 'center', gap: 4 } },
+          h('span', { style: { width: 9, height: 9, borderRadius: '50%', background: f.swatch, border: f.key === 'whites' ? '1px solid var(--border)' : 'none', display: 'inline-block' } }),
+          f.label, ' ', h('span', { style: { color: 'var(--text-tertiary)' } }, counts[f.key])
+        ))
+    )
+  );
+}
+
+// Radial gauge (semi-circle) for percentage values, e.g. DMC palette coverage.
+function RadialGauge({ pct, label, sublabel, color }) {
+  const W = 200, H = 120, R = 80, CX = W / 2, CY = H - 8, SW = 14;
+  const safePct = Math.max(0, Math.min(100, pct || 0));
+  const startA = Math.PI, endA = startA + (safePct / 100) * Math.PI;
+  const x1 = CX + R * Math.cos(startA), y1 = CY + R * Math.sin(startA);
+  const x2 = CX + R * Math.cos(endA),   y2 = CY + R * Math.sin(endA);
+  const large = safePct > 50 ? 1 : 0;
+  const ringColor = color || 'var(--accent)';
+  return h('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', maxWidth: 220, display: 'block', margin: '0 auto' }, 'aria-label': label || 'Gauge' },
+    // Background arc
+    h('path', { d: `M ${CX - R} ${CY} A ${R} ${R} 0 0 1 ${CX + R} ${CY}`, fill: 'none', stroke: 'var(--border)', strokeWidth: SW, strokeLinecap: 'round' }),
+    // Foreground arc (only render if there's any progress)
+    safePct > 0 && h('path', { d: `M ${x1} ${y1} A ${R} ${R} 0 ${large} 1 ${x2} ${y2}`, fill: 'none', stroke: ringColor, strokeWidth: SW, strokeLinecap: 'round' }),
+    // Centre label
+    h('text', { x: CX, y: CY - 22, textAnchor: 'middle', fontSize: 28, fontWeight: 700, fill: 'var(--text-primary)' }, Math.round(safePct) + '%'),
+    sublabel && h('text', { x: CX, y: CY - 6, textAnchor: 'middle', fontSize: 11, fill: 'var(--text-tertiary)' }, sublabel)
+  );
+}
+
+// Quarter portfolio stacked area: started/finished/active per quarter.
+// data: [{ q: '2024 Q1', started: n, finished: n, active: n }, ...]
+function QuarterAreaChart({ data }) {
+  if (!data || data.length === 0) return null;
+  const W = 520, H = 150, PAD = { top: 14, right: 8, bottom: 30, left: 28 };
+  const IW = W - PAD.left - PAD.right, IH = H - PAD.top - PAD.bottom;
+  const max = Math.max(1, ...data.map(d => d.started + d.finished));
+  const bw = IW / data.length;
+  return h('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', maxWidth: W, display: 'block' }, role: 'img', 'aria-label': 'Projects per quarter' },
+    [0.5, 1].map(f => h('line', { key: f, x1: PAD.left, x2: W - PAD.right, y1: PAD.top + IH * (1 - f), y2: PAD.top + IH * (1 - f), stroke: 'var(--border)', strokeWidth: 1 })),
+    data.map((d, i) => {
+      const x = PAD.left + i * bw + 2;
+      const w = bw - 4;
+      const sH = (d.started / max) * IH;
+      const fH = (d.finished / max) * IH;
+      const sY = PAD.top + IH - sH;
+      const fY = sY - fH;
+      return h('g', { key: i },
+        d.started > 0 && h('rect', { x, y: sY, width: w, height: sH, fill: 'var(--accent)', opacity: 0.85 }),
+        d.finished > 0 && h('rect', { x, y: fY, width: w, height: fH, fill: '#34d399', opacity: 0.9 }),
+        i % Math.max(1, Math.ceil(data.length / 8)) === 0 && h('text', { x: x + w / 2, y: H - 8, textAnchor: 'middle', fontSize: 9, fill: 'var(--text-tertiary)' }, d.q)
+      );
+    }),
+    // Legend
+    h('rect', { x: PAD.left, y: 2, width: 8, height: 8, fill: 'var(--accent)' }),
+    h('text', { x: PAD.left + 12, y: 9, fontSize: 10, fill: 'var(--text-tertiary)' }, 'Started'),
+    h('rect', { x: PAD.left + 60, y: 2, width: 8, height: 8, fill: '#34d399' }),
+    h('text', { x: PAD.left + 72, y: 9, fontSize: 10, fill: 'var(--text-tertiary)' }, 'Finished')
+  );
+}
+
+// Difficulty vs completion scatter. points: [{ difficulty: 1-4, pct: 0-100, name, finished: bool }]
+function DifficultyScatter({ points }) {
+  if (!points || points.length === 0) return null;
+  const W = 480, H = 200, PAD = { top: 12, right: 12, bottom: 32, left: 32 };
+  const IW = W - PAD.left - PAD.right, IH = H - PAD.top - PAD.bottom;
+  const labels = ['Beg', 'Int', 'Adv', 'Exp'];
+  return h('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', maxWidth: W, display: 'block' }, role: 'img', 'aria-label': 'Difficulty vs completion percentage scatter' },
+    [0, 25, 50, 75, 100].map(t => h('g', { key: t },
+      h('line', { x1: PAD.left, x2: W - PAD.right, y1: PAD.top + IH * (1 - t / 100), y2: PAD.top + IH * (1 - t / 100), stroke: 'var(--border)', strokeWidth: 0.5 }),
+      h('text', { x: PAD.left - 4, y: PAD.top + IH * (1 - t / 100) + 3, textAnchor: 'end', fontSize: 9, fill: 'var(--text-tertiary)' }, t + '%')
+    )),
+    labels.map((l, i) => h('text', { key: l, x: PAD.left + (IW / 4) * (i + 0.5), y: H - 12, textAnchor: 'middle', fontSize: 10, fill: 'var(--text-tertiary)' }, l)),
+    points.map((p, i) => {
+      const cx = PAD.left + ((p.difficulty - 0.5) / 4) * IW + (((i * 13) % 11) - 5);
+      const cy = PAD.top + IH * (1 - (p.pct || 0) / 100);
+      return h('circle', { key: i, cx, cy, r: 5, fill: p.finished ? '#34d399' : 'var(--accent)', opacity: 0.75, stroke: 'var(--surface)', strokeWidth: 1 },
+        h('title', null, (p.name || 'Untitled') + ' — ' + (p.pct || 0) + '%' + (p.finished ? ' (finished)' : ''))
+      );
+    }),
+    h('text', { x: W - PAD.right, y: H - 2, textAnchor: 'end', fontSize: 9, fill: 'var(--text-tertiary)' }, 'difficulty →')
+  );
+}
+
+// Horizontal divergence bar: top owned vs top used colour overlap.
+function FingerprintBar({ jaccardPct, overUsed, underUsed }) {
+  const safePct = Math.max(0, Math.min(100, jaccardPct || 0));
+  return h('div', null,
+    h('div', { style: { display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 } },
+      h('span', { style: { fontSize: 32, fontWeight: 700, color: 'var(--text-primary)' } }, Math.round(safePct) + '%'),
+      h('span', { style: { fontSize: 12, color: 'var(--text-secondary)' } }, 'overlap between what you own and what you use')
+    ),
+    h('div', { style: { height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden', marginBottom: 10 } },
+      h('div', { style: { width: safePct + '%', height: '100%', background: 'linear-gradient(90deg, #34d399, var(--accent))' } })
     )
   );
 }
@@ -825,6 +1018,10 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
   const [coverageRatio, setCoverageRatio] = useState(null);
   const [mostUsedFilter, setMostUsedFilter] = useState('year');
   const [readyExpanded, setReadyExpanded] = useState(false);
+  // ── Extended analytics state ─────────────────────────────────
+  const [oldestWips, setOldestWips] = useState([]); // top-5 leaderboard
+  const [managerPatterns, setManagerPatterns] = useState([]);
+  const [richProjects, setRichProjects] = useState([]); // for difficulty / quarter / fingerprint
 
   // Run v3 migrations then load all data
   useEffect(() => {
@@ -849,6 +1046,8 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
         typeof ProjectStorage !== 'undefined' ? ProjectStorage.getOldestWIP() : null,
         typeof ProjectStorage !== 'undefined' ? ProjectStorage.getMostUsedColours(10) : [],
         typeof ProjectStorage !== 'undefined' ? ProjectStorage.getProjectsReadyToStart() : [],
+        typeof ProjectStorage !== 'undefined' && ProjectStorage.getOldestWIPs ? ProjectStorage.getOldestWIPs(5) : [],
+        typeof StashBridge !== 'undefined' && StashBridge.getManagerPatterns ? StashBridge.getManagerPatterns() : [],
       ]);
       if (cancelled) return;
 
@@ -860,6 +1059,8 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       setOldestWip(results[5]);
       setMostUsed(results[6]);
       setReadyToStart(results[7]);
+      setOldestWips(results[8] || []);
+      setManagerPatterns(results[9] || []);
 
       // Compute coverage ratio
       await computeCoverage(results[2]);
@@ -1055,12 +1256,44 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     async function loadDetails() {
       const metas = await ProjectStorage.listProjects();
       const details = [];
+      const rich = [];
       // PERF (perf-5 #7): parallel fetch.
       const fulls = await Promise.all(metas.map(m => ProjectStorage.get(m.id).catch(() => null)));
       for (const p of fulls) {
-        if (p) details.push({ id: p.id, name: p.name, finishStatus: p.finishStatus || 'active', completedAt: p.completedAt, startedAt: p.startedAt });
+        if (!p) continue;
+        details.push({ id: p.id, name: p.name, finishStatus: p.finishStatus || 'active', completedAt: p.completedAt, startedAt: p.startedAt });
+        // Compute difficulty + completion + palette stats once per project
+        let total = 0, completed = 0, blendCount = 0;
+        const palette = new Set();
+        if (p.pattern && p.pattern.length) {
+          const done = p.done && p.done.length === p.pattern.length ? p.done : null;
+          for (let i = 0; i < p.pattern.length; i++) {
+            const cell = p.pattern[i];
+            if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
+            total++;
+            if (done && done[i]) completed++;
+            palette.add(cell.id);
+          }
+          for (const id of palette) if (id.indexOf('+') >= 0) blendCount++;
+        }
+        const palLen = palette.size;
+        const diff = (typeof calcDifficulty === 'function' && palLen > 0)
+          ? calcDifficulty(palLen, blendCount, total)
+          : { stars: 1, label: 'Beginner', color: 'var(--success)' };
+        const pct = total > 0 ? Math.round(completed / total * 100) : 0;
+        rich.push({
+          id: p.id, name: p.name || 'Untitled',
+          finishStatus: p.finishStatus || 'active',
+          completedAt: p.completedAt, createdAt: p.createdAt, startedAt: p.startedAt,
+          designerName: p.designerName || null,
+          totalStitches: total, completedStitches: completed,
+          paletteIds: Array.from(palette), palLen, blendCount,
+          difficulty: diff.stars, difficultyLabel: diff.label, difficultyColor: diff.color,
+          pct, finished: (p.finishStatus === 'completed'),
+          statsSessions: Array.isArray(p.statsSessions) ? p.statsSessions : []
+        });
       }
-      if (!cancelled) setProjectDetails(details);
+      if (!cancelled) { setProjectDetails(details); setRichProjects(rich); }
     }
     loadDetails();
     return () => { cancelled = true; };
@@ -1094,6 +1327,246 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     }
     return { bins, neutral };
   }, [stash]);
+
+  // ── Colour family counts (replaces hue wheel as primary composition view) ─
+  const familyData = useMemo(() => {
+    const counts = {};
+    for (const [key, entry] of Object.entries(stash)) {
+      if (!entry || !entry.owned || entry.owned <= 0) continue;
+      const parsed = key.indexOf(':') >= 0 ? { brand: key.split(':')[0], id: key.split(':').slice(1).join(':') } : { brand: 'dmc', id: key };
+      const info = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(parsed.brand, parsed.id) : null;
+      if (!info) continue;
+      const lab = info.lab || (typeof rgbToLab === 'function' ? rgbToLab(info.rgb[0], info.rgb[1], info.rgb[2]) : null);
+      const fam = classifyColourFamily({ lab, rgb: info.rgb, name: info.name });
+      counts[fam] = (counts[fam] || 0) + 1;
+    }
+    return counts;
+  }, [stash]);
+
+  // ── DMC palette coverage (unique owned DMC ids / total DMC palette) ────────
+  const dmcCoverage = useMemo(() => {
+    if (typeof DMC === 'undefined' || !Array.isArray(DMC) || DMC.length === 0) return null;
+    const ownedIds = new Set();
+    for (const [key, entry] of Object.entries(stash)) {
+      if (!entry || !entry.owned || entry.owned <= 0) continue;
+      const colon = key.indexOf(':');
+      const brand = colon >= 0 ? key.slice(0, colon) : 'dmc';
+      const id = colon >= 0 ? key.slice(colon + 1) : key;
+      if (brand !== 'dmc') continue;
+      ownedIds.add(id);
+    }
+    const total = DMC.length;
+    const owned = ownedIds.size;
+    const pct = total > 0 ? (owned / total) * 100 : 0;
+    return { owned, total, pct };
+  }, [stash]);
+
+  // ── Streak + Pace (uses InsightsEngine + sessions across all projects) ─────
+  const allSessions = useMemo(() => {
+    const out = [];
+    for (const p of richProjects) {
+      for (const s of (p.statsSessions || [])) out.push(s);
+    }
+    return out;
+  }, [richProjects]);
+
+  const streakData = useMemo(() => {
+    if (typeof window.InsightsEngine === 'undefined' || !window.InsightsEngine.computeWeeklyStreak) return { current: 0, longest: 0 };
+    const current = window.InsightsEngine.computeWeeklyStreak(allSessions);
+    // Longest streak: scan back over all weeks
+    if (allSessions.length === 0) return { current: 0, longest: current };
+    const weekKeys = new Set();
+    for (const s of allSessions) {
+      const ds = s.date || (s.startTime || '').slice(0, 10);
+      if (!ds) continue;
+      const d = new Date(ds + 'T12:00:00');
+      if (isNaN(d.getTime())) continue;
+      // ISO week-start (Monday)
+      const dow = d.getDay() === 0 ? 6 : d.getDay() - 1;
+      const m = new Date(d); m.setDate(d.getDate() - dow);
+      weekKeys.add(m.toISOString().slice(0, 10));
+    }
+    const sortedWeeks = Array.from(weekKeys).sort();
+    let longest = 0, run = 0, prev = null;
+    for (const wk of sortedWeeks) {
+      if (prev) {
+        const diff = (new Date(wk) - new Date(prev)) / 86400000;
+        if (Math.round(diff) === 7) run++; else run = 1;
+      } else run = 1;
+      if (run > longest) longest = run;
+      prev = wk;
+    }
+    return { current, longest: Math.max(longest, current) };
+  }, [allSessions]);
+
+  const paceData = useMemo(() => {
+    if (typeof window.InsightsEngine === 'undefined' || !window.InsightsEngine.calculateRecentPace) return null;
+    const now = new Date();
+    return window.InsightsEngine.calculateRecentPace(allSessions, now, 86400000);
+  }, [allSessions]);
+
+  // ── Buying Impact: for each non-owned thread referenced by wishlist
+  //    patterns, count the number of distinct patterns it appears in. ────────
+  const buyingImpact = useMemo(() => {
+    if (!managerPatterns || managerPatterns.length === 0) return [];
+    const ownedKeys = new Set();
+    for (const [key, entry] of Object.entries(stash)) {
+      if (!entry || !entry.owned || entry.owned <= 0) continue;
+      ownedKeys.add(key);
+      const colon = key.indexOf(':');
+      if (colon >= 0) ownedKeys.add(key.slice(colon + 1));
+    }
+    const tally = {};
+    for (const pat of managerPatterns) {
+      if (!pat || !pat.threads || pat.status === 'completed') continue;
+      const seen = new Set();
+      for (const t of pat.threads) {
+        if (!t || !t.id) continue;
+        if (ownedKeys.has(t.id) || ownedKeys.has('dmc:' + t.id)) continue;
+        if (seen.has(t.id)) continue;
+        seen.add(t.id);
+        if (!tally[t.id]) tally[t.id] = { id: t.id, name: t.name || t.id, brand: t.brand || 'dmc', patternCount: 0, patterns: [] };
+        tally[t.id].patternCount++;
+        if (tally[t.id].patterns.length < 3) tally[t.id].patterns.push(pat.title || 'Untitled');
+      }
+    }
+    // Look up rgb for each
+    for (const t of Object.values(tally)) {
+      const info = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(t.brand || 'dmc', t.id) : null;
+      t.rgb = info ? info.rgb : [128, 128, 128];
+    }
+    return Object.values(tally).sort((a, b) => b.patternCount - a.patternCount).slice(0, 10);
+  }, [managerPatterns, stash]);
+
+  // ── Use What You Have: for each owned-but-never-used thread, find
+  //    wishlist patterns that include it. ────────────────────────────────────
+  const useWhatYouHaveRecs = useMemo(() => {
+    if (!managerPatterns || managerPatterns.length === 0) return [];
+    if (!neverUsedData || !neverUsedData.samples || neverUsedData.samples.length === 0) return [];
+    const recs = [];
+    const dormantIds = new Set(neverUsedData.samples.map(s => s.id));
+    for (const pat of managerPatterns) {
+      if (!pat || !pat.threads || pat.status === 'completed' || pat.status === 'inprogress') continue;
+      const matches = [];
+      for (const t of pat.threads) {
+        if (t && t.id && dormantIds.has(t.id)) matches.push(t);
+      }
+      if (matches.length > 0) {
+        recs.push({ id: pat.id, title: pat.title || 'Untitled', matches: matches.length, sampleNames: matches.slice(0, 3).map(t => t.name || t.id) });
+      }
+    }
+    return recs.sort((a, b) => b.matches - a.matches).slice(0, 5);
+  }, [managerPatterns, neverUsedData]);
+
+  // ── Designer leaderboard: rank by project count + finished count. ─────────
+  const designerLeaderboard = useMemo(() => {
+    const tally = {};
+    for (const p of richProjects) {
+      if (!p.designerName) continue;
+      if (!tally[p.designerName]) tally[p.designerName] = { name: p.designerName, total: 0, finished: 0 };
+      tally[p.designerName].total++;
+      if (p.finished) tally[p.designerName].finished++;
+    }
+    return Object.values(tally).sort((a, b) => b.total - a.total).slice(0, 5);
+  }, [richProjects]);
+
+  // ── Brand alignment: for each pattern, % of its threads that are in the
+  //    user's preferred brand (most common brand owned). ─────────────────────
+  const brandAlignment = useMemo(() => {
+    if (!managerPatterns || managerPatterns.length === 0) return null;
+    // Determine preferred brand
+    const brandCounts = {};
+    for (const [key, entry] of Object.entries(stash)) {
+      if (!entry || !entry.owned || entry.owned <= 0) continue;
+      const brand = key.indexOf(':') >= 0 ? key.split(':')[0] : 'dmc';
+      brandCounts[brand] = (brandCounts[brand] || 0) + 1;
+    }
+    const preferred = Object.entries(brandCounts).sort(([, a], [, b]) => b - a)[0];
+    if (!preferred) return null;
+    const preferredBrand = preferred[0];
+    let aligned = 0, total = 0;
+    const conflicts = [];
+    for (const pat of managerPatterns) {
+      if (!pat || !pat.threads || pat.status === 'completed') continue;
+      const tn = pat.threads.length;
+      if (tn === 0) continue;
+      let okay = 0;
+      for (const t of pat.threads) {
+        if ((t.brand || 'dmc') === preferredBrand) okay++;
+      }
+      total += tn; aligned += okay;
+      const pct = Math.round((okay / tn) * 100);
+      if (pct < 80) conflicts.push({ id: pat.id, title: pat.title || 'Untitled', pct, brand: pat.threads[0].brand || 'dmc' });
+    }
+    return { preferredBrand, aligned, total, pct: total > 0 ? Math.round(aligned / total * 100) : 0, conflicts: conflicts.slice(0, 5) };
+  }, [managerPatterns, stash]);
+
+  // ── Colour fingerprint: Jaccard overlap of top-20 owned vs top-20 used. ───
+  const colourFingerprint = useMemo(() => {
+    if (!mostUsed || mostUsed.length === 0) return null;
+    const usedIds = new Set();
+    for (const c of mostUsed.slice(0, 20)) {
+      // Split blends into components
+      String(c.id).split('+').forEach(part => usedIds.add(part));
+    }
+    // Top 20 owned by skein count
+    const ownedByCount = Object.entries(stash)
+      .filter(([, e]) => e && e.owned > 0)
+      .map(([k, e]) => { const colon = k.indexOf(':'); return { id: colon >= 0 ? k.slice(colon + 1) : k, owned: e.owned }; })
+      .sort((a, b) => b.owned - a.owned).slice(0, 20);
+    const ownedIds = new Set(ownedByCount.map(o => o.id));
+    if (ownedIds.size === 0) return null;
+    const intersection = new Set([...usedIds].filter(x => ownedIds.has(x)));
+    const union = new Set([...usedIds, ...ownedIds]);
+    const jaccardPct = union.size > 0 ? (intersection.size / union.size) * 100 : 0;
+    // Find over-bought (in owned, not in used) and under-bought (in used, not in owned)
+    const usedNotOwned = [...usedIds].filter(x => !ownedIds.has(x)).slice(0, 5);
+    const ownedNotUsed = [...ownedIds].filter(x => !usedIds.has(x)).slice(0, 5);
+    return { jaccardPct, intersection: intersection.size, usedNotOwned, ownedNotUsed };
+  }, [mostUsed, stash]);
+
+  // ── Quarter portfolio: started + finished projects per quarter. ───────────
+  const quarterPortfolio = useMemo(() => {
+    const buckets = {};
+    function qFor(iso) {
+      if (!iso) return null;
+      const d = new Date(iso); if (isNaN(d.getTime())) return null;
+      return d.getFullYear() + ' Q' + (Math.floor(d.getMonth() / 3) + 1);
+    }
+    for (const p of richProjects) {
+      const startedQ = qFor(p.startedAt || p.createdAt);
+      const finishedQ = p.finished ? qFor(p.completedAt) : null;
+      if (startedQ) {
+        if (!buckets[startedQ]) buckets[startedQ] = { q: startedQ, started: 0, finished: 0 };
+        buckets[startedQ].started++;
+      }
+      if (finishedQ) {
+        if (!buckets[finishedQ]) buckets[finishedQ] = { q: finishedQ, started: 0, finished: 0 };
+        buckets[finishedQ].finished++;
+      }
+    }
+    return Object.values(buckets).sort((a, b) => a.q.localeCompare(b.q)).slice(-8); // last 8 quarters
+  }, [richProjects]);
+
+  // ── Difficulty vs completion: scatter of all projects with a palette. ─────
+  const difficultyPoints = useMemo(() => {
+    return richProjects.filter(p => p.palLen > 0).map(p => ({
+      difficulty: p.difficulty, pct: p.pct, name: p.name, finished: p.finished
+    }));
+  }, [richProjects]);
+
+  // ── Pattern queue smart-sort: ready-to-start with composite score
+  //    (closer to ready × more wishlist priority). Adds a 'recommended' badge.
+  const recommendedPatternId = useMemo(() => {
+    if (!readyToStart || readyToStart.length === 0) return null;
+    // Score: pct + (status === 'wishlist' ? 5 : 0)
+    let best = null, bestScore = -1;
+    for (const p of readyToStart) {
+      const score = (p.pct || 0) + (p.status === 'wishlist' ? 5 : 0);
+      if (score > bestScore) { bestScore = score; best = p; }
+    }
+    return best ? best.id : null;
+  }, [readyToStart]);
 
   // SABLE headline
   const sableHeadline = useMemo(() => {
@@ -1364,6 +1837,28 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
               h('div', { className: 'gsd-metric-value', style: { color: 'var(--text-tertiary)' } }, '—'),
               h('div', { className: 'gsd-metric-sub' }, 'Add a pattern to see how your stash covers it')
             )
+      ),
+      show('streak') && h(StatCard, { title: 'Stitching Streak', id: 'stats-streak' },
+        streakData.current > 0
+          ? h('div', null,
+              h('div', { className: 'gsd-metric-value' }, streakData.current),
+              h('div', { className: 'gsd-metric-sub' }, 'week' + (streakData.current === 1 ? '' : 's') + ' in a row' + (streakData.longest > streakData.current ? ' (best: ' + streakData.longest + ')' : ''))
+            )
+          : h('div', null,
+              h('div', { className: 'gsd-metric-value', style: { color: 'var(--text-tertiary)' } }, '0'),
+              h('div', { className: 'gsd-metric-sub' }, 'Stitch this week to start a streak')
+            )
+      ),
+      show('pace') && h(StatCard, { title: 'Recent Pace', id: 'stats-pace' },
+        paceData && paceData.activeDays > 0
+          ? h('div', null,
+              h('div', { className: 'gsd-metric-value' }, fmtNum(Math.round(paceData.pacePerDay))),
+              h('div', { className: 'gsd-metric-sub' }, 'stitches / day across ' + paceData.activeDays + ' active day' + (paceData.activeDays === 1 ? '' : 's'))
+            )
+          : h('div', null,
+              h('div', { className: 'gsd-metric-value', style: { color: 'var(--text-tertiary)' } }, '—'),
+              h('div', { className: 'gsd-metric-sub' }, 'No recent activity to measure pace')
+            )
       )
     ),
 
@@ -1380,11 +1875,26 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
               'Check back after a few months of tracking to see a trend'
             )
       ),
-      show('stashComposition') && h(StatCard, { title: 'Stash Composition', id: 'stats-stashComposition', style: { minHeight: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' } },
-        (hueData.bins.some(b => b > 0) || hueData.neutral > 0)
-          ? h(HueWheel, { bins: hueData.bins, neutral: hueData.neutral })
+      show('stashComposition') && h(StatCard, { title: 'Colour Families', id: 'stats-stashComposition', style: { minHeight: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' } },
+        Object.keys(familyData).length > 0
+          ? h(ColourFamilyWheel, { counts: familyData })
           : h('div', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)', padding: '20px 0' } },
               'Your stash is empty. Add threads to see your palette'
+            )
+      ),
+      show('dmcCoverage') && h(StatCard, { title: 'DMC Palette Coverage', id: 'stats-dmcCoverage', style: { minHeight: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' } },
+        dmcCoverage
+          ? h('div', { style: { textAlign: 'center', width: '100%' } },
+              h(RadialGauge, { pct: dmcCoverage.pct, sublabel: fmtNum(dmcCoverage.owned) + ' of ' + fmtNum(dmcCoverage.total) + ' DMC colours' }),
+              h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginTop: 6 } },
+                dmcCoverage.pct >= 90 ? 'Collector tier — nearly the whole library'
+                  : dmcCoverage.pct >= 50 ? 'Strong coverage of the DMC palette'
+                  : dmcCoverage.pct >= 20 ? 'A focused working palette'
+                  : 'Plenty of room to grow'
+              )
+            )
+          : h('div', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)', padding: '20px 0' } },
+              'No DMC threads in stash yet'
             )
       )
     ),
@@ -1400,7 +1910,10 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
           return h('div', null,
             shown.map(p => h('div', { key: p.id, onClick: () => navigateToProject(p.id), style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', padding: '6px 0', borderBottom: '1px solid var(--border-subtle)', cursor: 'pointer', fontSize:'var(--text-md)' } },
               h('span', { style: { color: p.pct === 100 ? 'var(--accent)' : '#f59e0b', fontWeight: 600, minWidth: 36 } }, p.pct + '%'),
-              h('span', { style: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, p.title || 'Untitled'),
+              h('span', { style: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
+                p.title || 'Untitled',
+                recommendedPatternId === p.id && h('span', { style: { marginLeft: 6, fontSize: 9, padding: '1px 6px', borderRadius: 8, background: 'var(--accent-light)', color: 'var(--accent)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4 } }, 'Pick this')
+              ),
               h('span', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)' } }, p.totalThreads + ' threads')
             )),
             (nearly.length > 0 || full.length > 3) && !readyExpanded && h('button', { onClick: () => setReadyExpanded(true), style: { fontSize:'var(--text-xs)', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', marginTop:'var(--s-1)', padding: 0 } }, 'See all (' + readyToStart.length + ')'),
@@ -1427,20 +1940,27 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
               'No duplicates spotted — nicely done'
             )
       ),
-      show('oldestWip') && h(StatCard, { title: 'Oldest WIP', id: 'stats-oldestWip', onClick: oldestWip ? () => navigateToProject(oldestWip.id) : undefined },
-        oldestWip
+      show('oldestWip') && h(StatCard, { title: 'Oldest WIPs', id: 'stats-oldestWip' },
+        oldestWips && oldestWips.length > 0
           ? h('div', null,
-              h('div', { style: { fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom:'var(--s-1)' } }, oldestWip.name),
-              h('div', { style: { fontSize:'var(--text-sm)', color: 'var(--text-secondary)' } },
-                (() => {
-                  const days = Math.floor((Date.now() - new Date(oldestWip.lastTouchedAt).getTime()) / 86400000);
-                  return days + ' day' + (days !== 1 ? 's' : '') + ' since last touched';
-                })()
-              ),
-              h('div', { style: { fontSize:'var(--text-sm)', color: 'var(--text-tertiary)', marginTop: 2 } }, oldestWip.pct + '% complete (' + fmtNum(oldestWip.completedStitches) + ' / ' + fmtNum(oldestWip.totalStitches) + ')'),
-              h('button', { onClick: e => { e.stopPropagation(); switchTab('activity'); const p = new URLSearchParams(window.location.search); p.set('tab', 'activity'); p.set('project', oldestWip.id); window.history.replaceState({}, '', '?' + p.toString()); }, style: { marginTop: 6, fontSize:'var(--text-xs)', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600, fontFamily: 'inherit' } }, 'See stitching pattern \u2192')
+              oldestWips.map((p, i) => {
+                const days = Math.floor((Date.now() - new Date(p.lastTouchedAt).getTime()) / 86400000);
+                return h('div', { key: p.id, onClick: () => navigateToProject(p.id), style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', padding: '6px 0', borderBottom: i < oldestWips.length - 1 ? '1px solid var(--border-subtle)' : 'none', cursor: 'pointer', fontSize:'var(--text-md)' } },
+                  h('span', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', width: 18, textAlign: 'right' } }, i + 1),
+                  h('span', { style: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-primary)', fontWeight: 500 } }, p.name || 'Untitled'),
+                  h('span', { style: { fontSize:'var(--text-xs)', color: days > 180 ? '#ef4444' : days > 60 ? '#f59e0b' : 'var(--text-tertiary)', whiteSpace: 'nowrap' } }, days + 'd · ' + p.pct + '%')
+                );
+              })
             )
-          : h('div', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)' } }, 'No active projects right now')
+          : oldestWip
+            ? h('div', null,
+                h('div', { style: { fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom:'var(--s-1)' } }, oldestWip.name),
+                h('div', { style: { fontSize:'var(--text-sm)', color: 'var(--text-secondary)' } },
+                  (() => { const days = Math.floor((Date.now() - new Date(oldestWip.lastTouchedAt).getTime()) / 86400000); return days + ' day' + (days !== 1 ? 's' : '') + ' since last touched'; })()
+                ),
+                h('div', { style: { fontSize:'var(--text-sm)', color: 'var(--text-tertiary)', marginTop: 2 } }, oldestWip.pct + '% complete')
+              )
+            : h('div', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)' } }, 'No active projects right now')
       )
     ),
 
@@ -1533,6 +2053,90 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
             )
           )
         )
+      )
+    ),
+
+    // ── What should I work on next? ─────────────────────────────
+    (show('useWhatYouHave') || show('buyingImpact')) && h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10, margin: '10px 0' } },
+      show('useWhatYouHave') && useWhatYouHaveRecs.length > 0 && h(StatCard, { title: 'Use What You Have', id: 'stats-useWhatYouHave' },
+        h('div', null,
+          h('div', { className: 'gsd-metric-sub', style: { marginBottom: 8 } }, 'Wishlist patterns that lean on threads already in your stash'),
+          useWhatYouHaveRecs.map(r => h('div', { key: r.id, style: { padding: '6px 0', borderBottom: '1px solid var(--border-subtle)', fontSize:'var(--text-md)' } },
+            h('div', { style: { fontWeight: 600, color: 'var(--text-primary)' } }, r.title),
+            h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginTop: 2 } },
+              r.matches + ' dormant thread' + (r.matches === 1 ? '' : 's') + ' would get used: ' + r.sampleNames.slice(0, 3).join(', ')
+            )
+          ))
+        )
+      ),
+      show('buyingImpact') && buyingImpact.length > 0 && h(StatCard, { title: 'Highest-Impact Threads to Buy', id: 'stats-buyingImpact' },
+        h('div', null,
+          h('div', { className: 'gsd-metric-sub', style: { marginBottom: 8 } }, 'Each of these unlocks multiple wishlist patterns'),
+          buyingImpact.slice(0, 6).map((t, i) => h('div', { key: t.id, style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', padding: '5px 0', borderBottom: i < Math.min(5, buyingImpact.length - 1) ? '1px solid var(--border-subtle)' : 'none', fontSize:'var(--text-md)' } },
+            h(Swatch, { rgb: t.rgb }),
+            h('span', { style: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, (t.brand || 'dmc').toUpperCase() + ' ' + t.id + ' · ' + t.name),
+            h('span', { style: { fontSize:'var(--text-xs)', color: 'var(--accent)', fontWeight: 600, whiteSpace: 'nowrap' } }, 'unlocks ' + t.patternCount)
+          ))
+        )
+      )
+    ),
+
+    // ── How does this all connect? ──────────────────────────────
+    show('colourFingerprint') && colourFingerprint && h('div', { style: { margin: '10px 0' } },
+      h(StatCard, { title: 'Your Colour Fingerprint', id: 'stats-colourFingerprint' },
+        h(FingerprintBar, { jaccardPct: colourFingerprint.jaccardPct }),
+        h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 8 } },
+          h('div', null,
+            h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 4 } }, 'Used a lot but not stocked'),
+            colourFingerprint.usedNotOwned.length > 0
+              ? colourFingerprint.usedNotOwned.map(id => h('div', { key: id, style: { fontSize:'var(--text-sm)', color: 'var(--text-primary)' } }, id))
+              : h('div', { style: { fontSize:'var(--text-sm)', color: 'var(--text-tertiary)' } }, 'Stocked everything you use')
+          ),
+          h('div', null,
+            h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 4 } }, 'Stocked but rarely used'),
+            colourFingerprint.ownedNotUsed.length > 0
+              ? colourFingerprint.ownedNotUsed.map(id => h('div', { key: id, style: { fontSize:'var(--text-sm)', color: 'var(--text-primary)' } }, id))
+              : h('div', { style: { fontSize:'var(--text-sm)', color: 'var(--text-tertiary)' } }, 'Everything earns its place')
+          )
+        )
+      )
+    ),
+
+    (show('designerLeaderboard') || show('brandAlignment')) && h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10, margin: '10px 0' } },
+      show('designerLeaderboard') && designerLeaderboard.length > 0 && h(StatCard, { title: 'Designer Leaderboard', id: 'stats-designerLeaderboard' },
+        h('div', null,
+          designerLeaderboard.map((d, i) => h('div', { key: d.name, style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', padding: '5px 0', borderBottom: i < designerLeaderboard.length - 1 ? '1px solid var(--border-subtle)' : 'none', fontSize:'var(--text-md)' } },
+            h('span', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', width: 18, textAlign: 'right' } }, i + 1),
+            h('span', { style: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-primary)', fontWeight: 500 } }, d.name),
+            h('span', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', whiteSpace: 'nowrap' } }, d.total + ' · ' + d.finished + ' done')
+          ))
+        )
+      ),
+      show('brandAlignment') && brandAlignment && h(StatCard, { title: 'Brand Alignment', id: 'stats-brandAlignment' },
+        h('div', null,
+          h('div', { className: 'gsd-metric-value' }, brandAlignment.pct + '%'),
+          h('div', { className: 'gsd-metric-sub', style: { marginBottom: 8 } }, 'of wishlist threads match your preferred brand (' + brandAlignment.preferredBrand.toUpperCase() + ')'),
+          brandAlignment.conflicts.length > 0 && h('div', null,
+            h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 4 } }, 'Patterns that’ll need conversion'),
+            brandAlignment.conflicts.slice(0, 4).map(c => h('div', { key: c.id, style: { fontSize:'var(--text-sm)', color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between', padding: '2px 0' } },
+              h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 } }, c.title),
+              h('span', { style: { color: '#f59e0b', fontSize:'var(--text-xs)', marginLeft: 8 } }, c.brand.toUpperCase() + ' ' + c.pct + '%')
+            ))
+          )
+        )
+      )
+    ),
+
+    show('quarterPortfolio') && quarterPortfolio.length > 0 && h('div', { style: { margin: '10px 0' } },
+      h(StatCard, { title: 'Started vs Finished by Quarter', id: 'stats-quarterPortfolio' },
+        h(QuarterAreaChart, { data: quarterPortfolio })
+      )
+    ),
+
+    show('difficultyVsCompletion') && difficultyPoints.length >= 3 && h('div', { style: { margin: '10px 0' } },
+      h(StatCard, { title: 'Difficulty vs Completion', id: 'stats-difficultyVsCompletion' },
+        h('div', { className: 'gsd-metric-sub', style: { marginBottom: 6 } }, 'Each dot is a project — hover for details'),
+        h(DifficultyScatter, { points: difficultyPoints })
       )
     ),
 

@@ -781,6 +781,30 @@ const ProjectStorage = (() => {
       } catch (e) { return []; }
     },
 
+    // Return the top-N oldest WIPs (active projects sorted by lastTouchedAt asc).
+    // Used by the "Oldest WIPs" leaderboard on the stats page.
+    async getOldestWIPs(limit) {
+      limit = limit || 5;
+      try {
+        const metas = await this.listProjects();
+        const fulls = await Promise.all(metas.map(m => this.get(m.id).catch(() => null)));
+        const wips = [];
+        for (const proj of fulls) {
+          if (!proj || proj.finishStatus !== 'active') continue;
+          const totalSt = countTotalStitches(proj);
+          const completedSt = countCompletedStitches(proj.done);
+          wips.push({
+            id: proj.id, name: proj.name || 'Untitled',
+            lastTouchedAt: proj.lastTouchedAt || proj.updatedAt || LEGACY_EPOCH,
+            totalStitches: totalSt, completedStitches: completedSt,
+            pct: totalSt > 0 ? Math.round(completedSt / totalSt * 100) : 0
+          });
+        }
+        wips.sort((a, b) => (a.lastTouchedAt || '').localeCompare(b.lastTouchedAt || ''));
+        return wips.slice(0, limit);
+      } catch (e) { return []; }
+    },
+
     // Dashboard project state management.
     // States: 'active' | 'queued' | 'paused' | 'complete' | 'design'
     // Stored in localStorage so it's fast to read without loading full project data.
