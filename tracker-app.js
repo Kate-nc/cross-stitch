@@ -532,6 +532,16 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
           });
           const ownedRows=rows.filter(function(r){return r.have;});
           const needRows=rows.filter(function(r){return !r.have;});
+          // Sort each group by skeins-needed descending so the biggest
+          // shopping items surface first; tie-break by DMC ID asc.
+          function _sortBySkeins(a,b){
+            if(b.d.skeins!==a.d.skeins)return b.d.skeins-a.d.skeins;
+            const an=parseInt(a.d.id,10),bn=parseInt(b.d.id,10);
+            if(isFinite(an)&&isFinite(bn))return an-bn;
+            return String(a.d.id).localeCompare(String(b.d.id));
+          }
+          ownedRows.sort(_sortBySkeins);
+          needRows.sort(_sortBySkeins);
           function renderRow(r){
             const d=r.d;
             const isOn=focusColour&&r.focusId===focusColour;
@@ -1061,17 +1071,27 @@ const[leftSidebarTab,setLeftSidebarTab]=useState(()=>{
 useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLeftSidebarOpen",!!leftSidebarOpen);}catch(_){}},[leftSidebarOpen]);
 useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLeftSidebarTab",leftSidebarTab);}catch(_){}},[leftSidebarTab]);
 
-// Phase 4: palette-legend sort key persisted via UserPrefs.
+// Phase 4: palette-legend sort key persisted via UserPrefs (global default)
+// AND per-project (cs_legendSort_<pid>) overlay. Per-project takes
+// precedence when present — set in processLoadedProject. Writes go to
+// both so the next new project picks up the user's last preference.
 const[legendSort,setLegendSort]=useState(()=>{
   try{var p=window.UserPrefs&&window.UserPrefs.get("trackerLegendSort");return p||"id";}catch(_){return"id";}
 });
-useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLegendSort",legendSort);}catch(_){}},[legendSort]);
+useEffect(()=>{
+  try{window.UserPrefs&&window.UserPrefs.set("trackerLegendSort",legendSort);}catch(_){}
+  try{const pid=projectIdRef.current;if(pid)localStorage.setItem('cs_legendSort_'+pid,legendSort);}catch(_){}
+},[legendSort]);
 
-// Issue #6 — desktop palette legend collapsible. Persists via UserPrefs.
+// Issue #6 — desktop palette legend collapsible. Persists via UserPrefs
+// (global default) AND per-project (cs_legendCollapsed_<pid>) overlay.
 const[legendCollapsed,setLegendCollapsed]=useState(()=>{
   try{var p=window.UserPrefs&&window.UserPrefs.get("trackerLegendCollapsed");return !!p;}catch(_){return false;}
 });
-useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLegendCollapsed",!!legendCollapsed);}catch(_){}},[legendCollapsed]);
+useEffect(()=>{
+  try{window.UserPrefs&&window.UserPrefs.set("trackerLegendCollapsed",!!legendCollapsed);}catch(_){}
+  try{const pid=projectIdRef.current;if(pid)localStorage.setItem('cs_legendCollapsed_'+pid,legendCollapsed?'1':'0');}catch(_){}
+},[legendCollapsed]);
 
 // Phase 5: ESC closes the mobile lpanel drawer. Desktop ignores it
 // (the panel is sticky / persistent and ESC could clobber other modal
@@ -2834,6 +2854,10 @@ function processLoadedProject(project){
   projectIdRef.current = project.id || null;
   try{const saved=localStorage.getItem('cs_layerVis_'+(project.id||''));if(saved)setLayerVis(JSON.parse(saved));else setLayerVis(ALL_LAYERS_VISIBLE);}catch(_){setLayerVis(ALL_LAYERS_VISIBLE);}
   try{const saved=localStorage.getItem('cs_parkLayers_'+(project.id||''));setParkLayers(saved?JSON.parse(saved):{});}catch(_){setParkLayers({});}
+  // Per-project legend overlay (sort + collapsed). When absent, the
+  // current global UserPrefs default is left in place.
+  try{const ls=localStorage.getItem('cs_legendSort_'+(project.id||''));if(ls)setLegendSort(ls);}catch(_){}
+  try{const lc=localStorage.getItem('cs_legendCollapsed_'+(project.id||''));if(lc!==null)setLegendCollapsed(lc==='1');}catch(_){}
   const normalisedCreatedAt=(()=>{
     const value=project.createdAt;
     if(value==null||value==="")return null;
@@ -4439,6 +4463,96 @@ function ensureFocusColour(){
   if(first)setFocusColour(first.id);
 }
 
+// Jump to the next remaining stitch of the focus colour, honouring the
+// user's stitching preferences (startCorner from the wizard / preferences
+// modal). Scan order:
+//   TL (or default) — top→bottom, left→right
+//   TR              — top→bottom, right→left
+//   BL              — bottom→top, left→right
+//   BR              — bottom→top, right→left
+//   C               — nearest unmarked cell to the centre of the chart
+// Wraps around from the current crosshair position so repeated presses
+// step through every remaining stitch of the focus colour.
+function jumpToNextStitch(){
+  if(!pat||!sW||!sH)return;
+  let target=focusColour;
+  if(!target){
+    const first=focusableColors.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];
+    if(!first)return;
+    target=first.id;
+    setFocusColour(first.id);
+  }
+  const cur=doneRef.current;
+  function _matches(cell){
+    if(!cell||cell.id==="__skip__"||cell.id==="__empty__")return false;
+    if(cell.id===target)return true;
+    if(cell.type==="blend"){
+      if(typeof cell.id==="string"&&cell.id.split("+").indexOf(target)>=0)return true;
+      if(Array.isArray(cell.threads)&&cell.threads.some(function(t){return t&&t.id===target;}))return true;
+    }
+    return false;
+  }
+  function _isOpen(idx){return !cur||!cur[idx];}
+  let foundX=-1,foundY=-1;
+  if(startCorner==="C"){
+    // Nearest unmarked stitch of focus colour to the chart centre.
+    const cxC=Math.floor(sW/2),cyC=Math.floor(sH/2);
+    let best=Infinity;
+    for(let y=0;y<sH;y++){
+      for(let x=0;x<sW;x++){
+        const idx=y*sW+x;
+        if(!_matches(pat[idx])||!_isOpen(idx))continue;
+        const dx=x-cxC,dy=y-cyC;const d=dx*dx+dy*dy;
+        if(d<best){best=d;foundX=x;foundY=y;}
+      }
+    }
+  }else{
+    const xRev=startCorner==="TR"||startCorner==="BR";
+    const yRev=startCorner==="BL"||startCorner==="BR";
+    const stepX=xRev?-1:1,stepY=yRev?-1:1;
+    const startX=xRev?sW-1:0,endX=xRev?-1:sW;
+    const startY=yRev?sH-1:0,endY=yRev?-1:sH;
+    const fromX=hlCol>=0&&hlCol<sW?hlCol:startX;
+    const fromY=hlRow>=0&&hlRow<sH?hlRow:startY;
+    function scan(sx,sy,ex,ey,skipFirst){
+      let first=skipFirst;
+      for(let y=sy;y!==ey;y+=stepY){
+        const rowStart=(y===sy)?sx:startX;
+        for(let x=rowStart;x!==endX;x+=stepX){
+          if(first){first=false;continue;}
+          const idx=y*sW+x;
+          if(_matches(pat[idx])&&_isOpen(idx)){foundX=x;foundY=y;return true;}
+        }
+      }
+      return false;
+    }
+    // First pass: from current cursor (skip current cell) to end corner.
+    if(!scan(fromX,fromY,endX,endY,true)){
+      // Wrap-around: from start corner up to (and including) cursor.
+      foundX=-1;foundY=-1;
+      for(let y=startY;y!==fromY+stepY;y+=stepY){
+        const rowEnd=(y===fromY)?fromX+stepX:endX;
+        for(let x=startX;x!==rowEnd;x+=stepX){
+          const idx=y*sW+x;
+          if(_matches(pat[idx])&&_isOpen(idx)){foundX=x;foundY=y;break;}
+        }
+        if(foundX>=0)break;
+      }
+    }
+  }
+  if(foundX<0||foundY<0){
+    try{if(window.Toast&&window.Toast.show)window.Toast.show({message:"No remaining stitches for DMC "+target,type:"info"});}catch(_){}
+    return;
+  }
+  setHlRow(foundY);setHlCol(foundX);
+  if(stitchScrollRef.current){
+    const el=stitchScrollRef.current;
+    const px=G+foundX*scs+scs/2,py=G+foundY*scs+scs/2;
+    try{el.scrollTo({left:Math.max(0,px-el.clientWidth/2),top:Math.max(0,py-el.clientHeight/2),behavior:'smooth'});}
+    catch(_){el.scrollLeft=Math.max(0,px-el.clientWidth/2);el.scrollTop=Math.max(0,py-el.clientHeight/2);}
+  }
+}
+
 useShortcuts(!isActive ? [] : [
   // Esc cascade — preserves original priority order. Listed hidden because
   // Esc semantics are implicit and documented in every modal.
@@ -4594,6 +4708,13 @@ useShortcuts(!isActive ? [] : [
   { id: "tracker.hl.spotlight", keys: "4", scope: "tracker.view.highlight",
     description: "Highlight: spotlight",
     run: () => { ensureFocusColour(); setHighlightMode("spotlight"); } },
+  // Jump-to-next: hops the crosshair to the next remaining stitch of the
+  // focus colour using the wizard / preferences-modal startCorner setting
+  // (TL/TR/BL/BR/C). Available outside highlight view too \u2014 it sets the
+  // focus colour from the first incomplete one when none is selected.
+  { id: "tracker.jumpNext", keys: "j", scope: "tracker.notedit",
+    description: "Jump to next remaining stitch of focus colour",
+    run: () => jumpToNextStitch() },
 ],[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,tOverflowOpen,drawer,halfDisambig,focusColour,pat,pal,undoSnapshot,countsVer,trackHistory,redoStack,highlightMode,manuallyPaused,layerVis,colourDoneCounts,focusEnabled,focusBlock,stitchingStyle,blockW,blockH,sW,sH,startCorner]);
 
 // Update stable handler refs every render (cheap assignment, no DOM work)
