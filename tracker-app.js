@@ -432,7 +432,7 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
 // the right. Both surfaces are CSS-gated to >=600px viewports; phone
 // keeps its existing chrome (action bar + dock + mode pill).
 // ═══════════════════════════════════════════════════════════════
-function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setFocusColour,stitchView,setStitchView,todayStitchesForBar,liveAutoElapsed,liveAutoStitches,onPickProject}){
+function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setFocusColour,stitchView,setStitchView,todayStitchesForBar,liveAutoElapsed,liveAutoStitches,onPickProject,skeinData,globalStash,onToggleOwned}){
   const[recent,setRecent]=React.useState([]);
   React.useEffect(function(){
     let cancelled=false;
@@ -505,26 +505,71 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
         React.createElement('div',{className:'tsp-stat'},React.createElement('span',null,'Active'),React.createElement('strong',null,(liveAutoStitches||0).toLocaleString()+' st'))
       ),
       React.createElement('section',{className:'tsp-card'},
-        React.createElement('h3',{className:'tsp-h'},'Palette · '+(pal?pal.length:0)+' colours'),
-        React.createElement('div',{className:'tsp-pal'},
-          (pal||[]).map(function(p){
-            var dc=colourDoneCounts?colourDoneCounts[p.id]:null;
-            var rem=dc?Math.max(0,(dc.total||0)-(dc.done||0)):0;
-            var rgb=cmap&&cmap[p.id]?cmap[p.id].rgb:null;
-            var isOn=focusColour===p.id;
-            return React.createElement('button',{
-              key:p.id,type:'button',
-              className:'tsp-row'+(isOn?' tsp-row--on':''),
-              onClick:function(){if(stitchView!=='highlight')setStitchView('highlight');setFocusColour(p.id);},
-              title:'DMC '+p.id+' — '+(p.name||'')
-            },
-              React.createElement('span',{className:'tsp-sw',style:rgb?{background:'rgb('+rgb+')'}:{}}),
-              React.createElement('span',{className:'tsp-id'},p.id),
-              React.createElement('span',{className:'tsp-name'},p.name||''),
-              React.createElement('span',{className:'tsp-rem'},rem.toLocaleString())
+        // Threads-needed view (replaces the duplicate palette legend).
+        // Decomposes blends into individual DMC IDs via skeinData and
+        // splits "Owned" vs "Need to buy" using the global stash. The
+        // ownership toggle writes through StashBridge so /manager and
+        // the shopping list stay in sync.
+        (function(){
+          const rows=(skeinData||[]).map(function(d){
+            const gs=(globalStash&&(globalStash['dmc:'+d.id]||globalStash[d.id]))||null;
+            const owned=gs&&typeof gs.owned==='number'?gs.owned:0;
+            // "Have" if user owns at least the estimated skein count.
+            const have=owned>=d.skeins&&d.skeins>0;
+            // Find a palette entry whose stitches use this thread, so
+            // clicking a row sets a sensible focus colour. Prefer a
+            // solid match; fall back to any blend that contains it.
+            let focusId=null;
+            if(pal){
+              const solid=pal.find(function(pp){return pp.type==='solid'&&pp.id===d.id;});
+              if(solid)focusId=solid.id;
+              else{
+                const blend=pal.find(function(pp){return pp.type==='blend'&&pp.threads&&pp.threads.some(function(t){return t.id===d.id;});});
+                if(blend)focusId=blend.id;
+              }
+            }
+            return{d,owned,have,focusId};
+          });
+          const ownedRows=rows.filter(function(r){return r.have;});
+          const needRows=rows.filter(function(r){return !r.have;});
+          function renderRow(r){
+            const d=r.d;
+            const isOn=focusColour&&r.focusId===focusColour;
+            return React.createElement('div',{key:d.id,className:'tsp-row tsp-row--thread'+(isOn?' tsp-row--on':'')},
+              React.createElement('button',{
+                type:'button',className:'tsp-thread-main',
+                onClick:function(){if(!r.focusId)return;if(stitchView!=='highlight')setStitchView('highlight');setFocusColour(r.focusId);},
+                title:'DMC '+d.id+(d.name?(' — '+d.name):'')+' · '+d.skeins+' skein'+(d.skeins===1?'':'s')+' needed'
+              },
+                React.createElement('span',{className:'tsp-sw',style:{background:'rgb('+(d.rgb||[128,128,128]).join(',')+')'}}),
+                React.createElement('span',{className:'tsp-id'},d.id),
+                React.createElement('span',{className:'tsp-name'},d.name||''),
+                React.createElement('span',{className:'tsp-rem',title:'Skeins needed'},d.skeins+'\u00D7'),
+                r.have
+                  ? React.createElement('span',{className:'tsp-own-pip tsp-own-pip--have',title:'You have '+r.owned+' skein'+(r.owned===1?'':'s')+' of DMC '+d.id+' in your stash','aria-label':'In stash'},'\u2713')
+                  : React.createElement('span',{className:'tsp-own-pip tsp-own-pip--need',title:'You have '+r.owned+' skein'+(r.owned===1?'':'s')+' \u2014 need '+(d.skeins-r.owned)+' more','aria-label':'Need to buy'},(d.skeins-r.owned)+'\u00D7')
+              ),
+              typeof onToggleOwned==='function' && React.createElement('button',{
+                type:'button',className:'tsp-stash-btn',
+                onClick:function(e){e.stopPropagation();onToggleOwned(d.id,r.have?Math.max(0,r.owned-d.skeins):d.skeins);},
+                title:r.have?('Remove '+d.skeins+' skein'+(d.skeins===1?'':'s')+' of DMC '+d.id+' from your stash'):('Mark '+d.skeins+' skein'+(d.skeins===1?'':'s')+' of DMC '+d.id+' as owned'),
+                'aria-label':r.have?'Remove from stash':'Add to stash'
+              },r.have?'\u2212':'+')
             );
-          })
-        )
+          }
+          return React.createElement(React.Fragment,null,
+            React.createElement('h3',{className:'tsp-h'},'Threads needed \u00B7 '+rows.length),
+            (needRows.length>0)&&React.createElement('div',{className:'tsp-group'},
+              React.createElement('div',{className:'tsp-group-h'},'To buy \u00B7 '+needRows.length),
+              React.createElement('div',{className:'tsp-pal'},needRows.map(renderRow))
+            ),
+            (ownedRows.length>0)&&React.createElement('div',{className:'tsp-group'},
+              React.createElement('div',{className:'tsp-group-h'},'In stash \u00B7 '+ownedRows.length),
+              React.createElement('div',{className:'tsp-pal'},ownedRows.map(renderRow))
+            ),
+            rows.length===0&&React.createElement('div',{className:'tsp-empty'},'No threads in this pattern')
+          );
+        })()
       )
     )
   );
@@ -4651,6 +4696,19 @@ const _commitBulk=useCallback(function(set,intent,source){
   setDone(nd);
   if(typeof renderStitch==='function')renderStitch();
   _pulseCells(changes.map(function(c){return c.idx;}));
+  // BUGFIX (#2): explicitly start/extend the auto-session for drag-mark commits.
+  // The diff-based useEffect at line ~1419 sometimes misses bulk commits when
+  // setCountsVer + setDone batch into the same render but prevAutoCountRef has
+  // already been updated by an interleaving render. Calling recordAutoActivity
+  // here guarantees the session timer starts the moment a drag finishes, no
+  // matter how many cells were marked. We also pre-update prevAutoCountRef to
+  // the new value so the diff-based useEffect won't double-count.
+  let _bulkCompleted=0,_bulkUndone=0;
+  for(let _i=0;_i<changes.length;_i++){if(changes[_i].oldVal===0)_bulkCompleted++;else _bulkUndone++;}
+  if(_bulkCompleted>0||_bulkUndone>0){
+    recordAutoActivity(_bulkCompleted,_bulkUndone);
+    prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||(prevAutoCountRef.current&&prevAutoCountRef.current.halfDone)||0};
+  }
 },[pat,focusColour,_pulseCells]);
 
 const _dragMarkOnToggle=useCallback(function(idx){
@@ -4675,6 +4733,13 @@ const _dragMarkOnToggle=useCallback(function(idx){
   doneRef.current=nd;
   setDone(nd);
   if(typeof renderStitch==='function')renderStitch();
+  // BUGFIX (#2): mirror _commitBulk — explicitly record the single-tap so the
+  // session timer starts immediately rather than depending on the doneCount
+  // diff useEffect.
+  if(oldVal!==nv){
+    if(nv)recordAutoActivity(1,0);else recordAutoActivity(0,1);
+    prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||(prevAutoCountRef.current&&prevAutoCountRef.current.halfDone)||0};
+  }
 },[pat,focusColour]);
 
 const _dragMarkOnCommitDrag=useCallback(function(set,intent){
@@ -5679,8 +5744,8 @@ return(
       </div>
       {!legendCollapsed && <div className="rp-tab-content">
       {/* Palette legend (sortable). Single list — focus + highlight in one tap. */}
-      <div className="rp-section" style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-        <div className="col-list" style={{maxHeight:"none",flex:1}}>
+      <div className="rp-section" style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        <div className="col-list" style={{maxHeight:"none",flex:1,minHeight:0,overflowY:"auto"}}>
           {(()=>{
             const rows=pal.map(p=>{
               const dc=colourDoneCounts[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
@@ -5738,6 +5803,22 @@ return(
     todayStitchesForBar={todayStitchesForBar}
     liveAutoElapsed={liveAutoElapsed}
     liveAutoStitches={liveAutoStitches}
+    skeinData={skeinData}
+    globalStash={globalStash}
+    onToggleOwned={(id,newOwned)=>{
+      // Persist ownership change to the global stash and refresh the
+      // local mirror so the rail re-renders with the updated counts.
+      // Same code path used by the project-completion deduct prompt.
+      (async()=>{
+        try{
+          if(typeof StashBridge!=='undefined'&&StashBridge.updateThreadOwned){
+            await StashBridge.updateThreadOwned(id,newOwned);
+            const fresh=await StashBridge.getGlobalStash();
+            setGlobalStash(fresh);
+          }
+        }catch(err){console.warn('updateThreadOwned failed:',err);}
+      })();
+    }}
     onPickProject={(id)=>{
       if(!id||id===projectIdRef.current)return;
       ProjectStorage.get(id).then(p=>{
