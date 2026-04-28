@@ -1673,13 +1673,21 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
   const lifetimeChipRef = useRef(null);
 
   // ── Shared tab bar (built after all hooks) ────────────────────
+  // Tab labels use Icons.* (sparkles/fire/lightbulb) prefixed inline so the
+  // chrome stays consistent with the rest of the app. Avoid raw unicode
+  // glyphs (✶ ◎ ✨) per the no-emoji house rule.
+  const _Icons = (typeof window !== 'undefined' && window.Icons) ? window.Icons : null;
+  function tabIcon(name) {
+    if (!_Icons || typeof _Icons[name] !== 'function') return null;
+    return h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex', verticalAlign: '-3px', marginRight: 4 } }, _Icons[name]());
+  }
   const tabBar = h('div', { className: 'gsd-tabs', style: { paddingTop: 8 } },
     h('div', { className: 'gsd-tabs-inner' },
       h('button', { className: 'gsd-tab' + (tab === 'stitching' ? ' gsd-tab--on' : ''), onClick: () => switchTab('stitching') }, 'Stitching'),
       h('button', { className: 'gsd-tab' + (tab === 'stash' ? ' gsd-tab--on' : ''), onClick: () => switchTab('stash') }, 'Stash'),
-      h('button', { className: 'gsd-tab' + (tab === 'showcase' ? ' gsd-tab--on' : ''), onClick: () => switchTab('showcase') }, '\u2736 Showcase'),
-      h('button', { className: 'gsd-tab' + (tab === 'activity' ? ' gsd-tab--on' : ''), onClick: () => switchTab('activity') }, '\u25ce Activity'),
-      h('button', { className: 'gsd-tab' + (tab === 'insights' ? ' gsd-tab--on' : ''), onClick: () => switchTab('insights') }, '\u2728 Insights')
+      h('button', { className: 'gsd-tab' + (tab === 'showcase' ? ' gsd-tab--on' : ''), onClick: () => switchTab('showcase') }, tabIcon('sparkles'), 'Showcase'),
+      h('button', { className: 'gsd-tab' + (tab === 'activity' ? ' gsd-tab--on' : ''), onClick: () => switchTab('activity') }, tabIcon('fire'), 'Activity'),
+      h('button', { className: 'gsd-tab' + (tab === 'insights' ? ' gsd-tab--on' : ''), onClick: () => switchTab('insights') }, tabIcon('lightbulb'), 'Insights')
     ),
     h('div', { className: 'app-info-chip-wrap gsd-tabs-chip-wrap' },
       h('button', {

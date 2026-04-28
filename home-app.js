@@ -533,7 +533,7 @@
       },
         h('span', null, 'Open Stats & Showcase'),
         h('span', { className: 'home-stats-panel__link-icon', 'aria-hidden': 'true' },
-          typeof Icons.pointing === 'function' ? Icons.pointing() : null)
+          typeof Icons.chevronRight === 'function' ? Icons.chevronRight() : null)
       )
     );
   }

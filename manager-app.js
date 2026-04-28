@@ -1275,7 +1275,7 @@ function ManagerApp() {
                         )}
                         {reqThreads.length > 0 && (
                           missing.length === 0
-                            ? <span style={{ padding: "2px 8px", borderRadius: 12, background: "var(--success-soft)", color: "var(--success)", fontWeight: 700 }} title="All required threads are in your stash">✓ Fully kitted</span>
+                            ? <span style={{ padding: "2px 8px", borderRadius: 12, background: "var(--success-soft)", color: "var(--success)", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }} title="All required threads are in your stash">{Icons.check()} Fully kitted</span>
                             : <span
                                 onClick={e => { e.stopPropagation(); setViewingPattern(pat); setPanelOpen(true); }}
                                 style={{ padding: "2px 8px", borderRadius: 12, background: "var(--warning-soft)", color: "#c2410c", fontWeight: 700, cursor: "pointer" }}
@@ -1293,14 +1293,14 @@ function ManagerApp() {
                 <div className="at">{Icons.dot()} Currently Tracking</div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span>{activeProject.name || (activeProject.pattern && activeProject.pattern.length > 0 ? "Active Project" : "Unnamed Project")}</span>
-                  <a href="stitch.html" style={{ color: "#065f46", fontWeight: 600, fontSize: 11 }}>Go to Tracker →</a>
+                  <a href="stitch.html" style={{ color: "#065f46", fontWeight: 600, fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4 }}>Go to Tracker {Icons.chevronRight()}</a>
                 </div>
               </div>
             )}
             {/* Smart Hub: Ready to Start */}
             {readyToStart && readyToStart.length > 0 && (
               <div style={{ background: "var(--success-soft)", border: "1px solid #C4DCB6", borderRadius: 10, padding: "14px 16px" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#4F7D3F", marginBottom: 8 }}>✓ Ready to Start</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#4F7D3F", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>{Icons.check()} Ready to Start</div>
                 <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 10 }}>Patterns you can fully kit from your current stash.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 200, overflow: "auto" }}>
                   {readyToStart.map(r => (
@@ -1843,7 +1843,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
 
         <div style={{ padding: "16px 20px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end", gap: 10, background: "#FBF8F3", borderRadius: "0 0 8px 8px" }}>
           <button onClick={onClose} style={{ padding: "8px 16px", borderRadius: 8, border: "0.5px solid var(--border)", background: "var(--surface)", cursor: "pointer", fontWeight: 600 }}>Cancel</button>
-          <button onClick={handleTrack} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--accent-ink)", color: "var(--surface)", cursor: "pointer", fontWeight: 600 }}>Start Tracking →</button>
+          <button onClick={handleTrack} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--accent-ink)", color: "var(--surface)", cursor: "pointer", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6 }}>Start Tracking {Icons.chevronRight()}</button>
           <button onClick={() => onSave(edited)} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#B85C38", color: "var(--surface)", cursor: "pointer", fontWeight: 600 }}>Save Pattern</button>
         </div>
       </div>
@@ -2013,7 +2013,7 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads, userP
                           if (rA === rB) {
                               subtext = `~${t.skToBuy} skein(s) each`;
                           } else {
-                              subtext = `→ DMC ${t.id}: ~${t.skToBuy} skeins · DMC ${t.blend_id}: ~${t.skBToBuy} skeins`;
+                              subtext = `DMC ${t.id}: ~${t.skToBuy} skeins · DMC ${t.blend_id}: ~${t.skBToBuy} skeins`;
                           }
                       } else {
                           subtext = `Stitch estimate not available for blended entries stored as skeins.`;
