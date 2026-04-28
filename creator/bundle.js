@@ -11655,12 +11655,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             style:{margin:0}
           }),
           h("span", null, "Only show threads I own")
-        ),
-        h("button", {
-          onClick: function() { if (typeof app.setModal === 'function') app.setModal('shopping_list'); },
-          title: "What do I need to buy?",
-          style:{marginLeft:"auto",fontSize:10,padding:"2px 8px",cursor:"pointer",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-secondary)",fontWeight:500,display:"inline-flex",alignItems:"center",gap:'var(--s-1)'}
-        }, typeof Icons !== 'undefined' && Icons.cart ? Icons.cart() : null, "Shopping list")
+        )
       ),
       // A1 (UX Phase 5) — honest warning panel + actionable CTAs.
       // Always show when filter is on and unowned threads remain in the

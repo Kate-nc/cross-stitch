@@ -82,25 +82,25 @@ function ManagerApp() {
   const [welcomeOpen, setWelcomeOpen] = useState(() => {
     try { return !!(window.WelcomeWizard && window.WelcomeWizard.shouldShow('manager')); } catch (_) { return false; }
   });
-  // Global "?" shortcut â†’ open Help Centre.
+  // Global "?" shortcut → open Help Centre.
   useEffect(() => {
     const h = () => setModal("help");
     window.addEventListener("cs:openHelp", h);
     return () => window.removeEventListener("cs:openHelp", h);
   }, []);
-  // Command Palette â†’ Keyboard Shortcuts modal.
+  // Command Palette → Keyboard Shortcuts modal.
   useEffect(() => {
     const h = () => setModal("shortcuts");
     window.addEventListener("cs:openShortcuts", h);
     return () => window.removeEventListener("cs:openShortcuts", h);
   }, []);
-  // Command Palette â†’ Bulk Add Threads bridge.
+  // Command Palette → Bulk Add Threads bridge.
   useEffect(() => {
     const h = () => setBulkAddOpen(true);
     window.addEventListener("cs:openBulkAdd", h);
     return () => window.removeEventListener("cs:openBulkAdd", h);
   }, []);
-  // Command Palette â†’ Preferences modal bridge (UX-12 Phase 6 PR #11).
+  // Command Palette → Preferences modal bridge (UX-12 Phase 6 PR #11).
   useEffect(() => {
     const h = () => { if (typeof window.PreferencesModal !== 'undefined') setPreferencesOpen(true); };
     window.addEventListener("cs:openPreferences", h);
@@ -124,7 +124,7 @@ function ManagerApp() {
     return () => { if (window.CommandPalette) window.CommandPalette.registerPage('manager', []); };
   }, []);
 
-  // Global "B" shortcut â†’ open Bulk Add Threads from anywhere on the Manager
+  // Global "B" shortcut → open Bulk Add Threads from anywhere on the Manager
   // page. Registered through the central shortcuts registry.
   if(typeof window.useShortcuts==='function'){
     window.useShortcuts(typeof window.BulkAddModal==='undefined'?[]:[
@@ -133,7 +133,7 @@ function ManagerApp() {
         run: ()=>setBulkAddOpen(true) }
     ],[]);
   }
-  // "Show welcome tour again" from HelpCentre â†’ re-open the wizard.
+  // "Show welcome tour again" from HelpCentre → re-open the wizard.
   useEffect(() => {
     const h = (e) => { if (!e || !e.detail || e.detail.page === "manager") setWelcomeOpen(true); };
     window.addEventListener("cs:showWelcome", h);
@@ -175,14 +175,14 @@ function ManagerApp() {
     };
   };
   const reconcileAutoSyncedPatterns = useCallback(async (basePatterns, allMeta) => {
-    // Build a map of linkedProjectId â†’ index for fast lookup.
+    // Build a map of linkedProjectId → index for fast lookup.
     const linkedIdxMap = new Map(
       basePatterns.map((p, i) => p.linkedProjectId ? [p.linkedProjectId, i] : null).filter(Boolean)
     );
     const unlinked = allMeta.filter(m => !linkedIdxMap.has(m.id));
 
     // For each project that already has a library entry, check whether its name
-    // changed (e.g. renamed on another device via sync). If so, update title only â€”
+    // changed (e.g. renamed on another device via sync). If so, update title only —
     // leave user-set fields (designer, tags, status) untouched.
     let reconciled = updateTitleIfChanged(basePatterns, allMeta, linkedIdxMap);
 
@@ -266,7 +266,7 @@ function ManagerApp() {
           // Backup
           store.put(threadsData, "threads_backup_v1");
 
-          // Migrate v1 â†’ v3
+          // Migrate v1 → v3
           finalThreads = {};
           for (const [id, t] of Object.entries(threadsData)) {
             finalThreads[id] = { ...t, partialStatus: t.partialStatus || null, min_stock: 0 };
@@ -274,7 +274,7 @@ function ManagerApp() {
           store.put(finalThreads, "threads");
           store.put(3, "stashDataVersion");
         } else if (threadsData && versionData === 2) {
-          // Migrate v2 â†’ v3: add min_stock
+          // Migrate v2 → v3: add min_stock
           finalThreads = {};
           for (const [id, t] of Object.entries(threadsData)) {
             finalThreads[id] = { ...t, min_stock: t.min_stock || 0 };
@@ -295,7 +295,7 @@ function ManagerApp() {
           store.put(4, "stashDataVersion");
         }
 
-        // v3 â†’ v4: convert bare DMC keys to composite keys and add Anchor threads
+        // v3 → v4: convert bare DMC keys to composite keys and add Anchor threads
         if (threadsData && versionData === 3) {
           const migrated = {};
           for (const [key, val] of Object.entries(finalThreads)) {
@@ -352,7 +352,7 @@ function ManagerApp() {
     };
 
     // Await loadManagerData so ensurePersistence() has settled before we read the
-    // storage estimate â€” otherwise the persistent flag races and shows false.
+    // storage estimate — otherwise the persistent flag races and shows false.
     loadManagerData().then(() => {
       ProjectStorage.getStorageEstimate().then(setStorageUsage).catch(e => console.warn('getStorageEstimate failed:', e));
     });
@@ -411,7 +411,7 @@ function ManagerApp() {
 
     // Live refresh when other tabs/components mutate projects, the auto-synced
     // pattern library, or the stash. Without these the Manager only refreshes
-    // on visibilitychange â€” so a pattern just generated in the Creator wouldn't
+    // on visibilitychange — so a pattern just generated in the Creator wouldn't
     // appear here until the user clicked away and back.
     const handleProjectsOrPatternsChanged = () => {
       handleVisibilityChange();
@@ -421,7 +421,7 @@ function ManagerApp() {
 
     // External writers (StashBridge.setToBuyQty, markBought, etc.) mutate
     // manager_state.threads directly and dispatch cs:stashChanged. We must
-    // re-load the threads slice from IDB so the React copy doesn't go stale â€”
+    // re-load the threads slice from IDB so the React copy doesn't go stale —
     // otherwise the next debounced auto-save will write the stale React state
     // back over IDB and silently wipe the bridge's mutation.
     const handleStashChanged = async () => {
@@ -819,11 +819,11 @@ function ManagerApp() {
           style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)", background: "none", border: "none", cursor: "pointer", padding: "0 14px", fontFamily: "inherit", flexShrink: 0, whiteSpace: "nowrap" }}
           aria-label="Open Showcase view"
         >
-          âœ¦ Showcase
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{Icons.sparkles()} Showcase</span>
         </button>
       </div>
 
-      {/* Filter bar â€” threads */}
+      {/* Filter bar — threads */}
       {tab === "inventory" && (
         <div className="mgr-filter-bar">
           <input
@@ -861,11 +861,11 @@ function ManagerApp() {
         </div>
       )}
 
-      {/* Stats strip â€” threads.
+      {/* Stats strip — threads.
           Plan B Phase 2: collapsed into a "Stash" info chip. The full
           breakdown (owned / to-buy / low-stock / conflicts / ready-to-start)
           opens in the shared AppInfoPopover one click away. The smart-hub
-          alert cards below stay intact â€” critical conflicts must remain
+          alert cards below stay intact — critical conflicts must remain
           surfaced inline. */}
       {tab === "inventory" && (
         <div className="mgr-stats-strip">
@@ -960,10 +960,10 @@ function ManagerApp() {
               </div>
             )}
 
-            {/* Smart Hub: Low-Stock Alerts â€” needed by active projects */}
+            {/* Smart Hub: Low-Stock Alerts — needed by active projects */}
             {lowStockNeeded && lowStockNeeded.length > 0 && (
               <div className="alert-card warn" style={{ marginBottom: 16 }}>
-                <div className="at">{Icons.box()} Low Stock â€” Needed ({lowStockNeeded.length})</div>
+                <div className="at">{Icons.box()} Low Stock — Needed ({lowStockNeeded.length})</div>
                 <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 10 }}>Threads below your minimum stock level that are used by active projects.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflow: "auto" }}>
                   {lowStockNeeded.map(a => (
@@ -980,10 +980,10 @@ function ManagerApp() {
               </div>
             )}
 
-            {/* Smart Hub: Low-Stock â€” not currently needed */}
+            {/* Smart Hub: Low-Stock — not currently needed */}
             {lowStockNotNeeded && lowStockNotNeeded.length > 0 && (
               <div className="alert-card" style={{ marginBottom: 16, background: "#f8fafc", border: "1px solid var(--border)" }}>
-                <div className="at" style={{ color: "var(--text-tertiary)" }}>{Icons.box()} Low stash â€” not currently needed ({lowStockNotNeeded.length})</div>
+                <div className="at" style={{ color: "var(--text-tertiary)" }}>{Icons.box()} Low stash — not currently needed ({lowStockNotNeeded.length})</div>
                 <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginBottom: 10 }}>These threads are below minimum stock but aren't used by any active project.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflow: "auto" }}>
                   {lowStockNotNeeded.map(a => (
@@ -1043,7 +1043,7 @@ function ManagerApp() {
             </div>
           </div>
 
-          {/* Right Panel â€” Thread Detail */}
+          {/* Right Panel — Thread Detail */}
           {panelOpen && <div className="rpanel-backdrop" onClick={() => setPanelOpen(false)} />}
           <div className={"mgr-rpanel" + (panelOpen ? " mgr-rpanel--open" : "")}>
             <div className="mgr-panel-handle" onClick={() => setPanelOpen(o => !o)}>
@@ -1069,7 +1069,7 @@ function ManagerApp() {
                   <div className="td-row">
                     <span className="lbl">Full skeins</span>
                     <div className="qty-ctrl">
-                      <button onClick={() => updateThread(selectedThread, "owned", Math.max(0, state.owned - 1))}>âˆ’</button>
+                      <button onClick={() => updateThread(selectedThread, "owned", Math.max(0, state.owned - 1))}>−</button>
                       <span className="num">{state.owned}</span>
                       <button onClick={() => updateThread(selectedThread, "owned", state.owned + 1)}>+</button>
                     </div>
@@ -1077,7 +1077,7 @@ function ManagerApp() {
                   <div className="td-row">
                     <span className="lbl">Min stock</span>
                     <div className="qty-ctrl">
-                      <button onClick={() => updateThread(selectedThread, "min_stock", Math.max(0, (state.min_stock || 0) - 1))}>âˆ’</button>
+                      <button onClick={() => updateThread(selectedThread, "min_stock", Math.max(0, (state.min_stock || 0) - 1))}>−</button>
                       <span className="num">{state.min_stock || 0}</span>
                       <button onClick={() => updateThread(selectedThread, "min_stock", (state.min_stock || 0) + 1)}>+</button>
                     </div>
@@ -1092,10 +1092,10 @@ function ManagerApp() {
                     <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginBottom: 4, textAlign: "center" }}>Opened skein level</div>
                     <div className="gauge-lg">
                       {[
-                        { val: null, label: "â€”" },
-                        { val: "mostly-full", label: "Â¾" },
-                        { val: "about-half", label: "Â½" },
-                        { val: "remnant", label: "Â¼" }
+                        { val: null, label: "—" },
+                        { val: "mostly-full", label: "¾" },
+                        { val: "about-half", label: "½" },
+                        { val: "remnant", label: "¼" }
                       ].map(opt => {
                         const isActive = state.partialStatus === opt.val || (opt.val === null && !state.partialStatus);
                         return <div key={opt.val || "none"} className={"seg" + (isActive ? " full" : "")} title={opt.val || "None"} onClick={() => updateThread(selectedThread, "partialStatus", opt.val)}>{opt.label}</div>;
@@ -1199,7 +1199,7 @@ function ManagerApp() {
                 + Add Pattern
               </button>
             </div>
-            {/* Unified Project Library â€” same card view as Home dashboard so users
+            {/* Unified Project Library — same card view as Home dashboard so users
                 see one consistent picture of their work across pages. */}
             {window.ProjectLibrary && (
               <div className="mgr-project-library" style={{ marginBottom: 16, padding: 12, border: "1px solid var(--border)", borderRadius: 12, background: "#fafafa" }}>
@@ -1250,7 +1250,7 @@ function ManagerApp() {
                     const pct = total > 0 ? Math.round(completed / total * 100) : null;
                     const pctBg = pct === null ? null : (pct >= 100 ? "var(--success-soft)" : pct > 0 ? "#dbeafe" : "#EFE7D6");
                     const pctFg = pct === null ? null : (pct >= 100 ? "var(--success)" : pct > 0 ? "var(--accent)" : "var(--text-tertiary)");
-                    // 7-day sparkline (oldest â†’ newest, ending today). Only
+                    // 7-day sparkline (oldest → newest, ending today). Only
                     // rendered when there's actual activity to show.
                     const weekly = (meta && Array.isArray(meta.weeklyStitches)) ? meta.weeklyStitches : null;
                     const weeklyMax = weekly ? Math.max.apply(null, weekly) : 0;
@@ -1275,7 +1275,7 @@ function ManagerApp() {
                         )}
                         {reqThreads.length > 0 && (
                           missing.length === 0
-                            ? <span style={{ padding: "2px 8px", borderRadius: 12, background: "var(--success-soft)", color: "var(--success)", fontWeight: 700 }} title="All required threads are in your stash">âœ“ Fully kitted</span>
+                            ? <span style={{ padding: "2px 8px", borderRadius: 12, background: "var(--success-soft)", color: "var(--success)", fontWeight: 700 }} title="All required threads are in your stash">✓ Fully kitted</span>
                             : <span
                                 onClick={e => { e.stopPropagation(); setViewingPattern(pat); setPanelOpen(true); }}
                                 style={{ padding: "2px 8px", borderRadius: 12, background: "var(--warning-soft)", color: "#c2410c", fontWeight: 700, cursor: "pointer" }}
@@ -1293,14 +1293,14 @@ function ManagerApp() {
                 <div className="at">{Icons.dot()} Currently Tracking</div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span>{activeProject.name || (activeProject.pattern && activeProject.pattern.length > 0 ? "Active Project" : "Unnamed Project")}</span>
-                  <a href="stitch.html" style={{ color: "#065f46", fontWeight: 600, fontSize: 11 }}>Go to Tracker â†’</a>
+                  <a href="stitch.html" style={{ color: "#065f46", fontWeight: 600, fontSize: 11 }}>Go to Tracker →</a>
                 </div>
               </div>
             )}
             {/* Smart Hub: Ready to Start */}
             {readyToStart && readyToStart.length > 0 && (
               <div style={{ background: "var(--success-soft)", border: "1px solid #C4DCB6", borderRadius: 10, padding: "14px 16px" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#4F7D3F", marginBottom: 8 }}>âœ“ Ready to Start</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#4F7D3F", marginBottom: 8 }}>✓ Ready to Start</div>
                 <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 10 }}>Patterns you can fully kit from your current stash.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 200, overflow: "auto" }}>
                   {readyToStart.map(r => (
@@ -1312,7 +1312,7 @@ function ManagerApp() {
                       {r.pct === 100 ? (
                         <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: "var(--success-soft)", color: "#4F7D3F" }}>100% kitted</span>
                       ) : (
-                        <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: "var(--warning-soft)", color: "var(--accent-ink)" }}>{r.pct}% â€” {r.missing.length} missing</span>
+                        <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: "var(--warning-soft)", color: "var(--accent-ink)" }}>{r.pct}% — {r.missing.length} missing</span>
                       )}
                     </div>
                   ))}
@@ -1333,7 +1333,7 @@ function ManagerApp() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: "#1B1814", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
                           <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
-                            {p.dimensions.width}Ã—{p.dimensions.height} Â· {pct}% done Â· {p.source === "tracker" ? "Tracked" : "Created"} Â· {p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : ""}
+                            {p.dimensions.width}×{p.dimensions.height} · {pct}% done · {p.source === "tracker" ? "Tracked" : "Created"} · {p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : ""}
                           </div>
                         </div>
                         <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 12 }}>
@@ -1426,7 +1426,7 @@ function ManagerApp() {
               </div>
             )}
 
-            {/* Detailed pattern grid removed â€” missing-thread badges now
+            {/* Detailed pattern grid removed — missing-thread badges now
                 live on the unified "Your Projects" cards above (see the
                 cardExtras callback on ProjectLibrary). If no patterns exist
                 yet, surface an empty-state nudge. */}
@@ -1447,7 +1447,7 @@ function ManagerApp() {
             )}
           </div>
 
-          {/* Right Panel â€” Pattern Detail */}
+          {/* Right Panel — Pattern Detail */}
           {panelOpen && <div className="rpanel-backdrop" onClick={() => setPanelOpen(false)} />}
           <div className={"mgr-rpanel" + (panelOpen ? " mgr-rpanel--open" : "")}>
             <div className="mgr-panel-handle" onClick={() => setPanelOpen(o => !o)}>
@@ -1660,7 +1660,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
       <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 600, width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", padding: 0 }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 id="pattern-edit-title" style={{ margin: 0, fontSize: 18 }}>{pattern.title ? "Edit Pattern" : "Add Pattern"}</h2>
-          <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "var(--text-tertiary)" }}>Ã—</button>
+          <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "var(--text-tertiary)" }}>×</button>
         </div>
 
         <div style={{ padding: 20, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1691,7 +1691,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
                 {edited.tags.map(tag => (
                   <span key={tag} style={{ padding: "4px 8px", background: "#EFE7D6", borderRadius: 6, fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}>
-                    {tag} <button onClick={() => removeTag(tag)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", padding: 0 }}>Ã—</button>
+                    {tag} <button onClick={() => removeTag(tag)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", padding: 0 }}>×</button>
                   </span>
                 ))}
               </div>
@@ -1752,7 +1752,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
                 </div>
               </div>
 
-              {threadQty === "" && <div style={{ fontSize: 11, color: "#A06F2D" }}>Quantity cleared â€” please enter the value in {threadUnit}.</div>}
+              {threadQty === "" && <div style={{ fontSize: 11, color: "#A06F2D" }}>Quantity cleared — please enter the value in {threadUnit}.</div>}
 
               <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
                 <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
@@ -1830,7 +1830,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
                       <span style={{ fontSize: 11, color: "var(--text-tertiary)", width: 16 }}>{displayUnit}</span>
                     </div>
 
-                    <button onClick={() => removeThread(idx)} style={{ background: "none", border: "none", color: "var(--text-tertiary)", cursor: "pointer", padding: "4px" }}>Ã—</button>
+                    <button onClick={() => removeThread(idx)} style={{ background: "none", border: "none", color: "var(--text-tertiary)", cursor: "pointer", padding: "4px" }}>×</button>
                   </div>
                 );
               })}
@@ -1843,7 +1843,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
 
         <div style={{ padding: "16px 20px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end", gap: 10, background: "#FBF8F3", borderRadius: "0 0 8px 8px" }}>
           <button onClick={onClose} style={{ padding: "8px 16px", borderRadius: 8, border: "0.5px solid var(--border)", background: "var(--surface)", cursor: "pointer", fontWeight: 600 }}>Cancel</button>
-          <button onClick={handleTrack} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--accent-ink)", color: "var(--surface)", cursor: "pointer", fontWeight: 600 }}>Start Tracking â†’</button>
+          <button onClick={handleTrack} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--accent-ink)", color: "var(--surface)", cursor: "pointer", fontWeight: 600 }}>Start Tracking →</button>
           <button onClick={() => onSave(edited)} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#B85C38", color: "var(--surface)", cursor: "pointer", fontWeight: 600 }}>Save Pattern</button>
         </div>
       </div>
@@ -1968,7 +1968,7 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads, userP
             <h2 id="pattern-detail-title" style={{ margin: 0, fontSize: 20, marginBottom: 4 }}>{pattern.title || "Untitled"}</h2>
             {pattern.designer && <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>by {pattern.designer}</div>}
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "var(--text-tertiary)" }}>Ã—</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "var(--text-tertiary)" }}>×</button>
         </div>
 
         <div style={{ padding: 20, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1976,7 +1976,7 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads, userP
             <span style={{ padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: statusColors[pattern.status].bg, color: statusColors[pattern.status].text }}>
               {statusColors[pattern.status].label}
             </span>
-            {pattern.fabric && <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>â€¢ {pattern.fabric}</span>}
+            {pattern.fabric && <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>• {pattern.fabric}</span>}
           </div>
 
           {pattern.tags && pattern.tags.length > 0 && (
@@ -2008,32 +2008,32 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads, userP
                   if (t.is_blended) {
                       const rA = t.blend_ratio ? t.blend_ratio[0] : 1;
                       const rB = t.blend_ratio ? t.blend_ratio[1] : 1;
-                      text = `DMC ${t.id} + DMC ${t.blend_id} [${rA}:${rB}] â€” ${t.unit === "stitches" ? t.qty + " stitches" : t.qty + " skeins"}`;
+                      text = `DMC ${t.id} + DMC ${t.blend_id} [${rA}:${rB}] — ${t.unit === "stitches" ? t.qty + " stitches" : t.qty + " skeins"}`;
                       if (t.unit === "stitches") {
                           if (rA === rB) {
                               subtext = `~${t.skToBuy} skein(s) each`;
                           } else {
-                              subtext = `â†’ DMC ${t.id}: ~${t.skToBuy} skeins Â· DMC ${t.blend_id}: ~${t.skBToBuy} skeins`;
+                              subtext = `→ DMC ${t.id}: ~${t.skToBuy} skeins · DMC ${t.blend_id}: ~${t.skBToBuy} skeins`;
                           }
                       } else {
                           subtext = `Stitch estimate not available for blended entries stored as skeins.`;
                       }
                   } else {
                       if (t.unit === "stitches") {
-                          text = `DMC ${t.id} (${t.name}) â€” ${t.qty.toLocaleString()} stitches (~${t.skToBuy} skeins)`;
+                          text = `DMC ${t.id} (${t.name}) — ${t.qty.toLocaleString()} stitches (~${t.skToBuy} skeins)`;
                       } else {
                           // Is skeins or fallback
                           if (t.unit === "skeins" && t.isApprox) {
-                              text = `DMC ${t.id} (${t.name}) â€” ${t.qty} skein(s) (~${t.stApprox.toLocaleString()} stitches)`;
+                              text = `DMC ${t.id} (${t.name}) — ${t.qty} skein(s) (~${t.stApprox.toLocaleString()} stitches)`;
                           } else {
-                              text = `DMC ${t.id} (${t.name}) â€” ${t.qty} skein(s)`;
+                              text = `DMC ${t.id} (${t.name}) — ${t.qty} skein(s)`;
                           }
                       }
                   }
 
                   const settingsUsed = t.settings;
                   const isOverride = !!pattern.project_overrides;
-                  const settingsBadge = `Based on: ${settingsUsed.fabricCount}ct Â· ${settingsUsed.strandsUsed} strands Â· ${settingsUsed.threadBrand} Â· ${Math.round(settingsUsed.wasteFactor * 100)}% waste ${isOverride ? "(project settings)" : ""}`;
+                  const settingsBadge = `Based on: ${settingsUsed.fabricCount}ct · ${settingsUsed.strandsUsed} strands · ${settingsUsed.threadBrand} · ${Math.round(settingsUsed.wasteFactor * 100)}% waste ${isOverride ? "(project settings)" : ""}`;
 
                   return (
                     <div key={idx} style={{ display: "flex", flexDirection: "column", gap: 6, padding: "12px 16px", background: "#FBF8F3", borderRadius: 8, border: "1px solid var(--border)" }}>
@@ -2073,7 +2073,7 @@ function UserProfileModal({ profile, onSave, onClose }) {
       <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 500, width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", padding: 0 }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 id="user-profile-title" style={{ margin: 0, fontSize: 18 }}>Default Thread Settings</h2>
-          <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "var(--text-tertiary)" }}>Ã—</button>
+          <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "var(--text-tertiary)" }}>×</button>
         </div>
 
         <div style={{ padding: 20, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
