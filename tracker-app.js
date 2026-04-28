@@ -556,7 +556,7 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
                 React.createElement('span',{className:'tsp-name'},d.name||''),
                 React.createElement('span',{className:'tsp-rem',title:'Skeins needed'},d.skeins+'\u00D7'),
                 r.have
-                  ? React.createElement('span',{className:'tsp-own-pip tsp-own-pip--have',title:'You have '+r.owned+' skein'+(r.owned===1?'':'s')+' of DMC '+d.id+' in your stash','aria-label':'In stash'},'\u2713')
+                  ? React.createElement('span',{className:'tsp-own-pip tsp-own-pip--have',title:'You have '+r.owned+' skein'+(r.owned===1?'':'s')+' of DMC '+d.id+' in your stash','aria-label':'In stash'},window.Icons.check())
                   : React.createElement('span',{className:'tsp-own-pip tsp-own-pip--need',title:'You have '+r.owned+' skein'+(r.owned===1?'':'s')+' \u2014 need '+(d.skeins-r.owned)+' more','aria-label':'Need to buy'},(d.skeins-r.owned)+'\u00D7')
               ),
               typeof onToggleOwned==='function' && React.createElement('button',{
@@ -564,7 +564,7 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
                 onClick:function(e){e.stopPropagation();onToggleOwned(d.id,r.have?Math.max(0,r.owned-d.skeins):d.skeins);},
                 title:r.have?('Remove '+d.skeins+' skein'+(d.skeins===1?'':'s')+' of DMC '+d.id+' from your stash'):('Mark '+d.skeins+' skein'+(d.skeins===1?'':'s')+' of DMC '+d.id+' as owned'),
                 'aria-label':r.have?'Remove from stash':'Add to stash'
-              },r.have?'\u2212':'+')
+              },r.have?window.Icons.minus():window.Icons.plus())
             );
           }
           return React.createElement(React.Fragment,null,
@@ -4151,7 +4151,7 @@ function handleStitchMouseDown(e){
     if(e.shiftKey||!selectedColorId||!cmap||!cmap[selectedColorId]){
       let gc2=gridCoord(stitchRef,e,scs,G,false);if(gc2&&gc2.gx>=0&&gc2.gx<sW&&gc2.gy>=0&&gc2.gy<sH){setHlRow(gc2.gy);setHlCol(gc2.gx);}
     }else{
-      if(gx>=0&&gx<=sW&&gy>=0&&gy<=sH){let existing=parkMarkers.findIndex(m=>m.x===gx&&m.y===gy&&m.colorId===selectedColorId);if(existing>=0)setParkMarkers(prev=>prev.filter((_,i)=>i!==existing));else setParkMarkers(prev=>{
+      if(gx>=0&&gx<sW&&gy>=0&&gy<sH){let existing=parkMarkers.findIndex(m=>m.x===gx&&m.y===gy&&m.colorId===selectedColorId);if(existing>=0)setParkMarkers(prev=>prev.filter((_,i)=>i!==existing));else setParkMarkers(prev=>{
         // Multi-colour parking — Option A: auto-rotate corners.
         // Pick the next free corner at this cell in [BL, BR, TR, TL]
         // order so up to 4 colours can be parked on the same cell
@@ -4830,7 +4830,7 @@ const _commitBulk=useCallback(function(set,intent,source){
     recordAutoActivity(_bulkCompleted,_bulkUndone);
     prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||(prevAutoCountRef.current&&prevAutoCountRef.current.halfDone)||0};
   }
-},[pat,focusColour,_pulseCells]);
+},[pat,focusColour,_pulseCells,recordAutoActivity,halfStitchCounts]);
 
 const _dragMarkOnToggle=useCallback(function(idx){
   // C3: single-cell tap from useDragMark (touch + mouse). Uses the
@@ -4861,7 +4861,7 @@ const _dragMarkOnToggle=useCallback(function(idx){
     if(nv)recordAutoActivity(1,0);else recordAutoActivity(0,1);
     prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||(prevAutoCountRef.current&&prevAutoCountRef.current.halfDone)||0};
   }
-},[pat,focusColour]);
+},[pat,focusColour,isColourLocked,fullStitchMatchesFocus,pushTrackHistory,applyDoneCountsDelta,renderStitch,recordAutoActivity,halfStitchCounts]);
 
 const _dragMarkOnCommitDrag=useCallback(function(set,intent){
   _commitBulk(set,intent,'drag');
