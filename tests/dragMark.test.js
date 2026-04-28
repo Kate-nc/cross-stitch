@@ -276,3 +276,104 @@ test('isMarkableAt false for __skip__ and __empty__', () => {
   expect(isMarkableAt(null, 0)).toBe(false);
   expect(isMarkableAt([{ id: '310' }], -1)).toBe(false);
 });
+
+// ─── 9. REGRESSION: stale-closure invocation of onToggleCell ───────────
+// Bug: useDragMark memoised pointer handlers with [isEdit, cellAtPoint]
+// deps. When neither dep changed across renders, the handlers (and the
+// `dispatch`/`applyEffects` closures they captured) referenced the FIRST
+// render's `opts.onToggleCell`. That callback in turn closed over the
+// FIRST render's `done` array (typically all zeros at project load), so
+// every subsequent tap built `nd = copy(originalDone) | thisCell` and
+// `setDone(nd)` — wiping every prior in-session mark. Stats survived
+// because incremental counters are kept in refs.
+//
+// Fix: useDragMark now keeps an `optsRef` that's mutated each render so
+// stale dispatch/applyEffects closures always invoke the LATEST
+// onToggleCell / onCommitDrag / onCommitRange.
+test('REGRESSION: stale memoised handlers still invoke the latest onToggleCell', () => {
+  // Faithful fake: useRef persists across calls keyed by call order;
+  // useCallback memoises on deps so a stable cellAtPoint produces the
+  // same onPointerDown reference across "renders" (matching real React).
+  const refs = [];
+  let refIdx = 0;
+  const states = [];
+  let stateIdx = 0;
+  // useCallback memoises by call position (hook order) AND deps, mirroring
+  // real React. Memoising only by deps would collapse onPointerDown,
+  // onPointerUp, etc. (which all share the same deps) into one function.
+  const cbSlots = [];
+  let cbIdx = 0;
+  const fakeReact = {
+    useRef: (init) => {
+      if (refs[refIdx] === undefined) refs[refIdx] = { current: init };
+      return refs[refIdx++];
+    },
+    useState: (init) => {
+      if (states[stateIdx] === undefined) states[stateIdx] = init;
+      const i = stateIdx++;
+      return [states[i], (v) => { states[i] = (typeof v === 'function') ? v(states[i]) : v; }];
+    },
+    useEffect: () => {},
+    useCallback: (fn, deps) => {
+      const slot = cbSlots[cbIdx];
+      const key = JSON.stringify(deps);
+      if (!slot || slot.key !== key) {
+        cbSlots[cbIdx] = { key: key, fn: fn };
+      }
+      return cbSlots[cbIdx++].fn;
+    },
+  };
+  const prev = global.window;
+  global.window = Object.assign({}, prev || {}, { React: fakeReact });
+
+  // Reload the module fresh so it picks up the fake React.
+  delete require.cache[require.resolve(path.resolve(__dirname, '..', 'useDragMark.js'))];
+  const fresh = require(path.resolve(__dirname, '..', 'useDragMark.js'));
+
+  const pattern = makePattern(4, 4); // 16 markable cells
+  // Stable cellAtPoint so useCallback returns the SAME onPointerDown
+  // across renders — exactly the condition that triggered the bug.
+  const cellAtPoint = (cx /*, cy */) => cx;
+
+  let firstDone = new Uint8Array(16);
+  let firstToggleCalls = [];
+  const renderOnce = (doneArr, onToggle) => {
+    refIdx = 0; stateIdx = 0; cbIdx = 0; // simulate a fresh render
+    return fresh.useDragMark({
+      w: 4, h: 4, pattern: pattern, done: doneArr,
+      cellAtPoint: cellAtPoint,
+      onToggleCell: onToggle,
+      onCommitDrag: () => {},
+      onCommitRange: () => {},
+      isEditMode: false,
+    });
+  };
+
+  // Render 1
+  const r1 = renderOnce(firstDone, (idx) => firstToggleCalls.push(idx));
+
+  // Render 2 with a NEW done (simulating after a setDone commit) and a
+  // NEW onToggleCell closure that closes over the new done.
+  const secondDone = new Uint8Array(16); secondDone[5] = 1;
+  let latestToggleCalls = [];
+  const r2 = renderOnce(secondDone, (idx) => latestToggleCalls.push('latest:' + idx));
+
+  // Sanity: useCallback memoisation produced the SAME handler reference
+  // across the two renders (matches real React behaviour).
+  expect(r1.handlers.onPointerDown).toBe(r2.handlers.onPointerDown);
+
+  // Now fire a tap via the (memoised) handler from render 1. With the
+  // bug present, this would invoke the FIRST onToggleCell. With the fix
+  // (optsRef), it must invoke the LATEST onToggleCell.
+  r1.handlers.onPointerDown({ clientX: 2, clientY: 0,
+                              button: 0, pointerType: 'mouse',
+                              pointerId: 1, shiftKey: false });
+  r1.handlers.onPointerUp({ clientX: 2, clientY: 0,
+                            button: 0, pointerType: 'mouse',
+                            pointerId: 1 });
+
+  expect(firstToggleCalls).toEqual([]);
+  expect(latestToggleCalls).toEqual(['latest:2']);
+
+  global.window = prev;
+});

@@ -302,6 +302,17 @@
     var doneRef = R.useRef(opts.done);
     patternRef.current = opts.pattern;
     doneRef.current = opts.done;
+    // ── BUGFIX: keep a live ref to the latest opts so stale callback
+    //    closures inside dispatch/applyEffects always invoke the
+    //    most-recently rendered onToggleCell / onCommitDrag /
+    //    onCommitRange. Without this, useCallback memoisation on the
+    //    pointer handlers (deps: [isEdit, cellAtPoint]) can pin the
+    //    very first render's onToggleCell forever — which captures
+    //    the first render's `done` array (typically all zeros) and
+    //    therefore overwrites every prior in-session mark when the
+    //    parent calls `setDone(new Uint8Array(staleDone))`.
+    var optsRef = R.useRef(opts);
+    optsRef.current = opts;
 
     var stateRef = R.useRef(initialState());
     var longPressTimerRef = R.useRef(null);
@@ -328,14 +339,17 @@
     }
 
     function applyEffects(effects, captureEl, pointerId) {
+      // Read opts via optsRef so stale handler closures (memoised by
+      // useCallback) still invoke the latest parent callbacks.
+      var o = optsRef.current;
       for (var i = 0; i < effects.length; i++) {
         var ef = effects[i];
         if (ef.type === 'TOGGLE_CELL') {
-          if (typeof opts.onToggleCell === 'function') opts.onToggleCell(ef.idx);
+          if (typeof o.onToggleCell === 'function') o.onToggleCell(ef.idx);
         } else if (ef.type === 'COMMIT_DRAG') {
-          if (typeof opts.onCommitDrag === 'function') opts.onCommitDrag(ef.set, ef.intent);
+          if (typeof o.onCommitDrag === 'function') o.onCommitDrag(ef.set, ef.intent);
         } else if (ef.type === 'COMMIT_RANGE') {
-          if (typeof opts.onCommitRange === 'function') opts.onCommitRange(ef.set, ef.intent);
+          if (typeof o.onCommitRange === 'function') o.onCommitRange(ef.set, ef.intent);
         } else if (ef.type === 'START_LONG_PRESS') {
           clearLongPress();
           longPressTimerRef.current = setTimeout(function () {
@@ -349,8 +363,12 @@
     }
 
     function dispatch(action) {
+      // Use optsRef for w/h too — the parent may resize the grid
+      // (project switch) while a stale dispatch closure is still held
+      // by a memoised pointer handler.
+      var o = optsRef.current;
       var ctx = {
-        w: w, h: h,
+        w: o.w, h: o.h,
         pattern: patternRef.current,
         done: doneRef.current,
       };

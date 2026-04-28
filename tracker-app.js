@@ -703,6 +703,14 @@ const showCtr=true;
 const[bsLines,setBsLines]=useState([]);
 
 const[done,setDone]=useState(null);
+// ── BUGFIX: live ref to latest `done` so toggle/bulk callbacks always
+//    read the freshest array even when invoked before React commits a
+//    prior setDone. Prevents the "marking a new stitch unmarks all
+//    previous in-session stitches" regression caused by stale closures
+//    in fast-tap sequences (incremental counters survive because they
+//    use refs; the visible `done` array did not).
+const doneRef=useRef(null);
+doneRef.current=done;
 const[doneSnapshots,setDoneSnapshots]=useState([]);
 const lastSnapshotDateRef=useRef(null);
 const[trackHistory,setTrackHistory]=useState([]);
@@ -1672,7 +1680,7 @@ const threadUsageSummary=useMemo(()=>{
   return{isolated,small,medium,large,total,estChanges,mostScattered,mostClustered};
 },[analysisResult,pat]);
 
-function markColourDone(cid,md){if(!pat||!done)return;let changes=[];let nd=new Uint8Array(done);for(let i=0;i<pat.length;i++)if(pat[i].id===cid){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0){pushTrackHistory(changes);applyDoneCountsDelta(changes,pat,nd);}setDone(nd);}
+function markColourDone(cid,md){const cur=doneRef.current;if(!pat||!cur)return;let changes=[];let nd=new Uint8Array(cur);for(let i=0;i<pat.length;i++)if(pat[i].id===cid){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0){pushTrackHistory(changes);applyDoneCountsDelta(changes,pat,nd);}doneRef.current=nd;setDone(nd);}
 function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);setTimeout(()=>setCopied(null),2000);}).catch(()=>{});}
 function copyProgressSummary(){
   let t=totalTime+liveAutoElapsed;
@@ -4563,10 +4571,13 @@ const _pulseCells=useCallback(function(idxList){
 const[dragMarkPulse,setDragMarkPulse]=useState(null);
 
 const _commitBulk=useCallback(function(set,intent,source){
-  if(!pat||!done||!set||!set.size)return;
+  // BUGFIX: read live `done` via doneRef so back-to-back commits before
+  // React commits a prior setDone don't rewind earlier in-session marks.
+  const cur=doneRef.current;
+  if(!pat||!cur||!set||!set.size)return;
   const want=intent==='mark'?1:0;
   const changes=[];
-  const nd=new Uint8Array(done);
+  const nd=new Uint8Array(cur);
   set.forEach(function(idx){
     if(idx<0||idx>=pat.length)return;
     const cell=pat[idx];
@@ -4582,30 +4593,35 @@ const _commitBulk=useCallback(function(set,intent,source){
   if(!changes.length)return;
   pushBulkToggleHistory(changes,source);
   applyDoneCountsDelta(changes,pat,nd);
+  doneRef.current=nd;
   setDone(nd);
   if(typeof renderStitch==='function')renderStitch();
   _pulseCells(changes.map(function(c){return c.idx;}));
-},[pat,done,focusColour,_pulseCells]);
+},[pat,focusColour,_pulseCells]);
 
 const _dragMarkOnToggle=useCallback(function(idx){
   // C3: single-cell tap from useDragMark (touch + mouse). Uses the
   // standard pushTrackHistory machinery for a single-cell undo step.
-  if(!pat||!done)return;
+  // BUGFIX: read live `done` via doneRef so two taps inside one render
+  // frame each see the most-recent array, not a stale closure copy.
+  const cur=doneRef.current;
+  if(!pat||!cur)return;
   if(idx<0||idx>=pat.length)return;
   const cell=pat[idx];
   if(!cell||cell.id==='__skip__'||cell.id==='__empty__')return;
   // C3: colour-lock filter — match the legacy handlers' fullStitchMatchesFocus check.
   if(typeof isColourLocked==='function'&&isColourLocked()
      &&!fullStitchMatchesFocus(idx))return;
-  const oldVal=done[idx];
+  const oldVal=cur[idx];
   const nv=oldVal?0:1;
-  const nd=new Uint8Array(done);
+  const nd=new Uint8Array(cur);
   nd[idx]=nv;
   pushTrackHistory([{idx:idx,oldVal:oldVal}]);
   applyDoneCountsDelta([{idx:idx,oldVal:oldVal}],pat,nd);
+  doneRef.current=nd;
   setDone(nd);
   if(typeof renderStitch==='function')renderStitch();
-},[pat,done,focusColour]);
+},[pat,focusColour]);
 
 const _dragMarkOnCommitDrag=useCallback(function(set,intent){
   _commitBulk(set,intent,'drag');
