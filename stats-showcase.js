@@ -817,12 +817,12 @@ function StatsShowcase({ onClose, onNavigateToDashboard, onNavigateToActivity })
         h('h2', { style: { fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--text-primary)' } }, 'Showcase')
       ),
       h('div', { style: { display: 'flex', alignItems: 'center', gap:'var(--s-3)' } },
-        h('button', { onClick: () => openShare('page'), style: Object.assign({}, linkStyle, { fontSize:'var(--text-md)' }), 'aria-label': 'Share this page as an image' },
-          'Share page ↑'
+        h('button', { onClick: () => openShare('page'), style: Object.assign({}, linkStyle, { fontSize:'var(--text-md)', display:'inline-flex', alignItems:'center', gap:4 }), 'aria-label': 'Share this page as an image' },
+          'Share page', window.Icons && Icons.chevronUp && h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex' } }, Icons.chevronUp())
         ),
-        onNavigateToActivity && h('button', { onClick: onNavigateToActivity, style: linkStyle }, 'Activity \u2192'),
-        h('button', { onClick: onNavigateToDashboard, style: linkStyle },
-          'Full dashboard →'
+        onNavigateToActivity && h('button', { onClick: onNavigateToActivity, style: Object.assign({}, linkStyle, { display:'inline-flex', alignItems:'center', gap:4 }) }, 'Activity', window.Icons && Icons.chevronRight && h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex' } }, Icons.chevronRight())),
+        h('button', { onClick: onNavigateToDashboard, style: Object.assign({}, linkStyle, { display:'inline-flex', alignItems:'center', gap:4 }) },
+          'Full dashboard', window.Icons && Icons.chevronRight && h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex' } }, Icons.chevronRight())
         )
       )
     ),
@@ -859,7 +859,7 @@ function StatsShowcase({ onClose, onNavigateToDashboard, onNavigateToActivity })
           ? h('div', null,
               h('div', { style: { fontSize: 18, color: 'var(--accent)', marginTop: 6, fontWeight: 500 } }, `≈ ${threadKm(lifetimeStitches)} km of thread`),
               h('div', { style: { marginTop:'var(--s-2)' } },
-                h('button', { onClick: () => openShare('lifetime'), style: Object.assign({}, linkStyle, { fontSize:'var(--text-sm)' }) }, 'Share card →')
+                h('button', { onClick: () => openShare('lifetime'), style: Object.assign({}, linkStyle, { fontSize:'var(--text-sm)', display:'inline-flex', alignItems:'center', gap:4 }) }, 'Share card', window.Icons && Icons.chevronRight && h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex' } }, Icons.chevronRight()))
               )
             )
           : h('div', { style: { fontSize: 15, color: 'var(--text-secondary)', marginTop: 10, maxWidth: 420, lineHeight: 1.6 } },

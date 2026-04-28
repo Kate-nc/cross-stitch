@@ -1312,7 +1312,7 @@ function EmbroideryApp(){
       {modal==='shortcuts'&&typeof ShortcutsModal!=='undefined'&&<ShortcutsModal onClose={()=>setModal(null)}/>}
       <div className="emb-container">
         <div className="emb-nav-row">
-          <button className="emb-back-btn" onClick={()=>{setPhase("upload");setImgSrc(null);imgRef.current=null;}}>←</button>
+          <button className="emb-back-btn" aria-label="Back" onClick={()=>{setPhase("upload");setImgSrc(null);imgRef.current=null;}}><span style={{display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{Icons.chevronLeft()}</span></button>
           <h2 className="emb-heading">Segmentation</h2>
         </div>
         <div className="card" style={{marginBottom:14}}>
@@ -1362,7 +1362,7 @@ function EmbroideryApp(){
       <div className="emb-container">
         <div className="emb-nav-row" style={{justifyContent:"space-between"}}>
           <div style={{display:"flex",alignItems:"center",gap:6}}>
-            <button className="emb-back-btn" onClick={()=>{setPhase("segment");setRegions([]);setSelId(null);setCurPts([]);isDraw.current=false;setEditMode("select");setDragNode(null);resetLasso();setZoom(1);setPan({x:0,y:0});zoomRef.current=1;panRef.current={x:0,y:0};}}>←</button>
+            <button className="emb-back-btn" aria-label="Back" onClick={()=>{setPhase("segment");setRegions([]);setSelId(null);setCurPts([]);isDraw.current=false;setEditMode("select");setDragNode(null);resetLasso();setZoom(1);setPan({x:0,y:0});zoomRef.current=1;panRef.current={x:0,y:0};}}><span style={{display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{Icons.chevronLeft()}</span></button>
             <h2 className="emb-heading">Edit Pattern</h2>
           </div>
           {totalRecs>0&&editMode==="select"&&<div className="emb-suggestion-badge">{totalRecs} suggestion{totalRecs>1?"s":""}</div>}

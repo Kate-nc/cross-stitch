@@ -263,7 +263,9 @@ window.ConvertPaletteModal = (function () {
                   React.createElement('span', { style: { width: 18, height: 18, borderRadius: 3, background: 'rgb(' + p.sourceRgb + ')', border: '1px solid var(--border)', flexShrink: 0 } }),
                   React.createElement('span', { style: { fontSize:'var(--text-sm)', fontWeight: 600, width: 80, flexShrink: 0 } }, 'DMC ', p.sourceId),
                   React.createElement('span', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, p.sourceName),
-                  React.createElement('span', { style: { color: 'var(--text-tertiary)', fontSize:'var(--text-md)' } }, '→'),
+                  React.createElement('span', { 'aria-hidden': 'true', style: { color: 'var(--text-tertiary)', display: 'inline-flex', alignItems: 'center' } },
+                    (window.Icons && Icons.chevronRight) ? Icons.chevronRight() : null
+                  ),
                   // Target swatch + label (or dropdown)
                   effectiveTgt
                     ? React.createElement(React.Fragment, null,

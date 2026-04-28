@@ -115,7 +115,7 @@ window.loadPdfStack = function() {
 };
 /* Loads TrackerApp via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
-var TRACKER_CACHE_KEY = 'babel_tracker_222f1ce461';
+var TRACKER_CACHE_KEY = 'babel_tracker_7cc63adba7';
 window.loadTrackerApp = function() {
   if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
   window.__trackerLoading = true;
@@ -147,7 +147,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_3456282a3e';
+var CREATOR_CACHE_KEY = 'babel_creator_332dee4a21';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;
@@ -220,7 +220,7 @@ window.loadStatsInsights = function() {
   });
 };/* Loads stats-page.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var STATS_CACHE_KEY = 'babel_stats_9eb2c9d239';
+var STATS_CACHE_KEY = 'babel_stats_6c2d7dd690';
 window.loadStatsPage = function() {
   if (window.__statsPageLoading || window.__statsPageLoaded) return;
   window.__statsPageLoading = true;

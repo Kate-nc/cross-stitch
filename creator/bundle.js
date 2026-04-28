@@ -11092,7 +11092,9 @@ window.ConvertPaletteModal = (function () {
                   React.createElement('span', { style: { width: 18, height: 18, borderRadius: 3, background: 'rgb(' + p.sourceRgb + ')', border: '1px solid var(--border)', flexShrink: 0 } }),
                   React.createElement('span', { style: { fontSize:'var(--text-sm)', fontWeight: 600, width: 80, flexShrink: 0 } }, 'DMC ', p.sourceId),
                   React.createElement('span', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, p.sourceName),
-                  React.createElement('span', { style: { color: 'var(--text-tertiary)', fontSize:'var(--text-md)' } }, '→'),
+                  React.createElement('span', { 'aria-hidden': 'true', style: { color: 'var(--text-tertiary)', display: 'inline-flex', alignItems: 'center' } },
+                    (window.Icons && Icons.chevronRight) ? Icons.chevronRight() : null
+                  ),
                   // Target swatch + label (or dropdown)
                   effectiveTgt
                     ? React.createElement(React.Fragment, null,
@@ -15540,7 +15542,7 @@ window.CreatorExportTab = function CreatorExportTab() {
     h("button", {
       onClick: app.handleOpenInTracker,
       style: { padding: "12px 20px", fontSize: 15, borderRadius:'var(--radius-md)', border: "none", background: "var(--accent-hover)", color: "var(--surface)", cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap:'var(--s-2)' }
-    }, window.Icons && Icons.thread && Icons.thread(), " Open in Stitch Tracker →"),
+    }, window.Icons && Icons.thread && Icons.thread(), " Open in Stitch Tracker ", window.Icons && Icons.chevronRight && h("span", { 'aria-hidden': 'true', style: { display: 'inline-flex' } }, Icons.chevronRight())),
 
     h("div", null,
       h("h3", { style: { margin: "0 0 8px", fontSize:'var(--text-lg)', color: "var(--text-primary)" } }, "Quick presets"),

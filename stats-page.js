@@ -342,7 +342,7 @@ function DifficultyScatter({ points }) {
         h('title', null, (p.name || 'Untitled') + ' — ' + (p.pct || 0) + '%' + (p.finished ? ' (finished)' : ''))
       );
     }),
-    h('text', { x: W - PAD.right, y: H - 2, textAnchor: 'end', fontSize: 9, fill: 'var(--text-tertiary)' }, 'difficulty →')
+    h('text', { x: W - PAD.right, y: H - 2, textAnchor: 'end', fontSize: 9, fill: 'var(--text-tertiary)' }, 'difficulty')
   );
 }
 

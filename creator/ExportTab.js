@@ -390,7 +390,7 @@ window.CreatorExportTab = function CreatorExportTab() {
     h("button", {
       onClick: app.handleOpenInTracker,
       style: { padding: "12px 20px", fontSize: 15, borderRadius:'var(--radius-md)', border: "none", background: "var(--accent-hover)", color: "var(--surface)", cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap:'var(--s-2)' }
-    }, window.Icons && Icons.thread && Icons.thread(), " Open in Stitch Tracker →"),
+    }, window.Icons && Icons.thread && Icons.thread(), " Open in Stitch Tracker ", window.Icons && Icons.chevronRight && h("span", { 'aria-hidden': 'true', style: { display: 'inline-flex' } }, Icons.chevronRight())),
 
     h("div", null,
       h("h3", { style: { margin: "0 0 8px", fontSize:'var(--text-lg)', color: "var(--text-primary)" } }, "Quick presets"),
