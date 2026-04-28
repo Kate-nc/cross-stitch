@@ -207,6 +207,11 @@ const SharedModals = {
     // Falls back to a tiny static notice if the registry isn't loaded (e.g.
     // shortcuts.js script tag missing).
     const reg = (typeof window !== 'undefined') && window.Shortcuts;
+    // Inline confirm state for the destructive "Reset preview preferences"
+    // action. Replaces a previous browser confirm() + alert() pair (audit
+    // batch 2 fix #1) so the user stays inside the Workshop modal styling
+    // and the action is screen-reader-friendly.
+    const [resetState, setResetState] = React.useState('idle'); // 'idle' | 'arming' | 'done'
 
     function kbList(keys) {
       // keys: array of pre-formatted strings (e.g. ['Ctrl+Z', '⌘Z']).
@@ -299,16 +304,45 @@ const SharedModals = {
           'Press ', React.createElement('kbd', null, '?'), ' anytime to toggle this panel'
         ),
         React.createElement('div', { style: { marginTop: 16, paddingTop: 12, borderTop: '1px solid #EFE7D6', textAlign: 'center' } },
-          React.createElement('button', {
-            onClick: function() {
-              if (confirm('Reset all preview preferences and per-pattern view states to defaults?\n\nThis cannot be undone.')) {
-                if (typeof UserPrefs !== 'undefined') UserPrefs.reset();
-                onClose();
-                alert('Preferences reset. Reload the page to apply defaults.');
-              }
-            },
+          resetState === 'idle' && React.createElement('button', {
+            onClick: function() { setResetState('arming'); },
             style: { fontSize: 11, color: '#A89E89', background: 'none', border: '1px solid #E5DCCB', borderRadius: 4, padding: '4px 12px', cursor: 'pointer' }
-          }, 'Reset preview preferences…')
+          }, 'Reset preview preferences\u2026'),
+          resetState === 'arming' && React.createElement('div', {
+            role: 'alertdialog',
+            'aria-labelledby': 'shortcuts-reset-msg',
+            style: { display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', padding: '8px 12px', background: 'var(--surface-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }
+          },
+            React.createElement('p', {
+              id: 'shortcuts-reset-msg',
+              style: { margin: 0, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4 }
+            }, 'Reset all preview preferences and per-pattern view states to defaults? This cannot be undone.'),
+            React.createElement('div', { style: { display: 'flex', gap: 8 } },
+              React.createElement('button', {
+                onClick: function() {
+                  if (typeof UserPrefs !== 'undefined') UserPrefs.reset();
+                  setResetState('done');
+                },
+                style: { fontSize: 11, color: 'var(--surface)', background: 'var(--danger)', border: '1px solid var(--danger)', borderRadius: 4, padding: '4px 12px', cursor: 'pointer', fontWeight: 600 }
+              }, 'Reset preferences'),
+              React.createElement('button', {
+                onClick: function() { setResetState('idle'); },
+                style: { fontSize: 11, color: 'var(--text-secondary)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 12px', cursor: 'pointer' }
+              }, 'Cancel')
+            )
+          ),
+          resetState === 'done' && React.createElement('div', {
+            role: 'status',
+            style: { display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', padding: '8px 12px', background: 'var(--success-soft)', border: '1px solid var(--success-soft)', borderRadius: 'var(--radius-sm)' }
+          },
+            React.createElement('p', {
+              style: { margin: 0, fontSize: 12, color: 'var(--success)', fontWeight: 600 }
+            }, 'Preferences reset. Reload the page to apply the defaults.'),
+            React.createElement('button', {
+              onClick: function() { try { location.reload(); } catch (_) { onClose(); } },
+              style: { fontSize: 11, color: 'var(--surface)', background: 'var(--accent)', border: '1px solid var(--accent)', borderRadius: 4, padding: '4px 12px', cursor: 'pointer', fontWeight: 600 }
+            }, 'Reload now')
+          )
         )
         )
     );
