@@ -647,7 +647,7 @@ function SubstituteFromStashModalInner(props) {
     if (status === "good")         return h("span", { style: Object.assign({}, s, { background: "var(--success-soft)", color: "var(--success)" }) }, "Good");
     if (status === "fair")         return h("span", { style: Object.assign({}, s, { background: "var(--warning-soft)", color: "var(--accent-ink)" }) }, "Fair");
     if (status === "poor")         return h("span", { style: Object.assign({}, s, { background: "var(--danger-soft)", color: "var(--danger)" }) }, "Poor");
-    if (status === "insufficient") return h("span", { style: Object.assign({}, s, { background: "var(--warning-soft)", color: "var(--danger)" }) }, "\u26A0 Low stock");
+    if (status === "insufficient") return h("span", { style: Object.assign({}, s, { background: "var(--warning-soft)", color: "var(--danger)", display:"inline-flex", alignItems:"center", gap:3 }) }, window.Icons && window.Icons.warning ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.warning()) : null, "Low stock");
     if (status === "conflict")     return h("span", { style: Object.assign({}, s, { background: "#fce7f3", color: "#9d174d" }) }, "Conflict");
     return null;
   }
@@ -686,7 +686,7 @@ function SubstituteFromStashModalInner(props) {
           sub.isBlendComponent
             ? h("span", { style: { fontSize: 10, color: "var(--text-tertiary)", flexShrink: 0 } }, "(blend)")
             : null,
-          h("span", { style: { color: "var(--text-tertiary)", fontSize:'var(--text-md)', flexShrink: 0 } }, "\u2192"),
+          h("span", { "aria-hidden":"true", style: { color: "var(--text-tertiary)", fontSize:'var(--text-md)', flexShrink: 0, display:"inline-flex" } }, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
           swatch(target.rgb),
           h("span", { style: { fontSize:'var(--text-sm)', fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + target.id),
           h("span", { style: { fontSize:'var(--text-xs)', color: "var(--text-secondary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, target.name),
@@ -722,7 +722,9 @@ function SubstituteFromStashModalInner(props) {
                 fontSize:'var(--text-xs)', color: "var(--accent-ink)"
               }
             },
-              h("span", null, "\u26A0 Contrast: \u0394E\u202F" + sub.contrastWarning.pairDeltaE +
+              h("span", {style:{display:"inline-flex",alignItems:"center",gap:3}},
+                window.Icons && window.Icons.warning ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.warning()) : null,
+                "Contrast: \u0394E\u202F" + sub.contrastWarning.pairDeltaE +
                 " from DMC\u202F" + sub.contrastWarning.conflictsWith + " " + sub.contrastWarning.conflictsWithName +
                 " \u2014 pattern may lose colour distinction")
             )
@@ -747,7 +749,7 @@ function SubstituteFromStashModalInner(props) {
                 h("span", { style: { color: "var(--text-secondary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, alt.name),
                 h("span", { style: { color: "var(--text-tertiary)", flexShrink: 0 } }, "\u0394E\u202F" + alt.deltaE),
                 h("span", { style: { color: alt.hasSufficient ? "var(--success)" : "var(--accent-hover)", flexShrink: 0, minWidth: 40, textAlign: "right" } }, alt.ownedSkeins + "/" + alt.neededSkeins + "sk"),
-                isSelected ? h("span", { style: { color: "var(--accent)", fontWeight: 700, marginLeft:'var(--s-1)', flexShrink: 0 } }, "\u2713") : null
+                isSelected ? h("span", { "aria-hidden":"true", style: { color: "var(--accent)", fontWeight: 700, marginLeft:'var(--s-1)', flexShrink: 0, display:"inline-flex" } }, window.Icons && window.Icons.check ? window.Icons.check() : null) : null
               );
             })
           )
@@ -807,9 +809,10 @@ function SubstituteFromStashModalInner(props) {
                   style: {
                     fontSize: 10, padding: "3px 9px", borderRadius: 5, cursor: "pointer",
                     border: "1px solid var(--accent-light)", background: "var(--surface-secondary)", color: "var(--accent)",
-                    fontWeight: 600, flexShrink: 0
+                    fontWeight: 600, flexShrink: 0,
+                    display:"inline-flex", alignItems:"center", gap:3
                   }
-                }, "Include anyway \u2192")
+                }, ["Include anyway", window.Icons && window.Icons.chevronRight ? h("span", {key:"a", "aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.chevronRight()) : null])
               );
             })
           )
@@ -861,7 +864,7 @@ function SubstituteFromStashModalInner(props) {
   // ─── Render ───────────────────────────────────────────────────────────────────
   var p = localProposal;
   var applyLabel = "Apply " + enabledSubs.length + " Substitution" + (enabledSubs.length !== 1 ? "s" : "");
-  if (contrastWarningCount > 0) applyLabel += " (\u26A0\u202F" + contrastWarningCount + " contrast)";
+  if (contrastWarningCount > 0) applyLabel += " (" + contrastWarningCount + " contrast warning" + (contrastWarningCount !== 1 ? "s" : "") + ")";
 
   return h("div", {
     onClick: function(e) { if (e.target === e.currentTarget) closeModal(); },

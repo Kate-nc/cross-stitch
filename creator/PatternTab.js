@@ -55,7 +55,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   // Build status text
   var statusText;
   if (app.eyedropperEmpty) {
-    statusText = "\u26A0 That cell is empty \u2014 no colour to sample.";
+    statusText = "That cell is empty \u2014 no colour to sample.";
   } else if (cv.activeTool === "eyedropper") {
     statusText = "Eyedropper \u2014 click a cell to sample its colour.";
   } else if (cv.activeTool === "magicWand") {

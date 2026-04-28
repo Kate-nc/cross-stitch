@@ -77,7 +77,14 @@ window.CreatorProjectTab = function CreatorProjectTab() {
                 key:f.ct,
                 style:{borderBottom:"0.5px solid var(--surface-tertiary)",background:isCurrent?"var(--accent-light)":"transparent"}
               },
-                h("td", {style:{padding:"6px 10px",fontWeight:isCurrent?700:400}}, f.label+(isCurrent?" \u2713":"")),
+                h("td", {style:{padding:"6px 10px",fontWeight:isCurrent?700:400}},
+                  isCurrent
+                    ? h("span", {style:{display:"inline-flex",alignItems:"center",gap:4}},
+                        f.label,
+                        window.Icons && window.Icons.check ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.check()) : null
+                      )
+                    : f.label
+                ),
                 h("td", {style:{padding:"6px 10px"}}, wIn.toFixed(1)+"\u2033 / "+wCm.toFixed(1)+" cm"),
                 h("td", {style:{padding:"6px 10px"}}, hIn.toFixed(1)+"\u2033 / "+hCm.toFixed(1)+" cm"),
                 h("td", {style:{padding:"6px 10px",fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, (wIn+2).toFixed(0)+"\u2033 \xD7 "+(hIn+2).toFixed(0)+"\u2033")
@@ -290,7 +297,10 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       ),
       ctx.kittingResult && h("div", {style:{marginTop:'var(--s-2)',padding:"10px 14px",borderRadius:'var(--radius-md)',border:"1px solid var(--border)",background:"var(--surface-secondary)",fontSize:'var(--text-sm)'}},
         h("div", {style:{fontWeight:700,marginBottom:'var(--s-1)'}}, "Kitting check ("+ctx.kittingResult.total+" colours)"),
-        ctx.kittingResult.missing.length===0 && ctx.kittingResult.short.length===0 && h("div", {style:{color:"var(--success)",fontWeight:600}}, "\u2713 You have everything!"),
+        ctx.kittingResult.missing.length===0 && ctx.kittingResult.short.length===0 && h("div", {style:{color:"var(--success)",fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}},
+          window.Icons && window.Icons.check ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.check()) : null,
+          "You have everything!"
+        ),
         ctx.kittingResult.missing.length > 0 && h("div", null,
           h("div", {style:{color:"var(--danger)",fontWeight:600,marginBottom:2}}, "Missing ("+ctx.kittingResult.missing.length+"):"),
           ctx.kittingResult.missing.map(function(m, i) { return h("div", {key:i, style:{color:"var(--danger)",marginLeft:'var(--s-2)'}}, m); })

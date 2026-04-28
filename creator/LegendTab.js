@@ -125,13 +125,16 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
   function statusBadge(status) {
     var cfg = {
-      owned:   {label:"In stash \u2713", bg:"var(--success-soft)", color:"var(--success)"},
-      partial: {label:"Partial",         bg:"#F8EFD8", color:"var(--accent-hover)"},
-      needed:  {label:"Need to buy",     bg:"var(--danger-soft)", color:"var(--danger)"}
+      owned:   {label:"In stash",   bg:"var(--success-soft)", color:"var(--success)", icon:true},
+      partial: {label:"Partial",     bg:"#F8EFD8", color:"var(--accent-hover)"},
+      needed:  {label:"Need to buy", bg:"var(--danger-soft)", color:"var(--danger)"}
     };
     var s = cfg[status] || cfg.needed;
+    var children = s.icon && window.Icons && window.Icons.check
+      ? [h("span", {key:"i", "aria-hidden":"true", style:{display:"inline-flex", verticalAlign:"middle", marginRight:3}}, window.Icons.check()), s.label]
+      : s.label;
     return h("span", {style:{padding:"2px 7px", borderRadius:'var(--radius-lg)', fontSize:10, fontWeight:600,
-                              background:s.bg, color:s.color, whiteSpace:"nowrap"}}, s.label);
+                              background:s.bg, color:s.color, whiteSpace:"nowrap", display:"inline-flex", alignItems:"center"}}, children);
   }
 
   function handleCopy() {
@@ -194,9 +197,9 @@ window.CreatorLegendTab = function CreatorLegendTab() {
       h("span", {style:{fontSize:'var(--text-xs)', color:"var(--text-tertiary)"}},
         totalColours + " colour" + (totalColours !== 1 ? "s" : "") + ", " + totalSkeins + " skein" + (totalSkeins !== 1 ? "s" : "")
       ),
-      hasStash && h("span", {style:{fontWeight:600, color: allOwned ? "var(--success)" : "var(--text-secondary)"}},
+      hasStash && h("span", {style:{fontWeight:600, color: allOwned ? "var(--success)" : "var(--text-secondary)", display:"inline-flex", alignItems:"center", gap:4}},
         allOwned
-          ? "\u2713 All colours in stash!"
+          ? [window.Icons && window.Icons.check ? h("span", {key:"i", "aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.check()) : null, "All colours in stash!"]
           : "Stash: " + ownedColours + "/" + totalColours + " owned"
             + (partialColours > 0 ? ", " + partialColours + " partial" : "")
       ),
@@ -207,8 +210,9 @@ window.CreatorLegendTab = function CreatorLegendTab() {
         h("button", {onClick:handleCopy, style:{
           fontSize:'var(--text-xs)', padding:"4px 10px", borderRadius:'var(--radius-sm)', cursor:"pointer",
           border:"0.5px solid var(--border)", background:copied?"var(--accent)":"var(--surface)",
-          color:copied?"var(--surface)":"var(--text-secondary)", fontWeight:500
-        }}, copied ? "\u2713 Copied" : "Copy list"),
+          color:copied?"var(--surface)":"var(--text-secondary)", fontWeight:500,
+          display:"inline-flex", alignItems:"center", gap:4
+        }}, copied ? [window.Icons && window.Icons.check ? h("span", {key:"i", "aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.check()) : null, "Copied"] : "Copy list"),
         canShare && !allOwned && h("button", {onClick:handleShare, style:{
           fontSize:'var(--text-xs)', padding:"4px 10px", borderRadius:'var(--radius-sm)', cursor:"pointer",
           border:"0.5px solid var(--border)", background:"var(--surface)", color:"var(--text-secondary)", fontWeight:500
@@ -216,8 +220,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
         h("a", {href:"manager.html", target:"_blank", style:{
           fontSize:'var(--text-xs)', padding:"4px 10px", borderRadius:'var(--radius-sm)',
           border:"0.5px solid var(--border)", background:"var(--surface)", color:"var(--text-secondary)",
-          fontWeight:500, textDecoration:"none", display:"inline-block"
-        }}, "Thread stash \u2192")
+          fontWeight:500, textDecoration:"none", display:"inline-flex", alignItems:"center", gap:4
+        }}, ["Thread stash", window.Icons && window.Icons.chevronRight ? h("span", {key:"a", "aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.chevronRight()) : null])
       )
     ),
 
@@ -244,8 +248,9 @@ window.CreatorLegendTab = function CreatorLegendTab() {
           hasStash && !allOwned && h("button", {onClick:handleAddAll, style:{
             fontSize:'var(--text-xs)', padding:"3px 10px", borderRadius:'var(--radius-sm)', cursor:"pointer", marginBottom:'var(--s-2)',
             border:"0.5px solid var(--border)", background:addedAll?"var(--accent)":"var(--surface)",
-            color:addedAll?"var(--surface)":"var(--text-secondary)", fontWeight:500, marginLeft:"auto"
-          }}, addedAll ? "\u2713 Added" : "Mark all owned")
+            color:addedAll?"var(--surface)":"var(--text-secondary)", fontWeight:500, marginLeft:"auto",
+            display:"inline-flex", alignItems:"center", gap:4
+          }}, addedAll ? [window.Icons && window.Icons.check ? h("span", {key:"i", "aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.check()) : null, "Added"] : "Mark all owned")
         ),
         // Thread table
         h("div", {style:{overflow:"auto", maxHeight:440, border:"0.5px solid var(--border)", borderRadius:'var(--radius-md)'}},

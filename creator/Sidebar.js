@@ -439,13 +439,13 @@ window.CreatorSidebar = function CreatorSidebar() {
   },
     h("div", {style:{marginTop:'var(--s-2)'}},
       ctx.isScratchMode && h("div", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:'var(--s-1)',marginBottom:'var(--s-2)',padding:"6px 8px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)'}},
-        [["1","Add colour","\u2192"],["2","Select chip","\u2192"],["3","Paint!",""]].map(function(item,i) {
+        [["1","Add colour",true],["2","Select chip",true],["3","Paint!",false]].map(function(item,i) {
           return h(React.Fragment, {key:i},
             h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)'}},
               h("span", {style:{width:16,height:16,borderRadius:"50%",background:"var(--accent)",color:"var(--surface)",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}, item[0]),
               h("span", {style:{fontSize:10,color:"#52525b",fontWeight:500,whiteSpace:"nowrap"}}, item[1])
             ),
-            item[2] && h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, item[2])
+            item[2] && h("span", {"aria-hidden":"true", style:{fontSize:10,color:"var(--text-tertiary)",display:"inline-flex"}}, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null)
           );
         })
       ),
@@ -484,7 +484,7 @@ window.CreatorSidebar = function CreatorSidebar() {
                 h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid var(--border)"}}),
                 h("span", {style:{fontFamily:"monospace",fontSize:'var(--text-sm)',fontWeight:600,minWidth:36,color:"var(--text-primary)"}}, d.id),
                 h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-                inPal ? h("span", {style:{fontSize:10,color:"var(--accent)"}}, "\u2713") : h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "+")
+                inPal ? h("span", {"aria-hidden":"true", style:{fontSize:10,color:"var(--accent)",display:"inline-flex"}}, window.Icons && window.Icons.check ? window.Icons.check() : null) : h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "+")
               )
             );
           }),

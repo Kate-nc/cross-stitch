@@ -218,7 +218,7 @@
           }
         },
           buyRows.length === 0
-            ? '\u2713 You have all ' + rows.length + ' colours \u2014 ready to stitch!'
+            ? [window.Icons && window.Icons.check ? h('span', {key:'i', 'aria-hidden':'true', style:{display:'inline-flex', verticalAlign:'middle', marginRight:4}}, window.Icons.check()) : null, 'You have all ' + rows.length + ' colours \u2014 ready to stitch!']
             : 'You have ' + ownedRows.length + ' of ' + rows.length + ' colours. Need to buy ' + buyRows.length + ' thread' + (buyRows.length !== 1 ? 's' : '') + ' (~' + totalNeedSkeins + ' skein' + (totalNeedSkeins !== 1 ? 's' : '') + ' total).'
         ),
         h('div', { style: { padding: '12px 20px', overflowY: 'auto', flex: 1 } },

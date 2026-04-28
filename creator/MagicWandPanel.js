@@ -196,7 +196,7 @@ window.MagicWandPanel = function MagicWandPanel() {
         var toE   = ctx.cmap && ctx.cmap[m.to];
         return h("div", { key: i, style: { display: "flex", alignItems: "center", gap: 5, marginBottom: 2 } },
           swatch(fromE ? fromE.rgb : null), h("span", null, m.from + " " + m.fromName),
-          h("span", { style: { color: "#6b7280" } }, "\u2192"),
+          h("span", { "aria-hidden":"true", style: { color: "#6b7280", display:"inline-flex" } }, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
           swatch(toE ? toE.rgb : null), h("span", null, m.to + " " + m.toName),
           h("span", { style: { color: "#6b7280" } }, "(" + m.count + " stitches)")
         );
@@ -228,7 +228,7 @@ window.MagicWandPanel = function MagicWandPanel() {
           style: { fontSize: 11 }
         }, [h("option", { key: "", value: "" }, "— pick —")].concat(palOpts))
       ),
-      h("span", { style: { color: "#6b7280" } }, "\u2192"),
+      h("span", { "aria-hidden":"true", style: { color: "#6b7280", display:"inline-flex" } }, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
       h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
         "Target:", dstEntry ? swatch(dstEntry.rgb) : null,
         h("select", {

@@ -342,11 +342,13 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("button", {
       key:"overlay-btn",
       className:"tb-ovf-item"+(cv.showOverlay?" tb-ovf-item--on":""),
-      onClick:function(){cv.setShowOverlay(function(v){return !v;});}
+      onClick:function(){cv.setShowOverlay(function(v){return !v;});},
+      style:{display:"inline-flex",alignItems:"center",gap:6}
     },
       h("span", {style:{width:14,height:14,borderRadius:3,flexShrink:0,display:"inline-block",
         border:"2px solid "+(cv.showOverlay?"var(--accent)":"var(--border)")}}),
-      " Overlay"+(cv.showOverlay?" \u2713":"")
+      " Overlay",
+      cv.showOverlay && window.Icons && window.Icons.check ? h("span", {"aria-hidden":"true", style:{display:"inline-flex",marginLeft:4}}, window.Icons.check()) : null
     ),
     cv.showOverlay && h("div", {key:"overlay-slider", style:{padding:"4px 14px 6px"}},
       h("input", {
@@ -364,8 +366,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       return h("button", {
         key:kl[0],
         className:"tb-ovf-item"+(cv.brushMode===kl[0]?" tb-ovf-item--on":""),
-        onClick:function(){cv.setBrushAndActivate(kl[0]); app.setOverflowOpen(false);}
-      }, kl[1]+(cv.brushMode===kl[0]?" \u2713":""));
+        onClick:function(){cv.setBrushAndActivate(kl[0]); app.setOverflowOpen(false);},
+        style:{display:"inline-flex",alignItems:"center",gap:6}
+      }, kl[1], cv.brushMode===kl[0] && window.Icons && window.Icons.check ? h("span", {"aria-hidden":"true", style:{display:"inline-flex",marginLeft:4}}, window.Icons.check()) : null);
     })
   ] : null;
 

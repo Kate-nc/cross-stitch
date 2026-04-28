@@ -9378,11 +9378,13 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("button", {
       key:"overlay-btn",
       className:"tb-ovf-item"+(cv.showOverlay?" tb-ovf-item--on":""),
-      onClick:function(){cv.setShowOverlay(function(v){return !v;});}
+      onClick:function(){cv.setShowOverlay(function(v){return !v;});},
+      style:{display:"inline-flex",alignItems:"center",gap:6}
     },
       h("span", {style:{width:14,height:14,borderRadius:3,flexShrink:0,display:"inline-block",
         border:"2px solid "+(cv.showOverlay?"var(--accent)":"var(--border)")}}),
-      " Overlay"+(cv.showOverlay?" \u2713":"")
+      " Overlay",
+      cv.showOverlay && window.Icons && window.Icons.check ? h("span", {"aria-hidden":"true", style:{display:"inline-flex",marginLeft:4}}, window.Icons.check()) : null
     ),
     cv.showOverlay && h("div", {key:"overlay-slider", style:{padding:"4px 14px 6px"}},
       h("input", {
@@ -9400,8 +9402,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       return h("button", {
         key:kl[0],
         className:"tb-ovf-item"+(cv.brushMode===kl[0]?" tb-ovf-item--on":""),
-        onClick:function(){cv.setBrushAndActivate(kl[0]); app.setOverflowOpen(false);}
-      }, kl[1]+(cv.brushMode===kl[0]?" \u2713":""));
+        onClick:function(){cv.setBrushAndActivate(kl[0]); app.setOverflowOpen(false);},
+        style:{display:"inline-flex",alignItems:"center",gap:6}
+      }, kl[1], cv.brushMode===kl[0] && window.Icons && window.Icons.check ? h("span", {"aria-hidden":"true", style:{display:"inline-flex",marginLeft:4}}, window.Icons.check()) : null);
     })
   ] : null;
 
@@ -9665,7 +9668,7 @@ window.MagicWandPanel = function MagicWandPanel() {
         var toE   = ctx.cmap && ctx.cmap[m.to];
         return h("div", { key: i, style: { display: "flex", alignItems: "center", gap: 5, marginBottom: 2 } },
           swatch(fromE ? fromE.rgb : null), h("span", null, m.from + " " + m.fromName),
-          h("span", { style: { color: "#6b7280" } }, "\u2192"),
+          h("span", { "aria-hidden":"true", style: { color: "#6b7280", display:"inline-flex" } }, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
           swatch(toE ? toE.rgb : null), h("span", null, m.to + " " + m.toName),
           h("span", { style: { color: "#6b7280" } }, "(" + m.count + " stitches)")
         );
@@ -9697,7 +9700,7 @@ window.MagicWandPanel = function MagicWandPanel() {
           style: { fontSize: 11 }
         }, [h("option", { key: "", value: "" }, "— pick —")].concat(palOpts))
       ),
-      h("span", { style: { color: "#6b7280" } }, "\u2192"),
+      h("span", { "aria-hidden":"true", style: { color: "#6b7280", display:"inline-flex" } }, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
       h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
         "Target:", dstEntry ? swatch(dstEntry.rgb) : null,
         h("select", {
@@ -10477,7 +10480,7 @@ function SubstituteFromStashModalInner(props) {
     if (status === "good")         return h("span", { style: Object.assign({}, s, { background: "var(--success-soft)", color: "var(--success)" }) }, "Good");
     if (status === "fair")         return h("span", { style: Object.assign({}, s, { background: "var(--warning-soft)", color: "var(--accent-ink)" }) }, "Fair");
     if (status === "poor")         return h("span", { style: Object.assign({}, s, { background: "var(--danger-soft)", color: "var(--danger)" }) }, "Poor");
-    if (status === "insufficient") return h("span", { style: Object.assign({}, s, { background: "var(--warning-soft)", color: "var(--danger)" }) }, "\u26A0 Low stock");
+    if (status === "insufficient") return h("span", { style: Object.assign({}, s, { background: "var(--warning-soft)", color: "var(--danger)", display:"inline-flex", alignItems:"center", gap:3 }) }, window.Icons && window.Icons.warning ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.warning()) : null, "Low stock");
     if (status === "conflict")     return h("span", { style: Object.assign({}, s, { background: "#fce7f3", color: "#9d174d" }) }, "Conflict");
     return null;
   }
@@ -10516,7 +10519,7 @@ function SubstituteFromStashModalInner(props) {
           sub.isBlendComponent
             ? h("span", { style: { fontSize: 10, color: "var(--text-tertiary)", flexShrink: 0 } }, "(blend)")
             : null,
-          h("span", { style: { color: "var(--text-tertiary)", fontSize:'var(--text-md)', flexShrink: 0 } }, "\u2192"),
+          h("span", { "aria-hidden":"true", style: { color: "var(--text-tertiary)", fontSize:'var(--text-md)', flexShrink: 0, display:"inline-flex" } }, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
           swatch(target.rgb),
           h("span", { style: { fontSize:'var(--text-sm)', fontWeight: 700, minWidth: 58, flexShrink: 0 } }, "DMC " + target.id),
           h("span", { style: { fontSize:'var(--text-xs)', color: "var(--text-secondary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, target.name),
@@ -10552,7 +10555,9 @@ function SubstituteFromStashModalInner(props) {
                 fontSize:'var(--text-xs)', color: "var(--accent-ink)"
               }
             },
-              h("span", null, "\u26A0 Contrast: \u0394E\u202F" + sub.contrastWarning.pairDeltaE +
+              h("span", {style:{display:"inline-flex",alignItems:"center",gap:3}},
+                window.Icons && window.Icons.warning ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.warning()) : null,
+                "Contrast: \u0394E\u202F" + sub.contrastWarning.pairDeltaE +
                 " from DMC\u202F" + sub.contrastWarning.conflictsWith + " " + sub.contrastWarning.conflictsWithName +
                 " \u2014 pattern may lose colour distinction")
             )
@@ -10577,7 +10582,7 @@ function SubstituteFromStashModalInner(props) {
                 h("span", { style: { color: "var(--text-secondary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, alt.name),
                 h("span", { style: { color: "var(--text-tertiary)", flexShrink: 0 } }, "\u0394E\u202F" + alt.deltaE),
                 h("span", { style: { color: alt.hasSufficient ? "var(--success)" : "var(--accent-hover)", flexShrink: 0, minWidth: 40, textAlign: "right" } }, alt.ownedSkeins + "/" + alt.neededSkeins + "sk"),
-                isSelected ? h("span", { style: { color: "var(--accent)", fontWeight: 700, marginLeft:'var(--s-1)', flexShrink: 0 } }, "\u2713") : null
+                isSelected ? h("span", { "aria-hidden":"true", style: { color: "var(--accent)", fontWeight: 700, marginLeft:'var(--s-1)', flexShrink: 0, display:"inline-flex" } }, window.Icons && window.Icons.check ? window.Icons.check() : null) : null
               );
             })
           )
@@ -10637,9 +10642,10 @@ function SubstituteFromStashModalInner(props) {
                   style: {
                     fontSize: 10, padding: "3px 9px", borderRadius: 5, cursor: "pointer",
                     border: "1px solid var(--accent-light)", background: "var(--surface-secondary)", color: "var(--accent)",
-                    fontWeight: 600, flexShrink: 0
+                    fontWeight: 600, flexShrink: 0,
+                    display:"inline-flex", alignItems:"center", gap:3
                   }
-                }, "Include anyway \u2192")
+                }, ["Include anyway", window.Icons && window.Icons.chevronRight ? h("span", {key:"a", "aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.chevronRight()) : null])
               );
             })
           )
@@ -10691,7 +10697,7 @@ function SubstituteFromStashModalInner(props) {
   // ─── Render ───────────────────────────────────────────────────────────────────
   var p = localProposal;
   var applyLabel = "Apply " + enabledSubs.length + " Substitution" + (enabledSubs.length !== 1 ? "s" : "");
-  if (contrastWarningCount > 0) applyLabel += " (\u26A0\u202F" + contrastWarningCount + " contrast)";
+  if (contrastWarningCount > 0) applyLabel += " (" + contrastWarningCount + " contrast warning" + (contrastWarningCount !== 1 ? "s" : "") + ")";
 
   return h("div", {
     onClick: function(e) { if (e.target === e.currentTarget) closeModal(); },
@@ -11876,13 +11882,13 @@ window.CreatorSidebar = function CreatorSidebar() {
   },
     h("div", {style:{marginTop:'var(--s-2)'}},
       ctx.isScratchMode && h("div", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:'var(--s-1)',marginBottom:'var(--s-2)',padding:"6px 8px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)'}},
-        [["1","Add colour","\u2192"],["2","Select chip","\u2192"],["3","Paint!",""]].map(function(item,i) {
+        [["1","Add colour",true],["2","Select chip",true],["3","Paint!",false]].map(function(item,i) {
           return h(React.Fragment, {key:i},
             h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)'}},
               h("span", {style:{width:16,height:16,borderRadius:"50%",background:"var(--accent)",color:"var(--surface)",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}, item[0]),
               h("span", {style:{fontSize:10,color:"#52525b",fontWeight:500,whiteSpace:"nowrap"}}, item[1])
             ),
-            item[2] && h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, item[2])
+            item[2] && h("span", {"aria-hidden":"true", style:{fontSize:10,color:"var(--text-tertiary)",display:"inline-flex"}}, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null)
           );
         })
       ),
@@ -11921,7 +11927,7 @@ window.CreatorSidebar = function CreatorSidebar() {
                 h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid var(--border)"}}),
                 h("span", {style:{fontFamily:"monospace",fontSize:'var(--text-sm)',fontWeight:600,minWidth:36,color:"var(--text-primary)"}}, d.id),
                 h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-                inPal ? h("span", {style:{fontSize:10,color:"var(--accent)"}}, "\u2713") : h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "+")
+                inPal ? h("span", {"aria-hidden":"true", style:{fontSize:10,color:"var(--accent)",display:"inline-flex"}}, window.Icons && window.Icons.check ? window.Icons.check() : null) : h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "+")
               )
             );
           }),
@@ -13481,7 +13487,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   // Build status text
   var statusText;
   if (app.eyedropperEmpty) {
-    statusText = "\u26A0 That cell is empty \u2014 no colour to sample.";
+    statusText = "That cell is empty \u2014 no colour to sample.";
   } else if (cv.activeTool === "eyedropper") {
     statusText = "Eyedropper \u2014 click a cell to sample its colour.";
   } else if (cv.activeTool === "magicWand") {
@@ -13819,7 +13825,14 @@ window.CreatorProjectTab = function CreatorProjectTab() {
                 key:f.ct,
                 style:{borderBottom:"0.5px solid var(--surface-tertiary)",background:isCurrent?"var(--accent-light)":"transparent"}
               },
-                h("td", {style:{padding:"6px 10px",fontWeight:isCurrent?700:400}}, f.label+(isCurrent?" \u2713":"")),
+                h("td", {style:{padding:"6px 10px",fontWeight:isCurrent?700:400}},
+                  isCurrent
+                    ? h("span", {style:{display:"inline-flex",alignItems:"center",gap:4}},
+                        f.label,
+                        window.Icons && window.Icons.check ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.check()) : null
+                      )
+                    : f.label
+                ),
                 h("td", {style:{padding:"6px 10px"}}, wIn.toFixed(1)+"\u2033 / "+wCm.toFixed(1)+" cm"),
                 h("td", {style:{padding:"6px 10px"}}, hIn.toFixed(1)+"\u2033 / "+hCm.toFixed(1)+" cm"),
                 h("td", {style:{padding:"6px 10px",fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, (wIn+2).toFixed(0)+"\u2033 \xD7 "+(hIn+2).toFixed(0)+"\u2033")
@@ -14032,7 +14045,10 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       ),
       ctx.kittingResult && h("div", {style:{marginTop:'var(--s-2)',padding:"10px 14px",borderRadius:'var(--radius-md)',border:"1px solid var(--border)",background:"var(--surface-secondary)",fontSize:'var(--text-sm)'}},
         h("div", {style:{fontWeight:700,marginBottom:'var(--s-1)'}}, "Kitting check ("+ctx.kittingResult.total+" colours)"),
-        ctx.kittingResult.missing.length===0 && ctx.kittingResult.short.length===0 && h("div", {style:{color:"var(--success)",fontWeight:600}}, "\u2713 You have everything!"),
+        ctx.kittingResult.missing.length===0 && ctx.kittingResult.short.length===0 && h("div", {style:{color:"var(--success)",fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}},
+          window.Icons && window.Icons.check ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.check()) : null,
+          "You have everything!"
+        ),
         ctx.kittingResult.missing.length > 0 && h("div", null,
           h("div", {style:{color:"var(--danger)",fontWeight:600,marginBottom:2}}, "Missing ("+ctx.kittingResult.missing.length+"):"),
           ctx.kittingResult.missing.map(function(m, i) { return h("div", {key:i, style:{color:"var(--danger)",marginLeft:'var(--s-2)'}}, m); })
@@ -14335,13 +14351,16 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
   function statusBadge(status) {
     var cfg = {
-      owned:   {label:"In stash \u2713", bg:"var(--success-soft)", color:"var(--success)"},
-      partial: {label:"Partial",         bg:"#F8EFD8", color:"var(--accent-hover)"},
-      needed:  {label:"Need to buy",     bg:"var(--danger-soft)", color:"var(--danger)"}
+      owned:   {label:"In stash",   bg:"var(--success-soft)", color:"var(--success)", icon:true},
+      partial: {label:"Partial",     bg:"#F8EFD8", color:"var(--accent-hover)"},
+      needed:  {label:"Need to buy", bg:"var(--danger-soft)", color:"var(--danger)"}
     };
     var s = cfg[status] || cfg.needed;
+    var children = s.icon && window.Icons && window.Icons.check
+      ? [h("span", {key:"i", "aria-hidden":"true", style:{display:"inline-flex", verticalAlign:"middle", marginRight:3}}, window.Icons.check()), s.label]
+      : s.label;
     return h("span", {style:{padding:"2px 7px", borderRadius:'var(--radius-lg)', fontSize:10, fontWeight:600,
-                              background:s.bg, color:s.color, whiteSpace:"nowrap"}}, s.label);
+                              background:s.bg, color:s.color, whiteSpace:"nowrap", display:"inline-flex", alignItems:"center"}}, children);
   }
 
   function handleCopy() {
@@ -14404,9 +14423,9 @@ window.CreatorLegendTab = function CreatorLegendTab() {
       h("span", {style:{fontSize:'var(--text-xs)', color:"var(--text-tertiary)"}},
         totalColours + " colour" + (totalColours !== 1 ? "s" : "") + ", " + totalSkeins + " skein" + (totalSkeins !== 1 ? "s" : "")
       ),
-      hasStash && h("span", {style:{fontWeight:600, color: allOwned ? "var(--success)" : "var(--text-secondary)"}},
+      hasStash && h("span", {style:{fontWeight:600, color: allOwned ? "var(--success)" : "var(--text-secondary)", display:"inline-flex", alignItems:"center", gap:4}},
         allOwned
-          ? "\u2713 All colours in stash!"
+          ? [window.Icons && window.Icons.check ? h("span", {key:"i", "aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.check()) : null, "All colours in stash!"]
           : "Stash: " + ownedColours + "/" + totalColours + " owned"
             + (partialColours > 0 ? ", " + partialColours + " partial" : "")
       ),
@@ -14417,8 +14436,9 @@ window.CreatorLegendTab = function CreatorLegendTab() {
         h("button", {onClick:handleCopy, style:{
           fontSize:'var(--text-xs)', padding:"4px 10px", borderRadius:'var(--radius-sm)', cursor:"pointer",
           border:"0.5px solid var(--border)", background:copied?"var(--accent)":"var(--surface)",
-          color:copied?"var(--surface)":"var(--text-secondary)", fontWeight:500
-        }}, copied ? "\u2713 Copied" : "Copy list"),
+          color:copied?"var(--surface)":"var(--text-secondary)", fontWeight:500,
+          display:"inline-flex", alignItems:"center", gap:4
+        }}, copied ? [window.Icons && window.Icons.check ? h("span", {key:"i", "aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.check()) : null, "Copied"] : "Copy list"),
         canShare && !allOwned && h("button", {onClick:handleShare, style:{
           fontSize:'var(--text-xs)', padding:"4px 10px", borderRadius:'var(--radius-sm)', cursor:"pointer",
           border:"0.5px solid var(--border)", background:"var(--surface)", color:"var(--text-secondary)", fontWeight:500
@@ -14426,8 +14446,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
         h("a", {href:"manager.html", target:"_blank", style:{
           fontSize:'var(--text-xs)', padding:"4px 10px", borderRadius:'var(--radius-sm)',
           border:"0.5px solid var(--border)", background:"var(--surface)", color:"var(--text-secondary)",
-          fontWeight:500, textDecoration:"none", display:"inline-block"
-        }}, "Thread stash \u2192")
+          fontWeight:500, textDecoration:"none", display:"inline-flex", alignItems:"center", gap:4
+        }}, ["Thread stash", window.Icons && window.Icons.chevronRight ? h("span", {key:"a", "aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.chevronRight()) : null])
       )
     ),
 
@@ -14454,8 +14474,9 @@ window.CreatorLegendTab = function CreatorLegendTab() {
           hasStash && !allOwned && h("button", {onClick:handleAddAll, style:{
             fontSize:'var(--text-xs)', padding:"3px 10px", borderRadius:'var(--radius-sm)', cursor:"pointer", marginBottom:'var(--s-2)',
             border:"0.5px solid var(--border)", background:addedAll?"var(--accent)":"var(--surface)",
-            color:addedAll?"var(--surface)":"var(--text-secondary)", fontWeight:500, marginLeft:"auto"
-          }}, addedAll ? "\u2713 Added" : "Mark all owned")
+            color:addedAll?"var(--surface)":"var(--text-secondary)", fontWeight:500, marginLeft:"auto",
+            display:"inline-flex", alignItems:"center", gap:4
+          }}, addedAll ? [window.Icons && window.Icons.check ? h("span", {key:"i", "aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.check()) : null, "Added"] : "Mark all owned")
         ),
         // Thread table
         h("div", {style:{overflow:"auto", maxHeight:440, border:"0.5px solid var(--border)", borderRadius:'var(--radius-md)'}},
@@ -14817,9 +14838,9 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
       padding: '10px 14px', background: 'var(--success-soft)', borderRadius:'var(--radius-md)',
       border: '0.5px solid var(--success-soft)', marginBottom:'var(--s-4)', fontSize:'var(--text-sm)'
     }},
-      h('span', {style: {fontWeight: 600, color: 'var(--success)'}},
+      h('span', {style: {fontWeight: 600, color: 'var(--success)', display:'inline-flex', alignItems:'center', gap:4}},
         ownedColours === totalColours
-          ? '\u2713 All ' + totalColours + ' colours in stash!'
+          ? [window.Icons && window.Icons.check ? h('span', {key:'i', 'aria-hidden':'true', style:{display:'inline-flex'}}, window.Icons.check()) : null, 'All ' + totalColours + ' colours in stash!']
           : 'You own ' + ownedColours + ' of ' + totalColours + ' colours.'
       ),
       partialColours > 0 && h('span', {style: {color: 'var(--accent-hover)'}},
@@ -14833,8 +14854,9 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
           onClick: handleCopy,
           style: { fontSize:'var(--text-xs)', padding: '4px 12px', borderRadius:'var(--radius-sm)', cursor: 'pointer',
                    border: '0.5px solid var(--border)', background: copied ? 'var(--accent)' : 'var(--surface)',
-                   color: copied ? 'var(--surface)' : 'var(--text-secondary)', fontWeight: 500 }
-        }, copied ? '\u2713 Copied' : 'Copy list'),
+                   color: copied ? 'var(--surface)' : 'var(--text-secondary)', fontWeight: 500,
+                   display:'inline-flex', alignItems:'center', gap:4 }
+        }, copied ? [window.Icons && window.Icons.check ? h('span', {key:'i', 'aria-hidden':'true', style:{display:'inline-flex'}}, window.Icons.check()) : null, 'Copied'] : 'Copy list'),
         canShare && h('button', {
           onClick: handleShare,
           style: { fontSize:'var(--text-xs)', padding: '4px 12px', borderRadius:'var(--radius-sm)', cursor: 'pointer',
@@ -14844,8 +14866,8 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
           href: 'manager.html', target: '_blank',
           style: { fontSize:'var(--text-xs)', padding: '4px 12px', borderRadius:'var(--radius-sm)', cursor: 'pointer',
                    border: '0.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)',
-                   fontWeight: 500, textDecoration: 'none', display: 'inline-block' }
-        }, 'View thread stash \u2192')
+                   fontWeight: 500, textDecoration: 'none', display: 'inline-flex', alignItems:'center', gap:4 }
+        }, ['View thread stash', window.Icons && window.Icons.chevronRight ? h('span', {key:'a', 'aria-hidden':'true', style:{display:'inline-flex'}}, window.Icons.chevronRight()) : null])
       )
     ),
 
@@ -14874,8 +14896,9 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
         onClick: handleAddAll,
         style: { fontSize:'var(--text-xs)', padding: '4px 12px', borderRadius:'var(--radius-sm)', cursor: 'pointer',
                  border: '0.5px solid var(--border)', background: addedAll ? 'var(--accent)' : 'var(--surface)',
-                 color: addedAll ? 'var(--surface)' : 'var(--text-secondary)', fontWeight: 500, marginLeft: 'auto' }
-      }, addedAll ? '\u2713 Added to stash' : 'Mark all as owned')
+                 color: addedAll ? 'var(--surface)' : 'var(--text-secondary)', fontWeight: 500, marginLeft: 'auto',
+                 display:'inline-flex', alignItems:'center', gap:4 }
+      }, addedAll ? [window.Icons && window.Icons.check ? h('span', {key:'i', 'aria-hidden':'true', style:{display:'inline-flex'}}, window.Icons.check()) : null, 'Added to stash'] : 'Mark all as owned')
     ),
 
     // Thread table
@@ -14992,7 +15015,10 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
                   h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, dims.w),
                   h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, dims.h),
                   h('td', {style: {padding: '6px 10px'}},
-                    isCurrent && h('span', {style: {fontSize: 10, color: 'var(--accent)', fontWeight: 600}}, '\u2190 current')
+                    isCurrent && h('span', {style: {fontSize: 10, color: 'var(--accent)', fontWeight: 600, display:'inline-flex', alignItems:'center', gap:3}},
+                      window.Icons && window.Icons.chevronLeft ? h('span', {'aria-hidden':'true', style:{display:'inline-flex'}}, window.Icons.chevronLeft()) : null,
+                      'current'
+                    )
                   )
                 );
               })
@@ -15922,7 +15948,7 @@ window.CreatorExportTab = function CreatorExportTab() {
           }
         },
           buyRows.length === 0
-            ? '\u2713 You have all ' + rows.length + ' colours \u2014 ready to stitch!'
+            ? [window.Icons && window.Icons.check ? h('span', {key:'i', 'aria-hidden':'true', style:{display:'inline-flex', verticalAlign:'middle', marginRight:4}}, window.Icons.check()) : null, 'You have all ' + rows.length + ' colours \u2014 ready to stitch!']
             : 'You have ' + ownedRows.length + ' of ' + rows.length + ' colours. Need to buy ' + buyRows.length + ' thread' + (buyRows.length !== 1 ? 's' : '') + ' (~' + totalNeedSkeins + ' skein' + (totalNeedSkeins !== 1 ? 's' : '') + ' total).'
         ),
         h('div', { style: { padding: '12px 20px', overflowY: 'auto', flex: 1 } },

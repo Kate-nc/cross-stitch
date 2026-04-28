@@ -203,9 +203,9 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
       padding: '10px 14px', background: 'var(--success-soft)', borderRadius:'var(--radius-md)',
       border: '0.5px solid var(--success-soft)', marginBottom:'var(--s-4)', fontSize:'var(--text-sm)'
     }},
-      h('span', {style: {fontWeight: 600, color: 'var(--success)'}},
+      h('span', {style: {fontWeight: 600, color: 'var(--success)', display:'inline-flex', alignItems:'center', gap:4}},
         ownedColours === totalColours
-          ? '\u2713 All ' + totalColours + ' colours in stash!'
+          ? [window.Icons && window.Icons.check ? h('span', {key:'i', 'aria-hidden':'true', style:{display:'inline-flex'}}, window.Icons.check()) : null, 'All ' + totalColours + ' colours in stash!']
           : 'You own ' + ownedColours + ' of ' + totalColours + ' colours.'
       ),
       partialColours > 0 && h('span', {style: {color: 'var(--accent-hover)'}},
@@ -219,8 +219,9 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
           onClick: handleCopy,
           style: { fontSize:'var(--text-xs)', padding: '4px 12px', borderRadius:'var(--radius-sm)', cursor: 'pointer',
                    border: '0.5px solid var(--border)', background: copied ? 'var(--accent)' : 'var(--surface)',
-                   color: copied ? 'var(--surface)' : 'var(--text-secondary)', fontWeight: 500 }
-        }, copied ? '\u2713 Copied' : 'Copy list'),
+                   color: copied ? 'var(--surface)' : 'var(--text-secondary)', fontWeight: 500,
+                   display:'inline-flex', alignItems:'center', gap:4 }
+        }, copied ? [window.Icons && window.Icons.check ? h('span', {key:'i', 'aria-hidden':'true', style:{display:'inline-flex'}}, window.Icons.check()) : null, 'Copied'] : 'Copy list'),
         canShare && h('button', {
           onClick: handleShare,
           style: { fontSize:'var(--text-xs)', padding: '4px 12px', borderRadius:'var(--radius-sm)', cursor: 'pointer',
@@ -230,8 +231,8 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
           href: 'manager.html', target: '_blank',
           style: { fontSize:'var(--text-xs)', padding: '4px 12px', borderRadius:'var(--radius-sm)', cursor: 'pointer',
                    border: '0.5px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)',
-                   fontWeight: 500, textDecoration: 'none', display: 'inline-block' }
-        }, 'View thread stash \u2192')
+                   fontWeight: 500, textDecoration: 'none', display: 'inline-flex', alignItems:'center', gap:4 }
+        }, ['View thread stash', window.Icons && window.Icons.chevronRight ? h('span', {key:'a', 'aria-hidden':'true', style:{display:'inline-flex'}}, window.Icons.chevronRight()) : null])
       )
     ),
 
@@ -260,8 +261,9 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
         onClick: handleAddAll,
         style: { fontSize:'var(--text-xs)', padding: '4px 12px', borderRadius:'var(--radius-sm)', cursor: 'pointer',
                  border: '0.5px solid var(--border)', background: addedAll ? 'var(--accent)' : 'var(--surface)',
-                 color: addedAll ? 'var(--surface)' : 'var(--text-secondary)', fontWeight: 500, marginLeft: 'auto' }
-      }, addedAll ? '\u2713 Added to stash' : 'Mark all as owned')
+                 color: addedAll ? 'var(--surface)' : 'var(--text-secondary)', fontWeight: 500, marginLeft: 'auto',
+                 display:'inline-flex', alignItems:'center', gap:4 }
+      }, addedAll ? [window.Icons && window.Icons.check ? h('span', {key:'i', 'aria-hidden':'true', style:{display:'inline-flex'}}, window.Icons.check()) : null, 'Added to stash'] : 'Mark all as owned')
     ),
 
     // Thread table
@@ -378,7 +380,10 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
                   h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, dims.w),
                   h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, dims.h),
                   h('td', {style: {padding: '6px 10px'}},
-                    isCurrent && h('span', {style: {fontSize: 10, color: 'var(--accent)', fontWeight: 600}}, '\u2190 current')
+                    isCurrent && h('span', {style: {fontSize: 10, color: 'var(--accent)', fontWeight: 600, display:'inline-flex', alignItems:'center', gap:3}},
+                      window.Icons && window.Icons.chevronLeft ? h('span', {'aria-hidden':'true', style:{display:'inline-flex'}}, window.Icons.chevronLeft()) : null,
+                      'current'
+                    )
                   )
                 );
               })
