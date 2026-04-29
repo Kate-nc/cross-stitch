@@ -738,6 +738,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     && _coach.active === 'firstStitch_creator'
     && state.appMode === 'edit'
     && !!state.pat
+    && !state.namePromptOpen
     && (!state.editHistory || state.editHistory.length === 0);
 
   // ── Polish 13 step 4b — Tools tab unlock coachmark ───────────────────
@@ -756,6 +757,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   }, [!!state.pat, !!state.pal, _coach.active]);
   const _showToolsUnlockedCoach = _toolsCoachReady
     && _coach.active === 'toolsTab_unlocked'
+    && !state.namePromptOpen
     && !!state.pat && !!state.pal;
 
   return (

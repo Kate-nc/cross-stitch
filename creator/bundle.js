@@ -9028,6 +9028,18 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     });
     if (!state.projectIdRef.current) state.projectIdRef.current = ProjectStorage.newId();
     if (!state.createdAtRef.current) state.createdAtRef.current = new Date().toISOString();
+    // Write the active-project pointer SYNCHRONOUSLY before kicking off the
+    // IDB save. localStorage writes are synchronous, so even if the user
+    // navigates to /home (or anywhere) the moment we begin saving, the
+    // pointer is already in place and /home's getActiveProject() will find
+    // the project as soon as the IDB transaction commits (browsers honour
+    // pending IDB transactions across navigations even when the originating
+    // page's JS callbacks no longer run, which is why we cannot rely on
+    // ProjectStorage.save(...).then(setActiveProject) here). See
+    // reports/active-project-race.md.
+    if (state.isActive && typeof ProjectStorage !== "undefined") {
+      try { ProjectStorage.setActiveProject(state.projectIdRef.current); } catch (_) {}
+    }
     var project5 = Object.assign({}, state.trackerFieldsRef.current, {
       version: 11, id: state.projectIdRef.current, page: "creator", name: state.projectName,
       designer: state.projectDesigner || "", description: state.projectDescription || "",
@@ -9170,6 +9182,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     function handleBeforeUnload() {
       var p = creatorSnapshotRef.current;
       if (!p || !state.isActive) return;
+      // Defensive: re-write the active-project pointer in case it was
+      // cleared during the session (e.g. by a quick "New project" hop or
+      // a backup restore). localStorage is synchronous so this survives
+      // unload even when the IDB save below is interrupted.
+      try { if (p.id) ProjectStorage.setActiveProject(p.id); } catch (_) {}
       try { ProjectStorage.save(p); } catch (_) {}
       try { saveProjectToDB(p); } catch (_) {}
       // Belt-and-braces: also sync to the Stash Manager library so a generated
