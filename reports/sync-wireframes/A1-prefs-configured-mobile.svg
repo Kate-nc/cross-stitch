@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 720" font-family="-apple-system, system-ui, sans-serif" font-size="12" fill="#1a1a1a">
+  <rect width="380" height="720" fill="#f7f5f0"/>
+  <rect x="0" y="0" width="380" height="56" fill="#fff"/>
+  <text x="20" y="34" font-weight="600">Sync, backup &amp; data</text>
+  <line x1="0" y1="56" x2="380" y2="56" stroke="#e6e1d6"/>
+
+  <!-- Folder section -->
+  <text x="20" y="84" font-weight="600" font-size="11">FOLDER</text>
+  <rect x="20" y="92" width="340" height="120" rx="10" fill="#fff" stroke="#e6e1d6"/>
+  <text x="36" y="114">Sync folder</text>
+  <text x="36" y="132" fill="#6b6258" font-size="11">~/Dropbox/cross-stitch</text>
+  <rect x="36" y="142" width="86" height="28" rx="6" fill="#fff" stroke="#cfc8b9"/>
+  <text x="79" y="161" text-anchor="middle">Change…</text>
+  <rect x="130" y="142" width="100" height="28" rx="6" fill="#fff" stroke="#cfc8b9"/>
+  <text x="180" y="161" text-anchor="middle">Disconnect</text>
+
+  <text x="36" y="190" font-weight="600" font-size="11" fill="#3a7a3a">● Synced 2 min ago</text>
+  <text x="36" y="204" font-size="11" fill="#6b6258">4 projects · 24 threads · 2 devices</text>
+
+  <!-- What to sync -->
+  <text x="20" y="240" font-weight="600" font-size="11">WHAT TO SYNC</text>
+  <rect x="20" y="248" width="340" height="160" rx="10" fill="#fff" stroke="#e6e1d6"/>
+  <g>
+    <text x="36" y="270">Project charts</text>
+    <rect x="304" y="262" width="40" height="20" rx="10" fill="#3a7a3a"/>
+    <circle cx="334" cy="272" r="8" fill="#fff"/>
+
+    <text x="36" y="298">Stitch progress</text>
+    <rect x="304" y="290" width="40" height="20" rx="10" fill="#3a7a3a"/>
+    <circle cx="334" cy="300" r="8" fill="#fff"/>
+
+    <text x="36" y="326">Stash &amp; shopping</text>
+    <rect x="304" y="318" width="40" height="20" rx="10" fill="#3a7a3a"/>
+    <circle cx="334" cy="328" r="8" fill="#fff"/>
+
+    <text x="36" y="354">User preferences</text>
+    <rect x="304" y="346" width="40" height="20" rx="10" fill="#cfc8b9"/>
+    <circle cx="314" cy="356" r="8" fill="#fff"/>
+
+    <text x="36" y="382">Custom palettes</text>
+    <rect x="304" y="374" width="40" height="20" rx="10" fill="#3a7a3a"/>
+    <circle cx="334" cy="384" r="8" fill="#fff"/>
+  </g>
+
+  <!-- Behaviour -->
+  <text x="20" y="436" font-weight="600" font-size="11">BEHAVIOUR</text>
+  <rect x="20" y="444" width="340" height="160" rx="10" fill="#fff" stroke="#e6e1d6"/>
+  <text x="36" y="466">Automatic sync</text>
+  <rect x="304" y="458" width="40" height="20" rx="10" fill="#3a7a3a"/>
+  <circle cx="334" cy="468" r="8" fill="#fff"/>
+
+  <text x="36" y="494">When changes arrive</text>
+  <text x="36" y="510" fill="#6b6258" font-size="11">Auto-merge safe / ask on conflict ▾</text>
+
+  <text x="36" y="538">Check every</text>
+  <text x="36" y="554" fill="#6b6258" font-size="11">60 seconds ▾</text>
+
+  <text x="36" y="582">Default conflict action</text>
+  <text x="36" y="598" fill="#6b6258" font-size="11">Always ask ▾</text>
+
+  <text x="20" y="640" fill="#6b6258" font-size="11">▸ Advanced</text>
+  <text x="20" y="660" fill="#6b6258" font-size="11">▸ Backup &amp; restore</text>
+  <text x="20" y="680" fill="#6b6258" font-size="11">▸ Start over</text>
+</svg>

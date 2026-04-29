@@ -591,7 +591,11 @@ describe('prepareImport', () => {
   });
 
   test('plan includes localOnly projects not in sync file', async () => {
-    const local = makeProject('proj_local', '2024-05-01T00:00:00Z');
+    // Local must use a DIFFERENT chart than the remote, otherwise the
+    // fingerprint-based reconciliation (rightly) treats them as the same
+    // project under different ids.
+    const local = makeProject('proj_local', '2024-05-01T00:00:00Z',
+      [{ id: '999' }, { id: '999' }, { id: '999' }, { id: '999' }]);
     global.ProjectStorage._store['proj_local'] = local;
 
     const remote = makeProject('proj_r1', '2024-06-01T00:00:00Z');
@@ -817,6 +821,272 @@ describe('getSyncStatus', () => {
     expect(status.deviceName).toBe('My Test PC');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Fingerprint-based reconciliation (the duplication bug fix).
+// ---------------------------------------------------------------------------
+//
+// Scenario: the user imports the same .oxs file on Device A and Device B
+// before connecting either device to sync. Each device assigns its own id
+// (proj_<ts>_<rand>). When the .csync from A reaches B, the old id-only
+// classifier called both projects "new-remote" and saved them side-by-side
+// — duplicate forever.
+//
+// The fix: classifyProjects falls back to fingerprint matching when the id
+// doesn't match locally, treats the match as merge-tracking, and records
+// an idRewrite so executeImport converges on a single canonical id.
+
+describe('classifyProjects: fingerprint reconciliation', () => {
+  // Helper to build a deterministic project that produces a stable fingerprint.
+  function makeChart(id, updatedAt, extra) {
+    var p = {
+      id: id,
+      name: 'Chart ' + id,
+      w: 2, h: 2,
+      settings: { sW: 2, sH: 2 },
+      pattern: [
+        { id: '310', type: 'solid', rgb: [0, 0, 0] },
+        { id: '550', type: 'solid', rgb: [128, 58, 153] },
+        { id: '310', type: 'solid', rgb: [0, 0, 0] },
+        { id: '__skip__' }
+      ],
+      done: null,
+      updatedAt: updatedAt
+    };
+    if (extra) Object.keys(extra).forEach(function (k) { p[k] = extra[k]; });
+    return p;
+  }
+
+  test('same chart, different ids → merge-tracking with idRewrite', () => {
+    var local  = makeChart('proj_a_aaaa', '2024-06-01T00:00:00Z');
+    var remote = makeChart('proj_b_bbbb', '2024-06-02T00:00:00Z');
+    var localMap = { 'proj_a_aaaa': local };
+    var remotes = [{
+      id: remote.id,
+      updatedAt: remote.updatedAt,
+      fingerprint: SE.computeFingerprint(remote),
+      data: remote
+    }];
+
+    var classified = SE.classifyProjects(remotes, localMap);
+    expect(classified).toHaveLength(1);
+    expect(classified[0].classification).toBe('merge-tracking');
+    expect(classified[0].idRewrite).toBeDefined();
+    expect(classified[0].idRewrite.localId).toBe('proj_a_aaaa');
+    expect(classified[0].idRewrite.remoteId).toBe('proj_b_bbbb');
+    // canonical = lexicographically smallest = proj_a_aaaa
+    expect(classified[0].idRewrite.canonicalId).toBe('proj_a_aaaa');
+  });
+
+  test('matching id wins over fingerprint match (id is authoritative)', () => {
+    var local  = makeChart('proj_same', '2024-06-01T00:00:00Z');
+    var remote = makeChart('proj_same', '2024-06-02T00:00:00Z');
+    var localMap = { 'proj_same': local };
+    var remotes = [{
+      id: remote.id,
+      updatedAt: remote.updatedAt,
+      fingerprint: SE.computeFingerprint(remote),
+      data: remote
+    }];
+    var classified = SE.classifyProjects(remotes, localMap);
+    expect(classified[0].classification).toBe('merge-tracking');
+    expect(classified[0].idRewrite).toBeUndefined();
+  });
+
+  test('different chart with no matching fingerprint → new-remote', () => {
+    var local  = makeChart('proj_a_aaaa', '2024-06-01T00:00:00Z');
+    // Different remote chart (different palette → different fingerprint)
+    var remote = {
+      id: 'proj_b_bbbb',
+      name: 'Other',
+      w: 2, h: 2,
+      settings: { sW: 2, sH: 2 },
+      pattern: [{ id: '999' }, { id: '999' }, { id: '999' }, { id: '999' }],
+      done: null,
+      updatedAt: '2024-06-02T00:00:00Z'
+    };
+    var classified = SE.classifyProjects(
+      [{ id: remote.id, updatedAt: remote.updatedAt, fingerprint: SE.computeFingerprint(remote), data: remote }],
+      { 'proj_a_aaaa': local }
+    );
+    expect(classified[0].classification).toBe('new-remote');
+    expect(classified[0].idRewrite).toBeUndefined();
+  });
+
+  test('two remotes with same fingerprint cannot both claim one local', () => {
+    var local = makeChart('proj_local', '2024-06-01T00:00:00Z');
+    var r1 = makeChart('proj_x_zzzz', '2024-06-02T00:00:00Z');
+    var r2 = makeChart('proj_y_zzzz', '2024-06-02T00:00:00Z');
+    var classified = SE.classifyProjects([
+      { id: r1.id, updatedAt: r1.updatedAt, fingerprint: SE.computeFingerprint(r1), data: r1 },
+      { id: r2.id, updatedAt: r2.updatedAt, fingerprint: SE.computeFingerprint(r2), data: r2 }
+    ], { 'proj_local': local });
+    // First remote claims the local; second falls through to new-remote.
+    expect(classified[0].classification).toBe('merge-tracking');
+    expect(classified[0].idRewrite.localId).toBe('proj_local');
+    expect(classified[1].classification).toBe('new-remote');
+  });
+
+  test('pickCanonicalId returns lexicographically smallest', () => {
+    expect(SE.pickCanonicalId('proj_b', 'proj_a')).toBe('proj_a');
+    expect(SE.pickCanonicalId('proj_a', 'proj_b')).toBe('proj_a');
+    expect(SE.pickCanonicalId(null, 'proj_b')).toBe('proj_b');
+    expect(SE.pickCanonicalId('proj_a', null)).toBe('proj_a');
+  });
+});
+
+describe('executeImport: canonical-id reconciliation', () => {
+  function makeChart(id, updatedAt, done) {
+    return {
+      id: id,
+      name: 'Chart ' + id,
+      w: 2, h: 2,
+      settings: { sW: 2, sH: 2 },
+      pattern: [
+        { id: '310', type: 'solid', rgb: [0, 0, 0] },
+        { id: '550', type: 'solid', rgb: [128, 58, 153] },
+        { id: '310', type: 'solid', rgb: [0, 0, 0] },
+        { id: '__skip__' }
+      ],
+      done: done || null,
+      sessions: [],
+      threadOwned: {},
+      updatedAt: updatedAt
+    };
+  }
+
+  beforeEach(() => {
+    global.ProjectStorage = {
+      _store: {},
+      listProjects: async function () {
+        return Object.values(this._store).map(p => ({ id: p.id }));
+      },
+      get: async function (id) { return this._store[id] || null; },
+      save: async function (p) {
+        if (!p.id) p.id = 'proj_test_' + (Object.keys(this._store).length + 1);
+        this._store[p.id] = p;
+        return p.id;
+      },
+      delete: async function (id) { delete this._store[id]; }
+    };
+  });
+
+  test('idRewrite merges into canonical id and deletes old local copy', async () => {
+    var local  = makeChart('proj_b_bbbb', '2024-06-01T00:00:00Z', [1, 0, 0, 0]);
+    var remote = makeChart('proj_a_aaaa', '2024-06-02T00:00:00Z', [0, 1, 0, 0]);
+    global.ProjectStorage._store['proj_b_bbbb'] = local;
+
+    var plan = {
+      newRemote: [],
+      mergeTracking: [{
+        id: remote.id,
+        local: local,
+        remote: { data: remote },
+        idRewrite: { localId: 'proj_b_bbbb', remoteId: 'proj_a_aaaa', canonicalId: 'proj_a_aaaa' }
+      }],
+      conflicts: [],
+      stashMerge: null
+    };
+
+    var result = await SE.executeImport(plan, {});
+    expect(result.merged).toBe(1);
+
+    // Canonical id present, old id gone — exactly ONE chart in storage.
+    var ids = Object.keys(global.ProjectStorage._store);
+    expect(ids).toEqual(['proj_a_aaaa']);
+    // Tracking progress was union-merged from both sides.
+    expect(global.ProjectStorage._store['proj_a_aaaa'].done).toEqual([1, 1, 0, 0]);
+  });
+
+  test('idRewrite is idempotent — applying same import twice produces no extra rows', async () => {
+    var local  = makeChart('proj_b_bbbb', '2024-06-01T00:00:00Z');
+    var remote = makeChart('proj_a_aaaa', '2024-06-02T00:00:00Z');
+    global.ProjectStorage._store['proj_b_bbbb'] = local;
+
+    var rewrite = { localId: 'proj_b_bbbb', remoteId: 'proj_a_aaaa', canonicalId: 'proj_a_aaaa' };
+    var plan = {
+      newRemote: [],
+      mergeTracking: [{ id: remote.id, local: local, remote: { data: remote }, idRewrite: rewrite }],
+      conflicts: [], stashMerge: null
+    };
+
+    await SE.executeImport(plan, {});
+    // Second apply: classifier would now see remote.id matches local.id (proj_a_aaaa)
+    // and not produce idRewrite — but even if it did, executeImport is safe.
+    await SE.executeImport(plan, {});
+    expect(Object.keys(global.ProjectStorage._store)).toEqual(['proj_a_aaaa']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// prepareImport surfaces idRewrites + does not double-count local-only.
+// ---------------------------------------------------------------------------
+
+describe('prepareImport: idRewrites + localOnly accounting', () => {
+  function makeChart(id, updatedAt) {
+    return {
+      id: id,
+      name: 'Chart ' + id,
+      w: 2, h: 2,
+      settings: { sW: 2, sH: 2 },
+      pattern: [
+        { id: '310', type: 'solid', rgb: [0, 0, 0] },
+        { id: '550', type: 'solid', rgb: [128, 58, 153] },
+        { id: '310', type: 'solid', rgb: [0, 0, 0] },
+        { id: '__skip__' }
+      ],
+      done: null,
+      updatedAt: updatedAt
+    };
+  }
+
+  function makeSyncObj(projects) {
+    return {
+      _format: SE.SYNC_FORMAT,
+      _version: SE.SYNC_VERSION,
+      _createdAt: '2024-06-01T00:00:00Z',
+      _deviceId: 'dev_remote',
+      _deviceName: 'Remote',
+      _mode: 'full',
+      projects: projects,
+      stash: null
+    };
+  }
+
+  beforeEach(() => {
+    global.ProjectStorage = {
+      _store: {},
+      listProjects: async function () {
+        return Object.values(this._store).map(p => ({ id: p.id }));
+      },
+      get: async function (id) { return this._store[id] || null; },
+      save: async function (p) { this._store[p.id] = p; return p.id; },
+      delete: async function (id) { delete this._store[id]; }
+    };
+  });
+
+  test('plan exposes idRewrites array for fingerprint matches', async () => {
+    var local  = makeChart('proj_b_bbbb', '2024-06-01T00:00:00Z');
+    var remote = makeChart('proj_a_aaaa', '2024-06-02T00:00:00Z');
+    global.ProjectStorage._store['proj_b_bbbb'] = local;
+
+    var syncObj = makeSyncObj([{
+      id: remote.id,
+      updatedAt: remote.updatedAt,
+      fingerprint: SE.computeFingerprint(remote),
+      data: remote
+    }]);
+
+    var plan = await SE.prepareImport(syncObj);
+    expect(plan.idRewrites).toHaveLength(1);
+    expect(plan.idRewrites[0].idRewrite.canonicalId).toBe('proj_a_aaaa');
+    // Critically, the local must NOT be flagged as "local-only" — that was the
+    // path that produced the duplicate row in the UI.
+    expect(plan.localOnly).toHaveLength(0);
+    expect(plan.mergeTracking).toHaveLength(1);
+  });
+});
+
 
 // ---------------------------------------------------------------------------
 // Edge cases

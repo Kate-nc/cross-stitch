@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" font-family="-apple-system, system-ui, sans-serif" font-size="13" fill="#1a1a1a">
+  <rect width="900" height="600" fill="rgba(0,0,0,0.4)"/>
+  <rect x="60" y="40" width="780" height="520" rx="12" fill="#fff"/>
+
+  <text x="80" y="70" font-weight="600" font-size="14">First-time sync set-up</text>
+  <text x="80" y="90" fill="#6b6258" font-size="11">Step 3 of 3 — Confirm</text>
+  <rect x="80" y="100" width="240" height="3" fill="#3a7a3a"/>
+  <rect x="320" y="100" width="240" height="3" fill="#3a7a3a"/>
+  <rect x="560" y="100" width="240" height="3" fill="#3a7a3a"/>
+  <line x1="80" y1="116" x2="820" y2="116" stroke="#e6e1d6"/>
+
+  <text x="80" y="146" font-weight="600" font-size="14">Here's what will happen.</text>
+
+  <g transform="translate(80, 170)">
+    <text x="0" y="20" font-weight="600">Merging 2 matched pairs</text>
+    <text x="20" y="44" fill="#6b6258">• Cottage Garden Sampler — local chart kept, +247 stitches from Tablet</text>
+    <text x="20" y="64" fill="#6b6258">• DMC 3-page Pattern — local chart kept, no progress changes</text>
+
+    <text x="0" y="100" font-weight="600">Importing 2 new patterns from Tablet</text>
+    <text x="20" y="124" fill="#6b6258">• Snowflake Border (60×20, 100% done)</text>
+    <text x="20" y="144" fill="#6b6258">• Spring Wreath (45×45, 0% done)</text>
+
+    <text x="0" y="180" font-weight="600">Keeping 1 local-only pattern as-is</text>
+    <text x="20" y="204" fill="#6b6258">• WIP — Stars (40×40)</text>
+
+    <text x="0" y="240" font-weight="600">Backup</text>
+    <text x="20" y="264" fill="#6b6258">A 7-day snapshot of your current local data will be created.</text>
+    <text x="20" y="282" fill="#6b6258">You can undo this sync from the header pill for the first 60 seconds.</text>
+  </g>
+
+  <!-- footer -->
+  <line x1="80" y1="514" x2="820" y2="514" stroke="#e6e1d6"/>
+  <rect x="540" y="528" width="100" height="32" rx="6" fill="#fff" stroke="#cfc8b9"/>
+  <text x="590" y="548" text-anchor="middle">← Back</text>
+  <rect x="650" y="528" width="170" height="32" rx="6" fill="#3a7a3a"/>
+  <text x="735" y="548" text-anchor="middle" fill="#fff" font-weight="600">Apply &amp; finish set-up</text>
+</svg>
