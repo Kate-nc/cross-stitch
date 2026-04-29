@@ -150,6 +150,16 @@
     var _e = React.useState({}); var edits = _e[0], setEdits = _e[1];
     var _c = React.useState(true); var showConfidence = _c[0], setShowConfidence = _c[1];
 
+    // Escape closes the modal — matches every other dialog in the app.
+    React.useEffect(function () {
+      if (typeof document === 'undefined') return;
+      function onKey(e) {
+        if (e.key === 'Escape' && props.onClose) { props.onClose('cancel'); }
+      }
+      document.addEventListener('keydown', onKey);
+      return function () { document.removeEventListener('keydown', onKey); };
+    }, []);
+
     function applyEdit(field, value) {
       var next = Object.assign({}, edits);
       next[field] = value;
@@ -198,11 +208,13 @@
               onChange: function (e) { setShowConfidence(e.target.checked); } }),
             ' Highlight low-confidence cells'),
           h('div', { className: 'import-review-actions' },
-            h('button', { className: 'btn-secondary', onClick: function () { props.onClose && props.onClose('cancel'); } }, 'Cancel'),
-            (props.coverage < 0.95) && h('button', { className: 'btn-secondary',
+            h('button', { type: 'button', className: 'g-btn',
+              onClick: function () { props.onClose && props.onClose('cancel'); } }, 'Cancel'),
+            (props.coverage < 0.95) && h('button', { type: 'button', className: 'g-btn',
               onClick: function () { props.onClose && props.onClose('wizard', { project: working, edits: edits }); }
             }, I('wandFix'), h('span', null, 'Open guided wizard')),
-            h('button', { className: 'btn-primary', onClick: function () { props.onClose && props.onClose('confirm', { project: working, edits: edits }); } },
+            h('button', { type: 'button', className: 'g-btn primary',
+              onClick: function () { props.onClose && props.onClose('confirm', { project: working, edits: edits }); } },
               I('check'), h('span', null, 'Use this pattern'))
           )
         )

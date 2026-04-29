@@ -2692,6 +2692,16 @@
     var _e = React.useState({}); var edits = _e[0], setEdits = _e[1];
     var _c = React.useState(true); var showConfidence = _c[0], setShowConfidence = _c[1];
 
+    // Escape closes the modal — matches every other dialog in the app.
+    React.useEffect(function () {
+      if (typeof document === 'undefined') return;
+      function onKey(e) {
+        if (e.key === 'Escape' && props.onClose) { props.onClose('cancel'); }
+      }
+      document.addEventListener('keydown', onKey);
+      return function () { document.removeEventListener('keydown', onKey); };
+    }, []);
+
     function applyEdit(field, value) {
       var next = Object.assign({}, edits);
       next[field] = value;
@@ -2740,11 +2750,13 @@
               onChange: function (e) { setShowConfidence(e.target.checked); } }),
             ' Highlight low-confidence cells'),
           h('div', { className: 'import-review-actions' },
-            h('button', { className: 'btn-secondary', onClick: function () { props.onClose && props.onClose('cancel'); } }, 'Cancel'),
-            (props.coverage < 0.95) && h('button', { className: 'btn-secondary',
+            h('button', { type: 'button', className: 'g-btn',
+              onClick: function () { props.onClose && props.onClose('cancel'); } }, 'Cancel'),
+            (props.coverage < 0.95) && h('button', { type: 'button', className: 'g-btn',
               onClick: function () { props.onClose && props.onClose('wizard', { project: working, edits: edits }); }
             }, I('wandFix'), h('span', null, 'Open guided wizard')),
-            h('button', { className: 'btn-primary', onClick: function () { props.onClose && props.onClose('confirm', { project: working, edits: edits }); } },
+            h('button', { type: 'button', className: 'g-btn primary',
+              onClick: function () { props.onClose && props.onClose('confirm', { project: working, edits: edits }); } },
               I('check'), h('span', null, 'Use this pattern'))
           )
         )
@@ -2870,6 +2882,48 @@
     });
   }
 
+  // Returns true when `destination` (a relative URL like 'home.html') is
+  // the page the user is already viewing. Used to skip a same-page
+  // navigation that would otherwise present as a jarring full-page reload
+  // immediately after an import succeeds.
+  function isCurrentPage(destination) {
+    try {
+      if (!destination || typeof window === 'undefined' || !window.location) return false;
+      var dest = String(destination).split('?')[0].split('#')[0].toLowerCase();
+      var here = String(window.location.pathname || '').toLowerCase();
+      var hereFile = here.substring(here.lastIndexOf('/') + 1) || 'home.html';
+      var destFile = dest.substring(dest.lastIndexOf('/') + 1);
+      if (!destFile) destFile = 'home.html';
+      return hereFile === destFile;
+    } catch (_) { return false; }
+  }
+
+  function showImportToast(project) {
+    try {
+      if (window.Toast && typeof window.Toast.show === 'function') {
+        var name = (project && project.name) ? project.name : 'pattern';
+        window.Toast.show({
+          message: 'Imported "' + name + '".',
+          type: 'success',
+          duration: 5000,
+        });
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  function showImportError(err) {
+    var msg = 'Could not save the imported pattern: ' + (err && err.message || err);
+    try {
+      if (window.Toast && typeof window.Toast.show === 'function') {
+        window.Toast.show({ message: msg, type: 'error', duration: 8000 });
+        return;
+      }
+    } catch (_) {}
+    if (typeof alert === 'function') alert(msg);
+  }
+
   function saveAndNavigate(project, opts) {
     var nav = opts.navigate !== false;
     // Default destination is the project library at /home so the user can
@@ -2886,7 +2940,8 @@
       if (typeof window.saveProjectToDB === 'function') {
         console.warn('[import] ProjectStorage unavailable — using legacy auto_save key. Pattern will not appear in the library.');
         return Promise.resolve(window.saveProjectToDB('auto_save', project)).then(function () {
-          if (nav) window.location.href = 'stitch.html';
+          showImportToast(project);
+          if (nav && !isCurrentPage('stitch.html')) window.location.href = 'stitch.html';
           return { action: 'confirm', project: project };
         });
       }
@@ -2914,14 +2969,23 @@
       else localStorage.setItem('crossstitch_active_project', id);
     } catch (_) {}
     return Promise.resolve(storage.save(project)).then(function () {
-      if (nav) window.location.href = destination;
+      // Always confirm the import succeeded. The home page already listens
+      // for cs:projectsChanged (fired by ProjectStorage.save) so the new
+      // project will appear in the library without a reload.
+      showImportToast(project);
+      // Only navigate if the requested destination is a *different* page.
+      // A same-page window.location.href assignment forces a full reload
+      // that hides the import success and looks like a broken refresh.
+      if (nav && !isCurrentPage(destination)) {
+        window.location.href = destination;
+      }
       return { action: 'confirm', project: project, id: id };
     }).catch(function (err) {
       // Save failed — clear the active pointer so the user isn't stranded
       // pointing at a project that doesn't exist in the store.
       try { if (typeof storage.clearActiveProject === 'function') storage.clearActiveProject(); } catch (_) {}
       console.error('[import] Failed to save imported project:', err);
-      if (typeof alert === 'function') alert('Could not save the imported pattern: ' + (err && err.message || err));
+      showImportError(err);
       throw err;
     });
   }
@@ -2930,6 +2994,7 @@
     openImportPicker: openImportPicker,
     importAndReview: importAndReview,
     saveAndNavigate: saveAndNavigate,
+    _isCurrentPage: isCurrentPage,
   });
 })();
 
