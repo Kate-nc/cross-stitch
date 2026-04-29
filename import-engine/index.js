@@ -29,6 +29,7 @@
     require('./pdf/textBands.js');
     require('./pdf/publishers.js');
     require('./pdf/dmcPageRoles.js');
+    require('./pdf/legendExtractor.js');
   }
 
   const ENGINE = isBrowser ? window.ImportEngine : (function () {
@@ -41,7 +42,8 @@
     const tb    = require('./pdf/textBands.js');
     const pub   = require('./pdf/publishers.js');
     const dpr   = require('./pdf/dmcPageRoles.js');
-    return Object.assign({}, types, reg, pipe, wc, sniff, ow, tb, pub, dpr);
+    const lex   = require('./pdf/legendExtractor.js');
+    return Object.assign({}, types, reg, pipe, wc, sniff, ow, tb, pub, dpr, lex);
   })();
 
   // High-level: takes a File-like (browser File, or { name, type, arrayBuffer })
