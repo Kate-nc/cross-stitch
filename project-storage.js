@@ -132,6 +132,14 @@ const ProjectStorage = (() => {
       weeklyStitches,
       thumbnail: p.thumbnail || null,
       fabricCt: s.fabricCt || 14,
+      // Stash-Adapt: surface a tiny pointer to the source project so the
+      // pattern library can render the "Adapted from …" badge without having
+      // to load the full project payload. Only present on adapted projects.
+      adaptation: p.adaptation ? {
+        fromProjectId: p.adaptation.fromProjectId || null,
+        fromName:      p.adaptation.fromName || null,
+        modeAtCreate:  p.adaptation.modeAtCreate || null,
+      } : undefined,
     };
   }
 

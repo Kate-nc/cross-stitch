@@ -616,6 +616,17 @@
         if (window.ProjectStorage && window.ProjectStorage.getActiveProject) {
           window.ProjectStorage.getActiveProject().then(function (p) {
             if (!cancelled) setActive(p || null);
+            // Self-heal: if the active-project pointer in localStorage points
+            // at a project that no longer exists in IDB (e.g. it was deleted
+            // from the Manager, or the IDB write that minted the pointer was
+            // interrupted by a page unload), clear the stale pointer so the
+            // index.html redirect guard stops sending users to a tool with
+            // no project loaded.
+            if (!p && window.ProjectStorage.getActiveProjectId &&
+                window.ProjectStorage.getActiveProjectId() &&
+                window.ProjectStorage.clearActiveProject) {
+              try { window.ProjectStorage.clearActiveProject(); } catch (_) {}
+            }
           }).catch(function () {});
         }
         if (window.ProjectStorage && window.ProjectStorage.listProjects) {

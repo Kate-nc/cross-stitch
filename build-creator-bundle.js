@@ -12,6 +12,13 @@ const crypto = require('crypto');
 
 const ORDER = [
   'context.js',
+  // Stash-Adapt: pure utilities — must precede adaptationEngine.js, which
+  // must precede AdaptModal.js (which lives near the modals further down).
+  'matchQuality.js',
+  'adaptationEngine.js',
+  // Auto-save state machine — pure helper used by useProjectIO.js to drive
+  // the visible save status badge in the header.
+  'saveStatus.js',
   'symbolFontSpec.js',
   'pdfChartLayout.js',
   'pdfExport.js',
@@ -36,6 +43,7 @@ const ORDER = [
   'MagicWandPanel.js',
   'SubstituteFromStashModal.js',
   'ConvertPaletteModal.js',
+  'AdaptModal.js',
   'BulkAddModal.js',
   'Sidebar.js',
   'Toast.js',

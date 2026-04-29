@@ -9,7 +9,6 @@ window.CreatorProjectTab = function CreatorProjectTab() {
   var app = window.useApp();
   var cv  = window.useCanvas();
   var h = React.createElement;
-  var _cvtOpen = React.useState(false); var convertOpen = _cvtOpen[0], setConvertOpen = _cvtOpen[1];
 
   if (!(ctx.pat && ctx.pal)) return null;
   if (app.tab !== "project") return null;
@@ -232,43 +231,17 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       h("div", {style:{display:"flex",gap:'var(--s-2)',marginTop:10,flexWrap:"wrap",alignItems:"center"}},
         h("button", {
           onClick: function() {
-            if (typeof StashBridge === "undefined") { alert("Stash bridge not loaded."); return; }
-            StashBridge.getGlobalStash().then(function(stash) {
-              var result = analyseSubstitutions(
-                ctx.skeinData,
-                ctx.threadOwned,
-                stash,
-                ctx.fabricCt,
-                { maxDeltaE: ctx.substituteMaxDeltaE, dmcData: DMC }
-              );
-              ctx.setSubstituteProposal(result);
-              ctx.setSubstituteModalKey(function(k) { return k + 1; });
-              ctx.setSubstituteModalOpen(true);
-            }).catch(function() {
-              app.addToast("Failed to load stash data.", { type: "error", duration: 3000 });
-            });
+            ctx.setAdaptModalMode && ctx.setAdaptModalMode('stash');
+            ctx.setAdaptModalOpen && ctx.setAdaptModalOpen(true);
           },
-          disabled: (function() {
-            if (typeof StashBridge === "undefined") return true;
-            if (!ctx.pat) return true;
-            if (ctx.toBuyList.length === 0) return true;
-            return !hasOwnedStash;
-          })(),
-          title: (function() {
-            if (typeof StashBridge === "undefined") return "Stash bridge not available";
-            if (!ctx.pat) return "No pattern loaded";
-            if (ctx.toBuyList.length === 0) return "All threads are already marked as owned";
-            if (!hasOwnedStash) return "Add threads to your stash first";
-            return "Find stash alternatives for unowned threads";
-          })(),
-          style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"1px solid var(--accent-light)",background:"var(--surface-secondary)",color:"var(--accent)",cursor:"pointer",fontWeight:600,
-            opacity:(function() {
-              if (typeof StashBridge === "undefined" || !ctx.pat || ctx.toBuyList.length === 0) return 0.5;
-              if (!hasOwnedStash) return 0.5;
-              return 1;
-            })()
-          }
-        }, "Replace with Stash Threads"),
+          disabled: !ctx.pat || !ctx.pal || ctx.pal.length === 0,
+          title: "Create an adapted copy of this pattern using threads from your stash",
+          style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"1px solid var(--accent-light)",background:"var(--surface-secondary)",color:"var(--accent)",cursor:"pointer",fontWeight:600,display:'inline-flex',alignItems:'center',gap:6,
+            opacity:(!ctx.pat || !ctx.pal || ctx.pal.length === 0) ? 0.5 : 1}
+        },
+          window.Icons && window.Icons.adapt ? h('span', {style:{display:'inline-flex'}}, window.Icons.adapt()) : null,
+          "Adapt to my stash"
+        ),
         h("button", {
           onClick: function() {
             if (typeof StashBridge === "undefined") { alert("Stash bridge not loaded."); return; }
@@ -285,14 +258,20 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           },
           style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"1px solid var(--accent-light)",background:"var(--surface-secondary)",color:"var(--accent)",cursor:"pointer",fontWeight:600}
         }, "Kit This Project"),
-        typeof window.ConvertPaletteModal !== "undefined"
+        typeof window.AdaptModal !== "undefined"
           ? h("button", {
-              onClick: function() { setConvertOpen(true); },
+              onClick: function() {
+                ctx.setAdaptModalMode && ctx.setAdaptModalMode('brand');
+                ctx.setAdaptModalOpen && ctx.setAdaptModalOpen(true);
+              },
               disabled: !ctx.pat || !ctx.pal || ctx.pal.length === 0,
-              title: "Convert this pattern's palette between DMC and Anchor thread brands",
-              style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"1px solid var(--accent-light)",background:"var(--surface-secondary)",color:"var(--accent)",cursor:"pointer",fontWeight:600,
+              title: "Adapt this pattern to a different thread brand",
+              style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"1px solid var(--accent-light)",background:"var(--surface-secondary)",color:"var(--accent)",cursor:"pointer",fontWeight:600,display:'inline-flex',alignItems:'center',gap:6,
                 opacity:(!ctx.pat || !ctx.pal || ctx.pal.length === 0) ? 0.5 : 1}
-            }, "Change Thread Brand")
+            },
+              window.Icons && window.Icons.adapt ? h('span', {style:{display:'inline-flex'}}, window.Icons.adapt()) : null,
+              "Adapt to brand"
+            )
           : null
       ),
       ctx.kittingResult && h("div", {style:{marginTop:'var(--s-2)',padding:"10px 14px",borderRadius:'var(--radius-md)',border:"1px solid var(--border)",background:"var(--surface-secondary)",fontSize:'var(--text-sm)'}},
@@ -416,60 +395,6 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     renderTimeEstimate(),
     renderFinishedSize(),
     renderCostEstimate(),
-    renderThreadOrganiser(),
-    typeof window.SubstituteFromStashModal !== "undefined"
-      ? h(window.SubstituteFromStashModal, null)
-      : null,
-    convertOpen && typeof window.ConvertPaletteModal !== "undefined"
-      ? h(window.ConvertPaletteModal, {
-          onClose: function() { setConvertOpen(false); },
-          onApply: function(remap) {
-            var np = ctx.pat.slice();
-            var changes = [];
-            for (var i = 0; i < np.length; i++) {
-              var cell = np[i];
-              if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
-              if (cell.type === "blend" && cell.threads) {
-                var needsChange = false;
-                var newThreads = cell.threads.map(function(t) {
-                  if (remap[t.id]) { needsChange = true; return {id:remap[t.id].compositeKey,type:"solid",name:remap[t.id].name,rgb:remap[t.id].rgb,brand:remap[t.id].brand}; }
-                  return t;
-                });
-                if (needsChange) {
-                  changes.push({idx:i, old:Object.assign({},cell)});
-                  var newBlendId = newThreads.map(function(t){return t.id;}).sort().join("+");
-                  np[i] = Object.assign({},cell,{id:newBlendId,threads:newThreads,rgb:[
-                    Math.round((newThreads[0].rgb[0]+newThreads[1].rgb[0])/2),
-                    Math.round((newThreads[0].rgb[1]+newThreads[1].rgb[1])/2),
-                    Math.round((newThreads[0].rgb[2]+newThreads[1].rgb[2])/2)]});
-                }
-                continue;
-              }
-              if (remap[cell.id]) {
-                changes.push({idx:i, old:Object.assign({},cell)});
-                np[i] = {id:remap[cell.id].compositeKey, type:"solid", name:remap[cell.id].name, rgb:remap[cell.id].rgb, brand:remap[cell.id].brand};
-              }
-            }
-            if (changes.length === 0) {
-              app.addToast("No cells were changed.", {type:"info", duration:2000});
-              setConvertOpen(false);
-              return;
-            }
-            cv.setEditHistory(function(prev) {
-              var entry = {type:"paletteConversion", changes:changes};
-              var n = prev.concat([entry]);
-              if (n.length > (cv.EDIT_HISTORY_MAX || 100)) n = n.slice(n.length - (cv.EDIT_HISTORY_MAX || 100));
-              return n;
-            });
-            cv.setRedoHistory([]);
-            ctx.setPat(np);
-            var result = ctx.buildPaletteWithScratch(np);
-            ctx.setPal(result.pal);
-            ctx.setCmap(result.cmap);
-            setConvertOpen(false);
-            app.addToast(changes.length + " stitches converted. Ctrl+Z to undo.", {type:"success", duration:4000});
-          }
-        })
-      : null
+    renderThreadOrganiser()
   );
 };

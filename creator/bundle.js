@@ -24,6 +24,887 @@ window.useCanvas = function useCanvas() { return React.useContext(window.CanvasC
 window.usePatternData = function usePatternData() { return React.useContext(window.PatternDataContext); };
 
 
+/* ─── matchQuality.js ─── */
+/* creator/matchQuality.js — Stash-Adapt match-quality utilities.
+ *
+ * Pure, dependency-free (in browser: relies only on rgbToLab from colour-utils
+ * if needed for describeLabDiff, but accepts pre-computed Lab triples directly
+ * which is what the engine always passes).
+ *
+ * Exposes window.MatchQuality with:
+ *   TIERS                     ordered tier ids
+ *   classifyMatch(deltaE, target?) → tier id
+ *   tierLabel(tier)           UI string ("Exact", "Close", …)
+ *   tierToken(tier)           CSS var name for the dot colour
+ *   tierIsAcceptable(deltaE, threshold) — used by re-match logic
+ *   describeLabDiff(srcLab, tgtLab) — short Lab-derived hint
+ *
+ * Loaded via build-creator-bundle.js BEFORE adaptationEngine.js.
+ *
+ * Tiers are canonical for the whole adaptation flow and replace the ad-hoc
+ * good/fair/poor strings from the old SubstituteFromStashModal. See
+ * reports/stash-adapt-9-interaction-spec.md §6 for thresholds.
+ */
+
+(function () {
+  // Threshold boundaries (ΔE2000). A tier owns the half-open interval
+  // [lower, upper). 'none' covers ≥20 OR target===null.
+  var TIER_DEFS = [
+    { id: 'exact', upper: 1,        label: 'Exact',    token: '--success' },
+    { id: 'close', upper: 3,        label: 'Close',    token: '--success' },
+    { id: 'good',  upper: 5,        label: 'Good',     token: '--success' },
+    { id: 'fair',  upper: 10,       label: 'Fair',     token: '--warning' },
+    { id: 'poor',  upper: 20,       label: 'Poor',     token: '--danger'  },
+    { id: 'none',  upper: Infinity, label: 'No match', token: '--danger'  }
+  ];
+  var TIERS = TIER_DEFS.map(function (t) { return t.id; });
+
+  function classifyMatch(deltaE, target) {
+    if (target === null || target === undefined) return 'none';
+    if (typeof deltaE !== 'number' || !isFinite(deltaE) || deltaE < 0) return 'none';
+    for (var i = 0; i < TIER_DEFS.length; i++) {
+      if (deltaE < TIER_DEFS[i].upper) return TIER_DEFS[i].id;
+    }
+    return 'none';
+  }
+
+  function _tierDef(tier) {
+    for (var i = 0; i < TIER_DEFS.length; i++) if (TIER_DEFS[i].id === tier) return TIER_DEFS[i];
+    return TIER_DEFS[TIER_DEFS.length - 1];
+  }
+
+  function tierLabel(tier) { return _tierDef(tier).label; }
+  function tierToken(tier) { return _tierDef(tier).token; }
+
+  // Returns true when the proposed target is within the user's threshold.
+  // Threshold is expressed as an upper-bound ΔE (the slider value).
+  function tierIsAcceptable(deltaE, threshold) {
+    if (typeof deltaE !== 'number' || !isFinite(deltaE)) return false;
+    return deltaE <= threshold;
+  }
+
+  // Short human description of perceptual differences, e.g. "darker, less
+  // saturated". Conservative — returns "very close" when no axis crosses
+  // a meaningful threshold. Used in chip tooltips.
+  function describeLabDiff(srcLab, tgtLab) {
+    if (!srcLab || !tgtLab || srcLab.length < 3 || tgtLab.length < 3) return '';
+    var dL = tgtLab[0] - srcLab[0];
+    var da = tgtLab[1] - srcLab[1];
+    var db = tgtLab[2] - srcLab[2];
+    var srcC = Math.sqrt(srcLab[1]*srcLab[1] + srcLab[2]*srcLab[2]);
+    var tgtC = Math.sqrt(tgtLab[1]*tgtLab[1] + tgtLab[2]*tgtLab[2]);
+    var dC = tgtC - srcC;
+
+    var parts = [];
+
+    // Lightness — strongest axis when present.
+    if (Math.abs(dL) >= 5) parts.push(dL < 0 ? 'darker' : 'lighter');
+
+    // Saturation (chroma).
+    if (Math.abs(dC) >= 5) parts.push(dC < 0 ? 'less saturated' : 'more saturated');
+
+    // Hue shift via a / b axes. Prefer the dominant axis when both move.
+    if (parts.length < 2) {
+      var hueParts = [];
+      if (Math.abs(da) >= 5) hueParts.push({ mag: Math.abs(da), word: da > 0 ? 'redder' : 'greener' });
+      if (Math.abs(db) >= 5) hueParts.push({ mag: Math.abs(db), word: db > 0 ? 'yellower' : 'bluer' });
+      hueParts.sort(function (x, y) { return y.mag - x.mag; });
+      for (var i = 0; i < hueParts.length && parts.length < 2; i++) parts.push(hueParts[i].word);
+    }
+
+    if (!parts.length) return 'very close match';
+    return 'replacement is ' + parts.slice(0, 2).join(', ');
+  }
+
+  var api = {
+    TIERS: TIERS,
+    TIER_DEFS: TIER_DEFS.slice(),
+    classifyMatch: classifyMatch,
+    tierLabel: tierLabel,
+    tierToken: tierToken,
+    tierIsAcceptable: tierIsAcceptable,
+    describeLabDiff: describeLabDiff
+  };
+
+  if (typeof window !== 'undefined') window.MatchQuality = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})();
+
+
+/* ─── adaptationEngine.js ─── */
+/* creator/adaptationEngine.js — Stash-Adapt proposal/apply engine.
+ *
+ * Pure module. Provides:
+ *   proposeStash(palette, stash, opts)   → Proposal
+ *   proposeBrand(palette, srcBrand, tgtBrand, opts) → Proposal
+ *   applyProposal(srcProject, proposal, opts) → newProject (deep copy)
+ *   reRunAuto(proposal, lockedKeys, opts) → Proposal (locked rows preserved)
+ *   findReplacement(srcLab, candidates, opts) → target | null
+ *   isSpecialty(id) → bool
+ *
+ * Substitution shape (canonical for the whole flow):
+ *   {
+ *     sourceId, sourceBrand, sourceName, sourceRgb, sourceLab,
+ *     target: null | {
+ *       key, id, brand, name, rgb, lab, deltaE, tier,
+ *       confidence, source, inStash, ownedSkeins?, neededSkeins?, hasSufficient?
+ *     },
+ *     state: "accepted" | "skipped" | "no-match",
+ *     skipReason?: "no-stash-match" | "all-above-threshold" | "no-equivalent" | "user-skipped",
+ *     nearMisses?: NearMiss[]
+ *   }
+ *
+ * Loaded by build-creator-bundle.js AFTER matchQuality.js, BEFORE AdaptModal.js.
+ *
+ * Depends on globals (browser): MatchQuality, DMC, ANCHOR (optional),
+ *   rgbToLab, dE2000 (colour-utils.js), threadKey, parseThreadKey, getThreadByKey,
+ *   skeinEst (helpers.js), CONVERSIONS, getOfficialMatch (thread-conversions.js,
+ *   optional — falls back to pure ΔE2000 when unavailable).
+ *
+ * Specialty thread prefixes (excluded from auto-matching by default):
+ *   E*  — Light Effects (DMC)
+ *   S*  — Satin (DMC)
+ *   4xxx — Variations (DMC)
+ *   1300+ — Anchor multicoloured/marlitt (heuristic)
+ */
+
+(function () {
+  // ─── Specialty exclusion ─────────────────────────────────────────────────
+  var SPECIALTY_PREFIXES = ['E', 'S'];
+  function isSpecialty(id) {
+    if (typeof id !== 'string' || !id) return false;
+    var first = id.charAt(0);
+    if (first === 'E' || first === 'S') return true;
+    // DMC Variations — 4-digit ids starting with 4
+    if (/^4\d{3}$/.test(id)) return true;
+    return false;
+  }
+
+  // Blend handling — adaptation operates on bare component ids; the canvas
+  // already serialises blends as "a+b" with sorted components.
+  function _splitBlend(id) {
+    if (typeof id !== 'string' || id.indexOf('+') === -1) return null;
+    return id.split('+');
+  }
+
+  function _isBlend(id) { return _splitBlend(id) !== null; }
+
+  // ─── Catalogue helpers ───────────────────────────────────────────────────
+  function _catalogue(brand) {
+    if (brand === 'anchor') return (typeof ANCHOR !== 'undefined' && ANCHOR) ? ANCHOR : [];
+    return (typeof DMC !== 'undefined' && DMC) ? DMC : [];
+  }
+
+  function _labOf(thread) {
+    if (!thread) return null;
+    if (thread.lab) {
+      if (Array.isArray(thread.lab)) return thread.lab;
+      return [thread.lab.L || 0, thread.lab.a || 0, thread.lab.b || 0];
+    }
+    if (thread.rgb && typeof rgbToLab === 'function') {
+      return rgbToLab(thread.rgb[0], thread.rgb[1], thread.rgb[2]);
+    }
+    return null;
+  }
+
+  function _findThread(brand, id) {
+    var arr = _catalogue(brand);
+    for (var i = 0; i < arr.length; i++) if (arr[i].id === id) return arr[i];
+    return null;
+  }
+
+  function _resolveBrand(id) {
+    if (_findThread('dmc', id)) return 'dmc';
+    if (_findThread('anchor', id)) return 'anchor';
+    return 'dmc';
+  }
+
+  function _de(a, b) {
+    if (!a || !b) return Infinity;
+    if (typeof dE2000 === 'function') return dE2000(a, b);
+    var dL = a[0]-b[0], da = a[1]-b[1], db = a[2]-b[2];
+    return Math.sqrt(dL*dL + da*da + db*db);
+  }
+
+  // Round ΔE to one decimal for stable storage / display.
+  function _roundDe(x) { return Math.round(x * 10) / 10; }
+
+  // ─── Palette extraction — unique source threads ──────────────────────────
+  // palette: either a flat pattern array of {id,type,rgb,...} cells OR an
+  // already-deduped list of {id, name, rgb, stitches?, brand?} entries.
+  // Returns an array of unique source thread descriptors.
+  function _extractSourceThreads(palette, defaultBrand) {
+    var seen = Object.create(null);
+    var out = [];
+    function add(id, brand, name, rgb, stitches) {
+      if (!id || id === '__skip__' || id === '__empty__') return;
+      var key = brand + ':' + id;
+      if (seen[key]) {
+        if (stitches != null) seen[key].stitches += stitches;
+        return;
+      }
+      var thread = _findThread(brand, id);
+      var entry = {
+        id: id,
+        brand: brand,
+        name: name || (thread && thread.name) || id,
+        rgb: rgb || (thread && thread.rgb) || [128,128,128],
+        lab: thread ? _labOf(thread) : (rgb && typeof rgbToLab === 'function' ? rgbToLab(rgb[0], rgb[1], rgb[2]) : null),
+        stitches: stitches || 0
+      };
+      seen[key] = entry;
+      out.push(entry);
+    }
+
+    for (var i = 0; i < palette.length; i++) {
+      var c = palette[i];
+      if (!c) continue;
+      var brand = c.brand || defaultBrand || 'dmc';
+      var stitches = (typeof c.stitches === 'number') ? c.stitches
+                   : (typeof c.count === 'number') ? c.count
+                   : 1;
+      // Blend cells: split into components and credit half-stitches each.
+      if (c.type === 'blend' || _isBlend(c.id)) {
+        var parts = _splitBlend(c.id) || (c.threads ? c.threads.map(function (t) { return t.id; }) : []);
+        for (var p = 0; p < parts.length; p++) {
+          add(parts[p], brand, null, null, Math.ceil(stitches / parts.length));
+        }
+        continue;
+      }
+      add(c.id, brand, c.name, c.rgb, stitches);
+    }
+    return out;
+  }
+
+  // ─── findReplacement — generic nearest-by-ΔE2000 search ──────────────────
+  function findReplacement(srcLab, candidates, opts) {
+    opts = opts || {};
+    var maxDeltaE = opts.maxDeltaE != null ? opts.maxDeltaE : Infinity;
+    if (!srcLab || !candidates || !candidates.length) return null;
+    var best = null, bestDe = Infinity;
+    for (var i = 0; i < candidates.length; i++) {
+      var c = candidates[i];
+      if (!c.lab) continue;
+      var de = _de(srcLab, c.lab);
+      if (de < bestDe) { bestDe = de; best = c; }
+    }
+    if (!best || bestDe > maxDeltaE) return null;
+    return { candidate: best, deltaE: _roundDe(bestDe) };
+  }
+
+  // ─── proposeStash — Flow A ───────────────────────────────────────────────
+  function proposeStash(palette, stash, opts) {
+    opts = opts || {};
+    var maxDeltaE        = opts.maxDeltaE        != null ? opts.maxDeltaE        : 10;
+    var fabricCt         = opts.fabricCt         != null ? opts.fabricCt         : 14;
+    var excludeSpecialty = opts.excludeSpecialty !== false; // default true
+    var nearMissMult     = opts.nearMissMult     || 1.5;
+
+    // Build candidate list from owned stash entries.
+    var candidates = [];
+    var stashKeys = stash ? Object.keys(stash) : [];
+    for (var k = 0; k < stashKeys.length; k++) {
+      var key = stashKeys[k];
+      var entry = stash[key];
+      if (!entry || !(entry.owned > 0)) continue;
+      var parsed = (typeof parseThreadKey === 'function')
+        ? parseThreadKey(key)
+        : (key.indexOf(':') >= 0 ? { brand: key.split(':')[0], id: key.split(':')[1] } : { brand: 'dmc', id: key });
+      if (excludeSpecialty && isSpecialty(parsed.id)) continue;
+      var thread = _findThread(parsed.brand, parsed.id);
+      if (!thread) continue;
+      candidates.push({
+        key: key,
+        id: parsed.id,
+        brand: parsed.brand,
+        name: thread.name,
+        rgb: thread.rgb,
+        lab: _labOf(thread),
+        ownedSkeins: entry.owned
+      });
+    }
+
+    var sources = _extractSourceThreads(palette);
+    var subs = [];
+    var stashSnapshotKeys = candidates.map(function (c) { return c.key; });
+
+    for (var s = 0; s < sources.length; s++) {
+      var src = sources[s];
+      var sub = _baseSub(src);
+
+      if (!src.lab) {
+        sub.state = 'no-match';
+        sub.skipReason = 'no-stash-match';
+        subs.push(sub);
+        continue;
+      }
+
+      // Skein need from this source's stitch count.
+      var needed = (typeof skeinEst === 'function')
+        ? skeinEst(src.stitches || 1, fabricCt)
+        : Math.max(1, Math.ceil((src.stitches || 1) / 200));
+
+      // Score every candidate. The source thread itself is a valid candidate
+      // when the user owns it — that's the "no swap needed" case and surfaces
+      // as an exact match.
+      var ranked = [];
+      for (var c = 0; c < candidates.length; c++) {
+        var de = _roundDe(_de(src.lab, candidates[c].lab));
+        ranked.push({ cand: candidates[c], de: de });
+      }
+      ranked.sort(function (a, b) { return a.de - b.de; });
+
+      if (!ranked.length) {
+        sub.state = 'no-match';
+        sub.skipReason = 'no-stash-match';
+        subs.push(sub);
+        continue;
+      }
+
+      var withinThresh = [];
+      var nearMisses   = [];
+      for (var r = 0; r < ranked.length; r++) {
+        if (ranked[r].de <= maxDeltaE) withinThresh.push(ranked[r]);
+        else if (ranked[r].de <= maxDeltaE * nearMissMult && nearMisses.length < 3) nearMisses.push(ranked[r]);
+        if (withinThresh.length >= 5 && nearMisses.length >= 3) break;
+      }
+
+      if (!withinThresh.length) {
+        sub.state = 'no-match';
+        sub.skipReason = 'all-above-threshold';
+        sub.nearMisses = nearMisses.map(function (n) { return _toNearMiss(n.cand, n.de); });
+        subs.push(sub);
+        continue;
+      }
+
+      // Prefer a candidate with sufficient stock; else the closest.
+      var pick = null;
+      for (var i = 0; i < withinThresh.length; i++) {
+        if (withinThresh[i].cand.ownedSkeins >= needed) { pick = withinThresh[i]; break; }
+      }
+      if (!pick) pick = withinThresh[0];
+
+      sub.target = _toTarget(pick.cand, pick.de, {
+        confidence: 'nearest',
+        source:     'auto-stash',
+        inStash:    true,
+        neededSkeins: needed
+      });
+      sub.state = 'accepted';
+      subs.push(sub);
+    }
+
+    return {
+      mode: 'stash',
+      substitutions: subs,
+      stashSnapshotKeys: stashSnapshotKeys,
+      computedAt: new Date().toISOString(),
+      opts: { maxDeltaE: maxDeltaE, fabricCt: fabricCt, excludeSpecialty: excludeSpecialty }
+    };
+  }
+
+  // ─── proposeBrand — Flow C ───────────────────────────────────────────────
+  function proposeBrand(palette, srcBrand, tgtBrand, opts) {
+    opts = opts || {};
+    var maxDeltaE        = opts.maxDeltaE        != null ? opts.maxDeltaE        : 10;
+    var preferOfficial   = opts.preferOfficial   !== false; // default true
+    var excludeSpecialty = opts.excludeSpecialty !== false; // default true
+    var stash            = opts.stash || null;
+
+    var tgtArr = _catalogue(tgtBrand);
+    var candidates = [];
+    for (var i = 0; i < tgtArr.length; i++) {
+      var t = tgtArr[i];
+      if (excludeSpecialty && isSpecialty(t.id)) continue;
+      candidates.push({
+        key: tgtBrand + ':' + t.id,
+        id: t.id, brand: tgtBrand, name: t.name, rgb: t.rgb,
+        lab: _labOf(t)
+      });
+    }
+
+    var sources = _extractSourceThreads(palette, srcBrand);
+    var subs = [];
+
+    for (var s = 0; s < sources.length; s++) {
+      var src = sources[s];
+      // Force the source brand for this flow even when ids parse ambiguously.
+      src.brand = srcBrand;
+      var sub = _baseSub(src);
+
+      if (!src.lab) { sub.state = 'no-match'; sub.skipReason = 'no-equivalent'; subs.push(sub); continue; }
+
+      // 1. Chart lookup.
+      var charted = null;
+      if (preferOfficial && typeof getOfficialMatch === 'function') {
+        var m = getOfficialMatch(srcBrand, src.id, tgtBrand);
+        if (m && m.id) {
+          var chartedThread = _findThread(tgtBrand, m.id);
+          if (chartedThread) {
+            var de = _roundDe(_de(src.lab, _labOf(chartedThread)));
+            charted = {
+              cand: {
+                key: tgtBrand + ':' + chartedThread.id,
+                id: chartedThread.id, brand: tgtBrand, name: chartedThread.name,
+                rgb: chartedThread.rgb, lab: _labOf(chartedThread)
+              },
+              de: de,
+              confidence: m.confidence || 'reconciled'
+            };
+          }
+        }
+      }
+
+      if (charted) {
+        sub.target = _toTarget(charted.cand, charted.de, {
+          confidence: charted.confidence,
+          source:     'auto-brand',
+          inStash:    _isOwned(stash, charted.cand.key)
+        });
+        sub.state = 'accepted';
+        subs.push(sub);
+        continue;
+      }
+
+      // 2. ΔE2000 fallback.
+      var best = findReplacement(src.lab, candidates, { maxDeltaE: Infinity });
+      if (!best) { sub.state = 'no-match'; sub.skipReason = 'no-equivalent'; subs.push(sub); continue; }
+
+      if (best.deltaE > maxDeltaE) {
+        sub.state = 'no-match';
+        sub.skipReason = 'all-above-threshold';
+        sub.nearMisses = [_toNearMiss(best.candidate, best.deltaE)];
+        subs.push(sub);
+        continue;
+      }
+
+      sub.target = _toTarget(best.candidate, best.deltaE, {
+        confidence: 'nearest',
+        source:     'auto-brand',
+        inStash:    _isOwned(stash, best.candidate.key)
+      });
+      sub.state = 'accepted';
+      subs.push(sub);
+    }
+
+    return {
+      mode: 'brand',
+      substitutions: subs,
+      brandSource: srcBrand,
+      brandTarget: tgtBrand,
+      computedAt: new Date().toISOString(),
+      opts: { maxDeltaE: maxDeltaE, preferOfficial: preferOfficial, excludeSpecialty: excludeSpecialty }
+    };
+  }
+
+  function _isOwned(stash, key) {
+    if (!stash) return false;
+    var e = stash[key];
+    return !!(e && e.owned > 0);
+  }
+
+  function _baseSub(src) {
+    return {
+      sourceId:    src.id,
+      sourceBrand: src.brand,
+      sourceName:  src.name,
+      sourceRgb:   src.rgb,
+      sourceLab:   src.lab,
+      sourceStitches: src.stitches || 0,
+      target:      null,
+      state:       'no-match',
+      skipReason:  null,
+      nearMisses:  null
+    };
+  }
+
+  function _toTarget(cand, de, extra) {
+    var tier = MatchQuality.classifyMatch(de, cand);
+    var t = {
+      key:        cand.key,
+      id:         cand.id,
+      brand:      cand.brand,
+      name:       cand.name,
+      rgb:        cand.rgb,
+      lab:        cand.lab,
+      deltaE:     _roundDe(de),
+      tier:       tier,
+      confidence: extra && extra.confidence || 'nearest',
+      source:     extra && extra.source     || 'auto-stash',
+      inStash:    !!(extra && extra.inStash)
+    };
+    if (extra && extra.neededSkeins != null) {
+      t.neededSkeins  = extra.neededSkeins;
+      t.ownedSkeins   = cand.ownedSkeins || 0;
+      t.hasSufficient = (cand.ownedSkeins || 0) >= extra.neededSkeins;
+    }
+    return t;
+  }
+
+  function _toNearMiss(cand, de) {
+    return {
+      key: cand.key, id: cand.id, brand: cand.brand, name: cand.name,
+      rgb: cand.rgb, deltaE: _roundDe(de),
+      tier: MatchQuality.classifyMatch(de, cand),
+      inStash: cand.ownedSkeins != null,
+      ownedSkeins: cand.ownedSkeins || 0
+    };
+  }
+
+  // ─── reRunAuto — preserve manual/locked picks ────────────────────────────
+  function reRunAuto(proposal, lockedKeys, opts) {
+    if (!proposal) return null;
+    opts = opts || {};
+    var locked = {};
+    (lockedKeys || []).forEach(function (k) { locked[k] = true; });
+
+    // Auto-locked: any sub whose target.source === 'manual' is implicitly locked.
+    var palette = proposal.substitutions.map(function (s) {
+      return { id: s.sourceId, brand: s.sourceBrand, name: s.sourceName, rgb: s.sourceRgb, stitches: s.sourceStitches };
+    });
+    var fresh = (proposal.mode === 'brand')
+      ? proposeBrand(palette, proposal.brandSource, proposal.brandTarget, Object.assign({}, proposal.opts || {}, opts))
+      : proposeStash(palette, opts.stash || _stashFromProposal(proposal), Object.assign({}, proposal.opts || {}, opts));
+
+    var bySource = {};
+    proposal.substitutions.forEach(function (s) { bySource[s.sourceBrand + ':' + s.sourceId] = s; });
+
+    fresh.substitutions = fresh.substitutions.map(function (newSub) {
+      var k = newSub.sourceBrand + ':' + newSub.sourceId;
+      var prev = bySource[k];
+      var isManual = prev && prev.target && prev.target.source === 'manual';
+      if (locked[k] || isManual) return prev; // keep prior decision
+      return newSub;
+    });
+
+    return fresh;
+  }
+
+  function _stashFromProposal(proposal) {
+    // Reconstruct a minimal stash object from the snapshot keys, so reRunAuto
+    // can be called without the caller passing the live stash. Owned counts
+    // are unknown post-hoc — assume 1, which preserves "owned > 0" filtering.
+    var s = {};
+    (proposal.stashSnapshotKeys || []).forEach(function (k) { s[k] = { owned: 1 }; });
+    return s;
+  }
+
+  // ─── applyProposal — build the adapted project ───────────────────────────
+  // Returns a new project object — does NOT save. Caller must invoke
+  // ProjectStorage.save(newProject).
+  function applyProposal(srcProject, proposal, opts) {
+    opts = opts || {};
+    if (!srcProject) throw new Error('applyProposal: srcProject required');
+    if (!proposal)   throw new Error('applyProposal: proposal required');
+
+    // Build remap: prefer sourceBrand:sourceId → target spec.
+    // Only fall back to bare sourceId when the substitution itself has no
+    // brand information; otherwise bare numeric ids can collide across brands.
+    var remap = Object.create(null);
+    proposal.substitutions.forEach(function (sub) {
+      var hasSourceBrand = !!sub.sourceBrand;
+      var k = hasSourceBrand ? (sub.sourceBrand + ':' + sub.sourceId) : sub.sourceId;
+      if (sub.state === 'accepted' && sub.target) {
+        remap[k] = sub.target;
+        // Preserve legacy bare-id lookup only for brandless source entries.
+        if (!hasSourceBrand) remap[sub.sourceId] = sub.target;
+      }
+    });
+
+    // Deep-copy via JSON. The pattern array contains plain {id,type,rgb,...}
+    // objects, so JSON round-trip is faithful and severs all references.
+    var copy = JSON.parse(JSON.stringify(srcProject));
+
+    // New identity.
+    var nowIso = new Date().toISOString();
+    copy.id = opts.newId || ('proj_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8));
+    copy.createdAt = nowIso;
+    copy.updatedAt = nowIso;
+    copy.name = opts.name || _autoName(srcProject.name || 'Untitled', proposal.mode, proposal.brandTarget);
+    // Schema bump: adapted projects carry the optional `adaptation` field.
+    // Set both `version` (canonical save path) and `v` (legacy alias used by
+    // import/migration code) so both readers see the updated schema level.
+    copy.version = 12;
+    copy.v = 12;
+
+    // Reset tracking state — adapted patterns start fresh.
+    copy.done = null;
+    copy.halfStitches = {};
+    copy.halfDone = {};
+    copy.sessions = [];
+    copy.statsSessions = [];
+    copy.totalTime = 0;
+    copy.completedStitches = 0;
+    copy.achievedMilestones = [];
+
+    // Apply substitutions to the pattern array.
+    if (Array.isArray(copy.pattern)) {
+      for (var i = 0; i < copy.pattern.length; i++) {
+        var cell = copy.pattern[i];
+        if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
+        if (cell.type === 'blend' && cell.threads) {
+          // Substitute each component.
+          for (var t = 0; t < cell.threads.length; t++) {
+            var th = cell.threads[t];
+            var rep = remap[th.brand + ':' + th.id] || remap[th.id];
+            if (rep) {
+              th.id = rep.id; th.brand = rep.brand; th.rgb = rep.rgb; th.name = rep.name;
+            }
+          }
+          // Rebuild canonical blend id (sorted).
+          var ids = cell.threads.map(function (x) { return x.id; }).sort();
+          cell.id = ids.join('+');
+          // Average RGB.
+          cell.rgb = [
+            Math.round((cell.threads[0].rgb[0] + cell.threads[1].rgb[0]) / 2),
+            Math.round((cell.threads[0].rgb[1] + cell.threads[1].rgb[1]) / 2),
+            Math.round((cell.threads[0].rgb[2] + cell.threads[1].rgb[2]) / 2)
+          ];
+        } else {
+          var repCell = remap[(cell.brand || 'dmc') + ':' + cell.id] || remap[cell.id];
+          if (repCell) {
+            cell.id = repCell.id;
+            cell.brand = repCell.brand;
+            cell.rgb = repCell.rgb;
+            if (cell.name !== undefined) cell.name = repCell.name;
+          }
+        }
+      }
+    }
+
+    // Backstitches reference palette ids — substitute them too.
+    if (Array.isArray(copy.bsLines)) {
+      for (var b = 0; b < copy.bsLines.length; b++) {
+        var bs = copy.bsLines[b];
+        if (!bs || !bs.colour) continue;
+        var rep2 = remap[(bs.brand || 'dmc') + ':' + bs.colour] || remap[bs.colour];
+        if (rep2) { bs.colour = rep2.id; if (bs.brand !== undefined) bs.brand = rep2.brand; }
+      }
+    }
+
+    // Attach adaptation metadata.
+    copy.adaptation = {
+      fromProjectId:    srcProject.id,
+      fromName:         srcProject.name || 'Untitled',
+      snapshotAt:       nowIso,
+      modeAtCreate:     proposal.mode,
+      stashSnapshotAt:  proposal.mode === 'stash' ? nowIso : undefined,
+      stashSnapshotKeys: proposal.mode === 'stash' ? (proposal.stashSnapshotKeys || []).slice() : undefined,
+      brandSource:      proposal.brandSource,
+      brandTarget:      proposal.brandTarget,
+      substitutions:    proposal.substitutions.map(_serializeSubstitution)
+    };
+
+    return copy;
+  }
+
+  function _autoName(srcName, mode, brandTarget) {
+    if (mode === 'stash')  return srcName + ' (adapted to stash)';
+    if (mode === 'brand')  return srcName + ' (adapted to ' + (brandTarget || 'brand') + ')';
+    return srcName + ' (adapted)';
+  }
+
+  function _serializeSubstitution(sub) {
+    // Strip hot-path fields (sourceStitches isn't part of the documented
+    // schema but is harmless to keep; near-misses retained for the "Show
+    // what changed" view).
+    return {
+      sourceId:    sub.sourceId,
+      sourceBrand: sub.sourceBrand,
+      sourceName:  sub.sourceName,
+      sourceRgb:   sub.sourceRgb,
+      sourceLab:   sub.sourceLab,
+      target:      sub.target ? Object.assign({}, sub.target) : null,
+      state:       sub.state,
+      skipReason:  sub.skipReason || undefined,
+      nearMisses:  sub.nearMisses || undefined
+    };
+  }
+
+  // ─── Public API ──────────────────────────────────────────────────────────
+  var api = {
+    SPECIALTY_PREFIXES: SPECIALTY_PREFIXES.slice(),
+    isSpecialty:    isSpecialty,
+    findReplacement: findReplacement,
+    proposeStash:   proposeStash,
+    proposeBrand:   proposeBrand,
+    reRunAuto:      reRunAuto,
+    applyProposal:  applyProposal
+  };
+
+  if (typeof window !== 'undefined') window.AdaptationEngine = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})();
+
+
+/* ─── saveStatus.js ─── */
+/* creator/saveStatus.js — Auto-save state machine helper.
+ * ════════════════════════════════════════════════════════════════════════
+ * Implements the "Proposal 2" save model: a debounced auto-save that
+ * surfaces live status to the UI ('idle' → 'pending' → 'saving' → 'saved'
+ * or 'error') instead of pretending to save silently.
+ *
+ * The controller is intentionally a pure ES5 module so it can be unit
+ * tested without React or the DOM. The Creator's auto-save effect calls
+ * `controller.schedule(saveFn)` whenever a tracked field changes; the
+ * controller debounces, runs the save, and pushes status updates through
+ * the callbacks supplied at construction time.
+ * ════════════════════════════════════════════════════════════════════════
+ */
+(function (root) {
+  'use strict';
+
+  /**
+   * Build a save controller.
+   *
+   * @param {Object} callbacks
+   *   - onStatus(status):   one of 'idle' | 'pending' | 'saving' | 'saved' | 'error'
+   *   - onSavedAt(date):    Date when the last successful save committed (or null)
+   *   - onError(err):       Error from the most recent failed save (or null)
+   *   - onFirstSaveSuccess(savedProjectId): fired exactly once per controller,
+   *                          after the first successful save. Use this to open
+   *                          the name-prompt modal without blocking the save.
+   *
+   * @param {Object} [opts]
+   *   - debounceMs:         delay before running a queued save (default 1000)
+   *   - savedHoldMs:        how long 'saved' lingers before fading to 'idle'
+   *                          (default 2500)
+   *   - now:                () => Date — injectable for tests
+   *   - setTimeout / clearTimeout: injectable for tests
+   *
+   * @returns {Object} controller with:
+   *   - schedule(saveFn): mark pending and arm the debounce; saveFn must
+   *                       return a Promise that resolves with the saved
+   *                       project id (or any truthy value) on success.
+   *   - flush():           run any pending save immediately, returns Promise
+   *   - cancel():          cancel any pending debounce/fade timers
+   *   - isPending():       true when a debounce timer is armed
+   *   - isInFlight():      true when a save is currently running
+   */
+  function createSaveController(callbacks, opts) {
+    callbacks = callbacks || {};
+    opts = opts || {};
+    var debounceMs   = typeof opts.debounceMs   === 'number' ? opts.debounceMs   : 1000;
+    var savedHoldMs  = typeof opts.savedHoldMs  === 'number' ? opts.savedHoldMs  : 2500;
+    var now          = opts.now          || function () { return new Date(); };
+    var setT         = opts.setTimeout   || (typeof setTimeout   !== 'undefined' ? setTimeout   : null);
+    var clearT       = opts.clearTimeout || (typeof clearTimeout !== 'undefined' ? clearTimeout : null);
+
+    function noop() {}
+    var onStatus           = callbacks.onStatus           || noop;
+    var onSavedAt          = callbacks.onSavedAt          || noop;
+    var onError            = callbacks.onError            || noop;
+    var onFirstSaveSuccess = callbacks.onFirstSaveSuccess || noop;
+
+    var debounceTimer = null;
+    var fadeTimer     = null;
+    var pendingSaveFn = null;
+    var inFlight      = false;
+    var firstSaveDone = false;
+
+    function clearDebounce() {
+      if (debounceTimer && clearT) { clearT(debounceTimer); }
+      debounceTimer = null;
+    }
+    function clearFade() {
+      if (fadeTimer && clearT) { clearT(fadeTimer); }
+      fadeTimer = null;
+    }
+
+    function runNow() {
+      clearDebounce();
+      clearFade();
+      var saveFn = pendingSaveFn;
+      pendingSaveFn = null;
+      if (typeof saveFn !== 'function') { return Promise.resolve(); }
+      inFlight = true;
+      onStatus('saving');
+      var p;
+      try {
+        var ret = saveFn();
+        p = (ret && typeof ret.then === 'function') ? ret : Promise.resolve(ret);
+      } catch (err) {
+        p = Promise.reject(err);
+      }
+      return p.then(function (result) {
+        inFlight = false;
+        onError(null);
+        onSavedAt(now());
+        onStatus('saved');
+        var wasFirst = !firstSaveDone;
+        firstSaveDone = true;
+        if (wasFirst) {
+          try { onFirstSaveSuccess(result); } catch (_) {}
+        }
+        // Fade 'saved' → 'idle' after the hold window so the badge doesn't
+        // permanently shout success after a single edit.
+        if (setT && savedHoldMs > 0) {
+          fadeTimer = setT(function () {
+            fadeTimer = null;
+            // Only fade if no fresh edit has come in meanwhile.
+            if (!debounceTimer && !inFlight) { onStatus('idle'); }
+          }, savedHoldMs);
+        }
+        return result;
+      }, function (err) {
+        inFlight = false;
+        onError(err || new Error('Unknown save error'));
+        onStatus('error');
+        // Surface to the console so devtools users can see the stack.
+        if (typeof console !== 'undefined' && console.error) {
+          console.error('Auto-save failed:', err);
+        }
+        // Don't re-throw — the controller has already reported the error
+        // through the callbacks; throwing would create an unhandled
+        // rejection in production.
+      });
+    }
+
+    function schedule(saveFn) {
+      pendingSaveFn = saveFn;
+      onStatus('pending');
+      // A new edit cancels any lingering 'saved' fade so we don't briefly
+      // show the success state for a stale write.
+      clearFade();
+      clearDebounce();
+      if (!setT) { return runNow(); }
+      debounceTimer = setT(function () {
+        debounceTimer = null;
+        runNow();
+      }, debounceMs);
+      return null;
+    }
+
+    function flush() {
+      if (!debounceTimer && !pendingSaveFn) { return Promise.resolve(); }
+      return runNow();
+    }
+
+    function cancel() {
+      clearDebounce();
+      clearFade();
+      pendingSaveFn = null;
+    }
+
+    return {
+      schedule: schedule,
+      flush:    flush,
+      cancel:   cancel,
+      isPending:  function () { return debounceTimer !== null; },
+      isInFlight: function () { return inFlight; },
+      hasFirstSaveCompleted: function () { return firstSaveDone; }
+    };
+  }
+
+  var api = { createSaveController: createSaveController };
+
+  if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
+  if (root) {
+    root.SaveStatus = api;
+  }
+}(typeof window !== 'undefined' ? window : this));
+
+
 /* ─── symbolFontSpec.js ─── */
 /* creator/symbolFontSpec.js — Glyph spec for the embedded chart symbol font.
  *
@@ -4585,6 +5466,13 @@ window.useCreatorState = function useCreatorState() {
   var _subMaxDE = useState(function() { try { var v = localStorage.getItem("cs_subMaxDE"); return v != null ? parseFloat(v) : 15; } catch(_) { return 15; } });
   var substituteMaxDeltaE = _subMaxDE[0];
   function setSubstituteMaxDeltaE(v) { _subMaxDE[1](v); try { localStorage.setItem("cs_subMaxDE", v); } catch(_) {} }
+  // Stash-Adapt: modal open/mode state. Replaces the legacy SubstituteFromStash
+  // and ConvertPalette modals with a single non-destructive duplication flow.
+  var _adOpen = useState(false);         var adaptModalOpen = _adOpen[0], setAdaptModalOpen = _adOpen[1];
+  var _adMode = useState('stash');       var adaptModalMode = _adMode[0], setAdaptModalMode = _adMode[1];
+  var _adMaxDE = useState(function() { try { var v = localStorage.getItem("cs_adaptMaxDE"); return v != null ? parseFloat(v) : 10; } catch(_) { return 10; } });
+  var adaptMaxDeltaE = _adMaxDE[0];
+  function setAdaptMaxDeltaE(v) { _adMaxDE[1](v); try { localStorage.setItem("cs_adaptMaxDE", String(v)); } catch(_) {} }
   // Brief D — runtime "limit palette/picker to my stash" filter (independent of the
   // generation-time stashConstrained switch). Persisted under cs_creator_stash_filter.
   var _csFilt = useState(function() { try { return localStorage.getItem("cs_creator_stash_filter") === "true"; } catch(_) { return false; } });
@@ -4621,6 +5509,19 @@ window.useCreatorState = function useCreatorState() {
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
   var _namePrompt= useState(false);  var namePromptOpen = _namePrompt[0], setNamePromptOpen = _namePrompt[1];
+  // Proposal 2: auto-save state surfaced in the header badge so the user can
+  // see "Saving…", "Saved 5 s ago", or "Save failed — Retry" instead of the
+  // static "All changes saved" string. Driven by SaveStatus.createSaveController
+  // inside useProjectIO.js.
+  var _saveSt    = useState("idle"); var saveStatus = _saveSt[0],   setSaveStatus = _saveSt[1];
+  var _savedAt   = useState(null);   var savedAt    = _savedAt[0],  setSavedAt    = _savedAt[1];
+  var _saveErr   = useState(null);   var saveError  = _saveErr[0],  setSaveError  = _saveErr[1];
+  // Distinguishes the auto-prompted first-save name modal from the legacy
+  // "download .json" name modal so the two flows can render the same
+  // NamePromptModal component without leaking each other's behaviour.
+  // Values: null (closed) | "download" (legacy explicit save) | "firstSave"
+  // (Proposal 2 prompt opened automatically after the first auto-save).
+  var _nameReason= useState(null);   var nameModalReason = _nameReason[0], setNameModalReason = _nameReason[1];
   var _prefsOpen = useState(false); var preferencesOpen = _prefsOpen[0], setPreferencesOpen = _prefsOpen[1];
   // Optional metadata users can fill in before/after generating
   var _projDesigner = useState(""); var projectDesigner = _projDesigner[0], setProjectDesigner = _projDesigner[1];
@@ -5451,6 +6352,9 @@ window.useCreatorState = function useCreatorState() {
     substituteProposal, setSubstituteProposal,
     substituteModalKey, setSubstituteModalKey,
     substituteMaxDeltaE, setSubstituteMaxDeltaE,
+    adaptModalOpen, setAdaptModalOpen,
+    adaptModalMode, setAdaptModalMode,
+    adaptMaxDeltaE, setAdaptMaxDeltaE,
     stashConstrained, setStashConstrained,
     creatorStashFilter, setCreatorStashFilter,
     coverageGaps, setCoverageGaps,
@@ -5467,6 +6371,10 @@ window.useCreatorState = function useCreatorState() {
     projectDesigner, setProjectDesigner,
     projectDescription, setProjectDescription,
     namePromptOpen, setNamePromptOpen,
+    saveStatus, setSaveStatus,
+    savedAt, setSavedAt,
+    saveError, setSaveError,
+    nameModalReason, setNameModalReason,
     preferencesOpen, setPreferencesOpen,
     cleanupDiff, setCleanupDiff, showCleanupDiff, setShowCleanupDiff,
     pcRef, fRef, scrollRef, expRef, loadRef,
@@ -7528,6 +8436,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   // not after the 1 s debounce. This avoids the "I created a pattern but it's not
   // in my stash" bug when the user navigates away within the debounce window.
   var firstSaveDoneRef = React.useRef(null);
+  // Proposal 2 auto-save controller. Lazily created on first effect run
+  // because we need access to the state setters (saveStatus / savedAt /
+  // saveError / namePromptOpen) that are part of the merged state object.
+  var saveControllerRef = React.useRef(null);
   // Mirrors the latest values needed by the beforeunload stash-sync handler.
   // The handler effect deps only on isActive (we don't want to re-bind on every
   // keystroke), so reading from this ref guarantees the unload sync uses
@@ -7599,7 +8511,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   // ─── saveProject ─────────────────────────────────────────────────────────────
   function saveProject() {
     if (!state.pat || !state.pal) return;
-    if (!state.projectName) { state.setNamePromptOpen(true); return; }
+    if (!state.projectName) {
+      if (state.setNameModalReason) state.setNameModalReason("download");
+      state.setNamePromptOpen(true);
+      return;
+    }
     doSaveProject(state.projectName);
   }
 
@@ -8118,6 +9034,18 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     });
     if (!state.projectIdRef.current) state.projectIdRef.current = ProjectStorage.newId();
     if (!state.createdAtRef.current) state.createdAtRef.current = new Date().toISOString();
+    // Write the active-project pointer SYNCHRONOUSLY before kicking off the
+    // IDB save. localStorage writes are synchronous, so even if the user
+    // navigates to /home (or anywhere) the moment we begin saving, the
+    // pointer is already in place and /home's getActiveProject() will find
+    // the project as soon as the IDB transaction commits (browsers honour
+    // pending IDB transactions across navigations even when the originating
+    // page's JS callbacks no longer run, which is why we cannot rely on
+    // ProjectStorage.save(...).then(setActiveProject) here). See
+    // reports/active-project-race.md.
+    if (state.isActive && typeof ProjectStorage !== "undefined") {
+      try { ProjectStorage.setActiveProject(state.projectIdRef.current); } catch (_) {}
+    }
     var project5 = Object.assign({}, state.trackerFieldsRef.current, {
       version: 11, id: state.projectIdRef.current, page: "creator", name: state.projectName,
       designer: state.projectDesigner || "", description: state.projectDescription || "",
@@ -8142,27 +9070,65 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     // finishes, even if the user navigates away within 1 s.
     var isFirstSave = firstSaveDoneRef.current !== state.projectIdRef.current;
     function persistAll() {
-      saveProjectToDB(project5).catch(function(err) { console.error("Auto-save failed:", err); });
-      ProjectStorage.save(project5)
-        .then(function(id) { ProjectStorage.setActiveProject(id); })
-        .catch(function(err) { console.error("ProjectStorage auto-save failed:", err); });
+      // Run both writes in parallel and treat the cycle as failed if either
+      // one rejects, so the visible save status reflects reality. The legacy
+      // saveProjectToDB key is kept in lockstep with ProjectStorage so older
+      // entry points (Tracker recovery, BackupRestore) still find a snapshot.
+      var p1 = ProjectStorage.save(project5).then(function (id) {
+        ProjectStorage.setActiveProject(id);
+        return id;
+      });
+      var p2 = saveProjectToDB(project5);
       if (typeof StashBridge !== "undefined") {
-        StashBridge.syncProjectToLibrary(
-          state.projectIdRef.current,
-          state.projectName || (state.sW + "\xD7" + state.sH + " pattern"),
-          state.skeinData,
-          "inprogress",
-          state.fabricCt
-        );
+        try {
+          StashBridge.syncProjectToLibrary(
+            state.projectIdRef.current,
+            state.projectName || (state.sW + "\xD7" + state.sH + " pattern"),
+            state.skeinData,
+            "inprogress",
+            state.fabricCt
+          );
+        } catch (_) {}
       }
       firstSaveDoneRef.current = state.projectIdRef.current;
+      return Promise.all([p1, p2]).then(function (results) { return results[0]; });
+    }
+    // Lazily build the controller. The callbacks close over the latest
+    // state setters because we re-resolve them via `state.*` on each call.
+    if (!saveControllerRef.current && typeof window.SaveStatus !== "undefined") {
+      saveControllerRef.current = window.SaveStatus.createSaveController({
+        onStatus:  function (s)   { if (state.setSaveStatus) state.setSaveStatus(s); },
+        onSavedAt: function (d)   { if (state.setSavedAt)    state.setSavedAt(d); },
+        onError:   function (err) { if (state.setSaveError)  state.setSaveError(err); },
+        onFirstSaveSuccess: function () {
+          // Prompt for a name only if the user hasn't given one yet AND only
+          // once per project. Non-blocking: the project is already saved
+          // under its auto-generated name ("Untitled pattern") at this point.
+          if (!state.projectName && state.setNamePromptOpen) {
+            if (state.setNameModalReason) state.setNameModalReason("firstSave");
+            state.setNamePromptOpen(true);
+          }
+        }
+      }, { debounceMs: 1000, savedHoldMs: 2500 });
+    }
+    var ctrl = saveControllerRef.current;
+    if (!ctrl) {
+      // Fallback for tests/older browsers where SaveStatus failed to load:
+      // run the save inline so behaviour matches the previous implementation.
+      if (isFirstSave) { persistAll(); return; }
+      var saveTimer = setTimeout(persistAll, 1000);
+      return function() { clearTimeout(saveTimer); };
     }
     if (isFirstSave) {
-      persistAll();
+      // Schedule, then immediately flush so the first save lands without the
+      // debounce — same behaviour as before, but routed through the
+      // controller so saveStatus transitions stay correct.
+      ctrl.schedule(persistAll);
+      ctrl.flush();
       return;
     }
-    var saveTimer = setTimeout(persistAll, 1000);
-    return function() { clearTimeout(saveTimer); };
+    ctrl.schedule(persistAll);
+    return function() { /* schedule() resets its own timer on next edit */ };
   }, [
     state.pat, state.pal, state.sW, state.sH, state.maxC,
     state.bri, state.con, state.sat, state.dith, state.skipBg, state.bgTh, state.bgCol,
@@ -8222,6 +9188,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     function handleBeforeUnload() {
       var p = creatorSnapshotRef.current;
       if (!p || !state.isActive) return;
+      // Defensive: re-write the active-project pointer in case it was
+      // cleared during the session (e.g. by a quick "New project" hop or
+      // a backup restore). localStorage is synchronous so this survives
+      // unload even when the IDB save below is interrupted.
+      try { if (p.id) ProjectStorage.setActiveProject(p.id); } catch (_) {}
       try { ProjectStorage.save(p); } catch (_) {}
       try { saveProjectToDB(p); } catch (_) {}
       // Belt-and-braces: also sync to the Stash Manager library so a generated
@@ -8272,6 +9243,22 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     processLoadedProject: processLoadedProject,
     loadProject: loadProject,
     handleFile: handleFile,
+    // Re-runs the most recent auto-save attempt. Wired to the "Retry"
+    // button shown by SaveStatusBadge when saveStatus === 'error'.
+    retryAutoSave: function () {
+      var ctrl = saveControllerRef.current;
+      var snap = creatorSnapshotRef.current;
+      if (!ctrl || !snap) return;
+      ctrl.schedule(function () {
+        var p1 = ProjectStorage.save(snap).then(function (id) {
+          ProjectStorage.setActiveProject(id);
+          return id;
+        });
+        var p2 = saveProjectToDB(snap);
+        return Promise.all([p1, p2]).then(function (r) { return r[0]; });
+      });
+      ctrl.flush();
+    },
   };
 };
 
@@ -11163,6 +12150,721 @@ window.ConvertPaletteModal = (function () {
 })();
 
 
+/* ─── AdaptModal.js ─── */
+/* creator/AdaptModal.js — Stash-Adapt unified modal.
+ *
+ * Replaces the legacy SubstituteFromStashModal + ConvertPaletteModal pair with
+ * a single non-destructive duplication flow per Phase 4 spec
+ * (reports/stash-adapt-9-interaction-spec.md).
+ *
+ * UX summary:
+ *   • Hybrid Approach A + B: substitution table on the left, sticky preview
+ *     thumbnail on the right, draggable divider in between (default 0.66).
+ *   • Mode toggle in the header: "Match my stash" / "Convert to brand".
+ *   • Per-row picker dropdown lets the user override the auto pick or skip.
+ *   • Threshold slider (1–25 ΔE2000, default 10) + "Re-run auto" button.
+ *   • Save creates a *new* project (`AdaptationEngine.applyProposal`) and
+ *     leaves the source untouched. Cancel discards.
+ *
+ * Depends on globals (browser):
+ *   React, AdaptationEngine, MatchQuality, DMC, ANCHOR (optional),
+ *   threadKey, parseThreadKey, getThreadByKey, ProjectStorage, AppContext,
+ *   PatternDataContext (via window.usePatternData), Toast, Icons.
+ */
+
+(function () {
+  if (typeof React === 'undefined') return;
+  var h = React.createElement;
+  var useState = React.useState, useEffect = React.useEffect, useRef = React.useRef, useMemo = React.useMemo;
+
+  var DEFAULT_RATIO = 0.66;
+  var MIN_LEFT_PX = 400;
+  var MIN_RIGHT_PX = 240;
+  var NARROW_BREAKPOINT = 720;
+  var THRESHOLD_DEFAULT = 10;
+  var RATIO_PREF_KEY = 'creator.adaptModalSplitRatio';
+
+  // ─── Helpers ────────────────────────────────────────────────────────────
+  function _stitchesByKey(pattern) {
+    var out = Object.create(null);
+    if (!Array.isArray(pattern)) return out;
+    for (var i = 0; i < pattern.length; i++) {
+      var c = pattern[i];
+      if (!c || c.id === '__skip__' || c.id === '__empty__') continue;
+      if (c.type === 'blend' && c.threads) {
+        for (var t = 0; t < c.threads.length; t++) {
+          var k = (c.threads[t].brand || 'dmc') + ':' + c.threads[t].id;
+          out[k] = (out[k] || 0) + 1;
+        }
+      } else {
+        var key = (c.brand || 'dmc') + ':' + c.id;
+        out[key] = (out[key] || 0) + 1;
+      }
+    }
+    return out;
+  }
+
+  function _renderThumb(canvas, pattern, sW, sH, remap) {
+    if (!canvas || !Array.isArray(pattern)) return;
+    canvas.width = sW; canvas.height = sH;
+    var cx = canvas.getContext('2d');
+    if (!cx) return;
+    var img = cx.createImageData(sW, sH);
+    var d = img.data;
+    for (var i = 0; i < pattern.length; i++) {
+      var cell = pattern[i];
+      var idx = i * 4;
+      if (!cell || cell.id === '__skip__' || cell.id === '__empty__') {
+        d[idx] = 255; d[idx+1] = 255; d[idx+2] = 255; d[idx+3] = 255;
+      } else if (cell.type === 'blend' && cell.threads) {
+        var t0 = remap[(cell.threads[0].brand || 'dmc')+':'+cell.threads[0].id] || cell.threads[0];
+        var t1 = remap[(cell.threads[1].brand || 'dmc')+':'+cell.threads[1].id] || cell.threads[1];
+        d[idx]   = Math.round(((t0.rgb||[0,0,0])[0] + (t1.rgb||[0,0,0])[0]) / 2);
+        d[idx+1] = Math.round(((t0.rgb||[0,0,0])[1] + (t1.rgb||[0,0,0])[1]) / 2);
+        d[idx+2] = Math.round(((t0.rgb||[0,0,0])[2] + (t1.rgb||[0,0,0])[2]) / 2);
+        d[idx+3] = 255;
+      } else {
+        var rep = remap[(cell.brand || 'dmc')+':'+cell.id] || cell;
+        var rgb = rep.rgb || [128,128,128];
+        d[idx] = rgb[0]; d[idx+1] = rgb[1]; d[idx+2] = rgb[2]; d[idx+3] = 255;
+      }
+    }
+    cx.putImageData(img, 0, 0);
+  }
+
+  // ─── Match-quality chip ────────────────────────────────────────────────
+  function MatchChip(props) {
+    var t = props.target;
+    if (!t) return h('span', { className: 'cs-adapt-chip cs-adapt-chip--none', style: chipBase('--danger') },
+      h('span', { style: dotStyle('--danger') }), 'No match');
+    var token = (window.MatchQuality && window.MatchQuality.tierToken(t.tier)) || '--text-secondary';
+    var label = (window.MatchQuality && window.MatchQuality.tierLabel(t.tier)) || t.tier;
+    var diff = (window.MatchQuality && props.sourceLab && t.lab)
+      ? window.MatchQuality.describeLabDiff(props.sourceLab, t.lab) : '';
+    var title = label + ' (\u0394E ' + (t.deltaE != null ? t.deltaE : '?') + ')' + (diff ? ' \u2014 ' + diff : '');
+    return h('span', { className: 'cs-adapt-chip', style: chipBase(token), title: title },
+      h('span', { style: dotStyle(token) }),
+      label,
+      h('span', { style: { opacity: 0.7, marginLeft: 4, fontVariantNumeric: 'tabular-nums' } },
+        '\u0394E ' + (t.deltaE != null ? t.deltaE : '?'))
+    );
+  }
+  function chipBase(token) {
+    return {
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      padding: '2px 8px', borderRadius: 'var(--radius-pill, 999px)',
+      fontSize: 'var(--text-xs)', lineHeight: 1.2, fontWeight: 500,
+      background: 'color-mix(in srgb, var(' + token + ') 12%, transparent)',
+      color: 'var(' + token + ')',
+      border: '1px solid color-mix(in srgb, var(' + token + ') 28%, transparent)',
+      whiteSpace: 'nowrap'
+    };
+  }
+  function dotStyle(token) {
+    return { width: 8, height: 8, borderRadius: '50%', background: 'var(' + token + ')', display: 'inline-block' };
+  }
+
+  // ─── Swatch ─────────────────────────────────────────────────────────────
+  function Swatch(props) {
+    var rgb = props.rgb || [200,200,200];
+    var size = props.size || 22;
+    return h('span', {
+      title: props.title || undefined,
+      style: {
+        display: 'inline-block', width: size, height: size,
+        background: 'rgb(' + rgb.join(',') + ')',
+        borderRadius: 4,
+        border: '1px solid var(--line, rgba(0,0,0,0.12))',
+        verticalAlign: 'middle', flexShrink: 0
+      }
+    });
+  }
+
+  // ─── Picker dropdown (small inline thread chooser) ─────────────────────
+  function PickerPopover(props) {
+    var sub = props.sub;
+    var brand = props.brand;
+    var stash = props.stash || {};
+    var _q = useState(''); var query = _q[0], setQ = _q[1];
+    var _tab = useState('all'); var tab = _tab[0], setTab = _tab[1];
+
+    var rows = useMemo(function () {
+      var arr = brand === 'anchor'
+        ? (typeof ANCHOR !== 'undefined' ? ANCHOR : [])
+        : (typeof DMC !== 'undefined' ? DMC : []);
+      var q = query.trim().toLowerCase();
+      var out = [];
+      for (var i = 0; i < arr.length; i++) {
+        var t = arr[i];
+        var key = brand + ':' + t.id;
+        var owned = !!(stash[key] && stash[key].owned > 0);
+        if (tab === 'inStash' && !owned) continue;
+        if (q && t.id.toLowerCase().indexOf(q) === -1 && (t.name||'').toLowerCase().indexOf(q) === -1) continue;
+        out.push({ key: key, brand: brand, id: t.id, name: t.name, rgb: t.rgb, owned: owned });
+        if (out.length >= 60) break;
+      }
+      return out;
+    }, [query, tab, brand, stash]);
+
+    return h('div', {
+      style: {
+        position: 'absolute', zIndex: 50, top: '100%', left: 0, marginTop: 4,
+        width: 320, maxHeight: 360, overflow: 'hidden',
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-md, 8px)',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+        display: 'flex', flexDirection: 'column'
+      },
+      onClick: function (e) { e.stopPropagation(); }
+    },
+      h('div', { style: { padding: 8, borderBottom: '1px solid var(--line)' } },
+        h('div', { style: { display: 'flex', gap: 4, marginBottom: 6 } },
+          ['inStash', 'all'].map(function (t) {
+            return h('button', {
+              key: t,
+              onClick: function () { setTab(t); },
+              style: tabBtnStyle(tab === t)
+            }, t === 'inStash' ? 'In stash' : 'All ' + brand.toUpperCase());
+          })
+        ),
+        h('input', {
+          type: 'text', value: query, onChange: function (e) { setQ(e.target.value); },
+          placeholder: 'Search id or name…',
+          autoFocus: true,
+          style: {
+            width: '100%', padding: '6px 8px', fontSize: 13,
+            border: '1px solid var(--border)', borderRadius: 4,
+            background: 'var(--surface-elevated, var(--surface))',
+            color: 'var(--text-primary)'
+          }
+        })
+      ),
+      h('div', { style: { overflowY: 'auto', flex: 1 } },
+        rows.length === 0 ? h('div', { style: { padding: 16, fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' } }, 'No matches')
+        : rows.map(function (r) {
+          return h('button', {
+            key: r.key,
+            onClick: function () { props.onPick(r); },
+            style: {
+              display: 'flex', alignItems: 'center', gap: 8,
+              width: '100%', padding: '6px 10px', textAlign: 'left',
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              fontSize: 13, color: 'var(--text-primary)'
+            },
+            onMouseEnter: function (e) { e.currentTarget.style.background = 'var(--surface-elevated, color-mix(in srgb, var(--text-primary) 4%, transparent))'; },
+            onMouseLeave: function (e) { e.currentTarget.style.background = 'transparent'; }
+          },
+            h(Swatch, { rgb: r.rgb, size: 18 }),
+            h('span', { style: { fontWeight: 500 } }, r.id),
+            h('span', { style: { color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.name),
+            r.owned && h('span', { style: { fontSize: 10, color: 'var(--success)' } }, 'In stash')
+          );
+        }),
+        h('button', {
+          onClick: function () { props.onPick(null); },
+          style: {
+            display: 'block', width: '100%', padding: '8px 10px',
+            textAlign: 'left', background: 'transparent', border: 'none',
+            borderTop: '1px solid var(--line)', cursor: 'pointer',
+            fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic'
+          }
+        }, 'Skip — leave original')
+      )
+    );
+  }
+
+  function tabBtnStyle(active) {
+    return {
+      flex: 1, padding: '4px 8px', fontSize: 12,
+      background: active ? 'var(--accent)' : 'transparent',
+      color: active ? 'var(--surface)' : 'var(--text-secondary)',
+      border: '1px solid ' + (active ? 'var(--accent)' : 'var(--border)'),
+      borderRadius: 4, cursor: 'pointer'
+    };
+  }
+
+  // ─── Substitution row ──────────────────────────────────────────────────
+  function SubstitutionRow(props) {
+    var sub = props.sub;
+    var _open = useState(false); var pickerOpen = _open[0], setPickerOpen = _open[1];
+
+    useEffect(function () {
+      if (!pickerOpen) return;
+      function close(e) { setPickerOpen(false); }
+      document.addEventListener('pointerdown', close);
+      return function () { document.removeEventListener('pointerdown', close); };
+    }, [pickerOpen]);
+
+    var t = sub.target;
+    return h('tr', { style: { borderBottom: '1px solid var(--line)' } },
+      h('td', { style: cellStyle },
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+          h(Swatch, { rgb: sub.sourceRgb }),
+          h('div', { style: { minWidth: 0 } },
+            h('div', { style: { fontWeight: 500, fontSize: 13 } }, sub.sourceId),
+            h('div', { style: { fontSize: 11, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 } }, sub.sourceName)
+          )
+        )
+      ),
+      h('td', { style: Object.assign({}, cellStyle, { width: 28, textAlign: 'center', color: 'var(--text-tertiary)' }) }, '\u2192'),
+      h('td', { style: Object.assign({}, cellStyle, { position: 'relative' }) },
+        t ? h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+          h(Swatch, { rgb: t.rgb }),
+          h('div', { style: { minWidth: 0, flex: 1 } },
+            h('div', { style: { fontWeight: 500, fontSize: 13 } }, t.id, ' ',
+              h('span', { style: { fontWeight: 400, color: 'var(--text-secondary)', fontSize: 11 } }, '(' + t.brand + ')')),
+            h('div', { style: { fontSize: 11, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 } }, t.name)
+          )
+        ) : h('span', { style: { fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic' } },
+          sub.skipReason === 'all-above-threshold' ? 'No match within threshold'
+          : sub.skipReason === 'no-stash-match' ? 'Nothing in stash'
+          : 'No equivalent'),
+        pickerOpen && h(PickerPopover, {
+          sub: sub, brand: props.brand, stash: props.stash,
+          onPick: function (pick) { setPickerOpen(false); props.onPick(pick); }
+        })
+      ),
+      h('td', { style: cellStyle }, h(MatchChip, { target: t, sourceLab: sub.sourceLab })),
+      h('td', { style: Object.assign({}, cellStyle, { textAlign: 'right' }) },
+        h('button', {
+          onClick: function (e) { e.stopPropagation(); setPickerOpen(function (v) { return !v; }); },
+          style: {
+            padding: '4px 10px', fontSize: 12,
+            background: 'transparent', color: 'var(--accent)',
+            border: '1px solid var(--accent)', borderRadius: 'var(--radius-sm, 4px)',
+            cursor: 'pointer'
+          }
+        }, t ? 'Change\u2026' : 'Pick\u2026')
+      )
+    );
+  }
+  var cellStyle = { padding: '8px 10px', verticalAlign: 'middle' };
+
+  // ─── Main modal ────────────────────────────────────────────────────────
+  function AdaptModal(props) {
+    var onClose = props.onClose;
+    var initialMode = props.mode || 'stash';
+    var ctx = window.usePatternData ? window.usePatternData() : null;
+    var app = window.useApp ? window.useApp() : null;
+    if (!ctx) return null;
+
+    var pat = ctx.pat, sW = ctx.sW, sH = ctx.sH, pal = ctx.pal;
+    var stash = ctx.globalStash || {};
+
+    var _mode = useState(initialMode); var mode = _mode[0], setMode = _mode[1];
+    var _brandTgt = useState('anchor'); var brandTarget = _brandTgt[0], setBrandTarget = _brandTgt[1];
+    var srcBrand = (pal && pal[0] && pal[0].brand) || 'dmc';
+
+    // Threshold (debounced persistence)
+    var _thr = useState(function () {
+      try { var v = parseFloat(localStorage.getItem('cs_adaptMaxDE')); return isFinite(v) ? v : THRESHOLD_DEFAULT; } catch (_) { return THRESHOLD_DEFAULT; }
+    });
+    var threshold = _thr[0], setThresholdRaw = _thr[1];
+    var thrTimerRef = useRef(null);
+    function setThreshold(v) {
+      setThresholdRaw(v);
+      if (thrTimerRef.current) clearTimeout(thrTimerRef.current);
+      thrTimerRef.current = setTimeout(function () {
+        try { localStorage.setItem('cs_adaptMaxDE', String(v)); } catch (_) {}
+      }, 500);
+    }
+
+    // Build the source palette for the engine.
+    var srcPalette = useMemo(function () {
+      var counts = _stitchesByKey(pat || []);
+      return (pal || []).filter(function (p) { return p && p.id !== '__skip__' && p.id !== '__empty__'; }).map(function (p) {
+        var key = (p.brand || 'dmc') + ':' + p.id;
+        return { id: p.id, brand: p.brand || 'dmc', name: p.name, rgb: p.rgb, stitches: counts[key] || 0 };
+      });
+    }, [pat, pal]);
+
+    // Compute proposal (re-runs whenever inputs change).
+    var _prop = useState(null); var proposal = _prop[0], setProposal = _prop[1];
+    useEffect(function () {
+      if (!window.AdaptationEngine) return;
+      try {
+        var p = mode === 'brand'
+          ? window.AdaptationEngine.proposeBrand(srcPalette, srcBrand, brandTarget, { maxDeltaE: threshold, stash: stash })
+          : window.AdaptationEngine.proposeStash(srcPalette, stash, { maxDeltaE: threshold, fabricCt: ctx.fabricCt || 14 });
+        setProposal(p);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('AdaptModal proposal failed:', err);
+      }
+    }, [mode, brandTarget, srcBrand, srcPalette, stash, threshold, ctx.fabricCt]);
+
+    // Manual overrides keyed by source key. Applied on top of the auto proposal.
+    var _ov = useState({}); var overrides = _ov[0], setOverrides = _ov[1];
+
+    var effectiveProposal = useMemo(function () {
+      if (!proposal) return null;
+      var subs = proposal.substitutions.map(function (sub) {
+        var k = sub.sourceBrand + ':' + sub.sourceId;
+        var ov = overrides[k];
+        if (ov === undefined) return sub;
+        // ov === null  → user skipped
+        // ov === pick  → user manual override
+        var copy = Object.assign({}, sub);
+        if (ov === null) {
+          copy.target = null; copy.state = 'no-match'; copy.skipReason = 'user-skipped';
+        } else {
+          copy.target = Object.assign({}, ov, {
+            deltaE: ov.deltaE != null ? ov.deltaE : 0,
+            tier: ov.tier || 'exact',
+            confidence: 'manual', source: 'manual', inStash: !!ov.owned
+          });
+          copy.state = 'accepted'; copy.skipReason = null;
+        }
+        return copy;
+      });
+      return Object.assign({}, proposal, { substitutions: subs });
+    }, [proposal, overrides]);
+
+    function handlePick(sub, pick) {
+      var k = sub.sourceBrand + ':' + sub.sourceId;
+      setOverrides(function (prev) {
+        var next = Object.assign({}, prev);
+        if (pick === null) next[k] = null;
+        else next[k] = pick;
+        return next;
+      });
+    }
+
+    function handleResetOverrides() { setOverrides({}); }
+
+    // ── Resizable split ────────────────────────────────────────────────
+    var containerRef = useRef(null);
+    var dragRef = useRef(false);
+    var _ratio = useState(function () {
+      try {
+        var saved = window.UserPrefs && window.UserPrefs.get && window.UserPrefs.get(RATIO_PREF_KEY);
+        var n = parseFloat(saved);
+        return isFinite(n) ? n : DEFAULT_RATIO;
+      } catch (_) { return DEFAULT_RATIO; }
+    });
+    var ratio = _ratio[0], setRatio = _ratio[1];
+    var _narrow = useState(false); var narrow = _narrow[0], setNarrow = _narrow[1];
+
+    useEffect(function () {
+      var el = containerRef.current; if (!el || typeof ResizeObserver === 'undefined') return;
+      var obs = new ResizeObserver(function (entries) { setNarrow(entries[0].contentRect.width < NARROW_BREAKPOINT); });
+      obs.observe(el);
+      setNarrow(el.clientWidth < NARROW_BREAKPOINT);
+      return function () { obs.disconnect(); };
+    }, []);
+
+    useEffect(function () {
+      function onMove(e) {
+        if (!dragRef.current) return;
+        var el = containerRef.current; if (!el) return;
+        var rect = el.getBoundingClientRect();
+        var x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+        var minLeftR = MIN_LEFT_PX / rect.width;
+        var maxLeftR = (rect.width - MIN_RIGHT_PX) / rect.width;
+        var r = Math.max(minLeftR, Math.min(maxLeftR, x / rect.width));
+        setRatio(r);
+      }
+      function onUp() {
+        if (!dragRef.current) return;
+        dragRef.current = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        try { if (window.UserPrefs && window.UserPrefs.setDebounced) window.UserPrefs.setDebounced(RATIO_PREF_KEY, ratio); } catch (_) {}
+      }
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+      return function () {
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+      };
+    }, [ratio]);
+
+    // ── Preview thumbnail ──────────────────────────────────────────────
+    var origCanvasRef = useRef(null);
+    var newCanvasRef  = useRef(null);
+    useEffect(function () {
+      _renderThumb(origCanvasRef.current, pat, sW, sH, {});
+    }, [pat, sW, sH]);
+    useEffect(function () {
+      if (!effectiveProposal) return;
+      var remap = {};
+      effectiveProposal.substitutions.forEach(function (s) {
+        if (s.target) {
+          var k = s.sourceBrand + ':' + s.sourceId;
+          remap[k] = s.target;
+          remap[s.sourceId] = s.target;
+        }
+      });
+      _renderThumb(newCanvasRef.current, pat, sW, sH, remap);
+    }, [effectiveProposal, pat, sW, sH]);
+
+    // ── Save (apply proposal → new project) ────────────────────────────
+    function handleSave() {
+      if (!effectiveProposal || !window.AdaptationEngine) return;
+      // Build the source project shape that applyProposal expects.
+      var source = {
+        id: ctx.projectId || 'proj_current',
+        v: 11,
+        name: ctx.projectName || 'Untitled',
+        createdAt: ctx.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        w: sW, h: sH,
+        settings: { sW: sW, sH: sH, fabricCt: ctx.fabricCt || 14 },
+        pattern: pat,
+        bsLines: ctx.bsLines || [],
+        parkMarkers: ctx.parkMarkers || []
+      };
+      var adapted;
+      try {
+        adapted = window.AdaptationEngine.applyProposal(source, effectiveProposal);
+      } catch (err) {
+        console.error('applyProposal failed', err);
+        if (window.Toast) window.Toast.show({ message: 'Adapt failed: ' + (err && err.message), type: 'error' });
+        return;
+      }
+      // Disambiguate the auto-suffixed name against existing projects.
+      var saveAndOpen = function (finalName) {
+        adapted.name = finalName;
+        if (window.ProjectStorage && window.ProjectStorage.save) {
+          window.ProjectStorage.save(adapted).then(function () {
+            if (window.ProjectStorage.setActive) window.ProjectStorage.setActive(adapted.id);
+            if (window.Toast) window.Toast.show({
+              message: 'Adapted pattern saved: ' + finalName,
+              type: 'success', duration: 4000
+            });
+            onClose();
+            // Reload page to load the new active project in the Creator.
+            setTimeout(function () { window.location.reload(); }, 200);
+          }).catch(function (err) {
+            console.error('save adapted failed', err);
+            if (window.Toast) window.Toast.show({ message: 'Save failed: ' + (err && err.message), type: 'error' });
+          });
+        }
+      };
+      // Disambiguate the name against the meta store.
+      if (window.ProjectStorage && window.ProjectStorage.listProjects) {
+        window.ProjectStorage.listProjects().then(function (existing) {
+          var taken = {};
+          (existing || []).forEach(function (m) { taken[m.name] = true; });
+          var base = adapted.name;
+          var name = base;
+          var n = 2;
+          while (taken[name]) { name = base + ' ' + n; n++; }
+          saveAndOpen(name);
+        }).catch(function () { saveAndOpen(adapted.name); });
+      } else {
+        saveAndOpen(adapted.name);
+      }
+    }
+
+    // ── Render ─────────────────────────────────────────────────────────
+    var subs = effectiveProposal ? effectiveProposal.substitutions : [];
+    var nMatch    = subs.filter(function (s) { return s.state === 'accepted'; }).length;
+    var nSkipped  = subs.filter(function (s) { return s.state !== 'accepted'; }).length;
+    var leftPct = narrow ? 100 : Math.round(ratio * 100);
+    var rightPct = narrow ? 100 : 100 - leftPct;
+
+    return h('div', {
+      role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'cs-adapt-title',
+      onClick: function (e) { if (e.target === e.currentTarget) onClose(); },
+      style: {
+        position: 'fixed', inset: 0, zIndex: 1100,
+        background: 'rgba(0,0,0,0.4)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 16
+      }
+    },
+      h('div', {
+        style: {
+          background: 'var(--surface)', borderRadius: 'var(--radius-lg, 12px)',
+          width: 'min(1200px, 100%)', maxHeight: '92vh',
+          display: 'flex', flexDirection: 'column',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.35)',
+          border: '1px solid var(--border)',
+          overflow: 'hidden'
+        }
+      },
+        // Header
+        h('header', { style: {
+          padding: '14px 18px', borderBottom: '1px solid var(--line)',
+          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap'
+        } },
+          h('h2', { id: 'cs-adapt-title', style: { margin: 0, fontSize: 'var(--text-lg)', fontWeight: 600, color: 'var(--text-primary)' } },
+            'Adapt pattern'),
+          h('div', { style: { display: 'flex', gap: 4 } },
+            ['stash', 'brand'].map(function (m) {
+              return h('button', {
+                key: m,
+                onClick: function () { setMode(m); setOverrides({}); },
+                style: tabBtnStyle(mode === m)
+              }, m === 'stash' ? 'Match my stash' : 'Convert to brand');
+            })
+          ),
+          mode === 'brand' && h('label', { style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary)' } },
+            'Target:',
+            h('select', {
+              value: brandTarget,
+              onChange: function (e) { setBrandTarget(e.target.value); setOverrides({}); },
+              style: { padding: '4px 8px', fontSize: 13, background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 4 }
+            },
+              h('option', { value: 'dmc' }, 'DMC'),
+              h('option', { value: 'anchor' }, 'Anchor')
+            )
+          ),
+          h('div', { style: { flex: 1 } }),
+          h('button', {
+            onClick: onClose,
+            'aria-label': 'Close',
+            style: { background: 'transparent', border: 'none', cursor: 'pointer', padding: 6, color: 'var(--text-secondary)', fontSize: 18 }
+          }, '\u00D7')
+        ),
+        // Body — split pane
+        h('div', {
+          ref: containerRef,
+          style: { flex: 1, display: 'flex', minHeight: 0, position: 'relative', flexDirection: narrow ? 'column' : 'row' }
+        },
+          // Left: substitution table
+          h('div', { style: {
+            width: narrow ? '100%' : leftPct + '%',
+            display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0
+          } },
+            // Threshold + controls bar
+            h('div', { style: {
+              padding: '10px 16px', borderBottom: '1px solid var(--line)',
+              display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', fontSize: 13
+            } },
+              h('label', { style: { display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-secondary)' } },
+                'Match strictness:',
+                h('input', {
+                  type: 'range', min: 1, max: 25, step: 0.5, value: threshold,
+                  onChange: function (e) { setThreshold(parseFloat(e.target.value)); },
+                  style: { width: 140 }
+                }),
+                h('span', { style: { fontVariantNumeric: 'tabular-nums', fontWeight: 500, color: 'var(--text-primary)' } },
+                  '\u0394E ' + threshold)
+              ),
+              Object.keys(overrides).length > 0 && h('button', {
+                onClick: handleResetOverrides,
+                style: {
+                  fontSize: 12, padding: '4px 10px',
+                  background: 'transparent', color: 'var(--accent)',
+                  border: '1px solid var(--accent)', borderRadius: 4, cursor: 'pointer'
+                }
+              }, 'Reset edits (' + Object.keys(overrides).length + ')')
+            ),
+            // Table
+            h('div', { style: { flex: 1, overflowY: 'auto', minHeight: 0 } },
+              subs.length === 0
+                ? h('div', { style: { padding: 24, color: 'var(--text-secondary)', fontSize: 13 } }, 'Computing\u2026')
+                : h('table', { style: { width: '100%', borderCollapse: 'collapse', fontSize: 13 } },
+                  h('thead', { style: { position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1 } },
+                    h('tr', { style: { borderBottom: '1px solid var(--border)' } },
+                      h('th', { style: thStyle }, 'Source'),
+                      h('th', { style: thStyle }, ''),
+                      h('th', { style: thStyle }, 'Replacement'),
+                      h('th', { style: thStyle }, 'Match'),
+                      h('th', { style: thStyle }, '')
+                    )
+                  ),
+                  h('tbody', null, subs.map(function (sub) {
+                    return h(SubstitutionRow, {
+                      key: sub.sourceBrand + ':' + sub.sourceId,
+                      sub: sub,
+                      brand: mode === 'brand' ? brandTarget : 'dmc',
+                      stash: stash,
+                      onPick: function (pick) { handlePick(sub, pick); }
+                    });
+                  }))
+                )
+            )
+          ),
+          // Divider
+          !narrow && h('div', {
+            role: 'separator', 'aria-orientation': 'vertical',
+            tabIndex: 0,
+            onPointerDown: function (e) {
+              dragRef.current = true;
+              document.body.style.cursor = 'col-resize';
+              document.body.style.userSelect = 'none';
+              e.preventDefault();
+            },
+            onDoubleClick: function () { setRatio(DEFAULT_RATIO); try { window.UserPrefs && window.UserPrefs.set && window.UserPrefs.set(RATIO_PREF_KEY, DEFAULT_RATIO); } catch (_) {} },
+            onKeyDown: function (e) {
+              if (e.key === 'ArrowLeft')  setRatio(function (r) { return Math.max(0.2, r - 0.02); });
+              if (e.key === 'ArrowRight') setRatio(function (r) { return Math.min(0.8, r + 0.02); });
+            },
+            style: {
+              width: 6, cursor: 'col-resize', background: 'var(--line)',
+              flexShrink: 0
+            }
+          }),
+          // Right: preview panel
+          h('div', { style: {
+            width: narrow ? '100%' : rightPct + '%',
+            background: 'var(--surface-elevated, color-mix(in srgb, var(--surface) 96%, var(--text-primary) 4%))',
+            padding: 16, overflowY: 'auto', minHeight: 0,
+            display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center'
+          } },
+            h('div', { style: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, alignSelf: 'flex-start' } }, 'Original'),
+            h('canvas', {
+              ref: origCanvasRef,
+              style: {
+                width: '100%', maxWidth: 320,
+                imageRendering: 'pixelated', background: '#fff',
+                border: '1px solid var(--border)', borderRadius: 4
+              }
+            }),
+            h('div', { style: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, alignSelf: 'flex-start', marginTop: 8 } }, 'After adapt'),
+            h('canvas', {
+              ref: newCanvasRef,
+              style: {
+                width: '100%', maxWidth: 320,
+                imageRendering: 'pixelated', background: '#fff',
+                border: '1px solid var(--border)', borderRadius: 4
+              }
+            })
+          )
+        ),
+        // Footer
+        h('footer', { style: {
+          padding: '12px 18px', borderTop: '1px solid var(--line)',
+          display: 'flex', alignItems: 'center', gap: 12
+        } },
+          h('div', { style: { fontSize: 12, color: 'var(--text-secondary)' } },
+            nMatch + ' matched, ' + nSkipped + ' unmatched',
+            ' \u2014 saves as a new project, original kept'
+          ),
+          h('div', { style: { flex: 1 } }),
+          h('button', {
+            onClick: onClose,
+            style: {
+              padding: '8px 16px', fontSize: 13,
+              background: 'transparent', color: 'var(--text-primary)',
+              border: '1px solid var(--border)', borderRadius: 'var(--radius-sm, 4px)',
+              cursor: 'pointer'
+            }
+          }, 'Cancel'),
+          h('button', {
+            onClick: handleSave,
+            disabled: !effectiveProposal || nMatch === 0,
+            style: {
+              padding: '8px 16px', fontSize: 13, fontWeight: 500,
+              background: 'var(--accent)', color: 'var(--surface)',
+              border: '1px solid var(--accent)', borderRadius: 'var(--radius-sm, 4px)',
+              cursor: nMatch === 0 ? 'not-allowed' : 'pointer',
+              opacity: nMatch === 0 ? 0.5 : 1
+            }
+          }, 'Save adapted copy')
+        )
+      )
+    );
+  }
+  var thStyle = { padding: '8px 10px', textAlign: 'left', fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 };
+
+  window.AdaptModal = AdaptModal;
+})();
+
+
 /* ─── BulkAddModal.js ─── */
 /* creator/BulkAddModal.js — Bulk-add threads to the stash
    Two tabs: "Paste list" and "From a kit".
@@ -11707,27 +13409,11 @@ window.CreatorSidebar = function CreatorSidebar() {
         h("div", {style:{display:"flex",gap:6,flexWrap:"wrap"}},
           h("button", {
             onClick: function() {
-              if (typeof StashBridge === 'undefined' || typeof analyseSubstitutions !== 'function') {
-                if (app.addToast) app.addToast("Substitute is unavailable right now.", {type:"error", duration:3000});
-                return;
-              }
-              StashBridge.getGlobalStash().then(function(s) {
-                var result = analyseSubstitutions(
-                  ctx.skeinData || [],
-                  ctx.threadOwned || {},
-                  s,
-                  ctx.fabricCt || 14,
-                  { maxDeltaE: ctx.substituteMaxDeltaE != null ? ctx.substituteMaxDeltaE : 15, dmcData: typeof DMC !== 'undefined' ? DMC : [] }
-                );
-                if (typeof ctx.setSubstituteProposal === 'function') ctx.setSubstituteProposal(result);
-                if (typeof ctx.setSubstituteModalKey === 'function') ctx.setSubstituteModalKey(function(k){ return k + 1; });
-                if (typeof ctx.setSubstituteModalOpen === 'function') ctx.setSubstituteModalOpen(true);
-              }).catch(function() {
-                if (app.addToast) app.addToast("Could not load your stash.", {type:"error", duration:3000});
-              });
+              if (typeof ctx.setAdaptModalMode === 'function') ctx.setAdaptModalMode('stash');
+              if (typeof ctx.setAdaptModalOpen === 'function') ctx.setAdaptModalOpen(true);
             },
             style:{fontSize:'var(--text-xs)',padding:"5px 10px",borderRadius:'var(--radius-sm)',border:"1px solid #D49B45",background:"var(--surface)",color:"var(--accent-ink)",fontWeight:600,cursor:"pointer"}
-          }, "Substitute from stash"),
+          }, "Adapt to my stash"),
           h("button", {
             onClick: function() {
               if (typeof StashBridge === 'undefined' || typeof StashBridge.markManyToBuy !== 'function') {
@@ -13778,7 +15464,6 @@ window.CreatorProjectTab = function CreatorProjectTab() {
   var app = window.useApp();
   var cv  = window.useCanvas();
   var h = React.createElement;
-  var _cvtOpen = React.useState(false); var convertOpen = _cvtOpen[0], setConvertOpen = _cvtOpen[1];
 
   if (!(ctx.pat && ctx.pal)) return null;
   if (app.tab !== "project") return null;
@@ -14001,43 +15686,17 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       h("div", {style:{display:"flex",gap:'var(--s-2)',marginTop:10,flexWrap:"wrap",alignItems:"center"}},
         h("button", {
           onClick: function() {
-            if (typeof StashBridge === "undefined") { alert("Stash bridge not loaded."); return; }
-            StashBridge.getGlobalStash().then(function(stash) {
-              var result = analyseSubstitutions(
-                ctx.skeinData,
-                ctx.threadOwned,
-                stash,
-                ctx.fabricCt,
-                { maxDeltaE: ctx.substituteMaxDeltaE, dmcData: DMC }
-              );
-              ctx.setSubstituteProposal(result);
-              ctx.setSubstituteModalKey(function(k) { return k + 1; });
-              ctx.setSubstituteModalOpen(true);
-            }).catch(function() {
-              app.addToast("Failed to load stash data.", { type: "error", duration: 3000 });
-            });
+            ctx.setAdaptModalMode && ctx.setAdaptModalMode('stash');
+            ctx.setAdaptModalOpen && ctx.setAdaptModalOpen(true);
           },
-          disabled: (function() {
-            if (typeof StashBridge === "undefined") return true;
-            if (!ctx.pat) return true;
-            if (ctx.toBuyList.length === 0) return true;
-            return !hasOwnedStash;
-          })(),
-          title: (function() {
-            if (typeof StashBridge === "undefined") return "Stash bridge not available";
-            if (!ctx.pat) return "No pattern loaded";
-            if (ctx.toBuyList.length === 0) return "All threads are already marked as owned";
-            if (!hasOwnedStash) return "Add threads to your stash first";
-            return "Find stash alternatives for unowned threads";
-          })(),
-          style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"1px solid var(--accent-light)",background:"var(--surface-secondary)",color:"var(--accent)",cursor:"pointer",fontWeight:600,
-            opacity:(function() {
-              if (typeof StashBridge === "undefined" || !ctx.pat || ctx.toBuyList.length === 0) return 0.5;
-              if (!hasOwnedStash) return 0.5;
-              return 1;
-            })()
-          }
-        }, "Replace with Stash Threads"),
+          disabled: !ctx.pat || !ctx.pal || ctx.pal.length === 0,
+          title: "Create an adapted copy of this pattern using threads from your stash",
+          style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"1px solid var(--accent-light)",background:"var(--surface-secondary)",color:"var(--accent)",cursor:"pointer",fontWeight:600,display:'inline-flex',alignItems:'center',gap:6,
+            opacity:(!ctx.pat || !ctx.pal || ctx.pal.length === 0) ? 0.5 : 1}
+        },
+          window.Icons && window.Icons.adapt ? h('span', {style:{display:'inline-flex'}}, window.Icons.adapt()) : null,
+          "Adapt to my stash"
+        ),
         h("button", {
           onClick: function() {
             if (typeof StashBridge === "undefined") { alert("Stash bridge not loaded."); return; }
@@ -14054,14 +15713,20 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           },
           style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"1px solid var(--accent-light)",background:"var(--surface-secondary)",color:"var(--accent)",cursor:"pointer",fontWeight:600}
         }, "Kit This Project"),
-        typeof window.ConvertPaletteModal !== "undefined"
+        typeof window.AdaptModal !== "undefined"
           ? h("button", {
-              onClick: function() { setConvertOpen(true); },
+              onClick: function() {
+                ctx.setAdaptModalMode && ctx.setAdaptModalMode('brand');
+                ctx.setAdaptModalOpen && ctx.setAdaptModalOpen(true);
+              },
               disabled: !ctx.pat || !ctx.pal || ctx.pal.length === 0,
-              title: "Convert this pattern's palette between DMC and Anchor thread brands",
-              style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"1px solid var(--accent-light)",background:"var(--surface-secondary)",color:"var(--accent)",cursor:"pointer",fontWeight:600,
+              title: "Adapt this pattern to a different thread brand",
+              style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"1px solid var(--accent-light)",background:"var(--surface-secondary)",color:"var(--accent)",cursor:"pointer",fontWeight:600,display:'inline-flex',alignItems:'center',gap:6,
                 opacity:(!ctx.pat || !ctx.pal || ctx.pal.length === 0) ? 0.5 : 1}
-            }, "Change Thread Brand")
+            },
+              window.Icons && window.Icons.adapt ? h('span', {style:{display:'inline-flex'}}, window.Icons.adapt()) : null,
+              "Adapt to brand"
+            )
           : null
       ),
       ctx.kittingResult && h("div", {style:{marginTop:'var(--s-2)',padding:"10px 14px",borderRadius:'var(--radius-md)',border:"1px solid var(--border)",background:"var(--surface-secondary)",fontSize:'var(--text-sm)'}},
@@ -14185,61 +15850,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     renderTimeEstimate(),
     renderFinishedSize(),
     renderCostEstimate(),
-    renderThreadOrganiser(),
-    typeof window.SubstituteFromStashModal !== "undefined"
-      ? h(window.SubstituteFromStashModal, null)
-      : null,
-    convertOpen && typeof window.ConvertPaletteModal !== "undefined"
-      ? h(window.ConvertPaletteModal, {
-          onClose: function() { setConvertOpen(false); },
-          onApply: function(remap) {
-            var np = ctx.pat.slice();
-            var changes = [];
-            for (var i = 0; i < np.length; i++) {
-              var cell = np[i];
-              if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
-              if (cell.type === "blend" && cell.threads) {
-                var needsChange = false;
-                var newThreads = cell.threads.map(function(t) {
-                  if (remap[t.id]) { needsChange = true; return {id:remap[t.id].compositeKey,type:"solid",name:remap[t.id].name,rgb:remap[t.id].rgb,brand:remap[t.id].brand}; }
-                  return t;
-                });
-                if (needsChange) {
-                  changes.push({idx:i, old:Object.assign({},cell)});
-                  var newBlendId = newThreads.map(function(t){return t.id;}).sort().join("+");
-                  np[i] = Object.assign({},cell,{id:newBlendId,threads:newThreads,rgb:[
-                    Math.round((newThreads[0].rgb[0]+newThreads[1].rgb[0])/2),
-                    Math.round((newThreads[0].rgb[1]+newThreads[1].rgb[1])/2),
-                    Math.round((newThreads[0].rgb[2]+newThreads[1].rgb[2])/2)]});
-                }
-                continue;
-              }
-              if (remap[cell.id]) {
-                changes.push({idx:i, old:Object.assign({},cell)});
-                np[i] = {id:remap[cell.id].compositeKey, type:"solid", name:remap[cell.id].name, rgb:remap[cell.id].rgb, brand:remap[cell.id].brand};
-              }
-            }
-            if (changes.length === 0) {
-              app.addToast("No cells were changed.", {type:"info", duration:2000});
-              setConvertOpen(false);
-              return;
-            }
-            cv.setEditHistory(function(prev) {
-              var entry = {type:"paletteConversion", changes:changes};
-              var n = prev.concat([entry]);
-              if (n.length > (cv.EDIT_HISTORY_MAX || 100)) n = n.slice(n.length - (cv.EDIT_HISTORY_MAX || 100));
-              return n;
-            });
-            cv.setRedoHistory([]);
-            ctx.setPat(np);
-            var result = ctx.buildPaletteWithScratch(np);
-            ctx.setPal(result.pal);
-            ctx.setCmap(result.cmap);
-            setConvertOpen(false);
-            app.addToast(changes.length + " stitches converted. Ctrl+Z to undo.", {type:"success", duration:4000});
-          }
-        })
-      : null
+    renderThreadOrganiser()
   );
 };
 

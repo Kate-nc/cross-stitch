@@ -649,6 +649,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     substituteProposal: state.substituteProposal, setSubstituteProposal: state.setSubstituteProposal,
     substituteModalKey: state.substituteModalKey, setSubstituteModalKey: state.setSubstituteModalKey,
     substituteMaxDeltaE: state.substituteMaxDeltaE, setSubstituteMaxDeltaE: state.setSubstituteMaxDeltaE,
+    adaptModalOpen: state.adaptModalOpen, setAdaptModalOpen: state.setAdaptModalOpen,
+    adaptModalMode: state.adaptModalMode, setAdaptModalMode: state.setAdaptModalMode,
+    adaptMaxDeltaE: state.adaptMaxDeltaE, setAdaptMaxDeltaE: state.setAdaptMaxDeltaE,
     buildPaletteWithScratch: state.buildPaletteWithScratch,
     resetAll: state.resetAll,
     initBlankGrid: state.initBlankGrid,
@@ -677,6 +680,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.kittingResult, state.altOpen,
     state.substituteModalOpen, state.substituteProposal,
     state.substituteModalKey, state.substituteMaxDeltaE,
+    state.adaptModalOpen, state.adaptModalMode, state.adaptMaxDeltaE,
     state.creatorStashFilter,
     state.displayPal, state.totalStitchable,
     state.skeinData, state.totalSkeins,
@@ -734,6 +738,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     && _coach.active === 'firstStitch_creator'
     && state.appMode === 'edit'
     && !!state.pat
+    && !state.namePromptOpen
     && (!state.editHistory || state.editHistory.length === 0);
 
   // ── Polish 13 step 4b — Tools tab unlock coachmark ───────────────────
@@ -752,6 +757,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   }, [!!state.pat, !!state.pal, _coach.active]);
   const _showToolsUnlockedCoach = _toolsCoachReady
     && _coach.active === 'toolsTab_unlocked'
+    && !state.namePromptOpen
     && !!state.pat && !!state.pal;
 
   return (
@@ -771,15 +777,50 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         setModal={state.setModal}
         projectName={state.pat&&state.pal?(state.projectName||(state.sW+'×'+state.sH+' pattern')):undefined}
         onNameChange={state.pat&&state.pal?n=>state.setProjectName(n):undefined}
-        showAutosaved={!!(state.pat&&state.pal)} />
+        showAutosaved={!!(state.pat&&state.pal)}
+        saveStatus={state.saveStatus}
+        savedAt={state.savedAt}
+        saveError={state.saveError}
+        onRetrySave={io.retryAutoSave} />
       {state.preferencesOpen&&typeof window.PreferencesModal!=='undefined'&&React.createElement(window.PreferencesModal,{onClose:()=>state.setPreferencesOpen(false)})}
+      {state.adaptModalOpen&&typeof window.AdaptModal!=='undefined'&&React.createElement(window.AdaptModal,{
+        mode:state.adaptModalMode,
+        onClose:()=>state.setAdaptModalOpen(false)
+      })}
       {state.namePromptOpen&&<NamePromptModal
         defaultName={state.projectName||(state.sW+'×'+state.sH+' pattern')}
-        onConfirm={name=>{state.setProjectName(name);state.setNamePromptOpen(false);io.doSaveProject(name);}}
-        onCancel={()=>{
+        onConfirm={name=>{
+          state.setProjectName(name);
           state.setNamePromptOpen(false);
-          // Tell the user why nothing happened — without this the modal just
-          // disappears with no feedback when they cancel a Download attempt.
+          // Two distinct flows share this modal:
+          //  - "firstSave"  → opened automatically after the first auto-save.
+          //                   The project is already in IndexedDB under
+          //                   "Untitled pattern"; we only need to update the
+          //                   name (the auto-save effect picks the change up
+          //                   on the next debounce). Do NOT trigger a .json
+          //                   download here.
+          //  - "download"   → opened by the legacy "Save (.json)" path.
+          //                   doSaveProject downloads the file to disk.
+          if(state.nameModalReason==='firstSave'){
+            state.setNameModalReason&&state.setNameModalReason(null);
+            if(state.addToast)state.addToast('Saved as "'+name+'"',{type:'success',duration:2500});
+          }else{
+            state.setNameModalReason&&state.setNameModalReason(null);
+            io.doSaveProject(name);
+          }
+        }}
+        onCancel={()=>{
+          var reason=state.nameModalReason;
+          state.setNamePromptOpen(false);
+          state.setNameModalReason&&state.setNameModalReason(null);
+          if(reason==='firstSave'){
+            // First-save prompt: the project is already saved under
+            // "Untitled pattern" — just close quietly.
+            return;
+          }
+          // Legacy download path: tell the user why nothing happened —
+          // without this the modal just disappears with no feedback when
+          // they cancel a Download attempt.
           if(state.addToast)state.addToast("Download cancelled \u2014 give your pattern a name to download a .json file.",{type:"info",duration:3500});
         }}
       />}

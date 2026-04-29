@@ -2323,3 +2323,46 @@ function AppInfoDivider() {
 window.AppInfoDivider = AppInfoDivider;
 
 
+
+
+// AdaptedBadge — small lavender pill shown next to adapted-project titles in
+// the pattern library and on /home. Clicking opens the source project (via
+// onClick handler — usually navigates to the original).
+//   Props: { fromName, onClick?, compact? }
+function AdaptedBadge(props) {
+  var h = React.createElement;
+  if (!props || !props.fromName) return null;
+  var compact = !!props.compact;
+  var Icons = window.Icons || {};
+  var label = compact ? 'Adapted' : ('Adapted from ' + props.fromName);
+  var title = 'Adapted from ' + props.fromName + (props.onClick ? ' \u2014 click to open original' : '');
+  return h('span', {
+    className: 'cs-adapted-badge',
+    title: title,
+    onClick: props.onClick || undefined,
+    role: props.onClick ? 'button' : undefined,
+    tabIndex: props.onClick ? 0 : undefined,
+    onKeyDown: props.onClick ? function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); props.onClick(); }
+    } : undefined,
+    style: {
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      padding: '2px 8px',
+      fontSize: 'var(--text-xs)', fontWeight: 500, lineHeight: 1.2,
+      color: 'var(--accent)',
+      background: 'color-mix(in srgb, var(--accent) 14%, transparent)',
+      border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
+      borderRadius: 'var(--radius-pill, 999px)',
+      cursor: props.onClick ? 'pointer' : 'default',
+      whiteSpace: 'nowrap', maxWidth: '100%'
+    }
+  },
+    Icons.adapt ? h('span', {
+      style: { display: 'inline-flex', width: 12, height: 12, fontSize: 12 }
+    }, Icons.adapt()) : null,
+    h('span', {
+      style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+    }, label)
+  );
+}
+window.AdaptedBadge = AdaptedBadge;

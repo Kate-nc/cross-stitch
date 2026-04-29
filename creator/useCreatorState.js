@@ -286,6 +286,13 @@ window.useCreatorState = function useCreatorState() {
   var _subMaxDE = useState(function() { try { var v = localStorage.getItem("cs_subMaxDE"); return v != null ? parseFloat(v) : 15; } catch(_) { return 15; } });
   var substituteMaxDeltaE = _subMaxDE[0];
   function setSubstituteMaxDeltaE(v) { _subMaxDE[1](v); try { localStorage.setItem("cs_subMaxDE", v); } catch(_) {} }
+  // Stash-Adapt: modal open/mode state. Replaces the legacy SubstituteFromStash
+  // and ConvertPalette modals with a single non-destructive duplication flow.
+  var _adOpen = useState(false);         var adaptModalOpen = _adOpen[0], setAdaptModalOpen = _adOpen[1];
+  var _adMode = useState('stash');       var adaptModalMode = _adMode[0], setAdaptModalMode = _adMode[1];
+  var _adMaxDE = useState(function() { try { var v = localStorage.getItem("cs_adaptMaxDE"); return v != null ? parseFloat(v) : 10; } catch(_) { return 10; } });
+  var adaptMaxDeltaE = _adMaxDE[0];
+  function setAdaptMaxDeltaE(v) { _adMaxDE[1](v); try { localStorage.setItem("cs_adaptMaxDE", String(v)); } catch(_) {} }
   // Brief D — runtime "limit palette/picker to my stash" filter (independent of the
   // generation-time stashConstrained switch). Persisted under cs_creator_stash_filter.
   var _csFilt = useState(function() { try { return localStorage.getItem("cs_creator_stash_filter") === "true"; } catch(_) { return false; } });
@@ -322,6 +329,19 @@ window.useCreatorState = function useCreatorState() {
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
   var _namePrompt= useState(false);  var namePromptOpen = _namePrompt[0], setNamePromptOpen = _namePrompt[1];
+  // Proposal 2: auto-save state surfaced in the header badge so the user can
+  // see "Saving…", "Saved 5 s ago", or "Save failed — Retry" instead of the
+  // static "All changes saved" string. Driven by SaveStatus.createSaveController
+  // inside useProjectIO.js.
+  var _saveSt    = useState("idle"); var saveStatus = _saveSt[0],   setSaveStatus = _saveSt[1];
+  var _savedAt   = useState(null);   var savedAt    = _savedAt[0],  setSavedAt    = _savedAt[1];
+  var _saveErr   = useState(null);   var saveError  = _saveErr[0],  setSaveError  = _saveErr[1];
+  // Distinguishes the auto-prompted first-save name modal from the legacy
+  // "download .json" name modal so the two flows can render the same
+  // NamePromptModal component without leaking each other's behaviour.
+  // Values: null (closed) | "download" (legacy explicit save) | "firstSave"
+  // (Proposal 2 prompt opened automatically after the first auto-save).
+  var _nameReason= useState(null);   var nameModalReason = _nameReason[0], setNameModalReason = _nameReason[1];
   var _prefsOpen = useState(false); var preferencesOpen = _prefsOpen[0], setPreferencesOpen = _prefsOpen[1];
   // Optional metadata users can fill in before/after generating
   var _projDesigner = useState(""); var projectDesigner = _projDesigner[0], setProjectDesigner = _projDesigner[1];
@@ -1152,6 +1172,9 @@ window.useCreatorState = function useCreatorState() {
     substituteProposal, setSubstituteProposal,
     substituteModalKey, setSubstituteModalKey,
     substituteMaxDeltaE, setSubstituteMaxDeltaE,
+    adaptModalOpen, setAdaptModalOpen,
+    adaptModalMode, setAdaptModalMode,
+    adaptMaxDeltaE, setAdaptMaxDeltaE,
     stashConstrained, setStashConstrained,
     creatorStashFilter, setCreatorStashFilter,
     coverageGaps, setCoverageGaps,
@@ -1168,6 +1191,10 @@ window.useCreatorState = function useCreatorState() {
     projectDesigner, setProjectDesigner,
     projectDescription, setProjectDescription,
     namePromptOpen, setNamePromptOpen,
+    saveStatus, setSaveStatus,
+    savedAt, setSavedAt,
+    saveError, setSaveError,
+    nameModalReason, setNameModalReason,
     preferencesOpen, setPreferencesOpen,
     cleanupDiff, setCleanupDiff, showCleanupDiff, setShowCleanupDiff,
     pcRef, fRef, scrollRef, expRef, loadRef,
