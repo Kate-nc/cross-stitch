@@ -33,6 +33,7 @@
     require('./pdf/gridExtractor.js');
     require('./pdf/metaExtractor.js');
     require('./pipeline/assemble.js');
+    require('./pipeline/validate.js');
   }
 
   const ENGINE = isBrowser ? window.ImportEngine : (function () {
@@ -49,7 +50,8 @@
     const gex   = require('./pdf/gridExtractor.js');
     const mex   = require('./pdf/metaExtractor.js');
     const asm   = require('./pipeline/assemble.js');
-    return Object.assign({}, types, reg, pipe, wc, sniff, ow, tb, pub, dpr, lex, gex, mex, asm);
+    const val   = require('./pipeline/validate.js');
+    return Object.assign({}, types, reg, pipe, wc, sniff, ow, tb, pub, dpr, lex, gex, mex, asm, val);
   })();
 
   // High-level: takes a File-like (browser File, or { name, type, arrayBuffer })
