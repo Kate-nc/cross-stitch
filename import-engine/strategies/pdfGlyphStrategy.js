@@ -28,17 +28,56 @@
       // publisher detector hasn't found a richer publisher.
       return 0.7;
     },
-    parse: function (file, ctx) {
-      if (typeof window === 'undefined' || typeof window.PatternKeeperImporter !== 'function') {
-        return Promise.reject(new Error('PatternKeeperImporter is not loaded.'));
+    parse: function (probe, opts, ctx) {
+      if (typeof window === 'undefined') {
+        return Promise.reject(new Error('PDF import requires a browser environment.'));
       }
-      // Make sure pdf.js is available (the loader is lazily injected).
-      var ready = (typeof window.loadPdfStack === 'function')
-        ? window.loadPdfStack()
-        : Promise.resolve();
+      // Lazy-load pdf.js + pdf-importer.js. Some entry pages (e.g. home.html)
+      // don't expose `window.loadPdfStack`, so we fall back to a self-contained
+      // loader that fetches the same scripts in the same order.
+      function loadScript(src) {
+        if (document.querySelector('script[data-import-engine="' + src + '"]')) {
+          return Promise.resolve();
+        }
+        return new Promise(function (resolve, reject) {
+          var s = document.createElement('script');
+          s.src = src;
+          s.dataset.importEngine = src;
+          s.onload = function () { resolve(); };
+          s.onerror = function () { reject(new Error('Failed to load ' + src)); };
+          document.head.appendChild(s);
+        });
+      }
+      var ready;
+      if (typeof window.loadPdfStack === 'function') {
+        ready = window.loadPdfStack();
+      } else {
+        ready = loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js')
+          .then(function () {
+            if (typeof window.pdfjsLib !== 'undefined') {
+              window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
+            }
+            return loadScript('pdf-importer.js');
+          });
+      }
       return ready.then(function () {
+        if (typeof window.PatternKeeperImporter !== 'function') {
+          throw new Error('PatternKeeperImporter is not loaded.');
+        }
         var importer = new window.PatternKeeperImporter();
-        return importer.import(file).then(function (project) {
+        // Prefer the original File when present; fall back to bytes so the
+        // strategy still works for synthetic probes.
+        var input = (probe && probe.originalFile)
+          ? probe.originalFile
+          : (probe && typeof probe.fullBytes === 'function'
+            ? probe.fullBytes().then(function (b) { return b.buffer || b; })
+            : null);
+        if (!input) {
+          throw new Error('PDF import received no readable input.');
+        }
+        return Promise.resolve(input).then(function (resolved) {
+          return importer.import(resolved);
+        }).then(function (project) {
           // Legacy importer returns a fully-formed v8 project. Adapt to
           // the engine's RawExtraction contract via `_legacyProject`.
           return {

@@ -20,8 +20,8 @@ describe('pdfGlyphStrategy', () => {
   });
 
   it('parse rejects when PatternKeeperImporter is unavailable', async () => {
-    // Node tests have no window.PatternKeeperImporter.
-    await expect(pdfGlyphStrategy.parse({}, {})).rejects.toThrow(/PatternKeeperImporter/);
+    // Node tests have no window — strategy refuses to run without a browser.
+    await expect(pdfGlyphStrategy.parse({}, {})).rejects.toThrow(/browser/);
   });
 
   it('returns lower priority than DMC publisher (0.95)', () => {

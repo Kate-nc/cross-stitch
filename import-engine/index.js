@@ -69,6 +69,7 @@
       mimeType: file && file.type || '',
       bytes: bytes.subarray(0, Math.min(bytes.length, 1024 * 1024)),
       fullBytes: function () { return Promise.resolve(bytes); },
+      originalFile: file,
     };
 
     const cancelToken = opts.cancelToken || ENGINE.makeAbortToken();
