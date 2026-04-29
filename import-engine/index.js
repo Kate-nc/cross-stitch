@@ -23,13 +23,15 @@
     require('./types.js');
     require('./registry.js');
     require('./pipeline.js');
+    require('./workerClient.js');
   }
 
   const ENGINE = isBrowser ? window.ImportEngine : (function () {
     const types = require('./types.js');
     const reg   = require('./registry.js');
     const pipe  = require('./pipeline.js');
-    return Object.assign({}, types, reg, pipe);
+    const wc    = require('./workerClient.js');
+    return Object.assign({}, types, reg, pipe, wc);
   })();
 
   // High-level: takes a File-like (browser File, or { name, type, arrayBuffer })
