@@ -26,6 +26,7 @@ const ORDER = [
   'strategies/oxsStrategy.js',
   'strategies/jsonStrategy.js',
   'strategies/imageStrategy.js',
+  'strategies/pdfGlyphStrategy.js',
   'ui/ImportReviewModal.js',
   'wireApp.js',
   'index.js',
