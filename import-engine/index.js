@@ -31,6 +31,7 @@
     require('./pdf/dmcPageRoles.js');
     require('./pdf/legendExtractor.js');
     require('./pdf/gridExtractor.js');
+    require('./pdf/metaExtractor.js');
     require('./pipeline/assemble.js');
   }
 
@@ -46,8 +47,9 @@
     const dpr   = require('./pdf/dmcPageRoles.js');
     const lex   = require('./pdf/legendExtractor.js');
     const gex   = require('./pdf/gridExtractor.js');
+    const mex   = require('./pdf/metaExtractor.js');
     const asm   = require('./pipeline/assemble.js');
-    return Object.assign({}, types, reg, pipe, wc, sniff, ow, tb, pub, dpr, lex, gex, asm);
+    return Object.assign({}, types, reg, pipe, wc, sniff, ow, tb, pub, dpr, lex, gex, mex, asm);
   })();
 
   // High-level: takes a File-like (browser File, or { name, type, arrayBuffer })
