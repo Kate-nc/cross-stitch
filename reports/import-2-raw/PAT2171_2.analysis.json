@@ -1,0 +1,680 @@
+{
+  "file": "TestUploads/PAT2171_2.pdf",
+  "numPages": 3,
+  "info": {
+    "PDFFormatVersion": "1.4",
+    "Language": "en-US",
+    "EncryptFilterName": null,
+    "IsLinearized": true,
+    "IsAcroFormPresent": false,
+    "IsXFAPresent": false,
+    "IsCollectionPresent": false,
+    "IsSignaturesPresent": false,
+    "CreationDate": "D:20250826152436+01'00'",
+    "Creator": "Adobe InDesign 20.3 (Macintosh)",
+    "ModDate": "D:20250826152436+01'00'",
+    "Producer": "Adobe PDF Library 17.0",
+    "Trapped": {
+      "name": "False"
+    }
+  },
+  "metadata": {
+    "xmp:createdate": "2025-08-26T15:24:36+01:00",
+    "xmp:metadatadate": "2025-08-26T15:24:36+01:00",
+    "xmp:modifydate": "2025-08-26T15:24:36+01:00",
+    "xmp:creatortool": "Adobe InDesign 20.3 (Macintosh)",
+    "xmpmm:instanceid": "uuid:73ae883e-7074-9e4c-be15-5b3279965f6b",
+    "xmpmm:originaldocumentid": "xmp.did:1cc6cb69-11f5-4a44-9dea-4c2dbf5ff426",
+    "xmpmm:documentid": "xmp.id:2b35defc-ba48-4afd-904c-dc31f25eb882",
+    "xmpmm:renditionclass": "proof:pdf",
+    "xmpmm:derivedfrom": "xmp.iid:9eab64c3-a203-4cad-8ad8-7655e611f789xmp.did:7715e28b-61c6-4299-91a8-74c9c62006c1xmp.did:1cc6cb69-11f5-4a44-9dea-4c2dbf5ff426default",
+    "xmpmm:history": "convertedfrom application/x-indesign to application/pdfAdobe InDesign 20.3 (Macintosh)/2025-08-26T15:24:36+01:00",
+    "dc:format": "application/pdf",
+    "pdf:producer": "Adobe PDF Library 17.0",
+    "pdf:trapped": "False"
+  },
+  "pages": [
+    {
+      "pageNum": 1,
+      "viewport": {
+        "width": 595.3,
+        "height": 841.9
+      },
+      "counts": {
+        "textItems": 113,
+        "singleChars": 40,
+        "longText": 17,
+        "lineOps": 182,
+        "rectOps": 9,
+        "curveOps": 233,
+        "fillOps": 24,
+        "strokeOps": 7,
+        "images": 2
+      },
+      "opSummary": {
+        "beginMarkedContentProps": 100,
+        "setFillRGBColor": 10,
+        "setGState": 7,
+        "constructPath": 38,
+        "fill": 24,
+        "save": 37,
+        "clip": 7,
+        "endPath": 7,
+        "transform": 30,
+        "dependency": 6,
+        "paintImageXObject": 2,
+        "restore": 37,
+        "endMarkedContent": 100,
+        "beginText": 69,
+        "setFont": 22,
+        "setTextMatrix": 69,
+        "showText": 69,
+        "endText": 69,
+        "setStrokeRGBColor": 2,
+        "setLineWidth": 5,
+        "setMiterLimit": 4,
+        "stroke": 7,
+        "setCharSpacing": 4,
+        "setWordSpacing": 2
+      },
+      "images": [
+        "paintImageXObject",
+        "paintImageXObject"
+      ],
+      "longTextSample": [
+        "plume de geai",
+        "jay feather",
+        "1/3",
+        "© www.dmc.com © 2025 / all rights reserved worldwide",
+        "dmc library - bibliothèque dmc",
+        "More free patterns and tutorials / Diagrammes, motifs et tutoriels /",
+        "www.dmc.com",
+        "Join our community",
+        "Rejoignez notre communauté",
+        "facebook - pinterest - instagram - youtube",
+        "Share your creations",
+        "Partagez vos créations",
+        "#dmcthreads",
+        "#dmcembroidery",
+        "#dmcfreepatterns",
+        "col.",
+        "4015"
+      ],
+      "singleCharSample": [
+        {
+          "ch": "/",
+          "font": "g_d1_f4",
+          "x": 217.53,
+          "y": 29.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d1_f3",
+          "x": 309.53,
+          "y": 29.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d1_f4",
+          "x": 207.62,
+          "y": 18.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d1_f3",
+          "x": 282,
+          "y": 18.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d1_f3",
+          "x": 340.44,
+          "y": 18.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d1_f3",
+          "x": 411.54,
+          "y": 18.98,
+          "fs": 7
+        },
+        {
+          "ch": "-",
+          "font": "g_d1_f2",
+          "x": 547.58,
+          "y": 740.21,
+          "fs": 7.186
+        },
+        {
+          "ch": "n",
+          "font": "g_d1_f2",
+          "x": 555.27,
+          "y": 736.67,
+          "fs": 6.272
+        },
+        {
+          "ch": "e",
+          "font": "g_d1_f2",
+          "x": 560.79,
+          "y": 732.57,
+          "fs": 5.289
+        },
+        {
+          "ch": "w",
+          "font": "g_d1_f2",
+          "x": 564.9,
+          "y": 728.29,
+          "fs": 4.268
+        },
+        {
+          "ch": "a",
+          "font": "g_d1_f2",
+          "x": 570.21,
+          "y": 719.37,
+          "fs": 2.397
+        },
+        {
+          "ch": "i",
+          "font": "g_d1_f2",
+          "x": 572,
+          "y": 713.73,
+          "fs": 1.461
+        },
+        {
+          "ch": "d",
+          "font": "g_d1_f2",
+          "x": 572.75,
+          "y": 710.45,
+          "fs": 0.491
+        },
+        {
+          "ch": "a",
+          "font": "g_d1_f2",
+          "x": 573.11,
+          "y": 703.9,
+          "fs": -0.687
+        },
+        {
+          "ch": "c",
+          "font": "g_d1_f2",
+          "x": 571.91,
+          "y": 694.87,
+          "fs": -2.759
+        },
+        {
+          "ch": "o",
+          "font": "g_d1_f2",
+          "x": 569.69,
+          "y": 688.85,
+          "fs": -3.951
+        },
+        {
+          "ch": "l",
+          "font": "g_d1_f2",
+          "x": 565.97,
+          "y": 682.69,
+          "fs": -5.012
+        },
+        {
+          "ch": "o",
+          "font": "g_d1_f2",
+          "x": 562.87,
+          "y": 678.8,
+          "fs": -5.928
+        },
+        {
+          "ch": "u",
+          "font": "g_d1_f2",
+          "x": 557.37,
+          "y": 674.15,
+          "fs": -6.682
+        },
+        {
+          "ch": "r",
+          "font": "g_d1_f2",
+          "x": 551.43,
+          "y": 670.67,
+          "fs": -7.322
+        },
+        {
+          "ch": "-",
+          "font": "g_d1_f2",
+          "x": 542.42,
+          "y": 667.91,
+          "fs": -7.713
+        },
+        {
+          "ch": "n",
+          "font": "g_d1_f2",
+          "x": 533.98,
+          "y": 667.26,
+          "fs": -7.688
+        },
+        {
+          "ch": "o",
+          "font": "g_d1_f2",
+          "x": 527.16,
+          "y": 668.23,
+          "fs": -7.383
+        },
+        {
+          "ch": "u",
+          "font": "g_d1_f2",
+          "x": 520.34,
+          "y": 670.53,
+          "fs": -6.776
+        },
+        {
+          "ch": "v",
+          "font": "g_d1_f2",
+          "x": 514.38,
+          "y": 673.96,
+          "fs": -6.046
+        },
+        {
+          "ch": "e",
+          "font": "g_d1_f2",
+          "x": 509.88,
+          "y": 677.57,
+          "fs": -5.152
+        },
+        {
+          "ch": "l",
+          "font": "g_d1_f2",
+          "x": 505.96,
+          "y": 682,
+          "fs": -4.268
+        },
+        {
+          "ch": "l",
+          "font": "g_d1_f2",
+          "x": 503.24,
+          "y": 686.14,
+          "fs": -3.455
+        },
+        {
+          "ch": "e",
+          "font": "g_d1_f2",
+          "x": 501.03,
+          "y": 690.58,
+          "fs": -2.397
+        },
+        {
+          "ch": "c",
+          "font": "g_d1_f2",
+          "x": 498.63,
+          "y": 699.37,
+          "fs": -0.491
+        }
+      ],
+      "fontsUsed": [
+        "g_d1_f1",
+        "g_d1_f2",
+        "g_d1_f3",
+        "g_d1_f4"
+      ]
+    },
+    {
+      "pageNum": 2,
+      "viewport": {
+        "width": 595.3,
+        "height": 841.9
+      },
+      "counts": {
+        "textItems": 123,
+        "singleChars": 8,
+        "longText": 54,
+        "lineOps": 179,
+        "rectOps": 7,
+        "curveOps": 197,
+        "fillOps": 22,
+        "strokeOps": 2,
+        "images": 0
+      },
+      "opSummary": {
+        "beginMarkedContentProps": 80,
+        "beginText": 56,
+        "setFillRGBColor": 7,
+        "setGState": 7,
+        "dependency": 5,
+        "setFont": 23,
+        "setCharSpacing": 14,
+        "setTextMatrix": 72,
+        "showText": 72,
+        "endText": 56,
+        "endMarkedContent": 80,
+        "save": 29,
+        "constructPath": 30,
+        "clip": 6,
+        "endPath": 6,
+        "restore": 29,
+        "setWordSpacing": 3,
+        "setStrokeRGBColor": 1,
+        "setLineWidth": 1,
+        "setMiterLimit": 1,
+        "transform": 23,
+        "stroke": 2,
+        "fill": 22
+      },
+      "images": [],
+      "longTextSample": [
+        "tool kit",
+        "fournitures",
+        "dmc mouliné art. 117 embroidery thread / fils mouliné art. 117 dmc",
+        "dmc mouliné light effect thread art 317w / fils mouliné effet lumine art.317w",
+        "dmc diamant",
+        "aida 5,5 pts/cm - aida 14 ct - GD1436BXI col.4015",
+        "cross stitch needle / aiguille",
+        "embroidery hoop (optional) / tambour (optionnel)",
+        "scissors / ciseaux",
+        "design size / dimensions dessin",
+        "14 x 13 cm / 5.51 x 5.11 in",
+        "the size of your design depends on the cross stitch fabric",
+        "you choose. the higher the fabric’s “count ”",
+        "(ie number of cross stitches per inch), the smaller",
+        "the stitches and therefore your design. we recommend",
+        "beginners start with 14",
+        "co u n t",
+        "a i da",
+        "(the most common cross",
+        "stitch fabric), which is",
+        "w h at",
+        "w e",
+        "h av e",
+        "b a s ed",
+        "o u r",
+        "d e s i g n",
+        "s i z e",
+        "o n",
+        "la taille de votre dessin dépend de la toile point",
+        "de croix que vous choisissez.",
+        "plus le nombre de point de croix par centimè tre",
+        "est élevé, plus les points e t la broderie seront pe tits.",
+        "nous recommandons aux débutants de commencer",
+        "en utilisant une toile aida 5,5 p ts/cm (la toile",
+        "de point de croix la plus utilisée), sur laquelle nous",
+        "avons basé notre dessin.",
+        "plume de geai",
+        "jay feather",
+        "getting started -",
+        "commencer",
+        "2/3",
+        "dmc library - bibliothèque dmc",
+        "More free patterns and tutorials / Diagrammes, motifs et tutoriels /",
+        "www.dmc.com",
+        "Join our community",
+        "Rejoignez notre communauté",
+        "facebook - pinterest - instagram - youtube",
+        "Share your creations",
+        "Partagez vos créations",
+        "#dmcthreads",
+        "#dmcembroidery",
+        "#dmcfreepatterns",
+        "© www.dmc.com © 2025",
+        "/ all rights reserved worldwide"
+      ],
+      "singleCharSample": [
+        {
+          "ch": "/",
+          "font": "g_d1_f2",
+          "x": 97.85,
+          "y": 703.2,
+          "fs": 12
+        },
+        {
+          "ch": ".",
+          "font": "g_d1_f3",
+          "x": 518.5,
+          "y": 423.13,
+          "fs": 16
+        },
+        {
+          "ch": "/",
+          "font": "g_d1_f4",
+          "x": 217.53,
+          "y": 29.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d1_f3",
+          "x": 309.53,
+          "y": 29.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d1_f4",
+          "x": 207.62,
+          "y": 18.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d1_f3",
+          "x": 282,
+          "y": 18.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d1_f3",
+          "x": 340.44,
+          "y": 18.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d1_f3",
+          "x": 411.54,
+          "y": 18.98,
+          "fs": 7
+        }
+      ],
+      "fontsUsed": [
+        "g_d1_f2",
+        "g_d1_f3",
+        "g_d1_f5",
+        "g_d1_f1",
+        "g_d1_f4"
+      ]
+    },
+    {
+      "pageNum": 3,
+      "viewport": {
+        "width": 595.3,
+        "height": 841.9
+      },
+      "counts": {
+        "textItems": 141,
+        "singleChars": 8,
+        "longText": 73,
+        "lineOps": 8803,
+        "rectOps": 2696,
+        "curveOps": 6066,
+        "fillOps": 2864,
+        "strokeOps": 1703,
+        "images": 0
+      },
+      "opSummary": {
+        "beginMarkedContentProps": 167,
+        "beginText": 59,
+        "setFillRGBColor": 1731,
+        "setGState": 49,
+        "dependency": 12,
+        "setFont": 33,
+        "setCharSpacing": 5,
+        "setWordSpacing": 2,
+        "setTextMatrix": 63,
+        "showText": 85,
+        "endText": 59,
+        "endMarkedContent": 167,
+        "save": 3065,
+        "transform": 2468,
+        "constructPath": 5167,
+        "fill": 2733,
+        "restore": 3065,
+        "clip": 597,
+        "endPath": 597,
+        "setStrokeRGBColor": 455,
+        "setLineWidth": 36,
+        "setMiterLimit": 9,
+        "stroke": 1703,
+        "setLineJoin": 9,
+        "setDash": 2,
+        "fillStroke": 131,
+        "setLineCap": 21,
+        "moveText": 20
+      },
+      "images": [],
+      "longTextSample": [
+        "3/3",
+        "dmc library - bibliothèque dmc",
+        "More free patterns and tutorials / Diagrammes, motifs et tutoriels /",
+        "www.dmc.com",
+        "Join our community",
+        "Rejoignez notre communauté",
+        "facebook - pinterest - instagram - youtube",
+        "Share your creations",
+        "Partagez vos créations",
+        "#dmcthreads",
+        "#dmcembroidery",
+        "#dmcfreepatterns",
+        "© www.dmc.com © 2025",
+        "/ all rights reserved worldwide",
+        "plume de geai",
+        "jay feather",
+        "diagramme / technical chart",
+        "plume de geai / jay feather / pluma de jay",
+        "dmc library - bibliothèque dmc",
+        "B5200",
+        "D225",
+        "utiliser 2 brins",
+        "use 2 strands",
+        "usar 2 hebras",
+        "point de croix",
+        "cross stitch",
+        "punto cruz",
+        "point arrière",
+        "back stitch",
+        "punto atrás",
+        "utiliser 1 brin",
+        "use 1 strand",
+        "usar 1 hebra",
+        "B5200",
+        "D225",
+        "dmc mouliné spécial art.117",
+        "dmc diamant art.380",
+        "dmc mouliné spécial art.117",
+        "B5200",
+        "453",
+        "3860",
+        "09",
+        "3799",
+        "E334",
+        "E3843",
+        "E825",
+        "D225",
+        "point arrière",
+        "backstitch",
+        "punto atrás",
+        "point de croix",
+        "cross stitch",
+        "punto cruz",
+        "Utilisez 1 brin",
+        "Use 1 strand",
+        "Utilizar 1 hebra",
+        "Utilisez 2 brins",
+        "Use 2 strands",
+        "Utilizar 2 hebras",
+        "points / stitches / puntos",
+        "B5200",
+        "3860",
+        "453",
+        "09",
+        "3799",
+        "E334",
+        "E825",
+        "E3843",
+        "D225",
+        "B5200",
+        "D225",
+        "* 1 skein in each colour / 1 écheveau de chaque couleur",
+        "* 1 skein in each colour / 1 écheveau de chaque couleur"
+      ],
+      "singleCharSample": [
+        {
+          "ch": "/",
+          "font": "g_d1_f4",
+          "x": 217.53,
+          "y": 29.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d1_f3",
+          "x": 309.53,
+          "y": 29.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d1_f4",
+          "x": 207.62,
+          "y": 18.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d1_f3",
+          "x": 282,
+          "y": 18.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d1_f3",
+          "x": 340.44,
+          "y": 18.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d1_f3",
+          "x": 411.54,
+          "y": 18.98,
+          "fs": 7
+        },
+        {
+          "ch": "®",
+          "font": "g_d1_f9",
+          "x": 203.02,
+          "y": 216.13,
+          "fs": 12.204
+        },
+        {
+          "ch": "w",
+          "font": "g_d1_f7",
+          "x": 370.98,
+          "y": 215.81,
+          "fs": 10
+        }
+      ],
+      "fontsUsed": [
+        "g_d1_f2",
+        "g_d1_f3",
+        "g_d1_f1",
+        "g_d1_f4",
+        "g_d1_f6",
+        "g_d1_f7",
+        "g_d1_f8",
+        "g_d1_f9"
+      ]
+    }
+  ]
+}

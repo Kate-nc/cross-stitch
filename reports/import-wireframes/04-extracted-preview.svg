@@ -1,0 +1,167 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 640" font-family="ui-sans-serif, system-ui, sans-serif">
+  <style>
+    .bg { fill: #F5F1E8; }
+    .surface { fill: #FFFFFF; stroke: #D9D0BE; }
+    .ink { fill: #1F1A14; }
+    .ink2 { fill: #6B6359; }
+    .h1 { font-size: 22px; font-weight: 600; }
+    .h2 { font-size: 14px; font-weight: 600; }
+    .body { font-size: 13px; }
+    .caption { font-size: 11px; }
+    .badge { font-size: 11px; font-weight: 600; }
+    .accent { fill: #B8553F; }
+    .btn { fill: #B8553F; }
+    .btnText { fill: #FFFFFF; font-size: 13px; font-weight: 600; }
+    .ghostBtn { fill: #FFFFFF; stroke: #D9D0BE; }
+    .ghostBtnTxt { fill: #1F1A14; font-size: 13px; font-weight: 500; }
+  </style>
+
+  <rect class="bg" width="960" height="640"/>
+
+  <!-- Top bar -->
+  <g>
+    <text x="40" y="40" class="ink2 caption" style="cursor:pointer">← Cancel</text>
+    <text x="40" y="70" class="ink h1">Importing PAT1968_2.pdf</text>
+    <text x="40" y="92" class="ink2 body">DMC pattern · 80 × 80 · 12 colours · 6,394 stitches</text>
+
+    <!-- confidence pip -->
+    <g transform="translate(40,104)">
+      <circle cx="6" cy="6" r="4" fill="#527A3D"/><circle cx="18" cy="6" r="4" fill="#527A3D"/>
+      <circle cx="30" cy="6" r="4" fill="#527A3D"/><circle cx="42" cy="6" r="4" fill="#527A3D"/>
+      <circle cx="54" cy="6" r="4" fill="#527A3D"/><circle cx="66" cy="6" r="4" fill="#527A3D"/>
+      <circle cx="78" cy="6" r="4" fill="#527A3D"/><circle cx="90" cy="6" r="4" fill="#527A3D"/>
+      <circle cx="102" cy="6" r="4" fill="#527A3D"/><circle cx="114" cy="6" r="4" fill="#D9D0BE"/>
+      <text x="128" y="10" class="ink2 caption">92% confident</text>
+    </g>
+
+    <rect class="ghostBtn" x="700" y="60" width="100" height="36" rx="8" stroke-width="1"/>
+    <text x="750" y="83" text-anchor="middle" class="ghostBtnTxt">Inspect parse</text>
+    <rect class="btn" x="810" y="60" width="130" height="36" rx="8"/>
+    <text x="875" y="83" text-anchor="middle" class="btnText">Import pattern</text>
+  </g>
+
+  <!-- Pattern preview pane -->
+  <rect class="surface" x="40" y="140" width="540" height="460" rx="10" stroke-width="1"/>
+  <text x="60" y="166" class="ink h2">Extracted pattern</text>
+  <text x="560" y="166" text-anchor="end" class="ink2 caption">80 × 80 cells</text>
+
+  <!-- pattern grid (mock 80x80 -> draw scaled 60x60 area as grid of squares) -->
+  <g transform="translate(70,180)">
+    <!-- background fabric -->
+    <rect x="0" y="0" width="480" height="400" fill="#FAF6EC" stroke="#D9D0BE"/>
+    <!-- pseudo-random pattern: 40x40 grid of 12-px cells = 480x480; here scaled to 480x400 (40 rows of 10px... let's do 40x40 of 12x10) -->
+    <g>
+      <!-- decorative floral mock using six colours -->
+      <!-- center bouquet -->
+      <g fill="#B8553F">
+        <rect x="200" y="100" width="12" height="12"/><rect x="212" y="100" width="12" height="12"/>
+        <rect x="188" y="112" width="12" height="12"/><rect x="200" y="112" width="12" height="12"/><rect x="212" y="112" width="12" height="12"/><rect x="224" y="112" width="12" height="12"/>
+        <rect x="200" y="124" width="12" height="12"/><rect x="212" y="124" width="12" height="12"/>
+      </g>
+      <g fill="#C97D2C">
+        <rect x="248" y="124" width="12" height="12"/><rect x="260" y="124" width="12" height="12"/>
+        <rect x="236" y="136" width="12" height="12"/><rect x="248" y="136" width="12" height="12"/><rect x="260" y="136" width="12" height="12"/>
+      </g>
+      <g fill="#2E5266">
+        <rect x="152" y="148" width="12" height="12"/><rect x="164" y="148" width="12" height="12"/><rect x="176" y="160" width="12" height="12"/>
+      </g>
+      <g fill="#527A3D">
+        <rect x="200" y="160" width="12" height="12"/><rect x="212" y="172" width="12" height="12"/><rect x="224" y="184" width="12" height="12"/>
+        <rect x="188" y="184" width="12" height="12"/><rect x="200" y="196" width="12" height="12"/><rect x="212" y="208" width="12" height="12"/>
+        <rect x="176" y="220" width="12" height="12"/><rect x="188" y="232" width="12" height="12"/><rect x="200" y="244" width="12" height="12"/>
+        <rect x="200" y="256" width="12" height="12"/><rect x="212" y="268" width="12" height="12"/>
+      </g>
+      <g fill="#1F1A14">
+        <rect x="120" y="296" width="12" height="12"/><rect x="132" y="296" width="12" height="12"/><rect x="144" y="296" width="12" height="12"/>
+        <rect x="156" y="308" width="12" height="12"/><rect x="168" y="320" width="12" height="12"/>
+        <rect x="312" y="296" width="12" height="12"/><rect x="324" y="296" width="12" height="12"/><rect x="336" y="296" width="12" height="12"/>
+      </g>
+      <g fill="#666"><!-- DMC 666 pseudo -->
+        <rect x="60" y="60" width="12" height="12"/><rect x="72" y="72" width="12" height="12"/>
+        <rect x="396" y="60" width="12" height="12"/><rect x="384" y="72" width="12" height="12"/>
+      </g>
+    </g>
+
+    <!-- Confidence overlay: ring around 6 cells (warning colour) -->
+    <g fill="none" stroke="#C97D2C" stroke-width="2">
+      <rect x="248" y="124" width="12" height="12"/>
+      <rect x="260" y="124" width="12" height="12"/>
+      <rect x="236" y="136" width="12" height="12"/>
+      <rect x="120" y="296" width="12" height="12"/>
+      <rect x="132" y="296" width="12" height="12"/>
+      <rect x="144" y="296" width="12" height="12"/>
+    </g>
+  </g>
+
+  <text x="80" y="612" class="ink2 caption">Show original</text>
+  <text x="180" y="612" class="ink2 caption">Inspect cell</text>
+  <text x="280" y="612" class="ink2 caption">Toggle confidence overlay</text>
+
+  <!-- Sidebar: palette + metadata -->
+  <rect class="surface" x="600" y="140" width="320" height="460" rx="10" stroke-width="1"/>
+  <text x="620" y="166" class="ink h2">Palette · 12 colours</text>
+
+  <g transform="translate(620,184)" class="body">
+    <!-- 7 visible rows -->
+    <g>
+      <rect x="0" y="0" width="14" height="14" fill="#1F1A14"/>
+      <text x="22" y="12" class="ink">310 · Black</text>
+      <text x="280" y="12" text-anchor="end" class="ink2">1244</text>
+    </g>
+    <g transform="translate(0,22)">
+      <rect x="0" y="0" width="14" height="14" fill="#2E5266"/>
+      <text x="22" y="12" class="ink">3750 · Antique Blue</text>
+      <text x="280" y="12" text-anchor="end" class="ink2">802</text>
+    </g>
+    <g transform="translate(0,44)">
+      <rect x="0" y="0" width="14" height="14" fill="#B8553F"/>
+      <text x="22" y="12" class="ink">666 · Bright Red</text>
+      <text x="280" y="12" text-anchor="end" class="ink2">614</text>
+      <circle cx="262" cy="7" r="5" fill="#C97D2C"/>
+    </g>
+    <g transform="translate(0,66)">
+      <rect x="0" y="0" width="14" height="14" fill="#C97D2C"/>
+      <text x="22" y="12" class="ink">740 · Tangerine</text>
+      <text x="280" y="12" text-anchor="end" class="ink2">412</text>
+    </g>
+    <g transform="translate(0,88)">
+      <rect x="0" y="0" width="14" height="14" fill="#527A3D"/>
+      <text x="22" y="12" class="ink">911 · Emerald</text>
+      <text x="280" y="12" text-anchor="end" class="ink2">388</text>
+    </g>
+    <g transform="translate(0,110)">
+      <rect x="0" y="0" width="14" height="14" fill="#FFFFFF" stroke="#D9D0BE"/>
+      <text x="22" y="12" class="ink">B5200 · Snow White</text>
+      <text x="280" y="12" text-anchor="end" class="ink2">320</text>
+      <circle cx="262" cy="7" r="5" fill="#C97D2C"/>
+    </g>
+    <g transform="translate(0,132)">
+      <rect x="0" y="0" width="14" height="14" fill="#E8C9A8"/>
+      <text x="22" y="12" class="ink">945 · Tawny</text>
+      <text x="280" y="12" text-anchor="end" class="ink2">280</text>
+    </g>
+    <g transform="translate(0,154)">
+      <text x="0" y="12" class="ink2 caption">5 more · scroll for all</text>
+    </g>
+  </g>
+
+  <!-- Metadata -->
+  <line x1="616" y1="380" x2="900" y2="380" stroke="#EFE7D6"/>
+  <text x="620" y="402" class="ink h2">Pattern info</text>
+  <g transform="translate(620,418)" class="body">
+    <text x="0" y="14" class="ink2">Title</text>
+    <text x="280" y="14" text-anchor="end" class="ink">Bouquet Floral</text>
+    <text x="0" y="36" class="ink2">Designer</text>
+    <text x="280" y="36" text-anchor="end" class="ink">DMC Studio</text>
+    <text x="0" y="58" class="ink2">Fabric</text>
+    <text x="280" y="58" text-anchor="end" class="ink">14ct Aida (B3499)</text>
+    <text x="0" y="80" class="ink2">Finished size</text>
+    <text x="280" y="80" text-anchor="end" class="ink">14.5 × 14.5 cm</text>
+    <text x="0" y="102" class="ink2">Languages</text>
+    <text x="280" y="102" text-anchor="end" class="ink">EN · FR · ES</text>
+  </g>
+
+  <!-- Warnings banner -->
+  <rect x="616" y="552" width="288" height="38" rx="8" fill="#FBEFD7" stroke="#C97D2C"/>
+  <text x="630" y="576" class="ink body">2 colours need a quick check →</text>
+</svg>

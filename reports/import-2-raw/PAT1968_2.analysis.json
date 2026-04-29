@@ -1,0 +1,505 @@
+{
+  "file": "TestUploads/PAT1968_2.pdf",
+  "numPages": 4,
+  "info": {
+    "PDFFormatVersion": "1.7",
+    "Language": "en-GB",
+    "EncryptFilterName": null,
+    "IsLinearized": true,
+    "IsAcroFormPresent": false,
+    "IsXFAPresent": false,
+    "IsCollectionPresent": false,
+    "IsSignaturesPresent": false,
+    "CreationDate": "D:20231103143612Z",
+    "Creator": "Adobe InDesign 19.0 (Macintosh)",
+    "ModDate": "D:20231103143615Z",
+    "Producer": "Adobe PDF Library 17.0",
+    "Trapped": {
+      "name": "False"
+    }
+  },
+  "metadata": {
+    "xmp:createdate": "2023-11-03T14:36:12Z",
+    "xmp:metadatadate": "2023-11-03T14:36:15Z",
+    "xmp:modifydate": "2023-11-03T14:36:15Z",
+    "xmp:creatortool": "Adobe InDesign 19.0 (Macintosh)",
+    "xmpmm:instanceid": "uuid:4bf877b4-c0f2-3840-91fa-4130d4ec6be5",
+    "xmpmm:originaldocumentid": "xmp.did:1cc6cb69-11f5-4a44-9dea-4c2dbf5ff426",
+    "xmpmm:documentid": "xmp.id:1536255b-cae0-4b67-8409-f21dd762eb0c",
+    "xmpmm:renditionclass": "proof:pdf",
+    "xmpmm:derivedfrom": "xmp.iid:552c9913-8a6a-496e-b76a-e26b94414d06xmp.did:f9252e46-17c1-004e-8a69-0503c54bf1d4xmp.did:1cc6cb69-11f5-4a44-9dea-4c2dbf5ff426default",
+    "xmpmm:history": "convertedfrom application/x-indesign to application/pdfAdobe InDesign 19.0 (Macintosh)/2023-11-03T14:36:12Z",
+    "dc:format": "application/pdf",
+    "pdf:producer": "Adobe PDF Library 17.0",
+    "pdf:trapped": "False"
+  },
+  "pages": [
+    {
+      "pageNum": 1,
+      "viewport": {
+        "width": 595.3,
+        "height": 841.9
+      },
+      "counts": {
+        "textItems": 34,
+        "singleChars": 3,
+        "longText": 16,
+        "lineOps": 24513,
+        "rectOps": 6334,
+        "curveOps": 257,
+        "fillOps": 8072,
+        "strokeOps": 5356,
+        "images": 0
+      },
+      "opSummary": {
+        "beginText": 3,
+        "setFillRGBColor": 5880,
+        "setGState": 7,
+        "dependency": 4,
+        "setFont": 16,
+        "setCharSpacing": 6,
+        "setWordSpacing": 4,
+        "setTextMatrix": 14,
+        "showText": 21,
+        "moveText": 2,
+        "endText": 3,
+        "setStrokeRGBColor": 636,
+        "setLineWidth": 8,
+        "setMiterLimit": 3,
+        "save": 7164,
+        "transform": 7129,
+        "constructPath": 13464,
+        "stroke": 5356,
+        "restore": 7164,
+        "fill": 8072,
+        "clip": 35,
+        "endPath": 35,
+        "beginMarkedContentProps": 1,
+        "setLineCap": 3,
+        "endMarkedContent": 1
+      },
+      "images": [],
+      "longTextSample": [
+        "moonlight",
+        "fleurs lunaires",
+        "coloured cross stitch chart",
+        "diagramme pont de croix en couleurs",
+        "1/4",
+        "www.dmc.com © 2023",
+        "/ all rights reserved worldwide",
+        "dmc library - bibliothèque dmc",
+        "More free patterns and tutorials / Diagrammes, motifs et tutoriels /",
+        "www.dmc.com",
+        "Share your creations",
+        "Partagez vos créations",
+        "#dmcthreads",
+        "Join our community",
+        "Rejoignez notre communauté /",
+        "facebook - pinterest - instagram - youtube"
+      ],
+      "singleCharSample": [
+        {
+          "ch": "/",
+          "font": "g_d0_f4",
+          "x": 283.79,
+          "y": 29.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d0_f3",
+          "x": 356.14,
+          "y": 29.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d0_f4",
+          "x": 217.53,
+          "y": 18.98,
+          "fs": 7
+        }
+      ],
+      "fontsUsed": [
+        "g_d0_f1",
+        "g_d0_f2",
+        "g_d0_f3",
+        "g_d0_f4"
+      ]
+    },
+    {
+      "pageNum": 2,
+      "viewport": {
+        "width": 595.3,
+        "height": 841.9
+      },
+      "counts": {
+        "textItems": 33,
+        "singleChars": 3,
+        "longText": 15,
+        "lineOps": 24513,
+        "rectOps": 983,
+        "curveOps": 257,
+        "fillOps": 2727,
+        "strokeOps": 2714,
+        "images": 0
+      },
+      "opSummary": {
+        "setStrokeRGBColor": 3,
+        "setLineWidth": 7,
+        "setMiterLimit": 3,
+        "setGState": 7,
+        "save": 9924,
+        "transform": 9895,
+        "constructPath": 5470,
+        "stroke": 2714,
+        "restore": 9924,
+        "beginText": 2,
+        "setFillRGBColor": 7,
+        "dependency": 4,
+        "setFont": 16,
+        "setCharSpacing": 6,
+        "setWordSpacing": 4,
+        "setTextMatrix": 14,
+        "showText": 21,
+        "endText": 2,
+        "fill": 2727,
+        "clip": 29,
+        "endPath": 29,
+        "moveText": 1,
+        "beginMarkedContentProps": 1,
+        "setLineCap": 2,
+        "endMarkedContent": 1
+      },
+      "images": [],
+      "longTextSample": [
+        "2/4",
+        "dmc library - bibliothèque dmc",
+        "More free patterns and tutorials / Diagrammes, motifs et tutoriels /",
+        "www.dmc.com",
+        "Share your creations",
+        "Partagez vos créations",
+        "#dmcthreads",
+        "Join our community",
+        "Rejoignez notre communauté /",
+        "facebook - pinterest - instagram - youtube",
+        "www.dmc.com © 2023",
+        "/ all rights reserved worldwide",
+        "moonlight",
+        "fleurs lunaires",
+        "cross stitch chart - diagramme pont de croix"
+      ],
+      "singleCharSample": [
+        {
+          "ch": "/",
+          "font": "g_d0_f4",
+          "x": 283.79,
+          "y": 29.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d0_f3",
+          "x": 356.14,
+          "y": 29.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d0_f4",
+          "x": 217.53,
+          "y": 18.98,
+          "fs": 7
+        }
+      ],
+      "fontsUsed": [
+        "g_d0_f2",
+        "g_d0_f3",
+        "g_d0_f1",
+        "g_d0_f4"
+      ]
+    },
+    {
+      "pageNum": 3,
+      "viewport": {
+        "width": 595.3,
+        "height": 841.9
+      },
+      "counts": {
+        "textItems": 61,
+        "singleChars": 4,
+        "longText": 39,
+        "lineOps": 179,
+        "rectOps": 5,
+        "curveOps": 197,
+        "fillOps": 22,
+        "strokeOps": 2,
+        "images": 0
+      },
+      "opSummary": {
+        "beginText": 3,
+        "setFillRGBColor": 5,
+        "setGState": 7,
+        "dependency": 4,
+        "setFont": 17,
+        "setCharSpacing": 10,
+        "setTextMatrix": 19,
+        "showText": 46,
+        "moveText": 21,
+        "setWordSpacing": 7,
+        "endText": 3,
+        "setStrokeRGBColor": 1,
+        "setLineWidth": 1,
+        "setMiterLimit": 1,
+        "save": 27,
+        "transform": 23,
+        "constructPath": 28,
+        "stroke": 2,
+        "restore": 27,
+        "fill": 22,
+        "clip": 4,
+        "endPath": 4
+      },
+      "images": [],
+      "longTextSample": [
+        "tool kit",
+        "fournitures",
+        "PEARL COTTON ART. 115ar/8 / COTON PERLÉ ART. 115ar/8",
+        "METALLIC PEARL ART. 315 / PERLÉ METALISÉ ART. 315",
+        "CROSS STITCH FABRIC / AIDA 14ct - GD1436BXA COL.336 / TOILE AIDA 5,5 PTS/CM GD1436BXA COL.336",
+        "CROSS STITCH NEEDLE / AIGUILLE",
+        "EMBROIDERY HOOP (OPTIONAL) / TAMBOUR (OPTIONNEL)",
+        "SCISSORS / CISEAUX",
+        "DESIGN SIZE / DIMENSIONS DESSIN",
+        "18 cm / 7 ‘‘",
+        "the size of your design depends on the cross stitch fabric",
+        "you choose. the higher the fabric’s “count ”",
+        "(ie number of cross stitches per inch), the smaller",
+        "the stitches and therefore your design. we recommend",
+        "beginners start with 14 count aida (the most common cross",
+        "stitch fabric), which is what we have based our design size on.",
+        "la taille de votre dessin dépend de la toile point",
+        "de croix que vous choisissez.",
+        "plus le nombre de point de croix par centimè tre",
+        "est élevé, plus les points e t la broderie seront pe tits.",
+        "nous recommandons aux débutants de commencer",
+        "en utilisant une toile aida 5,5 p ts/cm (la toile",
+        "de point de croix la plus utilisée), sur laquelle nous",
+        "avons basé notre dessin.",
+        "moonlight",
+        "fleurs lunaires",
+        "getting started - commencer",
+        "3/4",
+        "dmc library - bibliothèque dmc",
+        "More free patterns and tutorials / Diagrammes, motifs et tutoriels /",
+        "www.dmc.com",
+        "Share your creations",
+        "Partagez vos créations",
+        "#dmcthreads",
+        "Join our community",
+        "Rejoignez notre communauté /",
+        "facebook - pinterest - instagram - youtube",
+        "www.dmc.com © 2023",
+        "/ all rights reserved worldwide"
+      ],
+      "singleCharSample": [
+        {
+          "ch": "/",
+          "font": "g_d0_f2",
+          "x": 97.85,
+          "y": 703.2,
+          "fs": 12
+        },
+        {
+          "ch": "/",
+          "font": "g_d0_f4",
+          "x": 283.79,
+          "y": 29.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d0_f3",
+          "x": 356.14,
+          "y": 29.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d0_f4",
+          "x": 217.53,
+          "y": 18.98,
+          "fs": 7
+        }
+      ],
+      "fontsUsed": [
+        "g_d0_f2",
+        "g_d0_f3",
+        "g_d0_f1",
+        "g_d0_f4"
+      ]
+    },
+    {
+      "pageNum": 4,
+      "viewport": {
+        "width": 595.3,
+        "height": 841.9
+      },
+      "counts": {
+        "textItems": 88,
+        "singleChars": 7,
+        "longText": 57,
+        "lineOps": 393,
+        "rectOps": 111,
+        "curveOps": 273,
+        "fillOps": 103,
+        "strokeOps": 114,
+        "images": 0
+      },
+      "opSummary": {
+        "setStrokeRGBColor": 30,
+        "setMiterLimit": 6,
+        "setGState": 25,
+        "constructPath": 233,
+        "stroke": 114,
+        "beginText": 8,
+        "setFillRGBColor": 52,
+        "dependency": 7,
+        "setFont": 21,
+        "setTextMatrix": 29,
+        "showText": 68,
+        "moveText": 33,
+        "setCharSpacing": 15,
+        "setWordSpacing": 14,
+        "endText": 8,
+        "setLineWidth": 24,
+        "save": 138,
+        "transform": 122,
+        "restore": 138,
+        "clip": 16,
+        "endPath": 16,
+        "setLineCap": 10,
+        "fill": 99,
+        "fillStroke": 4,
+        "setLineJoin": 3
+      },
+      "images": [],
+      "longTextSample": [
+        "x1",
+        "x1",
+        "x1",
+        "x1",
+        "x1",
+        "x1",
+        "x1",
+        "310",
+        "930",
+        "932",
+        "5852",
+        "5310",
+        "5283",
+        "5317",
+        "symbol",
+        "symbole",
+        "dmc coton perlé",
+        "115ar/8 - dmc perlé metallisé 315",
+        "colour",
+        "couleur",
+        "nº skeins*",
+        "d’échevettes*",
+        "4/4",
+        "stitches and colours you’ll use",
+        "légende : points et couleurs",
+        "cross stitch",
+        "point de croix",
+        "dmc library - bibliothèque dmc",
+        "More free patterns and tutorials / Diagrammes, motifs et tutoriels /",
+        "www.dmc.com",
+        "Share your creations",
+        "Partagez vos créations",
+        "#dmcthreads",
+        "Join our community",
+        "Rejoignez notre communauté /",
+        "facebook - pinterest - instagram - youtube",
+        "www.dmc.com © 2023",
+        "/ all rights reserved worldwide",
+        "moonlight",
+        "fleurs lunaires",
+        "getting started - commencer",
+        "symbol",
+        "symbole",
+        "colour",
+        "couleur",
+        "nº skeins*",
+        "d’échevettes*",
+        "5310",
+        "symbol",
+        "symbole",
+        "dmc perlé metallisé 315",
+        "colour",
+        "couleur",
+        "backstitch",
+        "point arrière",
+        "Use 3 strands - Utiliser 3 brins",
+        "* Based on stitching with the number of strands shown above, onto 14 count Aida. / * Basé sur le nombre de brins préconisé au-dessus, sur une toile Aida 5,5 pts/cm."
+      ],
+      "singleCharSample": [
+        {
+          "ch": "n",
+          "font": "g_d0_f2",
+          "x": 202.59,
+          "y": 507.94,
+          "fs": 7
+        },
+        {
+          "ch": "o",
+          "font": "g_d0_f2",
+          "x": 207.38,
+          "y": 510.28,
+          "fs": 4.081
+        },
+        {
+          "ch": "/",
+          "font": "g_d0_f4",
+          "x": 283.79,
+          "y": 29.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d0_f3",
+          "x": 356.14,
+          "y": 29.98,
+          "fs": 7
+        },
+        {
+          "ch": "/",
+          "font": "g_d0_f4",
+          "x": 217.53,
+          "y": 18.98,
+          "fs": 7
+        },
+        {
+          "ch": "n",
+          "font": "g_d0_f2",
+          "x": 458.73,
+          "y": 508.82,
+          "fs": 7
+        },
+        {
+          "ch": "o",
+          "font": "g_d0_f2",
+          "x": 463.53,
+          "y": 511.15,
+          "fs": 4.081
+        }
+      ],
+      "fontsUsed": [
+        "g_d0_f3",
+        "g_d0_f2",
+        "g_d0_f1",
+        "g_d0_f4"
+      ]
+    }
+  ]
+}
