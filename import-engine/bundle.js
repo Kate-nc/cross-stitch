@@ -2963,6 +2963,32 @@
     if (!project.createdAt) project.createdAt = now;
     if (!project.v) project.v = 8;
     if (!project.name) project.name = 'Imported pattern';
+
+    // Sanity-check the project shape BEFORE we save: the Creator boot
+    // path requires both project.pattern (an array) and project.settings
+    // (an object). Without these the editor silently shows the welcome
+    // card after navigation, which looks like the import failed.
+    var shape = {
+      hasPattern: !!project.pattern,
+      patternIsArray: Array.isArray(project.pattern),
+      patternLen: Array.isArray(project.pattern) ? project.pattern.length : null,
+      hasSettings: !!project.settings,
+      settingsKeys: project.settings ? Object.keys(project.settings) : null,
+      w: project.w, h: project.h, name: project.name, id: project.id,
+    };
+    try { console.log('[import] saving project:', shape); } catch (_) {}
+    if (!Array.isArray(project.pattern) || !project.pattern.length) {
+      var emptyMsg = 'The imported pattern has no cells — nothing to save. The source file may be unsupported.';
+      console.error('[import] project has no pattern array; aborting save:', shape);
+      showImportError({ message: emptyMsg });
+      return Promise.reject(new Error(emptyMsg));
+    }
+    if (!project.settings || typeof project.settings !== 'object') {
+      var noSettingsMsg = 'The imported pattern is missing settings (sW/sH/fabricCt). It cannot be opened.';
+      console.error('[import] project has no settings; aborting save:', shape);
+      showImportError({ message: noSettingsMsg });
+      return Promise.reject(new Error(noSettingsMsg));
+    }
     // Set the active-project pointer BEFORE the async save resolves so
     // any concurrent reload still picks up the new project. The tracker's
     // boot path reads localStorage synchronously and then awaits the
@@ -2972,30 +2998,48 @@
       else localStorage.setItem('crossstitch_active_project', id);
     } catch (_) {}
     return Promise.resolve(storage.save(project)).then(function () {
-      // Always confirm the import succeeded. Even when we navigate, the
-      // toast queue persists across the page transition for the
-      // destination page to surface.
-      showImportToast(project);
-      // Always navigate to the destination on success. The new project is
-      // recorded as the active project (above), so the destination page
-      // will load it fresh on boot — including the case where the user
-      // triggered the import from the destination page itself (e.g.
-      // importing a PDF from inside the Creator), where a reload is
-      // required to swap the running React state for the new project.
-      // Callers that want to suppress navigation can pass
-      // { navigate: false }; callers that want to skip same-page reloads
-      // (e.g. an import from /home that should refresh the library list
-      // in place rather than reload) can pass { navigateTo: 'home.html' }
-      // and rely on the cs:projectsChanged event combined with the
-      // same-page check below.
-      if (nav) {
-        var skipSamePage = opts.skipSamePageNav === true
-          || (opts.navigateTo && isCurrentPage(opts.navigateTo) && /home\.html/i.test(opts.navigateTo));
-        if (!skipSamePage) {
-          window.location.href = destination;
+      try { console.log('[import] storage.save resolved for id:', id); } catch (_) {}
+      // Post-save sanity check: read the project back from IDB to confirm
+      // it really is there. If listProjects/get returns nothing the user
+      // would see the welcome card after navigation with no clue why —
+      // surface it loudly here instead.
+      var verify = (typeof storage.get === 'function')
+        ? Promise.resolve(storage.get(id))
+        : Promise.resolve(null);
+      return verify.then(function (rt) {
+        try { console.log('[import] post-save read-back:', rt ? { id: rt.id, hasPattern: !!rt.pattern, patternLen: rt.pattern && rt.pattern.length, hasSettings: !!rt.settings } : null); } catch (_) {}
+        if (!rt || !rt.pattern || !rt.settings) {
+          console.error('[import] read-back failed or project is malformed in IDB:', rt);
+          // Don't throw — the toast warns the user and we still navigate
+          // so they can see the empty editor and try again.
+          try {
+            if (window.Toast && typeof window.Toast.show === 'function') {
+              window.Toast.show({
+                message: 'Saved the pattern but it could not be read back from storage. The editor may show as empty — please try importing again.',
+                type: 'warning',
+                duration: 10000,
+              });
+            }
+          } catch (_) {}
+        } else {
+          showImportToast(project);
         }
-      }
-      return { action: 'confirm', project: project, id: id };
+        // Always navigate to the destination on success. The new project is
+        // recorded as the active project (above), so the destination page
+        // will load it fresh on boot — including the case where the user
+        // triggered the import from the destination page itself (e.g.
+        // importing a PDF from inside the Creator), where a reload is
+        // required to swap the running React state for the new project.
+        if (nav) {
+          var skipSamePage = opts.skipSamePageNav === true
+            || (opts.navigateTo && isCurrentPage(opts.navigateTo) && /home\.html/i.test(opts.navigateTo));
+          if (!skipSamePage) {
+            try { console.log('[import] navigating to:', destination); } catch (_) {}
+            window.location.href = destination;
+          }
+        }
+        return { action: 'confirm', project: project, id: id };
+      });
     }).catch(function (err) {
       // Save failed — clear the active pointer so the user isn't stranded
       // pointing at a project that doesn't exist in the store.

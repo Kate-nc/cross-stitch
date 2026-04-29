@@ -498,10 +498,65 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (typeof ProjectStorage !== "undefined") {
       var activeId = ProjectStorage.getActiveProjectId();
       if (activeId) {
+        try { console.log('[creator-boot] active project pointer:', activeId); } catch(_) {}
         ProjectStorage.get(activeId).then(function(project3) {
-          if (project3 && project3.pattern && project3.settings && !state.userActedRef.current) {
-            processLoadedProject(project3);
+          if (!project3) {
+            try { console.warn('[creator-boot] active project not found in IDB:', activeId); } catch(_) {}
+            try {
+              if (window.Toast && window.Toast.show) {
+                window.Toast.show({
+                  message: 'The active pattern (' + activeId + ') could not be loaded — it is missing from storage. Returning to the home page so you can pick another.',
+                  type: 'error',
+                  duration: 8000,
+                });
+              }
+            } catch(_) {}
+            try { ProjectStorage.clearActiveProject(); } catch(_) {}
+            return;
           }
+          if (!project3.pattern || !Array.isArray(project3.pattern) || !project3.settings) {
+            try { console.warn('[creator-boot] active project is malformed:', { id: activeId, hasPattern: !!project3.pattern, patternIsArray: Array.isArray(project3.pattern), hasSettings: !!project3.settings }); } catch(_) {}
+            try {
+              if (window.Toast && window.Toast.show) {
+                window.Toast.show({
+                  message: 'The active pattern is missing required fields (pattern or settings). It cannot be opened in the editor.',
+                  type: 'error',
+                  duration: 8000,
+                });
+              }
+            } catch(_) {}
+            return;
+          }
+          if (state.userActedRef.current) {
+            try { console.warn('[creator-boot] skipping active project load — user already acted'); } catch(_) {}
+            return;
+          }
+          try {
+            try { console.log('[creator-boot] loading active project:', { id: project3.id, name: project3.name, w: project3.w, h: project3.h, patternLen: project3.pattern.length }); } catch(_) {}
+            processLoadedProject(project3);
+          } catch (err) {
+            try { console.error('[creator-boot] processLoadedProject threw:', err); } catch(_) {}
+            try {
+              if (window.Toast && window.Toast.show) {
+                window.Toast.show({
+                  message: 'Failed to load the imported pattern into the editor: ' + (err && err.message || err),
+                  type: 'error',
+                  duration: 10000,
+                });
+              }
+            } catch(_) {}
+          }
+        }).catch(function(err) {
+          try { console.error('[creator-boot] ProjectStorage.get failed:', err); } catch(_) {}
+          try {
+            if (window.Toast && window.Toast.show) {
+              window.Toast.show({
+                message: 'Could not read the active pattern from storage: ' + (err && err.message || err),
+                type: 'error',
+                duration: 8000,
+              });
+            }
+          } catch(_) {}
         });
         return;
       }

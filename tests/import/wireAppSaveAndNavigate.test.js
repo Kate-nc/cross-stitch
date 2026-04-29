@@ -36,6 +36,7 @@ function loadWireApp(href) {
   const saved = [];
   win.ProjectStorage = {
     save: jest.fn((p) => { saved.push(p); return Promise.resolve(p.id); }),
+    get: jest.fn((id) => Promise.resolve(saved.find((p) => p.id === id) || null)),
     setActiveProject: jest.fn(),
     clearActiveProject: jest.fn(),
     newId: () => 'proj_test_' + Math.random().toString(36).slice(2, 7),
@@ -54,8 +55,12 @@ function loadWireApp(href) {
 
 describe('wireApp.saveAndNavigate', () => {
   const baseProject = () => ({
-    v: 8, w: 10, h: 10, name: 'Test pattern',
-    pattern: [], settings: { fabricCt: 14 },
+    v: 8, w: 2, h: 2, name: 'Test pattern',
+    pattern: [
+      { id: '__skip__' }, { id: '__skip__' },
+      { id: '__skip__' }, { id: '__skip__' },
+    ],
+    settings: { sW: 2, sH: 2, fabricCt: 14 },
   });
 
   it('saves the pattern via ProjectStorage and resolves with its id', async () => {
