@@ -440,15 +440,42 @@ class PatternKeeperImporter {
      const hLines = [];
      const vLines = [];
 
+     // Page-furniture filter: reject lines whose endpoints are within 5pt of
+     // the page edge AND span > 80% of the page's width/height. These are
+     // almost always page borders, header/footer rules, or decorative frames
+     // — never the chart grid. Without this filter the bounding-box code
+     // below stretches the chart to the full page and pulls in legend rows,
+     // page numbers, and adjacent pattern variants as ghost cells.
+     const pw = page.width || 612;
+     const ph = page.height || 792;
+     const edgeMargin = 5;
+     const fullSpanFrac = 0.8;
+
      page.vectorPaths.forEach(p => {
         if (p.type === 'line' && p.points.length === 2) {
-           const dx = Math.abs(p.points[0].x - p.points[1].x);
-           const dy = Math.abs(p.points[0].y - p.points[1].y);
-           if (dx > 20 && dy < 2) hLines.push(p.points[0].y);
-           if (dy > 20 && dx < 2) vLines.push(p.points[0].x);
+           const x0 = p.points[0].x, x1 = p.points[1].x;
+           const y0 = p.points[0].y, y1 = p.points[1].y;
+           const dx = Math.abs(x0 - x1);
+           const dy = Math.abs(y0 - y1);
+           // Horizontal page-border / decorative rule
+           if (dx > 20 && dy < 2) {
+              const ay = (y0 + y1) / 2;
+              const isPageEdge = ay < edgeMargin || ay > ph - edgeMargin;
+              const spansPage = dx > pw * fullSpanFrac;
+              if (!(isPageEdge && spansPage)) hLines.push(y0);
+           }
+           // Vertical page-border / decorative rule
+           if (dy > 20 && dx < 2) {
+              const ax = (x0 + x1) / 2;
+              const isPageEdge = ax < edgeMargin || ax > pw - edgeMargin;
+              const spansPage = dy > ph * fullSpanFrac;
+              if (!(isPageEdge && spansPage)) vLines.push(x0);
+           }
         } else if (p.type === 'rect' && p.points.length >= 4) {
            const w = Math.abs(p.points[0].x - p.points[2].x);
            const h = Math.abs(p.points[0].y - p.points[2].y);
+           // Skip page-bounding rectangles entirely.
+           if (w > pw * fullSpanFrac && h > ph * fullSpanFrac) return;
            // Only count large rectangles as grid layout elements (ignore 2x2px cell fills)
            if (w > 20 || h > 20) {
                hLines.push(p.points[0].y, p.points[2].y);
@@ -496,53 +523,45 @@ class PatternKeeperImporter {
         cellHeight = valid[Math.floor(valid.length/2)] || 10;
      }
 
-     let originX = vClustered.length > 0 ? vClustered[0] : 50;
-     let originY = hClustered.length > 0 ? hClustered[0] : 50;
-
-     // Filter out stray lines (like page borders at 0,0) by finding the first contiguous sequence
-     if (vClustered.length > 3) {
-         for (let i = 0; i < vClustered.length - 2; i++) {
-             if (Math.abs((vClustered[i+1] - vClustered[i]) - cellWidth) < 2 &&
-                 Math.abs((vClustered[i+2] - vClustered[i+1]) - cellWidth) < 2) {
-                 originX = vClustered[i];
-                 break;
+     // Identify the dense band of grid lines by scoring each cluster on
+     // how many of its neighbours sit at the expected cell spacing. A
+     // cluster is "in-band" if either its previous OR next neighbour is
+     // within ±2pt of cellWidth. Outlier lines (page borders, legend
+     // separators, decorative rules) get rejected because their
+     // neighbours are far away. We then take the min/max of the in-band
+     // set as the bounding box, which is robust to occasional missing
+     // grid lines (which would otherwise truncate a "longest contiguous
+     // run" approach down to a corner of the chart).
+     function denseBounds(clustered, expectedSpacing) {
+         if (clustered.length < 2) return { lo: clustered[0] || 0, hi: clustered[clustered.length-1] || 0 };
+         const tol = Math.max(2, expectedSpacing * 0.25);
+         const inBand = [];
+         for (let i = 0; i < clustered.length; i++) {
+             const prev = i > 0 ? clustered[i] - clustered[i-1] : Infinity;
+             const next = i < clustered.length-1 ? clustered[i+1] - clustered[i] : Infinity;
+             // Accept if a direct neighbour matches, OR if the gap is an
+             // integer multiple (handles the occasional missing line).
+             function nearMultiple(d) {
+                 if (!isFinite(d)) return false;
+                 const k = Math.round(d / expectedSpacing);
+                 return k >= 1 && k <= 4 && Math.abs(d - k * expectedSpacing) < tol;
              }
+             if (nearMultiple(prev) || nearMultiple(next)) inBand.push(clustered[i]);
          }
+         if (inBand.length < 2) return { lo: clustered[0], hi: clustered[clustered.length-1] };
+         return { lo: inBand[0], hi: inBand[inBand.length-1] };
      }
 
-     if (hClustered.length > 3) {
-         for (let i = 0; i < hClustered.length - 2; i++) {
-             if (Math.abs((hClustered[i+1] - hClustered[i]) - cellHeight) < 2 &&
-                 Math.abs((hClustered[i+2] - hClustered[i+1]) - cellHeight) < 2) {
-                 originY = hClustered[i];
-                 break;
-             }
-         }
-     }
+     const vBounds = denseBounds(vClustered, cellWidth);
+     const hBounds = denseBounds(hClustered, cellHeight);
 
-     let endX = vClustered.length > 0 ? vClustered[vClustered.length-1] : page.width - 50;
-     let endY = hClustered.length > 0 ? hClustered[hClustered.length-1] : page.height - 50;
+     let originX = vBounds.lo;
+     let originY = hBounds.lo;
+     let endX    = vBounds.hi;
+     let endY    = hBounds.hi;
 
-     if (vClustered.length > 3) {
-         for (let i = vClustered.length - 1; i >= 2; i--) {
-             if (Math.abs((vClustered[i] - vClustered[i-1]) - cellWidth) < 2) {
-                 endX = vClustered[i];
-                 break;
-             }
-         }
-     }
-
-     if (hClustered.length > 3) {
-         for (let i = hClustered.length - 1; i >= 2; i--) {
-             if (Math.abs((hClustered[i] - hClustered[i-1]) - cellHeight) < 2) {
-                 endY = hClustered[i];
-                 break;
-             }
-         }
-     }
-
-     const cols = vClustered.length > 1 ? Math.round((endX - originX) / cellWidth) : Math.max(10, Math.floor((page.width - 100) / cellWidth));
-     const rows = hClustered.length > 1 ? Math.round((endY - originY) / cellHeight) : Math.max(10, Math.floor((page.height - 100) / cellHeight));
+     const cols = vClustered.length > 1 ? Math.max(1, Math.round((endX - originX) / cellWidth)) : Math.max(10, Math.floor((page.width - 100) / cellWidth));
+     const rows = hClustered.length > 1 ? Math.max(1, Math.round((endY - originY) / cellHeight)) : Math.max(10, Math.floor((page.height - 100) / cellHeight));
 
      return { originX, originY, cellWidth, cellHeight, columns: cols, rows: rows, boldLineInterval: 10 };
   }

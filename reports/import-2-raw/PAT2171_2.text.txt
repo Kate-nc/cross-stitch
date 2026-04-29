@@ -1,0 +1,75 @@
+# TestUploads/PAT2171_2.pdf  (3 pages)
+
+
+========== Page 1  (595.3 x 841.9)  ==========
+counts: text=113 singleChars=40 longText=17 lines=182 rects=9 curves=233 fills=24 strokes=7 images=2
+fonts: g_d1_f1, g_d1_f2, g_d1_f3, g_d1_f4
+
+--- Long text (first 80) ---
+plume de geai | jay feather | 1/3 | © www.dmc.com © 2025 / all rights reserved worldwide | dmc library - bibliothèque dmc | More free patterns and tutorials / Diagrammes, motifs et tutoriels / | www.dmc.com | Join our community | Rejoignez notre communauté | facebook - pinterest - instagram - youtube | Share your creations | Partagez vos créations | #dmcthreads | #dmcembroidery | #dmcfreepatterns | col. | 4015
+
+--- Single chars (first 30) ---
+"/"@217.53,29.98 fs=7 g_d1_f4
+"/"@309.53,29.98 fs=7 g_d1_f3
+"/"@207.62,18.98 fs=7 g_d1_f4
+"/"@282,18.98 fs=7 g_d1_f3
+"/"@340.44,18.98 fs=7 g_d1_f3
+"/"@411.54,18.98 fs=7 g_d1_f3
+"-"@547.58,740.21 fs=7.186 g_d1_f2
+"n"@555.27,736.67 fs=6.272 g_d1_f2
+"e"@560.79,732.57 fs=5.289 g_d1_f2
+"w"@564.9,728.29 fs=4.268 g_d1_f2
+"a"@570.21,719.37 fs=2.397 g_d1_f2
+"i"@572,713.73 fs=1.461 g_d1_f2
+"d"@572.75,710.45 fs=0.491 g_d1_f2
+"a"@573.11,703.9 fs=-0.687 g_d1_f2
+"c"@571.91,694.87 fs=-2.759 g_d1_f2
+"o"@569.69,688.85 fs=-3.951 g_d1_f2
+"l"@565.97,682.69 fs=-5.012 g_d1_f2
+"o"@562.87,678.8 fs=-5.928 g_d1_f2
+"u"@557.37,674.15 fs=-6.682 g_d1_f2
+"r"@551.43,670.67 fs=-7.322 g_d1_f2
+"-"@542.42,667.91 fs=-7.713 g_d1_f2
+"n"@533.98,667.26 fs=-7.688 g_d1_f2
+"o"@527.16,668.23 fs=-7.383 g_d1_f2
+"u"@520.34,670.53 fs=-6.776 g_d1_f2
+"v"@514.38,673.96 fs=-6.046 g_d1_f2
+"e"@509.88,677.57 fs=-5.152 g_d1_f2
+"l"@505.96,682 fs=-4.268 g_d1_f2
+"l"@503.24,686.14 fs=-3.455 g_d1_f2
+"e"@501.03,690.58 fs=-2.397 g_d1_f2
+"c"@498.63,699.37 fs=-0.491 g_d1_f2
+
+========== Page 2  (595.3 x 841.9)  ==========
+counts: text=123 singleChars=8 longText=54 lines=179 rects=7 curves=197 fills=22 strokes=2 images=0
+fonts: g_d1_f2, g_d1_f3, g_d1_f5, g_d1_f1, g_d1_f4
+
+--- Long text (first 80) ---
+tool kit | fournitures | dmc mouliné art. 117 embroidery thread / fils mouliné art. 117 dmc | dmc mouliné light effect thread art 317w / fils mouliné effet lumine art.317w | dmc diamant | aida 5,5 pts/cm - aida 14 ct - GD1436BXI col.4015 | cross stitch needle / aiguille | embroidery hoop (optional) / tambour (optionnel) | scissors / ciseaux | design size / dimensions dessin | 14 x 13 cm / 5.51 x 5.11 in | the size of your design depends on the cross stitch fabric | you choose. the higher the fabric’s “count ” | (ie number of cross stitches per inch), the smaller | the stitches and therefore your design. we recommend | beginners start with 14 | co u n t | a i da | (the most common cross | stitch fabric), which is | w h at | w e | h av e | b a s ed | o u r | d e s i g n | s i z e | o n | la taille de votre dessin dépend de la toile point | de croix que vous choisissez. | plus le nombre de point de croix par centimè tre | est élevé, plus les points e t la broderie seront pe tits. | nous recommandons aux débutants de commencer | en utilisant une toile aida 5,5 p ts/cm (la toile | de point de croix la plus utilisée), sur laquelle nous | avons basé notre dessin. | plume de geai | jay feather | getting started - | commencer | 2/3 | dmc library - bibliothèque dmc | More free patterns and tutorials / Diagrammes, motifs et tutoriels / | www.dmc.com | Join our community | Rejoignez notre communauté | facebook - pinterest - instagram - youtube | Share your creations | Partagez vos créations | #dmcthreads | #dmcembroidery | #dmcfreepatterns | © www.dmc.com © 2025 | / all rights reserved worldwide
+
+--- Single chars (first 30) ---
+"/"@97.85,703.2 fs=12 g_d1_f2
+"."@518.5,423.13 fs=16 g_d1_f3
+"/"@217.53,29.98 fs=7 g_d1_f4
+"/"@309.53,29.98 fs=7 g_d1_f3
+"/"@207.62,18.98 fs=7 g_d1_f4
+"/"@282,18.98 fs=7 g_d1_f3
+"/"@340.44,18.98 fs=7 g_d1_f3
+"/"@411.54,18.98 fs=7 g_d1_f3
+
+========== Page 3  (595.3 x 841.9)  ==========
+counts: text=141 singleChars=8 longText=73 lines=8803 rects=2696 curves=6066 fills=2864 strokes=1703 images=0
+fonts: g_d1_f2, g_d1_f3, g_d1_f1, g_d1_f4, g_d1_f6, g_d1_f7, g_d1_f8, g_d1_f9
+
+--- Long text (first 80) ---
+3/3 | dmc library - bibliothèque dmc | More free patterns and tutorials / Diagrammes, motifs et tutoriels / | www.dmc.com | Join our community | Rejoignez notre communauté | facebook - pinterest - instagram - youtube | Share your creations | Partagez vos créations | #dmcthreads | #dmcembroidery | #dmcfreepatterns | © www.dmc.com © 2025 | / all rights reserved worldwide | plume de geai | jay feather | diagramme / technical chart | plume de geai / jay feather / pluma de jay | dmc library - bibliothèque dmc | B5200 | D225 | utiliser 2 brins | use 2 strands | usar 2 hebras | point de croix | cross stitch | punto cruz | point arrière | back stitch | punto atrás | utiliser 1 brin | use 1 strand | usar 1 hebra | B5200 | D225 | dmc mouliné spécial art.117 | dmc diamant art.380 | dmc mouliné spécial art.117 | B5200 | 453 | 3860 | 09 | 3799 | E334 | E3843 | E825 | D225 | point arrière | backstitch | punto atrás | point de croix | cross stitch | punto cruz | Utilisez 1 brin | Use 1 strand | Utilizar 1 hebra | Utilisez 2 brins | Use 2 strands | Utilizar 2 hebras | points / stitches / puntos | B5200 | 3860 | 453 | 09 | 3799 | E334 | E825 | E3843 | D225 | B5200 | D225 | * 1 skein in each colour / 1 écheveau de chaque couleur | * 1 skein in each colour / 1 écheveau de chaque couleur
+
+--- Single chars (first 30) ---
+"/"@217.53,29.98 fs=7 g_d1_f4
+"/"@309.53,29.98 fs=7 g_d1_f3
+"/"@207.62,18.98 fs=7 g_d1_f4
+"/"@282,18.98 fs=7 g_d1_f3
+"/"@340.44,18.98 fs=7 g_d1_f3
+"/"@411.54,18.98 fs=7 g_d1_f3
+"®"@203.02,216.13 fs=12.204 g_d1_f9
+"w"@370.98,215.81 fs=10 g_d1_f7
