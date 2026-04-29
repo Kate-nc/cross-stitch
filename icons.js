@@ -244,6 +244,19 @@ window.Icons = (function() {
         p('M4 4l5 5')
       );
     },
+    // Adapt / substitute — circular swap around a centred spool. Used by the
+    // Stash-Adapt feature to mark adapted projects in the library and to
+    // label the entry-point button on the Project tab.
+    adapt: function() {
+      return svg(
+        // Top arc, arrow points right
+        p('M4 9a8 8 0 0 1 14-3'),
+        pl('18 3 18 7 14 7'),
+        // Bottom arc, arrow points left
+        p('M20 15a8 8 0 0 1-14 3'),
+        pl('6 21 6 17 10 17')
+      );
+    },
     // Dice — replaces 🎲
     dice: function() {
       return svg(

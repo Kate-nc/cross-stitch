@@ -1,0 +1,407 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Stash-Adapt — Approach A (Review Table)</title>
+<style>
+  :root{
+    --bg:#fafbfc; --surface:#fff; --line:#e3e6ec; --text:#1f2730; --muted:#5a6573;
+    --accent:#2a6ad6; --success:#1b8a4d; --warn:#c97200; --danger:#c63131; --chip:#eef2f8;
+    --r:6px;
+  }
+  body{margin:0;font:14px/1.45 system-ui,sans-serif;background:var(--bg);color:var(--text);}
+  h1,h2,h3{margin:0;}
+  .page{max-width:1280px;margin:0 auto;padding:24px;}
+  .section{background:var(--surface);border:1px solid var(--line);border-radius:8px;margin:0 0 28px;overflow:hidden;}
+  .section > header{background:#f3f5f9;padding:10px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;}
+  .section > header h2{font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+  .section > header .pill{font-size:11px;color:var(--muted);background:var(--chip);padding:3px 8px;border-radius:99px;}
+  .frame{padding:16px;}
+  /* ── shared bits ── */
+  .swatch{display:inline-block;width:18px;height:18px;border-radius:3px;border:1px solid rgba(0,0,0,.18);vertical-align:middle;}
+  .swatch.lg{width:26px;height:26px;}
+  .swatch.hollow{background:repeating-linear-gradient(45deg,#f7d7d7,#f7d7d7 3px,#fff 3px,#fff 6px);}
+  .qchip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 8px;border-radius:99px;}
+  .qchip .dot{width:8px;height:8px;border-radius:99px;display:inline-block;}
+  .q-exact,.q-close,.q-good{background:#e6f5ec;color:var(--success);} .q-exact .dot,.q-close .dot,.q-good .dot{background:var(--success);}
+  .q-fair{background:#fbeed6;color:var(--warn);} .q-fair .dot{background:var(--warn);}
+  .q-poor{background:#fbe1e1;color:var(--danger);} .q-poor .dot{background:var(--danger);}
+  .q-none{background:#fbe1e1;color:var(--danger);} .q-none .dot{background:transparent;border:1.5px solid var(--danger);}
+  .brand-badge{display:inline-block;font-size:10px;background:#3a4756;color:#fff;border-radius:2px;padding:1px 4px;margin-left:4px;font-weight:700;letter-spacing:.04em;}
+  .btn{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:13px;font-weight:500;padding:7px 12px;border:1px solid var(--line);background:#fff;border-radius:var(--r);cursor:pointer;color:var(--text);}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .btn.ghost{border-color:transparent;background:transparent;}
+  .btn.danger{color:var(--danger);}
+  .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;}
+  .seg button{font:inherit;font-size:12px;padding:6px 10px;background:#fff;border:0;border-right:1px solid var(--line);cursor:pointer;}
+  .seg button:last-child{border-right:0;}
+  .seg button.on{background:#eaf1fb;color:var(--accent);font-weight:600;}
+  .chip{display:inline-block;font-size:11px;background:var(--chip);color:var(--muted);padding:2px 7px;border-radius:99px;}
+  .banner{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#fff8e6;border:1px solid #e8d6a6;border-radius:var(--r);margin-bottom:14px;font-size:13px;}
+  .banner.success{background:#e6f5ec;border-color:#bcdcc7;}
+  .banner.empty{background:#fbe1e1;border-color:#e9b8b8;}
+  /* ── Approach A specific ── */
+  .review-grid{display:grid;grid-template-columns:1fr 240px;gap:18px;align-items:start;}
+  table.review{width:100%;border-collapse:collapse;font-size:13px;}
+  table.review thead th{text-align:left;padding:8px 10px;color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--line);}
+  table.review tbody td{padding:10px;border-bottom:1px solid #f1f3f7;vertical-align:middle;}
+  table.review tbody tr:hover{background:#f7f9fc;}
+  table.review .src,.tgt{display:flex;align-items:center;gap:9px;}
+  table.review .src small,.tgt small{display:block;color:var(--muted);font-size:11px;}
+  table.review .arrow{color:#a9b1bc;font-weight:600;text-align:center;width:24px;}
+  table.review .row-actions{display:flex;gap:4px;justify-content:flex-end;}
+  table.review .row-actions button{font-size:11px;padding:4px 8px;}
+  .thumb-card{position:sticky;top:16px;display:flex;flex-direction:column;gap:10px;}
+  .thumb{aspect-ratio:1;background:repeating-conic-gradient(#eef 0 25%,#fff 0 50%) 0 0/8px 8px;border:1px solid var(--line);border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;}
+  .stat{font-size:12px;color:var(--muted);}
+  .stat strong{color:var(--text);}
+  /* ── Mobile frame ── */
+  .mobile{max-width:380px;margin:0 auto;border:8px solid #1f2730;border-radius:28px;background:var(--surface);overflow:hidden;}
+  .mobile .topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 12px 8px;border-bottom:1px solid var(--line);font-size:13px;}
+  .mobile .stickyhead{padding:8px 12px;border-bottom:1px solid var(--line);background:#f9fafc;}
+  .mobile .stickyhead .thumb{aspect-ratio:auto;height:90px;border-radius:4px;}
+  .mobile .row{display:grid;grid-template-columns:1fr;gap:6px;padding:12px;border-bottom:1px solid #f1f3f7;}
+  .mobile .row .ln{display:flex;align-items:center;gap:8px;font-size:13px;}
+  .mobile .row .ln .arr{color:#a9b1bc;font-size:11px;}
+  .mobile .stickyfoot{padding:10px 12px;border-top:1px solid var(--line);background:#fff;display:flex;gap:8px;}
+  /* ── Picker ── */
+  .modal-frame{border:1px solid var(--line);border-radius:8px;max-width:560px;background:var(--surface);overflow:hidden;}
+  .modal-frame > header{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;}
+  .picker-tabs{display:flex;border-bottom:1px solid var(--line);}
+  .picker-tabs button{flex:1;font:inherit;font-size:12px;padding:10px;background:#fff;border:0;border-bottom:2px solid transparent;cursor:pointer;color:var(--muted);}
+  .picker-tabs button.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600;}
+  .picker-search{padding:10px 14px;border-bottom:1px solid var(--line);}
+  .picker-search input{width:100%;font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:var(--r);}
+  .picker-list{max-height:340px;overflow:auto;}
+  .picker-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f1f3f7;cursor:pointer;}
+  .picker-row:hover{background:#f7f9fc;}
+  .picker-row .meta{flex:1;font-size:13px;}
+  .picker-row .meta small{display:block;color:var(--muted);font-size:11px;}
+  /* ── Done state ── */
+  .done-card{background:#e6f5ec;border:1px solid #bcdcc7;border-radius:8px;padding:18px;text-align:center;}
+  .done-card h3{font-size:18px;margin-bottom:6px;}
+  .done-card .summary{display:inline-flex;gap:14px;margin:12px 0;font-size:13px;}
+  /* ── Project list / entry ── */
+  .project-row{display:flex;align-items:center;gap:14px;padding:10px;border:1px solid var(--line);border-radius:6px;background:#fff;}
+  .project-row .pthumb{width:44px;height:44px;border-radius:4px;background:repeating-conic-gradient(#dde 0 25%,#fff 0 50%) 0 0/8px 8px;border:1px solid var(--line);}
+  .project-row .pmeta{flex:1;}
+  .project-row .pmeta .pname{font-weight:600;}
+  .project-row .pmeta small{color:var(--muted);font-size:12px;}
+  .adapt-pill{display:inline-block;font-size:10px;background:#7137b8;color:#fff;border-radius:2px;padding:1px 5px;font-weight:700;letter-spacing:.04em;}
+  .menu-card{border:1px solid var(--line);background:#fff;border-radius:6px;box-shadow:0 6px 20px rgba(20,30,50,.08);max-width:260px;padding:6px;}
+  .menu-card .item{display:block;padding:8px 10px;font-size:13px;border-radius:4px;cursor:pointer;}
+  .menu-card .item:hover{background:#f3f5f9;}
+  .menu-card .item small{display:block;color:var(--muted);font-size:11px;margin-top:2px;}
+  /* utility */
+  .row-flex{display:flex;gap:18px;flex-wrap:wrap;}
+  .col{flex:1;min-width:300px;}
+</style>
+<div class="page">
+
+<h1 style="font-size:22px;margin:0 0 6px;">Approach A — Review Table (recommended)</h1>
+<p style="color:var(--muted);margin:0 0 24px;">Spreadsheet-style review with always-visible canvas thumbnail. Hybrid of A + B.</p>
+
+<!-- ───── Entry point ───── -->
+<section class="section">
+  <header><h2>1 · Entry point</h2><span class="pill">Editor → Adapt menu</span></header>
+  <div class="frame">
+    <div class="row-flex">
+      <div class="col">
+        <p style="color:var(--muted);font-size:13px;margin-top:0;">Click <em>Adapt</em> in the editor toolbar — opens a small menu with three options.</p>
+        <div style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--line);border-radius:6px;background:#f9fafc;">
+          <strong style="font-size:13px;">My Pattern</strong>
+          <span class="chip">80×100</span>
+          <span class="chip">42 colours</span>
+          <span style="flex:1"></span>
+          <button class="btn">Generate</button>
+          <button class="btn primary">▾ Adapt</button>
+        </div>
+      </div>
+      <div class="col" style="max-width:280px;">
+        <div class="menu-card" style="margin-top:38px;">
+          <div class="item"><strong>To my stash</strong><small>Use threads you already own</small></div>
+          <div class="item"><strong>To Anchor</strong><small>Convert from DMC to Anchor</small></div>
+          <div class="item"><strong>Pick replacements manually</strong><small>Build your own substitution map</small></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───── Main review screen — desktop ───── -->
+<section class="section">
+  <header><h2>2 · Review screen — desktop</h2><span class="pill">Stash mode · 80-colour pattern, partial coverage</span></header>
+  <div class="frame">
+    <!-- top bar -->
+    <div class="toolbar" style="margin-bottom:12px;">
+      <button class="btn ghost">← Back</button>
+      <strong style="margin-right:auto;">Adapting: My Pattern</strong>
+      <div class="seg">
+        <button class="on">Original</button>
+        <button>Adapted</button>
+      </div>
+      <button class="btn primary">Done</button>
+    </div>
+    <!-- sub toolbar -->
+    <div class="toolbar" style="margin-bottom:12px;font-size:12px;">
+      <div class="seg"><button class="on">Stash</button><button>Brand</button><button>Manual</button></div>
+      <span style="color:var(--muted)">Sort:</span>
+      <div class="seg"><button class="on">Stitches</button><button>Quality</button><button>Name</button></div>
+      <span style="color:var(--muted)">Filter:</span>
+      <div class="seg"><button class="on">All</button><button>Issues only</button><button>Manual edits</button></div>
+      <button class="btn ghost" style="margin-left:auto;">↻ Re-match remaining</button>
+    </div>
+
+    <div class="banner">
+      <span><strong>23 close · 4 fair · 3 no match</strong> · stash snapshot taken just now</span>
+      <span><button class="btn">Add 3 missing to shopping list</button></span>
+    </div>
+
+    <div class="review-grid">
+      <div>
+        <table class="review">
+          <thead>
+            <tr><th>Original</th><th></th><th>Replacement</th><th>Match</th><th></th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><div class="src"><span class="swatch" style="background:#000"></span><div><strong>DMC 310</strong> Black<small>2 814 stitches</small></div></div></td>
+              <td class="arrow">→</td>
+              <td><div class="tgt"><span class="swatch" style="background:#000"></span><div><strong>DMC 310</strong> Black<small>In stash · 3 skeins</small></div></div></td>
+              <td><span class="qchip q-exact"><span class="dot"></span>Exact</span></td>
+              <td class="row-actions"><button class="btn ghost">Change</button></td>
+            </tr>
+            <tr>
+              <td><div class="src"><span class="swatch" style="background:#0e1a3c"></span><div><strong>DMC 824</strong> Blue Very Dark<small>1 248 stitches</small></div></div></td>
+              <td class="arrow">→</td>
+              <td><div class="tgt"><span class="swatch" style="background:#101733"></span><div><strong>DMC 939</strong> Navy Very Dark<small>In stash · 1 skein <span style="color:var(--warn)">(need 2)</span></small></div></div></td>
+              <td><span class="qchip q-good"><span class="dot"></span>Good</span></td>
+              <td class="row-actions"><button class="btn ghost">Change</button></td>
+            </tr>
+            <tr>
+              <td><div class="src"><span class="swatch" style="background:#9c2c4d"></span><div><strong>DMC 3801</strong> Melon Dark<small>847 stitches</small></div></div></td>
+              <td class="arrow">→</td>
+              <td><div class="tgt"><span class="swatch" style="background:#a23552"></span><div><strong>DMC 309</strong> Rose Dark<small>In stash · 2 skeins</small></div></div></td>
+              <td><span class="qchip q-fair"><span class="dot"></span>Fair</span></td>
+              <td class="row-actions"><button class="btn ghost">Change</button></td>
+            </tr>
+            <tr>
+              <td><div class="src"><span class="swatch" style="background:#e3a5b0"></span><div><strong>DMC 3733</strong> Dusty Rose<small>612 stitches · <em>manually picked</em></small></div></div></td>
+              <td class="arrow">→</td>
+              <td><div class="tgt"><span class="swatch" style="background:#dfa3ad"></span><div><strong>Anchor 894</strong>&nbsp;<span class="brand-badge">A</span> Pink<small>In stash · 4 skeins</small></div></div></td>
+              <td><span class="qchip q-good"><span class="dot"></span>Good</span></td>
+              <td class="row-actions"><button class="btn ghost">Reset</button></td>
+            </tr>
+            <tr>
+              <td><div class="src"><span class="swatch" style="background:#5fbfae"></span><div><strong>DMC 3849</strong> Light Teal Green<small>423 stitches</small></div></div></td>
+              <td class="arrow">→</td>
+              <td><div class="tgt"><span class="swatch hollow"></span><div><strong style="color:var(--danger)">No stash match</strong><small>3 near-misses available</small></div></div></td>
+              <td><span class="qchip q-none"><span class="dot"></span>No match</span></td>
+              <td class="row-actions"><button class="btn">Pick</button><button class="btn ghost">Skip</button></td>
+            </tr>
+            <tr>
+              <td><div class="src"><span class="swatch" style="background:#3e2a1c"></span><div><strong>DMC 938</strong> Coffee Brown UD<small>389 stitches</small></div></div></td>
+              <td class="arrow">→</td>
+              <td><div class="tgt"><span class="swatch" style="background:#3a281a"></span><div><strong>DMC 3371</strong> Black Brown<small>In stash · 2 skeins</small></div></div></td>
+              <td><span class="qchip q-good"><span class="dot"></span>Good</span></td>
+              <td class="row-actions"><button class="btn ghost">Change</button></td>
+            </tr>
+            <tr>
+              <td><div class="src"><span class="swatch" style="background:#d4ad42"></span><div><strong>DMC 783</strong> Topaz Medium<small>312 stitches</small></div></div></td>
+              <td class="arrow">→</td>
+              <td><div class="tgt"><span class="swatch" style="background:#c79530"></span><div><strong>DMC 782</strong> Topaz Dark<small>In stash · 1 skein</small></div></div></td>
+              <td><span class="qchip q-fair"><span class="dot"></span>Fair</span></td>
+              <td class="row-actions"><button class="btn ghost">Change</button></td>
+            </tr>
+            <tr>
+              <td><div class="src"><span class="swatch" style="background:#c5d6e8"></span><div><strong>DMC 3753</strong> Ant. Blue Ultra VL<small>241 stitches</small></div></div></td>
+              <td class="arrow">→</td>
+              <td><div class="tgt"><span class="swatch hollow"></span><div><strong style="color:var(--danger)">No stash match</strong><small>Add to list?</small></div></div></td>
+              <td><span class="qchip q-none"><span class="dot"></span>No match</span></td>
+              <td class="row-actions"><button class="btn">Pick</button><button class="btn ghost">Skip</button></td>
+            </tr>
+            <tr>
+              <td colspan="5" style="text-align:center;color:var(--muted);font-size:12px;padding:14px;">… 22 more rows …</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <aside class="thumb-card">
+        <div class="thumb"><div>Adapted preview<br>(live)</div></div>
+        <div class="stat"><strong>Issues:</strong> 7 · <strong>Manual edits:</strong> 1</div>
+        <div class="stat"><strong>Stash usage:</strong> 27 / 30 colours covered</div>
+        <div class="stat"><strong>Adapted from:</strong> My Pattern</div>
+        <button class="btn" style="width:100%;justify-content:center;">Show what changed</button>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ───── Mobile ───── -->
+<section class="section">
+  <header><h2>3 · Review screen — mobile</h2><span class="pill">Sticky thumbnail · stacked rows · bottom-sheet picker</span></header>
+  <div class="frame" style="background:#eef1f5;">
+    <div class="mobile">
+      <div class="topbar">
+        <button class="btn ghost" style="padding:4px 6px;">←</button>
+        <strong style="font-size:13px;">Adapt: My Pattern</strong>
+        <button class="btn ghost" style="padding:4px 6px;">⋮</button>
+      </div>
+      <div class="stickyhead">
+        <div class="thumb">Adapted preview</div>
+        <div style="display:flex;gap:6px;margin-top:8px;align-items:center;">
+          <div class="seg" style="flex:1;"><button class="on" style="flex:1;">Original</button><button style="flex:1;">Adapted</button></div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:6px;overflow-x:auto;">
+          <span class="chip" style="background:#eaf1fb;color:var(--accent);">All</span>
+          <span class="chip">Issues</span>
+          <span class="chip">Manual</span>
+          <span class="chip">↻ Re-match</span>
+        </div>
+      </div>
+      <div class="row">
+        <div class="ln"><span class="swatch" style="background:#000"></span><strong>DMC 310</strong> Black <span style="margin-left:auto" class="qchip q-exact"><span class="dot"></span>Exact</span></div>
+        <div class="ln"><span class="arr">→</span><span class="swatch" style="background:#000"></span><span style="font-size:12px;">DMC 310 · in stash</span></div>
+      </div>
+      <div class="row">
+        <div class="ln"><span class="swatch" style="background:#0e1a3c"></span><strong>DMC 824</strong> Blue VD <span style="margin-left:auto" class="qchip q-good"><span class="dot"></span>Good</span></div>
+        <div class="ln"><span class="arr">→</span><span class="swatch" style="background:#101733"></span><span style="font-size:12px;">DMC 939 · need 2</span></div>
+      </div>
+      <div class="row">
+        <div class="ln"><span class="swatch" style="background:#9c2c4d"></span><strong>DMC 3801</strong> Melon Dk <span style="margin-left:auto" class="qchip q-fair"><span class="dot"></span>Fair</span></div>
+        <div class="ln"><span class="arr">→</span><span class="swatch" style="background:#a23552"></span><span style="font-size:12px;">DMC 309 · in stash</span></div>
+      </div>
+      <div class="row">
+        <div class="ln"><span class="swatch" style="background:#5fbfae"></span><strong>DMC 3849</strong> Lt Teal <span style="margin-left:auto" class="qchip q-none"><span class="dot"></span>No match</span></div>
+        <div class="ln"><span class="arr">→</span><span class="swatch hollow"></span><span style="font-size:12px;color:var(--danger);">No stash match · tap to pick</span></div>
+      </div>
+      <div class="row" style="color:var(--muted);font-size:12px;text-align:center;">… 76 more rows …</div>
+      <div class="stickyfoot">
+        <button class="btn" style="flex:1;">Save draft</button>
+        <button class="btn primary" style="flex:1;">Done</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───── Picker ───── -->
+<section class="section">
+  <header><h2>4 · Substitution picker</h2><span class="pill">Tapping a row → modal (desktop) / bottom-sheet (mobile)</span></header>
+  <div class="frame">
+    <div class="modal-frame">
+      <header>
+        <div>
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;">Replacing</div>
+          <strong><span class="swatch" style="background:#5fbfae"></span> DMC 3849 Light Teal Green · 423 stitches</strong>
+        </div>
+        <button class="btn ghost">×</button>
+      </header>
+      <div class="picker-tabs">
+        <button class="on">In your stash (0)</button>
+        <button>All DMC</button>
+        <button>All Anchor</button>
+      </div>
+      <div class="picker-search">
+        <input type="text" placeholder="Search by id or name…" value="teal">
+      </div>
+      <div class="picker-list">
+        <div class="picker-row" style="background:#fff8e6;">
+          <span style="font-size:11px;color:var(--warn);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">Near misses (not in stash)</span>
+        </div>
+        <div class="picker-row">
+          <span class="swatch lg" style="background:#5fbfae"></span>
+          <div class="meta"><strong>DMC 3848</strong> Med Teal Green<small>Not in stash · 1 skein needed</small></div>
+          <span class="qchip q-good"><span class="dot"></span>Good · ΔE 4.1</span>
+        </div>
+        <div class="picker-row">
+          <span class="swatch lg" style="background:#65bba9"></span>
+          <div class="meta"><strong>DMC 992</strong> Aquamarine Light<small>Not in stash · 1 skein needed</small></div>
+          <span class="qchip q-fair"><span class="dot"></span>Fair · ΔE 6.8</span>
+        </div>
+        <div class="picker-row">
+          <span class="swatch lg" style="background:#5db8a4"></span>
+          <div class="meta"><strong>Anchor 187</strong>&nbsp;<span class="brand-badge">A</span> Aquamarine<small>Not in stash · 1 skein needed</small></div>
+          <span class="qchip q-fair"><span class="dot"></span>Fair · ΔE 7.5</span>
+        </div>
+        <div class="picker-row" style="border-bottom:0;">
+          <span style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">Other matches</span>
+        </div>
+        <div class="picker-row">
+          <span class="swatch lg" style="background:#73c8b6"></span>
+          <div class="meta"><strong>DMC 964</strong> Sea Green Lt<small>Not in stash</small></div>
+          <span class="qchip q-fair"><span class="dot"></span>Fair · ΔE 8.2</span>
+        </div>
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:14px;">Hovering a quality chip reveals a Lab-derived hint, e.g. <em>"Replacement is slightly less saturated than the original."</em></p>
+  </div>
+</section>
+
+<!-- ───── Preview state ───── -->
+<section class="section">
+  <header><h2>5 · Preview state</h2><span class="pill">Toggle in toolbar swaps the thumbnail (and the canvas if user expands)</span></header>
+  <div class="frame">
+    <div class="row-flex">
+      <div class="col" style="max-width:300px;">
+        <div class="seg" style="margin-bottom:8px;"><button>Original</button><button class="on">Adapted</button></div>
+        <div class="thumb" style="background:linear-gradient(135deg,#9c2c4d 0%,#9c2c4d 30%,#0e1a3c 30%,#0e1a3c 60%,#5fbfae 60%,#5fbfae 100%);">
+          <div style="background:rgba(255,255,255,.85);padding:6px 10px;border-radius:4px;color:var(--text);">Original</div>
+        </div>
+      </div>
+      <div class="col" style="max-width:300px;">
+        <div class="seg" style="margin-bottom:8px;"><button>Original</button><button class="on">Adapted</button></div>
+        <div class="thumb" style="background:linear-gradient(135deg,#a23552 0%,#a23552 30%,#101733 30%,#101733 60%,#cccccc 60%,#cccccc 100%);">
+          <div style="background:rgba(255,255,255,.85);padding:6px 10px;border-radius:4px;color:var(--text);">Adapted (3 skipped → grey)</div>
+        </div>
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:10px;">Skipped colours render as a neutral grey in the preview so the user immediately sees coverage gaps.</p>
+  </div>
+</section>
+
+<!-- ───── Done ───── -->
+<section class="section">
+  <header><h2>6 · Done state</h2><span class="pill">Adapted copy is saved; user is dropped into editor for the new pattern</span></header>
+  <div class="frame">
+    <div class="done-card">
+      <h3>Adapted pattern saved</h3>
+      <div style="color:var(--muted);font-size:13px;">"My Pattern (adapted to stash)" · 80×100 · 42 colours</div>
+      <div class="summary">
+        <span class="qchip q-good"><span class="dot"></span>23 close</span>
+        <span class="qchip q-fair"><span class="dot"></span>4 fair</span>
+        <span class="qchip q-none"><span class="dot"></span>3 no match</span>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:10px;">
+        <button class="btn">Open original</button>
+        <button class="btn">Add 3 missing to shopping list</button>
+        <button class="btn primary">Continue editing</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───── Project list ───── -->
+<section class="section">
+  <header><h2>7 · How adapted patterns look in the project list</h2></header>
+  <div class="frame" style="display:flex;flex-direction:column;gap:8px;">
+    <div class="project-row">
+      <div class="pthumb"></div>
+      <div class="pmeta"><div class="pname">My Pattern</div><small>80×100 · 42 colours · last edited 2 d ago</small></div>
+    </div>
+    <div class="project-row" style="background:#f7f3fb;border-color:#dccaf0;">
+      <div class="pthumb"></div>
+      <div class="pmeta">
+        <div class="pname">My Pattern (adapted to stash) <span class="adapt-pill">ADAPTED</span></div>
+        <small>From "My Pattern" · 23 close · 4 fair · 3 no match · stash snapshot 2 d ago</small>
+      </div>
+    </div>
+    <div class="project-row" style="background:#f7f3fb;border-color:#dccaf0;">
+      <div class="pthumb"></div>
+      <div class="pmeta">
+        <div class="pname">Floral Sampler (Anchor) <span class="adapt-pill">ADAPTED</span></div>
+        <small>From "Floral Sampler" · brand conversion DMC → Anchor · all close</small>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>

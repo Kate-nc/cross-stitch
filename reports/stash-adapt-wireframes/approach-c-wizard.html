@@ -1,0 +1,258 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Stash-Adapt — Approach C (Wizard)</title>
+<style>
+  :root{
+    --bg:#fafbfc; --surface:#fff; --line:#e3e6ec; --text:#1f2730; --muted:#5a6573;
+    --accent:#2a6ad6; --success:#1b8a4d; --warn:#c97200; --danger:#c63131; --chip:#eef2f8;
+  }
+  body{margin:0;font:14px/1.45 system-ui,sans-serif;background:var(--bg);color:var(--text);}
+  .page{max-width:1280px;margin:0 auto;padding:24px;}
+  .section{background:var(--surface);border:1px solid var(--line);border-radius:8px;margin:0 0 28px;overflow:hidden;}
+  .section > header{background:#f3f5f9;padding:10px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;}
+  .section > header h2{font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:0;}
+  .section > header .pill{font-size:11px;color:var(--muted);background:var(--chip);padding:3px 8px;border-radius:99px;}
+  .frame{padding:24px;}
+  .swatch{display:inline-block;width:18px;height:18px;border-radius:3px;border:1px solid rgba(0,0,0,.18);vertical-align:middle;}
+  .swatch.lg{width:26px;height:26px;}
+  .swatch.hollow{background:repeating-linear-gradient(45deg,#f7d7d7,#f7d7d7 3px,#fff 3px,#fff 6px);}
+  .qchip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 8px;border-radius:99px;}
+  .qchip .dot{width:8px;height:8px;border-radius:99px;display:inline-block;}
+  .q-good{background:#e6f5ec;color:var(--success);} .q-good .dot{background:var(--success);}
+  .q-fair{background:#fbeed6;color:var(--warn);} .q-fair .dot{background:var(--warn);}
+  .q-none{background:#fbe1e1;color:var(--danger);} .q-none .dot{background:transparent;border:1.5px solid var(--danger);}
+  .btn{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:13px;font-weight:500;padding:8px 14px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;color:var(--text);}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .btn.ghost{border-color:transparent;background:transparent;}
+  .btn.lg{padding:12px 18px;font-size:14px;}
+
+  /* wizard chrome */
+  .wiz-card{max-width:680px;margin:0 auto;border:1px solid var(--line);border-radius:8px;background:#fff;overflow:hidden;}
+  .wiz-card .progress{display:flex;justify-content:space-between;padding:14px 22px;background:#f3f5f9;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted);}
+  .wiz-card .progress .step{display:flex;align-items:center;gap:6px;}
+  .wiz-card .progress .step .num{width:22px;height:22px;border-radius:99px;background:#fff;border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;font-weight:600;}
+  .wiz-card .progress .step.on .num{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .wiz-card .progress .step.done .num{background:var(--success);color:#fff;border-color:var(--success);}
+  .wiz-card .body{padding:24px;}
+  .wiz-card .footer{padding:14px 22px;border-top:1px solid var(--line);display:flex;justify-content:space-between;background:#fafbfc;}
+
+  .choice{display:flex;align-items:flex-start;gap:14px;padding:18px;border:1px solid var(--line);border-radius:6px;cursor:pointer;background:#fff;}
+  .choice + .choice{margin-top:10px;}
+  .choice:hover{border-color:var(--accent);background:#f7faff;}
+  .choice .icon{width:42px;height:42px;border-radius:6px;background:#eaf1fb;display:flex;align-items:center;justify-content:center;flex:0 0 42px;color:var(--accent);font-weight:600;}
+  .choice strong{display:block;font-size:14px;}
+  .choice small{color:var(--muted);font-size:12px;}
+  .choice.disabled{opacity:.6;cursor:not-allowed;}
+
+  table.review{width:100%;border-collapse:collapse;font-size:13px;}
+  table.review thead th{text-align:left;padding:8px 10px;color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--line);}
+  table.review tbody td{padding:10px;border-bottom:1px solid #f1f3f7;vertical-align:middle;}
+  .src,.tgt{display:flex;align-items:center;gap:8px;}
+  .src small,.tgt small{display:block;color:var(--muted);font-size:11px;}
+
+  /* Mobile */
+  .mobile{max-width:380px;margin:0 auto;border:8px solid #1f2730;border-radius:28px;background:var(--surface);overflow:hidden;}
+  .mobile .topbar{display:flex;justify-content:space-between;align-items:center;padding:14px 12px;border-bottom:1px solid var(--line);font-size:13px;}
+  .mobile .body{padding:18px;}
+  .mobile .body .choice{padding:12px;}
+  .mobile .footer{padding:10px 12px;border-top:1px solid var(--line);display:flex;gap:8px;background:#fafbfc;}
+
+  .menu-card{border:1px solid var(--line);background:#fff;border-radius:6px;box-shadow:0 6px 20px rgba(20,30,50,.08);max-width:260px;padding:6px;}
+  .menu-card .item{display:block;padding:8px 10px;font-size:13px;border-radius:4px;cursor:pointer;}
+  .menu-card .item:hover{background:#f3f5f9;}
+  .row-flex{display:flex;gap:18px;flex-wrap:wrap;}
+  .col{flex:1;min-width:300px;}
+  .stat{font-size:12px;color:var(--muted);}
+</style>
+<div class="page">
+
+<h1 style="font-size:22px;margin:0 0 6px;">Approach C — Guided Wizard</h1>
+<p style="color:var(--muted);margin:0 0 24px;">Step-by-step: Choose source → Review matches → Confirm.</p>
+
+<!-- Entry -->
+<section class="section">
+  <header><h2>1 · Entry point</h2><span class="pill">Same toolbar button; menu shorter (just "Adapt this pattern")</span></header>
+  <div class="frame">
+    <div class="row-flex">
+      <div class="col">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--line);border-radius:6px;background:#f9fafc;">
+          <strong style="font-size:13px;">My Pattern</strong>
+          <span style="flex:1"></span>
+          <button class="btn primary">Adapt this pattern</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Step 1 -->
+<section class="section">
+  <header><h2>2 · Step 1 — Choose source</h2></header>
+  <div class="frame">
+    <div class="wiz-card">
+      <div class="progress">
+        <div class="step on"><span class="num">1</span> Choose source</div>
+        <div class="step"><span class="num">2</span> Review matches</div>
+        <div class="step"><span class="num">3</span> Confirm</div>
+      </div>
+      <div class="body">
+        <h2 style="font-size:18px;margin:0 0 6px;">How do you want to adapt "My Pattern"?</h2>
+        <p style="color:var(--muted);margin:0 0 16px;">We'll create an independent copy — your original stays as it is.</p>
+
+        <div class="choice">
+          <div class="icon">⌂</div>
+          <div>
+            <strong>To my stash</strong>
+            <small>Match every colour to threads you already own. 207 threads in stash.</small>
+          </div>
+        </div>
+        <div class="choice">
+          <div class="icon">A</div>
+          <div>
+            <strong>To Anchor</strong>
+            <small>Convert from DMC to Anchor using the official conversion chart with algorithmic fallback.</small>
+          </div>
+        </div>
+        <div class="choice">
+          <div class="icon">✎</div>
+          <div>
+            <strong>Pick replacements manually</strong>
+            <small>Build your own substitution map — pick any DMC or Anchor for each colour.</small>
+          </div>
+        </div>
+      </div>
+      <div class="footer">
+        <button class="btn ghost">Cancel</button>
+        <button class="btn primary" disabled style="opacity:.5;">Next →</button>
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--muted);text-align:center;margin-top:14px;">If the stash were empty, the first option would be disabled with the tooltip <em>"Your stash is empty"</em> — forcing the user to choose Brand or Manual upfront.</p>
+  </div>
+</section>
+
+<!-- Step 2 -->
+<section class="section">
+  <header><h2>3 · Step 2 — Review matches</h2></header>
+  <div class="frame">
+    <div class="wiz-card" style="max-width:920px;">
+      <div class="progress">
+        <div class="step done"><span class="num">✓</span> Choose source</div>
+        <div class="step on"><span class="num">2</span> Review matches</div>
+        <div class="step"><span class="num">3</span> Confirm</div>
+      </div>
+      <div class="body" style="padding:16px;">
+        <table class="review">
+          <thead><tr><th>Original</th><th></th><th>Replacement</th><th>Quality</th><th></th></tr></thead>
+          <tbody>
+            <tr>
+              <td><div class="src"><span class="swatch" style="background:#000"></span><div><strong>DMC 310</strong> Black<small>2 814 stitches</small></div></div></td>
+              <td>→</td>
+              <td><div class="tgt"><span class="swatch" style="background:#000"></span><div><strong>DMC 310</strong>· in stash</div></div></td>
+              <td><span class="qchip q-good"><span class="dot"></span>Exact</span></td>
+              <td><button class="btn ghost">Change</button></td>
+            </tr>
+            <tr>
+              <td><div class="src"><span class="swatch" style="background:#9c2c4d"></span><div><strong>DMC 3801</strong> Melon Dk<small>847 stitches</small></div></div></td>
+              <td>→</td>
+              <td><div class="tgt"><span class="swatch" style="background:#a23552"></span><div><strong>DMC 309</strong> Rose Dk · in stash</div></div></td>
+              <td><span class="qchip q-fair"><span class="dot"></span>Fair</span></td>
+              <td><button class="btn ghost">Change</button></td>
+            </tr>
+            <tr>
+              <td><div class="src"><span class="swatch" style="background:#5fbfae"></span><div><strong>DMC 3849</strong> Lt Teal<small>423 stitches</small></div></div></td>
+              <td>→</td>
+              <td><div class="tgt"><span class="swatch hollow"></span><div><strong style="color:var(--danger)">No stash match</strong></div></div></td>
+              <td><span class="qchip q-none"><span class="dot"></span>None</span></td>
+              <td><button class="btn">Pick</button></td>
+            </tr>
+            <tr><td colspan="5" style="text-align:center;color:var(--muted);font-size:12px;padding:12px;">… 27 more rows …</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="footer">
+        <button class="btn">← Back</button>
+        <button class="btn primary">Continue →</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Step 3 -->
+<section class="section">
+  <header><h2>4 · Step 3 — Confirm</h2></header>
+  <div class="frame">
+    <div class="wiz-card">
+      <div class="progress">
+        <div class="step done"><span class="num">✓</span> Choose source</div>
+        <div class="step done"><span class="num">✓</span> Review matches</div>
+        <div class="step on"><span class="num">3</span> Confirm</div>
+      </div>
+      <div class="body">
+        <h2 style="font-size:18px;margin:0 0 12px;">Ready to save</h2>
+        <div style="background:#f9fafc;border:1px solid var(--line);border-radius:6px;padding:14px;font-size:13px;">
+          <div style="display:flex;justify-content:space-between;"><span>New pattern name</span><strong>My Pattern (adapted to stash)</strong></div>
+          <div style="display:flex;justify-content:space-between;margin-top:6px;"><span>Adapted from</span><span>My Pattern</span></div>
+          <div style="display:flex;justify-content:space-between;margin-top:6px;"><span>Substitutions</span><span>23 close · 4 fair · 3 no match</span></div>
+          <div style="display:flex;justify-content:space-between;margin-top:6px;"><span>Stash snapshot</span><span>Today · 207 threads</span></div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-size:13px;">
+          <input type="checkbox" checked> Add the 3 missing colours to my shopping list
+        </label>
+      </div>
+      <div class="footer">
+        <button class="btn">← Back</button>
+        <button class="btn primary lg">Save adapted pattern</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Mobile -->
+<section class="section">
+  <header><h2>5 · Mobile — wizard step 1</h2></header>
+  <div class="frame" style="background:#eef1f5;">
+    <div class="mobile">
+      <div class="topbar">
+        <button class="btn ghost" style="padding:4px 6px;">←</button>
+        <strong style="font-size:13px;">Step 1 of 3</strong>
+        <button class="btn ghost" style="padding:4px 6px;">×</button>
+      </div>
+      <div class="body">
+        <h3 style="font-size:16px;margin:0 0 6px;">Adapt "My Pattern"</h3>
+        <p style="color:var(--muted);font-size:12px;margin:0 0 12px;">We'll create an independent copy.</p>
+        <div class="choice"><div class="icon">⌂</div><div><strong>To my stash</strong><small>207 threads</small></div></div>
+        <div class="choice"><div class="icon">A</div><div><strong>To Anchor</strong><small>From DMC</small></div></div>
+        <div class="choice"><div class="icon">✎</div><div><strong>Pick manually</strong><small></small></div></div>
+      </div>
+      <div class="footer">
+        <button class="btn" style="flex:1;">Cancel</button>
+        <button class="btn primary" style="flex:1;" disabled>Next →</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Picker (same as A) -->
+<section class="section">
+  <header><h2>6 · Picker</h2><span class="pill">Identical to Approach A</span></header>
+  <div class="frame">
+    <p style="color:var(--muted);font-size:13px;margin:0 0 8px;">See <a href="approach-a-table.html">Approach A wireframes</a> for picker details.</p>
+  </div>
+</section>
+
+<!-- Done -->
+<section class="section">
+  <header><h2>7 · Done state</h2></header>
+  <div class="frame" style="text-align:center;">
+    <div style="display:inline-block;background:#e6f5ec;border:1px solid #bcdcc7;border-radius:8px;padding:18px 24px;">
+      <h3 style="margin:0 0 6px;">Adapted pattern saved</h3>
+      <div class="stat">"My Pattern (adapted to stash)" · 3 colours added to shopping list</div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:12px;">
+        <button class="btn">Open original</button>
+        <button class="btn primary">Continue editing</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>

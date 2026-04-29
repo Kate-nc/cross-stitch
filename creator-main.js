@@ -649,6 +649,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     substituteProposal: state.substituteProposal, setSubstituteProposal: state.setSubstituteProposal,
     substituteModalKey: state.substituteModalKey, setSubstituteModalKey: state.setSubstituteModalKey,
     substituteMaxDeltaE: state.substituteMaxDeltaE, setSubstituteMaxDeltaE: state.setSubstituteMaxDeltaE,
+    adaptModalOpen: state.adaptModalOpen, setAdaptModalOpen: state.setAdaptModalOpen,
+    adaptModalMode: state.adaptModalMode, setAdaptModalMode: state.setAdaptModalMode,
+    adaptMaxDeltaE: state.adaptMaxDeltaE, setAdaptMaxDeltaE: state.setAdaptMaxDeltaE,
     buildPaletteWithScratch: state.buildPaletteWithScratch,
     resetAll: state.resetAll,
     initBlankGrid: state.initBlankGrid,
@@ -677,6 +680,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.kittingResult, state.altOpen,
     state.substituteModalOpen, state.substituteProposal,
     state.substituteModalKey, state.substituteMaxDeltaE,
+    state.adaptModalOpen, state.adaptModalMode, state.adaptMaxDeltaE,
     state.creatorStashFilter,
     state.displayPal, state.totalStitchable,
     state.skeinData, state.totalSkeins,
@@ -773,6 +777,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onNameChange={state.pat&&state.pal?n=>state.setProjectName(n):undefined}
         showAutosaved={!!(state.pat&&state.pal)} />
       {state.preferencesOpen&&typeof window.PreferencesModal!=='undefined'&&React.createElement(window.PreferencesModal,{onClose:()=>state.setPreferencesOpen(false)})}
+      {state.adaptModalOpen&&typeof window.AdaptModal!=='undefined'&&React.createElement(window.AdaptModal,{
+        mode:state.adaptModalMode,
+        onClose:()=>state.setAdaptModalOpen(false)
+      })}
       {state.namePromptOpen&&<NamePromptModal
         defaultName={state.projectName||(state.sW+'×'+state.sH+' pattern')}
         onConfirm={name=>{state.setProjectName(name);state.setNamePromptOpen(false);io.doSaveProject(name);}}

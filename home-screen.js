@@ -352,6 +352,16 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
         title: 'This entry was added directly in the Stash Manager and has no Creator/Tracker project linked.',
         style: { display: 'inline-block', fontSize: 10, padding: '2px 8px', borderRadius:'var(--radius-lg)', background: 'var(--warning-soft)', color: 'var(--accent-ink)', fontWeight: 600, marginBottom: 6 } },
         'Stash Manager only'),
+      // Stash-Adapt: pill linking back to the source project for adapted patterns.
+      proj.adaptation && proj.adaptation.fromName && window.AdaptedBadge && h('div', { style: { marginBottom: 6 } },
+        h(window.AdaptedBadge, {
+          fromName: proj.adaptation.fromName,
+          compact: true,
+          onClick: proj.adaptation.fromProjectId && onOpen ? function () {
+            onOpen(Object.assign({}, proj, { id: proj.adaptation.fromProjectId, name: proj.adaptation.fromName }));
+          } : null
+        })
+      ),
       // Optional per-card extras supplied by the parent (e.g. Manager
       // shopping-list checkbox + missing-thread badge).
       cardExtras ? h('div', { className: 'mpd-card-extras', style: { marginBottom:'var(--s-2)' } }, cardExtras(proj)) : null,

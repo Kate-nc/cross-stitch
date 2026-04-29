@@ -286,6 +286,13 @@ window.useCreatorState = function useCreatorState() {
   var _subMaxDE = useState(function() { try { var v = localStorage.getItem("cs_subMaxDE"); return v != null ? parseFloat(v) : 15; } catch(_) { return 15; } });
   var substituteMaxDeltaE = _subMaxDE[0];
   function setSubstituteMaxDeltaE(v) { _subMaxDE[1](v); try { localStorage.setItem("cs_subMaxDE", v); } catch(_) {} }
+  // Stash-Adapt: modal open/mode state. Replaces the legacy SubstituteFromStash
+  // and ConvertPalette modals with a single non-destructive duplication flow.
+  var _adOpen = useState(false);         var adaptModalOpen = _adOpen[0], setAdaptModalOpen = _adOpen[1];
+  var _adMode = useState('stash');       var adaptModalMode = _adMode[0], setAdaptModalMode = _adMode[1];
+  var _adMaxDE = useState(function() { try { var v = localStorage.getItem("cs_adaptMaxDE"); return v != null ? parseFloat(v) : 10; } catch(_) { return 10; } });
+  var adaptMaxDeltaE = _adMaxDE[0];
+  function setAdaptMaxDeltaE(v) { _adMaxDE[1](v); try { localStorage.setItem("cs_adaptMaxDE", String(v)); } catch(_) {} }
   // Brief D — runtime "limit palette/picker to my stash" filter (independent of the
   // generation-time stashConstrained switch). Persisted under cs_creator_stash_filter.
   var _csFilt = useState(function() { try { return localStorage.getItem("cs_creator_stash_filter") === "true"; } catch(_) { return false; } });
@@ -1152,6 +1159,9 @@ window.useCreatorState = function useCreatorState() {
     substituteProposal, setSubstituteProposal,
     substituteModalKey, setSubstituteModalKey,
     substituteMaxDeltaE, setSubstituteMaxDeltaE,
+    adaptModalOpen, setAdaptModalOpen,
+    adaptModalMode, setAdaptModalMode,
+    adaptMaxDeltaE, setAdaptMaxDeltaE,
     stashConstrained, setStashConstrained,
     creatorStashFilter, setCreatorStashFilter,
     coverageGaps, setCoverageGaps,
