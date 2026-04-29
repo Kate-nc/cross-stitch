@@ -36,7 +36,12 @@
       // don't expose `window.loadPdfStack`, so we fall back to a self-contained
       // loader that fetches the same scripts in the same order.
       function loadScript(src) {
-        if (document.querySelector('script[data-import-engine="' + src + '"]')) {
+        // Match BOTH our marker and any pre-existing <script src=...> the
+        // page might have injected (e.g. via loadPdfStack). Top-level class
+        // declarations in pdf-importer.js can't be redeclared without a
+        // SyntaxError, so duplicate injection must be avoided.
+        if (document.querySelector('script[src="' + src + '"]') ||
+            document.querySelector('script[data-import-engine="' + src + '"]')) {
           return Promise.resolve();
         }
         return new Promise(function (resolve, reject) {
@@ -61,10 +66,20 @@
           });
       }
       return ready.then(function () {
-        if (typeof window.PatternKeeperImporter !== 'function') {
+        // pdf-importer.js declares `class PatternKeeperImporter` at the
+        // top level of a classic script. ES2015+ top-level classes create
+        // lexical bindings in the global scope but are NOT exposed as
+        // properties of `window`. We resolve via the bare name through
+        // an indirect eval (which runs in the global lexical environment)
+        // so we pick up the lexical binding.
+        var Ctor;
+        try {
+          Ctor = (0, eval)('typeof PatternKeeperImporter === "function" ? PatternKeeperImporter : null');
+        } catch (_) { Ctor = null; }
+        if (typeof Ctor !== 'function') {
           throw new Error('PatternKeeperImporter is not loaded.');
         }
-        var importer = new window.PatternKeeperImporter();
+        var importer = new Ctor();
         // Prefer the original File when present; fall back to bytes so the
         // strategy still works for synthetic probes.
         var input = (probe && probe.originalFile)
