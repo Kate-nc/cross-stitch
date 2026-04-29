@@ -765,7 +765,18 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     <window.AppContext.Provider value={appCtx}>
     <window.CanvasContext.Provider value={cvCtx}>
     <window.PatternDataContext.Provider value={pdCtx}>
-      <input ref={state.loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={io.loadProject} style={{display:"none"}}/>
+      <input ref={state.loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={(e)=>{
+        var f = e.target.files && e.target.files[0];
+        if (!f) return;
+        var n = (f.name || '').toLowerCase();
+        var isPattern = /\.(oxs|xml|pdf)$/i.test(n);
+        if (isPattern && window.ImportEngine && typeof window.ImportEngine.importAndReview === 'function') {
+          e.target.value = '';
+          window.ImportEngine.importAndReview(f, { navigateTo: 'create.html?from=home' }).catch(function(err){ console.error('[creator] Import failed:', err); });
+          return;
+        }
+        io.loadProject(e);
+      }} style={{display:"none"}}/>
       <Header page={state.appMode==='edit'?'editor':'creator'} tab={state.tab} onPageChange={state.setTab}
         onOpen={()=>state.loadRef.current.click()}
         onSave={state.pat&&state.pal?io.saveProject:null}
@@ -862,18 +873,18 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             onDragOver={(e)=>{e.preventDefault();state.setIsDragging(true);}}
             onDragEnter={(e)=>{e.preventDefault();state.setIsDragging(true);}}
             onDragLeave={(e)=>{e.preventDefault();state.setIsDragging(false);}}
-            onDrop={(e)=>{e.preventDefault();state.setIsDragging(false);if(e.dataTransfer.files&&e.dataTransfer.files.length>0){io.handleFile(e.dataTransfer.files[0]);e.dataTransfer.clearData();}}}
+            onDrop={(e)=>{e.preventDefault();state.setIsDragging(false);if(e.dataTransfer.files&&e.dataTransfer.files.length>0){var df=e.dataTransfer.files[0];var dn=(df.name||'').toLowerCase();var dImg=(df.type||'').indexOf('image/')===0;var dPat=!dImg&&/\.(oxs|xml|json|pdf)$/i.test(dn);if(dPat&&window.ImportEngine&&typeof window.ImportEngine.importAndReview==='function'){window.ImportEngine.importAndReview(df,{navigateTo:'create.html?from=home'}).catch(function(err){console.error('[creator] Import failed:',err);});}else{io.handleFile(df);}e.dataTransfer.clearData();}}}
           >
           <h1 style={{fontSize:28,fontWeight:700,color:"#1B1814",marginBottom:8}}>Start a new pattern</h1>
           <p style={{fontSize:15,color:"#5C5448",marginBottom:32}}>Drop an image anywhere here, pick one with the tile below, or load a saved project to keep working.</p>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(260px, 1fr))",gap:24}}>
             <div onClick={()=>state.fRef.current.click()} className="upload-area" style={{position:"relative"}}>
               <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-              <div><div style={{fontWeight:600,fontSize:18,color:"#1B1814",marginBottom:4}}>Create New Pattern</div><div style={{color:"#5C5448",fontSize:14}}>Upload an image (JPG, PNG)</div></div>
+              <div><div style={{fontWeight:600,fontSize:18,color:"#1B1814",marginBottom:4}}>Create New Pattern</div><div style={{color:"#5C5448",fontSize:14}}>Upload an image, PDF, or pattern file</div></div>
             </div>
             <div onClick={()=>state.loadRef.current.click()} className="upload-area">
               <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-              <div><div style={{fontWeight:600,fontSize:18,color:"#1B1814",marginBottom:4}}>Load Existing Project</div><div style={{color:"#5C5448",fontSize:14}}>Open a saved JSON file</div></div>
+              <div><div style={{fontWeight:600,fontSize:18,color:"#1B1814",marginBottom:4}}>Load Existing Project</div><div style={{color:"#5C5448",fontSize:14}}>Open a saved JSON, .oxs, .xml or PDF</div></div>
             </div>
             <div onClick={state.startScratch} className="upload-area">
               <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
@@ -881,7 +892,19 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             </div>
           </div>
         </div>}
-        <input ref={state.fRef} type="file" accept="image/*" onChange={io.handleFile} style={{display:"none"}}/>
+        <input ref={state.fRef} type="file" accept="image/*,.oxs,.xml,.json,.pdf" onChange={(e)=>{
+          var f = e.target.files && e.target.files[0];
+          if (!f) return;
+          var n = (f.name || '').toLowerCase();
+          var isImage = (f.type || '').indexOf('image/') === 0;
+          var isPattern = !isImage && /\.(oxs|xml|json|pdf)$/i.test(n);
+          if (isPattern && window.ImportEngine && typeof window.ImportEngine.importAndReview === 'function') {
+            e.target.value = '';
+            window.ImportEngine.importAndReview(f, { navigateTo: 'create.html?from=home' }).catch(function(err){ console.error('[creator] Import failed:', err); });
+            return;
+          }
+          io.handleFile(e);
+        }} style={{display:"none"}}/>
         {(state.img||state.pat)&&<div className="cs-main">
           <div className="canvas-area">
             {state.pat&&state.pal&&<div className={"cs-page-fade cs-page-fade--"+state.tab}>

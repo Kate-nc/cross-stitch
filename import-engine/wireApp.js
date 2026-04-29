@@ -112,11 +112,14 @@
 
   function saveAndNavigate(project, opts) {
     var nav = opts.navigate !== false;
-    // Default destination is the project library at /home so the user can
-    // see their freshly-imported pattern in context. Callers can override
-    // with opts.navigateTo (e.g. 'stitch.html' to drop straight into the
-    // tracker).
-    var destination = opts.navigateTo || 'home.html';
+    // Default destination is the Creator/edit interface (create.html) so
+    // the user lands directly on the freshly-imported pattern with the
+    // full editing toolset available. The ?from=home query bypasses the
+    // create.html redirect guard and matches the convention used by the
+    // home page's "Edit" project tile. Callers can override with
+    // opts.navigateTo (e.g. 'stitch.html' to drop straight into the
+    // tracker, or 'home.html' to return to the library).
+    var destination = opts.navigateTo || 'create.html?from=home';
     var storage = window.ProjectStorage;
     if (!storage || typeof storage.save !== 'function') {
       // Fall back to legacy single-project storage if available.
@@ -127,7 +130,7 @@
         console.warn('[import] ProjectStorage unavailable — using legacy auto_save key. Pattern will not appear in the library.');
         return Promise.resolve(window.saveProjectToDB('auto_save', project)).then(function () {
           showImportToast(project);
-          if (nav && !isCurrentPage('stitch.html')) window.location.href = 'stitch.html';
+          if (nav) window.location.href = destination;
           return { action: 'confirm', project: project };
         });
       }
@@ -155,15 +158,28 @@
       else localStorage.setItem('crossstitch_active_project', id);
     } catch (_) {}
     return Promise.resolve(storage.save(project)).then(function () {
-      // Always confirm the import succeeded. The home page already listens
-      // for cs:projectsChanged (fired by ProjectStorage.save) so the new
-      // project will appear in the library without a reload.
+      // Always confirm the import succeeded. Even when we navigate, the
+      // toast queue persists across the page transition for the
+      // destination page to surface.
       showImportToast(project);
-      // Only navigate if the requested destination is a *different* page.
-      // A same-page window.location.href assignment forces a full reload
-      // that hides the import success and looks like a broken refresh.
-      if (nav && !isCurrentPage(destination)) {
-        window.location.href = destination;
+      // Always navigate to the destination on success. The new project is
+      // recorded as the active project (above), so the destination page
+      // will load it fresh on boot — including the case where the user
+      // triggered the import from the destination page itself (e.g.
+      // importing a PDF from inside the Creator), where a reload is
+      // required to swap the running React state for the new project.
+      // Callers that want to suppress navigation can pass
+      // { navigate: false }; callers that want to skip same-page reloads
+      // (e.g. an import from /home that should refresh the library list
+      // in place rather than reload) can pass { navigateTo: 'home.html' }
+      // and rely on the cs:projectsChanged event combined with the
+      // same-page check below.
+      if (nav) {
+        var skipSamePage = opts.skipSamePageNav === true
+          || (opts.navigateTo && isCurrentPage(opts.navigateTo) && /home\.html/i.test(opts.navigateTo));
+        if (!skipSamePage) {
+          window.location.href = destination;
+        }
       }
       return { action: 'confirm', project: project, id: id };
     }).catch(function (err) {

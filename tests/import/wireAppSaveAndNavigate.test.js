@@ -2,10 +2,13 @@
  *
  * Regression tests for the "Use this pattern" import action:
  *   - Pattern is saved to ProjectStorage before resolving.
- *   - When the destination URL matches the page the user is already on,
- *     no window.location navigation is triggered (this was the
- *     full-page-reload bug that hid the import success).
- *   - When the destination is a different page, navigation does fire.
+ *   - Default destination is the Creator (create.html?from=home) so the
+ *     user lands directly in the edit interface with the new project.
+ *   - Caller-supplied navigateTo is honoured.
+ *   - opts.navigate=false suppresses navigation entirely.
+ *   - Same-page reload of /home is suppressed when the caller explicitly
+ *     asks for navigateTo: 'home.html' (the library refreshes via the
+ *     cs:projectsChanged event instead).
  *   - A success toast is shown either way.
  */
 
@@ -64,12 +67,27 @@ describe('wireApp.saveAndNavigate', () => {
     expect(ctx.saved[0].id).toBe(out.id);
   });
 
-  it('does NOT navigate when destination is the current page (home → home)', async () => {
+  it('does NOT navigate when caller asks for home.html and user is on home.html', async () => {
+    const ctx = loadWireApp('home.html');
+    await ctx.win.ImportEngine.saveAndNavigate(baseProject(), { navigateTo: 'home.html' });
+    // Caller-requested same-page home navigation is suppressed because the
+    // home page refreshes its library via the cs:projectsChanged event.
+    expect(ctx.getAssigned()).toBeNull();
+  });
+
+  it('defaults to create.html?from=home so the user lands in the editor', async () => {
     const ctx = loadWireApp('home.html');
     await ctx.win.ImportEngine.saveAndNavigate(baseProject(), {});
-    // navigateTo defaults to home.html; user is already on home.html
-    // → must not assign window.location.href
-    expect(ctx.getAssigned()).toBeNull();
+    expect(ctx.getAssigned()).toBe('create.html?from=home');
+  });
+
+  it('navigates even when the user is already on /create (forces reload to load the new project)', async () => {
+    const ctx = loadWireApp('create.html');
+    await ctx.win.ImportEngine.saveAndNavigate(baseProject(), {});
+    // Default destination is create.html?from=home; user is already on
+    // create.html. We MUST still navigate because the running React state
+    // would otherwise stay on the previously-loaded project.
+    expect(ctx.getAssigned()).toBe('create.html?from=home');
   });
 
   it('shows a success toast on save', async () => {
