@@ -34,6 +34,7 @@
     require('./pdf/metaExtractor.js');
     require('./pipeline/assemble.js');
     require('./pipeline/validate.js');
+    require('./pipeline/materialise.js');
   }
 
   const ENGINE = isBrowser ? window.ImportEngine : (function () {
@@ -51,7 +52,8 @@
     const mex   = require('./pdf/metaExtractor.js');
     const asm   = require('./pipeline/assemble.js');
     const val   = require('./pipeline/validate.js');
-    return Object.assign({}, types, reg, pipe, wc, sniff, ow, tb, pub, dpr, lex, gex, mex, asm, val);
+    const mat   = require('./pipeline/materialise.js');
+    return Object.assign({}, types, reg, pipe, wc, sniff, ow, tb, pub, dpr, lex, gex, mex, asm, val, mat);
   })();
 
   // High-level: takes a File-like (browser File, or { name, type, arrayBuffer })
