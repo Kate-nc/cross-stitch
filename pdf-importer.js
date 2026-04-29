@@ -523,42 +523,45 @@ class PatternKeeperImporter {
         cellHeight = valid[Math.floor(valid.length/2)] || 10;
      }
 
-     // Pick the LONGEST contiguous run of grid lines spaced ~cellWidth apart.
-     // This is more robust than the previous "first contiguous run" approach
-     // because it (a) excludes stray page-furniture lines that survived the
-     // edge filter and (b) when a page contains TWO charts (e.g. colour +
-     // black-and-white variants of the same pattern, or multi-page layouts
-     // where two grids share the same page) we pick the larger of the two
-     // instead of stretching the bounding box across both grids and pulling
-     // their cells into a single corrupted overlay.
-     function longestRun(clustered, expectedSpacing) {
-         if (clustered.length < 2) return { startIdx: 0, endIdx: clustered.length - 1 };
-         let bestStart = 0, bestEnd = 0;
-         let curStart = 0;
-         for (let i = 1; i < clustered.length; i++) {
-             const spacing = clustered[i] - clustered[i-1];
-             if (Math.abs(spacing - expectedSpacing) < 2) {
-                 if ((i - curStart) > (bestEnd - bestStart)) {
-                     bestStart = curStart;
-                     bestEnd = i;
-                 }
-             } else {
-                 curStart = i;
+     // Identify the dense band of grid lines by scoring each cluster on
+     // how many of its neighbours sit at the expected cell spacing. A
+     // cluster is "in-band" if either its previous OR next neighbour is
+     // within ±2pt of cellWidth. Outlier lines (page borders, legend
+     // separators, decorative rules) get rejected because their
+     // neighbours are far away. We then take the min/max of the in-band
+     // set as the bounding box, which is robust to occasional missing
+     // grid lines (which would otherwise truncate a "longest contiguous
+     // run" approach down to a corner of the chart).
+     function denseBounds(clustered, expectedSpacing) {
+         if (clustered.length < 2) return { lo: clustered[0] || 0, hi: clustered[clustered.length-1] || 0 };
+         const tol = Math.max(2, expectedSpacing * 0.25);
+         const inBand = [];
+         for (let i = 0; i < clustered.length; i++) {
+             const prev = i > 0 ? clustered[i] - clustered[i-1] : Infinity;
+             const next = i < clustered.length-1 ? clustered[i+1] - clustered[i] : Infinity;
+             // Accept if a direct neighbour matches, OR if the gap is an
+             // integer multiple (handles the occasional missing line).
+             function nearMultiple(d) {
+                 if (!isFinite(d)) return false;
+                 const k = Math.round(d / expectedSpacing);
+                 return k >= 1 && k <= 4 && Math.abs(d - k * expectedSpacing) < tol;
              }
+             if (nearMultiple(prev) || nearMultiple(next)) inBand.push(clustered[i]);
          }
-         return { startIdx: bestStart, endIdx: bestEnd };
+         if (inBand.length < 2) return { lo: clustered[0], hi: clustered[clustered.length-1] };
+         return { lo: inBand[0], hi: inBand[inBand.length-1] };
      }
 
-     const vRun = longestRun(vClustered, cellWidth);
-     const hRun = longestRun(hClustered, cellHeight);
+     const vBounds = denseBounds(vClustered, cellWidth);
+     const hBounds = denseBounds(hClustered, cellHeight);
 
-     let originX = vClustered.length > 0 ? vClustered[vRun.startIdx] : 50;
-     let originY = hClustered.length > 0 ? hClustered[hRun.startIdx] : 50;
-     let endX    = vClustered.length > 0 ? vClustered[vRun.endIdx]   : page.width - 50;
-     let endY    = hClustered.length > 0 ? hClustered[hRun.endIdx]   : page.height - 50;
+     let originX = vBounds.lo;
+     let originY = hBounds.lo;
+     let endX    = vBounds.hi;
+     let endY    = hBounds.hi;
 
-     const cols = vClustered.length > 1 ? Math.max(1, vRun.endIdx - vRun.startIdx) : Math.max(10, Math.floor((page.width - 100) / cellWidth));
-     const rows = hClustered.length > 1 ? Math.max(1, hRun.endIdx - hRun.startIdx) : Math.max(10, Math.floor((page.height - 100) / cellHeight));
+     const cols = vClustered.length > 1 ? Math.max(1, Math.round((endX - originX) / cellWidth)) : Math.max(10, Math.floor((page.width - 100) / cellWidth));
+     const rows = hClustered.length > 1 ? Math.max(1, Math.round((endY - originY) / cellHeight)) : Math.max(10, Math.floor((page.height - 100) / cellHeight));
 
      return { originX, originY, cellWidth, cellHeight, columns: cols, rows: rows, boldLineInterval: 10 };
   }
