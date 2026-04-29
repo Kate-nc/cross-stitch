@@ -12,6 +12,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   // not after the 1 s debounce. This avoids the "I created a pattern but it's not
   // in my stash" bug when the user navigates away within the debounce window.
   var firstSaveDoneRef = React.useRef(null);
+  // Proposal 2 auto-save controller. Lazily created on first effect run
+  // because we need access to the state setters (saveStatus / savedAt /
+  // saveError / namePromptOpen) that are part of the merged state object.
+  var saveControllerRef = React.useRef(null);
   // Mirrors the latest values needed by the beforeunload stash-sync handler.
   // The handler effect deps only on isActive (we don't want to re-bind on every
   // keystroke), so reading from this ref guarantees the unload sync uses
@@ -83,7 +87,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   // ─── saveProject ─────────────────────────────────────────────────────────────
   function saveProject() {
     if (!state.pat || !state.pal) return;
-    if (!state.projectName) { state.setNamePromptOpen(true); return; }
+    if (!state.projectName) {
+      if (state.setNameModalReason) state.setNameModalReason("download");
+      state.setNamePromptOpen(true);
+      return;
+    }
     doSaveProject(state.projectName);
   }
 
@@ -626,27 +634,65 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     // finishes, even if the user navigates away within 1 s.
     var isFirstSave = firstSaveDoneRef.current !== state.projectIdRef.current;
     function persistAll() {
-      saveProjectToDB(project5).catch(function(err) { console.error("Auto-save failed:", err); });
-      ProjectStorage.save(project5)
-        .then(function(id) { ProjectStorage.setActiveProject(id); })
-        .catch(function(err) { console.error("ProjectStorage auto-save failed:", err); });
+      // Run both writes in parallel and treat the cycle as failed if either
+      // one rejects, so the visible save status reflects reality. The legacy
+      // saveProjectToDB key is kept in lockstep with ProjectStorage so older
+      // entry points (Tracker recovery, BackupRestore) still find a snapshot.
+      var p1 = ProjectStorage.save(project5).then(function (id) {
+        ProjectStorage.setActiveProject(id);
+        return id;
+      });
+      var p2 = saveProjectToDB(project5);
       if (typeof StashBridge !== "undefined") {
-        StashBridge.syncProjectToLibrary(
-          state.projectIdRef.current,
-          state.projectName || (state.sW + "\xD7" + state.sH + " pattern"),
-          state.skeinData,
-          "inprogress",
-          state.fabricCt
-        );
+        try {
+          StashBridge.syncProjectToLibrary(
+            state.projectIdRef.current,
+            state.projectName || (state.sW + "\xD7" + state.sH + " pattern"),
+            state.skeinData,
+            "inprogress",
+            state.fabricCt
+          );
+        } catch (_) {}
       }
       firstSaveDoneRef.current = state.projectIdRef.current;
+      return Promise.all([p1, p2]).then(function (results) { return results[0]; });
+    }
+    // Lazily build the controller. The callbacks close over the latest
+    // state setters because we re-resolve them via `state.*` on each call.
+    if (!saveControllerRef.current && typeof window.SaveStatus !== "undefined") {
+      saveControllerRef.current = window.SaveStatus.createSaveController({
+        onStatus:  function (s)   { if (state.setSaveStatus) state.setSaveStatus(s); },
+        onSavedAt: function (d)   { if (state.setSavedAt)    state.setSavedAt(d); },
+        onError:   function (err) { if (state.setSaveError)  state.setSaveError(err); },
+        onFirstSaveSuccess: function () {
+          // Prompt for a name only if the user hasn't given one yet AND only
+          // once per project. Non-blocking: the project is already saved
+          // under its auto-generated name ("Untitled pattern") at this point.
+          if (!state.projectName && state.setNamePromptOpen) {
+            if (state.setNameModalReason) state.setNameModalReason("firstSave");
+            state.setNamePromptOpen(true);
+          }
+        }
+      }, { debounceMs: 1000, savedHoldMs: 2500 });
+    }
+    var ctrl = saveControllerRef.current;
+    if (!ctrl) {
+      // Fallback for tests/older browsers where SaveStatus failed to load:
+      // run the save inline so behaviour matches the previous implementation.
+      if (isFirstSave) { persistAll(); return; }
+      var saveTimer = setTimeout(persistAll, 1000);
+      return function() { clearTimeout(saveTimer); };
     }
     if (isFirstSave) {
-      persistAll();
+      // Schedule, then immediately flush so the first save lands without the
+      // debounce — same behaviour as before, but routed through the
+      // controller so saveStatus transitions stay correct.
+      ctrl.schedule(persistAll);
+      ctrl.flush();
       return;
     }
-    var saveTimer = setTimeout(persistAll, 1000);
-    return function() { clearTimeout(saveTimer); };
+    ctrl.schedule(persistAll);
+    return function() { /* schedule() resets its own timer on next edit */ };
   }, [
     state.pat, state.pal, state.sW, state.sH, state.maxC,
     state.bri, state.con, state.sat, state.dith, state.skipBg, state.bgTh, state.bgCol,
@@ -756,5 +802,21 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     processLoadedProject: processLoadedProject,
     loadProject: loadProject,
     handleFile: handleFile,
+    // Re-runs the most recent auto-save attempt. Wired to the "Retry"
+    // button shown by SaveStatusBadge when saveStatus === 'error'.
+    retryAutoSave: function () {
+      var ctrl = saveControllerRef.current;
+      var snap = creatorSnapshotRef.current;
+      if (!ctrl || !snap) return;
+      ctrl.schedule(function () {
+        var p1 = ProjectStorage.save(snap).then(function (id) {
+          ProjectStorage.setActiveProject(id);
+          return id;
+        });
+        var p2 = saveProjectToDB(snap);
+        return Promise.all([p1, p2]).then(function (r) { return r[0]; });
+      });
+      ctrl.flush();
+    },
   };
 };

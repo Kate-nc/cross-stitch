@@ -731,6 +731,174 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
 })();
 
 
+/* ─── saveStatus.js ─── */
+/* creator/saveStatus.js — Auto-save state machine helper.
+ * ════════════════════════════════════════════════════════════════════════
+ * Implements the "Proposal 2" save model: a debounced auto-save that
+ * surfaces live status to the UI ('idle' → 'pending' → 'saving' → 'saved'
+ * or 'error') instead of pretending to save silently.
+ *
+ * The controller is intentionally a pure ES5 module so it can be unit
+ * tested without React or the DOM. The Creator's auto-save effect calls
+ * `controller.schedule(saveFn)` whenever a tracked field changes; the
+ * controller debounces, runs the save, and pushes status updates through
+ * the callbacks supplied at construction time.
+ * ════════════════════════════════════════════════════════════════════════
+ */
+(function (root) {
+  'use strict';
+
+  /**
+   * Build a save controller.
+   *
+   * @param {Object} callbacks
+   *   - onStatus(status):   one of 'idle' | 'pending' | 'saving' | 'saved' | 'error'
+   *   - onSavedAt(date):    Date when the last successful save committed (or null)
+   *   - onError(err):       Error from the most recent failed save (or null)
+   *   - onFirstSaveSuccess(savedProjectId): fired exactly once per controller,
+   *                          after the first successful save. Use this to open
+   *                          the name-prompt modal without blocking the save.
+   *
+   * @param {Object} [opts]
+   *   - debounceMs:         delay before running a queued save (default 1000)
+   *   - savedHoldMs:        how long 'saved' lingers before fading to 'idle'
+   *                          (default 2500)
+   *   - now:                () => Date — injectable for tests
+   *   - setTimeout / clearTimeout: injectable for tests
+   *
+   * @returns {Object} controller with:
+   *   - schedule(saveFn): mark pending and arm the debounce; saveFn must
+   *                       return a Promise that resolves with the saved
+   *                       project id (or any truthy value) on success.
+   *   - flush():           run any pending save immediately, returns Promise
+   *   - cancel():          cancel any pending debounce/fade timers
+   *   - isPending():       true when a debounce timer is armed
+   *   - isInFlight():      true when a save is currently running
+   */
+  function createSaveController(callbacks, opts) {
+    callbacks = callbacks || {};
+    opts = opts || {};
+    var debounceMs   = typeof opts.debounceMs   === 'number' ? opts.debounceMs   : 1000;
+    var savedHoldMs  = typeof opts.savedHoldMs  === 'number' ? opts.savedHoldMs  : 2500;
+    var now          = opts.now          || function () { return new Date(); };
+    var setT         = opts.setTimeout   || (typeof setTimeout   !== 'undefined' ? setTimeout   : null);
+    var clearT       = opts.clearTimeout || (typeof clearTimeout !== 'undefined' ? clearTimeout : null);
+
+    function noop() {}
+    var onStatus           = callbacks.onStatus           || noop;
+    var onSavedAt          = callbacks.onSavedAt          || noop;
+    var onError            = callbacks.onError            || noop;
+    var onFirstSaveSuccess = callbacks.onFirstSaveSuccess || noop;
+
+    var debounceTimer = null;
+    var fadeTimer     = null;
+    var pendingSaveFn = null;
+    var inFlight      = false;
+    var firstSaveDone = false;
+
+    function clearDebounce() {
+      if (debounceTimer && clearT) { clearT(debounceTimer); }
+      debounceTimer = null;
+    }
+    function clearFade() {
+      if (fadeTimer && clearT) { clearT(fadeTimer); }
+      fadeTimer = null;
+    }
+
+    function runNow() {
+      clearDebounce();
+      clearFade();
+      var saveFn = pendingSaveFn;
+      pendingSaveFn = null;
+      if (typeof saveFn !== 'function') { return Promise.resolve(); }
+      inFlight = true;
+      onStatus('saving');
+      var p;
+      try {
+        var ret = saveFn();
+        p = (ret && typeof ret.then === 'function') ? ret : Promise.resolve(ret);
+      } catch (err) {
+        p = Promise.reject(err);
+      }
+      return p.then(function (result) {
+        inFlight = false;
+        onError(null);
+        onSavedAt(now());
+        onStatus('saved');
+        var wasFirst = !firstSaveDone;
+        firstSaveDone = true;
+        if (wasFirst) {
+          try { onFirstSaveSuccess(result); } catch (_) {}
+        }
+        // Fade 'saved' → 'idle' after the hold window so the badge doesn't
+        // permanently shout success after a single edit.
+        if (setT && savedHoldMs > 0) {
+          fadeTimer = setT(function () {
+            fadeTimer = null;
+            // Only fade if no fresh edit has come in meanwhile.
+            if (!debounceTimer && !inFlight) { onStatus('idle'); }
+          }, savedHoldMs);
+        }
+        return result;
+      }, function (err) {
+        inFlight = false;
+        onError(err || new Error('Unknown save error'));
+        onStatus('error');
+        // Surface to the console so devtools users can see the stack.
+        if (typeof console !== 'undefined' && console.error) {
+          console.error('Auto-save failed:', err);
+        }
+        // Don't re-throw — the controller has already reported the error
+        // through the callbacks; throwing would create an unhandled
+        // rejection in production.
+      });
+    }
+
+    function schedule(saveFn) {
+      pendingSaveFn = saveFn;
+      onStatus('pending');
+      // A new edit cancels any lingering 'saved' fade so we don't briefly
+      // show the success state for a stale write.
+      clearFade();
+      clearDebounce();
+      if (!setT) { return runNow(); }
+      debounceTimer = setT(function () {
+        debounceTimer = null;
+        runNow();
+      }, debounceMs);
+      return null;
+    }
+
+    function flush() {
+      if (!debounceTimer && !pendingSaveFn) { return Promise.resolve(); }
+      return runNow();
+    }
+
+    function cancel() {
+      clearDebounce();
+      clearFade();
+      pendingSaveFn = null;
+    }
+
+    return {
+      schedule: schedule,
+      flush:    flush,
+      cancel:   cancel,
+      isPending:  function () { return debounceTimer !== null; },
+      isInFlight: function () { return inFlight; },
+      hasFirstSaveCompleted: function () { return firstSaveDone; }
+    };
+  }
+
+  var api = { createSaveController: createSaveController };
+
+  if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
+  if (root) {
+    root.SaveStatus = api;
+  }
+}(typeof window !== 'undefined' ? window : this));
+
+
 /* ─── symbolFontSpec.js ─── */
 /* creator/symbolFontSpec.js — Glyph spec for the embedded chart symbol font.
  *
@@ -5335,6 +5503,19 @@ window.useCreatorState = function useCreatorState() {
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
   var _namePrompt= useState(false);  var namePromptOpen = _namePrompt[0], setNamePromptOpen = _namePrompt[1];
+  // Proposal 2: auto-save state surfaced in the header badge so the user can
+  // see "Saving…", "Saved 5 s ago", or "Save failed — Retry" instead of the
+  // static "All changes saved" string. Driven by SaveStatus.createSaveController
+  // inside useProjectIO.js.
+  var _saveSt    = useState("idle"); var saveStatus = _saveSt[0],   setSaveStatus = _saveSt[1];
+  var _savedAt   = useState(null);   var savedAt    = _savedAt[0],  setSavedAt    = _savedAt[1];
+  var _saveErr   = useState(null);   var saveError  = _saveErr[0],  setSaveError  = _saveErr[1];
+  // Distinguishes the auto-prompted first-save name modal from the legacy
+  // "download .json" name modal so the two flows can render the same
+  // NamePromptModal component without leaking each other's behaviour.
+  // Values: null (closed) | "download" (legacy explicit save) | "firstSave"
+  // (Proposal 2 prompt opened automatically after the first auto-save).
+  var _nameReason= useState(null);   var nameModalReason = _nameReason[0], setNameModalReason = _nameReason[1];
   var _prefsOpen = useState(false); var preferencesOpen = _prefsOpen[0], setPreferencesOpen = _prefsOpen[1];
   // Optional metadata users can fill in before/after generating
   var _projDesigner = useState(""); var projectDesigner = _projDesigner[0], setProjectDesigner = _projDesigner[1];
@@ -6184,6 +6365,10 @@ window.useCreatorState = function useCreatorState() {
     projectDesigner, setProjectDesigner,
     projectDescription, setProjectDescription,
     namePromptOpen, setNamePromptOpen,
+    saveStatus, setSaveStatus,
+    savedAt, setSavedAt,
+    saveError, setSaveError,
+    nameModalReason, setNameModalReason,
     preferencesOpen, setPreferencesOpen,
     cleanupDiff, setCleanupDiff, showCleanupDiff, setShowCleanupDiff,
     pcRef, fRef, scrollRef, expRef, loadRef,
@@ -8245,6 +8430,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   // not after the 1 s debounce. This avoids the "I created a pattern but it's not
   // in my stash" bug when the user navigates away within the debounce window.
   var firstSaveDoneRef = React.useRef(null);
+  // Proposal 2 auto-save controller. Lazily created on first effect run
+  // because we need access to the state setters (saveStatus / savedAt /
+  // saveError / namePromptOpen) that are part of the merged state object.
+  var saveControllerRef = React.useRef(null);
   // Mirrors the latest values needed by the beforeunload stash-sync handler.
   // The handler effect deps only on isActive (we don't want to re-bind on every
   // keystroke), so reading from this ref guarantees the unload sync uses
@@ -8316,7 +8505,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   // ─── saveProject ─────────────────────────────────────────────────────────────
   function saveProject() {
     if (!state.pat || !state.pal) return;
-    if (!state.projectName) { state.setNamePromptOpen(true); return; }
+    if (!state.projectName) {
+      if (state.setNameModalReason) state.setNameModalReason("download");
+      state.setNamePromptOpen(true);
+      return;
+    }
     doSaveProject(state.projectName);
   }
 
@@ -8859,27 +9052,65 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     // finishes, even if the user navigates away within 1 s.
     var isFirstSave = firstSaveDoneRef.current !== state.projectIdRef.current;
     function persistAll() {
-      saveProjectToDB(project5).catch(function(err) { console.error("Auto-save failed:", err); });
-      ProjectStorage.save(project5)
-        .then(function(id) { ProjectStorage.setActiveProject(id); })
-        .catch(function(err) { console.error("ProjectStorage auto-save failed:", err); });
+      // Run both writes in parallel and treat the cycle as failed if either
+      // one rejects, so the visible save status reflects reality. The legacy
+      // saveProjectToDB key is kept in lockstep with ProjectStorage so older
+      // entry points (Tracker recovery, BackupRestore) still find a snapshot.
+      var p1 = ProjectStorage.save(project5).then(function (id) {
+        ProjectStorage.setActiveProject(id);
+        return id;
+      });
+      var p2 = saveProjectToDB(project5);
       if (typeof StashBridge !== "undefined") {
-        StashBridge.syncProjectToLibrary(
-          state.projectIdRef.current,
-          state.projectName || (state.sW + "\xD7" + state.sH + " pattern"),
-          state.skeinData,
-          "inprogress",
-          state.fabricCt
-        );
+        try {
+          StashBridge.syncProjectToLibrary(
+            state.projectIdRef.current,
+            state.projectName || (state.sW + "\xD7" + state.sH + " pattern"),
+            state.skeinData,
+            "inprogress",
+            state.fabricCt
+          );
+        } catch (_) {}
       }
       firstSaveDoneRef.current = state.projectIdRef.current;
+      return Promise.all([p1, p2]).then(function (results) { return results[0]; });
+    }
+    // Lazily build the controller. The callbacks close over the latest
+    // state setters because we re-resolve them via `state.*` on each call.
+    if (!saveControllerRef.current && typeof window.SaveStatus !== "undefined") {
+      saveControllerRef.current = window.SaveStatus.createSaveController({
+        onStatus:  function (s)   { if (state.setSaveStatus) state.setSaveStatus(s); },
+        onSavedAt: function (d)   { if (state.setSavedAt)    state.setSavedAt(d); },
+        onError:   function (err) { if (state.setSaveError)  state.setSaveError(err); },
+        onFirstSaveSuccess: function () {
+          // Prompt for a name only if the user hasn't given one yet AND only
+          // once per project. Non-blocking: the project is already saved
+          // under its auto-generated name ("Untitled pattern") at this point.
+          if (!state.projectName && state.setNamePromptOpen) {
+            if (state.setNameModalReason) state.setNameModalReason("firstSave");
+            state.setNamePromptOpen(true);
+          }
+        }
+      }, { debounceMs: 1000, savedHoldMs: 2500 });
+    }
+    var ctrl = saveControllerRef.current;
+    if (!ctrl) {
+      // Fallback for tests/older browsers where SaveStatus failed to load:
+      // run the save inline so behaviour matches the previous implementation.
+      if (isFirstSave) { persistAll(); return; }
+      var saveTimer = setTimeout(persistAll, 1000);
+      return function() { clearTimeout(saveTimer); };
     }
     if (isFirstSave) {
-      persistAll();
+      // Schedule, then immediately flush so the first save lands without the
+      // debounce — same behaviour as before, but routed through the
+      // controller so saveStatus transitions stay correct.
+      ctrl.schedule(persistAll);
+      ctrl.flush();
       return;
     }
-    var saveTimer = setTimeout(persistAll, 1000);
-    return function() { clearTimeout(saveTimer); };
+    ctrl.schedule(persistAll);
+    return function() { /* schedule() resets its own timer on next edit */ };
   }, [
     state.pat, state.pal, state.sW, state.sH, state.maxC,
     state.bri, state.con, state.sat, state.dith, state.skipBg, state.bgTh, state.bgCol,
@@ -8989,6 +9220,22 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     processLoadedProject: processLoadedProject,
     loadProject: loadProject,
     handleFile: handleFile,
+    // Re-runs the most recent auto-save attempt. Wired to the "Retry"
+    // button shown by SaveStatusBadge when saveStatus === 'error'.
+    retryAutoSave: function () {
+      var ctrl = saveControllerRef.current;
+      var snap = creatorSnapshotRef.current;
+      if (!ctrl || !snap) return;
+      ctrl.schedule(function () {
+        var p1 = ProjectStorage.save(snap).then(function (id) {
+          ProjectStorage.setActiveProject(id);
+          return id;
+        });
+        var p2 = saveProjectToDB(snap);
+        return Promise.all([p1, p2]).then(function (r) { return r[0]; });
+      });
+      ctrl.flush();
+    },
   };
 };
 

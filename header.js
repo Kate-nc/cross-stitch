@@ -263,7 +263,86 @@ function HeaderProjectSwitcher({ activeProject, projectName, onOpenAll }) {
   );
 }
 
-function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onNewProject, onOpenProject, onPreferences, onBulkAddThreads, setModal, activeProject, onBackupDownload, onRestoreFile, storageUsage, projectName: propProjectName, projectPct: propProjectPct, onNameChange, showAutosaved }) {
+// Live save-status badge — replaces the previous static "All changes saved"
+// label. Receives saveStatus / savedAt / saveError driven by the Creator's
+// auto-save controller (see creator/saveStatus.js). When status is 'saved'
+// it shows a relative timestamp ("Saved 5 s ago") that ticks every 15 s so
+// the user can trust how fresh the persisted snapshot is.
+function SaveStatusBadge({ status, savedAt, error, onRetry }) {
+  // Force a re-render every 15 s so the relative "Saved Xs ago" text stays
+  // current without flooding React with re-renders. We only run the timer
+  // when there is a savedAt to format.
+  var _tick = React.useState(0);
+  var setTick = _tick[1];
+  React.useEffect(function () {
+    if (!savedAt) return undefined;
+    var id = setInterval(function () { setTick(function (n) { return n + 1; }); }, 15000);
+    return function () { clearInterval(id); };
+  }, [savedAt]);
+
+  // Default to the legacy "All changes saved" label when no status was
+  // supplied — keeps non-Creator pages (Tracker / Manager) rendering the
+  // existing copy until they opt in to the new state machine.
+  var effective = status || (savedAt ? 'saved' : 'idle');
+  var className = 'tb-proj-badge-pct tb-proj-badge-saved';
+  var title = 'Your work auto-saves to this device. Use Download to export a .json file.';
+  var icon = (window.Icons && window.Icons.check) ? window.Icons.check() : null;
+  var label;
+
+  if (effective === 'pending') {
+    icon = (window.Icons && window.Icons.pencil) ? window.Icons.pencil() : null;
+    label = 'Editing\u2026';
+    className += ' tb-proj-badge-saved--pending';
+    title = 'Unsaved changes — auto-saving in a moment.';
+  } else if (effective === 'saving') {
+    icon = (window.Icons && window.Icons.hourglass) ? window.Icons.hourglass() : null;
+    label = 'Saving\u2026';
+    className += ' tb-proj-badge-saved--saving';
+    title = 'Saving to this device\u2026';
+  } else if (effective === 'error') {
+    icon = (window.Icons && window.Icons.warning) ? window.Icons.warning() : null;
+    label = 'Save failed';
+    className += ' tb-proj-badge-saved--error';
+    title = (error && error.message) ? ('Save failed: ' + error.message) : 'Save failed';
+  } else if (effective === 'saved' && savedAt) {
+    label = 'Saved ' + formatRelative(savedAt);
+  } else {
+    label = 'All changes saved';
+  }
+
+  var children = [icon, label];
+  if (effective === 'error' && typeof onRetry === 'function') {
+    children.push(React.createElement('button', {
+      key: 'retry',
+      type: 'button',
+      className: 'tb-proj-badge-retry',
+      onClick: function (e) { e.stopPropagation(); onRetry(); },
+      style: { marginLeft: 6, background: 'transparent', border: '1px solid currentColor', color: 'inherit', padding: '0 6px', borderRadius: 4, fontSize: 10, cursor: 'pointer' }
+    }, 'Retry'));
+  }
+  return React.createElement('span', { className: className, title: title }, children);
+}
+
+// Compact relative-time formatter for the save badge: "just now",
+// "5 s ago", "3 min ago", "1 h ago". Returns the absolute clock time
+// once the gap exceeds 24 h so we don't show stale numbers.
+function formatRelative(date) {
+  if (!date) return '';
+  var d = (date instanceof Date) ? date : new Date(date);
+  var diffMs = Date.now() - d.getTime();
+  if (diffMs < 0) diffMs = 0;
+  var s = Math.round(diffMs / 1000);
+  if (s < 5) return 'just now';
+  if (s < 60) return s + ' s ago';
+  var m = Math.round(s / 60);
+  if (m < 60) return m + ' min ago';
+  var h = Math.round(m / 60);
+  if (h < 24) return h + ' h ago';
+  try { return 'at ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+  catch (_) { return d.toISOString(); }
+}
+
+function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onNewProject, onOpenProject, onPreferences, onBulkAddThreads, setModal, activeProject, onBackupDownload, onRestoreFile, storageUsage, projectName: propProjectName, projectPct: propProjectPct, onNameChange, showAutosaved, saveStatus, savedAt, saveError, onRetrySave }) {
   const [pageDrop, setPageDrop] = React.useState(false);
   const dropRef = React.useRef(null);
 
@@ -503,13 +582,12 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               ))
             : React.createElement('span', { className: 'tb-proj-badge-name' }, propProjectName || projName),
           (propProjectPct !== undefined && propProjectPct !== null ? propProjectPct : pct) !== null && React.createElement('span', { className: 'tb-proj-badge-pct' }, (propProjectPct !== undefined && propProjectPct !== null ? propProjectPct : pct) + '%'),
-          showAutosaved && React.createElement('span', {
-            className: 'tb-proj-badge-pct tb-proj-badge-saved',
-            title: 'Your work auto-saves to this device. Use Download to export a .json file.'
-          },
-            (window.Icons && window.Icons.check) ? window.Icons.check() : null,
-            'All changes saved'
-          )
+          showAutosaved && React.createElement(SaveStatusBadge, {
+            status: saveStatus,
+            savedAt: savedAt,
+            error: saveError,
+            onRetry: onRetrySave
+          })
         ),
 
         React.createElement('div', { className: 'tb-sep' }),

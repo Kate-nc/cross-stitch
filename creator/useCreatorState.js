@@ -329,6 +329,19 @@ window.useCreatorState = function useCreatorState() {
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
   var _namePrompt= useState(false);  var namePromptOpen = _namePrompt[0], setNamePromptOpen = _namePrompt[1];
+  // Proposal 2: auto-save state surfaced in the header badge so the user can
+  // see "Saving…", "Saved 5 s ago", or "Save failed — Retry" instead of the
+  // static "All changes saved" string. Driven by SaveStatus.createSaveController
+  // inside useProjectIO.js.
+  var _saveSt    = useState("idle"); var saveStatus = _saveSt[0],   setSaveStatus = _saveSt[1];
+  var _savedAt   = useState(null);   var savedAt    = _savedAt[0],  setSavedAt    = _savedAt[1];
+  var _saveErr   = useState(null);   var saveError  = _saveErr[0],  setSaveError  = _saveErr[1];
+  // Distinguishes the auto-prompted first-save name modal from the legacy
+  // "download .json" name modal so the two flows can render the same
+  // NamePromptModal component without leaking each other's behaviour.
+  // Values: null (closed) | "download" (legacy explicit save) | "firstSave"
+  // (Proposal 2 prompt opened automatically after the first auto-save).
+  var _nameReason= useState(null);   var nameModalReason = _nameReason[0], setNameModalReason = _nameReason[1];
   var _prefsOpen = useState(false); var preferencesOpen = _prefsOpen[0], setPreferencesOpen = _prefsOpen[1];
   // Optional metadata users can fill in before/after generating
   var _projDesigner = useState(""); var projectDesigner = _projDesigner[0], setProjectDesigner = _projDesigner[1];
@@ -1178,6 +1191,10 @@ window.useCreatorState = function useCreatorState() {
     projectDesigner, setProjectDesigner,
     projectDescription, setProjectDescription,
     namePromptOpen, setNamePromptOpen,
+    saveStatus, setSaveStatus,
+    savedAt, setSavedAt,
+    saveError, setSaveError,
+    nameModalReason, setNameModalReason,
     preferencesOpen, setPreferencesOpen,
     cleanupDiff, setCleanupDiff, showCleanupDiff, setShowCleanupDiff,
     pcRef, fRef, scrollRef, expRef, loadRef,

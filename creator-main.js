@@ -775,7 +775,11 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         setModal={state.setModal}
         projectName={state.pat&&state.pal?(state.projectName||(state.sW+'×'+state.sH+' pattern')):undefined}
         onNameChange={state.pat&&state.pal?n=>state.setProjectName(n):undefined}
-        showAutosaved={!!(state.pat&&state.pal)} />
+        showAutosaved={!!(state.pat&&state.pal)}
+        saveStatus={state.saveStatus}
+        savedAt={state.savedAt}
+        saveError={state.saveError}
+        onRetrySave={io.retryAutoSave} />
       {state.preferencesOpen&&typeof window.PreferencesModal!=='undefined'&&React.createElement(window.PreferencesModal,{onClose:()=>state.setPreferencesOpen(false)})}
       {state.adaptModalOpen&&typeof window.AdaptModal!=='undefined'&&React.createElement(window.AdaptModal,{
         mode:state.adaptModalMode,
@@ -783,11 +787,38 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       })}
       {state.namePromptOpen&&<NamePromptModal
         defaultName={state.projectName||(state.sW+'×'+state.sH+' pattern')}
-        onConfirm={name=>{state.setProjectName(name);state.setNamePromptOpen(false);io.doSaveProject(name);}}
-        onCancel={()=>{
+        onConfirm={name=>{
+          state.setProjectName(name);
           state.setNamePromptOpen(false);
-          // Tell the user why nothing happened — without this the modal just
-          // disappears with no feedback when they cancel a Download attempt.
+          // Two distinct flows share this modal:
+          //  - "firstSave"  → opened automatically after the first auto-save.
+          //                   The project is already in IndexedDB under
+          //                   "Untitled pattern"; we only need to update the
+          //                   name (the auto-save effect picks the change up
+          //                   on the next debounce). Do NOT trigger a .json
+          //                   download here.
+          //  - "download"   → opened by the legacy "Save (.json)" path.
+          //                   doSaveProject downloads the file to disk.
+          if(state.nameModalReason==='firstSave'){
+            state.setNameModalReason&&state.setNameModalReason(null);
+            if(state.addToast)state.addToast('Saved as "'+name+'"',{type:'success',duration:2500});
+          }else{
+            state.setNameModalReason&&state.setNameModalReason(null);
+            io.doSaveProject(name);
+          }
+        }}
+        onCancel={()=>{
+          var reason=state.nameModalReason;
+          state.setNamePromptOpen(false);
+          state.setNameModalReason&&state.setNameModalReason(null);
+          if(reason==='firstSave'){
+            // First-save prompt: the project is already saved under
+            // "Untitled pattern" — just close quietly.
+            return;
+          }
+          // Legacy download path: tell the user why nothing happened —
+          // without this the modal just disappears with no feedback when
+          // they cancel a Download attempt.
           if(state.addToast)state.addToast("Download cancelled \u2014 give your pattern a name to download a .json file.",{type:"info",duration:3500});
         }}
       />}
