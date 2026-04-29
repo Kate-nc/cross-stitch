@@ -86,7 +86,8 @@
     if (VAL) return VAL(raw, ctx);
     // Cheap built-in: dimensions sane, no zero-cell extraction.
     const warnings = [];
-    if (!raw.grid || raw.grid.length === 0) {
+    const hasLegacy = raw && raw._legacyProject;
+    if (!hasLegacy && (!raw.grid || raw.grid.length === 0)) {
       warnings.push({ code: 'EMPTY_GRID', message: 'No cells extracted from the file', severity: 'error' });
     }
     return { warnings, perPaletteEntry: (raw.legend || []).map(l => l.confidence || 0.5) };
@@ -95,6 +96,17 @@
   function defaultMaterialise(raw, validation, probe, opts, ctx) {
     const MAT = (typeof window !== 'undefined' && window.ImportEngine && window.ImportEngine.materialise);
     if (MAT) return MAT(raw, validation, probe, opts, ctx);
+
+    // Fast-path: legacy strategies attach a fully-built v8 project under
+    // _legacyProject. Honour it verbatim so we get strict parity with the
+    // pre-engine import paths.
+    if (raw && raw._legacyProject) {
+      const proj = raw._legacyProject;
+      const total = (proj.w || 0) * (proj.h || 0);
+      const perCell = new Array(total).fill(1);
+      return { project: proj, perCellConfidence: perCell };
+    }
+
     // Fallback: a minimal v8 project shape so tests can still run.
     const cells = raw.grid || [];
     const w = Math.max(0, ...cells.map(c => c.x + 1));
