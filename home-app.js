@@ -383,6 +383,19 @@
       // Reset so the same file can be re-selected if needed
       e.target.value = '';
       if (!file) return;
+      // Route non-image pattern files through the new import engine.
+      var name = (file.name || '').toLowerCase();
+      var isImage = (file.type || '').indexOf('image/') === 0;
+      var isPattern = /\.(oxs|xml|json|pdf)$/i.test(name);
+      if (!isImage && isPattern && window.ImportEngine && typeof window.ImportEngine.openImportPicker === 'function') {
+        // We already have the file — call importAndReview directly so the
+        // user doesn't have to pick it again.
+        setPending(true);
+        window.ImportEngine.importAndReview(file).catch(function (err) {
+          alert('Could not import: ' + (err && err.message || err));
+        }).finally(function () { setPending(false); });
+        return;
+      }
       var reader = new FileReader();
       reader.onload = function (ev) {
         var dataUrl = ev.target.result;
@@ -416,7 +429,7 @@
       h('input', {
         ref: fileInputRef,
         type: 'file',
-        accept: 'image/*',
+        accept: 'image/*,.oxs,.xml,.json,.pdf',
         className: 'home-create-file-input',
         onChange: handleFileChange,
         'aria-hidden': 'true',
@@ -432,8 +445,8 @@
           h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
             typeof Icons.image === 'function' ? Icons.image() : null),
           h('span', { className: 'home-create-tile__copy' },
-            h('strong', null, 'New from image'),
-            h('span', null, 'Convert a photo into stitches')
+            h('strong', null, 'New from pattern file'),
+            h('span', null, 'Image, .oxs, .json or .pdf')
           )
         ),
         h('a', {
