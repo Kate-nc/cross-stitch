@@ -527,6 +527,30 @@ window.Icons = (function() {
     // Compass — replaces 🧭 (embroidery direction tip)
     compass: function() {
       return svg(c(12, 12, 10), poly('16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76'));
+    },
+    // Confidence high — solid bars rising
+    confidenceHigh: function() {
+      return svg(rc(4, 14, 3, 6), rc(10, 9, 3, 11), rc(16, 4, 3, 16));
+    },
+    // Confidence low — single low bar with downward arrow
+    confidenceLow: function() {
+      return svg(rc(4, 16, 3, 4), rc(10, 12, 3, 8), p('M16 8l3 3 3-3'), l(19, 11, 19, 4));
+    },
+    // Magnifier — search/inspect
+    magnifier: function() {
+      return svg(c(11, 11, 7), l(21, 21, 16.65, 16.65));
+    },
+    // Split view — two side-by-side rectangles
+    splitView: function() {
+      return svg(rc(3, 5, 8, 14, 1), rc(13, 5, 8, 14, 1));
+    },
+    // Grid overlay — 3×3 grid
+    gridOverlay: function() {
+      return svg(rc(3, 3, 18, 18, 2), l(9, 3, 9, 21), l(15, 3, 15, 21), l(3, 9, 21, 9), l(3, 15, 21, 15));
+    },
+    // Wand fix — wand with sparkle
+    wandFix: function() {
+      return svg(p('M15 4V2'), p('M15 16v-2'), p('M8 9h2'), p('M20 9h2'), p('M17.8 11.8 19 13'), p('M15 9h0'), p('M17.8 6.2 19 5'), p('m3 21 9-9'), p('M12.2 6.2 11 5'));
     }
   };
 })();
