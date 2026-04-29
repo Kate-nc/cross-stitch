@@ -28,6 +28,7 @@
     require('./pdf/operatorWalker.js');
     require('./pdf/textBands.js');
     require('./pdf/publishers.js');
+    require('./pdf/dmcPageRoles.js');
   }
 
   const ENGINE = isBrowser ? window.ImportEngine : (function () {
@@ -39,7 +40,8 @@
     const ow    = require('./pdf/operatorWalker.js');
     const tb    = require('./pdf/textBands.js');
     const pub   = require('./pdf/publishers.js');
-    return Object.assign({}, types, reg, pipe, wc, sniff, ow, tb, pub);
+    const dpr   = require('./pdf/dmcPageRoles.js');
+    return Object.assign({}, types, reg, pipe, wc, sniff, ow, tb, pub, dpr);
   })();
 
   // High-level: takes a File-like (browser File, or { name, type, arrayBuffer })
