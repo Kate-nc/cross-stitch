@@ -24,6 +24,7 @@
     require('./registry.js');
     require('./pipeline.js');
     require('./workerClient.js');
+    require('./classifier/sniffMagic.js');
   }
 
   const ENGINE = isBrowser ? window.ImportEngine : (function () {
@@ -31,7 +32,8 @@
     const reg   = require('./registry.js');
     const pipe  = require('./pipeline.js');
     const wc    = require('./workerClient.js');
-    return Object.assign({}, types, reg, pipe, wc);
+    const sniff = require('./classifier/sniffMagic.js');
+    return Object.assign({}, types, reg, pipe, wc, sniff);
   })();
 
   // High-level: takes a File-like (browser File, or { name, type, arrayBuffer })
