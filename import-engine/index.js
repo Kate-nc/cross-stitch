@@ -30,6 +30,8 @@
     require('./pdf/publishers.js');
     require('./pdf/dmcPageRoles.js');
     require('./pdf/legendExtractor.js');
+    require('./pdf/gridExtractor.js');
+    require('./pipeline/assemble.js');
   }
 
   const ENGINE = isBrowser ? window.ImportEngine : (function () {
@@ -43,7 +45,9 @@
     const pub   = require('./pdf/publishers.js');
     const dpr   = require('./pdf/dmcPageRoles.js');
     const lex   = require('./pdf/legendExtractor.js');
-    return Object.assign({}, types, reg, pipe, wc, sniff, ow, tb, pub, dpr, lex);
+    const gex   = require('./pdf/gridExtractor.js');
+    const asm   = require('./pipeline/assemble.js');
+    return Object.assign({}, types, reg, pipe, wc, sniff, ow, tb, pub, dpr, lex, gex, asm);
   })();
 
   // High-level: takes a File-like (browser File, or { name, type, arrayBuffer })
