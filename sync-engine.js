@@ -16,10 +16,19 @@ const SyncEngine = (() => {
   const LS_DEVICE_ID   = "cs_sync_deviceId";
   const LS_DEVICE_NAME = "cs_sync_deviceName";
 
-  // localStorage keys to include in sync (same safe set as backup-restore)
-  const SYNC_LS_KEYS = [
-    (typeof LOCAL_STORAGE_KEYS !== 'undefined') ? LOCAL_STORAGE_KEYS.activeProject : "crossstitch_active_project",
-    "crossstitch_custom_palettes"
+  // Allowlist of cs_pref_* UserPrefs keys that are safe to sync across devices.
+  // Per-device-only keys (active project pointer, sync state, per-device UI) are
+  // intentionally excluded. crossstitch_active_project is per-device UI state and
+  // must never be included in a sync file.
+  const SYNC_PREF_ALLOWLIST = [
+    "cs_pref_designerName",
+    "cs_pref_designerLogo",
+    "cs_pref_designerLogoPosition",
+    "cs_pref_designerCopyright",
+    "cs_pref_designerContact",
+    "cs_pref_units",
+    "cs_pref_currency",
+    "cs_pref_fabricUnit"
   ];
 
   // ── Device identity ──────────────────────────────────────────────────────
@@ -228,24 +237,30 @@ const SyncEngine = (() => {
       }
     }
 
-    // Include preferences (optional)
-    if (includePrefs) {
-      syncObj.prefs = {};
-      SYNC_LS_KEYS.forEach(function (key) {
-        try {
-          var val = localStorage.getItem(key);
-          if (val !== null) syncObj.prefs[key] = val;
-        } catch (e) {}
-      });
-    } else if (includePalettes) {
-      // Palettes piggyback on the prefs envelope so existing readers keep working
-      // without a v2 format bump.
-      syncObj.prefs = {};
+    // Build the prefs envelope. Palettes and user preferences are tracked
+    // independently. crossstitch_active_project is per-device UI state and is
+    // never included. The prefs envelope is omitted entirely when neither
+    // includePalettes nor includePrefs is true.
+    var prefsEnvelope = {};
+
+    if (includePalettes) {
       try {
         var pal = localStorage.getItem("crossstitch_custom_palettes");
-        if (pal !== null) syncObj.prefs["crossstitch_custom_palettes"] = pal;
+        if (pal !== null) prefsEnvelope["crossstitch_custom_palettes"] = pal;
       } catch (e) {}
-      if (Object.keys(syncObj.prefs).length === 0) delete syncObj.prefs;
+    }
+
+    if (includePrefs) {
+      SYNC_PREF_ALLOWLIST.forEach(function (key) {
+        try {
+          var val = localStorage.getItem(key);
+          if (val !== null) prefsEnvelope[key] = val;
+        } catch (e) {}
+      });
+    }
+
+    if (Object.keys(prefsEnvelope).length > 0) {
+      syncObj.prefs = prefsEnvelope;
     }
 
     // Record export timestamp
@@ -794,7 +809,12 @@ const SyncEngine = (() => {
     // Mark all affected project IDs as synced
     var syncedIds = [];
     plan.newRemote.forEach(function (e) { if (e.remote && e.remote.data && e.remote.data.id) syncedIds.push(e.remote.data.id); });
-    plan.mergeTracking.forEach(function (e) { if (e.id) syncedIds.push(e.id); });
+    plan.mergeTracking.forEach(function (e) {
+      // When an id rewrite occurred, the project was saved under canonicalId.
+      // Use that instead of e.id (the remote ID) so markSynced records the right entry.
+      var id = (e.idRewrite && e.idRewrite.canonicalId) ? e.idRewrite.canonicalId : e.id;
+      if (id) syncedIds.push(id);
+    });
     plan.conflicts.forEach(function (e) { if (e.id) syncedIds.push(e.id); });
     if (syncedIds.length > 0 && typeof ProjectStorage !== "undefined" && ProjectStorage.markSynced) {
       try { await ProjectStorage.markSynced(syncedIds, importTs); } catch (e) {}

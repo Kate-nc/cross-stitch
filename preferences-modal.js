@@ -967,11 +967,14 @@
     }
 
     var st = syncStatus[0] || {};
-    var hasFolder = !!st.hasFolderWatch;
+    var hasFolder = !!st.hasWatchDir;
     var folderSupported = (typeof window.showDirectoryPicker === "function");
-    var folderName = st.watchDirName || (hasFolder ? "Sync folder" : "Not connected");
+    var folderName = hasFolder ? "Sync folder" : "Not connected";
     var lastExport = st.lastExportAt ? new Date(st.lastExportAt).toLocaleString() : "Never";
     var lastImport = st.lastImportAt ? new Date(st.lastImportAt).toLocaleString() : "Never";
+    var currentAutoSync = (window.SyncEngine && typeof window.SyncEngine.isAutoSyncEnabled === "function")
+      ? window.SyncEngine.isAutoSyncEnabled()
+      : autosync[0];
 
     return h("div", null,
       h(PageHeader, { title: "Sync, backup & data",
@@ -1022,40 +1025,29 @@
           h(Switch, { checked: !!includePalettes[0], onChange: includePalettes[1] })
         ),
         h(Row, { last: true, label: "Preferences",
-          desc: "Off by default — most people prefer per-device preferences (theme, accent, units)." },
-          h(Switch, { checked: !!includePrefs[0], onChange: includePrefs[1] })
+          desc: "Not currently included in sync files. User preferences such as theme, accent and units stay on this device only." },
+          h(Switch, { checked: false, onChange: function () {}, disabled: true })
         )
       ),
 
       h(Section, { title: "Behaviour" },
         h(Row, { label: "Auto-sync stitch progress",
           desc: "When on, every save writes a fresh sync file to the connected folder." },
-          h(Switch, { checked: !!autosync[0], onChange: autosync[1], disabled: !hasFolder })
+          h(Switch, {
+            checked: !!currentAutoSync,
+            onChange: function (next) {
+              var enabled = !!next;
+              if (window.SyncEngine && typeof window.SyncEngine.setAutoSyncEnabled === "function") {
+                window.SyncEngine.setAutoSyncEnabled(enabled);
+              }
+              autosync[1](enabled);
+            },
+            disabled: !hasFolder
+          })
         ),
-        h(Row, { label: "When something conflicts",
-          desc: "What to do when the same pattern was edited differently on two devices." },
-          h(Segmented, { value: conflictBehaviour[0], onChange: conflictBehaviour[1], options: [
-            { value: "auto-merge-safe", label: "Merge when safe, ask otherwise" },
-            { value: "always-ask",      label: "Always ask" },
-            { value: "silent-lww",      label: "Silently keep newer" }
-          ]})
-        ),
-        h(Row, { label: "Default action when asked",
-          desc: "Pre-selected choice in the conflict picker." },
-          h(Segmented, { value: defaultConflictAction[0], onChange: defaultConflictAction[1], options: [
-            { value: "ask", label: "No default" },
-            { value: "keep-local", label: "Keep mine" },
-            { value: "keep-remote", label: "Keep theirs" }
-          ]})
-        ),
-        h(Row, { last: true, label: "Check the folder for updates",
-          desc: "How often to look for changes from other devices." },
-          h(Segmented, { value: String(pollInterval[0]), onChange: function (v) { pollInterval[1](parseInt(v, 10)); }, options: [
-            { value: "0",   label: "Off" },
-            { value: "30",  label: "Every 30s" },
-            { value: "60",  label: "Every minute" },
-            { value: "300", label: "Every 5 min" }
-          ]})
+        h(Row, { last: true, label: "Advanced sync behaviour",
+          desc: "Conflict handling and background folder checking are not available yet in this build, so these options are hidden until the sync engine supports them." },
+          h("span", { style: { fontSize: 11, color: COLOURS.hint, fontStyle: "italic" } }, "Coming soon")
         )
       ),
 

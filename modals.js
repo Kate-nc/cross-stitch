@@ -510,7 +510,6 @@ function SyncSummaryModal({ plan, onApply, onCancel }) {
         ),
         plan.idRewrites.map(function(entry) {
           var p = (entry.remote && entry.remote.data) || {};
-          var rw = entry.idRewrite || {};
           return h('div', { key: entry.id, className: 'sync-project-row' },
             h('span', { className: 'sync-project-name' }, p.name || entry.id),
             h('span', { className: 'sync-project-meta' },
