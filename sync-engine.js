@@ -143,8 +143,29 @@ const SyncEngine = (() => {
   async function exportSync(options) {
     var opts = options || {};
     var mode = opts.mode || "full";   // "full" | "incremental"
-    var includeStash = opts.includeStash !== false;
-    var includePrefs = opts.includePrefs === true;
+    // Per-feature toggles. Defaults match the design recommendation in
+    // reports/sync-7-preferences-design.md (D6 = recommendation A): charts
+    // and progress always sync; stash on by default; prefs off by default;
+    // palettes on by default. UserPrefs reads (window.UserPrefs.get) take
+    // precedence so the Preferences panel can flip them at runtime.
+    function _pref(key, fallback) {
+      try {
+        if (window.UserPrefs && typeof window.UserPrefs.get === "function") {
+          var v = window.UserPrefs.get(key);
+          return (v === undefined || v === null) ? fallback : v;
+        }
+      } catch (e) {}
+      return fallback;
+    }
+    var includeStash = (opts.includeStash !== undefined)
+      ? !!opts.includeStash
+      : !!_pref("sync.includeStash", true);
+    var includePrefs = (opts.includePrefs !== undefined)
+      ? !!opts.includePrefs
+      : !!_pref("sync.includePrefs", false);
+    var includePalettes = (opts.includePalettes !== undefined)
+      ? !!opts.includePalettes
+      : !!_pref("sync.includePalettes", true);
 
     // Flush any in-flight React state before reading
     if (window.__flushProjectToIDB) {
@@ -216,6 +237,15 @@ const SyncEngine = (() => {
           if (val !== null) syncObj.prefs[key] = val;
         } catch (e) {}
       });
+    } else if (includePalettes) {
+      // Palettes piggyback on the prefs envelope so existing readers keep working
+      // without a v2 format bump.
+      syncObj.prefs = {};
+      try {
+        var pal = localStorage.getItem("crossstitch_custom_palettes");
+        if (pal !== null) syncObj.prefs["crossstitch_custom_palettes"] = pal;
+      } catch (e) {}
+      if (Object.keys(syncObj.prefs).length === 0) delete syncObj.prefs;
     }
 
     // Record export timestamp
@@ -316,9 +346,57 @@ const SyncEngine = (() => {
     return { valid: true, summary: summary };
   }
 
-  // ── Classification (used by merge engine in session 2) ───────────────────
+  // ── Classification (used by merge engine) ────────────────────────────────
+  //
+  // History — id-only matching produced the duplication bug:
+  //   When the same .oxs file was imported on two devices BEFORE either
+  //   connected to sync, each device generated an independent project id
+  //   (proj_<ts>_<rand>). The classifier saw "no local match by id" on
+  //   both sides and called both 'new-remote'. executeImport then dutifully
+  //   wrote the remote alongside the local one — duplicate forever.
+  //
+  // Fix — fingerprint-first, id-second. When the remote id is unknown
+  // locally, fall back to matching by chart fingerprint (computeFingerprint
+  // already keys on dimensions + cell ids and ignores tracking state).
+  // A fingerprint match is treated as 'merge-tracking' with an idRewrite
+  // record so executeImport can converge both devices on a single
+  // canonical id (lexicographically smallest — deterministic across
+  // devices, no clock or device-id required).
+
+  function buildFingerprintIndex(localProjectsArray) {
+    var index = Object.create(null);
+    for (var i = 0; i < localProjectsArray.length; i++) {
+      var p = localProjectsArray[i];
+      if (!p) continue;
+      var fp = computeFingerprint(p);
+      if (fp === "empty" || fp === "fp_error") continue;
+      if (!index[fp]) index[fp] = [];
+      index[fp].push(p);
+    }
+    return index;
+  }
+
+  function pickCanonicalId(idA, idB) {
+    if (!idA) return idB;
+    if (!idB) return idA;
+    return (idA < idB) ? idA : idB;
+  }
 
   function classifyProjects(remoteProjects, localProjectsMap) {
+    // Build fingerprint index from local projects so we can match remotes
+    // whose ids differ but whose chart contents are identical. Only used
+    // when there is no direct id match.
+    var localArr = [];
+    var localKeys = Object.keys(localProjectsMap);
+    for (var li = 0; li < localKeys.length; li++) {
+      if (localProjectsMap[localKeys[li]]) localArr.push(localProjectsMap[localKeys[li]]);
+    }
+    var byFp = buildFingerprintIndex(localArr);
+    // Track which local projects have already been claimed (by id match or
+    // a previous fingerprint match in this batch) so two remotes can't both
+    // claim the same local project.
+    var claimed = Object.create(null);
+
     var results = [];
     for (var i = 0; i < remoteProjects.length; i++) {
       var remote = remoteProjects[i];
@@ -330,9 +408,8 @@ const SyncEngine = (() => {
         classification: "new-remote"
       };
 
-      if (!local) {
-        entry.classification = "new-remote";
-      } else {
+      if (local) {
+        claimed[local.id] = true;
         var localUpdated = local.updatedAt || "";
         var remoteUpdated = remote.updatedAt || "";
         if (localUpdated === remoteUpdated) {
@@ -345,6 +422,29 @@ const SyncEngine = (() => {
             entry.classification = "merge-tracking";
           } else {
             entry.classification = "conflict";
+          }
+        }
+      } else {
+        // No id match — try fingerprint match. This is the duplication-bug fix.
+        var remoteFP2 = remote.fingerprint || (remote.data ? computeFingerprint(remote.data) : null);
+        if (remoteFP2 && byFp[remoteFP2]) {
+          var candidates = byFp[remoteFP2];
+          var matched = null;
+          for (var ci = 0; ci < candidates.length; ci++) {
+            if (!claimed[candidates[ci].id]) { matched = candidates[ci]; break; }
+          }
+          if (matched) {
+            claimed[matched.id] = true;
+            entry.local = matched;
+            // Same chart, different id. Treat as merge-tracking and record
+            // an id rewrite so executeImport converges both devices on a
+            // single canonical id.
+            entry.classification = "merge-tracking";
+            entry.idRewrite = {
+              remoteId: remote.id,
+              localId: matched.id,
+              canonicalId: pickCanonicalId(remote.id, matched.id)
+            };
           }
         }
       }
@@ -582,6 +682,10 @@ const SyncEngine = (() => {
       identical: classified.filter(function (c) { return c.classification === "identical"; }),
       mergeTracking: classified.filter(function (c) { return c.classification === "merge-tracking"; }),
       conflicts: classified.filter(function (c) { return c.classification === "conflict"; }),
+      // Subset of mergeTracking entries that arose from a fingerprint-based
+      // match across differing ids — surfaced separately so the UI can
+      // show "Possible duplicates" reassurance to users (per sync-8 wireframe A7).
+      idRewrites: classified.filter(function (c) { return !!c.idRewrite; }),
       localOnly: [],  // projects only on this device (not in sync file)
       stashMerge: null,
       syncObj: syncObj,
@@ -589,11 +693,16 @@ const SyncEngine = (() => {
       localStash: localStash
     };
 
-    // Find local-only projects
-    var remoteIds = {};
-    syncObj.projects.forEach(function (p) { remoteIds[p.id] = true; });
+    // Find local-only projects — must account for fingerprint matches so
+    // a locally-renamed-but-same-chart project isn't double-counted as both
+    // "merged" and "local-only".
+    var matchedLocalIds = Object.create(null);
+    classified.forEach(function (c) {
+      if (c.local && c.local.id) matchedLocalIds[c.local.id] = true;
+      if (c.idRewrite && c.idRewrite.localId) matchedLocalIds[c.idRewrite.localId] = true;
+    });
     Object.keys(localMap).forEach(function (id) {
-      if (!remoteIds[id]) {
+      if (!matchedLocalIds[id]) {
         plan.localOnly.push({ id: id, local: localMap[id] });
       }
     });
@@ -617,11 +726,31 @@ const SyncEngine = (() => {
     }
 
     // 2. Merge tracking progress (re-read local from IDB to avoid stale data)
+    //    Honour idRewrite when present: the remote.id and local.id differ but
+    //    the chart fingerprints match, so we converge on a canonical id and
+    //    delete the orphaned record so neither device keeps a duplicate.
     for (var j = 0; j < plan.mergeTracking.length; j++) {
       var mEntry = plan.mergeTracking[j];
-      var freshLocal = await ProjectStorage.get(mEntry.id || mEntry.local.id);
+      var localId = (mEntry.idRewrite && mEntry.idRewrite.localId)
+        || (mEntry.local && mEntry.local.id)
+        || mEntry.id;
+      var freshLocal = await ProjectStorage.get(localId);
       var merged = mergeTrackingProgress(freshLocal || mEntry.local, mEntry.remote.data);
-      await ProjectStorage.save(merged);
+
+      if (mEntry.idRewrite) {
+        var canon = mEntry.idRewrite.canonicalId;
+        var oldLocalId = (freshLocal && freshLocal.id) || localId;
+        merged.id = canon;
+        await ProjectStorage.save(merged);
+        // Delete the now-orphaned local record (only if its id differs from canonical).
+        if (oldLocalId && oldLocalId !== canon && ProjectStorage.delete) {
+          try { await ProjectStorage.delete(oldLocalId); } catch (e) {
+            console.warn("SyncEngine: could not delete orphaned project " + oldLocalId, e);
+          }
+        }
+      } else {
+        await ProjectStorage.save(merged);
+      }
     }
 
     // 3. Resolve conflicts
@@ -906,6 +1035,8 @@ const SyncEngine = (() => {
     // Merge (exposed for testing)
     computeFingerprint: computeFingerprint,
     classifyProjects: classifyProjects,
+    buildFingerprintIndex: buildFingerprintIndex,
+    pickCanonicalId: pickCanonicalId,
     mergeDoneArrays: mergeDoneArrays,
     mergeSessions: mergeSessions,
     mergeTrackingProgress: mergeTrackingProgress,

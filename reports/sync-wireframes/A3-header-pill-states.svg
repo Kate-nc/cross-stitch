@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 280" font-family="-apple-system, system-ui, sans-serif" font-size="12" fill="#1a1a1a">
+  <rect width="800" height="280" fill="#f7f5f0"/>
+  <text x="40" y="40" font-weight="600" font-size="14">Header pill — all four states (annotated)</text>
+  <text x="40" y="60" fill="#6b6258" font-size="11">Each row simulates the right side of the page header. Pill auto-fades after 3s for "Synced".</text>
+
+  <!-- Row 1: resting (no pill) -->
+  <rect x="40" y="80" width="720" height="44" rx="6" fill="#fff" stroke="#e6e1d6"/>
+  <text x="56" y="106" fill="#6b6258">[ no sync indicator visible — resting state ]</text>
+  <text x="600" y="106" font-size="11" fill="#6b6258">Resting (default)</text>
+
+  <!-- Row 2: syncing -->
+  <rect x="40" y="132" width="720" height="44" rx="6" fill="#fff" stroke="#e6e1d6"/>
+  <rect x="600" y="144" width="124" height="20" rx="10" fill="#eef2f7" stroke="#cfd8e3"/>
+  <circle cx="612" cy="154" r="4" fill="#4a7ab8"><animate attributeName="opacity" values="0.3;1;0.3" dur="1s" repeatCount="indefinite"/></circle>
+  <text x="624" y="158" font-size="11" fill="#1a3a6a">Syncing…</text>
+  <text x="56" y="158" font-size="11" fill="#6b6258">Syncing — auto-fades when complete</text>
+
+  <!-- Row 3: updates -->
+  <rect x="40" y="184" width="720" height="44" rx="6" fill="#fff" stroke="#e6e1d6"/>
+  <rect x="566" y="196" width="158" height="20" rx="10" fill="#fff5d4" stroke="#e0c870"/>
+  <text x="578" y="210" font-size="11" fill="#7a5a10">⬇ 3 updates from Tablet</text>
+  <text x="56" y="210" font-size="11" fill="#6b6258">Updates available — clickable, opens SyncSummaryModal</text>
+
+  <!-- Row 4: error -->
+  <rect x="40" y="236" width="720" height="44" rx="6" fill="#fff" stroke="#e6e1d6"/>
+  <rect x="556" y="248" width="168" height="20" rx="10" fill="#fcebea" stroke="#e0a8a4"/>
+  <text x="568" y="262" font-size="11" fill="#8a2a22">⚠ Sync paused — re-grant access</text>
+  <text x="56" y="262" font-size="11" fill="#6b6258">Error / paused — persists until acknowledged</text>
+</svg>

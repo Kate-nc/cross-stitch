@@ -146,6 +146,21 @@
     autoLibraryLink:        true,
     appAccentColour:        "#B85C38",
 
+    // Multi-device sync (consumed by sync-engine.js + preferences-modal.js).
+    // Defaults match the design recommendation in
+    // reports/sync-7-preferences-design.md (D6 = recommendation A): charts +
+    // tracking progress always sync; stash on by default; prefs off by default
+    // (preferences feel personal-per-device); palettes on by default; conflict
+    // behaviour is "auto-merge-safe" (silent when safe, ask only on true
+    // conflict); poll every 60s; default conflict action is "ask".
+    "sync.includeStash":             true,
+    "sync.includePrefs":             false,
+    "sync.includePalettes":          true,
+    "sync.conflictBehaviour":        "auto-merge-safe", // "auto-merge-safe" | "always-ask" | "silent-lww"
+    "sync.pollIntervalSec":          60,                // 0 = off, otherwise 30..600
+    "sync.defaultConflictAction":    "ask",             // "ask" | "keep-local" | "keep-remote"
+    "sync.firstTimeWizardComplete":  false,
+
     // ─── Home dashboard ─────────────────────────────────────────────────
     homeShowCompleted:      true,               // include 100%-complete projects in the home list
 

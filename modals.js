@@ -497,6 +497,30 @@ function SyncSummaryModal({ plan, onApply, onCancel }) {
         })
       ),
 
+      // Possible duplicates (idRewrites) — shown for reassurance when the
+      // engine has matched a local project to a remote one by chart fingerprint
+      // even though their ids differ. This was historically the silent
+      // duplication bug; surfacing it lets the user confirm the merge is right.
+      plan.idRewrites && plan.idRewrites.length > 0 && h('div', { className: 'sync-section' },
+        h('div', { className: 'sync-section-header' },
+          (Icons.cloudCheck ? Icons.cloudCheck() : null), ' Reconciled duplicates'
+        ),
+        h('div', { className: 'sync-section-help', style: { fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 } },
+          'These charts already exist on this device under a different id. Their progress will be merged together so you don\u2019t end up with two copies.'
+        ),
+        plan.idRewrites.map(function(entry) {
+          var p = (entry.remote && entry.remote.data) || {};
+          var rw = entry.idRewrite || {};
+          return h('div', { key: entry.id, className: 'sync-project-row' },
+            h('span', { className: 'sync-project-name' }, p.name || entry.id),
+            h('span', { className: 'sync-project-meta' },
+              (entry.local && entry.local.name && entry.local.name !== p.name)
+                ? ('matches local "' + entry.local.name + '"')
+                : 'matched by chart contents')
+          );
+        })
+      ),
+
       // Conflicts
       plan.conflicts.length > 0 && h('div', { className: 'sync-section' },
         h('div', { className: 'sync-section-header sync-section-header--conflict' },

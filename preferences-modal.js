@@ -833,10 +833,83 @@
   function DataPanel() {
     var autosync = usePref("autoSyncEnabled", true);
     var autoLib = usePref("autoLibraryLink", true);
+    var includeStash = usePref("sync.includeStash", true);
+    var includePrefs = usePref("sync.includePrefs", false);
+    var includePalettes = usePref("sync.includePalettes", true);
+    var conflictBehaviour = usePref("sync.conflictBehaviour", "auto-merge-safe");
+    var pollInterval = usePref("sync.pollIntervalSec", 60);
+    var defaultConflictAction = usePref("sync.defaultConflictAction", "ask");
+    var advancedOpen = useState(false);
+
+    // Live sync status for the folder section. We poll on focus + on
+    // cs:syncStatusChanged so the panel stays accurate without re-rendering
+    // the whole modal.
+    var syncStatus = useState(function () {
+      try { return (window.SyncEngine && window.SyncEngine.getSyncStatus) ? window.SyncEngine.getSyncStatus() : null; }
+      catch (_) { return null; }
+    });
+    var deviceNameDraft = useState(function () {
+      try { return (window.SyncEngine && window.SyncEngine.getDeviceName) ? (window.SyncEngine.getDeviceName() || "") : ""; }
+      catch (_) { return ""; }
+    });
+
+    useEffect(function () {
+      function refresh() {
+        try {
+          if (window.SyncEngine && window.SyncEngine.getSyncStatus) syncStatus[1](window.SyncEngine.getSyncStatus());
+        } catch (_) {}
+      }
+      window.addEventListener("cs:syncStatusChanged", refresh);
+      window.addEventListener("focus", refresh);
+      return function () {
+        window.removeEventListener("cs:syncStatusChanged", refresh);
+        window.removeEventListener("focus", refresh);
+      };
+    }, []);
+
     var msg = useState(null);
     var busy = useState(false);
     var fileRef = React.useRef ? React.useRef(null) : null;
     if (!fileRef) fileRef = { current: null };
+
+    function notify(text, kind) {
+      msg[1]({ kind: kind || "ok", text: text });
+      try {
+        window.dispatchEvent(new CustomEvent("cs:syncStatusChanged"));
+      } catch (_) {}
+    }
+
+    function chooseSyncFolder() {
+      if (typeof window.showDirectoryPicker !== "function") {
+        notify("Folder watching needs a Chromium-based browser (Chrome, Edge, Brave, Opera).", "err");
+        return;
+      }
+      if (!window.SyncEngine) { notify("Sync engine not available on this page.", "err"); return; }
+      window.showDirectoryPicker({ mode: "readwrite" }).then(function (handle) {
+        return window.SyncEngine.setWatchDirectory(handle).then(function () {
+          notify("Sync folder set: " + (handle.name || "folder"));
+          syncStatus[1](window.SyncEngine.getSyncStatus());
+        });
+      }).catch(function (err) {
+        if (err && err.name !== "AbortError") notify("Could not set sync folder: " + (err.message || err), "err");
+      });
+    }
+    function disconnectFolder() {
+      if (!window.SyncEngine) return;
+      var ok = window.confirm("Stop watching the sync folder? Your patterns stay where they are.");
+      if (!ok) return;
+      window.SyncEngine.clearWatchDirectory().then(function () {
+        notify("Sync folder disconnected.");
+        syncStatus[1](window.SyncEngine.getSyncStatus());
+      });
+    }
+    function saveDeviceName() {
+      if (!window.SyncEngine) return;
+      var trimmed = (deviceNameDraft[0] || "").trim().slice(0, 60);
+      window.SyncEngine.setDeviceName(trimmed);
+      syncStatus[1](window.SyncEngine.getSyncStatus());
+      notify("Device name saved.");
+    }
 
     function downloadBackup() {
       if (!window.BackupRestore || typeof window.BackupRestore.downloadBackup !== "function") {
@@ -893,13 +966,102 @@
       } catch (e) { msg[1]({ kind: "err", text: e.message || "Could not clear the database." }); }
     }
 
+    var st = syncStatus[0] || {};
+    var hasFolder = !!st.hasFolderWatch;
+    var folderSupported = (typeof window.showDirectoryPicker === "function");
+    var folderName = st.watchDirName || (hasFolder ? "Sync folder" : "Not connected");
+    var lastExport = st.lastExportAt ? new Date(st.lastExportAt).toLocaleString() : "Never";
+    var lastImport = st.lastImportAt ? new Date(st.lastImportAt).toLocaleString() : "Never";
+
     return h("div", null,
       h(PageHeader, { title: "Sync, backup & data",
-        subtitle: "Keep a safety copy of your work, or start over with a clean slate." }),
+        subtitle: "Move your patterns and stash between devices, or keep a safety copy of everything." }),
 
-      h(Section, { title: "Sync" },
-        // Auto-sync stitch progress hidden — multi-device sync not implemented yet.
-        h(Row, { last: true, label: "Add new patterns to the library automatically", desc: "When you save a pattern in the Creator, also link it from the Stash Manager." },
+      h(Section, { title: "Sync folder" },
+        h(Row, { label: "Sync folder",
+          desc: hasFolder
+            ? "Connected: " + folderName + ". Other devices that watch the same folder will see your changes."
+            : (folderSupported
+              ? "Pick a folder (cloud-synced or local) where this device should write its sync file."
+              : "Folder watching needs a Chromium-based browser (Chrome, Edge, Brave, Opera).") },
+          hasFolder
+            ? h("div", { style: { display: "flex", gap: 6 } },
+                h("button", { style: styles.btn, onClick: chooseSyncFolder, disabled: !folderSupported }, "Change folder…"),
+                h("button", { style: styles.btnDanger, onClick: disconnectFolder }, "Disconnect")
+              )
+            : h("button", { style: styles.btnPrimary, onClick: chooseSyncFolder, disabled: !folderSupported }, "Choose folder…")
+        ),
+        h(Row, { label: "This device's name", desc: "Shown to other devices in sync summaries so you can tell them apart." },
+          h("div", { style: { display: "flex", gap: 6 } },
+            h("input", { type: "text", autoComplete: "off", maxLength: 60,
+              style: Object.assign({}, styles.input, { width: 220 }),
+              value: deviceNameDraft[0],
+              placeholder: "e.g. Studio iMac",
+              onChange: function (e) { deviceNameDraft[1](e.target.value); } }),
+            h("button", { style: styles.btn, onClick: saveDeviceName }, "Save")
+          )
+        ),
+        h(Row, { last: true, label: "Status",
+          desc: "Last exported " + lastExport + " · last imported " + lastImport },
+          h("span", { style: { fontSize: 12, color: hasFolder ? COLOURS.tealDark : COLOURS.hint } },
+            hasFolder ? "Connected" : "Not connected")
+        )
+      ),
+
+      h(Section, { title: "What to sync" },
+        h(Row, { label: "Patterns and tracking progress",
+          desc: "Always synced. Without these the sync file would be empty." },
+          h("span", { style: { fontSize: 11, color: COLOURS.hint, fontStyle: "italic" } }, "Always on")
+        ),
+        h(Row, { label: "Thread stash",
+          desc: "Owned skeins and shopping list. Off if each device should keep its own stash." },
+          h(Switch, { checked: !!includeStash[0], onChange: includeStash[1] })
+        ),
+        h(Row, { label: "Custom palettes",
+          desc: "Saved colour groups created in the Creator's palette manager." },
+          h(Switch, { checked: !!includePalettes[0], onChange: includePalettes[1] })
+        ),
+        h(Row, { last: true, label: "Preferences",
+          desc: "Off by default — most people prefer per-device preferences (theme, accent, units)." },
+          h(Switch, { checked: !!includePrefs[0], onChange: includePrefs[1] })
+        )
+      ),
+
+      h(Section, { title: "Behaviour" },
+        h(Row, { label: "Auto-sync stitch progress",
+          desc: "When on, every save writes a fresh sync file to the connected folder." },
+          h(Switch, { checked: !!autosync[0], onChange: autosync[1], disabled: !hasFolder })
+        ),
+        h(Row, { label: "When something conflicts",
+          desc: "What to do when the same pattern was edited differently on two devices." },
+          h(Segmented, { value: conflictBehaviour[0], onChange: conflictBehaviour[1], options: [
+            { value: "auto-merge-safe", label: "Merge when safe, ask otherwise" },
+            { value: "always-ask",      label: "Always ask" },
+            { value: "silent-lww",      label: "Silently keep newer" }
+          ]})
+        ),
+        h(Row, { label: "Default action when asked",
+          desc: "Pre-selected choice in the conflict picker." },
+          h(Segmented, { value: defaultConflictAction[0], onChange: defaultConflictAction[1], options: [
+            { value: "ask", label: "No default" },
+            { value: "keep-local", label: "Keep mine" },
+            { value: "keep-remote", label: "Keep theirs" }
+          ]})
+        ),
+        h(Row, { last: true, label: "Check the folder for updates",
+          desc: "How often to look for changes from other devices." },
+          h(Segmented, { value: String(pollInterval[0]), onChange: function (v) { pollInterval[1](parseInt(v, 10)); }, options: [
+            { value: "0",   label: "Off" },
+            { value: "30",  label: "Every 30s" },
+            { value: "60",  label: "Every minute" },
+            { value: "300", label: "Every 5 min" }
+          ]})
+        )
+      ),
+
+      h(Section, { title: "Library" },
+        h(Row, { last: true, label: "Add new patterns to the library automatically",
+          desc: "When you save a pattern in the Creator, also link it from the Stash Manager." },
           h(Switch, { checked: autoLib[0], onChange: autoLib[1] })
         )
       ),
