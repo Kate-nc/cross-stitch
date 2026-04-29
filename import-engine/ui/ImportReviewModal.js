@@ -171,7 +171,7 @@
       h('div', { className: 'import-review-modal' },
         h('header', { className: 'import-review-header' },
           h('h2', null, 'Review imported pattern'),
-          h('div', { className: 'import-review-coverage' }, coverageIcon, ' ', coveragePct + '% confidence'),
+          h('div', { className: 'import-review-coverage' }, coverageIcon, h('span', null, coveragePct + '% confidence')),
           h('button', { className: 'import-review-close', onClick: function () { props.onClose && props.onClose('cancel'); }, 'aria-label': 'Close' }, I('x'))
         ),
         h('nav', { className: 'import-review-tabs', role: 'tablist' },
@@ -180,7 +180,7 @@
               key: t.id, role: 'tab', 'aria-selected': tab === t.id,
               className: 'import-review-tab ' + (tab === t.id ? 'active' : ''),
               onClick: function () { setTab(t.id); }
-            }, t.icon, ' ', t.label);
+            }, t.icon, h('span', null, t.label));
           })
         ),
         h('section', { className: 'import-review-body' },
@@ -201,9 +201,9 @@
             h('button', { className: 'btn-secondary', onClick: function () { props.onClose && props.onClose('cancel'); } }, 'Cancel'),
             (props.coverage < 0.95) && h('button', { className: 'btn-secondary',
               onClick: function () { props.onClose && props.onClose('wizard', { project: working, edits: edits }); }
-            }, I('wandFix'), ' Open guided wizard'),
+            }, I('wandFix'), h('span', null, 'Open guided wizard')),
             h('button', { className: 'btn-primary', onClick: function () { props.onClose && props.onClose('confirm', { project: working, edits: edits }); } },
-              I('check'), ' Use this pattern')
+              I('check'), h('span', null, 'Use this pattern'))
           )
         )
       )

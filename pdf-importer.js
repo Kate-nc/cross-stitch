@@ -523,53 +523,42 @@ class PatternKeeperImporter {
         cellHeight = valid[Math.floor(valid.length/2)] || 10;
      }
 
-     let originX = vClustered.length > 0 ? vClustered[0] : 50;
-     let originY = hClustered.length > 0 ? hClustered[0] : 50;
-
-     // Filter out stray lines (like page borders at 0,0) by finding the first contiguous sequence
-     if (vClustered.length > 3) {
-         for (let i = 0; i < vClustered.length - 2; i++) {
-             if (Math.abs((vClustered[i+1] - vClustered[i]) - cellWidth) < 2 &&
-                 Math.abs((vClustered[i+2] - vClustered[i+1]) - cellWidth) < 2) {
-                 originX = vClustered[i];
-                 break;
+     // Pick the LONGEST contiguous run of grid lines spaced ~cellWidth apart.
+     // This is more robust than the previous "first contiguous run" approach
+     // because it (a) excludes stray page-furniture lines that survived the
+     // edge filter and (b) when a page contains TWO charts (e.g. colour +
+     // black-and-white variants of the same pattern, or multi-page layouts
+     // where two grids share the same page) we pick the larger of the two
+     // instead of stretching the bounding box across both grids and pulling
+     // their cells into a single corrupted overlay.
+     function longestRun(clustered, expectedSpacing) {
+         if (clustered.length < 2) return { startIdx: 0, endIdx: clustered.length - 1 };
+         let bestStart = 0, bestEnd = 0;
+         let curStart = 0;
+         for (let i = 1; i < clustered.length; i++) {
+             const spacing = clustered[i] - clustered[i-1];
+             if (Math.abs(spacing - expectedSpacing) < 2) {
+                 if ((i - curStart) > (bestEnd - bestStart)) {
+                     bestStart = curStart;
+                     bestEnd = i;
+                 }
+             } else {
+                 curStart = i;
              }
          }
+         return { startIdx: bestStart, endIdx: bestEnd };
      }
 
-     if (hClustered.length > 3) {
-         for (let i = 0; i < hClustered.length - 2; i++) {
-             if (Math.abs((hClustered[i+1] - hClustered[i]) - cellHeight) < 2 &&
-                 Math.abs((hClustered[i+2] - hClustered[i+1]) - cellHeight) < 2) {
-                 originY = hClustered[i];
-                 break;
-             }
-         }
-     }
+     const vRun = longestRun(vClustered, cellWidth);
+     const hRun = longestRun(hClustered, cellHeight);
 
-     let endX = vClustered.length > 0 ? vClustered[vClustered.length-1] : page.width - 50;
-     let endY = hClustered.length > 0 ? hClustered[hClustered.length-1] : page.height - 50;
+     let originX = vClustered.length > 0 ? vClustered[vRun.startIdx] : 50;
+     let originY = hClustered.length > 0 ? hClustered[hRun.startIdx] : 50;
+     let endX    = vClustered.length > 0 ? vClustered[vRun.endIdx]   : page.width - 50;
+     let endY    = hClustered.length > 0 ? hClustered[hRun.endIdx]   : page.height - 50;
 
-     if (vClustered.length > 3) {
-         for (let i = vClustered.length - 1; i >= 2; i--) {
-             if (Math.abs((vClustered[i] - vClustered[i-1]) - cellWidth) < 2) {
-                 endX = vClustered[i];
-                 break;
-             }
-         }
-     }
-
-     if (hClustered.length > 3) {
-         for (let i = hClustered.length - 1; i >= 2; i--) {
-             if (Math.abs((hClustered[i] - hClustered[i-1]) - cellHeight) < 2) {
-                 endY = hClustered[i];
-                 break;
-             }
-         }
-     }
-
-     const cols = vClustered.length > 1 ? Math.round((endX - originX) / cellWidth) : Math.max(10, Math.floor((page.width - 100) / cellWidth));
-     const rows = hClustered.length > 1 ? Math.round((endY - originY) / cellHeight) : Math.max(10, Math.floor((page.height - 100) / cellHeight));
+     const cols = vClustered.length > 1 ? Math.max(1, vRun.endIdx - vRun.startIdx) : Math.max(10, Math.floor((page.width - 100) / cellWidth));
+     const rows = hClustered.length > 1 ? Math.max(1, hRun.endIdx - hRun.startIdx) : Math.max(10, Math.floor((page.height - 100) / cellHeight));
 
      return { originX, originY, cellWidth, cellHeight, columns: cols, rows: rows, boldLineInterval: 10 };
   }
