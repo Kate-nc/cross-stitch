@@ -6402,7 +6402,8 @@ button[aria-disabled="true"] {
   border-bottom: 1px solid var(--line);
 }
 .import-review-header h2 { margin: 0; font-size: 1.1rem; flex: 1; }
-.import-review-coverage { display: flex; align-items: center; gap: var(--space-2); color: var(--text-secondary); }
+.import-review-coverage { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-secondary); }
+.import-review-coverage > svg { width: 16px; height: 16px; }
 .import-review-close {
   background: transparent; border: none; color: var(--text-secondary);
   cursor: pointer; padding: var(--space-1);
@@ -6421,7 +6422,10 @@ button[aria-disabled="true"] {
   color: var(--text-secondary); cursor: pointer;
   display: inline-flex; align-items: center; gap: var(--space-2);
   border-bottom: 2px solid transparent;
+  font: inherit; line-height: 1.2;
 }
+.import-review-tab > svg { width: 16px; height: 16px; flex-shrink: 0; }
+.import-review-tab:hover { color: var(--text-primary); background: var(--surface-2, transparent); }
 .import-review-tab.active {
   color: var(--accent); border-bottom-color: var(--accent);
 }
@@ -6429,6 +6433,12 @@ button[aria-disabled="true"] {
 .import-review-body {
   grid-area: body;
   overflow: auto; padding: var(--space-4);
+  min-width: 0;
+}
+.import-preview-pane {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  align-items: flex-start;
+  height: 100%;
 }
 .import-review-warnings {
   grid-area: warn;
@@ -6441,11 +6451,13 @@ button[aria-disabled="true"] {
   display: flex; align-items: center; gap: var(--space-2);
   color: var(--success, var(--text-secondary));
 }
+.import-warnings.empty > svg { width: 16px; height: 16px; }
 .import-warning {
   display: flex; align-items: flex-start; gap: var(--space-2);
   padding: var(--space-2) 0; border-bottom: 1px solid var(--line);
   font-size: 0.875rem;
 }
+.import-warning > svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; }
 .import-warning.high { color: var(--danger, #c33); }
 .import-warning.medium { color: var(--warning, #b80); }
 
@@ -6457,6 +6469,22 @@ button[aria-disabled="true"] {
 }
 .import-review-toggle { flex: 1; display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-secondary); }
 .import-review-actions { display: flex; gap: var(--space-2); }
+.import-review-actions button {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+.import-review-actions button > svg { width: 16px; height: 16px; }
+.import-review-actions .btn-primary {
+  background: var(--accent); border-color: var(--accent); color: var(--surface, #fff);
+}
+.import-review-actions .btn-primary:hover { filter: brightness(1.05); }
+.import-review-actions .btn-secondary:hover { background: var(--surface-2, var(--surface)); }
 
 .import-preview-canvas {
   display: block; max-width: 100%;
@@ -6480,7 +6508,13 @@ button[aria-disabled="true"] {
 .import-side-pane { display: flex; flex-direction: column; gap: var(--space-2); height: 100%; }
 .import-side-label { font-weight: 600; color: var(--text-secondary); }
 .import-side-frame { width: 100%; height: 100%; border: 1px solid var(--line); }
-.import-side-empty { color: var(--text-secondary); padding: var(--space-3); border: 1px dashed var(--line); border-radius: var(--radius-sm); }
+.import-side-empty { color: var(--text-secondary); padding: var(--space-3); border: 1px dashed var(--line); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; min-height: 160px; }
+
+/* Compare-tab iframe needs a real height — without it the modal grid rows
+   collapse and the iframe shows as a 1-pixel sliver (which Chrome renders
+   as the broken-image placeholder for PDF blobs). */
+.import-side-pane { min-height: 0; }
+.import-side-frame, .import-side-pane > .import-preview-pane { min-height: 320px; }
 
 .import-progress { display: flex; flex-direction: column; gap: var(--space-1); width: 100%; }
 .import-progress-bar { height: 4px; background: var(--accent); border-radius: 2px; transition: width 200ms; }

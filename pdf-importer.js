@@ -440,15 +440,42 @@ class PatternKeeperImporter {
      const hLines = [];
      const vLines = [];
 
+     // Page-furniture filter: reject lines whose endpoints are within 5pt of
+     // the page edge AND span > 80% of the page's width/height. These are
+     // almost always page borders, header/footer rules, or decorative frames
+     // — never the chart grid. Without this filter the bounding-box code
+     // below stretches the chart to the full page and pulls in legend rows,
+     // page numbers, and adjacent pattern variants as ghost cells.
+     const pw = page.width || 612;
+     const ph = page.height || 792;
+     const edgeMargin = 5;
+     const fullSpanFrac = 0.8;
+
      page.vectorPaths.forEach(p => {
         if (p.type === 'line' && p.points.length === 2) {
-           const dx = Math.abs(p.points[0].x - p.points[1].x);
-           const dy = Math.abs(p.points[0].y - p.points[1].y);
-           if (dx > 20 && dy < 2) hLines.push(p.points[0].y);
-           if (dy > 20 && dx < 2) vLines.push(p.points[0].x);
+           const x0 = p.points[0].x, x1 = p.points[1].x;
+           const y0 = p.points[0].y, y1 = p.points[1].y;
+           const dx = Math.abs(x0 - x1);
+           const dy = Math.abs(y0 - y1);
+           // Horizontal page-border / decorative rule
+           if (dx > 20 && dy < 2) {
+              const ay = (y0 + y1) / 2;
+              const isPageEdge = ay < edgeMargin || ay > ph - edgeMargin;
+              const spansPage = dx > pw * fullSpanFrac;
+              if (!(isPageEdge && spansPage)) hLines.push(y0);
+           }
+           // Vertical page-border / decorative rule
+           if (dy > 20 && dx < 2) {
+              const ax = (x0 + x1) / 2;
+              const isPageEdge = ax < edgeMargin || ax > pw - edgeMargin;
+              const spansPage = dy > ph * fullSpanFrac;
+              if (!(isPageEdge && spansPage)) vLines.push(x0);
+           }
         } else if (p.type === 'rect' && p.points.length >= 4) {
            const w = Math.abs(p.points[0].x - p.points[2].x);
            const h = Math.abs(p.points[0].y - p.points[2].y);
+           // Skip page-bounding rectangles entirely.
+           if (w > pw * fullSpanFrac && h > ph * fullSpanFrac) return;
            // Only count large rectangles as grid layout elements (ignore 2x2px cell fills)
            if (w > 20 || h > 20) {
                hLines.push(p.points[0].y, p.points[2].y);
