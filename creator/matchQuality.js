@@ -9,7 +9,7 @@
  *   classifyMatch(deltaE, target?) → tier id
  *   tierLabel(tier)           UI string ("Exact", "Close", …)
  *   tierToken(tier)           CSS var name for the dot colour
- *   tierIsAcceptable(tier, threshold) — used by re-match logic
+ *   tierIsAcceptable(deltaE, threshold) — used by re-match logic
  *   describeLabDiff(srcLab, tgtLab) — short Lab-derived hint
  *
  * Loaded via build-creator-bundle.js BEFORE adaptationEngine.js.

@@ -463,14 +463,17 @@
     if (!srcProject) throw new Error('applyProposal: srcProject required');
     if (!proposal)   throw new Error('applyProposal: proposal required');
 
-    // Build remap: sourceBrand:sourceId → target spec (or null to keep original).
+    // Build remap: prefer sourceBrand:sourceId → target spec.
+    // Only fall back to bare sourceId when the substitution itself has no
+    // brand information; otherwise bare numeric ids can collide across brands.
     var remap = Object.create(null);
     proposal.substitutions.forEach(function (sub) {
-      var k = sub.sourceBrand + ':' + sub.sourceId;
+      var hasSourceBrand = !!sub.sourceBrand;
+      var k = hasSourceBrand ? (sub.sourceBrand + ':' + sub.sourceId) : sub.sourceId;
       if (sub.state === 'accepted' && sub.target) {
         remap[k] = sub.target;
-        // Also key by bare id for legacy lookups (project palette uses bare ids).
-        remap[sub.sourceId] = sub.target;
+        // Preserve legacy bare-id lookup only for brandless source entries.
+        if (!hasSourceBrand) remap[sub.sourceId] = sub.target;
       }
     });
 
@@ -485,6 +488,9 @@
     copy.updatedAt = nowIso;
     copy.name = opts.name || _autoName(srcProject.name || 'Untitled', proposal.mode, proposal.brandTarget);
     // Schema bump: adapted projects carry the optional `adaptation` field.
+    // Set both `version` (canonical save path) and `v` (legacy alias used by
+    // import/migration code) so both readers see the updated schema level.
+    copy.version = 12;
     copy.v = 12;
 
     // Reset tracking state — adapted patterns start fresh.
@@ -537,7 +543,7 @@
       for (var b = 0; b < copy.bsLines.length; b++) {
         var bs = copy.bsLines[b];
         if (!bs || !bs.colour) continue;
-        var rep2 = remap[bs.colour] || remap[(bs.brand || 'dmc') + ':' + bs.colour];
+        var rep2 = remap[(bs.brand || 'dmc') + ':' + bs.colour] || remap[bs.colour];
         if (rep2) { bs.colour = rep2.id; if (bs.brand !== undefined) bs.brand = rep2.brand; }
       }
     }
