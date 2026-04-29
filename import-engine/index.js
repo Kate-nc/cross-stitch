@@ -25,6 +25,9 @@
     require('./pipeline.js');
     require('./workerClient.js');
     require('./classifier/sniffMagic.js');
+    require('./pdf/operatorWalker.js');
+    require('./pdf/textBands.js');
+    require('./pdf/publishers.js');
   }
 
   const ENGINE = isBrowser ? window.ImportEngine : (function () {
@@ -33,7 +36,10 @@
     const pipe  = require('./pipeline.js');
     const wc    = require('./workerClient.js');
     const sniff = require('./classifier/sniffMagic.js');
-    return Object.assign({}, types, reg, pipe, wc, sniff);
+    const ow    = require('./pdf/operatorWalker.js');
+    const tb    = require('./pdf/textBands.js');
+    const pub   = require('./pdf/publishers.js');
+    return Object.assign({}, types, reg, pipe, wc, sniff, ow, tb, pub);
   })();
 
   // High-level: takes a File-like (browser File, or { name, type, arrayBuffer })
