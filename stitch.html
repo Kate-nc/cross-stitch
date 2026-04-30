@@ -91,6 +91,26 @@ window.loadPdfStack = function() {
 <div id="root"></div>
 </main>
 <script src="useDragMark.js"></script>
+<!-- Cat C perf split: conditionally preload the ImportWizard bundle only
+     when the experimental flag is on. Default users never fetch the 30 KB.
+     The wizard branch in tracker-app.js already falls back to the legacy
+     modal if window.ImportWizard isn't present. -->
+<script>
+(function maybePreloadImportWizard() {
+  try {
+    var on = window.UserPrefs && window.UserPrefs.get && window.UserPrefs.get('experimental.importWizard');
+    if (!on) return;
+    var go = function () {
+      if (document.querySelector('script[src="creator/import-wizard-bundle.js"]')) return;
+      var s = document.createElement('script');
+      s.src = 'creator/import-wizard-bundle.js';
+      document.head.appendChild(s);
+    };
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 2000 });
+    else setTimeout(go, 0);
+  } catch (_) {}
+})();
+</script>
 <script type="text/babel" src="tracker-app.js"></script>
 <script src="./sw-register.js"></script>
 </body>

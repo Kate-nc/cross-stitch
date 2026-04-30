@@ -1,13 +1,13 @@
 {
   "/home.html": {
-    "wallLoadMs": 3441,
+    "wallLoadMs": 541,
     "timings": {
-      "domContentLoaded": 3432,
-      "load": 3432,
-      "fcp": 3484,
+      "domContentLoaded": 516,
+      "load": 517,
+      "fcp": 564,
       "memory": {
         "usedJSHeap": 11200000,
-        "totalJSHeap": 16100000
+        "totalJSHeap": 17100000
       }
     },
     "browser": "chromium",
@@ -119,17 +119,17 @@
         "bytes": 17358
       }
     ],
-    "capturedAt": "2026-04-30T06:44:27.494Z"
+    "capturedAt": "2026-04-30T06:50:39.336Z"
   },
   "/index.html": {
-    "wallLoadMs": 519,
+    "wallLoadMs": 553,
     "timings": {
-      "domContentLoaded": 505,
-      "load": 505,
-      "fcp": 544,
+      "domContentLoaded": 539,
+      "load": 539,
+      "fcp": 584,
       "memory": {
         "usedJSHeap": 11900000,
-        "totalJSHeap": 17100000
+        "totalJSHeap": 16100000
       }
     },
     "browser": "chromium",
@@ -241,14 +241,14 @@
         "bytes": 17358
       }
     ],
-    "capturedAt": "2026-04-30T06:44:28.770Z"
+    "capturedAt": "2026-04-30T06:50:40.630Z"
   },
   "/create.html": {
-    "wallLoadMs": 551,
+    "wallLoadMs": 510,
     "timings": {
-      "domContentLoaded": 535,
-      "load": 536,
-      "fcp": 576,
+      "domContentLoaded": 498,
+      "load": 498,
+      "fcp": 536,
       "memory": {
         "usedJSHeap": 11900000,
         "totalJSHeap": 16100000
@@ -363,14 +363,14 @@
         "bytes": 17358
       }
     ],
-    "capturedAt": "2026-04-30T06:44:30.029Z"
+    "capturedAt": "2026-04-30T06:50:41.862Z"
   },
   "/stitch.html": {
-    "wallLoadMs": 486,
+    "wallLoadMs": 458,
     "timings": {
-      "domContentLoaded": 474,
-      "load": 474,
-      "fcp": 516,
+      "domContentLoaded": 446,
+      "load": 447,
+      "fcp": 488,
       "memory": {
         "usedJSHeap": 11900000,
         "totalJSHeap": 16100000
@@ -485,17 +485,17 @@
         "bytes": 17358
       }
     ],
-    "capturedAt": "2026-04-30T06:44:31.239Z"
+    "capturedAt": "2026-04-30T06:50:42.998Z"
   },
   "/manager.html": {
-    "wallLoadMs": 497,
+    "wallLoadMs": 515,
     "timings": {
-      "domContentLoaded": 483,
-      "load": 484,
-      "fcp": 524,
+      "domContentLoaded": 502,
+      "load": 503,
+      "fcp": 548,
       "memory": {
         "usedJSHeap": 11900000,
-        "totalJSHeap": 17100000
+        "totalJSHeap": 16100000
       }
     },
     "browser": "chromium",
@@ -607,6 +607,6 @@
         "bytes": 17358
       }
     ],
-    "capturedAt": "2026-04-30T06:44:32.454Z"
+    "capturedAt": "2026-04-30T06:50:44.213Z"
   }
 }

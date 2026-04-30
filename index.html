@@ -119,6 +119,21 @@ window.loadPdfStack = function() {
       return window.loadScript('pdf-importer.js');
     });
 };
+/* Cat C perf split: ImportWizard + useImportWizard (~30 KB) live in their
+   own bundle. Default users (experimental.importWizard flag off) never load
+   it. Wizard users get it preloaded on idle so it's ready when they open
+   the import dialog. The wizard branch in tracker-app.js already gracefully
+   falls back to the legacy single-step modal if window.ImportWizard isn't
+   present, so a slow network won't break the import flow. */
+(function maybePreloadImportWizard() {
+  try {
+    var on = window.UserPrefs && window.UserPrefs.get && window.UserPrefs.get('experimental.importWizard');
+    if (!on) return;
+    var go = function () { try { window.loadScript('creator/import-wizard-bundle.js').catch(function () {}); } catch (_) {} };
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 2000 });
+    else setTimeout(go, 0);
+  } catch (_) {}
+})();
 /* Loads TrackerApp via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
 var TRACKER_CACHE_KEY = 'babel_tracker_56fbadf727';
@@ -153,7 +168,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_34a4477512';
+var CREATOR_CACHE_KEY = 'babel_creator_8949ab2392';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;

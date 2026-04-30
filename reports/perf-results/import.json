@@ -2,15 +2,15 @@
   "PAT1968_2 (342 KB)": {
     "ok": true,
     "warnings": 1,
-    "totalMs": 8031,
+    "totalMs": 8487,
     "heapPeak": 11900000,
     "stages": [
       {
-        "ms": 10,
+        "ms": 11,
         "stage": "sniff"
       },
       {
-        "ms": 10,
+        "ms": 11,
         "stage": "classify"
       },
       {
@@ -18,39 +18,39 @@
         "stage": "extract"
       },
       {
-        "ms": 8030,
+        "ms": 8486,
         "stage": "assemble"
       },
       {
-        "ms": 8030,
+        "ms": 8486,
         "stage": "palette"
       },
       {
-        "ms": 8030,
+        "ms": 8486,
         "stage": "validate"
       },
       {
-        "ms": 8030,
+        "ms": 8486,
         "stage": "materialise"
       }
     ],
     "heapBefore": 11900000,
     "heapAfter": 11900000,
     "heapGrowth": 0,
-    "capturedAt": "2026-04-30T06:44:36.567Z"
+    "capturedAt": "2026-04-30T06:50:48.878Z"
   },
   "PAT2171_2 (1.4 MB)": {
     "ok": true,
     "warnings": 1,
-    "totalMs": 3147,
+    "totalMs": 3002,
     "heapPeak": 11900000,
     "stages": [
       {
-        "ms": 15,
+        "ms": 14,
         "stage": "sniff"
       },
       {
-        "ms": 15,
+        "ms": 14,
         "stage": "classify"
       },
       {
@@ -58,65 +58,65 @@
         "stage": "extract"
       },
       {
-        "ms": 3146,
+        "ms": 3001,
         "stage": "assemble"
       },
       {
-        "ms": 3146,
+        "ms": 3001,
         "stage": "palette"
       },
       {
-        "ms": 3146,
+        "ms": 3001,
         "stage": "validate"
       },
       {
-        "ms": 3146,
+        "ms": 3001,
         "stage": "materialise"
       }
     ],
     "heapBefore": 11900000,
     "heapAfter": 11900000,
     "heapGrowth": 0,
-    "capturedAt": "2026-04-30T06:44:42.240Z"
+    "capturedAt": "2026-04-30T06:50:54.460Z"
   },
   "Books and Blossoms (8.1 MB)": {
     "ok": true,
     "warnings": 1,
-    "totalMs": 22859,
+    "totalMs": 22431,
     "heapPeak": 11900000,
     "stages": [
       {
-        "ms": 11,
+        "ms": 12,
         "stage": "sniff"
       },
       {
-        "ms": 11,
+        "ms": 12,
         "stage": "classify"
       },
       {
-        "ms": 11,
+        "ms": 13,
         "stage": "extract"
       },
       {
-        "ms": 22858,
+        "ms": 22429,
         "stage": "assemble"
       },
       {
-        "ms": 22858,
+        "ms": 22429,
         "stage": "palette"
       },
       {
-        "ms": 22858,
+        "ms": 22429,
         "stage": "validate"
       },
       {
-        "ms": 22858,
+        "ms": 22430,
         "stage": "materialise"
       }
     ],
     "heapBefore": 11900000,
     "heapAfter": 11900000,
     "heapGrowth": 0,
-    "capturedAt": "2026-04-30T06:45:07.351Z"
+    "capturedAt": "2026-04-30T06:51:19.195Z"
   }
 }

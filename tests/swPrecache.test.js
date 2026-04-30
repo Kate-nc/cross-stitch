@@ -18,9 +18,11 @@ describe('sw.js precache (UX-12 Phase 7 PR #13)', () => {
   // the new asset list. Bumped to v36 when the import-engine lazy-shim
   // was added to the precache (perf audit, Cat A #1). Bumped to v37 when
   // the brand catalogues were defer-loaded / removed from home.html
-  // (perf audit, Cat D — quick wins #2).
-  test('CACHE_NAME bumped to v37', () => {
-    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v37['"]/);
+  // (perf audit, Cat D — quick wins #2). Bumped to v38 when the
+  // ImportWizard bundle was code-split out of creator/bundle.js
+  // (perf audit, Cat C — quick wins #3).
+  test('CACHE_NAME bumped to v38', () => {
+    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v38['"]/);
   });
 
   test('PRECACHE_URLS includes home.html', () => {
