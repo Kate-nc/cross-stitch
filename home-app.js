@@ -86,6 +86,68 @@
     window.location.href = href + sep + 'from=home';
   }
 
+  function fmtNumLocal(n) {
+    try { return Number(n || 0).toLocaleString('en-GB'); }
+    catch (_) { return String(n || 0); }
+  }
+
+  // ≈ km of thread used. Mirrors stats-page.js threadKm() (0.004 m/stitch).
+  function threadKmLocal(stitches) {
+    return Math.round((stitches || 0) * 0.004 / 1000 * 10) / 10;
+  }
+
+  // Build the points string for a 120×32 sparkline from a daily-stitch
+  // log array ([{date:'YYYY-MM-DD', count:n}, ...]). Missing days = 0.
+  // Returns { points: 'x,y x,y …', total, activeDays, max }.
+  function buildSpark(daily, days) {
+    var byDate = {};
+    (daily || []).forEach(function (e) { if (e && e.date) byDate[e.date] = e.count || 0; });
+    var pts = [];
+    var total = 0;
+    var active = 0;
+    var max = 1;
+    var today = new Date();
+    for (var i = days - 1; i >= 0; i -= 1) {
+      var d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+      var k = d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
+      var v = byDate[k] || 0;
+      pts.push(v);
+      total += v;
+      if (v > 0) active += 1;
+      if (v > max) max = v;
+    }
+    var W = 120, H = 32;
+    var step = pts.length > 1 ? W / (pts.length - 1) : 0;
+    var coords = pts.map(function (v, i) {
+      var x = (i * step).toFixed(1);
+      var y = (H - (v / max) * (H - 4) - 2).toFixed(1);
+      return x + ',' + y;
+    }).join(' ');
+    return { points: coords, total: total, activeDays: active, max: max };
+  }
+
+  // "47 days ago" / "yesterday" / "today" — short form for card footers.
+  function daysAgo(iso) {
+    if (!iso) return '';
+    var t = Date.parse(iso);
+    if (!t) return '';
+    var diff = Date.now() - t;
+    var d = Math.floor(diff / 86400000);
+    if (d <= 0) return 'today';
+    if (d === 1) return 'yesterday';
+    if (d < 30) return d + ' days ago';
+    var m = Math.floor(d / 30);
+    if (m === 1) return '1 month ago';
+    return m + ' months ago';
+  }
+
+  function rgbCss(rgb) {
+    if (!Array.isArray(rgb) || rgb.length < 3) return 'var(--surface-tertiary, #ddd)';
+    return 'rgb(' + (rgb[0] | 0) + ',' + (rgb[1] | 0) + ',' + (rgb[2] | 0) + ')';
+  }
+
   // ── HomeTabBar ──────────────────────────────────────────────────────────
   function HomeTabBar(props) {
     var tab = props.tab;
@@ -501,21 +563,34 @@
   }
 
   // ── StashPanel ──────────────────────────────────────────────────────────
-  // "Stash" tab content. Reuses the stash data loaded in HomeApp.
+  // "Stash" tab content. Reuses the stash data + shopping/ready lists loaded
+  // in HomeApp. Renders an at-a-glance dashboard rather than a deep-link.
   function StashPanel(props) {
     var s = props.stash;
+    var shopping = props.shopping || [];
+    var ready = props.ready || [];
+    var Icons = window.Icons || {};
+
     if (!s) {
       return h('div', { className: 'home-stash-panel home-stash-panel--empty' },
         h('p', null, 'No stash data yet. Add threads in the Stash Manager.'),
         h('a', { href: 'manager.html?from=home', className: 'btn btn-primary', style: { marginTop: '12px', display: 'inline-flex' } }, 'Open Stash Manager')
       );
     }
-    var rows = [
-      { label: 'Owned skeins',   value: s.ownedSkeins },
-      { label: 'Unique threads', value: s.uniqueThreads },
-      { label: 'Patterns saved', value: s.patternCount }
-    ].filter(function (r) { return typeof r.value === 'number'; });
-    if (!rows.length) return null;
+
+    var hasAny = (s.ownedSkeins || 0) > 0 || (s.uniqueThreads || 0) > 0 || (s.patternCount || 0) > 0;
+    if (!hasAny) {
+      return h('div', { className: 'home-stash-panel home-stash-panel--empty' },
+        h('p', null, 'Your stash is empty. Add threads in the Stash Manager to start tracking what you own.'),
+        h('a', { href: 'manager.html?from=home', className: 'btn btn-primary', style: { marginTop: '12px', display: 'inline-flex' } }, 'Open Stash Manager')
+      );
+    }
+
+    var shoppingTop = shopping.slice(0, 3);
+    var shoppingMore = Math.max(0, shopping.length - shoppingTop.length);
+    var readyTop = ready.slice(0, 3);
+    var readyMore = Math.max(0, ready.length - readyTop.length);
+
     return h('section', {
       className: 'home-stash-panel',
       'aria-labelledby': 'home-stash-panel-title'
@@ -524,35 +599,180 @@
         h('h2', { id: 'home-stash-panel-title', className: 'home-section__title' }, 'Stash at a glance'),
         h('a', { href: 'manager.html?from=home', className: 'home-section__more' }, 'Open Stash Manager')
       ),
-      h('div', { className: 'home-stash__card' },
-        rows.map(function (r) {
-          if (r.href && r.value > 0) {
-            return h('a', { key: r.label, href: r.href, className: 'home-stash__row home-stash__row--link' },
-              h('span', null, r.label),
-              h('span', { className: 'home-stash__value' }, r.value)
-            );
-          }
-          return h('div', { key: r.label, className: 'home-stash__row' },
-            h('span', null, r.label),
-            h('span', { className: 'home-stash__value' }, r.value)
-          );
-        })
+
+      // KPI strip
+      h('div', { className: 'home-kpi-grid' },
+        h('div', { className: 'home-kpi' },
+          h('span', { className: 'home-kpi__num' }, fmtNumLocal(s.ownedSkeins || 0)),
+          h('span', { className: 'home-kpi__lbl' }, (s.ownedSkeins === 1 ? 'Skein' : 'Skeins'))
+        ),
+        h('div', { className: 'home-kpi' },
+          h('span', { className: 'home-kpi__num' }, fmtNumLocal(s.uniqueThreads || 0)),
+          h('span', { className: 'home-kpi__lbl' }, 'Colours')
+        ),
+        h('div', { className: 'home-kpi' },
+          h('span', { className: 'home-kpi__num' }, fmtNumLocal(s.patternCount || 0)),
+          h('span', { className: 'home-kpi__lbl' }, (s.patternCount === 1 ? 'Pattern' : 'Patterns'))
+        )
+      ),
+
+      // Shopping list + Ready to start
+      h('div', { className: 'home-stash-grid' },
+        h('article', { className: 'home-stash-card' },
+          h('header', { className: 'home-stash-card__head' },
+            h('h3', { className: 'home-stash-card__title' }, 'Shopping list'),
+            shopping.length > 0
+              ? h('a', { href: 'manager.html?tab=shopping&from=home', className: 'home-stash-card__more' }, 'Open')
+              : null
+          ),
+          shopping.length === 0
+            ? h('p', { className: 'home-stash-card__empty' }, 'Nothing on your shopping list.')
+            : h(React.Fragment, null,
+                h('ul', { className: 'home-stash-list' },
+                  shoppingTop.map(function (row) {
+                    return h('li', { key: row.key, className: 'home-stash-list__item' },
+                      h('span', {
+                        className: 'home-stash-list__sw',
+                        style: { background: rgbCss(row.rgb) },
+                        'aria-hidden': 'true'
+                      }),
+                      h('span', { className: 'home-stash-list__name' },
+                        (row.brand && row.brand !== 'dmc' ? row.brand.toUpperCase() + ' ' : 'DMC ') + row.id +
+                        (row.name && row.name !== row.id ? ' — ' + row.name : '')
+                      ),
+                      row.tobuyQty > 0
+                        ? h('span', { className: 'home-stash-list__qty' }, '×' + row.tobuyQty)
+                        : null
+                    );
+                  })
+                ),
+                h('p', { className: 'home-stash-card__foot' },
+                  shopping.length + (shopping.length === 1 ? ' colour' : ' colours') +
+                  (shoppingMore > 0 ? ' · +' + shoppingMore + ' more' : '')
+                )
+              )
+        ),
+        h('article', { className: 'home-stash-card' },
+          h('header', { className: 'home-stash-card__head' },
+            h('h3', { className: 'home-stash-card__title' }, 'Ready to start')
+          ),
+          ready.length === 0
+            ? h('p', { className: 'home-stash-card__empty' }, 'No patterns are fully covered by your stash yet.')
+            : h(React.Fragment, null,
+                h('p', { className: 'home-stash-card__lead' },
+                  h('strong', null, fmtNumLocal(ready.length) + (ready.length === 1 ? ' pattern' : ' patterns')),
+                  ' in your library can be stitched entirely from your current stash.'
+                ),
+                h('ul', { className: 'home-stash-chips' },
+                  readyTop.map(function (p) {
+                    return h('li', { key: p.id, className: 'home-stash-chips__item' },
+                      h('span', null, p.title || 'Untitled')
+                    );
+                  }),
+                  readyMore > 0
+                    ? h('li', { key: '__more', className: 'home-stash-chips__item home-stash-chips__item--more' },
+                        h('a', { href: 'manager.html?from=home' }, '+' + readyMore + ' more')
+                      )
+                    : null
+                )
+              )
+        )
       )
     );
   }
 
   // ── StatsPanel ──────────────────────────────────────────────────────────
-  function StatsPanel() {
+  // Mini-dashboard mirroring the look of stats-page.js's Showcase, but
+  // computed from the cheap aggregate APIs already loaded on /home.
+  function StatsPanel(props) {
+    var lifetimeStitches = props.lifetimeStitches || 0;
+    var dailyLog = props.dailyLog || [];
+    var oldestWip = props.oldestWip || null;
     var Icons = window.Icons || {};
-    return h('section', { className: 'home-stats-panel' },
-      h('p', { className: 'home-stats-panel__sub' }, 'View stitching statistics and your pattern showcase.'),
-      h('a', {
-        href: 'index.html?mode=stats&from=home',
-        className: 'home-stats-panel__link'
-      },
-        h('span', null, 'Open Stats & Showcase'),
-        h('span', { className: 'home-stats-panel__link-icon', 'aria-hidden': 'true' },
-          typeof Icons.chevronRight === 'function' ? Icons.chevronRight() : null)
+
+    var hasLifetime = lifetimeStitches > 0;
+    var spark = buildSpark(dailyLog, 30);
+
+    return h('section', {
+      className: 'home-stats-panel',
+      'aria-labelledby': 'home-stats-panel-title'
+    },
+      h('div', { className: 'home-stash-panel__head' },
+        h('h2', { id: 'home-stats-panel-title', className: 'home-section__title' }, 'Your stitching'),
+        h('a', {
+          href: 'index.html?mode=stats&from=home',
+          className: 'home-section__more'
+        }, 'Full dashboard')
+      ),
+
+      // Hero: lifetime stitches
+      h('div', { className: 'home-stats-hero' },
+        hasLifetime
+          ? h(React.Fragment, null,
+              h('div', { className: 'home-stats-hero__num' }, fmtNumLocal(lifetimeStitches)),
+              h('div', { className: 'home-stats-hero__sub' },
+                'lifetime stitches \u00b7 \u2248 ' + threadKmLocal(lifetimeStitches) + ' km of thread'
+              )
+            )
+          : h(React.Fragment, null,
+              h('div', { className: 'home-stats-hero__num' }, '0'),
+              h('div', { className: 'home-stats-hero__sub' },
+                'Mark a stitch in the Tracker and your lifetime total will start counting here.'
+              )
+            )
+      ),
+
+      // Card grid: 30-day sparkline + oldest WIP
+      h('div', { className: 'home-stats-grid' },
+        h('article', { className: 'home-stats-card' },
+          h('h3', { className: 'home-stats-card__title' }, 'Last 30 days'),
+          spark.total > 0
+            ? h(React.Fragment, null,
+                h('svg', {
+                  className: 'home-spark',
+                  viewBox: '0 0 120 32',
+                  preserveAspectRatio: 'none',
+                  role: 'img',
+                  'aria-label': fmtNumLocal(spark.total) + ' stitches in the last 30 days'
+                },
+                  h('polyline', {
+                    points: spark.points,
+                    fill: 'none',
+                    stroke: 'currentColor',
+                    strokeWidth: '1.6',
+                    strokeLinejoin: 'round',
+                    strokeLinecap: 'round'
+                  })
+                ),
+                h('p', { className: 'home-stats-card__foot' },
+                  h('strong', null, fmtNumLocal(spark.total)),
+                  ' stitches \u00b7 ' + spark.activeDays + (spark.activeDays === 1 ? ' active day' : ' active days')
+                )
+              )
+            : h('p', { className: 'home-stats-card__empty' },
+                'No stitches logged in the last 30 days.'
+              )
+        ),
+        oldestWip
+          ? h('a', {
+              className: 'home-stats-card home-stats-card--link',
+              href: '#',
+              onClick: function (ev) {
+                ev.preventDefault();
+                activateAndGo(oldestWip.id, 'stitch.html');
+              }
+            },
+              h('h3', { className: 'home-stats-card__title' }, 'Oldest WIP'),
+              h('p', { className: 'home-stats-card__name' }, oldestWip.name || 'Untitled'),
+              h('p', { className: 'home-stats-card__foot' },
+                'Last touched ' + daysAgo(oldestWip.lastTouchedAt) +
+                  ' \u00b7 ' + (oldestWip.pct || 0) + '% done'
+              )
+            )
+          : h('article', { className: 'home-stats-card' },
+              h('h3', { className: 'home-stats-card__title' }, 'Oldest WIP'),
+              h('p', { className: 'home-stats-card__empty' }, 'No active works in progress.')
+            )
       )
     );
   }
@@ -593,6 +813,12 @@
     var list = listState[0]; var setList = listState[1];
     var stashState = React.useState(null);
     var stash = stashState[0]; var setStash = stashState[1];
+    var statsState = React.useState({ lifetimeStitches: 0, dailyLog: [], oldestWip: null });
+    var stats = statsState[0]; var setStats = statsState[1];
+    var shoppingState = React.useState([]);
+    var shopping = shoppingState[0]; var setShopping = shoppingState[1];
+    var readyState = React.useState([]);
+    var ready = readyState[0]; var setReady = readyState[1];
     var prefsState = React.useState(false);
     var prefsOpen = prefsState[0]; var setPrefsOpen = prefsState[1];
     var aboutState = React.useState(false);
@@ -688,6 +914,35 @@
             patternCount: patterns.length
           });
         }).catch(function () {});
+
+        // Stats summaries (lifetime + daily log + oldest WIP) and shopping
+        // list — all cheap reads (project-storage memoises). Failures default
+        // to empty so the panels still render.
+        var PS = window.ProjectStorage;
+        var SB = window.StashBridge;
+        var lifetimeP = (PS && typeof PS.getLifetimeStitches === 'function')
+          ? PS.getLifetimeStitches().catch(function () { return 0; })
+          : Promise.resolve(0);
+        var dailyP = (PS && typeof PS.getStitchLogByDay === 'function')
+          ? PS.getStitchLogByDay(30).catch(function () { return []; })
+          : Promise.resolve([]);
+        var oldestP = (PS && typeof PS.getOldestWIP === 'function')
+          ? PS.getOldestWIP().catch(function () { return null; })
+          : Promise.resolve(null);
+        var shoppingP = (SB && typeof SB.getShoppingList === 'function')
+          ? SB.getShoppingList().catch(function () { return []; })
+          : Promise.resolve([]);
+        var readyP = (PS && typeof PS.getProjectsReadyToStart === 'function')
+          ? PS.getProjectsReadyToStart().catch(function () { return []; })
+          : Promise.resolve([]);
+        Promise.all([lifetimeP, dailyP, oldestP, shoppingP, readyP]).then(function (r) {
+          if (cancelled) return;
+          setStats({ lifetimeStitches: r[0] || 0, dailyLog: r[1] || [], oldestWip: r[2] || null });
+          setShopping(r[3] || []);
+          // Match the Showcase definition: only count patterns where the
+          // current stash covers every required colour (pct === 100).
+          setReady((r[4] || []).filter(function (p) { return p && p.pct >= 100; }));
+        }).catch(function () {});
       }
       refreshAllRef.current = refreshAll;
       refreshAll();
@@ -766,11 +1021,15 @@
           h(HomeFooter, { onAbout: function () { setAboutOpen(true); } })
         ),
         tab === 'stash' && h(React.Fragment, null,
-          h(StashPanel, { stash: stash }),
+          h(StashPanel, { stash: stash, shopping: shopping, ready: ready }),
           h(HomeFooter, { onAbout: function () { setAboutOpen(true); } })
         ),
         tab === 'stats' && h(React.Fragment, null,
-          h(StatsPanel, null),
+          h(StatsPanel, {
+            lifetimeStitches: stats.lifetimeStitches,
+            dailyLog: stats.dailyLog,
+            oldestWip: stats.oldestWip
+          }),
           h(HomeFooter, { onAbout: function () { setAboutOpen(true); } })
         )
       ),
