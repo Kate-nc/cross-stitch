@@ -6895,11 +6895,13 @@ button[aria-disabled="true"] {
    ════════════════════════════════════════════════════════════════ */
 @media (max-width: 1024px) and (pointer: coarse) {
   /* Reserve room at the bottom of the page for the fixed toolbar +
-     safe-area inset so nothing slides under the home indicator. */
-  body { padding-bottom: calc(var(--ct-toolbar-h, 64px) + env(safe-area-inset-bottom, 0px)); }
+     safe-area inset so nothing slides under the home indicator.
+     Scoped to Creator so the Tracker's own action-bar layout is
+     unaffected (Tracker manages its bottom space separately). */
+  body.page-creator { padding-bottom: calc(var(--ct-toolbar-h, 64px) + env(safe-area-inset-bottom, 0px)); }
 
   /* Bottom-fixed creator toolbar. */
-  .toolbar-row {
+  body.page-creator .toolbar-row {
     position: fixed;
     top: auto !important;
     bottom: 0;

@@ -1085,13 +1085,26 @@ const[mobileDrawerOpen,setMobileDrawerOpen]=useState(false);
 // existing render code that already reads it.
 const[leftSidebarMode,setLeftSidebarMode]=useState(()=>{
   try{
-    var stored=window.UserPrefs&&window.UserPrefs.get("trackerLeftSidebarMode");
-    if(stored==="hidden"||stored==="rail"||stored==="open")return stored;
-    // Migrate the legacy boolean preference.
-    var legacy=window.UserPrefs&&window.UserPrefs.get("trackerLeftSidebarOpen");
-    if(legacy===true)return "open";
-    if(legacy===false)return "hidden";
-    // First run — default by viewport class.
+    // Use localStorage directly so we can distinguish "key never set" from
+    // "key set to the default value".  UserPrefs.get() always returns the
+    // DEFAULTS fallback and can't detect a true first run.
+    var raw=localStorage.getItem("cs_pref_trackerLeftSidebarMode");
+    if(raw!==null){
+      try{
+        var stored=JSON.parse(raw);
+        if(stored==="hidden"||stored==="rail"||stored==="open")return stored;
+      }catch(_){}
+    }
+    // Migrate the legacy boolean preference (a corrupt new key falls through here).
+    var legacyRaw=localStorage.getItem("cs_pref_trackerLeftSidebarOpen");
+    if(legacyRaw!==null){
+      try{
+        var legacy=JSON.parse(legacyRaw);
+        if(legacy===true)return "open";
+        if(legacy===false)return "hidden";
+      }catch(_){}
+    }
+    // First run — default by viewport type.
     if(window.TouchConstants&&window.TouchConstants.isCompactTouch())return "hidden";
     return "open";
   }catch(_){return "hidden";}
@@ -6030,7 +6043,7 @@ return(
                   {parkCountsByColour[p.id]>0&&<button onClick={e2=>{e2.stopPropagation();toggleParkLayer(p.id);}} title={(isParkLayerVisible(p.id)?"Hide":"Show")+" "+parkCountsByColour[p.id]+" parked marker"+(parkCountsByColour[p.id]===1?"":"s")+" for this colour"} aria-label={(isParkLayerVisible(p.id)?"Hide":"Show")+" parked markers for DMC "+p.id} aria-pressed={isParkLayerVisible(p.id)} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:9,padding:"1px 5px",borderRadius:4,border:"1px solid var(--border)",background:isParkLayerVisible(p.id)?`rgb(${p.rgb[0]},${p.rgb[1]},${p.rgb[2]})`:"var(--surface)",color:isParkLayerVisible(p.id)?(luminance(p.rgb)>140?"#000":"#fff"):"var(--text-tertiary)",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,fontWeight:600,opacity:isParkLayerVisible(p.id)?1:0.55}}>P{parkCountsByColour[p.id]>1?("\u00D7"+parkCountsByColour[p.id]):""}</button>}
                   <button onClick={e2=>{e2.stopPropagation();if(!complete){const unmarked=dc.total-dc.done;if(unmarked>50&&!confirm("Mark all "+unmarked+" stitches of DMC "+p.id+" as done?"))return;}markColourDone(p.id,!complete);}} style={{fontSize:9,padding:"1px 6px",borderRadius:4,border:"1px solid "+(complete?"var(--danger-soft)":"var(--success-soft)"),background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}} title={complete?"Mark colour as not done":"Mark colour as done"} aria-label={complete?"Mark colour as not done":"Mark colour as done"}>{complete?"Undo":(Icons.check?Icons.check():"\u2713")}</button>
                 </>}
-                {isEditMode&&<span style={{fontSize:10,color:"var(--warning)",fontWeight:600}} aria-label="Edit colour">{Icons.pencil?Icons.pencil():"\u270E"}</span>}
+                {isEditMode&&Icons.pencil&&<span style={{fontSize:10,color:"var(--warning)",fontWeight:600}} aria-label="Edit colour">{Icons.pencil()}</span>}
               </div>;
             });
           })()}

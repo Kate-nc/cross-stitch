@@ -28,9 +28,10 @@ describe('Tracker left sidebar (toolbar-rework phase 1)', () => {
   test('tracker registers leftSidebarMode / leftSidebarTab state', () => {
     expect(trackerSrc).toMatch(/leftSidebarMode,\s*setLeftSidebarMode/);
     expect(trackerSrc).toMatch(/leftSidebarTab,\s*setLeftSidebarTab/);
-    // Initialised from UserPrefs and migrated from the legacy boolean
-    expect(trackerSrc).toMatch(/UserPrefs.*get\("trackerLeftSidebarMode"\)/);
-    expect(trackerSrc).toMatch(/UserPrefs.*get\("trackerLeftSidebarOpen"\)/);
+    // Initialised from localStorage directly (so key presence can be detected),
+    // with migration from the legacy boolean, and UserPrefs tab key
+    expect(trackerSrc).toMatch(/localStorage\.getItem\(["']cs_pref_trackerLeftSidebarMode["']\)/);
+    expect(trackerSrc).toMatch(/localStorage\.getItem\(["']cs_pref_trackerLeftSidebarOpen["']\)/);
     expect(trackerSrc).toMatch(/UserPrefs.*get\("trackerLeftSidebarTab"\)/);
     // Persisted back via setter
     expect(trackerSrc).toMatch(/UserPrefs.*set\("trackerLeftSidebarMode"/);

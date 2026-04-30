@@ -1,8 +1,10 @@
 /* touch-constants.js — Centralised touch / pointer-gesture tuning.
    ════════════════════════════════════════════════════════════════
-   Loaded as a plain <script> before useDragMark.js,
-   creator/bundle.js, tracker-app.js, and manager-app.js so every
-   gesture handler reads from one place.
+   Must be loaded before any gesture handler that reads these
+   constants (useDragMark.js, creator/bundle.js, tracker-app.js,
+   manager-app.js). In index.html it is placed immediately before
+   useDragMark.js; stitch.html and manager.html preserve the same
+   order.
 
    Exposes window.TouchConstants. Module export available for tests.
 
