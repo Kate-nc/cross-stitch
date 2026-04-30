@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdnjs.cloudflare.com; worker-src 'self'; frame-src 'self';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdnjs.cloudflare.com; worker-src 'self' blob:; frame-src 'self' blob:;">
 <title>Create a Pattern — Cross Stitch Studio</title>
 <link rel="manifest" href="./manifest.json">
 <!-- Dedicated Creator entry-point. Unlike index.html (which redirects to
@@ -70,8 +70,12 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <link rel="stylesheet" href="styles.css">
 <script src="constants.js"></script>
 <script src="dmc-data.js"></script>
-<script src="anchor-data.js"></script>
-<script src="thread-conversions.js"></script>
+<!-- defer: Anchor + thread-conversions are only consumed inside function bodies
+     (typeof X === 'undefined' guards). Defer lets HTML parsing continue while
+     these 110 KB download in parallel. They still execute before
+     DOMContentLoaded so React mount sees them. -->
+<script src="anchor-data.js" defer></script>
+<script src="thread-conversions.js" defer></script>
 <script src="starter-kits.js"></script>
 <script src="colour-utils.js"></script>
 <script src="helpers.js"></script>
@@ -90,6 +94,8 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="onboarding-wizard.js"></script>
 <script src="threadCalc.js"></script>
 <script src="project-storage.js"></script>
+<!-- Lazy import engine: the full bundle (~126 KB) loads on first picker / DnD use. See reports/perf-opt-2-spec.md. -->
+<script src="import-engine/lazy-shim.js"></script>
 <script src="stash-bridge.js"></script>
 <script src="backup-restore.js"></script>
 <script src="sync-engine.js"></script>
@@ -121,6 +127,21 @@ window.loadPdfStack = function() {
       return window.loadScript('pdf-importer.js');
     });
 };
+/* Cat C perf split: ImportWizard + useImportWizard (~30 KB) live in their
+   own bundle. Default users (experimental.importWizard flag off) never load
+   it. Wizard users get it preloaded on idle so it's ready when they open
+   the import dialog. The wizard branch in tracker-app.js already gracefully
+   falls back to the legacy single-step modal if window.ImportWizard isn't
+   present, so a slow network won't break the import flow. */
+(function maybePreloadImportWizard() {
+  try {
+    var on = window.UserPrefs && window.UserPrefs.get && window.UserPrefs.get('experimental.importWizard');
+    if (!on) return;
+    var go = function () { try { window.loadScript('creator/import-wizard-bundle.js').catch(function () {}); } catch (_) {} };
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 2000 });
+    else setTimeout(go, 0);
+  } catch (_) {}
+})();
 /* Loads TrackerApp via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
 var TRACKER_CACHE_KEY = 'babel_tracker_b968574aae';

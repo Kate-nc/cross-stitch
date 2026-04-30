@@ -848,3 +848,10 @@ const ProjectStorage = (() => {
     },
   };
 })();
+
+// Top-level `const` in a classic <script> creates a global binding but does
+// NOT attach to `window`. Several callers (notably import-engine/wireApp.js)
+// feature-test via `window.ProjectStorage`, so without this assignment they
+// silently fall back to the legacy auto_save path and the imported pattern
+// never appears in the project library. Mirror onto window explicitly.
+try { if (typeof window !== 'undefined') window.ProjectStorage = ProjectStorage; } catch (_) {}

@@ -18,8 +18,26 @@ module.exports = defineConfig({
   projects: [
     {
       name: 'touch-tablet-chromium',
+      testDir: './tests/e2e',
       use: {
         ...devices['iPad Mini'],
+        browserName: 'chromium',
+      },
+    },
+    // Perf harness — desktop Chromium, no touch. Read by `npm run perf:baseline`.
+    // Writes JSON results into reports/perf-results/. See tests/perf/*.spec.js.
+    {
+      name: 'perf-desktop',
+      testDir: './tests/perf',
+      use: { browserName: 'chromium', viewport: { width: 1440, height: 900 } },
+    },
+    // Perf harness — mobile-throttled Chromium. Run with --project=perf-mobile
+    // to capture the mobile floor for the same metrics.
+    {
+      name: 'perf-mobile',
+      testDir: './tests/perf',
+      use: {
+        ...devices['Pixel 5'],
         browserName: 'chromium',
       },
     },

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdnjs.cloudflare.com; worker-src 'self'; frame-src 'self';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdnjs.cloudflare.com; worker-src 'self' blob:; frame-src 'self' blob:;">
 <title>Stitch Tracker</title>
 <link rel="manifest" href="./manifest.json">
 <!-- Canonical landing is /home (home.html). External links and search
@@ -51,8 +51,11 @@ window.loadPdfStack = function() {
 <link rel="stylesheet" href="styles.css">
 <script src="constants.js"></script>
 <script src="dmc-data.js"></script>
-<script src="anchor-data.js"></script>
-<script src="thread-conversions.js"></script>
+<!-- defer: Anchor + thread-conversions are only consumed inside function bodies
+     (typeof X === 'undefined' guards). Defer lets HTML parsing continue while
+     these 110 KB download in parallel. -->
+<script src="anchor-data.js" defer></script>
+<script src="thread-conversions.js" defer></script>
 <script src="starter-kits.js"></script>
 <script src="colour-utils.js"></script>
 <script src="helpers.js"></script>
@@ -70,6 +73,8 @@ window.loadPdfStack = function() {
 <script src="onboarding-wizard.js"></script>
 <script src="threadCalc.js"></script>
 <script src="project-storage.js"></script>
+<!-- Lazy import engine: the full bundle (~126 KB) loads on first picker / DnD use. See reports/perf-opt-2-spec.md. -->
+<script src="import-engine/lazy-shim.js"></script>
 <script src="stash-bridge.js"></script>
 <script src="backup-restore.js"></script>
 <script src="sync-engine.js"></script>
@@ -86,6 +91,26 @@ window.loadPdfStack = function() {
 <div id="root"></div>
 </main>
 <script src="useDragMark.js"></script>
+<!-- Cat C perf split: conditionally preload the ImportWizard bundle only
+     when the experimental flag is on. Default users never fetch the 30 KB.
+     The wizard branch in tracker-app.js already falls back to the legacy
+     modal if window.ImportWizard isn't present. -->
+<script>
+(function maybePreloadImportWizard() {
+  try {
+    var on = window.UserPrefs && window.UserPrefs.get && window.UserPrefs.get('experimental.importWizard');
+    if (!on) return;
+    var go = function () {
+      if (document.querySelector('script[src="creator/import-wizard-bundle.js"]')) return;
+      var s = document.createElement('script');
+      s.src = 'creator/import-wizard-bundle.js';
+      document.head.appendChild(s);
+    };
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 2000 });
+    else setTimeout(go, 0);
+  } catch (_) {}
+})();
+</script>
 <script type="text/babel" src="tracker-app.js"></script>
 <script src="./sw-register.js"></script>
 </body>

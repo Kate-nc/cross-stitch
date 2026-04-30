@@ -84,18 +84,35 @@ class PatternKeeperImporter {
    * @returns {Promise<Object>}
    */
   async import(file) {
+    // PERF (Cat B-lite): yield to the event loop between heavy stages so the
+    // browser can repaint the import progress UI, dispatch queued clicks
+    // (so Cancel works), and avoid a single 20 s+ Long Task for large PDFs.
+    // The cost is ~10–20 ms total — negligible vs the work being done.
+    const yieldToBrowser = () => new Promise(r => setTimeout(r, 0));
+
     const pdfData = await this.pdfLoader.load(file);
     const pages = await this.extractAllPages(pdfData);
+    await yieldToBrowser();
+
     const classified = this.classifyPages(pages);
+    await yieldToBrowser();
 
     if (classified.chartPages.length === 0) {
        throw new Error("No chart pages detected in the PDF.");
     }
 
     const chartLayout = this.detectChartLayout(classified.chartPages);
-    const symbols = this.extractSymbols(classified.chartPages, chartLayout);
+    await yieldToBrowser();
+
+    const symbols = await this.extractSymbols(classified.chartPages, chartLayout);
+    await yieldToBrowser();
+
     const legend = this.parseLegend(classified.legendPages);
+    await yieldToBrowser();
+
     const linked = this.linkSymbolsToThreads(symbols, legend);
+    await yieldToBrowser();
+
     return this.convertToPattern(chartLayout, linked, legend);
   }
 
@@ -440,15 +457,42 @@ class PatternKeeperImporter {
      const hLines = [];
      const vLines = [];
 
+     // Page-furniture filter: reject lines whose endpoints are within 5pt of
+     // the page edge AND span > 80% of the page's width/height. These are
+     // almost always page borders, header/footer rules, or decorative frames
+     // — never the chart grid. Without this filter the bounding-box code
+     // below stretches the chart to the full page and pulls in legend rows,
+     // page numbers, and adjacent pattern variants as ghost cells.
+     const pw = page.width || 612;
+     const ph = page.height || 792;
+     const edgeMargin = 5;
+     const fullSpanFrac = 0.8;
+
      page.vectorPaths.forEach(p => {
         if (p.type === 'line' && p.points.length === 2) {
-           const dx = Math.abs(p.points[0].x - p.points[1].x);
-           const dy = Math.abs(p.points[0].y - p.points[1].y);
-           if (dx > 20 && dy < 2) hLines.push(p.points[0].y);
-           if (dy > 20 && dx < 2) vLines.push(p.points[0].x);
+           const x0 = p.points[0].x, x1 = p.points[1].x;
+           const y0 = p.points[0].y, y1 = p.points[1].y;
+           const dx = Math.abs(x0 - x1);
+           const dy = Math.abs(y0 - y1);
+           // Horizontal page-border / decorative rule
+           if (dx > 20 && dy < 2) {
+              const ay = (y0 + y1) / 2;
+              const isPageEdge = ay < edgeMargin || ay > ph - edgeMargin;
+              const spansPage = dx > pw * fullSpanFrac;
+              if (!(isPageEdge && spansPage)) hLines.push(y0);
+           }
+           // Vertical page-border / decorative rule
+           if (dy > 20 && dx < 2) {
+              const ax = (x0 + x1) / 2;
+              const isPageEdge = ax < edgeMargin || ax > pw - edgeMargin;
+              const spansPage = dy > ph * fullSpanFrac;
+              if (!(isPageEdge && spansPage)) vLines.push(x0);
+           }
         } else if (p.type === 'rect' && p.points.length >= 4) {
            const w = Math.abs(p.points[0].x - p.points[2].x);
            const h = Math.abs(p.points[0].y - p.points[2].y);
+           // Skip page-bounding rectangles entirely.
+           if (w > pw * fullSpanFrac && h > ph * fullSpanFrac) return;
            // Only count large rectangles as grid layout elements (ignore 2x2px cell fills)
            if (w > 20 || h > 20) {
                hLines.push(p.points[0].y, p.points[2].y);
@@ -496,64 +540,113 @@ class PatternKeeperImporter {
         cellHeight = valid[Math.floor(valid.length/2)] || 10;
      }
 
-     let originX = vClustered.length > 0 ? vClustered[0] : 50;
-     let originY = hClustered.length > 0 ? hClustered[0] : 50;
-
-     // Filter out stray lines (like page borders at 0,0) by finding the first contiguous sequence
-     if (vClustered.length > 3) {
-         for (let i = 0; i < vClustered.length - 2; i++) {
-             if (Math.abs((vClustered[i+1] - vClustered[i]) - cellWidth) < 2 &&
-                 Math.abs((vClustered[i+2] - vClustered[i+1]) - cellWidth) < 2) {
-                 originX = vClustered[i];
-                 break;
+     // Identify the dense band of grid lines by scoring each cluster on
+     // how many of its neighbours sit at the expected cell spacing. A
+     // cluster is "in-band" if either its previous OR next neighbour is
+     // within ±2pt of cellWidth. Outlier lines (page borders, legend
+     // separators, decorative rules) get rejected because their
+     // neighbours are far away. We then take the min/max of the in-band
+     // set as the bounding box, which is robust to occasional missing
+     // grid lines (which would otherwise truncate a "longest contiguous
+     // run" approach down to a corner of the chart).
+     function denseBounds(clustered, expectedSpacing) {
+         if (clustered.length < 2) return { lo: clustered[0] || 0, hi: clustered[clustered.length-1] || 0 };
+         const tol = Math.max(2, expectedSpacing * 0.25);
+         const inBand = [];
+         for (let i = 0; i < clustered.length; i++) {
+             const prev = i > 0 ? clustered[i] - clustered[i-1] : Infinity;
+             const next = i < clustered.length-1 ? clustered[i+1] - clustered[i] : Infinity;
+             // Accept if a direct neighbour matches, OR if the gap is an
+             // integer multiple (handles the occasional missing line).
+             function nearMultiple(d) {
+                 if (!isFinite(d)) return false;
+                 const k = Math.round(d / expectedSpacing);
+                 return k >= 1 && k <= 4 && Math.abs(d - k * expectedSpacing) < tol;
              }
+             if (nearMultiple(prev) || nearMultiple(next)) inBand.push(clustered[i]);
          }
+         if (inBand.length < 2) return { lo: clustered[0], hi: clustered[clustered.length-1] };
+         return { lo: inBand[0], hi: inBand[inBand.length-1] };
      }
 
-     if (hClustered.length > 3) {
-         for (let i = 0; i < hClustered.length - 2; i++) {
-             if (Math.abs((hClustered[i+1] - hClustered[i]) - cellHeight) < 2 &&
-                 Math.abs((hClustered[i+2] - hClustered[i+1]) - cellHeight) < 2) {
-                 originY = hClustered[i];
-                 break;
-             }
-         }
-     }
+     const vBounds = denseBounds(vClustered, cellWidth);
+     const hBounds = denseBounds(hClustered, cellHeight);
 
-     let endX = vClustered.length > 0 ? vClustered[vClustered.length-1] : page.width - 50;
-     let endY = hClustered.length > 0 ? hClustered[hClustered.length-1] : page.height - 50;
+     let originX = vBounds.lo;
+     let originY = hBounds.lo;
+     let endX    = vBounds.hi;
+     let endY    = hBounds.hi;
 
-     if (vClustered.length > 3) {
-         for (let i = vClustered.length - 1; i >= 2; i--) {
-             if (Math.abs((vClustered[i] - vClustered[i-1]) - cellWidth) < 2) {
-                 endX = vClustered[i];
-                 break;
-             }
-         }
-     }
-
-     if (hClustered.length > 3) {
-         for (let i = hClustered.length - 1; i >= 2; i--) {
-             if (Math.abs((hClustered[i] - hClustered[i-1]) - cellHeight) < 2) {
-                 endY = hClustered[i];
-                 break;
-             }
-         }
-     }
-
-     const cols = vClustered.length > 1 ? Math.round((endX - originX) / cellWidth) : Math.max(10, Math.floor((page.width - 100) / cellWidth));
-     const rows = hClustered.length > 1 ? Math.round((endY - originY) / cellHeight) : Math.max(10, Math.floor((page.height - 100) / cellHeight));
+     const cols = vClustered.length > 1 ? Math.max(1, Math.round((endX - originX) / cellWidth)) : Math.max(10, Math.floor((page.width - 100) / cellWidth));
+     const rows = hClustered.length > 1 ? Math.max(1, Math.round((endY - originY) / cellHeight)) : Math.max(10, Math.floor((page.height - 100) / cellHeight));
 
      return { originX, originY, cellWidth, cellHeight, columns: cols, rows: rows, boldLineInterval: 10 };
   }
 
-  extractSymbols(chartPages, chartLayout) {
+  /**
+   * Build a Y-bucket index for fast row-band lookup. Each item is indexed
+   * into bucket k AND its neighbours k-1, k+1 so border-of-row lookups
+   * still find candidates without a fallback linear scan. Returns
+   * { lookup(y) -> array }. PERF (Cat B-lite): replaces O(N) Array.find
+   * scans inside the per-cell loop with O(N/rows) bucket lookups.
+   */
+  _buildYBuckets(items, getY, cellHeight) {
+    const bin = Math.max(1, cellHeight);
+    const map = new Map();
+    for (let i = 0; i < items.length; i++) {
+      const y = getY(items[i]);
+      if (!isFinite(y)) continue;
+      const k = Math.floor(y / bin);
+      // Spread across 3 buckets so the inner search doesn't miss items
+      // whose Y is just inside the neighbouring band.
+      for (let dk = -1; dk <= 1; dk++) {
+        const key = k + dk;
+        let arr = map.get(key);
+        if (!arr) { arr = []; map.set(key, arr); }
+        arr.push(items[i]);
+      }
+    }
+    return {
+      lookup(y) {
+        if (!isFinite(y)) return [];
+        return map.get(Math.floor(y / bin)) || [];
+      }
+    };
+  }
+
+  async extractSymbols(chartPages, chartLayout) {
      const symbols = [];
-     chartLayout.pages.forEach(pInfo => {
+     // PERF (Cat B-lite): yield once between pages for very large patterns
+     // so the browser can repaint between bursts of synchronous work.
+     const yieldToBrowser = () => new Promise(r => setTimeout(r, 0));
+     for (let pageIdx = 0; pageIdx < chartLayout.pages.length; pageIdx++) {
+        if (pageIdx > 0) await yieldToBrowser();
+        const pInfo = chartLayout.pages[pageIdx];
         const pageData = chartPages.find(p => p.pageIndex === pInfo.pageIndex);
-        if (!pageData) return;
+        if (!pageData) continue;
 
         const grid = pInfo.grid;
+
+        // PERF (Cat B-lite): pre-build Y-bucket indices for textItems and
+        // colour-filled vector paths. Each cell now scans a ~1-row slice
+        // instead of the entire page. Bit-identical results — same find
+        // predicate, just smaller candidate set.
+        const textBuckets = this._buildYBuckets(
+          pageData.textItems,
+          t => t.y - t.height / 2,
+          grid.cellHeight
+        );
+        // Pre-compute centroids for fill paths to avoid recomputing inside
+        // the inner loop (and so the bucket index can use the centroid Y).
+        const fillPaths = [];
+        for (let pIdx = 0; pIdx < pageData.vectorPaths.length; pIdx++) {
+          const pa = pageData.vectorPaths[pIdx];
+          if (!pa.fillColor || !pa.points || pa.points.length === 0) continue;
+          let sx = 0, sy = 0;
+          for (let q = 0; q < pa.points.length; q++) { sx += pa.points[q].x; sy += pa.points[q].y; }
+          fillPaths.push({ ref: pa, bx: sx / pa.points.length, by: sy / pa.points.length });
+        }
+        const fillBuckets = this._buildYBuckets(fillPaths, fp => fp.by, grid.cellHeight);
 
         for (let r = 0; r < grid.rows; r++) {
            for (let c = 0; c < grid.columns; c++) {
@@ -564,12 +657,17 @@ class PatternKeeperImporter {
               // Note that in PDF.js, text (tx, ty) typically denotes the bottom-left of the baseline.
               // For standard viewport coords, t.y is baseline. We adjust it slightly to find the visual center.
               // Also text width/height from getViewport scaling can sometimes be tricky.
-              let item = pageData.textItems.find(t =>
-                 t.str.trim().length > 0 && // Don't restrict length in case text wasn't split
-                 // Check if the center of this specific cell falls within the text item's bounding box
-                 cx >= t.x - (grid.cellWidth * 0.2) && cx <= (t.x + t.width + grid.cellWidth * 0.2) &&
-                 Math.abs((t.y - t.height/2) - cy) < grid.cellHeight / 2
-              );
+              const textCands = textBuckets.lookup(cy);
+              let item = null;
+              for (let ti = 0; ti < textCands.length; ti++) {
+                 const t = textCands[ti];
+                 if (t.str.trim().length > 0 &&
+                    cx >= t.x - (grid.cellWidth * 0.2) && cx <= (t.x + t.width + grid.cellWidth * 0.2) &&
+                    Math.abs((t.y - t.height/2) - cy) < grid.cellHeight / 2) {
+                    item = t;
+                    break;
+                 }
+              }
 
               // If the matched item is a clump of characters spread out, try to extract just the one under this cell
               if (item && item.str.length > 1 && !item.str.startsWith('U+')) {
@@ -587,17 +685,13 @@ class PatternKeeperImporter {
               let fillColor = null;
               if (!item) {
                  // Check if the cell is filled with a vector path color instead of a text symbol
-                 const coloredPath = pageData.vectorPaths.find(pa => {
-                    if (!pa.fillColor) return false;
-                    // Use the centroid of the path's points rather than points[0] (which is a corner,
-                    // not the center). Using a corner causes fills to be equidistant from two adjacent
-                    // cell centers, producing a duplicate mark one row above the correct position.
-                    const bx = pa.points.reduce((s, p) => s + p.x, 0) / pa.points.length;
-                    const by = pa.points.reduce((s, p) => s + p.y, 0) / pa.points.length;
-                    return Math.abs(bx - cx) < grid.cellWidth / 2 && Math.abs(by - cy) < grid.cellHeight / 2;
-                 });
-                 if (coloredPath) {
-                    fillColor = coloredPath.fillColor;
+                 const fillCands = fillBuckets.lookup(cy);
+                 for (let fi = 0; fi < fillCands.length; fi++) {
+                    const fp = fillCands[fi];
+                    if (Math.abs(fp.bx - cx) < grid.cellWidth / 2 && Math.abs(fp.by - cy) < grid.cellHeight / 2) {
+                       fillColor = fp.ref.fillColor;
+                       break;
+                    }
                  }
               }
 
@@ -629,7 +723,7 @@ class PatternKeeperImporter {
               }
            }
         }
-     });
+     }
      return symbols;
   }
 

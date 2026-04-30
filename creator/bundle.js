@@ -6506,651 +6506,6 @@ window.useCreatorState = function useCreatorState() {
 };
 
 
-/* ─── useImportWizard.js ─── */
-/* creator/useImportWizard.js — C7 image-import wizard state hook.
- *
- * Owns the 5-step wizard state machine, persists a draft to localStorage so
- * the user can resume after an accidental reload, and produces a settings
- * object that's drop-in compatible with parseImagePattern() (the same call
- * site the legacy single-step modal uses in tracker-app.js).
- *
- * Behind the experimental.importWizard pref. Legacy flow is untouched.
- *
- * No emoji in copy. British English. Public API:
- *
- *   const wiz = window.useImportWizard({ image, baseName });
- *   wiz.step / wiz.crop / wiz.palette / wiz.size / wiz.settings / wiz.name
- *   wiz.setCrop / setPalette / setSize / setSettings / setName
- *   wiz.next() / wiz.back() / wiz.goto(n)
- *   wiz.reset()                                // clears draft + state
- *   wiz.commit() -> { name, maxWidth, maxHeight, maxColours,
- *                     skipWhiteBg, bgThreshold, fabricCt,
- *                     crop, palette, settings }
- */
-(function () {
-  if (typeof window === "undefined") return;
-
-  var STEPS = 5;
-  var DRAFT_KEY = "cs_import_wizard_draft";
-  var DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;   // 7 days
-
-  function _readDraft(match) {
-    try {
-      var raw = (typeof localStorage !== "undefined") ? localStorage.getItem(DRAFT_KEY) : null;
-      if (!raw) return null;
-      var obj = JSON.parse(raw);
-      if (!obj || typeof obj !== "object") return null;
-      if (typeof obj.ts === "number" && (Date.now() - obj.ts) > DRAFT_TTL_MS) {
-        try { localStorage.removeItem(DRAFT_KEY); } catch (_) {}
-        return null;
-      }
-      // Bug-hunt D2 — reject drafts that were written for a different
-      // source image. Without this, importing image A then image B would
-      // resume image B mid-wizard with image A's settings (auto-fit size,
-      // base name, crop rectangle) silently applied.
-      if (match && (typeof obj.imageW === "number" || typeof obj.imageH === "number")) {
-        if (obj.imageW !== (match.imageW | 0) ||
-            obj.imageH !== (match.imageH | 0) ||
-            (obj.baseName || "") !== (match.baseName || "")) {
-          try { localStorage.removeItem(DRAFT_KEY); } catch (_) {}
-          return null;
-        }
-      }
-      return obj;
-    } catch (_) { return null; }
-  }
-
-  function _writeDraft(state, match) {
-    try {
-      if (typeof localStorage === "undefined") return;
-      var payload = {
-        v: 1, ts: Date.now(),
-        step: state.step, crop: state.crop, palette: state.palette,
-        size: state.size, settings: state.settings, name: state.name,
-        imageW: match ? (match.imageW | 0) : 0,
-        imageH: match ? (match.imageH | 0) : 0,
-        baseName: match ? (match.baseName || "") : ""
-      };
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
-    } catch (_) { /* QuotaExceededError etc. — fail silently */ }
-  }
-
-  function _clearDraft() {
-    try { if (typeof localStorage !== "undefined") localStorage.removeItem(DRAFT_KEY); } catch (_) {}
-  }
-
-  function _clamp(n) {
-    n = (n | 0);
-    if (n < 1) return 1;
-    if (n > STEPS) return STEPS;
-    return n;
-  }
-
-  function _autoFitSize(image) {
-    if (!image || !image.width || !image.height) return { w: 80, h: 80 };
-    var TARGET = 80;
-    var longest = Math.max(image.width, image.height);
-    var scale = Math.min(1, TARGET / longest);
-    return {
-      w: Math.max(10, Math.round(image.width  * scale)),
-      h: Math.max(10, Math.round(image.height * scale))
-    };
-  }
-
-  function _initialState(image, baseName, draft) {
-    var d = draft || {};
-    var fitted = _autoFitSize(image);
-    return {
-      step: d.step || 1,
-      crop: d.crop || { rotate: 0, flipH: false, flipV: false, aspect: "free" },
-      palette: d.palette || { mode: "dmc", maxColours: 30, allowBlends: true },
-      size: d.size || { w: fitted.w, h: fitted.h, lock: true, fabricCt: 14 },
-      settings: d.settings || { dither: true, contrast: 0, saliency: false, skipBg: false, bgThreshold: 15 },
-      name: d.name || baseName || ""
-    };
-  }
-
-  function useImportWizard(opts) {
-    var React = window.React;
-    var image = (opts && opts.image) || null;
-    var baseName = (opts && opts.baseName) || "";
-    var match = {
-      imageW: image && image.width  ? image.width  : 0,
-      imageH: image && image.height ? image.height : 0,
-      baseName: baseName
-    };
-
-    // Single state object so we can persist atomically on every action.
-    var initial = (React && React.useMemo)
-      ? React.useMemo(function () { return _initialState(image, baseName, _readDraft(match)); }, [])
-      : _initialState(image, baseName, _readDraft(match));
-
-    var st = React.useState(initial);
-    var state = st[0], setState = st[1];
-
-    // Read the latest state via the setState updater. Works in both real
-    // React (where the updater fires synchronously) and our test fakes.
-    function _peek() {
-      var latest = state;
-      setState(function (prev) { latest = prev; return prev; });
-      return latest;
-    }
-
-    function _apply(patch) {
-      setState(function (prev) {
-        var next = Object.assign({}, prev, patch);
-        _writeDraft(next, match);
-        return next;
-      });
-    }
-
-    function next() { setState(function (prev) { var n = Object.assign({}, prev, { step: _clamp(prev.step + 1) }); _writeDraft(n, match); return n; }); }
-    function back() { setState(function (prev) { var n = Object.assign({}, prev, { step: _clamp(prev.step - 1) }); _writeDraft(n, match); return n; }); }
-    function goto_(target) { setState(function (prev) { var n = Object.assign({}, prev, { step: _clamp(target) }); _writeDraft(n, match); return n; }); }
-
-    function setCrop(v)     { setState(function (prev) { var nv = typeof v === "function" ? v(prev.crop)     : v; var n = Object.assign({}, prev, { crop: nv });     _writeDraft(n, match); return n; }); }
-    function setPalette(v)  { setState(function (prev) { var nv = typeof v === "function" ? v(prev.palette)  : v; var n = Object.assign({}, prev, { palette: nv });  _writeDraft(n, match); return n; }); }
-    function setSize(v)     { setState(function (prev) { var nv = typeof v === "function" ? v(prev.size)     : v; var n = Object.assign({}, prev, { size: nv });     _writeDraft(n, match); return n; }); }
-    function setSettings(v) { setState(function (prev) { var nv = typeof v === "function" ? v(prev.settings) : v; var n = Object.assign({}, prev, { settings: nv }); _writeDraft(n, match); return n; }); }
-    function setName(v)     { setState(function (prev) { var nv = typeof v === "function" ? v(prev.name)     : v; var n = Object.assign({}, prev, { name: nv });     _writeDraft(n, match); return n; }); }
-
-    function reset() {
-      _clearDraft();
-      var fresh = _initialState(image, baseName, null);
-      setState(fresh);
-    }
-
-    function commit() {
-      _clearDraft();
-      var s = _peek();
-      var trimmedName = (s.name || "").trim().slice(0, 60);
-      // Settings shape compatible with the existing parseImagePattern() call
-      // site in tracker-app.js (and the wider generate-worker job message).
-      return {
-        name: trimmedName,
-        maxWidth: s.size.w,
-        maxHeight: s.size.h,
-        maxColours: s.palette.maxColours,
-        skipWhiteBg: !!s.settings.skipBg,
-        bgThreshold: s.settings.bgThreshold,
-        fabricCt: s.size.fabricCt,
-        // Pass-through for downstream wiring (allowBlends, dither, etc.).
-        crop:     s.crop,
-        palette:  s.palette,
-        settings: s.settings
-      };
-    }
-
-    return {
-      step: state.step,
-      image: image,
-      crop: state.crop,
-      palette: state.palette,
-      size: state.size,
-      settings: state.settings,
-      name: state.name,
-      setCrop: setCrop,
-      setPalette: setPalette,
-      setSize: setSize,
-      setSettings: setSettings,
-      setName: setName,
-      next: next,
-      back: back,
-      goto: goto_,
-      reset: reset,
-      commit: commit,
-      STEPS: STEPS
-    };
-  }
-
-  // Expose for tests + other modules.
-  window.useImportWizard = useImportWizard;
-  window.ImportWizardInternals = {
-    DRAFT_KEY: DRAFT_KEY,
-    DRAFT_TTL_MS: DRAFT_TTL_MS,
-    STEPS: STEPS,
-    _readDraft: _readDraft,
-    _writeDraft: _writeDraft,
-    _clearDraft: _clearDraft,
-    _initialState: _initialState,
-    _autoFitSize: _autoFitSize,
-    _clamp: _clamp
-  };
-})();
-
-
-/* ─── ImportWizard.js ─── */
-/* creator/ImportWizard.js — C7 image-import wizard (experimental).
- *
- * 5-step guided flow for converting an image into a cross-stitch pattern:
- *   1. Crop & orient
- *   2. Palette choice
- *   3. Size & fabric (live time + skein estimate)
- *   4. Preview & tune
- *   5. Confirm + Generate
- *
- * Mounted by tracker-app.js when UserPrefs `experimental.importWizard` is on,
- * in place of the legacy single-step parameter modal.
- *
- * Public component: window.ImportWizard
- *   props: {
- *     image,            // HTMLImageElement (required)
- *     baseName,         // suggested project name (filename minus extension)
- *     onClose,          // () => void  — user cancelled / discarded
- *     onGenerate        // (settings)  => void — proceed to legacy generation path
- *   }
- *
- * No emoji in copy. British English. Reuses the C8 coachmark scrim styling
- * conceptually but keeps the wizard's class names under .iw-* so the two
- * systems remain independent.
- */
-(function () {
-  if (typeof window === "undefined") return;
-
-  function ImportWizard(props) {
-    var React = window.React;
-    if (!React) return null;
-    var h = React.createElement;
-    var Icons = window.Icons || {};
-    var FABRIC_COUNTS = (typeof window.FABRIC_COUNTS !== "undefined")
-      ? window.FABRIC_COUNTS
-      : (typeof FABRIC_COUNTS !== "undefined" ? FABRIC_COUNTS : [
-          { ct: 11, label: "11 count" }, { ct: 14, label: "14 count" },
-          { ct: 16, label: "16 count" }, { ct: 18, label: "18 count" }
-        ]);
-
-    var fmtTime = (typeof window.fmtTime === "function")
-      ? window.fmtTime
-      : (typeof fmtTime === "function" ? fmtTime : function (s) {
-          var hh = Math.floor(s / 3600), mm = Math.floor((s % 3600) / 60);
-          return hh > 0 ? (hh + "h " + mm + "m") : (mm + "m");
-        });
-    var skeinEst = (typeof window.skeinEst === "function")
-      ? window.skeinEst
-      : (typeof skeinEst === "function" ? skeinEst : function () { return 1; });
-
-    var image = props.image || null;
-    var baseName = props.baseName || "";
-
-    var wizard = window.useImportWizard({ image: image, baseName: baseName });
-
-    var headingRef = React.useRef(null);
-    var ds = React.useState(false);
-    var discardOpen = ds[0], setDiscardOpen = ds[1];
-
-    // Move focus to the active step heading on every step change.
-    React.useEffect(function () {
-      var node = headingRef.current;
-      if (node && typeof node.focus === "function") {
-        try { node.focus(); } catch (_) {}
-      }
-    }, [wizard.step]);
-
-    // Escape -> confirm discard (don't lose the user's work silently).
-    // Routed through the central useEscape stack so it composes correctly
-    // with any modal opened on top of the wizard (e.g. the discard
-    // confirmation, nested toasts).
-    if (typeof window !== "undefined" && window.useEscape) {
-      window.useEscape(function () { setDiscardOpen(true); }, { skipWhenEditingTextField: false });
-    }
-
-    function onCancel() {
-      wizard.reset();
-      if (typeof props.onClose === "function") props.onClose();
-    }
-
-    function onGenerate() {
-      var settings = wizard.commit();
-      if (typeof props.onGenerate === "function") props.onGenerate(settings);
-    }
-
-    // ── Live readouts (used by step 3 + step 5) ───────────────────────────
-    var stitchCount = (wizard.size.w | 0) * (wizard.size.h | 0);
-    var skeins = skeinEst(stitchCount, wizard.size.fabricCt);
-    // Rough time estimate: ~4 seconds per stitch at intermediate pace.
-    var timeS = stitchCount * 4;
-    var timeText = fmtTime(timeS);
-    var skeinText = "Estimate: ~" + skeins + " skein" + (skeins === 1 ? "" : "s")
-                  + ", ~" + timeText;
-
-    // ── Progress strip ───────────────────────────────────────────────────
-    var STEP_LABELS = [
-      { n: 1, label: "Crop",    icon: "crop"    },
-      { n: 2, label: "Palette", icon: "palette" },
-      { n: 3, label: "Size",    icon: "ruler"   },
-      { n: 4, label: "Preview", icon: "eye"     },
-      { n: 5, label: "Confirm", icon: "check"   }
-    ];
-
-    function renderProgress() {
-      return h("ol", {
-        className: "iw-progress",
-        role: "list",
-        "aria-label": "Wizard steps"
-      }, STEP_LABELS.map(function (s) {
-        var isActive = s.n === wizard.step;
-        var isReached = s.n <= wizard.step;
-        var iconEl = (Icons[s.icon] && typeof Icons[s.icon] === "function") ? Icons[s.icon]() : null;
-        var commonProps = {
-          key: s.n,
-          className: "iw-progress-item"
-            + (isActive ? " iw-progress-item--active" : "")
-            + (isReached ? " iw-progress-item--reached" : ""),
-          role: "listitem"
-        };
-        if (isActive) commonProps["aria-current"] = "step";
-        if (isReached && !isActive) {
-          // Allow jumping back to a completed step.
-          return h("li", commonProps,
-            h("button", {
-              type: "button",
-              className: "iw-progress-btn",
-              onClick: function () { wizard.goto(s.n); },
-              "aria-label": "Go back to step " + s.n + " of 5: " + s.label
-            }, iconEl, h("span", { className: "iw-progress-label" }, "Step " + s.n + " of 5: " + s.label))
-          );
-        }
-        return h("li", commonProps,
-          h("span", { className: "iw-progress-marker", "aria-hidden": "true" }, iconEl),
-          h("span", { className: "iw-progress-label" }, "Step " + s.n + " of 5: " + s.label)
-        );
-      }));
-    }
-
-    // ── Step bodies ──────────────────────────────────────────────────────
-    function renderStep1() {
-      var c = wizard.crop;
-      function setRotate(v) { wizard.setCrop(Object.assign({}, c, { rotate: v })); }
-      function toggle(key)  { wizard.setCrop(Object.assign({}, c, (function () { var o = {}; o[key] = !c[key]; return o; })())); }
-      function setAspect(v) { wizard.setCrop(Object.assign({}, c, { aspect: v })); }
-      var ratios = [
-        { v: "free", label: "Free" }, { v: "1:1", label: "1:1" },
-        { v: "4:3", label: "4:3" },   { v: "3:4", label: "3:4" }, { v: "16:9", label: "16:9" }
-      ];
-      return h("div", { className: "iw-step iw-step-crop" },
-        h("h2", { id: "iw-step-heading", ref: headingRef, tabIndex: -1, className: "iw-step-title" }, "Step 1 of 5: Crop & orient"),
-        h("p", { className: "iw-step-desc" }, "Rotate or mirror your image, and pick an aspect-ratio guide. The crop is applied when the pattern is generated."),
-        image ? h("div", { className: "iw-crop-viewport" },
-          h("img", {
-            src: image.src,
-            alt: "Source image preview",
-            style: {
-              transform: "rotate(" + (c.rotate || 0) + "deg)"
-                + " scaleX(" + (c.flipH ? -1 : 1) + ")"
-                + " scaleY(" + (c.flipV ? -1 : 1) + ")"
-            }
-          })
-        ) : h("div", { className: "iw-crop-empty" }, "No image loaded."),
-        h("div", { className: "iw-crop-controls" },
-          h("button", { type: "button", className: "iw-btn", onClick: function () { setRotate(((c.rotate || 0) + 90) % 360); } }, "Rotate 90°"),
-          h("button", { type: "button", className: "iw-btn", onClick: function () { toggle("flipH"); }, "aria-pressed": !!c.flipH }, "Mirror horizontally"),
-          h("button", { type: "button", className: "iw-btn", onClick: function () { toggle("flipV"); }, "aria-pressed": !!c.flipV }, "Mirror vertically")
-        ),
-        h("fieldset", { className: "iw-aspect-group" },
-          h("legend", { className: "iw-aspect-legend" }, "Aspect ratio"),
-          ratios.map(function (r) {
-            return h("label", { key: r.v, className: "iw-radio" },
-              h("input", {
-                type: "radio", name: "iw-aspect",
-                value: r.v, checked: (c.aspect || "free") === r.v,
-                onChange: function () { setAspect(r.v); }
-              }),
-              h("span", null, r.label)
-            );
-          })
-        )
-      );
-    }
-
-    function renderStep2() {
-      var p = wizard.palette;
-      function setMode(m)   { wizard.setPalette(Object.assign({}, p, { mode: m })); }
-      function setMaxC(n)   { wizard.setPalette(Object.assign({}, p, { maxColours: Math.max(5, Math.min(80, n | 0)) })); }
-      function toggleBlend(){ wizard.setPalette(Object.assign({}, p, { allowBlends: !p.allowBlends })); }
-      var modes = [
-        { v: "dmc",    label: "Full DMC palette",   desc: "Match against the entire DMC range." },
-        { v: "stash",  label: "From my stash",      desc: "Use only the threads you've marked as owned." },
-        { v: "limited",label: "Limited palette",    desc: "Pick the maximum number of colours." }
-      ];
-      return h("div", { className: "iw-step iw-step-palette" },
-        h("h2", { id: "iw-step-heading", ref: headingRef, tabIndex: -1, className: "iw-step-title" }, "Step 2 of 5: Choose a palette"),
-        h("p", { className: "iw-step-desc" }, "Decide which threads the Creator may use."),
-        h("fieldset", { className: "iw-palette-modes" },
-          h("legend", { className: "sr-only" }, "Palette source"),
-          modes.map(function (m) {
-            return h("label", { key: m.v, className: "iw-card" + (p.mode === m.v ? " iw-card--active" : "") },
-              h("input", { type: "radio", name: "iw-palette-mode", value: m.v, checked: p.mode === m.v, onChange: function () { setMode(m.v); } }),
-              h("div", { className: "iw-card-body" },
-                h("div", { className: "iw-card-title" }, m.label),
-                h("div", { className: "iw-card-desc" }, m.desc)
-              )
-            );
-          })
-        ),
-        h("div", { className: "iw-row" },
-          h("label", { className: "iw-field-label", htmlFor: "iw-max-colours" }, "Maximum colours"),
-          h("input", {
-            id: "iw-max-colours",
-            type: "range", min: 5, max: 80, step: 1,
-            value: p.maxColours,
-            onChange: function (e) { setMaxC(Number(e.target.value)); },
-            "aria-valuemin": 5, "aria-valuemax": 80, "aria-valuenow": p.maxColours
-          }),
-          h("output", { className: "iw-output" }, p.maxColours)
-        ),
-        h("label", { className: "iw-checkbox" },
-          h("input", { type: "checkbox", checked: !!p.allowBlends, onChange: toggleBlend }),
-          h("span", null, "Allow 2-thread blends")
-        )
-      );
-    }
-
-    function renderStep3() {
-      var sz = wizard.size;
-      function setW(n) {
-        var w = Math.max(10, Math.min(300, n | 0));
-        if (sz.lock && image && image.width && image.height) {
-          var ratio = image.height / image.width;
-          wizard.setSize(Object.assign({}, sz, { w: w, h: Math.max(10, Math.round(w * ratio)) }));
-        } else {
-          wizard.setSize(Object.assign({}, sz, { w: w }));
-        }
-      }
-      function setH(n) {
-        var hh = Math.max(10, Math.min(300, n | 0));
-        if (sz.lock && image && image.width && image.height) {
-          var ratio = image.width / image.height;
-          wizard.setSize(Object.assign({}, sz, { h: hh, w: Math.max(10, Math.round(hh * ratio)) }));
-        } else {
-          wizard.setSize(Object.assign({}, sz, { h: hh }));
-        }
-      }
-      function setLock()  { wizard.setSize(Object.assign({}, sz, { lock: !sz.lock })); }
-      function setFab(v)  { wizard.setSize(Object.assign({}, sz, { fabricCt: Number(v) })); }
-      var warn = (sz.w * sz.h) > 40000;
-      return h("div", { className: "iw-step iw-step-size" },
-        h("h2", { id: "iw-step-heading", ref: headingRef, tabIndex: -1, className: "iw-step-title" }, "Step 3 of 5: Size & fabric count"),
-        h("p", { className: "iw-step-desc" }, "Set the finished pattern dimensions in stitches and pick your fabric count."),
-        h("div", { className: "iw-grid-two" },
-          h("label", { className: "iw-field" },
-            h("span", { className: "iw-field-label" }, "Width (stitches)"),
-            h("input", {
-              type: "number", inputMode: "numeric", min: 10, max: 300, step: 1,
-              value: sz.w, onChange: function (e) { setW(Number(e.target.value)); }
-            })
-          ),
-          h("label", { className: "iw-field" },
-            h("span", { className: "iw-field-label" }, "Height (stitches)"),
-            h("input", {
-              type: "number", inputMode: "numeric", min: 10, max: 300, step: 1,
-              value: sz.h, onChange: function (e) { setH(Number(e.target.value)); }
-            })
-          )
-        ),
-        h("label", { className: "iw-checkbox" },
-          h("input", { type: "checkbox", checked: !!sz.lock, onChange: setLock }),
-          h("span", null, "Lock aspect ratio")
-        ),
-        h("label", { className: "iw-field" },
-          h("span", { className: "iw-field-label" }, "Fabric count"),
-          h("select", { value: sz.fabricCt, onChange: function (e) { setFab(e.target.value); } },
-            FABRIC_COUNTS.map(function (fc) {
-              return h("option", { key: fc.ct, value: fc.ct }, fc.label);
-            })
-          )
-        ),
-        h("div", { className: "iw-readout", role: "status", "aria-live": "polite" },
-          h("div", null, "Total stitches: " + stitchCount.toLocaleString()),
-          h("div", null, skeinText)
-        ),
-        warn ? h("div", { className: "iw-warn", role: "alert" }, "Patterns over 40,000 stitches can be slow to generate on older devices.") : null
-      );
-    }
-
-    function renderStep4() {
-      var s = wizard.settings;
-      function setDither()    { wizard.setSettings(Object.assign({}, s, { dither: !s.dither })); }
-      function setContrast(n) { wizard.setSettings(Object.assign({}, s, { contrast: Math.max(-50, Math.min(50, n | 0)) })); }
-      function setSaliency()  { wizard.setSettings(Object.assign({}, s, { saliency: !s.saliency })); }
-      function setSkipBg()    { wizard.setSettings(Object.assign({}, s, { skipBg: !s.skipBg })); }
-      function setBgT(n)      { wizard.setSettings(Object.assign({}, s, { bgThreshold: Math.max(3, Math.min(50, n | 0)) })); }
-      return h("div", { className: "iw-step iw-step-preview" },
-        h("h2", { id: "iw-step-heading", ref: headingRef, tabIndex: -1, className: "iw-step-title" }, "Step 4 of 5: Preview & tune"),
-        h("p", { className: "iw-step-desc" }, "Live preview is coming in a follow-up. For now, choose how the pixels should be processed."),
-        image ? h("div", { className: "iw-preview-thumb" },
-          h("img", { src: image.src, alt: "Image preview", style: { imageRendering: "pixelated" } })
-        ) : null,
-        h("label", { className: "iw-checkbox" },
-          h("input", { type: "checkbox", checked: !!s.dither, onChange: setDither }),
-          h("span", null, "Use dithering (smoother gradients)")
-        ),
-        h("div", { className: "iw-row" },
-          h("label", { className: "iw-field-label", htmlFor: "iw-contrast" }, "Contrast"),
-          h("input", {
-            id: "iw-contrast", type: "range", min: -50, max: 50, step: 1,
-            value: s.contrast,
-            onChange: function (e) { setContrast(Number(e.target.value)); },
-            "aria-valuemin": -50, "aria-valuemax": 50, "aria-valuenow": s.contrast
-          }),
-          h("output", { className: "iw-output" }, s.contrast)
-        ),
-        h("label", { className: "iw-checkbox" },
-          h("input", { type: "checkbox", checked: !!s.saliency, onChange: setSaliency }),
-          h("span", null, "Show saliency overlay (advanced)")
-        ),
-        h("label", { className: "iw-checkbox" },
-          h("input", { type: "checkbox", checked: !!s.skipBg, onChange: setSkipBg }),
-          h("span", null, "Skip near-white background")
-        ),
-        s.skipBg ? h("div", { className: "iw-row" },
-          h("label", { className: "iw-field-label", htmlFor: "iw-bgt" }, "Background tolerance"),
-          h("input", {
-            id: "iw-bgt", type: "range", min: 3, max: 50, step: 1,
-            value: s.bgThreshold,
-            onChange: function (e) { setBgT(Number(e.target.value)); },
-            "aria-valuemin": 3, "aria-valuemax": 50, "aria-valuenow": s.bgThreshold
-          }),
-          h("output", { className: "iw-output" }, s.bgThreshold)
-        ) : null
-      );
-    }
-
-    function renderStep5() {
-      var p = wizard.palette, sz = wizard.size, st = wizard.settings;
-      var paletteText = p.mode === "dmc" ? "Full DMC"
-                      : p.mode === "stash" ? "From stash"
-                      : "Limited (" + p.maxColours + ")";
-      return h("div", { className: "iw-step iw-step-confirm" },
-        h("h2", { id: "iw-step-heading", ref: headingRef, tabIndex: -1, className: "iw-step-title" }, "Step 5 of 5: Confirm"),
-        h("p", { className: "iw-step-desc" }, "Check the details, then generate your pattern."),
-        h("label", { className: "iw-field" },
-          h("span", { className: "iw-field-label" }, "Project name"),
-          h("input", {
-            type: "text", maxLength: 60, value: wizard.name,
-            placeholder: "e.g. Rose Garden",
-            onChange: function (e) { wizard.setName(e.target.value); }
-          })
-        ),
-        h("div", { className: "iw-summary" },
-          image ? h("div", { className: "iw-summary-thumb" },
-            h("img", { src: image.src, alt: "Project thumbnail" })
-          ) : null,
-          h("dl", { className: "iw-summary-list" },
-            h("dt", null, "Dimensions"), h("dd", null, sz.w + " × " + sz.h + " stitches"),
-            h("dt", null, "Fabric count"), h("dd", null, sz.fabricCt + " count"),
-            h("dt", null, "Palette"), h("dd", null, paletteText),
-            h("dt", null, "Blends"), h("dd", null, p.allowBlends ? "Allowed" : "Off"),
-            h("dt", null, "Dithering"), h("dd", null, st.dither ? "On" : "Off"),
-            h("dt", null, "Skip background"), h("dd", null, st.skipBg ? ("On (tolerance " + st.bgThreshold + ")") : "Off"),
-            h("dt", null, "Estimate"), h("dd", null, skeinText)
-          )
-        )
-      );
-    }
-
-    // ── Footer controls ──────────────────────────────────────────────────
-    function renderFooter() {
-      var isFirst = wizard.step === 1;
-      var isLast  = wizard.step === wizard.STEPS;
-      return h("div", { className: "iw-controls" },
-        h("button", {
-          type: "button", className: "iw-btn iw-btn--ghost",
-          onClick: function () { setDiscardOpen(true); }
-        }, "Cancel"),
-        h("div", { className: "iw-controls-spacer" }),
-        h("button", {
-          type: "button", className: "iw-btn",
-          onClick: function () { wizard.back(); },
-          disabled: isFirst,
-          "aria-disabled": isFirst ? "true" : "false"
-        }, "Back"),
-        isLast
-          ? h("button", { type: "button", className: "iw-btn iw-btn--primary", onClick: onGenerate }, "Generate pattern")
-          : h("button", { type: "button", className: "iw-btn iw-btn--primary", onClick: function () { wizard.next(); } }, "Next")
-      );
-    }
-
-    var bodyRender = wizard.step === 1 ? renderStep1
-                    : wizard.step === 2 ? renderStep2
-                    : wizard.step === 3 ? renderStep3
-                    : wizard.step === 4 ? renderStep4
-                    : renderStep5;
-
-    return h("div", {
-      className: "iw-wizard-root",
-      role: "dialog",
-      "aria-modal": "true",
-      "aria-labelledby": "iw-step-heading",
-      "aria-describedby": "iw-wizard-desc"
-    },
-      h("div", { className: "iw-scrim", "aria-hidden": "true", onClick: function () { setDiscardOpen(true); } }),
-      h("div", { className: "iw-wizard" },
-        h("div", { className: "iw-header" },
-          h("span", { id: "iw-wizard-desc", className: "sr-only" }, "Image import wizard. Five steps to convert an image into a cross-stitch pattern."),
-          renderProgress()
-        ),
-        h("div", { className: "iw-body" }, bodyRender()),
-        renderFooter()
-      ),
-      discardOpen ? h("div", {
-        className: "iw-discard-modal",
-        role: "alertdialog",
-        "aria-labelledby": "iw-discard-title"
-      },
-        h("h3", { id: "iw-discard-title" }, "Discard import?"),
-        h("p", null, "Your draft is saved for 7 days, so you can come back to it."),
-        h("div", { className: "iw-discard-buttons" },
-          h("button", { type: "button", className: "iw-btn", onClick: function () { setDiscardOpen(false); } }, "Keep editing"),
-          h("button", { type: "button", className: "iw-btn iw-btn--danger", onClick: onCancel }, "Discard")
-        )
-      ) : null
-    );
-  }
-
-  window.ImportWizard = ImportWizard;
-})();
-
-
 /* ─── useEditHistory.js ─── */
 /* creator/useEditHistory.js — Undo/redo for pixel/partial-stitch/backstitch edits.
    Uses a delta (change-list) approach: each history entry stores the OLD values
@@ -8559,8 +7914,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       imgData: img ? img.src : null, partialStitches: psArr,
     });
     if (onSwitchToTrack) {
-      saveProjectToDB(project).catch(function() {});
-      ProjectStorage.save(project).then(function(id) { ProjectStorage.setActiveProject(id); }).catch(function() {});
+      saveProjectToDB(project).catch(function (err) { console.error('Auto-save (legacy DB) failed before switch-to-tracker:', err); });
+      ProjectStorage.save(project).then(function(id) { ProjectStorage.setActiveProject(id); }).catch(function (err) { console.error('ProjectStorage.save failed before switch-to-tracker:', err); });
       // Belt-and-braces stash sync: the debounced auto-save may not have fired yet
       // (e.g. if the user generated and immediately clicked "Open in Tracker"). Without
       // this the pattern would not appear in the Stash Manager library until the
@@ -8922,10 +8277,67 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (typeof ProjectStorage !== "undefined") {
       var activeId = ProjectStorage.getActiveProjectId();
       if (activeId) {
+        try { console.log('[creator-boot] active project pointer:', activeId); } catch(_) {}
+        try { sessionStorage.setItem('__import_trace_creatorBoot', JSON.stringify({ at: Date.now(), step: 'pointer-found', activeId: activeId })); } catch(_) {}
         ProjectStorage.get(activeId).then(function(project3) {
-          if (project3 && project3.pattern && project3.settings && !state.userActedRef.current) {
-            processLoadedProject(project3);
+          if (!project3) {
+            try { console.warn('[creator-boot] active project not found in IDB:', activeId); } catch(_) {}
+            try {
+              if (window.Toast && window.Toast.show) {
+                window.Toast.show({
+                  message: 'The active pattern (' + activeId + ') could not be loaded — it is missing from storage. Returning to the home page so you can pick another.',
+                  type: 'error',
+                  duration: 8000,
+                });
+              }
+            } catch(_) {}
+            try { ProjectStorage.clearActiveProject(); } catch(_) {}
+            return;
           }
+          if (!project3.pattern || !Array.isArray(project3.pattern) || !project3.settings) {
+            try { console.warn('[creator-boot] active project is malformed:', { id: activeId, hasPattern: !!project3.pattern, patternIsArray: Array.isArray(project3.pattern), hasSettings: !!project3.settings }); } catch(_) {}
+            try {
+              if (window.Toast && window.Toast.show) {
+                window.Toast.show({
+                  message: 'The active pattern is missing required fields (pattern or settings). It cannot be opened in the editor.',
+                  type: 'error',
+                  duration: 8000,
+                });
+              }
+            } catch(_) {}
+            return;
+          }
+          if (state.userActedRef.current) {
+            try { console.warn('[creator-boot] skipping active project load — user already acted'); } catch(_) {}
+            return;
+          }
+          try {
+            try { console.log('[creator-boot] loading active project:', { id: project3.id, name: project3.name, w: project3.w, h: project3.h, patternLen: project3.pattern.length }); } catch(_) {}
+            try { sessionStorage.setItem('__import_trace_creatorBoot', JSON.stringify({ at: Date.now(), step: 'loading', id: project3.id, patternLen: project3.pattern.length })); } catch(_) {}
+            processLoadedProject(project3);
+          } catch (err) {
+            try { console.error('[creator-boot] processLoadedProject threw:', err); } catch(_) {}
+            try {
+              if (window.Toast && window.Toast.show) {
+                window.Toast.show({
+                  message: 'Failed to load the imported pattern into the editor: ' + (err && err.message || err),
+                  type: 'error',
+                  duration: 10000,
+                });
+              }
+            } catch(_) {}
+          }
+        }).catch(function(err) {
+          try { console.error('[creator-boot] ProjectStorage.get failed:', err); } catch(_) {}
+          try {
+            if (window.Toast && window.Toast.show) {
+              window.Toast.show({
+                message: 'Could not read the active pattern from storage: ' + (err && err.message || err),
+                type: 'error',
+                duration: 8000,
+              });
+            }
+          } catch(_) {}
         });
         return;
       }

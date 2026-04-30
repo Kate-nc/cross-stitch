@@ -10,7 +10,9 @@
     "start": "node serve.js",
     "test": "jest",
     "test:silent": "jest --runInBand --silent",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --project=touch-tablet-chromium",
+    "perf:baseline": "playwright test --project=perf-desktop",
+    "perf:mobile": "playwright test --project=perf-mobile",
     "lint:terminology": "node scripts/lint-terminology.js",
     "lint:css-tokens": "node scripts/lint-css-tokens.js",
     "build:creator": "node build-creator-bundle.js",
@@ -19,7 +21,8 @@
   "jest": {
     "testPathIgnorePatterns": [
       "/node_modules/",
-      "/tests/e2e/"
+      "/tests/e2e/",
+      "/tests/perf/"
     ]
   },
   "repository": {

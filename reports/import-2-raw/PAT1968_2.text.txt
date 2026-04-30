@@ -1,0 +1,55 @@
+# TestUploads/PAT1968_2.pdf  (4 pages)
+
+
+========== Page 1  (595.3 x 841.9)  ==========
+counts: text=34 singleChars=3 longText=16 lines=24513 rects=6334 curves=257 fills=8072 strokes=5356 images=0
+fonts: g_d0_f1, g_d0_f2, g_d0_f3, g_d0_f4
+
+--- Long text (first 80) ---
+moonlight | fleurs lunaires | coloured cross stitch chart | diagramme pont de croix en couleurs | 1/4 | www.dmc.com © 2023 | / all rights reserved worldwide | dmc library - bibliothèque dmc | More free patterns and tutorials / Diagrammes, motifs et tutoriels / | www.dmc.com | Share your creations | Partagez vos créations | #dmcthreads | Join our community | Rejoignez notre communauté / | facebook - pinterest - instagram - youtube
+
+--- Single chars (first 30) ---
+"/"@283.79,29.98 fs=7 g_d0_f4
+"/"@356.14,29.98 fs=7 g_d0_f3
+"/"@217.53,18.98 fs=7 g_d0_f4
+
+========== Page 2  (595.3 x 841.9)  ==========
+counts: text=33 singleChars=3 longText=15 lines=24513 rects=983 curves=257 fills=2727 strokes=2714 images=0
+fonts: g_d0_f2, g_d0_f3, g_d0_f1, g_d0_f4
+
+--- Long text (first 80) ---
+2/4 | dmc library - bibliothèque dmc | More free patterns and tutorials / Diagrammes, motifs et tutoriels / | www.dmc.com | Share your creations | Partagez vos créations | #dmcthreads | Join our community | Rejoignez notre communauté / | facebook - pinterest - instagram - youtube | www.dmc.com © 2023 | / all rights reserved worldwide | moonlight | fleurs lunaires | cross stitch chart - diagramme pont de croix
+
+--- Single chars (first 30) ---
+"/"@283.79,29.98 fs=7 g_d0_f4
+"/"@356.14,29.98 fs=7 g_d0_f3
+"/"@217.53,18.98 fs=7 g_d0_f4
+
+========== Page 3  (595.3 x 841.9)  ==========
+counts: text=61 singleChars=4 longText=39 lines=179 rects=5 curves=197 fills=22 strokes=2 images=0
+fonts: g_d0_f2, g_d0_f3, g_d0_f1, g_d0_f4
+
+--- Long text (first 80) ---
+tool kit | fournitures | PEARL COTTON ART. 115ar/8 / COTON PERLÉ ART. 115ar/8 | METALLIC PEARL ART. 315 / PERLÉ METALISÉ ART. 315 | CROSS STITCH FABRIC / AIDA 14ct - GD1436BXA COL.336 / TOILE AIDA 5,5 PTS/CM GD1436BXA COL.336 | CROSS STITCH NEEDLE / AIGUILLE | EMBROIDERY HOOP (OPTIONAL) / TAMBOUR (OPTIONNEL) | SCISSORS / CISEAUX | DESIGN SIZE / DIMENSIONS DESSIN | 18 cm / 7 ‘‘ | the size of your design depends on the cross stitch fabric | you choose. the higher the fabric’s “count ” | (ie number of cross stitches per inch), the smaller | the stitches and therefore your design. we recommend | beginners start with 14 count aida (the most common cross | stitch fabric), which is what we have based our design size on. | la taille de votre dessin dépend de la toile point | de croix que vous choisissez. | plus le nombre de point de croix par centimè tre | est élevé, plus les points e t la broderie seront pe tits. | nous recommandons aux débutants de commencer | en utilisant une toile aida 5,5 p ts/cm (la toile | de point de croix la plus utilisée), sur laquelle nous | avons basé notre dessin. | moonlight | fleurs lunaires | getting started - commencer | 3/4 | dmc library - bibliothèque dmc | More free patterns and tutorials / Diagrammes, motifs et tutoriels / | www.dmc.com | Share your creations | Partagez vos créations | #dmcthreads | Join our community | Rejoignez notre communauté / | facebook - pinterest - instagram - youtube | www.dmc.com © 2023 | / all rights reserved worldwide
+
+--- Single chars (first 30) ---
+"/"@97.85,703.2 fs=12 g_d0_f2
+"/"@283.79,29.98 fs=7 g_d0_f4
+"/"@356.14,29.98 fs=7 g_d0_f3
+"/"@217.53,18.98 fs=7 g_d0_f4
+
+========== Page 4  (595.3 x 841.9)  ==========
+counts: text=88 singleChars=7 longText=57 lines=393 rects=111 curves=273 fills=103 strokes=114 images=0
+fonts: g_d0_f3, g_d0_f2, g_d0_f1, g_d0_f4
+
+--- Long text (first 80) ---
+x1 | x1 | x1 | x1 | x1 | x1 | x1 | 310 | 930 | 932 | 5852 | 5310 | 5283 | 5317 | symbol | symbole | dmc coton perlé | 115ar/8 - dmc perlé metallisé 315 | colour | couleur | nº skeins* | d’échevettes* | 4/4 | stitches and colours you’ll use | légende : points et couleurs | cross stitch | point de croix | dmc library - bibliothèque dmc | More free patterns and tutorials / Diagrammes, motifs et tutoriels / | www.dmc.com | Share your creations | Partagez vos créations | #dmcthreads | Join our community | Rejoignez notre communauté / | facebook - pinterest - instagram - youtube | www.dmc.com © 2023 | / all rights reserved worldwide | moonlight | fleurs lunaires | getting started - commencer | symbol | symbole | colour | couleur | nº skeins* | d’échevettes* | 5310 | symbol | symbole | dmc perlé metallisé 315 | colour | couleur | backstitch | point arrière | Use 3 strands - Utiliser 3 brins | * Based on stitching with the number of strands shown above, onto 14 count Aida. / * Basé sur le nombre de brins préconisé au-dessus, sur une toile Aida 5,5 pts/cm.
+
+--- Single chars (first 30) ---
+"n"@202.59,507.94 fs=7 g_d0_f2
+"o"@207.38,510.28 fs=4.081 g_d0_f2
+"/"@283.79,29.98 fs=7 g_d0_f4
+"/"@356.14,29.98 fs=7 g_d0_f3
+"/"@217.53,18.98 fs=7 g_d0_f4
+"n"@458.73,508.82 fs=7 g_d0_f2
+"o"@463.53,511.15 fs=4.081 g_d0_f2
