@@ -3,21 +3,21 @@
     "openMs": null
   },
   "stitch.html — pan large": {
-    "n": 161,
-    "meanMs": 16.77,
-    "p95Ms": 18.2,
-    "p99Ms": 21.2
+    "n": 134,
+    "meanMs": 16.62,
+    "p95Ms": 18.9,
+    "p99Ms": 19.2
   },
   "stitch.html — zoom large": {
-    "n": 92,
-    "meanMs": 16.61,
-    "p95Ms": 18.6,
-    "p99Ms": 20.3
+    "n": 96,
+    "meanMs": 16.63,
+    "p95Ms": 18.7,
+    "p99Ms": 20.2
   },
   "storage — save large": {
-    "ms": 520
+    "ms": 472
   },
   "storage — load large": {
-    "ms": 407
+    "ms": 374
   }
 }
