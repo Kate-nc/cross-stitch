@@ -14,8 +14,11 @@ const path = require('path');
 const SW = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
 
 describe('sw.js precache (UX-12 Phase 7 PR #13)', () => {
-  test('CACHE_NAME bumped to v35', () => {
-    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v35['"]/);
+  // Cache version is bumped any time PRECACHE_URLS changes so users get
+  // the new asset list. Bumped to v36 when the import-engine lazy-shim
+  // was added to the precache (perf audit, Cat A #1).
+  test('CACHE_NAME bumped to v36', () => {
+    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v36['"]/);
   });
 
   test('PRECACHE_URLS includes home.html', () => {
