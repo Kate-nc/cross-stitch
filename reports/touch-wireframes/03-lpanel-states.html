@@ -1,0 +1,150 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Lpanel three states</title>
+<style>body{margin:0;padding:24px;background:#f5f6f8;font-family:system-ui,sans-serif;color:#1f2937}h1{font-size:18px;margin:0 0 12px}h2{font-size:13px;margin:18px 0 6px;color:#374151}.row{display:flex;gap:24px;flex-wrap:wrap}.frame{background:#fff;border:1px solid #cbd5e1;border-radius:12px;padding:8px;}.label{font-size:11px;color:#475569;margin-top:6px;text-align:center;font-weight:600}.legend{font-size:12px;color:#374151;max-width:760px;line-height:1.5;margin:12px 0 0}</style></head><body>
+
+<h1>03 — Lpanel three-state design</h1>
+
+<h2>iPad landscape (1024×768)</h2>
+<div class="row">
+
+<div class="frame">
+<svg width="380" height="285" viewBox="0 0 1024 768" style="background:#0b1220;border-radius:8px">
+  <!-- HIDDEN state -->
+  <rect width="1024" height="48" fill="#1e293b"/>
+  <rect x="14" y="12" width="36" height="32" rx="6" fill="#334155"/>
+  <text x="32" y="34" fill="#cbd5e1" text-anchor="middle">≡</text>
+  <text x="60" y="32" fill="#cbd5e1" font-size="14" font-weight="600">Sea Garden Sampler</text>
+  <rect y="48" width="1024" height="8" fill="#1e293b"/><rect y="48" width="320" height="8" fill="#10b981"/>
+  <rect x="0" y="56" width="1024" height="640" fill="#fafafa"/>
+  <text x="512" y="380" text-anchor="middle" fill="#94a3b8" font-size="14">canvas — full width</text>
+  <rect y="696" width="1024" height="72" fill="#1e293b"/>
+</svg>
+<div class="label">Hidden — canvas gets full width; tap ≡ to reveal</div>
+</div>
+
+<div class="frame">
+<svg width="380" height="285" viewBox="0 0 1024 768" style="background:#0b1220;border-radius:8px">
+  <!-- RAIL state -->
+  <rect width="1024" height="48" fill="#1e293b"/>
+  <rect x="14" y="12" width="36" height="32" rx="6" fill="#3b82f6"/>
+  <text x="32" y="34" fill="#fff" text-anchor="middle">≡</text>
+  <text x="60" y="32" fill="#cbd5e1" font-size="14" font-weight="600">Sea Garden Sampler</text>
+  <rect y="48" width="1024" height="8" fill="#1e293b"/><rect y="48" width="320" height="8" fill="#10b981"/>
+  <!-- rail -->
+  <rect x="0" y="56" width="56" height="640" fill="#1e293b"/>
+  <rect x="8" y="68" width="40" height="40" rx="6" fill="#dc2626" stroke="#fff"/>
+  <rect x="8" y="120" width="40" height="40" rx="6" fill="#334155"/><text x="28" y="146" text-anchor="middle" fill="#cbd5e1">≡</text>
+  <rect x="8" y="640" width="40" height="44" rx="6" fill="#334155"/><text x="28" y="668" text-anchor="middle" fill="#cbd5e1">›</text>
+  <rect x="56" y="56" width="968" height="640" fill="#fafafa"/>
+  <text x="540" y="380" text-anchor="middle" fill="#94a3b8" font-size="14">canvas — minus 56 px rail</text>
+  <rect y="696" width="1024" height="72" fill="#1e293b"/>
+</svg>
+<div class="label">Rail — 56 px; active colour always visible; tap › to expand</div>
+</div>
+
+<div class="frame">
+<svg width="380" height="285" viewBox="0 0 1024 768" style="background:#0b1220;border-radius:8px">
+  <!-- OPEN state -->
+  <rect width="1024" height="48" fill="#1e293b"/>
+  <rect x="14" y="12" width="36" height="32" rx="6" fill="#a78bfa"/>
+  <text x="32" y="34" fill="#0b1220" text-anchor="middle">≡</text>
+  <text x="60" y="32" fill="#cbd5e1" font-size="14" font-weight="600">Sea Garden Sampler</text>
+  <rect y="48" width="1024" height="8" fill="#1e293b"/><rect y="48" width="320" height="8" fill="#10b981"/>
+  <!-- 320px panel -->
+  <rect x="0" y="56" width="320" height="640" fill="#1e293b"/>
+  <g font-size="12" fill="#cbd5e1"><text x="20" y="92" font-weight="700">HIGHLIGHT</text></g>
+  <rect x="20" y="106" width="80" height="36" rx="6" fill="#dc2626"/><text x="60" y="130" text-anchor="middle" fill="#fff" font-size="11">DMC 321</text>
+  <rect x="108" y="106" width="80" height="36" rx="6" fill="#3b82f6"/><text x="148" y="130" text-anchor="middle" fill="#fff" font-size="11">DMC 824</text>
+  <text x="20" y="180" fill="#cbd5e1" font-size="12" font-weight="700">VIEW</text>
+  <rect x="20" y="196" width="100" height="36" rx="6" fill="#334155"/><text x="70" y="220" text-anchor="middle" fill="#cbd5e1" font-size="11">Symbol</text>
+  <text x="20" y="270" fill="#cbd5e1" font-size="12" font-weight="700">LEGEND</text>
+  <g font-size="11" fill="#cbd5e1">
+    <rect x="20" y="284" width="20" height="20" fill="#dc2626"/><text x="48" y="300">DMC 321 · 240 / 612</text>
+    <rect x="20" y="312" width="20" height="20" fill="#3b82f6"/><text x="48" y="328">DMC 824 · 187 / 540</text>
+  </g>
+  <rect x="270" y="64" width="40" height="32" rx="6" fill="#334155"/><text x="290" y="86" text-anchor="middle" fill="#cbd5e1">‹</text>
+  <rect x="320" y="56" width="704" height="640" fill="#fafafa"/>
+  <text x="672" y="380" text-anchor="middle" fill="#94a3b8" font-size="14">canvas — overlay 320 px</text>
+  <rect y="696" width="1024" height="72" fill="#1e293b"/>
+</svg>
+<div class="label">Open — 320 px overlay (current behaviour); tap ‹ to go to rail</div>
+</div>
+</div>
+
+<h2>iPad portrait (768×1024)</h2>
+<div class="row">
+
+<div class="frame">
+<svg width="240" height="320" viewBox="0 0 768 1024" style="background:#0b1220;border-radius:8px">
+  <!-- HIDDEN -->
+  <rect width="768" height="48" fill="#1e293b"/>
+  <rect x="14" y="12" width="36" height="32" rx="6" fill="#334155"/><text x="32" y="34" text-anchor="middle" fill="#cbd5e1">≡</text>
+  <text x="60" y="32" fill="#cbd5e1" font-size="14" font-weight="600">Sea Garden Sampler</text>
+  <rect y="48" width="768" height="8" fill="#1e293b"/><rect y="48" width="240" height="8" fill="#10b981"/>
+  <rect x="0" y="56" width="768" height="896" fill="#fafafa"/>
+  <text x="384" y="500" text-anchor="middle" fill="#94a3b8" font-size="14">canvas — full width</text>
+  <!-- swipe-from-edge hint -->
+  <rect x="0" y="400" width="6" height="160" fill="rgba(59,130,246,0.6)"/>
+  <text x="14" y="486" fill="#3b82f6" font-size="11" font-weight="600">swipe from edge</text>
+  <rect y="952" width="768" height="72" fill="#1e293b"/>
+</svg>
+<div class="label">Hidden (default on portrait) — left edge swipe reveals rail</div>
+</div>
+
+<div class="frame">
+<svg width="240" height="320" viewBox="0 0 768 1024" style="background:#0b1220;border-radius:8px">
+  <!-- OPEN as bottom-sheet -->
+  <rect width="768" height="48" fill="#1e293b"/><rect x="14" y="12" width="36" height="32" rx="6" fill="#a78bfa"/><text x="32" y="34" text-anchor="middle" fill="#0b1220">≡</text>
+  <text x="60" y="32" fill="#cbd5e1" font-size="14" font-weight="600">Sea Garden Sampler</text>
+  <rect y="48" width="768" height="8" fill="#1e293b"/><rect y="48" width="240" height="8" fill="#10b981"/>
+  <rect x="0" y="56" width="768" height="430" fill="#fafafa"/>
+  <text x="384" y="280" text-anchor="middle" fill="#94a3b8" font-size="14">canvas (compressed)</text>
+  <!-- backdrop scrim -->
+  <rect x="0" y="486" width="768" height="466" fill="rgba(15,23,42,0.45)"/>
+  <!-- bottom sheet -->
+  <rect x="0" y="500" width="768" height="452" fill="#1e293b" rx="16"/>
+  <rect x="356" y="510" width="56" height="6" rx="3" fill="#475569"/>
+  <text x="20" y="552" fill="#cbd5e1" font-size="13" font-weight="700">HIGHLIGHT</text>
+  <rect x="20" y="566" width="120" height="44" rx="6" fill="#dc2626"/><text x="80" y="592" text-anchor="middle" fill="#fff" font-size="12">DMC 321</text>
+  <rect x="148" y="566" width="120" height="44" rx="6" fill="#3b82f6"/><text x="208" y="592" text-anchor="middle" fill="#fff" font-size="12">DMC 824</text>
+  <text x="20" y="650" fill="#cbd5e1" font-size="13" font-weight="700">LEGEND</text>
+  <g font-size="13" fill="#cbd5e1">
+    <rect x="20" y="664" width="28" height="28" fill="#dc2626"/><text x="56" y="684">DMC 321 · 240 / 612</text>
+    <rect x="20" y="700" width="28" height="28" fill="#3b82f6"/><text x="56" y="720">DMC 824 · 187 / 540</text>
+  </g>
+  <rect y="952" width="768" height="72" fill="#1e293b"/>
+</svg>
+<div class="label">Open — bottom-sheet (current behaviour) with 70 dvh max</div>
+</div>
+</div>
+
+<h2>Phone (375×812)</h2>
+<div class="row">
+
+<div class="frame">
+<svg width="187" height="406" viewBox="0 0 375 812" style="background:#0b1220;border-radius:8px">
+  <!-- HIDDEN, only mini cue -->
+  <rect width="375" height="48" fill="#1e293b"/>
+  <rect x="10" y="10" width="36" height="32" rx="6" fill="#334155"/><text x="28" y="32" text-anchor="middle" fill="#cbd5e1">≡</text>
+  <text x="56" y="30" fill="#cbd5e1" font-size="13" font-weight="600">Sea Garden</text>
+  <rect y="48" width="375" height="6" fill="#1e293b"/><rect y="48" width="120" height="6" fill="#10b981"/>
+  <rect x="0" y="54" width="375" height="700" fill="#fafafa"/>
+  <text x="187" y="400" text-anchor="middle" fill="#94a3b8" font-size="13">canvas</text>
+  <rect y="754" width="375" height="58" fill="#1e293b"/>
+  <rect x="10" y="764" width="40" height="40" rx="6" fill="#dc2626"/>
+  <text x="60" y="780" fill="#cbd5e1" font-size="11" font-weight="600">DMC 321</text>
+  <text x="60" y="796" fill="#94a3b8" font-size="10">Mark</text>
+  <rect x="180" y="764" width="40" height="40" rx="6" fill="#10b981"/><text x="200" y="790" text-anchor="middle" fill="#0b1220" font-size="10" font-weight="700">M</text>
+  <rect x="225" y="764" width="40" height="40" rx="6" fill="#334155"/><text x="245" y="790" text-anchor="middle" fill="#cbd5e1" font-size="10">H</text>
+  <rect x="280" y="764" width="40" height="40" rx="6" fill="#334155"/><text x="300" y="790" text-anchor="middle" fill="#cbd5e1">↶</text>
+  <rect x="325" y="764" width="40" height="40" rx="6" fill="#a78bfa"/><text x="345" y="790" text-anchor="middle" fill="#0b1220" font-size="10">F</text>
+</svg>
+<div class="label">Phone — hidden by default; tap ≡ for bottom-sheet</div>
+</div>
+</div>
+
+<p class="legend">
+  <strong>Three states.</strong> Hidden gives the canvas the full screen; rail shows the always-needed active colour and legend jump in 56 px; open is the existing 320 px overlay (desktop) or bottom-sheet (mobile/tablet). The hamburger cycles hidden → rail → open → hidden. State persists per viewport class so the user gets sensible defaults when switching devices.
+</p>
+
+</body></html>

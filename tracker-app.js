@@ -1060,15 +1060,39 @@ const[mobileDrawerOpen,setMobileDrawerOpen]=useState(false);
 // ─── Tracker left sidebar (toolbar-rework phase 1) ─────────────────────
 // Replaces the scattered Highlight / View / Session controls in the
 // toolbar pill and right-panel "More" tab with a tabbed left sidebar.
-// State persists via window.UserPrefs (keys: trackerLeftSidebarOpen,
-// trackerLeftSidebarTab). Default closed; user opts in via hamburger.
-const[leftSidebarOpen,setLeftSidebarOpen]=useState(()=>{
-  try{var p=window.UserPrefs&&window.UserPrefs.get("trackerLeftSidebarOpen");return !!p;}catch(_){return false;}
+// State persists via window.UserPrefs (key: trackerLeftSidebarMode,
+// values: "hidden" | "rail" | "open"). Default hidden on touch
+// viewports, open elsewhere. The hamburger cycles hidden→rail→open.
+// `leftSidebarOpen` (Boolean) is kept as a derived alias for the
+// existing render code that already reads it.
+const[leftSidebarMode,setLeftSidebarMode]=useState(()=>{
+  try{
+    var stored=window.UserPrefs&&window.UserPrefs.get("trackerLeftSidebarMode");
+    if(stored==="hidden"||stored==="rail"||stored==="open")return stored;
+    // Migrate the legacy boolean preference.
+    var legacy=window.UserPrefs&&window.UserPrefs.get("trackerLeftSidebarOpen");
+    if(legacy===true)return "open";
+    if(legacy===false)return "hidden";
+    // First run — default by viewport class.
+    if(window.TouchConstants&&window.TouchConstants.isCompactTouch())return "hidden";
+    return "open";
+  }catch(_){return "hidden";}
 });
+const leftSidebarOpen = leftSidebarMode === "open" || leftSidebarMode === "rail";
+const setLeftSidebarOpen = useCallback((next)=>{
+  setLeftSidebarMode(prev=>{
+    var want = typeof next==="function" ? next(prev==="open"||prev==="rail") : !!next;
+    if(want) return prev==="hidden" ? "open" : prev;
+    return "hidden";
+  });
+},[]);
+const cycleLeftSidebar = useCallback(()=>{
+  setLeftSidebarMode(prev=>prev==="hidden"?"rail":prev==="rail"?"open":"hidden");
+},[]);
 const[leftSidebarTab,setLeftSidebarTab]=useState(()=>{
   try{var p=window.UserPrefs&&window.UserPrefs.get("trackerLeftSidebarTab");return p||"highlight";}catch(_){return"highlight";}
 });
-useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLeftSidebarOpen",!!leftSidebarOpen);}catch(_){}},[leftSidebarOpen]);
+useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLeftSidebarMode",leftSidebarMode);}catch(_){}},[leftSidebarMode]);
 useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLeftSidebarTab",leftSidebarTab);}catch(_){}},[leftSidebarTab]);
 
 // Phase 4: palette-legend sort key persisted via UserPrefs (global default)
@@ -1107,6 +1131,50 @@ useEffect(()=>{
   window.addEventListener("keydown",onKey);
   return()=>window.removeEventListener("keydown",onKey);
 },[leftSidebarOpen]);
+
+// Touch-1 H-2: Focus mode. Strips chrome to canvas + a floating
+// mini-bar (.cs-focus-bar). Toggled with the F key (when no input is
+// focused) or via the toolbar button. body.cs-focus is what styles.css
+// hooks into to hide chrome surfaces.
+const[focusMode,setFocusMode]=useState(false);
+const focusBarRef=useRef(null);
+const[focusBarFaded,setFocusBarFaded]=useState(false);
+const focusFadeTimerRef=useRef(null);
+const resetFocusFade=useCallback(()=>{
+  setFocusBarFaded(false);
+  if(focusFadeTimerRef.current)clearTimeout(focusFadeTimerRef.current);
+  const ms=(window.TouchConstants&&window.TouchConstants.FOCUS_MINIBAR_FADE_MS)||4000;
+  focusFadeTimerRef.current=setTimeout(()=>setFocusBarFaded(true),ms);
+},[]);
+useEffect(()=>{
+  if(typeof document==="undefined")return;
+  if(focusMode){
+    document.body.classList.add("cs-focus");
+    resetFocusFade();
+  }else{
+    document.body.classList.remove("cs-focus");
+    setFocusBarFaded(false);
+    if(focusFadeTimerRef.current)clearTimeout(focusFadeTimerRef.current);
+  }
+  return()=>{document.body.classList.remove("cs-focus");if(focusFadeTimerRef.current)clearTimeout(focusFadeTimerRef.current);};
+},[focusMode,resetFocusFade]);
+useEffect(()=>{
+  const onKey=e=>{
+    // Ignore when typing in inputs / contenteditable.
+    const t=e.target;
+    if(t&&(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.tagName==="SELECT"||t.isContentEditable))return;
+    if(e.metaKey||e.ctrlKey||e.altKey)return;
+    if(e.key==="f"||e.key==="F"){
+      e.preventDefault();
+      setFocusMode(v=>!v);
+    }else if(e.key==="Escape"&&focusMode){
+      e.preventDefault();
+      setFocusMode(false);
+    }
+  };
+  window.addEventListener("keydown",onKey);
+  return()=>window.removeEventListener("keydown",onKey);
+},[focusMode]);
 
 const [importDialog, setImportDialog] = useState(null);
 const [importImage, setImportImage] = useState(null);
@@ -4993,10 +5061,10 @@ return(
   <button
     type="button"
     className="tracker-hamburger"
-    onClick={()=>setLeftSidebarOpen(o=>!o)}
-    aria-label="Toggle sidebar"
+    onClick={cycleLeftSidebar}
+    aria-label={leftSidebarMode==="hidden"?"Show sidebar rail":leftSidebarMode==="rail"?"Expand sidebar":"Hide sidebar"}
     aria-expanded={leftSidebarOpen}
-    title="Sidebar (Highlight, View, Session)"
+    title="Sidebar — tap to cycle hidden / rail / open"
   >{Icons.menu()}</button>
   {/* Phase 4 (UX-12) — wake-lock chip. Tap to toggle screen-stays-on. */}
   <button
@@ -5007,6 +5075,15 @@ return(
     aria-label={wakeLockActive?"Screen wake-lock on, tap to release":"Screen wake-lock off, tap to keep screen awake"}
     title={wakeLockActive?"Screen will stay awake — tap to release":"Tap to keep the screen awake while stitching"}
   ><span className="twc-dot" aria-hidden="true">{Icons.dot()}</span><span className="twc-label">{wakeLockActive?"Awake":"Sleep"}</span></button>
+  {/* Touch-1 H-2: Focus mode toggle. */}
+  <button
+    type="button"
+    className={"tracker-wake-chip"+(focusMode?" tracker-wake-chip--on":"")}
+    onClick={()=>setFocusMode(v=>!v)}
+    aria-pressed={focusMode}
+    aria-label={focusMode?"Exit focus mode (F)":"Enter focus mode (F)"}
+    title={focusMode?"Exit focus mode (F)":"Hide chrome — focus on the chart (F)"}
+  >{(focusMode?(Icons.focusExit&&Icons.focusExit()):(Icons.focus&&Icons.focus()))}<span className="twc-label">Focus</span></button>
   <div ref={tStripRef} className={"pill"+(isEditMode?" pill--edit":"")}>
   <div className={"tb-grp"+(tStripCollapsed.stitch?" tb-hidden":"")}>
     <button className={"tb-btn"+(stitchMode==="track"?(isEditMode?" tb-btn--red":" tb-btn--green"):"")} onClick={()=>{setStitchMode("track");}} title={isEditMode?"Modify stitches (T)":"Mark stitch (T)"}>
@@ -5285,13 +5362,47 @@ return(
     {/* Phase 5: backdrop scrim — only visible on mobile while the
         drawer is open. Tap to close. CSS controls visibility (hidden
         on >=900px) so desktop layout is untouched. */}
-    {leftSidebarOpen&&<div className="lpanel-backdrop" onClick={()=>setLeftSidebarOpen(false)} aria-hidden="true"/>}
+    {leftSidebarMode==="open"&&<div className="lpanel-backdrop" onClick={()=>setLeftSidebarOpen(false)} aria-hidden="true"/>}
+    {/* Touch-1 H-1: rail mode. A 56 px-wide vertical strip with the
+        active highlight swatch + an expand chevron. Single-tap on the
+        chevron opens the full sidebar; tap on the swatch opens it
+        scrolled to the highlight tab. */}
+    {leftSidebarMode==="rail"&&<aside className="lpanel lpanel--rail" role="complementary" aria-label="Tracker sidebar (rail)">
+      <div className="lpanel-rail-content">
+        {(()=>{
+          const selEntry=selectedColorId&&pal?pal.find(p=>p.id===selectedColorId):null;
+          if(!selEntry||!selEntry.rgb)return null;
+          return <button
+            type="button"
+            className="lpanel-rail-swatch"
+            style={{background:"rgb("+selEntry.rgb.join(",")+")"}}
+            onClick={()=>{setLeftSidebarTab("highlight");setLeftSidebarMode("open");}}
+            aria-label={"Highlighted colour: "+(selEntry.name||selEntry.id)}
+            title={selEntry.name||selEntry.id}
+          />;
+        })()}
+        <button
+          type="button"
+          className="lpanel-rail-btn"
+          onClick={()=>setLeftSidebarMode("open")}
+          aria-label="Expand sidebar"
+          title="Expand sidebar"
+        >{Icons.chevronRight?Icons.chevronRight():">"}</button>
+        <button
+          type="button"
+          className="lpanel-rail-btn"
+          onClick={()=>setLeftSidebarMode("hidden")}
+          aria-label="Hide sidebar"
+          title="Hide sidebar"
+        >{Icons.x?Icons.x():"\u00D7"}</button>
+      </div>
+    </aside>}
     {/* ═══ LEFT SIDEBAR (toolbar-rework phase 1) ═══
         Mirrors Highlight / View / Session controls so the toolbar pill
         and the rpanel "More" tab can be trimmed in later phases. The
         old controls remain wired during phase 1 to avoid disrupting
         in-flight sessions during the migration. */}
-    {leftSidebarOpen&&<div className={"lpanel"+(leftSidebarOpen?" lpanel--open":"")} role="complementary" aria-label="Tracker sidebar">
+    {leftSidebarMode==="open"&&<div className={"lpanel lpanel--open"} role="complementary" aria-label="Tracker sidebar">
       {(()=>{
         const leftSidebarTabs=[["highlight","Highlight"],["view","View"],["session","Session"],["tools","Tools"],["notes","Notes"],["legend","Legend"]];
         const handleLeftSidebarTabKeyDown=(e,currentKey)=>{
@@ -6661,6 +6772,29 @@ return(
   </div>}
 
 {celebration&&<MilestoneCelebration milestone={celebration} onDismiss={()=>setCelebration(null)}/>}
+{/* Touch-1 H-2: Focus mini-bar. Renders only when focus mode is on.
+    The Exit button never fades — it's the user's only way out. */}
+{focusMode&&<div
+  ref={focusBarRef}
+  className={"cs-focus-bar"+(focusBarFaded?" cs-focus-bar--faded":"")}
+  onPointerMove={resetFocusFade}
+  onPointerDown={resetFocusFade}
+  role="toolbar"
+  aria-label="Focus mode toolbar"
+>
+  {(()=>{
+    const selEntry=selectedColorId&&pal?pal.find(p=>p.id===selectedColorId):null;
+    if(!selEntry||!selEntry.rgb)return null;
+    return <span className="cs-focus-swatch" style={{background:"rgb("+selEntry.rgb.join(",")+")"}} title={selEntry.name||selEntry.id}/>;
+  })()}
+  <button type="button" onClick={()=>{if(typeof undoTrack==='function')undoTrack();}} aria-label="Undo" title="Undo">{Icons.undo&&Icons.undo()}</button>
+  <button type="button" onClick={()=>setStitchZoom(z=>Math.max(0.3,+(z-0.25).toFixed(2)))} aria-label="Zoom out" title="Zoom out">−</button>
+  <button type="button" onClick={()=>setStitchZoom(1)} aria-label="Reset zoom" title="Reset zoom">{Math.round((stitchZoom||1)*100)}%</button>
+  <button type="button" onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} aria-label="Zoom in" title="Zoom in">+</button>
+  <button type="button" className="cs-focus-exit" onClick={()=>setFocusMode(false)} aria-label="Exit focus mode" title="Exit focus mode (Esc)">
+    {Icons.focusExit&&Icons.focusExit()}<span style={{marginLeft:6}}>Exit</span>
+  </button>
+</div>}
 </div>
 </>);
 }

@@ -97,11 +97,14 @@
     // `window.B2_DRAG_MARK_ENABLED = false` also disables the gesture.
     trackerDragMark:       true,
 
-    // ─── Tracker left sidebar (toolbar-rework) ──────────────────────────
-    // Persisted open/closed state and active tab for the new left sidebar
-    // that consolidates Highlight / View / Session / Tools / Notes
-    // controls. Default is closed — users opt in via the hamburger button.
+    // ─── Tracker left sidebar (toolbar-rework + touch-1 H-1) ─────────────
+    // Tri-state mode for the left sidebar that consolidates Highlight /
+    // View / Session / Tools / Notes controls. "hidden" = no panel,
+    // "rail" = 56 px swatch strip, "open" = full panel. The hamburger
+    // cycles hidden → rail → open. The legacy boolean key is migrated
+    // automatically by tracker-app.js on first run.
     trackerLeftSidebarOpen: false,
+    trackerLeftSidebarMode: "hidden",
     trackerLeftSidebarTab:  "highlight",
     // Palette legend sort: id | done | count
     trackerLegendSort:      "id",

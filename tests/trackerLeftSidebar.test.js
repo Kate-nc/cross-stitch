@@ -14,7 +14,10 @@ const iconsSrc   = fs.readFileSync(path.join(__dirname, '..', 'icons.js'),      
 
 describe('Tracker left sidebar (toolbar-rework phase 1)', () => {
   test('UserPrefs declares the two new sidebar keys with sensible defaults', () => {
+    // Touch-1 H-1: tri-state mode replaces the boolean. Both keys are kept
+    // for the migration window so existing user prefs still load.
     expect(prefsSrc).toMatch(/trackerLeftSidebarOpen:\s*false/);
+    expect(prefsSrc).toMatch(/trackerLeftSidebarMode:\s*"hidden"/);
     expect(prefsSrc).toMatch(/trackerLeftSidebarTab:\s*"highlight"/);
   });
 
@@ -22,25 +25,27 @@ describe('Tracker left sidebar (toolbar-rework phase 1)', () => {
     expect(iconsSrc).toMatch(/menu:\s*function/);
   });
 
-  test('tracker registers leftSidebarOpen / leftSidebarTab state', () => {
-    expect(trackerSrc).toMatch(/leftSidebarOpen,\s*setLeftSidebarOpen/);
+  test('tracker registers leftSidebarMode / leftSidebarTab state', () => {
+    expect(trackerSrc).toMatch(/leftSidebarMode,\s*setLeftSidebarMode/);
     expect(trackerSrc).toMatch(/leftSidebarTab,\s*setLeftSidebarTab/);
-    // Initialised from UserPrefs
+    // Initialised from UserPrefs and migrated from the legacy boolean
+    expect(trackerSrc).toMatch(/UserPrefs.*get\("trackerLeftSidebarMode"\)/);
     expect(trackerSrc).toMatch(/UserPrefs.*get\("trackerLeftSidebarOpen"\)/);
     expect(trackerSrc).toMatch(/UserPrefs.*get\("trackerLeftSidebarTab"\)/);
     // Persisted back via setter
-    expect(trackerSrc).toMatch(/UserPrefs.*set\("trackerLeftSidebarOpen"/);
+    expect(trackerSrc).toMatch(/UserPrefs.*set\("trackerLeftSidebarMode"/);
     expect(trackerSrc).toMatch(/UserPrefs.*set\("trackerLeftSidebarTab"/);
   });
 
-  test('toolbar pill exposes a hamburger button bound to the sidebar', () => {
+  test('toolbar pill exposes a hamburger button bound to the cycle helper', () => {
     expect(trackerSrc).toMatch(/className="tracker-hamburger"/);
-    expect(trackerSrc).toMatch(/setLeftSidebarOpen\(o\s*=>\s*!o\)/);
+    expect(trackerSrc).toMatch(/onClick=\{cycleLeftSidebar\}/);
     expect(trackerSrc).toMatch(/Icons\.menu\(\)/);
   });
 
-  test('lpanel renders only when leftSidebarOpen is truthy', () => {
-    expect(trackerSrc).toMatch(/leftSidebarOpen\s*&&\s*<div className=\{?"lpanel/);
+  test('lpanel renders for both rail and open modes', () => {
+    expect(trackerSrc).toMatch(/leftSidebarMode==="rail"\s*&&\s*<aside className="lpanel lpanel--rail"/);
+    expect(trackerSrc).toMatch(/leftSidebarMode==="open"\s*&&\s*<div className=\{?"lpanel lpanel--open/);
   });
 
   test('lpanel exposes Highlight, View, and Session tabs', () => {

@@ -6662,11 +6662,19 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   var longPressTimerRef    = React.useRef(null);
   var longPressTriggeredRef = React.useRef(false);
 
-  var TOUCH_TAP_SLOP = 10;
-  var LONG_PRESS_MS = 500;
+  var TC = (typeof window !== 'undefined' && window.TouchConstants) || null;
+  var TOUCH_TAP_SLOP = TC ? TC.TAP_SLOP_PX : 10;
+  var LONG_PRESS_MS = TC ? TC.LONG_PRESS_MS : 500;
 
   function getActiveTool() { return state.activeToolRef ? state.activeToolRef.current : state.activeTool; }
   function getPartialStitchTool() { return state.partialStitchToolRef ? state.partialStitchToolRef.current : state.partialStitchTool; }
+
+  // Hand tool acts as "explicit pan mode" — for the purposes of the
+  // pointer handlers below it is treated identically to "no active
+  // tool", which already has a 1-finger touch pan + mouse-drag pan
+  // path. This way Hand works for mouse, pen and touch users without
+  // a separate code branch.
+  function isPanTool() { return getActiveTool() === "hand"; }
 
   function isPrimaryButton(e) {
     return (e.button == null ? 0 : e.button) === 0;
@@ -7260,7 +7268,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
-    if (isTouchPointer(e) && !activeTool && !partialStitchTool && scrollRef.current) {
+    if ((isTouchPointer(e) || isPanTool()) && (isPanTool() || (!activeTool && !partialStitchTool)) && scrollRef.current) {
       panStateRef.current = {
         pointerId: e.pointerId,
         startX: e.clientX,
@@ -7269,10 +7277,13 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         scrollTop: scrollRef.current.scrollTop,
       };
       state.setHoverCoords(null);
-      // Long-press = touch equivalent of right-click context menu
+      // Long-press = touch equivalent of right-click context menu.
+      // Skip the long-press recogniser when the explicit Hand tool is
+      // active — the user picked Hand to pan, not to summon a menu.
       longPressTriggeredRef.current = false;
       clearLongPressTimer();
-      if (typeof state.setContextMenu === "function" && state.pat && state.pcRef && state.pcRef.current) {
+      if (isTouchPointer(e) && !isPanTool()
+          && typeof state.setContextMenu === "function" && state.pat && state.pcRef && state.pcRef.current) {
         var pressClientX = e.clientX, pressClientY = e.clientY;
         var pressEvtLike = { clientX: pressClientX, clientY: pressClientY };
         longPressTimerRef.current = setTimeout(function() {
@@ -7316,6 +7327,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    if (isPanTool()) return;
     if (!activeTool && !partialStitchTool) return;
     e.preventDefault();
     handlePatMouseDown(e);
@@ -7731,6 +7743,13 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       when: function () { return !!state.pat; },
       run: function () {
         state.setActiveTool("eyedropper"); state.setBsStart(null); state.setPartialStitchTool(null);
+      } },
+    { id: "creator.tool.hand", keys: "h", scope: "creator.design",
+      description: "Hand — pan / drag to scroll",
+      when: function () { return !!state.pat; },
+      run: function () {
+        if (state.activeTool === "hand") { state.setActiveTool(null); }
+        else { state.setActiveTool("hand"); state.setBsStart(null); state.setPartialStitchTool(null); }
       } },
 
     // View / canvas
@@ -9605,7 +9624,17 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         onClick:function(){cv.setActiveTool("eyedropper"); cv.setBsStart(null); ctx.setPartialStitchTool(null);},
         title:"Eyedropper (I)",
         "aria-label":"Eyedropper tool"
-      }, "Pick")
+      }, "Pick"),
+      h("button", {
+        className:"tb-btn"+(cv.activeTool==="hand"?" tb-btn--on":""),
+        onClick:function(){
+          if (cv.activeTool === "hand") cv.setActiveTool(null);
+          else { cv.setActiveTool("hand"); cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); }
+        },
+        title:"Hand — pan / drag to scroll (H)",
+        "aria-label":"Hand pan tool",
+        "aria-pressed": cv.activeTool === "hand" ? "true" : "false"
+      }, window.Icons.hand(), " Hand")
     )
   ];
 
@@ -14684,6 +14713,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       ref:app.scrollRef,
       style:{overflow:"auto",maxHeight:550,border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',background:"var(--surface-tertiary)",cursor:(function(){
         var selTool = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
+        if (cv.activeTool === "hand") return "grab";
         if (cv.activeTool === "eyedropper") return "copy";
         if (selTool) return "crosshair";
         if (app.previewActive) return "default";

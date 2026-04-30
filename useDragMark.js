@@ -42,6 +42,18 @@
 (function () {
   'use strict';
 
+  // ─── Tunable thresholds (sourced from window.TouchConstants when
+  //     present so all canvas gestures share one definition; fall back
+  //     to the historical defaults for tests / old test pages). ───────
+  function TC() {
+    return (typeof window !== 'undefined' && window.TouchConstants)
+      ? window.TouchConstants : null;
+  }
+  function tapHoldMs()      { var c = TC(); return c ? c.TAP_HOLD_MS : 200; }
+  function longPressMs()    { var c = TC(); return c ? c.LONG_PRESS_MS : 500; }
+  function multiTouchMs()   { var c = TC(); return c ? c.MULTI_TOUCH_GRACE_MS : 100; }
+  function tapSlopPx()      { var c = TC(); return c ? c.TAP_SLOP_PX : 10; }
+
   // ─── Pure helpers ────────────────────────────────────────────────────
   function isMarkableAt(pattern, idx) {
     if (idx < 0 || !pattern || idx >= pattern.length) return false;
@@ -96,17 +108,20 @@
     function idle() {
       return {
         mode: 'idle', path: new Set(), anchor: null, intent: null,
-        startIdx: -1, startTime: 0, pointerId: null, moved: false,
+        startIdx: -1, startTime: 0, startX: 0, startY: 0,
+        pointerType: 'mouse', pointerId: null, moved: false,
         lastAnchor: s.lastAnchor, pointerCount: 0,
       };
     }
 
     switch (action.type) {
       case 'POINTER_DOWN': {
-        // Multi-touch guard: a second pointer within 200ms aborts.
+        // Multi-touch guard: a second pointer within MULTI_TOUCH_GRACE_MS
+        // aborts the in-progress 1-finger gesture so pinch / 2-finger
+        // pan can take over without committing a stray mark.
         if (s.mode !== 'idle') {
           if (action.pointerType === 'touch'
-              && (action.time - s.startTime) < 200) {
+              && (action.time - s.startTime) < multiTouchMs()) {
             effects.push({ type: 'CLEAR_LONG_PRESS' });
             return { state: idle(), effects: effects };
           }
@@ -140,6 +155,9 @@
             intent: null,
             startIdx: action.idx,
             startTime: action.time,
+            startX: (typeof action.x === 'number' ? action.x : 0),
+            startY: (typeof action.y === 'number' ? action.y : 0),
+            pointerType: action.pointerType || 'mouse',
             pointerId: action.pointerId,
             moved: false,
             lastAnchor: s.lastAnchor,
@@ -154,6 +172,20 @@
         if (action.idx === s.startIdx && !s.moved && s.mode === 'pending') {
           // Still on first cell — no transition.
           return { state: s, effects: effects };
+        }
+        // Slop check: for touch / pen pointers, require the finger to
+        // travel at least TAP_SLOP_PX before promoting to a drag. This
+        // prevents jittery taps near a cell boundary from accidentally
+        // marking a second cell. Mouse pointers skip the slop test
+        // (a different cell already requires deliberate movement).
+        if (s.mode === 'pending'
+            && s.pointerType && s.pointerType !== 'mouse'
+            && typeof action.x === 'number' && typeof action.y === 'number') {
+          var dx = action.x - s.startX, dy = action.y - s.startY;
+          if ((dx * dx + dy * dy) < (tapSlopPx() * tapSlopPx())) {
+            // Inside slop — keep pending, do not promote.
+            return { state: s, effects: effects };
+          }
         }
         // Movement detected → cancel long-press.
         var newMoved = true;
@@ -240,7 +272,7 @@
         // pending → tap.
         if (s.mode === 'pending') {
           var dt = action.time - s.startTime;
-          if (dt <= 200 && action.idx === s.startIdx
+          if (dt <= tapHoldMs() && action.idx === s.startIdx
               && isMarkableAt(ctx.pattern, s.startIdx)) {
             effects.push({ type: 'TOGGLE_CELL', idx: s.startIdx });
             return {
@@ -260,7 +292,7 @@
       }
 
       case 'MULTI_TOUCH': {
-        if (s.mode !== 'idle' && (action.time - s.startTime) < 200) {
+        if (s.mode !== 'idle' && (action.time - s.startTime) < multiTouchMs()) {
           effects.push({ type: 'CLEAR_LONG_PRESS' });
           return { state: idle(), effects: effects };
         }
@@ -277,7 +309,8 @@
   function initialState() {
     return {
       mode: 'idle', path: new Set(), anchor: null, intent: null,
-      startIdx: -1, startTime: 0, pointerId: null, moved: false,
+      startIdx: -1, startTime: 0, startX: 0, startY: 0,
+      pointerType: 'mouse', pointerId: null, moved: false,
       lastAnchor: null, pointerCount: 0,
     };
   }
@@ -355,7 +388,7 @@
           longPressTimerRef.current = setTimeout(function () {
             longPressTimerRef.current = null;
             dispatch({ type: 'LONG_PRESS_FIRED' });
-          }, 500);
+          }, longPressMs());
         } else if (ef.type === 'CLEAR_LONG_PRESS') {
           clearLongPress();
         }
@@ -412,6 +445,7 @@
       dispatch({
         type: 'POINTER_DOWN',
         idx: idx,
+        x: e.clientX, y: e.clientY,
         time: t,
         pointerId: e.pointerId != null ? e.pointerId : 0,
         shiftKey: !!e.shiftKey,
@@ -427,7 +461,7 @@
       var idx = cellAtPoint(e.clientX, e.clientY);
       var t = (typeof performance !== 'undefined' && performance.now)
               ? performance.now() : Date.now();
-      dispatch({ type: 'POINTER_MOVE', idx: idx, time: t });
+      dispatch({ type: 'POINTER_MOVE', idx: idx, x: e.clientX, y: e.clientY, time: t });
     }, [isEdit, cellAtPoint]);
 
     var onPointerUp = R.useCallback(function (e) {

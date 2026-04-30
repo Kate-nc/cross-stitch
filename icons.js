@@ -406,6 +406,42 @@ window.Icons = (function() {
         p('M3 13A9 9 0 1 0 6 6.7L3 13')
       );
     },
+    // Redo — curved arrow clockwise (mirror of undo).
+    redo: function() {
+      return svg(
+        p('M21 7v6h-6'),
+        p('M21 13A9 9 0 1 1 18 6.7L21 13')
+      );
+    },
+    // Hand / pan tool — open hand with extended thumb. Workshop-style
+    // single-stroke outline. Used by the new Hand pan tool (touch UX
+    // pass) in the creator and tracker toolbars.
+    hand: function() {
+      return svg(
+        p('M9 11V5.5a1.5 1.5 0 0 1 3 0V11'),
+        p('M12 11V4.5a1.5 1.5 0 0 1 3 0V11'),
+        p('M15 11V6.5a1.5 1.5 0 0 1 3 0V13'),
+        p('M9 11V8.5a1.5 1.5 0 0 0-3 0v6.4c0 1.4.4 2.7 1.2 3.8L9 21h7a4 4 0 0 0 4-4v-4')
+      );
+    },
+    // Enter focus / fullscreen — four corner brackets pointing inward.
+    focus: function() {
+      return svg(
+        p('M4 9V4h5'),
+        p('M20 9V4h-5'),
+        p('M4 15v5h5'),
+        p('M20 15v5h-5')
+      );
+    },
+    // Exit focus / fullscreen — four corner brackets pointing outward.
+    focusExit: function() {
+      return svg(
+        p('M9 4H4v5'),
+        p('M15 4h5v5'),
+        p('M9 20H4v-5'),
+        p('M15 20h5v-5')
+      );
+    },
     // Replay — counter-clockwise circular arrow used by Help drawer's
     // "Restart guided tours" affordance (C8 onboarding).
     replay: function() {

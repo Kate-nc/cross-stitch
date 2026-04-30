@@ -1,0 +1,88 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Track canvas gestures</title>
+<style>body{margin:0;padding:24px;background:#f5f6f8;font-family:system-ui,sans-serif;color:#1f2937}h1{font-size:18px;margin:0 0 12px}.frame{background:#fff;border:1px solid #cbd5e1;border-radius:12px;padding:8px;display:inline-block}.label{font-size:11px;color:#475569;margin-top:6px;text-align:center;font-weight:600}.legend{font-size:12px;color:#374151;max-width:520px;line-height:1.5;margin:12px 0 0}</style></head><body>
+
+<h1>02 — Track-mode canvas, iPad landscape (1024×768)</h1>
+
+<div class="frame">
+<svg width="512" height="384" viewBox="0 0 1024 768" style="background:#0b1220;border-radius:8px">
+  <!-- top-bar -->
+  <rect width="1024" height="48" fill="#1e293b"/>
+  <text x="14" y="30" fill="#cbd5e1" font-size="14" font-weight="600">Sea Garden Sampler</text>
+  <text x="950" y="30" fill="#94a3b8" font-size="14">⌃</text>
+  <!-- progress bar -->
+  <rect y="48" width="1024" height="8" fill="#1e293b"/>
+  <rect y="48" width="320" height="8" fill="#10b981"/>
+
+  <!-- LPANEL — RAIL state on left -->
+  <rect x="0" y="56" width="56" height="640" fill="#1e293b"/>
+  <!-- highlight swatch -->
+  <rect x="8" y="68" width="40" height="40" rx="6" fill="#dc2626" stroke="#fff"/>
+  <!-- legend icon -->
+  <rect x="8" y="120" width="40" height="40" rx="6" fill="#334155"/>
+  <text x="28" y="146" fill="#cbd5e1" font-size="14" text-anchor="middle">≡</text>
+  <!-- expand chevron at bottom -->
+  <rect x="8" y="640" width="40" height="44" rx="6" fill="#334155"/>
+  <text x="28" y="668" fill="#cbd5e1" font-size="16" text-anchor="middle">›</text>
+
+  <!-- canvas (chart) -->
+  <rect x="56" y="56" width="968" height="640" fill="#fafafa"/>
+  <g stroke="#e5e7eb" stroke-width="0.5">
+    <path d="M120 100 L120 660 M880 100 L880 660 M120 100 L880 100 M120 660 L880 660"/>
+  </g>
+  <!-- marked stitches -->
+  <g fill="#3b82f6" opacity="0.9">
+    <rect x="200" y="180" width="32" height="32"/><rect x="232" y="180" width="32" height="32"/>
+    <rect x="200" y="212" width="32" height="32"/><rect x="232" y="212" width="32" height="32"/>
+    <rect x="500" y="320" width="32" height="32"/><rect x="500" y="352" width="32" height="32"/>
+  </g>
+  <g fill="#dc2626" opacity="0.9">
+    <rect x="640" y="240" width="32" height="32"/><rect x="640" y="272" width="32" height="32"/>
+    <rect x="672" y="240" width="32" height="32"/>
+  </g>
+
+  <!-- gesture overlays -->
+  <!-- 1-finger tap = mark -->
+  <circle cx="232" cy="196" r="22" fill="rgba(16,185,129,0.25)" stroke="#10b981" stroke-width="2"/>
+  <text x="266" y="200" fill="#10b981" font-size="13" font-weight="700">1-finger tap = mark/unmark</text>
+  <!-- 1-finger drag = mark run -->
+  <path d="M180 480 L260 480 L260 512 L180 512" fill="none" stroke="#10b981" stroke-width="3" stroke-dasharray="4 4"/>
+  <text x="180" y="540" fill="#10b981" font-size="13" font-weight="700">1-finger drag = mark a run (10 px slop)</text>
+  <!-- 2-finger pan -->
+  <circle cx="780" cy="160" r="14" fill="rgba(59,130,246,0.35)" stroke="#3b82f6" stroke-width="2"/>
+  <circle cx="820" cy="200" r="14" fill="rgba(59,130,246,0.35)" stroke="#3b82f6" stroke-width="2"/>
+  <text x="660" y="140" fill="#3b82f6" font-size="13" font-weight="700">2-finger drag = pan</text>
+  <!-- long press = context menu -->
+  <circle cx="600" cy="540" r="20" fill="none" stroke="#f59e0b" stroke-width="3" stroke-dasharray="3 3"/>
+  <text x="630" y="546" fill="#f59e0b" font-size="13" font-weight="700">Long-press = context menu</text>
+  <!-- 2-finger tap = undo -->
+  <text x="850" y="600" fill="#a78bfa" font-size="13" font-weight="700">2-finger tap = undo</text>
+
+  <!-- bottom action bar (existing tracker-action-bar) -->
+  <rect x="56" y="696" width="968" height="72" fill="#1e293b"/>
+  <!-- mode chip / colour swatch -->
+  <rect x="68" y="710" width="44" height="44" rx="8" fill="#dc2626" stroke="#fff"/>
+  <text x="120" y="728" fill="#cbd5e1" font-size="11" font-weight="600">DMC 321</text>
+  <text x="120" y="744" fill="#94a3b8" font-size="10">Mark tool</text>
+  <!-- mark / unmark / hand toggles (sub-tools) -->
+  <rect x="220" y="710" width="56" height="44" rx="8" fill="#10b981"/><text x="248" y="738" fill="#0b1220" font-size="11" text-anchor="middle" font-weight="700">Mark</text>
+  <rect x="282" y="710" width="56" height="44" rx="8" fill="#334155"/><text x="310" y="738" fill="#cbd5e1" font-size="11" text-anchor="middle">Hand</text>
+  <rect x="344" y="710" width="56" height="44" rx="8" fill="#334155"/><text x="372" y="738" fill="#cbd5e1" font-size="11" text-anchor="middle">Range</text>
+  <!-- undo -->
+  <rect x="430" y="710" width="44" height="44" rx="8" fill="#334155"/><text x="452" y="738" fill="#cbd5e1" text-anchor="middle">↶</text>
+  <!-- zoom -->
+  <rect x="490" y="710" width="44" height="44" rx="8" fill="#334155"/><text x="512" y="738" fill="#cbd5e1" text-anchor="middle">−</text>
+  <rect x="540" y="710" width="64" height="44" rx="8" fill="#1e293b"/><text x="572" y="738" fill="#cbd5e1" text-anchor="middle" font-size="11">100%</text>
+  <rect x="608" y="710" width="44" height="44" rx="8" fill="#334155"/><text x="630" y="738" fill="#cbd5e1" text-anchor="middle">+</text>
+  <!-- focus -->
+  <rect x="900" y="710" width="44" height="44" rx="8" fill="#a78bfa"/><text x="922" y="738" fill="#0b1220" text-anchor="middle" font-size="11">Foc</text>
+  <rect x="952" y="710" width="44" height="44" rx="8" fill="#334155"/><text x="974" y="738" fill="#cbd5e1" text-anchor="middle">⋯</text>
+</svg>
+<div class="label">Track mode • iPad landscape • Lpanel in RAIL state • bottom action bar with Mark/Hand/Range</div>
+</div>
+
+<p class="legend">
+  <strong>Key changes:</strong> the lpanel collapses to a 56 px rail showing the active highlight swatch and a legend jump (resolves "left panel takes too much room"). The bottom action bar gains explicit <em>Mark / Hand / Range</em> tools — the user is never forced to remember what 1-finger drag does because the active sub-tool is highlighted. 2-finger pan and pinch always work, regardless of tool. Long-press opens a context menu (info, focus block, "go to next of colour") instead of committing a destructive range (resolves <strong>T-2</strong>).
+</p>
+
+</body></html>

@@ -132,7 +132,13 @@
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 html{height:100%;}
-body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--surface-secondary);color:var(--text-primary);height:100%;display:flex;flex-direction:column;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--surface-secondary);color:var(--text-primary);height:100%;display:flex;flex-direction:column;-webkit-tap-highlight-color:transparent;overscroll-behavior:none;}
+/* Touch surface hardening: prevent the page from rubber-banding /
+   pull-to-refreshing while a finger is on the canvas, and silence the
+   blue tap-highlight that flashes on every button on iOS. */
+@supports (padding: max(0px)) {
+  body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+}
 #root{flex:1;display:flex;flex-direction:column;min-height:0;}
 input[type=range]{accent-color:var(--accent); transition: all 0.2s ease;}
 input[type=checkbox]{accent-color:var(--accent); transition: all 0.2s ease;}
@@ -6840,3 +6846,199 @@ button[aria-disabled="true"] {
     grid-template-columns: 1fr;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════
+   Touch UX pass — compact-touch (real touch devices, ≤1024 px)
+   See reports/touch-*.md for the design rationale.
+
+   Goals:
+   • 44 × 44 px floor on every interactive control inside .toolbar-row
+     and .tracker-action-bar.
+   • Toolbar moves to the bottom (thumb zone) and stops being sticky.
+   • Canvas scroll container reserves space for the bottom toolbar
+     so the chart isn't hidden under it.
+   • Lpanel three-state support: .lpanel--rail (56 px collapsed strip)
+     and .lpanel--hidden (display: none). Original open behaviour
+     preserved when neither class is present.
+   • Focus-mode helpers — body.cs-focus hides chrome surfaces; a
+     floating mini-bar (.cs-focus-bar) is revealed.
+   ════════════════════════════════════════════════════════════════ */
+@media (max-width: 1024px) and (pointer: coarse) {
+  /* Reserve room at the bottom of the page for the fixed toolbar +
+     safe-area inset so nothing slides under the home indicator. */
+  body { padding-bottom: calc(var(--ct-toolbar-h, 64px) + env(safe-area-inset-bottom, 0px)); }
+
+  /* Bottom-fixed creator toolbar. */
+  .toolbar-row {
+    position: fixed;
+    top: auto !important;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    border-bottom: none;
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    z-index: var(--z-action-bar, 500);
+  }
+  .pill-row { min-height: 64px; height: auto; padding: 6px 8px; }
+
+  /* 44 px touch target floor for all toolbar buttons. */
+  .toolbar-row .tb-btn,
+  .toolbar-row .tb-fit-btn,
+  .toolbar-row .tb-overflow-btn,
+  .toolbar-row .pill .tb-btn {
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 13px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    gap: 6px;
+  }
+  .toolbar-row .tb-grp { gap: 4px; padding: 4px; }
+
+  /* Tracker action bar — same floor + safe-area. */
+  .tracker-action-bar {
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+  }
+  .tracker-action-bar button,
+  .tracker-action-bar .ta-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* ── Lpanel three-state rules (apply at every viewport so the JS
+      toggle works on desktop too — narrow screens already handled
+      by the bottom-sheet rules earlier in this file). ───────────── */
+.lpanel--hidden { display: none !important; }
+.lpanel--rail {
+  width: 56px !important;
+  min-width: 56px !important;
+  max-width: 56px !important;
+  overflow: hidden !important;
+  padding: 8px 4px !important;
+}
+.lpanel--rail .lpanel-section,
+.lpanel--rail .lpanel-section-title,
+.lpanel--rail .lpanel-row-label {
+  display: none !important;
+}
+.lpanel--rail .lpanel-rail-content { display: flex !important; }
+.lpanel-rail-content {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+}
+.lpanel-rail-swatch {
+  width: 40px; height: 40px;
+  border-radius: 8px;
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+  cursor: pointer;
+}
+.lpanel-rail-btn {
+  width: 40px; height: 40px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.lpanel-rail-btn:hover { background: var(--surface-tertiary); color: var(--text-primary); }
+
+/* ── Focus mode — strip chrome down to canvas + floating mini-bar ── */
+body.cs-focus .header,
+body.cs-focus .info-strip,
+body.cs-focus .toolbar-row,
+body.cs-focus .tracker-action-bar,
+body.cs-focus .rpanel,
+body.cs-focus .lpanel,
+body.cs-focus .status-bar {
+  display: none !important;
+}
+body.cs-focus { padding-bottom: 0 !important; }
+
+/* The Focus mini-bar is a fixed pill at the bottom-centre of the
+   viewport. Always above modals' backdrop is intentional — it's the
+   user's only way out of focus mode. */
+.cs-focus-bar {
+  position: fixed;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-lg);
+  z-index: var(--z-coachmark, 1200);
+  opacity: 1;
+  transition: opacity 220ms ease-out;
+}
+.cs-focus-bar.cs-focus-bar--faded { opacity: 0.30; }
+.cs-focus-bar:hover,
+.cs-focus-bar:focus-within { opacity: 1 !important; }
+.cs-focus-bar button {
+  min-width: 44px; min-height: 44px;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: inherit; font-size: 13px;
+  padding: 0 10px;
+}
+.cs-focus-bar button:hover { background: var(--surface-tertiary); color: var(--text-primary); }
+.cs-focus-bar .cs-focus-swatch {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.cs-focus-bar .cs-focus-exit {
+  background: var(--accent);
+  color: var(--text-on-accent, #fff);
+  font-weight: 600;
+  padding: 0 16px;
+  margin-left: 4px;
+}
+.cs-focus-bar .cs-focus-exit:hover { background: var(--accent-hover); color: var(--text-on-accent, #fff); }
+
+/* Persistent status chip at bottom-left of canvas — shows active
+   tool + colour so the user always knows what a tap will do. Only
+   shown on touch viewports (the desktop has hover affordances). */
+@media (max-width: 1024px) and (pointer: coarse) {
+  .cs-status-chip {
+    position: fixed;
+    left: max(12px, env(safe-area-inset-left, 0px));
+    bottom: calc(var(--ct-toolbar-h, 64px) + env(safe-area-inset-bottom, 0px) + 12px);
+    z-index: var(--z-fab, 450);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    box-shadow: var(--shadow-md);
+    font-size: 12px;
+    color: var(--text-secondary);
+    pointer-events: none;
+  }
+  .cs-status-chip-swatch {
+    width: 18px; height: 18px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+  .cs-status-chip-tool { font-weight: 600; color: var(--text-primary); }
+}
+
+
