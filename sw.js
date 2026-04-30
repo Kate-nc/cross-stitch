@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v34';
+var CACHE_NAME = 'cross-stitch-cache-v35';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -158,6 +158,35 @@ self.addEventListener('fetch', function (event) {
     // it normally so updates aren't masked by Cache Storage.
     if (url.pathname.endsWith('/sw.js')) return;
 
+    // App JavaScript and HTML must be network-first so bug-fix deploys are
+    // picked up immediately when the user is online. Stale-while-revalidate
+    // (the previous strategy) silently served the old bundle on the first
+    // post-deploy load and only refreshed on the SECOND visit, which made
+    // diagnostic console.log statements and bug fixes appear to do nothing
+    // for at least one full reload after every release. Cache is still used
+    // as a fallback when offline.
+    var isAppCode = /\.(js|html|json)$/i.test(url.pathname);
+    if (isAppCode) {
+      event.respondWith(
+        fetch(event.request).then(function (response) {
+          if (response && response.ok && event.request.method === 'GET') {
+            var clone = response.clone();
+            caches.open(CACHE_NAME).then(function (cache) {
+              cache.put(event.request, clone);
+            });
+          }
+          return response;
+        }).catch(function () {
+          return caches.match(event.request).then(function (cached) {
+            return cached || new Response('', { status: 503, statusText: 'Offline' });
+          });
+        })
+      );
+      return;
+    }
+
+    // Fonts, icons, CSS, etc. — stale-while-revalidate is fine because
+    // these change rarely and a one-load lag is invisible.
     event.respondWith(
       caches.open(CACHE_NAME).then(function (cache) {
         return cache.match(event.request).then(function (cached) {

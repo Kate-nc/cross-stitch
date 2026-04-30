@@ -2825,7 +2825,44 @@
   'use strict';
   if (typeof window === 'undefined') return;
 
+  // Build stamp — bump this string whenever you change wireApp.js so a
+  // user can verify (in the browser console) that they're running the
+  // current bundle and not a stale service-worker copy. If you don't see
+  // this log on page load, the SW is serving an old cache.
+  var BUILD = 'wireApp v3 (2026-04-30 — net-first SW + diag toasts)';
+  try { console.info('[ImportEngine]', BUILD); } catch (_) {}
+  // Also expose it for assertion in DevTools: `window.ImportEngine.__build`.
+  try {
+    window.ImportEngine = window.ImportEngine || {};
+    window.ImportEngine.__build = BUILD;
+  } catch (_) {}
+
   var ACCEPT = '.oxs,.xml,.json,.pdf,image/*';
+
+  // One-time global listener so any unhandled promise rejection coming from
+  // the import pipeline (e.g. PDF strategy throwing, classifier blowing up,
+  // openReview rejecting) is logged loudly instead of disappearing.
+  if (!window.__importEngineRejectionHandlerInstalled && typeof window.addEventListener === 'function') {
+    window.__importEngineRejectionHandlerInstalled = true;
+    window.addEventListener('unhandledrejection', function (ev) {
+      try {
+        var r = ev && ev.reason;
+        // Only react to things that look like they came from the import path
+        // to avoid spamming the console for unrelated rejections.
+        var msg = (r && (r.message || r.toString && r.toString())) || '';
+        if (/import|pattern|pdf|oxs/i.test(msg) || (r && r.code && /IMPORT|PATTERN/i.test(r.code))) {
+          console.error('[ImportEngine] Unhandled rejection in import pipeline:', r);
+          if (window.Toast && typeof window.Toast.show === 'function') {
+            window.Toast.show({
+              message: 'Import failed: ' + msg,
+              type: 'error',
+              duration: 8000,
+            });
+          }
+        }
+      } catch (_) {}
+    });
+  }
 
   function openImportPicker(opts) {
     opts = opts || {};
@@ -2849,16 +2886,28 @@
   function importAndReview(file, opts) {
     opts = opts || {};
     var ENGINE = window.ImportEngine;
+    try { console.log('[import] importAndReview start:', { name: file && file.name, type: file && file.type, size: file && file.size }); } catch (_) {}
     if (!ENGINE || typeof ENGINE.importPattern !== 'function') {
-      return Promise.reject(new Error('ImportEngine not loaded'));
+      var notLoaded = 'ImportEngine not loaded';
+      console.error('[import]', notLoaded);
+      if (window.Toast && window.Toast.show) {
+        window.Toast.show({ message: notLoaded, type: 'error', duration: 8000 });
+      } else if (typeof alert === 'function') {
+        alert(notLoaded);
+      }
+      return Promise.reject(new Error(notLoaded));
     }
     return ENGINE.importPattern(file, opts).then(function (result) {
+      try { console.log('[import] importPattern result:', { ok: result && result.ok, error: result && result.error && result.error.message, hasProject: !!(result && result.project), warningsCount: result && result.warnings && result.warnings.length }); } catch (_) {}
       if (!result.ok) {
         var msg = (result.error && result.error.message) || 'Import failed.';
-        if (window.toast && typeof window.toast.error === 'function') {
+        console.error('[import] pipeline returned not-ok:', result);
+        if (window.Toast && window.Toast.show) {
+          window.Toast.show({ message: 'Import failed: ' + msg, type: 'error', duration: 10000 });
+        } else if (window.toast && typeof window.toast.error === 'function') {
           window.toast.error(msg);
         } else if (typeof alert === 'function') {
-          alert(msg);
+          alert('Import failed: ' + msg);
         }
         return { action: 'cancel', error: result.error };
       }
@@ -2874,11 +2923,28 @@
         originalFileUrl: url,
       }).then(function (out) {
         if (url) try { URL.revokeObjectURL(url); } catch (_) {}
+        try { console.log('[import] review modal closed:', { action: out && out.action, hasProject: !!(out && out.project) }); } catch (_) {}
         if (out.action === 'confirm' && out.project) {
           return saveAndNavigate(out.project, opts);
         }
         return out;
       });
+    }).catch(function (err) {
+      // Final safety net: anything thrown by importPattern, openReview, or
+      // saveAndNavigate that wasn't already handled lands here.
+      console.error('[import] unhandled error in importAndReview:', err);
+      try {
+        if (window.Toast && window.Toast.show) {
+          window.Toast.show({
+            message: 'Import failed: ' + ((err && err.message) || err),
+            type: 'error',
+            duration: 10000,
+          });
+        } else if (typeof alert === 'function') {
+          alert('Import failed: ' + ((err && err.message) || err));
+        }
+      } catch (_) {}
+      throw err;
     });
   }
 

@@ -390,9 +390,15 @@
       if (!isImage && isPattern && window.ImportEngine && typeof window.ImportEngine.openImportPicker === 'function') {
         // We already have the file — call importAndReview directly so the
         // user doesn't have to pick it again.
+        try { console.log('[home] routing pattern file to ImportEngine:', name, '— ImportEngine.__build =', window.ImportEngine.__build || 'unknown'); } catch (_) {}
         setPending(true);
         window.ImportEngine.importAndReview(file).catch(function (err) {
-          alert('Could not import: ' + (err && err.message || err));
+          console.error('[home] importAndReview rejected:', err);
+          if (window.Toast && window.Toast.show) {
+            window.Toast.show({ message: 'Could not import: ' + (err && err.message || err), type: 'error', duration: 10000 });
+          } else {
+            alert('Could not import: ' + (err && err.message || err));
+          }
         }).finally(function () { setPending(false); });
         return;
       }
