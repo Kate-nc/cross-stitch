@@ -2425,13 +2425,15 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
   }
   .tpr-header .tpr-h{margin:0;}
   .tpr-collapse-btn{
-    width:32px;height:32px;border-radius:8px;
+    width:36px;height:36px;border-radius:8px;
     border:1px solid var(--border);background:var(--surface);
-    color:var(--text-secondary);cursor:pointer;
+    color:var(--text-primary);cursor:pointer;
     display:inline-flex;align-items:center;justify-content:center;
     font-family:inherit;flex-shrink:0;
+    transition:background 160ms ease-out, border-color 160ms ease-out, color 160ms ease-out;
   }
-  .tpr-collapse-btn:hover{background:var(--surface-tertiary);color:var(--text-primary);}
+  .tpr-collapse-btn:hover{background:var(--accent-light,var(--surface-tertiary));color:var(--accent);border-color:var(--accent);}
+  .tpr-collapse-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
 
   /* Collapsed state — narrow rail with thumbnails only. The .cs-main
      left margin is also halved so the canvas reclaims the freed
@@ -6968,15 +6970,17 @@ button[aria-disabled="true"] {
   cursor: pointer;
 }
 .lpanel-rail-btn {
-  width: 40px; height: 40px;
-  border-radius: 8px;
+  width: 44px; height: 44px;
+  border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--surface);
-  color: var(--text-secondary);
+  color: var(--text-primary);
   display: inline-flex; align-items: center; justify-content: center;
   cursor: pointer;
+  transition: background 160ms ease-out, border-color 160ms ease-out, color 160ms ease-out;
 }
-.lpanel-rail-btn:hover { background: var(--surface-tertiary); color: var(--text-primary); }
+.lpanel-rail-btn:hover { background: var(--accent-light, var(--surface-tertiary)); color: var(--accent); border-color: var(--accent); }
+.lpanel-rail-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ── Focus mode — strip chrome down to canvas + floating mini-bar ── */
 body.cs-focus .header,
@@ -7003,7 +7007,12 @@ body.cs-focus .lpanel-backdrop { display: none !important; }
 
 /* The Focus mini-bar is a fixed pill at the bottom-centre of the
    viewport. Always above modals' backdrop is intentional — it's the
-   user's only way out of focus mode. */
+   user's only way out of focus mode.
+
+   Fade behaviour: the bar fades to 60% after a few seconds of
+   inactivity so it doesn't dominate the chart. The Exit chip is
+   excluded from the fade (it's the user's escape hatch and must
+   stay legible at all times). */
 .cs-focus-bar {
   position: fixed;
   left: 50%;
@@ -7019,12 +7028,11 @@ body.cs-focus .lpanel-backdrop { display: none !important; }
   border-radius: var(--radius-pill);
   box-shadow: var(--shadow-lg);
   z-index: var(--z-coachmark, 1200);
-  opacity: 1;
   transition: opacity 220ms ease-out;
 }
-.cs-focus-bar.cs-focus-bar--faded { opacity: 0.30; }
-.cs-focus-bar:hover,
-.cs-focus-bar:focus-within { opacity: 1 !important; }
+.cs-focus-bar.cs-focus-bar--faded > *:not(.cs-focus-exit) { opacity: 0.55; }
+.cs-focus-bar:hover > *,
+.cs-focus-bar:focus-within > * { opacity: 1 !important; }
 .cs-focus-bar button {
   min-width: 44px; min-height: 44px;
   border: none;
@@ -7033,23 +7041,43 @@ body.cs-focus .lpanel-backdrop { display: none !important; }
   color: var(--text-secondary);
   cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
-  font-family: inherit; font-size: 13px;
-  padding: 0 10px;
+  gap: 6px;
+  font-family: inherit; font-size: 13px; font-weight: 600;
+  padding: 0 12px;
+  transition: opacity 220ms ease-out, background 160ms ease-out, color 160ms ease-out;
 }
 .cs-focus-bar button:hover { background: var(--surface-tertiary); color: var(--text-primary); }
+.cs-focus-bar button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 .cs-focus-bar .cs-focus-swatch {
   width: 28px; height: 28px;
   border-radius: 6px;
-  border: 1px solid var(--border);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+  flex-shrink: 0;
 }
 .cs-focus-bar .cs-focus-exit {
   background: var(--accent);
   color: var(--text-on-accent, #fff);
-  font-weight: 600;
-  padding: 0 16px;
-  margin-left: 4px;
+  font-weight: 700;
+  padding: 0 18px;
+  margin-left: 6px;
+  /* Lift the exit chip with a 2 px ring + drop shadow so it reads
+     as the dominant action even against the dimmed bar. */
+  box-shadow: 0 0 0 2px var(--surface), 0 2px 6px rgba(0, 0, 0, 0.18);
+  letter-spacing: 0.02em;
 }
-.cs-focus-bar .cs-focus-exit:hover { background: var(--accent-hover); color: var(--text-on-accent, #fff); }
+.cs-focus-bar .cs-focus-exit:hover {
+  background: var(--accent-hover);
+  color: var(--text-on-accent, #fff);
+  box-shadow: 0 0 0 2px var(--surface), 0 4px 10px rgba(0, 0, 0, 0.22);
+}
+.cs-focus-bar .cs-focus-exit:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 3px;
+}
 
 /* Persistent status chip at bottom-left of canvas — shows active
    tool + colour so the user always knows what a tap will do. Only

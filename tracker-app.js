@@ -6810,7 +6810,7 @@ return(
   <button type="button" onClick={()=>setStitchZoom(1)} aria-label="Reset zoom" title="Reset zoom">{Math.round((stitchZoom||1)*100)}%</button>
   <button type="button" onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} aria-label="Zoom in" title="Zoom in">+</button>
   <button type="button" className="cs-focus-exit" onClick={()=>setFocusMode(false)} aria-label="Exit focus mode" title="Exit focus mode (Esc)">
-    {Icons.focusExit&&Icons.focusExit()}<span style={{marginLeft:6}}>Exit</span>
+    {Icons.x&&Icons.x()}<span style={{marginLeft:6}}>Exit focus</span><kbd style={{marginLeft:8,padding:"1px 6px",fontSize:11,fontWeight:600,background:"rgba(255,255,255,0.18)",border:"1px solid rgba(255,255,255,0.35)",borderRadius:4,fontFamily:"inherit"}}>Esc</kbd>
   </button>
 </div>}
 </div>
