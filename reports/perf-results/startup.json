@@ -1,0 +1,612 @@
+{
+  "/home.html": {
+    "wallLoadMs": 3441,
+    "timings": {
+      "domContentLoaded": 3432,
+      "load": 3432,
+      "fcp": 3484,
+      "memory": {
+        "usedJSHeap": 11200000,
+        "totalJSHeap": 16100000
+      }
+    },
+    "browser": "chromium",
+    "device": "perf-desktop",
+    "totals": {
+      "scripts": 33,
+      "totalScriptBytes": 3950427,
+      "projectScriptBytes": 911469
+    },
+    "scriptsBreakdown": [
+      {
+        "url": "https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js",
+        "status": 200,
+        "bytes": 2849480
+      },
+      {
+        "url": "http://127.0.0.1:8000/components.js",
+        "status": 200,
+        "bytes": 145974
+      },
+      {
+        "url": "https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js",
+        "status": 200,
+        "bytes": 131882
+      },
+      {
+        "url": "http://127.0.0.1:8000/home-screen.js",
+        "status": 200,
+        "bytes": 95821
+      },
+      {
+        "url": "http://127.0.0.1:8000/preferences-modal.js",
+        "status": 200,
+        "bytes": 72192
+      },
+      {
+        "url": "http://127.0.0.1:8000/helpers.js",
+        "status": 200,
+        "bytes": 59530
+      },
+      {
+        "url": "http://127.0.0.1:8000/colour-utils.js",
+        "status": 200,
+        "bytes": 59383
+      },
+      {
+        "url": "http://127.0.0.1:8000/stash-bridge.js",
+        "status": 200,
+        "bytes": 51044
+      },
+      {
+        "url": "https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js",
+        "status": 200,
+        "bytes": 46859
+      },
+      {
+        "url": "http://127.0.0.1:8000/help-drawer.js",
+        "status": 200,
+        "bytes": 41305
+      },
+      {
+        "url": "http://127.0.0.1:8000/header.js",
+        "status": 200,
+        "bytes": 40440
+      },
+      {
+        "url": "http://127.0.0.1:8000/project-storage.js",
+        "status": 200,
+        "bytes": 38941
+      },
+      {
+        "url": "http://127.0.0.1:8000/sync-engine.js",
+        "status": 200,
+        "bytes": 38396
+      },
+      {
+        "url": "http://127.0.0.1:8000/modals.js",
+        "status": 200,
+        "bytes": 38257
+      },
+      {
+        "url": "http://127.0.0.1:8000/home-app.js",
+        "status": 200,
+        "bytes": 37935
+      },
+      {
+        "url": "http://127.0.0.1:8000/command-palette.js",
+        "status": 200,
+        "bytes": 27602
+      },
+      {
+        "url": "http://127.0.0.1:8000/icons.js",
+        "status": 200,
+        "bytes": 23693
+      },
+      {
+        "url": "http://127.0.0.1:8000/onboarding-wizard.js",
+        "status": 200,
+        "bytes": 21349
+      },
+      {
+        "url": "http://127.0.0.1:8000/dmc-data.js",
+        "status": 200,
+        "bytes": 18936
+      },
+      {
+        "url": "http://127.0.0.1:8000/backup-restore.js",
+        "status": 200,
+        "bytes": 17358
+      }
+    ],
+    "capturedAt": "2026-04-30T06:44:27.494Z"
+  },
+  "/index.html": {
+    "wallLoadMs": 519,
+    "timings": {
+      "domContentLoaded": 505,
+      "load": 505,
+      "fcp": 544,
+      "memory": {
+        "usedJSHeap": 11900000,
+        "totalJSHeap": 17100000
+      }
+    },
+    "browser": "chromium",
+    "device": "perf-desktop",
+    "totals": {
+      "scripts": 33,
+      "totalScriptBytes": 3950427,
+      "projectScriptBytes": 911469
+    },
+    "scriptsBreakdown": [
+      {
+        "url": "https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js",
+        "status": 200,
+        "bytes": 2849480
+      },
+      {
+        "url": "http://127.0.0.1:8000/components.js",
+        "status": 200,
+        "bytes": 145974
+      },
+      {
+        "url": "https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js",
+        "status": 200,
+        "bytes": 131882
+      },
+      {
+        "url": "http://127.0.0.1:8000/home-screen.js",
+        "status": 200,
+        "bytes": 95821
+      },
+      {
+        "url": "http://127.0.0.1:8000/preferences-modal.js",
+        "status": 200,
+        "bytes": 72192
+      },
+      {
+        "url": "http://127.0.0.1:8000/helpers.js",
+        "status": 200,
+        "bytes": 59530
+      },
+      {
+        "url": "http://127.0.0.1:8000/colour-utils.js",
+        "status": 200,
+        "bytes": 59383
+      },
+      {
+        "url": "http://127.0.0.1:8000/stash-bridge.js",
+        "status": 200,
+        "bytes": 51044
+      },
+      {
+        "url": "https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js",
+        "status": 200,
+        "bytes": 46859
+      },
+      {
+        "url": "http://127.0.0.1:8000/help-drawer.js",
+        "status": 200,
+        "bytes": 41305
+      },
+      {
+        "url": "http://127.0.0.1:8000/header.js",
+        "status": 200,
+        "bytes": 40440
+      },
+      {
+        "url": "http://127.0.0.1:8000/project-storage.js",
+        "status": 200,
+        "bytes": 38941
+      },
+      {
+        "url": "http://127.0.0.1:8000/sync-engine.js",
+        "status": 200,
+        "bytes": 38396
+      },
+      {
+        "url": "http://127.0.0.1:8000/modals.js",
+        "status": 200,
+        "bytes": 38257
+      },
+      {
+        "url": "http://127.0.0.1:8000/home-app.js",
+        "status": 200,
+        "bytes": 37935
+      },
+      {
+        "url": "http://127.0.0.1:8000/command-palette.js",
+        "status": 200,
+        "bytes": 27602
+      },
+      {
+        "url": "http://127.0.0.1:8000/icons.js",
+        "status": 200,
+        "bytes": 23693
+      },
+      {
+        "url": "http://127.0.0.1:8000/onboarding-wizard.js",
+        "status": 200,
+        "bytes": 21349
+      },
+      {
+        "url": "http://127.0.0.1:8000/dmc-data.js",
+        "status": 200,
+        "bytes": 18936
+      },
+      {
+        "url": "http://127.0.0.1:8000/backup-restore.js",
+        "status": 200,
+        "bytes": 17358
+      }
+    ],
+    "capturedAt": "2026-04-30T06:44:28.770Z"
+  },
+  "/create.html": {
+    "wallLoadMs": 551,
+    "timings": {
+      "domContentLoaded": 535,
+      "load": 536,
+      "fcp": 576,
+      "memory": {
+        "usedJSHeap": 11900000,
+        "totalJSHeap": 16100000
+      }
+    },
+    "browser": "chromium",
+    "device": "perf-desktop",
+    "totals": {
+      "scripts": 33,
+      "totalScriptBytes": 3950427,
+      "projectScriptBytes": 911469
+    },
+    "scriptsBreakdown": [
+      {
+        "url": "https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js",
+        "status": 200,
+        "bytes": 2849480
+      },
+      {
+        "url": "http://127.0.0.1:8000/components.js",
+        "status": 200,
+        "bytes": 145974
+      },
+      {
+        "url": "https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js",
+        "status": 200,
+        "bytes": 131882
+      },
+      {
+        "url": "http://127.0.0.1:8000/home-screen.js",
+        "status": 200,
+        "bytes": 95821
+      },
+      {
+        "url": "http://127.0.0.1:8000/preferences-modal.js",
+        "status": 200,
+        "bytes": 72192
+      },
+      {
+        "url": "http://127.0.0.1:8000/helpers.js",
+        "status": 200,
+        "bytes": 59530
+      },
+      {
+        "url": "http://127.0.0.1:8000/colour-utils.js",
+        "status": 200,
+        "bytes": 59383
+      },
+      {
+        "url": "http://127.0.0.1:8000/stash-bridge.js",
+        "status": 200,
+        "bytes": 51044
+      },
+      {
+        "url": "https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js",
+        "status": 200,
+        "bytes": 46859
+      },
+      {
+        "url": "http://127.0.0.1:8000/help-drawer.js",
+        "status": 200,
+        "bytes": 41305
+      },
+      {
+        "url": "http://127.0.0.1:8000/header.js",
+        "status": 200,
+        "bytes": 40440
+      },
+      {
+        "url": "http://127.0.0.1:8000/project-storage.js",
+        "status": 200,
+        "bytes": 38941
+      },
+      {
+        "url": "http://127.0.0.1:8000/sync-engine.js",
+        "status": 200,
+        "bytes": 38396
+      },
+      {
+        "url": "http://127.0.0.1:8000/modals.js",
+        "status": 200,
+        "bytes": 38257
+      },
+      {
+        "url": "http://127.0.0.1:8000/home-app.js",
+        "status": 200,
+        "bytes": 37935
+      },
+      {
+        "url": "http://127.0.0.1:8000/command-palette.js",
+        "status": 200,
+        "bytes": 27602
+      },
+      {
+        "url": "http://127.0.0.1:8000/icons.js",
+        "status": 200,
+        "bytes": 23693
+      },
+      {
+        "url": "http://127.0.0.1:8000/onboarding-wizard.js",
+        "status": 200,
+        "bytes": 21349
+      },
+      {
+        "url": "http://127.0.0.1:8000/dmc-data.js",
+        "status": 200,
+        "bytes": 18936
+      },
+      {
+        "url": "http://127.0.0.1:8000/backup-restore.js",
+        "status": 200,
+        "bytes": 17358
+      }
+    ],
+    "capturedAt": "2026-04-30T06:44:30.029Z"
+  },
+  "/stitch.html": {
+    "wallLoadMs": 486,
+    "timings": {
+      "domContentLoaded": 474,
+      "load": 474,
+      "fcp": 516,
+      "memory": {
+        "usedJSHeap": 11900000,
+        "totalJSHeap": 16100000
+      }
+    },
+    "browser": "chromium",
+    "device": "perf-desktop",
+    "totals": {
+      "scripts": 33,
+      "totalScriptBytes": 3950427,
+      "projectScriptBytes": 911469
+    },
+    "scriptsBreakdown": [
+      {
+        "url": "https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js",
+        "status": 200,
+        "bytes": 2849480
+      },
+      {
+        "url": "http://127.0.0.1:8000/components.js",
+        "status": 200,
+        "bytes": 145974
+      },
+      {
+        "url": "https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js",
+        "status": 200,
+        "bytes": 131882
+      },
+      {
+        "url": "http://127.0.0.1:8000/home-screen.js",
+        "status": 200,
+        "bytes": 95821
+      },
+      {
+        "url": "http://127.0.0.1:8000/preferences-modal.js",
+        "status": 200,
+        "bytes": 72192
+      },
+      {
+        "url": "http://127.0.0.1:8000/helpers.js",
+        "status": 200,
+        "bytes": 59530
+      },
+      {
+        "url": "http://127.0.0.1:8000/colour-utils.js",
+        "status": 200,
+        "bytes": 59383
+      },
+      {
+        "url": "http://127.0.0.1:8000/stash-bridge.js",
+        "status": 200,
+        "bytes": 51044
+      },
+      {
+        "url": "https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js",
+        "status": 200,
+        "bytes": 46859
+      },
+      {
+        "url": "http://127.0.0.1:8000/help-drawer.js",
+        "status": 200,
+        "bytes": 41305
+      },
+      {
+        "url": "http://127.0.0.1:8000/header.js",
+        "status": 200,
+        "bytes": 40440
+      },
+      {
+        "url": "http://127.0.0.1:8000/project-storage.js",
+        "status": 200,
+        "bytes": 38941
+      },
+      {
+        "url": "http://127.0.0.1:8000/sync-engine.js",
+        "status": 200,
+        "bytes": 38396
+      },
+      {
+        "url": "http://127.0.0.1:8000/modals.js",
+        "status": 200,
+        "bytes": 38257
+      },
+      {
+        "url": "http://127.0.0.1:8000/home-app.js",
+        "status": 200,
+        "bytes": 37935
+      },
+      {
+        "url": "http://127.0.0.1:8000/command-palette.js",
+        "status": 200,
+        "bytes": 27602
+      },
+      {
+        "url": "http://127.0.0.1:8000/icons.js",
+        "status": 200,
+        "bytes": 23693
+      },
+      {
+        "url": "http://127.0.0.1:8000/onboarding-wizard.js",
+        "status": 200,
+        "bytes": 21349
+      },
+      {
+        "url": "http://127.0.0.1:8000/dmc-data.js",
+        "status": 200,
+        "bytes": 18936
+      },
+      {
+        "url": "http://127.0.0.1:8000/backup-restore.js",
+        "status": 200,
+        "bytes": 17358
+      }
+    ],
+    "capturedAt": "2026-04-30T06:44:31.239Z"
+  },
+  "/manager.html": {
+    "wallLoadMs": 497,
+    "timings": {
+      "domContentLoaded": 483,
+      "load": 484,
+      "fcp": 524,
+      "memory": {
+        "usedJSHeap": 11900000,
+        "totalJSHeap": 17100000
+      }
+    },
+    "browser": "chromium",
+    "device": "perf-desktop",
+    "totals": {
+      "scripts": 33,
+      "totalScriptBytes": 3950427,
+      "projectScriptBytes": 911469
+    },
+    "scriptsBreakdown": [
+      {
+        "url": "https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js",
+        "status": 200,
+        "bytes": 2849480
+      },
+      {
+        "url": "http://127.0.0.1:8000/components.js",
+        "status": 200,
+        "bytes": 145974
+      },
+      {
+        "url": "https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js",
+        "status": 200,
+        "bytes": 131882
+      },
+      {
+        "url": "http://127.0.0.1:8000/home-screen.js",
+        "status": 200,
+        "bytes": 95821
+      },
+      {
+        "url": "http://127.0.0.1:8000/preferences-modal.js",
+        "status": 200,
+        "bytes": 72192
+      },
+      {
+        "url": "http://127.0.0.1:8000/helpers.js",
+        "status": 200,
+        "bytes": 59530
+      },
+      {
+        "url": "http://127.0.0.1:8000/colour-utils.js",
+        "status": 200,
+        "bytes": 59383
+      },
+      {
+        "url": "http://127.0.0.1:8000/stash-bridge.js",
+        "status": 200,
+        "bytes": 51044
+      },
+      {
+        "url": "https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js",
+        "status": 200,
+        "bytes": 46859
+      },
+      {
+        "url": "http://127.0.0.1:8000/help-drawer.js",
+        "status": 200,
+        "bytes": 41305
+      },
+      {
+        "url": "http://127.0.0.1:8000/header.js",
+        "status": 200,
+        "bytes": 40440
+      },
+      {
+        "url": "http://127.0.0.1:8000/project-storage.js",
+        "status": 200,
+        "bytes": 38941
+      },
+      {
+        "url": "http://127.0.0.1:8000/sync-engine.js",
+        "status": 200,
+        "bytes": 38396
+      },
+      {
+        "url": "http://127.0.0.1:8000/modals.js",
+        "status": 200,
+        "bytes": 38257
+      },
+      {
+        "url": "http://127.0.0.1:8000/home-app.js",
+        "status": 200,
+        "bytes": 37935
+      },
+      {
+        "url": "http://127.0.0.1:8000/command-palette.js",
+        "status": 200,
+        "bytes": 27602
+      },
+      {
+        "url": "http://127.0.0.1:8000/icons.js",
+        "status": 200,
+        "bytes": 23693
+      },
+      {
+        "url": "http://127.0.0.1:8000/onboarding-wizard.js",
+        "status": 200,
+        "bytes": 21349
+      },
+      {
+        "url": "http://127.0.0.1:8000/dmc-data.js",
+        "status": 200,
+        "bytes": 18936
+      },
+      {
+        "url": "http://127.0.0.1:8000/backup-restore.js",
+        "status": 200,
+        "bytes": 17358
+      }
+    ],
+    "capturedAt": "2026-04-30T06:44:32.454Z"
+  }
+}

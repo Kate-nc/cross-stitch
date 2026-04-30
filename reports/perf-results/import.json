@@ -1,0 +1,122 @@
+{
+  "PAT1968_2 (342 KB)": {
+    "ok": true,
+    "warnings": 1,
+    "totalMs": 8031,
+    "heapPeak": 11900000,
+    "stages": [
+      {
+        "ms": 10,
+        "stage": "sniff"
+      },
+      {
+        "ms": 10,
+        "stage": "classify"
+      },
+      {
+        "ms": 11,
+        "stage": "extract"
+      },
+      {
+        "ms": 8030,
+        "stage": "assemble"
+      },
+      {
+        "ms": 8030,
+        "stage": "palette"
+      },
+      {
+        "ms": 8030,
+        "stage": "validate"
+      },
+      {
+        "ms": 8030,
+        "stage": "materialise"
+      }
+    ],
+    "heapBefore": 11900000,
+    "heapAfter": 11900000,
+    "heapGrowth": 0,
+    "capturedAt": "2026-04-30T06:44:36.567Z"
+  },
+  "PAT2171_2 (1.4 MB)": {
+    "ok": true,
+    "warnings": 1,
+    "totalMs": 3147,
+    "heapPeak": 11900000,
+    "stages": [
+      {
+        "ms": 15,
+        "stage": "sniff"
+      },
+      {
+        "ms": 15,
+        "stage": "classify"
+      },
+      {
+        "ms": 15,
+        "stage": "extract"
+      },
+      {
+        "ms": 3146,
+        "stage": "assemble"
+      },
+      {
+        "ms": 3146,
+        "stage": "palette"
+      },
+      {
+        "ms": 3146,
+        "stage": "validate"
+      },
+      {
+        "ms": 3146,
+        "stage": "materialise"
+      }
+    ],
+    "heapBefore": 11900000,
+    "heapAfter": 11900000,
+    "heapGrowth": 0,
+    "capturedAt": "2026-04-30T06:44:42.240Z"
+  },
+  "Books and Blossoms (8.1 MB)": {
+    "ok": true,
+    "warnings": 1,
+    "totalMs": 22859,
+    "heapPeak": 11900000,
+    "stages": [
+      {
+        "ms": 11,
+        "stage": "sniff"
+      },
+      {
+        "ms": 11,
+        "stage": "classify"
+      },
+      {
+        "ms": 11,
+        "stage": "extract"
+      },
+      {
+        "ms": 22858,
+        "stage": "assemble"
+      },
+      {
+        "ms": 22858,
+        "stage": "palette"
+      },
+      {
+        "ms": 22858,
+        "stage": "validate"
+      },
+      {
+        "ms": 22858,
+        "stage": "materialise"
+      }
+    ],
+    "heapBefore": 11900000,
+    "heapAfter": 11900000,
+    "heapGrowth": 0,
+    "capturedAt": "2026-04-30T06:45:07.351Z"
+  }
+}

@@ -70,8 +70,12 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <link rel="stylesheet" href="styles.css">
 <script src="constants.js"></script>
 <script src="dmc-data.js"></script>
-<script src="anchor-data.js"></script>
-<script src="thread-conversions.js"></script>
+<!-- defer: Anchor + thread-conversions are only consumed inside function bodies
+     (typeof X === 'undefined' guards). Defer lets HTML parsing continue while
+     these 110 KB download in parallel. They still execute before
+     DOMContentLoaded so React mount sees them. -->
+<script src="anchor-data.js" defer></script>
+<script src="thread-conversions.js" defer></script>
 <script src="starter-kits.js"></script>
 <script src="colour-utils.js"></script>
 <script src="helpers.js"></script>

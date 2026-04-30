@@ -28,8 +28,10 @@
      tracker-app, or manager-app. Heavy tool bundles stay on their own pages. -->
 <script src="constants.js"></script>
 <script src="dmc-data.js"></script>
-<script src="anchor-data.js"></script>
-<script src="thread-conversions.js"></script>
+<!-- anchor-data.js (45 KB) and thread-conversions.js (65 KB) are NOT loaded
+     on /home — verified via grep that home-app.js / home-screen.js never
+     reference ANCHOR, CONVERSIONS, or getOfficialMatch. Saves 110 KB of
+     eager parse on the landing page. -->
 <script src="starter-kits.js"></script>
 <script src="colour-utils.js"></script>
 <script src="helpers.js"></script>
