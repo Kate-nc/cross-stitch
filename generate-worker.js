@@ -59,6 +59,7 @@ self.onmessage = function(e) {
     // ── 2. Core pipeline (mirrors runCleanupPipeline in creator/generate.js) ─
     var maxC         = settings.maxC;
     var dith         = settings.dith;
+    var dithStrength = (typeof settings.dithStrength === "number") ? settings.dithStrength : 1.0;
     var allowBlends  = settings.allowBlends;
     var skipBg       = settings.skipBg;
     var bgCol        = settings.bgCol;
@@ -76,7 +77,7 @@ self.onmessage = function(e) {
     var saliencyMap = generateSaliencyMap(raw, width, height);
     var cdt = dith && stitchCleanup && stitchCleanup.smoothDithering ? 4.0 : 0.0;
     var mapped = dith
-      ? doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt })
+      ? doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt, ditherStrength: dithStrength })
       : doMap(raw, width, height, p, allowBlends);
 
     if (skipBg) {

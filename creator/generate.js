@@ -28,6 +28,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var maxC = opts.maxC, dith = opts.dith, allowBlends = opts.allowBlends;
   var skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
   var stitchCleanup = opts.stitchCleanup;
+  var dithStrength = (typeof opts.dithStrength === "number") ? opts.dithStrength : 1.0;
 
   var p = quantize(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed});
   if (!p.length) return null;
@@ -35,7 +36,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var saliencyMap = generateSaliencyMap(raw, width, height);
   var cdt = dith && stitchCleanup && stitchCleanup.smoothDithering ? 4.0 : 0.0;
   var mapped = dith
-    ? doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt })
+    ? doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt, ditherStrength: dithStrength })
     : doMap(raw, width, height, p, allowBlends);
 
   if (skipBg) {

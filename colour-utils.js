@@ -140,8 +140,11 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){return quantize(
  * @param {object}            [opts]
  * @param {number}            [opts.confettiDitherThreshold=4.0]  base Delta-E² penalty
  *                                           the algorithm accepts to avoid an isolate
+ * @param {number}            [opts.ditherStrength=1.0]  multiplier for Floyd-Steinberg
+ *                                           error weights. 0.5 = weak/subtle,
+ *                                           1.0 = standard, 1.5 = strong/aggressive.
  */
-function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { confettiDitherThreshold = 4.0 } = {}) {
+function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { confettiDitherThreshold = 4.0, ditherStrength = 1.0 } = {}) {
   const N = w * h;
 
   // Pre-compute blend table once for the whole dithering pass
@@ -258,10 +261,10 @@ function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { con
 
       r[idx] = chosen;
 
-      // Floyd-Steinberg error diffusion
-      const eR = cr - chosen.rgb[0];
-      const eG = cg - chosen.rgb[1];
-      const eB = cb - chosen.rgb[2];
+      // Floyd-Steinberg error diffusion (scaled by ditherStrength)
+      const eR = (cr - chosen.rgb[0]) * ditherStrength;
+      const eG = (cg - chosen.rgb[1]) * ditherStrength;
+      const eB = (cb - chosen.rgb[2]) * ditherStrength;
 
       if (x + 1 < w) {
         const ni = (idx + 1) * 3;

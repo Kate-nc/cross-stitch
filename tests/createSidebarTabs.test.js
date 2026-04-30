@@ -39,9 +39,13 @@ describe('Create-mode sidebar — five task tabs', () => {
     expect(stateSrc).toMatch(/UserPrefs\.set\("creator\.sidebarTab"/);
   });
 
-  it('puts the Background section in the Preview tab content, not the Palette tab', () => {
-    // Preview content must include bgSection ahead of previewPanel
-    expect(sidebarSrc).toMatch(/var previewContent\s*=\s*h\(React\.Fragment[\s\S]*?bgSection[\s\S]*?previewPanel/);
+  it('puts the Background section in the Dimensions tab content, not the Palette or Preview tab', () => {
+    // Dimensions content must include bgSection
+    expect(sidebarSrc).toMatch(/var dimensionsContent\s*=\s*h\(React\.Fragment[\s\S]*?bgSection[\s\S]*?fabSection/);
+    // Preview tab content must NOT mention bgSection
+    const pv = sidebarSrc.match(/var previewContent\s*=\s*h\(React\.Fragment[\s\S]*?\);/);
+    expect(pv).toBeTruthy();
+    expect(pv[0]).not.toMatch(/bgSection/);
     // Palette tab content must NOT mention bgSection
     const m = sidebarSrc.match(/var paletteContent\s*=\s*h\(React\.Fragment[\s\S]*?\);/);
     expect(m).toBeTruthy();

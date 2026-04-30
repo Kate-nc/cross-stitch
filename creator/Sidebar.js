@@ -557,7 +557,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   );
 
   // ── Palette section (non-scratch) ───────────────────────────────────────────
-  var palSection = !ctx.isScratchMode ? h(Section, {title:"Palette", isOpen:app.palOpen, onToggle:app.setPalOpen},
+  var palSection = !ctx.isScratchMode ? h(Section, {title:"Colours", isOpen:app.palOpen, onToggle:app.setPalOpen},
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Max colours", value:gen.maxC, min:10, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(10, gen.stashThreadCount) : 40, onChange:gen.setMaxC,
         helpText:"Limits the colour palette. Fewer colours = faster to stitch but less detail"}),
@@ -740,76 +740,6 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
       )
     ),
-    h("div", {style:{marginTop:'var(--s-2)'}},
-      h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:50, onChange:gen.setMinSt,
-        format:function(v){return v===0?"Off":v;},
-        helpText:"Colours used fewer than this many times will be merged into the nearest similar colour"})
-    ),
-    h("div", {style:{marginTop:'var(--s-2)'}},
-      h(SliderRow, {label:"Remove Orphans", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
-        format:function(v){return v===0?"Off":String(v);},
-        helpText:"Removes isolated stitches with no same-colour neighbours — reduces confetti and makes the pattern easier to stitch"}),
-      gen.orphans > 0 && (function() {
-        var desc;
-        if (gen.orphans === 1) {
-          desc = h("span", null, "Removes ", h("strong", null, "isolated single stitches"), " \u2014 cells with no same-colour neighbour. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this targets clusters of exactly 1 stitch.");
-        } else if (gen.orphans === 2) {
-          desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20132 stitches"), " that are isolated from their colour group. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
-        } else {
-          desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20133 stitches"), " that are isolated. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"var(--danger)",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
-        }
-        return h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginTop:'var(--s-1)',lineHeight:1.5}}, desc);
-      })()
-    ),
-    gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}},
-      "Preview estimate: removes ~", (app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
-      " (", ((app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles) / Math.max(1, app.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
-    ),
-    ctx.pat && gen.cleanupDiff && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
-      h("button", {
-        onClick:function(){gen.setShowCleanupDiff(function(d){return !d;});},
-        style:{
-          fontSize:'var(--text-xs)',padding:"3px 8px",borderRadius:'var(--radius-sm)',cursor:"pointer",
-          border:gen.showCleanupDiff?"1px solid var(--accent)":"0.5px solid var(--border)",
-          background:gen.showCleanupDiff?"var(--accent-light)":"var(--surface)",
-          color:gen.showCleanupDiff?"var(--accent)":"var(--text-secondary)",
-          fontWeight:gen.showCleanupDiff?600:400,
-          display:"flex",alignItems:"center",gap:'var(--s-1)',lineHeight:1.4
-        }
-      }, Icons.eye(), " " + (gen.showCleanupDiff ? "Hide changes" : "Show changes"))
-    ),
-    gen.showCleanupDiff && gen.cleanupDiff && h("div", {style:{
-      fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"6px 10px",
-      background:"var(--surface-secondary)",border:"1px solid #f0abfc",borderRadius:'var(--radius-md)',
-      marginTop:'var(--s-1)',lineHeight:1.5
-    }},
-      h("span", {style:{color:"var(--accent)",fontWeight:700,marginRight:'var(--s-1)'}}, "\u25CF"),
-      gen.cleanupDiff.count.toLocaleString(), " stitches changed",
-      ctx.totalStitchable > 0 ? " (" + (gen.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
-      Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:'var(--s-2)',color:"var(--text-tertiary)"}},
-        Object.entries(gen.cleanupDiff.byColour)
-          .sort(function(a,b){return b[1]-a[1];})
-          .slice(0,4)
-          .map(function(e){return "DMC "+e[0]+": "+e[1];})
-          .join(" \xB7 ") +
-          (Object.keys(gen.cleanupDiff.byColour).length > 4 ? " \xB7 +" + (Object.keys(gen.cleanupDiff.byColour).length - 4) + " more" : "")
-      )
-    ),
-    (function() {
-      var warning = getCleanupWarning(ctx.sW, ctx.sH, gen.orphans, app.previewStats);
-      if (!warning) return null;
-      var isDanger = warning.level === "danger";
-      return h("div", {style:{
-        marginTop:6,padding:"8px 10px",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',lineHeight:1.5,
-        background:isDanger?"var(--danger-soft)":"#FAF5E1",
-        border:"1px solid "+(isDanger?"var(--danger-soft)":"#E5C97D"),
-        color:isDanger?"var(--danger)":"var(--accent-ink)",
-        display:"flex",alignItems:"flex-start",gap:6
-      }},
-        h("span", {style:{fontSize:'var(--text-lg)',lineHeight:1,flexShrink:0}}, isDanger?Icons.warning():Icons.lightbulb()),
-        h("span", null, warning.message)
-      );
-    })(),
     h("button", {
       onClick:function(){app.setPalAdvanced(function(o){return !o;});},
       style:{marginTop:'var(--s-2)',display:"flex",alignItems:"center",gap:'var(--s-1)',fontSize:'var(--text-xs)',color:"var(--text-secondary)",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}
@@ -820,40 +750,116 @@ window.CreatorSidebar = function CreatorSidebar() {
     ),
     app.palAdvanced && h(React.Fragment, null,
       h("div", {style:{marginTop:6,padding:"8px 10px",background:"#F8EFD8",borderRadius:'var(--radius-md)',border:"0.5px solid #E5C99A",fontSize:10,color:"var(--accent-ink)"}},
-        "Dithering blends colours by mixing stitches. Direct mapping uses solid colours only."
+        "Dithering blends colours by mixing stitches using error diffusion. Higher strengths create smoother gradients but more scattered stitches."
       ),
-      h("div", {style:{display:"flex",gap:6,marginTop:6}},
-        h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2,flex:1}},
-          h(Tooltip, {text:"Maps each pixel directly to its closest DMC colour. Fewer scattered stitches", width:200},
-            h("button", {
-              onClick:function(){gen.setDith(false);},
-              style:{padding:"5px 12px",fontSize:'var(--text-sm)',fontWeight:!gen.dith?500:400,background:!gen.dith?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',color:!gen.dith?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",boxShadow:!gen.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
-            }, "Direct")
-          ),
-          h(Tooltip, {text:"Uses Floyd-Steinberg error diffusion for smoother colour gradients, but creates more scattered stitches", width:220},
-            h("button", {
-              onClick:function(){gen.setDith(true);},
-              style:{padding:"5px 12px",fontSize:'var(--text-sm)',fontWeight:gen.dith?500:400,background:gen.dith?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',color:gen.dith?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",boxShadow:gen.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
-            }, "Dithered")
-          )
-        )
-      )
+      (function() {
+        var dithOpts = [
+          {id:"off",   label:"Off",      tip:"Direct colour mapping — each pixel mapped to its closest DMC colour. Cleanest, easiest to sew."},
+          {id:"weak",  label:"Weak",     tip:"Subtle dithering (50% strength) — slight colour blending with minimal confetti."},
+          {id:"balanced", label:"Balanced", tip:"Standard Floyd-Steinberg dithering — smooth gradients with moderate scatter."},
+          {id:"strong",label:"Strong",   tip:"Amplified dithering (150% strength) — richest gradients, most scattered stitches."}
+        ];
+        var cur = gen.dithMode || (gen.dith ? "balanced" : "off");
+        return h("div", {style:{display:"flex",gap:2,marginTop:6,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
+          dithOpts.map(function(o) {
+            var active = cur === o.id;
+            return h(Tooltip, {key:o.id, text:o.tip, width:210},
+              h("button", {
+                onClick:function(){gen.setDith(o.id);},
+                style:{flex:1,padding:"5px 6px",fontSize:'var(--text-xs)',fontWeight:active?600:400,
+                  background:active?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',
+                  color:active?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",
+                  boxShadow:active?"0 1px 2px rgba(0,0,0,0.04)":"none",whiteSpace:"nowrap"}
+              }, o.label)
+            );
+          })
+        );
+      })()
     )
   ) : null;
 
-  // ── Stitch Cleanup section (non-scratch) ────────────────────────────────────
-  var cleanupSection = !ctx.isScratchMode ? (function() {
+  // ── Tidy up section: min-stitches + orphan removal + stitch cleanup ──────────
+  var tidySection = !ctx.isScratchMode ? (function() {
     var sc2 = gen.stitchCleanup;
-    var scBadge = h("span", {style:{
-      fontSize:'var(--text-xs)',fontWeight:500,padding:"1px 8px",borderRadius:'var(--radius-lg)',
-      color:sc2.enabled?"var(--accent)":"var(--text-tertiary)",background:sc2.enabled?"var(--accent-light)":"var(--surface-tertiary)"
-    }}, sc2.enabled ? "On \u2014 "+(sc2.strength[0].toUpperCase()+sc2.strength.slice(1)) : "Off");
+    var tidyActive = gen.minSt > 0 || gen.orphans > 0 || sc2.enabled;
+    var tidyBadge = tidyActive ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
     var strengthKeys=["gentle","balanced","thorough"];
     var strengthLabels=["Gentle","Balanced","Thorough"];
     var strengthDescs=["Keeps 2-stitch clusters. Best for detail-heavy designs.","Removes 3-stitch clusters. Balanced stitchability & detail.","Removes up to 5-stitch clusters. Smoothest, easiest to sew."];
     var strengthIdx=strengthKeys.indexOf(sc2.strength);
-    return h(Section, {title:"Stitch Cleanup", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:scBadge},
+    return h(Section, {title:"Tidy up", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:tidyBadge},
       h("div", {style:{marginTop:'var(--s-2)'}},
+        h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:50, onChange:gen.setMinSt,
+          format:function(v){return v===0?"Off":v;},
+          helpText:"Colours used fewer than this many times will be merged into the nearest similar colour"})
+      ),
+      h("div", {style:{marginTop:'var(--s-2)'}},
+        h(SliderRow, {label:"Remove Orphans", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
+          format:function(v){return v===0?"Off":String(v);},
+          helpText:"Removes isolated stitches with no same-colour neighbours \u2014 reduces confetti and makes the pattern easier to stitch"}),
+        gen.orphans > 0 && (function() {
+          var desc;
+          if (gen.orphans === 1) {
+            desc = h("span", null, "Removes ", h("strong", null, "isolated single stitches"), " \u2014 cells with no same-colour neighbour. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this targets clusters of exactly 1 stitch.");
+          } else if (gen.orphans === 2) {
+            desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20132 stitches"), " that are isolated from their colour group. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
+          } else {
+            desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20133 stitches"), " that are isolated. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"var(--danger)",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
+          }
+          return h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginTop:'var(--s-1)',lineHeight:1.5}}, desc);
+        })()
+      ),
+      gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}},
+        "Preview estimate: removes ~", (app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
+        " (", ((app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles) / Math.max(1, app.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
+      ),
+      ctx.pat && gen.cleanupDiff && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
+        h("button", {
+          onClick:function(){gen.setShowCleanupDiff(function(d){return !d;});},
+          style:{
+            fontSize:'var(--text-xs)',padding:"3px 8px",borderRadius:'var(--radius-sm)',cursor:"pointer",
+            border:gen.showCleanupDiff?"1px solid var(--accent)":"0.5px solid var(--border)",
+            background:gen.showCleanupDiff?"var(--accent-light)":"var(--surface)",
+            color:gen.showCleanupDiff?"var(--accent)":"var(--text-secondary)",
+            fontWeight:gen.showCleanupDiff?600:400,
+            display:"flex",alignItems:"center",gap:'var(--s-1)',lineHeight:1.4
+          }
+        }, Icons.eye(), " " + (gen.showCleanupDiff ? "Hide changes" : "Show changes"))
+      ),
+      gen.showCleanupDiff && gen.cleanupDiff && h("div", {style:{
+        fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"6px 10px",
+        background:"var(--surface-secondary)",border:"1px solid #f0abfc",borderRadius:'var(--radius-md)',
+        marginTop:'var(--s-1)',lineHeight:1.5
+      }},
+        h("span", {style:{color:"var(--accent)",fontWeight:700,marginRight:'var(--s-1)'}}, "\u25CF"),
+        gen.cleanupDiff.count.toLocaleString(), " stitches changed",
+        ctx.totalStitchable > 0 ? " (" + (gen.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
+        Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:'var(--s-2)',color:"var(--text-tertiary)"}},
+          Object.entries(gen.cleanupDiff.byColour)
+            .sort(function(a,b){return b[1]-a[1];})
+            .slice(0,4)
+            .map(function(e){return "DMC "+e[0]+": "+e[1];})
+            .join(" \xB7 ") +
+            (Object.keys(gen.cleanupDiff.byColour).length > 4 ? " \xB7 +" + (Object.keys(gen.cleanupDiff.byColour).length - 4) + " more" : "")
+        )
+      ),
+      (function() {
+        var warning = getCleanupWarning(ctx.sW, ctx.sH, gen.orphans, app.previewStats);
+        if (!warning) return null;
+        var isDanger = warning.level === "danger";
+        return h("div", {style:{
+          marginTop:6,padding:"8px 10px",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',lineHeight:1.5,
+          background:isDanger?"var(--danger-soft)":"#FAF5E1",
+          border:"1px solid "+(isDanger?"var(--danger-soft)":"#E5C97D"),
+          color:isDanger?"var(--danger)":"var(--accent-ink)",
+          display:"flex",alignItems:"flex-start",gap:6
+        }},
+          h("span", {style:{fontSize:'var(--text-lg)',lineHeight:1,flexShrink:0}}, isDanger?Icons.warning():Icons.lightbulb()),
+          h("span", null, warning.message)
+        );
+      })(),
+      h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
+      h("div", {style:{marginTop:'var(--s-1)'}},
         h(Toggle, {
           checked:sc2.enabled,
           onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{enabled:v});});},
@@ -922,7 +928,7 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ── Adjustments section (non-scratch) ──────────────────────────────────────
   var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
-  var adjSection = !ctx.isScratchMode ? h(Section, {title:"Adjustments", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
+  var adjSection = !ctx.isScratchMode ? h(Section, {title:"Source", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Smooth", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
@@ -1314,7 +1320,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       regenSnap.bri !== gen.bri || regenSnap.con !== gen.con || regenSnap.sat !== gen.sat
     );
     var paletteStale = regenSnap && (
-      regenSnap.maxC !== gen.maxC || regenSnap.dith !== gen.dith ||
+      regenSnap.maxC !== gen.maxC || regenSnap.dithMode !== gen.dithMode ||
       regenSnap.allowBlends !== gen.allowBlends || regenSnap.skipBg !== gen.skipBg
     );
     function regenCta(forTab) {
@@ -1424,29 +1430,30 @@ window.CreatorSidebar = function CreatorSidebar() {
       overlayRow
     );
 
-    // ── Dimensions tab — size controls + image adjustments + fabric count.
+    // ── Dimensions tab — size controls + Source adjustments + background + fabric.
+    //   Source (was Adjustments) and background removal both act on the source image
+    //   so they sit together here, one tab away from the image upload.
     var dimensionsContent = h(React.Fragment, null,
       regenCta("dimensions"),
       dimSection,
       adjSection,
+      bgSection,
       fabSection
     );
 
-    // ── Palette tab — palette source, quality cleanup, and palette swap.
-    //   Background-removal moved to the Preview tab so users can colocate
-    //   "what to skip" with the canvas they click on to pick the colour.
+    // ── Palette tab (Colours + Tidy up) — colour matching, then all result-quality
+    //   controls consolidated in one place: min stitches, orphan removal, stitch
+    //   cleanup. Palette swap presets follow as before.
     var paletteContent = h(React.Fragment, null,
       regenCta("palette"),
       palSection,
-      cleanupSection,
+      tidySection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection
     );
 
-    // ── Preview tab — chart-mode controls + Background section first
-    //   because picking the BG colour means clicking the preview canvas.
+    // ── Preview tab — chart-mode and comparison controls only.
     var previewContent = h(React.Fragment, null,
-      bgSection,
       previewPanel
     );
 
@@ -1702,7 +1709,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       imageCard,
       dimSection,
       palSection,
-      cleanupSection,
+      tidySection,
       fabSection,
       adjSection,
       bgSection,
