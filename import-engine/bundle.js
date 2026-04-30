@@ -2776,10 +2776,21 @@
   // ── Imperative API ────────────────────────────────────────────────────
 
   function openReview(opts) {
+    try {
+      console.log('[import] openReview called with:', {
+        hasProject: !!(opts && opts.project),
+        patternLen: opts && opts.project && opts.project.pattern && opts.project.pattern.length,
+        coverage: opts && opts.coverage,
+        reviewMode: opts && opts.reviewMode,
+        warningsCount: opts && opts.warnings && opts.warnings.length,
+      });
+      sessionStorage.setItem('__import_trace_openReview', JSON.stringify({ at: Date.now(), patternLen: opts && opts.project && opts.project.pattern && opts.project.pattern.length }));
+    } catch (_) {}
     return new Promise(function (resolve) {
       var host = document.createElement('div');
       host.className = 'import-review-host';
       document.body.appendChild(host);
+      try { console.log('[import] review modal host appended to body, mounting React tree'); } catch (_) {}
       var root = ReactDOM.createRoot ? ReactDOM.createRoot(host) : null;
       function cleanup() {
         if (root) root.unmount();
@@ -2787,11 +2798,25 @@
         if (host.parentNode) host.parentNode.removeChild(host);
       }
       function onClose(action, payload) {
+        try {
+          console.log('[import] review modal onClose:', { action: action, hasPayloadProject: !!(payload && payload.project) });
+          sessionStorage.setItem('__import_trace_modalClose', JSON.stringify({ at: Date.now(), action: action }));
+        } catch (_) {}
         cleanup();
         resolve(Object.assign({ action: action }, payload || {}));
       }
       var element = h(ImportReviewModal, Object.assign({}, opts, { onClose: onClose }));
-      if (root) root.render(element); else ReactDOM.render(element, host);
+      try {
+        if (root) root.render(element); else ReactDOM.render(element, host);
+        try { console.log('[import] review modal rendered. Visible host?', host.isConnected, 'children:', host.childElementCount); } catch (_) {}
+      } catch (renderErr) {
+        console.error('[import] review modal FAILED to render:', renderErr);
+        if (window.Toast && window.Toast.show) {
+          window.Toast.show({ message: 'Review modal failed to open: ' + (renderErr && renderErr.message), type: 'error', duration: 10000 });
+        }
+        cleanup();
+        resolve({ action: 'cancel', error: renderErr });
+      }
     });
   }
 
@@ -2829,12 +2854,32 @@
   // user can verify (in the browser console) that they're running the
   // current bundle and not a stale service-worker copy. If you don't see
   // this log on page load, the SW is serving an old cache.
-  var BUILD = 'wireApp v3 (2026-04-30 — net-first SW + diag toasts)';
+  var BUILD = 'wireApp v4 (2026-04-30 — modal trace + session breadcrumbs)';
   try { console.info('[ImportEngine]', BUILD); } catch (_) {}
   // Also expose it for assertion in DevTools: `window.ImportEngine.__build`.
   try {
     window.ImportEngine = window.ImportEngine || {};
     window.ImportEngine.__build = BUILD;
+  } catch (_) {}
+
+  // On every load, dump any breadcrumbs left in sessionStorage by a
+  // previous import so the trace survives the page navigation that
+  // wipes the console. Without this we can never see what happened on
+  // the previous page once the new page loads.
+  try {
+    var __traceKeys = ['__import_trace_openReview', '__import_trace_modalClose', '__import_trace_save', '__import_trace_navigate', '__import_trace_creatorBoot'];
+    var __traceAny = false;
+    __traceKeys.forEach(function (k) {
+      var v = sessionStorage.getItem(k);
+      if (v) {
+        __traceAny = true;
+        try { console.log('[import-trace]', k, JSON.parse(v)); } catch (_) { console.log('[import-trace]', k, v); }
+      }
+    });
+    if (__traceAny) {
+      console.log('[import-trace] ── end of breadcrumbs from previous page; clearing now ──');
+      __traceKeys.forEach(function (k) { sessionStorage.removeItem(k); });
+    }
   } catch (_) {}
 
   var ACCEPT = '.oxs,.xml,.json,.pdf,image/*';
@@ -3043,6 +3088,7 @@
       w: project.w, h: project.h, name: project.name, id: project.id,
     };
     try { console.log('[import] saving project:', shape); } catch (_) {}
+    try { sessionStorage.setItem('__import_trace_save', JSON.stringify({ at: Date.now(), shape: shape })); } catch (_) {}
     if (!Array.isArray(project.pattern) || !project.pattern.length) {
       var emptyMsg = 'The imported pattern has no cells — nothing to save. The source file may be unsupported.';
       console.error('[import] project has no pattern array; aborting save:', shape);
@@ -3101,6 +3147,7 @@
             || (opts.navigateTo && isCurrentPage(opts.navigateTo) && /home\.html/i.test(opts.navigateTo));
           if (!skipSamePage) {
             try { console.log('[import] navigating to:', destination); } catch (_) {}
+            try { sessionStorage.setItem('__import_trace_navigate', JSON.stringify({ at: Date.now(), destination: destination, projectId: id })); } catch (_) {}
             window.location.href = destination;
           }
         }

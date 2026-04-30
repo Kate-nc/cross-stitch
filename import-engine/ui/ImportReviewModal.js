@@ -234,10 +234,21 @@
   // ── Imperative API ────────────────────────────────────────────────────
 
   function openReview(opts) {
+    try {
+      console.log('[import] openReview called with:', {
+        hasProject: !!(opts && opts.project),
+        patternLen: opts && opts.project && opts.project.pattern && opts.project.pattern.length,
+        coverage: opts && opts.coverage,
+        reviewMode: opts && opts.reviewMode,
+        warningsCount: opts && opts.warnings && opts.warnings.length,
+      });
+      sessionStorage.setItem('__import_trace_openReview', JSON.stringify({ at: Date.now(), patternLen: opts && opts.project && opts.project.pattern && opts.project.pattern.length }));
+    } catch (_) {}
     return new Promise(function (resolve) {
       var host = document.createElement('div');
       host.className = 'import-review-host';
       document.body.appendChild(host);
+      try { console.log('[import] review modal host appended to body, mounting React tree'); } catch (_) {}
       var root = ReactDOM.createRoot ? ReactDOM.createRoot(host) : null;
       function cleanup() {
         if (root) root.unmount();
@@ -245,11 +256,25 @@
         if (host.parentNode) host.parentNode.removeChild(host);
       }
       function onClose(action, payload) {
+        try {
+          console.log('[import] review modal onClose:', { action: action, hasPayloadProject: !!(payload && payload.project) });
+          sessionStorage.setItem('__import_trace_modalClose', JSON.stringify({ at: Date.now(), action: action }));
+        } catch (_) {}
         cleanup();
         resolve(Object.assign({ action: action }, payload || {}));
       }
       var element = h(ImportReviewModal, Object.assign({}, opts, { onClose: onClose }));
-      if (root) root.render(element); else ReactDOM.render(element, host);
+      try {
+        if (root) root.render(element); else ReactDOM.render(element, host);
+        try { console.log('[import] review modal rendered. Visible host?', host.isConnected, 'children:', host.childElementCount); } catch (_) {}
+      } catch (renderErr) {
+        console.error('[import] review modal FAILED to render:', renderErr);
+        if (window.Toast && window.Toast.show) {
+          window.Toast.show({ message: 'Review modal failed to open: ' + (renderErr && renderErr.message), type: 'error', duration: 10000 });
+        }
+        cleanup();
+        resolve({ action: 'cancel', error: renderErr });
+      }
     });
   }
 
