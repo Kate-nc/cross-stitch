@@ -44,7 +44,14 @@
         s.src = SRC;
         s.async = false;             // preserve global side-effects ordering
         s.onload = function () { resolve(window.ImportEngine); };
-        s.onerror = function (e) { loadingPromise = null; reject(e); };
+        s.onerror = function (e) {
+          // Reset the gate so a retry can attempt a fresh load (e.g. network
+          // recovered) AND remove the failed <script> tag so the DOM doesn't
+          // accumulate orphans across repeated failures.
+          loadingPromise = null;
+          if (s.parentNode) try { s.parentNode.removeChild(s); } catch (_) {}
+          reject(e);
+        };
         document.head.appendChild(s);
       } catch (e) {
         loadingPromise = null;

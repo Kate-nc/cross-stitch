@@ -7914,8 +7914,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       imgData: img ? img.src : null, partialStitches: psArr,
     });
     if (onSwitchToTrack) {
-      saveProjectToDB(project).catch(function() {});
-      ProjectStorage.save(project).then(function(id) { ProjectStorage.setActiveProject(id); }).catch(function() {});
+      saveProjectToDB(project).catch(function (err) { console.error('Auto-save (legacy DB) failed before switch-to-tracker:', err); });
+      ProjectStorage.save(project).then(function(id) { ProjectStorage.setActiveProject(id); }).catch(function (err) { console.error('ProjectStorage.save failed before switch-to-tracker:', err); });
       // Belt-and-braces stash sync: the debounced auto-save may not have fired yet
       // (e.g. if the user generated and immediately clicked "Open in Tracker"). Without
       // this the pattern would not appear in the Stash Manager library until the
