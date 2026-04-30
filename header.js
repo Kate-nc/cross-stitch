@@ -373,12 +373,24 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
     try { return (window.UserPrefs && window.UserPrefs.get('a11yDarkMode')) || 'system'; }
     catch(_) { return 'system'; }
   });
+  React.useEffect(() => {
+    function onPrefsChanged(e) {
+      // Skip events for unrelated keys; always handle legacy events without a detail payload
+      if (e && e.detail && e.detail.key !== 'a11yDarkMode') return;
+      try {
+        const current = (window.UserPrefs && window.UserPrefs.get('a11yDarkMode')) || 'system';
+        setThemeMode(current);
+      } catch(_) {}
+    }
+    window.addEventListener('cs:prefsChanged', onPrefsChanged);
+    return () => window.removeEventListener('cs:prefsChanged', onPrefsChanged);
+  }, []);
   function cycleTheme() {
     const next = themeMode === 'system' ? 'light' : themeMode === 'light' ? 'dark' : 'system';
     setThemeMode(next);
     try {
       if (window.UserPrefs) window.UserPrefs.set('a11yDarkMode', next);
-      window.dispatchEvent(new CustomEvent('cs:prefsChanged'));
+      window.dispatchEvent(new CustomEvent('cs:prefsChanged', { detail: { key: 'a11yDarkMode', value: next } }));
     } catch(_) {}
   }
   function themeIcon() {

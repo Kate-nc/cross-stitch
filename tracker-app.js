@@ -474,9 +474,9 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
         type:'button',className:'tpr-collapse-btn',
         onClick:function(){setCollapsed(function(c){return !c;});},
         'aria-label':collapsed?'Expand projects rail':'Collapse projects rail',
-        'aria-expanded':collapsed?'false':'true',
+        'aria-expanded':!collapsed,
         title:collapsed?'Expand projects rail':'Collapse projects rail'
-      },(collapsed?(window.Icons&&window.Icons.chevronRight?window.Icons.chevronRight():'>'):(window.Icons&&window.Icons.chevronLeft?window.Icons.chevronLeft():'<')))
+      },(collapsed?(window.Icons&&window.Icons.chevronRight?window.Icons.chevronRight():null):(window.Icons&&window.Icons.chevronLeft?window.Icons.chevronLeft():null)))
     ),
     React.createElement('div',{className:'tpr-list'},
       (recent.length===0
@@ -5405,14 +5405,14 @@ return(
           onClick={()=>setLeftSidebarMode("open")}
           aria-label="Expand sidebar"
           title="Expand sidebar"
-        >{Icons.chevronRight?Icons.chevronRight():">"}</button>
+        >{Icons.chevronRight&&Icons.chevronRight()}</button>
         <button
           type="button"
           className="lpanel-rail-btn"
           onClick={()=>setLeftSidebarMode("hidden")}
           aria-label="Hide sidebar"
           title="Hide sidebar"
-        >{Icons.x?Icons.x():"\u00D7"}</button>
+        >{Icons.x&&Icons.x()}</button>
       </div>
     </aside>}
     {/* ═══ LEFT SIDEBAR (toolbar-rework phase 1) ═══
@@ -6806,11 +6806,11 @@ return(
     return <span className="cs-focus-swatch" style={{background:"rgb("+selEntry.rgb.join(",")+")"}} title={selEntry.name||selEntry.id}/>;
   })()}
   <button type="button" onClick={()=>{if(typeof undoTrack==='function')undoTrack();}} aria-label="Undo" title="Undo">{Icons.undo&&Icons.undo()}</button>
-  <button type="button" onClick={()=>setStitchZoom(z=>Math.max(0.3,+(z-0.25).toFixed(2)))} aria-label="Zoom out" title="Zoom out">−</button>
+  <button type="button" onClick={()=>setStitchZoom(z=>Math.max(0.3,+(z-0.25).toFixed(2)))} aria-label="Zoom out" title="Zoom out">{Icons.minus&&Icons.minus()}</button>
   <button type="button" onClick={()=>setStitchZoom(1)} aria-label="Reset zoom" title="Reset zoom">{Math.round((stitchZoom||1)*100)}%</button>
-  <button type="button" onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} aria-label="Zoom in" title="Zoom in">+</button>
+  <button type="button" onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} aria-label="Zoom in" title="Zoom in">{Icons.plus&&Icons.plus()}</button>
   <button type="button" className="cs-focus-exit" onClick={()=>setFocusMode(false)} aria-label="Exit focus mode" title="Exit focus mode (Esc)">
-    {Icons.x&&Icons.x()}<span style={{marginLeft:6}}>Exit focus</span><kbd style={{marginLeft:8,padding:"1px 6px",fontSize:11,fontWeight:600,background:"rgba(255,255,255,0.18)",border:"1px solid rgba(255,255,255,0.35)",borderRadius:4,fontFamily:"inherit"}}>Esc</kbd>
+    {Icons.x&&Icons.x()}<span style={{marginLeft:6}}>Exit focus</span><kbd style={{marginLeft:8,padding:"1px 6px",fontSize:11,fontWeight:600,background:"var(--surface-alt,var(--surface))",border:"1px solid var(--line)",borderRadius:4,fontFamily:"inherit",color:"var(--text-secondary)"}}>Esc</kbd>
   </button>
 </div>}
 </div>

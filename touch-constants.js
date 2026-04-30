@@ -6,7 +6,9 @@
 
    Exposes window.TouchConstants. Module export available for tests.
 
-   Keep this file dependency-free. No DOM access on load.
+   Keep this file dependency-free. A matchMedia listener is registered
+   at module evaluation time (when window is available) to invalidate
+   the isCompactTouch() cache on orientation/pointer-type changes.
 */
 (function () {
   'use strict';
