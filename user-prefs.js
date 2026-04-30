@@ -106,6 +106,10 @@
     trackerLeftSidebarOpen: false,
     trackerLeftSidebarMode: "hidden",
     trackerLeftSidebarTab:  "highlight",
+    // Touch-1 H-1b: collapsible tablet/desktop project rail. When true the
+    // 220 px rail collapses to a 56 px thumbnail strip; .cs-main margin
+    // tracks the change so the canvas reclaims the freed space.
+    trackerProjectRailCollapsed: false,
     // Palette legend sort: id | done | count
     trackerLegendSort:      "id",
     // Phase 4 (UX-12) — re-acquire the screen wake-lock on next session

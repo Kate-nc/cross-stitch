@@ -2415,6 +2415,32 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
   .tpr-more{margin-top:8px;padding:8px;border:1px dashed var(--border);background:transparent;border-radius:8px;color:var(--text-secondary);cursor:pointer;font-size:11px;font-family:inherit;}
   .tpr-more:hover{background:var(--surface);}
 
+  /* Touch-1 H-1b: collapse / expand toggle. Header is a simple
+     row with the heading on the left and a chevron button on the
+     right. When the rail collapses the heading hides and the
+     chevron mirrors. */
+  .tpr-header{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    margin-bottom:6px;
+  }
+  .tpr-header .tpr-h{margin:0;}
+  .tpr-collapse-btn{
+    width:32px;height:32px;border-radius:8px;
+    border:1px solid var(--border);background:var(--surface);
+    color:var(--text-secondary);cursor:pointer;
+    display:inline-flex;align-items:center;justify-content:center;
+    font-family:inherit;flex-shrink:0;
+  }
+  .tpr-collapse-btn:hover{background:var(--surface-tertiary);color:var(--text-primary);}
+
+  /* Collapsed state — narrow rail with thumbnails only. The .cs-main
+     left margin is also halved so the canvas reclaims the freed
+     space (rule lives next to the existing 220 px margin below). */
+  .tracker-project-rail--collapsed{width:56px;padding-left:6px;padding-right:6px;}
+  .tracker-project-rail--collapsed .tpr-row{padding:4px;justify-content:center;}
+  .tracker-project-rail--collapsed .tpr-text{display:none;}
+  .tracker-project-rail--collapsed .tpr-header{justify-content:center;}
+
   .tracker-side-panel{
     display:flex;flex-direction:column;gap:8px;margin-top:12px;
   }
@@ -2473,6 +2499,8 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
   body.tracker-mobile .tracker-colour-chip{display:none;}
   /* Make room for the rail. */
   .cs-main{margin-left:220px;}
+  /* Collapsed rail — canvas reclaims most of the freed space. */
+  body.tracker-rail-collapsed .cs-main{margin-left:56px;}
 }
 
 @media (max-width: 599px){
@@ -6957,10 +6985,21 @@ body.cs-focus .toolbar-row,
 body.cs-focus .tracker-action-bar,
 body.cs-focus .rpanel,
 body.cs-focus .lpanel,
+body.cs-focus .tracker-project-rail,
 body.cs-focus .status-bar {
   display: none !important;
 }
-body.cs-focus { padding-bottom: 0 !important; }
+body.cs-focus { padding-bottom: 0 !important; padding-left: 0 !important; padding-right: 0 !important; }
+/* The project rail's 220 px reservation lives on .cs-main as a left
+   margin in the tablet+ breakpoint. Reclaim it (and any padding the
+   canvas wrapper added for the bottom toolbar) so the chart can grow
+   to fill the freed viewport. */
+body.cs-focus .cs-main { margin-left: 0 !important; height: 100vh; max-height: 100vh; }
+body.cs-focus .canvas-area,
+body.cs-focus .stitch-wrap,
+body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important; max-height: 100vh !important; padding-bottom: env(safe-area-inset-bottom, 0px) !important; }
+/* Don't render the lpanel-backdrop scrim either — there's no panel. */
+body.cs-focus .lpanel-backdrop { display: none !important; }
 
 /* The Focus mini-bar is a fixed pill at the bottom-centre of the
    viewport. Always above modals' backdrop is intentional — it's the

@@ -434,6 +434,14 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
 // ═══════════════════════════════════════════════════════════════
 function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setFocusColour,stitchView,setStitchView,todayStitchesForBar,liveAutoElapsed,liveAutoStitches,onPickProject,skeinData,globalStash,onToggleOwned}){
   const[recent,setRecent]=React.useState([]);
+  const[collapsed,setCollapsed]=React.useState(function(){
+    try{return !!(window.UserPrefs&&window.UserPrefs.get("trackerProjectRailCollapsed"));}catch(_){return false;}
+  });
+  React.useEffect(function(){
+    try{window.UserPrefs&&window.UserPrefs.set("trackerProjectRailCollapsed",!!collapsed);}catch(_){}
+    try{document.body.classList.toggle("tracker-rail-collapsed",!!collapsed);}catch(_){}
+    return function(){try{document.body.classList.remove("tracker-rail-collapsed");}catch(_){}};
+  },[collapsed]);
   React.useEffect(function(){
     let cancelled=false;
     function load(){
@@ -459,8 +467,17 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
   var sec=liveAutoElapsed||0;
   var hh=Math.floor(sec/3600),mm=Math.floor((sec%3600)/60);
   var timer=(hh>0?hh+"h ":"")+mm+"m";
-  return React.createElement('aside',{className:'tracker-project-rail',role:'complementary','aria-label':'Recent projects'},
-    React.createElement('h3',{className:'tpr-h'},'Projects'),
+  return React.createElement('aside',{className:'tracker-project-rail'+(collapsed?' tracker-project-rail--collapsed':''),role:'complementary','aria-label':'Recent projects'},
+    React.createElement('div',{className:'tpr-header'},
+      collapsed?null:React.createElement('h3',{className:'tpr-h'},'Projects'),
+      React.createElement('button',{
+        type:'button',className:'tpr-collapse-btn',
+        onClick:function(){setCollapsed(function(c){return !c;});},
+        'aria-label':collapsed?'Expand projects rail':'Collapse projects rail',
+        'aria-expanded':collapsed?'false':'true',
+        title:collapsed?'Expand projects rail':'Collapse projects rail'
+      },(collapsed?(window.Icons&&window.Icons.chevronRight?window.Icons.chevronRight():'>'):(window.Icons&&window.Icons.chevronLeft?window.Icons.chevronLeft():'<')))
+    ),
     React.createElement('div',{className:'tpr-list'},
       (recent.length===0
         ? React.createElement('div',{className:'tpr-empty'},'No saved projects yet')
@@ -490,6 +507,7 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
     ),
     React.createElement('button',{
       className:'tpr-more',type:'button',
+      style:collapsed?{display:'none'}:undefined,
       onClick:function(){
         try{
           var btn=document.querySelector('.tracker-hamburger');
@@ -497,7 +515,7 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
         }catch(_){}
       }
     },'More projects…'),
-    React.createElement('div',{className:'tracker-side-panel',role:'complementary','aria-label':'Today and palette'},
+    React.createElement('div',{className:'tracker-side-panel',role:'complementary','aria-label':'Today and palette',style:collapsed?{display:'none'}:undefined},
       React.createElement('section',{className:'tsp-card'},
         React.createElement('h3',{className:'tsp-h'},'Today'),
         React.createElement('div',{className:'tsp-stat'},React.createElement('span',null,'Stitches'),React.createElement('strong',null,(todayStitchesForBar||0).toLocaleString())),
