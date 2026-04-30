@@ -569,7 +569,6 @@
     var s = props.stash;
     var shopping = props.shopping || [];
     var ready = props.ready || [];
-    var Icons = window.Icons || {};
 
     if (!s) {
       return h('div', { className: 'home-stash-panel home-stash-panel--empty' },
@@ -578,7 +577,7 @@
       );
     }
 
-    var hasAny = (s.ownedSkeins || 0) > 0 || (s.uniqueThreads || 0) > 0 || (s.patternCount || 0) > 0;
+    var hasAny = (s.ownedSkeins || 0) > 0 || (s.uniqueThreads || 0) > 0 || (s.patternCount || 0) > 0 || shopping.length > 0 || ready.length > 0;
     if (!hasAny) {
       return h('div', { className: 'home-stash-panel home-stash-panel--empty' },
         h('p', null, 'Your stash is empty. Add threads in the Stash Manager to start tracking what you own.'),
@@ -688,7 +687,6 @@
     var lifetimeStitches = props.lifetimeStitches || 0;
     var dailyLog = props.dailyLog || [];
     var oldestWip = props.oldestWip || null;
-    var Icons = window.Icons || {};
 
     var hasLifetime = lifetimeStitches > 0;
     var spark = buildSpark(dailyLog, 30);
@@ -754,11 +752,10 @@
               )
         ),
         oldestWip
-          ? h('a', {
+          ? h('button', {
+              type: 'button',
               className: 'home-stats-card home-stats-card--link',
-              href: '#',
-              onClick: function (ev) {
-                ev.preventDefault();
+              onClick: function () {
                 activateAndGo(oldestWip.id, 'stitch.html');
               }
             },
@@ -855,6 +852,13 @@
     }
 
     var refreshAllRef = React.useRef(function () {});
+    var refreshStashRef = React.useRef(function () {});
+    var refreshStatsRef = React.useRef(function () {});
+    // Track current tab in a ref so event-handler closures can read it without
+    // needing to be recreated on every tab change.
+    var tabRef = React.useRef(tab);
+    React.useEffect(function () { tabRef.current = tab; }, [tab]);
+
     React.useEffect(function () {
       var cancelled = false;
       function refreshAll() {
@@ -885,6 +889,11 @@
             setList(sorted);
           }).catch(function () {});
         }
+        // Threads (StashBridge.getGlobalStash) + patterns (raw IDB read) are
+        // loaded lazily when the Stash tab is opened; skip here to keep the
+        // Projects tab refresh fast.
+      }
+      function refreshStash() {
         // Threads (StashBridge.getGlobalStash) + patterns (raw IDB read).
         // The previous build called a non-existent StashBridge API so both
         // numbers were always missing and the panel rendered the empty state
@@ -892,7 +901,15 @@
         var threadsPromise = (window.StashBridge && typeof window.StashBridge.getGlobalStash === 'function')
           ? window.StashBridge.getGlobalStash().catch(function () { return {}; })
           : Promise.resolve({});
-        Promise.all([threadsPromise, loadManagerPatterns()]).then(function (parts) {
+        var SB = window.StashBridge;
+        var PS = window.ProjectStorage;
+        var shoppingP = (SB && typeof SB.getShoppingList === 'function')
+          ? SB.getShoppingList().catch(function () { return []; })
+          : Promise.resolve([]);
+        var readyP = (PS && typeof PS.getProjectsReadyToStart === 'function')
+          ? PS.getProjectsReadyToStart().catch(function () { return []; })
+          : Promise.resolve([]);
+        Promise.all([threadsPromise, loadManagerPatterns(), shoppingP, readyP]).then(function (parts) {
           if (cancelled) return;
           var threads = parts[0] || {};
           var patterns = parts[1] || [];
@@ -913,13 +930,16 @@
             uniqueThreads: unique,
             patternCount: patterns.length
           });
+          setShopping(parts[2] || []);
+          // Match the Showcase definition: only count patterns where the
+          // current stash covers every required colour (pct === 100).
+          setReady((parts[3] || []).filter(function (p) { return p && p.pct >= 100; }));
         }).catch(function () {});
-
-        // Stats summaries (lifetime + daily log + oldest WIP) and shopping
-        // list — all cheap reads (project-storage memoises). Failures default
-        // to empty so the panels still render.
+      }
+      function refreshStats() {
+        // Stats summaries (lifetime + daily log + oldest WIP). These scan
+        // across projects/IDB and are loaded lazily when the Stats tab opens.
         var PS = window.ProjectStorage;
-        var SB = window.StashBridge;
         var lifetimeP = (PS && typeof PS.getLifetimeStitches === 'function')
           ? PS.getLifetimeStitches().catch(function () { return 0; })
           : Promise.resolve(0);
@@ -929,41 +949,46 @@
         var oldestP = (PS && typeof PS.getOldestWIP === 'function')
           ? PS.getOldestWIP().catch(function () { return null; })
           : Promise.resolve(null);
-        var shoppingP = (SB && typeof SB.getShoppingList === 'function')
-          ? SB.getShoppingList().catch(function () { return []; })
-          : Promise.resolve([]);
-        var readyP = (PS && typeof PS.getProjectsReadyToStart === 'function')
-          ? PS.getProjectsReadyToStart().catch(function () { return []; })
-          : Promise.resolve([]);
-        Promise.all([lifetimeP, dailyP, oldestP, shoppingP, readyP]).then(function (r) {
+        Promise.all([lifetimeP, dailyP, oldestP]).then(function (r) {
           if (cancelled) return;
           setStats({ lifetimeStitches: r[0] || 0, dailyLog: r[1] || [], oldestWip: r[2] || null });
-          setShopping(r[3] || []);
-          // Match the Showcase definition: only count patterns where the
-          // current stash covers every required colour (pct === 100).
-          setReady((r[4] || []).filter(function (p) { return p && p.pct >= 100; }));
         }).catch(function () {});
       }
       refreshAllRef.current = refreshAll;
+      refreshStashRef.current = refreshStash;
+      refreshStatsRef.current = refreshStats;
       refreshAll();
       return function () { cancelled = true; };
     }, []);
+
+    // Lazy-load Stash/Stats tab data only when those tabs are opened, so the
+    // Projects tab refresh stays fast (avoids IDB aggregation scans on every
+    // refreshAll call).
+    React.useEffect(function () {
+      if (tab === 'stash') try { refreshStashRef.current(); } catch (_) {}
+      if (tab === 'stats') try { refreshStatsRef.current(); } catch (_) {}
+    }, [tab]);
 
     // Live refresh: keep /home in sync with changes made elsewhere in the app
     // (Tracker saves, backup restore, manager edits in another tab, etc.).
     React.useEffect(function () {
       function reload() { try { refreshAllRef.current(); } catch (_) {} }
-      function onVisibility() { if (document.visibilityState === 'visible') reload(); }
-      window.addEventListener('cs:projectsChanged', reload);
-      window.addEventListener('cs:backupRestored', reload);
-      window.addEventListener('cs:patternsChanged', reload);
-      window.addEventListener('cs:stashChanged', reload);
+      function reloadCurrentTab() {
+        reload();
+        if (tabRef.current === 'stash') try { refreshStashRef.current(); } catch (_) {}
+        if (tabRef.current === 'stats') try { refreshStatsRef.current(); } catch (_) {}
+      }
+      function onVisibility() { if (document.visibilityState === 'visible') reloadCurrentTab(); }
+      window.addEventListener('cs:projectsChanged', reloadCurrentTab);
+      window.addEventListener('cs:backupRestored', reloadCurrentTab);
+      window.addEventListener('cs:patternsChanged', reloadCurrentTab);
+      window.addEventListener('cs:stashChanged', reloadCurrentTab);
       document.addEventListener('visibilitychange', onVisibility);
       return function () {
-        window.removeEventListener('cs:projectsChanged', reload);
-        window.removeEventListener('cs:backupRestored', reload);
-        window.removeEventListener('cs:patternsChanged', reload);
-        window.removeEventListener('cs:stashChanged', reload);
+        window.removeEventListener('cs:projectsChanged', reloadCurrentTab);
+        window.removeEventListener('cs:backupRestored', reloadCurrentTab);
+        window.removeEventListener('cs:patternsChanged', reloadCurrentTab);
+        window.removeEventListener('cs:stashChanged', reloadCurrentTab);
         document.removeEventListener('visibilitychange', onVisibility);
       };
     }, []);

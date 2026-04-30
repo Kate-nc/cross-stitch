@@ -6251,7 +6251,9 @@ html.pref-dark a { color: var(--accent); }
 }
 .home-stats-card--link {
   cursor: pointer;
-  transition: border-color 120ms var(--motion, ease), transform 120ms var(--motion, ease);
+  font: inherit;
+  text-align: left;
+  transition: border-color var(--motion, 120ms ease), transform var(--motion, 120ms ease);
 }
 .home-stats-card--link:hover {
   border-color: var(--accent);
