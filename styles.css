@@ -475,8 +475,10 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 /* Top bar */
 .tb-topbar{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;height:48px;}
 .tb-topbar-inner{max-width:1300px;margin:0 auto;padding:0 16px;height:100%;display:flex;align-items:center;gap:4px;}
-.tb-logo{font-weight:800;font-size:15px;color:var(--accent);cursor:pointer;white-space:nowrap;margin-right:12px;letter-spacing:-0.3px;text-decoration:none;flex-shrink:0;font-family:inherit;}
-.tb-logo:hover{filter:none;color:var(--accent-hover);}
+.tb-logo{font-weight:800;font-size:15px;color:var(--text-primary);cursor:pointer;white-space:nowrap;margin-right:12px;letter-spacing:-0.3px;text-decoration:none;flex-shrink:0;font-family:inherit;display:inline-flex;align-items:center;gap:0;}
+.tb-logo:hover{filter:none;color:var(--text-primary);}
+.tb-logo .tb-logo-dot{color:var(--accent);transition:color var(--motion-fast);}
+.tb-logo:hover .tb-logo-dot{color:var(--accent-hover);}
 .tb-page-btn{display:flex;align-items:center;gap:4px;padding:4px 10px;font-size:12px;font-weight:500;border:0.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text-primary);cursor:pointer;white-space:nowrap;flex-shrink:0;position:relative;font-family:inherit;}
 .tb-page-btn:hover{filter:none;background:var(--surface-tertiary);}
 .tb-page-dropdown{position:absolute;top:calc(100% + 4px);left:0;min-width:160px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-md);z-index:201;padding:4px 0;}

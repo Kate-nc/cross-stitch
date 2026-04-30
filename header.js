@@ -367,6 +367,34 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
 
   const [fileMenuOpen, setFileMenuOpen] = React.useState(false);
   const fileMenuRef = React.useRef(null);
+
+  // Theme toggle state — reads current pref; cycles light → dark → system
+  const [themeMode, setThemeMode] = React.useState(function() {
+    try { return (window.UserPrefs && window.UserPrefs.get('a11yDarkMode')) || 'system'; }
+    catch(_) { return 'system'; }
+  });
+  function cycleTheme() {
+    const next = themeMode === 'system' ? 'light' : themeMode === 'light' ? 'dark' : 'system';
+    setThemeMode(next);
+    try {
+      if (window.UserPrefs) window.UserPrefs.set('a11yDarkMode', next);
+      window.dispatchEvent(new CustomEvent('cs:prefsChanged'));
+    } catch(_) {}
+  }
+  function themeIcon() {
+    if (themeMode === 'dark') return window.Icons && window.Icons.moon ? window.Icons.moon() : null;
+    if (themeMode === 'light') return window.Icons && window.Icons.sun ? window.Icons.sun() : null;
+    // system — show sun or moon based on actual resolved theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    return isDark ? (window.Icons && window.Icons.moon ? window.Icons.moon() : null)
+                  : (window.Icons && window.Icons.sun ? window.Icons.sun() : null);
+  }
+  function themeLabel() {
+    if (themeMode === 'light') return 'Light mode';
+    if (themeMode === 'dark') return 'Dark mode';
+    return 'System theme';
+  }
+
   const [syncStatus, setSyncStatus] = React.useState(function() {
     try { return typeof SyncEngine !== 'undefined' ? SyncEngine.getSyncStatus() : null; }
     catch (e) { return null; }
@@ -499,7 +527,14 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
             window.location.href = 'home.html';
           },
           onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }
-        }, '×∕× Cross Stitch'),
+        },
+          'stitch',
+          React.createElement('span', {
+            className: 'tb-logo-dot',
+            'aria-hidden': 'true',
+            style: { color: 'var(--accent)', display: 'inline-flex', alignItems: 'center', lineHeight: 1, marginLeft: 1 }
+          }, window.Icons && window.Icons.stitchDot ? window.Icons.stitchDot() : '.')
+        ),
 
         // App-section navigation tabs — suppressed on home page because
         // home.html has its own in-page tab bar (HomeTabBar in home-app.js)
@@ -651,6 +686,20 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               ' · ',
               (storageUsage.used / 1024 / 1024).toFixed(1) + ' MB'
               + (storageUsage.quota ? ' / ~' + (storageUsage.quota / 1024 / 1024).toFixed(0) + ' MB' : '')
+            ),
+            // Theme toggle
+            React.createElement('button', {
+              className: 'tb-page-dropdown-item',
+              onClick: () => { cycleTheme(); },
+              title: 'Cycle theme: light, dark, or follow system setting',
+              style: { display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'space-between' }
+            },
+              React.createElement('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 6 } },
+                themeIcon(), themeLabel()
+              ),
+              React.createElement('span', { style: { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 400 } },
+                themeMode === 'system' ? 'Auto' : themeMode === 'light' ? 'Light' : 'Dark'
+              )
             ),
             // Project operations
             onNewProject && React.createElement('button', {

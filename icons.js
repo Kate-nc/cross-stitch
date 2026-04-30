@@ -551,6 +551,24 @@ window.Icons = (function() {
     // Wand fix — wand with sparkle
     wandFix: function() {
       return svg(p('M15 4V2'), p('M15 16v-2'), p('M8 9h2'), p('M20 9h2'), p('M17.8 11.8 19 13'), p('M15 9h0'), p('M17.8 6.2 19 5'), p('m3 21 9-9'), p('M12.2 6.2 11 5'));
+    },
+    // Sun — light mode indicator
+    sun: function() {
+      return svg(
+        c(12, 12, 4),
+        l(12, 2, 12, 4), l(12, 20, 12, 22),
+        l(4.22, 4.22, 5.64, 5.64), l(18.36, 18.36, 19.78, 19.78),
+        l(2, 12, 4, 12), l(20, 12, 22, 12),
+        l(4.22, 19.78, 5.64, 18.36), l(18.36, 5.64, 19.78, 4.22)
+      );
+    },
+    // Moon — dark mode indicator
+    moon: function() {
+      return svg(p('M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'));
+    },
+    // Cross-stitch X dot — the brand logo period replacement
+    stitchDot: function() {
+      return svg(l(4, 4, 20, 20), l(20, 4, 4, 20));
     }
   };
 })();
