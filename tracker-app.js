@@ -1397,7 +1397,10 @@ const skeinData=useMemo(()=>{
 },[pal,fabricCt]);
 
 useEffect(()=>{
-  if(typeof StashBridge!=="undefined"){StashBridge.getGlobalStash().then(setGlobalStash).catch(e=>console.warn('getGlobalStash failed:',e));}
+  function loadStash(){if(typeof StashBridge!=="undefined"){StashBridge.getGlobalStash().then(setGlobalStash).catch(e=>console.warn('getGlobalStash failed:',e));}}
+  loadStash();
+  window.addEventListener('cs:stashChanged',loadStash);
+  return ()=>{window.removeEventListener('cs:stashChanged',loadStash);};
 },[]);
 
 // Detect project completion and offer stash deduction

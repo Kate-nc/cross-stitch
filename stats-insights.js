@@ -125,7 +125,12 @@
         }
       }
       load();
-      return () => { cancelled = true; };
+      const reloadOnChange = () => { if (!cancelled) load(); };
+      window.addEventListener('cs:stashChanged', reloadOnChange);
+      return () => {
+        cancelled = true;
+        window.removeEventListener('cs:stashChanged', reloadOnChange);
+      };
     }, []);
     return state;
   }

@@ -846,7 +846,14 @@ function StatsShowcase({ onNavigateToDashboard, onNavigateToActivity }) {
       setLoading(false);
     }
     load();
-    return () => { cancelled = true; };
+    const reloadOnChange = () => { if (!cancelled) load(); };
+    window.addEventListener('cs:stashChanged', reloadOnChange);
+    window.addEventListener('cs:backupRestored', reloadOnChange);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('cs:stashChanged', reloadOnChange);
+      window.removeEventListener('cs:backupRestored', reloadOnChange);
+    };
   }, []);
 
   const earlyUser = useMemo(() => isEarlyUser(stash), [stash]);
@@ -1121,7 +1128,16 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     }
 
     load();
-    return () => { cancelled = true; };
+    const reloadOnChange = () => { if (!cancelled) load(); };
+    window.addEventListener('cs:stashChanged', reloadOnChange);
+    window.addEventListener('cs:projectsChanged', reloadOnChange);
+    window.addEventListener('cs:backupRestored', reloadOnChange);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('cs:stashChanged', reloadOnChange);
+      window.removeEventListener('cs:projectsChanged', reloadOnChange);
+      window.removeEventListener('cs:backupRestored', reloadOnChange);
+    };
   }, []);
 
   // Load threads-never-used data (depends on stash + projects)
