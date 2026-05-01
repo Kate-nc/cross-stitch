@@ -1954,7 +1954,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
               duplicates.slice(0, 5).map(d => h('div', { key: d.key, style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', padding: '6px 0', borderBottom: '1px solid var(--border-subtle)', fontSize:'var(--text-md)' } },
                 h(Swatch, { rgb: d.rgb }),
                 h('span', { style: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
-                  d.brand.toUpperCase() + ' ' + d.id,
+                  d.brand.toUpperCase() + ' ' + d.id + (d.name && d.name !== d.id ? ' \u2014 ' + d.name : ''),
                   d.type === 'repeat' && h('span', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginLeft:'var(--s-1)' } }, d.addCount + ' adds'),
                   d.type === 'near' && h('span', { style: { fontSize:'var(--text-xs)', color: '#f59e0b', marginLeft:'var(--s-1)' } }, 'near-duplicate')
                 ),
@@ -2042,7 +2042,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
           ),
           neverUsedData.samples.length > 0 && h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom:'var(--s-2)' } },
             neverUsedData.samples.map(s =>
-              h('div', { key: s.key, title: s.brand.toUpperCase() + ' ' + s.id + ' ' + s.name, style: { width: 24, height: 24, borderRadius: 4, background: 'rgb(' + s.rgb[0] + ',' + s.rgb[1] + ',' + s.rgb[2] + ')', border: '1px solid rgba(0,0,0,0.1)', flexShrink: 0 } })
+              h('div', { key: s.key, role: 'img', 'aria-label': s.brand.toUpperCase() + ' ' + s.id + (s.name ? ' \u2014 ' + s.name : ''), title: s.brand.toUpperCase() + ' ' + s.id + ' ' + s.name, style: { width: 24, height: 24, borderRadius: 4, background: 'rgb(' + s.rgb[0] + ',' + s.rgb[1] + ',' + s.rgb[2] + ')', border: '1px solid rgba(0,0,0,0.1)', flexShrink: 0 } })
             )
           ),
           onNavigateToStash && h('button', { onClick: () => onNavigateToStash(), style: { fontSize:'var(--text-xs)', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600, fontFamily: 'inherit' } }, 'View in stash \u2192')
