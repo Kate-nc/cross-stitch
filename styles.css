@@ -1090,10 +1090,6 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   align-items: center;
   gap: 8px;
 }
-.mini-stats-count {
-  font-weight: 600;
-  color: var(--text-primary);
-}
 .mini-today {
   font-size: 11px;
   color: var(--accent);
@@ -1115,24 +1111,6 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .mini-stats-time {
   color: var(--text-secondary);
   font-size: 12px;
-}
-.mini-stats-goal-badge {
-  font-size: 11px;
-  background: var(--warning-soft);
-  color: var(--accent-ink);
-  padding: 2px 8px;
-  border-radius: 6px;
-  border: 1px solid var(--warning);
-  white-space: nowrap;
-}
-.mini-stats-goal-met {
-  font-size: 11px;
-  background: var(--success-soft);
-  color: var(--success);
-  padding: 2px 8px;
-  border-radius: 6px;
-  border: 1px solid var(--success-soft);
-  white-space: nowrap;
 }
 .mini-stats-btn {
   margin-left: auto;
@@ -1605,15 +1583,6 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
-}
-.mini-stats-streak-badge {
-  font-size: 11px;
-  background: var(--warning-soft);
-  color: var(--accent-hover);
-  padding: 2px 8px;
-  border-radius: 6px;
-  border: 1px solid var(--warning);
-  white-space: nowrap;
 }
 .timeline-milestone-badge {
   display: inline-block;
@@ -4823,29 +4792,6 @@ html.pref-dark a { color: var(--accent); }
   outline: none;
 }
 
-.creator-actionbar__stats {
-  display: flex;
-  align-items: baseline;
-  gap: 0;
-  margin-left: auto;
-  padding-left: 12px;
-  border-left: 1px solid var(--line, #E5DCCB);
-  font-size: 12px;
-  color: var(--text-muted, #8A8270);
-  font-variant-numeric: tabular-nums;
-  flex-wrap: wrap;
-}
-
-.creator-actionbar__stat strong {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.creator-actionbar__stat-sep {
-  color: var(--line-2, #D8CDB6);
-  margin: 0 6px;
-}
-
 /* ─── Option 2 — Mode switch + Pattern info chip + popover ──────────── */
 /* Polish A — switched from a 3-pip segmented "tablist" (Create / Edit /
    Track) to a phase label + two real action buttons. The label is a
@@ -5260,12 +5206,6 @@ html.pref-dark a { color: var(--accent); }
     flex: 1 1 100%;
     justify-content: center;
   }
-  .creator-actionbar__stats {
-    margin-left: 0;
-    padding-left: 0;
-    border-left: 0;
-    width: 100%;
-  }
 }
 
 /* 44px touch targets on coarse pointers (phones, tablets). */
@@ -5290,7 +5230,7 @@ html.pref-dark a { color: var(--accent); }
    labels collapse to icon-only so the row stays single-line.
    Title/aria-label preserved for accessibility. */
 @media (max-width: 359px) {
-  .creator-actionbar__btn:not(.creator-actionbar__btn--primary) span:not(.creator-actionbar__stat) {
+  .creator-actionbar__btn:not(.creator-actionbar__btn--primary) span {
     position: absolute;
     width: 1px; height: 1px;
     padding: 0; margin: -1px; overflow: hidden;

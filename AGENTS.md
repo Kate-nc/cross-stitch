@@ -26,9 +26,11 @@ this file is a shorter pointer plus the most-broken house rule.
 - `/home` ([home.html](home.html) + [home-app.js](home-app.js)) is the
   default landing. Direct URLs to `index.html`, `stitch.html`, and
   `manager.html` still work and drop users straight into the relevant
-  tool. The legacy [home-screen.js](home-screen.js) is still mounted by
-  `creator-main.js` when `mode === 'home'` and must not be deleted
-  until that mount path is refactored.
+  tool. The legacy [home-screen.js](home-screen.js) is still actively
+  used: `manager.html` loads it for `MultiProjectDashboard` (consumed by
+  `project-library.js`), and `project-library.js` calls
+  `window.MultiProjectDashboard`. Do not delete it without refactoring
+  those consumers.
 - Pattern Keeper-compatible PDF export is bit-stable. The Workshop
   print theme is opt-in via the `creator.pdfWorkshopTheme` user
   preference; do **not** modify [pdf-export-worker.js](pdf-export-worker.js),
