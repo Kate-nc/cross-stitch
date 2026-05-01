@@ -11414,10 +11414,10 @@ window.CreatorSidebar = function CreatorSidebar() {
     if (orphans === 0) return null;
     var area = sW * sH;
     if (area <= 900 && orphans > 0) {
-      return {level:"danger",message:"Your grid is very small ("+sW+"\xD7"+sH+"). Any orphan removal may destroy fine details. Consider turning it off or increasing grid size."};
+      return {level:"danger",message:"Your grid is very small ("+sW+"\xD7"+sH+"). Any confetti cleanup may destroy fine details. Consider turning it off or increasing grid size."};
     }
     if (area <= 1600 && orphans >= 2) {
-      return {level:"danger",message:"Orphan removal level "+orphans+" is aggressive for a "+sW+"\xD7"+sH+" grid. Important details like eyes, text, or thin lines may be lost. Consider using level 1 or increasing grid size."};
+      return {level:"danger",message:"Confetti cleanup level "+orphans+" is aggressive for a "+sW+"\xD7"+sH+" grid. Important details like eyes, text, or thin lines may be lost. Consider using level 1 or increasing grid size."};
     }
     if (area <= 2500 && orphans >= 3) {
       return {level:"warning",message:"Level 3 cleanup on a "+sW+"\xD7"+sH+" grid may remove more detail than expected. Try level 1 or 2 first."};
@@ -11933,6 +11933,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("span", null, "Lock aspect ratio"),
       h(InfoIcon, {text:"Keep width and height proportional when resizing", width:200})
     ),
+    h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:-6,marginBottom:'var(--s-2)'}}, "Max: 5000 \u00D7 5000 stitches"),
     ctx.arLock
       ? h("div", null,
           h(SliderRow, {label:"Size", value:ctx.sW, min:10, max:300, onChange:ctx.slRsz, suffix:" st"}),
@@ -11973,6 +11974,9 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("input", {type:"checkbox", checked:gen.stashConstrained, onChange:function(e){gen.setStashConstrained(e.target.checked);}}),
       h("span", null, "Use only stash threads"),
       h(InfoIcon, {text:"Constrains the palette to threads you physically own. Produces a pattern you can stitch immediately without buying anything.", width:240})
+    ),
+    typeof StashBridge !== "undefined" && !gen.stashConstrained && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:-10,marginBottom:'var(--s-2)'}},
+      "Enable to generate patterns using only threads you already own."
     ),
     gen.stashConstrained && typeof StashBridge !== "undefined" && h(React.Fragment, null,
       h("div", {style:{fontSize:'var(--text-xs)',color:"var(--accent)",background:"var(--accent-light)",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-md)',padding:"6px 10px",marginBottom:'var(--s-2)'}},
@@ -12198,14 +12202,14 @@ window.CreatorSidebar = function CreatorSidebar() {
       ),
       h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
       h("div", {style:{marginTop:'var(--s-2)'}},
-        h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:50, onChange:gen.setMinSt,
+        h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:500, step:5, onChange:gen.setMinSt,
           format:function(v){return v===0?"Off":v;},
           helpText:"Colours used fewer than this many times will be merged into the nearest similar colour"})
       ),
       h("div", {style:{marginTop:'var(--s-2)'}},
-        h(SliderRow, {label:"Remove Orphans", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
+        h(SliderRow, {label:"Confetti Cleanup", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
           format:function(v){return v===0?"Off":String(v);},
-          helpText:"Removes isolated stitches with no same-colour neighbours \u2014 reduces confetti and makes the pattern easier to stitch"}),
+          helpText:"Removes isolated single stitches (confetti) with no same-colour neighbours \u2014 improves stitch score and makes the pattern easier to sew"}),  
         gen.orphans > 0 && (function() {
           var desc;
           if (gen.orphans === 1) {
@@ -13502,7 +13506,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       return h("div", {
         style:{padding:"8px 12px",background:"var(--danger-soft)",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-md)',fontSize:'var(--text-sm)',color:"var(--danger)",marginBottom:'var(--s-2)',display:"flex",justifyContent:"space-between",alignItems:"center"}
       },
-        h("span", null, Icons.warning(), " Cleanup removed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to regenerate with a lower orphan removal level."),
+        h("span", null, Icons.warning(), " Cleanup removed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to regenerate with a lower confetti cleanup level."),
         h("button", {
           onClick:function(){setConfettiBannerDismissed(true);},
           style:{background:"none",border:"none",color:"var(--danger)",cursor:"pointer",fontSize:'var(--text-lg)',flexShrink:0,marginLeft:'var(--s-2)'}
@@ -13511,6 +13515,29 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     })(),
 
     h(window.MagicWandPanel, null),
+
+    app.confettiData && (function() {
+      var cleanPct = app.confettiData.clean.pct;
+      var score = Math.round(100 - cleanPct);
+      var scoreColor = score >= 90 ? "var(--success)" : score >= 75 ? "#7CB518" : score >= 60 ? "#C9A825" : score >= 40 ? "#D97706" : "var(--danger)";
+      var singles = app.confettiData.clean.singles;
+      return h("div", {style:{padding:"6px 10px",background:"var(--surface-secondary)",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',marginBottom:'var(--s-2)',display:"flex",alignItems:"center",gap:'var(--s-3)',flexWrap:"wrap"}},
+        h("div", {style:{display:"flex",flexDirection:"column",gap:1,minWidth:60}},
+          h("div", {style:{fontSize:9,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.04em"}}, "Stitch Score"),
+          h("div", {style:{fontSize:'var(--text-md)',fontWeight:700,color:scoreColor,lineHeight:1.1}}, score, "/100")
+        ),
+        h("div", {style:{flex:1,minWidth:60}},
+          h("div", {style:{height:5,background:"var(--surface-tertiary)",borderRadius:3,overflow:"hidden"}},
+            h("div", {style:{width:score+"%",height:"100%",background:scoreColor,borderRadius:3}})
+          ),
+          h("div", {style:{fontSize:9,color:"var(--text-tertiary)",marginTop:2}}, singles.toLocaleString(), " isolated stitches remaining")
+        ),
+        h("span", {
+          title:"Higher score = easier to stitch. Fewer isolated single stitches means fewer thread changes and less counting fatigue. Reduce Confetti Cleanup level or increase grid size to improve.",
+          style:{cursor:"help",color:"var(--text-tertiary)",borderBottom:"1px dotted var(--text-tertiary)",fontSize:'var(--text-xs)',whiteSpace:"nowrap"}
+        }, "What is this?")
+      );
+    })(),
 
     app.splitPaneEnabled
       ? h(window.CreatorSplitPane, null)
@@ -13952,8 +13979,10 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               ctx.skeinData.forEach(function(d) {
                 var stashEntry2 = stash[d.id];
                 var owned2 = (stashEntry2 && typeof stashEntry2 === 'object' && typeof stashEntry2.owned === 'number') ? stashEntry2.owned : 0;
-                if (owned2 === 0) missing.push("DMC "+d.id+" (need "+d.skeins+"sk)");
-                else if (owned2 < d.skeins) short.push("DMC "+d.id+" (have "+owned2+", need "+d.skeins+"sk)");
+                var info2 = typeof findThreadInCatalog === 'function' ? findThreadInCatalog('dmc', d.id) : null;
+                var rgb2 = info2 ? info2.rgb : null;
+                if (owned2 === 0) missing.push({id:d.id, rgb:rgb2, label:"DMC "+d.id+" (need "+d.skeins+"sk)"});
+                else if (owned2 < d.skeins) short.push({id:d.id, rgb:rgb2, label:"DMC "+d.id+" (have "+owned2+", need "+d.skeins+"sk)"});
               });
               ctx.setKittingResult({missing:missing, short:short, total:ctx.skeinData.length});
             });
@@ -13984,24 +14013,24 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         ),
         ctx.kittingResult.missing.length > 0 && h("div", null,
           h("div", {style:{color:"var(--danger)",fontWeight:600,marginBottom:2}}, "Missing ("+ctx.kittingResult.missing.length+"):"),
-          ctx.kittingResult.missing.map(function(m, i) { return h("div", {key:i, style:{color:"var(--danger)",marginLeft:'var(--s-2)'}}, m); })
+          ctx.kittingResult.missing.map(function(m, i) { return h("div", {key:i, style:{display:"flex",alignItems:"center",gap:6,color:"var(--danger)",marginLeft:'var(--s-2)',marginBottom:2}}, m.rgb ? h("span",{style:{display:"inline-block",width:14,height:14,borderRadius:3,background:"rgb("+m.rgb[0]+","+m.rgb[1]+","+m.rgb[2]+")",border:"1px solid rgba(0,0,0,0.15)",flexShrink:0}}) : null, m.label); })
         ),
         ctx.kittingResult.short.length > 0 && h("div", {style:{marginTop:'var(--s-1)'}},
           h("div", {style:{color:"#A06F2D",fontWeight:600,marginBottom:2}}, "Low stock ("+ctx.kittingResult.short.length+"):"),
-          ctx.kittingResult.short.map(function(m, i) { return h("div", {key:i, style:{color:"#A06F2D",marginLeft:'var(--s-2)'}}, m); })
+          ctx.kittingResult.short.map(function(m, i) { return h("div", {key:i, style:{display:"flex",alignItems:"center",gap:6,color:"#A06F2D",marginLeft:'var(--s-2)',marginBottom:2}}, m.rgb ? h("span",{style:{display:"inline-block",width:14,height:14,borderRadius:3,background:"rgb("+m.rgb[0]+","+m.rgb[1]+","+m.rgb[2]+")",border:"1px solid rgba(0,0,0,0.15)",flexShrink:0}}) : null, m.label); })
         ),
         h("div", {style:{display:"flex",gap:6,marginTop:'var(--s-2)'}},
           h("button", {
             onClick:function(){
               var lines = ctx.kittingResult.missing.concat(ctx.kittingResult.short);
-              app.copyText(lines.join("\n"), "kit");
+              app.copyText(lines.map(function(l){return l.label||l;}).join("\n"), "kit");
             },
             style:{fontSize:'var(--text-xs)',padding:"4px 10px",borderRadius:'var(--radius-sm)',border:"0.5px solid var(--border)",background:"var(--surface)",cursor:"pointer"}
           }, "Copy gaps"),
           typeof StashBridge !== "undefined" && h("button", {
             onClick:function(){
               var toBuy2 = ctx.kittingResult.missing.concat(ctx.kittingResult.short).map(function(l){
-                var m = l.match(/DMC (\S+)/); return m ? m[1] : null;
+                var str = l.label || l; var m = str.match(/DMC (\S+)/); return m ? m[1] : null;
               }).filter(Boolean);
               Promise.all(toBuy2.map(function(id){return StashBridge.updateThreadToBuy(id, true);}))
                 .then(function(){alert("Marked "+toBuy2.length+" thread(s) as To Buy in Stash Manager.");});
@@ -14839,7 +14868,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
         h('div', {style: {display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap'}},
           h('span', {style: {fontSize:'var(--text-sm)', color: 'var(--text-secondary)'}}, 'Margin:'),
           h('input', {
-            type: 'number', min: 0, max: 10, step: 0.5, value: margin,
+            type: 'number', min: 0, max: 10, step: 0.25, value: margin,
             onChange: function(e) { setMargin(Number(e.target.value) || 0); },
             style: { width: 60, padding: '3px 8px', fontSize:'var(--text-sm)', borderRadius:'var(--radius-sm)', border: '0.5px solid var(--border)' }
           }),
@@ -15455,6 +15484,7 @@ window.CreatorExportTab = function CreatorExportTab() {
         h("button", { onClick: function () { applyPreset("patternKeeper"); },
           style: Object.assign({}, presetCardBase, presetState[0] === "patternKeeper" ? presetCardActive : {}) },
           h("strong", { style: { fontSize:'var(--text-lg)' } }, "For Pattern Keeper"),
+          h("span", { style: { display: "inline-block", fontSize: 9, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", background: "var(--success)", color: "#fff", borderRadius: 3, padding: "1px 5px", marginBottom: 2, alignSelf: "flex-start" } }, "PK Compatible"),
           h("span", { style: { fontSize:'var(--text-xs)', opacity: 0.85 } },
             "Symbols + colour, medium print, 2-row overlap, cover page on. Customers can highlight and track stitches in Pattern Keeper.")
         ),

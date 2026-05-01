@@ -335,7 +335,7 @@
           h("span", { style: { fontSize: 12, color: COLOURS.slate, width: 16, textAlign: "right" } }, String(orphan[0]))
         ),
         h(Row, { label: "Minimum stitches per colour", desc: "Drops any colour used fewer times than this." },
-          h("input", { type: "number", inputMode: "numeric", min: 0, max: 200, value: minStit[0], onChange: function (e) { minStit[1](Math.max(0, parseInt(e.target.value, 10) || 0)); }, style: Object.assign({}, styles.input, { width: 80 }) })
+          h("input", { type: "number", inputMode: "numeric", min: 0, max: 500, value: minStit[0], onChange: function (e) { minStit[1](Math.max(0, parseInt(e.target.value, 10) || 0)); }, style: Object.assign({}, styles.input, { width: 80 }) })
         ),
         h(Row, { last: true, label: "Protect detailed areas", desc: "Skips tidying around faces, edges and other detail." },
           h(Switch, { checked: protect[0], onChange: protect[1] })
@@ -519,9 +519,9 @@
             { value: "DMC", label: "DMC" }, { value: "Anchor", label: "Anchor" }, { value: "both", label: "Both" }
           ]})
         ),
-        h(Row, { last: true, label: "Warn me when a thread runs low", desc: "Show a low‑stock badge when you have this many skeins or fewer." },
-          h("input", { type: "number", inputMode: "numeric", min: 0, max: 20, step: 1, value: lowStock[0],
-            onChange: function (e) { lowStock[1](Math.max(0, parseInt(e.target.value, 10) || 0)); },
+        h(Row, { last: true, label: "Warn me when a thread runs low", desc: "Show a low‑stock badge when you have this many skeins or fewer. Fractions such as 0.25 or 0.5 are useful for part-skeins." },
+          h("input", { type: "number", inputMode: "decimal", min: 0, max: 20, step: 0.25, value: lowStock[0],
+            onChange: function (e) { lowStock[1](Math.max(0, parseFloat(e.target.value) || 0)); },
             style: Object.assign({}, styles.input, { width: 70 }) }),
           h("span", { style: { fontSize: 12, color: COLOURS.slate2 } }, lowStock[0] === 1 ? "skein" : "skeins")
         )
@@ -686,7 +686,7 @@
         h(Row, { label: "Black & white chart" }, h(Switch, { checked: bw[0], onChange: bw[1] })),
         h(Row, { label: "Colour chart" }, h(Switch, { checked: col[0], onChange: col[1] })),
         h(Row, { label: "Show grid lines every…", desc: "Heavier grid lines every N stitches make counting easier." },
-          h("input", { type: "number", inputMode: "numeric", min: 5, max: 20, value: gridInt[0], onChange: function (e) { gridInt[1](Math.max(5, parseInt(e.target.value, 10) || 10)); }, style: Object.assign({}, styles.input, { width: 70 }) }),
+          h("input", { type: "number", inputMode: "numeric", min: 2, max: 50, value: gridInt[0], onChange: function (e) { gridInt[1](Math.max(2, parseInt(e.target.value, 10) || 10)); }, style: Object.assign({}, styles.input, { width: 70 }) }),
           h("span", { style: { fontSize: 12, color: COLOURS.slate2 } }, "stitches")
         ),
         h(Row, { label: "Centre marks", desc: "Small triangles on each axis showing the chart's centre." }, h(Switch, { checked: centreMarks[0], onChange: centreMarks[1] })),

@@ -325,7 +325,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
         h('div', {style: {display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap'}},
           h('span', {style: {fontSize:'var(--text-sm)', color: 'var(--text-secondary)'}}, 'Margin:'),
           h('input', {
-            type: 'number', min: 0, max: 10, step: 0.5, value: margin,
+            type: 'number', min: 0, max: 10, step: 0.25, value: margin,
             onChange: function(e) { setMargin(Number(e.target.value) || 0); },
             style: { width: 60, padding: '3px 8px', fontSize:'var(--text-sm)', borderRadius:'var(--radius-sm)', border: '0.5px solid var(--border)' }
           }),

@@ -250,8 +250,10 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               ctx.skeinData.forEach(function(d) {
                 var stashEntry2 = stash[d.id];
                 var owned2 = (stashEntry2 && typeof stashEntry2 === 'object' && typeof stashEntry2.owned === 'number') ? stashEntry2.owned : 0;
-                if (owned2 === 0) missing.push("DMC "+d.id+" (need "+d.skeins+"sk)");
-                else if (owned2 < d.skeins) short.push("DMC "+d.id+" (have "+owned2+", need "+d.skeins+"sk)");
+                var info2 = typeof findThreadInCatalog === 'function' ? findThreadInCatalog('dmc', d.id) : null;
+                var rgb2 = info2 ? info2.rgb : null;
+                if (owned2 === 0) missing.push({id:d.id, rgb:rgb2, label:"DMC "+d.id+" (need "+d.skeins+"sk)"});
+                else if (owned2 < d.skeins) short.push({id:d.id, rgb:rgb2, label:"DMC "+d.id+" (have "+owned2+", need "+d.skeins+"sk)"});
               });
               ctx.setKittingResult({missing:missing, short:short, total:ctx.skeinData.length});
             });
@@ -282,24 +284,24 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         ),
         ctx.kittingResult.missing.length > 0 && h("div", null,
           h("div", {style:{color:"var(--danger)",fontWeight:600,marginBottom:2}}, "Missing ("+ctx.kittingResult.missing.length+"):"),
-          ctx.kittingResult.missing.map(function(m, i) { return h("div", {key:i, style:{color:"var(--danger)",marginLeft:'var(--s-2)'}}, m); })
+          ctx.kittingResult.missing.map(function(m, i) { return h("div", {key:i, style:{display:"flex",alignItems:"center",gap:6,color:"var(--danger)",marginLeft:'var(--s-2)',marginBottom:2}}, m.rgb ? h("span",{style:{display:"inline-block",width:14,height:14,borderRadius:3,background:"rgb("+m.rgb[0]+","+m.rgb[1]+","+m.rgb[2]+")",border:"1px solid rgba(0,0,0,0.15)",flexShrink:0}}) : null, m.label); })
         ),
         ctx.kittingResult.short.length > 0 && h("div", {style:{marginTop:'var(--s-1)'}},
           h("div", {style:{color:"#A06F2D",fontWeight:600,marginBottom:2}}, "Low stock ("+ctx.kittingResult.short.length+"):"),
-          ctx.kittingResult.short.map(function(m, i) { return h("div", {key:i, style:{color:"#A06F2D",marginLeft:'var(--s-2)'}}, m); })
+          ctx.kittingResult.short.map(function(m, i) { return h("div", {key:i, style:{display:"flex",alignItems:"center",gap:6,color:"#A06F2D",marginLeft:'var(--s-2)',marginBottom:2}}, m.rgb ? h("span",{style:{display:"inline-block",width:14,height:14,borderRadius:3,background:"rgb("+m.rgb[0]+","+m.rgb[1]+","+m.rgb[2]+")",border:"1px solid rgba(0,0,0,0.15)",flexShrink:0}}) : null, m.label); })
         ),
         h("div", {style:{display:"flex",gap:6,marginTop:'var(--s-2)'}},
           h("button", {
             onClick:function(){
               var lines = ctx.kittingResult.missing.concat(ctx.kittingResult.short);
-              app.copyText(lines.join("\n"), "kit");
+              app.copyText(lines.map(function(l){return l.label||l;}).join("\n"), "kit");
             },
             style:{fontSize:'var(--text-xs)',padding:"4px 10px",borderRadius:'var(--radius-sm)',border:"0.5px solid var(--border)",background:"var(--surface)",cursor:"pointer"}
           }, "Copy gaps"),
           typeof StashBridge !== "undefined" && h("button", {
             onClick:function(){
               var toBuy2 = ctx.kittingResult.missing.concat(ctx.kittingResult.short).map(function(l){
-                var m = l.match(/DMC (\S+)/); return m ? m[1] : null;
+                var str = l.label || l; var m = str.match(/DMC (\S+)/); return m ? m[1] : null;
               }).filter(Boolean);
               Promise.all(toBuy2.map(function(id){return StashBridge.updateThreadToBuy(id, true);}))
                 .then(function(){alert("Marked "+toBuy2.length+" thread(s) as To Buy in Stash Manager.");});

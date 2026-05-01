@@ -137,7 +137,7 @@ window.loadPdfStack = function() {
 })();
 /* Loads TrackerApp via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
-var TRACKER_CACHE_KEY = 'babel_tracker_084fab98ea';
+var TRACKER_CACHE_KEY = 'babel_tracker_400f963668';
 window.loadTrackerApp = function() {
   if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
   window.__trackerLoading = true;
@@ -169,7 +169,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_58c0e2e756';
+var CREATOR_CACHE_KEY = 'babel_creator_1b3be9c76a';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;
@@ -218,7 +218,7 @@ window.loadStatsActivity = function() {
   });
 };/* Loads stats-insights.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. (Brief E) */
-var INSIGHTS_CACHE_KEY = 'babel_insights_52c812b0d5';
+var INSIGHTS_CACHE_KEY = 'babel_insights_a9d11c6dc2';
 window.loadStatsInsights = function() {
   if (window.__statsInsightsLoading || window.__statsInsightsLoaded) return;
   window.__statsInsightsLoading = true;
@@ -242,7 +242,7 @@ window.loadStatsInsights = function() {
   });
 };/* Loads stats-page.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var STATS_CACHE_KEY = 'babel_stats_3bac18d37d';
+var STATS_CACHE_KEY = 'babel_stats_f882bf10a6';
 window.loadStatsPage = function() {
   if (window.__statsPageLoading || window.__statsPageLoaded) return;
   window.__statsPageLoading = true;

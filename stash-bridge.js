@@ -296,6 +296,14 @@ const StashBridge = (() => {
               if (threads[key].lastAdjustedAt === undefined) threads[key].lastAdjustedAt = null;
               if (threads[key].acquisitionSource === undefined) threads[key].acquisitionSource = null;
               if (!Array.isArray(threads[key].history)) threads[key].history = [];
+              // Re-acquisition: if a thread was at zero (legacy-tagged) and is now being
+              // owned for the first time, treat it as a fresh acquisition rather than
+              // showing it as "before tracking started".
+              const prevOwned = threads[key].owned || 0;
+              if (prevOwned === 0 && newCount > 0 && threads[key].addedAt === LEGACY_EPOCH) {
+                threads[key].addedAt = new Date().toISOString();
+                threads[key].acquisitionSource = null;
+              }
             }
             const oldCount = threads[key].owned || 0;
             const delta = newCount - oldCount;
@@ -1123,3 +1131,10 @@ const StashBridge = (() => {
 StashBridge.migrateSchemaToV2()
   .then(function() { return StashBridge.migrateSchemaToV3(); })
   .catch(function() { /* migrations log internally */ });
+
+// Top-level `const` in a classic <script> creates a global binding but does
+// NOT attach to `window`. Several callers (BulkAddModal.js, ShoppingListModal.js,
+// creator-main.js, home-app.js) feature-test via `window.StashBridge`, so
+// without this assignment they silently fail or show the
+// "StashBridge is not available" error. Mirror onto window explicitly.
+try { if (typeof window !== 'undefined') window.StashBridge = StashBridge; } catch (_) {}

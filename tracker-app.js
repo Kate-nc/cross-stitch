@@ -345,10 +345,11 @@ function SessionConfigModal({onStart,onClose,liveAutoElapsed,liveAutoStitches}){
 // ── Session Summary Modal ──
 function SessionSummaryModal({data,prevAvgSpeed,onViewBreadcrumbs,hasBreadcrumbs,onClose}){
   if(!data)return null;
-  const{durationSeconds,stitchesCompleted,blocksCompleted,coloursCompleted}=data;
+  const{durationSeconds,stitchesCompleted,blocksCompleted,coloursCompleted,progressPctBefore,progressPctAfter}=data;
   const mins=Math.floor(durationSeconds/60),secs=durationSeconds%60;
   const speed=durationSeconds>0?Math.round(stitchesCompleted/(durationSeconds/3600)):0;
   const pctDiff=prevAvgSpeed>0?Math.round(((speed-prevAvgSpeed)/prevAvgSpeed)*100):null;
+  const progressGain=progressPctBefore!=null&&progressPctAfter!=null?progressPctAfter-progressPctBefore:null;
   return(
     <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="session-complete-title" onClick={onClose}>
       <div className="modal-content" style={{maxWidth:360}} onClick={e=>e.stopPropagation()}>
@@ -358,6 +359,7 @@ function SessionSummaryModal({data,prevAvgSpeed,onViewBreadcrumbs,hasBreadcrumbs
           <div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Time</span><span style={{fontWeight:700}}>{mins}m {secs}s</span></div>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Stitches</span><span style={{fontWeight:700}}>{stitchesCompleted}</span></div>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Speed</span><span style={{fontWeight:700}}>{speed} st/hr{pctDiff!=null?<span style={{fontSize:'var(--text-xs)',fontWeight:400,color:pctDiff>=0?"var(--success)":"var(--danger)",marginLeft:6}}>{pctDiff>=0?"+":""}{pctDiff}% vs avg</span>:null}</span></div>
+          {progressPctBefore!=null&&progressPctAfter!=null&&<div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Progress</span><span style={{fontWeight:700}}>{progressPctBefore}%<span style={{color:"var(--text-tertiary)",fontWeight:400,margin:"0 4px"}}>to</span>{progressPctAfter}%{progressGain!=null&&progressGain>0&&<span style={{fontSize:'var(--text-xs)',fontWeight:400,color:"var(--success)",marginLeft:6}}>+{progressGain}%</span>}</span></div>}
           {blocksCompleted>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Blocks</span><span style={{fontWeight:700}}>{blocksCompleted}</span></div>}
           {coloursCompleted&&coloursCompleted.length>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Colours finished</span><span style={{fontWeight:700}}>{coloursCompleted.length}</span></div>}
         </div>
@@ -882,6 +884,9 @@ const inactivityPauseTimeRef = useRef(null);
 
 const[stitchMode,setStitchMode]=useState("track");
 const[stitchView,setStitchView]=useState(()=>{try{var v=window.UserPrefs&&window.UserPrefs.get("trackerDefaultView");return (v==="symbol"||v==="colour"||v==="highlight")?v:"symbol";}catch(_){return "symbol";}});
+// R11: Row-by-row navigation mode — session-local, not persisted.
+const[rowModeActive,setRowModeActive]=useState(false);
+const[currentRow,setCurrentRow]=useState(0);
 // Persist sticky "default view" so the choice survives reloads (mirrors
 // the highlight-mode behaviour) — the prefs UI reads/writes the same key.
 useEffect(()=>{try{if(window.UserPrefs)window.UserPrefs.set("trackerDefaultView",stitchView);}catch(_){}},[stitchView]);
@@ -1392,7 +1397,10 @@ const skeinData=useMemo(()=>{
 },[pal,fabricCt]);
 
 useEffect(()=>{
-  if(typeof StashBridge!=="undefined"){StashBridge.getGlobalStash().then(setGlobalStash).catch(e=>console.warn('getGlobalStash failed:',e));}
+  function loadStash(){if(typeof StashBridge!=="undefined"){StashBridge.getGlobalStash().then(setGlobalStash).catch(e=>console.warn('getGlobalStash failed:',e));}}
+  loadStash();
+  window.addEventListener('cs:stashChanged',loadStash);
+  return ()=>{window.removeEventListener('cs:stashChanged',loadStash);};
 },[]);
 
 // Detect project completion and offer stash deduction
@@ -3582,6 +3590,10 @@ function drawStitch(ctx,cSz,viewportRect){
       }
       if(cSz>=4){ctx.strokeStyle=(effectiveDimmed&&layerVis.full)?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
     }
+    // R11: dim rows outside the current row — one pass per row covers all tiers.
+    if(rowModeActive&&y!==currentRow){ctx.fillStyle='rgba(255,255,255,0.55)';ctx.fillRect(gut+startX*cSz,gut+y*cSz,(endX-startX)*cSz,cSz);}
+    // R11: highlight the current row with a subtle tint drawn after cells so it stays visible.
+    if(rowModeActive&&y===currentRow){ctx.fillStyle='rgba(37,99,235,0.12)';ctx.fillRect(gut+startX*cSz,gut+y*cSz,(endX-startX)*cSz,cSz);}
   }
 
   // Marching ants for "outline" highlight mode
@@ -3677,7 +3689,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
     };
   }
   drawStitch(canvas.getContext("2d"),scs,viewportRect);
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,parkLayers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,parkLayers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,rowModeActive,currentRow]);
 useEffect(()=>renderStitch(),[renderStitch]);
 // Keep renderStitchRef current so animation callbacks always call the latest closure
 useEffect(()=>{renderStitchRef.current=renderStitch;},[renderStitch]);
@@ -4697,6 +4709,9 @@ useShortcuts(!isActive ? [] : [
   { id: "tracker.mode.navigate", keys: "n", scope: "tracker.notedit",
     description: "Navigate mode",
     run: () => setStitchMode("navigate") },
+  { id: "tracker.mode.rowmode", keys: "r", scope: "tracker.notedit",
+    description: "Toggle row mode",
+    run: () => { setRowModeActive(v=>!v); setCurrentRow(0); } },
 
   // View cycle.
   { id: "tracker.view.cycle", keys: "v", scope: "tracker.notedit",
@@ -5121,6 +5136,14 @@ return(
       <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8"/></svg>{isEditMode?"Modify":"Mark"}
     </button>
     <button className={"tb-btn"+(stitchMode==="navigate"?" tb-btn--on":"")} onClick={()=>{setStitchMode("navigate");}} title="Navigate (N)">Nav</button>
+    {/* R11: Row mode toggle */}
+    {!isEditMode&&<button className={"tb-btn"+(rowModeActive?" tb-btn--on":"")} onClick={()=>{setRowModeActive(v=>!v);setCurrentRow(0);}} aria-label="Toggle row mode" aria-pressed={rowModeActive} title="Row mode — work row by row (R)">{Icons.rowMode()}</button>}
+    {/* R11: Row mode prev/next controls */}
+    {!isEditMode&&rowModeActive&&<>
+      <button className="tb-btn" disabled={currentRow<=0} onClick={()=>setCurrentRow(r=>Math.max(0,r-1))} title="Previous row">Prev</button>
+      <span className="tb-zoom-lbl" style={{minWidth:56,textAlign:'center',fontVariantNumeric:'tabular-nums'}}>Row {currentRow+1}/{sH||1}</span>
+      <button className="tb-btn" disabled={currentRow>=(sH||1)-1} onClick={()=>setCurrentRow(r=>Math.min((sH||1)-1,r+1))} title="Next row">Next</button>
+    </>}
     {/* C3: range-mode toolbar button removed; long-press + shift+click own range via useDragMark. */}
   </div>
   <div className="tb-sdiv"/>
@@ -5144,6 +5167,8 @@ return(
         {tStripCollapsed.stitch&&<><span className="tb-ovf-lbl">Stitch</span>
           <button className={"tb-ovf-item"+(stitchMode==="track"?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("track");setTOverflowOpen(false);}} style={{display:'inline-flex',alignItems:'center',gap:6}}>Mark{stitchMode==="track"&&Icons.check?<span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.check()}</span>:null}</button>
           <button className={"tb-ovf-item"+(stitchMode==="navigate"?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("navigate");setTOverflowOpen(false);}} style={{display:'inline-flex',alignItems:'center',gap:6}}>Navigate{stitchMode==="navigate"&&Icons.check?<span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.check()}</span>:null}</button>
+          {/* R11: Row mode in overflow menu */}
+          <button className={"tb-ovf-item"+(rowModeActive?" tb-ovf-item--on":"")} onClick={()=>{setRowModeActive(v=>!v);setCurrentRow(0);setTOverflowOpen(false);}} style={{display:'inline-flex',alignItems:'center',gap:6}}>{Icons.rowMode()} Row mode{rowModeActive&&Icons.check?<span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.check()}</span>:null}</button>
           <div className="tb-ovf-sep"/>
         </>}
         {tStripCollapsed.view&&<><span className="tb-ovf-lbl">View</span>
@@ -5620,7 +5645,10 @@ return(
             <button className="lp-btn lp-btn--danger" style={{marginTop:'var(--s-2)',width:"100%"}} onClick={()=>{
               const dur=liveAutoElapsed>0?liveAutoElapsed:Math.floor((Date.now()-explicitSession.startTime)/1000);
               const bks=breadcrumbs.filter(b=>b.sessionIdx===(statsSessions?statsSessions.length:0)).length;
-              setSessionSummaryData({durationSeconds:dur,stitchesCompleted:liveAutoStitches,blocksCompleted:bks,coloursCompleted:[]});
+              const _sess=currentAutoSessionRef.current;
+              const _undone=_sess&&typeof _sess.stitchesUndone==='number'?_sess.stitchesUndone:0;
+              const netSessionDelta=liveAutoStitches-_undone;
+              setSessionSummaryData({durationSeconds:dur,stitchesCompleted:liveAutoStitches,blocksCompleted:bks,coloursCompleted:[],progressPctBefore:totalStitchable>0?Math.round((doneCount-netSessionDelta)/totalStitchable*100):null,progressPctAfter:totalStitchable>0?Math.round(doneCount/totalStitchable*100):null});
               setExplicitSession(null);
             }}>End session</button>
           </>);
@@ -6192,7 +6220,9 @@ return(
         <button className="ttd-btn" onClick={redoTrack} disabled={!redoStack.length} aria-label="Redo" title="Redo">{Icons.replay()}</button>
         <button className="ttd-btn" onClick={findNext} aria-label="Find next colour" title="Cycle focus colour">{Icons.magnify()}</button>
         <button className={"ttd-btn"+(stitchView==="highlight"?" ttd-btn--on":"")} onClick={()=>{setStitchView(v=>v==="highlight"?"symbol":"highlight");}} aria-label="Toggle highlight" title="Highlight mode (half-stitch placement)">{Icons.halfStitch()}</button>
-        <button className={"ttd-btn"+(stitchMode==="navigate"?" ttd-btn--on":"")} onClick={()=>{setStitchMode(m=>m==="navigate"?"track":"navigate");}} aria-label="Toggle parking" title="Navigate / parking mode">{Icons.parkFlag()}</button>
+        <button className={"ttd-btn"+(stitchMode==="navigate"?" ttd-btn--on":"")} onClick={()=>{setStitchMode(m=>m==="navigate"?"track":"navigate");}} aria-label="Toggle parking" title="Navigate / parking mode — tap to place parking markers on the canvas showing where your needle is parked between sessions. Parked colour markers are always visible while you work.">{Icons.parkFlag()}</button>
+        {/* R11: Row mode toggle on mobile dock */}
+        <button className={"ttd-btn"+(rowModeActive?" ttd-btn--on":"")} onClick={()=>{setRowModeActive(v=>!v);setCurrentRow(0);}} aria-label="Toggle row mode" title="Row mode — work one row at a time">{Icons.rowMode()}</button>
         <button className="ttd-btn" onClick={()=>{if(stitchView!=="highlight")setStitchView("highlight");setQuickColourOpen(o=>!o);}} aria-label="Pick colour" title="Pick a colour">{Icons.palette()}</button>
       </div>
       {/* ── Bottom mode-pill (phone, above safe area) ── */}
