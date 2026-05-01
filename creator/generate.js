@@ -29,6 +29,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
   var stitchCleanup = opts.stitchCleanup;
   var dithStrength = (typeof opts.dithStrength === "number") ? opts.dithStrength : 1.0;
+  var minSt = (typeof opts.minSt === "number" && opts.minSt > 0) ? opts.minSt : 0;
 
   var p = quantize(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed});
   if (!p.length) return null;
@@ -45,6 +46,35 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
       if (dE(rgbToLab(raw[i * 4], raw[i * 4 + 1], raw[i * 4 + 2]), bl) < bgTh) {
         mapped[i] = { type: "skip", id: "__skip__", rgb: [255, 255, 255], lab: [100, 0, 0] };
       }
+    }
+  }
+
+  // ── Min-stitches rebucket (C5) ───────────────────────────────────────────
+  // Collapse any colour with fewer than `minSt` cells into its nearest
+  // surviving colour. Up to 3 passes — a freshly-collapsed cell may itself
+  // tip another colour below threshold.
+  if (minSt > 0) {
+    for (var pass = 0; pass < 3; pass++) {
+      var ep = buildPalette(mapped);
+      var rare = ep.pal.filter(function(e) { return e.count < minSt; });
+      var keep = ep.pal.filter(function(e) { return e.count >= minSt; });
+      if (!rare.length || !keep.length) break;
+      var rm2 = {};
+      rare.forEach(function(r) {
+        var b = null, bd = 1e9;
+        keep.forEach(function(k) { var d = dE(r.lab, k.lab); if (d < bd) { bd = d; b = k.id; } });
+        if (b) rm2[r.id] = b;
+      });
+      var changed = false;
+      var keepMap = {};
+      keep.forEach(function(k) { keepMap[k.id] = k; });
+      for (var j = 0; j < mapped.length; j++) {
+        if (mapped[j].id !== "__skip__" && rm2[mapped[j].id]) {
+          mapped[j] = Object.assign({}, keepMap[rm2[mapped[j].id]]);
+          changed = true;
+        }
+      }
+      if (!changed) break;
     }
   }
 
@@ -156,7 +186,13 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
     else applyMedianFilter(raw, sW, sH, smooth);
   }
 
-  var pipelineResult = runCleanupPipeline(raw, sW, sH, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: opts.orphans, allowedPalette: opts.allowedPalette || null, seed: opts.seed });
+  var pipelineResult = runCleanupPipeline(raw, sW, sH, {
+    maxC: maxC, dith: dith, dithStrength: opts.dithStrength,
+    allowBlends: allowBlends, allowedPalette: opts.allowedPalette || null,
+    skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
+    stitchCleanup: stitchCleanup, orphans: opts.orphans,
+    minSt: minSt, seed: opts.seed,
+  });
   if (!pipelineResult) return null;
 
   var mapped = pipelineResult.mapped;
@@ -164,30 +200,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   var rawConfetti = pipelineResult.confettiRaw;
   var cleanConfetti = pipelineResult.confettiClean || pipelineResult.confettiRaw;
 
-  if (minSt > 0) {
-    for (var pass = 0; pass < 3; pass++) {
-      var ep = buildPalette(mapped);
-      var rare = ep.pal.filter(function(e) { return e.count < minSt; });
-      var keep = ep.pal.filter(function(e) { return e.count >= minSt; });
-      if (!rare.length || !keep.length) break;
-      var rm2 = {};
-      rare.forEach(function(r) {
-        var b = null, bd = 1e9;
-        keep.forEach(function(k) { var d = dE(r.lab, k.lab); if (d < bd) { bd = d; b = k.id; } });
-        if (b) rm2[r.id] = b;
-      });
-      var changed = false;
-      var keepMap = {};
-      keep.forEach(function(k) { keepMap[k.id] = k; });
-      for (var j = 0; j < mapped.length; j++) {
-        if (mapped[j].id !== "__skip__" && rm2[mapped[j].id]) {
-          mapped[j] = Object.assign({}, keepMap[rm2[mapped[j].id]]);
-          changed = true;
-        }
-      }
-      if (!changed) break;
-    }
-  }
+  // (minSt rebucket lives inside runCleanupPipeline so the preview honours it too.)
 
   // Safety check: enforce maxC
   for (var safe = 0; safe < 5; safe++) {

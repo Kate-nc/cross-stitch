@@ -82,10 +82,10 @@ window.usePreview = function usePreview(state) {
     // then let React commit that frame before running the full dither pass.
     if (dith) {
       var fastResult = runCleanupPipeline(raw, pw, ph, pipelineOpts({
+        // Fast pre-pass: skip the slow stages (dither, cleanup, orphans) but
+        // honour the user's blend preference so the preview is bit-faithful
+        // (see C4 in reports/preview-3-diagnosis.md).
         dith: false, stitchCleanup: null, orphans: 0,
-        // NOTE (C4): fast pass disables blends to keep latency low. The full
-        // pass below honours the user's actual allowBlends setting.
-        allowBlends: false,
       }));
       if (fastResult) state.setPreviewUrl(renderUrl(fastResult.mapped));
       fullPassTimerRef.current = setTimeout(runFull, 0);

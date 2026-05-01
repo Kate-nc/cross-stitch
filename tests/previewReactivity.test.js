@@ -56,6 +56,9 @@ global.DMC = DMC;
 global.rgbToLab = rgbToLab;
 global.dE = dE2;            // colour-utils uses both names; alias
 global.dE2 = dE2;
+// SYMS lives in dmc-data.js as a top-level `const SYMS = "…".split("")`. Module
+// exports don't surface it, so reproduce here for buildPalette().
+global.SYMS = "●◆■▲★♦♥♣♠◄►▼○◇□△☆♢♡♧♤◁▷▽⊕⊗⊞⊠⊡⊘⊙⊚⊛⊜⊝⬡⬢⬣⬥⬦⬧⬨⬩".split("");
 
 // Eval the entire colour-utils.js so internal helpers (sobelMag, sobelOp, etc.)
 // resolve. Wrap in a function so vars don't pollute the test file's strict
