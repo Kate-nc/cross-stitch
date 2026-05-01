@@ -48,8 +48,18 @@ window.useCreatorState = function useCreatorState() {
   var _bri    = useState(0);          var bri    = _bri[0],    setBri    = _bri[1];
   var _con    = useState(0);          var con    = _con[0],    setCon    = _con[1];
   var _sat    = useState(0);          var sat    = _sat[0],    setSat    = _sat[1];
-  var _dith   = useState(function () { var v = loadUserPref("creatorDefaultDithering", "off"); return v && v !== "off"; });
-  var dith   = _dith[0],   setDith   = _dith[1];
+  var _dith   = useState(function () { var v = loadUserPref("creatorDefaultDithering", "off"); var valid = ["weak","balanced","strong"]; return (valid.indexOf(v) !== -1) ? v : (v && v !== "off" ? "balanced" : "off"); });
+  var dithMode = _dith[0]; var setDithMode = _dith[1];
+  // Derived boolean kept for all legacy consumers (generate call, Sidebar badge, etc.)
+  var dith = dithMode !== "off";
+  // Numeric strength multiplier: weak=0.5, balanced=1.0, strong=1.5
+  var DITH_STRENGTH_MAP = {weak:0.5, balanced:1.0, strong:1.5};
+  var dithStrength = DITH_STRENGTH_MAP[dithMode] || 1.0;
+  // Back-compat setter: accepts boolean (legacy callers) or "off"/"weak"/"balanced"/"strong"
+  var setDith = function(v) {
+    if (typeof v === "boolean") { setDithMode(v ? "balanced" : "off"); return; }
+    setDithMode(v);
+  };
   var _skipBg = useState(false);      var skipBg = _skipBg[0], setSkipBg = _skipBg[1];
   var _bgTh   = useState(15);         var bgTh   = _bgTh[0],   setBgTh   = _bgTh[1];
   var _bgCol  = useState([255,255,255]); var bgCol = _bgCol[0], setBgCol = _bgCol[1];
@@ -739,7 +749,7 @@ window.useCreatorState = function useCreatorState() {
     // match the comparator in Sidebar.js (genStaleReason).
     setLastGenSnapshot({
       sW: sW, sH: sH, fabricCt: fabricCt, maxC: maxC,
-      bri: bri, con: con, sat: sat, dith: dith,
+      bri: bri, con: con, sat: sat, dith: dith, dithMode: dithMode,
       allowBlends: allowBlends, skipBg: skipBg
     });
     // Compute cleanup diff mask from preCleanupIds
@@ -895,7 +905,7 @@ window.useCreatorState = function useCreatorState() {
         width: sW,
         height: sH,
         settings: {
-          maxC: effMaxC, dith: dith, allowBlends: effAllowBlends,
+          maxC: effMaxC, dith: dith, dithStrength: dithStrength, allowBlends: effAllowBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
           minSt: minSt, smooth: smooth, smoothType: smoothType,
           stitchCleanup: stitchCleanup, orphans: orphans,
@@ -909,7 +919,7 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setTimeout(startGeneration, 0);
     }
-  }, [img, sW, sH, maxC, bri, con, sat, dith, skipBg, bgCol, bgTh, minSt, smooth, smoothType, stitchCleanup, orphans, hasGenerated, allowBlends, stashConstrained, globalStash, variationSeed, variationSubset]);
+  }, [img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, stitchCleanup, orphans, hasGenerated, allowBlends, stashConstrained, globalStash, variationSeed, variationSubset]);
 
   // ─── Variation helpers: seeded Fisher-Yates shuffle → roulette subset ───────
   function _buildRoulette(pool, n, seed) {
@@ -1000,7 +1010,7 @@ window.useCreatorState = function useCreatorState() {
         var rawPx = gcx.getImageData(0, 0, gw, gh).data;
         if (smooth > 0) { if (smoothType === "gaussian") applyGaussianBlur(rawPx, gw, gh, smooth); else applyMedianFilter(rawPx, gw, gh, smooth); }
         var res = runCleanupPipeline(rawPx, gw, gh, {
-          maxC: effN, dith: dith, allowBlends: allowBlends && slotSubset.length >= 6,
+          maxC: effN, dith: dith, dithStrength: dithStrength, allowBlends: allowBlends && slotSubset.length >= 6,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans,
           allowedPalette: slotSubset, seed: slotSeed,
         });
@@ -1027,7 +1037,7 @@ window.useCreatorState = function useCreatorState() {
       }, 0);
     }
     genSlot(0);
-  }, [img, sW, sH, maxC, bri, con, sat, dith, skipBg, bgCol, bgTh, smooth, smoothType, stitchCleanup, orphans, allowBlends, stashConstrained, globalStash]);
+  }, [img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, smooth, smoothType, stitchCleanup, orphans, allowBlends, stashConstrained, globalStash]);
 
   // Terminate the worker when the component unmounts to prevent memory leaks
   useEffect(function() {
@@ -1123,7 +1133,7 @@ window.useCreatorState = function useCreatorState() {
     img, setImg, isUploading, setIsUploading, isDragging, setIsDragging,
     sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
-    dith, setDith, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
+    dith, dithMode, dithStrength, setDith, setDithMode, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     orphans, setOrphans, allowBlends, setAllowBlends,
     pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy,

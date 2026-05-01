@@ -133,6 +133,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       ref:app.scrollRef,
       style:{overflow:"auto",maxHeight:550,border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',background:"var(--surface-tertiary)",cursor:(function(){
         var selTool = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
+        if (cv.activeTool === "hand") return "grab";
         if (cv.activeTool === "eyedropper") return "copy";
         if (selTool) return "crosshair";
         if (app.previewActive) return "default";

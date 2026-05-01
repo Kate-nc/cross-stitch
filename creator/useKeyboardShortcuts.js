@@ -142,6 +142,13 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       run: function () {
         state.setActiveTool("eyedropper"); state.setBsStart(null); state.setPartialStitchTool(null);
       } },
+    { id: "creator.tool.hand", keys: "h", scope: "creator.design",
+      description: "Hand — pan / drag to scroll",
+      when: function () { return !!state.pat; },
+      run: function () {
+        if (state.activeTool === "hand") { state.setActiveTool(null); }
+        else { state.setActiveTool("hand"); state.setBsStart(null); state.setPartialStitchTool(null); }
+      } },
 
     // View / canvas
     { id: "creator.view.cycle", keys: "v", scope: "creator.design",

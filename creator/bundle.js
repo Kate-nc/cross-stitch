@@ -2365,6 +2365,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var maxC = opts.maxC, dith = opts.dith, allowBlends = opts.allowBlends;
   var skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
   var stitchCleanup = opts.stitchCleanup;
+  var dithStrength = (typeof opts.dithStrength === "number") ? opts.dithStrength : 1.0;
 
   var p = quantize(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed});
   if (!p.length) return null;
@@ -2372,7 +2373,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var saliencyMap = generateSaliencyMap(raw, width, height);
   var cdt = dith && stitchCleanup && stitchCleanup.smoothDithering ? 4.0 : 0.0;
   var mapped = dith
-    ? doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt })
+    ? doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt, ditherStrength: dithStrength })
     : doMap(raw, width, height, p, allowBlends);
 
   if (skipBg) {
@@ -5228,8 +5229,18 @@ window.useCreatorState = function useCreatorState() {
   var _bri    = useState(0);          var bri    = _bri[0],    setBri    = _bri[1];
   var _con    = useState(0);          var con    = _con[0],    setCon    = _con[1];
   var _sat    = useState(0);          var sat    = _sat[0],    setSat    = _sat[1];
-  var _dith   = useState(function () { var v = loadUserPref("creatorDefaultDithering", "off"); return v && v !== "off"; });
-  var dith   = _dith[0],   setDith   = _dith[1];
+  var _dith   = useState(function () { var v = loadUserPref("creatorDefaultDithering", "off"); var valid = ["weak","balanced","strong"]; return (valid.indexOf(v) !== -1) ? v : (v && v !== "off" ? "balanced" : "off"); });
+  var dithMode = _dith[0]; var setDithMode = _dith[1];
+  // Derived boolean kept for all legacy consumers (generate call, Sidebar badge, etc.)
+  var dith = dithMode !== "off";
+  // Numeric strength multiplier: weak=0.5, balanced=1.0, strong=1.5
+  var DITH_STRENGTH_MAP = {weak:0.5, balanced:1.0, strong:1.5};
+  var dithStrength = DITH_STRENGTH_MAP[dithMode] || 1.0;
+  // Back-compat setter: accepts boolean (legacy callers) or "off"/"weak"/"balanced"/"strong"
+  var setDith = function(v) {
+    if (typeof v === "boolean") { setDithMode(v ? "balanced" : "off"); return; }
+    setDithMode(v);
+  };
   var _skipBg = useState(false);      var skipBg = _skipBg[0], setSkipBg = _skipBg[1];
   var _bgTh   = useState(15);         var bgTh   = _bgTh[0],   setBgTh   = _bgTh[1];
   var _bgCol  = useState([255,255,255]); var bgCol = _bgCol[0], setBgCol = _bgCol[1];
@@ -5919,7 +5930,7 @@ window.useCreatorState = function useCreatorState() {
     // match the comparator in Sidebar.js (genStaleReason).
     setLastGenSnapshot({
       sW: sW, sH: sH, fabricCt: fabricCt, maxC: maxC,
-      bri: bri, con: con, sat: sat, dith: dith,
+      bri: bri, con: con, sat: sat, dith: dith, dithMode: dithMode,
       allowBlends: allowBlends, skipBg: skipBg
     });
     // Compute cleanup diff mask from preCleanupIds
@@ -6075,7 +6086,7 @@ window.useCreatorState = function useCreatorState() {
         width: sW,
         height: sH,
         settings: {
-          maxC: effMaxC, dith: dith, allowBlends: effAllowBlends,
+          maxC: effMaxC, dith: dith, dithStrength: dithStrength, allowBlends: effAllowBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
           minSt: minSt, smooth: smooth, smoothType: smoothType,
           stitchCleanup: stitchCleanup, orphans: orphans,
@@ -6089,7 +6100,7 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setTimeout(startGeneration, 0);
     }
-  }, [img, sW, sH, maxC, bri, con, sat, dith, skipBg, bgCol, bgTh, minSt, smooth, smoothType, stitchCleanup, orphans, hasGenerated, allowBlends, stashConstrained, globalStash, variationSeed, variationSubset]);
+  }, [img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, stitchCleanup, orphans, hasGenerated, allowBlends, stashConstrained, globalStash, variationSeed, variationSubset]);
 
   // ─── Variation helpers: seeded Fisher-Yates shuffle → roulette subset ───────
   function _buildRoulette(pool, n, seed) {
@@ -6180,7 +6191,7 @@ window.useCreatorState = function useCreatorState() {
         var rawPx = gcx.getImageData(0, 0, gw, gh).data;
         if (smooth > 0) { if (smoothType === "gaussian") applyGaussianBlur(rawPx, gw, gh, smooth); else applyMedianFilter(rawPx, gw, gh, smooth); }
         var res = runCleanupPipeline(rawPx, gw, gh, {
-          maxC: effN, dith: dith, allowBlends: allowBlends && slotSubset.length >= 6,
+          maxC: effN, dith: dith, dithStrength: dithStrength, allowBlends: allowBlends && slotSubset.length >= 6,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans,
           allowedPalette: slotSubset, seed: slotSeed,
         });
@@ -6207,7 +6218,7 @@ window.useCreatorState = function useCreatorState() {
       }, 0);
     }
     genSlot(0);
-  }, [img, sW, sH, maxC, bri, con, sat, dith, skipBg, bgCol, bgTh, smooth, smoothType, stitchCleanup, orphans, allowBlends, stashConstrained, globalStash]);
+  }, [img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, smooth, smoothType, stitchCleanup, orphans, allowBlends, stashConstrained, globalStash]);
 
   // Terminate the worker when the component unmounts to prevent memory leaks
   useEffect(function() {
@@ -6303,7 +6314,7 @@ window.useCreatorState = function useCreatorState() {
     img, setImg, isUploading, setIsUploading, isDragging, setIsDragging,
     sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
-    dith, setDith, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
+    dith, dithMode, dithStrength, setDith, setDithMode, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     orphans, setOrphans, allowBlends, setAllowBlends,
     pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy,
@@ -6662,11 +6673,19 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   var longPressTimerRef    = React.useRef(null);
   var longPressTriggeredRef = React.useRef(false);
 
-  var TOUCH_TAP_SLOP = 10;
-  var LONG_PRESS_MS = 500;
+  var TC = (typeof window !== 'undefined' && window.TouchConstants) || null;
+  var TOUCH_TAP_SLOP = TC ? TC.TAP_SLOP_PX : 10;
+  var LONG_PRESS_MS = TC ? TC.LONG_PRESS_MS : 500;
 
   function getActiveTool() { return state.activeToolRef ? state.activeToolRef.current : state.activeTool; }
   function getPartialStitchTool() { return state.partialStitchToolRef ? state.partialStitchToolRef.current : state.partialStitchTool; }
+
+  // Hand tool acts as "explicit pan mode" — for the purposes of the
+  // pointer handlers below it is treated identically to "no active
+  // tool", which already has a 1-finger touch pan + mouse-drag pan
+  // path. This way Hand works for mouse, pen and touch users without
+  // a separate code branch.
+  function isPanTool() { return getActiveTool() === "hand"; }
 
   function isPrimaryButton(e) {
     return (e.button == null ? 0 : e.button) === 0;
@@ -7260,7 +7279,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
-    if (isTouchPointer(e) && !activeTool && !partialStitchTool && scrollRef.current) {
+    if ((isTouchPointer(e) || isPanTool()) && (isPanTool() || (!activeTool && !partialStitchTool)) && scrollRef.current) {
       panStateRef.current = {
         pointerId: e.pointerId,
         startX: e.clientX,
@@ -7269,10 +7288,13 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         scrollTop: scrollRef.current.scrollTop,
       };
       state.setHoverCoords(null);
-      // Long-press = touch equivalent of right-click context menu
+      // Long-press = touch equivalent of right-click context menu.
+      // Skip the long-press recogniser when the explicit Hand tool is
+      // active — the user picked Hand to pan, not to summon a menu.
       longPressTriggeredRef.current = false;
       clearLongPressTimer();
-      if (typeof state.setContextMenu === "function" && state.pat && state.pcRef && state.pcRef.current) {
+      if (isTouchPointer(e) && !isPanTool()
+          && typeof state.setContextMenu === "function" && state.pat && state.pcRef && state.pcRef.current) {
         var pressClientX = e.clientX, pressClientY = e.clientY;
         var pressEvtLike = { clientX: pressClientX, clientY: pressClientY };
         longPressTimerRef.current = setTimeout(function() {
@@ -7316,6 +7338,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    if (isPanTool()) return;
     if (!activeTool && !partialStitchTool) return;
     e.preventDefault();
     handlePatMouseDown(e);
@@ -7731,6 +7754,13 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       when: function () { return !!state.pat; },
       run: function () {
         state.setActiveTool("eyedropper"); state.setBsStart(null); state.setPartialStitchTool(null);
+      } },
+    { id: "creator.tool.hand", keys: "h", scope: "creator.design",
+      description: "Hand — pan / drag to scroll",
+      when: function () { return !!state.pat; },
+      run: function () {
+        if (state.activeTool === "hand") { state.setActiveTool(null); }
+        else { state.setActiveTool("hand"); state.setBsStart(null); state.setPartialStitchTool(null); }
       } },
 
     // View / canvas
@@ -9605,7 +9635,17 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         onClick:function(){cv.setActiveTool("eyedropper"); cv.setBsStart(null); ctx.setPartialStitchTool(null);},
         title:"Eyedropper (I)",
         "aria-label":"Eyedropper tool"
-      }, "Pick")
+      }, "Pick"),
+      h("button", {
+        className:"tb-btn"+(cv.activeTool==="hand"?" tb-btn--on":""),
+        onClick:function(){
+          if (cv.activeTool === "hand") cv.setActiveTool(null);
+          else { cv.setActiveTool("hand"); cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); }
+        },
+        title:"Hand — pan / drag to scroll (H)",
+        "aria-label":"Hand pan tool",
+        "aria-pressed": cv.activeTool === "hand" ? "true" : "false"
+      }, window.Icons.hand(), " Hand")
     )
   ];
 
@@ -13135,7 +13175,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   );
 
   // ── Palette section (non-scratch) ───────────────────────────────────────────
-  var palSection = !ctx.isScratchMode ? h(Section, {title:"Palette", isOpen:app.palOpen, onToggle:app.setPalOpen},
+  var palSection = !ctx.isScratchMode ? h(Section, {title:"Colours", isOpen:app.palOpen, onToggle:app.setPalOpen},
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Max colours", value:gen.maxC, min:10, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(10, gen.stashThreadCount) : 40, onChange:gen.setMaxC,
         helpText:"Limits the colour palette. Fewer colours = faster to stitch but less detail"}),
@@ -13318,76 +13358,6 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
       )
     ),
-    h("div", {style:{marginTop:'var(--s-2)'}},
-      h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:50, onChange:gen.setMinSt,
-        format:function(v){return v===0?"Off":v;},
-        helpText:"Colours used fewer than this many times will be merged into the nearest similar colour"})
-    ),
-    h("div", {style:{marginTop:'var(--s-2)'}},
-      h(SliderRow, {label:"Remove Orphans", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
-        format:function(v){return v===0?"Off":String(v);},
-        helpText:"Removes isolated stitches with no same-colour neighbours — reduces confetti and makes the pattern easier to stitch"}),
-      gen.orphans > 0 && (function() {
-        var desc;
-        if (gen.orphans === 1) {
-          desc = h("span", null, "Removes ", h("strong", null, "isolated single stitches"), " \u2014 cells with no same-colour neighbour. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this targets clusters of exactly 1 stitch.");
-        } else if (gen.orphans === 2) {
-          desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20132 stitches"), " that are isolated from their colour group. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
-        } else {
-          desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20133 stitches"), " that are isolated. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"var(--danger)",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
-        }
-        return h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginTop:'var(--s-1)',lineHeight:1.5}}, desc);
-      })()
-    ),
-    gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}},
-      "Preview estimate: removes ~", (app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
-      " (", ((app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles) / Math.max(1, app.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
-    ),
-    ctx.pat && gen.cleanupDiff && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
-      h("button", {
-        onClick:function(){gen.setShowCleanupDiff(function(d){return !d;});},
-        style:{
-          fontSize:'var(--text-xs)',padding:"3px 8px",borderRadius:'var(--radius-sm)',cursor:"pointer",
-          border:gen.showCleanupDiff?"1px solid var(--accent)":"0.5px solid var(--border)",
-          background:gen.showCleanupDiff?"var(--accent-light)":"var(--surface)",
-          color:gen.showCleanupDiff?"var(--accent)":"var(--text-secondary)",
-          fontWeight:gen.showCleanupDiff?600:400,
-          display:"flex",alignItems:"center",gap:'var(--s-1)',lineHeight:1.4
-        }
-      }, Icons.eye(), " " + (gen.showCleanupDiff ? "Hide changes" : "Show changes"))
-    ),
-    gen.showCleanupDiff && gen.cleanupDiff && h("div", {style:{
-      fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"6px 10px",
-      background:"var(--surface-secondary)",border:"1px solid #f0abfc",borderRadius:'var(--radius-md)',
-      marginTop:'var(--s-1)',lineHeight:1.5
-    }},
-      h("span", {style:{color:"var(--accent)",fontWeight:700,marginRight:'var(--s-1)'}}, "\u25CF"),
-      gen.cleanupDiff.count.toLocaleString(), " stitches changed",
-      ctx.totalStitchable > 0 ? " (" + (gen.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
-      Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:'var(--s-2)',color:"var(--text-tertiary)"}},
-        Object.entries(gen.cleanupDiff.byColour)
-          .sort(function(a,b){return b[1]-a[1];})
-          .slice(0,4)
-          .map(function(e){return "DMC "+e[0]+": "+e[1];})
-          .join(" \xB7 ") +
-          (Object.keys(gen.cleanupDiff.byColour).length > 4 ? " \xB7 +" + (Object.keys(gen.cleanupDiff.byColour).length - 4) + " more" : "")
-      )
-    ),
-    (function() {
-      var warning = getCleanupWarning(ctx.sW, ctx.sH, gen.orphans, app.previewStats);
-      if (!warning) return null;
-      var isDanger = warning.level === "danger";
-      return h("div", {style:{
-        marginTop:6,padding:"8px 10px",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',lineHeight:1.5,
-        background:isDanger?"var(--danger-soft)":"#FAF5E1",
-        border:"1px solid "+(isDanger?"var(--danger-soft)":"#E5C97D"),
-        color:isDanger?"var(--danger)":"var(--accent-ink)",
-        display:"flex",alignItems:"flex-start",gap:6
-      }},
-        h("span", {style:{fontSize:'var(--text-lg)',lineHeight:1,flexShrink:0}}, isDanger?Icons.warning():Icons.lightbulb()),
-        h("span", null, warning.message)
-      );
-    })(),
     h("button", {
       onClick:function(){app.setPalAdvanced(function(o){return !o;});},
       style:{marginTop:'var(--s-2)',display:"flex",alignItems:"center",gap:'var(--s-1)',fontSize:'var(--text-xs)',color:"var(--text-secondary)",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}
@@ -13398,40 +13368,116 @@ window.CreatorSidebar = function CreatorSidebar() {
     ),
     app.palAdvanced && h(React.Fragment, null,
       h("div", {style:{marginTop:6,padding:"8px 10px",background:"#F8EFD8",borderRadius:'var(--radius-md)',border:"0.5px solid #E5C99A",fontSize:10,color:"var(--accent-ink)"}},
-        "Dithering blends colours by mixing stitches. Direct mapping uses solid colours only."
+        "Dithering blends colours by mixing stitches using error diffusion. Higher strengths create smoother gradients but more scattered stitches."
       ),
-      h("div", {style:{display:"flex",gap:6,marginTop:6}},
-        h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2,flex:1}},
-          h(Tooltip, {text:"Maps each pixel directly to its closest DMC colour. Fewer scattered stitches", width:200},
-            h("button", {
-              onClick:function(){gen.setDith(false);},
-              style:{padding:"5px 12px",fontSize:'var(--text-sm)',fontWeight:!gen.dith?500:400,background:!gen.dith?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',color:!gen.dith?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",boxShadow:!gen.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
-            }, "Direct")
-          ),
-          h(Tooltip, {text:"Uses Floyd-Steinberg error diffusion for smoother colour gradients, but creates more scattered stitches", width:220},
-            h("button", {
-              onClick:function(){gen.setDith(true);},
-              style:{padding:"5px 12px",fontSize:'var(--text-sm)',fontWeight:gen.dith?500:400,background:gen.dith?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',color:gen.dith?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",boxShadow:gen.dith?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}
-            }, "Dithered")
-          )
-        )
-      )
+      (function() {
+        var dithOpts = [
+          {id:"off",   label:"Off",      tip:"Direct colour mapping — each pixel mapped to its closest DMC colour. Cleanest, easiest to sew."},
+          {id:"weak",  label:"Weak",     tip:"Subtle dithering (50% strength) — slight colour blending with minimal confetti."},
+          {id:"balanced", label:"Balanced", tip:"Standard Floyd-Steinberg dithering — smooth gradients with moderate scatter."},
+          {id:"strong",label:"Strong",   tip:"Amplified dithering (150% strength) — richest gradients, most scattered stitches."}
+        ];
+        var cur = gen.dithMode || (gen.dith ? "balanced" : "off");
+        return h("div", {style:{display:"flex",gap:2,marginTop:6,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
+          dithOpts.map(function(o) {
+            var active = cur === o.id;
+            return h(Tooltip, {key:o.id, text:o.tip, width:210},
+              h("button", {
+                onClick:function(){gen.setDith(o.id);},
+                style:{flex:1,padding:"5px 6px",fontSize:'var(--text-xs)',fontWeight:active?600:400,
+                  background:active?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',
+                  color:active?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",
+                  boxShadow:active?"0 1px 2px rgba(0,0,0,0.04)":"none",whiteSpace:"nowrap"}
+              }, o.label)
+            );
+          })
+        );
+      })()
     )
   ) : null;
 
-  // ── Stitch Cleanup section (non-scratch) ────────────────────────────────────
-  var cleanupSection = !ctx.isScratchMode ? (function() {
+  // ── Tidy up section: min-stitches + orphan removal + stitch cleanup ──────────
+  var tidySection = !ctx.isScratchMode ? (function() {
     var sc2 = gen.stitchCleanup;
-    var scBadge = h("span", {style:{
-      fontSize:'var(--text-xs)',fontWeight:500,padding:"1px 8px",borderRadius:'var(--radius-lg)',
-      color:sc2.enabled?"var(--accent)":"var(--text-tertiary)",background:sc2.enabled?"var(--accent-light)":"var(--surface-tertiary)"
-    }}, sc2.enabled ? "On \u2014 "+(sc2.strength[0].toUpperCase()+sc2.strength.slice(1)) : "Off");
+    var tidyActive = gen.minSt > 0 || gen.orphans > 0 || sc2.enabled;
+    var tidyBadge = tidyActive ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
     var strengthKeys=["gentle","balanced","thorough"];
     var strengthLabels=["Gentle","Balanced","Thorough"];
     var strengthDescs=["Keeps 2-stitch clusters. Best for detail-heavy designs.","Removes 3-stitch clusters. Balanced stitchability & detail.","Removes up to 5-stitch clusters. Smoothest, easiest to sew."];
     var strengthIdx=strengthKeys.indexOf(sc2.strength);
-    return h(Section, {title:"Stitch Cleanup", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:scBadge},
+    return h(Section, {title:"Tidy up", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:tidyBadge},
       h("div", {style:{marginTop:'var(--s-2)'}},
+        h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:50, onChange:gen.setMinSt,
+          format:function(v){return v===0?"Off":v;},
+          helpText:"Colours used fewer than this many times will be merged into the nearest similar colour"})
+      ),
+      h("div", {style:{marginTop:'var(--s-2)'}},
+        h(SliderRow, {label:"Remove Orphans", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
+          format:function(v){return v===0?"Off":String(v);},
+          helpText:"Removes isolated stitches with no same-colour neighbours \u2014 reduces confetti and makes the pattern easier to stitch"}),
+        gen.orphans > 0 && (function() {
+          var desc;
+          if (gen.orphans === 1) {
+            desc = h("span", null, "Removes ", h("strong", null, "isolated single stitches"), " \u2014 cells with no same-colour neighbour. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this targets clusters of exactly 1 stitch.");
+          } else if (gen.orphans === 2) {
+            desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20132 stitches"), " that are isolated from their colour group. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
+          } else {
+            desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20133 stitches"), " that are isolated. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"var(--danger)",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
+          }
+          return h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginTop:'var(--s-1)',lineHeight:1.5}}, desc);
+        })()
+      ),
+      gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}},
+        "Preview estimate: removes ~", (app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
+        " (", ((app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles) / Math.max(1, app.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
+      ),
+      ctx.pat && gen.cleanupDiff && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
+        h("button", {
+          onClick:function(){gen.setShowCleanupDiff(function(d){return !d;});},
+          style:{
+            fontSize:'var(--text-xs)',padding:"3px 8px",borderRadius:'var(--radius-sm)',cursor:"pointer",
+            border:gen.showCleanupDiff?"1px solid var(--accent)":"0.5px solid var(--border)",
+            background:gen.showCleanupDiff?"var(--accent-light)":"var(--surface)",
+            color:gen.showCleanupDiff?"var(--accent)":"var(--text-secondary)",
+            fontWeight:gen.showCleanupDiff?600:400,
+            display:"flex",alignItems:"center",gap:'var(--s-1)',lineHeight:1.4
+          }
+        }, Icons.eye(), " " + (gen.showCleanupDiff ? "Hide changes" : "Show changes"))
+      ),
+      gen.showCleanupDiff && gen.cleanupDiff && h("div", {style:{
+        fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"6px 10px",
+        background:"var(--surface-secondary)",border:"1px solid #f0abfc",borderRadius:'var(--radius-md)',
+        marginTop:'var(--s-1)',lineHeight:1.5
+      }},
+        h("span", {style:{color:"var(--accent)",fontWeight:700,marginRight:'var(--s-1)'}}, "\u25CF"),
+        gen.cleanupDiff.count.toLocaleString(), " stitches changed",
+        ctx.totalStitchable > 0 ? " (" + (gen.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
+        Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:'var(--s-2)',color:"var(--text-tertiary)"}},
+          Object.entries(gen.cleanupDiff.byColour)
+            .sort(function(a,b){return b[1]-a[1];})
+            .slice(0,4)
+            .map(function(e){return "DMC "+e[0]+": "+e[1];})
+            .join(" \xB7 ") +
+            (Object.keys(gen.cleanupDiff.byColour).length > 4 ? " \xB7 +" + (Object.keys(gen.cleanupDiff.byColour).length - 4) + " more" : "")
+        )
+      ),
+      (function() {
+        var warning = getCleanupWarning(ctx.sW, ctx.sH, gen.orphans, app.previewStats);
+        if (!warning) return null;
+        var isDanger = warning.level === "danger";
+        return h("div", {style:{
+          marginTop:6,padding:"8px 10px",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',lineHeight:1.5,
+          background:isDanger?"var(--danger-soft)":"#FAF5E1",
+          border:"1px solid "+(isDanger?"var(--danger-soft)":"#E5C97D"),
+          color:isDanger?"var(--danger)":"var(--accent-ink)",
+          display:"flex",alignItems:"flex-start",gap:6
+        }},
+          h("span", {style:{fontSize:'var(--text-lg)',lineHeight:1,flexShrink:0}}, isDanger?Icons.warning():Icons.lightbulb()),
+          h("span", null, warning.message)
+        );
+      })(),
+      h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
+      h("div", {style:{marginTop:'var(--s-1)'}},
         h(Toggle, {
           checked:sc2.enabled,
           onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{enabled:v});});},
@@ -13500,7 +13546,7 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ── Adjustments section (non-scratch) ──────────────────────────────────────
   var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
-  var adjSection = !ctx.isScratchMode ? h(Section, {title:"Adjustments", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
+  var adjSection = !ctx.isScratchMode ? h(Section, {title:"Source", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Smooth", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
@@ -13892,7 +13938,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       regenSnap.bri !== gen.bri || regenSnap.con !== gen.con || regenSnap.sat !== gen.sat
     );
     var paletteStale = regenSnap && (
-      regenSnap.maxC !== gen.maxC || regenSnap.dith !== gen.dith ||
+      regenSnap.maxC !== gen.maxC || regenSnap.dithMode !== gen.dithMode ||
       regenSnap.allowBlends !== gen.allowBlends || regenSnap.skipBg !== gen.skipBg
     );
     function regenCta(forTab) {
@@ -14002,29 +14048,30 @@ window.CreatorSidebar = function CreatorSidebar() {
       overlayRow
     );
 
-    // ── Dimensions tab — size controls + image adjustments + fabric count.
+    // ── Dimensions tab — size controls + Source adjustments + background + fabric.
+    //   Source (was Adjustments) and background removal both act on the source image
+    //   so they sit together here, one tab away from the image upload.
     var dimensionsContent = h(React.Fragment, null,
       regenCta("dimensions"),
       dimSection,
       adjSection,
+      bgSection,
       fabSection
     );
 
-    // ── Palette tab — palette source, quality cleanup, and palette swap.
-    //   Background-removal moved to the Preview tab so users can colocate
-    //   "what to skip" with the canvas they click on to pick the colour.
+    // ── Palette tab (Colours + Tidy up) — colour matching, then all result-quality
+    //   controls consolidated in one place: min stitches, orphan removal, stitch
+    //   cleanup. Palette swap presets follow as before.
     var paletteContent = h(React.Fragment, null,
       regenCta("palette"),
       palSection,
-      cleanupSection,
+      tidySection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection
     );
 
-    // ── Preview tab — chart-mode controls + Background section first
-    //   because picking the BG colour means clicking the preview canvas.
+    // ── Preview tab — chart-mode and comparison controls only.
     var previewContent = h(React.Fragment, null,
-      bgSection,
       previewPanel
     );
 
@@ -14280,7 +14327,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       imageCard,
       dimSection,
       palSection,
-      cleanupSection,
+      tidySection,
       fabSection,
       adjSection,
       bgSection,
@@ -14684,6 +14731,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       ref:app.scrollRef,
       style:{overflow:"auto",maxHeight:550,border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',background:"var(--surface-tertiary)",cursor:(function(){
         var selTool = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
+        if (cv.activeTool === "hand") return "grab";
         if (cv.activeTool === "eyedropper") return "copy";
         if (selTool) return "crosshair";
         if (app.previewActive) return "default";

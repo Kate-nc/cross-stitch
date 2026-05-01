@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdnjs.cloudflare.com; worker-src 'self' blob:; frame-src 'self' blob:;">
 <title>Cross Stitch Pattern Generator</title>
 <link rel="manifest" href="./manifest.json">
@@ -75,6 +75,7 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="keyboard-utils.js"></script>
 <script src="shortcuts.js"></script>
 <script src="icons.js"></script>
+<script src="touch-constants.js"></script>
 <script src="useDragMark.js"></script>
 <script src="import-formats.js"></script>
 <script src="components.js"></script>
@@ -136,7 +137,7 @@ window.loadPdfStack = function() {
 })();
 /* Loads TrackerApp via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
-var TRACKER_CACHE_KEY = 'babel_tracker_56fbadf727';
+var TRACKER_CACHE_KEY = 'babel_tracker_ace4af75f4';
 window.loadTrackerApp = function() {
   if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
   window.__trackerLoading = true;
@@ -168,7 +169,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_2a9ef18899';
+var CREATOR_CACHE_KEY = 'babel_creator_76c99c3e21';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;
@@ -267,7 +268,7 @@ window.loadStatsPage = function() {
 </script>
 <!-- TrackerApp is lazy-loaded (above) the first time the user switches to Track mode -->
 </head>
-<body>
+<body class="page-creator">
 <a class="skip-to-content" href="#main-content">Skip to content</a>
 <main id="main-content" tabindex="-1">
 <div id="root"></div>

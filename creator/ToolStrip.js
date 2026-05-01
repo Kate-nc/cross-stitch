@@ -167,7 +167,17 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         onClick:function(){cv.setActiveTool("eyedropper"); cv.setBsStart(null); ctx.setPartialStitchTool(null);},
         title:"Eyedropper (I)",
         "aria-label":"Eyedropper tool"
-      }, "Pick")
+      }, "Pick"),
+      h("button", {
+        className:"tb-btn"+(cv.activeTool==="hand"?" tb-btn--on":""),
+        onClick:function(){
+          if (cv.activeTool === "hand") cv.setActiveTool(null);
+          else { cv.setActiveTool("hand"); cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); }
+        },
+        title:"Hand — pan / drag to scroll (H)",
+        "aria-label":"Hand pan tool",
+        "aria-pressed": cv.activeTool === "hand" ? "true" : "false"
+      }, window.Icons.hand(), " Hand")
     )
   ];
 

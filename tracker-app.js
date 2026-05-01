@@ -282,7 +282,7 @@ function StitchingStyleStepBody({onComplete,onBack,onSkip,startCorner:initCorner
           <input type="number" inputMode="numeric" value={customH} onChange={e=>setCustomH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:52,padding:"4px",borderRadius:4,border:"1px solid var(--border)",fontSize:'var(--text-md)'}} min={5} max={100}/>
           <button onClick={()=>{setStyle("block");setBw(customW);setBh(customH);setScreen(3);}} style={{padding:"4px 10px",borderRadius:4,border:"none",background:"var(--accent)",color:"var(--surface)",cursor:"pointer",fontSize:'var(--text-sm)',fontWeight:600}}>OK</button>
         </div>}
-        {showCustom&&(customW%10!==0||customH%10!==0)&&<div style={{fontSize:'var(--text-xs)',color:"var(--accent-ink)",background:"#FAF5E1",padding:"4px 10px",borderRadius:'var(--radius-sm)'}}>Custom sizes may not align with the 10-stitch grid lines.</div>}
+        {showCustom&&(customW%10!==0||customH%10!==0)&&<div style={{fontSize:'var(--text-xs)',color:"var(--warning)",background:"var(--warning-soft)",padding:"4px 10px",borderRadius:'var(--radius-sm)'}}>Custom sizes may not align with the 10-stitch grid lines.</div>}
       </div>
       <button style={{marginTop:'var(--s-4)',background:"none",border:"none",color:"var(--text-tertiary)",cursor:"pointer",fontSize:'var(--text-sm)',display:'inline-flex',alignItems:'center',gap:4}} onClick={()=>setScreen(1)}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronLeft?Icons.chevronLeft():null}</span> Back</button>
     </div>
@@ -434,6 +434,14 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
 // ═══════════════════════════════════════════════════════════════
 function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setFocusColour,stitchView,setStitchView,todayStitchesForBar,liveAutoElapsed,liveAutoStitches,onPickProject,skeinData,globalStash,onToggleOwned}){
   const[recent,setRecent]=React.useState([]);
+  const[collapsed,setCollapsed]=React.useState(function(){
+    try{return !!(window.UserPrefs&&window.UserPrefs.get("trackerProjectRailCollapsed"));}catch(_){return false;}
+  });
+  React.useEffect(function(){
+    try{window.UserPrefs&&window.UserPrefs.set("trackerProjectRailCollapsed",!!collapsed);}catch(_){}
+    try{document.body.classList.toggle("tracker-rail-collapsed",!!collapsed);}catch(_){}
+    return function(){try{document.body.classList.remove("tracker-rail-collapsed");}catch(_){}};
+  },[collapsed]);
   React.useEffect(function(){
     let cancelled=false;
     function load(){
@@ -459,8 +467,17 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
   var sec=liveAutoElapsed||0;
   var hh=Math.floor(sec/3600),mm=Math.floor((sec%3600)/60);
   var timer=(hh>0?hh+"h ":"")+mm+"m";
-  return React.createElement('aside',{className:'tracker-project-rail',role:'complementary','aria-label':'Recent projects'},
-    React.createElement('h3',{className:'tpr-h'},'Projects'),
+  return React.createElement('aside',{className:'tracker-project-rail'+(collapsed?' tracker-project-rail--collapsed':''),role:'complementary','aria-label':'Recent projects'},
+    React.createElement('div',{className:'tpr-header'},
+      collapsed?null:React.createElement('h3',{className:'tpr-h'},'Projects'),
+      React.createElement('button',{
+        type:'button',className:'tpr-collapse-btn',
+        onClick:function(){setCollapsed(function(c){return !c;});},
+        'aria-label':collapsed?'Expand projects rail':'Collapse projects rail',
+        'aria-expanded':!collapsed,
+        title:collapsed?'Expand projects rail':'Collapse projects rail'
+      },(collapsed?(window.Icons&&window.Icons.chevronRight?window.Icons.chevronRight():null):(window.Icons&&window.Icons.chevronLeft?window.Icons.chevronLeft():null)))
+    ),
     React.createElement('div',{className:'tpr-list'},
       (recent.length===0
         ? React.createElement('div',{className:'tpr-empty'},'No saved projects yet')
@@ -490,6 +507,7 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
     ),
     React.createElement('button',{
       className:'tpr-more',type:'button',
+      style:collapsed?{display:'none'}:undefined,
       onClick:function(){
         try{
           var btn=document.querySelector('.tracker-hamburger');
@@ -497,7 +515,7 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
         }catch(_){}
       }
     },'More projects…'),
-    React.createElement('div',{className:'tracker-side-panel',role:'complementary','aria-label':'Today and palette'},
+    React.createElement('div',{className:'tracker-side-panel',role:'complementary','aria-label':'Today and palette',style:collapsed?{display:'none'}:undefined},
       React.createElement('section',{className:'tsp-card'},
         React.createElement('h3',{className:'tsp-h'},'Today'),
         React.createElement('div',{className:'tsp-stat'},React.createElement('span',null,'Stitches'),React.createElement('strong',null,(todayStitchesForBar||0).toLocaleString())),
@@ -1060,15 +1078,52 @@ const[mobileDrawerOpen,setMobileDrawerOpen]=useState(false);
 // ─── Tracker left sidebar (toolbar-rework phase 1) ─────────────────────
 // Replaces the scattered Highlight / View / Session controls in the
 // toolbar pill and right-panel "More" tab with a tabbed left sidebar.
-// State persists via window.UserPrefs (keys: trackerLeftSidebarOpen,
-// trackerLeftSidebarTab). Default closed; user opts in via hamburger.
-const[leftSidebarOpen,setLeftSidebarOpen]=useState(()=>{
-  try{var p=window.UserPrefs&&window.UserPrefs.get("trackerLeftSidebarOpen");return !!p;}catch(_){return false;}
+// State persists via window.UserPrefs (key: trackerLeftSidebarMode,
+// values: "hidden" | "rail" | "open"). Default hidden on touch
+// viewports, open elsewhere. The hamburger cycles hidden→rail→open.
+// `leftSidebarOpen` (Boolean) is kept as a derived alias for the
+// existing render code that already reads it.
+const[leftSidebarMode,setLeftSidebarMode]=useState(()=>{
+  try{
+    // Use localStorage directly so we can distinguish "key never set" from
+    // "key set to the default value".  UserPrefs.get() always returns the
+    // DEFAULTS fallback and can't detect a true first run.
+    var raw=localStorage.getItem("cs_pref_trackerLeftSidebarMode");
+    if(raw!==null){
+      try{
+        var stored=JSON.parse(raw);
+        if(stored==="hidden"||stored==="rail"||stored==="open")return stored;
+      }catch(_){}
+    }
+    // Migrate the legacy boolean preference (a corrupt new key falls through here).
+    var legacyRaw=localStorage.getItem("cs_pref_trackerLeftSidebarOpen");
+    if(legacyRaw!==null){
+      try{
+        var legacy=JSON.parse(legacyRaw);
+        if(legacy===true)return "open";
+        if(legacy===false)return "hidden";
+      }catch(_){}
+    }
+    // First run — default by viewport type.
+    if(window.TouchConstants&&window.TouchConstants.isCompactTouch())return "hidden";
+    return "open";
+  }catch(_){return "hidden";}
 });
+const leftSidebarOpen = leftSidebarMode === "open" || leftSidebarMode === "rail";
+const setLeftSidebarOpen = useCallback((next)=>{
+  setLeftSidebarMode(prev=>{
+    var want = typeof next==="function" ? next(prev==="open"||prev==="rail") : !!next;
+    if(want) return prev==="hidden" ? "open" : prev;
+    return "hidden";
+  });
+},[]);
+const cycleLeftSidebar = useCallback(()=>{
+  setLeftSidebarMode(prev=>prev==="hidden"?"rail":prev==="rail"?"open":"hidden");
+},[]);
 const[leftSidebarTab,setLeftSidebarTab]=useState(()=>{
   try{var p=window.UserPrefs&&window.UserPrefs.get("trackerLeftSidebarTab");return p||"highlight";}catch(_){return"highlight";}
 });
-useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLeftSidebarOpen",!!leftSidebarOpen);}catch(_){}},[leftSidebarOpen]);
+useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLeftSidebarMode",leftSidebarMode);}catch(_){}},[leftSidebarMode]);
 useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLeftSidebarTab",leftSidebarTab);}catch(_){}},[leftSidebarTab]);
 
 // Phase 4: palette-legend sort key persisted via UserPrefs (global default)
@@ -1107,6 +1162,50 @@ useEffect(()=>{
   window.addEventListener("keydown",onKey);
   return()=>window.removeEventListener("keydown",onKey);
 },[leftSidebarOpen]);
+
+// Touch-1 H-2: Focus mode. Strips chrome to canvas + a floating
+// mini-bar (.cs-focus-bar). Toggled with the F key (when no input is
+// focused) or via the toolbar button. body.cs-focus is what styles.css
+// hooks into to hide chrome surfaces.
+const[focusMode,setFocusMode]=useState(false);
+const focusBarRef=useRef(null);
+const[focusBarFaded,setFocusBarFaded]=useState(false);
+const focusFadeTimerRef=useRef(null);
+const resetFocusFade=useCallback(()=>{
+  setFocusBarFaded(false);
+  if(focusFadeTimerRef.current)clearTimeout(focusFadeTimerRef.current);
+  const ms=(window.TouchConstants&&window.TouchConstants.FOCUS_MINIBAR_FADE_MS)||4000;
+  focusFadeTimerRef.current=setTimeout(()=>setFocusBarFaded(true),ms);
+},[]);
+useEffect(()=>{
+  if(typeof document==="undefined")return;
+  if(focusMode){
+    document.body.classList.add("cs-focus");
+    resetFocusFade();
+  }else{
+    document.body.classList.remove("cs-focus");
+    setFocusBarFaded(false);
+    if(focusFadeTimerRef.current)clearTimeout(focusFadeTimerRef.current);
+  }
+  return()=>{document.body.classList.remove("cs-focus");if(focusFadeTimerRef.current)clearTimeout(focusFadeTimerRef.current);};
+},[focusMode,resetFocusFade]);
+useEffect(()=>{
+  const onKey=e=>{
+    // Ignore when typing in inputs / contenteditable.
+    const t=e.target;
+    if(t&&(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.tagName==="SELECT"||t.isContentEditable))return;
+    if(e.metaKey||e.ctrlKey||e.altKey)return;
+    if(e.key==="f"||e.key==="F"){
+      e.preventDefault();
+      setFocusMode(v=>!v);
+    }else if(e.key==="Escape"&&focusMode){
+      e.preventDefault();
+      setFocusMode(false);
+    }
+  };
+  window.addEventListener("keydown",onKey);
+  return()=>window.removeEventListener("keydown",onKey);
+},[focusMode]);
 
 const [importDialog, setImportDialog] = useState(null);
 const [importImage, setImportImage] = useState(null);
@@ -4993,10 +5092,10 @@ return(
   <button
     type="button"
     className="tracker-hamburger"
-    onClick={()=>setLeftSidebarOpen(o=>!o)}
-    aria-label="Toggle sidebar"
+    onClick={cycleLeftSidebar}
+    aria-label={leftSidebarMode==="hidden"?"Show sidebar rail":leftSidebarMode==="rail"?"Expand sidebar":"Hide sidebar"}
     aria-expanded={leftSidebarOpen}
-    title="Sidebar (Highlight, View, Session)"
+    title="Sidebar — tap to cycle hidden / rail / open"
   >{Icons.menu()}</button>
   {/* Phase 4 (UX-12) — wake-lock chip. Tap to toggle screen-stays-on. */}
   <button
@@ -5007,6 +5106,15 @@ return(
     aria-label={wakeLockActive?"Screen wake-lock on, tap to release":"Screen wake-lock off, tap to keep screen awake"}
     title={wakeLockActive?"Screen will stay awake — tap to release":"Tap to keep the screen awake while stitching"}
   ><span className="twc-dot" aria-hidden="true">{Icons.dot()}</span><span className="twc-label">{wakeLockActive?"Awake":"Sleep"}</span></button>
+  {/* Touch-1 H-2: Focus mode toggle. */}
+  <button
+    type="button"
+    className={"tracker-wake-chip"+(focusMode?" tracker-wake-chip--on":"")}
+    onClick={()=>setFocusMode(v=>!v)}
+    aria-pressed={focusMode}
+    aria-label={focusMode?"Exit focus mode (F)":"Enter focus mode (F)"}
+    title={focusMode?"Exit focus mode (F)":"Hide chrome — focus on the chart (F)"}
+  >{(focusMode?(Icons.focusExit&&Icons.focusExit()):(Icons.focus&&Icons.focus()))}<span className="twc-label">Focus</span></button>
   <div ref={tStripRef} className={"pill"+(isEditMode?" pill--edit":"")}>
   <div className={"tb-grp"+(tStripCollapsed.stitch?" tb-hidden":"")}>
     <button className={"tb-btn"+(stitchMode==="track"?(isEditMode?" tb-btn--red":" tb-btn--green"):"")} onClick={()=>{setStitchMode("track");}} title={isEditMode?"Modify stitches (T)":"Mark stitch (T)"}>
@@ -5057,7 +5165,7 @@ return(
         <div className="tb-ovf-sep"/>
       </>}
       {isEditMode&&<>
-        {undoSnapshot&&<button className="tb-ovf-item" style={{color:"#A06F2D"}} onClick={()=>{applyUndo();setTOverflowOpen(false);}}>{Icons.undo?Icons.undo():null} Undo Edit</button>}
+        {undoSnapshot&&<button className="tb-ovf-item" style={{color:"var(--warning)"}} onClick={()=>{applyUndo();setTOverflowOpen(false);}}>{Icons.undo?Icons.undo():null} Undo Edit</button>}
         <button className="tb-ovf-item" style={{color:"var(--danger)"}} onClick={()=>{handleRevertToOriginal();setTOverflowOpen(false);}}>Revert to Original</button>
         <button className="tb-ovf-item" onClick={()=>{if(undoSnapshot!==null){setShowExitEditModal(true);}else{setIsEditMode(false);setUndoSnapshot(null);setSessionStartSnapshot(null);}setTOverflowOpen(false);}}><span aria-hidden="true" style={{display:'inline-flex',verticalAlign:'-3px',marginRight:4}}>{Icons.chevronLeft?Icons.chevronLeft():null}</span>Exit correction mode</button>
         <div className="tb-ovf-sep"/>
@@ -5285,13 +5393,47 @@ return(
     {/* Phase 5: backdrop scrim — only visible on mobile while the
         drawer is open. Tap to close. CSS controls visibility (hidden
         on >=900px) so desktop layout is untouched. */}
-    {leftSidebarOpen&&<div className="lpanel-backdrop" onClick={()=>setLeftSidebarOpen(false)} aria-hidden="true"/>}
+    {leftSidebarMode==="open"&&<div className="lpanel-backdrop" onClick={()=>setLeftSidebarOpen(false)} aria-hidden="true"/>}
+    {/* Touch-1 H-1: rail mode. A 56 px-wide vertical strip with the
+        active highlight swatch + an expand chevron. Single-tap on the
+        chevron opens the full sidebar; tap on the swatch opens it
+        scrolled to the highlight tab. */}
+    {leftSidebarMode==="rail"&&<aside className="lpanel lpanel--rail" role="complementary" aria-label="Tracker sidebar (rail)">
+      <div className="lpanel-rail-content">
+        {(()=>{
+          const selEntry=selectedColorId&&pal?pal.find(p=>p.id===selectedColorId):null;
+          if(!selEntry||!selEntry.rgb)return null;
+          return <button
+            type="button"
+            className="lpanel-rail-swatch"
+            style={{background:"rgb("+selEntry.rgb.join(",")+")"}}
+            onClick={()=>{setLeftSidebarTab("highlight");setLeftSidebarMode("open");}}
+            aria-label={"Highlighted colour: "+(selEntry.name||selEntry.id)}
+            title={selEntry.name||selEntry.id}
+          />;
+        })()}
+        <button
+          type="button"
+          className="lpanel-rail-btn"
+          onClick={()=>setLeftSidebarMode("open")}
+          aria-label="Expand sidebar"
+          title="Expand sidebar"
+        >{Icons.chevronRight&&Icons.chevronRight()}</button>
+        <button
+          type="button"
+          className="lpanel-rail-btn"
+          onClick={()=>setLeftSidebarMode("hidden")}
+          aria-label="Hide sidebar"
+          title="Hide sidebar"
+        >{Icons.x&&Icons.x()}</button>
+      </div>
+    </aside>}
     {/* ═══ LEFT SIDEBAR (toolbar-rework phase 1) ═══
         Mirrors Highlight / View / Session controls so the toolbar pill
         and the rpanel "More" tab can be trimmed in later phases. The
         old controls remain wired during phase 1 to avoid disrupting
         in-flight sessions during the migration. */}
-    {leftSidebarOpen&&<div className={"lpanel"+(leftSidebarOpen?" lpanel--open":"")} role="complementary" aria-label="Tracker sidebar">
+    {leftSidebarMode==="open"&&<div className={"lpanel lpanel--open"} role="complementary" aria-label="Tracker sidebar">
       {(()=>{
         const leftSidebarTabs=[["highlight","Highlight"],["view","View"],["session","Session"],["tools","Tools"],["notes","Notes"],["legend","Legend"]];
         const handleLeftSidebarTabKeyDown=(e,currentKey)=>{
@@ -5704,7 +5846,7 @@ return(
 
     {/* ── Single banner slot (highest priority wins) ── */}
     {(()=>{
-      if(isEditMode) return <div style={{fontSize:'var(--text-sm)',color:"#A06F2D",background:"#FAF5E1",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"1px solid #E5C97D", fontWeight: 600}}>EDITING — <span style={{fontWeight:400}}>Tap a <b>stitch on the grid</b> to edit that cell only · Tap a <b>colour in the list below</b> to reassign all stitches of that colour</span></div>;
+      if(isEditMode) return <div style={{fontSize:'var(--text-sm)',color:"var(--warning)",background:"var(--warning-soft)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"1px solid var(--warning)", fontWeight: 600}}>EDITING — <span style={{fontWeight:400}}>Tap a <b>stitch on the grid</b> to edit that cell only · Tap a <b>colour in the list below</b> to reassign all stitches of that colour</span></div>;
       if(advanceToast) return <div style={{fontSize:'var(--text-sm)',color:"var(--success)",background:"var(--success-soft)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"1px solid var(--success-soft)",fontWeight:600,display:'inline-flex',alignItems:'center',gap:6}}>{Icons.check?Icons.check():null} Complete! Next: {advanceToast}</div>;
       if(blockAdvanceToast) return <div style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"1px solid var(--accent-border)",fontWeight:600,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <span style={{display:'inline-flex',alignItems:'center',gap:6}}>{Icons.check?Icons.check():null} {blockAdvanceToast.label} complete — {blockAdvanceToast.stitches} stitches</span>
@@ -5728,7 +5870,7 @@ return(
           let is10 = (x + 1) % 10 === 0;
           let is5 = (x + 1) % 5 === 0;
           return (
-            <div key={x} style={{ width: scs, flexShrink: 0, height: G, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.max(9, Math.min(11, scs * 0.6)), fontWeight: is10 ? 'bold' : is5 ? 600 : 400, color: is10 ? '#333' : is5 ? '#666' : '#888', fontFamily: 'monospace' }}>
+            <div key={x} style={{ width: scs, flexShrink: 0, height: G, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.max(9, Math.min(11, scs * 0.6)), fontWeight: is10 ? 'bold' : is5 ? 600 : 400, color: is10 ? 'var(--text-primary)' : is5 ? 'var(--text-secondary)' : 'var(--text-muted)', fontFamily: 'monospace' }}>
               {show ? (x + 1) : ''}
             </div>
           );
@@ -5742,7 +5884,7 @@ return(
             let is10 = (y + 1) % 10 === 0;
             let is5 = (y + 1) % 5 === 0;
             return (
-              <div key={y} style={{ height: scs, flexShrink: 0, width: G, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 4, fontSize: Math.max(9, Math.min(11, scs * 0.6)), fontWeight: is10 ? 'bold' : is5 ? 600 : 400, color: is10 ? '#333' : is5 ? '#666' : '#888', fontFamily: 'monospace' }}>
+              <div key={y} style={{ height: scs, flexShrink: 0, width: G, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 4, fontSize: Math.max(9, Math.min(11, scs * 0.6)), fontWeight: is10 ? 'bold' : is5 ? 600 : 400, color: is10 ? 'var(--text-primary)' : is5 ? 'var(--text-secondary)' : 'var(--text-muted)', fontFamily: 'monospace' }}>
                 {show ? (y + 1) : ''}
               </div>
             );
@@ -5827,7 +5969,7 @@ return(
       )}
     </div>
 
-    {doneCount===0&&totalStitchable>0&&stitchMode==="track"&&<div style={{fontSize:'var(--text-xs)',color:"var(--accent-ink)",background:"#FAF5E1",border:"1px solid #E5C97D",borderRadius:'var(--radius-sm)',padding:"6px 10px",marginBottom:'var(--s-2)',textAlign:"center"}}>Tap any stitch on the canvas to mark it as done</div>}
+    {doneCount===0&&totalStitchable>0&&stitchMode==="track"&&<div style={{fontSize:'var(--text-xs)',color:"var(--accent-ink)",background:"var(--accent-soft)",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-sm)',padding:"6px 10px",marginBottom:'var(--s-2)',textAlign:"center"}}>Tap any stitch on the canvas to mark it as done</div>}
 
     {/* Floating undo — mobile only (shown via CSS) */}
     {!isEditMode&&stitchMode==="track"&&trackHistory.length>0&&<button className="fab-undo" onClick={undoTrack} onContextMenu={e=>{e.preventDefault();if(redoStack.length)redoTrack();}} aria-label="Undo last stitch" title="Tap to undo · Long-press for redo">{Icons.undo?Icons.undo():null}</button>}
@@ -5901,7 +6043,7 @@ return(
                   {parkCountsByColour[p.id]>0&&<button onClick={e2=>{e2.stopPropagation();toggleParkLayer(p.id);}} title={(isParkLayerVisible(p.id)?"Hide":"Show")+" "+parkCountsByColour[p.id]+" parked marker"+(parkCountsByColour[p.id]===1?"":"s")+" for this colour"} aria-label={(isParkLayerVisible(p.id)?"Hide":"Show")+" parked markers for DMC "+p.id} aria-pressed={isParkLayerVisible(p.id)} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:9,padding:"1px 5px",borderRadius:4,border:"1px solid var(--border)",background:isParkLayerVisible(p.id)?`rgb(${p.rgb[0]},${p.rgb[1]},${p.rgb[2]})`:"var(--surface)",color:isParkLayerVisible(p.id)?(luminance(p.rgb)>140?"#000":"#fff"):"var(--text-tertiary)",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,fontWeight:600,opacity:isParkLayerVisible(p.id)?1:0.55}}>P{parkCountsByColour[p.id]>1?("\u00D7"+parkCountsByColour[p.id]):""}</button>}
                   <button onClick={e2=>{e2.stopPropagation();if(!complete){const unmarked=dc.total-dc.done;if(unmarked>50&&!confirm("Mark all "+unmarked+" stitches of DMC "+p.id+" as done?"))return;}markColourDone(p.id,!complete);}} style={{fontSize:9,padding:"1px 6px",borderRadius:4,border:"1px solid "+(complete?"var(--danger-soft)":"var(--success-soft)"),background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}} title={complete?"Mark colour as not done":"Mark colour as done"} aria-label={complete?"Mark colour as not done":"Mark colour as done"}>{complete?"Undo":(Icons.check?Icons.check():"\u2713")}</button>
                 </>}
-                {isEditMode&&<span style={{fontSize:10,color:"#A06F2D",fontWeight:600}} aria-label="Edit colour">{Icons.pencil?Icons.pencil():"\u270E"}</span>}
+                {isEditMode&&Icons.pencil&&<span style={{fontSize:10,color:"var(--warning)",fontWeight:600}} aria-label="Edit colour">{Icons.pencil()}</span>}
               </div>;
             });
           })()}
@@ -6661,6 +6803,29 @@ return(
   </div>}
 
 {celebration&&<MilestoneCelebration milestone={celebration} onDismiss={()=>setCelebration(null)}/>}
+{/* Touch-1 H-2: Focus mini-bar. Renders only when focus mode is on.
+    The Exit button never fades — it's the user's only way out. */}
+{focusMode&&<div
+  ref={focusBarRef}
+  className={"cs-focus-bar"+(focusBarFaded?" cs-focus-bar--faded":"")}
+  onPointerMove={resetFocusFade}
+  onPointerDown={resetFocusFade}
+  role="toolbar"
+  aria-label="Focus mode toolbar"
+>
+  {(()=>{
+    const selEntry=selectedColorId&&pal?pal.find(p=>p.id===selectedColorId):null;
+    if(!selEntry||!selEntry.rgb)return null;
+    return <span className="cs-focus-swatch" style={{background:"rgb("+selEntry.rgb.join(",")+")"}} title={selEntry.name||selEntry.id}/>;
+  })()}
+  <button type="button" onClick={()=>{if(typeof undoTrack==='function')undoTrack();}} aria-label="Undo" title="Undo">{Icons.undo&&Icons.undo()}</button>
+  <button type="button" onClick={()=>setStitchZoom(z=>Math.max(0.3,+(z-0.25).toFixed(2)))} aria-label="Zoom out" title="Zoom out">{Icons.minus&&Icons.minus()}</button>
+  <button type="button" onClick={()=>setStitchZoom(1)} aria-label="Reset zoom" title="Reset zoom">{Math.round((stitchZoom||1)*100)}%</button>
+  <button type="button" onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} aria-label="Zoom in" title="Zoom in">{Icons.plus&&Icons.plus()}</button>
+  <button type="button" className="cs-focus-exit" onClick={()=>setFocusMode(false)} aria-label="Exit focus mode" title="Exit focus mode (Esc)">
+    {Icons.x&&Icons.x()}<span style={{marginLeft:6}}>Exit focus</span><kbd style={{marginLeft:8,padding:"1px 6px",fontSize:11,fontWeight:600,background:"var(--surface-alt,var(--surface))",border:"1px solid var(--line)",borderRadius:4,fontFamily:"inherit",color:"var(--text-secondary)"}}>Esc</kbd>
+  </button>
+</div>}
 </div>
 </>);
 }

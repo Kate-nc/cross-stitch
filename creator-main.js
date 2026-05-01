@@ -363,7 +363,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     bri: state.bri, setBri: state.setBri,
     con: state.con, setCon: state.setCon,
     sat: state.sat, setSat: state.setSat,
-    dith: state.dith, setDith: state.setDith,
+    dith: state.dith, dithMode: state.dithMode, dithStrength: state.dithStrength, setDith: state.setDith, setDithMode: state.setDithMode,
     skipBg: state.skipBg, setSkipBg: state.setSkipBg,
     bgTh: state.bgTh, setBgTh: state.setBgTh,
     bgCol: state.bgCol, setBgCol: state.setBgCol,
@@ -410,7 +410,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     autoCrop: stableAutoCrop,
   }; }, [
     state.img, state.isUploading, state.isDragging,
-    state.maxC, state.bri, state.con, state.sat, state.dith,
+    state.maxC, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength,
     state.skipBg, state.bgTh, state.bgCol, state.pickBg,
     state.minSt, state.smooth, state.smoothType,
     state.orphans, state.allowBlends, state.busy,

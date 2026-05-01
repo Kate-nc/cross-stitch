@@ -132,7 +132,13 @@
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 html{height:100%;}
-body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--surface-secondary);color:var(--text-primary);height:100%;display:flex;flex-direction:column;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--surface-secondary);color:var(--text-primary);height:100%;display:flex;flex-direction:column;-webkit-tap-highlight-color:transparent;overscroll-behavior:none;}
+/* Touch surface hardening: prevent the page from rubber-banding /
+   pull-to-refreshing while a finger is on the canvas, and silence the
+   blue tap-highlight that flashes on every button on iOS. */
+@supports (padding: max(0px)) {
+  body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+}
 #root{flex:1;display:flex;flex-direction:column;min-height:0;}
 input[type=range]{accent-color:var(--accent); transition: all 0.2s ease;}
 input[type=checkbox]{accent-color:var(--accent); transition: all 0.2s ease;}
@@ -475,8 +481,10 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 /* Top bar */
 .tb-topbar{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;height:48px;}
 .tb-topbar-inner{max-width:1300px;margin:0 auto;padding:0 16px;height:100%;display:flex;align-items:center;gap:4px;}
-.tb-logo{font-weight:800;font-size:15px;color:var(--accent);cursor:pointer;white-space:nowrap;margin-right:12px;letter-spacing:-0.3px;text-decoration:none;flex-shrink:0;font-family:inherit;}
-.tb-logo:hover{filter:none;color:var(--accent-hover);}
+.tb-logo{font-weight:800;font-size:15px;color:var(--text-primary);cursor:pointer;white-space:nowrap;margin-right:12px;letter-spacing:-0.3px;text-decoration:none;flex-shrink:0;font-family:inherit;display:inline-flex;align-items:center;gap:0;}
+.tb-logo:hover{filter:none;color:var(--text-primary);}
+.tb-logo .tb-logo-dot{color:var(--accent);transition:color var(--motion-fast);}
+.tb-logo:hover .tb-logo-dot{color:var(--accent-hover);}
 .tb-page-btn{display:flex;align-items:center;gap:4px;padding:4px 10px;font-size:12px;font-weight:500;border:0.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text-primary);cursor:pointer;white-space:nowrap;flex-shrink:0;position:relative;font-family:inherit;}
 .tb-page-btn:hover{filter:none;background:var(--surface-tertiary);}
 .tb-page-dropdown{position:absolute;top:calc(100% + 4px);left:0;min-width:160px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-md);z-index:201;padding:4px 0;}
@@ -2407,6 +2415,34 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
   .tpr-more{margin-top:8px;padding:8px;border:1px dashed var(--border);background:transparent;border-radius:8px;color:var(--text-secondary);cursor:pointer;font-size:11px;font-family:inherit;}
   .tpr-more:hover{background:var(--surface);}
 
+  /* Touch-1 H-1b: collapse / expand toggle. Header is a simple
+     row with the heading on the left and a chevron button on the
+     right. When the rail collapses the heading hides and the
+     chevron mirrors. */
+  .tpr-header{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    margin-bottom:6px;
+  }
+  .tpr-header .tpr-h{margin:0;}
+  .tpr-collapse-btn{
+    width:36px;height:36px;border-radius:8px;
+    border:1px solid var(--border);background:var(--surface);
+    color:var(--text-primary);cursor:pointer;
+    display:inline-flex;align-items:center;justify-content:center;
+    font-family:inherit;flex-shrink:0;
+    transition:background 160ms ease-out, border-color 160ms ease-out, color 160ms ease-out;
+  }
+  .tpr-collapse-btn:hover{background:var(--accent-light,var(--surface-tertiary));color:var(--accent);border-color:var(--accent);}
+  .tpr-collapse-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+  /* Collapsed state — narrow rail with thumbnails only. The .cs-main
+     left margin is also halved so the canvas reclaims the freed
+     space (rule lives next to the existing 220 px margin below). */
+  .tracker-project-rail--collapsed{width:56px;padding-left:6px;padding-right:6px;}
+  .tracker-project-rail--collapsed .tpr-row{padding:4px;justify-content:center;}
+  .tracker-project-rail--collapsed .tpr-text{display:none;}
+  .tracker-project-rail--collapsed .tpr-header{justify-content:center;}
+
   .tracker-side-panel{
     display:flex;flex-direction:column;gap:8px;margin-top:12px;
   }
@@ -2465,6 +2501,8 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
   body.tracker-mobile .tracker-colour-chip{display:none;}
   /* Make room for the rail. */
   .cs-main{margin-left:220px;}
+  /* Collapsed rail — canvas reclaims most of the freed space. */
+  body.tracker-rail-collapsed .cs-main{margin-left:56px;}
 }
 
 @media (max-width: 599px){
@@ -6838,3 +6876,238 @@ button[aria-disabled="true"] {
     grid-template-columns: 1fr;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════
+   Touch UX pass — compact-touch (real touch devices, ≤1024 px)
+   See reports/touch-*.md for the design rationale.
+
+   Goals:
+   • 44 × 44 px floor on every interactive control inside .toolbar-row
+     and .tracker-action-bar.
+   • Toolbar moves to the bottom (thumb zone) and stops being sticky.
+   • Canvas scroll container reserves space for the bottom toolbar
+     so the chart isn't hidden under it.
+   • Lpanel three-state support: .lpanel--rail (56 px collapsed strip)
+     and .lpanel--hidden (display: none). Original open behaviour
+     preserved when neither class is present.
+   • Focus-mode helpers — body.cs-focus hides chrome surfaces; a
+     floating mini-bar (.cs-focus-bar) is revealed.
+   ════════════════════════════════════════════════════════════════ */
+@media (max-width: 1024px) and (pointer: coarse) {
+  /* Reserve room at the bottom of the page for the fixed toolbar +
+     safe-area inset so nothing slides under the home indicator.
+     Scoped to Creator so the Tracker's own action-bar layout is
+     unaffected (Tracker manages its bottom space separately). */
+  body.page-creator { padding-bottom: calc(var(--ct-toolbar-h, 64px) + env(safe-area-inset-bottom, 0px)); }
+
+  /* Bottom-fixed creator toolbar. */
+  body.page-creator .toolbar-row {
+    position: fixed;
+    top: auto !important;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    border-bottom: none;
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    z-index: var(--z-action-bar, 500);
+  }
+  .pill-row { min-height: 64px; height: auto; padding: 6px 8px; }
+
+  /* 44 px touch target floor for all toolbar buttons. */
+  .toolbar-row .tb-btn,
+  .toolbar-row .tb-fit-btn,
+  .toolbar-row .tb-overflow-btn,
+  .toolbar-row .pill .tb-btn {
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 13px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    gap: 6px;
+  }
+  .toolbar-row .tb-grp { gap: 4px; padding: 4px; }
+
+  /* Tracker action bar — same floor + safe-area. */
+  .tracker-action-bar {
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+  }
+  .tracker-action-bar button,
+  .tracker-action-bar .ta-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* ── Lpanel three-state rules (apply at every viewport so the JS
+      toggle works on desktop too — narrow screens already handled
+      by the bottom-sheet rules earlier in this file). ───────────── */
+.lpanel--hidden { display: none !important; }
+.lpanel--rail {
+  width: 56px !important;
+  min-width: 56px !important;
+  max-width: 56px !important;
+  overflow: hidden !important;
+  padding: 8px 4px !important;
+}
+.lpanel--rail .lpanel-section,
+.lpanel--rail .lpanel-section-title,
+.lpanel--rail .lpanel-row-label {
+  display: none !important;
+}
+.lpanel--rail .lpanel-rail-content { display: flex !important; }
+.lpanel-rail-content {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+}
+.lpanel-rail-swatch {
+  width: 40px; height: 40px;
+  border-radius: 8px;
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+  cursor: pointer;
+}
+.lpanel-rail-btn {
+  width: 44px; height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background 160ms ease-out, border-color 160ms ease-out, color 160ms ease-out;
+}
+.lpanel-rail-btn:hover { background: var(--accent-light, var(--surface-tertiary)); color: var(--accent); border-color: var(--accent); }
+.lpanel-rail-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ── Focus mode — strip chrome down to canvas + floating mini-bar ── */
+body.cs-focus .header,
+body.cs-focus .info-strip,
+body.cs-focus .toolbar-row,
+body.cs-focus .tracker-action-bar,
+body.cs-focus .rpanel,
+body.cs-focus .lpanel,
+body.cs-focus .tracker-project-rail,
+body.cs-focus .status-bar {
+  display: none !important;
+}
+body.cs-focus { padding-bottom: 0 !important; padding-left: 0 !important; padding-right: 0 !important; }
+/* The project rail's 220 px reservation lives on .cs-main as a left
+   margin in the tablet+ breakpoint. Reclaim it (and any padding the
+   canvas wrapper added for the bottom toolbar) so the chart can grow
+   to fill the freed viewport. */
+body.cs-focus .cs-main { margin-left: 0 !important; height: 100vh; max-height: 100vh; }
+body.cs-focus .canvas-area,
+body.cs-focus .stitch-wrap,
+body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important; max-height: 100vh !important; padding-bottom: env(safe-area-inset-bottom, 0px) !important; }
+/* Don't render the lpanel-backdrop scrim either — there's no panel. */
+body.cs-focus .lpanel-backdrop { display: none !important; }
+
+/* The Focus mini-bar is a fixed pill at the bottom-centre of the
+   viewport. Always above modals' backdrop is intentional — it's the
+   user's only way out of focus mode.
+
+   Fade behaviour: the bar fades to 60% after a few seconds of
+   inactivity so it doesn't dominate the chart. The Exit chip is
+   excluded from the fade (it's the user's escape hatch and must
+   stay legible at all times). */
+.cs-focus-bar {
+  position: fixed;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-lg);
+  z-index: var(--z-coachmark, 1200);
+  transition: opacity 220ms ease-out;
+}
+.cs-focus-bar.cs-focus-bar--faded > *:not(.cs-focus-exit) { opacity: 0.55; }
+.cs-focus-bar:hover > *,
+.cs-focus-bar:focus-within > * { opacity: 1 !important; }
+.cs-focus-bar button {
+  min-width: 44px; min-height: 44px;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 6px;
+  font-family: inherit; font-size: 13px; font-weight: 600;
+  padding: 0 12px;
+  transition: opacity 220ms ease-out, background 160ms ease-out, color 160ms ease-out;
+}
+.cs-focus-bar button:hover { background: var(--surface-tertiary); color: var(--text-primary); }
+.cs-focus-bar button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.cs-focus-bar .cs-focus-swatch {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+  flex-shrink: 0;
+}
+.cs-focus-bar .cs-focus-exit {
+  background: var(--accent);
+  color: var(--text-on-accent, #fff);
+  font-weight: 700;
+  padding: 0 18px;
+  margin-left: 6px;
+  /* Lift the exit chip with a 2 px ring + drop shadow so it reads
+     as the dominant action even against the dimmed bar. */
+  box-shadow: 0 0 0 2px var(--surface), 0 2px 6px rgba(0, 0, 0, 0.18);
+  letter-spacing: 0.02em;
+}
+.cs-focus-bar .cs-focus-exit:hover {
+  background: var(--accent-hover);
+  color: var(--text-on-accent, #fff);
+  box-shadow: 0 0 0 2px var(--surface), 0 4px 10px rgba(0, 0, 0, 0.22);
+}
+.cs-focus-bar .cs-focus-exit:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 3px;
+}
+
+/* Persistent status chip at bottom-left of canvas — shows active
+   tool + colour so the user always knows what a tap will do. Only
+   shown on touch viewports (the desktop has hover affordances). */
+@media (max-width: 1024px) and (pointer: coarse) {
+  .cs-status-chip {
+    position: fixed;
+    left: max(12px, env(safe-area-inset-left, 0px));
+    bottom: calc(var(--ct-toolbar-h, 64px) + env(safe-area-inset-bottom, 0px) + 12px);
+    z-index: var(--z-fab, 450);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    box-shadow: var(--shadow-md);
+    font-size: 12px;
+    color: var(--text-secondary);
+    pointer-events: none;
+  }
+  .cs-status-chip-swatch {
+    width: 18px; height: 18px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+  .cs-status-chip-tool { font-weight: 600; color: var(--text-primary); }
+}
+
+
