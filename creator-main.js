@@ -1,4 +1,4 @@
-﻿/* creator-main.js — Main application JSX (CreatorApp + UnifiedApp).
+/* creator-main.js — Main application JSX (CreatorApp + UnifiedApp).
    Loaded via compile-and-cache (see window.loadCreatorMain in index.html).
    Depends on globals set up by all <script> tags that precede it:
    React, ReactDOM, confettiTier, useCreatorState, useEditHistory,
@@ -187,6 +187,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
           aria-valuemin={5}
           aria-valuemax={95}
           aria-valuenow={Math.round(splitPos)}
+          onFocus={function(){ setSweeping(false); }}
           onKeyDown={function(e){
             var step = e.shiftKey ? 10 : 2;
             if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
@@ -289,28 +290,28 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     return()=>{delete window.__setCreatorAppMode;delete window.__setCreatorProjectName;delete window.__updateCreatorTrackerFields;};
   },[state.setAppMode,state.setProjectName]);
 
-  // Bridge global "?" â†’ open Help Centre while in Creator design mode.
+  // Bridge global "?" → open Help Centre while in Creator design mode.
   React.useEffect(()=>{
     const h=()=>{ state.setModal('help'); };
     window.addEventListener('cs:openHelpDesign',h);
     return()=>window.removeEventListener('cs:openHelpDesign',h);
   },[state.setModal]);
 
-  // Command Palette â†’ Shortcuts modal (Creator design mode).
+  // Command Palette → Shortcuts modal (Creator design mode).
   React.useEffect(()=>{
     const h=()=>{ state.setModal('shortcuts'); };
     window.addEventListener('cs:openShortcuts',h);
     return()=>window.removeEventListener('cs:openShortcuts',h);
   },[state.setModal]);
 
-  // Command Palette â†’ Preferences modal bridge (UX-12 Phase 6 PR #11).
+  // Command Palette → Preferences modal bridge (UX-12 Phase 6 PR #11).
   React.useEffect(()=>{
     const h=()=>{ if(typeof window.PreferencesModal!=='undefined') state.setPreferencesOpen(true); };
     window.addEventListener('cs:openPreferences',h);
     return()=>window.removeEventListener('cs:openPreferences',h);
   },[state.setPreferencesOpen]);
 
-  // Command Palette â†’ Rename current project bridge (UX-12 Phase 6 PR #11).
+  // Command Palette → Rename current project bridge (UX-12 Phase 6 PR #11).
   React.useEffect(()=>{
     const h=()=>{ state.setNamePromptOpen(true); };
     window.addEventListener('cs:openRename',h);
@@ -346,7 +347,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     return () => { cancelled = true; document.removeEventListener('visibilitychange', onVis); };
   }, [state.setGlobalStash]);
 
-  // â”€â”€ Stable ref-forwarding wrappers — prevent context rememo on every render â”€â”€
+  // ── Stable ref-forwarding wrappers — prevent context rememo on every render ──
   // Handler identity is stabilised via a ref; the ref is updated synchronously on
   // each render so the latest function is always called despite the empty dep list.
   // Refs are initialised with null; the current assignment below runs before any
@@ -377,7 +378,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const stableUndoEdit = React.useCallback(function(){_histRef.current.undoEdit();}, []);
   const stableRedoEdit = React.useCallback(function(){_histRef.current.redoEdit();}, []);
 
-  // â”€â”€ GenerationContext value (image-to-pattern generation params & callbacks) â”€â”€
+  // ── GenerationContext value (image-to-pattern generation params & callbacks) ──
   const genCtx = useMemo(function() { return {
     img: state.img, setImg: state.setImg,
     isUploading: state.isUploading, setIsUploading: state.setIsUploading,
@@ -449,7 +450,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.blendsAutoDisabled, state.effectiveAllowBlends,
   ]);
 
-  // â”€â”€ AppContext value (UI housekeeping: tabs, modals, panels, toasts, refs, export, preview) â”€â”€
+  // ── AppContext value (UI housekeeping: tabs, modals, panels, toasts, refs, export, preview) ──
   const appCtx = useMemo(function() { return {
     appMode: state.appMode, setAppMode: state.setAppMode,
     sidebarTab: state.sidebarTab, setSidebarTab: state.setSidebarTab,
@@ -532,7 +533,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     isActive,
   ]);
 
-  // â”€â”€ CanvasContext value (tools, view, zoom, highlight, selection, edit history, interactions) â”€â”€
+  // ── CanvasContext value (tools, view, zoom, highlight, selection, edit history, interactions) ──
   const cvCtx = useMemo(function() { return {
     activeTool: state.activeTool, setActiveTool: state.setActiveTool, activeToolRef: state.activeToolRef,
     brushMode: state.brushMode, setBrushMode: state.setBrushMode, brushModeRef: state.brushModeRef,
@@ -638,7 +639,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.lassoPreviewMask, state.lassoOpMode, state.lassoPointCount, state.lassoInProgress,
   ]);
 
-  // â”€â”€ PatternDataContext value (core pattern data, dimensions, derived values) â”€â”€
+  // ── PatternDataContext value (core pattern data, dimensions, derived values) ──
   const pdCtx = useMemo(function() { return {
     pat: state.pat, setPat: state.setPat,
     pal: state.pal, setPal: state.setPal,
@@ -734,7 +735,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.doneCount, state.totalTime, state.sessions,
   ]);
 
-  // â”€â”€ C8 Phase 1 — first-stitch coachmark (Creator) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── C8 Phase 1 — first-stitch coachmark (Creator) ────────────────────
   // Trigger condition: in Edit mode with a pattern loaded but no edits yet.
   // Success signal: state.editHistory becomes non-empty (a cell received a
   // colour). The 500ms delay lets the canvas settle so the popover anchors
@@ -764,7 +765,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     && !state.namePromptOpen
     && (!state.editHistory || state.editHistory.length === 0);
 
-  // â”€â”€ Polish 13 step 4b — Tools tab unlock coachmark â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Polish 13 step 4b — Tools tab unlock coachmark ───────────────────
   // Fires once after the first generation, anchored on the Tools tab in
   // the right-panel sidebar. The tab strip is unified across appModes
   // (Polish 13 step 3) so the coachmark is meaningful in either appMode.
@@ -827,13 +828,13 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
           state.setProjectName(name);
           state.setNamePromptOpen(false);
           // Two distinct flows share this modal:
-          //  - "firstSave"  â†’ opened automatically after the first auto-save.
+          //  - "firstSave"  → opened automatically after the first auto-save.
           //                   The project is already in IndexedDB under
           //                   "Untitled pattern"; we only need to update the
           //                   name (the auto-save effect picks the change up
           //                   on the next debounce). Do NOT trigger a .json
           //                   download here.
-          //  - "download"   â†’ opened by the legacy "Save (.json)" path.
+          //  - "download"   → opened by the legacy "Save (.json)" path.
           //                   doSaveProject downloads the file to disk.
           if(state.nameModalReason==='firstSave'){
             state.setNameModalReason&&state.setNameModalReason(null);
@@ -950,7 +951,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                 <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#5C5448",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span style={{display:"inline-flex",alignItems:"center",gap:6}}>
                     Preview
-                    {state.previewLoading&&<span role="status" aria-label="Updating preview" title="Updating preview" style={{display:"inline-flex",width:12,height:12,color:"#A89E89",animation:"cs-spin 900ms linear infinite"}}>{Icons.spinner()}</span>}
+                    {state.previewLoading&&<span role="status" aria-label="Updating preview" title="Updating preview" className="preview-spinner" style={{display:"inline-flex",width:12,height:12,color:"#A89E89"}}>{Icons.spinner()}</span>}
                   </span>
                   {state.previewDims&&<span style={{fontSize:10,fontWeight:500,color:"#A89E89"}}>{state.previewDims.pw}×{state.previewDims.ph} px{state.previewDims.pw===state.sW?" — full res":" — "+Math.round(state.previewDims.pw/state.sW*100)+"%"}</span>}
                               {state.stitchCleanup&&state.stitchCleanup.enabled&&state.previewUrl&&<div style={{padding:"4px 14px 4px",display:"flex",alignItems:"center",gap:6}}>
@@ -1228,7 +1229,7 @@ function UnifiedApp(){
     setCreatorResetKey(k=>k+1);
     window.history.replaceState({},'',window.location.pathname);
     setMode('design');
-    // Scratch mode â†’ Edit, not Create
+    // Scratch mode → Edit, not Create
     setTimeout(()=>{if(window.__setCreatorAppMode) window.__setCreatorAppMode('edit');},0);
   },[]);
 
@@ -1290,7 +1291,7 @@ function UnifiedApp(){
   const[welcomeOpen,setWelcomeOpen]=React.useState(()=>{
     return !!(window.WelcomeWizard&&window.WelcomeWizard.shouldShow('creator'));
   });
-  // Global "?" shortcut â†’ open Help Centre. Routes to home or design depending
+  // Global "?" shortcut → open Help Centre. Routes to home or design depending
   // on which mode the user is currently viewing.
   React.useEffect(()=>{
     const h=()=>{
@@ -1314,14 +1315,14 @@ function UnifiedApp(){
     window.addEventListener('cs:openShortcuts',h);
     return()=>window.removeEventListener('cs:openShortcuts',h);
   },[mode]);
-  // "Show welcome tour again" from HelpCentre â†’ re-open the wizard.
+  // "Show welcome tour again" from HelpCentre → re-open the wizard.
   React.useEffect(()=>{
     const h=(e)=>{ if(!e||!e.detail||e.detail.page==='creator') setWelcomeOpen(true); };
     window.addEventListener('cs:showWelcome',h);
     return()=>window.removeEventListener('cs:showWelcome',h);
   },[]);
 
-  // Global "B" shortcut â†’ open Bulk Add Threads from anywhere in the Creator
+  // Global "B" shortcut → open Bulk Add Threads from anywhere in the Creator
   // page (home, design, track). Registered through the central shortcuts
   // registry, which handles the input-element guard and modifier exclusion.
   if(typeof window.useShortcuts==='function'){
@@ -1366,11 +1367,11 @@ function UnifiedApp(){
   </>;
 }
 
-// â”€â”€ Pre-mount: process ?action= deep links from /home synchronously â”€â”€â”€â”€â”€
+// ── Pre-mount: process ?action= deep links from /home synchronously ─────
 // MUST run BEFORE ReactDOM.createRoot so window.__pendingCreatorFile (and
 // friends) are set BEFORE CreatorApp's child-level useEffect in
 // useProjectIO consumes them. If this ran inside a parent useEffect, the
-// child effect would fire FIRST (React effects: child â†’ parent), miss the
+// child effect would fire FIRST (React effects: child → parent), miss the
 // pending mark, and the user would be stranded on the Welcome card with
 // their image silently dropped.
 (function processPendingAction(){

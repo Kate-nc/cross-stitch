@@ -57,7 +57,7 @@ describe('C1 — useCreatorState composite-key extraction', () => {
   });
 });
 
-describe('C1b — Create-from-stash includes Anchor threads (multi-brand)', () => {
+describe('C1b — Create-from-stash is DMC-only (pipeline id-safety)', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'creator', 'useCreatorState.js'), 'utf8');
 
   // Extract the central helper. It depends on findThreadInCatalog, which we
@@ -99,24 +99,24 @@ describe('C1b — Create-from-stash includes Anchor threads (multi-brand)', () =
     expect(got2.palette[0].brand).toBe('dmc');
   });
 
-  it('includes Anchor threads from anchor: composite keys (the bug)', () => {
+  it('excludes non-DMC threads — pipeline uses bare ids and brands share many ids', () => {
+    // Anchor id '403' is excluded because including it with bare id '403' would
+    // corrupt quantize/buildPalette which keys colours by id alone.
     const got = _build({ 'anchor:403': { owned: 2 } }, null);
-    expect(got.count).toBe(1);
-    expect(got.palette[0].id).toBe('403');
-    expect(got.palette[0].brand).toBe('anchor');
+    expect(got.count).toBe(0);
+    expect(got.palette).toBeNull();
   });
 
-  it('returns a mixed-brand union when both DMC and Anchor are owned', () => {
+  it('only counts DMC threads when stash has mixed brands', () => {
     const got = _build({ 'dmc:310': { owned: 1 }, 'anchor:403': { owned: 1 } }, null);
-    expect(got.count).toBe(2);
-    const brands = got.palette.map(p => p.brand).sort();
-    expect(brands).toEqual(['anchor', 'dmc']);
+    expect(got.count).toBe(1);
+    expect(got.palette[0].brand).toBe('dmc');
   });
 
-  it('skips entries with owned <= 0', () => {
-    const got = _build({ 'dmc:310': { owned: 0 }, 'anchor:403': { owned: 1 } }, null);
-    expect(got.count).toBe(1);
-    expect(got.palette[0].brand).toBe('anchor');
+  it('skips DMC entries with owned <= 0', () => {
+    const got = _build({ 'dmc:310': { owned: 0 } }, null);
+    expect(got.count).toBe(0);
+    expect(got.palette).toBeNull();
   });
 });
 

@@ -5253,12 +5253,12 @@ var CONVERSION_STATE_KEYS = [
 
 // Build the allowedPalette + count from a globalStash (composite-keyed) or a
 // pre-built variation subset. ONE place that does the brand-aware key dance —
-// every other call site funnels through this. The palette is a mixed-brand
-// union (DMC + Anchor + future brands): each entry carries its `brand` so
-// downstream consumers (legend, project save, shopping list) can resolve it
-// correctly. The engine itself is brand-agnostic — it consumes
-// {id, name, rgb, lab} and matches by id, so adding non-DMC entries Just
-// Works at the pixel-mapping layer. Returns
+// every other call site funnels through this. Constrained to DMC threads only
+// because the conversion pipeline (quantize/buildPalette/doMap/doDither) keys
+// colours by bare `id` alone, and many Anchor ids overlap DMC ids (e.g. both
+// have '310'), which would silently merge distinct colours and corrupt output.
+// Non-DMC threads require namespaced ids throughout the pipeline + save format
+// before they can be safely included here. Returns
 // { palette: Array|null, count: number, threads: Array }.
 function _buildAllowedPaletteFromStash(globalStash, subset) {
   if (subset && subset.length) {
@@ -5266,22 +5266,18 @@ function _buildAllowedPaletteFromStash(globalStash, subset) {
   }
   if (!globalStash) return { palette: null, count: 0, threads: [] };
   var palette = [];
-  var seen = Object.create(null); // brand:id de-dupe across iteration order
+  var seen = Object.create(null);
   Object.keys(globalStash).forEach(function(key) {
     if ((globalStash[key].owned || 0) <= 0) return;
     var parts = _splitStashKey(key);
-    if (!parts) return;
-    var lookupKey = parts.brand + ':' + parts.id;
-    if (seen[lookupKey]) return;
+    if (!parts || parts.brand !== 'dmc') return; // DMC-only: pipeline uses bare ids
+    if (seen[parts.id]) return;
     var entry = (typeof findThreadInCatalog === 'function')
-      ? findThreadInCatalog(parts.brand, parts.id)
+      ? findThreadInCatalog('dmc', parts.id)
       : null;
     if (!entry) return;
-    seen[lookupKey] = true;
-    // Tag with brand so downstream code (LegendTab, ShoppingListModal, project
-    // save) can resolve the correct catalogue. The original DMC/ANCHOR catalogue
-    // entries are frozen-ish singletons — clone before mutating.
-    palette.push(Object.assign({}, entry, { brand: parts.brand }));
+    seen[parts.id] = true;
+    palette.push(Object.assign({}, entry, { brand: 'dmc' }));
   });
   return {
     palette: palette.length ? palette : null,
@@ -6492,7 +6488,7 @@ window.useCreatorState = function useCreatorState() {
       if (!stashConstrained || !globalStash) return null;
       var threads = _buildAllowedPaletteFromStash(globalStash, null).threads;
       var entries = threads.map(function(t, i) {
-        var key = 'dmc:' + t.id;
+        var key = (t.brand || 'dmc') + ':' + t.id;
         return {
           id: t.id, name: t.name, rgb: t.rgb,
           owned: (globalStash[key] && globalStash[key].owned) || 0,
