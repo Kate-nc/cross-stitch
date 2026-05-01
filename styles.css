@@ -452,29 +452,8 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   0% { transform: scale(0.85); opacity: 0; }
   100% { transform: scale(1); opacity: 1; }
 }
-@keyframes hs-fade-out {
-  0% { opacity: 1; }
-  100% { opacity: 0; transform: translateY(-4px); }
-}
-@keyframes hs-flash {
-  0%, 100% { background-color: inherit; }
-  50% { background-color: var(--danger-soft); }
-}
 .hs-scale-in {
   animation: hs-scale-in 150ms ease-out both;
-}
-.hs-fade-out {
-  animation: hs-fade-out 120ms ease-in both;
-}
-.hs-flash {
-  animation: hs-flash 300ms ease-in-out;
-}
-@keyframes hs-badge-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.2); }
-}
-.hs-badge-pulse {
-  animation: hs-badge-pulse 600ms ease-in-out;
 }
 
 /* ═══ UNIFIED TWO-ROW TOOLBAR ═══ */
@@ -1820,40 +1799,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   color: var(--text-secondary);
   margin-bottom: 14px;
 }
-.emb-divider-text {
-  text-align: center;
-  font-size: 13px;
-  color: var(--text-tertiary);
-  margin: 16px 0 12px;
-}
-.emb-sample-row {
-  display: flex;
-  gap: 10px;
-}
-.emb-sample-card {
-  flex: 1;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 14px;
-  text-align: center;
-  cursor: pointer;
-  background: var(--surface);
-  transition: all 0.15s ease;
-}
-.emb-sample-card:hover {
-  border-color: var(--accent);
-  background: var(--accent-light);
-  transform: translateY(-2px);
-}
-.emb-sample-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-.emb-sample-desc {
-  font-size: 11px;
-  color: var(--text-secondary);
-}
+
 .emb-nav-row {
   display: flex;
   align-items: center;
@@ -5530,18 +5476,6 @@ html.pref-dark a { color: var(--accent); }
   gap: var(--s-5, 24px);
 }
 .home-hero { padding: var(--s-3, 12px) 0 0; }
-.home-hero__title {
-  margin: 0 0 4px;
-  font-size: var(--text-hero, 28px);
-  font-weight: 600;
-  color: var(--text-primary);
-  letter-spacing: -0.01em;
-}
-.home-hero__sub {
-  margin: 0;
-  font-size: var(--text-md, 13px);
-  color: var(--text-secondary);
-}
 
 .home-section__title {
   margin: 0 0 var(--s-3, 12px);
@@ -5563,216 +5497,6 @@ html.pref-dark a { color: var(--accent); }
   text-decoration: none;
 }
 .home-section__more:hover { text-decoration: underline; }
-
-/* Resume card */
-.home-resume__card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg, 10px);
-  padding: var(--s-4, 16px);
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: var(--s-4, 16px);
-  align-items: center;
-  box-shadow: var(--shadow-sm);
-}
-.home-resume__avatar {
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius-md, 8px);
-  background: var(--accent-soft, var(--accent-light));
-  color: var(--accent-ink, var(--accent));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: var(--text-lg, 14px);
-}
-.home-resume__info { min-width: 0; }
-.home-resume__name {
-  font-weight: 600;
-  font-size: var(--text-xl, 17px);
-  color: var(--text-primary);
-  margin-bottom: 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.home-resume__meta {
-  font-size: var(--text-sm, 12px);
-  color: var(--text-secondary);
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-3, 12px);
-}
-.home-resume__bar {
-  margin-top: 8px;
-  height: 6px;
-  background: var(--border-subtle);
-  border-radius: var(--radius-pill, 999px);
-  overflow: hidden;
-}
-.home-resume__bar-fill {
-  height: 100%;
-  background: var(--accent);
-  transition: width var(--motion, 160ms ease-out);
-}
-.home-resume__actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: stretch;
-}
-.home-resume__btn { white-space: nowrap; }
-
-/* Recent grid */
-.home-recent__grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--s-3, 12px);
-}
-.home-pj-card {
-  display: flex;
-  gap: var(--s-3, 12px);
-  padding: var(--s-3, 12px);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md, 8px);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color var(--motion-fast, 120ms ease-out),
-              box-shadow var(--motion-fast, 120ms ease-out);
-  font: inherit;
-  color: inherit;
-}
-.home-pj-card:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); }
-.home-pj-card:focus-visible {
-  outline: 3px solid var(--accent);
-  outline-offset: 2px;
-}
-.home-pj-card__avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius-sm, 6px);
-  background: var(--surface-tertiary);
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: var(--text-md, 13px);
-  flex-shrink: 0;
-}
-.home-pj-card__body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.home-pj-card__name {
-  font-weight: 600;
-  font-size: var(--text-md, 13px);
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.home-pj-card__meta {
-  font-size: var(--text-xs, 11px);
-  color: var(--text-tertiary);
-}
-.home-pj-card__bar {
-  display: block;
-  height: 4px;
-  background: var(--border-subtle);
-  border-radius: var(--radius-pill, 999px);
-  overflow: hidden;
-  margin-top: 4px;
-}
-.home-pj-card__bar-fill {
-  display: block;
-  height: 100%;
-  background: var(--accent);
-}
-
-/* Quick-action tiles */
-.home-quick__grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--s-3, 12px);
-}
-.home-quick__tile {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2, 8px);
-  padding: var(--s-4, 16px);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md, 8px);
-  text-decoration: none;
-  color: var(--text-primary);
-  transition: border-color var(--motion-fast, 120ms ease-out),
-              box-shadow var(--motion-fast, 120ms ease-out),
-              transform var(--motion-fast, 120ms ease-out);
-}
-.home-quick__tile:hover {
-  border-color: var(--accent);
-  box-shadow: var(--shadow-sm);
-  transform: translateY(-1px);
-}
-.home-quick__tile:focus-visible {
-  outline: 3px solid var(--accent);
-  outline-offset: 2px;
-}
-.home-quick__tile--primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--text-on-accent, #fff);
-}
-.home-quick__tile--primary:hover { background: var(--accent-2, var(--accent-hover)); border-color: var(--accent-2, var(--accent-hover)); }
-.home-quick__icon {
-  display: inline-flex;
-  width: 24px;
-  height: 24px;
-  align-items: center;
-  justify-content: center;
-}
-.home-quick__copy { display: flex; flex-direction: column; gap: 2px; }
-.home-quick__copy strong { font-size: var(--text-md, 13px); font-weight: 600; }
-.home-quick__copy span { font-size: var(--text-sm, 12px); color: var(--text-secondary); }
-.home-quick__tile--primary .home-quick__copy span { color: rgba(255, 255, 255, 0.78); }
-
-/* Stash summary */
-.home-stash__card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md, 8px);
-  padding: var(--s-2, 8px) var(--s-4, 16px);
-}
-.home-stash__row {
-  display: flex;
-  justify-content: space-between;
-  font-size: var(--text-sm, 12px);
-  color: var(--text-secondary);
-  padding: var(--s-2, 8px) 0;
-  border-bottom: 1px dashed var(--border-subtle);
-}
-.home-stash__row:last-child { border-bottom: none; }
-.home-stash__row--link {
-  text-decoration: none;
-  color: var(--accent);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
-  margin: 0 calc(-1 * var(--s-2, 8px));
-  padding-left: var(--s-2, 8px);
-  padding-right: var(--s-2, 8px);
-  border-radius: var(--radius-sm, 4px);
-}
-.home-stash__row--link:hover { background: var(--surface-tertiary); color: var(--accent); }
-.home-stash__row--link .home-stash__value { color: var(--accent); }
-.home-stash__value { color: var(--text-primary); font-weight: 600; }
 
 /* Footer */
 .home-footer {
@@ -5796,45 +5520,14 @@ html.pref-dark a { color: var(--accent); }
 /* Mobile reflow */
 @media (max-width: 599px) {
   .home-page { padding: var(--s-3, 12px) var(--s-3, 12px) var(--s-6, 32px); gap: var(--s-4, 16px); }
-  .home-hero__title { font-size: var(--text-h, 22px); }
-  .home-resume__card {
-    grid-template-columns: auto 1fr;
-    grid-template-rows: auto auto;
-  }
-  .home-resume__actions {
-    grid-column: 1 / -1;
-    flex-direction: row;
-  }
-  .home-resume__btn { flex: 1; }
-  .home-recent__grid { grid-template-columns: 1fr; }
-  .home-quick__grid { grid-template-columns: 1fr 1fr; }
-}
-@media (min-width: 600px) and (max-width: 899px) {
-  .home-recent__grid { grid-template-columns: repeat(2, 1fr); }
-  .home-quick__grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (pointer: coarse) {
-  .home-pj-card,
-  .home-quick__tile,
-  .home-resume__btn,
   .home-footer__link { min-height: 44px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .home-pj-card,
-  .home-quick__tile,
-  .home-resume__bar-fill { transition: none; }
-  .home-quick__tile:hover { transform: none; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
    Combo A — Tab bar + Project Hub (home-app.js rewrite)
-   Adds: HomeTabBar · GreetingRow · ActiveProjectCard · ProjectsList
-         CreatePanel · StashPanel · StatsPanel · btn-sm
-   Old .home-hero__* / .home-resume__* / .home-recent__* / .home-quick__*
-   selectors above are kept for now (home-screen.js still references some
-   of them via the legacy Creator home mode).
 ───────────────────────────────────────────────────────────────────────── */
 
 /* ── Base button styles used by home-app.js ── */
@@ -6201,24 +5894,6 @@ html.pref-dark a { color: var(--accent); }
   flex-direction: column;
   gap: var(--s-3, 12px);
 }
-.home-stats-panel__sub {
-  font-size: var(--text-md, 13px);
-  color: var(--text-secondary);
-  margin: 0;
-}
-.home-stats-panel__link {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2, 8px);
-  font-size: var(--text-lg, 14px);
-  font-weight: 600;
-  color: var(--accent);
-  text-decoration: none;
-}
-.home-stats-panel__link:hover { text-decoration: underline; }
-.home-stats-panel__link-icon { display: inline-flex; }
-.home-stats-panel__link-icon svg { width: 16px; height: 16px; }
-
 /* ── Home dashboard cards (Option B: Stats + Stash mini-dashboards) ── */
 .home-kpi-grid {
   display: grid;
