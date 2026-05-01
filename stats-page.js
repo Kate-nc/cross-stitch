@@ -951,7 +951,10 @@ function StatsShowcase({ onNavigateToDashboard, onNavigateToActivity }) {
           (() => { const t = (ageData.bucketUnder1Yr || 0) + (ageData.bucket1to3Yr || 0) + (ageData.bucket3to5Yr || 0) + (ageData.bucketOver5Yr || 0) + (ageData.legacy || 0); return `${fmtNum(t)} thread${t === 1 ? '' : 's'} in your stash.`; })()
         ),
         h(ShowcaseAgeBar, { ageData }),
-        ageData.oldest && h('div', { style: { marginTop:'var(--s-3)', fontSize:'var(--text-md)', color: 'var(--text-secondary)' } }, `Oldest: ${ageData.oldest.name} \u00b7 in stash since ${fmtDate(ageData.oldest.addedAt)}`)
+        ageData.oldest && h('div', { style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', marginTop:'var(--s-3)', fontSize:'var(--text-md)', color: 'var(--text-secondary)' } },
+          h(Swatch, { rgb: (function() { const k = ageData.oldest.id || ''; const ci = k.indexOf(':'); const br = ci >= 0 ? k.slice(0, ci) : 'dmc'; const bi = ci >= 0 ? k.slice(ci + 1) : k; const info = typeof findThreadInCatalog === 'function' ? findThreadInCatalog(br, bi) : null; return info ? info.rgb : null; })(), size: 16 }),
+          h('span', null, `Oldest: ${ageData.oldest.name} \u00b7 in stash since ${fmtDate(ageData.oldest.addedAt)}`)
+        )
       )
     ),
     showOldest && h('div', null,
@@ -1531,8 +1534,13 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     const union = new Set([...usedIds, ...ownedIds]);
     const jaccardPct = union.size > 0 ? (intersection.size / union.size) * 100 : 0;
     // Find over-bought (in owned, not in used) and under-bought (in used, not in owned)
-    const usedNotOwned = [...usedIds].filter(x => !ownedIds.has(x)).slice(0, 5);
-    const ownedNotUsed = [...ownedIds].filter(x => !usedIds.has(x)).slice(0, 5);
+    // Enrich with {id, name, rgb} so the render site can show a colour swatch.
+    function enrichId(id) {
+      const info = typeof findThreadInCatalog === 'function' ? findThreadInCatalog('dmc', id) : null;
+      return { id, name: info ? info.name : '', rgb: info ? info.rgb : null };
+    }
+    const usedNotOwned = [...usedIds].filter(x => !ownedIds.has(x)).slice(0, 5).map(enrichId);
+    const ownedNotUsed = [...ownedIds].filter(x => !usedIds.has(x)).slice(0, 5).map(enrichId);
     return { jaccardPct, intersection: intersection.size, usedNotOwned, ownedNotUsed };
   }, [mostUsed, stash]);
 
@@ -1989,8 +1997,9 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
         (ageData.bucketUnder1Yr > 0 || ageData.bucket1to3Yr > 0 || ageData.bucket3to5Yr > 0 || ageData.bucketOver5Yr > 0 || ageData.legacy > 0)
           ? h('div', null,
               h(AgeBar, { data: ageData }),
-              ageData.oldest && h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-secondary)', marginTop:'var(--s-2)' } },
-                'Oldest tracked: ' + (ageData.oldest.name || ageData.oldest.id) + ' · ' + new Date(ageData.oldest.addedAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
+              ageData.oldest && h('div', { style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', fontSize:'var(--text-xs)', color: 'var(--text-secondary)', marginTop:'var(--s-2)' } },
+                h(Swatch, { rgb: (function() { const k = ageData.oldest.id || ''; const ci = k.indexOf(':'); const br = ci >= 0 ? k.slice(0, ci) : 'dmc'; const bi = ci >= 0 ? k.slice(ci + 1) : k; const info = typeof findThreadInCatalog === 'function' ? findThreadInCatalog(br, bi) : null; return info ? info.rgb : null; })(), size: 14 }),
+                h('span', null, 'Oldest tracked: ' + (ageData.oldest.name || ageData.oldest.id) + ' \u00b7 ' + new Date(ageData.oldest.addedAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }))
               ),
               ageData.legacy > 0 && !ageData.bucketUnder1Yr && !ageData.bucket1to3Yr && !ageData.bucket3to5Yr && !ageData.bucketOver5Yr &&
                 h('div', { style: { fontSize:'var(--text-sm)', color: 'var(--text-secondary)', marginTop:'var(--s-1)' } }, 'Most of your stash was added before tracking started. Newly-added threads will appear here')
@@ -2108,13 +2117,13 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
           h('div', null,
             h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 4 } }, 'Used a lot but not stocked'),
             colourFingerprint.usedNotOwned.length > 0
-              ? colourFingerprint.usedNotOwned.map(id => h('div', { key: id, style: { fontSize:'var(--text-sm)', color: 'var(--text-primary)' } }, id))
+              ? colourFingerprint.usedNotOwned.map(t => h('div', { key: t.id, style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', fontSize:'var(--text-sm)', color: 'var(--text-primary)', marginBottom: 3 } }, h(Swatch, { rgb: t.rgb, size: 16 }), 'DMC ' + t.id + (t.name ? ' \u2014 ' + t.name : '')))
               : h('div', { style: { fontSize:'var(--text-sm)', color: 'var(--text-tertiary)' } }, 'Stocked everything you use')
           ),
           h('div', null,
             h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 4 } }, 'Stocked but rarely used'),
             colourFingerprint.ownedNotUsed.length > 0
-              ? colourFingerprint.ownedNotUsed.map(id => h('div', { key: id, style: { fontSize:'var(--text-sm)', color: 'var(--text-primary)' } }, id))
+              ? colourFingerprint.ownedNotUsed.map(t => h('div', { key: t.id, style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', fontSize:'var(--text-sm)', color: 'var(--text-primary)', marginBottom: 3 } }, h(Swatch, { rgb: t.rgb, size: 16 }), 'DMC ' + t.id + (t.name ? ' \u2014 ' + t.name : '')))
               : h('div', { style: { fontSize:'var(--text-sm)', color: 'var(--text-tertiary)' } }, 'Everything earns its place')
           )
         )
