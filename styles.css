@@ -2143,9 +2143,6 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
     background:var(--accent);color:var(--surface);
     box-shadow:0 2px 8px rgba(184, 92, 56,0.3);
   }
-  body.tracker-mobile .tracker-action-bar .action-btn--mark.action-btn--mark--on{
-    background:var(--accent-hover);box-shadow:0 0 0 2px rgba(184, 92, 56,0.5),0 2px 8px rgba(184, 92, 56,0.4);
-  }
   /* Colour quick-switcher drawer */
   body.tracker-mobile .colour-quick-drawer{
     position:fixed;left:0;right:0;
@@ -2191,7 +2188,6 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   body.tracker-mobile .info-strip-bar{height:6px;}
   body.tracker-mobile .info-strip-row{font-size:12px;height:30px;}
   body.tracker-mobile .info-strip-pct,
-  body.tracker-mobile .info-strip-today-count,
   body.tracker-mobile .info-strip-timer{font-size:12px;}
   /* Make the info strip tappable on mobile (opens stats) */
   body.tracker-mobile .info-strip{cursor:pointer;}
@@ -2679,20 +2675,10 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .info-strip-today{background:var(--success);border-radius:0 2px 2px 0;animation:todayGlow 2s ease-in-out infinite alternate;}
 .info-strip-row{display:flex;align-items:center;justify-content:space-between;padding:0 16px;height:24px;max-width:1300px;margin:0 auto;width:100%;gap:12px;}
 .info-strip-pct{font-size:11px;font-weight:700;color:var(--text-primary);white-space:nowrap;display:flex;align-items:center;gap:4px;}
-.info-strip-today-count{font-size:11px;font-weight:500;color:var(--accent);white-space:nowrap;}
 .info-strip-timer{font-size:11px;font-weight:500;color:var(--text-secondary);white-space:nowrap;font-variant-numeric:tabular-nums;margin-left:auto;}
 @keyframes todayGlow{0%{filter:brightness(1);}100%{filter:brightness(1.15);}}
-/* ═══ Daily goal bar (below mini stats) ═══ */
-.mini-stats-wrapper{display:flex;flex-direction:column;}
-.daily-goal-bar{display:flex;align-items:center;gap:8px;padding:3px 14px 5px;font-size:11px;color:var(--text-secondary);cursor:pointer;background:var(--surface-secondary);border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;margin-bottom:2px;}
-.daily-goal-bar:hover{background:var(--surface-tertiary);}
-.daily-goal-text{white-space:nowrap;flex-shrink:0;min-width:120px;}
-.daily-goal-track{flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden;}
-.daily-goal-fill{height:100%;background:var(--accent);border-radius:2px;transition:width 0.3s;}
-.daily-goal-fill--done{background:var(--success);animation:goalPulse 0.6s ease-out;}
-.daily-goal-fill--behind{background:var(--warning);}
-@keyframes goalPulse{0%{filter:brightness(1.4);}100%{filter:brightness(1);}}
 /* ═══ Mini-goal bar (unified daily/weekly/monthly) ═══ */
+@keyframes goalPulse{0%{filter:brightness(1.4);}100%{filter:brightness(1);}}
 .mini-goal{display:flex;align-items:center;gap:8px;padding:3px 14px 5px;cursor:pointer;background:var(--surface-secondary);border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;margin-bottom:2px;}
 .mini-goal:hover{background:var(--surface-tertiary);}
 .mini-goal-label{font-size:11px;font-weight:600;color:var(--accent);white-space:nowrap;flex-shrink:0;}
