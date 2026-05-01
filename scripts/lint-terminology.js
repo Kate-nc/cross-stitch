@@ -37,7 +37,6 @@ const TARGET_FILES = [
   "project-library.js",
   "stats-page.js",
   "stats-activity.js",
-  "stats-showcase.js",
   "backup-restore.js"
 ];
 
