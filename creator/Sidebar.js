@@ -808,7 +808,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       ),
       h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
       h("div", {style:{marginTop:'var(--s-2)'}},
-        h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:50, onChange:gen.setMinSt,
+        h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:500, step:5, onChange:gen.setMinSt,
           format:function(v){return v===0?"Off":v;},
           helpText:"Colours used fewer than this many times will be merged into the nearest similar colour"})
       ),

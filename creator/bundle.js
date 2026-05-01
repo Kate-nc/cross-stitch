@@ -12202,7 +12202,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       ),
       h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
       h("div", {style:{marginTop:'var(--s-2)'}},
-        h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:50, onChange:gen.setMinSt,
+        h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:500, step:5, onChange:gen.setMinSt,
           format:function(v){return v===0?"Off":v;},
           helpText:"Colours used fewer than this many times will be merged into the nearest similar colour"})
       ),
@@ -14868,7 +14868,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
         h('div', {style: {display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap'}},
           h('span', {style: {fontSize:'var(--text-sm)', color: 'var(--text-secondary)'}}, 'Margin:'),
           h('input', {
-            type: 'number', min: 0, max: 10, step: 0.5, value: margin,
+            type: 'number', min: 0, max: 10, step: 0.25, value: margin,
             onChange: function(e) { setMargin(Number(e.target.value) || 0); },
             style: { width: 60, padding: '3px 8px', fontSize:'var(--text-sm)', borderRadius:'var(--radius-sm)', border: '0.5px solid var(--border)' }
           }),

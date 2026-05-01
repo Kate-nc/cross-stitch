@@ -604,15 +604,15 @@ function DailyGoalSetting({currentGoal, avgPerDay, remaining, onSet}){
 
   var avg = avgPerDay || 0;
   var presets = avg > 0 ? [
-    { label: 'Easy', value: Math.max(50, Math.floor(avg / 50) * 50) },
-    { label: 'Moderate', value: Math.max(50, Math.round(avg * 1.25 / 50) * 50) },
-    { label: 'Ambitious', value: Math.max(50, Math.round(avg * 1.5 / 50) * 50) }
+    { label: 'Easy', value: Math.max(25, Math.floor(avg / 25) * 25) },
+    { label: 'Moderate', value: Math.max(25, Math.round(avg * 1.25 / 25) * 25) },
+    { label: 'Ambitious', value: Math.max(25, Math.round(avg * 1.5 / 25) * 25) }
   ] : [];
 
   return React.createElement("div", {className:"goal-setting"},
     React.createElement("label", {className:"goal-label"}, "Daily stitch goal"),
     React.createElement("div", {className:"goal-input-row"},
-      React.createElement("input", {type:"number", min:"0", max:"9999", step:"50", value:value,
+      React.createElement("input", {type:"number", min:"0", max:"9999", step:"25", value:value,
         onChange:function(e){ setValue(e.target.value); },
         placeholder:"e.g. 300", className:"goal-input"}),
       React.createElement("button", {className:"goal-set-btn", onClick:function(){
@@ -689,7 +689,7 @@ function GoalTracker({statsSettings, statsSessions, totalCompleted, totalStitche
     React.createElement("div", {style:{marginTop:'var(--s-3)'}}),
     React.createElement("label", {className:"goal-label"}, "Weekly stitch goal"),
     React.createElement("div", {className:"goal-input-row"},
-      React.createElement("input", {type:"number", min:"0", max:"99999", step:"100",
+      React.createElement("input", {type:"number", min:"0", max:"20000", step:"50",
         className:"goal-input", placeholder:"e.g. 500",
         defaultValue: weeklyGoal != null ? String(weeklyGoal) : '',
         key: String(weeklyGoal),
@@ -700,7 +700,7 @@ function GoalTracker({statsSettings, statsSessions, totalCompleted, totalStitche
     React.createElement("div", {style:{marginTop:'var(--s-3)'}}),
     React.createElement("label", {className:"goal-label"}, "Monthly stitch goal"),
     React.createElement("div", {className:"goal-input-row"},
-      React.createElement("input", {type:"number", min:"0", max:"999999", step:"100",
+      React.createElement("input", {type:"number", min:"0", max:"75000", step:"50",
         className:"goal-input", placeholder:"e.g. 3000",
         defaultValue: monthlyGoal != null ? String(monthlyGoal) : '',
         key: String(monthlyGoal),
@@ -1514,10 +1514,12 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
         "Auto-pause after inactivity:",
         React.createElement("select", {value: statsSettings.inactivityPauseSec == null ? '' : String(statsSettings.inactivityPauseSec), onChange:function(e){ var v=e.target.value; onUpdateSettings(Object.assign({}, statsSettings, {inactivityPauseSec: v==='' ? null : parseInt(v)})); }, style:{fontSize:'var(--text-sm)', padding:'4px 8px', borderRadius:'var(--radius-sm)', border:'1px solid var(--border)'}},
           React.createElement("option", {value:''}, "Off"),
-          React.createElement("option", {value:'60'}, "60s"),
-          React.createElement("option", {value:'90'}, "90s"),
+          React.createElement("option", {value:'60'}, "1 min"),
+          React.createElement("option", {value:'90'}, "1.5 min"),
           React.createElement("option", {value:'120'}, "2 min"),
-          React.createElement("option", {value:'300'}, "5 min")
+          React.createElement("option", {value:'300'}, "5 min"),
+          React.createElement("option", {value:'600'}, "10 min"),
+          React.createElement("option", {value:'1800'}, "30 min")
         )
       ),
       React.createElement("p", {style:{fontSize:'var(--text-xs)', color:'var(--text-tertiary)', margin:'4px 0 0'}}, "Pauses the session timer if no stitch is marked for this long"),
