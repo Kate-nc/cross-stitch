@@ -944,7 +944,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                 {state.conversionSettings&&state.conversionSettings.stashConstrained&&state.conversionSettings.stashCount===0&&(
                   <div role="status" style={{margin:"8px 14px 0",padding:"6px 10px",fontSize:11,fontWeight:500,color:"#A04E11",background:"#F8EFD8",border:"0.5px solid #E5DCCB",borderRadius:6,display:"flex",alignItems:"center",gap:6}}>
                     <span style={{display:"inline-flex",width:14,height:14}} aria-hidden="true">{Icons.warning()}</span>
-                    No DMC threads marked as owned — preview is unconstrained. Add DMC threads in the Stash Manager to see a stash-only preview.
+                    No threads marked as owned — preview is unconstrained. Add DMC or Anchor threads in the Stash Manager to see a stash-only preview.
                   </div>
                 )}
                 <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#5C5448",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
