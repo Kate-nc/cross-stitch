@@ -359,7 +359,7 @@ function SessionSummaryModal({data,prevAvgSpeed,onViewBreadcrumbs,hasBreadcrumbs
           <div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Time</span><span style={{fontWeight:700}}>{mins}m {secs}s</span></div>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Stitches</span><span style={{fontWeight:700}}>{stitchesCompleted}</span></div>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Speed</span><span style={{fontWeight:700}}>{speed} st/hr{pctDiff!=null?<span style={{fontSize:'var(--text-xs)',fontWeight:400,color:pctDiff>=0?"var(--success)":"var(--danger)",marginLeft:6}}>{pctDiff>=0?"+":""}{pctDiff}% vs avg</span>:null}</span></div>
-          {progressPctBefore!=null&&progressPctAfter!=null&&<div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Progress</span><span style={{fontWeight:700}}>{progressPctBefore}%<span style={{color:"var(--text-tertiary)",fontWeight:400,margin:"0 4px"}}>{"\u2192"}</span>{progressPctAfter}%{progressGain!=null&&progressGain>0&&<span style={{fontSize:'var(--text-xs)',fontWeight:400,color:"var(--success)",marginLeft:6}}>+{progressGain}%</span>}</span></div>}
+          {progressPctBefore!=null&&progressPctAfter!=null&&<div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Progress</span><span style={{fontWeight:700}}>{progressPctBefore}%<span style={{color:"var(--text-tertiary)",fontWeight:400,margin:"0 4px"}}>to</span>{progressPctAfter}%{progressGain!=null&&progressGain>0&&<span style={{fontSize:'var(--text-xs)',fontWeight:400,color:"var(--success)",marginLeft:6}}>+{progressGain}%</span>}</span></div>}
           {blocksCompleted>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Blocks</span><span style={{fontWeight:700}}>{blocksCompleted}</span></div>}
           {coloursCompleted&&coloursCompleted.length>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Colours finished</span><span style={{fontWeight:700}}>{coloursCompleted.length}</span></div>}
         </div>
@@ -3546,8 +3546,6 @@ function drawStitch(ctx,cSz,viewportRect){
           _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,false,hsLowZoom,hsMedZoom,hsHighZoom);
           ctx.restore();
         }
-        // R11: dim skip/empty cells on non-current rows.
-        if(rowModeActive&&y!==currentRow){ctx.fillStyle='rgba(255,255,255,0.55)';ctx.fillRect(px,py,cSz,cSz);}
         continue;
       }
       if(layerVis.full){
@@ -3593,9 +3591,9 @@ function drawStitch(ctx,cSz,viewportRect){
         ctx.restore();
       }
       if(cSz>=4){ctx.strokeStyle=(effectiveDimmed&&layerVis.full)?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
-      // R11: semi-transparent white overlay to dim cells outside the current row.
-      if(rowModeActive&&y!==currentRow){ctx.fillStyle='rgba(255,255,255,0.55)';ctx.fillRect(px,py,cSz,cSz);}
     }
+    // R11: dim rows outside the current row — one pass per row covers all tiers.
+    if(rowModeActive&&y!==currentRow){ctx.fillStyle='rgba(255,255,255,0.55)';ctx.fillRect(gut+startX*cSz,gut+y*cSz,(endX-startX)*cSz,cSz);}
   }
 
   // Marching ants for "outline" highlight mode
@@ -4711,6 +4709,9 @@ useShortcuts(!isActive ? [] : [
   { id: "tracker.mode.navigate", keys: "n", scope: "tracker.notedit",
     description: "Navigate mode",
     run: () => setStitchMode("navigate") },
+  { id: "tracker.mode.rowmode", keys: "r", scope: "tracker.notedit",
+    description: "Toggle row mode",
+    run: () => { setRowModeActive(v=>!v); setCurrentRow(0); } },
 
   // View cycle.
   { id: "tracker.view.cycle", keys: "v", scope: "tracker.notedit",
@@ -5136,7 +5137,7 @@ return(
     </button>
     <button className={"tb-btn"+(stitchMode==="navigate"?" tb-btn--on":"")} onClick={()=>{setStitchMode("navigate");}} title="Navigate (N)">Nav</button>
     {/* R11: Row mode toggle */}
-    {!isEditMode&&<button className={"tb-btn"+(rowModeActive?" tb-btn--on":"")} onClick={()=>{setRowModeActive(v=>!v);setCurrentRow(0);}} title="Row mode — work row by row (R)">{Icons.rowMode()}</button>}
+    {!isEditMode&&<button className={"tb-btn"+(rowModeActive?" tb-btn--on":"")} onClick={()=>{setRowModeActive(v=>!v);setCurrentRow(0);}} aria-label="Toggle row mode" aria-pressed={rowModeActive} title="Row mode — work row by row (R)">{Icons.rowMode()}</button>}
     {/* R11: Row mode prev/next controls */}
     {!isEditMode&&rowModeActive&&<>
       <button className="tb-btn" disabled={currentRow<=0} onClick={()=>setCurrentRow(r=>Math.max(0,r-1))} title="Previous row">Prev</button>
@@ -5644,7 +5645,10 @@ return(
             <button className="lp-btn lp-btn--danger" style={{marginTop:'var(--s-2)',width:"100%"}} onClick={()=>{
               const dur=liveAutoElapsed>0?liveAutoElapsed:Math.floor((Date.now()-explicitSession.startTime)/1000);
               const bks=breadcrumbs.filter(b=>b.sessionIdx===(statsSessions?statsSessions.length:0)).length;
-              setSessionSummaryData({durationSeconds:dur,stitchesCompleted:liveAutoStitches,blocksCompleted:bks,coloursCompleted:[],progressPctBefore:totalStitchable>0?Math.round((doneCount-liveAutoStitches)/totalStitchable*100):null,progressPctAfter:totalStitchable>0?Math.round(doneCount/totalStitchable*100):null});
+              const _sess=currentAutoSessionRef.current;
+              const _undone=_sess&&typeof _sess.stitchesUndone==='number'?_sess.stitchesUndone:0;
+              const netSessionDelta=liveAutoStitches-_undone;
+              setSessionSummaryData({durationSeconds:dur,stitchesCompleted:liveAutoStitches,blocksCompleted:bks,coloursCompleted:[],progressPctBefore:totalStitchable>0?Math.round((doneCount-netSessionDelta)/totalStitchable*100):null,progressPctAfter:totalStitchable>0?Math.round(doneCount/totalStitchable*100):null});
               setExplicitSession(null);
             }}>End session</button>
           </>);

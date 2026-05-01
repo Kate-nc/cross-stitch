@@ -228,17 +228,19 @@
     }
     var pct = projectPct(p);
     var dim = p.settings && (p.settings.sW + '×' + p.settings.sH);
-    // Compute velocity from full project data for ETA projection (R14).
-    var activeEta = null;
-    if (p.totalTime && p.totalTime > 0 && p.pattern && p.done) {
+    // Compute velocity from full project data for ETA projection (R14),
+    // memoised by project id/updatedAt so it only recalculates when data changes.
+    var activeEta = React.useMemo(function () {
+      if (!(p.totalTime && p.totalTime > 0 && p.pattern && p.done)) return null;
       var _total = 0, _done = 0;
       for (var _i = 0; _i < p.pattern.length; _i++) {
         var _c = p.pattern[_i];
         if (_c && _c.id !== '__skip__' && _c.id !== '__empty__') _total++;
       }
       for (var _j = 0; _j < p.done.length; _j++) { if (p.done[_j] === 1) _done++; }
-      if (_done > 50) activeEta = etaLabel(_done / (p.totalTime / 3600), _done, _total);
-    }
+      if (_done > 50) return etaLabel(_done / (p.totalTime / 3600), _done, _total);
+      return null;
+    }, [p.id, p.updatedAt, p.totalTime, p.pattern, p.done]);
     var metaParts = [
       dim || null,
       p.updatedAt ? ('Updated ' + timeAgo(p.updatedAt)) : null,

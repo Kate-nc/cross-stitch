@@ -13520,7 +13520,6 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       var cleanPct = app.confettiData.clean.pct;
       var score = Math.round(100 - cleanPct);
       var scoreColor = score >= 90 ? "var(--success)" : score >= 75 ? "#7CB518" : score >= 60 ? "#C9A825" : score >= 40 ? "#D97706" : "var(--danger)";
-      var barBg = score >= 90 ? "var(--success-soft)" : score >= 60 ? "#fef9c3" : "var(--danger-soft)";
       var singles = app.confettiData.clean.singles;
       return h("div", {style:{padding:"6px 10px",background:"var(--surface-secondary)",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',marginBottom:'var(--s-2)',display:"flex",alignItems:"center",gap:'var(--s-3)',flexWrap:"wrap"}},
         h("div", {style:{display:"flex",flexDirection:"column",gap:1,minWidth:60}},

@@ -1507,9 +1507,10 @@ function ManagerApp() {
                           const keys = missingThreads.map(t => normaliseStashKey(t.id));
                           StashBridge.markManyToBuy(keys, true).then(changed => {
                             if (window.Toast) {
+                              const alreadyPresent = Math.max(0, missingThreads.length - changed);
                               window.Toast.show({
                                 message: changed > 0
-                                  ? missingThreads.length + ' thread' + (missingThreads.length !== 1 ? 's' : '') + ' added to shopping list'
+                                  ? changed + ' thread' + (changed !== 1 ? 's' : '') + ' added to shopping list' + (alreadyPresent > 0 ? '; ' + alreadyPresent + ' already on your shopping list' : '')
                                   : 'Already on your shopping list',
                                 type: 'success'
                               });
