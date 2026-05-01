@@ -1123,3 +1123,10 @@ const StashBridge = (() => {
 StashBridge.migrateSchemaToV2()
   .then(function() { return StashBridge.migrateSchemaToV3(); })
   .catch(function() { /* migrations log internally */ });
+
+// Top-level `const` in a classic <script> creates a global binding but does
+// NOT attach to `window`. Several callers (BulkAddModal.js, ShoppingListModal.js,
+// creator-main.js, home-app.js) feature-test via `window.StashBridge`, so
+// without this assignment they silently fail or show the
+// "StashBridge is not available" error. Mirror onto window explicitly.
+try { if (typeof window !== 'undefined') window.StashBridge = StashBridge; } catch (_) {}
