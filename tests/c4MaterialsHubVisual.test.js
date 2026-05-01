@@ -52,7 +52,7 @@ describe('C4 — Materials Hub visual hierarchy refresh', () => {
     });
 
     it('.mh-body has an inset surface background', () => {
-      expect(cssSrc).toMatch(/\.mh-body\s*\{[^}]*background:\s*var\(--surface-1/s);
+      expect(cssSrc).toMatch(/\.mh-body\s*\{[^}]*background:\s*var\(--surface\)/s);
     });
 
     it('.mh-subtabs-wrap has an accent left border for visual nesting', () => {

@@ -4214,7 +4214,7 @@ html.pref-dark a { color: var(--accent); }
   }
 }
 
-/* B4 — Materials hub + Manager shopping */
+/* B4 — Materials hub */
 .materials-hub { display:flex; flex-direction:column; min-height:300px; }
 
 /* C4 — sub-tab strip nests visually under the parent Sidebar tab strip:
@@ -4288,7 +4288,7 @@ html.pref-dark a { color: var(--accent); }
 .mh-body {
   flex:1; overflow-y:auto;
   padding:14px 16px;
-  background:var(--surface-1, #fff);
+  background:var(--surface);
   border-radius:0 0 12px 12px;
 }
 
