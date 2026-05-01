@@ -151,14 +151,5 @@ describe('index.html — Babel cache keys', () => {
   test('loadStatsPage function is defined', () => {
     expect(html).toContain('window.loadStatsPage = function()');
   });
-
-  test('loadStatsShowcase is NOT defined (showcase is now a tab)', () => {
-    expect(html).not.toContain('window.loadStatsShowcase');
-    expect(html).not.toContain('SHOWCASE_CACHE_KEY');
-  });
-
-  test('stats-showcase.js is NOT prefetched (no longer a separate lazy asset)', () => {
-    expect(html).not.toContain("href=\"stats-showcase.js\"");
-  });
 });
 

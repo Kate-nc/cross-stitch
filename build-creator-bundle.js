@@ -43,8 +43,6 @@ const ORDER = [
   'SplitPane.js',
   'ToolStrip.js',
   'MagicWandPanel.js',
-  'SubstituteFromStashModal.js',
-  'ConvertPaletteModal.js',
   'AdaptModal.js',
   'BulkAddModal.js',
   'Sidebar.js',

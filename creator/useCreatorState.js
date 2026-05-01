@@ -370,12 +370,6 @@ window.useCreatorState = function useCreatorState() {
   });
   var stashConstrained = _stashOnly[0];
   function setStashConstrained(v) { _stashOnly[1](v); try { localStorage.setItem("cs_stashConstrained", v ? "true" : "false"); } catch(_) {} }
-  var _subOpen  = useState(false);   var substituteModalOpen = _subOpen[0], setSubstituteModalOpen = _subOpen[1];
-  var _subProp  = useState(null);    var substituteProposal = _subProp[0], setSubstituteProposal = _subProp[1];
-  var _subKey   = useState(0);       var substituteModalKey = _subKey[0], setSubstituteModalKey = _subKey[1];
-  var _subMaxDE = useState(function() { try { var v = localStorage.getItem("cs_subMaxDE"); return v != null ? parseFloat(v) : 15; } catch(_) { return 15; } });
-  var substituteMaxDeltaE = _subMaxDE[0];
-  function setSubstituteMaxDeltaE(v) { _subMaxDE[1](v); try { localStorage.setItem("cs_subMaxDE", v); } catch(_) {} }
   // Stash-Adapt: modal open/mode state. Replaces the legacy SubstituteFromStash
   // and ConvertPalette modals with a single non-destructive duplication flow.
   var _adOpen = useState(false);         var adaptModalOpen = _adOpen[0], setAdaptModalOpen = _adOpen[1];
@@ -1238,10 +1232,6 @@ window.useCreatorState = function useCreatorState() {
     partialStitchTool, setPartialStitchTool, partialStitchToolRef, threadOwned, setThreadOwned,
     globalStash, setGlobalStash, kittingResult, setKittingResult,
     altOpen, setAltOpen,
-    substituteModalOpen, setSubstituteModalOpen,
-    substituteProposal, setSubstituteProposal,
-    substituteModalKey, setSubstituteModalKey,
-    substituteMaxDeltaE, setSubstituteMaxDeltaE,
     adaptModalOpen, setAdaptModalOpen,
     adaptModalMode, setAdaptModalMode,
     adaptMaxDeltaE, setAdaptMaxDeltaE,

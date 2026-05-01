@@ -22,7 +22,7 @@
   const DAY_LABELS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   // ── Helpers ──────────────────────────────────────────────────────────────
-  function fmtNum(n) { return (n || 0).toLocaleString('en-GB'); }
+  // fmtNum is a shared global from helpers.js
   function fmtHour(h) {
     if (h === 0) return '12am';
     if (h === 12) return '12pm';

@@ -2,11 +2,11 @@
 // Dashboard hub — unified entry point for the cross-stitch app.
 // Renders when showHome === true or no current project is active.
 //
-// TODO(phase-8 follow-up): /home (home.html + home-app.js) is now the
-// default landing surface (UX-12 Phase 7). The standalone <HomeScreen>
-// here is still mounted by creator-main.js when mode === 'home', so it
-// stays for now. A future refactor should retire that Creator-mount
-// path and delete this file in one go.
+// NOTE: /home (home.html + home-app.js) is the default landing surface
+// (UX-12 Phase 7/8). The Creator-mount path (mode === 'home') has been
+// removed. This file is still required because manager.html loads it for
+// window.MultiProjectDashboard, consumed by project-library.js. Do not
+// delete it without refactoring those consumers.
 
 // ───────────────────────────────────────────────────────────────────────
 // Sample starter pattern (used by the empty-state "Try a sample" CTA).
