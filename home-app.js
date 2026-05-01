@@ -86,15 +86,7 @@
     window.location.href = href + sep + 'from=home';
   }
 
-  function fmtNumLocal(n) {
-    try { return Number(n || 0).toLocaleString('en-GB'); }
-    catch (_) { return String(n || 0); }
-  }
-
-  // ≈ km of thread used. Mirrors stats-page.js threadKm() (0.004 m/stitch).
-  function threadKmLocal(stitches) {
-    return Math.round((stitches || 0) * 0.004 / 1000 * 10) / 10;
-  }
+  // fmtNum and threadKm are shared globals from helpers.js
 
   // Build the points string for a 120×32 sparkline from a daily-stitch
   // log array ([{date:'YYYY-MM-DD', count:n}, ...]). Missing days = 0.
@@ -602,15 +594,15 @@
       // KPI strip
       h('div', { className: 'home-kpi-grid' },
         h('div', { className: 'home-kpi' },
-          h('span', { className: 'home-kpi__num' }, fmtNumLocal(s.ownedSkeins || 0)),
+          h('span', { className: 'home-kpi__num' }, fmtNum(s.ownedSkeins || 0)),
           h('span', { className: 'home-kpi__lbl' }, (s.ownedSkeins === 1 ? 'Skein' : 'Skeins'))
         ),
         h('div', { className: 'home-kpi' },
-          h('span', { className: 'home-kpi__num' }, fmtNumLocal(s.uniqueThreads || 0)),
+          h('span', { className: 'home-kpi__num' }, fmtNum(s.uniqueThreads || 0)),
           h('span', { className: 'home-kpi__lbl' }, 'Colours')
         ),
         h('div', { className: 'home-kpi' },
-          h('span', { className: 'home-kpi__num' }, fmtNumLocal(s.patternCount || 0)),
+          h('span', { className: 'home-kpi__num' }, fmtNum(s.patternCount || 0)),
           h('span', { className: 'home-kpi__lbl' }, (s.patternCount === 1 ? 'Pattern' : 'Patterns'))
         )
       ),
@@ -659,7 +651,7 @@
             ? h('p', { className: 'home-stash-card__empty' }, 'No patterns are fully covered by your stash yet.')
             : h(React.Fragment, null,
                 h('p', { className: 'home-stash-card__lead' },
-                  h('strong', null, fmtNumLocal(ready.length) + (ready.length === 1 ? ' pattern' : ' patterns')),
+                  h('strong', null, fmtNum(ready.length) + (ready.length === 1 ? ' pattern' : ' patterns')),
                   ' in your library can be stitched entirely from your current stash.'
                 ),
                 h('ul', { className: 'home-stash-chips' },
@@ -707,9 +699,9 @@
       h('div', { className: 'home-stats-hero' },
         hasLifetime
           ? h(React.Fragment, null,
-              h('div', { className: 'home-stats-hero__num' }, fmtNumLocal(lifetimeStitches)),
+              h('div', { className: 'home-stats-hero__num' }, fmtNum(lifetimeStitches)),
               h('div', { className: 'home-stats-hero__sub' },
-                'lifetime stitches \u00b7 \u2248 ' + threadKmLocal(lifetimeStitches) + ' km of thread'
+                'lifetime stitches \u00b7 \u2248 ' + threadKm(lifetimeStitches) + ' km of thread'
               )
             )
           : h(React.Fragment, null,
@@ -731,7 +723,7 @@
                   viewBox: '0 0 120 32',
                   preserveAspectRatio: 'none',
                   role: 'img',
-                  'aria-label': fmtNumLocal(spark.total) + ' stitches in the last 30 days'
+                  'aria-label': fmtNum(spark.total) + ' stitches in the last 30 days'
                 },
                   h('polyline', {
                     points: spark.points,
@@ -743,7 +735,7 @@
                   })
                 ),
                 h('p', { className: 'home-stats-card__foot' },
-                  h('strong', null, fmtNumLocal(spark.total)),
+                  h('strong', null, fmtNum(spark.total)),
                   ' stitches \u00b7 ' + spark.activeDays + (spark.activeDays === 1 ? ' active day' : ' active days')
                 )
               )

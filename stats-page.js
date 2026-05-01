@@ -94,12 +94,7 @@ function saveDismissedDuplicates(s) {
   try { localStorage.setItem('cs_stats_dismissed_dupes', JSON.stringify([...s])); } catch (e) {}
 }
 
-// ── Helper: format number with thousands separator ───────────────
-function fmtNum(n) { return n.toLocaleString('en-GB'); }
-
-// ── Helper: thread km novelty calc ───────────────────────────────
-// 14-count Aida: 1 cross = 2 diagonals ≈ 4mm total thread per stitch
-function threadKm(stitches) { return Math.round(stitches * 0.004 / 1000 * 10) / 10; }
+// fmtNum and threadKm are shared globals from helpers.js
 
 // ── Inline SVG helpers ───────────────────────────────────────────
 function SableChart({ data }) {

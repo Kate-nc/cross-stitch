@@ -26,7 +26,7 @@ function getPeriodStart(period) {
   const d = new Date(today); d.setFullYear(d.getFullYear() - 1); return d.toISOString().slice(0, 10);
 }
 
-function fmtNum(n) { return (n || 0).toLocaleString('en-GB'); }
+// fmtNum is a shared global from helpers.js
 
 function fmtHours(h) {
   const hr = Math.floor(h);

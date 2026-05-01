@@ -12,6 +12,9 @@ function drawCk(ctx,x,y,s){
 
 function fmtTime(s){let h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return h>0?`${h}h ${m}m`:`${m}m`;}
 function fmtTimeL(s){let h=Math.floor(s/3600),m=Math.floor((s%3600)/60);if(h>0)return`${h} hr${h>1?"s":""} ${m} min`;return`${m} min`;}
+function fmtNum(n){return(n||0).toLocaleString('en-GB');}
+// threadKm: 14ct cross stitch ≈ 4cm of thread per stitch (0.004 m). Result in km, 1 d.p.
+function threadKm(stitches){return Math.round((stitches||0)*0.004/1000*10)/10;}
 
 // A3 (UX Phase 5) — pure helper used by the Tracker resume modal recap.
 // Returns a short summary of the most recent stitching session, or null when
