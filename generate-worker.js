@@ -89,6 +89,38 @@ self.onmessage = function(e) {
       }
     }
 
+    // ── 3. Rarity removal (minSt pass) ───────────────────────────────────────
+    // Applied before confetti analysis so stats reflect the post-minSt palette,
+    // matching the ordering in runCleanupPipeline (creator/generate.js).
+    var minSt = settings.minSt;
+    if (minSt > 0) {
+      for (var pass = 0; pass < 3; pass++) {
+        var ep   = buildPalette(mapped);
+        var rare = ep.pal.filter(function(e) { return e.count < minSt; });
+        var keep = ep.pal.filter(function(e) { return e.count >= minSt; });
+        if (!rare.length || !keep.length) break;
+        var rm = {};
+        rare.forEach(function(r) {
+          var b = null, bd = 1e9;
+          keep.forEach(function(k) {
+            var d = dE(r.lab, k.lab);
+            if (d < bd) { bd = d; b = k.id; }
+          });
+          if (b) rm[r.id] = b;
+        });
+        var changed = false;
+        var keepMap = {};
+        keep.forEach(function(k) { keepMap[k.id] = k; });
+        for (var j = 0; j < mapped.length; j++) {
+          if (mapped[j].id !== '__skip__' && rm[mapped[j].id]) {
+            mapped[j] = Object.assign({}, keepMap[rm[mapped[j].id]]);
+            changed = true;
+          }
+        }
+        if (!changed) break;
+      }
+    }
+
     var preLabels   = labelConnectedComponents(mapped, width, height);
     var confettiRaw = analyzeConfetti(mapped, width, height, preLabels);
     var confettiClean = null;
@@ -124,36 +156,6 @@ self.onmessage = function(e) {
       );
       var postLabels = labelConnectedComponents(mapped, width, height);
       confettiClean = analyzeConfetti(mapped, width, height, postLabels);
-    }
-
-    // ── 3. Rarity removal (minSt pass) ───────────────────────────────────────
-    var minSt = settings.minSt;
-    if (minSt > 0) {
-      for (var pass = 0; pass < 3; pass++) {
-        var ep   = buildPalette(mapped);
-        var rare = ep.pal.filter(function(e) { return e.count < minSt; });
-        var keep = ep.pal.filter(function(e) { return e.count >= minSt; });
-        if (!rare.length || !keep.length) break;
-        var rm = {};
-        rare.forEach(function(r) {
-          var b = null, bd = 1e9;
-          keep.forEach(function(k) {
-            var d = dE(r.lab, k.lab);
-            if (d < bd) { bd = d; b = k.id; }
-          });
-          if (b) rm[r.id] = b;
-        });
-        var changed = false;
-        var keepMap = {};
-        keep.forEach(function(k) { keepMap[k.id] = k; });
-        for (var j = 0; j < mapped.length; j++) {
-          if (mapped[j].id !== '__skip__' && rm[mapped[j].id]) {
-            mapped[j] = Object.assign({}, keepMap[rm[mapped[j].id]]);
-            changed = true;
-          }
-        }
-        if (!changed) break;
-      }
     }
 
     // ── 4. maxC enforcement pass ──────────────────────────────────────────────

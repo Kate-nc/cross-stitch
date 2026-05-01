@@ -96,7 +96,7 @@ window.usePreview = function usePreview(state) {
     function runFull() {
       fullPassTimerRef.current = null;
       var pipelineResult = runCleanupPipeline(raw, pw, ph, pipelineOpts());
-      if (!pipelineResult) return;
+      if (!pipelineResult) { if (state.setPreviewLoading) state.setPreviewLoading(false); return; }
       var mapped = pipelineResult.mapped;
       var confettiRaw = pipelineResult.confettiRaw;
       var confettiClean = pipelineResult.confettiClean;
@@ -178,6 +178,7 @@ window.usePreview = function usePreview(state) {
       } else {
         state.setPreviewHeatmap(null);
       }
+      if (state.setPreviewLoading) state.setPreviewLoading(false);
     }
   }, [
     state.img, state.conversionSettings, state.showCleanupDiff, state.globalStash,
@@ -195,8 +196,7 @@ window.usePreview = function usePreview(state) {
     // window — keeps the UI honest about pending work.
     if (state.setPreviewLoading) state.setPreviewLoading(true);
     state.previewTimerRef.current = setTimeout(function() {
-      try { generatePreview(); }
-      finally { if (state.setPreviewLoading) state.setPreviewLoading(false); }
+      generatePreview();
     }, 400);
     return function() {
       if (state.previewTimerRef.current) clearTimeout(state.previewTimerRef.current);

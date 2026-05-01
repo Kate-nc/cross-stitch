@@ -1,4 +1,4 @@
-﻿/* creator-main.js â€” Main application JSX (CreatorApp + UnifiedApp).
+﻿/* creator-main.js — Main application JSX (CreatorApp + UnifiedApp).
    Loaded via compile-and-cache (see window.loadCreatorMain in index.html).
    Depends on globals set up by all <script> tags that precede it:
    React, ReactDOM, confettiTier, useCreatorState, useEditHistory,
@@ -203,12 +203,12 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
               e.preventDefault(); splitPosRef.current = 95; setSplitPos(95);
             }
           }}
-          style={{position:"absolute",top:0,bottom:0,left:`${splitPos}%`,width:3,background:"#fff",boxShadow:"0 0 4px rgba(0,0,0,0.3)",transform:"translateX(-50%)",zIndex:2,willChange:"left",cursor:"ew-resize",outline:"none"}}>
+          style={{position:"absolute",top:0,bottom:0,left:`${splitPos}%`,width:3,background:"#fff",boxShadow:"0 0 4px rgba(0,0,0,0.3)",transform:"translateX(-50%)",zIndex:2,willChange:"left",cursor:"ew-resize"}}>
           <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:28,height:28,borderRadius:"50%",background:"var(--surface)",boxShadow:"0 1px 4px rgba(0,0,0,0.2)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text-secondary)"}} aria-hidden="true"><span style={{display:"inline-flex",width:16,height:16}}>{Icons.arrowsHorizontal()}</span></div>
         </div>
         <span style={{position:"absolute",top:8,left:8,fontSize:10,fontWeight:600,color:"#fff",background:"rgba(0,0,0,0.5)",padding:"2px 8px",borderRadius:4,zIndex:3,pointerEvents:"none"}}>{leftLabel||"Original"}</span>
         <span style={{position:"absolute",top:8,right:8,fontSize:10,fontWeight:600,color:"#fff",background:"rgba(0,0,0,0.5)",padding:"2px 8px",borderRadius:4,zIndex:3,pointerEvents:"none"}}>{rightLabel||"Preview"}</span>
-        {previewPw&&previewPh&&<span style={{position:"absolute",bottom:8,right:8,fontSize:9,fontWeight:500,color:"#fff",background:"rgba(0,0,0,0.45)",padding:"2px 6px",borderRadius:4,zIndex:3,pointerEvents:"none"}}>{previewPw}Ã—{previewPh}Â px</span>}
+        {previewPw&&previewPh&&<span style={{position:"absolute",bottom:8,right:8,fontSize:9,fontWeight:500,color:"#fff",background:"rgba(0,0,0,0.45)",padding:"2px 6px",borderRadius:4,zIndex:3,pointerEvents:"none"}}>{previewPw}×{previewPh} px</span>}
         {zoomPos&&(function(){
           var cx=zoomPos.cx,cy=zoomPos.cy,W=zoomPos.W,H=zoomPos.H;
           var bgSzW=W*ZOOM,bgSzH=H*ZOOM;
@@ -267,7 +267,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   // have to merge it in here exactly like the keyboard-shortcuts hook below.
   // Without this merge state.isActive is undefined, the auto-save guard
   // `if (!state.isActive) return;` always trips, and edits made in the Creator
-  // never reach IndexedDB or the Stash Manager â€” pattern saves only happen via
+  // never reach IndexedDB or the Stash Manager — pattern saves only happen via
   // the explicit handleOpenInTracker handoff (which bypasses the guard).
   const io = useProjectIOHook(Object.assign({}, state, {isActive: isActive}), history, {onSwitchToTrack});
   usePreviewHook(state);
@@ -330,7 +330,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     return () => { if (window.CommandPalette) window.CommandPalette.registerPage('creator', []); };
   },[state.setModal]);
 
-  // Brief D â€” load global stash from manager DB on mount, and refresh whenever
+  // Brief D — load global stash from manager DB on mount, and refresh whenever
   // the tab becomes visible again (covers the "edit in another tab" case).
   React.useEffect(() => {
     if (typeof window.StashBridge === 'undefined' || !window.StashBridge.getGlobalStash) return;
@@ -346,7 +346,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     return () => { cancelled = true; document.removeEventListener('visibilitychange', onVis); };
   }, [state.setGlobalStash]);
 
-  // â”€â”€ Stable ref-forwarding wrappers â€” prevent context rememo on every render â”€â”€
+  // â”€â”€ Stable ref-forwarding wrappers — prevent context rememo on every render â”€â”€
   // Handler identity is stabilised via a ref; the ref is updated synchronously on
   // each render so the latest function is always called despite the empty dep list.
   // Refs are initialised with null; the current assignment below runs before any
@@ -734,7 +734,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.doneCount, state.totalTime, state.sessions,
   ]);
 
-  // â”€â”€ C8 Phase 1 â€” first-stitch coachmark (Creator) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â”€â”€ C8 Phase 1 — first-stitch coachmark (Creator) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Trigger condition: in Edit mode with a pattern loaded but no edits yet.
   // Success signal: state.editHistory becomes non-empty (a cell received a
   // colour). The 500ms delay lets the canvas settle so the popover anchors
@@ -764,7 +764,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     && !state.namePromptOpen
     && (!state.editHistory || state.editHistory.length === 0);
 
-  // â”€â”€ Polish 13 step 4b â€” Tools tab unlock coachmark â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â”€â”€ Polish 13 step 4b — Tools tab unlock coachmark â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Fires once after the first generation, anchored on the Tools tab in
   // the right-panel sidebar. The tab strip is unified across appModes
   // (Polish 13 step 3) so the coachmark is meaningful in either appMode.
@@ -809,7 +809,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onOpenProject={typeof window.ProjectStorage!=='undefined'?()=>{window.location.href='home.html';}:undefined}
         onPreferences={typeof window.PreferencesModal!=='undefined'?()=>state.setPreferencesOpen(true):undefined}
         setModal={state.setModal}
-        projectName={state.pat&&state.pal?(state.projectName||(state.sW+'Ã—'+state.sH+' pattern')):undefined}
+        projectName={state.pat&&state.pal?(state.projectName||(state.sW+'×'+state.sH+' pattern')):undefined}
         onNameChange={state.pat&&state.pal?n=>state.setProjectName(n):undefined}
         showAutosaved={!!(state.pat&&state.pal)}
         saveStatus={state.saveStatus}
@@ -822,7 +822,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onClose:()=>state.setAdaptModalOpen(false)
       })}
       {state.namePromptOpen&&<NamePromptModal
-        defaultName={state.projectName||(state.sW+'Ã—'+state.sH+' pattern')}
+        defaultName={state.projectName||(state.sW+'×'+state.sH+' pattern')}
         onConfirm={name=>{
           state.setProjectName(name);
           state.setNamePromptOpen(false);
@@ -849,10 +849,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
           state.setNameModalReason&&state.setNameModalReason(null);
           if(reason==='firstSave'){
             // First-save prompt: the project is already saved under
-            // "Untitled pattern" â€” just close quietly.
+            // "Untitled pattern" — just close quietly.
             return;
           }
-          // Legacy download path: tell the user why nothing happened â€”
+          // Legacy download path: tell the user why nothing happened —
           // without this the modal just disappears with no feedback when
           // they cancel a Download attempt.
           if(state.addToast)state.addToast("Download cancelled \u2014 give your pattern a name to download a .json file.",{type:"info",duration:3500});
@@ -889,7 +889,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             style={{maxWidth:700,margin:"80px auto",textAlign:"center",padding:"40px",display:"flex",flexDirection:"column",alignItems:"center",gap:14,color:"#5C5448"}}
             aria-live="polite">
           <div style={{width:32,height:32,border:"2.5px solid #E5DCCB",borderTopColor:"#B85C38",borderRadius:"50%",animation:"spin 0.9s linear infinite"}} aria-hidden="true"/>
-          <div style={{fontSize:14,fontWeight:600}}>Preparing your patternâ€¦</div>
+          <div style={{fontSize:14,fontWeight:600}}>Preparing your pattern…</div>
         </div>}
         {!state.img&&!state.pat&&!state.isUploading&&!window.__pendingCreatorFile&&!window.__pendingCreatorAction&&!window.__pendingCreatorJsonFile&&<div
             style={{maxWidth:700,margin:"40px auto",textAlign:"center",padding:"40px",border:state.isDragging?"2px dashed #B85C38":"2px dashed transparent",borderRadius:"16px",background:state.isDragging?"#F4DDCF":"transparent",transition:"all 0.2s"}}
@@ -944,7 +944,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                 {state.conversionSettings&&state.conversionSettings.stashConstrained&&state.conversionSettings.stashCount===0&&(
                   <div role="status" style={{margin:"8px 14px 0",padding:"6px 10px",fontSize:11,fontWeight:500,color:"#A04E11",background:"#F8EFD8",border:"0.5px solid #E5DCCB",borderRadius:6,display:"flex",alignItems:"center",gap:6}}>
                     <span style={{display:"inline-flex",width:14,height:14}} aria-hidden="true">{Icons.warning()}</span>
-                    Your stash is empty — preview is unconstrained. Add owned threads in the Stash Manager to see a stash-only preview.
+                    No DMC threads marked as owned — preview is unconstrained. Add DMC threads in the Stash Manager to see a stash-only preview.
                   </div>
                 )}
                 <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#5C5448",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -952,7 +952,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                     Preview
                     {state.previewLoading&&<span role="status" aria-label="Updating preview" title="Updating preview" style={{display:"inline-flex",width:12,height:12,color:"#A89E89",animation:"cs-spin 900ms linear infinite"}}>{Icons.spinner()}</span>}
                   </span>
-                  {state.previewDims&&<span style={{fontSize:10,fontWeight:500,color:"#A89E89"}}>{state.previewDims.pw}Ã—{state.previewDims.ph}Â px{state.previewDims.pw===state.sW?"Â â€” full res":"Â â€” "+Math.round(state.previewDims.pw/state.sW*100)+"%"}</span>}
+                  {state.previewDims&&<span style={{fontSize:10,fontWeight:500,color:"#A89E89"}}>{state.previewDims.pw}×{state.previewDims.ph} px{state.previewDims.pw===state.sW?" — full res":" — "+Math.round(state.previewDims.pw/state.sW*100)+"%"}</span>}
                               {state.stitchCleanup&&state.stitchCleanup.enabled&&state.previewUrl&&<div style={{padding:"4px 14px 4px",display:"flex",alignItems:"center",gap:6}}>
                                 <button
                                   onClick={()=>state.setShowCleanupDiff(d=>!d)}
@@ -978,11 +978,11 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                   {state.previewStats.stashUsage&&<div><div style={{fontSize:10,color:"#A89E89"}}>Stash usage</div><div style={{fontSize:13,fontWeight:600,color:"#B85C38"}}>{state.previewStats.stashUsage.used} of {state.previewStats.stashUsage.available}</div></div>}
                   <div><div style={{fontSize:10,color:"#A89E89"}}>Skeins ({state.fabricCt}ct)</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.estSkeins}</div></div>
                   <div><div style={{fontSize:10,color:"#A89E89"}}>Time</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{fmtTimeL(Math.round(state.previewStats.stitchable/state.stitchSpeed*3600))}</div></div>
-                  <div><div style={{fontSize:10,color:"#A89E89"}}>Thread Cost</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>Â£{(state.previewStats.estSkeins*state.skeinPrice).toFixed(2)}</div></div>
+                  <div><div style={{fontSize:10,color:"#A89E89"}}>Thread Cost</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>£{(state.previewStats.estSkeins*state.skeinPrice).toFixed(2)}</div></div>
                 </div>
                 {state.previewStats.confettiPct!=null&&(()=>{
                   const t=confettiTier(state.previewStats.confettiPct);
-                  const tips={"Excellent":"Great stitch flow","Good":"Low confetti â€” pleasant to stitch","Moderate":"Some isolated stitches â€” try the Remove Orphans slider","Challenging":"High confetti â€” reduce colours or use Remove Orphans","High confetti":"Very tedious â€” strongly consider removing orphans"};
+                  const tips={"Excellent":"Great stitch flow","Good":"Low confetti — pleasant to stitch","Moderate":"Some isolated stitches — try the Remove Orphans slider","Challenging":"High confetti — reduce colours or use Remove Orphans","High confetti":"Very tedious — strongly consider removing orphans"};
                   return(
                     <div style={{marginTop:10,paddingTop:10,borderTop:"0.5px solid #E5DCCB"}}>
                       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
@@ -995,7 +995,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                         </div>
                         <span style={{fontSize:12,fontWeight:700,color:t.color,flexShrink:0}}>{state.previewStats.confettiSingles.toLocaleString()} ({state.previewStats.confettiPct.toFixed(1)}%)</span>
                       </div>
-                      <div style={{fontSize:10,color:"#A89E89",marginTop:4}}>{tips[t.label]||""}{state.previewStats.confettiCleanSingles!=null&&state.previewStats.confettiCleanSingles<state.previewStats.confettiSingles?` Â· ${state.previewStats.confettiCleanSingles.toLocaleString()} after cleanup`:""}</div>
+                      <div style={{fontSize:10,color:"#A89E89",marginTop:4}}>{tips[t.label]||""}{state.previewStats.confettiCleanSingles!=null&&state.previewStats.confettiCleanSingles<state.previewStats.confettiSingles?` · ${state.previewStats.confettiCleanSingles.toLocaleString()} after cleanup`:""}</div>
                     </div>
                   );
                 })()}
@@ -1055,7 +1055,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                   <button onClick={canvas.applyCrop} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"none",borderRadius:6,background:"#B85C38",color:"#fff"}}>Apply</button>
                 </div>
               </div>:<div style={{padding:"5px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #EFE7D6"}}>
-                <span style={{fontSize:10,color:"#A89E89"}}>{state.origW}Ã—{state.origH}px</span>
+                <span style={{fontSize:10,color:"#A89E89"}}>{state.origW}×{state.origH}px</span>
                 <div style={{display:"flex",gap:6}}>
                   <button onClick={()=>{state.setIsCropping(true);state.setCropRect(null);}} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#FBF8F3"}}>Crop</button>
                   <button onClick={()=>state.fRef.current.click()} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#FBF8F3"}}>Change</button>
@@ -1117,7 +1117,7 @@ function UnifiedApp(){
     if(p.get('mode')==='showcase'){window.history.replaceState({},'','?mode=stats&tab=showcase');return 'stats';}
     // The legacy in-Creator home screen has been retired (Tier 2 of the
     // homepage-predominance audit). The Creator now always opens straight
-    // into design mode â€” the redirect guard in index.html bounces users
+    // into design mode — the redirect guard in index.html bounces users
     // without an active project to /home before this code runs.
     return 'design';
   });
@@ -1199,7 +1199,7 @@ function UnifiedApp(){
     setMode('stats');
   },[closeStats]);
   const goHome=React.useCallback(()=>{
-    // Tier 2 of the homepage-predominance audit â€” the legacy in-Creator home
+    // Tier 2 of the homepage-predominance audit — the legacy in-Creator home
     // screen is retired. Always navigate to the canonical /home landing.
     window.location.href='home.html';
   },[]);
@@ -1344,7 +1344,7 @@ function UnifiedApp(){
       {trackerMounted&&!trackerReady&&(
         <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',flexDirection:'column',gap:12,color:'#5C5448',fontSize:14}}>
           <div style={{width:28,height:28,border:'2.5px solid #E5DCCB',borderTopColor:'#B85C38',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/>
-          Loading Stitch Trackerâ€¦
+          Loading Stitch Tracker…
         </div>
       )}
       {trackerMounted&&trackerReady&&T&&<T
@@ -1358,7 +1358,7 @@ function UnifiedApp(){
       <Header page="stats" tab="" onPageChange={()=>{}} setModal={setStatsModal} />
       {statsPageReady
         ?<window.StatsPage onClose={closeStats} onNavigateToProject={(id)=>{switchToTrack({id})}} onNavigateToStash={()=>{window.location.href='manager.html';}} />
-        :<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh'}}><span style={{opacity:0.5}}>Loading statsâ€¦</span></div>}
+        :<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh'}}><span style={{opacity:0.5}}>Loading stats…</span></div>}
       {statsModal==='help'&&<SharedModals.Help defaultTab="creator" onClose={()=>setStatsModal(null)} />}
       {statsModal==='shortcuts'&&<SharedModals.Help defaultTab="shortcuts" onClose={()=>setStatsModal(null)} />}
     </div>}
