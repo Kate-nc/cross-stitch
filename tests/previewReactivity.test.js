@@ -216,6 +216,85 @@ describe('runCleanupPipeline — settings reach the engine', () => {
       expect(counts[id]).toBeGreaterThanOrEqual(100);
     }
   });
+
+  test('runs Stitch Cleanup when toggle is on even if orphans slider is 0 (regression)', () => {
+    // Bug: the previous engine condition treated `opts.orphans === 0` as
+    // "explicitly off" and skipped cleanup entirely, so the Stitch Cleanup
+    // toggle and its strength/protectDetails sub-options were dead unless the
+    // user moved the orphans slider above 0.
+    const w = 24, h = 24;
+    // Speckle pattern: scattered isolated single magenta pixels on a dark
+    // background. These ARE genuine 1-stitch orphans the cleanup pass should
+    // remove when enabled — and leave alone when disabled.
+    const raw = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        const speckle = (x % 4 === 1 && y % 4 === 1);
+        raw[i]     = speckle ? 255 : 50;
+        raw[i + 1] = speckle ? 0   : 50;
+        raw[i + 2] = speckle ? 255 : 50;
+        raw[i + 3] = 255;
+      }
+    }
+    const baseOpts = {
+      maxC: 12, dith: false, allowBlends: false,
+      skipBg: false, bgCol: [255,255,255], bgTh: 15,
+      orphans: 0, allowedPalette: null,
+    };
+    const off = runCleanupPipeline(raw, w, h, Object.assign({}, baseOpts, {
+      stitchCleanup: { enabled: false, strength: 'thorough', protectDetails: false, smoothDithering: false },
+    }));
+    const on = runCleanupPipeline(raw, w, h, Object.assign({}, baseOpts, {
+      stitchCleanup: { enabled: true, strength: 'thorough', protectDetails: false, smoothDithering: false },
+    }));
+    expect(off).not.toBeNull();
+    expect(on).not.toBeNull();
+    // The "on" run must record the pre-cleanup snapshot; the "off" run must not.
+    expect(on.preCleanupIds).not.toBeNull();
+    expect(off.preCleanupIds).toBeNull();
+    // And the two outputs must differ in at least one cell.
+    let differs = 0;
+    for (let i = 0; i < off.mapped.length; i++) {
+      if (off.mapped[i].id !== on.mapped[i].id) differs++;
+    }
+    expect(differs).toBeGreaterThan(0);
+  });
+
+  test('Stitch Cleanup strength is honoured (gentle vs thorough produce different output)', () => {
+    const w = 20, h = 20;
+    // Build clusters of varying size: 1px, 2px, 3px, 4px isolated dots.
+    // gentle (max=2) leaves 3+ alone; thorough (max=5) removes them all.
+    const raw = new Uint8ClampedArray(w * h * 4);
+    for (let i = 0; i < raw.length; i += 4) {
+      raw[i] = 50; raw[i+1] = 50; raw[i+2] = 50; raw[i+3] = 255;
+    }
+    function setRare(x, y) {
+      if (x < 0 || y < 0 || x >= w || y >= h) return;
+      const i = (y * w + x) * 4;
+      raw[i] = 255; raw[i+1] = 0; raw[i+2] = 255;
+    }
+    // 3-stitch L cluster at (5,5)
+    setRare(5,5); setRare(6,5); setRare(5,6);
+    // 4-stitch square at (12,12)
+    setRare(12,12); setRare(13,12); setRare(12,13); setRare(13,13);
+    const base = {
+      maxC: 12, dith: false, allowBlends: false,
+      skipBg: false, bgCol: [255,255,255], bgTh: 15,
+      orphans: 0, allowedPalette: null,
+    };
+    const gentle = runCleanupPipeline(raw, w, h, Object.assign({}, base, {
+      stitchCleanup: { enabled: true, strength: 'gentle', protectDetails: false, smoothDithering: false },
+    }));
+    const thorough = runCleanupPipeline(raw, w, h, Object.assign({}, base, {
+      stitchCleanup: { enabled: true, strength: 'thorough', protectDetails: false, smoothDithering: false },
+    }));
+    let differs = 0;
+    for (let i = 0; i < gentle.mapped.length; i++) {
+      if (gentle.mapped[i].id !== thorough.mapped[i].id) differs++;
+    }
+    expect(differs).toBeGreaterThan(0);
+  });
 });
 
 // ─── usePreview source-level coverage manifest ──────────────────────────────

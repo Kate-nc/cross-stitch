@@ -739,30 +739,44 @@ window.CreatorSidebar = function CreatorSidebar() {
           )
         )
       )
-    ),
-    h("button", {
-      onClick:function(){app.setPalAdvanced(function(o){return !o;});},
-      style:{marginTop:'var(--s-2)',display:"flex",alignItems:"center",gap:'var(--s-1)',fontSize:'var(--text-xs)',color:"var(--text-secondary)",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}
-    },
-      h("span", {style:{fontSize:9,display:"inline-block",transform:app.palAdvanced?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
-      "Dithering",
-      gen.dith ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block",marginLeft:2}}) : null
-    ),
-    app.palAdvanced && h(React.Fragment, null,
-      h("div", {style:{marginTop:6,padding:"8px 10px",background:"#F8EFD8",borderRadius:'var(--radius-md)',border:"0.5px solid #E5C99A",fontSize:10,color:"var(--accent-ink)"}},
-        "Dithering blends colours by mixing stitches using error diffusion. Higher strengths create smoother gradients but more scattered stitches."
-      ),
-      (function() {
-        var dithOpts = [
-          {id:"off",   label:"Off",      tip:"Direct colour mapping — each pixel mapped to its closest DMC colour. Cleanest, easiest to sew."},
-          {id:"weak",  label:"Weak",     tip:"Subtle dithering (50% strength) — slight colour blending with minimal confetti."},
-          {id:"balanced", label:"Balanced", tip:"Standard Floyd-Steinberg dithering — smooth gradients with moderate scatter."},
-          {id:"strong",label:"Strong",   tip:"Amplified dithering (150% strength) — richest gradients, most scattered stitches."}
-        ];
-        var cur = gen.dithMode || (gen.dith ? "balanced" : "off");
-        return h("div", {style:{display:"flex",gap:2,marginTop:6,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
+    )
+    // Dithering moved out of this section into "Smoothing & cleanup" — it's
+    // a colour-blending choice that pairs naturally with the cleanup options
+    // it depends on (e.g. "Smooth dithering" only matters when dither is on).
+  ) : null;
+
+  // ── Smoothing & cleanup section ─────────────────────────────────────────────
+  // Combines dithering (how colours blend) with the cleanup chain (min-stitches,
+  // orphan removal, stitch cleanup). Previously dithering was buried under a
+  // hidden "▶ Dithering" disclosure inside Colours, which made it hard to
+  // discover — and "Smooth dithering" was a sub-option of Stitch Cleanup
+  // despite being a dithering modifier. Co-locating the two clarifies the
+  // mental model: pick how colours mix → then clean up the result.
+  var tidySection = !ctx.isScratchMode ? (function() {
+    var sc2 = gen.stitchCleanup;
+    var tidyActive = gen.dith || gen.minSt > 0 || gen.orphans > 0 || sc2.enabled;
+    var tidyBadge = tidyActive ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
+    var strengthKeys=["gentle","balanced","thorough"];
+    var strengthLabels=["Gentle","Balanced","Thorough"];
+    var strengthDescs=["Keeps 2-stitch clusters. Best for detail-heavy designs.","Removes 3-stitch clusters. Balanced stitchability & detail.","Removes up to 5-stitch clusters. Smoothest, easiest to sew."];
+    var strengthIdx=strengthKeys.indexOf(sc2.strength);
+    var dithOpts = [
+      {id:"off",   label:"Off",      tip:"Direct colour mapping — each pixel mapped to its closest DMC colour. Cleanest, easiest to sew."},
+      {id:"weak",  label:"Weak",     tip:"Subtle dithering (50% strength) — slight colour blending with minimal confetti."},
+      {id:"balanced", label:"Balanced", tip:"Standard Floyd-Steinberg dithering — smooth gradients with moderate scatter."},
+      {id:"strong",label:"Strong",   tip:"Amplified dithering (150% strength) — richest gradients, most scattered stitches."}
+    ];
+    var dithCur = gen.dithMode || (gen.dith ? "balanced" : "off");
+    return h(Section, {title:"Smoothing & cleanup", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:tidyBadge},
+      // ── Dithering subsection ─────────────────────────────────────────────
+      h("div", {style:{marginTop:'var(--s-2)'}},
+        h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
+          h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:600}}, "Dithering"),
+          h(InfoIcon, {text:"Blends colours by mixing stitches using error diffusion. Higher strengths create smoother gradients but more scattered stitches.", width:230})
+        ),
+        h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
           dithOpts.map(function(o) {
-            var active = cur === o.id;
+            var active = dithCur === o.id;
             return h(Tooltip, {key:o.id, text:o.tip, width:210},
               h("button", {
                 onClick:function(){gen.setDith(o.id);},
@@ -773,21 +787,22 @@ window.CreatorSidebar = function CreatorSidebar() {
               }, o.label)
             );
           })
-        );
-      })()
-    )
-  ) : null;
-
-  // ── Tidy up section: min-stitches + orphan removal + stitch cleanup ──────────
-  var tidySection = !ctx.isScratchMode ? (function() {
-    var sc2 = gen.stitchCleanup;
-    var tidyActive = gen.minSt > 0 || gen.orphans > 0 || sc2.enabled;
-    var tidyBadge = tidyActive ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
-    var strengthKeys=["gentle","balanced","thorough"];
-    var strengthLabels=["Gentle","Balanced","Thorough"];
-    var strengthDescs=["Keeps 2-stitch clusters. Best for detail-heavy designs.","Removes 3-stitch clusters. Balanced stitchability & detail.","Removes up to 5-stitch clusters. Smoothest, easiest to sew."];
-    var strengthIdx=strengthKeys.indexOf(sc2.strength);
-    return h(Section, {title:"Tidy up", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:tidyBadge},
+        ),
+        // Smooth-dithering toggle lives WITH dithering because it's a dither
+        // modifier (it lowers the dither error-threshold), not a cleanup step.
+        h("div", {style:{marginTop:'var(--s-2)',opacity:gen.dith?1:0.5,pointerEvents:gen.dith?"auto":"none"}, "aria-disabled":!gen.dith},
+          h(Toggle, {
+            checked:sc2.smoothDithering,
+            onChange:function(v){ if (gen.dith) gen.setStitchCleanup(function(s){return Object.assign({},s,{smoothDithering:v});}); },
+            label:"Smooth dithering",
+            help:"Reduces confetti during dithering itself by lowering the error-diffusion threshold. Cleaner gradients, but may slightly shift colours."
+          }),
+          !gen.dith && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2,marginLeft:2}},
+            "Only active when dithering is on."
+          )
+        )
+      ),
+      h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
       h("div", {style:{marginTop:'var(--s-2)'}},
         h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:50, onChange:gen.setMinSt,
           format:function(v){return v===0?"Off":v;},
@@ -896,13 +911,9 @@ window.CreatorSidebar = function CreatorSidebar() {
             onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{protectDetails:v});});},
             label:"Protect fine details",
             help:"Uses edge detection to preserve small stitches in important outlines \u2014 eyes, lettering, thin lines. Turn off for simpler designs."
-          }),
-          h(Toggle, {
-            checked:sc2.smoothDithering,
-            onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{smoothDithering:v});});},
-            label:"Smooth dithering",
-            help:"Reduces confetti during dithering itself (before cleanup runs). Cleaner output, but may slightly shift colors in gradient areas."
           })
+          // "Smooth dithering" toggle moved to the Dithering subsection above —
+          // it modifies the dither pass, not the cleanup pass.
         )
       )
     );

@@ -94,7 +94,13 @@ self.onmessage = function(e) {
     var confettiClean = null;
     var preCleanupIds = null;
 
-    var runCleanup = orphansOpt != null ? (orphansOpt > 0) : (stitchCleanup && stitchCleanup.enabled);
+    // Mirror the engine fix: cleanup runs if EITHER orphans > 0 OR the Stitch
+    // Cleanup toggle is on. The previous condition treated orphans === 0 as
+    // "explicitly off" and suppressed the separate toggle. Keep `orphansOpt`
+    // as the existing variable name so the branch below still compiles.
+    var cleanupEnabled = !!(stitchCleanup && stitchCleanup.enabled);
+    var runCleanup = (orphansOpt != null && orphansOpt > 0) || cleanupEnabled;
+    if (orphansOpt != null && orphansOpt === 0 && cleanupEnabled) orphansOpt = null;
     if (runCleanup) {
       var maxOrphanSize, saliencyMult;
       if (orphansOpt != null) {

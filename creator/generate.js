@@ -83,21 +83,22 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var confettiClean = null;
   var preCleanupIds = null;
 
-  var orphansOpt = opts.orphans != null ? opts.orphans : null;
-  var runCleanup = orphansOpt != null ? (orphansOpt > 0) : (stitchCleanup && stitchCleanup.enabled);
+  // Cleanup runs if EITHER the user moved the Remove-Orphans slider above 0
+  // OR they enabled the Stitch Cleanup toggle. Treating `orphans === 0` as
+  // "explicitly off" (the previous behaviour) silently suppressed the separate
+  // Stitch Cleanup toggle and all its sub-options, since the orphans slider
+  // defaults to 0.
+  var orphansOpt = (typeof opts.orphans === 'number' && opts.orphans > 0) ? opts.orphans : 0;
+  var cleanupEnabled = !!(stitchCleanup && stitchCleanup.enabled);
+  var runCleanup = orphansOpt > 0 || cleanupEnabled;
   if (runCleanup) {
-    var maxOrphanSize, saliencyMult;
-    if (orphansOpt != null) {
-      maxOrphanSize = orphansOpt;
-      var _csMap = stitchCleanup && STRENGTH_MAP[stitchCleanup.strength] ? STRENGTH_MAP[stitchCleanup.strength] : STRENGTH_MAP.balanced;
-      saliencyMult = _csMap.saliencyMultiplier;
-    } else {
-      var cleanupStrength = Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
-        ? stitchCleanup.strength : "balanced";
-      var sp = STRENGTH_MAP[cleanupStrength];
-      maxOrphanSize = sp.maxOrphanSize;
-      saliencyMult = sp.saliencyMultiplier;
-    }
+    var cleanupStrength = stitchCleanup && Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
+      ? stitchCleanup.strength : 'balanced';
+    var sp = STRENGTH_MAP[cleanupStrength];
+    // Orphans slider is the explicit override when set; otherwise use the
+    // strength preset's maxOrphanSize.
+    var maxOrphanSize = orphansOpt > 0 ? orphansOpt : sp.maxOrphanSize;
+    var saliencyMult = sp.saliencyMultiplier;
     var edgeMap = (stitchCleanup && stitchCleanup.protectDetails) ? generateEdgeMap(raw, width, height) : null;
     preCleanupIds = mapped.map(function(m) { return m.id; });
     mapped = removeOrphanStitches(mapped, width, height, maxOrphanSize, edgeMap, saliencyMap, { saliencyMultiplier: saliencyMult }, preLabels);
