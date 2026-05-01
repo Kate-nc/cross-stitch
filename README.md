@@ -366,7 +366,6 @@ stats-page.js                  Stats dashboard entry point
 stats-insights.js              Insights UI layer
 insights-engine.js             Pure insight-text generation functions
 stats-activity.js              Activity chart components
-stats-showcase.js              Showcase / showcase report views
 
 analysis-worker.js             Web Worker: image analysis (bilateral, Canny, saliency)
 generate-worker.js             Web Worker: pattern generation pipeline
