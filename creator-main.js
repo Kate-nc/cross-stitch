@@ -1277,12 +1277,6 @@ function UnifiedApp(){
   },[]);
 
   const[statsModal,setStatsModal]=React.useState(null);
-  const[homePrefsOpen,setHomePrefsOpen]=React.useState(false);
-  const[homeBulkAddOpen,setHomeBulkAddOpen]=React.useState(false);
-  // First-visit welcome wizard. Shows once on the Creator home screen.
-  const[welcomeOpen,setWelcomeOpen]=React.useState(()=>{
-    return !!(window.WelcomeWizard&&window.WelcomeWizard.shouldShow('creator'));
-  });
   // Global "?" shortcut → open Help Centre. Routes to home or design depending
   // on which mode the user is currently viewing.
   React.useEffect(()=>{
@@ -1305,24 +1299,6 @@ function UnifiedApp(){
     window.addEventListener('cs:openShortcuts',h);
     return()=>window.removeEventListener('cs:openShortcuts',h);
   },[mode]);
-  // "Show welcome tour again" from HelpCentre → re-open the wizard.
-  React.useEffect(()=>{
-    const h=(e)=>{ if(!e||!e.detail||e.detail.page==='creator') setWelcomeOpen(true); };
-    window.addEventListener('cs:showWelcome',h);
-    return()=>window.removeEventListener('cs:showWelcome',h);
-  },[]);
-
-  // Global "B" shortcut → open Bulk Add Threads from anywhere in the Creator
-  // page (home, design, track). Registered through the central shortcuts
-  // registry, which handles the input-element guard and modifier exclusion.
-  if(typeof window.useShortcuts==='function'){
-    window.useShortcuts(typeof window.BulkAddModal==='undefined'?[]:[
-      { id: 'global.bulkAdd.creator', keys: 'b', scope: 'global',
-        description: 'Open Bulk Add Threads',
-        run: ()=>setHomeBulkAddOpen(true) }
-    ],[]);
-  }
-
   const T=typeof window.TrackerApp!=='undefined'?window.TrackerApp:null;
   return <>
     {/* Tier 2 of the homepage-predominance audit retired the legacy
