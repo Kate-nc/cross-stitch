@@ -1655,8 +1655,6 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
   // Effective settings for GoalTracker: combine global goals with any per-project timing settings
   var effectiveGoalSettings = Object.assign({dayEndHour: 0, useActiveDays: true}, statsSettings || {}, globalGoals);
   var loading = _loading[0], setLoading = _loading[1];
-  var _timeRange = React.useState('14');
-  var timeRange = _timeRange[0], setTimeRange = _timeRange[1];
   var _tlLimit = React.useState(20);
   var tlLimit = _tlLimit[0], setTlLimit = _tlLimit[1];
 
@@ -1752,59 +1750,6 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
       timeDelta: pct(tw.seconds, lw.seconds), speedDelta: pct(tw.speed, lw.speed),
       daysDelta: tw.activeDays - lw.activeDays};
   }, [allSessions]);
-
-  var heatmapData = React.useMemo(function() {
-    var dailyTotals = {};
-    allSessions.forEach(function(s) { if (s.date) dailyTotals[s.date] = (dailyTotals[s.date] || 0) + (s.netStitches || 0); });
-    var today = new Date(), cells = [];
-    for (var i = 89; i >= 0; i--) {
-      var d = new Date(today); d.setDate(d.getDate() - i);
-      var ds = formatYMD(d);
-      cells.push({date: ds, dayOfWeek: d.getDay(), stitches: dailyTotals[ds] || 0});
-    }
-    var max = Math.max.apply(null, [1].concat(cells.map(function(c) { return c.stitches; })));
-    return {cells: cells, max: max};
-  }, [allSessions]);
-
-  var chartData = React.useMemo(function() {
-    var daysBack = timeRange === 'all' ? null : parseInt(timeRange, 10);
-    if (!daysBack) {
-      var sortedDates = Array.from(new Set(allSessions.map(function(s) { return s.date; }).filter(Boolean))).sort();
-      if (sortedDates.length === 0) return {data: [], maxDay: 1};
-      var firstDate = new Date(sortedDates[0] + 'T12:00:00');
-      var totalDays = Math.ceil((Date.now() - firstDate.getTime()) / 86400000);
-      if (totalDays > 90) {
-        var today = new Date(), weekCount = Math.ceil(totalDays / 7), weeks = [];
-        for (var wi = weekCount - 1; wi >= 0; wi--) {
-          var ws = new Date(today); ws.setDate(today.getDate() - wi * 7 - 6);
-          var we = new Date(today); we.setDate(today.getDate() - wi * 7);
-          var wsStr = formatYMD(ws), weStr = formatYMD(we);
-          var entry = {date: wsStr, total: 0, projects: {}};
-          projectSummaries.forEach(function(p) {
-            var st = (p.statsSessions || []).filter(function(s) { return s.date >= wsStr && s.date <= weStr; })
-              .reduce(function(sum, s) { return sum + (s.netStitches || 0); }, 0);
-            if (st > 0) { entry.projects[p.id] = (entry.projects[p.id] || 0) + st; entry.total += st; }
-          });
-          weeks.push(entry);
-        }
-        return {data: weeks, maxDay: Math.max.apply(null, [1].concat(weeks.map(function(w) { return w.total; })))};
-      }
-      daysBack = Math.max(totalDays, 14);
-    }
-    var days = [], today2 = new Date();
-    for (var j = daysBack - 1; j >= 0; j--) {
-      var day = new Date(today2); day.setDate(today2.getDate() - j);
-      var ds = formatYMD(day);
-      var de = {date: ds, total: 0, projects: {}};
-      projectSummaries.forEach(function(p) {
-        var st = (p.statsSessions || []).filter(function(s) { return s.date === ds; })
-          .reduce(function(sum, s) { return sum + (s.netStitches || 0); }, 0);
-        if (st > 0) { de.projects[p.id] = st; de.total += st; }
-      });
-      days.push(de);
-    }
-    return {data: days, maxDay: Math.max.apply(null, [1].concat(days.map(function(d) { return d.total; })))};
-  }, [allSessions, projectSummaries, timeRange]);
 
   var insights = React.useMemo(function() {
     if (allSessions.length === 0) return [];
@@ -1967,66 +1912,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
       })
     ),
 
-    // Section 6: Activity heatmap
-    React.createElement('h3', {className: 'gsd-section-label'}, 'Activity (last 90 days)'),
-    React.createElement('div', {className: 'gsd-heatmap'},
-      React.createElement('div', {className: 'gsd-heatmap-grid'},
-        heatmapData.cells.map(function(cell, i) {
-          return React.createElement('div', {key: i, className: 'gsd-heatmap-cell',
-            style: {background: heatmapColor(cell.stitches, heatmapData.max)},
-            title: cell.date + ': ' + cell.stitches.toLocaleString() + ' stitches'});
-        })
-      ),
-      React.createElement('div', {className: 'gsd-heatmap-legend'},
-        React.createElement('span', {style: {color: 'var(--text-tertiary)', fontSize:'var(--text-xs)'}}, 'Less'),
-        [0, 0.2, 0.5, 0.8, 1].map(function(r, i) {
-          return React.createElement('div', {key: i, style: {width: 12, height: 12, borderRadius: 2, background: heatmapColor(r === 0 ? 0 : r, 1)}});
-        }),
-        React.createElement('span', {style: {color: 'var(--text-tertiary)', fontSize:'var(--text-xs)'}}, 'More')
-      )
-    ),
-
-    // Section 7: Daily activity chart
-    React.createElement('h3', {className: 'gsd-section-label'}, 'Daily activity'),
-    React.createElement('div', {className: 'gsd-chart-controls'},
-      ['14', '30', 'all'].map(function(r) {
-        return React.createElement('button', {key: r,
-          className: 'gsd-range-btn' + (timeRange === r ? ' gsd-range-btn--on' : ''),
-          onClick: function() { setTimeRange(r); }},
-          r === '14' ? '2 weeks' : r === '30' ? 'Month' : 'All time');
-      })
-    ),
-    React.createElement('div', {className: 'gsd-bars-wrap'},
-      React.createElement('div', {className: 'gsd-bars'},
-        chartData.data.map(function(day, i) {
-          var hpct = chartData.maxDay > 0 ? day.total / chartData.maxDay * 100 : 0;
-          return React.createElement('div', {key: i, className: 'gsd-bar-col'},
-            React.createElement('div', {className: 'gsd-bar-stack-wrap'},
-              React.createElement('div', {className: 'gsd-bar-stack', style: {height: hpct + '%'}},
-                day.total > 0 && projectSummaries.map(function(p) {
-                  var st = day.projects[p.id] || 0;
-                  if (!st) return null;
-                  return React.createElement('div', {key: p.id, className: 'gsd-bar-segment',
-                    style: {height: (st / day.total * 100) + '%', background: assignProjectColor(p.id)}});
-                })
-              )
-            ),
-            React.createElement('div', {className: 'gsd-bar-label'}, day.date.slice(8))
-          );
-        })
-      ),
-      React.createElement('div', {className: 'gsd-chart-legend'},
-        projectSummaries.filter(function(p) {
-          return chartData.data.some(function(d) { return d.projects[p.id]; });
-        }).map(function(p) {
-          return React.createElement('span', {key: p.id, className: 'gsd-legend-item'},
-            React.createElement('span', {className: 'gsd-legend-dot', style: {background: assignProjectColor(p.id)}}),
-            p.name || 'Untitled');
-        })
-      )
-    ),
-
-    // Section 8: Insights
+    // Section 6: Insights
     insights.length > 0 && React.createElement('div', null,
       React.createElement('h3', {className: 'gsd-section-label'}, 'Insights'),
       React.createElement('div', {className: 'gsd-insights'},
@@ -2325,9 +2211,9 @@ window.AppInfoDivider = AppInfoDivider;
 
 
 
-// AdaptedBadge — small lavender pill shown next to adapted-project titles in
+// AdaptedBadge ï¿½ small lavender pill shown next to adapted-project titles in
 // the pattern library and on /home. Clicking opens the source project (via
-// onClick handler — usually navigates to the original).
+// onClick handler ï¿½ usually navigates to the original).
 //   Props: { fromName, onClick?, compact? }
 function AdaptedBadge(props) {
   var h = React.createElement;
