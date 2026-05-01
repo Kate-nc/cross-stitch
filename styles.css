@@ -2658,8 +2658,6 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .modal-choice-btn{padding:12px 16px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text-primary);cursor:pointer;font-size:14px;font-weight:600;text-align:left;width:100%;}
 .modal-choice-btn:hover{border-color:var(--accent);background:var(--accent-light);color:var(--accent);}
 .modal-choice-btn--on{border-color:var(--accent);background:var(--accent-light);color:var(--accent);}
-/* ── Focus block pulse animation ── */
-@keyframes focus-block-pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.025);}}
 /* ═══ Progress bar: today accent segment ═══ */
 .tb-progress-today{background:var(--success);border-radius:0 2px 2px 0;animation:todayGlow 2s ease-in-out infinite alternate;}
 
