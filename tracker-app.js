@@ -3518,8 +3518,6 @@ function drawStitch(ctx,cSz,viewportRect){
   const hsHighZoom=tier>=4;   // Tier 4: full detail (tri + line + symbol)
 
   for(let y=startY;y<endY;y++){
-    // R11 row mode: draw a subtle highlight under the current row before rendering cells.
-    if(rowModeActive&&y===currentRow){ctx.fillStyle='rgba(37,99,235,0.07)';ctx.fillRect(gut+startX*cSz,gut+y*cSz,(endX-startX)*cSz,cSz);}
     for(let x=startX;x<endX;x++){
       let idx=y*sW+x,m=pat[idx];if(!m)continue;
       let info=(m.id==="__skip__"||m.id==="__empty__")?null:(cmap?cmap[m.id]:null);
@@ -3594,6 +3592,8 @@ function drawStitch(ctx,cSz,viewportRect){
     }
     // R11: dim rows outside the current row — one pass per row covers all tiers.
     if(rowModeActive&&y!==currentRow){ctx.fillStyle='rgba(255,255,255,0.55)';ctx.fillRect(gut+startX*cSz,gut+y*cSz,(endX-startX)*cSz,cSz);}
+    // R11: highlight the current row with a subtle tint drawn after cells so it stays visible.
+    if(rowModeActive&&y===currentRow){ctx.fillStyle='rgba(37,99,235,0.12)';ctx.fillRect(gut+startX*cSz,gut+y*cSz,(endX-startX)*cSz,cSz);}
   }
 
   // Marching ants for "outline" highlight mode
@@ -3689,7 +3689,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
     };
   }
   drawStitch(canvas.getContext("2d"),scs,viewportRect);
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,parkLayers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,parkLayers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,rowModeActive,currentRow]);
 useEffect(()=>renderStitch(),[renderStitch]);
 // Keep renderStitchRef current so animation callbacks always call the latest closure
 useEffect(()=>{renderStitchRef.current=renderStitch;},[renderStitch]);

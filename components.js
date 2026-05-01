@@ -2063,7 +2063,7 @@ function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, stats
 }
 
 
-// --- EmptyState � shared coaching empty-state card ---------------------
+// --- EmptyState — shared coaching empty-state card ---------------------
 // Used on Manager (Patterns/Threads), Home (no projects), and Stats (no data).
 // Props: { icon, title, description, ctaLabel, ctaAction, secondaryLabel?, secondaryAction? }
 function EmptyState(props) {
@@ -2213,9 +2213,9 @@ window.AppInfoDivider = AppInfoDivider;
 
 
 
-// AdaptedBadge � small lavender pill shown next to adapted-project titles in
+// AdaptedBadge — small lavender pill shown next to adapted-project titles in
 // the pattern library and on /home. Clicking opens the source project (via
-// onClick handler � usually navigates to the original).
+// onClick handler — usually navigates to the original).
 //   Props: { fromName, onClick?, compact? }
 function AdaptedBadge(props) {
   var h = React.createElement;
