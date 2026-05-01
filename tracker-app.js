@@ -884,6 +884,9 @@ const inactivityPauseTimeRef = useRef(null);
 
 const[stitchMode,setStitchMode]=useState("track");
 const[stitchView,setStitchView]=useState(()=>{try{var v=window.UserPrefs&&window.UserPrefs.get("trackerDefaultView");return (v==="symbol"||v==="colour"||v==="highlight")?v:"symbol";}catch(_){return "symbol";}});
+// R11: Row-by-row navigation mode — session-local, not persisted.
+const[rowModeActive,setRowModeActive]=useState(false);
+const[currentRow,setCurrentRow]=useState(0);
 // Persist sticky "default view" so the choice survives reloads (mirrors
 // the highlight-mode behaviour) — the prefs UI reads/writes the same key.
 useEffect(()=>{try{if(window.UserPrefs)window.UserPrefs.set("trackerDefaultView",stitchView);}catch(_){}},[stitchView]);
@@ -3512,6 +3515,8 @@ function drawStitch(ctx,cSz,viewportRect){
   const hsHighZoom=tier>=4;   // Tier 4: full detail (tri + line + symbol)
 
   for(let y=startY;y<endY;y++){
+    // R11 row mode: draw a subtle highlight under the current row before rendering cells.
+    if(rowModeActive&&y===currentRow){ctx.fillStyle='rgba(37,99,235,0.07)';ctx.fillRect(gut+startX*cSz,gut+y*cSz,(endX-startX)*cSz,cSz);}
     for(let x=startX;x<endX;x++){
       let idx=y*sW+x,m=pat[idx];if(!m)continue;
       let info=(m.id==="__skip__"||m.id==="__empty__")?null:(cmap?cmap[m.id]:null);
@@ -3538,6 +3543,8 @@ function drawStitch(ctx,cSz,viewportRect){
           _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,false,hsLowZoom,hsMedZoom,hsHighZoom);
           ctx.restore();
         }
+        // R11: dim skip/empty cells on non-current rows.
+        if(rowModeActive&&y!==currentRow){ctx.fillStyle='rgba(255,255,255,0.55)';ctx.fillRect(px,py,cSz,cSz);}
         continue;
       }
       if(layerVis.full){
@@ -3583,6 +3590,8 @@ function drawStitch(ctx,cSz,viewportRect){
         ctx.restore();
       }
       if(cSz>=4){ctx.strokeStyle=(effectiveDimmed&&layerVis.full)?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
+      // R11: semi-transparent white overlay to dim cells outside the current row.
+      if(rowModeActive&&y!==currentRow){ctx.fillStyle='rgba(255,255,255,0.55)';ctx.fillRect(px,py,cSz,cSz);}
     }
   }
 
@@ -5123,6 +5132,14 @@ return(
       <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8"/></svg>{isEditMode?"Modify":"Mark"}
     </button>
     <button className={"tb-btn"+(stitchMode==="navigate"?" tb-btn--on":"")} onClick={()=>{setStitchMode("navigate");}} title="Navigate (N)">Nav</button>
+    {/* R11: Row mode toggle */}
+    {!isEditMode&&<button className={"tb-btn"+(rowModeActive?" tb-btn--on":"")} onClick={()=>{setRowModeActive(v=>!v);setCurrentRow(0);}} title="Row mode — work row by row (R)">{Icons.rowMode()}</button>}
+    {/* R11: Row mode prev/next controls */}
+    {!isEditMode&&rowModeActive&&<>
+      <button className="tb-btn" disabled={currentRow<=0} onClick={()=>setCurrentRow(r=>Math.max(0,r-1))} title="Previous row">Prev</button>
+      <span className="tb-zoom-lbl" style={{minWidth:56,textAlign:'center',fontVariantNumeric:'tabular-nums'}}>Row {currentRow+1}/{sH||1}</span>
+      <button className="tb-btn" disabled={currentRow>=(sH||1)-1} onClick={()=>setCurrentRow(r=>Math.min((sH||1)-1,r+1))} title="Next row">Next</button>
+    </>}
     {/* C3: range-mode toolbar button removed; long-press + shift+click own range via useDragMark. */}
   </div>
   <div className="tb-sdiv"/>
@@ -5146,6 +5163,8 @@ return(
         {tStripCollapsed.stitch&&<><span className="tb-ovf-lbl">Stitch</span>
           <button className={"tb-ovf-item"+(stitchMode==="track"?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("track");setTOverflowOpen(false);}} style={{display:'inline-flex',alignItems:'center',gap:6}}>Mark{stitchMode==="track"&&Icons.check?<span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.check()}</span>:null}</button>
           <button className={"tb-ovf-item"+(stitchMode==="navigate"?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("navigate");setTOverflowOpen(false);}} style={{display:'inline-flex',alignItems:'center',gap:6}}>Navigate{stitchMode==="navigate"&&Icons.check?<span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.check()}</span>:null}</button>
+          {/* R11: Row mode in overflow menu */}
+          <button className={"tb-ovf-item"+(rowModeActive?" tb-ovf-item--on":"")} onClick={()=>{setRowModeActive(v=>!v);setCurrentRow(0);setTOverflowOpen(false);}} style={{display:'inline-flex',alignItems:'center',gap:6}}>{Icons.rowMode()} Row mode{rowModeActive&&Icons.check?<span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.check()}</span>:null}</button>
           <div className="tb-ovf-sep"/>
         </>}
         {tStripCollapsed.view&&<><span className="tb-ovf-lbl">View</span>
@@ -6195,6 +6214,8 @@ return(
         <button className="ttd-btn" onClick={findNext} aria-label="Find next colour" title="Cycle focus colour">{Icons.magnify()}</button>
         <button className={"ttd-btn"+(stitchView==="highlight"?" ttd-btn--on":"")} onClick={()=>{setStitchView(v=>v==="highlight"?"symbol":"highlight");}} aria-label="Toggle highlight" title="Highlight mode (half-stitch placement)">{Icons.halfStitch()}</button>
         <button className={"ttd-btn"+(stitchMode==="navigate"?" ttd-btn--on":"")} onClick={()=>{setStitchMode(m=>m==="navigate"?"track":"navigate");}} aria-label="Toggle parking" title="Navigate / parking mode — tap to place parking markers on the canvas showing where your needle is parked between sessions. Parked colour markers are always visible while you work.">{Icons.parkFlag()}</button>
+        {/* R11: Row mode toggle on mobile dock */}
+        <button className={"ttd-btn"+(rowModeActive?" ttd-btn--on":"")} onClick={()=>{setRowModeActive(v=>!v);setCurrentRow(0);}} aria-label="Toggle row mode" title="Row mode — work one row at a time">{Icons.rowMode()}</button>
         <button className="ttd-btn" onClick={()=>{if(stitchView!=="highlight")setStitchView("highlight");setQuickColourOpen(o=>!o);}} aria-label="Pick colour" title="Pick a colour">{Icons.palette()}</button>
       </div>
       {/* ── Bottom mode-pill (phone, above safe area) ── */}

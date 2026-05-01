@@ -606,6 +606,11 @@ window.Icons = (function() {
     moon: function() {
       return svg(p('M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'));
     },
+    // Row mode — two thin lines with a filled row between, indicating
+    // current-row highlighting in the stitch tracker.
+    rowMode: function() {
+      return svg(l(3, 6, 21, 6), rc(3, 10, 18, 4, 1), l(3, 18, 21, 18));
+    },
     // Cross-stitch X dot — the brand logo period replacement
     stitchDot: function() {
       return svg(l(4, 4, 20, 20), l(20, 4, 4, 20));

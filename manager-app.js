@@ -1499,6 +1499,30 @@ function ManagerApp() {
                         );
                       })}
                     </div>
+                    {typeof StashBridge !== 'undefined' && (
+                      <button
+                        className="g-btn"
+                        style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
+                        onClick={() => {
+                          const keys = missingThreads.map(t => normaliseStashKey(t.id));
+                          StashBridge.markManyToBuy(keys, true).then(changed => {
+                            if (window.Toast) {
+                              window.Toast.show({
+                                message: changed > 0
+                                  ? missingThreads.length + ' thread' + (missingThreads.length !== 1 ? 's' : '') + ' added to shopping list'
+                                  : 'Already on your shopping list',
+                                type: 'success'
+                              });
+                            }
+                          }).catch(() => {
+                            if (window.Toast) window.Toast.show({ message: 'Could not update shopping list', type: 'error' });
+                          });
+                        }}
+                        title={"Add " + missingThreads.length + " missing thread" + (missingThreads.length !== 1 ? "s" : "") + " to your shopping list"}
+                      >
+                        {Icons.cart()} Add {missingThreads.length} to shopping list
+                      </button>
+                    )}
                   </div>
                 )}
                 <div className="rp-s">
