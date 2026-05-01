@@ -1124,7 +1124,6 @@ function UnifiedApp(){
   const[trackerReady,setTrackerReady]=React.useState(typeof window.TrackerApp!=='undefined');
   const[statsPageReady,setStatsPageReady]=React.useState(typeof window.StatsPage==='function');
   const pendingTrackerProject=React.useRef(null);
-  const[homeKey,setHomeKey]=React.useState(0);
 
   React.useEffect(()=>{
     if(trackerReady)return;
@@ -1277,7 +1276,6 @@ function UnifiedApp(){
     window.location.href='manager.html';
   },[]);
 
-  const[homeModal,setHomeModal]=React.useState(null);
   const[statsModal,setStatsModal]=React.useState(null);
   const[homePrefsOpen,setHomePrefsOpen]=React.useState(false);
   const[homeBulkAddOpen,setHomeBulkAddOpen]=React.useState(false);
@@ -1289,8 +1287,7 @@ function UnifiedApp(){
   // on which mode the user is currently viewing.
   React.useEffect(()=>{
     const h=()=>{
-      if(mode==='home'){setHomeModal('help');}
-      else if(mode==='stats'){setStatsModal('help');}
+      if(mode==='stats'){setStatsModal('help');}
       else if(mode==='track'&&typeof T==='function'){/* Tracker has its own listener */}
       else{
         // In design mode, dispatch via state.setModal if available.
@@ -1302,8 +1299,7 @@ function UnifiedApp(){
   },[mode]);
   React.useEffect(()=>{
     const h=()=>{
-      if(mode==='home'){setHomeModal('shortcuts');}
-      else if(mode==='stats'){setStatsModal('shortcuts');}
+      if(mode==='stats'){setStatsModal('shortcuts');}
       // design/track have their own cs:openShortcuts listeners
     };
     window.addEventListener('cs:openShortcuts',h);
