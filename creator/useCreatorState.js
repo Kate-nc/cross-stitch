@@ -16,6 +16,64 @@ function _extractDmcId(key) {
   return key.slice(idx + 1);
 }
 
+// ── Canonical conversion-settings helpers ──────────────────────────────────
+//
+// The image-to-pattern conversion engine (runCleanupPipeline /
+// runGenerationPipeline / the Web Worker / the variation-gallery generator)
+// accepts a fixed shape of options. Historically each call site re-derived
+// that shape inline, which let bugs like S1 (broken stash-palette builder in
+// the preview) and C3/C5 (missing dithStrength / minSt forwarding) slip past
+// review. The helpers below are the SINGLE source of truth.
+//
+// Adding a new conversion setting requires:
+//   1. Add the underlying state variable (useState) inside useCreatorState.
+//   2. Add its key to CONVERSION_STATE_KEYS below.
+//   3. Read it inside the conversionSettings useMemo and add it to the deps.
+// The coverage tests in tests/previewReactivity.test.js statically check
+// that this manifest exists.
+
+// Manifest of state-variable keys that contribute to the conversion output.
+// Used by the preview-coverage tests.
+var CONVERSION_STATE_KEYS = [
+  'sW', 'sH', 'bri', 'con', 'sat', 'smooth', 'smoothType',
+  'maxC', 'dithMode', 'allowBlends', 'minSt',
+  'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans',
+  'stashConstrained', 'globalStash',
+  'variationSeed', 'variationSubset',
+  'fabricCt',
+];
+
+// Build the allowedPalette + count from a globalStash (composite-keyed) or a
+// pre-built variation subset. ONE place that does the _extractDmcId dance —
+// every other call site funnels through this. Returns
+// { palette: Array|null, count: number, threads: Array }.
+function _buildAllowedPaletteFromStash(globalStash, subset) {
+  if (subset && subset.length) {
+    return { palette: subset, count: subset.length, threads: subset };
+  }
+  if (!globalStash) return { palette: null, count: 0, threads: [] };
+  var palette = [];
+  Object.keys(globalStash).forEach(function(key) {
+    if ((globalStash[key].owned || 0) <= 0) return;
+    var bareId = _extractDmcId(key);
+    if (!bareId) return;
+    var entry = (typeof findThreadInCatalog === 'function')
+      ? findThreadInCatalog('dmc', bareId)
+      : null;
+    if (entry) palette.push(entry);
+  });
+  return {
+    palette: palette.length ? palette : null,
+    count: palette.length,
+    threads: palette,
+  };
+}
+
+if (typeof window !== 'undefined') {
+  window._buildAllowedPaletteFromStash = _buildAllowedPaletteFromStash;
+  window.CONVERSION_STATE_KEYS = CONVERSION_STATE_KEYS;
+}
+
 // Plain helper (not a hook) — safe to call inside useState lazy initializers.
 // Reads a UserPrefs key with try/catch fallback so missing/broken UserPrefs
 // (e.g. SSR or test environments) never throws during render.
@@ -1219,33 +1277,24 @@ window.useCreatorState = function useCreatorState() {
     // Stash-constrained derived values (QW1, QW3, QW8)
     stashThreadCount: useMemo(function() {
       if (!stashConstrained || !globalStash) return null;
-      var count = 0;
-      Object.keys(globalStash).forEach(function(key) {
-        if ((globalStash[key].owned || 0) <= 0) return;
-        if (_extractDmcId(key)) count++;
-      });
-      return count;
+      return _buildAllowedPaletteFromStash(globalStash, null).count;
     }, [stashConstrained, globalStash]),
 
     effectiveMaxC: useMemo(function() {
       if (!stashConstrained) return maxC;
-      var count = 0;
-      Object.keys(globalStash || {}).forEach(function(key) {
-        if ((globalStash[key].owned || 0) <= 0) return;
-        if (_extractDmcId(key)) count++;
-      });
+      var count = _buildAllowedPaletteFromStash(globalStash, null).count;
       return count === 0 ? maxC : Math.min(maxC, count);
     }, [stashConstrained, globalStash, maxC]),
 
     stashPalette: useMemo(function() {
       if (!stashConstrained || !globalStash) return null;
-      var entries = [];
-      Object.keys(globalStash).forEach(function(key) {
-        if ((globalStash[key].owned || 0) <= 0) return;
-        var bareId = _extractDmcId(key);
-        if (!bareId) return;
-        var dmcEntry = findThreadInCatalog('dmc', bareId);
-        if (dmcEntry) entries.push({ id: dmcEntry.id, name: dmcEntry.name, rgb: dmcEntry.rgb, owned: globalStash[key].owned });
+      var threads = _buildAllowedPaletteFromStash(globalStash, null).threads;
+      var entries = threads.map(function(t, i) {
+        var key = 'dmc:' + t.id;
+        return {
+          id: t.id, name: t.name, rgb: t.rgb,
+          owned: (globalStash[key] && globalStash[key].owned) || 0,
+        };
       });
       entries.sort(function(a, b) {
         var hA = (typeof hueFromRgb !== 'undefined') ? hueFromRgb(a.rgb) : 0;
@@ -1257,24 +1306,60 @@ window.useCreatorState = function useCreatorState() {
 
     blendsAutoDisabled: useMemo(function() {
       if (!stashConstrained) return false;
-      var count = 0;
-      Object.keys(globalStash || {}).forEach(function(key) {
-        if ((globalStash[key].owned || 0) <= 0) return;
-        if (_extractDmcId(key)) count++;
-      });
-      return count < 6;
+      return _buildAllowedPaletteFromStash(globalStash, null).count < 6;
     }, [stashConstrained, globalStash]),
 
     effectiveAllowBlends: useMemo(function() {
       if (!stashConstrained) return allowBlends;
-      var count = 0;
-      Object.keys(globalStash || {}).forEach(function(key) {
-        if ((globalStash[key].owned || 0) <= 0) return;
-        if (_extractDmcId(key)) count++;
-      });
+      var count = _buildAllowedPaletteFromStash(globalStash, null).count;
       if (count < 6) return false;
       return allowBlends;
     }, [stashConstrained, globalStash, allowBlends]),
+
+    // ─── Canonical conversion settings bundle ────────────────────────────────
+    // ALL conversion settings flow through this useMemo. Any code path that
+    // generates pixels (preview, full Generate, gallery, worker) MUST consume
+    // this object instead of pulling individual state fields. See
+    // CONVERSION_STATE_KEYS at the top of this file for the full manifest.
+    conversionSettings: useMemo(function() {
+      var stashInfo = stashConstrained
+        ? _buildAllowedPaletteFromStash(globalStash, variationSubset)
+        : { palette: null, count: 0, threads: [] };
+      var effMaxC = stashConstrained && stashInfo.count > 0
+        ? Math.min(maxC, stashInfo.count)
+        : maxC;
+      var effAllowBlends = stashConstrained && stashInfo.count < 6
+        ? false
+        : allowBlends;
+      return Object.freeze({
+        // Geometry
+        sW: sW, sH: sH,
+        // Image adjustments
+        bri: bri, con: con, sat: sat,
+        smooth: smooth, smoothType: smoothType,
+        // Quantisation
+        maxC: effMaxC,
+        dith: dith, dithMode: dithMode, dithStrength: dithStrength,
+        allowBlends: effAllowBlends,
+        allowedPalette: stashInfo.palette,
+        // Background
+        skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
+        // Cleanup
+        minSt: minSt, stitchCleanup: stitchCleanup, orphans: orphans,
+        // Variation
+        seed: variationSeed, subset: variationSubset,
+        // Fabric (for stats, not pixels)
+        fabricCt: fabricCt,
+        // UI / diagnostic flags
+        stashConstrained: stashConstrained,
+        stashCount: stashInfo.count,
+      });
+    }, [
+      sW, sH, bri, con, sat, smooth, smoothType,
+      maxC, dith, dithMode, dithStrength, allowBlends,
+      skipBg, bgCol, bgTh, minSt, stitchCleanup, orphans,
+      stashConstrained, globalStash, variationSeed, variationSubset, fabricCt,
+    ]),
     // Functions
     buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType,
     setBrushAndActivate, setTool, setHsTool, setPsTool: setHsTool, fitZ, copyText,

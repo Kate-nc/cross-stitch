@@ -5197,6 +5197,64 @@ function _extractDmcId(key) {
   return key.slice(idx + 1);
 }
 
+// ── Canonical conversion-settings helpers ──────────────────────────────────
+//
+// The image-to-pattern conversion engine (runCleanupPipeline /
+// runGenerationPipeline / the Web Worker / the variation-gallery generator)
+// accepts a fixed shape of options. Historically each call site re-derived
+// that shape inline, which let bugs like S1 (broken stash-palette builder in
+// the preview) and C3/C5 (missing dithStrength / minSt forwarding) slip past
+// review. The helpers below are the SINGLE source of truth.
+//
+// Adding a new conversion setting requires:
+//   1. Add the underlying state variable (useState) inside useCreatorState.
+//   2. Add its key to CONVERSION_STATE_KEYS below.
+//   3. Read it inside the conversionSettings useMemo and add it to the deps.
+// The coverage tests in tests/previewReactivity.test.js statically check
+// that this manifest exists.
+
+// Manifest of state-variable keys that contribute to the conversion output.
+// Used by the preview-coverage tests.
+var CONVERSION_STATE_KEYS = [
+  'sW', 'sH', 'bri', 'con', 'sat', 'smooth', 'smoothType',
+  'maxC', 'dithMode', 'allowBlends', 'minSt',
+  'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans',
+  'stashConstrained', 'globalStash',
+  'variationSeed', 'variationSubset',
+  'fabricCt',
+];
+
+// Build the allowedPalette + count from a globalStash (composite-keyed) or a
+// pre-built variation subset. ONE place that does the _extractDmcId dance —
+// every other call site funnels through this. Returns
+// { palette: Array|null, count: number, threads: Array }.
+function _buildAllowedPaletteFromStash(globalStash, subset) {
+  if (subset && subset.length) {
+    return { palette: subset, count: subset.length, threads: subset };
+  }
+  if (!globalStash) return { palette: null, count: 0, threads: [] };
+  var palette = [];
+  Object.keys(globalStash).forEach(function(key) {
+    if ((globalStash[key].owned || 0) <= 0) return;
+    var bareId = _extractDmcId(key);
+    if (!bareId) return;
+    var entry = (typeof findThreadInCatalog === 'function')
+      ? findThreadInCatalog('dmc', bareId)
+      : null;
+    if (entry) palette.push(entry);
+  });
+  return {
+    palette: palette.length ? palette : null,
+    count: palette.length,
+    threads: palette,
+  };
+}
+
+if (typeof window !== 'undefined') {
+  window._buildAllowedPaletteFromStash = _buildAllowedPaletteFromStash;
+  window.CONVERSION_STATE_KEYS = CONVERSION_STATE_KEYS;
+}
+
 // Plain helper (not a hook) — safe to call inside useState lazy initializers.
 // Reads a UserPrefs key with try/catch fallback so missing/broken UserPrefs
 // (e.g. SSR or test environments) never throws during render.
@@ -6400,33 +6458,24 @@ window.useCreatorState = function useCreatorState() {
     // Stash-constrained derived values (QW1, QW3, QW8)
     stashThreadCount: useMemo(function() {
       if (!stashConstrained || !globalStash) return null;
-      var count = 0;
-      Object.keys(globalStash).forEach(function(key) {
-        if ((globalStash[key].owned || 0) <= 0) return;
-        if (_extractDmcId(key)) count++;
-      });
-      return count;
+      return _buildAllowedPaletteFromStash(globalStash, null).count;
     }, [stashConstrained, globalStash]),
 
     effectiveMaxC: useMemo(function() {
       if (!stashConstrained) return maxC;
-      var count = 0;
-      Object.keys(globalStash || {}).forEach(function(key) {
-        if ((globalStash[key].owned || 0) <= 0) return;
-        if (_extractDmcId(key)) count++;
-      });
+      var count = _buildAllowedPaletteFromStash(globalStash, null).count;
       return count === 0 ? maxC : Math.min(maxC, count);
     }, [stashConstrained, globalStash, maxC]),
 
     stashPalette: useMemo(function() {
       if (!stashConstrained || !globalStash) return null;
-      var entries = [];
-      Object.keys(globalStash).forEach(function(key) {
-        if ((globalStash[key].owned || 0) <= 0) return;
-        var bareId = _extractDmcId(key);
-        if (!bareId) return;
-        var dmcEntry = findThreadInCatalog('dmc', bareId);
-        if (dmcEntry) entries.push({ id: dmcEntry.id, name: dmcEntry.name, rgb: dmcEntry.rgb, owned: globalStash[key].owned });
+      var threads = _buildAllowedPaletteFromStash(globalStash, null).threads;
+      var entries = threads.map(function(t, i) {
+        var key = 'dmc:' + t.id;
+        return {
+          id: t.id, name: t.name, rgb: t.rgb,
+          owned: (globalStash[key] && globalStash[key].owned) || 0,
+        };
       });
       entries.sort(function(a, b) {
         var hA = (typeof hueFromRgb !== 'undefined') ? hueFromRgb(a.rgb) : 0;
@@ -6438,24 +6487,60 @@ window.useCreatorState = function useCreatorState() {
 
     blendsAutoDisabled: useMemo(function() {
       if (!stashConstrained) return false;
-      var count = 0;
-      Object.keys(globalStash || {}).forEach(function(key) {
-        if ((globalStash[key].owned || 0) <= 0) return;
-        if (_extractDmcId(key)) count++;
-      });
-      return count < 6;
+      return _buildAllowedPaletteFromStash(globalStash, null).count < 6;
     }, [stashConstrained, globalStash]),
 
     effectiveAllowBlends: useMemo(function() {
       if (!stashConstrained) return allowBlends;
-      var count = 0;
-      Object.keys(globalStash || {}).forEach(function(key) {
-        if ((globalStash[key].owned || 0) <= 0) return;
-        if (_extractDmcId(key)) count++;
-      });
+      var count = _buildAllowedPaletteFromStash(globalStash, null).count;
       if (count < 6) return false;
       return allowBlends;
     }, [stashConstrained, globalStash, allowBlends]),
+
+    // ─── Canonical conversion settings bundle ────────────────────────────────
+    // ALL conversion settings flow through this useMemo. Any code path that
+    // generates pixels (preview, full Generate, gallery, worker) MUST consume
+    // this object instead of pulling individual state fields. See
+    // CONVERSION_STATE_KEYS at the top of this file for the full manifest.
+    conversionSettings: useMemo(function() {
+      var stashInfo = stashConstrained
+        ? _buildAllowedPaletteFromStash(globalStash, variationSubset)
+        : { palette: null, count: 0, threads: [] };
+      var effMaxC = stashConstrained && stashInfo.count > 0
+        ? Math.min(maxC, stashInfo.count)
+        : maxC;
+      var effAllowBlends = stashConstrained && stashInfo.count < 6
+        ? false
+        : allowBlends;
+      return Object.freeze({
+        // Geometry
+        sW: sW, sH: sH,
+        // Image adjustments
+        bri: bri, con: con, sat: sat,
+        smooth: smooth, smoothType: smoothType,
+        // Quantisation
+        maxC: effMaxC,
+        dith: dith, dithMode: dithMode, dithStrength: dithStrength,
+        allowBlends: effAllowBlends,
+        allowedPalette: stashInfo.palette,
+        // Background
+        skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
+        // Cleanup
+        minSt: minSt, stitchCleanup: stitchCleanup, orphans: orphans,
+        // Variation
+        seed: variationSeed, subset: variationSubset,
+        // Fabric (for stats, not pixels)
+        fabricCt: fabricCt,
+        // UI / diagnostic flags
+        stashConstrained: stashConstrained,
+        stashCount: stashInfo.count,
+      });
+    }, [
+      sW, sH, bri, con, sat, smooth, smoothType,
+      maxC, dith, dithMode, dithStrength, allowBlends,
+      skipBg, bgCol, bgTh, minSt, stitchCleanup, orphans,
+      stashConstrained, globalStash, variationSeed, variationSubset, fabricCt,
+    ]),
     // Functions
     buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType,
     setBrushAndActivate, setTool, setHsTool, setPsTool: setHsTool, fitZ, copyText,
@@ -8708,7 +8793,9 @@ window.useProjectIO = function useProjectIO(state, history, options) {
 /* ─── usePreview.js ─── */
 /* creator/usePreview.js — Generates a fast preview thumbnail and stats while
    the user adjusts settings. Debounced 400 ms.
-   Expects state object from useCreatorState. */
+   Expects state object from useCreatorState. The single source of truth for
+   what settings affect the preview is state.conversionSettings (built by
+   useCreatorState) — see CONVERSION_STATE_KEYS in useCreatorState.js. */
 
 window.usePreview = function usePreview(state) {
   var rawCacheRef = React.useRef(null); // { sig, raw, pw, ph } — geometric cache
@@ -8716,34 +8803,21 @@ window.usePreview = function usePreview(state) {
 
   var generatePreview = React.useCallback(function() {
     if (fullPassTimerRef.current) { clearTimeout(fullPassTimerRef.current); fullPassTimerRef.current = null; }
-    var img = state.img, sW = state.sW, sH = state.sH;
-    var maxC = state.maxC, bri = state.bri, con = state.con, sat = state.sat;
-    var dith = state.dith, skipBg = state.skipBg, bgCol = state.bgCol, bgTh = state.bgTh;
-    var smooth = state.smooth, smoothType = state.smoothType;
-    var stitchCleanup = state.stitchCleanup, fabricCt = state.fabricCt;
-    var allowBlends = state.allowBlends;
-    var stashConstrained = state.stashConstrained, globalStash = state.globalStash;
-    var varSeed = state.variationSeed;
-    // Use clamped values from derived state (QW1, QW8)
-    var effMaxC = state.effectiveMaxC != null ? state.effectiveMaxC : maxC;
-    var effAllowBlends = state.effectiveAllowBlends != null ? state.effectiveAllowBlends : allowBlends;
-
-    // Build constrained palette from stash if stash-only mode is on
-    var allowedPalette = null;
-    if (stashConstrained && globalStash) {
-      if (state.variationSubset) {
-        allowedPalette = state.variationSubset;
-      } else {
-        allowedPalette = [];
-        Object.keys(globalStash).forEach(function(id) {
-          if ((globalStash[id].owned || 0) > 0) {
-            var dmcEntry = findThreadInCatalog('dmc', id);
-            if (dmcEntry) allowedPalette.push(dmcEntry);
-          }
-        });
-        if (!allowedPalette.length) allowedPalette = null;
-      }
-    }
+    var img = state.img;
+    var settings = state.conversionSettings;
+    if (!settings) return;
+    // Local aliases for the geometric/cache step (these are pure image-prep
+    // values, not pipeline values).
+    var sW = settings.sW, sH = settings.sH;
+    var bri = settings.bri, con = settings.con, sat = settings.sat;
+    var smooth = settings.smooth, smoothType = settings.smoothType;
+    var fabricCt = settings.fabricCt;
+    var stashConstrained = settings.stashConstrained;
+    var globalStash = state.globalStash;
+    var orphans = settings.orphans;
+    var stitchCleanup = settings.stitchCleanup;
+    var dith = settings.dith;
+    var showCleanupDiff = state.showCleanupDiff;
 
     if (!img || !img.src) return;
     var MAX_PREVIEW_AREA = 40000;
@@ -8770,6 +8844,21 @@ window.usePreview = function usePreview(state) {
       rawCacheRef.current = { sig: geoSig, raw: new Uint8ClampedArray(raw), pw: pw, ph: ph };
     }
 
+    // Pipeline options come straight from the canonical settings bundle. The
+    // ONLY caller-side overrides are the geometric step we already did above
+    // (image filters), so we strip those keys and forward everything else.
+    function pipelineOpts(overrides) {
+      var o = {
+        maxC: settings.maxC, dith: settings.dith, dithStrength: settings.dithStrength,
+        allowBlends: settings.allowBlends, allowedPalette: settings.allowedPalette,
+        skipBg: settings.skipBg, bgCol: settings.bgCol, bgTh: settings.bgTh,
+        stitchCleanup: settings.stitchCleanup, orphans: settings.orphans,
+        minSt: settings.minSt, seed: settings.seed,
+      };
+      if (overrides) Object.keys(overrides).forEach(function(k) { o[k] = overrides[k]; });
+      return o;
+    }
+
     // Helper: render a mapped array to a data URL
     function renderUrl(mapped) {
       var pc = document.createElement("canvas"); pc.width = pw; pc.height = ph;
@@ -8781,13 +8870,16 @@ window.usePreview = function usePreview(state) {
       }
       pcx.putImageData(imgData, 0, 0); return pc.toDataURL();
     }
-  var orphans = state.orphans;
-  var showCleanupDiff = state.showCleanupDiff;
 
     // Progressive preview: if dithering is on, show a fast map-only result immediately,
     // then let React commit that frame before running the full dither pass.
     if (dith) {
-      var fastResult = runCleanupPipeline(raw, pw, ph, { maxC: effMaxC, dith: false, allowBlends: false, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: null, orphans: 0, allowedPalette: allowedPalette, seed: varSeed });
+      var fastResult = runCleanupPipeline(raw, pw, ph, pipelineOpts({
+        dith: false, stitchCleanup: null, orphans: 0,
+        // NOTE (C4): fast pass disables blends to keep latency low. The full
+        // pass below honours the user's actual allowBlends setting.
+        allowBlends: false,
+      }));
       if (fastResult) state.setPreviewUrl(renderUrl(fastResult.mapped));
       fullPassTimerRef.current = setTimeout(runFull, 0);
       return;
@@ -8796,12 +8888,12 @@ window.usePreview = function usePreview(state) {
 
     function runFull() {
       fullPassTimerRef.current = null;
-      var pipelineResult = runCleanupPipeline(raw, pw, ph, { maxC: effMaxC, dith: dith, allowBlends: effAllowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, allowedPalette: allowedPalette, seed: varSeed });
+      var pipelineResult = runCleanupPipeline(raw, pw, ph, pipelineOpts());
       if (!pipelineResult) return;
       var mapped = pipelineResult.mapped;
       var confettiRaw = pipelineResult.confettiRaw;
       var confettiClean = pipelineResult.confettiClean;
-  var preCleanupIds = pipelineResult.preCleanupIds || null;
+      var preCleanupIds = pipelineResult.preCleanupIds || null;
 
       var stitchable = 0, skipped = 0, colorCounts = {}, colorRgbs = {};
       for (var j = 0; j < mapped.length; j++) {
@@ -8881,13 +8973,7 @@ window.usePreview = function usePreview(state) {
       }
     }
   }, [
-    state.img, state.sW, state.sH, state.maxC, state.bri, state.con, state.sat,
-    state.dith, state.skipBg, state.bgCol, state.bgTh, state.smooth, state.smoothType,
-    state.stitchCleanup, state.fabricCt, state.allowBlends,
-    state.orphans, state.showCleanupDiff,
-    state.stashConstrained, state.globalStash,
-    state.effectiveMaxC, state.effectiveAllowBlends,
-    state.variationSeed, state.variationSubset,
+    state.img, state.conversionSettings, state.showCleanupDiff, state.globalStash,
   ]);
 
   React.useEffect(function() {
