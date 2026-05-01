@@ -1867,7 +1867,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
 
     // ── Middle row: SABLE + Hue Wheel ────────────────────────────
     h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10, margin: '10px 0' } },
-      show('sableIndex') && h(StatCard, { title: 'SABLE Index', id: 'stats-sableIndex', style: { minHeight: 200 } },
+      show('sableIndex') && h(StatCard, { title: h('span', {style:{display:'inline-flex',alignItems:'center',gap:4}}, 'SABLE Index', h('span', {title:'SABLE = Stash Accumulated Beyond Life Expectancy\nA ratio of how fast you accumulate thread vs how fast you stitch it. Above 1.0 means your stash is growing faster than you can use it.',style:{cursor:'help',color:'var(--text-tertiary)',border:'1px solid currentColor',borderRadius:'50%',width:13,height:13,display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700,flexShrink:0,lineHeight:1}},'?')), id: 'stats-sableIndex', style: { minHeight: 200 } },
         sableData.length >= 3
           ? h('div', null,
               sableHeadline && h('div', { style: { fontSize:'var(--text-lg)', fontWeight: 600, color: sableHeadline.color, marginBottom:'var(--s-2)' } }, sableHeadline.text),

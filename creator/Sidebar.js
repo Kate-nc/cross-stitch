@@ -20,10 +20,10 @@ window.CreatorSidebar = function CreatorSidebar() {
     if (orphans === 0) return null;
     var area = sW * sH;
     if (area <= 900 && orphans > 0) {
-      return {level:"danger",message:"Your grid is very small ("+sW+"\xD7"+sH+"). Any orphan removal may destroy fine details. Consider turning it off or increasing grid size."};
+      return {level:"danger",message:"Your grid is very small ("+sW+"\xD7"+sH+"). Any confetti cleanup may destroy fine details. Consider turning it off or increasing grid size."};
     }
     if (area <= 1600 && orphans >= 2) {
-      return {level:"danger",message:"Orphan removal level "+orphans+" is aggressive for a "+sW+"\xD7"+sH+" grid. Important details like eyes, text, or thin lines may be lost. Consider using level 1 or increasing grid size."};
+      return {level:"danger",message:"Confetti cleanup level "+orphans+" is aggressive for a "+sW+"\xD7"+sH+" grid. Important details like eyes, text, or thin lines may be lost. Consider using level 1 or increasing grid size."};
     }
     if (area <= 2500 && orphans >= 3) {
       return {level:"warning",message:"Level 3 cleanup on a "+sW+"\xD7"+sH+" grid may remove more detail than expected. Try level 1 or 2 first."};
@@ -539,6 +539,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("span", null, "Lock aspect ratio"),
       h(InfoIcon, {text:"Keep width and height proportional when resizing", width:200})
     ),
+    h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:-6,marginBottom:'var(--s-2)'}}, "Max: 5000 \u00D7 5000 stitches"),
     ctx.arLock
       ? h("div", null,
           h(SliderRow, {label:"Size", value:ctx.sW, min:10, max:300, onChange:ctx.slRsz, suffix:" st"}),
@@ -579,6 +580,9 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("input", {type:"checkbox", checked:gen.stashConstrained, onChange:function(e){gen.setStashConstrained(e.target.checked);}}),
       h("span", null, "Use only stash threads"),
       h(InfoIcon, {text:"Constrains the palette to threads you physically own. Produces a pattern you can stitch immediately without buying anything.", width:240})
+    ),
+    typeof StashBridge !== "undefined" && !gen.stashConstrained && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:-10,marginBottom:'var(--s-2)'}},
+      "Enable to generate patterns using only threads you already own."
     ),
     gen.stashConstrained && typeof StashBridge !== "undefined" && h(React.Fragment, null,
       h("div", {style:{fontSize:'var(--text-xs)',color:"var(--accent)",background:"var(--accent-light)",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-md)',padding:"6px 10px",marginBottom:'var(--s-2)'}},
@@ -809,9 +813,9 @@ window.CreatorSidebar = function CreatorSidebar() {
           helpText:"Colours used fewer than this many times will be merged into the nearest similar colour"})
       ),
       h("div", {style:{marginTop:'var(--s-2)'}},
-        h(SliderRow, {label:"Remove Orphans", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
+        h(SliderRow, {label:"Confetti Cleanup", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
           format:function(v){return v===0?"Off":String(v);},
-          helpText:"Removes isolated stitches with no same-colour neighbours \u2014 reduces confetti and makes the pattern easier to stitch"}),
+          helpText:"Removes isolated single stitches (confetti) with no same-colour neighbours \u2014 improves stitch score and makes the pattern easier to sew"}),  
         gen.orphans > 0 && (function() {
           var desc;
           if (gen.orphans === 1) {

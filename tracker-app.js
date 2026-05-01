@@ -345,10 +345,11 @@ function SessionConfigModal({onStart,onClose,liveAutoElapsed,liveAutoStitches}){
 // ── Session Summary Modal ──
 function SessionSummaryModal({data,prevAvgSpeed,onViewBreadcrumbs,hasBreadcrumbs,onClose}){
   if(!data)return null;
-  const{durationSeconds,stitchesCompleted,blocksCompleted,coloursCompleted}=data;
+  const{durationSeconds,stitchesCompleted,blocksCompleted,coloursCompleted,progressPctBefore,progressPctAfter}=data;
   const mins=Math.floor(durationSeconds/60),secs=durationSeconds%60;
   const speed=durationSeconds>0?Math.round(stitchesCompleted/(durationSeconds/3600)):0;
   const pctDiff=prevAvgSpeed>0?Math.round(((speed-prevAvgSpeed)/prevAvgSpeed)*100):null;
+  const progressGain=progressPctBefore!=null&&progressPctAfter!=null?progressPctAfter-progressPctBefore:null;
   return(
     <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="session-complete-title" onClick={onClose}>
       <div className="modal-content" style={{maxWidth:360}} onClick={e=>e.stopPropagation()}>
@@ -358,6 +359,7 @@ function SessionSummaryModal({data,prevAvgSpeed,onViewBreadcrumbs,hasBreadcrumbs
           <div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Time</span><span style={{fontWeight:700}}>{mins}m {secs}s</span></div>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Stitches</span><span style={{fontWeight:700}}>{stitchesCompleted}</span></div>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Speed</span><span style={{fontWeight:700}}>{speed} st/hr{pctDiff!=null?<span style={{fontSize:'var(--text-xs)',fontWeight:400,color:pctDiff>=0?"var(--success)":"var(--danger)",marginLeft:6}}>{pctDiff>=0?"+":""}{pctDiff}% vs avg</span>:null}</span></div>
+          {progressPctBefore!=null&&progressPctAfter!=null&&<div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Progress</span><span style={{fontWeight:700}}>{progressPctBefore}%<span style={{color:"var(--text-tertiary)",fontWeight:400,margin:"0 4px"}}>{"\u2192"}</span>{progressPctAfter}%{progressGain!=null&&progressGain>0&&<span style={{fontSize:'var(--text-xs)',fontWeight:400,color:"var(--success)",marginLeft:6}}>+{progressGain}%</span>}</span></div>}
           {blocksCompleted>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Blocks</span><span style={{fontWeight:700}}>{blocksCompleted}</span></div>}
           {coloursCompleted&&coloursCompleted.length>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:'var(--text-lg)'}}><span style={{color:"var(--text-secondary)"}}>Colours finished</span><span style={{fontWeight:700}}>{coloursCompleted.length}</span></div>}
         </div>
@@ -5620,7 +5622,7 @@ return(
             <button className="lp-btn lp-btn--danger" style={{marginTop:'var(--s-2)',width:"100%"}} onClick={()=>{
               const dur=liveAutoElapsed>0?liveAutoElapsed:Math.floor((Date.now()-explicitSession.startTime)/1000);
               const bks=breadcrumbs.filter(b=>b.sessionIdx===(statsSessions?statsSessions.length:0)).length;
-              setSessionSummaryData({durationSeconds:dur,stitchesCompleted:liveAutoStitches,blocksCompleted:bks,coloursCompleted:[]});
+              setSessionSummaryData({durationSeconds:dur,stitchesCompleted:liveAutoStitches,blocksCompleted:bks,coloursCompleted:[],progressPctBefore:totalStitchable>0?Math.round((doneCount-liveAutoStitches)/totalStitchable*100):null,progressPctAfter:totalStitchable>0?Math.round(doneCount/totalStitchable*100):null});
               setExplicitSession(null);
             }}>End session</button>
           </>);
@@ -6192,7 +6194,7 @@ return(
         <button className="ttd-btn" onClick={redoTrack} disabled={!redoStack.length} aria-label="Redo" title="Redo">{Icons.replay()}</button>
         <button className="ttd-btn" onClick={findNext} aria-label="Find next colour" title="Cycle focus colour">{Icons.magnify()}</button>
         <button className={"ttd-btn"+(stitchView==="highlight"?" ttd-btn--on":"")} onClick={()=>{setStitchView(v=>v==="highlight"?"symbol":"highlight");}} aria-label="Toggle highlight" title="Highlight mode (half-stitch placement)">{Icons.halfStitch()}</button>
-        <button className={"ttd-btn"+(stitchMode==="navigate"?" ttd-btn--on":"")} onClick={()=>{setStitchMode(m=>m==="navigate"?"track":"navigate");}} aria-label="Toggle parking" title="Navigate / parking mode">{Icons.parkFlag()}</button>
+        <button className={"ttd-btn"+(stitchMode==="navigate"?" ttd-btn--on":"")} onClick={()=>{setStitchMode(m=>m==="navigate"?"track":"navigate");}} aria-label="Toggle parking" title="Navigate / parking mode — tap to place parking markers on the canvas showing where your needle is parked between sessions. Parked colour markers are always visible while you work.">{Icons.parkFlag()}</button>
         <button className="ttd-btn" onClick={()=>{if(stitchView!=="highlight")setStitchView("highlight");setQuickColourOpen(o=>!o);}} aria-label="Pick colour" title="Pick a colour">{Icons.palette()}</button>
       </div>
       {/* ── Bottom mode-pill (phone, above safe area) ── */}

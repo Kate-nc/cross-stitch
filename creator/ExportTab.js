@@ -398,6 +398,7 @@ window.CreatorExportTab = function CreatorExportTab() {
         h("button", { onClick: function () { applyPreset("patternKeeper"); },
           style: Object.assign({}, presetCardBase, presetState[0] === "patternKeeper" ? presetCardActive : {}) },
           h("strong", { style: { fontSize:'var(--text-lg)' } }, "For Pattern Keeper"),
+          h("span", { style: { display: "inline-block", fontSize: 9, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", background: "var(--success)", color: "#fff", borderRadius: 3, padding: "1px 5px", marginBottom: 2, alignSelf: "flex-start" } }, "PK Compatible"),
           h("span", { style: { fontSize:'var(--text-xs)', opacity: 0.85 } },
             "Symbols + colour, medium print, 2-row overlap, cover page on. Customers can highlight and track stitches in Pattern Keeper.")
         ),

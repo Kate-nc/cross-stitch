@@ -117,7 +117,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       return h("div", {
         style:{padding:"8px 12px",background:"var(--danger-soft)",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-md)',fontSize:'var(--text-sm)',color:"var(--danger)",marginBottom:'var(--s-2)',display:"flex",justifyContent:"space-between",alignItems:"center"}
       },
-        h("span", null, Icons.warning(), " Cleanup removed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to regenerate with a lower orphan removal level."),
+        h("span", null, Icons.warning(), " Cleanup removed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to regenerate with a lower confetti cleanup level."),
         h("button", {
           onClick:function(){setConfettiBannerDismissed(true);},
           style:{background:"none",border:"none",color:"var(--danger)",cursor:"pointer",fontSize:'var(--text-lg)',flexShrink:0,marginLeft:'var(--s-2)'}
@@ -126,6 +126,30 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     })(),
 
     h(window.MagicWandPanel, null),
+
+    app.confettiData && (function() {
+      var cleanPct = app.confettiData.clean.pct;
+      var score = Math.round(100 - cleanPct);
+      var scoreColor = score >= 90 ? "var(--success)" : score >= 75 ? "#7CB518" : score >= 60 ? "#C9A825" : score >= 40 ? "#D97706" : "var(--danger)";
+      var barBg = score >= 90 ? "var(--success-soft)" : score >= 60 ? "#fef9c3" : "var(--danger-soft)";
+      var singles = app.confettiData.clean.singles;
+      return h("div", {style:{padding:"6px 10px",background:"var(--surface-secondary)",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',marginBottom:'var(--s-2)',display:"flex",alignItems:"center",gap:'var(--s-3)',flexWrap:"wrap"}},
+        h("div", {style:{display:"flex",flexDirection:"column",gap:1,minWidth:60}},
+          h("div", {style:{fontSize:9,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.04em"}}, "Stitch Score"),
+          h("div", {style:{fontSize:'var(--text-md)',fontWeight:700,color:scoreColor,lineHeight:1.1}}, score, "/100")
+        ),
+        h("div", {style:{flex:1,minWidth:60}},
+          h("div", {style:{height:5,background:"var(--surface-tertiary)",borderRadius:3,overflow:"hidden"}},
+            h("div", {style:{width:score+"%",height:"100%",background:scoreColor,borderRadius:3}})
+          ),
+          h("div", {style:{fontSize:9,color:"var(--text-tertiary)",marginTop:2}}, singles.toLocaleString(), " isolated stitches remaining")
+        ),
+        h("span", {
+          title:"Higher score = easier to stitch. Fewer isolated single stitches means fewer thread changes and less counting fatigue. Reduce Confetti Cleanup level or increase grid size to improve.",
+          style:{cursor:"help",color:"var(--text-tertiary)",borderBottom:"1px dotted var(--text-tertiary)",fontSize:'var(--text-xs)',whiteSpace:"nowrap"}
+        }, "What is this?")
+      );
+    })(),
 
     app.splitPaneEnabled
       ? h(window.CreatorSplitPane, null)
