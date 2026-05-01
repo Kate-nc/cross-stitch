@@ -89,38 +89,9 @@ self.onmessage = function(e) {
       }
     }
 
-    var preLabels   = labelConnectedComponents(mapped, width, height);
-    var confettiRaw = analyzeConfetti(mapped, width, height, preLabels);
-    var confettiClean = null;
-    var preCleanupIds = null;
-
-    var runCleanup = orphansOpt != null ? (orphansOpt > 0) : (stitchCleanup && stitchCleanup.enabled);
-    if (runCleanup) {
-      var maxOrphanSize, saliencyMult;
-      if (orphansOpt != null) {
-        maxOrphanSize = orphansOpt;
-        var _csMap = stitchCleanup && STRENGTH_MAP[stitchCleanup.strength] ? STRENGTH_MAP[stitchCleanup.strength] : STRENGTH_MAP.balanced;
-        saliencyMult = _csMap.saliencyMultiplier;
-      } else {
-        var strengthKey = Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
-          ? stitchCleanup.strength : 'balanced';
-        var sp = STRENGTH_MAP[strengthKey];
-        maxOrphanSize = sp.maxOrphanSize;
-        saliencyMult = sp.saliencyMultiplier;
-      }
-      var edgeMap = (stitchCleanup && stitchCleanup.protectDetails) ? generateEdgeMap(raw, width, height) : null;
-      preCleanupIds = mapped.map(function(m) { return m.id; });
-      mapped = removeOrphanStitches(
-        mapped, width, height, maxOrphanSize,
-        edgeMap, saliencyMap,
-        { saliencyMultiplier: saliencyMult },
-        preLabels
-      );
-      var postLabels = labelConnectedComponents(mapped, width, height);
-      confettiClean = analyzeConfetti(mapped, width, height, postLabels);
-    }
-
     // ── 3. Rarity removal (minSt pass) ───────────────────────────────────────
+    // Applied before confetti analysis so stats reflect the post-minSt palette,
+    // matching the ordering in runCleanupPipeline (creator/generate.js).
     var minSt = settings.minSt;
     if (minSt > 0) {
       for (var pass = 0; pass < 3; pass++) {
@@ -148,6 +119,43 @@ self.onmessage = function(e) {
         }
         if (!changed) break;
       }
+    }
+
+    var preLabels   = labelConnectedComponents(mapped, width, height);
+    var confettiRaw = analyzeConfetti(mapped, width, height, preLabels);
+    var confettiClean = null;
+    var preCleanupIds = null;
+
+    // Mirror the engine fix: cleanup runs if EITHER orphans > 0 OR the Stitch
+    // Cleanup toggle is on. The previous condition treated orphans === 0 as
+    // "explicitly off" and suppressed the separate toggle. Keep `orphansOpt`
+    // as the existing variable name so the branch below still compiles.
+    var cleanupEnabled = !!(stitchCleanup && stitchCleanup.enabled);
+    var runCleanup = (orphansOpt != null && orphansOpt > 0) || cleanupEnabled;
+    if (orphansOpt != null && orphansOpt === 0 && cleanupEnabled) orphansOpt = null;
+    if (runCleanup) {
+      var maxOrphanSize, saliencyMult;
+      if (orphansOpt != null) {
+        maxOrphanSize = orphansOpt;
+        var _csMap = stitchCleanup && STRENGTH_MAP[stitchCleanup.strength] ? STRENGTH_MAP[stitchCleanup.strength] : STRENGTH_MAP.balanced;
+        saliencyMult = _csMap.saliencyMultiplier;
+      } else {
+        var strengthKey = Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
+          ? stitchCleanup.strength : 'balanced';
+        var sp = STRENGTH_MAP[strengthKey];
+        maxOrphanSize = sp.maxOrphanSize;
+        saliencyMult = sp.saliencyMultiplier;
+      }
+      var edgeMap = (stitchCleanup && stitchCleanup.protectDetails) ? generateEdgeMap(raw, width, height) : null;
+      preCleanupIds = mapped.map(function(m) { return m.id; });
+      mapped = removeOrphanStitches(
+        mapped, width, height, maxOrphanSize,
+        edgeMap, saliencyMap,
+        { saliencyMultiplier: saliencyMult },
+        preLabels
+      );
+      var postLabels = labelConnectedComponents(mapped, width, height);
+      confettiClean = analyzeConfetti(mapped, width, height, postLabels);
     }
 
     // ── 4. maxC enforcement pass ──────────────────────────────────────────────

@@ -29,6 +29,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
   var stitchCleanup = opts.stitchCleanup;
   var dithStrength = (typeof opts.dithStrength === "number") ? opts.dithStrength : 1.0;
+  var minSt = (typeof opts.minSt === "number" && opts.minSt > 0) ? opts.minSt : 0;
 
   var p = quantize(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed});
   if (!p.length) return null;
@@ -48,26 +49,56 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     }
   }
 
+  // ── Min-stitches rebucket (C5) ───────────────────────────────────────────
+  // Collapse any colour with fewer than `minSt` cells into its nearest
+  // surviving colour. Up to 3 passes — a freshly-collapsed cell may itself
+  // tip another colour below threshold.
+  if (minSt > 0) {
+    for (var pass = 0; pass < 3; pass++) {
+      var ep = buildPalette(mapped);
+      var rare = ep.pal.filter(function(e) { return e.count < minSt; });
+      var keep = ep.pal.filter(function(e) { return e.count >= minSt; });
+      if (!rare.length || !keep.length) break;
+      var rm2 = {};
+      rare.forEach(function(r) {
+        var b = null, bd = 1e9;
+        keep.forEach(function(k) { var d = dE(r.lab, k.lab); if (d < bd) { bd = d; b = k.id; } });
+        if (b) rm2[r.id] = b;
+      });
+      var changed = false;
+      var keepMap = {};
+      keep.forEach(function(k) { keepMap[k.id] = k; });
+      for (var j = 0; j < mapped.length; j++) {
+        if (mapped[j].id !== "__skip__" && rm2[mapped[j].id]) {
+          mapped[j] = Object.assign({}, keepMap[rm2[mapped[j].id]]);
+          changed = true;
+        }
+      }
+      if (!changed) break;
+    }
+  }
+
   var preLabels = labelConnectedComponents(mapped, width, height);
   var confettiRaw = analyzeConfetti(mapped, width, height, preLabels);
   var confettiClean = null;
   var preCleanupIds = null;
 
-  var orphansOpt = opts.orphans != null ? opts.orphans : null;
-  var runCleanup = orphansOpt != null ? (orphansOpt > 0) : (stitchCleanup && stitchCleanup.enabled);
+  // Cleanup runs if EITHER the user moved the Remove-Orphans slider above 0
+  // OR they enabled the Stitch Cleanup toggle. Treating `orphans === 0` as
+  // "explicitly off" (the previous behaviour) silently suppressed the separate
+  // Stitch Cleanup toggle and all its sub-options, since the orphans slider
+  // defaults to 0.
+  var orphansOpt = (typeof opts.orphans === 'number' && opts.orphans > 0) ? opts.orphans : 0;
+  var cleanupEnabled = !!(stitchCleanup && stitchCleanup.enabled);
+  var runCleanup = orphansOpt > 0 || cleanupEnabled;
   if (runCleanup) {
-    var maxOrphanSize, saliencyMult;
-    if (orphansOpt != null) {
-      maxOrphanSize = orphansOpt;
-      var _csMap = stitchCleanup && STRENGTH_MAP[stitchCleanup.strength] ? STRENGTH_MAP[stitchCleanup.strength] : STRENGTH_MAP.balanced;
-      saliencyMult = _csMap.saliencyMultiplier;
-    } else {
-      var cleanupStrength = Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
-        ? stitchCleanup.strength : "balanced";
-      var sp = STRENGTH_MAP[cleanupStrength];
-      maxOrphanSize = sp.maxOrphanSize;
-      saliencyMult = sp.saliencyMultiplier;
-    }
+    var cleanupStrength = stitchCleanup && Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
+      ? stitchCleanup.strength : 'balanced';
+    var sp = STRENGTH_MAP[cleanupStrength];
+    // Orphans slider is the explicit override when set; otherwise use the
+    // strength preset's maxOrphanSize.
+    var maxOrphanSize = orphansOpt > 0 ? orphansOpt : sp.maxOrphanSize;
+    var saliencyMult = sp.saliencyMultiplier;
     var edgeMap = (stitchCleanup && stitchCleanup.protectDetails) ? generateEdgeMap(raw, width, height) : null;
     preCleanupIds = mapped.map(function(m) { return m.id; });
     mapped = removeOrphanStitches(mapped, width, height, maxOrphanSize, edgeMap, saliencyMap, { saliencyMultiplier: saliencyMult }, preLabels);
@@ -156,7 +187,13 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
     else applyMedianFilter(raw, sW, sH, smooth);
   }
 
-  var pipelineResult = runCleanupPipeline(raw, sW, sH, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: opts.orphans, allowedPalette: opts.allowedPalette || null, seed: opts.seed });
+  var pipelineResult = runCleanupPipeline(raw, sW, sH, {
+    maxC: maxC, dith: dith, dithStrength: opts.dithStrength,
+    allowBlends: allowBlends, allowedPalette: opts.allowedPalette || null,
+    skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
+    stitchCleanup: stitchCleanup, orphans: opts.orphans,
+    minSt: minSt, seed: opts.seed,
+  });
   if (!pipelineResult) return null;
 
   var mapped = pipelineResult.mapped;
@@ -164,30 +201,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   var rawConfetti = pipelineResult.confettiRaw;
   var cleanConfetti = pipelineResult.confettiClean || pipelineResult.confettiRaw;
 
-  if (minSt > 0) {
-    for (var pass = 0; pass < 3; pass++) {
-      var ep = buildPalette(mapped);
-      var rare = ep.pal.filter(function(e) { return e.count < minSt; });
-      var keep = ep.pal.filter(function(e) { return e.count >= minSt; });
-      if (!rare.length || !keep.length) break;
-      var rm2 = {};
-      rare.forEach(function(r) {
-        var b = null, bd = 1e9;
-        keep.forEach(function(k) { var d = dE(r.lab, k.lab); if (d < bd) { bd = d; b = k.id; } });
-        if (b) rm2[r.id] = b;
-      });
-      var changed = false;
-      var keepMap = {};
-      keep.forEach(function(k) { keepMap[k.id] = k; });
-      for (var j = 0; j < mapped.length; j++) {
-        if (mapped[j].id !== "__skip__" && rm2[mapped[j].id]) {
-          mapped[j] = Object.assign({}, keepMap[rm2[mapped[j].id]]);
-          changed = true;
-        }
-      }
-      if (!changed) break;
-    }
-  }
+  // (minSt rebucket lives inside runCleanupPipeline so the preview honours it too.)
 
   // Safety check: enforce maxC
   for (var safe = 0; safe < 5; safe++) {

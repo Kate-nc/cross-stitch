@@ -2366,6 +2366,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
   var stitchCleanup = opts.stitchCleanup;
   var dithStrength = (typeof opts.dithStrength === "number") ? opts.dithStrength : 1.0;
+  var minSt = (typeof opts.minSt === "number" && opts.minSt > 0) ? opts.minSt : 0;
 
   var p = quantize(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed});
   if (!p.length) return null;
@@ -2385,26 +2386,56 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     }
   }
 
+  // ── Min-stitches rebucket (C5) ───────────────────────────────────────────
+  // Collapse any colour with fewer than `minSt` cells into its nearest
+  // surviving colour. Up to 3 passes — a freshly-collapsed cell may itself
+  // tip another colour below threshold.
+  if (minSt > 0) {
+    for (var pass = 0; pass < 3; pass++) {
+      var ep = buildPalette(mapped);
+      var rare = ep.pal.filter(function(e) { return e.count < minSt; });
+      var keep = ep.pal.filter(function(e) { return e.count >= minSt; });
+      if (!rare.length || !keep.length) break;
+      var rm2 = {};
+      rare.forEach(function(r) {
+        var b = null, bd = 1e9;
+        keep.forEach(function(k) { var d = dE(r.lab, k.lab); if (d < bd) { bd = d; b = k.id; } });
+        if (b) rm2[r.id] = b;
+      });
+      var changed = false;
+      var keepMap = {};
+      keep.forEach(function(k) { keepMap[k.id] = k; });
+      for (var j = 0; j < mapped.length; j++) {
+        if (mapped[j].id !== "__skip__" && rm2[mapped[j].id]) {
+          mapped[j] = Object.assign({}, keepMap[rm2[mapped[j].id]]);
+          changed = true;
+        }
+      }
+      if (!changed) break;
+    }
+  }
+
   var preLabels = labelConnectedComponents(mapped, width, height);
   var confettiRaw = analyzeConfetti(mapped, width, height, preLabels);
   var confettiClean = null;
   var preCleanupIds = null;
 
-  var orphansOpt = opts.orphans != null ? opts.orphans : null;
-  var runCleanup = orphansOpt != null ? (orphansOpt > 0) : (stitchCleanup && stitchCleanup.enabled);
+  // Cleanup runs if EITHER the user moved the Remove-Orphans slider above 0
+  // OR they enabled the Stitch Cleanup toggle. Treating `orphans === 0` as
+  // "explicitly off" (the previous behaviour) silently suppressed the separate
+  // Stitch Cleanup toggle and all its sub-options, since the orphans slider
+  // defaults to 0.
+  var orphansOpt = (typeof opts.orphans === 'number' && opts.orphans > 0) ? opts.orphans : 0;
+  var cleanupEnabled = !!(stitchCleanup && stitchCleanup.enabled);
+  var runCleanup = orphansOpt > 0 || cleanupEnabled;
   if (runCleanup) {
-    var maxOrphanSize, saliencyMult;
-    if (orphansOpt != null) {
-      maxOrphanSize = orphansOpt;
-      var _csMap = stitchCleanup && STRENGTH_MAP[stitchCleanup.strength] ? STRENGTH_MAP[stitchCleanup.strength] : STRENGTH_MAP.balanced;
-      saliencyMult = _csMap.saliencyMultiplier;
-    } else {
-      var cleanupStrength = Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
-        ? stitchCleanup.strength : "balanced";
-      var sp = STRENGTH_MAP[cleanupStrength];
-      maxOrphanSize = sp.maxOrphanSize;
-      saliencyMult = sp.saliencyMultiplier;
-    }
+    var cleanupStrength = stitchCleanup && Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
+      ? stitchCleanup.strength : 'balanced';
+    var sp = STRENGTH_MAP[cleanupStrength];
+    // Orphans slider is the explicit override when set; otherwise use the
+    // strength preset's maxOrphanSize.
+    var maxOrphanSize = orphansOpt > 0 ? orphansOpt : sp.maxOrphanSize;
+    var saliencyMult = sp.saliencyMultiplier;
     var edgeMap = (stitchCleanup && stitchCleanup.protectDetails) ? generateEdgeMap(raw, width, height) : null;
     preCleanupIds = mapped.map(function(m) { return m.id; });
     mapped = removeOrphanStitches(mapped, width, height, maxOrphanSize, edgeMap, saliencyMap, { saliencyMultiplier: saliencyMult }, preLabels);
@@ -2493,7 +2524,13 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
     else applyMedianFilter(raw, sW, sH, smooth);
   }
 
-  var pipelineResult = runCleanupPipeline(raw, sW, sH, { maxC: maxC, dith: dith, allowBlends: allowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: opts.orphans, allowedPalette: opts.allowedPalette || null, seed: opts.seed });
+  var pipelineResult = runCleanupPipeline(raw, sW, sH, {
+    maxC: maxC, dith: dith, dithStrength: opts.dithStrength,
+    allowBlends: allowBlends, allowedPalette: opts.allowedPalette || null,
+    skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
+    stitchCleanup: stitchCleanup, orphans: opts.orphans,
+    minSt: minSt, seed: opts.seed,
+  });
   if (!pipelineResult) return null;
 
   var mapped = pipelineResult.mapped;
@@ -2501,30 +2538,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   var rawConfetti = pipelineResult.confettiRaw;
   var cleanConfetti = pipelineResult.confettiClean || pipelineResult.confettiRaw;
 
-  if (minSt > 0) {
-    for (var pass = 0; pass < 3; pass++) {
-      var ep = buildPalette(mapped);
-      var rare = ep.pal.filter(function(e) { return e.count < minSt; });
-      var keep = ep.pal.filter(function(e) { return e.count >= minSt; });
-      if (!rare.length || !keep.length) break;
-      var rm2 = {};
-      rare.forEach(function(r) {
-        var b = null, bd = 1e9;
-        keep.forEach(function(k) { var d = dE(r.lab, k.lab); if (d < bd) { bd = d; b = k.id; } });
-        if (b) rm2[r.id] = b;
-      });
-      var changed = false;
-      var keepMap = {};
-      keep.forEach(function(k) { keepMap[k.id] = k; });
-      for (var j = 0; j < mapped.length; j++) {
-        if (mapped[j].id !== "__skip__" && rm2[mapped[j].id]) {
-          mapped[j] = Object.assign({}, keepMap[rm2[mapped[j].id]]);
-          changed = true;
-        }
-      }
-      if (!changed) break;
-    }
-  }
+  // (minSt rebucket lives inside runCleanupPipeline so the preview honours it too.)
 
   // Safety check: enforce maxC
   for (var safe = 0; safe < 5; safe++) {
@@ -5187,14 +5201,94 @@ window.useLassoSelect = function useLassoSelect(state) {
    DEFAULT_SKEIN_PRICE, runGenerationPipeline, STRENGTH_MAP. */
 
 // Composite stash keys are 'dmc:310' / 'anchor:403'. Pre-migration data may use
-// bare ids ('310'). Returns the bare DMC id, or null when the key belongs to
-// another brand. Centralised so future C1-style mismatches are caught in one place.
+// bare ids ('310'). Returns { brand, id } so callers can look the thread up in
+// the right catalogue. Bare ids are assumed to be DMC (legacy default).
+// Returns null only when `key` isn't a string at all.
+function _splitStashKey(key) {
+  if (typeof key !== 'string') return null;
+  var idx = key.indexOf(':');
+  if (idx < 0) return { brand: 'dmc', id: key };
+  var brand = key.slice(0, idx).toLowerCase();
+  return { brand: brand, id: key.slice(idx + 1) };
+}
+
+// Backwards-compatible helper kept for callers that only care about DMC.
+// Returns the bare DMC id or null when the key belongs to another brand.
+// Self-contained so the static regression test in tests/compositeKeyRegression
+// can extract and eval it in isolation.
 function _extractDmcId(key) {
   if (typeof key !== 'string') return null;
   var idx = key.indexOf(':');
   if (idx < 0) return key;
   if (key.slice(0, idx).toLowerCase() !== 'dmc') return null;
   return key.slice(idx + 1);
+}
+
+// ── Canonical conversion-settings helpers ──────────────────────────────────
+//
+// The image-to-pattern conversion engine (runCleanupPipeline /
+// runGenerationPipeline / the Web Worker / the variation-gallery generator)
+// accepts a fixed shape of options. Historically each call site re-derived
+// that shape inline, which let bugs like S1 (broken stash-palette builder in
+// the preview) and C3/C5 (missing dithStrength / minSt forwarding) slip past
+// review. The helpers below are the SINGLE source of truth.
+//
+// Adding a new conversion setting requires:
+//   1. Add the underlying state variable (useState) inside useCreatorState.
+//   2. Add its key to CONVERSION_STATE_KEYS below.
+//   3. Read it inside the conversionSettings useMemo and add it to the deps.
+// The coverage tests in tests/previewReactivity.test.js statically check
+// that this manifest exists.
+
+// Manifest of state-variable keys that contribute to the conversion output.
+// Used by the preview-coverage tests.
+var CONVERSION_STATE_KEYS = [
+  'sW', 'sH', 'bri', 'con', 'sat', 'smooth', 'smoothType',
+  'maxC', 'dithMode', 'allowBlends', 'minSt',
+  'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans',
+  'stashConstrained', 'globalStash',
+  'variationSeed', 'variationSubset',
+  'fabricCt',
+];
+
+// Build the allowedPalette + count from a globalStash (composite-keyed) or a
+// pre-built variation subset. ONE place that does the brand-aware key dance —
+// every other call site funnels through this. Constrained to DMC threads only
+// because the conversion pipeline (quantize/buildPalette/doMap/doDither) keys
+// colours by bare `id` alone, and many Anchor ids overlap DMC ids (e.g. both
+// have '310'), which would silently merge distinct colours and corrupt output.
+// Non-DMC threads require namespaced ids throughout the pipeline + save format
+// before they can be safely included here. Returns
+// { palette: Array|null, count: number, threads: Array }.
+function _buildAllowedPaletteFromStash(globalStash, subset) {
+  if (subset && subset.length) {
+    return { palette: subset, count: subset.length, threads: subset };
+  }
+  if (!globalStash) return { palette: null, count: 0, threads: [] };
+  var palette = [];
+  var seen = Object.create(null);
+  Object.keys(globalStash).forEach(function(key) {
+    if ((globalStash[key].owned || 0) <= 0) return;
+    var parts = _splitStashKey(key);
+    if (!parts || parts.brand !== 'dmc') return; // DMC-only: pipeline uses bare ids
+    if (seen[parts.id]) return;
+    var entry = (typeof findThreadInCatalog === 'function')
+      ? findThreadInCatalog('dmc', parts.id)
+      : null;
+    if (!entry) return;
+    seen[parts.id] = true;
+    palette.push(Object.assign({}, entry, { brand: 'dmc' }));
+  });
+  return {
+    palette: palette.length ? palette : null,
+    count: palette.length,
+    threads: palette,
+  };
+}
+
+if (typeof window !== 'undefined') {
+  window._buildAllowedPaletteFromStash = _buildAllowedPaletteFromStash;
+  window.CONVERSION_STATE_KEYS = CONVERSION_STATE_KEYS;
 }
 
 // Plain helper (not a hook) — safe to call inside useState lazy initializers.
@@ -5499,6 +5593,7 @@ window.useCreatorState = function useCreatorState() {
   var _prevColors = useState(null);  var previewColors = _prevColors[0], setPreviewColors = _prevColors[1];
   var _prevDims   = useState(null);  var previewDims   = _prevDims[0],   setPreviewDims   = _prevDims[1];
   var _prevHigh   = useState(null);  var previewHighlight = _prevHigh[0], setPreviewHighlight = _prevHigh[1];
+  var _prevLoad   = useState(false); var previewLoading = _prevLoad[0], setPreviewLoading = _prevLoad[1];
   var previewTimerRef = useRef(null);
   var wandClearRef   = useRef(null);   // set after wand hook is called
   var lassoCancelRef = useRef(null);   // set after lasso hook is called
@@ -6019,7 +6114,10 @@ window.useCreatorState = function useCreatorState() {
     var _seed   = (overrides && overrides.seed   != null)      ? overrides.seed   : variationSeed;
     var _subset = (overrides && overrides.subset !== undefined) ? overrides.subset : variationSubset;
 
-    // Build allowed palette from stash when stash-constrained mode is on
+    // Build allowed palette from stash when stash-constrained mode is on.
+    // Funnels through the central _buildAllowedPaletteFromStash so the
+    // generate path and the preview/conversionSettings path stay consistent
+    // and brand-aware (DMC + Anchor + future brands).
     var allowedPalette = null;
     var effMaxC = maxC;
     var effAllowBlends = allowBlends;
@@ -6027,14 +6125,8 @@ window.useCreatorState = function useCreatorState() {
       if (_subset !== null) {
         allowedPalette = _subset;
       } else {
-        allowedPalette = [];
-        Object.keys(globalStash).forEach(function(key) {
-          if ((globalStash[key].owned || 0) <= 0) return;
-          var bareId = _extractDmcId(key);
-          if (!bareId) return;
-          var dmcEntry = findThreadInCatalog('dmc', bareId);
-          if (dmcEntry) allowedPalette.push(dmcEntry);
-        });
+        var stashInfo = _buildAllowedPaletteFromStash(globalStash, null);
+        allowedPalette = stashInfo.palette;
       }
       if (!allowedPalette || allowedPalette.length === 0) {
         addToast("Your stash is empty — add threads to use stash-only mode.", {type: "warning", duration: 3000});
@@ -6114,14 +6206,8 @@ window.useCreatorState = function useCreatorState() {
   var randomise = useCallback(function() {
     if (!stashConstrained || !img) return;
     var newSeed = ((Math.random() * 0xFFFFFFFE) + 1) >>> 0;
-    var pool = [];
-    Object.keys(globalStash || {}).forEach(function(key) {
-      if ((globalStash[key].owned || 0) <= 0) return;
-      var bareId = _extractDmcId(key);
-      if (!bareId) return;
-      var d = findThreadInCatalog('dmc', bareId);
-      if (d) pool.push(d);
-    });
+    // Brand-aware via the central helper (DMC + Anchor + future brands).
+    var pool = _buildAllowedPaletteFromStash(globalStash, null).threads;
     if (!pool.length) return;
     var effN = Math.min(maxC, pool.length);
     // Always sub-sample so the selected colour set changes even when stash <= maxC.
@@ -6163,14 +6249,8 @@ window.useCreatorState = function useCreatorState() {
   var generateGallery = useCallback(function() {
     if (!img || !stashConstrained) return;
     var newSeeds = [0, 1, 2, 3].map(function() { return ((Math.random() * 0xFFFFFFFE) + 1) >>> 0; });
-    var pool = [];
-    Object.keys(globalStash || {}).forEach(function(key) {
-      if ((globalStash[key].owned || 0) <= 0) return;
-      var bareId = _extractDmcId(key);
-      if (!bareId) return;
-      var d = findThreadInCatalog('dmc', bareId);
-      if (d) pool.push(d);
-    });
+    // Brand-aware via the central helper.
+    var pool = _buildAllowedPaletteFromStash(globalStash, null).threads;
     if (!pool.length) return;
     setGallerySlots(newSeeds.map(function(s) { return {seed: s, loading: true, url: null, threadCount: 0, subset: null}; }));
     var effN = Math.min(maxC, pool.length);
@@ -6233,14 +6313,8 @@ window.useCreatorState = function useCreatorState() {
   // QW4: Colour coverage gap analysis — runs when image or stash palette changes
   useEffect(function() {
     if (!stashConstrained || !img || !img.src) { setCoverageGaps(null); return; }
-    var stashPal = [];
-    Object.keys(globalStash || {}).forEach(function(key) {
-      if ((globalStash[key].owned || 0) <= 0) return;
-      var bareId = _extractDmcId(key);
-      if (!bareId) return;
-      var d = findThreadInCatalog('dmc', bareId);
-      if (d) stashPal.push(d);
-    });
+    // Brand-aware via the central helper.
+    var stashPal = _buildAllowedPaletteFromStash(globalStash, null).threads;
     if (!stashPal.length) { setCoverageGaps(null); return; }
     var timer = setTimeout(function() {
       if (typeof analyseColourCoverage === 'function') {
@@ -6378,6 +6452,7 @@ window.useCreatorState = function useCreatorState() {
     previewHeatmap, setPreviewHeatmap,
     previewMapped, setPreviewMapped, previewColors, setPreviewColors,
     previewDims, setPreviewDims, previewHighlight, setPreviewHighlight,
+    previewLoading, setPreviewLoading,
     previewTimerRef, projectName, setProjectName,
     projectDesigner, setProjectDesigner,
     projectDescription, setProjectDescription,
@@ -6400,33 +6475,24 @@ window.useCreatorState = function useCreatorState() {
     // Stash-constrained derived values (QW1, QW3, QW8)
     stashThreadCount: useMemo(function() {
       if (!stashConstrained || !globalStash) return null;
-      var count = 0;
-      Object.keys(globalStash).forEach(function(key) {
-        if ((globalStash[key].owned || 0) <= 0) return;
-        if (_extractDmcId(key)) count++;
-      });
-      return count;
+      return _buildAllowedPaletteFromStash(globalStash, null).count;
     }, [stashConstrained, globalStash]),
 
     effectiveMaxC: useMemo(function() {
       if (!stashConstrained) return maxC;
-      var count = 0;
-      Object.keys(globalStash || {}).forEach(function(key) {
-        if ((globalStash[key].owned || 0) <= 0) return;
-        if (_extractDmcId(key)) count++;
-      });
+      var count = _buildAllowedPaletteFromStash(globalStash, null).count;
       return count === 0 ? maxC : Math.min(maxC, count);
     }, [stashConstrained, globalStash, maxC]),
 
     stashPalette: useMemo(function() {
       if (!stashConstrained || !globalStash) return null;
-      var entries = [];
-      Object.keys(globalStash).forEach(function(key) {
-        if ((globalStash[key].owned || 0) <= 0) return;
-        var bareId = _extractDmcId(key);
-        if (!bareId) return;
-        var dmcEntry = findThreadInCatalog('dmc', bareId);
-        if (dmcEntry) entries.push({ id: dmcEntry.id, name: dmcEntry.name, rgb: dmcEntry.rgb, owned: globalStash[key].owned });
+      var threads = _buildAllowedPaletteFromStash(globalStash, null).threads;
+      var entries = threads.map(function(t, i) {
+        var key = (t.brand || 'dmc') + ':' + t.id;
+        return {
+          id: t.id, name: t.name, rgb: t.rgb,
+          owned: (globalStash[key] && globalStash[key].owned) || 0,
+        };
       });
       entries.sort(function(a, b) {
         var hA = (typeof hueFromRgb !== 'undefined') ? hueFromRgb(a.rgb) : 0;
@@ -6438,24 +6504,60 @@ window.useCreatorState = function useCreatorState() {
 
     blendsAutoDisabled: useMemo(function() {
       if (!stashConstrained) return false;
-      var count = 0;
-      Object.keys(globalStash || {}).forEach(function(key) {
-        if ((globalStash[key].owned || 0) <= 0) return;
-        if (_extractDmcId(key)) count++;
-      });
-      return count < 6;
+      return _buildAllowedPaletteFromStash(globalStash, null).count < 6;
     }, [stashConstrained, globalStash]),
 
     effectiveAllowBlends: useMemo(function() {
       if (!stashConstrained) return allowBlends;
-      var count = 0;
-      Object.keys(globalStash || {}).forEach(function(key) {
-        if ((globalStash[key].owned || 0) <= 0) return;
-        if (_extractDmcId(key)) count++;
-      });
+      var count = _buildAllowedPaletteFromStash(globalStash, null).count;
       if (count < 6) return false;
       return allowBlends;
     }, [stashConstrained, globalStash, allowBlends]),
+
+    // ─── Canonical conversion settings bundle ────────────────────────────────
+    // ALL conversion settings flow through this useMemo. Any code path that
+    // generates pixels (preview, full Generate, gallery, worker) MUST consume
+    // this object instead of pulling individual state fields. See
+    // CONVERSION_STATE_KEYS at the top of this file for the full manifest.
+    conversionSettings: useMemo(function() {
+      var stashInfo = stashConstrained
+        ? _buildAllowedPaletteFromStash(globalStash, variationSubset)
+        : { palette: null, count: 0, threads: [] };
+      var effMaxC = stashConstrained && stashInfo.count > 0
+        ? Math.min(maxC, stashInfo.count)
+        : maxC;
+      var effAllowBlends = stashConstrained && stashInfo.count < 6
+        ? false
+        : allowBlends;
+      return Object.freeze({
+        // Geometry
+        sW: sW, sH: sH,
+        // Image adjustments
+        bri: bri, con: con, sat: sat,
+        smooth: smooth, smoothType: smoothType,
+        // Quantisation
+        maxC: effMaxC,
+        dith: dith, dithMode: dithMode, dithStrength: dithStrength,
+        allowBlends: effAllowBlends,
+        allowedPalette: stashInfo.palette,
+        // Background
+        skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
+        // Cleanup
+        minSt: minSt, stitchCleanup: stitchCleanup, orphans: orphans,
+        // Variation
+        seed: variationSeed, subset: variationSubset,
+        // Fabric (for stats, not pixels)
+        fabricCt: fabricCt,
+        // UI / diagnostic flags
+        stashConstrained: stashConstrained,
+        stashCount: stashInfo.count,
+      });
+    }, [
+      sW, sH, bri, con, sat, smooth, smoothType,
+      maxC, dith, dithMode, dithStrength, allowBlends,
+      skipBg, bgCol, bgTh, minSt, stitchCleanup, orphans,
+      stashConstrained, globalStash, variationSeed, variationSubset, fabricCt,
+    ]),
     // Functions
     buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType,
     setBrushAndActivate, setTool, setHsTool, setPsTool: setHsTool, fitZ, copyText,
@@ -8708,7 +8810,9 @@ window.useProjectIO = function useProjectIO(state, history, options) {
 /* ─── usePreview.js ─── */
 /* creator/usePreview.js — Generates a fast preview thumbnail and stats while
    the user adjusts settings. Debounced 400 ms.
-   Expects state object from useCreatorState. */
+   Expects state object from useCreatorState. The single source of truth for
+   what settings affect the preview is state.conversionSettings (built by
+   useCreatorState) — see CONVERSION_STATE_KEYS in useCreatorState.js. */
 
 window.usePreview = function usePreview(state) {
   var rawCacheRef = React.useRef(null); // { sig, raw, pw, ph } — geometric cache
@@ -8716,34 +8820,21 @@ window.usePreview = function usePreview(state) {
 
   var generatePreview = React.useCallback(function() {
     if (fullPassTimerRef.current) { clearTimeout(fullPassTimerRef.current); fullPassTimerRef.current = null; }
-    var img = state.img, sW = state.sW, sH = state.sH;
-    var maxC = state.maxC, bri = state.bri, con = state.con, sat = state.sat;
-    var dith = state.dith, skipBg = state.skipBg, bgCol = state.bgCol, bgTh = state.bgTh;
-    var smooth = state.smooth, smoothType = state.smoothType;
-    var stitchCleanup = state.stitchCleanup, fabricCt = state.fabricCt;
-    var allowBlends = state.allowBlends;
-    var stashConstrained = state.stashConstrained, globalStash = state.globalStash;
-    var varSeed = state.variationSeed;
-    // Use clamped values from derived state (QW1, QW8)
-    var effMaxC = state.effectiveMaxC != null ? state.effectiveMaxC : maxC;
-    var effAllowBlends = state.effectiveAllowBlends != null ? state.effectiveAllowBlends : allowBlends;
-
-    // Build constrained palette from stash if stash-only mode is on
-    var allowedPalette = null;
-    if (stashConstrained && globalStash) {
-      if (state.variationSubset) {
-        allowedPalette = state.variationSubset;
-      } else {
-        allowedPalette = [];
-        Object.keys(globalStash).forEach(function(id) {
-          if ((globalStash[id].owned || 0) > 0) {
-            var dmcEntry = findThreadInCatalog('dmc', id);
-            if (dmcEntry) allowedPalette.push(dmcEntry);
-          }
-        });
-        if (!allowedPalette.length) allowedPalette = null;
-      }
-    }
+    var img = state.img;
+    var settings = state.conversionSettings;
+    if (!settings) return;
+    // Local aliases for the geometric/cache step (these are pure image-prep
+    // values, not pipeline values).
+    var sW = settings.sW, sH = settings.sH;
+    var bri = settings.bri, con = settings.con, sat = settings.sat;
+    var smooth = settings.smooth, smoothType = settings.smoothType;
+    var fabricCt = settings.fabricCt;
+    var stashConstrained = settings.stashConstrained;
+    var globalStash = state.globalStash;
+    var orphans = settings.orphans;
+    var stitchCleanup = settings.stitchCleanup;
+    var dith = settings.dith;
+    var showCleanupDiff = state.showCleanupDiff;
 
     if (!img || !img.src) return;
     var MAX_PREVIEW_AREA = 40000;
@@ -8770,6 +8861,21 @@ window.usePreview = function usePreview(state) {
       rawCacheRef.current = { sig: geoSig, raw: new Uint8ClampedArray(raw), pw: pw, ph: ph };
     }
 
+    // Pipeline options come straight from the canonical settings bundle. The
+    // ONLY caller-side overrides are the geometric step we already did above
+    // (image filters), so we strip those keys and forward everything else.
+    function pipelineOpts(overrides) {
+      var o = {
+        maxC: settings.maxC, dith: settings.dith, dithStrength: settings.dithStrength,
+        allowBlends: settings.allowBlends, allowedPalette: settings.allowedPalette,
+        skipBg: settings.skipBg, bgCol: settings.bgCol, bgTh: settings.bgTh,
+        stitchCleanup: settings.stitchCleanup, orphans: settings.orphans,
+        minSt: settings.minSt, seed: settings.seed,
+      };
+      if (overrides) Object.keys(overrides).forEach(function(k) { o[k] = overrides[k]; });
+      return o;
+    }
+
     // Helper: render a mapped array to a data URL
     function renderUrl(mapped) {
       var pc = document.createElement("canvas"); pc.width = pw; pc.height = ph;
@@ -8781,13 +8887,16 @@ window.usePreview = function usePreview(state) {
       }
       pcx.putImageData(imgData, 0, 0); return pc.toDataURL();
     }
-  var orphans = state.orphans;
-  var showCleanupDiff = state.showCleanupDiff;
 
     // Progressive preview: if dithering is on, show a fast map-only result immediately,
     // then let React commit that frame before running the full dither pass.
     if (dith) {
-      var fastResult = runCleanupPipeline(raw, pw, ph, { maxC: effMaxC, dith: false, allowBlends: false, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: null, orphans: 0, allowedPalette: allowedPalette, seed: varSeed });
+      var fastResult = runCleanupPipeline(raw, pw, ph, pipelineOpts({
+        // Fast pre-pass: skip the slow stages (dither, cleanup, orphans) but
+        // honour the user's blend preference so the preview is bit-faithful
+        // (see C4 in reports/preview-3-diagnosis.md).
+        dith: false, stitchCleanup: null, orphans: 0,
+      }));
       if (fastResult) state.setPreviewUrl(renderUrl(fastResult.mapped));
       fullPassTimerRef.current = setTimeout(runFull, 0);
       return;
@@ -8796,12 +8905,12 @@ window.usePreview = function usePreview(state) {
 
     function runFull() {
       fullPassTimerRef.current = null;
-      var pipelineResult = runCleanupPipeline(raw, pw, ph, { maxC: effMaxC, dith: dith, allowBlends: effAllowBlends, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, allowedPalette: allowedPalette, seed: varSeed });
-      if (!pipelineResult) return;
+      var pipelineResult = runCleanupPipeline(raw, pw, ph, pipelineOpts());
+      if (!pipelineResult) { if (state.setPreviewLoading) state.setPreviewLoading(false); return; }
       var mapped = pipelineResult.mapped;
       var confettiRaw = pipelineResult.confettiRaw;
       var confettiClean = pipelineResult.confettiClean;
-  var preCleanupIds = pipelineResult.preCleanupIds || null;
+      var preCleanupIds = pipelineResult.preCleanupIds || null;
 
       var stitchable = 0, skipped = 0, colorCounts = {}, colorRgbs = {};
       for (var j = 0; j < mapped.length; j++) {
@@ -8879,15 +8988,10 @@ window.usePreview = function usePreview(state) {
       } else {
         state.setPreviewHeatmap(null);
       }
+      if (state.setPreviewLoading) state.setPreviewLoading(false);
     }
   }, [
-    state.img, state.sW, state.sH, state.maxC, state.bri, state.con, state.sat,
-    state.dith, state.skipBg, state.bgCol, state.bgTh, state.smooth, state.smoothType,
-    state.stitchCleanup, state.fabricCt, state.allowBlends,
-    state.orphans, state.showCleanupDiff,
-    state.stashConstrained, state.globalStash,
-    state.effectiveMaxC, state.effectiveAllowBlends,
-    state.variationSeed, state.variationSubset,
+    state.img, state.conversionSettings, state.showCleanupDiff, state.globalStash,
   ]);
 
   React.useEffect(function() {
@@ -8898,7 +9002,12 @@ window.usePreview = function usePreview(state) {
     if (!state.img) return;
     var timer = state.previewTimerRef.current;
     if (timer) clearTimeout(timer);
-    state.previewTimerRef.current = setTimeout(function() { generatePreview(); }, 400);
+    // Mark loading immediately so the spinner appears during the debounce
+    // window — keeps the UI honest about pending work.
+    if (state.setPreviewLoading) state.setPreviewLoading(true);
+    state.previewTimerRef.current = setTimeout(function() {
+      generatePreview();
+    }, 400);
     return function() {
       if (state.previewTimerRef.current) clearTimeout(state.previewTimerRef.current);
     };
@@ -13357,30 +13466,44 @@ window.CreatorSidebar = function CreatorSidebar() {
           )
         )
       )
-    ),
-    h("button", {
-      onClick:function(){app.setPalAdvanced(function(o){return !o;});},
-      style:{marginTop:'var(--s-2)',display:"flex",alignItems:"center",gap:'var(--s-1)',fontSize:'var(--text-xs)',color:"var(--text-secondary)",background:"none",border:"none",cursor:"pointer",padding:"2px 0",fontFamily:"inherit"}
-    },
-      h("span", {style:{fontSize:9,display:"inline-block",transform:app.palAdvanced?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
-      "Dithering",
-      gen.dith ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block",marginLeft:2}}) : null
-    ),
-    app.palAdvanced && h(React.Fragment, null,
-      h("div", {style:{marginTop:6,padding:"8px 10px",background:"#F8EFD8",borderRadius:'var(--radius-md)',border:"0.5px solid #E5C99A",fontSize:10,color:"var(--accent-ink)"}},
-        "Dithering blends colours by mixing stitches using error diffusion. Higher strengths create smoother gradients but more scattered stitches."
-      ),
-      (function() {
-        var dithOpts = [
-          {id:"off",   label:"Off",      tip:"Direct colour mapping — each pixel mapped to its closest DMC colour. Cleanest, easiest to sew."},
-          {id:"weak",  label:"Weak",     tip:"Subtle dithering (50% strength) — slight colour blending with minimal confetti."},
-          {id:"balanced", label:"Balanced", tip:"Standard Floyd-Steinberg dithering — smooth gradients with moderate scatter."},
-          {id:"strong",label:"Strong",   tip:"Amplified dithering (150% strength) — richest gradients, most scattered stitches."}
-        ];
-        var cur = gen.dithMode || (gen.dith ? "balanced" : "off");
-        return h("div", {style:{display:"flex",gap:2,marginTop:6,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
+    )
+    // Dithering moved out of this section into "Smoothing & cleanup" — it's
+    // a colour-blending choice that pairs naturally with the cleanup options
+    // it depends on (e.g. "Smooth dithering" only matters when dither is on).
+  ) : null;
+
+  // ── Smoothing & cleanup section ─────────────────────────────────────────────
+  // Combines dithering (how colours blend) with the cleanup chain (min-stitches,
+  // orphan removal, stitch cleanup). Previously dithering was buried under a
+  // hidden "▶ Dithering" disclosure inside Colours, which made it hard to
+  // discover — and "Smooth dithering" was a sub-option of Stitch Cleanup
+  // despite being a dithering modifier. Co-locating the two clarifies the
+  // mental model: pick how colours mix → then clean up the result.
+  var tidySection = !ctx.isScratchMode ? (function() {
+    var sc2 = gen.stitchCleanup;
+    var tidyActive = gen.dith || gen.minSt > 0 || gen.orphans > 0 || sc2.enabled;
+    var tidyBadge = tidyActive ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
+    var strengthKeys=["gentle","balanced","thorough"];
+    var strengthLabels=["Gentle","Balanced","Thorough"];
+    var strengthDescs=["Keeps 2-stitch clusters. Best for detail-heavy designs.","Removes 3-stitch clusters. Balanced stitchability & detail.","Removes up to 5-stitch clusters. Smoothest, easiest to sew."];
+    var strengthIdx=strengthKeys.indexOf(sc2.strength);
+    var dithOpts = [
+      {id:"off",   label:"Off",      tip:"Direct colour mapping — each pixel mapped to its closest DMC colour. Cleanest, easiest to sew."},
+      {id:"weak",  label:"Weak",     tip:"Subtle dithering (50% strength) — slight colour blending with minimal confetti."},
+      {id:"balanced", label:"Balanced", tip:"Standard Floyd-Steinberg dithering — smooth gradients with moderate scatter."},
+      {id:"strong",label:"Strong",   tip:"Amplified dithering (150% strength) — richest gradients, most scattered stitches."}
+    ];
+    var dithCur = gen.dithMode || (gen.dith ? "balanced" : "off");
+    return h(Section, {title:"Smoothing & cleanup", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:tidyBadge},
+      // ── Dithering subsection ─────────────────────────────────────────────
+      h("div", {style:{marginTop:'var(--s-2)'}},
+        h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
+          h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:600}}, "Dithering"),
+          h(InfoIcon, {text:"Blends colours by mixing stitches using error diffusion. Higher strengths create smoother gradients but more scattered stitches.", width:230})
+        ),
+        h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
           dithOpts.map(function(o) {
-            var active = cur === o.id;
+            var active = dithCur === o.id;
             return h(Tooltip, {key:o.id, text:o.tip, width:210},
               h("button", {
                 onClick:function(){gen.setDith(o.id);},
@@ -13391,21 +13514,22 @@ window.CreatorSidebar = function CreatorSidebar() {
               }, o.label)
             );
           })
-        );
-      })()
-    )
-  ) : null;
-
-  // ── Tidy up section: min-stitches + orphan removal + stitch cleanup ──────────
-  var tidySection = !ctx.isScratchMode ? (function() {
-    var sc2 = gen.stitchCleanup;
-    var tidyActive = gen.minSt > 0 || gen.orphans > 0 || sc2.enabled;
-    var tidyBadge = tidyActive ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
-    var strengthKeys=["gentle","balanced","thorough"];
-    var strengthLabels=["Gentle","Balanced","Thorough"];
-    var strengthDescs=["Keeps 2-stitch clusters. Best for detail-heavy designs.","Removes 3-stitch clusters. Balanced stitchability & detail.","Removes up to 5-stitch clusters. Smoothest, easiest to sew."];
-    var strengthIdx=strengthKeys.indexOf(sc2.strength);
-    return h(Section, {title:"Tidy up", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:tidyBadge},
+        ),
+        // Smooth-dithering toggle lives WITH dithering because it's a dither
+        // modifier (it lowers the dither error-threshold), not a cleanup step.
+        h("div", {style:{marginTop:'var(--s-2)',opacity:gen.dith?1:0.5,pointerEvents:gen.dith?"auto":"none"}, "aria-disabled":!gen.dith},
+          h(Toggle, {
+            checked:sc2.smoothDithering,
+            onChange:function(v){ if (gen.dith) gen.setStitchCleanup(function(s){return Object.assign({},s,{smoothDithering:v});}); },
+            label:"Smooth dithering",
+            help:"Reduces confetti during dithering itself by lowering the error-diffusion threshold. Cleaner gradients, but may slightly shift colours."
+          }),
+          !gen.dith && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2,marginLeft:2}},
+            "Only active when dithering is on."
+          )
+        )
+      ),
+      h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
       h("div", {style:{marginTop:'var(--s-2)'}},
         h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:50, onChange:gen.setMinSt,
           format:function(v){return v===0?"Off":v;},
@@ -13514,13 +13638,9 @@ window.CreatorSidebar = function CreatorSidebar() {
             onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{protectDetails:v});});},
             label:"Protect fine details",
             help:"Uses edge detection to preserve small stitches in important outlines \u2014 eyes, lettering, thin lines. Turn off for simpler designs."
-          }),
-          h(Toggle, {
-            checked:sc2.smoothDithering,
-            onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{smoothDithering:v});});},
-            label:"Smooth dithering",
-            help:"Reduces confetti during dithering itself (before cleanup runs). Cleaner output, but may slightly shift colors in gradient areas."
           })
+          // "Smooth dithering" toggle moved to the Dithering subsection above —
+          // it modifies the dither pass, not the cleanup pass.
         )
       )
     );
