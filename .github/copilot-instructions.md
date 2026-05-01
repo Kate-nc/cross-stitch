@@ -31,15 +31,17 @@ The Workshop visual direction (UX-12) is the only theme — see [AGENTS.md](../A
 
 ## Architecture
 
-The project has **three main HTML entry points**, each a self-contained page:
+The project has **five HTML entry points**:
 
 | File | Purpose |
 |---|---|
-| `index.html` | Pattern Creator — convert images to cross-stitch patterns, edit them, and export |
+| `home.html` | Home — default landing page; project dashboard and hub |
+| `index.html` | Pattern Creator (legacy URL) — redirects to / loads the same creator app as `create.html` |
+| `create.html` | Pattern Creator — convert images to cross-stitch patterns, edit them, and export |
 | `stitch.html` | Stitch Tracker — track stitching progress on an existing pattern |
 | `manager.html` | Stash Manager — manage DMC thread inventory and a personal pattern library |
 
-All three pages share a common set of scripts loaded via `<script>` tags (see `index.html` for the canonical load order):
+All pages share a common set of scripts loaded via `<script>` tags (see `create.html` for the canonical load order):
 
 ```
 constants.js → dmc-data.js → colour-utils.js → helpers.js → import-formats.js
