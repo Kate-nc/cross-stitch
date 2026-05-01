@@ -5570,6 +5570,7 @@ window.useCreatorState = function useCreatorState() {
   var _prevColors = useState(null);  var previewColors = _prevColors[0], setPreviewColors = _prevColors[1];
   var _prevDims   = useState(null);  var previewDims   = _prevDims[0],   setPreviewDims   = _prevDims[1];
   var _prevHigh   = useState(null);  var previewHighlight = _prevHigh[0], setPreviewHighlight = _prevHigh[1];
+  var _prevLoad   = useState(false); var previewLoading = _prevLoad[0], setPreviewLoading = _prevLoad[1];
   var previewTimerRef = useRef(null);
   var wandClearRef   = useRef(null);   // set after wand hook is called
   var lassoCancelRef = useRef(null);   // set after lasso hook is called
@@ -6449,6 +6450,7 @@ window.useCreatorState = function useCreatorState() {
     previewHeatmap, setPreviewHeatmap,
     previewMapped, setPreviewMapped, previewColors, setPreviewColors,
     previewDims, setPreviewDims, previewHighlight, setPreviewHighlight,
+    previewLoading, setPreviewLoading,
     previewTimerRef, projectName, setProjectName,
     projectDesigner, setProjectDesigner,
     projectDescription, setProjectDescription,
@@ -8997,7 +8999,13 @@ window.usePreview = function usePreview(state) {
     if (!state.img) return;
     var timer = state.previewTimerRef.current;
     if (timer) clearTimeout(timer);
-    state.previewTimerRef.current = setTimeout(function() { generatePreview(); }, 400);
+    // Mark loading immediately so the spinner appears during the debounce
+    // window — keeps the UI honest about pending work.
+    if (state.setPreviewLoading) state.setPreviewLoading(true);
+    state.previewTimerRef.current = setTimeout(function() {
+      try { generatePreview(); }
+      finally { if (state.setPreviewLoading) state.setPreviewLoading(false); }
+    }, 400);
     return function() {
       if (state.previewTimerRef.current) clearTimeout(state.previewTimerRef.current);
     };

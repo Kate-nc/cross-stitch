@@ -191,7 +191,13 @@ window.usePreview = function usePreview(state) {
     if (!state.img) return;
     var timer = state.previewTimerRef.current;
     if (timer) clearTimeout(timer);
-    state.previewTimerRef.current = setTimeout(function() { generatePreview(); }, 400);
+    // Mark loading immediately so the spinner appears during the debounce
+    // window — keeps the UI honest about pending work.
+    if (state.setPreviewLoading) state.setPreviewLoading(true);
+    state.previewTimerRef.current = setTimeout(function() {
+      try { generatePreview(); }
+      finally { if (state.setPreviewLoading) state.setPreviewLoading(false); }
+    }, 400);
     return function() {
       if (state.previewTimerRef.current) clearTimeout(state.previewTimerRef.current);
     };
