@@ -64,6 +64,53 @@
             ["Lasso (L)", "Draw a freeform selection."],
             ["Undo / Redo (Ctrl+Z / Ctrl+Y)", "Step through your edit history."]
           ]
+        },
+        {
+          heading: "Importing images and designs",
+          body: "The import wizard walks you through preparing an image for conversion. Open it via File \u2192 Import or drop a file directly on the canvas.",
+          bullets: [
+            ["Supported formats", "PNG, JPG, GIF, WebP for new patterns. .json and .oxs files restore an existing pattern. A compatible .pdf cross-stitch chart can also be imported."],
+            ["Crop step", "Draw a crop box to focus on the most important part of the image. Cropping reduces background noise and improves colour-matching quality."],
+            ["Scale step", "Set the target stitch dimensions by dragging the resize handles or typing values. The preview shows estimated physical size at your chosen fabric count."],
+            ["Palette step", "Choose the max number of colours, whether to restrict to stash threads, and which threads to exclude. These settings are applied when the generator runs."]
+          ]
+        },
+        {
+          heading: "View modes and preview",
+          body: "Switch display modes at any time with the V key or the view toolbar \u2014 view modes never change the underlying pattern.",
+          bullets: [
+            ["Colour view", "Shows each stitch in its DMC thread colour. Best for a quick overall impression."],
+            ["Symbol view (V)", "Replaces colours with printed symbols. Useful when stitching without a screen or checking print legibility."],
+            ["Realistic preview", "Renders stitches as actual cross-stitch X shapes with thread texture. Can be slow on very large patterns."],
+            ["Split-pane (\\)", "Splits the screen \u2014 left side is the editable canvas, right side shows a live realistic preview. Drag the centre handle to resize."]
+          ]
+        },
+        {
+          heading: "Stash Adapt and thread substitution",
+          body: "The Adapt feature re-maps your palette to threads you already own. Access it from the Project tab after generating.",
+          bullets: [
+            ["Use only stash threads", "Enable in the sidebar before generating to restrict the initial palette to owned DMC and Anchor threads."],
+            ["Adapt for stash", "Click Adapt on the Project tab to substitute individual colours using nearest-colour matching (\u0394E perceptual distance)."],
+            ["Match quality", "Each substituted colour shows a \u0394E badge \u2014 lower means a closer visual match. Review substitutions before confirming."]
+          ]
+        },
+        {
+          heading: "Palette swap",
+          body: "Palette swap replaces one thread colour across the entire pattern with a different one, without regenerating from scratch.",
+          bullets: [
+            ["Opening swap", "Click the swap icon next to any palette entry, or use Edit \u2192 Palette Swap."],
+            ["Replacing a colour", "Pick a replacement from the catalogue or from your stash. The count shows how many stitches will change."],
+            ["Revert", "Palette swaps are undoable with Ctrl+Z until you save the project."]
+          ]
+        },
+        {
+          heading: "Threads needed and skein estimates",
+          body: "The Materials & Output tab shows a breakdown of how much thread your pattern requires.",
+          bullets: [
+            ["Skein count", "Estimated skeins needed per colour, based on stitch count, fabric count, strand count, and a waste factor. A standard skein is 315 inches."],
+            ["Stash coverage", "Threads shown in green are fully covered by your owned skeins. Amber means you have some but not enough. Red means none owned."],
+            ["Shopping list", "Shows only threads you need to buy, with an estimated total cost at the default price (\u00a30.95 per skein)."]
+          ]
         }
       ]
     },
@@ -85,6 +132,25 @@
             ["Start / Stop", "The timer auto-pauses after 5 minutes of inactivity."],
             ["Sessions", "Each timer run is logged with start / end times and stitch deltas, used by the Stats page."]
           ]
+        },
+        {
+          heading: "Highlight view modes",
+          body: "Highlight view focuses on one colour at a time. Cycle through colours with [ and ], then choose a highlight mode with 1\u20134.",
+          bullets: [
+            ["Isolate (1)", "Everything except the focused colour turns grey. The clearest way to see exactly where a colour sits across the pattern."],
+            ["Outline (2)", "Draws a coloured border around the focused colour's regions. Shows stitch boundaries without hiding context."],
+            ["Tint (3)", "Other colours fade to low opacity while the focused colour remains vivid. Softer than Isolate, good for checking neighbouring areas."],
+            ["Spotlight (4)", "A blend of Isolate and Tint \u2014 background colours are dimly visible but the focused colour stands out strongly."]
+          ]
+        },
+        {
+          heading: "Counting aids",
+          body: "Counting aids overlay reference markers to help you count stitches accurately \u2014 essential when navigating a large pattern without a printed chart.",
+          bullets: [
+            ["Toggle (C)", "Press C or tap the counting aid button in the toolbar to show or hide the overlay."],
+            ["10\u00d710 grid", "Thin lines divide the canvas into 10\u00d710 stitch blocks, matching the bolded squares on most printed Aida fabric."],
+            ["Crosshair", "In Navigate mode, the crosshair marks your current reference point. Click to reposition it; its row and column are shown in the status bar."]
+          ]
         }
       ]
     },
@@ -95,8 +161,18 @@
           heading: "Thread stash",
           body: "Track which DMC and Anchor threads you own, what's running low, and where each one came from.",
           bullets: [
-            ["Bulk Add", "Paste a list of thread IDs to mark them owned in one go."],
-            ["Brand toggle", "Switch between DMC and Anchor (or both) — composite keys keep duplicates apart."]
+            ["Bulk Add (B)", "Open the Bulk Add panel and paste a newline- or comma-separated list of thread IDs (e.g. 310, 550, 3821) to mark them all as owned at once."],
+            ["Ownership levels", "Each thread can be marked as Owned (full skein), Low (partial), or Not owned. The level affects the coverage calculation in the Pattern Library."],
+            ["Brand toggle", "Switch between DMC, Anchor, or Both. Composite keys (e.g. anchor:403) prevent ID collisions between brands."]
+          ]
+        },
+        {
+          heading: "Thread brands and conversions",
+          body: "The app supports both DMC and Anchor brand threads. They are tracked separately using brand-prefixed keys so IDs that overlap between catalogues do not collide.",
+          bullets: [
+            ["Adding Anchor threads", "Switch the brand selector to Anchor and search by number or name. Anchor threads appear alongside DMC in the stash view when Both is selected."],
+            ["Anchor ↔ DMC equivalents", "Many threads are marketed as rough colour equivalents. Thread conversions in the app map closest matches by ΔE distance — these are approximations, not exact."],
+            ["Stash-constrained generation", "When 'Use only stash threads' is enabled in the Creator, all owned threads (DMC + Anchor) are available to the generator, not just one brand."]
           ]
         },
         {
@@ -126,6 +202,27 @@
           bullets: [
             ["Folder sync (optional)", "Choose a folder once and the app writes incremental updates there so you can sync via Dropbox / iCloud / OneDrive."],
             ["Auto-export", "Toggle in the File menu to write to your sync folder after each save."]
+          ]
+        },
+        {
+          heading: "PDF export options",
+          body: "The Export tab (inside Materials & Output) offers several layout options for printing your chart.",
+          bullets: [
+            ["Page size", "Choose A4, US Letter, or a custom size. The chart scales to fill the chosen dimensions."],
+            ["Stitches per page", "Controls chart density — fewer stitches per page means larger, easier-to-read symbols."],
+            ["Two-column layout", "Prints the colour legend alongside the chart on the same page rather than as a separate sheet."],
+            ["Workshop print theme", "An opt-in dark-line print style enabled in Preferences → Creator. The default theme exports a layout compatible with Pattern Keeper software."],
+            ["Pattern Keeper compatibility", "The default export is structured for direct import into the Pattern Keeper app. Avoid changing page-structure settings if you plan to import it there."]
+          ]
+        },
+        {
+          heading: "Managing projects",
+          body: "The Home page is the central hub for all your projects. Every pattern you create, open, or import appears in your project library.",
+          bullets: [
+            ["Active project", "The project currently open in the Tracker. Autosaves apply to this slot. Switch projects from the Home page or via the project switcher in the header."],
+            ["Project library", "All saved projects appear as cards on the Home page. Click a card to open it in the Creator or Tracker."],
+            ["Renaming", "Click the project name in the header or on the project card to rename it inline."],
+            ["Deleting", "Delete a project from its card menu on the Home page. Deleted projects cannot be recovered without a backup."]
           ]
         }
       ]
