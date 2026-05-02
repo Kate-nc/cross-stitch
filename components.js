@@ -46,6 +46,52 @@ function InfoIcon({text,width}){
   );
 }
 
+// ── Proposal B: Inline hint bar ───────────────────────────────────────────────
+// Slides in below a field when it receives focus. `topic` is a search query
+// passed to HelpDrawer.open() when the user clicks "Learn more".
+function InlineHint({visible,text,topic}){
+  return React.createElement("div",{
+    role:visible?"note":undefined,"aria-hidden":!visible,
+    style:{overflow:"hidden",maxHeight:visible?"80px":"0",opacity:visible?1:0,
+      marginTop:visible?4:0,
+      transition:"max-height 180ms ease,opacity 150ms ease,margin-top 180ms ease"}
+  },
+    React.createElement("div",{style:{
+      fontSize:"var(--text-xs)",color:"var(--text-secondary)",lineHeight:1.5,
+      background:"var(--surface-secondary)",border:"0.5px solid var(--line)",
+      borderRadius:"var(--radius-sm)",padding:"4px 8px",
+      display:"flex",alignItems:"baseline",gap:4,flexWrap:"wrap"
+    }},
+      text,
+      topic&&React.createElement("button",{
+        type:"button",
+        onMouseDown:function(e){e.preventDefault();},
+        onClick:function(){
+          if(window.HelpDrawer){window.HelpDrawer.open({tab:"help",query:topic});}
+          else{window.dispatchEvent(new CustomEvent("cs:openHelp",{detail:{tab:"help",query:topic}}));}
+        },
+        style:{background:"none",border:"none",color:"var(--accent)",fontSize:"var(--text-xs)",
+          cursor:"pointer",padding:0,fontWeight:500,flexShrink:0,lineHeight:1.5}
+      },"Learn more")
+    )
+  );
+}
+
+// Wraps any field group and shows an InlineHint when any descendant has focus.
+// Uses the setTimeout pattern to avoid flickering when focus moves between
+// children (e.g. from a select to the Learn more button).
+function FieldWithHint({hint,topic,children}){
+  var _f=React.useState(false);var focused=_f[0];var setFocused=_f[1];
+  var timer=React.useRef(null);
+  return React.createElement("div",{
+    onFocus:function(){clearTimeout(timer.current);setFocused(true);},
+    onBlur:function(){timer.current=setTimeout(function(){setFocused(false);},0);}
+  },
+    children,
+    React.createElement(InlineHint,{visible:focused,text:hint,topic:topic})
+  );
+}
+
 function Section({title,children,isOpen,onToggle,defaultOpen=true,badge=null}){
   const[o,sO]=React.useState(defaultOpen);
 
@@ -68,13 +114,19 @@ function Section({title,children,isOpen,onToggle,defaultOpen=true,badge=null}){
     currentOpen&&React.createElement("div", {style:{padding:"0 16px 16px"}}, children)
   );
 }
-var SliderRow=React.memo(function SliderRow({label,value,min,max,step=1,onChange,suffix="",format=null,helpText=null}){
+var SliderRow=React.memo(function SliderRow({label,value,min,max,step=1,onChange,suffix="",format=null,helpText=null,inlineHint=null,helpTopic=null}){
+  var _f=React.useState(false);var focused=_f[0];var setFocused=_f[1];
+  var timer=React.useRef(null);
   return React.createElement("div", {style:{marginBottom:2}},
     React.createElement("div", {style:{display:"flex",justifyContent:"space-between",fontSize:'var(--text-sm)',color:"var(--text-secondary)",marginBottom:3}},
       React.createElement("span", {style:{display:"flex",alignItems:"center",gap:3}}, label, helpText&&React.createElement(InfoIcon,{text:helpText})),
       React.createElement("span", {style:{fontWeight:600,color:"var(--text-primary)"}}, format?format(value):value, suffix)
     ),
-    React.createElement("input", {type:"range", min:min, max:max, step:step, value:value, onChange:e=>onChange(Number(e.target.value)), style:{width:"100%"}})
+    React.createElement("input", {type:"range", min:min, max:max, step:step, value:value, onChange:e=>onChange(Number(e.target.value)), style:{width:"100%"},
+      onFocus:inlineHint?function(){clearTimeout(timer.current);setFocused(true);}:undefined,
+      onBlur:inlineHint?function(){timer.current=setTimeout(function(){setFocused(false);},0);}:undefined
+    }),
+    inlineHint&&React.createElement(InlineHint,{visible:focused,text:inlineHint,topic:helpTopic})
   );
 });
 

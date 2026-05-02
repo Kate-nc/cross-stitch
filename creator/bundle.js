@@ -12031,14 +12031,16 @@ window.CreatorSidebar = function CreatorSidebar() {
           h(SliderRow, {label:"Size", value:ctx.sW, min:10, max:300, onChange:ctx.slRsz, suffix:" st"}),
           h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:2}}, "Pattern will be "+ctx.sW+"\xD7"+ctx.sH+" stitches (aspect ratio preserved)")
         )
-      : h("div", {style:{display:"flex",gap:10}},
-          h("div", {style:{flex:1}},
-            h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",display:"block",marginBottom:2}}, "Width"),
-            h("input", {type:"number", value:ctx.sW, onChange:function(e){ctx.chgW(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',fontSize:'var(--text-md)'}})
-          ),
-          h("div", {style:{flex:1}},
-            h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",display:"block",marginBottom:2}}, "Height"),
-            h("input", {type:"number", value:ctx.sH, onChange:function(e){ctx.chgH(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',fontSize:'var(--text-md)'}})
+      : h(FieldWithHint, {hint:"Stitches across and down your pattern. At 14ct, every 14 stitches \u2248 1 inch (2.5\xa0cm). More stitches = more detail, but a larger and more time-consuming piece.",topic:"dimensions"},
+          h("div", {style:{display:"flex",gap:10}},
+            h("div", {style:{flex:1}},
+              h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",display:"block",marginBottom:2}}, "Width"),
+              h("input", {type:"number", value:ctx.sW, onChange:function(e){ctx.chgW(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',fontSize:'var(--text-md)'}})
+            ),
+            h("div", {style:{flex:1}},
+              h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",display:"block",marginBottom:2}}, "Height"),
+              h("input", {type:"number", value:ctx.sH, onChange:function(e){ctx.chgH(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',fontSize:'var(--text-md)'}})
+            )
           )
         )
   );
@@ -12047,7 +12049,8 @@ window.CreatorSidebar = function CreatorSidebar() {
   var palSection = !ctx.isScratchMode ? h(Section, {title:"Colours", isOpen:app.palOpen, onToggle:app.setPalOpen},
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Max colours", value:gen.maxC, min:10, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(10, gen.stashThreadCount) : 40, onChange:gen.setMaxC,
-        helpText:"Limits the colour palette. Fewer colours = faster to stitch but less detail"}),
+        inlineHint:"Each colour = one skein of DMC thread. Fewer colours means less shopping and faster stitching — 10\u201315 is a good starting range for most photos.",
+        helpTopic:"palette"}),
       gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && h("div", {style:{fontSize:10,color:"#A06F2D",marginTop:2}},
         "Clamped to " + gen.stashThreadCount + " (stash size)"
       )
@@ -12296,12 +12299,14 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("div", {style:{marginTop:'var(--s-2)'}},
         h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:500, step:5, onChange:gen.setMinSt,
           format:function(v){return v===0?"Off":v;},
-          helpText:"Colours used fewer than this many times will be merged into the nearest similar colour"})
+          inlineHint:"Merges rarely-used colours into similar neighbours, reducing your thread count. Raise this if too many shades look nearly identical.",
+          helpTopic:"palette"})
       ),
       h("div", {style:{marginTop:'var(--s-2)'}},
         h(SliderRow, {label:"Confetti Cleanup", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
           format:function(v){return v===0?"Off":String(v);},
-          helpText:"Removes isolated single stitches (confetti) with no same-colour neighbours \u2014 improves stitch score and makes the pattern easier to sew"}),  
+          inlineHint:"Confetti stitches are single isolated stitches surrounded by different colours \u2014 each one forces a separate thread change. Removing them can dramatically cut stitching time.",
+          helpTopic:"confetti"}),  
         gen.orphans > 0 && (function() {
           var desc;
           if (gen.orphans === 1) {
@@ -12433,7 +12438,8 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Smooth", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
-        helpText:"Blur filter to reduce noise in grainy or low-resolution photos"}),
+        inlineHint:"Blurs the source before generating. Try 1\u20132 for grainy or low-resolution photos to reduce speckled stitches. Leave at Off for sharp images.",
+        helpTopic:"image"}),
       gen.smooth===0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
       gen.smooth>0 && h("div", {style:{display:"flex",gap:6,margin:"6px 0"}},
         h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2,flex:1}},
