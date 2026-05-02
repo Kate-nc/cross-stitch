@@ -249,7 +249,8 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
   // Resolve highlight mode
   var hl = _resolveHighlight(state);
 
-  ctx2d.fillStyle = "#fff";
+  // color-2 (B3): fabric background colour (defaults to white).
+  ctx2d.fillStyle = (typeof state.fabricColour === "string" && /^#[0-9a-fA-F]{6}$/.test(state.fabricColour)) ? state.fabricColour : "#fff";
   ctx2d.fillRect(0, 0, gut + dW * cSz + 2, gut + dH * cSz + 2);
 
   if (showOverlayImg && img) {
@@ -530,7 +531,8 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
   // Resolve highlight mode + dimming params
   var hl = _resolveHighlight(state);
 
-  ctx2d.fillStyle = "#fff";
+  // color-2 (B3): fabric background colour (defaults to white).
+  ctx2d.fillStyle = (typeof state.fabricColour === "string" && /^#[0-9a-fA-F]{6}$/.test(state.fabricColour)) ? state.fabricColour : "#fff";
   ctx2d.fillRect(0, 0, gut + dW * cSz + 2, gut + dH * cSz + 2);
 
   if (showOverlayImg && img) {

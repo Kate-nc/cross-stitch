@@ -916,6 +916,12 @@ const[trackerDimLevel,setTrackerDimLevel]=useState(()=>{
   try{return parseFloat(localStorage.getItem("cs_trDimLv")||"0.1");}catch(_){return 0.1;}
 });
 useEffect(()=>{try{localStorage.setItem("cs_trDimLv",String(trackerDimLevel));}catch(_){}try{if(window.UserPrefs)window.UserPrefs.set("trackerDimLevel",trackerDimLevel);}catch(_){}},[trackerDimLevel]);
+// color-2 (B3): tracker canvas background fabric colour. Validated as #RRGGBB.
+const[trackerFabricColour,setTrackerFabricColour]=useState(()=>{
+  try{var pv=window.UserPrefs&&window.UserPrefs.get("trackerFabricColour");if(typeof pv==="string"&&/^#[0-9a-fA-F]{6}$/.test(pv))return pv;}catch(_){}
+  return "#FFFFFF";
+});
+useEffect(()=>{try{if(window.UserPrefs&&/^#[0-9a-fA-F]{6}$/.test(trackerFabricColour))window.UserPrefs.set("trackerFabricColour",trackerFabricColour);}catch(_){}},[trackerFabricColour]);
 const[highlightMode,setHighlightMode]=useState(()=>{
   // Prefer UserPrefs (synced with the prefs modal); fall back to the legacy
   // cs_hlMode key for users created before the pref existed; finally default.
@@ -3491,7 +3497,7 @@ function drawStitch(ctx,cSz,viewportRect){
   const symAlpha=lockDetailLevel?1.0:tierFadeRef.current.symbolOpacity;
   const bsHsAlpha=lockDetailLevel?1.0:tierFadeRef.current.bsHsOpacity;
 
-  ctx.fillStyle="#fff";
+  ctx.fillStyle=trackerFabricColour||"#fff";
   ctx.fillRect(0,0,gut+dW*cSz+2,gut+dH*cSz+2);
 
   // Viewport culling: 20-cell overdraw buffer for smooth panning
@@ -3549,7 +3555,7 @@ function drawStitch(ctx,cSz,viewportRect){
       if(layerVis.full){
       if(stitchView==="symbol"){
         if(isDn){ctx.fillStyle="#D5E5C8";ctx.fillRect(px,py,cSz,cSz);}
-        else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1B1814";ctx.font=fSym;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
+        else{ctx.fillStyle=trackerFabricColour||"#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1B1814";ctx.font=fSym;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
       }else if(stitchView==="colour"){
         ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
         if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}
@@ -3689,7 +3695,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
     };
   }
   drawStitch(canvas.getContext("2d"),scs,viewportRect);
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,parkLayers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,rowModeActive,currentRow]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,parkLayers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,rowModeActive,currentRow,trackerFabricColour]);
 useEffect(()=>renderStitch(),[renderStitch]);
 // Keep renderStitchRef current so animation callbacks always call the latest closure
 useEffect(()=>{renderStitchRef.current=renderStitch;},[renderStitch]);
@@ -5613,6 +5619,25 @@ return(
             <option value="0.15">Subtle</option>
             <option value="0.55">Strong</option>
           </select>
+        </div>
+
+        {/* color-2 (B3): tracker fabric background colour */}
+        <div className="lp-heading">Fabric</div>
+        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
+          <span style={{fontSize:'var(--text-xs)',color:"var(--text-secondary)"}}>Preview against fabric</span>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {[
+              {id:"white",label:"White Aida",hex:"#FFFFFF"},
+              {id:"antique",label:"Antique White",hex:"#FAEBD7"},
+              {id:"cream",label:"Cream Evenweave",hex:"#FFF8E7"},
+              {id:"linen",label:"Natural Linen",hex:"#D2B48C"},
+              {id:"blackaida",label:"Black Aida",hex:"#1A1A1A"}
+            ].map(f=>{
+              const on=(trackerFabricColour||"#FFFFFF").toUpperCase()===f.hex.toUpperCase();
+              return <button key={f.id} type="button" onClick={()=>setTrackerFabricColour(f.hex)} title={f.label} aria-label={"Preview against "+f.label} aria-pressed={on} style={{width:26,height:26,borderRadius:'var(--radius-sm)',cursor:"pointer",background:f.hex,border:"1.5px solid "+(on?"var(--accent)":"var(--border)"),boxShadow:on?"0 0 0 2px var(--accent-light, rgba(160,103,52,0.18))":"none",padding:0}}/>;
+            })}
+            <input type="color" value={trackerFabricColour||"#FFFFFF"} onChange={e=>{const v=e.target.value;if(/^#[0-9a-fA-F]{6}$/.test(v))setTrackerFabricColour(v);}} title="Custom fabric colour" aria-label="Custom fabric colour" style={{width:26,height:26,padding:0,border:"1.5px solid var(--border)",borderRadius:'var(--radius-sm)',cursor:"pointer",background:"transparent"}}/>
+          </div>
         </div>
 
         <div className="lp-heading">Layers</div>

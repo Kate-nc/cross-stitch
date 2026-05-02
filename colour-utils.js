@@ -3,15 +3,21 @@ function findBest(lab, palette, allowBlends = true) {
   const solidMatch = findSolid(lab, palette);
   if (!allowBlends || !findBest._blends || findBest._blendPalette !== palette) return solidMatch;
 
-  let bestBlendDist = 1e9;
+  // Use CIEDE2000 (dE00) for blend search and solid-vs-blend decision so that
+  // perceptually similar blues/purples and warm reds are compared accurately.
+  // findSolid still uses dE2 (Euclidean LAB) for speed — it's called per-pixel
+  // during dithering; findBest's blend loop is palette²/2 iterations at most.
+  const solidDist00 = dE00(lab, solidMatch.lab);
+
+  let bestBlendDist00 = 1e9;
   let bestBlendIdx = -1;
   const blends = findBest._blends;
   for (let i = 0; i < blends.length; i++) {
-    const dist = dE2(lab, blends[i].lab);
-    if (dist < bestBlendDist) { bestBlendDist = dist; bestBlendIdx = i; }
+    const dist = dE00(lab, blends[i].lab);
+    if (dist < bestBlendDist00) { bestBlendDist00 = dist; bestBlendIdx = i; }
   }
 
-  if (bestBlendIdx >= 0 && (Math.sqrt(bestBlendDist) + 3 < solidMatch.dist) && solidMatch.dist > 5) {
+  if (bestBlendIdx >= 0 && (bestBlendDist00 + 3 < solidDist00) && solidDist00 > 5) {
     const b = blends[bestBlendIdx];
     return {
       type: "blend",
@@ -20,7 +26,7 @@ function findBest(lab, palette, allowBlends = true) {
       rgb: b.rgb,
       lab: b.lab,
       threads: b.threads,
-      dist: Math.sqrt(bestBlendDist)
+      dist: bestBlendDist00
     };
   }
 

@@ -30,6 +30,19 @@ window.CreatorLegendTab = function CreatorLegendTab() {
   var fabricCt        = ctx.fabricCt || 14;
   var effectiveFabric = overTwo ? fabricCt / 2 : fabricCt;
 
+  // color-2 (B3): fabric background colour preview. Reads from ctx; setter is
+  // also on ctx (wired via creator-main → useCreatorState).
+  var fabricColour = (typeof ctx.fabricColour === "string") ? ctx.fabricColour : "#FFFFFF";
+  function setFabricColour(v) { if (typeof ctx.setFabricColour === "function") ctx.setFabricColour(v); }
+  // Curated fabric presets — labels and hex values match the popover wireframes.
+  var FABRIC_PRESETS = [
+    { id: "white",     label: "White Aida",       hex: "#FFFFFF" },
+    { id: "antique",   label: "Antique White",    hex: "#FAEBD7" },
+    { id: "cream",     label: "Cream Evenweave",  hex: "#FFF8E7" },
+    { id: "linen",     label: "Natural Linen",    hex: "#D2B48C" },
+    { id: "blackaida", label: "Black Aida",       hex: "#1A1A1A" }
+  ];
+
   var rows = useMemo(function() {
     if (!(ctx.pat && ctx.pal)) return [];
     return ctx.pal.map(function(p) {
@@ -86,6 +99,50 @@ window.CreatorLegendTab = function CreatorLegendTab() {
     }
     return copy;
   }, [rows, sort]);
+
+  // ── color-2 (Approach B3): similar-colour pairs in the active palette ──────
+  // For every thread, find the nearest other thread in the palette by ΔE₀₀.
+  // If ΔE₀₀ < 3.0 we surface a small warning so users know the two shades
+  // will likely be indistinguishable on screen and easy to mix up in person.
+  // Solid threads only — blends compare on their composite rgb (already on p.rgb).
+  var similarPairs = useMemo(function() {
+    var byId = {}; // id -> nearest match {otherId, otherName, dE}
+    if (typeof window === "undefined" || typeof window.dE00 !== "function" || typeof window.rgbToLab !== "function") return byId;
+    if (!ctx.pal || ctx.pal.length < 2) return byId;
+    var labs = ctx.pal.map(function(p) {
+      var rgb = p.rgb || [128, 128, 128];
+      return window.rgbToLab(rgb[0], rgb[1], rgb[2]);
+    });
+    for (var i = 0; i < ctx.pal.length; i++) {
+      var nearest = null, nearestDe = 3.0; // threshold
+      for (var j = 0; j < ctx.pal.length; j++) {
+        if (i === j) continue;
+        var de = window.dE00(labs[i], labs[j]);
+        if (de < nearestDe) { nearestDe = de; nearest = ctx.pal[j]; }
+      }
+      if (nearest) {
+        byId[ctx.pal[i].id] = {
+          otherId: nearest.id,
+          otherName: nearest.name || nearest.id,
+          dE: nearestDe
+        };
+      }
+    }
+    return byId;
+  }, [ctx.pal]);
+  var similarCount = Object.keys(similarPairs).length;
+
+  // ── color-2 (Approach B3): dismissible screen-colour disclaimer ────────────
+  var _disclaimerDismissed = useState(function() {
+    try { return !!(window.UserPrefs && window.UserPrefs.get("creatorColourDisclaimerDismissed")); }
+    catch (_) { return false; }
+  });
+  var disclaimerDismissed = _disclaimerDismissed[0];
+  var setDisclaimerDismissedRaw = _disclaimerDismissed[1];
+  function dismissDisclaimer() {
+    setDisclaimerDismissedRaw(true);
+    try { if (window.UserPrefs) window.UserPrefs.set("creatorColourDisclaimerDismissed", true); } catch (_) {}
+  }
 
   var totalColours   = rows.length;
   var totalSkeins    = rows.reduce(function(s, r) { return s + r.needed; }, 0);
@@ -252,6 +309,39 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             display:"inline-flex", alignItems:"center", gap:4
           }}, addedAll ? [window.Icons && window.Icons.check ? h("span", {key:"i", "aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.check()) : null, "Added"] : "Mark all owned")
         ),
+        // ── color-2 (B3): Screen-colour disclaimer (dismissible) ────────────
+        !disclaimerDismissed && h("div", {style:{
+          display:"flex", alignItems:"flex-start", gap:8, padding:"8px 12px",
+          background:"var(--surface-secondary)", border:"0.5px solid var(--border)",
+          borderRadius:'var(--radius-sm)', marginBottom:'var(--s-2)',
+          fontSize:'var(--text-xs)', color:"var(--text-secondary)", lineHeight:1.45
+        }},
+          h("span", {"aria-hidden":"true", style:{display:"inline-flex", flexShrink:0, marginTop:1, color:"var(--text-tertiary)"}},
+            window.Icons && window.Icons.info ? window.Icons.info() : null
+          ),
+          h("span", {style:{flex:1}},
+            "Colours are screen approximations. Use the DMC code as the authoritative reference and verify critical colours against a physical thread card."
+          ),
+          h("button", {onClick:dismissDisclaimer, "aria-label":"Dismiss colour-accuracy notice", style:{
+            background:"none", border:"none", color:"var(--text-tertiary)", cursor:"pointer",
+            padding:2, display:"inline-flex", alignItems:"center", borderRadius:'var(--radius-sm)', flexShrink:0
+          }}, window.Icons && window.Icons.x ? window.Icons.x() : "\u00d7")
+        ),
+        // ── color-2 (B3): Inline summary if any palette pairs are too close ──
+        similarCount > 0 && h("div", {style:{
+          display:"flex", alignItems:"center", gap:6, padding:"6px 10px",
+          background:"#FBF1E1", border:"0.5px solid var(--border)",
+          borderRadius:'var(--radius-sm)', marginBottom:'var(--s-2)',
+          fontSize:'var(--text-xs)', color:"var(--accent-hover, #B7500A)", lineHeight:1.45
+        }},
+          h("span", {"aria-hidden":"true", style:{display:"inline-flex"}},
+            window.Icons && window.Icons.warning ? window.Icons.warning() : null
+          ),
+          h("span", null,
+            similarCount + " palette colour" + (similarCount !== 1 ? "s have" : " has") +
+            " a near-match \u2014 hover the warning icon next to a thread name to see which."
+          )
+        ),
         // Thread table
         h("div", {style:{overflow:"auto", maxHeight:440, border:"0.5px solid var(--border)", borderRadius:'var(--radius-md)'}},
           h("table", {style:{width:"100%", borderCollapse:"collapse", fontSize:'var(--text-sm)'}},
@@ -292,7 +382,12 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                     r.confettiCount ? h("span", {
                       title: r.confettiCount + " isolated stitch" + (r.confettiCount !== 1 ? "es" : ""),
                       style:{marginLeft:5, color:"var(--danger)", fontSize:10, fontWeight:600, cursor:"default"}
-                    }, "\u25cf " + r.confettiCount) : null
+                    }, "\u25cf " + r.confettiCount) : null,
+                    similarPairs[p.id] ? h("span", {
+                      title: "Very similar to DMC " + similarPairs[p.id].otherId + " (" + similarPairs[p.id].otherName + ") \u2014 \u0394E\u2080\u2080 " + similarPairs[p.id].dE.toFixed(1) + ". Verify against a physical thread card before stitching.",
+                      "aria-label": "Similar to DMC " + similarPairs[p.id].otherId,
+                      style:{marginLeft:6, color:"var(--accent-hover, #B7500A)", display:"inline-flex", verticalAlign:"middle", cursor:"help"}
+                    }, window.Icons && window.Icons.warning ? window.Icons.warning() : null) : null
                   ),
                   h("td", {style:{padding:"5px 10px"}},
                     h("span", {style:{
@@ -361,6 +456,33 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                 color:       units===u?"var(--accent)":"var(--text-secondary)", fontWeight:units===u?600:400
               }}, u === "in" ? "Inches" : "Centimetres");
             })
+          ),
+          // ── color-2 (B3): Fabric background colour preview ─────────────
+          h("div", {style:{display:"flex", flexDirection:"column", gap:'var(--s-1)', marginTop:'var(--s-1)'}},
+            h("span", {style:{fontSize:'var(--text-xs)', color:"var(--text-tertiary)"}},
+              "Preview against fabric:"),
+            h("div", {style:{display:"flex", gap:6, flexWrap:"wrap"}},
+              FABRIC_PRESETS.map(function(f) {
+                var on = fabricColour && fabricColour.toUpperCase() === f.hex.toUpperCase();
+                return h("button", {
+                  key: f.id,
+                  type: "button",
+                  onClick: function() { setFabricColour(f.hex); },
+                  title: f.label,
+                  "aria-label": "Preview against " + f.label,
+                  "aria-pressed": on,
+                  style: {
+                    width: 26, height: 26, borderRadius: 'var(--radius-sm)', cursor: "pointer",
+                    background: f.hex,
+                    border: "1.5px solid " + (on ? "var(--accent)" : "var(--border)"),
+                    boxShadow: on ? "0 0 0 2px var(--accent-light, rgba(160,103,52,0.18))" : "none",
+                    padding: 0, position: "relative"
+                  }
+                });
+              })
+            ),
+            h("p", {style:{fontSize:10, color:"var(--text-tertiary)", margin:0, lineHeight:1.4}},
+              "Stitched cells appear over this fabric in the Pattern view.")
           )
         ),
 

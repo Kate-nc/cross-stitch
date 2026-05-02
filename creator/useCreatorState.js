@@ -257,6 +257,18 @@ window.useCreatorState = function useCreatorState() {
   var _prevFabric = useState(false);     var previewFabricBg = _prevFabric[0], setPreviewFabricBg = _prevFabric[1];
   var _prevMode   = useState("pixel");   var previewMode = _prevMode[0], setPreviewMode = _prevMode[1];
   var _rlvl       = useState(2);         var realisticLevel = _rlvl[0], setRealisticLevel = _rlvl[1];
+  // color-2 (B3): canvas background fabric colour (e.g. white aida, natural
+  // linen, black aida). Persisted via UserPrefs as #RRGGBB. Used by
+  // canvasRenderer.js for the canvas background fill so users can preview
+  // their pattern against realistic fabric instead of a plain white sheet.
+  var _fabCol = useState(function () { var v = loadUserPref("creatorFabricColour", "#FFFFFF"); return (typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v)) ? v : "#FFFFFF"; });
+  var fabricColour = _fabCol[0];
+  var _setFabricColourRaw = _fabCol[1];
+  function setFabricColour(v) {
+    if (typeof v !== "string" || !/^#[0-9a-fA-F]{6}$/.test(v)) return;
+    _setFabricColourRaw(v);
+    try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creatorFabricColour", v); } catch (_) {}
+  }
   // null = auto (derived from fabricCt + strand count); float 0–1 = manual override
   var _covOvr     = useState(null);      var coverageOverride = _covOvr[0], setCoverageOverride = _covOvr[1];
 
@@ -1201,6 +1213,7 @@ window.useCreatorState = function useCreatorState() {
     showOverlay, setShowOverlay, overlayOpacity, setOverlayOpacity,
     previewActive, setPreviewActive, previewShowGrid, setPreviewShowGrid, previewFabricBg, setPreviewFabricBg,
     previewMode, setPreviewMode, realisticLevel, setRealisticLevel, coverageOverride, setCoverageOverride,
+    fabricColour, setFabricColour,
     splitPaneEnabled, setSplitPaneEnabled, splitPaneRatio, setSplitPaneRatio,
     splitPaneSyncEnabled, setSplitPaneSyncEnabled, rightPaneMode, setRightPaneMode,
     bgDimOpacity, setBgDimOpacity, hiAdvanced, setHiAdvanced,
