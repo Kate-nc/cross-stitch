@@ -70,9 +70,13 @@
     // users can preview their pattern against linen/cream/black aida
     // instead of always-on white. Stored as a #RRGGBB hex string.
     creatorFabricColour:          "#FFFFFF",    // canvas background fill
+    // Adds a subtle specular gradient to each stitch square so the flat
+    // colour squares better suggest how thread catches light (color-11).
+    creatorCanvasTexture:         false,
     // Tracker uses a separate preference because the user's stitching context
     // (lighting, fabric in hand) often differs from the creator workspace.
     trackerFabricColour:          "#FFFFFF",    // tracker canvas background
+    trackerCanvasTexture:         false,
     // One-shot dismissal of the screen-colour disclaimer in MaterialsHub.
     creatorColourDisclaimerDismissed: false,
 

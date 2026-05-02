@@ -3792,7 +3792,13 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
     if (!oc) return; // canvas too large for the device
 
     // ── 1. Fabric base ──────────────────────────────────────────────────────
-    var FR = 245, FG = 240, FB = 230; // warm cream Aida
+    // Use the user's fabric colour preference (from AppContext via useApp())
+    // rather than hard-coded warm cream so the realistic preview stays in sync
+    // with the flat editor's fabric background (color-11).
+    var _fabColRc = /^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/.exec(app.fabricColour || "");
+    var FR = _fabColRc ? parseInt(_fabColRc[1], 16) : 245;
+    var FG = _fabColRc ? parseInt(_fabColRc[2], 16) : 240;
+    var FB = _fabColRc ? parseInt(_fabColRc[3], 16) : 230;
     oc.fillStyle = "rgb(" + FR + "," + FG + "," + FB + ")";
     oc.fillRect(0, 0, canvasW, canvasH);
 
@@ -5466,6 +5472,20 @@ window.useCreatorState = function useCreatorState() {
     _setFabricColourRaw(v);
     try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creatorFabricColour", v); } catch (_) {}
   }
+  // color-11: thread-sheen texture toggle. Read from UserPrefs; updated via
+  // a cs:prefsChanged listener so the canvas re-renders when the prefs modal
+  // toggles the option without a full page reload.
+  var _canvasTex = useState(function () { try { return window.UserPrefs ? !!window.UserPrefs.get("creatorCanvasTexture") : false; } catch (_) { return false; } });
+  var canvasTexture = _canvasTex[0], setCanvasTexture = _canvasTex[1];
+  useEffect(function () {
+    function _onPrefsChanged(e) {
+      if (e && e.detail && e.detail.key === "creatorCanvasTexture") {
+        setCanvasTexture(!!e.detail.value);
+      }
+    }
+    document.addEventListener("cs:prefsChanged", _onPrefsChanged);
+    return function () { document.removeEventListener("cs:prefsChanged", _onPrefsChanged); };
+  }, []);
   // null = auto (derived from fabricCt + strand count); float 0–1 = manual override
   var _covOvr     = useState(null);      var coverageOverride = _covOvr[0], setCoverageOverride = _covOvr[1];
 
@@ -6410,7 +6430,7 @@ window.useCreatorState = function useCreatorState() {
     showOverlay, setShowOverlay, overlayOpacity, setOverlayOpacity,
     previewActive, setPreviewActive, previewShowGrid, setPreviewShowGrid, previewFabricBg, setPreviewFabricBg,
     previewMode, setPreviewMode, realisticLevel, setRealisticLevel, coverageOverride, setCoverageOverride,
-    fabricColour, setFabricColour,
+    fabricColour, setFabricColour, canvasTexture,
     splitPaneEnabled, setSplitPaneEnabled, splitPaneRatio, setSplitPaneRatio,
     splitPaneSyncEnabled, setSplitPaneSyncEnabled, rightPaneMode, setRightPaneMode,
     bgDimOpacity, setBgDimOpacity, hiAdvanced, setHiAdvanced,
