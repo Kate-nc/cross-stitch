@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v39';
+var CACHE_NAME = 'cross-stitch-cache-v40';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -67,13 +67,17 @@ var PRECACHE_URLS = [
   './assets/fontkit.umd.min.js'
 ];
 
-// Install: pre-cache all assets individually so one failure doesn't block the rest
+// Install: pre-cache all assets individually so one failure doesn't block the rest.
+// Use { cache: 'no-cache' } so the install-time fetches bypass the browser's HTTP
+// cache and always go to the network — defence-in-depth on top of the server-side
+// Cache-Control: no-cache headers already set in vercel.json.
 self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function (cache) {
       return Promise.all(
         PRECACHE_URLS.map(function (url) {
-          return cache.add(url).catch(function (err) {
+          var req = new Request(url, { cache: 'no-cache' });
+          return cache.add(req).catch(function (err) {
             console.warn('SW install: failed to cache', url, err);
           });
         })
