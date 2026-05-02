@@ -4,7 +4,7 @@ _Branch: `tool-tips` — audit run after Proposal A + B + documentation pass_
 
 ---
 
-## 1. Patterns found (8 distinct approaches)
+## 1. Patterns found (9 distinct approaches)
 
 | # | Pattern | Where used | Touch-safe? | Screen-reader? |
 |---|---------|------------|-------------|----------------|
@@ -160,7 +160,7 @@ Every help surface should fit one of three tiers. Pick the smallest tier that an
 
 ## 6. What to convert everything to
 
-**Short answer: keep all 8 patterns, but apply them by tier and mandate the pairing rules above.**
+**Short answer: keep all 9 patterns, but apply them by tier and mandate the pairing rules above.**
 
 Do not collapse everything into a single pattern — the tiers serve different interaction modes. The correct target state is:
 

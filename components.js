@@ -83,6 +83,7 @@ function InlineHint({visible,text,topic}){
 function FieldWithHint({hint,topic,children}){
   var _f=React.useState(false);var focused=_f[0];var setFocused=_f[1];
   var timer=React.useRef(null);
+  React.useEffect(function(){return function(){clearTimeout(timer.current);};}, []);
   return React.createElement("div",{
     onFocus:function(){clearTimeout(timer.current);setFocused(true);},
     onBlur:function(){timer.current=setTimeout(function(){setFocused(false);},0);}
@@ -117,6 +118,7 @@ function Section({title,children,isOpen,onToggle,defaultOpen=true,badge=null}){
 var SliderRow=React.memo(function SliderRow({label,value,min,max,step=1,onChange,suffix="",format=null,helpText=null,inlineHint=null,helpTopic=null}){
   var _f=React.useState(false);var focused=_f[0];var setFocused=_f[1];
   var timer=React.useRef(null);
+  React.useEffect(function(){return function(){clearTimeout(timer.current);};}, []);
   return React.createElement("div", {style:{marginBottom:2}},
     React.createElement("div", {style:{display:"flex",justifyContent:"space-between",fontSize:'var(--text-sm)',color:"var(--text-secondary)",marginBottom:3}},
       React.createElement("span", {style:{display:"flex",alignItems:"center",gap:3}}, label, helpText&&React.createElement(InfoIcon,{text:helpText})),

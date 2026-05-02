@@ -67,7 +67,7 @@
         },
         {
           heading: "Importing images and designs",
-          body: "The import wizard walks you through preparing an image for conversion. Open it via File \u2192 Import or drop a file directly on the canvas.",
+          body: "The import wizard walks you through preparing an image for conversion. Open it via File > Import or drop a file directly on the canvas.",
           bullets: [
             ["Supported formats", "PNG, JPG, GIF, WebP for new patterns. .json and .oxs files restore an existing pattern. A compatible .pdf cross-stitch chart can also be imported."],
             ["Crop step", "Draw a crop box to focus on the most important part of the image. Cropping reduces background noise and improves colour-matching quality."],
@@ -98,7 +98,7 @@
           heading: "Palette swap",
           body: "Palette swap replaces one thread colour across the entire pattern with a different one, without regenerating from scratch.",
           bullets: [
-            ["Opening swap", "Click the swap icon next to any palette entry, or use Edit \u2192 Palette Swap."],
+            ["Opening swap", "Click the swap icon next to any palette entry, or use Edit > Palette Swap."],
             ["Replacing a colour", "Pick a replacement from the catalogue or from your stash. The count shows how many stitches will change."],
             ["Revert", "Palette swaps are undoable with Ctrl+Z until you save the project."]
           ]
@@ -198,7 +198,7 @@
         },
         {
           heading: "Full-app backup",
-          body: "Use File → Download all data to export every project, your stash, and your settings as a .csbackup file. Restore with File → Restore from backup. Backups are encrypted with the local app key only — share intentionally.",
+          body: "Use File > Download all data to export every project, your stash, and your settings as a .csbackup file. Restore with File > Restore from backup. Backups are encrypted with the local app key only — share intentionally.",
           bullets: [
             ["Folder sync (optional)", "Choose a folder once and the app writes incremental updates there so you can sync via Dropbox / iCloud / OneDrive."],
             ["Auto-export", "Toggle in the File menu to write to your sync folder after each save."]
@@ -211,7 +211,7 @@
             ["Page size", "Choose A4, US Letter, or a custom size. The chart scales to fill the chosen dimensions."],
             ["Stitches per page", "Controls chart density — fewer stitches per page means larger, easier-to-read symbols."],
             ["Two-column layout", "Prints the colour legend alongside the chart on the same page rather than as a separate sheet."],
-            ["Workshop print theme", "An opt-in dark-line print style enabled in Preferences → Creator. The default theme exports a layout compatible with Pattern Keeper software."],
+            ["Workshop print theme", "An opt-in dark-line print style enabled in Preferences > Creator. The default theme exports a layout compatible with Pattern Keeper software."],
             ["Pattern Keeper compatibility", "The default export is structured for direct import into the Pattern Keeper app. Avoid changing page-structure settings if you plan to import it there."]
           ]
         },

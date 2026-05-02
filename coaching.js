@@ -337,6 +337,7 @@
           type: "button",
           className: "cs-coachmark-learn-more",
           onClick: function () {
+            handleSkip();
             try {
               if (window.HelpDrawer && typeof window.HelpDrawer.open === "function") {
                 window.HelpDrawer.open({ tab: "help", query: props.helpTopic });
