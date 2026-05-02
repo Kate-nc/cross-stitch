@@ -6575,6 +6575,7 @@ return(
     body: 'Tap a cell to mark it complete. Tap again to undo.',
     placement: 'centre',
     showHighlight: false,
+    helpTopic: 'stitching',
     onComplete: ()=>_trCoach.complete('firstStitch_tracker'),
     onSkip: ()=>_trCoach.skip('firstStitch_tracker')
   })}
