@@ -140,7 +140,12 @@
             ["Pattern", "The chart / design itself. Lives inside a Project, or as a stand-alone entry in the Stash Manager library."],
             ["Stash", "Your physical thread collection (DMC + Anchor). Tracked in the Stash Manager."],
             ["Skein", "One physical bundle of thread (315 inches by default)."],
-            ["Active project", "The single project currently open in the Tracker (autosaves apply to this slot)."]
+            ["Active project", "The single project currently open in the Tracker (autosaves apply to this slot)."],
+            ["Confetti stitches", "Single isolated stitches surrounded by different colours. Each forces a separate thread change and is expensive to sew. Use the Confetti Cleanup slider in the Creator to merge them into adjacent areas."],
+            ["Stitch Score", "A 0\u2013100 quality rating for your pattern. High score = fewer confetti stitches and well-distributed thread changes. Shown on the Project tab after generating."],
+            ["Fabric count", "Holes per inch in your Aida fabric. Common values: 11ct (large stitches), 14ct (standard \u2014 14 stitches \u2248 1 inch), 18ct (fine), 28ct (very fine, usually worked over two threads)."],
+            ["Blend stitch", "A stitch sewn with two different thread colours in the same needle. Creates a mixed-colour effect. Shown in the pattern as two DMC IDs joined with '+', e.g. '310+550'."],
+            ["\u0394E (delta-E)", "A perceptual colour-distance score \u2014 lower means a closer visual match. The app uses it when mapping image colours to DMC threads and when the Adapt Modal suggests replacement threads."]
           ]
         },
         {
@@ -151,6 +156,64 @@
             ["Export", "Generate a share-ready artefact (PDF chart, OXS)."],
             ["Open / Import", "Read from a file or URL into the app."],
             ["Sync (folder)", "Optional incremental writes to a chosen folder for cross-device sync."]
+          ]
+        }
+      ]
+    },
+    {
+      id: "stats", area: "Stats & Progress",
+      sections: [
+        {
+          heading: "Reading your stats",
+          body: "The Stats page shows a summary of your stitching activity across all projects — total stitches, total time, sessions, and an estimated thread length used.",
+          bullets: [
+            ["Stitches logged", "Counts all stitches marked as done across every project."],
+            ["Total time", "Sum of all tracked session durations. The timer must be running during a session to count."],
+            ["Thread used", "Estimated metres of thread consumed, calculated from stitch count and fabric size."]
+          ]
+        },
+        {
+          heading: "Sessions and streaks",
+          body: "Each time you start and stop the timer in the Tracker, a session is logged with its start time, duration, and stitch delta.",
+          bullets: [
+            ["Daily streaks", "Consecutive days with at least one recorded session. Resets if you skip a day."],
+            ["Session log", "Each session row shows the date, project name, duration, and stitches added."],
+            ["Heatmap", "A calendar view of stitching frequency \u2014 darker squares mean more stitches that day."]
+          ]
+        },
+        {
+          heading: "Stitch Score",
+          body: "The Stitch Score (0\u2013100) rates how stitchable your pattern will be before you start. A high score means fewer thread changes and less confetti.",
+          bullets: [
+            ["Confetti penalty", "Each isolated single-stitch region lowers the score."],
+            ["Colour spread", "Patterns where each colour is concentrated in one area score higher than patterns with all colours mixed throughout."],
+            ["Improving the score", "Use the Confetti Cleanup and Minimum stitches per colour sliders in the Creator to remove small isolated regions."]
+          ]
+        }
+      ]
+    },
+    {
+      id: "stitching-style", area: "Stitching Style",
+      sections: [
+        {
+          heading: "Cross stitch, half stitch, and over-two",
+          body: "The Tracker supports several stitch types. All types can be tracked and toggled independently using the layer visibility buttons in the toolbar.",
+          bullets: [
+            ["Full cross stitch", "An X-shaped stitch that fills one grid square. The standard stitch type."],
+            ["Half stitch", "A single diagonal stroke covering half a grid square (either / or \\). Useful for shading or edge softening."],
+            ["Over-two", "A cross stitch worked over two fabric threads rather than one, used mainly on even-weave fabric. Gives a larger, softer stitch."],
+            ["French knot", "A small raised knot on the fabric surface. Used for eyes, berries, or any detail needing a dot."],
+            ["Backstitch", "A straight line drawn between grid corners, used to add outlines, fine details, or lettering on top of the cross-stitched area."]
+          ]
+        },
+        {
+          heading: "Choosing a stitching order",
+          body: "There is no single correct order, but the following approach suits most projects:",
+          bullets: [
+            ["Light before dark", "Start with lighter colours so any bleed-through from the fabric is less visible."],
+            ["Large areas first", "Complete large colour blocks before small details so you can park threads efficiently."],
+            ["Row working", "Some stitchers work all half-stitches in one direction across a row, then return to complete the X \u2014 this keeps tension even."],
+            ["One colour at a time", "Finish all stitches of one colour before starting the next to minimise thread changes. Use the Highlight view in the Tracker to isolate one colour at a time."]
           ]
         }
       ]
@@ -414,8 +477,12 @@
       query: typeof opts.query === "string" ? opts.query : ""
     });
     persistTab(tab);
+    try { window.dispatchEvent(new CustomEvent("cs:helpStateChange", { detail: { open: true } })); } catch (_) {}
   }
-  function close() { setState({ open: false }); }
+  function close() {
+    setState({ open: false });
+    try { window.dispatchEvent(new CustomEvent("cs:helpStateChange", { detail: { open: false } })); } catch (_) {}
+  }
   function toggle(opts) {
     if (state.open) close();
     else open(opts);
@@ -631,12 +698,129 @@
     );
   }
 
+  // ── Category navigation components ────────────────────────────────────
+  var TOPIC_ICONS = {
+    creator: "wand", tracker: "needle", manager: "box",
+    saving: "save", glossary: "gradCap",
+    stats: "barChart", "stitching-style": "halfStitch"
+  };
+
+  function CategoryLanding(props) {
+    var onSelect = props.onSelect;
+    var onGettingStarted = props.onGettingStarted;
+    var Ic = window.Icons || {};
+    var cardStyle = {
+      display: "flex", flexDirection: "column", alignItems: "flex-start",
+      gap: 6, padding: "12px 14px", background: "var(--surface-secondary)",
+      border: "1px solid var(--line)", borderRadius: "var(--radius-md)",
+      cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+      color: "var(--text-primary)"
+    };
+    return h("div", null,
+      h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } },
+        HELP_TOPICS.map(function(topic) {
+          var iconName = TOPIC_ICONS[topic.id];
+          var icon = iconName && typeof Ic[iconName] === "function" ? Ic[iconName]() : null;
+          return h("button", { key: topic.id, onClick: function() { onSelect(topic.id); }, style: cardStyle },
+            icon && h("span", { "aria-hidden": "true", style: { color: "var(--accent)", display: "inline-flex" } }, icon),
+            h("span", { style: { fontSize: "var(--text-md)", fontWeight: 600, lineHeight: 1.3 } }, topic.area),
+            h("span", { style: { fontSize: "var(--text-xs)", color: "var(--text-secondary)" } },
+              topic.sections.length + " " + (topic.sections.length === 1 ? "article" : "articles"))
+          );
+        }),
+        h("button", { key: "gs", onClick: onGettingStarted, style: cardStyle },
+          typeof Ic.lightbulb === "function" && h("span", { "aria-hidden": "true", style: { color: "var(--accent)", display: "inline-flex" } }, Ic.lightbulb()),
+          h("span", { style: { fontSize: "var(--text-md)", fontWeight: 600, lineHeight: 1.3 } }, "Getting Started"),
+          h("span", { style: { fontSize: "var(--text-xs)", color: "var(--text-secondary)" } }, GETTING_STARTED.length + " guides")
+        )
+      )
+    );
+  }
+
+  function CategoryArticleList(props) {
+    var topic = HELP_TOPICS.find(function(t) { return t.id === props.topicId; });
+    if (!topic) return null;
+    var backBtnStyle = {
+      display: "inline-flex", alignItems: "center", gap: 6,
+      background: "transparent", border: "none", cursor: "pointer",
+      padding: "4px 0 12px", fontFamily: "inherit",
+      fontSize: "var(--text-sm)", color: "var(--accent)", fontWeight: 600
+    };
+    return h("div", null,
+      h("button", { onClick: props.onBack, style: backBtnStyle },
+        (window.Icons && typeof window.Icons.chevronLeft === "function")
+          ? h("span", { "aria-hidden": "true", style: { display: "inline-flex" } }, window.Icons.chevronLeft())
+          : null,
+        "All topics"
+      ),
+      h("div", {
+        style: {
+          fontSize: "var(--text-xs)", textTransform: "uppercase", letterSpacing: 0.5,
+          color: "var(--text-tertiary)", fontWeight: 700, marginBottom: "var(--s-2)",
+          paddingBottom: 4, borderBottom: "1px solid var(--border)"
+        }
+      }, topic.area),
+      topic.sections.map(function(s, i) {
+        return h("button", {
+          key: i,
+          onClick: function() { props.onSelect(i); },
+          style: {
+            display: "flex", width: "100%", alignItems: "center",
+            justifyContent: "space-between", padding: "10px 0",
+            background: "transparent", border: "none",
+            borderBottom: "1px solid var(--line)",
+            cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+            color: "var(--text-primary)", fontSize: "var(--text-md)"
+          }
+        },
+          h("span", { style: { flex: 1, fontWeight: 600 } }, s.heading),
+          (window.Icons && typeof window.Icons.chevronRight === "function")
+            ? h("span", { "aria-hidden": "true", style: { color: "var(--text-tertiary)", display: "inline-flex", flexShrink: 0 } }, window.Icons.chevronRight())
+            : null
+        );
+      })
+    );
+  }
+
+  function CategoryArticleDetail(props) {
+    var topic = HELP_TOPICS.find(function(t) { return t.id === props.topicId; });
+    if (!topic) return null;
+    var s = topic.sections[props.sectionIndex];
+    if (!s) return null;
+    var backBtnStyle = {
+      display: "inline-flex", alignItems: "center", gap: 6,
+      background: "transparent", border: "none", cursor: "pointer",
+      padding: "4px 0 12px", fontFamily: "inherit",
+      fontSize: "var(--text-sm)", color: "var(--accent)", fontWeight: 600
+    };
+    return h("div", null,
+      h("button", { onClick: props.onBack, style: backBtnStyle },
+        (window.Icons && typeof window.Icons.chevronLeft === "function")
+          ? h("span", { "aria-hidden": "true", style: { display: "inline-flex" } }, window.Icons.chevronLeft())
+          : null,
+        topic.area
+      ),
+      h("h4", { style: { margin: "0 0 10px", fontSize: "var(--text-lg)", color: "var(--text-primary)" } }, s.heading),
+      s.body && h("p", { style: { margin: "0 0 10px", color: "var(--text-secondary)", fontSize: "var(--text-md)", lineHeight: 1.55 } }, s.body),
+      s.bullets && s.bullets.length > 0 && h("ul", {
+        style: { margin: 0, paddingLeft: 18, color: "var(--text-secondary)", fontSize: "var(--text-md)", lineHeight: 1.55 }
+      },
+        s.bullets.map(function(b, j) {
+          return h("li", { key: j }, h("strong", null, b[0] + ":"), " " + b[1]);
+        })
+      )
+    );
+  }
+
   function TabButton(props) {
     var active = props.active;
     return h("button", {
+      id: props.id,
       onClick: props.onClick,
       role: "tab",
+      tabIndex: props.tabIndex != null ? props.tabIndex : (active ? 0 : -1),
       "aria-selected": active ? "true" : "false",
+      "aria-controls": props["aria-controls"],
       style: {
         flex: 1, padding: "8px 6px", fontSize:'var(--text-md)', fontWeight: active ? 700 : 500,
         background: active ? "var(--surface)" : "transparent",
@@ -676,6 +860,13 @@
     }, []);
     var rootRef = React.useRef(null);
     var searchRef = React.useRef(null);
+    var tablistRef = React.useRef(null);
+    var _hv = React.useState("landing");
+    var helpView = _hv[0]; var setHelpView = _hv[1];
+    var _hc = React.useState(null);
+    var helpCat = _hc[0]; var setHelpCat = _hc[1];
+    var _ha = React.useState(null);
+    var helpArt = _ha[0]; var setHelpArt = _ha[1];
 
     React.useEffect(function () {
       if (!state.open) return;
@@ -687,6 +878,10 @@
       }, 30);
       return function () { clearTimeout(t); };
     }, [state.open, state.tab]);
+
+    React.useEffect(function () {
+      if (state.open) { setHelpView("landing"); setHelpCat(null); setHelpArt(null); }
+    }, [state.open]); // eslint-disable-line react-hooks/exhaustive-deps
 
     React.useEffect(function () {
       if (!state.open) return;
@@ -806,25 +1001,53 @@
         ),
         // Tabs
         h("div", {
+          ref: tablistRef,
           role: "tablist",
+          "aria-label": "Help sections",
+          onKeyDown: function(e) {
+            var tabs = ["help", "shortcuts", "getting-started"];
+            var ci = tabs.indexOf(state.tab);
+            if (ci === -1) return;
+            var ni = -1;
+            if (e.key === "ArrowRight") { e.preventDefault(); ni = (ci + 1) % tabs.length; }
+            else if (e.key === "ArrowLeft") { e.preventDefault(); ni = (ci - 1 + tabs.length) % tabs.length; }
+            else if (e.key === "Home") { e.preventDefault(); ni = 0; }
+            else if (e.key === "End") { e.preventDefault(); ni = tabs.length - 1; }
+            if (ni === -1) return;
+            var newTab = tabs[ni];
+            setState({ tab: newTab }); persistTab(newTab);
+            if (tablistRef.current) {
+              var btns = tablistRef.current.querySelectorAll('[role="tab"]');
+              if (btns[ni]) try { btns[ni].focus(); } catch (_) {}
+            }
+          },
           style: {
             display: "flex", borderBottom: "1px solid var(--border)",
             background: "var(--surface-secondary)", flexShrink: 0
           }
         },
           h(TabButton, {
+            id: "cs-help-tab-help",
+            "aria-controls": "cs-help-panel-help",
+            tabIndex: state.tab === "help" ? 0 : -1,
             label: "Help",
             icon: hasIcon("info") ? Icons.info() : null,
             active: state.tab === "help",
             onClick: function () { setState({ tab: "help" }); persistTab("help"); }
           }),
           h(TabButton, {
+            id: "cs-help-tab-shortcuts",
+            "aria-controls": "cs-help-panel-shortcuts",
+            tabIndex: state.tab === "shortcuts" ? 0 : -1,
             label: "Shortcuts",
             icon: hasIcon("keyboard") ? Icons.keyboard() : null,
             active: state.tab === "shortcuts",
             onClick: function () { setState({ tab: "shortcuts" }); persistTab("shortcuts"); }
           }),
           h(TabButton, {
+            id: "cs-help-tab-getting-started",
+            "aria-controls": "cs-help-panel-getting-started",
+            tabIndex: state.tab === "getting-started" ? 0 : -1,
             label: "Getting Started",
             icon: hasIcon("lightbulb") ? Icons.lightbulb() : null,
             active: state.tab === "getting-started",
@@ -833,10 +1056,34 @@
         ),
         // Body
         h("div", {
+          role: "tabpanel",
+          id: "cs-help-panel-" + state.tab,
+          "aria-labelledby": "cs-help-tab-" + state.tab,
+          "aria-live": "polite",
           style: { flex: 1, overflowY: "auto", padding: "14px 16px" }
         },
           state.tab === "help"
-            ? h(HelpSection, { items: helpFiltered })
+            ? (state.query
+                ? h(HelpSection, { items: helpFiltered })
+                : (helpView === "list" && helpCat
+                    ? h(CategoryArticleList, {
+                        topicId: helpCat,
+                        onBack: function() { setHelpView("landing"); setHelpCat(null); setHelpArt(null); },
+                        onSelect: function(i) { setHelpArt(i); setHelpView("detail"); }
+                      })
+                    : (helpView === "detail" && helpCat !== null && helpArt !== null
+                        ? h(CategoryArticleDetail, {
+                            topicId: helpCat,
+                            sectionIndex: helpArt,
+                            onBack: function() { setHelpView("list"); setHelpArt(null); }
+                          })
+                        : h(CategoryLanding, {
+                            onSelect: function(id) { setHelpCat(id); setHelpView("list"); },
+                            onGettingStarted: function() { setState({ tab: "getting-started" }); persistTab("getting-started"); }
+                          })
+                      )
+                  )
+              )
             : state.tab === "shortcuts"
               ? h(ShortcutsSection, { items: shortcutsFiltered, context: state.context })
               : h(GettingStartedSection, null)

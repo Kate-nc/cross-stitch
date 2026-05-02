@@ -345,6 +345,14 @@ function formatRelative(date) {
 function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onNewProject, onOpenProject, onPreferences, onBulkAddThreads, setModal, activeProject, onBackupDownload, onRestoreFile, storageUsage, projectName: propProjectName, projectPct: propProjectPct, onNameChange, showAutosaved, saveStatus, savedAt, saveError, onRetrySave }) {
   const [pageDrop, setPageDrop] = React.useState(false);
   const dropRef = React.useRef(null);
+  const [helpOpen, setHelpOpen] = React.useState(function() {
+    try { return window.HelpDrawer ? window.HelpDrawer.isOpen() : false; } catch(_) { return false; }
+  });
+  React.useEffect(function() {
+    function onHelpState(e) { if (e && e.detail) setHelpOpen(!!e.detail.open); }
+    window.addEventListener('cs:helpStateChange', onHelpState);
+    return function() { window.removeEventListener('cs:helpStateChange', onHelpState); };
+  }, []);
 
   // Inline editable project name state (for merged ContextBar)
   const [editingName, setEditingName] = React.useState(false);
@@ -678,10 +686,17 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
           className: 'tb-nav-link tb-help-btn',
           onClick: () => { if (window.HelpDrawer) window.HelpDrawer.open({ tab: 'help' }); else setModal('help'); },
           'aria-label': 'Open help (?)',
+          'aria-expanded': helpOpen ? 'true' : 'false',
           title: 'Open help (?)'
         },
           window.Icons && window.Icons.help ? window.Icons.help() : null,
-          React.createElement('span', { className: 'tb-help-btn-label' }, ' Help')
+          React.createElement('span', { className: 'tb-help-btn-label' }, ' Help'),
+          React.createElement('kbd', {
+            'aria-hidden': 'true',
+            style: { fontSize: 10, padding: '1px 4px', marginLeft: 4, fontFamily: 'ui-monospace, monospace',
+              background: 'var(--surface-secondary)', border: '1px solid var(--line)',
+              borderRadius: 3, color: 'var(--text-secondary)', lineHeight: 1.4, display: 'inline-block' }
+          }, '?')
         ),
 
         // File menu dropdown — shown on all pages
