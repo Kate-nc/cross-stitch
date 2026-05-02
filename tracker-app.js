@@ -574,7 +574,7 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
                 React.createElement('span',{className:'tsp-sw',style:{background:'rgb('+(d.rgb||[128,128,128]).join(',')+')'}}),
                 React.createElement('span',{className:'tsp-id'},d.id),
                 React.createElement('span',{className:'tsp-name'},d.name||''),
-                React.createElement('span',{className:'tsp-rem',title:'Skeins needed'},d.skeins+'\u00D7'),
+                React.createElement('span',{className:'tsp-rem','aria-label':d.skeins+' skeins needed'},d.skeins+'\u00D7'),
                 r.have
                   ? React.createElement('span',{className:'tsp-own-pip tsp-own-pip--have',title:'You have '+r.owned+' skein'+(r.owned===1?'':'s')+' of DMC '+d.id+' in your stash','aria-label':'In stash'},window.Icons.check())
                   : React.createElement('span',{className:'tsp-own-pip tsp-own-pip--need',title:'You have '+r.owned+' skein'+(r.owned===1?'':'s')+' \u2014 need '+(d.skeins-r.owned)+' more','aria-label':'Need to buy'},(d.skeins-r.owned)+'\u00D7')
