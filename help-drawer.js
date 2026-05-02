@@ -64,6 +64,53 @@
             ["Lasso (L)", "Draw a freeform selection."],
             ["Undo / Redo (Ctrl+Z / Ctrl+Y)", "Step through your edit history."]
           ]
+        },
+        {
+          heading: "Importing images and designs",
+          body: "The import wizard walks you through preparing an image for conversion. Open it via File > Import or drop a file directly on the canvas.",
+          bullets: [
+            ["Supported formats", "PNG, JPG, GIF, WebP for new patterns. .json and .oxs files restore an existing pattern. A compatible .pdf cross-stitch chart can also be imported."],
+            ["Crop step", "Draw a crop box to focus on the most important part of the image. Cropping reduces background noise and improves colour-matching quality."],
+            ["Scale step", "Set the target stitch dimensions by dragging the resize handles or typing values. The preview shows estimated physical size at your chosen fabric count."],
+            ["Palette step", "Choose the max number of colours, whether to restrict to stash threads, and which threads to exclude. These settings are applied when the generator runs."]
+          ]
+        },
+        {
+          heading: "View modes and preview",
+          body: "Switch display modes at any time with the V key or the view toolbar \u2014 view modes never change the underlying pattern.",
+          bullets: [
+            ["Colour view", "Shows each stitch in its DMC thread colour. Best for a quick overall impression."],
+            ["Symbol view (V)", "Replaces colours with printed symbols. Useful when stitching without a screen or checking print legibility."],
+            ["Realistic preview", "Renders stitches as actual cross-stitch X shapes with thread texture. Can be slow on very large patterns."],
+            ["Split-pane (\\)", "Splits the screen \u2014 left side is the editable canvas, right side shows a live realistic preview. Drag the centre handle to resize."]
+          ]
+        },
+        {
+          heading: "Stash Adapt and thread substitution",
+          body: "The Adapt feature re-maps your palette to threads you already own. Access it from the Project tab after generating.",
+          bullets: [
+            ["Use only stash threads", "Enable in the sidebar before generating to restrict the initial palette to owned DMC and Anchor threads."],
+            ["Adapt for stash", "Click Adapt on the Project tab to substitute individual colours using nearest-colour matching (\u0394E perceptual distance)."],
+            ["Match quality", "Each substituted colour shows a \u0394E badge \u2014 lower means a closer visual match. Review substitutions before confirming."]
+          ]
+        },
+        {
+          heading: "Palette swap",
+          body: "Palette swap replaces one thread colour across the entire pattern with a different one, without regenerating from scratch.",
+          bullets: [
+            ["Opening swap", "Click the swap icon next to any palette entry, or use Edit > Palette Swap."],
+            ["Replacing a colour", "Pick a replacement from the catalogue or from your stash. The count shows how many stitches will change."],
+            ["Revert", "Palette swaps are undoable with Ctrl+Z until you save the project."]
+          ]
+        },
+        {
+          heading: "Threads needed and skein estimates",
+          body: "The Materials & Output tab shows a breakdown of how much thread your pattern requires.",
+          bullets: [
+            ["Skein count", "Estimated skeins needed per colour, based on stitch count, fabric count, strand count, and a waste factor. A standard skein is 315 inches."],
+            ["Stash coverage", "Threads shown in green are fully covered by your owned skeins. Amber means you have some but not enough. Red means none owned."],
+            ["Shopping list", "Shows only threads you need to buy, with an estimated total cost at the default price (\u00a30.95 per skein)."]
+          ]
         }
       ]
     },
@@ -85,6 +132,25 @@
             ["Start / Stop", "The timer auto-pauses after 5 minutes of inactivity."],
             ["Sessions", "Each timer run is logged with start / end times and stitch deltas, used by the Stats page."]
           ]
+        },
+        {
+          heading: "Highlight view modes",
+          body: "Highlight view focuses on one colour at a time. Cycle through colours with [ and ], then choose a highlight mode with 1\u20134.",
+          bullets: [
+            ["Isolate (1)", "Everything except the focused colour turns grey. The clearest way to see exactly where a colour sits across the pattern."],
+            ["Outline (2)", "Draws a coloured border around the focused colour's regions. Shows stitch boundaries without hiding context."],
+            ["Tint (3)", "Other colours fade to low opacity while the focused colour remains vivid. Softer than Isolate, good for checking neighbouring areas."],
+            ["Spotlight (4)", "A blend of Isolate and Tint \u2014 background colours are dimly visible but the focused colour stands out strongly."]
+          ]
+        },
+        {
+          heading: "Counting aids",
+          body: "Counting aids overlay reference markers to help you count stitches accurately \u2014 essential when navigating a large pattern without a printed chart.",
+          bullets: [
+            ["Toggle (C)", "Press C or tap the counting aid button in the toolbar to show or hide the overlay."],
+            ["10\u00d710 grid", "Thin lines divide the canvas into 10\u00d710 stitch blocks, matching the bolded squares on most printed Aida fabric."],
+            ["Crosshair", "In Navigate mode, the crosshair marks your current reference point. Click to reposition it; its row and column are shown in the status bar."]
+          ]
         }
       ]
     },
@@ -95,8 +161,18 @@
           heading: "Thread stash",
           body: "Track which DMC and Anchor threads you own, what's running low, and where each one came from.",
           bullets: [
-            ["Bulk Add", "Paste a list of thread IDs to mark them owned in one go."],
-            ["Brand toggle", "Switch between DMC and Anchor (or both) — composite keys keep duplicates apart."]
+            ["Bulk Add (B)", "Open the Bulk Add panel and paste a newline- or comma-separated list of thread IDs (e.g. 310, 550, 3821) to mark them all as owned at once."],
+            ["Ownership levels", "Each thread can be marked as Owned (full skein), Low (partial), or Not owned. The level affects the coverage calculation in the Pattern Library."],
+            ["Brand toggle", "Switch between DMC, Anchor, or Both. Composite keys (e.g. anchor:403) prevent ID collisions between brands."]
+          ]
+        },
+        {
+          heading: "Thread brands and conversions",
+          body: "The app supports both DMC and Anchor brand threads. They are tracked separately using brand-prefixed keys so IDs that overlap between catalogues do not collide.",
+          bullets: [
+            ["Adding Anchor threads", "Switch the brand selector to Anchor and search by number or name. Anchor threads appear alongside DMC in the stash view when Both is selected."],
+            ["Anchor ↔ DMC equivalents", "Many threads are marketed as rough colour equivalents. Thread conversions in the app map closest matches by ΔE distance — these are approximations, not exact."],
+            ["Stash-constrained generation", "When 'Use only stash threads' is enabled in the Creator, all owned threads (DMC + Anchor) are available to the generator, not just one brand."]
           ]
         },
         {
@@ -122,10 +198,31 @@
         },
         {
           heading: "Full-app backup",
-          body: "Use File → Download all data to export every project, your stash, and your settings as a .csbackup file. Restore with File → Restore from backup. Backups are encrypted with the local app key only — share intentionally.",
+          body: "Use File > Download all data to export every project, your stash, and your settings as a .csbackup file. Restore with File > Restore from backup. Backups are encrypted with the local app key only — share intentionally.",
           bullets: [
             ["Folder sync (optional)", "Choose a folder once and the app writes incremental updates there so you can sync via Dropbox / iCloud / OneDrive."],
             ["Auto-export", "Toggle in the File menu to write to your sync folder after each save."]
+          ]
+        },
+        {
+          heading: "PDF export options",
+          body: "The Export tab (inside Materials & Output) offers several layout options for printing your chart.",
+          bullets: [
+            ["Page size", "Choose A4, US Letter, or a custom size. The chart scales to fill the chosen dimensions."],
+            ["Stitches per page", "Controls chart density — fewer stitches per page means larger, easier-to-read symbols."],
+            ["Two-column layout", "Prints the colour legend alongside the chart on the same page rather than as a separate sheet."],
+            ["Workshop print theme", "An opt-in dark-line print style enabled in Preferences > Creator. The default theme exports a layout compatible with Pattern Keeper software."],
+            ["Pattern Keeper compatibility", "The default export is structured for direct import into the Pattern Keeper app. Avoid changing page-structure settings if you plan to import it there."]
+          ]
+        },
+        {
+          heading: "Managing projects",
+          body: "The Home page is the central hub for all your projects. Every pattern you create, open, or import appears in your project library.",
+          bullets: [
+            ["Active project", "The project currently open in the Tracker. Autosaves apply to this slot. Switch projects from the Home page or via the project switcher in the header."],
+            ["Project library", "All saved projects appear as cards on the Home page. Click a card to open it in the Creator or Tracker."],
+            ["Renaming", "Click the project name in the header or on the project card to rename it inline."],
+            ["Deleting", "Delete a project from its card menu on the Home page. Deleted projects cannot be recovered without a backup."]
           ]
         }
       ]
@@ -140,7 +237,12 @@
             ["Pattern", "The chart / design itself. Lives inside a Project, or as a stand-alone entry in the Stash Manager library."],
             ["Stash", "Your physical thread collection (DMC + Anchor). Tracked in the Stash Manager."],
             ["Skein", "One physical bundle of thread (315 inches by default)."],
-            ["Active project", "The single project currently open in the Tracker (autosaves apply to this slot)."]
+            ["Active project", "The single project currently open in the Tracker (autosaves apply to this slot)."],
+            ["Confetti stitches", "Single isolated stitches surrounded by different colours. Each forces a separate thread change and is expensive to sew. Use the Confetti Cleanup slider in the Creator to merge them into adjacent areas."],
+            ["Stitch Score", "A 0\u2013100 quality rating for your pattern. High score = fewer confetti stitches and well-distributed thread changes. Shown on the Project tab after generating."],
+            ["Fabric count", "Holes per inch in your Aida fabric. Common values: 11ct (large stitches), 14ct (standard \u2014 14 stitches \u2248 1 inch), 18ct (fine), 28ct (very fine, usually worked over two threads)."],
+            ["Blend stitch", "A stitch sewn with two different thread colours in the same needle. Creates a mixed-colour effect. Shown in the pattern as two DMC IDs joined with '+', e.g. '310+550'."],
+            ["\u0394E (delta-E)", "A perceptual colour-distance score \u2014 lower means a closer visual match. The app uses it when mapping image colours to DMC threads and when the Adapt Modal suggests replacement threads."]
           ]
         },
         {
@@ -151,6 +253,64 @@
             ["Export", "Generate a share-ready artefact (PDF chart, OXS)."],
             ["Open / Import", "Read from a file or URL into the app."],
             ["Sync (folder)", "Optional incremental writes to a chosen folder for cross-device sync."]
+          ]
+        }
+      ]
+    },
+    {
+      id: "stats", area: "Stats & Progress",
+      sections: [
+        {
+          heading: "Reading your stats",
+          body: "The Stats page shows a summary of your stitching activity across all projects — total stitches, total time, sessions, and an estimated thread length used.",
+          bullets: [
+            ["Stitches logged", "Counts all stitches marked as done across every project."],
+            ["Total time", "Sum of all tracked session durations. The timer must be running during a session to count."],
+            ["Thread used", "Estimated metres of thread consumed, calculated from stitch count and fabric size."]
+          ]
+        },
+        {
+          heading: "Sessions and streaks",
+          body: "Each time you start and stop the timer in the Tracker, a session is logged with its start time, duration, and stitch delta.",
+          bullets: [
+            ["Daily streaks", "Consecutive days with at least one recorded session. Resets if you skip a day."],
+            ["Session log", "Each session row shows the date, project name, duration, and stitches added."],
+            ["Heatmap", "A calendar view of stitching frequency \u2014 darker squares mean more stitches that day."]
+          ]
+        },
+        {
+          heading: "Stitch Score",
+          body: "The Stitch Score (0\u2013100) rates how stitchable your pattern will be before you start. A high score means fewer thread changes and less confetti.",
+          bullets: [
+            ["Confetti penalty", "Each isolated single-stitch region lowers the score."],
+            ["Colour spread", "Patterns where each colour is concentrated in one area score higher than patterns with all colours mixed throughout."],
+            ["Improving the score", "Use the Confetti Cleanup and Minimum stitches per colour sliders in the Creator to remove small isolated regions."]
+          ]
+        }
+      ]
+    },
+    {
+      id: "stitching-style", area: "Stitching Style",
+      sections: [
+        {
+          heading: "Cross stitch, half stitch, and over-two",
+          body: "The Tracker supports several stitch types. All types can be tracked and toggled independently using the layer visibility buttons in the toolbar.",
+          bullets: [
+            ["Full cross stitch", "An X-shaped stitch that fills one grid square. The standard stitch type."],
+            ["Half stitch", "A single diagonal stroke covering half a grid square (either / or \\). Useful for shading or edge softening."],
+            ["Over-two", "A cross stitch worked over two fabric threads rather than one, used mainly on even-weave fabric. Gives a larger, softer stitch."],
+            ["French knot", "A small raised knot on the fabric surface. Used for eyes, berries, or any detail needing a dot."],
+            ["Backstitch", "A straight line drawn between grid corners, used to add outlines, fine details, or lettering on top of the cross-stitched area."]
+          ]
+        },
+        {
+          heading: "Choosing a stitching order",
+          body: "There is no single correct order, but the following approach suits most projects:",
+          bullets: [
+            ["Light before dark", "Start with lighter colours so any bleed-through from the fabric is less visible."],
+            ["Large areas first", "Complete large colour blocks before small details so you can park threads efficiently."],
+            ["Row working", "Some stitchers work all half-stitches in one direction across a row, then return to complete the X \u2014 this keeps tension even."],
+            ["One colour at a time", "Finish all stitches of one colour before starting the next to minimise thread changes. Use the Highlight view in the Tracker to isolate one colour at a time."]
           ]
         }
       ]
@@ -414,8 +574,12 @@
       query: typeof opts.query === "string" ? opts.query : ""
     });
     persistTab(tab);
+    try { window.dispatchEvent(new CustomEvent("cs:helpStateChange", { detail: { open: true } })); } catch (_) {}
   }
-  function close() { setState({ open: false }); }
+  function close() {
+    setState({ open: false });
+    try { window.dispatchEvent(new CustomEvent("cs:helpStateChange", { detail: { open: false } })); } catch (_) {}
+  }
   function toggle(opts) {
     if (state.open) close();
     else open(opts);
@@ -631,12 +795,129 @@
     );
   }
 
+  // ── Category navigation components ────────────────────────────────────
+  var TOPIC_ICONS = {
+    creator: "wand", tracker: "needle", manager: "box",
+    saving: "save", glossary: "gradCap",
+    stats: "barChart", "stitching-style": "halfStitch"
+  };
+
+  function CategoryLanding(props) {
+    var onSelect = props.onSelect;
+    var onGettingStarted = props.onGettingStarted;
+    var Ic = window.Icons || {};
+    var cardStyle = {
+      display: "flex", flexDirection: "column", alignItems: "flex-start",
+      gap: 6, padding: "12px 14px", background: "var(--surface-secondary)",
+      border: "1px solid var(--line)", borderRadius: "var(--radius-md)",
+      cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+      color: "var(--text-primary)"
+    };
+    return h("div", null,
+      h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } },
+        HELP_TOPICS.map(function(topic) {
+          var iconName = TOPIC_ICONS[topic.id];
+          var icon = iconName && typeof Ic[iconName] === "function" ? Ic[iconName]() : null;
+          return h("button", { key: topic.id, onClick: function() { onSelect(topic.id); }, style: cardStyle },
+            icon && h("span", { "aria-hidden": "true", style: { color: "var(--accent)", display: "inline-flex" } }, icon),
+            h("span", { style: { fontSize: "var(--text-md)", fontWeight: 600, lineHeight: 1.3 } }, topic.area),
+            h("span", { style: { fontSize: "var(--text-xs)", color: "var(--text-secondary)" } },
+              topic.sections.length + " " + (topic.sections.length === 1 ? "article" : "articles"))
+          );
+        }),
+        h("button", { key: "gs", onClick: onGettingStarted, style: cardStyle },
+          typeof Ic.lightbulb === "function" && h("span", { "aria-hidden": "true", style: { color: "var(--accent)", display: "inline-flex" } }, Ic.lightbulb()),
+          h("span", { style: { fontSize: "var(--text-md)", fontWeight: 600, lineHeight: 1.3 } }, "Getting Started"),
+          h("span", { style: { fontSize: "var(--text-xs)", color: "var(--text-secondary)" } }, GETTING_STARTED.length + " guides")
+        )
+      )
+    );
+  }
+
+  function CategoryArticleList(props) {
+    var topic = HELP_TOPICS.find(function(t) { return t.id === props.topicId; });
+    if (!topic) return null;
+    var backBtnStyle = {
+      display: "inline-flex", alignItems: "center", gap: 6,
+      background: "transparent", border: "none", cursor: "pointer",
+      padding: "4px 0 12px", fontFamily: "inherit",
+      fontSize: "var(--text-sm)", color: "var(--accent)", fontWeight: 600
+    };
+    return h("div", null,
+      h("button", { onClick: props.onBack, style: backBtnStyle },
+        (window.Icons && typeof window.Icons.chevronLeft === "function")
+          ? h("span", { "aria-hidden": "true", style: { display: "inline-flex" } }, window.Icons.chevronLeft())
+          : null,
+        "All topics"
+      ),
+      h("div", {
+        style: {
+          fontSize: "var(--text-xs)", textTransform: "uppercase", letterSpacing: 0.5,
+          color: "var(--text-tertiary)", fontWeight: 700, marginBottom: "var(--s-2)",
+          paddingBottom: 4, borderBottom: "1px solid var(--border)"
+        }
+      }, topic.area),
+      topic.sections.map(function(s, i) {
+        return h("button", {
+          key: i,
+          onClick: function() { props.onSelect(i); },
+          style: {
+            display: "flex", width: "100%", alignItems: "center",
+            justifyContent: "space-between", padding: "10px 0",
+            background: "transparent", border: "none",
+            borderBottom: "1px solid var(--line)",
+            cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+            color: "var(--text-primary)", fontSize: "var(--text-md)"
+          }
+        },
+          h("span", { style: { flex: 1, fontWeight: 600 } }, s.heading),
+          (window.Icons && typeof window.Icons.chevronRight === "function")
+            ? h("span", { "aria-hidden": "true", style: { color: "var(--text-tertiary)", display: "inline-flex", flexShrink: 0 } }, window.Icons.chevronRight())
+            : null
+        );
+      })
+    );
+  }
+
+  function CategoryArticleDetail(props) {
+    var topic = HELP_TOPICS.find(function(t) { return t.id === props.topicId; });
+    if (!topic) return null;
+    var s = topic.sections[props.sectionIndex];
+    if (!s) return null;
+    var backBtnStyle = {
+      display: "inline-flex", alignItems: "center", gap: 6,
+      background: "transparent", border: "none", cursor: "pointer",
+      padding: "4px 0 12px", fontFamily: "inherit",
+      fontSize: "var(--text-sm)", color: "var(--accent)", fontWeight: 600
+    };
+    return h("div", null,
+      h("button", { onClick: props.onBack, style: backBtnStyle },
+        (window.Icons && typeof window.Icons.chevronLeft === "function")
+          ? h("span", { "aria-hidden": "true", style: { display: "inline-flex" } }, window.Icons.chevronLeft())
+          : null,
+        topic.area
+      ),
+      h("h4", { style: { margin: "0 0 10px", fontSize: "var(--text-lg)", color: "var(--text-primary)" } }, s.heading),
+      s.body && h("p", { style: { margin: "0 0 10px", color: "var(--text-secondary)", fontSize: "var(--text-md)", lineHeight: 1.55 } }, s.body),
+      s.bullets && s.bullets.length > 0 && h("ul", {
+        style: { margin: 0, paddingLeft: 18, color: "var(--text-secondary)", fontSize: "var(--text-md)", lineHeight: 1.55 }
+      },
+        s.bullets.map(function(b, j) {
+          return h("li", { key: j }, h("strong", null, b[0] + ":"), " " + b[1]);
+        })
+      )
+    );
+  }
+
   function TabButton(props) {
     var active = props.active;
     return h("button", {
+      id: props.id,
       onClick: props.onClick,
       role: "tab",
+      tabIndex: props.tabIndex != null ? props.tabIndex : (active ? 0 : -1),
       "aria-selected": active ? "true" : "false",
+      "aria-controls": props["aria-controls"],
       style: {
         flex: 1, padding: "8px 6px", fontSize:'var(--text-md)', fontWeight: active ? 700 : 500,
         background: active ? "var(--surface)" : "transparent",
@@ -676,6 +957,13 @@
     }, []);
     var rootRef = React.useRef(null);
     var searchRef = React.useRef(null);
+    var tablistRef = React.useRef(null);
+    var _hv = React.useState("landing");
+    var helpView = _hv[0]; var setHelpView = _hv[1];
+    var _hc = React.useState(null);
+    var helpCat = _hc[0]; var setHelpCat = _hc[1];
+    var _ha = React.useState(null);
+    var helpArt = _ha[0]; var setHelpArt = _ha[1];
 
     React.useEffect(function () {
       if (!state.open) return;
@@ -687,6 +975,10 @@
       }, 30);
       return function () { clearTimeout(t); };
     }, [state.open, state.tab]);
+
+    React.useEffect(function () {
+      if (state.open) { setHelpView("landing"); setHelpCat(null); setHelpArt(null); }
+    }, [state.open]); // eslint-disable-line react-hooks/exhaustive-deps
 
     React.useEffect(function () {
       if (!state.open) return;
@@ -806,25 +1098,53 @@
         ),
         // Tabs
         h("div", {
+          ref: tablistRef,
           role: "tablist",
+          "aria-label": "Help sections",
+          onKeyDown: function(e) {
+            var tabs = ["help", "shortcuts", "getting-started"];
+            var ci = tabs.indexOf(state.tab);
+            if (ci === -1) return;
+            var ni = -1;
+            if (e.key === "ArrowRight") { e.preventDefault(); ni = (ci + 1) % tabs.length; }
+            else if (e.key === "ArrowLeft") { e.preventDefault(); ni = (ci - 1 + tabs.length) % tabs.length; }
+            else if (e.key === "Home") { e.preventDefault(); ni = 0; }
+            else if (e.key === "End") { e.preventDefault(); ni = tabs.length - 1; }
+            if (ni === -1) return;
+            var newTab = tabs[ni];
+            setState({ tab: newTab }); persistTab(newTab);
+            if (tablistRef.current) {
+              var btns = tablistRef.current.querySelectorAll('[role="tab"]');
+              if (btns[ni]) try { btns[ni].focus(); } catch (_) {}
+            }
+          },
           style: {
             display: "flex", borderBottom: "1px solid var(--border)",
             background: "var(--surface-secondary)", flexShrink: 0
           }
         },
           h(TabButton, {
+            id: "cs-help-tab-help",
+            "aria-controls": "cs-help-panel-help",
+            tabIndex: state.tab === "help" ? 0 : -1,
             label: "Help",
             icon: hasIcon("info") ? Icons.info() : null,
             active: state.tab === "help",
             onClick: function () { setState({ tab: "help" }); persistTab("help"); }
           }),
           h(TabButton, {
+            id: "cs-help-tab-shortcuts",
+            "aria-controls": "cs-help-panel-shortcuts",
+            tabIndex: state.tab === "shortcuts" ? 0 : -1,
             label: "Shortcuts",
             icon: hasIcon("keyboard") ? Icons.keyboard() : null,
             active: state.tab === "shortcuts",
             onClick: function () { setState({ tab: "shortcuts" }); persistTab("shortcuts"); }
           }),
           h(TabButton, {
+            id: "cs-help-tab-getting-started",
+            "aria-controls": "cs-help-panel-getting-started",
+            tabIndex: state.tab === "getting-started" ? 0 : -1,
             label: "Getting Started",
             icon: hasIcon("lightbulb") ? Icons.lightbulb() : null,
             active: state.tab === "getting-started",
@@ -833,10 +1153,34 @@
         ),
         // Body
         h("div", {
+          role: "tabpanel",
+          id: "cs-help-panel-" + state.tab,
+          "aria-labelledby": "cs-help-tab-" + state.tab,
+          "aria-live": "polite",
           style: { flex: 1, overflowY: "auto", padding: "14px 16px" }
         },
           state.tab === "help"
-            ? h(HelpSection, { items: helpFiltered })
+            ? (state.query
+                ? h(HelpSection, { items: helpFiltered })
+                : (helpView === "list" && helpCat
+                    ? h(CategoryArticleList, {
+                        topicId: helpCat,
+                        onBack: function() { setHelpView("landing"); setHelpCat(null); setHelpArt(null); },
+                        onSelect: function(i) { setHelpArt(i); setHelpView("detail"); }
+                      })
+                    : (helpView === "detail" && helpCat !== null && helpArt !== null
+                        ? h(CategoryArticleDetail, {
+                            topicId: helpCat,
+                            sectionIndex: helpArt,
+                            onBack: function() { setHelpView("list"); setHelpArt(null); }
+                          })
+                        : h(CategoryLanding, {
+                            onSelect: function(id) { setHelpCat(id); setHelpView("list"); },
+                            onGettingStarted: function() { setState({ tab: "getting-started" }); persistTab("getting-started"); }
+                          })
+                      )
+                  )
+              )
             : state.tab === "shortcuts"
               ? h(ShortcutsSection, { items: shortcutsFiltered, context: state.context })
               : h(GettingStartedSection, null)

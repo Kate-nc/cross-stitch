@@ -221,6 +221,7 @@ function ActivityHeatmap({ grid, byDay, onCellHover, onCellLeave, onCellClick, h
     h('svg', {
       viewBox: '0 0 ' + SVG_W + ' ' + (SVG_H + 20),
       style: { display: 'block', minWidth: SVG_W, height: SVG_H + 20 },
+      role: 'img',
       'aria-label': 'Stitching activity heatmap'
     },
       // Month labels

@@ -1088,6 +1088,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         body: 'Pick a colour from the palette below, then click a cell to paint.',
         placement: 'centre',
         showHighlight: false,
+        helpTopic: 'painting',
         onComplete: ()=>_coach.complete('firstStitch_creator'),
         onSkip: ()=>_coach.skip('firstStitch_creator')
       })}
@@ -1098,6 +1099,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         body: 'Open the Tools tab in the sidebar to brush, lasso, magic-wand, half-stitch, and add backstitch lines. Image, Dimensions, and Palette stay one click away.',
         placement: 'left',
         showHighlight: true,
+        helpTopic: 'tools',
         onComplete: ()=>_coach.complete('toolsTab_unlocked'),
         onSkip: ()=>_coach.skip('toolsTab_unlocked')
       })}

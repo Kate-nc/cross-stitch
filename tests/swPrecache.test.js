@@ -20,9 +20,12 @@ describe('sw.js precache (UX-12 Phase 7 PR #13)', () => {
   // the brand catalogues were defer-loaded / removed from home.html
   // (perf audit, Cat D — quick wins #2). Bumped to v38 when the
   // ImportWizard bundle was code-split out of creator/bundle.js
-  // (perf audit, Cat C — quick wins #3).
-  test('CACHE_NAME bumped to v38', () => {
-    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v38['"]/);
+  // (perf audit, Cat C — quick wins #3). Bumped to v39 when Cache-Control
+  // headers and CSS network-first strategy were added. Bumped to v40 when
+  // precache requests were upgraded to { cache: 'no-cache' } for
+  // defence-in-depth against the browser HTTP cache during SW install.
+  test('CACHE_NAME bumped to v40', () => {
+    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v40['"]/);
   });
 
   test('PRECACHE_URLS includes home.html', () => {

@@ -1940,7 +1940,8 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
             : h('button', {
                 className: 'sync-device-name-btn',
                 onClick: function() { setEditingDeviceName(true); },
-                title: 'Click to edit device name'
+                title: 'Click to edit device name',
+                'aria-label': 'Edit device name'
               }, syncStatus && syncStatus.deviceName ? syncStatus.deviceName : 'Set device name\u2026')
         ),
 

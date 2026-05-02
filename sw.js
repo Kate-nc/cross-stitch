@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v38';
+var CACHE_NAME = 'cross-stitch-cache-v40';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -67,13 +67,17 @@ var PRECACHE_URLS = [
   './assets/fontkit.umd.min.js'
 ];
 
-// Install: pre-cache all assets individually so one failure doesn't block the rest
+// Install: pre-cache all assets individually so one failure doesn't block the rest.
+// Use { cache: 'no-cache' } so the install-time fetches bypass the browser's HTTP
+// cache and always go to the network — defence-in-depth on top of the server-side
+// Cache-Control: no-cache headers already set in vercel.json.
 self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function (cache) {
       return Promise.all(
         PRECACHE_URLS.map(function (url) {
-          return cache.add(url).catch(function (err) {
+          var req = new Request(url, { cache: 'no-cache' });
+          return cache.add(req).catch(function (err) {
             console.warn('SW install: failed to cache', url, err);
           });
         })
@@ -109,7 +113,7 @@ self.addEventListener('fetch', function (event) {
   // Navigation requests (HTML pages): network-first, cache fallback
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).then(function (response) {
+      fetch(event.request, { cache: 'no-cache' }).then(function (response) {
         // Cache the latest copy for offline use only when the response succeeded
         if (response.ok && response.type === 'basic') {
           var clone = response.clone();
@@ -167,10 +171,10 @@ self.addEventListener('fetch', function (event) {
     // diagnostic console.log statements and bug fixes appear to do nothing
     // for at least one full reload after every release. Cache is still used
     // as a fallback when offline.
-    var isAppCode = /\.(js|html|json)$/i.test(url.pathname);
+    var isAppCode = /\.(js|html|json|css)$/i.test(url.pathname);
     if (isAppCode) {
       event.respondWith(
-        fetch(event.request).then(function (response) {
+        fetch(event.request, { cache: 'no-cache' }).then(function (response) {
           if (response && response.ok && event.request.method === 'GET') {
             var clone = response.clone();
             caches.open(CACHE_NAME).then(function (cache) {

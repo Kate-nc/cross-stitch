@@ -537,7 +537,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)'}},
       h("input", {type:"checkbox", checked:ctx.arLock, onChange:function(e){ctx.setArLock(e.target.checked);}}),
       h("span", null, "Lock aspect ratio"),
-      h(InfoIcon, {text:"Keep width and height proportional when resizing", width:200})
+      h(InfoIcon, {text:"Keep width and height proportional when resizing", width:220})
     ),
     h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:-6,marginBottom:'var(--s-2)'}}, "Max: 5000 \u00D7 5000 stitches"),
     ctx.arLock
@@ -545,14 +545,16 @@ window.CreatorSidebar = function CreatorSidebar() {
           h(SliderRow, {label:"Size", value:ctx.sW, min:10, max:300, onChange:ctx.slRsz, suffix:" st"}),
           h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:2}}, "Pattern will be "+ctx.sW+"\xD7"+ctx.sH+" stitches (aspect ratio preserved)")
         )
-      : h("div", {style:{display:"flex",gap:10}},
-          h("div", {style:{flex:1}},
-            h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",display:"block",marginBottom:2}}, "Width"),
-            h("input", {type:"number", value:ctx.sW, onChange:function(e){ctx.chgW(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',fontSize:'var(--text-md)'}})
-          ),
-          h("div", {style:{flex:1}},
-            h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",display:"block",marginBottom:2}}, "Height"),
-            h("input", {type:"number", value:ctx.sH, onChange:function(e){ctx.chgH(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',fontSize:'var(--text-md)'}})
+      : h(FieldWithHint, {hint:"Stitches across and down your pattern. At 14ct, every 14 stitches \u2248 1 inch (2.5\xa0cm). More stitches = more detail, but a larger and more time-consuming piece.",topic:"dimensions"},
+          h("div", {style:{display:"flex",gap:10}},
+            h("div", {style:{flex:1}},
+              h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",display:"block",marginBottom:2}}, "Width"),
+              h("input", {type:"number", value:ctx.sW, onChange:function(e){ctx.chgW(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',fontSize:'var(--text-md)'}})
+            ),
+            h("div", {style:{flex:1}},
+              h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",display:"block",marginBottom:2}}, "Height"),
+              h("input", {type:"number", value:ctx.sH, onChange:function(e){ctx.chgH(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',fontSize:'var(--text-md)'}})
+            )
           )
         )
   );
@@ -561,7 +563,9 @@ window.CreatorSidebar = function CreatorSidebar() {
   var palSection = !ctx.isScratchMode ? h(Section, {title:"Colours", isOpen:app.palOpen, onToggle:app.setPalOpen},
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Max colours", value:gen.maxC, min:10, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(10, gen.stashThreadCount) : 40, onChange:gen.setMaxC,
-        helpText:"Limits the colour palette. Fewer colours = faster to stitch but less detail"}),
+        helpText:"One colour = one DMC thread skein",
+        inlineHint:"Each colour = one skein of DMC thread. Fewer colours means less shopping and faster stitching — 10\u201315 is a good starting range for most photos.",
+        helpTopic:"palette"}),
       gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && h("div", {style:{fontSize:10,color:"#A06F2D",marginTop:2}},
         "Clamped to " + gen.stashThreadCount + " (stash size)"
       )
@@ -569,7 +573,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:gen.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)',opacity:gen.blendsAutoDisabled?0.5:1}},
       h("input", {type:"checkbox", checked:gen.allowBlends, disabled:gen.blendsAutoDisabled, onChange:function(e){gen.setAllowBlends(e.target.checked);}}),
       h("span", null, "Allow blended threads"),
-      h(InfoIcon, {text:"Allow the algorithm to blend two DMC colours in a single stitch for smoother gradients", width:200})
+      h(InfoIcon, {text:"Allow the algorithm to blend two DMC colours in a single stitch for smoother gradients", width:220})
     ),
     gen.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginBottom:'var(--s-2)'}},
       "Auto-disabled \u2014 fewer than 6 stash threads"
@@ -579,7 +583,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     },
       h("input", {type:"checkbox", checked:gen.stashConstrained, onChange:function(e){gen.setStashConstrained(e.target.checked);}}),
       h("span", null, "Use only stash threads"),
-      h(InfoIcon, {text:"Constrains the palette to threads you physically own. Produces a pattern you can stitch immediately without buying anything.", width:240})
+      h(InfoIcon, {text:"Constrains the palette to threads you physically own. Produces a pattern you can stitch immediately without buying anything.", width:220})
     ),
     typeof StashBridge !== "undefined" && !gen.stashConstrained && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:-10,marginBottom:'var(--s-2)'}},
       "Enable to generate patterns using only threads you already own."
@@ -592,7 +596,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       gen.stashPalette && gen.stashPalette.length > 0 && h("div", {style:{marginBottom:'var(--s-2)'}},
         h("div", {style:{display:"flex",flexWrap:"wrap",gap:2,marginBottom:2}},
           (stashStripExpanded ? gen.stashPalette : gen.stashPalette.slice(0,60)).map(function(t) {
-            return h(Tooltip, {key:t.id, text:"DMC " + t.id + " \u2014 " + t.name, width:140},
+            return h(Tooltip, {key:t.id, text:"DMC " + t.id + " \u2014 " + t.name, width:160},
               h("div", {style:{width:12,height:12,borderRadius:2,background:"rgb(" + t.rgb.join(",") + ")"}})
             );
           })
@@ -776,12 +780,12 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("div", {style:{marginTop:'var(--s-2)'}},
         h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
           h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:600}}, "Dithering"),
-          h(InfoIcon, {text:"Blends colours by mixing stitches using error diffusion. Higher strengths create smoother gradients but more scattered stitches.", width:230})
+          h(InfoIcon, {text:"Blends colours by mixing stitches using error diffusion. Higher strengths create smoother gradients but more scattered stitches.", width:220})
         ),
         h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
           dithOpts.map(function(o) {
             var active = dithCur === o.id;
-            return h(Tooltip, {key:o.id, text:o.tip, width:210},
+            return h(Tooltip, {key:o.id, text:o.tip, width:220},
               h("button", {
                 onClick:function(){gen.setDith(o.id);},
                 style:{flex:1,padding:"5px 6px",fontSize:'var(--text-xs)',fontWeight:active?600:400,
@@ -810,12 +814,16 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("div", {style:{marginTop:'var(--s-2)'}},
         h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:500, step:5, onChange:gen.setMinSt,
           format:function(v){return v===0?"Off":v;},
-          helpText:"Colours used fewer than this many times will be merged into the nearest similar colour"})
+          helpText:"Minimum stitches before a colour is kept",
+          inlineHint:"Merges rarely-used colours into similar neighbours, reducing your thread count. Raise this if too many shades look nearly identical.",
+          helpTopic:"palette"})
       ),
       h("div", {style:{marginTop:'var(--s-2)'}},
         h(SliderRow, {label:"Confetti Cleanup", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
           format:function(v){return v===0?"Off":String(v);},
-          helpText:"Removes isolated single stitches (confetti) with no same-colour neighbours \u2014 improves stitch score and makes the pattern easier to sew"}),  
+          helpText:"Removes isolated single stitches",
+          inlineHint:"Confetti stitches are single isolated stitches surrounded by different colours \u2014 each one forces a separate thread change. Removing them can dramatically cut stitching time.",
+          helpTopic:"confetti"}),  
         gen.orphans > 0 && (function() {
           var desc;
           if (gen.orphans === 1) {
@@ -947,14 +955,16 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Smooth", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
-        helpText:"Blur filter to reduce noise in grainy or low-resolution photos"}),
+        helpText:"Pre-blur to reduce speckled stitches",
+        inlineHint:"Blurs the source before generating. Try 1\u20132 for grainy or low-resolution photos to reduce speckled stitches. Leave at Off for sharp images.",
+        helpTopic:"image"}),
       gen.smooth===0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
       gen.smooth>0 && h("div", {style:{display:"flex",gap:6,margin:"6px 0"}},
         h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2,flex:1}},
-          h(Tooltip, {text:"Preserves edges better. Best for most photos", width:180},
+          h(Tooltip, {text:"Preserves edges better. Best for most photos", width:220},
             h("button", {onClick:function(){gen.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:'var(--text-sm)',fontWeight:gen.smoothType==="median"?500:400,background:gen.smoothType==="median"?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',color:gen.smoothType==="median"?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median")
           ),
-          h(Tooltip, {text:"Stronger overall blur. Better for very grainy or pixelated images", width:180},
+          h(Tooltip, {text:"Stronger overall blur. Better for very grainy or pixelated images", width:220},
             h("button", {onClick:function(){gen.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:'var(--text-sm)',fontWeight:gen.smoothType==="gaussian"?500:400,background:gen.smoothType==="gaussian"?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',color:gen.smoothType==="gaussian"?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian")
           )
         )

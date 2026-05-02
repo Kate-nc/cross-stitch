@@ -333,6 +333,18 @@
       },
         h("h2", { id: titleId, className: "cs-coachmark-title" }, props.title || ""),
         h("p",  { id: bodyId,  className: "cs-coachmark-body"  }, props.body  || ""),
+        props.helpTopic && h("button", {
+          type: "button",
+          className: "cs-coachmark-learn-more",
+          onClick: function () {
+            handleSkip();
+            try {
+              if (window.HelpDrawer && typeof window.HelpDrawer.open === "function") {
+                window.HelpDrawer.open({ tab: "help", query: props.helpTopic });
+              }
+            } catch (_) {}
+          }
+        }, "Learn more"),
         h("div", { className: "cs-coachmark-buttons" },
           buttons.map(function (btn, i) {
             var primary = !!btn.primary;
