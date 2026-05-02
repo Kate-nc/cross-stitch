@@ -111,7 +111,7 @@ window.PatternCanvas = function PatternCanvas() {
     gen.showCleanupDiff, gen.cleanupDiff,
     cv.dimFraction, cv.dimHiId, cv.bgDimOpacity, cv.bgDimDesaturation,
     cv.highlightMode, cv.tintColor, cv.tintOpacity, cv.spotDimOpacity,
-    ctx.fabricColour
+    ctx.fabricColour, ctx.canvasTexture
   ]);
 
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).

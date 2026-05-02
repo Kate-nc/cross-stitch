@@ -2931,22 +2931,32 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
     }
   }
 
-  // color-11: thread sheen — second pass gradient overlay on stitch cells
+  // color-11: thread sheen — second pass gradient overlay on stitch cells.
+  // Precompute one sheen tile (cSz × cSz offscreen canvas) and tile it as a
+  // repeating pattern to avoid allocating a new CanvasGradient per cell.
   if (state.canvasTexture && cSz >= 6) {
+    var _sheenTile = document.createElement("canvas");
+    _sheenTile.width = cSz; _sheenTile.height = cSz;
+    var _sheenCtx = _sheenTile.getContext("2d");
+    var _sheenGrad = _sheenCtx.createLinearGradient(0, 0, cSz, cSz);
+    _sheenGrad.addColorStop(0, "rgba(255,255,255,0.13)");
+    _sheenGrad.addColorStop(0.45, "transparent");
+    _sheenGrad.addColorStop(1, "rgba(0,0,0,0.06)");
+    _sheenCtx.fillStyle = _sheenGrad;
+    _sheenCtx.fillRect(0, 0, cSz, cSz);
+    var _sheenPat = ctx2d.createPattern(_sheenTile, "repeat");
+    ctx2d.save();
+    ctx2d.translate(gut, gut);
+    ctx2d.fillStyle = _sheenPat;
     for (var _ty = 0; _ty < dH; _ty++) {
       for (var _tx = 0; _tx < dW; _tx++) {
         var _ti = (offY + _ty) * sW + (offX + _tx);
         var _tm = pat[_ti];
         if (!_tm || _tm.id === "__skip__" || _tm.id === "__empty__") continue;
-        var _tpx = gut + _tx * cSz, _tpy = gut + _ty * cSz;
-        var _tg = ctx2d.createLinearGradient(_tpx, _tpy, _tpx + cSz, _tpy + cSz);
-        _tg.addColorStop(0, "rgba(255,255,255,0.13)");
-        _tg.addColorStop(0.45, "transparent");
-        _tg.addColorStop(1, "rgba(0,0,0,0.06)");
-        ctx2d.fillStyle = _tg;
-        ctx2d.fillRect(_tpx, _tpy, cSz, cSz);
+        ctx2d.fillRect(_tx * cSz, _ty * cSz, cSz, cSz);
       }
     }
+    ctx2d.restore();
   }
 
   // Marching ants for outline mode
@@ -3230,22 +3240,32 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
     }
   }
 
-  // color-11: thread sheen — second pass gradient overlay on stitch cells
+  // color-11: thread sheen — second pass gradient overlay on stitch cells.
+  // Precompute one sheen tile (cSz × cSz offscreen canvas) and tile it as a
+  // repeating pattern to avoid allocating a new CanvasGradient per cell.
   if (state.canvasTexture && cSz >= 6) {
+    var _bSheenTile = document.createElement("canvas");
+    _bSheenTile.width = cSz; _bSheenTile.height = cSz;
+    var _bSheenCtx = _bSheenTile.getContext("2d");
+    var _bSheenGrad = _bSheenCtx.createLinearGradient(0, 0, cSz, cSz);
+    _bSheenGrad.addColorStop(0, "rgba(255,255,255,0.13)");
+    _bSheenGrad.addColorStop(0.45, "transparent");
+    _bSheenGrad.addColorStop(1, "rgba(0,0,0,0.06)");
+    _bSheenCtx.fillStyle = _bSheenGrad;
+    _bSheenCtx.fillRect(0, 0, cSz, cSz);
+    var _bSheenPat = ctx2d.createPattern(_bSheenTile, "repeat");
+    ctx2d.save();
+    ctx2d.translate(gut, gut);
+    ctx2d.fillStyle = _bSheenPat;
     for (var _bty = 0; _bty < dH; _bty++) {
       for (var _btx = 0; _btx < dW; _btx++) {
         var _bti = (offY + _bty) * sW + (offX + _btx);
         var _btm = pat[_bti];
         if (!_btm || _btm.id === "__skip__" || _btm.id === "__empty__") continue;
-        var _btpx = gut + _btx * cSz, _btpy = gut + _bty * cSz;
-        var _btg = ctx2d.createLinearGradient(_btpx, _btpy, _btpx + cSz, _btpy + cSz);
-        _btg.addColorStop(0, "rgba(255,255,255,0.13)");
-        _btg.addColorStop(0.45, "transparent");
-        _btg.addColorStop(1, "rgba(0,0,0,0.06)");
-        ctx2d.fillStyle = _btg;
-        ctx2d.fillRect(_btpx, _btpy, cSz, cSz);
+        ctx2d.fillRect(_btx * cSz, _bty * cSz, cSz, cSz);
       }
     }
+    ctx2d.restore();
   }
 
   // Cleanup diff overlay (magenta at 40%, below gridlines)
@@ -9192,7 +9212,7 @@ window.PatternCanvas = function PatternCanvas() {
     gen.showCleanupDiff, gen.cleanupDiff,
     cv.dimFraction, cv.dimHiId, cv.bgDimOpacity, cv.bgDimDesaturation,
     cv.highlightMode, cv.tintColor, cv.tintOpacity, cv.spotDimOpacity,
-    ctx.fabricColour
+    ctx.fabricColour, ctx.canvasTexture
   ]);
 
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).

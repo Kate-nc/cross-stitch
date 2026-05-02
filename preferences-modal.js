@@ -287,7 +287,6 @@
     var importWiz = usePref("experimental.importWizard", false);
     var embroidery = usePref("experimental.embroideryTool", false);
     var threadSheen = usePref("creatorCanvasTexture", false);
-    var threadSheen = usePref("creatorCanvasTexture", false);
 
     return h("div", null,
       h(PageHeader, { title: "Pattern Creator",
