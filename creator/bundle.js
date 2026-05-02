@@ -2931,6 +2931,24 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
     }
   }
 
+  // color-11: thread sheen — second pass gradient overlay on stitch cells
+  if (state.canvasTexture && cSz >= 6) {
+    for (var _ty = 0; _ty < dH; _ty++) {
+      for (var _tx = 0; _tx < dW; _tx++) {
+        var _ti = (offY + _ty) * sW + (offX + _tx);
+        var _tm = pat[_ti];
+        if (!_tm || _tm.id === "__skip__" || _tm.id === "__empty__") continue;
+        var _tpx = gut + _tx * cSz, _tpy = gut + _ty * cSz;
+        var _tg = ctx2d.createLinearGradient(_tpx, _tpy, _tpx + cSz, _tpy + cSz);
+        _tg.addColorStop(0, "rgba(255,255,255,0.13)");
+        _tg.addColorStop(0.45, "transparent");
+        _tg.addColorStop(1, "rgba(0,0,0,0.06)");
+        ctx2d.fillStyle = _tg;
+        ctx2d.fillRect(_tpx, _tpy, cSz, cSz);
+      }
+    }
+  }
+
   // Marching ants for outline mode
   if (hl.mode === "outline" && hl.hiId) {
     _drawMarchingAnts(ctx2d, offX, offY, dW, dH, cSz, gut, pat, sW, sH, hl.hiId, hl.antsOffset);
@@ -3208,6 +3226,24 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
               break;
           }
         });
+      }
+    }
+  }
+
+  // color-11: thread sheen — second pass gradient overlay on stitch cells
+  if (state.canvasTexture && cSz >= 6) {
+    for (var _bty = 0; _bty < dH; _bty++) {
+      for (var _btx = 0; _btx < dW; _btx++) {
+        var _bti = (offY + _bty) * sW + (offX + _btx);
+        var _btm = pat[_bti];
+        if (!_btm || _btm.id === "__skip__" || _btm.id === "__empty__") continue;
+        var _btpx = gut + _btx * cSz, _btpy = gut + _bty * cSz;
+        var _btg = ctx2d.createLinearGradient(_btpx, _btpy, _btpx + cSz, _btpy + cSz);
+        _btg.addColorStop(0, "rgba(255,255,255,0.13)");
+        _btg.addColorStop(0.45, "transparent");
+        _btg.addColorStop(1, "rgba(0,0,0,0.06)");
+        ctx2d.fillStyle = _btg;
+        ctx2d.fillRect(_btpx, _btpy, cSz, cSz);
       }
     }
   }

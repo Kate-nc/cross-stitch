@@ -286,6 +286,8 @@
     var refOpac = usePref("creatorReferenceOpacity", 35);
     var importWiz = usePref("experimental.importWizard", false);
     var embroidery = usePref("experimental.embroideryTool", false);
+    var threadSheen = usePref("creatorCanvasTexture", false);
+    var threadSheen = usePref("creatorCanvasTexture", false);
 
     return h("div", null,
       h(PageHeader, { title: "Pattern Creator",
@@ -347,6 +349,9 @@
           h(Segmented, { value: view[0], onChange: view[1], options: [
             { value: "colour", label: "Colour" }, { value: "symbol", label: "Symbol" }, { value: "both", label: "Both" }
           ]})
+        ),
+        h(Row, { label: "Thread sheen", desc: "Adds a subtle specular highlight to pattern squares to better suggest how thread catches light." },
+          h(Switch, { checked: threadSheen[0], onChange: threadSheen[1] })
         ),
         h(Row, { last: true, label: "Show grid overlay by default", desc: "Adds 10‑stitch grid lines to the chart canvas." },
           h(Switch, { checked: grid[0], onChange: grid[1] })
