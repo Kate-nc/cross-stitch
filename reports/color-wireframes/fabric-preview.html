@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Fabric Background Preview — Wireframe</title>
+<style>
+  :root {
+    --surface: #F5F3F0;
+    --surface-2: #FFFFFF;
+    --text-primary: #1A1A1A;
+    --text-secondary: #6B6B6B;
+    --border: #D8D4CE;
+    --radius-sm: 4px;
+    --accent: #4A7C59;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--surface); color: var(--text-primary); font: 14px/1.5 system-ui, sans-serif; padding: 24px; }
+  h1 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+  .subtitle { color: var(--text-secondary); font-size: 13px; margin-bottom: 24px; }
+  h2 { font-size: 15px; font-weight: 600; margin: 24px 0 12px; }
+  .note { background: #F0F4FF; border: 1px solid #B0C0E0; border-radius: var(--radius-sm); padding: 10px 14px; font-size: 13px; margin-bottom: 24px; }
+
+  /* Toolbar strip */
+  .toolbar { display: flex; align-items: center; gap: 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 14px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .toolbar-label { font-size: 12px; color: var(--text-secondary); }
+  .fabric-select { padding: 5px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; background: var(--surface-2); cursor: pointer; }
+  .fabric-preview-dot { width: 16px; height: 16px; border-radius: 2px; border: 1px solid rgba(0,0,0,0.18); display: inline-block; }
+
+  /* Canvas mockup */
+  .canvas-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; }
+  .canvas-demo { border-radius: 6px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+  .canvas-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); padding: 8px 10px; border-bottom: 1px solid var(--border); background: #ECEAE7; }
+  .canvas-area { width: 100%; aspect-ratio: 1; display: grid; grid-template-columns: repeat(10, 1fr); gap: 1px; padding: 4px; }
+  .cell { border-radius: 1px; aspect-ratio: 1; }
+  .cell.empty { opacity: 0.0; }
+
+  /* Simple cross stitch pattern — a heart shape, 10x10 */
+  /* 0 = background, 1 = main color (DMC 321 - red), 2 = accent (DMC 3865 - winter white) */
+
+  .annotation { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+  .annotation strong { color: var(--text-primary); }
+
+  /* The disclaimer chip */
+  .disclaimer { display: inline-flex; align-items: center; gap: 6px; background: #FAFAF8; border: 1px solid var(--border); border-radius: 12px; padding: 4px 10px; font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<h1>Fabric Background Preview — UI Wireframe</h1>
+<p class="subtitle">
+  Showing how the fabric background control would appear in the toolbar
+  and its effect on the pattern canvas.
+</p>
+
+<div class="note">
+  The fabric colour affects how thread colours are perceived, especially for
+  light/pastel threads. Many stitchers work on natural linen or coloured fabric.
+  This control lets them see their pattern in the context of their actual fabric choice.
+</div>
+
+<h2>Toolbar with Fabric Background selector</h2>
+
+<div class="toolbar">
+  <span class="toolbar-label">Fabric:</span>
+  <span class="fabric-preview-dot" style="background:#FFFFFF"></span>
+  <select class="fabric-select">
+    <option selected>White Aida</option>
+    <option>Antique White Aida</option>
+    <option>Natural Linen</option>
+    <option>Cream Evenweave</option>
+    <option>Black Aida</option>
+    <option>Custom colour...</option>
+  </select>
+</div>
+
+<p class="annotation" style="margin-bottom:16px">
+  The selector sits in the existing tool strip, alongside zoom and grid controls.
+  Selecting a fabric updates the canvas background immediately.
+  The selected preference is saved per project.
+</p>
+
+<h2>Canvas comparison across three fabric colours</h2>
+<p class="annotation" style="margin-bottom:16px">
+  Same pattern (a red heart motif with white highlight using DMC 321 and B5200),
+  shown on three different fabric backgrounds. Note how the winter white (B5200)
+  cells become nearly invisible on white fabric but read clearly on natural linen.
+</p>
+
+<div class="canvas-grid">
+
+  <!-- White Aida -->
+  <div>
+    <div class="canvas-demo">
+      <div class="canvas-label">White Aida (#FFFFFF)</div>
+      <div class="canvas-area" style="background:#FFFFFF">
+        <!-- Row 1 -->
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <!-- Row 2 -->
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <!-- Row 3 -->
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#F9F7F1"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <!-- Row 4 -->
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <!-- Row 5 -->
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <!-- Row 6 -->
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <!-- Row 7 -->
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <!-- Row 8 -->
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#FFFFFF"></div>
+        <!-- Rows 9-10 empty -->
+        <div class="cell" style="background:#FFFFFF"></div><div class="cell" style="background:#FFFFFF"></div><div class="cell" style="background:#FFFFFF"></div><div class="cell" style="background:#FFFFFF"></div><div class="cell" style="background:#FFFFFF"></div><div class="cell" style="background:#FFFFFF"></div><div class="cell" style="background:#FFFFFF"></div><div class="cell" style="background:#FFFFFF"></div><div class="cell" style="background:#FFFFFF"></div><div class="cell" style="background:#FFFFFF"></div>
+        <div class="cell" style="background:#FFFFFF"></div><div class="cell" style="background:#FFFFFF"></div><div class="cell" style="background:#FFFFFF"></div><div class="cell" style="background:#FFFFFF"></div><div class="cell" style="background:#FFFFFF"></div><div class="cell" style="background:#FFFFFF"></div><div class="cell" style="background:#FFFFFF"></div><div class="cell" style="background:#FFFFFF"></div><div class="cell" style="background:#FFFFFF"></div><div class="cell" style="background:#FFFFFF"></div>
+      </div>
+    </div>
+    <p class="annotation" style="margin-top:6px">
+      <strong>Note:</strong> The winter white highlight (B5200, rgb 255,255,255)
+      is invisible against white Aida — stitchers need fabric preview to see this.
+    </p>
+  </div>
+
+  <!-- Natural Linen -->
+  <div>
+    <div class="canvas-demo">
+      <div class="canvas-label">Natural Linen (#D2B48C)</div>
+      <div class="canvas-area" style="background:#D2B48C">
+        <!-- Same pattern, fabric is linen -->
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#F9F7F1"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div><div class="cell" style="background:#D2B48C"></div><div class="cell" style="background:#D2B48C"></div><div class="cell" style="background:#D2B48C"></div><div class="cell" style="background:#D2B48C"></div><div class="cell" style="background:#D2B48C"></div><div class="cell" style="background:#D2B48C"></div><div class="cell" style="background:#D2B48C"></div><div class="cell" style="background:#D2B48C"></div><div class="cell" style="background:#D2B48C"></div>
+        <div class="cell" style="background:#D2B48C"></div><div class="cell" style="background:#D2B48C"></div><div class="cell" style="background:#D2B48C"></div><div class="cell" style="background:#D2B48C"></div><div class="cell" style="background:#D2B48C"></div><div class="cell" style="background:#D2B48C"></div><div class="cell" style="background:#D2B48C"></div><div class="cell" style="background:#D2B48C"></div><div class="cell" style="background:#D2B48C"></div><div class="cell" style="background:#D2B48C"></div>
+      </div>
+    </div>
+    <p class="annotation" style="margin-top:6px">
+      On natural linen, the red reads warmer and the white highlight (B5200)
+      is now clearly visible as a distinct, cool white against the warm background.
+    </p>
+  </div>
+
+  <!-- Black Aida -->
+  <div>
+    <div class="canvas-demo">
+      <div class="canvas-label">Black Aida (#1A1A1A)</div>
+      <div class="canvas-area" style="background:#1A1A1A">
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#F9F7F1"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#CD0A18"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div><div class="cell" style="background:#1A1A1A"></div><div class="cell" style="background:#1A1A1A"></div><div class="cell" style="background:#1A1A1A"></div><div class="cell" style="background:#1A1A1A"></div><div class="cell" style="background:#1A1A1A"></div><div class="cell" style="background:#1A1A1A"></div><div class="cell" style="background:#1A1A1A"></div><div class="cell" style="background:#1A1A1A"></div><div class="cell" style="background:#1A1A1A"></div>
+        <div class="cell" style="background:#1A1A1A"></div><div class="cell" style="background:#1A1A1A"></div><div class="cell" style="background:#1A1A1A"></div><div class="cell" style="background:#1A1A1A"></div><div class="cell" style="background:#1A1A1A"></div><div class="cell" style="background:#1A1A1A"></div><div class="cell" style="background:#1A1A1A"></div><div class="cell" style="background:#1A1A1A"></div><div class="cell" style="background:#1A1A1A"></div><div class="cell" style="background:#1A1A1A"></div>
+      </div>
+    </div>
+    <p class="annotation" style="margin-top:6px">
+      On black Aida, the red pops dramatically. The white highlight reads as
+      a sharp cool accent. A pattern designed with white background in mind may
+      look completely different on black.
+    </p>
+  </div>
+
+</div>
+
+<h2>Implementation notes</h2>
+<ul style="font-size:13px;line-height:2;color:var(--text-secondary);padding-left:20px;">
+  <li>The fabric colour only affects the <em>background</em> cells (cells with <code>id: "__empty__"</code> or <code>id: "__skip__"</code>). Stitched cells are unaffected.</li>
+  <li>Default remains white (#FFFFFF) — no change for existing users unless they choose a different fabric.</li>
+  <li>Preference is stored per project in the project settings object.</li>
+  <li>The canvas renderer (<code>creator/canvasRenderer.js</code>) and the stitch tracker canvas (<code>tracker-app.js</code>) both need updating.</li>
+  <li>The fabric selector is a minimal addition to the existing tool strip — it does not require a new panel or modal.</li>
+</ul>
+
+<div class="disclaimer">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  Colours shown are screen approximations. Thread codes are the authoritative reference.
+</div>
+
+</body>
+</html>

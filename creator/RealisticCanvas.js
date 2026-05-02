@@ -59,7 +59,13 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
     if (!oc) return; // canvas too large for the device
 
     // ── 1. Fabric base ──────────────────────────────────────────────────────
-    var FR = 245, FG = 240, FB = 230; // warm cream Aida
+    // Use the user's fabric colour preference (from AppContext via useApp())
+    // rather than hard-coded warm cream so the realistic preview stays in sync
+    // with the flat editor's fabric background (color-11).
+    var _fabColRc = /^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/.exec(app.fabricColour || "");
+    var FR = _fabColRc ? parseInt(_fabColRc[1], 16) : 245;
+    var FG = _fabColRc ? parseInt(_fabColRc[2], 16) : 240;
+    var FB = _fabColRc ? parseInt(_fabColRc[3], 16) : 230;
     oc.fillStyle = "rgb(" + FR + "," + FG + "," + FB + ")";
     oc.fillRect(0, 0, canvasW, canvasH);
 

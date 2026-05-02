@@ -2601,6 +2601,32 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
   border-radius: 3px;
   border: 1px solid var(--border);
   flex-shrink: 0;
+  /* color-3 (C1): position + overflow enable the ::after texture overlay below.
+     Inline `background: rgb(...)` shorthand resets background-image, so the
+     subtle thread sheen has to live on a pseudo-element. */
+  position: relative;
+  overflow: hidden;
+}
+.colour-swatch::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.18) 0%,
+    transparent 50%,
+    rgba(0, 0, 0, 0.06) 100%
+  );
+  pointer-events: none;
+}
+.colour-swatch--large::after {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.14) 0%,
+    transparent 50%,
+    rgba(0, 0, 0, 0.05) 100%
+  );
 }
 .colour-id {
   font-weight: 600;
@@ -6592,3 +6618,112 @@ body.cs-focus .lpanel-backdrop { display: none !important; }
 }
 
 
+
+/* ----------------------------------------------------------------
+   color-3 (C2 + C3): Swatch detail popover and similar-colour
+   comparator. See components.js for the React components.
+   ---------------------------------------------------------------- */
+
+.swatch-detail-popover {
+  position: fixed;
+  z-index: 9999;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.14), 0 1px 3px rgba(0,0,0,0.08);
+  padding: 12px;
+  width: 240px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.sdp-header { display: flex; align-items: baseline; gap: 6px; margin-bottom: 10px; }
+.sdp-code { font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums; }
+.sdp-name { font-size: 12px; color: var(--text-secondary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sdp-close {
+  margin-left: auto; background: none; border: none; cursor: pointer;
+  color: var(--text-secondary); padding: 2px 4px; border-radius: var(--radius-sm);
+  display: inline-flex; align-items: center; line-height: 1;
+}
+.sdp-close:hover { color: var(--text-primary); background: var(--surface-tertiary, rgba(0,0,0,0.05)); }
+.sdp-swatch-large {
+  width: 56px; height: 56px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); margin-bottom: 12px;
+}
+.sdp-fabric-row { display: flex; gap: 8px; margin-bottom: 10px; justify-content: space-between; }
+.sdp-fabric-item { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; min-width: 0; }
+.sdp-fabric-bg {
+  width: 44px; height: 44px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+}
+.sdp-fabric-chip { width: 28px; height: 28px; border-radius: 2px; }
+.sdp-fabric-label { font-size: 10px; color: var(--text-secondary); text-align: center; line-height: 1.2; }
+.sdp-note {
+  font-size: 11px; color: var(--text-secondary);
+  display: flex; align-items: flex-start; gap: 5px; line-height: 1.4;
+  margin: 0 0 6px 0;
+}
+.sdp-note-icon { display: inline-flex; width: 12px; height: 12px; flex-shrink: 0; margin-top: 1px; }
+.sdp-note-icon svg { width: 12px; height: 12px; }
+.sdp-similar {
+  font-size: 11px; color: var(--text-secondary);
+  padding: 6px 8px; background: var(--surface-tertiary, rgba(0,0,0,0.04));
+  border-radius: var(--radius-sm); border: 1px solid var(--border);
+  line-height: 1.4; margin: 4px 0 0 0;
+}
+
+.similar-comparator {
+  padding: 14px 16px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent-hover, #B7500A);
+  border-radius: var(--radius-sm);
+  margin: 6px 0 10px;
+}
+.sc-threads {
+  display: flex; align-items: flex-start; gap: 12px;
+  margin-bottom: 12px; justify-content: space-between;
+}
+.sc-thread { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 60px; }
+.sc-swatch-tall {
+  width: 40px; height: 60px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+.sc-code { font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
+.sc-name { font-size: 11px; color: var(--text-secondary); text-align: center; max-width: 80px; line-height: 1.3; }
+.sc-delta-block {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; flex: 1; gap: 4px; padding-top: 8px;
+}
+.sc-delta-value { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.sc-delta-desc { font-size: 11px; color: var(--text-secondary); text-align: center; max-width: 140px; line-height: 1.3; }
+.sc-fabric-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+.sc-fabric-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.sc-fabric-bg {
+  width: 44px; height: 44px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+}
+.sc-fabric-chip { width: 28px; height: 28px; border-radius: 2px; }
+.sc-fabric-label { font-size: 10px; color: var(--text-secondary); text-align: center; line-height: 1.2; }
+.sc-note {
+  font-size: 11px; color: var(--text-secondary); line-height: 1.5;
+  margin: 0 0 10px; font-style: italic;
+}
+.sc-dismiss { align-self: flex-start; }
+.chevron-toggle { transition: transform 160ms ease-out; color: var(--text-secondary); display: inline-flex; }
+.chevron-toggle--open { transform: rotate(180deg); }
+
+@media (max-width: 480px) {
+  .swatch-detail-popover {
+    position: fixed !important;
+    left: 8px !important; right: 8px !important;
+    bottom: 8px !important; top: auto !important;
+    width: auto !important;
+  }
+}

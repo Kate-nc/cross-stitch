@@ -916,6 +916,24 @@ const[trackerDimLevel,setTrackerDimLevel]=useState(()=>{
   try{return parseFloat(localStorage.getItem("cs_trDimLv")||"0.1");}catch(_){return 0.1;}
 });
 useEffect(()=>{try{localStorage.setItem("cs_trDimLv",String(trackerDimLevel));}catch(_){}try{if(window.UserPrefs)window.UserPrefs.set("trackerDimLevel",trackerDimLevel);}catch(_){}},[trackerDimLevel]);
+// color-2 (B3): tracker canvas background fabric colour. Validated as #RRGGBB.
+const[trackerFabricColour,setTrackerFabricColour]=useState(()=>{
+  try{var pv=window.UserPrefs&&window.UserPrefs.get("trackerFabricColour");if(typeof pv==="string"&&/^#[0-9a-fA-F]{6}$/.test(pv))return pv;}catch(_){}
+  return "#FFFFFF";
+});
+// color-11: thread sheen texture toggle for tracker canvas
+const[trackerCanvasTexture,setTrackerCanvasTexture]=useState(()=>{
+  try{return !!(window.UserPrefs&&window.UserPrefs.get("trackerCanvasTexture"));}catch(_){return false;}
+});
+useEffect(()=>{
+  function _onTCT(e){if(e&&e.detail&&e.detail.key==="trackerCanvasTexture")setTrackerCanvasTexture(!!e.detail.value);}
+  document.addEventListener("cs:prefsChanged",_onTCT);
+  return()=>document.removeEventListener("cs:prefsChanged",_onTCT);
+},[]);
+// color-3 (C2): swatch detail popover state — opened when user clicks the
+// small palette swatch in the colours sidebar.
+const[paletteDetail,setPaletteDetail]=useState(null);
+useEffect(()=>{try{if(window.UserPrefs&&/^#[0-9a-fA-F]{6}$/.test(trackerFabricColour))window.UserPrefs.set("trackerFabricColour",trackerFabricColour);}catch(_){}},[trackerFabricColour]);
 const[highlightMode,setHighlightMode]=useState(()=>{
   // Prefer UserPrefs (synced with the prefs modal); fall back to the legacy
   // cs_hlMode key for users created before the pref existed; finally default.
@@ -3491,7 +3509,7 @@ function drawStitch(ctx,cSz,viewportRect){
   const symAlpha=lockDetailLevel?1.0:tierFadeRef.current.symbolOpacity;
   const bsHsAlpha=lockDetailLevel?1.0:tierFadeRef.current.bsHsOpacity;
 
-  ctx.fillStyle="#fff";
+  ctx.fillStyle=trackerFabricColour||"#fff";
   ctx.fillRect(0,0,gut+dW*cSz+2,gut+dH*cSz+2);
 
   // Viewport culling: 20-cell overdraw buffer for smooth panning
@@ -3549,7 +3567,7 @@ function drawStitch(ctx,cSz,viewportRect){
       if(layerVis.full){
       if(stitchView==="symbol"){
         if(isDn){ctx.fillStyle="#D5E5C8";ctx.fillRect(px,py,cSz,cSz);}
-        else{ctx.fillStyle="#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1B1814";ctx.font=fSym;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
+        else{ctx.fillStyle=trackerFabricColour||"#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1B1814";ctx.font=fSym;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
       }else if(stitchView==="colour"){
         ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
         if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}
@@ -3594,6 +3612,20 @@ function drawStitch(ctx,cSz,viewportRect){
     if(rowModeActive&&y!==currentRow){ctx.fillStyle='rgba(255,255,255,0.55)';ctx.fillRect(gut+startX*cSz,gut+y*cSz,(endX-startX)*cSz,cSz);}
     // R11: highlight the current row with a subtle tint drawn after cells so it stays visible.
     if(rowModeActive&&y===currentRow){ctx.fillStyle='rgba(37,99,235,0.12)';ctx.fillRect(gut+startX*cSz,gut+y*cSz,(endX-startX)*cSz,cSz);}
+  }
+
+  // color-11: thread sheen — second pass gradient overlay on stitched cells
+  if(trackerCanvasTexture&&cSz>=6){
+    for(let _ty=startY;_ty<endY;_ty++){for(let _tx=startX;_tx<endX;_tx++){
+      const _ti=_ty*sW+_tx,_tm=pat[_ti];
+      if(!_tm||_tm.id==="__skip__"||_tm.id==="__empty__")continue;
+      const _tpx=gut+_tx*cSz,_tpy=gut+_ty*cSz;
+      const _tg=ctx.createLinearGradient(_tpx,_tpy,_tpx+cSz,_tpy+cSz);
+      _tg.addColorStop(0,"rgba(255,255,255,0.13)");
+      _tg.addColorStop(0.45,"transparent");
+      _tg.addColorStop(1,"rgba(0,0,0,0.06)");
+      ctx.fillStyle=_tg;ctx.fillRect(_tpx,_tpy,cSz,cSz);
+    }}
   }
 
   // Marching ants for "outline" highlight mode
@@ -3689,7 +3721,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
     };
   }
   drawStitch(canvas.getContext("2d"),scs,viewportRect);
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,parkLayers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,rowModeActive,currentRow]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,parkLayers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,rowModeActive,currentRow,trackerFabricColour,trackerCanvasTexture]);
 useEffect(()=>renderStitch(),[renderStitch]);
 // Keep renderStitchRef current so animation callbacks always call the latest closure
 useEffect(()=>{renderStitchRef.current=renderStitch;},[renderStitch]);
@@ -5615,6 +5647,30 @@ return(
           </select>
         </div>
 
+        {/* color-2 (B3): tracker fabric background colour */}
+        <div className="lp-heading">Fabric</div>
+        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
+          <span style={{fontSize:'var(--text-xs)',color:"var(--text-secondary)"}}>Preview against fabric</span>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {[
+              {id:"white",label:"White Aida",hex:"#FFFFFF"},
+              {id:"antique",label:"Antique White",hex:"#FAEBD7"},
+              {id:"cream",label:"Cream Evenweave",hex:"#FFF8E7"},
+              {id:"linen",label:"Natural Linen",hex:"#D2B48C"},
+              {id:"blackaida",label:"Black Aida",hex:"#1A1A1A"}
+            ].map(f=>{
+              const on=(trackerFabricColour||"#FFFFFF").toUpperCase()===f.hex.toUpperCase();
+              return <button key={f.id} type="button" onClick={()=>setTrackerFabricColour(f.hex)} title={f.label} aria-label={"Preview against "+f.label} aria-pressed={on} style={{width:26,height:26,borderRadius:'var(--radius-sm)',cursor:"pointer",background:f.hex,border:"1.5px solid "+(on?"var(--accent)":"var(--border)"),boxShadow:on?"0 0 0 2px var(--accent-light, rgba(160,103,52,0.18))":"none",padding:0}}/>;
+            })}
+            <input type="color" value={trackerFabricColour||"#FFFFFF"} onChange={e=>{const v=e.target.value;if(/^#[0-9a-fA-F]{6}$/.test(v))setTrackerFabricColour(v);}} title="Custom fabric colour" aria-label="Custom fabric colour" style={{width:26,height:26,padding:0,border:"1.5px solid var(--border)",borderRadius:'var(--radius-sm)',cursor:"pointer",background:"transparent"}}/>
+          </div>
+          {/* color-11: thread sheen toggle */}
+          <label style={{display:"flex",alignItems:"center",gap:6,marginTop:4,fontSize:'var(--text-xs)',cursor:"pointer"}}>
+            <input type="checkbox" checked={trackerCanvasTexture} onChange={e=>{const v=e.target.checked;setTrackerCanvasTexture(v);try{if(window.UserPrefs)window.UserPrefs.set("trackerCanvasTexture",v);document.dispatchEvent(new CustomEvent("cs:prefsChanged",{detail:{key:"trackerCanvasTexture",value:v}}));}catch(_){}}} style={{cursor:"pointer",accentColor:"var(--accent)"}}/>
+            <span>Thread sheen</span>
+          </label>
+        </div>
+
         <div className="lp-heading">Layers</div>
         {STITCH_LAYERS.map(layer=>{
           const count=layerCounts[layer.id];
@@ -5817,7 +5873,7 @@ return(
                 setFocusColour(p.id);
                 setLeftSidebarTab("highlight");
               }} title={"Focus DMC "+p.id+" and open Highlight tab"}>
-                <div className="sw" style={{background:`rgb(${p.rgb})`}}/>
+                <div className="sw" style={{background:`rgb(${p.rgb})`,cursor:"pointer"}} role="button" tabIndex={0} aria-label={"Show details for DMC "+p.id} title={"Click for details on DMC "+p.id} onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,name:p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name,rgb:p.rgb,similarThread:window.findNearestSimilarThread?window.findNearestSimilarThread(p,pal,8):null,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});}} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,name:p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name,rgb:p.rgb,similarThread:window.findNearestSimilarThread?window.findNearestSimilarThread(p,pal,8):null,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});}}}/>
                 <span className="sym">{p.symbol}</span>
                 <span className="cid" style={{color:isFocused?"var(--accent)":complete?"var(--success)":"inherit"}}>{p.id}</span>
                 <span className="nm">{p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name}</span>
@@ -6060,7 +6116,7 @@ return(
                 setLeftSidebarTab("highlight");
                 setLeftSidebarOpen(true);
               }} title={"Focus DMC "+p.id+" and open Highlight tab"}>
-                <div className="sw" style={{background:`rgb(${p.rgb})`}}/>
+                <div className="sw" style={{background:`rgb(${p.rgb})`,cursor:"pointer"}} role="button" tabIndex={0} aria-label={"Show details for DMC "+p.id} title={"Click for details on DMC "+p.id} onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,name:p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name,rgb:p.rgb,similarThread:window.findNearestSimilarThread?window.findNearestSimilarThread(p,pal,8):null,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});}} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,name:p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name,rgb:p.rgb,similarThread:window.findNearestSimilarThread?window.findNearestSimilarThread(p,pal,8):null,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});}}}/>
                 <span className="sym">{p.symbol}</span>
                 <span className="cid" style={{color:isFocused?"var(--accent)":complete?"var(--success)":"inherit"}}>{p.id}</span>
                 <span className="nm">{p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name}</span>
@@ -6856,6 +6912,8 @@ return(
     {Icons.x&&Icons.x()}<span style={{marginLeft:6}}>Exit focus</span><kbd style={{marginLeft:8,padding:"1px 6px",fontSize:11,fontWeight:600,background:"var(--surface-alt,var(--surface))",border:"1px solid var(--line)",borderRadius:4,fontFamily:"inherit",color:"var(--text-secondary)"}}>Esc</kbd>
   </button>
 </div>}
+{/* color-3 (C2): swatch detail popover (portalled to body) */}
+{paletteDetail&&window.SwatchDetailPopover&&React.createElement(window.SwatchDetailPopover,{thread:paletteDetail,anchorRect:paletteDetail.anchorRect,onClose:()=>setPaletteDetail(null)})}
 </div>
 </>);
 }

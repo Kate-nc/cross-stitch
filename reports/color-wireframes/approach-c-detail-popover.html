@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Approach C — Thread Colour Detail Popover</title>
+<style>
+  :root {
+    --surface:        #F5F3F0;
+    --surface-2:      #FFFFFF;
+    --text-primary:   #1A1A1A;
+    --text-secondary: #6B6B6B;
+    --border:         #D8D4CE;
+    --radius-sm:      4px;
+    --accent:         #4A7C59;
+    --line:           #D8D4CE;
+    --shadow-sm:      0 1px 3px rgba(0,0,0,0.08);
+  }
+
+  [data-theme="dark"] {
+    --surface:        #1C1B19;
+    --surface-2:      #252320;
+    --text-primary:   #F0EDE8;
+    --text-secondary: #9A9590;
+    --border:         #3A3630;
+    --accent:         #5E9E72;
+    --line:           #3A3630;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--surface);
+    color: var(--text-primary);
+    font: 14px/1.5 system-ui, sans-serif;
+    padding: 24px;
+    transition: background 0.2s, color 0.2s;
+  }
+
+  h1 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+  .subtitle { color: var(--text-secondary); font-size: 13px; margin-bottom: 20px; }
+  h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); margin: 28px 0 12px; }
+  h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 10px; }
+
+  .note {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-size: 13px;
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+
+  .controls { display: flex; gap: 10px; margin-bottom: 24px; }
+  .toggle-btn {
+    padding: 6px 14px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border); background: var(--surface-2);
+    color: var(--text-primary); cursor: pointer; font-size: 13px;
+  }
+  .toggle-btn:hover { background: var(--surface); }
+
+  /* ── Palette list context (shows what the swatch sits inside) ──── */
+  .palette-context {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    max-width: 340px;
+  }
+  .palette-header {
+    background: #ECEAE7;
+    padding: 8px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-secondary);
+  }
+  [data-theme="dark"] .palette-header { background: #2A2825; }
+  .palette-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .palette-row:last-child { border-bottom: none; }
+  .palette-row:hover { background: var(--surface); }
+
+  /* The swatch trigger — indicates it's clickable */
+  .swatch-trigger {
+    width: 22px;
+    height: 22px;
+    border-radius: 3px;
+    border: 1px solid rgba(0,0,0,0.14);
+    flex-shrink: 0;
+    cursor: pointer;
+    position: relative;
+    transition: box-shadow 0.12s;
+  }
+  .swatch-trigger:hover,
+  .swatch-trigger--active {
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+  /* Simulated ::after texture overlay */
+  .swatch-trigger::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 3px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.18) 0%, transparent 50%, rgba(0,0,0,0.06) 100%);
+    pointer-events: none;
+  }
+
+  .row-id { font-weight: 600; font-size: 13px; min-width: 48px; }
+  .row-name { font-size: 12px; color: var(--text-secondary); }
+
+  /* ── Popover card ─────────────────────────────────────────────── */
+  .popover-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.14), 0 1px 3px rgba(0,0,0,0.08);
+    padding: 14px;
+    width: 224px;
+    font-size: 13px;
+    color: var(--text-primary);
+    /* In production: position: fixed; computed by JS */
+    /* Here: inline block for wireframe layout */
+    display: inline-block;
+    vertical-align: top;
+  }
+
+  /* Connector arrow pointing up to the swatch */
+  .popover-card::before {
+    content: '';
+    position: absolute;
+    top: -7px;
+    left: 18px;
+    width: 12px;
+    height: 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-right: none;
+    transform: rotate(45deg);
+  }
+  .popover-card-wrap { position: relative; display: inline-block; }
+
+  /* Header row */
+  .pop-header {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    margin-bottom: 12px;
+  }
+  .pop-code {
+    font-size: 17px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    letter-spacing: -0.01em;
+  }
+  .pop-name {
+    font-size: 12px;
+    color: var(--text-secondary);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pop-close-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    padding: 2px 3px;
+    border-radius: var(--radius-sm);
+    line-height: 0;
+    flex-shrink: 0;
+  }
+  .pop-close-btn:hover { color: var(--text-primary); background: var(--surface); }
+
+  /* Large swatch */
+  .pop-swatch-large {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    margin-bottom: 12px;
+    /* No texture on this one — it's the reference swatch */
+  }
+
+  /* Fabric previews */
+  .pop-fabric-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .pop-fabric-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+  }
+  .pop-fabric-bg {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .pop-fabric-chip {
+    width: 24px;
+    height: 24px;
+    border-radius: 2px;
+  }
+  .pop-fabric-label {
+    font-size: 10px;
+    color: var(--text-secondary);
+    text-align: center;
+    line-height: 1.2;
+  }
+
+  /* Info note */
+  .pop-note {
+    font-size: 11px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: flex-start;
+    gap: 5px;
+    line-height: 1.4;
+    margin-bottom: 8px;
+  }
+  .pop-note svg { flex-shrink: 0; margin-top: 1px; }
+
+  /* Similar colour alert */
+  .pop-similar {
+    font-size: 11px;
+    color: var(--text-secondary);
+    padding: 7px 9px;
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    line-height: 1.5;
+  }
+  .pop-similar strong { color: var(--text-primary); }
+  .pop-no-similar {
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-style: italic;
+    padding: 4px 0;
+  }
+
+  /* ── Layout scaffolding for wireframe ─────────────────────────── */
+  .scenario-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 32px;
+    margin-bottom: 40px;
+  }
+  .scenario { display: flex; flex-direction: column; gap: 12px; }
+  .scenario-label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--text-secondary);
+  }
+  .palette-and-popover {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    flex-direction: column;
+  }
+  .popover-offset {
+    margin-left: 14px;
+    margin-top: 4px;
+  }
+
+  /* ── Mobile wireframe ─────────────────────────────────────────── */
+  .mobile-frame {
+    width: 320px;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+  }
+  .mobile-statusbar {
+    background: #ECEAE7;
+    padding: 8px 14px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    color: var(--text-secondary);
+  }
+  [data-theme="dark"] .mobile-statusbar { background: #2A2825; }
+  .mobile-content { background: var(--surface-2); padding: 0; }
+
+  /* Mobile popover as bottom sheet */
+  .pop-sheet {
+    background: var(--surface-2);
+    border-top: 1px solid var(--border);
+    border-radius: 10px 10px 0 0;
+    padding: 16px 16px 24px;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.12);
+  }
+  .pop-sheet-handle {
+    width: 36px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 0 auto 14px;
+  }
+  .pop-sheet .pop-fabric-bg { width: 56px; }
+  .pop-sheet .pop-fabric-chip { width: 32px; height: 32px; }
+
+  /* ── Annotation ───────────────────────────────────────────────── */
+  .annotation {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    max-width: 520px;
+  }
+  .annotation strong { color: var(--text-primary); }
+
+  /* ── Position note callout ────────────────────────────────────── */
+  .position-note {
+    background: #F0F4FF;
+    border: 1px solid #B0C0E8;
+    border-radius: var(--radius-sm);
+    padding: 9px 13px;
+    font-size: 12px;
+    color: #3050A0;
+    margin: 12px 0 24px;
+    line-height: 1.5;
+  }
+  [data-theme="dark"] .position-note { background: #10182A; border-color: #2040A0; color: #6080D0; }
+</style>
+</head>
+<body>
+
+<h1>Approach C — Thread Colour Detail Popover</h1>
+<p class="subtitle">
+  Shown for DMC 321 (Christmas Red) and blanc (White).
+  The popover opens when the user clicks a colour swatch anywhere in the app.
+</p>
+
+<div class="controls">
+  <button class="toggle-btn" id="themeBtn" onclick="toggleTheme()">Switch to dark mode</button>
+</div>
+
+<div class="note">
+  In production this is rendered via <code>ReactDOM.createPortal()</code> to
+  <code>document.body</code>, positioned with <code>position: fixed</code>.
+  The arrow at the top points to the swatch that was clicked.
+  Closes on Escape, click outside, or the X button.
+</div>
+
+
+<!-- ════════════ DESKTOP LAYOUT ════════════ -->
+<h2>Desktop — popover anchored below swatch</h2>
+
+<div class="scenario-grid">
+
+  <!-- Scenario 1: DMC 321 -->
+  <div class="scenario">
+    <div class="scenario-label">DMC 321 — Christmas Red (no similar colour within &#916;E&#8320;&#8320; &lt; 8)</div>
+    <div class="palette-and-popover">
+      <div class="palette-context">
+        <div class="palette-header">Legend — 6 colours used</div>
+        <div class="palette-row">
+          <div class="swatch-trigger swatch-trigger--active" style="background:rgb(205,32,44)" title="Click to view detail"></div>
+          <span class="row-id">321</span>
+          <span class="row-name">Christmas Red</span>
+        </div>
+        <div class="palette-row">
+          <div class="swatch-trigger" style="background:rgb(0,0,0)"></div>
+          <span class="row-id">310</span>
+          <span class="row-name">Black</span>
+        </div>
+        <div class="palette-row">
+          <div class="swatch-trigger" style="background:rgb(255,251,245)"></div>
+          <span class="row-id">blanc</span>
+          <span class="row-name">White</span>
+        </div>
+      </div>
+
+      <!-- Popover appears below the first row -->
+      <div class="popover-offset">
+        <div class="popover-card-wrap">
+          <div class="popover-card">
+
+            <!-- Header -->
+            <div class="pop-header">
+              <span class="pop-code">321</span>
+              <span class="pop-name">Christmas Red</span>
+              <button class="pop-close-btn" aria-label="Close colour detail">
+                <!-- X icon -->
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+
+            <!-- Large reference swatch (flat — no texture overlay) -->
+            <div class="pop-swatch-large" style="background:rgb(205,32,44)" aria-label="DMC 321 colour swatch"></div>
+
+            <!-- Three fabric previews -->
+            <div class="pop-fabric-row" role="group" aria-label="Thread on three fabric backgrounds">
+              <div class="pop-fabric-item">
+                <div class="pop-fabric-bg" style="background:#FFFFFF">
+                  <div class="pop-fabric-chip" style="background:rgb(205,32,44)"></div>
+                </div>
+                <span class="pop-fabric-label">White<br>Aida</span>
+              </div>
+              <div class="pop-fabric-item">
+                <div class="pop-fabric-bg" style="background:#D2B48C">
+                  <div class="pop-fabric-chip" style="background:rgb(205,32,44)"></div>
+                </div>
+                <span class="pop-fabric-label">Natural<br>Linen</span>
+              </div>
+              <div class="pop-fabric-item">
+                <div class="pop-fabric-bg" style="background:#1A1A1A">
+                  <div class="pop-fabric-chip" style="background:rgb(205,32,44)"></div>
+                </div>
+                <span class="pop-fabric-label">Black<br>Aida</span>
+              </div>
+            </div>
+
+            <!-- Authoritative reference note -->
+            <div class="pop-note">
+              <!-- Info icon (inline SVG — production uses window.Icons.info()) -->
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12.01" y2="8"/><line x1="12" y1="12" x2="12" y2="16"/></svg>
+              Code is the authoritative reference — screen colours are approximations.
+            </div>
+
+            <!-- No similar colour -->
+            <div class="pop-no-similar">No similar colour in this palette within &#916;E&#8320;&#8320; &lt; 8</div>
+
+          </div><!-- /popover-card -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scenario 2: blanc (has similar: B5200) -->
+  <div class="scenario">
+    <div class="scenario-label">blanc — White (similar: B5200 at &#916;E&#8320;&#8320; 1.8)</div>
+    <div class="palette-and-popover">
+      <div class="palette-context">
+        <div class="palette-header">Legend — 6 colours used</div>
+        <div class="palette-row">
+          <div class="swatch-trigger" style="background:rgb(205,32,44)"></div>
+          <span class="row-id">321</span>
+          <span class="row-name">Christmas Red</span>
+        </div>
+        <div class="palette-row">
+          <div class="swatch-trigger swatch-trigger--active" style="background:rgb(255,251,245)" title="Click to view detail"></div>
+          <span class="row-id">blanc</span>
+          <span class="row-name">White</span>
+        </div>
+        <div class="palette-row">
+          <div class="swatch-trigger" style="background:rgb(255,255,255)"></div>
+          <span class="row-id">B5200</span>
+          <span class="row-name">White Bright</span>
+        </div>
+      </div>
+
+      <div class="popover-offset">
+        <div class="popover-card-wrap">
+          <div class="popover-card">
+
+            <div class="pop-header">
+              <span class="pop-code">blanc</span>
+              <span class="pop-name">White</span>
+              <button class="pop-close-btn" aria-label="Close colour detail">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+
+            <div class="pop-swatch-large" style="background:rgb(255,251,245)" aria-label="blanc colour swatch"></div>
+
+            <div class="pop-fabric-row" role="group" aria-label="Thread on three fabric backgrounds">
+              <div class="pop-fabric-item">
+                <div class="pop-fabric-bg" style="background:#FFFFFF">
+                  <div class="pop-fabric-chip" style="background:rgb(255,251,245)"></div>
+                </div>
+                <span class="pop-fabric-label">White<br>Aida</span>
+              </div>
+              <div class="pop-fabric-item">
+                <div class="pop-fabric-bg" style="background:#D2B48C">
+                  <div class="pop-fabric-chip" style="background:rgb(255,251,245)"></div>
+                </div>
+                <span class="pop-fabric-label">Natural<br>Linen</span>
+              </div>
+              <div class="pop-fabric-item">
+                <div class="pop-fabric-bg" style="background:#1A1A1A">
+                  <div class="pop-fabric-chip" style="background:rgb(255,251,245)"></div>
+                </div>
+                <span class="pop-fabric-label">Black<br>Aida</span>
+              </div>
+            </div>
+
+            <div class="pop-note">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12.01" y2="8"/><line x1="12" y1="12" x2="12" y2="16"/></svg>
+              Code is the authoritative reference — screen colours are approximations.
+            </div>
+
+            <!-- Similar colour note -->
+            <div class="pop-similar">
+              Similar to <strong>B5200</strong> (White Bright, &#916;E&#8320;&#8320;&nbsp;1.8) —
+              at the threshold of perception. Side-by-side test recommended.
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /scenario-grid -->
+
+<div class="position-note">
+  <strong>Positioning logic (production):</strong>
+  The popover is positioned with <code>position: fixed</code>, anchored below the swatch's
+  <code>getBoundingClientRect().bottom</code> and aligned to its left edge.
+  If it would overflow the bottom of the viewport, it flips above.
+  If it would overflow the right edge, it clamps to <code>viewport.width - popoverWidth - 8px</code>.
+  On viewports narrower than 480px it renders as a bottom sheet instead (see mobile section below).
+</div>
+
+<p class="annotation" style="margin-bottom:32px">
+  <strong>Design note:</strong> The large 48×48px swatch in the popover is deliberately
+  flat (no texture gradient), to serve as a colour reference. It is larger than the
+  palette list swatch to make the colour itself the focus. The three fabric preview chips
+  are pure CSS — no canvas rendering required. The fabric background is the outer square;
+  the thread colour is the centred inner chip.
+</p>
+
+
+<!-- ════════════ MOBILE LAYOUT ════════════ -->
+<h2>Mobile — bottom sheet layout (viewport &lt; 480px)</h2>
+<p class="annotation" style="margin-bottom:16px">
+  On mobile, the popover renders as a bottom sheet anchored to the viewport bottom.
+  The same content is shown; the layout adapts to a wider single-column format.
+</p>
+
+<div style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start;margin-bottom:32px">
+
+  <!-- Mobile frame: blanc -->
+  <div>
+    <p class="scenario-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary);margin-bottom:8px">blanc — mobile bottom sheet</p>
+    <div class="mobile-frame">
+      <div class="mobile-statusbar">
+        <span>9:41</span><span>DMC Cross Stitch</span>
+      </div>
+
+      <!-- Palette list behind the sheet -->
+      <div class="mobile-content">
+        <div style="padding:10px 14px;background:#ECEAE7;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary);">Legend</div>
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border);opacity:0.4">
+          <div class="swatch-trigger" style="background:rgb(205,32,44)"></div>
+          <span style="font-size:13px;font-weight:600">321</span>
+          <span style="font-size:12px;color:var(--text-secondary)">Christmas Red</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border);background:var(--surface);opacity:0.5">
+          <div class="swatch-trigger swatch-trigger--active" style="background:rgb(255,251,245)"></div>
+          <span style="font-size:13px;font-weight:600">blanc</span>
+          <span style="font-size:12px;color:var(--text-secondary)">White</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;opacity:0.4">
+          <div class="swatch-trigger" style="background:rgb(255,255,255)"></div>
+          <span style="font-size:13px;font-weight:600">B5200</span>
+          <span style="font-size:12px;color:var(--text-secondary)">White Bright</span>
+        </div>
+
+        <!-- Bottom sheet -->
+        <div class="pop-sheet">
+          <div class="pop-sheet-handle"></div>
+
+          <div class="pop-header" style="margin-bottom:14px">
+            <span class="pop-code">blanc</span>
+            <span class="pop-name">White</span>
+            <button class="pop-close-btn" aria-label="Close">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+
+          <!-- Horizontal strip: large swatch + fabric previews side by side -->
+          <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px">
+            <div class="pop-swatch-large" style="background:rgb(255,251,245);margin:0;width:56px;height:56px;flex-shrink:0"></div>
+            <div class="pop-fabric-row" style="margin:0;flex:1;justify-content:flex-start">
+              <div class="pop-fabric-item" style="flex:none">
+                <div class="pop-fabric-bg" style="background:#FFFFFF;width:48px;height:48px">
+                  <div class="pop-fabric-chip" style="background:rgb(255,251,245);width:30px;height:30px"></div>
+                </div>
+                <span class="pop-fabric-label">White<br>Aida</span>
+              </div>
+              <div class="pop-fabric-item" style="flex:none">
+                <div class="pop-fabric-bg" style="background:#D2B48C;width:48px;height:48px">
+                  <div class="pop-fabric-chip" style="background:rgb(255,251,245);width:30px;height:30px"></div>
+                </div>
+                <span class="pop-fabric-label">Nat.<br>Linen</span>
+              </div>
+              <div class="pop-fabric-item" style="flex:none">
+                <div class="pop-fabric-bg" style="background:#1A1A1A;width:48px;height:48px">
+                  <div class="pop-fabric-chip" style="background:rgb(255,251,245);width:30px;height:30px"></div>
+                </div>
+                <span class="pop-fabric-label">Black<br>Aida</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="pop-note" style="margin-bottom:10px">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12.01" y2="8"/><line x1="12" y1="12" x2="12" y2="16"/></svg>
+            Code is the authoritative reference — screen colours are approximations.
+          </div>
+          <div class="pop-similar">
+            Similar to <strong>B5200</strong> (&#916;E&#8320;&#8320;&nbsp;1.8) — at the threshold
+            of perception. Side-by-side test recommended.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile frame: 321 -->
+  <div>
+    <p class="scenario-label" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary);margin-bottom:8px">DMC 321 — mobile bottom sheet</p>
+    <div class="mobile-frame">
+      <div class="mobile-statusbar">
+        <span>9:41</span><span>DMC Cross Stitch</span>
+      </div>
+      <div class="mobile-content">
+        <div style="padding:10px 14px;background:#ECEAE7;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary);">Legend</div>
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border);background:var(--surface);opacity:0.5">
+          <div class="swatch-trigger swatch-trigger--active" style="background:rgb(205,32,44)"></div>
+          <span style="font-size:13px;font-weight:600">321</span>
+          <span style="font-size:12px;color:var(--text-secondary)">Christmas Red</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border);opacity:0.4">
+          <div class="swatch-trigger" style="background:rgb(255,251,245)"></div>
+          <span style="font-size:13px;font-weight:600">blanc</span>
+          <span style="font-size:12px;color:var(--text-secondary)">White</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;opacity:0.4">
+          <div class="swatch-trigger" style="background:rgb(255,255,255)"></div>
+          <span style="font-size:13px;font-weight:600">B5200</span>
+          <span style="font-size:12px;color:var(--text-secondary)">White Bright</span>
+        </div>
+
+        <div class="pop-sheet">
+          <div class="pop-sheet-handle"></div>
+          <div class="pop-header" style="margin-bottom:14px">
+            <span class="pop-code">321</span>
+            <span class="pop-name">Christmas Red</span>
+            <button class="pop-close-btn" aria-label="Close">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px">
+            <div style="background:rgb(205,32,44);width:56px;height:56px;border-radius:var(--radius-sm);border:1px solid var(--border);flex-shrink:0"></div>
+            <div class="pop-fabric-row" style="margin:0;flex:1;justify-content:flex-start">
+              <div class="pop-fabric-item" style="flex:none">
+                <div class="pop-fabric-bg" style="background:#FFFFFF;width:48px;height:48px">
+                  <div class="pop-fabric-chip" style="background:rgb(205,32,44);width:30px;height:30px"></div>
+                </div>
+                <span class="pop-fabric-label">White<br>Aida</span>
+              </div>
+              <div class="pop-fabric-item" style="flex:none">
+                <div class="pop-fabric-bg" style="background:#D2B48C;width:48px;height:48px">
+                  <div class="pop-fabric-chip" style="background:rgb(205,32,44);width:30px;height:30px"></div>
+                </div>
+                <span class="pop-fabric-label">Nat.<br>Linen</span>
+              </div>
+              <div class="pop-fabric-item" style="flex:none">
+                <div class="pop-fabric-bg" style="background:#1A1A1A;width:48px;height:48px">
+                  <div class="pop-fabric-chip" style="background:rgb(205,32,44);width:30px;height:30px"></div>
+                </div>
+                <span class="pop-fabric-label">Black<br>Aida</span>
+              </div>
+            </div>
+          </div>
+          <div class="pop-note" style="margin-bottom:10px">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12.01" y2="8"/><line x1="12" y1="12" x2="12" y2="16"/></svg>
+            Code is the authoritative reference — screen colours are approximations.
+          </div>
+          <div class="pop-no-similar">No similar colour in this palette within &#916;E&#8320;&#8320; &lt; 8</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<p class="annotation">
+  <strong>Mobile design note:</strong> Below 480px the connector arrow is omitted
+  (no space to anchor it). The handle bar at the top of the sheet signals that it
+  can be dismissed by swiping down. The swatch and fabric row shift to a horizontal
+  strip to minimise vertical height. The "Code is the authoritative reference" note
+  and the similar-colour block remain unchanged.
+</p>
+
+<script>
+  function toggleTheme() {
+    var dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.documentElement.setAttribute('data-theme', dark ? '' : 'dark');
+    document.getElementById('themeBtn').textContent = dark ? 'Switch to dark mode' : 'Switch to light mode';
+  }
+</script>
+</body>
+</html>
