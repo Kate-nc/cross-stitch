@@ -921,6 +921,9 @@ const[trackerFabricColour,setTrackerFabricColour]=useState(()=>{
   try{var pv=window.UserPrefs&&window.UserPrefs.get("trackerFabricColour");if(typeof pv==="string"&&/^#[0-9a-fA-F]{6}$/.test(pv))return pv;}catch(_){}
   return "#FFFFFF";
 });
+// color-3 (C2): swatch detail popover state — opened when user clicks the
+// small palette swatch in the colours sidebar.
+const[paletteDetail,setPaletteDetail]=useState(null);
 useEffect(()=>{try{if(window.UserPrefs&&/^#[0-9a-fA-F]{6}$/.test(trackerFabricColour))window.UserPrefs.set("trackerFabricColour",trackerFabricColour);}catch(_){}},[trackerFabricColour]);
 const[highlightMode,setHighlightMode]=useState(()=>{
   // Prefer UserPrefs (synced with the prefs modal); fall back to the legacy
@@ -5842,7 +5845,7 @@ return(
                 setFocusColour(p.id);
                 setLeftSidebarTab("highlight");
               }} title={"Focus DMC "+p.id+" and open Highlight tab"}>
-                <div className="sw" style={{background:`rgb(${p.rgb})`}}/>
+                <div className="sw" style={{background:`rgb(${p.rgb})`,cursor:"pointer"}} role="button" tabIndex={0} aria-label={"Show details for DMC "+p.id} title={"Click for details on DMC "+p.id} onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,name:p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name,rgb:p.rgb,similarThread:window.findNearestSimilarThread?window.findNearestSimilarThread(p,pal,8):null,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});}} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,name:p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name,rgb:p.rgb,similarThread:window.findNearestSimilarThread?window.findNearestSimilarThread(p,pal,8):null,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});}}}/>
                 <span className="sym">{p.symbol}</span>
                 <span className="cid" style={{color:isFocused?"var(--accent)":complete?"var(--success)":"inherit"}}>{p.id}</span>
                 <span className="nm">{p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name}</span>
@@ -6085,7 +6088,7 @@ return(
                 setLeftSidebarTab("highlight");
                 setLeftSidebarOpen(true);
               }} title={"Focus DMC "+p.id+" and open Highlight tab"}>
-                <div className="sw" style={{background:`rgb(${p.rgb})`}}/>
+                <div className="sw" style={{background:`rgb(${p.rgb})`,cursor:"pointer"}} role="button" tabIndex={0} aria-label={"Show details for DMC "+p.id} title={"Click for details on DMC "+p.id} onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,name:p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name,rgb:p.rgb,similarThread:window.findNearestSimilarThread?window.findNearestSimilarThread(p,pal,8):null,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});}} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,name:p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name,rgb:p.rgb,similarThread:window.findNearestSimilarThread?window.findNearestSimilarThread(p,pal,8):null,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});}}}/>
                 <span className="sym">{p.symbol}</span>
                 <span className="cid" style={{color:isFocused?"var(--accent)":complete?"var(--success)":"inherit"}}>{p.id}</span>
                 <span className="nm">{p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name}</span>
@@ -6881,6 +6884,8 @@ return(
     {Icons.x&&Icons.x()}<span style={{marginLeft:6}}>Exit focus</span><kbd style={{marginLeft:8,padding:"1px 6px",fontSize:11,fontWeight:600,background:"var(--surface-alt,var(--surface))",border:"1px solid var(--line)",borderRadius:4,fontFamily:"inherit",color:"var(--text-secondary)"}}>Esc</kbd>
   </button>
 </div>}
+{/* color-3 (C2): swatch detail popover (portalled to body) */}
+{paletteDetail&&window.SwatchDetailPopover&&React.createElement(window.SwatchDetailPopover,{thread:paletteDetail,anchorRect:paletteDetail.anchorRect,onClose:()=>setPaletteDetail(null)})}
 </div>
 </>);
 }

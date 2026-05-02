@@ -14294,6 +14294,19 @@ window.CreatorLegendTab = function CreatorLegendTab() {
     try { if (window.UserPrefs) window.UserPrefs.set("creatorColourDisclaimerDismissed", true); } catch (_) {}
   }
 
+  // ── color-3 (C2): swatch detail popover ───────────────────────────────────
+  // Tracks the thread whose swatch was clicked. Single popover at a time.
+  var _popover = useState(null); // { id, name, rgb, similarThread, anchorRect } | null
+  var popoverThread = _popover[0];
+  var setPopoverThread = _popover[1];
+
+  // ── color-3 (C3): expanded similar-colour comparator + dismissed pairs ────
+  var _expanded = useState(null); // pairKey | null
+  var expandedPair = _expanded[0];
+  var setExpandedPair = _expanded[1];
+  var dismissedPairsRef = React.useRef(null);
+  if (dismissedPairsRef.current === null) dismissedPairsRef.current = new Set();
+
   var totalColours   = rows.length;
   var totalSkeins    = rows.reduce(function(s, r) { return s + r.needed; }, 0);
   var ownedColours   = rows.filter(function(r) { return r.status === "owned"; }).length;
@@ -14516,15 +14529,63 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                 var rowBg = isHi ? "#F8EFD8"
                   : (hasStash && r.status === "owned") ? "var(--success-soft)"
                   : i % 2 === 0 ? "transparent" : "var(--surface-secondary)";
-                return h("tr", {
-                  key: p.id,
+                var pairKey = similarPairs[p.id]
+                  ? window.similarPairKey(p.id, similarPairs[p.id].otherId)
+                  : null;
+                var showComparator = pairKey
+                  && expandedPair === pairKey
+                  && !dismissedPairsRef.current.has(pairKey);
+                var otherThread = null;
+                if (showComparator) {
+                  for (var oi = 0; oi < ctx.pal.length; oi++) {
+                    if (ctx.pal[oi].id === similarPairs[p.id].otherId) {
+                      otherThread = ctx.pal[oi]; break;
+                    }
+                  }
+                }
+                var colSpan = 6 + (hasStash ? 2 : 0) + (ctx.done ? 1 : 0);
+                return h(React.Fragment, { key: p.id },
+                  h("tr", {
                   onClick: function() { cv.setHiId(isHi ? null : p.id); app.setTab("pattern"); },
                   style:{borderBottom:"0.5px solid var(--surface-tertiary)", cursor:"pointer", background:rowBg}
                 },
                   h("td", {style:{padding:"5px 10px", fontFamily:"monospace", fontSize:15}}, p.symbol),
                   h("td", {style:{padding:"5px 8px"}},
-                    h("div", {style:{width:20, height:20, borderRadius:3, background:"rgb("+p.rgb+")",
-                                      border:"0.5px solid var(--border)", display:"inline-block"}})
+                    h("div", {
+                      className: "colour-swatch",
+                      role: "button",
+                      tabIndex: 0,
+                      "aria-label": "Show colour details for " + p.id,
+                      title: "Click for colour details",
+                      onClick: function(ev) {
+                        ev.stopPropagation();
+                        var rect = ev.currentTarget.getBoundingClientRect();
+                        var nearest = (window.findNearestSimilarThread && p.lab)
+                          ? window.findNearestSimilarThread(p, ctx.pal, 8)
+                          : null;
+                        setPopoverThread({
+                          id: p.id, name: p.name || r.name, rgb: p.rgb,
+                          similarThread: nearest,
+                          anchorRect: rect
+                        });
+                      },
+                      onKeyDown: function(ev) {
+                        if (ev.key === "Enter" || ev.key === " ") {
+                          ev.preventDefault(); ev.stopPropagation();
+                          var rect = ev.currentTarget.getBoundingClientRect();
+                          var nearest = (window.findNearestSimilarThread && p.lab)
+                            ? window.findNearestSimilarThread(p, ctx.pal, 8)
+                            : null;
+                          setPopoverThread({
+                            id: p.id, name: p.name || r.name, rgb: p.rgb,
+                            similarThread: nearest,
+                            anchorRect: rect
+                          });
+                        }
+                      },
+                      style:{width:20, height:20, borderRadius:3, background:"rgb("+p.rgb+")",
+                              border:"0.5px solid var(--border)", display:"inline-block", cursor:"pointer"}
+                    })
                   ),
                   h("td", {style:{padding:"5px 10px", fontWeight:600}}, p.id),
                   h("td", {style:{padding:"5px 10px", color:"var(--text-secondary)", whiteSpace:"nowrap"}},
@@ -14534,9 +14595,23 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                       style:{marginLeft:5, color:"var(--danger)", fontSize:10, fontWeight:600, cursor:"default"}
                     }, "\u25cf " + r.confettiCount) : null,
                     similarPairs[p.id] ? h("span", {
-                      title: "Very similar to DMC " + similarPairs[p.id].otherId + " (" + similarPairs[p.id].otherName + ") \u2014 \u0394E\u2080\u2080 " + similarPairs[p.id].dE.toFixed(1) + ". Verify against a physical thread card before stitching.",
-                      "aria-label": "Similar to DMC " + similarPairs[p.id].otherId,
-                      style:{marginLeft:6, color:"var(--accent-hover, #B7500A)", display:"inline-flex", verticalAlign:"middle", cursor:"help"}
+                      title: "Click to compare with DMC " + similarPairs[p.id].otherId + " (" + similarPairs[p.id].otherName + ") \u2014 \u0394E\u2080\u2080 " + similarPairs[p.id].dE.toFixed(1),
+                      "aria-label": "Compare with similar colour DMC " + similarPairs[p.id].otherId,
+                      role: "button",
+                      tabIndex: 0,
+                      onClick: function(ev) {
+                        ev.stopPropagation();
+                        var key = window.similarPairKey(p.id, similarPairs[p.id].otherId);
+                        setExpandedPair(expandedPair === key ? null : key);
+                      },
+                      onKeyDown: function(ev) {
+                        if (ev.key === "Enter" || ev.key === " ") {
+                          ev.preventDefault(); ev.stopPropagation();
+                          var key = window.similarPairKey(p.id, similarPairs[p.id].otherId);
+                          setExpandedPair(expandedPair === key ? null : key);
+                        }
+                      },
+                      style:{marginLeft:6, color:"var(--accent-hover, #B7500A)", display:"inline-flex", verticalAlign:"middle", cursor:"pointer"}
                     }, window.Icons && window.Icons.warning ? window.Icons.warning() : null) : null
                   ),
                   h("td", {style:{padding:"5px 10px"}},
@@ -14557,6 +14632,23 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                     h("span", {style:{color: r.dc.done >= r.dc.total ? "var(--success)" : "var(--text-secondary)"}},
                       r.dc.done + "/" + r.dc.total)
                   )
+                ),
+                showComparator && otherThread && h("tr", {
+                  key: pairKey + "-cmp",
+                  style: { background: "var(--surface)" }
+                },
+                  h("td", { colSpan: colSpan, style: { padding: "0 10px 8px" } },
+                    h(window.SimilarColourComparator, {
+                      threadA: { id: p.id, name: p.name || r.name, rgb: p.rgb },
+                      threadB: { id: otherThread.id, name: otherThread.name || similarPairs[p.id].otherName, rgb: otherThread.rgb },
+                      dE: similarPairs[p.id].dE,
+                      onDismiss: function() {
+                        dismissedPairsRef.current.add(pairKey);
+                        setExpandedPair(null);
+                      }
+                    })
+                  )
+                )
                 );
               })
             )
@@ -14672,7 +14764,14 @@ window.CreatorLegendTab = function CreatorLegendTab() {
         )
       )
 
-    ) // end two-column
+    ), // end two-column
+
+    // ── color-3 (C2): swatch detail popover (portalled to body) ─────────────
+    popoverThread && window.SwatchDetailPopover && h(window.SwatchDetailPopover, {
+      thread: popoverThread,
+      anchorRect: popoverThread.anchorRect,
+      onClose: function() { setPopoverThread(null); }
+    })
   );
 };
 

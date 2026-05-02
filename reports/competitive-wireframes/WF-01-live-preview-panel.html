@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WF-01: Live 2-Panel Generation UI</title>
+<style>
+/* ══════════════════════════════════════════════════════════
+   Workshop design tokens (light)
+   ══════════════════════════════════════════════════════════ */
+:root {
+  --accent:          #2563eb;
+  --accent-hover:    #1d4ed8;
+  --accent-light:    #eff6ff;
+  --accent-border:   #bfdbfe;
+  --surface:         #ffffff;
+  --surface-secondary: #f8fafc;
+  --surface-tertiary:  #f1f5f9;
+  --border:          #e2e8f0;
+  --text-primary:    #0f172a;
+  --text-secondary:  #475569;
+  --text-tertiary:   #94a3b8;
+  --success:         #16a34a;
+  --success-soft:    #dcfce7;
+  --danger:          #dc2626;
+  --danger-soft:     #fee2e2;
+  --warning:         #d97706;
+  --line:            #e2e8f0;
+  --radius-sm:       4px;
+  --radius-md:       8px;
+  --radius-lg:       12px;
+  --radius-xl:       16px;
+  --shadow-sm:       0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+  --shadow-md:       0 4px 16px rgba(0,0,0,.10);
+  --text-xs:         11px;
+  --text-sm:         13px;
+  --text-md:         14px;
+  --text-lg:         16px;
+  --text-xl:         18px;
+  --s-1:             4px;
+  --s-2:             8px;
+  --s-3:             12px;
+  --s-4:             16px;
+  --motion:          160ms ease-out;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: var(--text-md);
+  color: var(--text-primary);
+  background: #f0f4f8;
+  padding: 24px;
+  line-height: 1.5;
+}
+
+/* ══════ Page typography ══════ */
+h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+h2 { font-size: 15px; font-weight: 700; color: var(--text-secondary); letter-spacing: .04em; text-transform: uppercase; margin: 32px 0 12px; }
+.meta { font-size: var(--text-sm); color: var(--text-tertiary); margin-bottom: 32px; }
+.note { font-size: var(--text-sm); color: var(--text-secondary); background: var(--surface-secondary); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px 14px; margin-top: 12px; }
+.note strong { color: var(--text-primary); }
+
+/* ══════ Wireframe shell ══════ */
+.wf-panel {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  margin-bottom: 32px;
+}
+.wf-label {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+  margin-bottom: 8px;
+}
+
+/* ══════ App top-bar ══════ */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.topbar-back {
+  font-size: var(--text-sm);
+  color: var(--accent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+.topbar-title { font-size: var(--text-lg); font-weight: 600; color: var(--text-primary); }
+
+/* ══════ Desktop 2-col layout ══════ */
+.two-col {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 500px;
+}
+.col-settings {
+  border-right: 1px solid var(--border);
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.col-preview {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--surface-secondary);
+}
+
+/* ══════ Settings widgets ══════ */
+.section-header {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.field-row { display: flex; flex-direction: column; gap: 4px; }
+.field-label { font-size: var(--text-xs); color: var(--text-secondary); font-weight: 500; }
+.fake-input {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-md);
+  color: var(--text-primary);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.fake-input .arrow { color: var(--text-tertiary); font-size: 10px; }
+.fake-slider { position: relative; height: 16px; display: flex; align-items: center; margin: 2px 0; }
+.fake-slider-track {
+  flex: 1;
+  height: 4px;
+  background: var(--surface-tertiary);
+  border-radius: 2px;
+  position: relative;
+}
+.fake-slider-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+}
+.fake-slider-thumb {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: white;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: var(--shadow-sm);
+}
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+.slider-value { font-weight: 700; min-width: 24px; text-align: right; color: var(--text-primary); }
+.adv-link {
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  border: none;
+  background: none;
+}
+
+/* ══════ Preview canvas placeholder ══════ */
+.preview-canvas {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  aspect-ratio: 4/3;
+  max-height: 280px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.preview-grid {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  gap: 0;
+  /* 16 cols × 12 rows of coloured cells */
+  grid-template-columns: repeat(16,1fr);
+  grid-template-rows: repeat(12,1fr);
+  opacity: .9;
+}
+.preview-grid div { background: var(--c, #ccc); }
+
+/* ══════ Quality block ══════ */
+.quality-block {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.score-row { display: flex; align-items: center; gap: 10px; }
+.score-number {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--success);
+}
+.score-label { font-size: var(--text-xs); color: var(--text-tertiary); font-weight: 500; }
+.score-bar-wrap { flex: 1; height: 6px; background: var(--surface-tertiary); border-radius: 3px; overflow: hidden; }
+.score-bar { height: 100%; background: var(--success); border-radius: 3px; }
+.quality-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; }
+.qs-item { font-size: var(--text-xs); color: var(--text-secondary); }
+.qs-item span { color: var(--text-primary); font-weight: 600; }
+
+/* ══════ Dimension hint ══════ */
+.dim-hint {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  background: var(--surface-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 5px 10px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ══════ Generate button ══════ */
+.gen-btn {
+  padding: 11px 20px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--text-md);
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  letter-spacing: .02em;
+  margin-top: auto;
+  align-self: flex-end;
+  min-width: 200px;
+}
+
+/* ══════ Mobile stacked layout ══════ */
+.mobile-shell {
+  max-width: 380px;
+  margin: 0 auto;
+}
+.mobile-shell .col-settings {
+  border-right: none;
+  border-top: 2px solid var(--border);
+}
+.mobile-two-col {
+  display: flex;
+  flex-direction: column;
+}
+.mobile-score-bar {
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--text-sm);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+.mobile-score-num {
+  font-weight: 800;
+  font-size: 17px;
+  color: var(--success);
+}
+.overlay-link {
+  font-size: var(--text-xs);
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+/* ══════ Loading state ══════ */
+.preview-loading {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,.75);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  backdrop-filter: blur(2px);
+}
+.spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-label { font-size: var(--text-sm); color: var(--text-secondary); font-weight: 600; }
+
+/* ══════ Confetti overlay state ══════ */
+.confetti-dot {
+  width: 100%;
+  height: 100%;
+  background: rgba(217,119,6,.7);
+  border-radius: 1px;
+}
+.overlay-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15,23,42,.78);
+  color: white;
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: var(--radius-lg);
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* ══════ Annotations ══════ */
+.annotation {
+  position: absolute;
+  font-size: 10px;
+  font-weight: 700;
+  color: #2563eb;
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+  border-radius: 10px;
+  padding: 0 6px;
+  pointer-events: none;
+}
+
+hr { border: none; border-top: 1.5px solid var(--line); margin: 8px 0; }
+</style>
+</head>
+<body>
+
+<h1>WF-01: Live 2-Panel Generation UI</h1>
+<p class="meta">Addresses FI-01, R08 &nbsp;·&nbsp; Phase 2 &nbsp;·&nbsp; Static wireframe — not interactive</p>
+
+<!-- ══════════════════════════════════════════════════
+     STATE 1: Desktop — normal
+     ══════════════════════════════════════════════════ -->
+<h2>Desktop layout — normal state</h2>
+<div class="wf-panel">
+  <!-- Top bar -->
+  <div class="topbar">
+    <span class="topbar-back">&#8592; Back</span>
+    <span class="topbar-title">Create pattern from image</span>
+  </div>
+
+  <!-- 2-col body -->
+  <div class="two-col">
+
+    <!-- Left: settings -->
+    <div class="col-settings">
+      <div class="wf-label">Settings</div>
+
+      <div class="field-row">
+        <div class="section-header">Image</div>
+        <div class="fake-input" style="font-size:var(--text-sm);color:var(--text-secondary);">
+          Crop / rotate <span class="arrow">&#8250;</span>
+        </div>
+      </div>
+
+      <hr>
+
+      <div class="field-row">
+        <div class="section-header">Colours</div>
+        <div class="slider-row">
+          <span style="color:var(--text-tertiary)">1</span>
+          <div class="fake-slider" style="flex:1">
+            <div class="fake-slider-track">
+              <div class="fake-slider-fill" style="width:56%"></div>
+              <div class="fake-slider-thumb" style="left:56%"></div>
+            </div>
+          </div>
+          <span style="color:var(--text-tertiary)">30</span>
+          <span class="slider-value">18</span>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="section-header">Dithering</div>
+        <div class="fake-input">Balanced <span class="arrow">&#9660;</span></div>
+      </div>
+
+      <hr>
+
+      <div class="field-row">
+        <div class="section-header">Confetti Cleanup</div>
+        <div class="fake-input">On — Balanced <span class="arrow">&#9660;</span></div>
+      </div>
+
+      <hr>
+
+      <div class="field-row">
+        <div class="section-header">Size</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <div class="field-label">Width</div>
+            <div class="fake-input">120 <span style="color:var(--text-tertiary);font-size:11px">st</span></div>
+          </div>
+          <div>
+            <div class="field-label">Height</div>
+            <div class="fake-input">90 <span style="color:var(--text-tertiary);font-size:11px">st</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="field-label">Fabric count</div>
+          <div class="fake-input">14 count <span class="arrow">&#9660;</span></div>
+        </div>
+        <div style="font-size:10px;color:var(--text-tertiary);margin-top:-2px">Max: 5000 × 5000 stitches</div>
+      </div>
+
+      <button class="adv-link">Advanced options &#9660;</button>
+    </div>
+
+    <!-- Right: preview -->
+    <div class="col-preview">
+      <div class="wf-label">Preview</div>
+
+      <!-- Pattern preview canvas -->
+      <div class="preview-canvas">
+        <div class="preview-grid" id="previewGrid"></div>
+      </div>
+
+      <!-- Quality block -->
+      <div class="quality-block">
+        <div class="score-row">
+          <div>
+            <div class="score-label">Stitch Score</div>
+            <div class="score-number">87<span style="font-size:16px;font-weight:600;color:var(--text-tertiary)">/100</span></div>
+          </div>
+          <div class="score-bar-wrap">
+            <div class="score-bar" style="width:87%"></div>
+          </div>
+          <span title="Higher score = easier to stitch. Fewer isolated stitches means fewer thread changes." style="cursor:help;color:var(--text-tertiary);border:1px solid currentColor;border-radius:50%;width:14px;height:14px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0">?</span>
+        </div>
+        <div class="quality-stats">
+          <div class="qs-item">Confetti: <span>4.2%</span>
+            &nbsp;<a href="#" style="font-size:10px;color:var(--accent)">Show overlay</a>
+          </div>
+          <div class="qs-item">Thread changes: <span>~34</span></div>
+          <div class="qs-item">Colours used: <span>18</span></div>
+          <div class="qs-item">Isolated stitches: <span>182</span></div>
+        </div>
+      </div>
+
+      <!-- Dim hint -->
+      <div class="dim-hint">
+        <span>120 × 90 stitches</span>
+        <span>8.6 × 6.4 in on 14-count</span>
+      </div>
+
+      <button class="gen-btn">Generate pattern &#8594;</button>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <strong>Interaction notes:</strong>
+  Slider and dropdown changes trigger a debounced (300ms) regeneration.
+  Preview updates in place with a subtle spinner overlay.
+  "Show overlay" highlights isolated stitches in amber on the preview canvas.
+  "Generate pattern" confirms and opens the full editor.
+</div>
+
+
+<!-- ══════════════════════════════════════════════════
+     STATE 2: Regenerating (spinner)
+     ══════════════════════════════════════════════════ -->
+<h2>State: Regenerating</h2>
+<div class="wf-panel">
+  <div class="topbar">
+    <span class="topbar-back">&#8592; Back</span>
+    <span class="topbar-title">Create pattern from image</span>
+  </div>
+  <div class="two-col">
+    <div class="col-settings">
+      <div class="wf-label">Settings</div>
+      <!-- Truncated settings — same as above, dimmed -->
+      <div style="opacity:.5">
+        <div class="field-row">
+          <div class="section-header">Colours</div>
+          <div class="slider-row">
+            <span style="color:var(--text-tertiary)">1</span>
+            <div class="fake-slider" style="flex:1">
+              <div class="fake-slider-track">
+                <div class="fake-slider-fill" style="width:60%"></div>
+                <div class="fake-slider-thumb" style="left:60%"></div>
+              </div>
+            </div>
+            <span class="slider-value">20</span>
+          </div>
+        </div>
+        <hr>
+        <div class="field-row" style="margin-top:8px">
+          <div class="section-header">Confetti Cleanup</div>
+          <div class="fake-input">On — Balanced <span class="arrow">&#9660;</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-preview">
+      <div class="wf-label">Preview</div>
+      <div class="preview-canvas">
+        <div class="preview-grid" id="previewGrid2"></div>
+        <div class="preview-loading">
+          <div class="spinner"></div>
+          <div class="loading-label">Updating…</div>
+        </div>
+      </div>
+      <div class="quality-block" style="opacity:.4">
+        <div class="score-row">
+          <div>
+            <div class="score-label">Stitch Score</div>
+            <div class="score-number" style="color:var(--text-tertiary)">—</div>
+          </div>
+          <div class="score-bar-wrap"><div class="score-bar" style="width:0%"></div></div>
+        </div>
+        <div style="font-size:var(--text-xs);color:var(--text-tertiary)">Calculating…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════
+     STATE 3: Confetti overlay active
+     ══════════════════════════════════════════════════ -->
+<h2>State: Confetti overlay active</h2>
+<div class="wf-panel">
+  <div class="topbar">
+    <span class="topbar-back">&#8592; Back</span>
+    <span class="topbar-title">Create pattern from image</span>
+  </div>
+  <div class="two-col">
+    <div class="col-settings">
+      <div class="wf-label">Settings</div>
+      <div class="field-row">
+        <div class="section-header">Confetti Cleanup</div>
+        <div class="fake-input">On — Balanced <span class="arrow">&#9660;</span></div>
+        <div style="font-size:10px;color:var(--warning)">Isolated stitches highlighted on preview</div>
+      </div>
+    </div>
+    <div class="col-preview">
+      <div class="wf-label">Preview — confetti highlighted</div>
+      <div class="preview-canvas">
+        <div class="preview-grid" id="previewGrid3"></div>
+        <div class="overlay-badge">182 isolated stitches shown &nbsp;·&nbsp; Hide overlay</div>
+      </div>
+      <div class="quality-block">
+        <div class="score-row">
+          <div>
+            <div class="score-label">Stitch Score</div>
+            <div class="score-number">87<span style="font-size:16px;font-weight:600;color:var(--text-tertiary)">/100</span></div>
+          </div>
+          <div class="score-bar-wrap"><div class="score-bar" style="width:87%"></div></div>
+        </div>
+        <div class="quality-stats">
+          <div class="qs-item">Confetti: <span>4.2%</span>
+            &nbsp;<a href="#" style="font-size:10px;color:var(--warning)">Hide overlay</a>
+          </div>
+          <div class="qs-item">Isolated stitches: <span style="color:var(--warning)">182 shown</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════
+     STATE 4: Mobile stacked layout
+     ══════════════════════════════════════════════════ -->
+<h2>Mobile layout (&lt;900 px, stacked)</h2>
+<div class="wf-panel mobile-shell">
+  <div class="topbar">
+    <span class="topbar-back">&#8592; Back</span>
+    <span class="topbar-title" style="font-size:var(--text-md)">Create from image</span>
+  </div>
+
+  <div class="mobile-two-col">
+    <!-- Preview at top on mobile -->
+    <div class="col-preview" style="border-bottom:1px solid var(--border)">
+      <div class="wf-label">Preview</div>
+      <div class="preview-canvas" style="max-height:200px">
+        <div class="preview-grid" id="previewGrid4"></div>
+      </div>
+      <div class="mobile-score-bar">
+        <div class="mobile-score-num">87<span style="font-size:12px;font-weight:400;color:var(--text-tertiary)">/100</span></div>
+        <div style="font-size:var(--text-xs);color:var(--text-secondary)">Score &nbsp;·&nbsp; Confetti: <strong>4.2%</strong></div>
+        <a class="overlay-link">Show overlay</a>
+      </div>
+    </div>
+
+    <!-- Settings below on mobile -->
+    <div class="col-settings">
+      <div class="wf-label">Settings</div>
+
+      <div class="field-row">
+        <div class="field-label">Colours</div>
+        <div class="slider-row">
+          <div class="fake-slider" style="flex:1">
+            <div class="fake-slider-track">
+              <div class="fake-slider-fill" style="width:56%"></div>
+              <div class="fake-slider-thumb" style="left:56%"></div>
+            </div>
+          </div>
+          <span class="slider-value">18</span>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-label">Dithering</div>
+        <div class="fake-input">Balanced <span class="arrow">&#9660;</span></div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-label">Confetti Cleanup</div>
+        <div class="fake-input">On — Balanced <span class="arrow">&#9660;</span></div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-label">Size</div>
+        <div class="fake-input">120 × 90 stitches <span class="arrow">&#9660;</span></div>
+      </div>
+
+      <button class="adv-link" style="font-size:var(--text-sm)">Advanced &#9660;</button>
+
+      <button class="gen-btn" style="align-self:stretch;width:100%;margin-top:4px">Generate pattern &#8594;</button>
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <strong>Mobile notes:</strong>
+  Preview at top, settings below — "preview first" matches the mobile mental model.
+  Settings are collapsed to the most common options; advanced expands inline.
+  Score is shown as a compact single line below the preview.
+</div>
+
+<script>
+// ── Fill preview grids with a representative cross-stitch colour pattern ──
+var palette = [
+  '#3b6fa0','#5b8db8','#7aadd1','#a0c4dd','#c7dce9',
+  '#e8d5b7','#d4a96a','#b87c3c','#9c6028','#7a4518',
+  '#4a7c59','#6a9e72','#92bb8c','#b5d4af','#d6e8d2',
+  '#8b4fa0','#b07ac0','#5c3b8a','#e8c0e0','#f5e6f0',
+  '#2d2d2d','#555555','#888888','#bbbbbb','#eeeeee',
+  '#c0392b','#e06c56','#f0a0a0','#7b1a2e','#d4d8b0'
+];
+
+function fillGrid(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var frag = document.createDocumentFragment();
+  for (var i = 0; i < 192; i++) {
+    var d = document.createElement('div');
+    d.style.background = palette[Math.floor(Math.random() * palette.length)];
+    frag.appendChild(d);
+  }
+  el.appendChild(frag);
+}
+['previewGrid','previewGrid2','previewGrid3','previewGrid4'].forEach(fillGrid);
+
+// ── Overlay confetti dots on grid 3 ──
+(function() {
+  var g = document.getElementById('previewGrid3');
+  if (!g) return;
+  var cells = g.children;
+  var indices = [];
+  while (indices.length < 20) {
+    var n = Math.floor(Math.random() * cells.length);
+    if (indices.indexOf(n) < 0) indices.push(n);
+  }
+  indices.forEach(function(i) {
+    var overlay = document.createElement('div');
+    overlay.className = 'confetti-dot';
+    overlay.style.position = 'absolute';
+    overlay.style.inset = '0';
+    cells[i].style.position = 'relative';
+    cells[i].appendChild(overlay);
+  });
+})();
+</script>
+</body>
+</html>

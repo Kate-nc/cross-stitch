@@ -2254,3 +2254,213 @@ function AdaptedBadge(props) {
   );
 }
 window.AdaptedBadge = AdaptedBadge;
+
+/* ════════════════════════════════════════════════════════════════
+   color-3 (C2 + C3): Swatch detail popover and similar-colour
+   comparator. Both share the deDescriptor() helper for ΔE₀₀
+   plain-English labels. SwatchDetailPopover is portalled into
+   document.body so it escapes overflow:hidden ancestors (Legend
+   list, MaterialsHub tabs). SimilarColourComparator renders
+   inline directly under the warning row that triggered it.
+   ════════════════════════════════════════════════════════════════ */
+
+window.deDescriptor = function deDescriptor(de) {
+  if (de < 1.0) return 'imperceptible — identical in practice';
+  if (de < 2.0) return 'at the threshold of perception — side-by-side test recommended';
+  if (de < 3.5) return 'barely perceptible in person';
+  if (de < 5.0) return 'perceptible on close inspection';
+  if (de < 8.0) return 'clearly different on close inspection';
+  return 'clearly different at a glance';
+};
+
+// Find the nearest other thread in `palette` to `thread` within a ΔE₀₀
+// budget (default 8). Returns null if nothing matches. O(n).
+window.findNearestSimilarThread = function findNearestSimilarThread(thread, palette, maxDe) {
+  if (!thread || !thread.lab || !palette || !palette.length) return null;
+  var dE = window.dE00; if (typeof dE !== 'function') return null;
+  var best = null, bestDe = (typeof maxDe === 'number') ? maxDe : 8;
+  for (var i = 0; i < palette.length; i++) {
+    var o = palette[i];
+    if (!o || o.id === thread.id || !o.lab) continue;
+    var d = dE(thread.lab, o.lab);
+    if (d < bestDe) { best = o; bestDe = d; }
+  }
+  if (!best) return null;
+  return { id: best.id, name: best.name || '', rgb: best.rgb, dE: bestDe, descriptor: window.deDescriptor(bestDe) };
+};
+
+// Canonical pair key — sort IDs alphabetically and join with '+'.
+window.similarPairKey = function similarPairKey(a, b) {
+  var s = [String(a), String(b)].sort();
+  return s[0] + '+' + s[1];
+};
+
+function SwatchDetailPopover(props) {
+  var h = React.createElement;
+  var thread = props.thread;
+  var anchorRect = props.anchorRect;
+  var onClose = props.onClose;
+  var popoverRef = React.useRef(null);
+  var posState = React.useState({ top: -9999, left: -9999, ready: false });
+  var pos = posState[0], setPos = posState[1];
+
+  React.useLayoutEffect(function () {
+    if (!popoverRef.current || !anchorRect) return;
+    var pw = popoverRef.current.offsetWidth;
+    var ph = popoverRef.current.offsetHeight;
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var MARGIN = 8;
+    var top = anchorRect.bottom + MARGIN;
+    var left = anchorRect.left;
+    if (top + ph > vh - MARGIN) top = anchorRect.top - ph - MARGIN;
+    if (top < MARGIN) top = MARGIN;
+    if (left + pw > vw - MARGIN) left = vw - pw - MARGIN;
+    if (left < MARGIN) left = MARGIN;
+    setPos({ top: top, left: left, ready: true });
+  }, [anchorRect]);
+
+  React.useEffect(function () {
+    function onKey(e) { if (e.key === 'Escape') onClose && onClose(); }
+    function onDown(e) {
+      if (popoverRef.current && !popoverRef.current.contains(e.target)) onClose && onClose();
+    }
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onDown);
+    return function () {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onDown);
+    };
+  }, [onClose]);
+
+  if (!thread) return null;
+  var rgb = thread.rgb || [128,128,128];
+  var rgbStr = 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')';
+  var fabrics = [
+    { label: 'White Aida',    bg: '#FFFFFF' },
+    { label: 'Natural Linen', bg: '#D2B48C' },
+    { label: 'Black Aida',    bg: '#1A1A1A' }
+  ];
+  var Icons = window.Icons || {};
+
+  var content = h('div', {
+    ref: popoverRef,
+    className: 'swatch-detail-popover',
+    style: { top: pos.top, left: pos.left, visibility: pos.ready ? 'visible' : 'hidden' },
+    role: 'dialog',
+    'aria-label': 'Colour details for ' + (thread.id || '')
+  },
+    h('div', { className: 'sdp-header' },
+      h('span', { className: 'sdp-code' }, String(thread.id || '')),
+      h('span', { className: 'sdp-name' }, thread.name || ''),
+      h('button', {
+        className: 'sdp-close',
+        onClick: onClose,
+        'aria-label': 'Close colour details'
+      }, Icons.x ? Icons.x() : '\u00D7')
+    ),
+    h('div', {
+      className: 'sdp-swatch-large colour-swatch colour-swatch--large',
+      style: { background: rgbStr },
+      'aria-hidden': 'true'
+    }),
+    h('div', { className: 'sdp-fabric-row', 'aria-label': 'Thread on three fabric backgrounds' },
+      fabrics.map(function (f) {
+        return h('div', { key: f.bg, className: 'sdp-fabric-item' },
+          h('div', { className: 'sdp-fabric-bg', style: { background: f.bg } },
+            h('div', {
+              className: 'sdp-fabric-chip colour-swatch',
+              style: { background: rgbStr, border: 'none' }
+            })
+          ),
+          h('span', { className: 'sdp-fabric-label' }, f.label)
+        );
+      })
+    ),
+    h('p', { className: 'sdp-note' },
+      Icons.info ? h('span', { className: 'sdp-note-icon', 'aria-hidden': 'true' }, Icons.info()) : null,
+      ' Code is the authoritative reference \u2014 screen colours are approximations.'
+    ),
+    thread.similarThread && h('p', { className: 'sdp-similar' },
+      'Similar to ' + thread.similarThread.id + ' (' + (thread.similarThread.name || '') + ', \u0394E\u2080\u2080 ' + thread.similarThread.dE.toFixed(1) + ') \u2014 ' + thread.similarThread.descriptor
+    )
+  );
+
+  return ReactDOM.createPortal(content, document.body);
+}
+window.SwatchDetailPopover = SwatchDetailPopover;
+
+function SimilarColourComparator(props) {
+  var h = React.createElement;
+  var threadA = props.threadA;
+  var threadB = props.threadB;
+  var dE = props.dE;
+  var onDismiss = props.onDismiss;
+  if (!threadA || !threadB) return null;
+  var rgbA = 'rgb(' + threadA.rgb.join(',') + ')';
+  var rgbB = 'rgb(' + threadB.rgb.join(',') + ')';
+  var fabrics = [
+    { label: 'White Aida',    bg: '#FFFFFF' },
+    { label: 'Natural Linen', bg: '#D2B48C' },
+    { label: 'Black Aida',    bg: '#1A1A1A' }
+  ];
+  var descriptor = (window.deDescriptor || function () { return ''; })(dE);
+
+  return h('div', {
+    className: 'similar-comparator',
+    role: 'region',
+    'aria-label': 'Similar colour comparison'
+  },
+    h('div', { className: 'sc-threads' },
+      h('div', { className: 'sc-thread' },
+        h('div', {
+          className: 'sc-swatch-tall colour-swatch colour-swatch--large',
+          style: { background: rgbA },
+          'aria-label': (threadA.id || '') + ' ' + (threadA.name || '')
+        }),
+        h('span', { className: 'sc-code' }, String(threadA.id || '')),
+        h('span', { className: 'sc-name' }, threadA.name || '')
+      ),
+      h('div', { className: 'sc-delta-block' },
+        h('span', { className: 'sc-delta-value' }, '\u0394E\u2080\u2080 ' + dE.toFixed(1)),
+        h('span', { className: 'sc-delta-desc' }, descriptor)
+      ),
+      h('div', { className: 'sc-thread' },
+        h('div', {
+          className: 'sc-swatch-tall colour-swatch colour-swatch--large',
+          style: { background: rgbB },
+          'aria-label': (threadB.id || '') + ' ' + (threadB.name || '')
+        }),
+        h('span', { className: 'sc-code' }, String(threadB.id || '')),
+        h('span', { className: 'sc-name' }, threadB.name || '')
+      )
+    ),
+    h('div', { className: 'sc-fabric-grid', 'aria-label': 'Both threads on three fabrics' },
+      fabrics.map(function (f) {
+        return h(React.Fragment, { key: f.bg },
+          h('div', { className: 'sc-fabric-cell' },
+            h('div', { className: 'sc-fabric-bg', style: { background: f.bg } },
+              h('div', { className: 'sc-fabric-chip colour-swatch', style: { background: rgbA, border: 'none' } })
+            ),
+            h('span', { className: 'sc-fabric-label' }, f.label)
+          ),
+          h('div', { className: 'sc-fabric-cell' },
+            h('div', { className: 'sc-fabric-bg', style: { background: f.bg } },
+              h('div', { className: 'sc-fabric-chip colour-swatch', style: { background: rgbB, border: 'none' } })
+            )
+          )
+        );
+      })
+    ),
+    h('p', { className: 'sc-note' },
+      'In practice, the physical threads may differ more than shown here due to texture, sheen, and lighting.'
+    ),
+    onDismiss && h('button', {
+      className: 'sc-dismiss btn-secondary btn-sm',
+      onClick: onDismiss,
+      type: 'button'
+    }, 'Dismiss warning')
+  );
+}
+window.SimilarColourComparator = SimilarColourComparator;
+
+
