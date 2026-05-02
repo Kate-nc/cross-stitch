@@ -392,6 +392,7 @@
     var undoDepth = usePref("trackerUndoDepth", 50);
     var celebrate = usePref("trackerCelebrate", true);
     var dragMark = usePref("trackerDragMark", true);
+    var trackerSheen = usePref("trackerCanvasTexture", false);
 
     return h("div", null,
       h(PageHeader, { title: "Stitch Tracker",
@@ -486,6 +487,12 @@
         // Half-stitch counting and undo-depth rows hidden — not wired yet.
         h(Row, { last: true, label: "Show parking markers", desc: "Small dots that remember where you parked each colour between sessions." },
           h(Switch, { checked: parking[0], onChange: parking[1] })
+        )
+      ),
+
+      h(Section, { title: "Canvas display" },
+        h(Row, { last: true, label: "Thread sheen", desc: "Adds a subtle specular highlight to pattern squares to better suggest how thread catches light." },
+          h(Switch, { checked: trackerSheen[0], onChange: trackerSheen[1] })
         )
       ),
 
