@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v38';
+var CACHE_NAME = 'cross-stitch-cache-v39';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -109,7 +109,7 @@ self.addEventListener('fetch', function (event) {
   // Navigation requests (HTML pages): network-first, cache fallback
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).then(function (response) {
+      fetch(event.request, { cache: 'no-cache' }).then(function (response) {
         // Cache the latest copy for offline use only when the response succeeded
         if (response.ok && response.type === 'basic') {
           var clone = response.clone();
@@ -167,10 +167,10 @@ self.addEventListener('fetch', function (event) {
     // diagnostic console.log statements and bug fixes appear to do nothing
     // for at least one full reload after every release. Cache is still used
     // as a fallback when offline.
-    var isAppCode = /\.(js|html|json)$/i.test(url.pathname);
+    var isAppCode = /\.(js|html|json|css)$/i.test(url.pathname);
     if (isAppCode) {
       event.respondWith(
-        fetch(event.request).then(function (response) {
+        fetch(event.request, { cache: 'no-cache' }).then(function (response) {
           if (response && response.ok && event.request.method === 'GET') {
             var clone = response.clone();
             caches.open(CACHE_NAME).then(function (cache) {
