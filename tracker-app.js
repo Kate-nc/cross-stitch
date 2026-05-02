@@ -921,6 +921,15 @@ const[trackerFabricColour,setTrackerFabricColour]=useState(()=>{
   try{var pv=window.UserPrefs&&window.UserPrefs.get("trackerFabricColour");if(typeof pv==="string"&&/^#[0-9a-fA-F]{6}$/.test(pv))return pv;}catch(_){}
   return "#FFFFFF";
 });
+// color-11: thread sheen texture toggle for tracker canvas
+const[trackerCanvasTexture,setTrackerCanvasTexture]=useState(()=>{
+  try{return !!(window.UserPrefs&&window.UserPrefs.get("trackerCanvasTexture"));}catch(_){return false;}
+});
+useEffect(()=>{
+  function _onTCT(e){if(e&&e.detail&&e.detail.key==="trackerCanvasTexture")setTrackerCanvasTexture(!!e.detail.value);}
+  document.addEventListener("cs:prefsChanged",_onTCT);
+  return()=>document.removeEventListener("cs:prefsChanged",_onTCT);
+},[]);
 // color-3 (C2): swatch detail popover state — opened when user clicks the
 // small palette swatch in the colours sidebar.
 const[paletteDetail,setPaletteDetail]=useState(null);
@@ -3605,6 +3614,20 @@ function drawStitch(ctx,cSz,viewportRect){
     if(rowModeActive&&y===currentRow){ctx.fillStyle='rgba(37,99,235,0.12)';ctx.fillRect(gut+startX*cSz,gut+y*cSz,(endX-startX)*cSz,cSz);}
   }
 
+  // color-11: thread sheen — second pass gradient overlay on stitched cells
+  if(trackerCanvasTexture&&cSz>=6){
+    for(let _ty=startY;_ty<endY;_ty++){for(let _tx=startX;_tx<endX;_tx++){
+      const _ti=_ty*sW+_tx,_tm=pat[_ti];
+      if(!_tm||_tm.id==="__skip__"||_tm.id==="__empty__")continue;
+      const _tpx=gut+_tx*cSz,_tpy=gut+_ty*cSz;
+      const _tg=ctx.createLinearGradient(_tpx,_tpy,_tpx+cSz,_tpy+cSz);
+      _tg.addColorStop(0,"rgba(255,255,255,0.13)");
+      _tg.addColorStop(0.45,"transparent");
+      _tg.addColorStop(1,"rgba(0,0,0,0.06)");
+      ctx.fillStyle=_tg;ctx.fillRect(_tpx,_tpy,cSz,cSz);
+    }}
+  }
+
   // Marching ants for "outline" highlight mode
   if(stitchView==="highlight"&&focusColour&&highlightMode==="outline"&&pat){
     ctx.save();
@@ -3698,7 +3721,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
     };
   }
   drawStitch(canvas.getContext("2d"),scs,viewportRect);
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,parkLayers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,rowModeActive,currentRow,trackerFabricColour]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,parkLayers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,rowModeActive,currentRow,trackerFabricColour,trackerCanvasTexture]);
 useEffect(()=>renderStitch(),[renderStitch]);
 // Keep renderStitchRef current so animation callbacks always call the latest closure
 useEffect(()=>{renderStitchRef.current=renderStitch;},[renderStitch]);
@@ -5641,6 +5664,11 @@ return(
             })}
             <input type="color" value={trackerFabricColour||"#FFFFFF"} onChange={e=>{const v=e.target.value;if(/^#[0-9a-fA-F]{6}$/.test(v))setTrackerFabricColour(v);}} title="Custom fabric colour" aria-label="Custom fabric colour" style={{width:26,height:26,padding:0,border:"1.5px solid var(--border)",borderRadius:'var(--radius-sm)',cursor:"pointer",background:"transparent"}}/>
           </div>
+          {/* color-11: thread sheen toggle */}
+          <label style={{display:"flex",alignItems:"center",gap:6,marginTop:4,fontSize:'var(--text-xs)',cursor:"pointer"}}>
+            <input type="checkbox" checked={trackerCanvasTexture} onChange={e=>{const v=e.target.checked;setTrackerCanvasTexture(v);try{if(window.UserPrefs)window.UserPrefs.set("trackerCanvasTexture",v);document.dispatchEvent(new CustomEvent("cs:prefsChanged",{detail:{key:"trackerCanvasTexture",value:v}}));}catch(_){}}} style={{cursor:"pointer",accentColor:"var(--accent)"}}/>
+            <span>Thread sheen</span>
+          </label>
         </div>
 
         <div className="lp-heading">Layers</div>
