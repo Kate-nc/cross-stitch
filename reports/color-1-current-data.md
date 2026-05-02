@@ -90,9 +90,11 @@ Anchor data also documents **7 contested colors** where pairwise ΔE > 5 across 
 
 ### CSS swatches (palette panels, stash manager, tracker)
 All swatch elements across every page use the same pattern:
+{% raw %}
 ```js
 style={{ background: `rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})` }}
 ```
+{% endraw %}
 This is a direct inline CSS `background` with **full opacity**. The `.colour-swatch` CSS class adds `border: 1px solid var(--border)` and `border-radius: 3px` — these do not alter color.
 
 No `filter`, `opacity`, `mix-blend-mode`, or `backdrop-filter` is applied to swatch elements. The displayed swatch color is exactly the stored RGB value.
