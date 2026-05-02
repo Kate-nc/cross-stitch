@@ -553,7 +553,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
           h("div", {style:{display:"flex", flexDirection:"column", gap:'var(--s-1)', marginTop:'var(--s-1)'}},
             h("span", {style:{fontSize:'var(--text-xs)', color:"var(--text-tertiary)"}},
               "Preview against fabric:"),
-            h("div", {style:{display:"flex", gap:6, flexWrap:"wrap"}},
+            h("div", {style:{display:"flex", gap:6, flexWrap:"wrap", alignItems:"center"}},
               FABRIC_PRESETS.map(function(f) {
                 var on = fabricColour && fabricColour.toUpperCase() === f.hex.toUpperCase();
                 return h("button", {
@@ -571,7 +571,28 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                     padding: 0, position: "relative"
                   }
                 });
-              })
+              }),
+              // Custom colour picker — lets users choose any fabric colour
+              h("label", {
+                title: "Custom fabric colour",
+                "aria-label": "Custom fabric colour",
+                style: { width: 26, height: 26, borderRadius: 'var(--radius-sm)', cursor: "pointer",
+                         border: "1.5px solid var(--border)", overflow: "hidden", position: "relative",
+                         display: "flex", alignItems: "center", justifyContent: "center",
+                         background: "var(--surface)", color: "var(--text-secondary)", flexShrink: 0 }
+              },
+                h("span", { style: { width: 14, height: 14, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" } },
+                  window.Icons && window.Icons.eyedropper ? window.Icons.eyedropper() : "+"
+                ),
+                h("input", {
+                  type: "color",
+                  value: fabricColour || "#FFFFFF",
+                  onChange: function(e) { setFabricColour(e.target.value); },
+                  style: { position: "absolute", opacity: 0, width: "100%", height: "100%",
+                           top: 0, left: 0, cursor: "pointer", padding: 0, margin: 0,
+                           border: "none" }
+                })
+              )
             ),
             h("p", {style:{fontSize:10, color:"var(--text-tertiary)", margin:0, lineHeight:1.4}},
               "Stitched cells appear over this fabric in the Pattern view.")
