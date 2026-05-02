@@ -55,7 +55,8 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
                 type: 'button',
                 className: 'tb-context-name tb-context-name--editable',
                 onClick: function(e) { e.stopPropagation(); setEditing(true); },
-                title: 'Click to rename'
+                title: 'Click to rename',
+                'aria-label': 'Rename project'
               }, name)
             : React.createElement('span', {
                 className: 'tb-context-name',
