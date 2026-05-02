@@ -12023,7 +12023,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)'}},
       h("input", {type:"checkbox", checked:ctx.arLock, onChange:function(e){ctx.setArLock(e.target.checked);}}),
       h("span", null, "Lock aspect ratio"),
-      h(InfoIcon, {text:"Keep width and height proportional when resizing", width:200})
+      h(InfoIcon, {text:"Keep width and height proportional when resizing", width:220})
     ),
     h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:-6,marginBottom:'var(--s-2)'}}, "Max: 5000 \u00D7 5000 stitches"),
     ctx.arLock
@@ -12058,7 +12058,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:gen.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)',opacity:gen.blendsAutoDisabled?0.5:1}},
       h("input", {type:"checkbox", checked:gen.allowBlends, disabled:gen.blendsAutoDisabled, onChange:function(e){gen.setAllowBlends(e.target.checked);}}),
       h("span", null, "Allow blended threads"),
-      h(InfoIcon, {text:"Allow the algorithm to blend two DMC colours in a single stitch for smoother gradients", width:200})
+      h(InfoIcon, {text:"Allow the algorithm to blend two DMC colours in a single stitch for smoother gradients", width:220})
     ),
     gen.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginBottom:'var(--s-2)'}},
       "Auto-disabled \u2014 fewer than 6 stash threads"
@@ -12068,7 +12068,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     },
       h("input", {type:"checkbox", checked:gen.stashConstrained, onChange:function(e){gen.setStashConstrained(e.target.checked);}}),
       h("span", null, "Use only stash threads"),
-      h(InfoIcon, {text:"Constrains the palette to threads you physically own. Produces a pattern you can stitch immediately without buying anything.", width:240})
+      h(InfoIcon, {text:"Constrains the palette to threads you physically own. Produces a pattern you can stitch immediately without buying anything.", width:220})
     ),
     typeof StashBridge !== "undefined" && !gen.stashConstrained && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:-10,marginBottom:'var(--s-2)'}},
       "Enable to generate patterns using only threads you already own."
@@ -12081,7 +12081,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       gen.stashPalette && gen.stashPalette.length > 0 && h("div", {style:{marginBottom:'var(--s-2)'}},
         h("div", {style:{display:"flex",flexWrap:"wrap",gap:2,marginBottom:2}},
           (stashStripExpanded ? gen.stashPalette : gen.stashPalette.slice(0,60)).map(function(t) {
-            return h(Tooltip, {key:t.id, text:"DMC " + t.id + " \u2014 " + t.name, width:140},
+            return h(Tooltip, {key:t.id, text:"DMC " + t.id + " \u2014 " + t.name, width:160},
               h("div", {style:{width:12,height:12,borderRadius:2,background:"rgb(" + t.rgb.join(",") + ")"}})
             );
           })
@@ -12265,12 +12265,12 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("div", {style:{marginTop:'var(--s-2)'}},
         h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
           h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:600}}, "Dithering"),
-          h(InfoIcon, {text:"Blends colours by mixing stitches using error diffusion. Higher strengths create smoother gradients but more scattered stitches.", width:230})
+          h(InfoIcon, {text:"Blends colours by mixing stitches using error diffusion. Higher strengths create smoother gradients but more scattered stitches.", width:220})
         ),
         h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
           dithOpts.map(function(o) {
             var active = dithCur === o.id;
-            return h(Tooltip, {key:o.id, text:o.tip, width:210},
+            return h(Tooltip, {key:o.id, text:o.tip, width:220},
               h("button", {
                 onClick:function(){gen.setDith(o.id);},
                 style:{flex:1,padding:"5px 6px",fontSize:'var(--text-xs)',fontWeight:active?600:400,
@@ -12443,10 +12443,10 @@ window.CreatorSidebar = function CreatorSidebar() {
       gen.smooth===0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
       gen.smooth>0 && h("div", {style:{display:"flex",gap:6,margin:"6px 0"}},
         h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2,flex:1}},
-          h(Tooltip, {text:"Preserves edges better. Best for most photos", width:180},
+          h(Tooltip, {text:"Preserves edges better. Best for most photos", width:220},
             h("button", {onClick:function(){gen.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:'var(--text-sm)',fontWeight:gen.smoothType==="median"?500:400,background:gen.smoothType==="median"?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',color:gen.smoothType==="median"?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median")
           ),
-          h(Tooltip, {text:"Stronger overall blur. Better for very grainy or pixelated images", width:180},
+          h(Tooltip, {text:"Stronger overall blur. Better for very grainy or pixelated images", width:220},
             h("button", {onClick:function(){gen.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:'var(--text-sm)',fontWeight:gen.smoothType==="gaussian"?500:400,background:gen.smoothType==="gaussian"?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',color:gen.smoothType==="gaussian"?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian")
           )
         )

@@ -682,10 +682,10 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
           'aria-label': 'Open command palette (Ctrl/Cmd+K)',
           title: 'Open command palette (Ctrl/Cmd+K)'
         }, window.Icons && window.Icons.magnify ? window.Icons.magnify() : 'Search') : null,
-        React.createElement('button', { className: 'tb-nav-link', onClick: () => { if (window.HelpDrawer) window.HelpDrawer.open({ tab: 'shortcuts' }); else setModal('shortcuts'); }, 'aria-label': 'Keyboard shortcuts', title: 'Keyboard shortcuts' }, window.Icons && window.Icons.keyboard ? window.Icons.keyboard() : 'Shortcuts'),
+        React.createElement('button', { className: 'tb-nav-link', onClick: () => window.HelpDrawer.open({ tab: 'shortcuts' }), 'aria-label': 'Keyboard shortcuts', title: 'Keyboard shortcuts' }, window.Icons && window.Icons.keyboard ? window.Icons.keyboard() : 'Shortcuts'),
         React.createElement('button', {
           className: 'tb-nav-link tb-help-btn',
-          onClick: () => { if (window.HelpDrawer) window.HelpDrawer.open({ tab: 'help' }); else setModal('help'); },
+          onClick: () => window.HelpDrawer.open({ tab: 'help' }),
           'aria-label': 'Open help (?)',
           'aria-expanded': helpOpen ? 'true' : 'false',
           title: 'Open help (?)'
