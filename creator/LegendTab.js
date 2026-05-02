@@ -393,7 +393,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                     }
                   }
                 }
-                var colSpan = 6 + (hasStash ? 2 : 0) + (ctx.done ? 1 : 0);
+                var colSpan = 7 + (hasStash ? 2 : 0) + (ctx.done ? 1 : 0);
                 return h(React.Fragment, { key: p.id },
                   h("tr", {
                   onClick: function() { cv.setHiId(isHi ? null : p.id); app.setTab("pattern"); },
