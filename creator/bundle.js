@@ -6082,6 +6082,24 @@ window.useCreatorState = function useCreatorState() {
     setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); delete n[id]; return n; });
   }
 
+  function removeUnusedColours() {
+    if (!pal) return;
+    var unused = pal.filter(function(p) { return p.count === 0; });
+    if (!unused.length) return;
+    var unusedIds = new Set(unused.map(function(p) { return p.id; }));
+    var removedFromScratch = scratchPalette.filter(function(p) { return unusedIds.has(p.id); });
+    setEditHistory(function(prev) {
+      var n = prev.concat([{ type: "remove_unused_colours", removedFromPal: unused.slice(), removedFromScratch: removedFromScratch.slice() }]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    setRedoHistory([]);
+    setPal(function(prev) { return prev ? prev.filter(function(p) { return !unusedIds.has(p.id); }) : prev; });
+    setScratchPalette(function(prev) { return prev.filter(function(p) { return !unusedIds.has(p.id); }); });
+    setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); unusedIds.forEach(function(id) { delete n[id]; }); return n; });
+    addToast("Removed " + unused.length + " unused colour" + (unused.length !== 1 ? "s" : "") + " from palette", { type: "info", duration: 2000 });
+  }
+
   function toggleOwned(id) {
     setThreadOwned(function(prev) {
       var cur = prev[id] || "";
@@ -6642,7 +6660,7 @@ window.useCreatorState = function useCreatorState() {
     // Functions
     buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType,
     setBrushAndActivate, setTool, setHsTool, setPsTool: setHsTool, fitZ, copyText,
-    resetAll, initBlankGrid, startScratch, addScratchColour, removeScratchColour,
+    resetAll, initBlankGrid, startScratch, addScratchColour, removeScratchColour, removeUnusedColours,
     toggleOwned, generate, randomise, generateGallery, promoteVariation, applyVariationSeed,
     // Eyedropper feedback
     eyedropperEmpty, setEyedropperEmpty,
@@ -6743,6 +6761,35 @@ window.useEditHistory = function useEditHistory(state) {
       return;
     }
 
+    // Handle remove_unused_colours undo: restore the removed colours
+    if (last.type === "remove_unused_colours") {
+      var restoredFromPal = last.removedFromPal || [];
+      var restoredFromScratch = last.removedFromScratch || [];
+      state.setPal(function(prev) {
+        if (!prev) return restoredFromPal.slice();
+        var existingIds = new Set(prev.map(function(p) { return p.id; }));
+        return prev.concat(restoredFromPal.filter(function(p) { return !existingIds.has(p.id); }));
+      });
+      state.setScratchPalette(function(prev) {
+        var existingIds = new Set(prev.map(function(p) { return p.id; }));
+        return prev.concat(restoredFromScratch.filter(function(p) { return !existingIds.has(p.id); }));
+      });
+      state.setCmap(function(prev) {
+        if (!prev) return prev;
+        var n = Object.assign({}, prev);
+        restoredFromPal.forEach(function(p) { n[p.id] = p; });
+        return n;
+      });
+      state.setEditHistory(function(prev) { return prev.slice(0, -1); });
+      state.setRedoHistory(function(prev) {
+        var n = prev.concat([{ type: "remove_unused_colours", removedFromPal: restoredFromPal, removedFromScratch: restoredFromScratch }]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      if (state.addToast) state.addToast("Undo: restored " + restoredFromPal.length + " colour" + (restoredFromPal.length !== 1 ? "s" : "") + " to palette", {type:"info", duration:1500});
+      return;
+    }
+
     var np = pat.slice();
     var redoChanges = last.changes.map(function(c) { return { idx: c.idx, old: Object.assign({}, np[c.idx]) }; });
     last.changes.forEach(function(c) { np[c.idx] = Object.assign({}, c.old); });
@@ -6797,6 +6844,24 @@ window.useEditHistory = function useEditHistory(state) {
         return n;
       });
       if (state.addToast) state.addToast("Redo: re-added colour " + entry.id, {type:"info", duration:1500});
+      return;
+    }
+
+    // Handle remove_unused_colours redo: re-remove the colours
+    if (last.type === "remove_unused_colours") {
+      var toRemove = last.removedFromPal || [];
+      var toRemoveScratch = last.removedFromScratch || [];
+      var toRemoveIds = new Set(toRemove.map(function(p) { return p.id; }));
+      state.setPal(function(prev) { return prev ? prev.filter(function(p) { return !toRemoveIds.has(p.id); }) : prev; });
+      state.setScratchPalette(function(prev) { return prev.filter(function(p) { return !toRemoveIds.has(p.id); }); });
+      state.setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); toRemoveIds.forEach(function(id) { delete n[id]; }); return n; });
+      state.setRedoHistory(function(prev) { return prev.slice(0, -1); });
+      state.setEditHistory(function(prev) {
+        var n = prev.concat([{ type: "remove_unused_colours", removedFromPal: toRemove, removedFromScratch: toRemoveScratch }]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      if (state.addToast) state.addToast("Redo: removed " + toRemove.length + " unused colour" + (toRemove.length !== 1 ? "s" : ""), {type:"info", duration:1500});
       return;
     }
 
@@ -11625,7 +11690,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     var chips = displayPal.map(function(p) {
       var ips = isPaintMode && cv.selectedColorId === p.id;
       var ihs = cv.hiId === p.id;
-      var isUnused = ctx.isScratchMode && p.count === 0;
+      var isUnused = app.appMode === "edit" && p.count === 0;
       var stashStatus = stashStatusForChip(p);
       if (stashStatus === 'needed') _trackUnowned(p);
       // Brief D — when "limit to stash" filter is on, hide unowned chips.
@@ -11682,6 +11747,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         })
       );
     }).filter(Boolean);
+    var unusedCount = displayPal ? displayPal.filter(function(p) { return p.count === 0; }).length : 0;
     return h("div", {style:{borderBottom:"0.5px solid var(--border)"}},
       h("div", {
         onClick:function(){setPalChipsOpen(function(o){return !o;});},
@@ -11691,7 +11757,14 @@ window.CreatorSidebar = function CreatorSidebar() {
           h("span", {style:{fontSize:9,color:"var(--text-tertiary)",display:"inline-block",transform:palChipsOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
           h("span", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--text-secondary)"}}, "Palette")
         ),
-        h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, displayPal.length + " colour" + (displayPal.length !== 1 ? "s" : ""))
+        h("div", {style:{display:"flex",alignItems:"center",gap:6}},
+          app.appMode === "edit" && unusedCount > 0 && h("button", {
+            onClick: function(e) { e.stopPropagation(); if (typeof ctx.removeUnusedColours === 'function') ctx.removeUnusedColours(); },
+            title: "Remove all colours not used in the pattern",
+            style:{fontSize:'var(--text-xs)',padding:"2px 7px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:500,cursor:"pointer",lineHeight:1.4}
+          }, "Remove unused (" + unusedCount + ")"),
+          h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, displayPal.length + " colour" + (displayPal.length !== 1 ? "s" : ""))
+        )
       ),
       palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
       // Brief D — stash filter toggle + "Need to buy" button (only when stash has data)

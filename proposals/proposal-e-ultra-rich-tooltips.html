@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proposal E — Ultra-Rich Tooltips (No Separate Help Section)</title>
+<style>
+:root {
+  --accent: #B85C38;
+  --accent-hover: #944526;
+  --accent-light: #F4DDCF;
+  --accent-border: #E8B89A;
+  --text-primary: #1B1814;
+  --text-secondary: #5C5448;
+  --text-tertiary: #8A7E72;
+  --surface: #ffffff;
+  --surface-secondary: #FBF8F3;
+  --surface-tertiary: #EFE7D6;
+  --line: #E5DCCB;
+  --line-2: #D8CDB6;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-lg: 0 12px 28px rgba(60,40,20,.14);
+  --success: #3a7d44;
+  --motion: 160ms ease-out;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--surface-secondary); color: var(--text-primary); font-size: 14px; line-height: 1.5; overflow: hidden; }
+
+.proposal-badge { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); background: #be185d; color: #fff; font-size: 11px; font-weight: 600; letter-spacing: .04em; padding: 4px 12px; border-radius: 999px; z-index: 10000; white-space: nowrap; }
+
+/* ── Layout ─────────────────────────────────────────────── */
+.app-shell { display: flex; flex-direction: column; height: 100vh; }
+.app-header { background: var(--surface); border-bottom: 1px solid var(--line); height: 48px; display: flex; align-items: center; padding: 0 16px; gap: 12px; flex-shrink: 0; }
+.logo { font-weight: 700; font-size: 15px; color: var(--accent); }
+.nav { display: flex; gap: 2px; margin-left: 8px; }
+.nav-btn { background: none; border: none; cursor: pointer; padding: 5px 10px; border-radius: var(--radius-sm); font-size: 13px; color: var(--text-secondary); }
+.nav-btn.active { color: var(--accent); font-weight: 600; }
+.header-actions { margin-left: auto; }
+
+.workspace { flex: 1; display: grid; grid-template-columns: 270px 1fr; overflow: hidden; }
+
+/* ── Sidebar ─────────────────────────────────────────────── */
+.sidebar { background: var(--surface); border-right: 1px solid var(--line); overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.sidebar-section { background: var(--surface-secondary); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 11px; }
+.sidebar-title { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 11px; }
+.field-group { margin-bottom: 9px; }
+.field-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
+.field-input { width: 100%; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px 8px; font-size: 13px; color: var(--text-primary); background: var(--surface); outline: none; }
+.field-input:focus { border-color: var(--accent-border); box-shadow: 0 0 0 2px rgba(184,92,56,.1); }
+input[type=range] { accent-color: var(--accent); cursor: pointer; width: 100%; }
+.slider-row { display: flex; align-items: center; gap: 8px; }
+.slider-row input { flex: 1; }
+.slider-val { font-size: 11px; color: var(--text-tertiary); min-width: 55px; text-align: right; }
+
+/* ── Canvas ──────────────────────────────────────────────── */
+.canvas-area { background: var(--surface-tertiary); display: flex; align-items: center; justify-content: center; }
+.canvas-mock { display: grid; grid-template-columns: repeat(22, 16px); grid-template-rows: repeat(16, 16px); gap: 1px; opacity: .7; }
+.canvas-cell { border-radius: 2px; }
+
+/* ── PROPOSAL E: Ultra-Rich Tooltip (all help IN the tooltip) ──── */
+/* The trigger: a small "?" badge that appears on hover over the label row */
+.rich-tip-trigger {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 50%;
+  border: none; background: none; cursor: help;
+  color: var(--text-tertiary); padding: 0;
+  transition: color var(--motion);
+  position: relative;
+}
+.rich-tip-trigger:hover, .rich-tip-trigger:focus { color: var(--accent); outline: none; }
+.rich-tip-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rich-tip-trigger svg { width: 14px; height: 14px; }
+
+/* Rich tooltip panel — floats via JS positioning */
+.rich-tooltip {
+  position: fixed;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-xl);
+  width: 320px;
+  box-shadow: var(--shadow-lg);
+  z-index: 700;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(6px) scale(.97);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+.rich-tooltip.visible {
+  pointer-events: auto;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* ── Collapsed view (default) ─ */
+.rt-collapsed { padding: 12px 14px; }
+.rt-header { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
+.rt-icon-wrap { width: 26px; height: 26px; border-radius: var(--radius-sm); background: var(--accent-light); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.rt-icon-wrap svg { width: 14px; height: 14px; color: var(--accent); }
+.rt-title { font-weight: 700; font-size: 13px; color: var(--text-primary); flex: 1; }
+.rt-summary { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 10px; }
+.rt-expand-btn { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--accent); font-weight: 500; border: none; background: none; cursor: pointer; padding: 0; }
+.rt-expand-btn svg { width: 12px; height: 12px; transition: transform var(--motion); }
+.rt-expand-btn.expanded svg { transform: rotate(90deg); }
+
+/* ── Expanded view ─ */
+.rt-expanded { display: none; border-top: 1px solid var(--line); }
+.rt-expanded.visible { display: block; }
+.rt-detail { padding: 12px 14px; font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+.rt-detail p { margin-bottom: 8px; }
+.rt-detail strong { color: var(--text-primary); }
+.rt-example-box { background: var(--surface-secondary); border-radius: var(--radius-sm); padding: 8px 10px; margin: 8px 0; }
+.rt-example-title { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 6px; }
+.rt-example-rows { display: flex; flex-direction: column; gap: 3px; }
+.rt-example-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.rt-example-key { font-weight: 600; color: var(--text-primary); width: 65px; }
+.rt-example-bar { flex: 1; background: var(--line); border-radius: 999px; height: 6px; overflow: hidden; }
+.rt-example-bar-fill { height: 100%; background: var(--accent); border-radius: 999px; }
+.rt-example-label { font-size: 11px; color: var(--text-tertiary); width: 55px; text-align: right; }
+
+/* Feedback row */
+.rt-feedback { padding: 8px 14px 10px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-tertiary); }
+.rt-feedback-btn { background: var(--surface-secondary); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 3px 8px; font-size: 11px; cursor: pointer; transition: all var(--motion); color: var(--text-secondary); }
+.rt-feedback-btn:hover { border-color: var(--accent-border); color: var(--accent); background: var(--accent-light); }
+.rt-feedback-btn.selected { background: var(--accent-light); border-color: var(--accent-border); color: var(--accent); }
+.rt-divider { flex: 1; }
+
+/* ── Demo note ───────────────────────────────────────────── */
+.demo-note { background: var(--surface); border: 1px solid #be185d33; border-radius: var(--radius-md); padding: 10px 14px; margin: 8px 14px; font-size: 12px; color: var(--text-secondary); line-height: 1.5; flex-shrink: 0; }
+.demo-note strong { color: var(--text-primary); display: block; margin-bottom: 2px; }
+.demo-note ul { padding-left: 16px; margin-top: 3px; }
+.demo-note li { margin-bottom: 1px; }
+</style>
+</head>
+<body>
+
+<div class="proposal-badge">Proposal E — Ultra-Rich Tooltips (No Separate Help Section)</div>
+
+<div class="app-shell">
+  <header class="app-header">
+    <span class="logo">Stitch Studio</span>
+    <nav class="nav">
+      <button class="nav-btn active">Creator</button>
+      <button class="nav-btn">Tracker</button>
+      <button class="nav-btn">Stash</button>
+    </nav>
+    <div class="header-actions"></div>
+  </header>
+
+  <div class="demo-note">
+    <strong>Proposal E — Ultra-Rich Tooltips (No Separate Help Section)</strong>
+    <ul>
+      <li>No help page, no modal, no panel — all help is embedded directly inside tooltips.</li>
+      <li>Hover the "?" icon to see a compact tooltip. Click "Show more" to expand to detailed docs inline.</li>
+      <li>A "Was this helpful?" rating loop lives inside the tooltip for quality feedback.</li>
+      <li>The entire help system is a single JSON registry — no articles to maintain separately.</li>
+    </ul>
+  </div>
+
+  <div class="workspace">
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-title">Dimensions</div>
+
+        <div class="field-group">
+          <label class="field-label">
+            Width (stitches)
+            <button class="rich-tip-trigger"
+              data-tip="widthTip"
+              onmouseenter="showTip('widthTip', this)"
+              onmouseleave="scheduleHide('widthTip')"
+              onfocus="showTip('widthTip', this)"
+              onblur="scheduleHide('widthTip')"
+              aria-label="Help: pattern width">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </button>
+          </label>
+          <input class="field-input" type="number" value="80">
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">
+            Fabric count
+            <button class="rich-tip-trigger"
+              data-tip="fabricTip"
+              onmouseenter="showTip('fabricTip', this)"
+              onmouseleave="scheduleHide('fabricTip')"
+              onfocus="showTip('fabricTip', this)"
+              onblur="scheduleHide('fabricTip')"
+              aria-label="Help: fabric count">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </button>
+          </label>
+          <select class="field-input">
+            <option selected>14 count (Aida)</option>
+            <option>11 count</option>
+            <option>18 count</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">Palette</div>
+
+        <div class="field-group">
+          <label class="field-label">
+            Max colours
+            <button class="rich-tip-trigger"
+              data-tip="coloursTip"
+              onmouseenter="showTip('coloursTip', this)"
+              onmouseleave="scheduleHide('coloursTip')"
+              onfocus="showTip('coloursTip', this)"
+              onblur="scheduleHide('coloursTip')"
+              aria-label="Help: max colours">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </button>
+          </label>
+          <div class="slider-row">
+            <input type="range" min="4" max="40" value="12" oninput="document.getElementById('cv').textContent = this.value + ' colours'">
+            <span id="cv" class="slider-val">12 colours</span>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">
+            Confetti cleanup
+            <button class="rich-tip-trigger"
+              data-tip="confettiTip"
+              onmouseenter="showTip('confettiTip', this)"
+              onmouseleave="scheduleHide('confettiTip')"
+              onfocus="showTip('confettiTip', this)"
+              onblur="scheduleHide('confettiTip')"
+              aria-label="Help: confetti cleanup">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </button>
+          </label>
+          <select class="field-input">
+            <option>Off</option><option>Light</option><option selected>Moderate</option><option>Aggressive</option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">
+            Dithering
+            <button class="rich-tip-trigger"
+              data-tip="ditherTip"
+              onmouseenter="showTip('ditherTip', this)"
+              onmouseleave="scheduleHide('ditherTip')"
+              onfocus="showTip('ditherTip', this)"
+              onblur="scheduleHide('ditherTip')"
+              aria-label="Help: dithering">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </button>
+          </label>
+          <select class="field-input">
+            <option selected>Floyd-Steinberg</option>
+            <option>Ordered (Bayer)</option>
+            <option>None</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">Advanced</div>
+        <div class="field-group">
+          <label class="field-label">
+            Orphan removal
+            <button class="rich-tip-trigger"
+              data-tip="orphanTip"
+              onmouseenter="showTip('orphanTip', this)"
+              onmouseleave="scheduleHide('orphanTip')"
+              onfocus="showTip('orphanTip', this)"
+              onblur="scheduleHide('orphanTip')"
+              aria-label="Help: orphan removal">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </button>
+          </label>
+          <div class="slider-row">
+            <input type="range" min="0" max="4" value="1">
+            <span class="slider-val">Level 1</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="canvas-area">
+      <div class="canvas-mock" id="canvasMock"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Rich tooltip components, rendered into document body -->
+<div class="rich-tooltip" id="widthTip"
+  onmouseenter="cancelHide('widthTip')"
+  onmouseleave="scheduleHide('widthTip')">
+  <div class="rt-collapsed">
+    <div class="rt-header">
+      <div class="rt-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v3"/><path d="M21 16v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3"/><line x1="4" y1="12" x2="20" y2="12"/></svg></div>
+      <div class="rt-title">Pattern width</div>
+    </div>
+    <div class="rt-summary">Number of stitches across. At 14ct fabric, 80 stitches = ~14.5 cm wide.</div>
+    <button class="rt-expand-btn" onclick="toggleExpand(this, 'widthExp')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      Show more
+    </button>
+  </div>
+  <div class="rt-expanded" id="widthExp">
+    <div class="rt-detail">
+      <p>The width in stitches, combined with your <strong>fabric count</strong>, determines the physical size of your finished piece. More stitches = more detail, but also a larger piece.</p>
+      <div class="rt-example-box">
+        <div class="rt-example-title">80-stitch width on different fabrics</div>
+        <div class="rt-example-rows">
+          <div class="rt-example-row"><span class="rt-example-key">11ct Aida</span><div class="rt-example-bar"><div class="rt-example-bar-fill" style="width:85%"></div></div><span class="rt-example-label">~23 cm</span></div>
+          <div class="rt-example-row"><span class="rt-example-key">14ct Aida</span><div class="rt-example-bar"><div class="rt-example-bar-fill" style="width:55%"></div></div><span class="rt-example-label">~14.5 cm</span></div>
+          <div class="rt-example-row"><span class="rt-example-key">18ct Aida</span><div class="rt-example-bar"><div class="rt-example-bar-fill" style="width:40%"></div></div><span class="rt-example-label">~11.3 cm</span></div>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text-tertiary)">Tip: check the Materials tab for a live size calculation after generating.</p>
+    </div>
+    <div class="rt-feedback">
+      Was this helpful?
+      <button class="rt-feedback-btn" onclick="markFeedback(this,'widthTip',true)">Yes</button>
+      <button class="rt-feedback-btn" onclick="markFeedback(this,'widthTip',false)">No</button>
+      <span class="rt-divider"></span>
+    </div>
+  </div>
+</div>
+
+<div class="rich-tooltip" id="fabricTip"
+  onmouseenter="cancelHide('fabricTip')"
+  onmouseleave="scheduleHide('fabricTip')">
+  <div class="rt-collapsed">
+    <div class="rt-header">
+      <div class="rt-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+      <div class="rt-title">Fabric count</div>
+    </div>
+    <div class="rt-summary">Holes per inch in your fabric. <strong>14ct</strong> is most common for beginners and gives medium-sized stitches.</div>
+    <button class="rt-expand-btn" onclick="toggleExpand(this, 'fabricExp')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      Show more
+    </button>
+  </div>
+  <div class="rt-expanded" id="fabricExp">
+    <div class="rt-detail">
+      <p>Fabric count (also called "Aida count") controls both the stitch size and the finished physical dimensions of your piece.</p>
+      <div class="rt-example-box">
+        <div class="rt-example-title">Count comparison</div>
+        <div class="rt-example-rows">
+          <div class="rt-example-row"><span class="rt-example-key">11ct Aida</span><div class="rt-example-bar"><div class="rt-example-bar-fill" style="width:90%"></div></div><span class="rt-example-label">Beginner</span></div>
+          <div class="rt-example-row"><span class="rt-example-key">14ct Aida</span><div class="rt-example-bar"><div class="rt-example-bar-fill" style="width:65%"></div></div><span class="rt-example-label">Standard</span></div>
+          <div class="rt-example-row"><span class="rt-example-key">18ct Aida</span><div class="rt-example-bar"><div class="rt-example-bar-fill" style="width:40%"></div></div><span class="rt-example-label">Fine</span></div>
+          <div class="rt-example-row"><span class="rt-example-key">28ct Even.</span><div class="rt-example-bar"><div class="rt-example-bar-fill" style="width:22%"></div></div><span class="rt-example-label">Very fine</span></div>
+        </div>
+      </div>
+      <p style="font-size:12px"><strong>Not sure?</strong> Count the holes across 1 inch of your fabric to find its count.</p>
+    </div>
+    <div class="rt-feedback">
+      Was this helpful?
+      <button class="rt-feedback-btn" onclick="markFeedback(this,'fabricTip',true)">Yes</button>
+      <button class="rt-feedback-btn" onclick="markFeedback(this,'fabricTip',false)">No</button>
+    </div>
+  </div>
+</div>
+
+<div class="rich-tooltip" id="coloursTip"
+  onmouseenter="cancelHide('coloursTip')"
+  onmouseleave="scheduleHide('coloursTip')">
+  <div class="rt-collapsed">
+    <div class="rt-header">
+      <div class="rt-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="8" r="2" fill="currentColor" stroke="none" opacity=".4"/><circle cx="16" cy="15" r="2" fill="currentColor" stroke="none" opacity=".4"/><circle cx="8" cy="15" r="2" fill="currentColor" stroke="none" opacity=".4"/></svg></div>
+      <div class="rt-title">Maximum colours</div>
+    </div>
+    <div class="rt-summary">More colours = more realistic, but more expensive and harder to stitch. Start with 10–15 for most photos.</div>
+    <button class="rt-expand-btn" onclick="toggleExpand(this, 'coloursExp')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      Show more
+    </button>
+  </div>
+  <div class="rt-expanded" id="coloursExp">
+    <div class="rt-detail">
+      <p>Each colour in your pattern = one skein of DMC thread you need to buy. After generating, check the Materials tab for the total cost.</p>
+      <div class="rt-example-box">
+        <div class="rt-example-title">Suggested ranges by experience</div>
+        <div class="rt-example-rows">
+          <div class="rt-example-row"><span class="rt-example-key">Beginner</span><div class="rt-example-bar"><div class="rt-example-bar-fill" style="width:30%"></div></div><span class="rt-example-label">8–12 colours</span></div>
+          <div class="rt-example-row"><span class="rt-example-key">Intermediate</span><div class="rt-example-bar"><div class="rt-example-bar-fill" style="width:55%"></div></div><span class="rt-example-label">12–20 colours</span></div>
+          <div class="rt-example-row"><span class="rt-example-key">Advanced</span><div class="rt-example-bar"><div class="rt-example-bar-fill" style="width:85%"></div></div><span class="rt-example-label">20–35 colours</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="rt-feedback">
+      Was this helpful?
+      <button class="rt-feedback-btn" onclick="markFeedback(this,'coloursTip',true)">Yes</button>
+      <button class="rt-feedback-btn" onclick="markFeedback(this,'coloursTip',false)">No</button>
+    </div>
+  </div>
+</div>
+
+<div class="rich-tooltip" id="confettiTip"
+  onmouseenter="cancelHide('confettiTip')"
+  onmouseleave="scheduleHide('confettiTip')">
+  <div class="rt-collapsed">
+    <div class="rt-header">
+      <div class="rt-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+      <div class="rt-title">Confetti cleanup</div>
+    </div>
+    <div class="rt-summary">Removes isolated single stitches that are fiddly to stitch. "Moderate" is recommended for most photos.</div>
+    <button class="rt-expand-btn" onclick="toggleExpand(this, 'confettiExp')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      Show more
+    </button>
+  </div>
+  <div class="rt-expanded" id="confettiExp">
+    <div class="rt-detail">
+      <p><strong>Confetti stitches</strong> are single stitches of one colour surrounded entirely by different colours. Each one forces you to stop, knot off the thread, and start a new colour — which can triple your stitching time in busy areas.</p>
+      <div class="rt-example-box">
+        <div class="rt-example-title">Stitch Score at each level</div>
+        <div class="rt-example-rows">
+          <div class="rt-example-row"><span class="rt-example-key">Off</span><div class="rt-example-bar"><div class="rt-example-bar-fill" style="width:42%;background:#d4392e"></div></div><span class="rt-example-label">~42 / 100</span></div>
+          <div class="rt-example-row"><span class="rt-example-key">Moderate</span><div class="rt-example-bar"><div class="rt-example-bar-fill" style="width:74%;background:#e8865b"></div></div><span class="rt-example-label">~74 / 100</span></div>
+          <div class="rt-example-row"><span class="rt-example-key">Maximum</span><div class="rt-example-bar"><div class="rt-example-bar-fill" style="width:91%;background:#3a7d44"></div></div><span class="rt-example-label">~91 / 100</span></div>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text-tertiary)">Higher levels remove more stitches, which can soften fine details in photos. Check the preview before committing.</p>
+    </div>
+    <div class="rt-feedback">
+      Was this helpful?
+      <button class="rt-feedback-btn" onclick="markFeedback(this,'confettiTip',true)">Yes</button>
+      <button class="rt-feedback-btn" onclick="markFeedback(this,'confettiTip',false)">No</button>
+    </div>
+  </div>
+</div>
+
+<div class="rich-tooltip" id="ditherTip"
+  onmouseenter="cancelHide('ditherTip')"
+  onmouseleave="scheduleHide('ditherTip')">
+  <div class="rt-collapsed">
+    <div class="rt-header">
+      <div class="rt-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></div>
+      <div class="rt-title">Dithering</div>
+    </div>
+    <div class="rt-summary">How the app fills in colours between your palette. Floyd-Steinberg gives smooth gradients — leave at default unless you want a flat, graphic look.</div>
+    <button class="rt-expand-btn" onclick="toggleExpand(this, 'ditherExp')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      Show more
+    </button>
+  </div>
+  <div class="rt-expanded" id="ditherExp">
+    <div class="rt-detail">
+      <p>Dithering approximates colours that aren't in your palette by mixing nearby colours in a pattern.</p>
+      <p><strong>Floyd-Steinberg:</strong> Distributes the "error" between actual and nearest-palette colour to neighbouring stitches. Results in smooth-looking gradients. Best for most photos.</p>
+      <p><strong>Ordered (Bayer):</strong> Uses a regular grid pattern. Creates a more visible texture but can look more "digital" and graphic. Good for geometric or low-colour designs.</p>
+      <p><strong>None:</strong> Each stitch takes the nearest palette colour with no mixing. Fastest to compute; can produce visible colour banding.</p>
+    </div>
+    <div class="rt-feedback">
+      Was this helpful?
+      <button class="rt-feedback-btn" onclick="markFeedback(this,'ditherTip',true)">Yes</button>
+      <button class="rt-feedback-btn" onclick="markFeedback(this,'ditherTip',false)">No</button>
+    </div>
+  </div>
+</div>
+
+<div class="rich-tooltip" id="orphanTip"
+  onmouseenter="cancelHide('orphanTip')"
+  onmouseleave="scheduleHide('orphanTip')">
+  <div class="rt-collapsed">
+    <div class="rt-header">
+      <div class="rt-icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
+      <div class="rt-title">Orphan removal</div>
+    </div>
+    <div class="rt-summary">Removes completely surrounded single stitches during generation (before the stitch score is calculated). Level 0 = off, level 4 = most aggressive.</div>
+    <button class="rt-expand-btn" onclick="toggleExpand(this, 'orphanExp')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      Show more
+    </button>
+  </div>
+  <div class="rt-expanded" id="orphanExp">
+    <div class="rt-detail">
+      <p>Unlike <strong>Confetti Cleanup</strong> (which is post-processing), orphan removal runs during the colour quantisation step. This means it can affect the palette itself — colours used only in isolated stitches may be removed entirely from the pattern.</p>
+      <p>Use this if you want to reduce your palette size while also cleaning up stray stitches in one pass. For most users, Confetti Cleanup after generation gives more predictable results.</p>
+    </div>
+    <div class="rt-feedback">
+      Was this helpful?
+      <button class="rt-feedback-btn" onclick="markFeedback(this,'orphanTip',true)">Yes</button>
+      <button class="rt-feedback-btn" onclick="markFeedback(this,'orphanTip',false)">No</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Canvas mock
+const colours = ['#d4392e','#e8865b','#f2c178','#4a7c59','#2e5c8e','#8b5cf6','#c4b5a0','#f9f0e0','#3b2e20','#7a5c3e','#b8a080'];
+const mock = document.getElementById('canvasMock');
+for (let i = 0; i < 352; i++) {
+  const c = document.createElement('div');
+  c.className = 'canvas-cell';
+  c.style.background = colours[Math.floor(Math.random() * colours.length)];
+  mock.appendChild(c);
+}
+
+// Rich tooltip system
+let hideTimers = {};
+let expandedTips = new Set();
+
+function showTip(id, trigger) {
+  cancelHide(id);
+  // Hide all other non-expanded tips
+  document.querySelectorAll('.rich-tooltip.visible').forEach(t => {
+    if (t.id !== id && !expandedTips.has(t.id)) t.classList.remove('visible');
+  });
+
+  const tip = document.getElementById(id);
+  const rect = trigger.getBoundingClientRect();
+  const tipWidth = 320;
+  const tipHeight = tip.offsetHeight || 120;
+
+  let left = rect.right + 10;
+  let top = rect.top - 30;
+
+  if (left + tipWidth > window.innerWidth - 16) left = rect.left - tipWidth - 10;
+  if (top + tipHeight > window.innerHeight - 16) top = window.innerHeight - tipHeight - 16;
+  if (top < 56) top = 56;
+  if (left < 8) left = 8;
+
+  tip.style.left = left + 'px';
+  tip.style.top = top + 'px';
+  tip.classList.add('visible');
+}
+
+function scheduleHide(id) {
+  hideTimers[id] = setTimeout(() => {
+    if (!expandedTips.has(id)) {
+      const tip = document.getElementById(id);
+      if (!tip.contains(document.activeElement)) tip.classList.remove('visible');
+    }
+  }, 300);
+}
+
+function cancelHide(id) { clearTimeout(hideTimers[id]); }
+
+function toggleExpand(btn, expId) {
+  const expEl = document.getElementById(expId);
+  const tipId = btn.closest('.rich-tooltip').id;
+  const isExpanded = expEl.classList.toggle('visible');
+  btn.classList.toggle('expanded', isExpanded);
+  btn.textContent = isExpanded ? '' : 'Show more';
+  if (isExpanded) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('viewBox','0 0 24 24');
+    svg.setAttribute('fill','none');
+    svg.setAttribute('stroke','currentColor');
+    svg.setAttribute('stroke-width','2.5');
+    svg.setAttribute('stroke-linecap','round');
+    svg.setAttribute('stroke-linejoin','round');
+    svg.style.cssText = 'width:12px;height:12px;transition:transform 160ms ease';
+    const poly = document.createElementNS('http://www.w3.org/2000/svg','polyline');
+    poly.setAttribute('points','9 18 15 12 9 6');
+    svg.appendChild(poly);
+    btn.insertBefore(svg, btn.firstChild);
+    const text = document.createTextNode(' Show less');
+    btn.appendChild(text);
+    expandedTips.add(tipId);
+    btn.classList.add('expanded');
+  } else {
+    expandedTips.delete(tipId);
+  }
+}
+
+function markFeedback(btn, tipId, positive) {
+  const row = btn.closest('.rt-feedback');
+  row.querySelectorAll('.rt-feedback-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  // In a real implementation, this would send analytics
+  setTimeout(() => {
+    row.innerHTML = '<span style="color:var(--success);font-size:12px">Thanks for your feedback!</span>';
+    if (!expandedTips.has(tipId)) {
+      setTimeout(() => scheduleHide(tipId), 1200);
+    }
+  }, 300);
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.rich-tooltip.visible').forEach(t => {
+      t.classList.remove('visible');
+      expandedTips.delete(t.id);
+    });
+  }
+});
+</script>
+</body>
+</html>

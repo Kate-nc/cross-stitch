@@ -139,7 +139,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     var chips = displayPal.map(function(p) {
       var ips = isPaintMode && cv.selectedColorId === p.id;
       var ihs = cv.hiId === p.id;
-      var isUnused = ctx.isScratchMode && p.count === 0;
+      var isUnused = app.appMode === "edit" && p.count === 0;
       var stashStatus = stashStatusForChip(p);
       if (stashStatus === 'needed') _trackUnowned(p);
       // Brief D — when "limit to stash" filter is on, hide unowned chips.
@@ -196,6 +196,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         })
       );
     }).filter(Boolean);
+    var unusedCount = displayPal ? displayPal.filter(function(p) { return p.count === 0; }).length : 0;
     return h("div", {style:{borderBottom:"0.5px solid var(--border)"}},
       h("div", {
         onClick:function(){setPalChipsOpen(function(o){return !o;});},
@@ -205,7 +206,14 @@ window.CreatorSidebar = function CreatorSidebar() {
           h("span", {style:{fontSize:9,color:"var(--text-tertiary)",display:"inline-block",transform:palChipsOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
           h("span", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--text-secondary)"}}, "Palette")
         ),
-        h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, displayPal.length + " colour" + (displayPal.length !== 1 ? "s" : ""))
+        h("div", {style:{display:"flex",alignItems:"center",gap:6}},
+          app.appMode === "edit" && unusedCount > 0 && h("button", {
+            onClick: function(e) { e.stopPropagation(); if (typeof ctx.removeUnusedColours === 'function') ctx.removeUnusedColours(); },
+            title: "Remove all colours not used in the pattern",
+            style:{fontSize:'var(--text-xs)',padding:"2px 7px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:500,cursor:"pointer",lineHeight:1.4}
+          }, "Remove unused (" + unusedCount + ")"),
+          h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, displayPal.length + " colour" + (displayPal.length !== 1 ? "s" : ""))
+        )
       ),
       palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
       // Brief D — stash filter toggle + "Need to buy" button (only when stash has data)

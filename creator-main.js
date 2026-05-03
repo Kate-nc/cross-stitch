@@ -682,6 +682,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     startScratch: state.startScratch,
     addScratchColour: state.addScratchColour,
     removeScratchColour: state.removeScratchColour,
+    removeUnusedColours: state.removeUnusedColours,
     toggleOwned: state.toggleOwned,
     displayPal: state.displayPal,
     totalStitchable: state.totalStitchable,

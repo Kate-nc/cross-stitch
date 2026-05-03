@@ -823,6 +823,24 @@ window.useCreatorState = function useCreatorState() {
     setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); delete n[id]; return n; });
   }
 
+  function removeUnusedColours() {
+    if (!pal) return;
+    var unused = pal.filter(function(p) { return p.count === 0; });
+    if (!unused.length) return;
+    var unusedIds = new Set(unused.map(function(p) { return p.id; }));
+    var removedFromScratch = scratchPalette.filter(function(p) { return unusedIds.has(p.id); });
+    setEditHistory(function(prev) {
+      var n = prev.concat([{ type: "remove_unused_colours", removedFromPal: unused.slice(), removedFromScratch: removedFromScratch.slice() }]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    setRedoHistory([]);
+    setPal(function(prev) { return prev ? prev.filter(function(p) { return !unusedIds.has(p.id); }) : prev; });
+    setScratchPalette(function(prev) { return prev.filter(function(p) { return !unusedIds.has(p.id); }); });
+    setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); unusedIds.forEach(function(id) { delete n[id]; }); return n; });
+    addToast("Removed " + unused.length + " unused colour" + (unused.length !== 1 ? "s" : "") + " from palette", { type: "info", duration: 2000 });
+  }
+
   function toggleOwned(id) {
     setThreadOwned(function(prev) {
       var cur = prev[id] || "";
@@ -1383,7 +1401,7 @@ window.useCreatorState = function useCreatorState() {
     // Functions
     buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType,
     setBrushAndActivate, setTool, setHsTool, setPsTool: setHsTool, fitZ, copyText,
-    resetAll, initBlankGrid, startScratch, addScratchColour, removeScratchColour,
+    resetAll, initBlankGrid, startScratch, addScratchColour, removeScratchColour, removeUnusedColours,
     toggleOwned, generate, randomise, generateGallery, promoteVariation, applyVariationSeed,
     // Eyedropper feedback
     eyedropperEmpty, setEyedropperEmpty,

@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proposal C — Coach Marks + Corner Help Widget</title>
+<style>
+:root {
+  --accent: #B85C38;
+  --accent-hover: #944526;
+  --accent-light: #F4DDCF;
+  --accent-border: #E8B89A;
+  --text-primary: #1B1814;
+  --text-secondary: #5C5448;
+  --text-tertiary: #8A7E72;
+  --surface: #ffffff;
+  --surface-secondary: #FBF8F3;
+  --surface-tertiary: #EFE7D6;
+  --line: #E5DCCB;
+  --line-2: #D8CDB6;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-lg: 0 12px 28px rgba(60,40,20,.14);
+  --motion: 160ms ease-out;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--surface-secondary); color: var(--text-primary); font-size: 14px; line-height: 1.5; overflow: hidden; }
+
+.proposal-badge { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); background: #3a7d44; color: #fff; font-size: 11px; font-weight: 600; letter-spacing: .04em; padding: 4px 12px; border-radius: 999px; z-index: 10000; white-space: nowrap; }
+
+/* ── App Shell ───────────────────────────────────────────── */
+.app-shell { display: flex; flex-direction: column; height: 100vh; }
+.app-header { background: var(--surface); border-bottom: 1px solid var(--line); height: 48px; display: flex; align-items: center; padding: 0 16px; gap: 12px; flex-shrink: 0; }
+.logo { font-weight: 700; font-size: 15px; color: var(--accent); }
+.nav { display: flex; gap: 2px; margin-left: 8px; }
+.nav-btn { background: none; border: none; cursor: pointer; padding: 5px 10px; border-radius: var(--radius-sm); font-size: 13px; color: var(--text-secondary); }
+.nav-btn.active { color: var(--accent); font-weight: 600; }
+.header-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+.workspace { flex: 1; display: grid; grid-template-columns: 260px 1fr; overflow: hidden; }
+
+/* ── Sidebar ─────────────────────────────────────────────── */
+.sidebar { background: var(--surface); border-right: 1px solid var(--line); overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.sidebar-section { background: var(--surface-secondary); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px; }
+.sidebar-title { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 12px; }
+.field-group { margin-bottom: 10px; }
+.field-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 5px; display: block; }
+.field-input { width: 100%; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px 8px; font-size: 13px; color: var(--text-primary); background: var(--surface); outline: none; }
+.field-input:focus { border-color: var(--accent-border); box-shadow: 0 0 0 2px rgba(184,92,56,.1); }
+.slider-wrap { display: flex; align-items: center; gap: 8px; }
+.slider-wrap input { flex: 1; accent-color: var(--accent); cursor: pointer; }
+.slider-val { font-size: 12px; color: var(--text-tertiary); min-width: 50px; text-align: right; }
+
+/* ── Canvas ──────────────────────────────────────────────── */
+.canvas-area { background: var(--surface-tertiary); display: flex; align-items: center; justify-content: center; position: relative; }
+.canvas-mock { display: grid; grid-template-columns: repeat(22, 16px); grid-template-rows: repeat(16, 16px); gap: 1px; }
+.canvas-cell { border-radius: 2px; }
+
+/* ── Coach mark spotlight ────────────────────────────────── */
+.coach-overlay { position: fixed; inset: 0; z-index: 800; pointer-events: none; transition: opacity var(--motion); }
+.coach-overlay.active { pointer-events: auto; }
+.coach-spotlight { position: absolute; border-radius: 6px; box-shadow: 0 0 0 9999px rgba(27,24,20,.62); transition: all 300ms cubic-bezier(.4,0,.2,1); pointer-events: none; }
+.coach-card { position: absolute; background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); padding: 16px 18px; width: 280px; z-index: 801; transition: all 300ms cubic-bezier(.4,0,.2,1); }
+.coach-step { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
+.coach-title { font-size: 15px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+.coach-body { font-size: 13px; color: var(--text-secondary); line-height: 1.55; margin-bottom: 14px; }
+.coach-footer { display: flex; align-items: center; gap: 8px; }
+.coach-dots { display: flex; gap: 4px; flex: 1; }
+.coach-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--line-2); transition: background var(--motion); }
+.coach-dot.active { background: var(--accent); }
+.coach-btn { padding: 7px 14px; border-radius: var(--radius-sm); border: none; cursor: pointer; font-size: 13px; font-weight: 600; }
+.coach-btn-skip { background: none; color: var(--text-secondary); }
+.coach-btn-skip:hover { color: var(--text-primary); }
+.coach-btn-next { background: var(--accent); color: #fff; }
+.coach-btn-next:hover { background: var(--accent-hover); }
+
+/* ── Corner help widget ──────────────────────────────────── */
+.help-widget { position: fixed; bottom: 20px; right: 20px; z-index: 900; }
+.help-widget-btn { width: 48px; height: 48px; border-radius: 50%; background: var(--accent); color: #fff; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 16px rgba(184,92,56,.4); transition: all var(--motion); position: relative; }
+.help-widget-btn:hover { background: var(--accent-hover); transform: scale(1.05); }
+.help-widget-btn svg { width: 22px; height: 22px; }
+.help-widget-badge { position: absolute; top: -2px; right: -2px; width: 14px; height: 14px; background: #3a7d44; border-radius: 50%; border: 2px solid var(--surface-secondary); }
+
+.help-widget-panel { position: absolute; bottom: 60px; right: 0; width: 320px; background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); border: 1px solid var(--line); overflow: hidden; transition: all 200ms cubic-bezier(.4,0,.2,1); transform-origin: bottom right; transform: scale(.92) translateY(8px); opacity: 0; pointer-events: none; }
+.help-widget-panel.open { transform: scale(1) translateY(0); opacity: 1; pointer-events: auto; }
+@media (max-width: 600px) { .help-widget-panel { width: calc(100vw - 32px); right: -4px; bottom: 56px; } }
+
+.widget-panel-header { background: var(--accent); color: #fff; padding: 14px 16px; }
+.widget-panel-title { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
+.widget-panel-sub { font-size: 12px; opacity: .8; }
+.widget-search { padding: 12px; border-bottom: 1px solid var(--line); }
+.widget-search-row { display: flex; align-items: center; gap: 8px; background: var(--surface-secondary); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 10px; }
+.widget-search-row svg { width: 14px; height: 14px; color: var(--text-tertiary); flex-shrink: 0; }
+.widget-search-row input { border: none; background: none; outline: none; font-size: 13px; flex: 1; color: var(--text-primary); }
+.widget-search-row input::placeholder { color: var(--text-tertiary); }
+
+.widget-quick-links { padding: 12px; border-bottom: 1px solid var(--line); }
+.widget-section-label { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 8px; }
+.widget-quick-link { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; color: var(--text-secondary); transition: all var(--motion); }
+.widget-quick-link:hover { background: var(--surface-secondary); color: var(--text-primary); }
+.widget-quick-link svg { width: 14px; height: 14px; color: var(--accent); flex-shrink: 0; }
+
+.widget-actions { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.widget-action-btn { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius-md); border: 1px solid var(--line); cursor: pointer; font-size: 13px; color: var(--text-secondary); background: none; text-align: left; transition: all var(--motion); width: 100%; }
+.widget-action-btn:hover { border-color: var(--accent-border); color: var(--accent); background: var(--accent-light); }
+.widget-action-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+.widget-action-btn-title { font-weight: 500; color: var(--text-primary); display: block; margin-bottom: 1px; }
+.widget-action-btn-sub { font-size: 11px; color: var(--text-tertiary); }
+
+/* ── Demo note ───────────────────────────────────────────── */
+.demo-note { position: fixed; top: 50px; left: 50%; transform: translateX(-50%); background: var(--surface); border: 1px solid #3a7d4444; border-radius: var(--radius-md); padding: 10px 16px; font-size: 12px; color: var(--text-secondary); z-index: 850; max-width: 540px; width: calc(100% - 32px); box-shadow: var(--shadow-md); line-height: 1.5; }
+.demo-note strong { color: var(--text-primary); }
+.demo-note ul { padding-left: 16px; margin-top: 4px; }
+.demo-note li { margin-bottom: 2px; }
+.demo-note .dismiss { float: right; background: none; border: none; cursor: pointer; font-size: 18px; color: var(--text-tertiary); margin-left: 8px; line-height: 1; padding: 0; }
+</style>
+</head>
+<body>
+
+<div class="proposal-badge">Proposal C — Coach Marks + Corner Help Widget</div>
+
+<div class="app-shell">
+  <header class="app-header">
+    <span class="logo">Stitch Studio</span>
+    <nav class="nav">
+      <button class="nav-btn active">Creator</button>
+      <button class="nav-btn">Tracker</button>
+      <button class="nav-btn">Stash</button>
+    </nav>
+    <div class="header-actions">
+      <button style="background:none;border:1px solid var(--line);border-radius:var(--radius-sm);padding:5px 10px;cursor:pointer;font-size:13px;color:var(--text-secondary);" onclick="startTour()">
+        Replay tour
+      </button>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <aside class="sidebar">
+      <div class="sidebar-section" id="dimSection">
+        <div class="sidebar-title">Dimensions</div>
+        <div class="field-group">
+          <label class="field-label" for="widthIn">Width (stitches)</label>
+          <input id="widthIn" class="field-input" type="number" value="80">
+        </div>
+        <div class="field-group" id="fabricField">
+          <label class="field-label" for="fabricIn">Fabric count</label>
+          <select id="fabricIn" class="field-input">
+            <option selected>14 count (Aida)</option>
+            <option>11 count</option>
+            <option>18 count</option>
+            <option>28 count evenweave</option>
+          </select>
+        </div>
+      </div>
+      <div class="sidebar-section" id="paletteSection">
+        <div class="sidebar-title">Palette</div>
+        <div class="field-group">
+          <label class="field-label">Max colours</label>
+          <div class="slider-wrap">
+            <input type="range" min="4" max="40" value="12" oninput="document.getElementById('cVal').textContent = this.value + ' colours'">
+            <span id="cVal" class="slider-val">12 colours</span>
+          </div>
+        </div>
+        <div class="field-group" id="confettiField">
+          <label class="field-label">Confetti cleanup</label>
+          <select class="field-input">
+            <option>Off</option><option>Light</option><option selected>Moderate</option><option>Aggressive</option>
+          </select>
+        </div>
+      </div>
+      <div class="sidebar-section" id="advancedSection">
+        <div class="sidebar-title">Advanced</div>
+        <div class="field-group">
+          <label class="field-label">Dithering</label>
+          <select class="field-input"><option selected>Floyd-Steinberg</option><option>Ordered (Bayer)</option><option>None</option></select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Blur radius</label>
+          <div class="slider-wrap">
+            <input type="range" min="0" max="5" value="1" step=".5">
+            <span class="slider-val">1 px</span>
+          </div>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Min stitches per colour</label>
+          <input class="field-input" type="number" value="10" min="1">
+        </div>
+      </div>
+    </aside>
+
+    <div class="canvas-area">
+      <div class="canvas-mock" id="canvasMock"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Coach mark overlay -->
+<div class="coach-overlay" id="coachOverlay">
+  <div class="coach-spotlight" id="coachSpotlight"></div>
+  <div class="coach-card" id="coachCard">
+    <div class="coach-step" id="coachStep">Step 1 of 5</div>
+    <div class="coach-title" id="coachTitle">Welcome to the Pattern Creator</div>
+    <div class="coach-body" id="coachBody">Let's take a quick tour of the most important settings. This takes about 60 seconds.</div>
+    <div class="coach-footer">
+      <div class="coach-dots" id="coachDots"></div>
+      <button class="coach-btn coach-btn-skip" onclick="endTour()">Skip</button>
+      <button class="coach-btn coach-btn-next" id="coachNextBtn" onclick="nextStep()">Next</button>
+    </div>
+  </div>
+</div>
+
+<!-- Demo note -->
+<div class="demo-note" id="demoNote">
+  <button class="dismiss" onclick="document.getElementById('demoNote').style.display='none'" aria-label="Dismiss">×</button>
+  <strong>Proposal C — Coach Marks + Corner Help Widget</strong>
+  <ul>
+    <li>On first visit, animated coach marks spotlight each key setting with a contextual explanation.</li>
+    <li>A floating widget (bottom-right) provides always-accessible help, search, and shortcuts.</li>
+    <li>Tooltips are replaced by the coach mark system for first-use, and the widget for returning users.</li>
+    <li>The tour replays from the "Replay tour" button. Open the help widget with the orange button.</li>
+  </ul>
+</div>
+
+<!-- Corner help widget -->
+<div class="help-widget">
+  <button class="help-widget-btn" onclick="toggleWidget()" aria-expanded="false" id="widgetBtn" aria-label="Open help">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg>
+    <span class="help-widget-badge" id="widgetBadge" aria-label="5 articles"></span>
+  </button>
+  <div class="help-widget-panel" id="widgetPanel" aria-hidden="true">
+    <div class="widget-panel-header">
+      <div class="widget-panel-title">Help &amp; Support</div>
+      <div class="widget-panel-sub">How can we help?</div>
+    </div>
+    <div class="widget-search">
+      <div class="widget-search-row">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="search" placeholder="Search help articles…" aria-label="Search help">
+      </div>
+    </div>
+    <div class="widget-quick-links">
+      <div class="widget-section-label">Popular articles</div>
+      <div class="widget-quick-link">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+        Understanding fabric count
+      </div>
+      <div class="widget-quick-link">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+        What are confetti stitches?
+      </div>
+      <div class="widget-quick-link">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+        Exporting your pattern as a PDF
+      </div>
+    </div>
+    <div class="widget-actions">
+      <button class="widget-action-btn" onclick="startTour()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        <span>
+          <span class="widget-action-btn-title">Replay guided tour</span>
+          <span class="widget-action-btn-sub">Re-run the step-by-step walkthrough</span>
+        </span>
+      </button>
+      <button class="widget-action-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        <span>
+          <span class="widget-action-btn-title">Keyboard shortcuts</span>
+          <span class="widget-action-btn-sub">View all 24 shortcuts</span>
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Canvas
+const colours = ['#d4392e','#e8865b','#f2c178','#4a7c59','#2e5c8e','#8b5cf6','#c4b5a0','#f9f0e0','#3b2e20','#7a5c3e'];
+const mock = document.getElementById('canvasMock');
+for (let i = 0; i < 352; i++) {
+  const c = document.createElement('div');
+  c.className = 'canvas-cell';
+  c.style.background = colours[Math.floor(Math.random() * colours.length)];
+  mock.appendChild(c);
+}
+
+// Coach marks tour
+const steps = [
+  {
+    targetId: 'dimSection',
+    title: 'Set your pattern size',
+    body: 'Start by deciding how large your finished piece will be. The width and height control how much detail the pattern contains.',
+    position: 'right'
+  },
+  {
+    targetId: 'fabricField',
+    title: 'Choose your fabric count',
+    body: 'This is the number of holes per inch in your fabric. <strong>14ct Aida</strong> is the standard for beginners and gives you an ~18 cm finished piece for an 80-stitch wide pattern.',
+    position: 'right'
+  },
+  {
+    targetId: 'paletteSection',
+    title: 'Control the colour palette',
+    body: 'More colours = more realistic, but also more thread changes while stitching. Start with 10–15 for most photos.',
+    position: 'right'
+  },
+  {
+    targetId: 'confettiField',
+    title: 'Reduce confetti stitches',
+    body: 'Isolated single stitches (confetti) are fiddly to stitch. "Moderate" removes most of them without losing much detail. You can always adjust this after generating.',
+    position: 'right'
+  },
+  {
+    targetId: 'advancedSection',
+    title: 'Advanced settings',
+    body: 'These are safe to leave at their defaults for most projects. You can always come back to experiment once you\'ve generated your first pattern.',
+    position: 'right',
+    last: true
+  }
+];
+
+let currentStep = -1;
+let tourActive = false;
+
+function startTour() {
+  document.getElementById('demoNote').style.display = 'none';
+  closeWidget();
+  currentStep = -1;
+  nextStep();
+}
+
+function nextStep() {
+  currentStep++;
+  if (currentStep >= steps.length) { endTour(); return; }
+  const step = steps[currentStep];
+  const target = document.getElementById(step.targetId);
+  if (!target) { endTour(); return; }
+
+  const overlay = document.getElementById('coachOverlay');
+  const spotlight = document.getElementById('coachSpotlight');
+  const card = document.getElementById('coachCard');
+  overlay.classList.add('active');
+  tourActive = true;
+
+  const rect = target.getBoundingClientRect();
+  const pad = 6;
+  spotlight.style.left = (rect.left - pad) + 'px';
+  spotlight.style.top = (rect.top - pad) + 'px';
+  spotlight.style.width = (rect.width + pad * 2) + 'px';
+  spotlight.style.height = (rect.height + pad * 2) + 'px';
+
+  // Position card to the right of spotlight
+  const cardLeft = Math.min(rect.right + 16, window.innerWidth - 296);
+  const cardTop = Math.max(rect.top - 10, 60);
+  card.style.left = cardLeft + 'px';
+  card.style.top = cardTop + 'px';
+  card.style.right = 'auto';
+
+  document.getElementById('coachStep').textContent = `Step ${currentStep + 1} of ${steps.length}`;
+  document.getElementById('coachTitle').textContent = step.title;
+  document.getElementById('coachBody').innerHTML = step.body;
+  document.getElementById('coachNextBtn').textContent = step.last ? 'Done' : 'Next';
+
+  const dots = document.getElementById('coachDots');
+  dots.innerHTML = '';
+  steps.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'coach-dot' + (i === currentStep ? ' active' : '');
+    dots.appendChild(d);
+  });
+}
+
+function endTour() {
+  tourActive = false;
+  document.getElementById('coachOverlay').classList.remove('active');
+  currentStep = -1;
+}
+
+// Widget
+function toggleWidget() {
+  const panel = document.getElementById('widgetPanel');
+  const btn = document.getElementById('widgetBtn');
+  const badge = document.getElementById('widgetBadge');
+  const isOpen = panel.classList.toggle('open');
+  btn.setAttribute('aria-expanded', isOpen);
+  panel.setAttribute('aria-hidden', !isOpen);
+  badge.style.display = isOpen ? 'none' : 'block';
+  if (isOpen) setTimeout(() => panel.querySelector('input').focus(), 150);
+}
+function closeWidget() {
+  document.getElementById('widgetPanel').classList.remove('open');
+  document.getElementById('widgetBtn').setAttribute('aria-expanded', 'false');
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (tourActive) endTour();
+    else closeWidget();
+  }
+});
+
+// Auto-start tour after brief delay
+setTimeout(startTour, 800);
+</script>
+</body>
+</html>

@@ -40,6 +40,35 @@ window.useEditHistory = function useEditHistory(state) {
       return;
     }
 
+    // Handle remove_unused_colours undo: restore the removed colours
+    if (last.type === "remove_unused_colours") {
+      var restoredFromPal = last.removedFromPal || [];
+      var restoredFromScratch = last.removedFromScratch || [];
+      state.setPal(function(prev) {
+        if (!prev) return restoredFromPal.slice();
+        var existingIds = new Set(prev.map(function(p) { return p.id; }));
+        return prev.concat(restoredFromPal.filter(function(p) { return !existingIds.has(p.id); }));
+      });
+      state.setScratchPalette(function(prev) {
+        var existingIds = new Set(prev.map(function(p) { return p.id; }));
+        return prev.concat(restoredFromScratch.filter(function(p) { return !existingIds.has(p.id); }));
+      });
+      state.setCmap(function(prev) {
+        if (!prev) return prev;
+        var n = Object.assign({}, prev);
+        restoredFromPal.forEach(function(p) { n[p.id] = p; });
+        return n;
+      });
+      state.setEditHistory(function(prev) { return prev.slice(0, -1); });
+      state.setRedoHistory(function(prev) {
+        var n = prev.concat([{ type: "remove_unused_colours", removedFromPal: restoredFromPal, removedFromScratch: restoredFromScratch }]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      if (state.addToast) state.addToast("Undo: restored " + restoredFromPal.length + " colour" + (restoredFromPal.length !== 1 ? "s" : "") + " to palette", {type:"info", duration:1500});
+      return;
+    }
+
     var np = pat.slice();
     var redoChanges = last.changes.map(function(c) { return { idx: c.idx, old: Object.assign({}, np[c.idx]) }; });
     last.changes.forEach(function(c) { np[c.idx] = Object.assign({}, c.old); });
@@ -94,6 +123,24 @@ window.useEditHistory = function useEditHistory(state) {
         return n;
       });
       if (state.addToast) state.addToast("Redo: re-added colour " + entry.id, {type:"info", duration:1500});
+      return;
+    }
+
+    // Handle remove_unused_colours redo: re-remove the colours
+    if (last.type === "remove_unused_colours") {
+      var toRemove = last.removedFromPal || [];
+      var toRemoveScratch = last.removedFromScratch || [];
+      var toRemoveIds = new Set(toRemove.map(function(p) { return p.id; }));
+      state.setPal(function(prev) { return prev ? prev.filter(function(p) { return !toRemoveIds.has(p.id); }) : prev; });
+      state.setScratchPalette(function(prev) { return prev.filter(function(p) { return !toRemoveIds.has(p.id); }); });
+      state.setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); toRemoveIds.forEach(function(id) { delete n[id]; }); return n; });
+      state.setRedoHistory(function(prev) { return prev.slice(0, -1); });
+      state.setEditHistory(function(prev) {
+        var n = prev.concat([{ type: "remove_unused_colours", removedFromPal: toRemove, removedFromScratch: toRemoveScratch }]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      if (state.addToast) state.addToast("Redo: removed " + toRemove.length + " unused colour" + (toRemove.length !== 1 ? "s" : ""), {type:"info", duration:1500});
       return;
     }
 
