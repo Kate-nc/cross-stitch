@@ -51,6 +51,7 @@ function ManagerApp() {
   const [searchQuery, setSearchQuery] = useState("");
   const [threadFilter, setThreadFilter] = useState("all"); // 'all', 'owned', 'tobuy', 'lowstock'
   const [brandFilter, setBrandFilter] = useState("all"); // 'all', 'dmc', 'anchor'
+  const [threadSort, setThreadSort] = useState("number"); // 'number', 'colour', 'name', 'owned_desc', 'owned_asc'
   const _UP = (k, fb) => { try { return (window.UserPrefs && window.UserPrefs.get(k)) || fb; } catch (_) { return fb; } };
   const [patternFilter, setPatternFilter] = useState(() => _UP("patternsDefaultFilter", "all")); // 'all', 'wishlist', 'owned', 'inprogress', 'completed'
   const [patternSort, setPatternSort] = useState(() => _UP("patternsDefaultSort", "date_desc")); // 'date_desc', 'date_asc', 'title_asc', 'designer_asc', 'status'
@@ -671,12 +672,36 @@ function ManagerApp() {
     const q = searchQuery.toLowerCase();
     const searched = q ? allItems.filter(d => d.id.toLowerCase().includes(q) || d.name.toLowerCase().includes(q)) : allItems;
 
-    return searched.filter(d => {
+    const filtered = searched.filter(d => {
       if (d.compositeKey === expandedThread) return true;
       const t = threads[d.compositeKey] || { owned: 0, tobuy: false, partialStatus: null };
       return matchesThreadFilter(t, threadFilter, lowStockThreshold);
     });
-  }, [searchQuery, threads, threadFilter, brandFilter, expandedThread]);
+
+    if (threadSort === 'number') return filtered;
+    const sorted = filtered.slice();
+    if (threadSort === 'colour') {
+      sorted.sort((a, b) => rgbToHue(a.rgb) - rgbToHue(b.rgb));
+    } else if (threadSort === 'name') {
+      sorted.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (threadSort === 'owned_desc') {
+      sorted.sort((a, b) => ((threads[b.compositeKey] || {}).owned || 0) - ((threads[a.compositeKey] || {}).owned || 0));
+    } else if (threadSort === 'owned_asc') {
+      sorted.sort((a, b) => ((threads[a.compositeKey] || {}).owned || 0) - ((threads[b.compositeKey] || {}).owned || 0));
+    }
+    return sorted;
+  }, [searchQuery, threads, threadFilter, brandFilter, expandedThread, threadSort]);
+
+  function rgbToHue(rgb) {
+    const r = rgb[0] / 255, g = rgb[1] / 255, b = rgb[2] / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+    if (d < 0.05) return 361; // near-grey/white/black → sort to end
+    let h;
+    if (max === r) h = ((g - b) / d + 6) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    return h * 60;
+  }
 
   function matchesThreadFilter(t, filter, lowStockThreshold) {
     if (filter === 'owned') return t.owned > 0 || ["mostly-full", "about-half", "remnant"].includes(t.partialStatus);
@@ -851,6 +876,19 @@ function ManagerApp() {
           ].map(f => (
             <button key={'brand-' + f.id} className={"mgr-chip" + (brandFilter === f.id ? " on" : "")} onClick={() => setBrandFilter(f.id)}>{f.label}</button>
           ))}
+          <span style={{marginLeft:8,marginRight:2,color:'var(--text-tertiary)',fontSize:11}}>Sort:</span>
+          <select
+            aria-label="Sort threads"
+            value={threadSort}
+            onChange={e => setThreadSort(e.target.value)}
+            style={{fontSize:12,padding:'3px 6px',borderRadius:6,border:'1px solid var(--border)',background:'var(--surface)',color:'var(--text-primary)',cursor:'pointer'}}
+          >
+            <option value="number">Number</option>
+            <option value="colour">Colour</option>
+            <option value="name">Name (A–Z)</option>
+            <option value="owned_desc">Owned: most first</option>
+            <option value="owned_asc">Owned: fewest first</option>
+          </select>
           {typeof window.BulkAddModal !== 'undefined' && (
             <button
               onClick={() => setBulkAddOpen(true)}
