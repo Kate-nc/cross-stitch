@@ -829,6 +829,20 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onClose:()=>state.setColourReplaceModal(null),
         onApply:function(dstThread){state.applyGlobalColorReplacement(state.colourReplaceModal.srcId,dstThread.id);state.setColourReplaceModal(null);}
       })}
+      {state.colourReplaceModal&&typeof window.ColourReplaceModal==='undefined'&&(function(){
+        // DEFECT-003: the modal was requested but the component global is
+        // missing (script load order broken or modal file removed). Without
+        // this branch the user clicks Replace, nothing renders, and there is
+        // no console signal. Log once, dismiss the request, surface a toast.
+        if(!window.__colourReplaceModalMissingLogged){
+          window.__colourReplaceModalMissingLogged=true;
+          console.error('[creator-main] window.ColourReplaceModal is undefined; check that creator/ColourReplaceModal.js (bundled into creator/bundle.js) loaded before creator-main.js');
+        }
+        if(window.Toast)window.Toast.show({message:'Colour replace dialog failed to load.',type:'error'});
+        // Defer the state clear so we don't setState during render.
+        Promise.resolve().then(function(){state.setColourReplaceModal(null);});
+        return null;
+      })()}
       {state.namePromptOpen&&<NamePromptModal
         defaultName={state.projectName||(state.sW+'×'+state.sH+' pattern')}
         onConfirm={name=>{
