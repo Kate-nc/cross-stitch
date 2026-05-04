@@ -125,8 +125,9 @@ describe('Creator outcome action bar (UX-12 Phase 5 + Option 2)', () => {
   });
 
   test('mounted in creator-main.js above the ToolStrip', () => {
-    expect(CREATOR_MAIN_SRC).toMatch(
-      /state\.pat\s*&&\s*state\.pal\s*&&\s*window\.CreatorActionBar/);
+    // ActionBar is always rendered (not gated on state.pat && state.pal) so
+    // the Stats link is visible even before a pattern is generated.
+    expect(CREATOR_MAIN_SRC).toMatch(/window\.CreatorActionBar/);
     const actionBarIdx = CREATOR_MAIN_SRC.indexOf('window.CreatorActionBar');
     const toolStripIdx = CREATOR_MAIN_SRC.indexOf('<window.CreatorToolStrip');
     expect(actionBarIdx).toBeGreaterThan(0);

@@ -4799,6 +4799,9 @@ html.pref-dark a { color: var(--accent); }
 .creator-actionbar__info-wrap {
   position: relative;
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .creator-actionbar__info-trigger {

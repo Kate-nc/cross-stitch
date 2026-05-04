@@ -98,7 +98,27 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     };
   }, [menuOpen]);
 
-  if (!props || !props.ready) return null;
+  // When no pattern is loaded yet, show a minimal bar so the Stats link
+  // (and the phase label) are still accessible during Setup.
+  if (!props || !props.ready) {
+    return h("div", {
+        className: "creator-actionbar",
+        role: "toolbar",
+        "aria-label": "Pattern actions"
+      },
+      h("span", { className: "creator-actionbar__mode-phase" }, "Setting up"),
+      h("div", { className: "creator-actionbar__primary" },
+        h("a", {
+            href: "index.html?mode=stats",
+            className: "creator-actionbar__btn creator-actionbar__btn--ghost creator-actionbar__stats-link",
+            title: "View stitching statistics"
+          },
+          Icons.barChart ? Icons.barChart() : null,
+          h("span", null, "Stats")
+        )
+      )
+    );
+  }
 
   function safeCall(fn) {
     return function() {

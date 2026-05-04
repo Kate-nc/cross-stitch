@@ -866,11 +866,11 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
           if(state.addToast)state.addToast("Download cancelled \u2014 give your pattern a name to download a .json file.",{type:"info",duration:3500});
         }}
       />}
-      {state.pat&&state.pal&&window.CreatorActionBar&&<window.CreatorActionBar
-        ready={true}
+      {window.CreatorActionBar&&<window.CreatorActionBar
+        ready={!!(state.pat&&state.pal)}
         sW={state.sW} sH={state.sH}
         fabricCt={state.fabricCt}
-        colourCount={state.pal.length}
+        colourCount={state.pal?state.pal.length:0}
         skeinEstimate={state.totalSkeins}
         totalStitchable={state.totalStitchable}
         difficulty={state.difficulty}
