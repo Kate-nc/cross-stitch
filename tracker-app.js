@@ -1670,18 +1670,26 @@ useEffect(()=>{rtConsumptionRef.current=rtConsumption;},[rtConsumption]);
 // Writes current consumption to the global stash. Idempotent: re-applying
 // the same consumption after reload produces the same stash level (since we
 // always write ownedAtStart − consumedNow, not a delta).
+// We set rtSelfWritingRef around the loop so the cs:stashChanged listener
+// below can ignore events triggered by our own writes (DEFECT-009).
+const rtSelfWritingRef=useRef(false);
 const flushRtStashWrite=useCallback(async()=>{
   if(!wastePrefs.enabled||typeof StashBridge==='undefined')return;
   const consumption=rtConsumptionRef.current;
   const ids=Object.keys(consumption);
   if(!ids.length)return;
   let wrote=false;
-  for(const id of ids){
-    const c=consumption[id];
-    if(!c||c.skeinsConsumed<=0||c.ownedSkeins==null)continue;
-    const newOwned=Math.max(0,c.ownedSkeins-c.skeinsConsumed);
-    try{await StashBridge.updateThreadOwned(id,newOwned);wrote=true;}
-    catch(e){console.warn('RT stash write failed for '+id+':',e);}
+  rtSelfWritingRef.current=true;
+  try{
+    for(const id of ids){
+      const c=consumption[id];
+      if(!c||c.skeinsConsumed<=0||c.ownedSkeins==null)continue;
+      const newOwned=Math.max(0,c.ownedSkeins-c.skeinsConsumed);
+      try{await StashBridge.updateThreadOwned(id,newOwned);wrote=true;}
+      catch(e){console.warn('RT stash write failed for '+id+':',e);}
+    }
+  }finally{
+    rtSelfWritingRef.current=false;
   }
   if(wrote){
     setWastePrefs(prev=>({...prev,lastWrittenAt:new Date().toISOString()}));
@@ -1691,6 +1699,43 @@ const flushRtStashWrite=useCallback(async()=>{
 // Stable ref so the beforeunload handler can call it without stale closure.
 const flushRtStashWriteRef=useRef(flushRtStashWrite);
 useEffect(()=>{flushRtStashWriteRef.current=flushRtStashWrite;},[flushRtStashWrite]);
+
+// External-change listener (DEFECT-009): when the Manager (or any other
+// surface) edits a thread quantity while RT is enabled, re-baseline our
+// snapshot so the next debounced flush doesn't overwrite that edit.
+// Self-triggered events (from flushRtStashWrite above) are filtered out via
+// rtSelfWritingRef, which is set for the duration of the write loop.
+// Re-baseline rule: newSnapshot[id] = liveOwned[id] + currentConsumed[id].
+// This way the next flush computes newOwned = newSnapshot − newConsumed,
+// which preserves any external delta and continues to deduct only this
+// session's incremental consumption.
+useEffect(()=>{
+  function onExternalChange(){
+    if(rtSelfWritingRef.current)return;
+    if(!wastePrefs.enabled)return;
+    if(typeof StashBridge==='undefined')return;
+    var snap=rtStashSnapshotRef.current||{};
+    if(Object.keys(snap).length===0)return; // no baseline yet
+    StashBridge.getGlobalStash().then(function(live){
+      if(!live)return;
+      var consumption=rtConsumptionRef.current||{};
+      var next=Object.assign({},snap);
+      // The stash is keyed by composite key (e.g. 'dmc:310'); rtConsumption is
+      // keyed by bare thread id (e.g. '310'). Strip the brand prefix to look up.
+      Object.keys(live).forEach(function(key){
+        var entry=live[key];
+        if(!entry||typeof entry.owned!=='number')return;
+        var bareId=key.indexOf(':')>=0?key.split(':').slice(1).join(':'):key;
+        var c=consumption[bareId];
+        var consumed=(c&&typeof c.skeinsConsumed==='number')?c.skeinsConsumed:0;
+        next[key]=Object.assign({},entry,{owned:entry.owned+consumed});
+      });
+      rtStashSnapshotRef.current=next;
+    }).catch(function(){});
+  }
+  window.addEventListener('cs:stashChanged',onExternalChange);
+  return function(){window.removeEventListener('cs:stashChanged',onExternalChange);};
+},[wastePrefs.enabled]);
 
 // Debounced write: reset timer on every stitch mark. Fires 30 s after last activity.
 useEffect(()=>{
