@@ -115,6 +115,11 @@ window.CreatorContextMenu = function CreatorContextMenu() {
       if (cellInfo) cv.selectAllOfColorId(cellInfo.id);
     }, {disabled: !hasCellColour, k: 'selectall'}),
 
+    // Replace this colour
+    item([Icons.colourSwap(), " Replace this colour…"], function() {
+      if (cellInfo) cv.setColourReplaceModal({ srcId: cellInfo.id, srcName: cellInfo.name || cellInfo.id, srcRgb: cellInfo.rgb });
+    }, {disabled: !hasCellColour, k: 'replace'}),
+
     sep(),
 
     // Highlight this colour

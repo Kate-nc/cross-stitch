@@ -463,6 +463,8 @@ window.useCreatorState = function useCreatorState() {
 
   // Context menu
   var _ctxMenu = useState(null);     var contextMenu = _ctxMenu[0], setContextMenu = _ctxMenu[1];
+  // Colour replace modal — null when closed, {srcId, srcName, srcRgb} when open
+  var _crModal = useState(null);     var colourReplaceModal = _crModal[0], setColourReplaceModal = _crModal[1];
 
   // Selection modifier key (null | "add" | "subtract" | "intersect") — tracked via keydown/keyup
   var _selMod = useState(null);      var selectionModifier = _selMod[0], setSelectionModifier = _selMod[1];
@@ -1438,6 +1440,8 @@ window.useCreatorState = function useCreatorState() {
     applyColorReduction: wand.applyColorReduction,
     selectionReplaceColorCount: wand.selectionReplaceColorCount,
     applyColorReplacement: wand.applyColorReplacement,
+    applyGlobalColorReplacement: wand.applyGlobalColorReplacement,
+    colourReplaceModal, setColourReplaceModal,
     selectionStats: wand.selectionStats,
     applyOutlineGeneration: wand.applyOutlineGeneration,
     selectionCount: wand.selectionCount, hasSelection: wand.hasSelection,

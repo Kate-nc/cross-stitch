@@ -614,6 +614,15 @@ window.Icons = (function() {
     // Cross-stitch X dot — the brand logo period replacement
     stitchDot: function() {
       return svg(l(4, 4, 20, 20), l(20, 4, 4, 20));
+    },
+    // Colour swap — two circular arrows indicating a direct colour replacement
+    colourSwap: function() {
+      return svg(
+        p('M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8'),
+        p('M21 3v5h-5'),
+        p('M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16'),
+        p('M3 21v-5h5')
+      );
     }
   };
 })();

@@ -4752,6 +4752,40 @@ window.useMagicWand = function useMagicWand(state) {
     state.setPal(r.pal); state.setCmap(r.cmap);
   }
 
+  // ─── Direct global colour replacement (whole pattern or active selection) ────
+
+  function applyGlobalColorReplacement(srcId, dstId) {
+    var pat = state.pat, cmap = state.cmap;
+    if (!pat || !cmap || !srcId || !dstId || srcId === dstId) return;
+    var dstEntry = cmap[dstId];
+    if (!dstEntry) {
+      if (typeof findThreadInCatalog === 'function') dstEntry = findThreadInCatalog('dmc', dstId);
+      if (!dstEntry && typeof DMC !== 'undefined') dstEntry = DMC.find(function(d) { return d.id === dstId; });
+    }
+    if (!dstEntry) return;
+    var np = pat.slice();
+    var changes = [];
+    for (var i = 0; i < np.length; i++) {
+      if (selectionMask && !selectionMask[i]) continue;
+      var cell = np[i];
+      if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
+      if (cell.id !== srcId) continue;
+      changes.push({ idx: i, old: Object.assign({}, cell) });
+      np[i] = Object.assign({}, dstEntry);
+    }
+    if (!changes.length) return;
+    var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    state.setEditHistory(function(prev) {
+      var n = prev.concat([{ type: 'colorReplace', changes: changes }]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    state.setRedoHistory([]);
+    state.setPat(np);
+    var r = state.buildPaletteWithScratch(np);
+    state.setPal(r.pal); state.setCmap(r.cmap);
+  }
+
   // ─── Phase 3.1: Selection stats ─────────────────────────────────────────────
 
   var selectionStats = useMemo(function() {
@@ -4850,6 +4884,7 @@ window.useMagicWand = function useMagicWand(state) {
     previewConfettiCleanup, applyConfettiCleanup,
     previewColorReduction, applyColorReduction,
     selectionReplaceColorCount, applyColorReplacement,
+    applyGlobalColorReplacement,
     // Phase 3
     selectionStats, applyOutlineGeneration,
     // Derived
@@ -5722,6 +5757,8 @@ window.useCreatorState = function useCreatorState() {
 
   // Context menu
   var _ctxMenu = useState(null);     var contextMenu = _ctxMenu[0], setContextMenu = _ctxMenu[1];
+  // Colour replace modal — null when closed, {srcId, srcName, srcRgb} when open
+  var _crModal = useState(null);     var colourReplaceModal = _crModal[0], setColourReplaceModal = _crModal[1];
 
   // Selection modifier key (null | "add" | "subtract" | "intersect") — tracked via keydown/keyup
   var _selMod = useState(null);      var selectionModifier = _selMod[0], setSelectionModifier = _selMod[1];
@@ -6697,6 +6734,8 @@ window.useCreatorState = function useCreatorState() {
     applyColorReduction: wand.applyColorReduction,
     selectionReplaceColorCount: wand.selectionReplaceColorCount,
     applyColorReplacement: wand.applyColorReplacement,
+    applyGlobalColorReplacement: wand.applyGlobalColorReplacement,
+    colourReplaceModal, setColourReplaceModal,
     selectionStats: wand.selectionStats,
     applyOutlineGeneration: wand.applyOutlineGeneration,
     selectionCount: wand.selectionCount, hasSelection: wand.hasSelection,
@@ -6927,6 +6966,22 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
   function getActiveTool() { return state.activeToolRef ? state.activeToolRef.current : state.activeTool; }
   function getPartialStitchTool() { return state.partialStitchToolRef ? state.partialStitchToolRef.current : state.partialStitchTool; }
+
+  // After painting, preserve any pal entries that just dropped to 0 stitches.
+  // buildPaletteWithScratch drops them entirely; this keeps them as count:0 so
+  // the "unused" chip dimming and × / Remove-unused button can appear.
+  function rebuildPreservingZeros(np) {
+    var r = state.buildPaletteWithScratch(np);
+    var existingPal = state.pal || [];
+    var inResult = new Set(r.pal.map(function(p) { return p.id; }));
+    var zeroed = existingPal
+      .filter(function(p) { return !inResult.has(p.id); })
+      .map(function(p) { return Object.assign({}, p, { count: 0 }); });
+    if (!zeroed.length) return r;
+    var cmap2 = Object.assign({}, r.cmap);
+    zeroed.forEach(function(p) { cmap2[p.id] = p; });
+    return { pal: r.pal.concat(zeroed), cmap: cmap2 };
+  }
 
   // Hand tool acts as "explicit pan mode" — for the purposes of the
   // pointer handlers below it is treated identically to "no active
@@ -7301,7 +7356,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         return; // paint handled by mousedown drag
       }
       state.setPat(np2);
-      var r2 = buildPaletteWithScratch(np2); state.setPal(r2.pal); state.setCmap(r2.cmap);
+      var r2 = rebuildPreservingZeros(np2); state.setPal(r2.pal); state.setCmap(r2.cmap);
       return;
     }
 
@@ -7482,7 +7537,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       });
       state.setRedoHistory([]);
       if (madeChanges) {
-        var r = buildPaletteWithScratch(dragPatRef.current);
+        var r = rebuildPreservingZeros(dragPatRef.current);
         state.setPal(r.pal); state.setCmap(r.cmap);
       }
     }

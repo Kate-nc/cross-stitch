@@ -62,6 +62,7 @@ const ORDER = [
   // Option 2: PatternInfoPopover must load before ActionBar (which renders
   // it) so window.CreatorPatternInfoPopover is defined at mount time.
   'PatternInfoPopover.js',
+  'ColourReplaceModal.js',
   'ActionBar.js',
 ];
 

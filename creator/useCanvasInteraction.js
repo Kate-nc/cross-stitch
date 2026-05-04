@@ -26,6 +26,22 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function getActiveTool() { return state.activeToolRef ? state.activeToolRef.current : state.activeTool; }
   function getPartialStitchTool() { return state.partialStitchToolRef ? state.partialStitchToolRef.current : state.partialStitchTool; }
 
+  // After painting, preserve any pal entries that just dropped to 0 stitches.
+  // buildPaletteWithScratch drops them entirely; this keeps them as count:0 so
+  // the "unused" chip dimming and × / Remove-unused button can appear.
+  function rebuildPreservingZeros(np) {
+    var r = state.buildPaletteWithScratch(np);
+    var existingPal = state.pal || [];
+    var inResult = new Set(r.pal.map(function(p) { return p.id; }));
+    var zeroed = existingPal
+      .filter(function(p) { return !inResult.has(p.id); })
+      .map(function(p) { return Object.assign({}, p, { count: 0 }); });
+    if (!zeroed.length) return r;
+    var cmap2 = Object.assign({}, r.cmap);
+    zeroed.forEach(function(p) { cmap2[p.id] = p; });
+    return { pal: r.pal.concat(zeroed), cmap: cmap2 };
+  }
+
   // Hand tool acts as "explicit pan mode" — for the purposes of the
   // pointer handlers below it is treated identically to "no active
   // tool", which already has a 1-finger touch pan + mouse-drag pan
@@ -399,7 +415,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         return; // paint handled by mousedown drag
       }
       state.setPat(np2);
-      var r2 = buildPaletteWithScratch(np2); state.setPal(r2.pal); state.setCmap(r2.cmap);
+      var r2 = rebuildPreservingZeros(np2); state.setPal(r2.pal); state.setCmap(r2.cmap);
       return;
     }
 
@@ -580,7 +596,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       });
       state.setRedoHistory([]);
       if (madeChanges) {
-        var r = buildPaletteWithScratch(dragPatRef.current);
+        var r = rebuildPreservingZeros(dragPatRef.current);
         state.setPal(r.pal); state.setCmap(r.cmap);
       }
     }

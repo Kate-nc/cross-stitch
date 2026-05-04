@@ -193,7 +193,25 @@ window.CreatorSidebar = function CreatorSidebar() {
             position:"absolute", top:-2, right:-2, width:6, height:6, borderRadius:"50%",
             background: STASH_DOT[stashStatus], boxShadow:"0 0 0 1px #fff"
           }
-        })
+        }),
+        // Colour swap button — visible on hover in edit mode
+        app.appMode === "edit" && h("button", {
+          key: "swap-" + p.id,
+          title: "Replace DMC " + p.id + " with another colour",
+          "aria-label": "Replace " + (p.name || p.id) + " with another colour",
+          onClick: function(e) {
+            e.stopPropagation();
+            cv.setColourReplaceModal({ srcId: p.id, srcName: p.name || p.id, srcRgb: p.rgb });
+          },
+          style: {
+            position:"absolute", bottom:1, left:1, width:13, height:13, padding:0,
+            border:"none", background:"transparent", cursor:"pointer",
+            color:"var(--text-tertiary)", display:"flex", alignItems:"center", justifyContent:"center",
+            opacity:0, transition:"opacity var(--motion)", borderRadius:2
+          },
+          onMouseEnter: function(e) { e.currentTarget.style.opacity="1"; e.currentTarget.style.color="var(--accent)"; },
+          onMouseLeave: function(e) { e.currentTarget.style.opacity="0"; e.currentTarget.style.color="var(--text-tertiary)"; }
+        }, typeof Icons !== 'undefined' && Icons.colourSwap ? Icons.colourSwap() : null)
       );
     }).filter(Boolean);
     var unusedCount = displayPal ? displayPal.filter(function(p) { return p.count === 0; }).length : 0;
