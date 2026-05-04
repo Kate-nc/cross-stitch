@@ -1500,7 +1500,8 @@ window.CreatorSidebar = function CreatorSidebar() {
       palSection,
       tidySection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
-      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.revertSection
     );
 
     // ── Preview tab — chart-mode and comparison controls only.
@@ -1766,6 +1767,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       bgSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.revertSection,
       h("button", {
         onClick:function(){
           if(cv.editHistory.length > 0 && !confirm("Regenerating will replace your current edits. Continue?")) return;

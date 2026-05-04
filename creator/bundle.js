@@ -5474,6 +5474,12 @@ window.useCreatorState = function useCreatorState() {
   var _lastGenSnap = useState(null);
   var lastGenSnapshot = _lastGenSnap[0], setLastGenSnapshot = _lastGenSnap[1];
 
+  // Snapshot of pat/pal/cmap at the time the last successful generation
+  // completed. Used by usePaletteSwap to offer a "Revert to generated palette"
+  // button. Session-only — clears on reload or resetAll().
+  var _genPatSnap = useState(null);
+  var genPatSnapshot = _genPatSnap[0], setGenPatSnapshot = _genPatSnap[1];
+
   // App mode: 'create' | 'edit' (track is handled by TrackerApp separately)
   var _appMode = useState("create"); var appMode = _appMode[0], setAppMode = _appMode[1];
 
@@ -6000,7 +6006,7 @@ window.useCreatorState = function useCreatorState() {
     setBsLines([]); setBsStart(null); setActiveTool(null); setSelectedColorId(null);
     setEditHistory([]); setRedoHistory([]); setExportPage(0); setDone(null);
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
-    setLastGenSnapshot(null);
+    setLastGenSnapshot(null); setGenPatSnapshot(null);
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
     setDimOpen(true); setPalOpen(true); setFabOpen(false); setAdjOpen(false);
     setBgOpen(false); setCleanupOpen(false); setIsCropping(false); setCropRect(null);
@@ -6167,6 +6173,7 @@ window.useCreatorState = function useCreatorState() {
       bri: bri, con: con, sat: sat, dith: dith, dithMode: dithMode,
       allowBlends: allowBlends, skipBg: skipBg
     });
+    setGenPatSnapshot({ pat: result.mapped.slice(), pal: result.pal.slice(), cmap: Object.assign({}, result.cmap) });
     // Compute cleanup diff mask from preCleanupIds
     setShowCleanupDiff(false);
     if (result.preCleanupIds && result.preCleanupIds.length === result.mapped.length) {
@@ -6480,6 +6487,7 @@ window.useCreatorState = function useCreatorState() {
     setRedoHistory: setRedoHistory,
     EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
     buildPaletteWithScratch: buildPaletteWithScratch,
+    genPatSnapshot: genPatSnapshot,
   });
 
   // ─── Magic Wand integration ──────────────────────────────────────────────────
@@ -6709,6 +6717,7 @@ window.useCreatorState = function useCreatorState() {
     selectionModifier, setSelectionModifier,
     // PaletteSwap
     paletteSwap,
+    genPatSnapshot, setGenPatSnapshot,
     // Magic Wand
     selectionMask: wand.selectionMask, setSelectionMask: wand.setSelectionMask,
     wandTolerance: wand.wandTolerance, setWandTolerance: wand.setWandTolerance,
@@ -13129,7 +13138,8 @@ window.CreatorSidebar = function CreatorSidebar() {
       palSection,
       tidySection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
-      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.revertSection
     );
 
     // ── Preview tab — chart-mode and comparison controls only.
@@ -13395,6 +13405,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       bgSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.revertSection,
       h("button", {
         onClick:function(){
           if(cv.editHistory.length > 0 && !confirm("Regenerating will replace your current edits. Continue?")) return;
