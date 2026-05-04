@@ -805,17 +805,14 @@ const ProjectStorage = (() => {
           if (proj.palette && proj.palette.length > 0) {
             for (const pe of proj.palette) { if (pe && pe.id) palMap[pe.id] = pe; }
           } else {
-            // Derive from pattern cells (may contain duplicates — first occurrence wins)
+            // Derive from pattern cells (first occurrence per solid thread id wins).
+            // Blend cells are skipped — their component ids are resolved via the DMC
+            // catalogue fallback below, which gives each thread's own colour rather
+            // than the averaged blend rgb.
             for (const cell of proj.pattern) {
               if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
-              if (cell.id.indexOf('+') !== -1) {
-                // Blend: extract component colours from the cell's rgb if available,
-                // or resolve each part individually later.
-                const parts = splitBlendId(cell.id);
-                for (let pi = 0; pi < parts.length; pi++) {
-                  if (!palMap[parts[pi]]) palMap[parts[pi]] = { id: parts[pi], name: parts[pi], rgb: cell.rgb || [128,128,128] };
-                }
-              } else if (!palMap[cell.id]) {
+              if (cell.id.indexOf('+') !== -1) continue; // components resolved by catalogue
+              if (!palMap[cell.id]) {
                 palMap[cell.id] = { id: cell.id, name: cell.name || cell.id, rgb: cell.rgb || [128,128,128] };
               }
             }

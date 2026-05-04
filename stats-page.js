@@ -1276,9 +1276,12 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       for (const p of fulls) {
         if (!p) continue;
         details.push({ id: p.id, name: p.name, finishStatus: p.finishStatus || 'active', completedAt: p.completedAt, startedAt: p.startedAt });
-        // Compute difficulty + completion + palette stats once per project
-        let total = 0, completed = 0, blendCount = 0;
+        // Compute difficulty + completion + palette stats once per project.
+        // Blend cells ("310+550") are split into their component ids so palLen
+        // counts distinct physical threads, not compound entries.
+        let total = 0, completed = 0;
         const palette = new Set();
+        const blendIds = new Set(); // distinct blend pairs for difficulty calc
         if (p.pattern && p.pattern.length) {
           const done = p.done && p.done.length === p.pattern.length ? p.done : null;
           for (let i = 0; i < p.pattern.length; i++) {
@@ -1286,10 +1289,15 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
             if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
             total++;
             if (done && done[i]) completed++;
-            palette.add(cell.id);
+            if (cell.id.indexOf('+') !== -1) {
+              blendIds.add(cell.id);
+              cell.id.split('+').forEach(function(part) { part = part.trim(); if (part) palette.add(part); });
+            } else {
+              palette.add(cell.id);
+            }
           }
-          for (const id of palette) if (id.indexOf('+') >= 0) blendCount++;
         }
+        const blendCount = blendIds.size;
         const palLen = palette.size;
         const diff = (typeof calcDifficulty === 'function' && palLen > 0)
           ? calcDifficulty(palLen, blendCount, total)
@@ -1436,12 +1444,21 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       const seen = new Set();
       for (const t of pat.threads) {
         if (!t || !t.id) continue;
-        if (ownedKeys.has(t.id) || ownedKeys.has('dmc:' + t.id)) continue;
-        if (seen.has(t.id)) continue;
-        seen.add(t.id);
-        if (!tally[t.id]) tally[t.id] = { id: t.id, name: t.name || t.id, brand: t.brand || 'dmc', patternCount: 0, patterns: [] };
-        tally[t.id].patternCount++;
-        if (tally[t.id].patterns.length < 3) tally[t.id].patterns.push(pat.title || 'Untitled');
+        // Expand blended threads into their two component requirements.
+        // A blend stored as {id:'310', is_blended:true, blend_id:'550'} needs
+        // both DMC 310 and DMC 550 — treat each as an independent buying need.
+        const components = (t.is_blended && t.blend_id)
+          ? [{ id: t.id, name: t.name }, { id: t.blend_id, name: t.blend_name || t.blend_id }]
+          : [{ id: t.id, name: t.name }];
+        const brand = t.brand || 'dmc';
+        for (const comp of components) {
+          if (ownedKeys.has(comp.id) || ownedKeys.has(brand + ':' + comp.id)) continue;
+          if (seen.has(comp.id)) continue;
+          seen.add(comp.id);
+          if (!tally[comp.id]) tally[comp.id] = { id: comp.id, name: comp.name || comp.id, brand, patternCount: 0, patterns: [] };
+          tally[comp.id].patternCount++;
+          if (tally[comp.id].patterns.length < 3) tally[comp.id].patterns.push(pat.title || 'Untitled');
+        }
       }
     }
     // Look up rgb for each
