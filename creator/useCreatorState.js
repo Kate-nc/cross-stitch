@@ -863,6 +863,14 @@ window.useCreatorState = function useCreatorState() {
   }
 
   function removeScratchColour(id) {
+    var removedFromPal = pal ? pal.filter(function(p) { return p.id === id; }) : [];
+    var removedFromScratch = scratchPalette ? scratchPalette.filter(function(p) { return p.id === id; }) : [];
+    setEditHistory(function(prev) {
+      var n = prev.concat([{ type: "remove_unused_colours", removedFromPal: removedFromPal.slice(), removedFromScratch: removedFromScratch.slice() }]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    setRedoHistory([]);
     setScratchPalette(function(prev) { return prev.filter(function(p) { return p.id !== id; }); });
     setPal(function(prev) { return prev ? prev.filter(function(p) { return p.id !== id; }) : prev; });
     setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); delete n[id]; return n; });

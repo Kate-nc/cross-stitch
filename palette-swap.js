@@ -1078,18 +1078,26 @@ function usePaletteSwap(props) {
   var beforeRef = React.useRef(null);
   var afterRef = React.useRef(null);
   var debounceRef = React.useRef(null);
+  // Keep a ref to pat so the hasPaletteChanged memo can read the latest pat
+  // without pat being listed as a dep. This avoids running the O(n) scan on
+  // every intermediate paint state — it only reruns when a history entry is
+  // committed (editHistory changes), at which point patRef.current is already
+  // the fully-committed pat value (React 18 batches setPat + setEditHistory).
+  var patRef = React.useRef(pat);
+  patRef.current = pat;
 
   // True when pat has diverged from the generated snapshot (i.e. at least one
   // cell id has changed since generation). Used to enable/disable revert button.
   var hasPaletteChanged = React.useMemo(function() {
-    if (!genPatSnapshot || !pat) return false;
+    var currentPat = patRef.current;
+    if (!genPatSnapshot || !currentPat) return false;
     var snap = genPatSnapshot.pat;
-    if (snap.length !== pat.length) return true;
-    for (var i = 0; i < pat.length; i++) {
-      if (pat[i].id !== snap[i].id) return true;
+    if (snap.length !== currentPat.length) return true;
+    for (var i = 0; i < currentPat.length; i++) {
+      if (currentPat[i].id !== snap[i].id) return true;
     }
     return false;
-  }, [genPatSnapshot, pat]);
+  }, [genPatSnapshot, editHistory]); // dep on editHistory, not pat — see patRef above
 
   // Compute mapping
   var computedMapping = React.useMemo(function() {

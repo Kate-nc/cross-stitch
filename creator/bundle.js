@@ -6166,6 +6166,14 @@ window.useCreatorState = function useCreatorState() {
   }
 
   function removeScratchColour(id) {
+    var removedFromPal = pal ? pal.filter(function(p) { return p.id === id; }) : [];
+    var removedFromScratch = scratchPalette ? scratchPalette.filter(function(p) { return p.id === id; }) : [];
+    setEditHistory(function(prev) {
+      var n = prev.concat([{ type: "remove_unused_colours", removedFromPal: removedFromPal.slice(), removedFromScratch: removedFromScratch.slice() }]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    setRedoHistory([]);
     setScratchPalette(function(prev) { return prev.filter(function(p) { return p.id !== id; }); });
     setPal(function(prev) { return prev ? prev.filter(function(p) { return p.id !== id; }) : prev; });
     setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); delete n[id]; return n; });
@@ -11912,7 +11920,9 @@ window.CreatorSidebar = function CreatorSidebar() {
             opacity:0, transition:"opacity var(--motion)", borderRadius:2
           },
           onMouseEnter: function(e) { e.currentTarget.style.opacity="1"; e.currentTarget.style.color="var(--accent)"; },
-          onMouseLeave: function(e) { e.currentTarget.style.opacity="0"; e.currentTarget.style.color="var(--text-tertiary)"; }
+          onMouseLeave: function(e) { e.currentTarget.style.opacity="0"; e.currentTarget.style.color="var(--text-tertiary)"; },
+          onFocus: function(e) { e.currentTarget.style.opacity="1"; e.currentTarget.style.color="var(--accent)"; e.currentTarget.style.outline="2px solid var(--accent)"; e.currentTarget.style.outlineOffset="1px"; },
+          onBlur: function(e) { e.currentTarget.style.opacity="0"; e.currentTarget.style.color="var(--text-tertiary)"; e.currentTarget.style.outline="none"; }
         }, typeof Icons !== 'undefined' && Icons.colourSwap ? Icons.colourSwap() : null)
       );
     }).filter(Boolean);

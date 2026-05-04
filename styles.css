@@ -2419,12 +2419,14 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
   .tsp-rt-toggle input{position:absolute;opacity:0;width:0;height:0;}
   .tsp-rt-track{position:absolute;inset:0;border-radius:8px;background:var(--border);transition:background var(--motion);}
   .tsp-rt-toggle input:checked~.tsp-rt-track{background:var(--accent);}
+  .tsp-rt-toggle input:focus-visible~.tsp-rt-track{outline:2px solid var(--accent);outline-offset:2px;}
   .tsp-rt-thumb{position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:transform var(--motion);pointer-events:none;}
   .tsp-rt-toggle input:checked~.tsp-rt-thumb{transform:translateX(12px);}
   /* Gear button */
   .tsp-rt-gear-wrap{position:relative;}
   .tsp-rt-gear-btn{width:22px;height:22px;border-radius:4px;border:1px solid var(--border);background:var(--surface);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:var(--text-secondary);flex-shrink:0;}
   .tsp-rt-gear-btn:hover,.tsp-rt-gear-btn[aria-expanded="true"]{background:var(--surface-secondary);color:var(--text-primary);}
+  .tsp-rt-gear-btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
   /* Gear flyout */
   .tsp-rt-gear-flyout{position:absolute;right:0;top:calc(100% + 4px);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;box-shadow:0 4px 12px rgba(0,0,0,.12);z-index:50;width:210px;}
   .tsp-rt-gear-title{font-size:11px;font-weight:700;color:var(--text-primary);margin-bottom:8px;}
