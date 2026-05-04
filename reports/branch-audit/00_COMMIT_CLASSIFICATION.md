@@ -1,0 +1,40 @@
+# Commit Classification
+
+Branch `double-checking` → `main` (merge-base `ca4519f`). 18 commits, listed in chronological order (oldest → newest, the order they will land if merged with `--no-ff`).
+
+| # | Hash | Category | Files (code only) | What the diff actually does | Message ↔ diff alignment |
+|---|------|----------|-------------------|------------------------------|---------------------------|
+| 1 | `3c41d15` | NEW_FEATURE + DOCS | `creator-main.js`, `creator/Sidebar.js`, `creator/useCreatorState.js`, `creator/useEditHistory.js`, `creator/bundle.js`, `index.html` | Adds `removeUnusedColours()` to creator state, wires it through PatternDataContext, broadens `isUnused` chip detection from scratch-only to all edit-mode, adds "Remove unused (N)" header button, adds `remove_unused_colours` undo/redo branch. (Plus 14 markdown/HTML proposal files for an unrelated help-audit initiative.) | OK — message accurately describes the code half; the proposal/help-audit files are not mentioned but are clearly research artefacts that piggy-backed onto the commit. |
+| 2 | `410da6f` | NEW_FEATURE | `manager-app.js` | Adds a sort dropdown to the stash list. | OK |
+| 3 | `3044d38` | BUGFIX | `stats-page.js`, `styles.css`, `tracker-app.js` | "Project stats visibility fixes" — small CSS + tracker tweak + 19-line stats-page change. Vague; need to read diff for specifics. | Vague message; diff content not described. |
+| 4 | `fa3c594` | BUGFIX **+ accidental NEW_FEATURE** | `build-creator-bundle.js`, `creator/ColourReplaceModal.js` (new), `creator/ContextMenu.js`, `creator/Sidebar.js`, `creator/ToolStrip.js`, `creator/useCanvasInteraction.js`, `creator/useCreatorState.js`, `creator/useMagicWand.js`, `creator/bundle.js`, `icons.js`, `index.html` | Message describes ONLY the `rebuildPreservingZeros` helper inside `useCanvasInteraction.js`. **But the same commit also adds `ColourReplaceModal.js`, the `colourSwap` icon, the Replace toolbar button (`ToolStrip.js`), the context-menu entry (`ContextMenu.js`), changes to `useMagicWand.js` (35 new lines), and registers the new module in `build-creator-bundle.js`.** These are the source files for commit #6 (`255142d`'s "feat: direct colour swap"). Two unrelated changes were squashed into one commit with a misleading message. | **MISMATCH (significant)** — see below. |
+| 5 | `9d3bab5` | BUGFIX | `creator-main.js`, `creator/useCanvasInteraction.js` | Tiny (8 + 13 lines) follow-up "Fix colour removal". Need diff inspection — likely patches a regression introduced by #1 or #4. | Vague message; diff is small enough to verify directly. |
+| 6 | `255142d` | NEW_FEATURE (bundle rebuild + test snapshot) | `creator/bundle.js` (+167), `index.html` (cache-bust), `tests/__snapshots__/icons.test.js.snap` | Message claims to introduce the "direct colour swap" feature, but the **source files for that feature were already committed in #4**. This commit only contains the regenerated `creator/bundle.js`, the bumped `index.html` script src, and the icon snapshot update. | **MISMATCH (workflow artefact)** — message describes the feature but diff is just the build artefact. The actual source changes live in commit #4 with a misleading message. |
+| 7 | `bcca388` | NEW_FEATURE | `creator/Sidebar.js`, `creator/useCreatorState.js`, `palette-swap.js`, `creator/bundle.js`, `index.html` | Adds "Restore original colours" capability to the palette swap flow (62 new lines in `palette-swap.js`, 11 in `useCreatorState.js`, 4 in `Sidebar.js`). | OK (terse message but accurate). |
+| 8 | `d5cf109` | BUGFIX | `creator/PreviewCanvas.js`, `creator/bundle.js`, `index.html` | "Fix canvas colour" — 35-line refactor inside `PreviewCanvas.js` (net 0 lines, so a substitution). Likely fixes a colour-rendering regression. | Vague — diff inspection required. |
+| 9 | `0f528c9` | BUGFIX | `tracker-app.js` | 8-line change "fix stitch tracker". Very vague. | Vague — diff inspection required. |
+| 10 | `7575577` | BUGFIX | `manager-app.js`, `stash-bridge.js` | Three concrete bugs in one commit, all clearly described: (a) `manager-app.updateThread` did not update V3 acquisition/history fields → broke SABLE/stash-age; (b) `stash-bridge.getAcquisitionTimeseries` "used" line missed projects with empty `stitchLog`; (c) `migrateSchemaToV3` did not dispatch `cs:stashChanged` after migration → manager auto-save could overwrite migrated fields. | OK |
+| 11 | `be2e2b6` | BUGFIX | `project-storage.js` | Adds `statsSessions` fallback to `getLifetimeStitches`, `getStitchLogByDay`, `getMostUsedColours`. | OK |
+| 12 | `e9342bb` | BUGFIX | `project-storage.js` | `getMostUsedColours` now derives swatch colour from pattern cells for Creator projects (which never populate `proj.palette`). Was rendering all swatches grey. | OK |
+| 13 | `ee6bf97` | BUGFIX | `project-storage.js` | `buildStatsSummary` now derives palette from pattern cells for Creator projects. Fixes "stash thread reported unused" insight + heatmap "show N more" count. | OK |
+| 14 | `e54d5c1` | BUGFIX | `project-storage.js`, `stats-page.js` | Splits blend ids ('310+550') into components in three places: `getMostUsedColours().palMap`, `richProjects.palette` Set, and `buyingImpact`. | OK |
+| 15 | `5b2ebff` | BUGFIX | `manager-app.js`, `stats-page.js` | Same split-blend treatment in `neverUsedData`, `useWhatYouHave`, `lowStockNeeded` (3 more sites). Direct continuation of #14. | OK |
+| 16 | `7e34511` | NEW_FEATURE (large) | `tracker-app.js` (+484), `threadCalc.js` (+34), `styles.css` (+37) | Live stash deduction (Proposal D): `threadCostPerStitch` helper, `wastePrefs` state, `rtConsumption` memo, debounced stash write, "Live" toggle UI, gear flyout, per-row 4px meter, "Need more"/"In stash" grouping, two new modals (`rt_disable_confirm`, `rt_complete_summary`). | OK |
+| 17 | `dde642f` | NEW_FEATURE | `creator/ActionBar.js`, `creator/PatternInfoPopover.js`, `creator/useCreatorState.js`, `creator/bundle.js`, `helpers.js`, `home-screen.js`, `index.html`, `styles.css`, `tracker-app.js` | "Difficulty metrics" — net new difficulty calculation (in `helpers.js`, +58), exposure on Pattern Info popover (+86), surface in `ActionBar` (+17), `home-screen.js` (+12), `tracker-app.js` (+23), heavy `styles.css` (+174). Also 9k lines of supporting markdown/HTML research. | OK (the markdown/HTML is research, not production). |
+| 18 | `f36436a` | BUGFIX (follow-up to #17) | `creator-main.js`, `creator/ActionBar.js`, `creator/bundle.js`, `index.html`, `styles.css`, `tests/creatorActionBar.test.js` | "Fixes for difficulty" — small follow-up patch to commit #17. Updates a test, 22-line tweak in `ActionBar`. | OK |
+
+## Mismatches flagged
+
+### #4 vs #6 — feature/bundle commit pair is mis-described
+
+`fa3c594` (commit #4) has a message describing only the `rebuildPreservingZeros` fix, but its diff contains the entire **direct colour swap** feature (new file `ColourReplaceModal.js`, new icon `colourSwap`, `ContextMenu` "Replace this colour…" entry, Replace tool in `ToolStrip`, `useMagicWand` extension, `build-creator-bundle.js` registration). `255142d` (commit #6) advertises itself as the colour-swap feature commit but its diff is only the rebuilt `creator/bundle.js`, the `index.html` script-src bump, and the icon test snapshot.
+
+Net effect: **the colour-swap feature is real and shipped**, but the commit history makes it look like the rebuildPreservingZeros change accidentally bundled an unrelated half-implemented feature, and the "feat: direct colour swap" commit looks empty. This is *not* a code defect — both commits taken together produce a working feature — but it makes the commit log misleading and breaks `git blame` for new files (they'll point at a "fix" commit). Reviewers should be told to read these two commits as a pair.
+
+### Vague messages requiring diff inspection
+
+- `3044d38` "Project stats visibility fixes" — needs functional walkthrough
+- `9d3bab5` "Fix colour removal" — needs functional walkthrough
+- `d5cf109` "fix canvas colour" — needs functional walkthrough
+- `0f528c9` "fix stitch tracker" — needs functional walkthrough
+- `bcca388` "Restore original colours" — terse but the diff is contained

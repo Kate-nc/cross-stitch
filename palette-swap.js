@@ -1222,7 +1222,10 @@ function usePaletteSwap(props) {
     setPat(snap.pat.slice());
     setPal(snap.pal.slice());
     setCmap(Object.assign({}, snap.cmap));
-    setDone(new Uint8Array(snap.pat.length));
+    // DO NOT zero `done` here. Palette revert changes colours assigned to each
+    // cell index, but it does NOT move stitches around. A done mark at index i
+    // means "the user stitched cell i" and remains semantically valid after a
+    // revert. Wiping it would silently destroy stitching progress (DEFECT-004).
     setShiftDeg(0); setActivePreset(null); setActiveTier(null); setMappingOverrides(null);
   }
 
@@ -1259,7 +1262,9 @@ function usePaletteSwap(props) {
     setPat(newPat);
     setPal(result.pal);
     setCmap(result.cmap);
-    setDone(new Uint8Array(newPat.length));
+    // DO NOT zero `done` here. A palette swap re-colours cells in place but
+    // does not move them, so existing done marks remain valid for the same
+    // indices. Wiping silently would destroy stitching progress (DEFECT-004).
 
     // Reset swap state
     setShiftDeg(0);
