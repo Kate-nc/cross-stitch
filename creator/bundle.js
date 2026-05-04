@@ -4751,7 +4751,7 @@ window.useMagicWand = function useMagicWand(state) {
 
   // ─── Direct global colour replacement (whole pattern or active selection) ────
 
-  function applyGlobalColorReplacement(srcId, dstId) {
+  function applyGlobalColourReplacement(srcId, dstId) {
     var pat = state.pat, cmap = state.cmap;
     if (!pat || !cmap || !srcId || !dstId || srcId === dstId) return;
     var dstEntry = cmap[dstId];
@@ -4783,7 +4783,7 @@ window.useMagicWand = function useMagicWand(state) {
     }
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     state.setEditHistory(function(prev) {
-      var n = prev.concat([{ type: 'colorReplace', changes: changes }]);
+      var n = prev.concat([{ type: 'colourReplace', changes: changes }]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
       return n;
     });
@@ -4891,7 +4891,9 @@ window.useMagicWand = function useMagicWand(state) {
     previewConfettiCleanup, applyConfettiCleanup,
     previewColorReduction, applyColorReduction,
     selectionReplaceColorCount, applyColorReplacement,
-    applyGlobalColorReplacement,
+    applyGlobalColourReplacement,
+    // Back-compat alias for any external caller still using the misspelled name.
+    applyGlobalColorReplacement: applyGlobalColourReplacement,
     // Phase 3
     selectionStats, applyOutlineGeneration,
     // Derived
@@ -6787,7 +6789,8 @@ window.useCreatorState = function useCreatorState() {
     applyColorReduction: wand.applyColorReduction,
     selectionReplaceColorCount: wand.selectionReplaceColorCount,
     applyColorReplacement: wand.applyColorReplacement,
-    applyGlobalColorReplacement: wand.applyGlobalColorReplacement,
+    applyGlobalColourReplacement: wand.applyGlobalColourReplacement,
+    applyGlobalColorReplacement: wand.applyGlobalColourReplacement,
     colourReplaceModal, setColourReplaceModal,
     selectionStats: wand.selectionStats,
     applyOutlineGeneration: wand.applyOutlineGeneration,

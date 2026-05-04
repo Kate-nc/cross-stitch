@@ -604,7 +604,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     applyColorReduction: state.applyColorReduction,
     selectionReplaceColorCount: state.selectionReplaceColorCount,
     applyColorReplacement: state.applyColorReplacement,
-    applyGlobalColorReplacement: state.applyGlobalColorReplacement,
+    applyGlobalColourReplacement: state.applyGlobalColourReplacement,
     colourReplaceModal: state.colourReplaceModal, setColourReplaceModal: state.setColourReplaceModal,
     selectionStats: state.selectionStats,
     applyOutlineGeneration: state.applyOutlineGeneration,
@@ -827,7 +827,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       {state.colourReplaceModal&&typeof window.ColourReplaceModal!=='undefined'&&React.createElement(window.ColourReplaceModal,{
         modal:state.colourReplaceModal,
         onClose:()=>state.setColourReplaceModal(null),
-        onApply:function(dstThread){state.applyGlobalColorReplacement(state.colourReplaceModal.srcId,dstThread.id);state.setColourReplaceModal(null);}
+        onApply:function(dstThread){state.applyGlobalColourReplacement(state.colourReplaceModal.srcId,dstThread.id);state.setColourReplaceModal(null);}
       })}
       {state.colourReplaceModal&&typeof window.ColourReplaceModal==='undefined'&&(function(){
         // DEFECT-003: the modal was requested but the component global is
