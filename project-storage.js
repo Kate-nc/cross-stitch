@@ -772,12 +772,44 @@ const ProjectStorage = (() => {
             ? proj.stitchLog.reduce((s, e) => s + e.count, 0)
             : (proj.statsSessions || []).reduce((s, e) => s + (e.netStitches || 0), 0);
           if (logTotal <= 0) continue;
+          // Build a thread-id → {name, rgb} lookup from the palette field if present,
+          // falling back to pattern cells (Creator projects embed rgb in each cell,
+          // so proj.palette is absent). This is the root cause of grey swatches.
+          const palMap = Object.create(null);
+          if (proj.palette && proj.palette.length > 0) {
+            for (const pe of proj.palette) { if (pe && pe.id) palMap[pe.id] = pe; }
+          } else {
+            // Derive from pattern cells (may contain duplicates — first occurrence wins)
+            for (const cell of proj.pattern) {
+              if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
+              if (cell.id.indexOf('+') !== -1) {
+                // Blend: extract component colours from the cell's rgb if available,
+                // or resolve each part individually later.
+                const parts = splitBlendId(cell.id);
+                for (let pi = 0; pi < parts.length; pi++) {
+                  if (!palMap[parts[pi]]) palMap[parts[pi]] = { id: parts[pi], name: parts[pi], rgb: cell.rgb || [128,128,128] };
+                }
+              } else if (!palMap[cell.id]) {
+                palMap[cell.id] = { id: cell.id, name: cell.name || cell.id, rgb: cell.rgb || [128,128,128] };
+              }
+            }
+          }
           for (const [tid, tcount] of Object.entries(threadCounts)) {
             const ratio = tcount / totalStitchable;
             const attributed = logTotal * ratio;
             if (!colourTotals[tid]) {
-              const pal = (proj.palette || []).find(p => p.id === tid);
-              colourTotals[tid] = { count: 0, name: pal ? pal.name : tid, rgb: pal ? pal.rgb : [128,128,128], id: tid };
+              // Prefer the per-project palMap, then try the global DMC catalogue.
+              let info = palMap[tid];
+              if (!info && typeof DMC !== 'undefined') {
+                const dmcEntry = DMC.find ? DMC.find(d => d.id === tid) : null;
+                if (dmcEntry) info = dmcEntry;
+              }
+              colourTotals[tid] = {
+                count: 0,
+                name: info ? (info.name || tid) : tid,
+                rgb:  info ? (info.rgb  || [128,128,128]) : [128,128,128],
+                id:   tid
+              };
             }
             colourTotals[tid].count += attributed;
           }
