@@ -629,20 +629,27 @@ const ProjectStorage = (() => {
     },
 
     // Return lifetime stitch count across all projects from stitchLog.
+    // Falls back to statsSessions for projects that were last saved before
+    // stitchLog derivation was added to the tracker's buildSnapshot.
     async getLifetimeStitches() {
       try {
         const projects = await this.listProjects();
         let total = 0;
         for (const meta of projects) {
           const proj = await this.get(meta.id);
-          if (!proj || !proj.stitchLog) continue;
-          for (const entry of proj.stitchLog) total += entry.count;
+          if (!proj) continue;
+          if (proj.stitchLog && proj.stitchLog.length > 0) {
+            for (const entry of proj.stitchLog) total += entry.count;
+          } else if (proj.statsSessions && proj.statsSessions.length > 0) {
+            for (const s of proj.statsSessions) total += s.netStitches || 0;
+          }
         }
         return total;
       } catch (e) { return 0; }
     },
 
     // Return aggregated daily stitch totals for charts.
+    // Falls back to statsSessions for projects not yet re-saved by the tracker.
     async getStitchLogByDay(days) {
       days = days || 365;
       try {
@@ -650,9 +657,16 @@ const ProjectStorage = (() => {
         const daily = {};
         for (const meta of projects) {
           const proj = await this.get(meta.id);
-          if (!proj || !proj.stitchLog) continue;
-          for (const entry of proj.stitchLog) {
-            daily[entry.date] = (daily[entry.date] || 0) + entry.count;
+          if (!proj) continue;
+          if (proj.stitchLog && proj.stitchLog.length > 0) {
+            for (const entry of proj.stitchLog) {
+              daily[entry.date] = (daily[entry.date] || 0) + entry.count;
+            }
+          } else if (proj.statsSessions && proj.statsSessions.length > 0) {
+            for (const s of proj.statsSessions) {
+              if (!s || !s.date) continue;
+              daily[s.date] = (daily[s.date] || 0) + (s.netStitches || 0);
+            }
           }
         }
         // Filter to last N days
@@ -719,7 +733,7 @@ const ProjectStorage = (() => {
         const colourTotals = {}; // { threadKey: { count, name, rgb, id } }
         for (const meta of projects) {
           const proj = await this.get(meta.id);
-          if (!proj || !proj.stitchLog || !proj.pattern) continue;
+          if (!proj || !proj.pattern) continue;
           // Calculate per-thread ratios from the pattern. Blends are split: a
           // "310+550" cell contributes 0.5 to "310" and 0.5 to "550".
           const threadCounts = {};
@@ -752,8 +766,11 @@ const ProjectStorage = (() => {
             }
           }
           if (totalStitchable === 0) continue;
-          // Distribute stitchLog counts across threads proportionally
-          const logTotal = proj.stitchLog.reduce((s, e) => s + e.count, 0);
+          // Distribute stitchLog counts across threads proportionally.
+          // Fall back to statsSessions for projects not yet re-saved by the tracker.
+          const logTotal = (proj.stitchLog && proj.stitchLog.length > 0)
+            ? proj.stitchLog.reduce((s, e) => s + e.count, 0)
+            : (proj.statsSessions || []).reduce((s, e) => s + (e.netStitches || 0), 0);
           if (logTotal <= 0) continue;
           for (const [tid, tcount] of Object.entries(threadCounts)) {
             const ratio = tcount / totalStitchable;
