@@ -65,7 +65,33 @@ const ProjectStorage = (() => {
       isComplete: totalSt > 0 && completedSt >= totalSt,
       statsSessions: p.statsSessions || [],
       achievedMilestones: p.achievedMilestones || [],
-      palette: (p.palette || []).map(c => ({ id: c.id, name: c.name, rgb: c.rgb })),
+      // Derive palette from p.palette if present (tracker-saved projects), otherwise
+      // scan pattern cells (Creator projects embed rgb in cells, no p.palette field).
+      // Used by insights-engine for stash-utilisation analysis and by stats-insights
+      // for total-colour counting — both only need {id}; rgb is best-effort.
+      palette: (function() {
+        if (p.palette && p.palette.length > 0) {
+          return p.palette.map(function(c) { return { id: c.id, name: c.name, rgb: c.rgb }; });
+        }
+        if (!p.pattern || p.pattern.length === 0) return [];
+        var seen = Object.create(null);
+        var out = [];
+        for (var i = 0; i < p.pattern.length; i++) {
+          var cell = p.pattern[i];
+          if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
+          if (typeof cell.id === 'string' && cell.id.indexOf('+') !== -1) {
+            var parts = cell.id.split('+');
+            for (var pi2 = 0; pi2 < parts.length; pi2++) {
+              var pid = parts[pi2].trim();
+              if (pid && !seen[pid]) { seen[pid] = true; out.push({ id: pid, name: pid, rgb: [128,128,128] }); }
+            }
+          } else if (!seen[cell.id]) {
+            seen[cell.id] = true;
+            out.push({ id: cell.id, name: cell.name || cell.id, rgb: cell.rgb || [128,128,128] });
+          }
+        }
+        return out;
+      })(),
       projectColor: p.projectColor || null,
     };
   }
