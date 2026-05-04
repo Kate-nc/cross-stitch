@@ -6817,7 +6817,24 @@ window.useCreatorState = function useCreatorState() {
 /* creator/useEditHistory.js — Undo/redo for pixel/partial-stitch/backstitch edits.
    Uses a delta (change-list) approach: each history entry stores the OLD values
    of changed cells so they can be restored without keeping full snapshots.
-   Expects a `state` object returned from useCreatorState. */
+   Expects a `state` object returned from useCreatorState.
+
+   Known entry shapes (DEFECT-012 — explicit catalogue so future contributors
+   don't have to reverse-engineer the branches):
+     - { type: "add_colour", addedEntry, changes }
+         Specific branch in undoEdit/redoEdit. Pops/pushes a colour on the
+         scratch palette and rebuilds pal/cmap.
+     - { type: "remove_unused_colours", removedFromPal, removedFromScratch }
+         Specific branch in undoEdit/redoEdit. Restores palette entries.
+     - { type: "colourReplace", changes }    // British spelling — see DEFECT-005.
+     - { type: "paint" | "erase" | "fill" | "rect" | "lasso" | undefined,
+         changes, psChanges?, bsLines? }
+         Generic fallthrough: handled by the same `last.changes` loop. The
+         `type` string is *preserved* on the redo stack but never inspected —
+         any new edit type that produces a `changes` array will Just Work
+         without touching this file. New types that need bespoke palette
+         handling must add their own branch above the generic loop.
+*/
 
 window.useEditHistory = function useEditHistory(state) {
   function undoEdit() {

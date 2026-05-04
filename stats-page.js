@@ -1836,6 +1836,12 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
           window.__openTrackerStats(id);
         } else if (tries++ < 50) {
           setTimeout(tryOpen, 40);
+        } else {
+          // DEFECT-010: previously failed silently. ~2 s of polling without
+          // the hook appearing means tracker-app.js failed to load (script
+          // error, ad-blocker, offline cache miss). Surface it.
+          console.warn('[stats-page] __openTrackerStats hook never appeared after ~2s polling; tracker-app.js may have failed to load. Project id:', id);
+          if (window.Toast) window.Toast.show({ message: 'Could not open per-project stats — tracker failed to load.', type: 'error' });
         }
       };
       tryOpen();
