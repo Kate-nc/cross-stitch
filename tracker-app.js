@@ -1476,7 +1476,7 @@ function recordAutoActivity(completed,undone){
     }
     currentAutoSessionRef.current.stitchesCompleted+=completed;
     currentAutoSessionRef.current.stitchesUndone+=undone;
-    setLiveAutoStitches(currentAutoSessionRef.current.stitchesCompleted);
+    setLiveAutoStitches(currentAutoSessionRef.current.stitchesCompleted-currentAutoSessionRef.current.stitchesUndone);
     // Merge any pending colour IDs into the session
     if(pendingColoursRef.current.size>0){
       pendingColoursRef.current.forEach(c=>currentAutoSessionRef.current.coloursWorked.add(c));
@@ -5704,9 +5704,7 @@ return(
             <button className="lp-btn lp-btn--danger" style={{marginTop:'var(--s-2)',width:"100%"}} onClick={()=>{
               const dur=liveAutoElapsed>0?liveAutoElapsed:Math.floor((Date.now()-explicitSession.startTime)/1000);
               const bks=breadcrumbs.filter(b=>b.sessionIdx===(statsSessions?statsSessions.length:0)).length;
-              const _sess=currentAutoSessionRef.current;
-              const _undone=_sess&&typeof _sess.stitchesUndone==='number'?_sess.stitchesUndone:0;
-              const netSessionDelta=liveAutoStitches-_undone;
+              const netSessionDelta=liveAutoStitches;
               setSessionSummaryData({durationSeconds:dur,stitchesCompleted:liveAutoStitches,blocksCompleted:bks,coloursCompleted:[],progressPctBefore:totalStitchable>0?Math.round((doneCount-netSessionDelta)/totalStitchable*100):null,progressPctAfter:totalStitchable>0?Math.round(doneCount/totalStitchable*100):null});
               setExplicitSession(null);
             }}>End session</button>
@@ -6590,7 +6588,7 @@ return(
     const activeSessionIdx=statsSessions?statsSessions.length:0;
     const sessionBreadcrumbs=(breadcrumbs||[]).filter(b=>b&&b.sessionIdx===activeSessionIdx);
     const firstSessionBreadcrumb=sessionBreadcrumbs.length>0?sessionBreadcrumbs[0]:null;
-    return <SessionSummaryModal data={sessionSummaryData} prevAvgSpeed={statsSessions&&statsSessions.length>1?Math.round(statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.stitchesCompleted||0),0)/Math.max(1,statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.durationSeconds||0),0))*3600):0} hasBreadcrumbs={sessionBreadcrumbs.length>0} onViewBreadcrumbs={()=>{setBreadcrumbVisible(true);setSessionSummaryData(null);if(firstSessionBreadcrumb&&stitchScrollRef.current){const b=firstSessionBreadcrumb;const cx=G+b.bx*blockW*scs+blockW*scs/2;const cy=G+b.by*blockH*scs+blockH*scs/2;const el=stitchScrollRef.current;el.scrollLeft=Math.max(0,cx-el.clientWidth/2);el.scrollTop=Math.max(0,cy-el.clientHeight/2);}}} onClose={()=>setSessionSummaryData(null)}/>;
+    return <SessionSummaryModal data={sessionSummaryData} prevAvgSpeed={statsSessions&&statsSessions.length>1?Math.round(statsSessions.slice(0,-1).reduce((s,sess)=>s+(typeof sess.netStitches==='number'?sess.netStitches:(sess.stitchesCompleted||0)),0)/Math.max(1,statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.durationSeconds||0),0))*3600):0} hasBreadcrumbs={sessionBreadcrumbs.length>0} onViewBreadcrumbs={()=>{setBreadcrumbVisible(true);setSessionSummaryData(null);if(firstSessionBreadcrumb&&stitchScrollRef.current){const b=firstSessionBreadcrumb;const cx=G+b.bx*blockW*scs+blockW*scs/2;const cy=G+b.by*blockH*scs+blockH*scs/2;const el=stitchScrollRef.current;el.scrollLeft=Math.max(0,cx-el.clientWidth/2);el.scrollTop=Math.max(0,cy-el.clientHeight/2);}}} onClose={()=>setSessionSummaryData(null)}/>;
   })()}
   {resumeRecap&&(()=>{
     // A3: Resume recap modal — fires once per project load when prior sessions exist.
