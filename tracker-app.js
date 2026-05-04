@@ -650,10 +650,14 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
                       // so the disable modal (which needs StashBridge) can be shown.
                       window.dispatchEvent(new CustomEvent('cs:rtDisableRequest'));
                     }else if(e.target.checked&&typeof setWastePrefs==='function'){
-                      // Turning on: snapshot stash first, then enable.
+                      // Turning on: snapshot stash if (and only if) we don't already
+                      // have a snapshot for this project session. Capturing on every
+                      // toggle-on would move the baseline forward across keep-then-
+                      // re-enable cycles and silently break Restore (DEFECT-001).
                       if(typeof StashBridge!=='undefined'){
                         StashBridge.getGlobalStash().then(function(snap){
-                          if(window.__setRtStashSnapshot)window.__setRtStashSnapshot(snap);
+                          if(window.__ensureRtStashSnapshot)window.__ensureRtStashSnapshot(snap);
+                          else if(window.__setRtStashSnapshot)window.__setRtStashSnapshot(snap);
                         }).catch(function(){});
                       }
                       setWastePrefs(function(prev){return Object.assign({},prev,{enabled:true});});
@@ -1226,9 +1230,17 @@ const rtConsumptionRef=useRef({});
 // Tracks which thread ids have already triggered a low-thread toast this session.
 const rtLowToastedRef=useRef(new Set());
 // Expose snapshot setter for TrackerProjectRail's enable toggle (different component scope).
+// __setRtStashSnapshot replaces the snapshot unconditionally (used by project-load).
+// __ensureRtStashSnapshot sets the snapshot ONLY IF the current ref is empty — used by
+// the Live toggle so re-enabling Live within the same project session doesn't move the
+// baseline forward and silently lose the ability to restore earlier deductions (DEFECT-001).
 useEffect(function(){
   window.__setRtStashSnapshot=function(snap){rtStashSnapshotRef.current=snap||{};};
-  return function(){delete window.__setRtStashSnapshot;};
+  window.__ensureRtStashSnapshot=function(snap){
+    var cur=rtStashSnapshotRef.current||{};
+    if(Object.keys(cur).length===0)rtStashSnapshotRef.current=snap||{};
+  };
+  return function(){delete window.__setRtStashSnapshot;delete window.__ensureRtStashSnapshot;};
 },[]);
 // Listen for disable request from TrackerProjectRail's toggle.
 useEffect(function(){
@@ -7075,9 +7087,14 @@ return(
             }
             try{const fresh=await StashBridge.getGlobalStash();setGlobalStash(fresh);}catch(_){}
           })().then(()=>{
+            // Snapshot represented "pre-project" state; we just rolled back to
+            // it, so it's stale. Clearing forces the next enable to re-snapshot
+            // from the (now restored) live stash. (DEFECT-001)
+            rtStashSnapshotRef.current={};
             setWastePrefs(function(prev){return Object.assign({},prev,{enabled:false});});
             setModal(null);
           }).catch(()=>{
+            rtStashSnapshotRef.current={};
             setWastePrefs(function(prev){return Object.assign({},prev,{enabled:false});});
             setModal(null);
           });
@@ -7132,6 +7149,10 @@ return(
             await ProjectStorage.markProjectFinished(projectIdRef.current);
             v3FieldsRef.current=Object.assign(v3FieldsRef.current||{},{finishStatus:'completed',completedAt:new Date().toISOString()});
           }
+          // Project finished — the snapshot is no longer meaningful for any
+          // future re-open of this project. Clear so any further enable starts
+          // fresh from the live stash (DEFECT-001).
+          rtStashSnapshotRef.current={};
         })().then(()=>{setStashDeducted(true);setModal(null);}).catch(()=>{setStashDeducted(true);setModal(null);});
       }} style={{width:'100%',padding:'10px 20px',fontSize:'var(--text-sm)',borderRadius:'var(--radius-md)',border:'none',background:'var(--accent)',color:'var(--surface)',cursor:'pointer',fontWeight:600}}>
         Confirm and finish
