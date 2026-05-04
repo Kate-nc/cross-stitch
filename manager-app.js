@@ -641,8 +641,9 @@ function ManagerApp() {
 
   const updateThread = (id, field, value) => {
     setThreads(prev => {
+      const prevEntry = prev[id] || {};
       const updated = {
-        ...prev[id],
+        ...prevEntry,
         [field]: value
       };
 
@@ -651,8 +652,32 @@ function ManagerApp() {
         updated.owned = 0;
       }
       // If setting skeins to > 0 while "used-up" is selected, clear "used-up" to prevent conflicting states
-      if (field === "owned" && value > 0 && prev[id]?.partialStatus === "used-up") {
+      if (field === "owned" && value > 0 && prevEntry.partialStatus === "used-up") {
         updated.partialStatus = null;
+      }
+
+      // V3 acquisition/history tracking — mirrors the logic in StashBridge.updateThreadOwned.
+      // Only runs when the entry already has V3 fields (addedAt defined), meaning the
+      // migrateSchemaToV3 auto-migration has already stamped the record.
+      if (prevEntry.addedAt !== undefined) {
+        const LEGACY_EP = '2020-01-01T00:00:00Z';
+        const prevOwned = prevEntry.owned || 0;
+        // Compute the new owned count: direct when field='owned'; implicit zero when partialStatus='used-up'
+        const newOwned = field === 'owned' ? value
+          : (field === 'partialStatus' && value === 'used-up') ? 0
+          : prevOwned;
+        const delta = newOwned - prevOwned;
+        if (delta !== 0) {
+          const now = new Date().toISOString();
+          // Re-acquisition: thread was legacy (at zero) and is now first owned — tag with today's date.
+          if (prevOwned === 0 && newOwned > 0 && prevEntry.addedAt === LEGACY_EP) {
+            updated.addedAt = now;
+            updated.acquisitionSource = null;
+          }
+          updated.lastAdjustedAt = now;
+          const newHistory = [...(prevEntry.history || []), { date: now, delta }];
+          updated.history = newHistory.length > 500 ? newHistory.slice(-500) : newHistory;
+        }
       }
 
       return {
