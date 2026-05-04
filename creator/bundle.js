@@ -7283,6 +7283,17 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    if (activeTool === "colourReplace") {
+      if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
+      var idx0 = gy * sW + gx;
+      var cell0 = pat[idx0];
+      if (cell0 && cell0.id !== '__skip__' && cell0.id !== '__empty__' && cmap && cmap[cell0.id]) {
+        var entry0 = cmap[cell0.id];
+        state.setColourReplaceModal({ srcId: cell0.id, srcName: entry0.name || cell0.id, srcRgb: entry0.rgb || cell0.rgb });
+      }
+      return;
+    }
+
     if (partialStitchTool) {
       if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
       var idx1 = gy * sW + gx;
@@ -7440,7 +7451,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
-    if (activeTool === "eyedropper" || activeTool === "fill" || activeTool === "backstitch" || activeTool === "eraseBs" || activeTool === "magicWand") {
+    if (activeTool === "eyedropper" || activeTool === "fill" || activeTool === "backstitch" || activeTool === "eraseBs" || activeTool === "magicWand" || activeTool === "colourReplace") {
       handlePatClick(e);
       return;
     }
@@ -9956,7 +9967,17 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         title:"Hand — pan / drag to scroll (H)",
         "aria-label":"Hand pan tool",
         "aria-pressed": cv.activeTool === "hand" ? "true" : "false"
-      }, window.Icons.hand(), " Hand")
+      }, window.Icons.hand(), " Hand"),
+      h("button", {
+        className:"tb-btn"+(cv.activeTool==="colourReplace"?" tb-btn--on":""),
+        onClick:function(){
+          if (cv.activeTool === "colourReplace") cv.setActiveTool(null);
+          else { cv.setActiveTool("colourReplace"); cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); }
+        },
+        title:"Replace colour — click a stitch to replace all instances of that colour",
+        "aria-label":"Replace colour tool",
+        "aria-pressed": cv.activeTool === "colourReplace" ? "true" : "false"
+      }, window.Icons.colourSwap(), " Replace")
     )
   ];
 
@@ -10085,6 +10106,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   } else if (cv.brushMode === "paint") {
     var szTxt = cv.brushSize > 1 ? " " + cv.brushSize + "\xD7" + cv.brushSize : "";
     badgeLabel = "Paint" + szTxt; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "#5C8E4A";
+  } else if (cv.activeTool === "colourReplace") {
+    badgeLabel = "Replace"; badgeBg = "#ede9fe"; badgeColor = "#7c3aed"; badgeDot = "#7c3aed";
   } else {
     badgeLabel = null;
   }
@@ -11799,7 +11822,25 @@ window.CreatorSidebar = function CreatorSidebar() {
             position:"absolute", top:-2, right:-2, width:6, height:6, borderRadius:"50%",
             background: STASH_DOT[stashStatus], boxShadow:"0 0 0 1px #fff"
           }
-        })
+        }),
+        // Colour swap button — visible on hover in edit mode
+        app.appMode === "edit" && h("button", {
+          key: "swap-" + p.id,
+          title: "Replace DMC " + p.id + " with another colour",
+          "aria-label": "Replace " + (p.name || p.id) + " with another colour",
+          onClick: function(e) {
+            e.stopPropagation();
+            cv.setColourReplaceModal({ srcId: p.id, srcName: p.name || p.id, srcRgb: p.rgb });
+          },
+          style: {
+            position:"absolute", bottom:1, left:1, width:13, height:13, padding:0,
+            border:"none", background:"transparent", cursor:"pointer",
+            color:"var(--text-tertiary)", display:"flex", alignItems:"center", justifyContent:"center",
+            opacity:0, transition:"opacity var(--motion)", borderRadius:2
+          },
+          onMouseEnter: function(e) { e.currentTarget.style.opacity="1"; e.currentTarget.style.color="var(--accent)"; },
+          onMouseLeave: function(e) { e.currentTarget.style.opacity="0"; e.currentTarget.style.color="var(--text-tertiary)"; }
+        }, typeof Icons !== 'undefined' && Icons.colourSwap ? Icons.colourSwap() : null)
       );
     }).filter(Boolean);
     var unusedCount = displayPal ? displayPal.filter(function(p) { return p.count === 0; }).length : 0;
@@ -13595,6 +13636,11 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     item([Icons.palette(), " Select all of this colour"], function() {
       if (cellInfo) cv.selectAllOfColorId(cellInfo.id);
     }, {disabled: !hasCellColour, k: 'selectall'}),
+
+    // Replace this colour
+    item([Icons.colourSwap(), " Replace this colour…"], function() {
+      if (cellInfo) cv.setColourReplaceModal({ srcId: cellInfo.id, srcName: cellInfo.name || cellInfo.id, srcRgb: cellInfo.rgb });
+    }, {disabled: !hasCellColour, k: 'replace'}),
 
     sep(),
 
@@ -16611,6 +16657,121 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
       role: "dialog",
       "aria-label": "Pattern details"
     }, children)
+  );
+};
+
+
+/* ─── ColourReplaceModal.js ─── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   creator/ColourReplaceModal.js — Direct colour replacement modal.
+   Opens when the user right-clicks a stitch → "Replace this colour",
+   clicks the swap button on a palette chip, or uses the Replace tool.
+   Depends on: React (global), window.Overlay (components.js),
+               window.Icons (icons.js), window.DMC (dmc-data.js)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+window.ColourReplaceModal = function ColourReplaceModal(props) {
+  var modal = props.modal;     // { srcId, srcName, srcRgb }
+  var onClose = props.onClose;
+  var onApply = props.onApply; // called with a DMC thread object {id, name, rgb, ...}
+
+  var h = React.createElement;
+  var _search = React.useState(''); var search = _search[0], setSearch = _search[1];
+
+  var filteredThreads = React.useMemo(function() {
+    if (typeof DMC === 'undefined') return [];
+    var q = search.trim().toLowerCase();
+    if (!q) return DMC;
+    return DMC.filter(function(t) {
+      return t.id.toLowerCase().indexOf(q) !== -1 || t.name.toLowerCase().indexOf(q) !== -1;
+    });
+  }, [search]);
+
+  var srcRgb = modal && modal.srcRgb ? modal.srcRgb : [128, 128, 128];
+
+  function handleKey(e) {
+    if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
+  }
+
+  return h(window.Overlay, {
+    onClose: onClose,
+    variant: 'dialog',
+    labelledBy: 'colour-replace-title',
+    onKeyDown: handleKey,
+    style: { maxWidth: 460, width: '100%', display: 'flex', flexDirection: 'column', maxHeight: '80vh' }
+  },
+    h(window.Overlay.CloseButton, { onClose: onClose }),
+    h('div', { style: { padding: 20, display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 } },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 } },
+        h('span', {
+          style: {
+            width: 20, height: 20, borderRadius: 4, flexShrink: 0, display: 'inline-block',
+            background: 'rgb(' + srcRgb + ')', border: '1px solid var(--border)'
+          }
+        }),
+        h('h3', {
+          id: 'colour-replace-title',
+          style: { margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: 'var(--text-primary)' }
+        },
+          'Replace DMC ' + (modal ? modal.srcId : '') +
+          (modal && modal.srcName && modal.srcName !== modal.srcId ? ' \u00B7 ' + modal.srcName : '') +
+          ' with\u2026'
+        )
+      ),
+      h('input', {
+        type: 'text',
+        placeholder: 'Search by DMC code or colour name\u2026',
+        value: search,
+        onChange: function(e) { setSearch(e.target.value); },
+        autoFocus: true,
+        style: {
+          width: '100%', padding: '8px 10px', borderRadius: 'var(--radius-sm)',
+          border: '1px solid var(--border)', fontSize: 'var(--text-sm)',
+          fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 10,
+          background: 'var(--surface)', color: 'var(--text-primary)', outline: 'none'
+        }
+      }),
+      h('div', { style: { flex: 1, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' } },
+        filteredThreads.length === 0
+          ? h('div', { style: { padding: 20, textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 'var(--text-sm)' } }, 'No colours found')
+          : filteredThreads.map(function(t) {
+              var isSrc = modal && t.id === modal.srcId;
+              return h('button', {
+                key: t.id,
+                onClick: function() { if (!isSrc) onApply(t); },
+                disabled: isSrc,
+                style: {
+                  display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                  padding: '7px 12px', border: 'none', borderBottom: '1px solid var(--surface-secondary)',
+                  background: isSrc ? 'var(--surface-secondary)' : 'transparent',
+                  cursor: isSrc ? 'default' : 'pointer', textAlign: 'left', fontFamily: 'inherit'
+                },
+                onMouseEnter: function(e) { if (!isSrc) e.currentTarget.style.background = 'var(--surface-secondary)'; },
+                onMouseLeave: function(e) { if (!isSrc) e.currentTarget.style.background = 'transparent'; }
+              },
+                h('span', {
+                  style: {
+                    width: 18, height: 18, borderRadius: 3, flexShrink: 0, display: 'inline-block',
+                    background: 'rgb(' + t.rgb + ')', border: '1px solid var(--border)'
+                  }
+                }),
+                h('span', { style: { fontFamily: 'monospace', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', flexShrink: 0, minWidth: 35 } }, t.id),
+                h('span', { style: { fontSize: 'var(--text-sm)', color: 'var(--text-primary)', flex: 1, textAlign: 'left' } }, t.name),
+                isSrc && h('span', { style: { fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', flexShrink: 0 } }, 'current')
+              );
+            })
+      ),
+      h('div', { style: { marginTop: 12, display: 'flex', justifyContent: 'flex-end' } },
+        h('button', {
+          onClick: onClose,
+          style: {
+            padding: '7px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
+            background: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit',
+            fontSize: 'var(--text-sm)', color: 'var(--text-primary)'
+          }
+        }, 'Cancel')
+      )
+    )
   );
 };
 
