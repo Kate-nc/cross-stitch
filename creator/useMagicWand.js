@@ -456,7 +456,13 @@ window.useMagicWand = function useMagicWand(state) {
       if (typeof findThreadInCatalog === 'function') dstEntry = findThreadInCatalog('dmc', dstId);
       if (!dstEntry && typeof DMC !== 'undefined') dstEntry = DMC.find(function(d) { return d.id === dstId; });
     }
-    if (!dstEntry) return;
+    if (!dstEntry) {
+      // DEFECT-002: surface to the user instead of silently no-opping. Reachable
+      // when a future entry point passes a non-DMC id (e.g. 'anchor:403') or if
+      // the DMC catalog data is corrupt at runtime.
+      if (state.addToast) state.addToast("Replacement colour not found.", {type: "error", duration: 3500});
+      return;
+    }
     var np = pat.slice();
     var changes = [];
     for (var i = 0; i < np.length; i++) {
@@ -467,7 +473,11 @@ window.useMagicWand = function useMagicWand(state) {
       changes.push({ idx: i, old: Object.assign({}, cell) });
       np[i] = Object.assign({}, dstEntry);
     }
-    if (!changes.length) return;
+    if (!changes.length) {
+      // DEFECT-002 (related): selection mask may have hidden every match.
+      if (state.addToast) state.addToast("No matching cells to replace.", {type: "info", duration: 2500});
+      return;
+    }
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     state.setEditHistory(function(prev) {
       var n = prev.concat([{ type: 'colorReplace', changes: changes }]);
