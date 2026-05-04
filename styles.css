@@ -3040,15 +3040,14 @@ kbd {
   position: sticky;
   top: 0;
   z-index: 10;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
+  /* overflow stays visible so absolutely-positioned children
+     (e.g. the Lifetime chip popover) are not clipped vertically.
+     Horizontal scrolling for overflowing tabs lives on .gsd-tabs-inner. */
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
-.gsd-tabs::-webkit-scrollbar { display: none; }
 .gsd-tabs-chip-wrap {
   position: relative;
   flex-shrink: 0;
@@ -3064,9 +3063,14 @@ kbd {
 }
 .gsd-tabs-inner {
   display: flex;
-  min-width: max-content;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
   padding: 0 4px;
 }
+.gsd-tabs-inner::-webkit-scrollbar { display: none; }
 .gsd-tab {
   padding: 10px 16px;
   font-size: 13px;

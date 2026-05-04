@@ -3336,10 +3336,13 @@ useEffect(() => {
 }, []); // empty: handler reads only from refs (always fresh)
 
 // Expose __openTrackerStats so the header Stats link can open per-project stats
-// directly from the track page without navigating away.
+// directly from the track page without navigating away. Optional targetId lets
+// callers (e.g. the standalone Stats page's project-card click) request a
+// specific project's stats — StatsContainer will lazy-load it from IDB if it
+// isn't the currently-open one.
 useEffect(() => {
-  window.__openTrackerStats = function() {
-    setStatsTab(projectIdRef.current || 'all');
+  window.__openTrackerStats = function(targetId) {
+    setStatsTab(targetId || projectIdRef.current || 'all');
     setStatsView(true);
   };
   return () => { delete window.__openTrackerStats; };

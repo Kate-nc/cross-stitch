@@ -1795,7 +1795,24 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
 
   // ── Stitching tab: delegate to GlobalStatsDashboard ──────────
   if (tab === 'stitching') {
-    return h('div', null, tabBar, h(GlobalStatsDashboard, { onClose }));
+    // onViewProject: clicking a project card on the standalone Stats page
+    // routes the user into the Tracker for that project AND auto-opens the
+    // per-project StatsDashboard once the tracker has mounted. The tracker
+    // exposes window.__openTrackerStats(targetId); since loadTrackerApp runs
+    // asynchronously we poll briefly until the hook is available.
+    const handleViewProject = (id) => {
+      if (typeof onNavigateToProject === 'function') onNavigateToProject(id);
+      let tries = 0;
+      const tryOpen = () => {
+        if (typeof window.__openTrackerStats === 'function') {
+          window.__openTrackerStats(id);
+        } else if (tries++ < 50) {
+          setTimeout(tryOpen, 40);
+        }
+      };
+      tryOpen();
+    };
+    return h('div', null, tabBar, h(GlobalStatsDashboard, { onClose, onViewProject: handleViewProject }));
   }
 
   if (loading) {
