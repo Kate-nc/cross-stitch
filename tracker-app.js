@@ -1816,7 +1816,12 @@ function recordAutoActivity(completed,undone){
     }
     currentAutoSessionRef.current.stitchesCompleted+=completed;
     currentAutoSessionRef.current.stitchesUndone+=undone;
-    setLiveAutoStitches(currentAutoSessionRef.current.stitchesCompleted-currentAutoSessionRef.current.stitchesUndone);
+    // DEFECT-011: a flurry of undos right after enabling Live tracking can drive
+    // stitchesUndone past stitchesCompleted (the undos refer to stitches done
+    // in a *previous* session). Clamp the displayed counter at 0 — anything
+    // negative is meaningless and would also break the "stitches active" gate
+    // in the footer (`liveAutoStitches > 0`).
+    setLiveAutoStitches(Math.max(0, currentAutoSessionRef.current.stitchesCompleted-currentAutoSessionRef.current.stitchesUndone));
     // Merge any pending colour IDs into the session
     if(pendingColoursRef.current.size>0){
       pendingColoursRef.current.forEach(c=>currentAutoSessionRef.current.coloursWorked.add(c));
