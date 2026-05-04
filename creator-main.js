@@ -604,6 +604,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     applyColorReduction: state.applyColorReduction,
     selectionReplaceColorCount: state.selectionReplaceColorCount,
     applyColorReplacement: state.applyColorReplacement,
+    applyGlobalColorReplacement: state.applyGlobalColorReplacement,
+    colourReplaceModal: state.colourReplaceModal, setColourReplaceModal: state.setColourReplaceModal,
     selectionStats: state.selectionStats,
     applyOutlineGeneration: state.applyOutlineGeneration,
     selectionCount: state.selectionCount, hasSelection: state.hasSelection,
@@ -641,6 +643,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.selectionStats, state.selectionReplaceColorCount,
     state.lassoMode, state.lassoPoints, state.lassoActive, state.lassoCursor,
     state.lassoPreviewMask, state.lassoOpMode, state.lassoPointCount, state.lassoInProgress,
+    state.colourReplaceModal,
   ]);
 
   // ── PatternDataContext value (core pattern data, dimensions, derived values) ──
@@ -820,6 +823,11 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       {state.adaptModalOpen&&typeof window.AdaptModal!=='undefined'&&React.createElement(window.AdaptModal,{
         mode:state.adaptModalMode,
         onClose:()=>state.setAdaptModalOpen(false)
+      })}
+      {state.colourReplaceModal&&typeof window.ColourReplaceModal!=='undefined'&&React.createElement(window.ColourReplaceModal,{
+        modal:state.colourReplaceModal,
+        onClose:()=>state.setColourReplaceModal(null),
+        onApply:function(dstThread){state.applyGlobalColorReplacement(state.colourReplaceModal.srcId,dstThread.id);state.setColourReplaceModal(null);}
       })}
       {state.namePromptOpen&&<NamePromptModal
         defaultName={state.projectName||(state.sW+'×'+state.sH+' pattern')}

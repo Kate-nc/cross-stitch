@@ -342,6 +342,17 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    if (activeTool === "colourReplace") {
+      if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
+      var idx0 = gy * sW + gx;
+      var cell0 = pat[idx0];
+      if (cell0 && cell0.id !== '__skip__' && cell0.id !== '__empty__' && cmap && cmap[cell0.id]) {
+        var entry0 = cmap[cell0.id];
+        state.setColourReplaceModal({ srcId: cell0.id, srcName: entry0.name || cell0.id, srcRgb: entry0.rgb || cell0.rgb });
+      }
+      return;
+    }
+
     if (partialStitchTool) {
       if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
       var idx1 = gy * sW + gx;
@@ -499,7 +510,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
-    if (activeTool === "eyedropper" || activeTool === "fill" || activeTool === "backstitch" || activeTool === "eraseBs" || activeTool === "magicWand") {
+    if (activeTool === "eyedropper" || activeTool === "fill" || activeTool === "backstitch" || activeTool === "eraseBs" || activeTool === "magicWand" || activeTool === "colourReplace") {
       handlePatClick(e);
       return;
     }
