@@ -1737,6 +1737,45 @@ useEffect(()=>{
   return function(){window.removeEventListener('cs:stashChanged',onExternalChange);};
 },[wastePrefs.enabled]);
 
+// Multi-tab guard (DEFECT-008): two tracker tabs both writing the live stash
+// race — each writes `snapshot - consumed` from its own snapshot, so the
+// later write overwrites the earlier (net deduction = max, not sum). A full
+// fix needs atomic read-modify-write inside StashBridge; here we at least
+// warn the user when a second tab joins. Uses BroadcastChannel where
+// available (all evergreen browsers); silent no-op if not supported.
+useEffect(()=>{
+  if(!wastePrefs.enabled)return;
+  if(typeof BroadcastChannel==='undefined')return;
+  var chan;
+  try{chan=new BroadcastChannel('cs-rt-tracker');}catch(_){return;}
+  var myId=Math.random().toString(36).slice(2)+Date.now().toString(36);
+  var warned=false;
+  function announce(){try{chan.postMessage({type:'rt-active',id:myId,t:Date.now()});}catch(_){}}
+  function onMsg(ev){
+    var msg=ev&&ev.data;
+    if(!msg||msg.id===myId)return;
+    if(msg.type==='rt-active'){
+      // Another tab is also live. Re-announce so they know about us too.
+      announce();
+      if(!warned&&window.Toast){
+        warned=true;
+        window.Toast.show({
+          message:'Live tracking is active in another tab — stash deductions may collide. Disable Live in one tab to avoid lost edits.',
+          type:'warning',duration:8000
+        });
+      }
+    }
+  }
+  chan.addEventListener('message',onMsg);
+  // Announce on mount and every 30s.
+  announce();
+  var hb=setInterval(announce,30000);
+  return function(){
+    clearInterval(hb);
+    try{chan.removeEventListener('message',onMsg);chan.close();}catch(_){}
+  };
+},[wastePrefs.enabled]);
+
 // Debounced write: reset timer on every stitch mark. Fires 30 s after last activity.
 useEffect(()=>{
   if(!wastePrefs.enabled)return;
