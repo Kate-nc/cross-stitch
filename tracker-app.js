@@ -434,16 +434,25 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
 // the right. Both surfaces are CSS-gated to >=600px viewports; phone
 // keeps its existing chrome (action bar + dock + mode pill).
 // ═══════════════════════════════════════════════════════════════
-function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setFocusColour,stitchView,setStitchView,todayStitchesForBar,liveAutoElapsed,liveAutoStitches,onPickProject,skeinData,globalStash,onToggleOwned}){
+function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setFocusColour,stitchView,setStitchView,todayStitchesForBar,liveAutoElapsed,liveAutoStitches,onPickProject,skeinData,globalStash,onToggleOwned,wastePrefs,setWastePrefs,rtConsumption,fabricCt}){
   const[recent,setRecent]=React.useState([]);
   const[collapsed,setCollapsed]=React.useState(function(){
     try{return !!(window.UserPrefs&&window.UserPrefs.get("trackerProjectRailCollapsed"));}catch(_){return false;}
   });
+  const[gearOpen,setGearOpen]=React.useState(false);
+  const gearRef=React.useRef(null);
   React.useEffect(function(){
     try{window.UserPrefs&&window.UserPrefs.set("trackerProjectRailCollapsed",!!collapsed);}catch(_){}
     try{document.body.classList.toggle("tracker-rail-collapsed",!!collapsed);}catch(_){}
     return function(){try{document.body.classList.remove("tracker-rail-collapsed");}catch(_){}};
   },[collapsed]);
+  // Close gear flyout when clicking outside.
+  React.useEffect(function(){
+    if(!gearOpen)return;
+    function onDoc(e){if(gearRef.current&&!gearRef.current.contains(e.target))setGearOpen(false);}
+    document.addEventListener('mousedown',onDoc);
+    return function(){document.removeEventListener('mousedown',onDoc);};
+  },[gearOpen]);
   React.useEffect(function(){
     let cancelled=false;
     function load(){
@@ -460,15 +469,18 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
   },[activeId]);
   function openProject(id){
     if(!id||id===activeId)return;
-    // Switch in-place via the same path the project-picker modal uses.
-    // Falls back to reload only if the host App didn't supply a handler.
     if(typeof onPickProject==='function'){onPickProject(id);return;}
     try{window.ProjectStorage.setActiveProject(id);}catch(_){}
     try{window.location.reload();}catch(_){}
   }
+  function updateWastePref(key,val){
+    if(typeof setWastePrefs!=='function')return;
+    setWastePrefs(function(prev){return Object.assign({},prev,{[key]:val});});
+  }
   var sec=liveAutoElapsed||0;
   var hh=Math.floor(sec/3600),mm=Math.floor((sec%3600)/60);
   var timer=(hh>0?hh+"h ":"")+mm+"m";
+  var rt=wastePrefs&&wastePrefs.enabled;
   return React.createElement('aside',{className:'tracker-project-rail'+(collapsed?' tracker-project-rail--collapsed':''),role:'complementary','aria-label':'Recent projects'},
     React.createElement('div',{className:'tpr-header'},
       collapsed?null:React.createElement('h3',{className:'tpr-h'},'Projects'),
@@ -525,20 +537,13 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
         React.createElement('div',{className:'tsp-stat'},React.createElement('span',null,'Active'),React.createElement('strong',null,(liveAutoStitches||0).toLocaleString()+' st'))
       ),
       React.createElement('section',{className:'tsp-card'},
-        // Threads-needed view (replaces the duplicate palette legend).
-        // Decomposes blends into individual DMC IDs via skeinData and
-        // splits "Owned" vs "Need to buy" using the global stash. The
-        // ownership toggle writes through StashBridge so /manager and
-        // the shopping list stay in sync.
         (function(){
           const rows=(skeinData||[]).map(function(d){
             const gs=(globalStash&&(globalStash['dmc:'+d.id]||globalStash[d.id]))||null;
             const owned=gs&&typeof gs.owned==='number'?gs.owned:0;
-            // "Have" if user owns at least the estimated skein count.
             const have=owned>=d.skeins&&d.skeins>0;
-            // Find a palette entry whose stitches use this thread, so
-            // clicking a row sets a sensible focus colour. Prefer a
-            // solid match; fall back to any blend that contains it.
+            // RT consumption data (undefined when disabled)
+            const rtData=rt&&rtConsumption?rtConsumption[d.id]:null;
             let focusId=null;
             if(pal){
               const solid=pal.find(function(pp){return pp.type==='solid'&&pp.id===d.id;});
@@ -548,36 +553,80 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
                 if(blend)focusId=blend.id;
               }
             }
-            return{d,owned,have,focusId};
+            return{d,owned,have,focusId,rtData};
           });
-          const ownedRows=rows.filter(function(r){return r.have;});
-          const needRows=rows.filter(function(r){return !r.have;});
-          // Sort each group by skeins-needed descending so the biggest
-          // shopping items surface first; tie-break by DMC ID asc.
-          function _sortBySkeins(a,b){
-            if(b.d.skeins!==a.d.skeins)return b.d.skeins-a.d.skeins;
-            const an=parseInt(a.d.id,10),bn=parseInt(b.d.id,10);
-            if(isFinite(an)&&isFinite(bn))return an-bn;
-            return String(a.d.id).localeCompare(String(b.d.id));
+
+          // Grouping: RT mode uses skeinsRemaining; normal mode uses owned vs needed.
+          var needRows,ownedRows;
+          if(rt){
+            needRows=rows.filter(function(r){return r.rtData&&r.rtData.skeinsRemaining!=null&&r.rtData.skeinsRemaining<0;});
+            ownedRows=rows.filter(function(r){return !r.rtData||r.rtData.skeinsRemaining==null||r.rtData.skeinsRemaining>=0;});
+            // Sort: low remaining first within each group
+            ownedRows.sort(function(a,b){
+              var ra=a.rtData&&a.rtData.skeinsRemaining!=null?a.rtData.skeinsRemaining:Infinity;
+              var rb=b.rtData&&b.rtData.skeinsRemaining!=null?b.rtData.skeinsRemaining:Infinity;
+              return ra-rb;
+            });
+          }else{
+            function _sortBySkeins(a,b){
+              if(b.d.skeins!==a.d.skeins)return b.d.skeins-a.d.skeins;
+              var an=parseInt(a.d.id,10),bn=parseInt(b.d.id,10);
+              if(isFinite(an)&&isFinite(bn))return an-bn;
+              return String(a.d.id).localeCompare(String(b.d.id));
+            }
+            ownedRows=rows.filter(function(r){return r.have;});
+            needRows=rows.filter(function(r){return !r.have;});
+            ownedRows.sort(_sortBySkeins);
+            needRows.sort(_sortBySkeins);
           }
-          ownedRows.sort(_sortBySkeins);
-          needRows.sort(_sortBySkeins);
+
           function renderRow(r){
-            const d=r.d;
-            const isOn=focusColour&&r.focusId===focusColour;
+            var d=r.d;
+            var isOn=focusColour&&r.focusId===focusColour;
+            var rtD=r.rtData;
+            var isLow=rt&&rtD&&rtD.skeinsRemaining!=null&&rtD.skeinsRemaining>=0&&rtD.skeinsRemaining<0.25;
+            var isNeg=rt&&rtD&&rtD.skeinsRemaining!=null&&rtD.skeinsRemaining<0;
+            // Progress bar: fraction within the current skein (repeating 0→1 each skein)
+            var barPct=rt&&rtD?((rtD.skeinsConsumed%1.0)*100):0;
+            var barColor=isNeg?'var(--danger)':isLow?'var(--warning)':'var(--accent)';
+
             return React.createElement('div',{key:d.id,className:'tsp-row tsp-row--thread'+(isOn?' tsp-row--on':'')},
-              React.createElement('button',{
-                type:'button',className:'tsp-thread-main',
-                onClick:function(){if(!r.focusId)return;if(stitchView!=='highlight')setStitchView('highlight');setFocusColour(r.focusId);},
-                title:'DMC '+d.id+(d.name?(' — '+d.name):'')+' · '+d.skeins+' skein'+(d.skeins===1?'':'s')+' needed'
-              },
-                React.createElement('span',{className:'tsp-sw',style:{background:'rgb('+(d.rgb||[128,128,128]).join(',')+')'}}),
-                React.createElement('span',{className:'tsp-id'},d.id),
-                React.createElement('span',{className:'tsp-name'},d.name||''),
-                React.createElement('span',{className:'tsp-rem',title:d.skeins+' skeins needed','aria-label':d.skeins+' skeins needed'},d.skeins+'\u00D7'),
-                r.have
-                  ? React.createElement('span',{className:'tsp-own-pip tsp-own-pip--have',title:'You have '+r.owned+' skein'+(r.owned===1?'':'s')+' of DMC '+d.id+' in your stash','aria-label':'In stash'},window.Icons.check())
-                  : React.createElement('span',{className:'tsp-own-pip tsp-own-pip--need',title:'You have '+r.owned+' skein'+(r.owned===1?'':'s')+' \u2014 need '+(d.skeins-r.owned)+' more','aria-label':'Need to buy'},(d.skeins-r.owned)+'\u00D7')
+              React.createElement('div',{className:'tsp-thread-col'},
+                React.createElement('button',{
+                  type:'button',className:'tsp-thread-main',
+                  onClick:function(){if(!r.focusId)return;if(stitchView!=='highlight')setStitchView('highlight');setFocusColour(r.focusId);},
+                  title:'DMC '+d.id+(d.name?(' \u2014 '+d.name):'')+' \u00B7 '+d.skeins+' skein'+(d.skeins===1?'':'s')+' needed'
+                },
+                  React.createElement('span',{className:'tsp-sw',style:{background:'rgb('+(d.rgb||[128,128,128]).join(',')+')'}}),
+                  React.createElement('span',{className:'tsp-id'},d.id),
+                  React.createElement('span',{className:'tsp-name'},
+                    d.name||'',
+                    isLow&&React.createElement('span',{className:'tsp-rt-low-badge'},'Low')
+                  ),
+                  // RT mode: show consumed/owned fraction instead of skeins-needed pip
+                  rt&&rtD
+                    ? React.createElement('span',{className:'tsp-rem tsp-rt-frac'+(isNeg?' tsp-rt-frac--neg':isLow?' tsp-rt-frac--low':''),
+                        title:isNeg?'Need '+(Math.abs(rtD.skeinsRemaining).toFixed(2))+' more skeins':
+                              rtD.ownedSkeins!=null?(rtD.skeinsRemaining.toFixed(2)+' skeins remaining'):
+                              rtD.skeinsConsumed.toFixed(2)+' skeins used'},
+                        rtD.ownedSkeins!=null
+                          ?React.createElement('span',null,rtD.skeinsConsumed.toFixed(2)+'/'+rtD.ownedSkeins.toFixed(1))
+                          :React.createElement('span',null,rtD.skeinsConsumed.toFixed(2)+' used')
+                      )
+                    : React.createElement(React.Fragment,null,
+                        React.createElement('span',{className:'tsp-rem',title:d.skeins+' skeins needed','aria-label':d.skeins+' skeins needed'},d.skeins+'\u00D7'),
+                        r.have
+                          ? React.createElement('span',{className:'tsp-own-pip tsp-own-pip--have',title:'You have '+r.owned+' skein'+(r.owned===1?'':'s')+' of DMC '+d.id+' in your stash','aria-label':'In stash'},window.Icons.check())
+                          : React.createElement('span',{className:'tsp-own-pip tsp-own-pip--need',title:'You have '+r.owned+' skein'+(r.owned===1?'':'s')+' \u2014 need '+(d.skeins-r.owned)+' more','aria-label':'Need to buy'},(d.skeins-r.owned)+'\u00D7')
+                      )
+                ),
+                // RT skein meter (inline 4px bar below the main row button)
+                rt&&rtD&&React.createElement('div',{className:'tsp-rt-meter'},
+                  React.createElement('div',{className:'tsp-rt-meter-bar'},
+                    React.createElement('div',{className:'tsp-rt-meter-fill',
+                      style:{width:Math.min(100,barPct)+'%',background:barColor}})
+                  )
+                )
               ),
               typeof onToggleOwned==='function' && React.createElement('button',{
                 type:'button',className:'tsp-stash-btn',
@@ -587,13 +636,92 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
               },r.have?window.Icons.minus():window.Icons.plus())
             );
           }
+
+          // Panel header: title + Live toggle + gear icon
+          var headerEl=React.createElement('div',{className:'tsp-rt-header'},
+            React.createElement('span',{className:'tsp-h',style:{margin:0}},'Threads needed \u00B7 '+rows.length),
+            React.createElement('div',{className:'tsp-rt-controls'},
+              React.createElement('span',{className:'tsp-rt-toggle-lbl'},rt?'Live':'Off'),
+              React.createElement('label',{className:'tsp-rt-toggle',title:'Enable live stash tracking'},
+                React.createElement('input',{type:'checkbox',checked:!!rt,
+                  onChange:function(e){
+                    if(!e.target.checked&&typeof setWastePrefs==='function'){
+                      // Turning off: dispatch to TrackerApp via a custom event
+                      // so the disable modal (which needs StashBridge) can be shown.
+                      window.dispatchEvent(new CustomEvent('cs:rtDisableRequest'));
+                    }else if(e.target.checked&&typeof setWastePrefs==='function'){
+                      // Turning on: snapshot stash first, then enable.
+                      if(typeof StashBridge!=='undefined'){
+                        StashBridge.getGlobalStash().then(function(snap){
+                          if(window.__setRtStashSnapshot)window.__setRtStashSnapshot(snap);
+                        }).catch(function(){});
+                      }
+                      setWastePrefs(function(prev){return Object.assign({},prev,{enabled:true});});
+                    }
+                  }
+                }),
+                React.createElement('div',{className:'tsp-rt-track'}),
+                React.createElement('div',{className:'tsp-rt-thumb'})
+              ),
+              // Gear icon: opens waste settings flyout
+              React.createElement('div',{className:'tsp-rt-gear-wrap',ref:gearRef},
+                React.createElement('button',{
+                  type:'button',className:'tsp-rt-gear-btn',
+                  onClick:function(){setGearOpen(function(o){return !o;});},
+                  title:'Waste settings','aria-label':'Waste settings','aria-expanded':gearOpen
+                },
+                  window.Icons&&window.Icons.gear?window.Icons.gear():
+                    React.createElement('svg',{width:14,height:14,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.8,strokeLinecap:'round'},
+                      React.createElement('circle',{cx:12,cy:12,r:3}),
+                      React.createElement('path',{d:'M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42'})
+                    )
+                ),
+                gearOpen&&React.createElement('div',{className:'tsp-rt-gear-flyout'},
+                  React.createElement('div',{className:'tsp-rt-gear-title'},'Waste settings'),
+                  React.createElement('label',{className:'tsp-rt-gear-row'},
+                    React.createElement('span',{className:'tsp-rt-gear-lbl'},'Tail allowance (in)'),
+                    React.createElement('input',{type:'number',className:'tsp-rt-gear-input',value:wastePrefs?wastePrefs.tailAllowanceIn:1.5,min:0.5,max:4,step:0.5,
+                      onChange:function(e){updateWastePref('tailAllowanceIn',parseFloat(e.target.value)||1.5);}})
+                  ),
+                  React.createElement('label',{className:'tsp-rt-gear-row',title:'How many stitches you stitch with the same piece of thread before cutting. Fewer cuts = less tail waste per stitch.'},
+                    React.createElement('span',{className:'tsp-rt-gear-lbl'},'Run length (stitches)'),
+                    React.createElement('input',{type:'number',className:'tsp-rt-gear-input',value:wastePrefs?wastePrefs.threadRunLength:30,min:10,max:100,step:5,
+                      onChange:function(e){updateWastePref('threadRunLength',parseInt(e.target.value)||30);}})
+                  ),
+                  React.createElement('label',{className:'tsp-rt-gear-row'},
+                    React.createElement('span',{className:'tsp-rt-gear-lbl'},'General waste (%)'),
+                    React.createElement('input',{type:'number',className:'tsp-rt-gear-input',value:wastePrefs?Math.round((wastePrefs.generalWasteMultiplier-1)*100):10,min:0,max:30,step:1,
+                      onChange:function(e){updateWastePref('generalWasteMultiplier',1+(parseInt(e.target.value)||0)/100);}})
+                  ),
+                  React.createElement('label',{className:'tsp-rt-gear-row'},
+                    React.createElement('span',{className:'tsp-rt-gear-lbl'},'Strands'),
+                    React.createElement('input',{type:'number',className:'tsp-rt-gear-input',value:wastePrefs&&wastePrefs.strandCountOverride!=null?wastePrefs.strandCountOverride:2,min:1,max:6,step:1,
+                      onChange:function(e){updateWastePref('strandCountOverride',parseInt(e.target.value)||2);}})
+                  ),
+                  wastePrefs&&React.createElement('div',{className:'tsp-rt-gear-hint'},
+                    (function(){
+                      var fc=fabricCt||14;
+                      var sc=wastePrefs.strandCountOverride||2;
+                      var base=(4.8*sc)/fc;
+                      var tail=(wastePrefs.tailAllowanceIn*2)/Math.max(1,wastePrefs.threadRunLength);
+                      var cost=((base+tail)*wastePrefs.generalWasteMultiplier).toFixed(3);
+                      return cost+' in/stitch (estimated)';
+                    })()
+                  )
+                )
+              )
+            )
+          );
+
           return React.createElement(React.Fragment,null,
-            React.createElement('h3',{className:'tsp-h'},'Threads needed \u00B7 '+rows.length),
-            (needRows.length>0)&&React.createElement('div',{className:'tsp-group'},
-              React.createElement('div',{className:'tsp-group-h'},'To buy \u00B7 '+needRows.length),
+            headerEl,
+            needRows.length>0&&React.createElement('div',{className:'tsp-group'},
+              React.createElement('div',{className:'tsp-group-h'+(rt?' tsp-group-h--danger':'')},
+                rt?('Need more \u00B7 '+needRows.length):('To buy \u00B7 '+needRows.length)
+              ),
               React.createElement('div',{className:'tsp-pal'},needRows.map(renderRow))
             ),
-            (ownedRows.length>0)&&React.createElement('div',{className:'tsp-group'},
+            ownedRows.length>0&&React.createElement('div',{className:'tsp-group'},
               React.createElement('div',{className:'tsp-group-h'},'In stash \u00B7 '+ownedRows.length),
               React.createElement('div',{className:'tsp-pal'},ownedRows.map(renderRow))
             ),
@@ -1079,6 +1207,39 @@ const[threadOwned,setThreadOwned]=useState({});
 const[globalStash,setGlobalStash]=useState({});
 const[kittingResult,setKittingResult]=useState(null);
 const[stashDeducted,setStashDeducted]=useState(false);
+
+// ── Real-time stash deduction (Proposal D implementation) ──────────────
+// Defaults match threadCostPerStitch() in threadCalc.js.
+const RT_WASTE_DEFAULTS={enabled:false,tailAllowanceIn:1.5,threadRunLength:30,generalWasteMultiplier:1.10,strandCountOverride:null,lastWrittenAt:null};
+const[wastePrefs,setWastePrefs]=useState(()=>{
+  try{const p=window.UserPrefs&&window.UserPrefs.get('rtWastePrefs');if(p&&typeof p==='object')return Object.assign({},RT_WASTE_DEFAULTS,p);}catch(_){}
+  return Object.assign({},RT_WASTE_DEFAULTS);
+});
+// Snapshot of global stash taken at project-load (or when RT is first enabled).
+// Used so the "skeins remaining" display reflects the stash BEFORE this project
+// consumed any thread, not the live (already-decremented) stash.
+const rtStashSnapshotRef=useRef({});
+// Debounce timer for writing consumption to stash.
+const rtDebounceRef=useRef(null);
+// Ref to latest rtConsumption so beforeunload handler can flush without stale closures.
+const rtConsumptionRef=useRef({});
+// Tracks which thread ids have already triggered a low-thread toast this session.
+const rtLowToastedRef=useRef(new Set());
+// Expose snapshot setter for TrackerProjectRail's enable toggle (different component scope).
+useEffect(function(){
+  window.__setRtStashSnapshot=function(snap){rtStashSnapshotRef.current=snap||{};};
+  return function(){delete window.__setRtStashSnapshot;};
+},[]);
+// Listen for disable request from TrackerProjectRail's toggle.
+useEffect(function(){
+  function onDisable(){setModal('rt_disable_confirm');}
+  window.addEventListener('cs:rtDisableRequest',onDisable);
+  return function(){window.removeEventListener('cs:rtDisableRequest',onDisable);};
+},[]);
+// Persist wastePrefs to UserPrefs as a global default for new projects.
+useEffect(function(){
+  try{window.UserPrefs&&window.UserPrefs.set('rtWastePrefs',wastePrefs);}catch(_){}
+},[wastePrefs]);
 const[altOpen,setAltOpen]=useState(null);
 
 // ═══ Spatial Analysis Engine ═══
@@ -1424,13 +1585,114 @@ useEffect(()=>{
 // Detect project completion and offer stash deduction
 useEffect(()=>{
   if(progressPct>=100 && !stashDeducted && combinedTotal>0 && typeof StashBridge!=="undefined"){
-    setModal("deduct_prompt");
+    setModal(wastePrefs.enabled?"rt_complete_summary":"deduct_prompt");
   }
 },[progressPct]);
 
 const totalSkeins=useMemo(()=>skeinData.reduce((s,d)=>s+d.skeins,0),[skeinData]);
 const blendCount=useMemo(()=>pal?pal.filter(p=>p.type==="blend").length:0,[pal]);
 const difficulty=useMemo(()=>pal?calcDifficulty(pal.length,blendCount,totalStitchable):null,[pal,blendCount,totalStitchable]);
+
+// RT consumption: derived, never stored. Recalculates from done counts + prefs.
+// SKEIN_TOTAL_IN: 6 strands × 315 in/strand = 1890 total single-strand inches per skein.
+const SKEIN_TOTAL_IN=1890;
+const rtConsumption=useMemo(()=>{
+  if(!wastePrefs.enabled||!skeinData||!skeinData.length)return{};
+  const strands=typeof wastePrefs.strandCountOverride==='number'?wastePrefs.strandCountOverride:2;
+  const base=(4.8*strands)/fabricCt;
+  const tail=(wastePrefs.tailAllowanceIn*2)/Math.max(1,wastePrefs.threadRunLength);
+  const effectiveCostIn=(base+tail)*wastePrefs.generalWasteMultiplier;
+  const snap=rtStashSnapshotRef.current||{};
+  // Build done-stitch count keyed by bare thread id, aggregating across solids AND blends.
+  // colourDoneCounts is keyed by palette-entry id ("310" for solids, "310+550" for blends).
+  // For blends, each constituent thread contributes equally, so we accumulate blend done
+  // counts onto each thread id the same way skeinData does.
+  const threadDone={};
+  if(pal){
+    pal.forEach(function(p){
+      const dc=colourDoneCounts[p.id];
+      const dn=dc?dc.done:0;
+      if(p.type==='solid'){threadDone[p.id]=(threadDone[p.id]||0)+dn;}
+      else if(p.type==='blend'&&p.threads){
+        p.threads.forEach(function(t){threadDone[t.id]=(threadDone[t.id]||0)+dn;});
+      }
+    });
+  }
+  const out={};
+  skeinData.forEach(d=>{
+    const dn=threadDone[d.id]||0;
+    const skeinsConsumed=dn*effectiveCostIn/SKEIN_TOTAL_IN;
+    const snapEntry=(snap['dmc:'+d.id]||snap[d.id])||null;
+    const ownedSkeins=snapEntry&&typeof snapEntry.owned==='number'?snapEntry.owned:null;
+    const skeinsRemaining=ownedSkeins!=null?ownedSkeins-skeinsConsumed:null;
+    out[d.id]={skeinsConsumed,skeinsRemaining,ownedSkeins,effectiveCostIn};
+  });
+  return out;
+  // countsVer in dep array ensures re-run whenever done counts change.
+},[wastePrefs,skeinData,fabricCt,countsVer,pal]);
+// Keep a stable ref for beforeunload and async flush callbacks.
+useEffect(()=>{rtConsumptionRef.current=rtConsumption;},[rtConsumption]);
+
+// ── RT stash write helpers ─────────────────────────────────────────────
+// Writes current consumption to the global stash. Idempotent: re-applying
+// the same consumption after reload produces the same stash level (since we
+// always write ownedAtStart − consumedNow, not a delta).
+const flushRtStashWrite=useCallback(async()=>{
+  if(!wastePrefs.enabled||typeof StashBridge==='undefined')return;
+  const consumption=rtConsumptionRef.current;
+  const ids=Object.keys(consumption);
+  if(!ids.length)return;
+  let wrote=false;
+  for(const id of ids){
+    const c=consumption[id];
+    if(!c||c.skeinsConsumed<=0||c.ownedSkeins==null)continue;
+    const newOwned=Math.max(0,c.ownedSkeins-c.skeinsConsumed);
+    try{await StashBridge.updateThreadOwned(id,newOwned);wrote=true;}
+    catch(e){console.warn('RT stash write failed for '+id+':',e);}
+  }
+  if(wrote){
+    setWastePrefs(prev=>({...prev,lastWrittenAt:new Date().toISOString()}));
+    try{const fresh=await StashBridge.getGlobalStash();setGlobalStash(fresh);}catch(_){}
+  }
+},[wastePrefs.enabled]);
+// Stable ref so the beforeunload handler can call it without stale closure.
+const flushRtStashWriteRef=useRef(flushRtStashWrite);
+useEffect(()=>{flushRtStashWriteRef.current=flushRtStashWrite;},[flushRtStashWrite]);
+
+// Debounced write: reset timer on every stitch mark. Fires 30 s after last activity.
+useEffect(()=>{
+  if(!wastePrefs.enabled)return;
+  if(rtDebounceRef.current)clearTimeout(rtDebounceRef.current);
+  rtDebounceRef.current=setTimeout(()=>{rtDebounceRef.current=null;flushRtStashWrite();},30000);
+  return()=>{if(rtDebounceRef.current){clearTimeout(rtDebounceRef.current);rtDebounceRef.current=null;}};
+},[countsVer,wastePrefs.enabled]);
+
+// Low-thread toast: fires once per thread per session when skeinsRemaining first drops below 0.25.
+const prevRtConsumptionRef=useRef({});
+useEffect(()=>{
+  if(!wastePrefs.enabled||!skeinData)return;
+  const LOW=0.25;
+  skeinData.forEach(d=>{
+    const curr=rtConsumption[d.id];
+    const prev=prevRtConsumptionRef.current[d.id];
+    if(!curr||curr.skeinsRemaining==null)return;
+    const wasOk=!prev||prev.skeinsRemaining==null||prev.skeinsRemaining>=LOW;
+    const isLow=curr.skeinsRemaining>=0&&curr.skeinsRemaining<LOW;
+    const notAlerted=!rtLowToastedRef.current.has(d.id);
+    if(wasOk&&isLow&&notAlerted){
+      rtLowToastedRef.current.add(d.id);
+      if(typeof window.Toast!=='undefined'&&window.Toast.show){
+        window.Toast.show({
+          message:'Low thread: DMC '+d.id+(d.name?' \u2014 '+d.name:'')+'. Only '+curr.skeinsRemaining.toFixed(2)+' skeins remaining.',
+          type:'warning',duration:10000
+        });
+      }
+    }
+    // Reset toast gate if the user adds more thread (skeinsRemaining recovers above LOW+0.25)
+    if(curr.skeinsRemaining>=LOW+0.25)rtLowToastedRef.current.delete(d.id);
+  });
+  prevRtConsumptionRef.current=rtConsumption;
+},[rtConsumption,wastePrefs.enabled]);
 
 
 // ═══ Auto-session recording ═══
@@ -2680,7 +2942,7 @@ function handleEditInCreator(){
   const sseArrH=[...singleStitchEdits.entries()];
   const hsArrH=[...halfStitches.entries()].map(([idx,hs])=>[idx,{fwd:hs.fwd?{id:hs.fwd.id,rgb:hs.fwd.rgb}:undefined,bck:hs.bck?{id:hs.bck.id,rgb:hs.bck.rgb}:undefined}]);
   const hdArrH=[...halfDone.entries()];
-  let project={version:9,id:projectIdRef.current||undefined,page:"tracker",name:projectName,createdAt:createdAtRef.current||new Date().toISOString(),updatedAt:new Date().toISOString(),settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"var(--surface)",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice,stitchSpeed,smooth:0,smoothType:"median",orphans:0},pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,hlRow,hlCol,threadOwned,imgData:null,originalPaletteState,singleStitchEdits:sseArrH,halfStitches:hsArrH,halfDone:hdArrH,statsSessions,statsSettings,achievedMilestones,doneSnapshots,breadcrumbs,stitchingStyle,blockW,blockH,focusBlock,startCorner,colourSequence};
+  let project={version:9,id:projectIdRef.current||undefined,page:"tracker",name:projectName,createdAt:createdAtRef.current||new Date().toISOString(),updatedAt:new Date().toISOString(),settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"var(--surface)",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice,stitchSpeed,smooth:0,smoothType:"median",orphans:0,wastePrefs},pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,hlRow,hlCol,threadOwned,imgData:null,originalPaletteState,singleStitchEdits:sseArrH,halfStitches:hsArrH,halfDone:hdArrH,statsSessions,statsSettings,achievedMilestones,doneSnapshots,breadcrumbs,stitchingStyle,blockW,blockH,focusBlock,startCorner,colourSequence};
   try{
     localStorage.setItem("crossstitch_handoff_to_creator", JSON.stringify(project));
     window.location.href = "create.html?source=tracker";
@@ -2770,6 +3032,26 @@ function processLoadedProject(project){
   else if(project.fc)setFabricCt(project.fc);
   if(s.skeinPrice!=null)setSkeinPrice(s.skeinPrice);
   if(s.stitchSpeed)setStitchSpeed(s.stitchSpeed);
+  // Restore RT waste preferences; snapshot stash if feature is enabled.
+  if(s.wastePrefs&&typeof s.wastePrefs==='object'){
+    const loaded=Object.assign({},RT_WASTE_DEFAULTS,s.wastePrefs);
+    setWastePrefs(loaded);
+    if(loaded.enabled){
+      // Snapshot the current live stash so "skeins remaining" computes correctly
+      // relative to what the user owned at project start.
+      if(typeof StashBridge!=='undefined'){
+        StashBridge.getGlobalStash().then(snap=>{rtStashSnapshotRef.current=snap;}).catch(()=>{});
+      }
+    }else{
+      rtStashSnapshotRef.current={};
+    }
+  }else{
+    setWastePrefs(Object.assign({},RT_WASTE_DEFAULTS));
+    rtStashSnapshotRef.current={};
+  }
+  // Clear per-session RT state on project switch.
+  rtLowToastedRef.current.clear();
+  setStashDeducted(false);
 
   let p = project.pattern || project.p;
   if(!p){console.error("processLoadedProject: missing pattern data");return;}
@@ -3223,8 +3505,7 @@ const buildSnapshot = () => {
     version: 9, id: projectIdRef.current, page: "tracker", name: projectName,
     designer: projectDesigner, description: projectDescription,
     createdAt: createdAtRef.current, updatedAt: new Date().toISOString(),
-    settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed },
-    // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
+    settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs },
     pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb })),
     bsLines, done: done ? Array.from(done) : null, parkMarkers,
     hlRow, hlCol, threadOwned, originalPaletteState,
@@ -3283,7 +3564,7 @@ useEffect(() => {
   return () => clearTimeout(saveTimer);
 }, [pat, pal, done, bsLines, parkMarkers, totalTime, hlRow, hlCol, threadOwned,
     halfStitches, halfDone, singleStitchEdits,
-    sW, sH, fabricCt, skeinPrice, stitchSpeed, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom, doneSnapshots, achievedMilestones]);
+    sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom, doneSnapshots, achievedMilestones]);
 
 // Save the freshest snapshot before the page unloads (best-effort fire-and-forget).
 // Uses only refs so the handler is never stale; drag in-progress mutations are applied
@@ -3329,6 +3610,10 @@ useEffect(() => {
       .catch(err => console.error("Tracker unload auto-save failed:", err));
     saveProjectToDB(projectToSave)
       .catch(err => console.error("Tracker DB unload auto-save failed:", err));
+    // Flush any pending RT stash deduction before the page closes.
+    // Fire-and-forget (async; browser may not wait, but IndexedDB writes are usually fast).
+    if(rtDebounceRef.current){clearTimeout(rtDebounceRef.current);rtDebounceRef.current=null;}
+    flushRtStashWriteRef.current();
     } catch(e) {}
   };
   window.addEventListener("beforeunload", handleBeforeUnload);
@@ -3372,15 +3657,8 @@ useEffect(() => {
       version: 9, id: projectIdRef.current, page: "tracker", name: projectName,
       createdAt: createdAtRef.current,
       updatedAt: new Date().toISOString(),
-      settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed },
+      settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs },
       // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
-      pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb })),
-      bsLines, done: done ? Array.from(done) : null, parkMarkers,
-      hlRow, hlCol, threadOwned, originalPaletteState,
-      singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr,
-      statsSessions, statsSettings, achievedMilestones, doneSnapshots,
-      savedZoom: stitchZoom,
-      savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null,
       breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence
     };
     lastSnapshotRef.current = project;
@@ -6168,8 +6446,7 @@ return(
       })();
     }}
     onPickProject={(id)=>{
-      if(!id||id===projectIdRef.current)return;
-      ProjectStorage.get(id).then(p=>{
+      if(!id||id===projectIdRef.current)return;      ProjectStorage.get(id).then(p=>{
         if(p&&p.pattern&&p.settings){
           processLoadedProject(p);
           try{ProjectStorage.setActiveProject(p.id);}catch(_){}
@@ -6177,6 +6454,10 @@ return(
         }
       }).catch(err=>console.error('Rail project switch failed:',err));
     }}
+    wastePrefs={wastePrefs}
+    setWastePrefs={setWastePrefs}
+    rtConsumption={rtConsumption}
+    fabricCt={fabricCt}
   />}
   {/* ═══════════════════════════════════════════════════════════════
       Phase 4 (UX-12) — Workshop tracker chrome
@@ -6745,6 +7026,95 @@ return(
       <div style={{marginTop:'var(--s-3)',paddingTop:10,borderTop:"1px solid var(--border)",display:"flex",justifyContent:"center"}}>
         <button onClick={()=>{window.location.search='?mode=stats&tab=showcase';}} style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"none",border:"none",cursor:"pointer",fontWeight:600,display:'inline-flex',alignItems:'center',gap:4}}>See your updated stats <span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronRight?Icons.chevronRight():null}</span></button>
       </div>
+    </div>
+  </div>}
+
+  {/* ── RT: mid-project disable modal ──────────────────────────────── */}
+  {modal==="rt_disable_confirm"&&<div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="rt-disable-title" onClick={()=>setModal(null)}>
+    <div className="modal-content" style={{maxWidth:440}} onClick={e=>e.stopPropagation()}>
+      <button className="modal-close" onClick={()=>setModal(null)} aria-label="Close">{Icons.x?Icons.x():'×'}</button>
+      <h3 id="rt-disable-title" style={{marginTop:0,fontSize:18,color:'var(--text-primary)'}}>Turn off live tracking?</h3>
+      <p style={{fontSize:'var(--text-sm)',color:'var(--text-secondary)',marginBottom:'var(--s-4)'}}>Choose what to do with the thread deductions made so far.</p>
+      <div style={{display:'flex',flexDirection:'column',gap:'var(--s-2)'}}>
+        <button onClick={()=>{
+          setWastePrefs(function(prev){return Object.assign({},prev,{enabled:false});});
+          setModal(null);
+        }} style={{padding:'10px 20px',fontSize:'var(--text-sm)',borderRadius:'var(--radius-md)',border:'none',background:'var(--accent)',color:'var(--surface)',cursor:'pointer',fontWeight:600}}>
+          Keep deductions so far
+        </button>
+        <button onClick={()=>{
+          // Restore stash to pre-project snapshot values, then disable.
+          (async()=>{
+            const consumption=rtConsumptionRef.current||{};
+            for(const id of Object.keys(consumption)){
+              const c=consumption[id];
+              if(!c||c.ownedSkeins==null)continue;
+              try{await StashBridge.updateThreadOwned(id,c.ownedSkeins);}
+              catch(e){console.warn('RT restore failed for '+id+':',e);}
+            }
+            try{const fresh=await StashBridge.getGlobalStash();setGlobalStash(fresh);}catch(_){}
+          })().then(()=>{
+            setWastePrefs(function(prev){return Object.assign({},prev,{enabled:false});});
+            setModal(null);
+          }).catch(()=>{
+            setWastePrefs(function(prev){return Object.assign({},prev,{enabled:false});});
+            setModal(null);
+          });
+        }} style={{padding:'10px 20px',fontSize:'var(--text-sm)',borderRadius:'var(--radius-md)',border:'1px solid var(--border)',background:'var(--surface-secondary)',color:'var(--text-primary)',cursor:'pointer',fontWeight:500}}>
+          Restore stash to before this project
+        </button>
+        <button onClick={()=>setModal(null)} style={{padding:'8px 20px',fontSize:'var(--text-sm)',borderRadius:'var(--radius-md)',border:'1px solid var(--border)',background:'var(--surface)',color:'var(--text-secondary)',cursor:'pointer'}}>
+          Cancel (keep tracking)
+        </button>
+      </div>
+    </div>
+  </div>}
+
+  {/* ── RT: completion reconciliation modal ────────────────────────── */}
+  {modal==="rt_complete_summary"&&<div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="rt-complete-title" onClick={()=>{setStashDeducted(true);setModal(null);}}>
+    <div className="modal-content" style={{maxWidth:480}} onClick={e=>e.stopPropagation()}>
+      <button className="modal-close" onClick={()=>{setStashDeducted(true);setModal(null);}} aria-label="Close">{Icons.x?Icons.x():'×'}</button>
+      <h3 id="rt-complete-title" style={{marginTop:0,fontSize:18,color:'var(--text-primary)'}}>Project Complete — Thread Summary</h3>
+      <p style={{fontSize:'var(--text-sm)',color:'var(--text-secondary)',marginBottom:'var(--s-3)'}}>Live stash tracking has been updating your stash as you stitched. Here is a summary of what was used.</p>
+      <div style={{overflowY:'auto',maxHeight:240,border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',marginBottom:'var(--s-4)'}}>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:'var(--text-sm)'}}>
+          <thead><tr style={{background:'var(--surface-secondary)'}}>
+            <th style={{padding:'6px 10px',textAlign:'left',color:'var(--text-secondary)',fontWeight:600}}>Thread</th>
+            <th style={{padding:'6px 10px',textAlign:'right',color:'var(--text-secondary)',fontWeight:600}}>Used</th>
+            <th style={{padding:'6px 10px',textAlign:'right',color:'var(--text-secondary)',fontWeight:600}}>Remaining</th>
+          </tr></thead>
+          <tbody>
+            {(skeinData||[]).map(function(d){
+              const c=rtConsumption&&rtConsumption[d.id];
+              if(!c)return null;
+              const remText=c.skeinsRemaining!=null
+                ?(c.skeinsRemaining<0?React.createElement('span',{style:{color:'var(--danger)'}},c.skeinsRemaining.toFixed(2)):c.skeinsRemaining.toFixed(2))
+                :'—';
+              return React.createElement('tr',{key:d.id,style:{borderTop:'1px solid var(--border)'}},
+                React.createElement('td',{style:{padding:'5px 10px',display:'flex',alignItems:'center',gap:6}},
+                  React.createElement('span',{style:{width:10,height:10,borderRadius:'50%',background:'rgb('+(d.rgb||[128,128,128]).join(',')+')',display:'inline-block',flexShrink:0}}),
+                  'DMC '+d.id+(d.name?' \u2014 '+d.name:'')
+                ),
+                React.createElement('td',{style:{padding:'5px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}},c.skeinsConsumed.toFixed(2)),
+                React.createElement('td',{style:{padding:'5px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}},remText)
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <button onClick={()=>{
+        (async()=>{
+          // Flush any remaining RT write before closing.
+          if(rtDebounceRef.current){clearTimeout(rtDebounceRef.current);rtDebounceRef.current=null;}
+          await flushRtStashWriteRef.current();
+          if(typeof ProjectStorage!=='undefined'&&ProjectStorage.markProjectFinished&&projectIdRef.current){
+            await ProjectStorage.markProjectFinished(projectIdRef.current);
+            v3FieldsRef.current=Object.assign(v3FieldsRef.current||{},{finishStatus:'completed',completedAt:new Date().toISOString()});
+          }
+        })().then(()=>{setStashDeducted(true);setModal(null);}).catch(()=>{setStashDeducted(true);setModal(null);});
+      }} style={{width:'100%',padding:'10px 20px',fontSize:'var(--text-sm)',borderRadius:'var(--radius-md)',border:'none',background:'var(--accent)',color:'var(--surface)',cursor:'pointer',fontWeight:600}}>
+        Confirm and finish
+      </button>
     </div>
   </div>}
 

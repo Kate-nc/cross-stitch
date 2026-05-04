@@ -90,10 +90,42 @@ function skeinsToStitches({
   };
 }
 
+// threadCostPerStitch — returns the effective thread consumption per single full
+// cross stitch in INCHES, accounting for per-run tail waste and a general waste
+// multiplier. Used by the real-time stash deduction feature.
+//
+// wastePrefs (all optional, defaults match the RT_WASTE_DEFAULTS in tracker-app.js):
+//   tailAllowanceIn     — inches wasted per tail (start + end of each thread run)
+//   threadRunLength     — average stitches per thread run (determines how often tails fire)
+//   generalWasteMultiplier — catch-all waste factor (1.10 = 10% waste on top)
+//   strandCountOverride — override strand count (null = use strandCount param)
+//
+// "Thread run length" is the number of stitches you stitch consecutively with the
+// same piece of thread before cutting it and starting a fresh length. Shorter runs
+// mean more cuts and therefore more tail waste per stitch; longer runs mean fewer
+// cuts and lower waste per stitch. At the default of 30 stitches/run with 1.5 in
+// tails: (1.5 × 2) / 30 = 0.10 in/stitch of amortised tail waste.
+function threadCostPerStitch(fabricCount, strandCount, wastePrefs) {
+  var fc = (typeof fabricCount === 'number' && fabricCount > 0) ? fabricCount : 14;
+  var sc = (typeof strandCount === 'number' && strandCount > 0) ? strandCount : 2;
+  var wp = wastePrefs || {};
+  var tailIn   = typeof wp.tailAllowanceIn === 'number'         ? wp.tailAllowanceIn         : 1.5;
+  var runLen   = typeof wp.threadRunLength === 'number'         ? wp.threadRunLength          : 30;
+  var genWaste = typeof wp.generalWasteMultiplier === 'number'  ? wp.generalWasteMultiplier   : 1.10;
+  var strands  = typeof wp.strandCountOverride === 'number'
+                   ? wp.strandCountOverride
+                   : sc;
+  if (runLen <= 0) runLen = 30;
+  var baseCostIn         = (4.8 * strands) / fc;
+  var tailWastePerStitch = (tailIn * 2) / runLen;
+  return (baseCostIn + tailWastePerStitch) * genWaste;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         BRAND_SKEIN_LENGTH,
         stitchesToSkeins,
-        skeinsToStitches
+        skeinsToStitches,
+        threadCostPerStitch
     };
 }
