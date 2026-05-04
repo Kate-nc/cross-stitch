@@ -2503,7 +2503,7 @@ function doSaveProject(finalName){
     name:finalName,
     createdAt:createdAtRef.current||new Date().toISOString(),
     updatedAt:new Date().toISOString(),
-    settings:{sW,sH,fabricCt,skeinPrice,stitchSpeed},
+    settings:{sW,sH,fabricCt,skeinPrice,stitchSpeed,wastePrefs},
     // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
     pattern:(window.PatternIO?window.PatternIO.serializePattern(pat):pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb})),
     bsLines,
