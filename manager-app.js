@@ -569,7 +569,10 @@ function ManagerApp() {
     const activeIds = new Set();
     patterns.forEach(pat => {
       if (pat.status === 'completed') return;
-      if (pat.threads) pat.threads.forEach(t => activeIds.add(t.id));
+      if (pat.threads) pat.threads.forEach(t => {
+        activeIds.add(t.id);
+        if (t.is_blended && t.blend_id) activeIds.add(t.blend_id);
+      });
     });
     return {
       lowStockNeeded: lowStockAlerts.filter(a => activeIds.has(a.bareId || a.id)),

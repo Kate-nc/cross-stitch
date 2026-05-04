@@ -1162,9 +1162,16 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
           if (proj.finishStatus === 'planned') continue;
           for (const cell of proj.pattern) {
             if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
-            const normalized = normaliseStashKey(cell.id);
-            usedKeys.add(normalized);
-            usedKeys.add(cell.id.indexOf(':') >= 0 ? cell.id.split(':').slice(1).join(':') : cell.id);
+            // Split blend cells ("310+550") into components so stash keys
+            // ("dmc:310", "dmc:550") are correctly matched as 'used'.
+            const cellIds = cell.id.indexOf('+') !== -1
+              ? cell.id.split('+').map(p => p.trim()).filter(Boolean)
+              : [cell.id];
+            for (const cid of cellIds) {
+              const normalized = normaliseStashKey(cid);
+              usedKeys.add(normalized);
+              usedKeys.add(cid.indexOf(':') >= 0 ? cid.split(':').slice(1).join(':') : cid);
+            }
           }
         }
         const LEGACY_EP = typeof StashBridge !== 'undefined' ? StashBridge.LEGACY_EPOCH : '2020-01-01T00:00:00Z';
@@ -1480,7 +1487,11 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       if (!pat || !pat.threads || pat.status === 'completed' || pat.status === 'inprogress') continue;
       const matches = [];
       for (const t of pat.threads) {
-        if (t && t.id && dormantIds.has(t.id)) matches.push(t);
+        // Check primary id and, for blended threads, the secondary component.
+        const matchIds = (t && t.is_blended && t.blend_id) ? [t.id, t.blend_id] : (t ? [t.id] : []);
+        for (const mid of matchIds) {
+          if (mid && dormantIds.has(mid)) { matches.push(t); break; }
+        }
       }
       if (matches.length > 0) {
         recs.push({ id: pat.id, title: pat.title || 'Untitled', matches: matches.length, sampleNames: matches.slice(0, 3).map(t => t.name || t.id) });
