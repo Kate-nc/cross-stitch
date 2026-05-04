@@ -3671,6 +3671,15 @@ kbd {
 .mpd-card-progress-fill {
   height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s;
 }
+.mpd-card-difficulty {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
 .mpd-card-meta { font-size: 12px; color: var(--text-tertiary); display: flex; gap: 4px; align-items: center; }
 .mpd-card-sep { color: var(--text-tertiary); }
 .mpd-card-recency { font-size: 12px; color: var(--text-secondary); }
@@ -4819,6 +4828,24 @@ html.pref-dark a { color: var(--accent); }
   outline-offset: 2px;
 }
 
+/* Difficulty tier chip — always visible in the action bar */
+.creator-actionbar__difficulty-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
+  font: 600 11px/1 inherit;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: default;
+}
+
+/* Stats link — ghost anchor in the primary group */
+.creator-actionbar__stats-link {
+  text-decoration: none;
+}
+
 .creator-popover-info {
   position: absolute;
   top: calc(100% + 6px);
@@ -4882,6 +4909,153 @@ html.pref-dark a { color: var(--accent); }
   color: var(--accent, #B85C38);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+/* ── Difficulty breakdown section ──────────────────────────────────────── */
+.creator-popover-difficulty__tier-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.creator-popover-difficulty__badge {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1.5px solid currentColor;
+  background: transparent;
+  letter-spacing: 0.02em;
+}
+
+.creator-popover-difficulty__score {
+  font-size: 11px;
+  color: var(--text-tertiary, #8A8270);
+  font-variant-numeric: tabular-nums;
+}
+
+.creator-popover-difficulty__factors {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+
+.creator-popover-difficulty__factor-row {
+  display: grid;
+  grid-template-columns: 1fr 80px 28px;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.creator-popover-difficulty__factor-label {
+  color: var(--text-secondary, #6B5F54);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.creator-popover-difficulty__factor-track {
+  height: 5px;
+  background: var(--line, #E5DCCB);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.creator-popover-difficulty__factor-fill {
+  height: 100%;
+  background: var(--accent, #B85C38);
+  border-radius: 3px;
+  transition: width var(--motion, 160ms ease-out);
+}
+
+.creator-popover-difficulty__factor-pct {
+  color: var(--text-tertiary, #8A8270);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.creator-popover-difficulty__details {
+  border-top: 1px solid var(--line, #E5DCCB);
+  margin-top: 4px;
+  padding-top: 6px;
+}
+
+.creator-popover-difficulty__summary {
+  font-size: 11px;
+  color: var(--text-tertiary, #8A8270);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  padding: 2px 0;
+}
+
+.creator-popover-difficulty__summary::-webkit-details-marker { display: none; }
+
+.creator-popover-difficulty__summary::before {
+  content: "";
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 6px solid var(--text-tertiary, #8A8270);
+  margin-right: 5px;
+  vertical-align: middle;
+  transition: transform var(--motion, 160ms ease-out);
+}
+
+details[open] .creator-popover-difficulty__summary::before {
+  transform: rotate(90deg);
+}
+
+.creator-popover-difficulty__formula {
+  margin-top: 8px;
+}
+
+.creator-popover-difficulty__formula-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.creator-popover-difficulty__formula-table th,
+.creator-popover-difficulty__formula-table td {
+  text-align: left;
+  padding: 2px 4px 2px 0;
+  color: var(--text-secondary, #6B5F54);
+  border-bottom: 1px solid var(--line, #E5DCCB);
+}
+
+.creator-popover-difficulty__formula-table th {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary, #8A8270);
+}
+
+.creator-popover-difficulty__formula-table td:not(:first-child),
+.creator-popover-difficulty__formula-table th:not(:first-child) {
+  text-align: right;
+  padding-right: 0;
+}
+
+.creator-popover-difficulty__formula-total td {
+  font-weight: 700;
+  color: var(--text-primary);
+  border-bottom: none;
+  padding-top: 4px;
+}
+
+.creator-popover-difficulty__formula-note {
+  font-size: 10px;
+  color: var(--text-tertiary, #8A8270);
+  font-style: italic;
+  margin-top: 5px;
 }
 
 .creator-popover-info-scrim {

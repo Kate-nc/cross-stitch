@@ -594,7 +594,44 @@ window.useCreatorState = function useCreatorState() {
 
   var totalSkeins = useMemo(function() { return skeinData.reduce(function(s, d) { return s + d.skeins; }, 0); }, [skeinData]);
   var blendCount  = useMemo(function() { return pal ? pal.filter(function(p) { return p.type === "blend"; }).length : 0; }, [pal]);
-  var difficulty  = useMemo(function() { return pal ? calcDifficulty(pal.length, blendCount, totalStitchable) : null; }, [pal, blendCount, totalStitchable]);
+
+  // Scan the pattern once to derive confetti and change-rate scores for the difficulty model.
+  // O(w×h) but cached; only reruns when pat/sW/sH/totalStitchable changes.
+  var difficultyMetrics = useMemo(function() {
+    if (!pat || !sW || !sH || totalStitchable < 1) return {};
+    var isolated = 0, changePairs = 0, totalPairs = 0;
+    for (var y = 0; y < sH; y++) {
+      for (var x = 0; x < sW; x++) {
+        var i = y * sW + x;
+        var cell = pat[i];
+        if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
+        var id = cell.id;
+        var iso = true;
+        var nx, nid;
+        if (x > 0)     { nid = pat[y*sW+(x-1)]; if (nid && nid.id !== '__skip__' && nid.id !== '__empty__' && nid.id === id) iso = false; }
+        if (iso && x+1 < sW)  { nid = pat[y*sW+(x+1)]; if (nid && nid.id !== '__skip__' && nid.id !== '__empty__' && nid.id === id) iso = false; }
+        if (iso && y > 0)     { nid = pat[(y-1)*sW+x]; if (nid && nid.id !== '__skip__' && nid.id !== '__empty__' && nid.id === id) iso = false; }
+        if (iso && y+1 < sH)  { nid = pat[(y+1)*sW+x]; if (nid && nid.id !== '__skip__' && nid.id !== '__empty__' && nid.id === id) iso = false; }
+        if (iso) isolated++;
+        if (x+1 < sW) { nx = pat[y*sW+(x+1)]; if (nx && nx.id !== '__skip__' && nx.id !== '__empty__') { totalPairs++; if (nx.id !== id) changePairs++; } }
+        if (y+1 < sH) { nx = pat[(y+1)*sW+x]; if (nx && nx.id !== '__skip__' && nx.id !== '__empty__') { totalPairs++; if (nx.id !== id) changePairs++; } }
+      }
+    }
+    return {
+      confettiScore: isolated / totalStitchable,
+      changeScore: totalPairs > 0 ? changePairs / totalPairs : 0,
+    };
+  }, [pat, sW, sH, totalStitchable]);
+
+  var difficulty  = useMemo(function() {
+    if (!pal) return null;
+    return calcDifficulty(pal.length, blendCount, totalStitchable, {
+      fabricCt: fabricCt,
+      bsCount: bsLines.length,
+      confettiScore: difficultyMetrics.confettiScore,
+      changeScore: difficultyMetrics.changeScore,
+    });
+  }, [pal, blendCount, totalStitchable, fabricCt, bsLines, difficultyMetrics]);
 
   var doneCount = useMemo(function() {
     if (!done) return 0;

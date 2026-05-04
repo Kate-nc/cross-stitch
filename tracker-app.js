@@ -1591,7 +1591,28 @@ useEffect(()=>{
 
 const totalSkeins=useMemo(()=>skeinData.reduce((s,d)=>s+d.skeins,0),[skeinData]);
 const blendCount=useMemo(()=>pal?pal.filter(p=>p.type==="blend").length:0,[pal]);
-const difficulty=useMemo(()=>pal?calcDifficulty(pal.length,blendCount,totalStitchable):null,[pal,blendCount,totalStitchable]);
+
+// Scan pattern once for confetti/change metrics used by the difficulty model.
+const difficultyMetrics=useMemo(()=>{
+  if(!pat||!sW||!sH||totalStitchable<1)return{};
+  let isolated=0,changePairs=0,totalPairs=0;
+  for(let y=0;y<sH;y++){for(let x=0;x<sW;x++){
+    const i=y*sW+x;const cell=pat[i];
+    if(!cell||cell.id==='__skip__'||cell.id==='__empty__')continue;
+    const id=cell.id;
+    let iso=true,nx;
+    if(x>0){nx=pat[y*sW+(x-1)];if(nx&&nx.id!=='__skip__'&&nx.id!=='__empty__'&&nx.id===id)iso=false;}
+    if(iso&&x+1<sW){nx=pat[y*sW+(x+1)];if(nx&&nx.id!=='__skip__'&&nx.id!=='__empty__'&&nx.id===id)iso=false;}
+    if(iso&&y>0){nx=pat[(y-1)*sW+x];if(nx&&nx.id!=='__skip__'&&nx.id!=='__empty__'&&nx.id===id)iso=false;}
+    if(iso&&y+1<sH){nx=pat[(y+1)*sW+x];if(nx&&nx.id!=='__skip__'&&nx.id!=='__empty__'&&nx.id===id)iso=false;}
+    if(iso)isolated++;
+    if(x+1<sW){nx=pat[y*sW+(x+1)];if(nx&&nx.id!=='__skip__'&&nx.id!=='__empty__'){totalPairs++;if(nx.id!==id)changePairs++;}}
+    if(y+1<sH){nx=pat[(y+1)*sW+x];if(nx&&nx.id!=='__skip__'&&nx.id!=='__empty__'){totalPairs++;if(nx.id!==id)changePairs++;}}
+  }}
+  return{confettiScore:isolated/totalStitchable,changeScore:totalPairs>0?changePairs/totalPairs:0};
+},[pat,sW,sH,totalStitchable]);
+
+const difficulty=useMemo(()=>pal?calcDifficulty(pal.length,blendCount,totalStitchable,{fabricCt,bsCount:bsLines.length,confettiScore:difficultyMetrics.confettiScore,changeScore:difficultyMetrics.changeScore}):null,[pal,blendCount,totalStitchable,fabricCt,bsLines,difficultyMetrics]);
 
 // RT consumption: derived, never stored. Recalculates from done counts + prefs.
 // SKEIN_TOTAL_IN: 6 strands × 315 in/strand = 1890 total single-strand inches per skein.

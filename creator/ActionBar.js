@@ -141,10 +141,19 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     trackBtn
   );
 
+  // Difficulty badge — always-visible tier chip, e.g. "Intermediate".
+  // Full breakdown is inside the Pattern info popover.
+  var difficultyBadge = props.difficulty ? h("span", {
+    className: "creator-actionbar__difficulty-chip",
+    style: { color: props.difficulty.color, borderColor: props.difficulty.color },
+    title: "Difficulty: " + props.difficulty.label + " \u00B7 " + (props.difficulty.score != null ? props.difficulty.score + " / 100" : "") + ". Open \u2018Pattern info\u2019 for the full breakdown."
+  }, props.difficulty.label) : null;
+
   // Pattern info chip — replaces the inline four-stat block. Opens the
   // popover (or, on phones, a bottom sheet) with the canonical summary.
   // British English: "Pattern info" / "colours" used inside the popover.
   var infoChip = h("div", { className: "creator-actionbar__info-wrap" },
+    difficultyBadge,
     h("button", {
         ref: infoBtnRef,
         type: "button",
@@ -183,6 +192,14 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     },
     modeSwitch,
     h("div", { className: "creator-actionbar__primary" },
+      h("a", {
+          href: "index.html?mode=stats",
+          className: "creator-actionbar__btn creator-actionbar__btn--ghost creator-actionbar__stats-link",
+          title: "View stitching statistics"
+        },
+        Icons.barChart ? Icons.barChart() : null,
+        h("span", null, "Stats")
+      ),
       h("button", {
           type: "button",
           className: "creator-actionbar__btn creator-actionbar__btn--primary",

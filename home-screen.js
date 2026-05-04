@@ -209,6 +209,10 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
   var fabricCt = proj.fabricCt ? proj.fabricCt + '-count' : '';
   // Thread count — meta sometimes carries it as `colourCount` or `threadCount`.
   var threadCount = proj.colourCount || proj.threadCount || (proj.threads && proj.threads.length) || 0;
+  // Difficulty — proxy computation from metadata (no pattern scan available here).
+  var diff = (typeof calcDifficulty === 'function' && threadCount > 0)
+    ? calcDifficulty(threadCount, 0, proj.totalStitches || 0, { fabricCt: proj.fabricCt || 14 })
+    : null;
   var stashColor = stashOk === true ? 'var(--success)' : stashOk === false ? 'var(--accent-ink)' : '#a1a1aa';
   var stashIconEl = stashOk === true ? (window.Icons && window.Icons.check && window.Icons.check())
     : stashOk === false ? (window.Icons && window.Icons.warning && window.Icons.warning())
@@ -375,7 +379,13 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
         dim && fabricCt && h('span', { className: 'mpd-card-sep' }, '\u00B7'),
         fabricCt && h('span', null, fabricCt),
         threadCount > 0 && (dim || fabricCt) && h('span', { className: 'mpd-card-sep' }, '\u00B7'),
-        threadCount > 0 && h('span', null, threadCount + ' colour' + (threadCount === 1 ? '' : 's'))
+        threadCount > 0 && h('span', null, threadCount + ' colour' + (threadCount === 1 ? '' : 's')),
+        diff && h('span', { className: 'mpd-card-sep' }, '\u00B7'),
+        diff && h('span', {
+          className: 'mpd-card-difficulty',
+          style: { color: diff.color, borderColor: diff.color },
+          title: 'Difficulty: ' + diff.label + (diff.score != null ? ' \u00B7 ' + diff.score + ' / 100' : '')
+        }, diff.label)
       ) : null,
       // Recency
       h('div', { className: 'mpd-card-recency' + (isNeglected ? ' mpd-card-recency--warn' : '') },

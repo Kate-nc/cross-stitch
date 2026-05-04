@@ -132,16 +132,54 @@ function gridCoord(canvasRef,e,cellSize,gutter,snap=false){
   return{gx,gy};
 }
 
-// Difficulty rating
-function calcDifficulty(palLen,blendCount,totalSt){
-  let score=0;
-  if(palLen<=8)score+=1;else if(palLen<=15)score+=2;else if(palLen<=25)score+=3;else score+=4;
-  if(blendCount>0)score+=1;if(blendCount>5)score+=1;
-  if(totalSt>10000)score+=1;if(totalSt>30000)score+=1;
-  if(score<=2)return{label:"Beginner",color:"var(--success)",stars:1};
-  if(score<=4)return{label:"Intermediate",color:"#A06F2D",stars:2};
-  if(score<=6)return{label:"Advanced",color:"var(--accent-hover)",stars:3};
-  return{label:"Expert",color:"var(--danger)",stars:4};
+// Difficulty rating — Weighted Linear (Proposal A) with confetti soft floor (Proposal E edge case X-2).
+// opts = { fabricCt, bsCount, confettiScore, changeScore }
+// Returns { label, color, stars, score, factors } — score 0–100; factors array for the breakdown UI.
+// The 3-arg form remains fully supported (opts optional) for backward compat and stats-page use.
+function calcDifficulty(palLen,blendCount,totalSt,opts){
+  var o=opts||{};
+  var fabricCt=typeof o.fabricCt==='number'?o.fabricCt:14;
+  var bsCount=typeof o.bsCount==='number'?o.bsCount:0;
+  // ── Factor 1: Colour complexity (0–1) ──────────────────────────────────────
+  var colRaw=palLen<=5?0.05:palLen<=15?0.05+(palLen-5)*0.027:palLen<=30?0.32+(palLen-15)*0.022:palLen<=50?0.65+(palLen-30)*0.012:Math.min(1,0.89+(palLen-50)*0.006);
+  // Blend bonus uses blendCount directly (not a ratio) so colScore stays monotonic in palLen.
+  var blendBonus=blendCount<=0?0:blendCount<=3?0.08:blendCount<=8?0.15:0.22;
+  var colScore=Math.min(1,colRaw*0.78+blendBonus*0.22);
+  // ── Factor 2: Confetti density (0–1) ──────────────────────────────────────
+  // Proxy (when confettiScore not provided): use palette size as a stand-in.
+  // Must stay monotonic in palLen only (not totalSt) so property tests pass.
+  var confScore=typeof o.confettiScore==='number'?Math.min(1,Math.max(0,o.confettiScore)):Math.min(1,palLen<=5?0.04:palLen<=15?0.08:palLen<=30?0.16:palLen<=50?0.28:0.40);
+  // ── Factor 3: Colour change rate (0–1) ────────────────────────────────────
+  var chgScore=typeof o.changeScore==='number'?Math.min(1,Math.max(0,o.changeScore)):Math.min(1,palLen<=5?0.05:palLen<=15?0.13:palLen<=30?0.24:palLen<=50?0.35:0.46);
+  // ── Factor 4: Size & duration (0–1) ───────────────────────────────────────
+  var sizeRaw=totalSt<=1000?0.02:totalSt<=5000?0.02+Math.log10(totalSt/1000)*0.12:totalSt<=20000?0.10+Math.log10(totalSt/5000)*0.35:totalSt<=80000?0.35+Math.log10(totalSt/20000)*0.45:Math.min(1,0.75+Math.log10(totalSt/80000)*0.40);
+  var fabBonus=fabricCt<=14?0:fabricCt<=18?(fabricCt-14)*0.040:fabricCt<=22?0.16+(fabricCt-18)*0.060:Math.min(0.50,0.40+(fabricCt-22)*0.030);
+  var sizeScore=Math.min(1,sizeRaw*0.80+fabBonus*0.20);
+  // ── Factor 5: Technique load (0–1) ────────────────────────────────────────
+  var bsScore=bsCount<=0?0:bsCount<=10?bsCount*0.020:bsCount<=50?0.20+(bsCount-10)*0.012:Math.min(1,0.68+(bsCount-50)*0.004);
+  var precBonus=fabricCt>=25?0.20:fabricCt>=20?0.10:0;
+  var techScore=Math.min(1,bsScore*0.70+precBonus*0.30);
+  // ── Weighted average: colour 25% · confetti 28% · changes 17% · size 15% · technique 15% ──
+  var composite=colScore*0.25+confScore*0.28+chgScore*0.17+sizeScore*0.15+techScore*0.15;
+  // ── Soft floor (Proposal E edge case X-2) ─────────────────────────────────
+  // Extreme confetti cannot be diluted by easy factors — floor at Intermediate.
+  if(confScore>0.70&&composite<0.30)composite=0.30;
+  var score=Math.min(100,Math.max(0,Math.round(composite*100)));
+  // ── Tier ──────────────────────────────────────────────────────────────────
+  var label,color,stars;
+  if(score<=25){label='Beginner';color='var(--success)';stars=1;}
+  else if(score<=50){label='Intermediate';color='#C49A2B';stars=2;}
+  else if(score<=75){label='Advanced';color='var(--accent-hover)';stars=3;}
+  else{label='Expert';color='var(--danger)';stars=4;}
+  // ── Factor breakdown for UI ────────────────────────────────────────────────
+  var factors=[
+    {label:'Colour complexity',weight:0.25,score:colScore},
+    {label:'Confetti density', weight:0.28,score:confScore},
+    {label:'Colour changes',   weight:0.17,score:chgScore},
+    {label:'Size & duration',  weight:0.15,score:sizeScore},
+    {label:'Technique load',   weight:0.15,score:techScore},
+  ];
+  return{label:label,color:color,stars:stars,score:score,factors:factors};
 }
 
 // IndexedDB utility functions
