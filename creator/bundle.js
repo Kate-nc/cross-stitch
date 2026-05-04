@@ -3641,10 +3641,10 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
   var sH = ctx.sH;
   var cs = cv.cs;
   var previewShowGrid = app.previewShowGrid;
-  var previewFabricBg = app.previewFabricBg;
+  var fabricColour = app.fabricColour;
 
   // Effect A — build the offscreen 1-px-per-stitch image cache.
-  // Re-runs only when pattern data or fabric-bg toggle changes.
+  // Re-runs only when pattern data or fabric colour changes.
   React.useEffect(function() {
     if (!pat || !sW || !sH) return;
 
@@ -3660,25 +3660,22 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
     var imgData = octx.createImageData(sW, sH);
     var d = imgData.data;
 
-    var FABRIC_R = 245, FABRIC_G = 240, FABRIC_B = 230;
-    var WHITE_R  = 255, WHITE_G  = 255, WHITE_B  = 255;
+    // Resolve the fabric background colour from the user preference (#RRGGBB).
+    // Falls back to white if the value is absent or malformed.
+    var _fabMatch = /^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/.exec(fabricColour || "");
+    var FABRIC_R = _fabMatch ? parseInt(_fabMatch[1], 16) : 255;
+    var FABRIC_G = _fabMatch ? parseInt(_fabMatch[2], 16) : 255;
+    var FABRIC_B = _fabMatch ? parseInt(_fabMatch[3], 16) : 255;
 
     for (var i = 0; i < pat.length; i++) {
       var cell = pat[i];
       var px = i * 4;
 
       if (!cell || cell.id === "__skip__" || cell.id === "__empty__") {
-        if (previewFabricBg) {
-          d[px]     = FABRIC_R;
-          d[px + 1] = FABRIC_G;
-          d[px + 2] = FABRIC_B;
-          d[px + 3] = 255;
-        } else {
-          d[px]     = WHITE_R;
-          d[px + 1] = WHITE_G;
-          d[px + 2] = WHITE_B;
-          d[px + 3] = 255;
-        }
+        d[px]     = FABRIC_R;
+        d[px + 1] = FABRIC_G;
+        d[px + 2] = FABRIC_B;
+        d[px + 3] = 255;
         continue;
       }
 
@@ -3698,9 +3695,9 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
         d[px + 2] = rgb[2];
         d[px + 3] = 255;
       } else {
-        d[px]     = WHITE_R;
-        d[px + 1] = WHITE_G;
-        d[px + 2] = WHITE_B;
+        d[px]     = 255;
+        d[px + 1] = 255;
+        d[px + 2] = 255;
         d[px + 3] = 255;
       }
     }
@@ -3709,7 +3706,7 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
     offscreenRef.current = offscreen;
     // Increment version so Effect B knows to re-draw
     setOffscreenVersion(function(v) { return v + 1; });
-  }, [pat, cmap, sW, sH, previewFabricBg]);
+  }, [pat, cmap, sW, sH, fabricColour]);
 
   // Effect B — draw the offscreen image onto the display canvas at the current zoom level,
   // then overlay the grid if enabled.
