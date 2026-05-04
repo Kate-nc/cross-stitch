@@ -209,6 +209,7 @@ Severity scale:
 - **Suggested fix**: Verify with the author whether `lowStockNeeded` was meant literally; if so, locate the function and confirm the split was applied.
 - **Fix complexity**: Trivial (verification)
 - **Blocks merge?**: No.
+- **RESOLUTION**: Verified during fix sweep — `lowStockNeeded` is the destructured useMemo return at [manager-app.js#L567](manager-app.js#L567). The blend-split logic from `5b2ebff` is present at L573–L575 (`if (t.is_blended && t.blend_id) activeIds.add(t.blend_id)`), so the commit's intent was implemented as described. No code change required.
 
 ---
 
@@ -223,6 +224,7 @@ Severity scale:
 - **Suggested fix**: If the branch is rebased before merge, split or amend. If merged with `--no-ff`, add a clarifying note in the merge commit.
 - **Fix complexity**: Trivial (interactive rebase) or zero (accept as-is and document)
 - **Blocks merge?**: No.
+- **RESOLUTION**: Documented here for the eventual merge commit. The two commits are kept as-is (rewriting published history would require a force-push). When this branch is merged, the merge commit message should call out: *"`fa3c594` introduces both the rebuildPreservingZeros fix AND the global colour-swap source; `255142d` is the corresponding bundle rebuild — review them as a pair."*
 
 ---
 
