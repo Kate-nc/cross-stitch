@@ -1472,7 +1472,7 @@ function usePaletteSwap(props) {
         style: { display: "flex", flexDirection: "column", gap: 8 }
       },
         React.createElement("div", {
-          style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }
+          style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 6 }
         },
           allThemePresets.map(function(p) {
             return React.createElement(PresetCard, {
