@@ -1,0 +1,7 @@
+- [ ] `VER-SCR-014-02` â€” Resizable split pane: dragging divider updates ratio; ratio persists to localStorage  <sub>[reports/specs/creator-modals.md#L438](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-014-06` â€” Preview thumbnails render original + adapted correctly; canvas pixel rendering preserved  <sub>[reports/specs/creator-modals.md#L442](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-014-TABLET` â€” Modal scrolls body on narrow screens; scrim dismisses on tap; buttons 44px+  <sub>[reports/specs/creator-modals.md#L444](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-020-TABLET` â€” On iPad portrait, render as bottom sheet (~50% height) with swipe-down dismiss + scrim tap  <sub>[reports/specs/creator-modals.md#L461](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-056-04c` â€” Similar popover opens; lists top 5 similar DMC threads; row click overrides target  <sub>[reports/specs/creator-modals.md#L468](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-056-05` â€” Contrast warning section appears if low-contrast pairs detected; threshold < 2 WCAG ratio  <sub>[reports/specs/creator-modals.md#L469](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-056-TABLET` â€” Modal full-screen on mobile; side-in on iPad; preset grid reflows to 1 column  <sub>[reports/specs/creator-modals.md#L473](../reports/specs/creator-modals.md)</sub>

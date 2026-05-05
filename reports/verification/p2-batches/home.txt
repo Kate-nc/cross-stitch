@@ -1,0 +1,14 @@
+- [ ] `VER-EL-SCR-001-02-02` â€” Stash and Stats tab data must only load when tab is opened (performance regression if loaded eagerly)  <sub>[reports/specs/home.md#L2139](../reports/specs/home.md)</sub>
+- [ ] `VER-EL-SCR-001-14-01` â€” Project Row Name Button popover must close on Escape key and when clicking outside  <sub>[reports/specs/home.md#L2143](../reports/specs/home.md)</sub>
+- [ ] `VER-EL-SCR-001-31-01` â€” homeShowCompleted preference change must be reactive (projects list re-filters without reload)  <sub>[reports/specs/home.md#L2145](../reports/specs/home.md)</sub>
+- [ ] `VER-EL-SCR-002-06-01` â€” Embroidery planner tile visibility must be gated by experimental.embroideryTool pref; verify toggle in Preferences shows/hides tile on reload  <sub>[reports/specs/home.md#L2149](../reports/specs/home.md)</sub>
+- [ ] `VER-EL-SCR-003-01-01` â€” Stash panel data must load lazily only when Stash tab opened; perf regression if loaded on mount  <sub>[reports/specs/home.md#L2150](../reports/specs/home.md)</sub>
+- [ ] `VER-EL-SCR-004-04-01` â€” Stats panel must load lazily when Stats tab opened; no eager aggregate scan on home load  <sub>[reports/specs/home.md#L2154](../reports/specs/home.md)</sub>
+- [ ] `VER-EL-SCR-052-07-01` â€” Archive bulk action must batch-update all selected projects to state='paused'; verify ProjectStorage.setStateMany() used (not individual puts)  <sub>[reports/specs/home.md#L2160](../reports/specs/home.md)</sub>
+- [ ] `VER-EL-SCR-052-09-01` â€” BulkDeleteModal must show up to 5 project names verbatim then `+N more`; 5 is a hard limit. Test with 3, 5, 10 selected projects.  <sub>[reports/specs/home.md#L2161](../reports/specs/home.md)</sub>
+- [ ] `VER-EL-SCR-052-11-01` â€” Continue Bar must show most recent active/queued/design project (not managerOnly); verify computation of continueProj  <sub>[reports/specs/home.md#L2163](../reports/specs/home.md)</sub>
+- [ ] `VER-EL-SCR-052-13-02` â€” Suggestion card must be suppressed if it duplicates continueProj (same project ID)  <sub>[reports/specs/home.md#L2166](../reports/specs/home.md)</sub>
+- [ ] `VER-EL-SCR-053-01-01` â€” ProjectCard long-press (500ms) must enable selection mode on touch devices; test on tablet  <sub>[reports/specs/home.md#L2167](../reports/specs/home.md)</sub>
+- [ ] `VER-EL-SCR-053-01-02` â€” ProjectCard Cmd+click must toggle selection without entering selection mode; test on desktop  <sub>[reports/specs/home.md#L2168](../reports/specs/home.md)</sub>
+- [ ] `VER-EL-SCR-053-03-01` â€” PartialStitchThumb payload must be lazy-loaded only after card mounts; verify no n-way fan-out on dashboard load  <sub>[reports/specs/home.md#L2169](../reports/specs/home.md)</sub>
+- [ ] `VER-EL-SCR-053-12-01` â€” Difficulty score must use calcDifficulty() helper and match full project specs (threadCount, totalStitches, fabricCt)  <sub>[reports/specs/home.md#L2172](../reports/specs/home.md)</sub>

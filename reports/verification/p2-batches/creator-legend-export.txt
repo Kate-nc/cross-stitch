@@ -1,0 +1,12 @@
+- [ ] `VER-EL-SCR-007-01-01` â€” Clipboard fallback for old browsers  <sub>[reports/specs/creator-legend-export.md#L906](../reports/specs/creator-legend-export.md)</sub>
+- [ ] `VER-EL-SCR-007-03-01` â€” Disclaimer dismissal persists (localStorage)  <sub>[reports/specs/creator-legend-export.md#L908](../reports/specs/creator-legend-export.md)</sub>
+- [ ] `VER-EL-SCR-007-04-01` â€” Similar pairs computed correctly  <sub>[reports/specs/creator-legend-export.md#L909](../reports/specs/creator-legend-export.md)</sub>
+- [ ] `VER-EL-SCR-007-06-01` â€” Popover positioned correctly (no clipping)  <sub>[reports/specs/creator-legend-export.md#L911](../reports/specs/creator-legend-export.md)</sub>
+- [ ] `VER-EL-SCR-007-08-02` â€” Colour preview integrates with canvas  <sub>[reports/specs/creator-legend-export.md#L913](../reports/specs/creator-legend-export.md)</sub>
+- [ ] `VER-EL-SCR-008-05-01` â€” Auto page-size resolves per locale  <sub>[reports/specs/creator-legend-export.md#L917](../reports/specs/creator-legend-export.md)</sub>
+- [ ] `VER-EL-SCR-008-13-02` â€” PNG export cell size = 10px per stitch  <sub>[reports/specs/creator-legend-export.md#L921](../reports/specs/creator-legend-export.md)</sub>
+- [ ] `VER-EL-SCR-008-15-01` â€” Progress bar updates smoothly; cancel terminates worker  <sub>[reports/specs/creator-legend-export.md#L922](../reports/specs/creator-legend-export.md)</sub>
+- [ ] `VER-INTEGRATION-002` â€” UserPrefs defaults respected for all export settings  <sub>[reports/specs/creator-legend-export.md#L934](../reports/specs/creator-legend-export.md)</sub>
+- [ ] `VER-LEGEXP-A11Y-001` â€” Keyboard navigation works in Legend & Export tabs (tab, enter, space) â€” area-specific check; the global keyboard contract is owned by `VER-A11Y-001` in `reports/cross-cutting/keyboard-a11y.md`  <sub>[reports/specs/creator-legend-export.md#L931](../reports/specs/creator-legend-export.md)</sub>
+- [ ] `VER-LEGEXP-A11Y-002` â€” Screen reader announces all labels in Legend & Export tabs â€” area-specific check; the global ARIA contract is owned by `VER-A11Y-002` in `reports/cross-cutting/keyboard-a11y.md`  <sub>[reports/specs/creator-legend-export.md#L932](../reports/specs/creator-legend-export.md)</sub>
+- [ ] `VER-TABLET-001` â€” All inputs min 44Ã—44px touch target  <sub>[reports/specs/creator-legend-export.md#L930](../reports/specs/creator-legend-export.md)</sub>

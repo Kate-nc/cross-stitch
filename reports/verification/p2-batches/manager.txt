@@ -1,0 +1,9 @@
+- [ ] `VER-EL-SCR-029-08-01` â€” Low-stock calculation respects per-thread min_stock override; falls back to global threshold.  <sub>[reports/specs/manager.md#L539](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-029-11-01` â€” Tablet layout: Inventory grid collapses to 2 cols; right panel becomes bottom sheet; horizontal scroll visible.  <sub>[reports/specs/manager.md#L542](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-030-08-01` â€” Pseudo-project manager-only badge visible; click â†’ info toast "no linked project".  <sub>[reports/specs/manager.md#L552](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-033-03-01` â€” Focus trap (Tab/Shift+Tab) confined to wizard popover; initial focus on primary action button.  <sub>[reports/specs/manager.md#L567](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-033-04-01` â€” Reduced-motion media query suppresses slide animations.  <sub>[reports/specs/manager.md#L568](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-058-01-01` â€” Insights cards show tone-specific icons (celebrate, encourage, inform, nudge).  <sub>[reports/specs/manager.md#L579](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-058-02-01` â€” Dismissed insights stay hidden for 30 days; localStorage purges expired entries.  <sub>[reports/specs/manager.md#L580](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-059-02-01` â€” Section visibility preferences persisted to localStorage; toggles apply immediately.  <sub>[reports/specs/manager.md#L582](../reports/specs/manager.md)</sub>
+- [ ] `VER-MANAGER-GLOBAL-03` â€” Tablet layout: Inventory table collapses gracefully; no horizontal overflow on 600â€“1024px viewports.  <sub>[reports/specs/manager.md#L587](../reports/specs/manager.md)</sub>
