@@ -13293,7 +13293,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           border:"none",borderRadius:'var(--radius-md)',
           background:gen.busy?"var(--text-tertiary)":gen.hasGenerated?"var(--surface-tertiary)":"var(--accent)",
           color:gen.hasGenerated?"var(--text-primary)":"var(--surface)"}
-      }, gen.busy ? (gen.progressMessage || "Generating\u2026") : (gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate Pattern")),
+      }, gen.busy ? (gen.progressMessage || "Generating\u2026") : (gen.hasGenerated ? h(React.Fragment, null, window.Icons.refresh(), " Regenerate") : h(React.Fragment, null, window.Icons.refresh(), " Generate Pattern"))),
       // Every generation (first or re-generate) auto-switches to Edit mode
       // (see useCreatorState applyResultRef). The Setup tab strip (Image /
       // Dimensions / Palette tabs) takes the user back to create mode.
@@ -13499,7 +13499,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         },
         disabled:gen.busy,
         style:{width:"100%",padding:"8px",fontSize:'var(--text-sm)',fontWeight:600,cursor:"pointer",border:"none",borderRadius:'var(--radius-md)',background:"var(--accent)",color:"var(--surface)",marginTop:'var(--s-2)'}
-      }, "\u21BB Regenerate")
+      }, window.Icons.refresh(), " Regenerate")
     ),
     h(Section, {title:"Project Info",defaultOpen:false},
       h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"4px 0"}},

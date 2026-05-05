@@ -1,3 +1,8 @@
+param(
+  [Parameter(Mandatory=$true, HelpMessage='Path to the VS Code Copilot chat-session-resources folder to search')]
+  [string]$resourceDir,
+  [string]$outDir = (Join-Path $PSScriptRoot '..\reports\specs')
+)
 $map = @{
   'toolu_vrtx_012TbmNxRPoKwgvZEuWCdxEC' = 'manager.md'
   'toolu_vrtx_014GDXb48oeCt1NtxNwruzm1' = 'creator-pattern-canvas.md'
@@ -5,8 +10,6 @@ $map = @{
   'toolu_vrtx_01KdyQkPiKNT1f11iKbxjnBP' = 'tracker.md'
   'toolu_vrtx_01M2s5sCyeMym4rZPmMww5jp' = 'creator-legend-export.md'
 }
-$resourceDir = 'C:\Users\katie\AppData\Roaming\Code\User\workspaceStorage\e30ff4a3c75ded98e0e201d5ab620317\GitHub.copilot-chat\chat-session-resources\71d2c6ee-0317-42a0-8113-526ae7adf813'
-$outDir = 'C:\Users\katie\Documents\Code\cross-stitch\reports\specs'
 foreach ($k in $map.Keys) {
   $dir = Get-ChildItem $resourceDir -Directory -Filter "$k*" | Select-Object -First 1
   if (-not $dir) { Write-Host "MISSING_DIR: $k"; continue }

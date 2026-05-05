@@ -1,5 +1,8 @@
-$root = 'C:\Users\katie\AppData\Roaming\Code\User\workspaceStorage\e30ff4a3c75ded98e0e201d5ab620317\GitHub.copilot-chat\chat-session-resources\71d2c6ee-0317-42a0-8113-526ae7adf813'
-$outDir = 'C:\Users\katie\Documents\Code\cross-stitch\reports\cross-cutting'
+param(
+  [Parameter(Mandatory=$true, HelpMessage='Path to the VS Code Copilot chat-session-resources folder to search')]
+  [string]$root,
+  [string]$outDir = (Join-Path $PSScriptRoot '..\reports\cross-cutting')
+)
 if (-not (Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir | Out-Null }
 
 # Map header text -> filename slug

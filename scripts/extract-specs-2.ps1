@@ -1,6 +1,9 @@
+param(
+  [Parameter(Mandatory=$true, HelpMessage='Path to the VS Code Copilot chat-session-resources folder to search')]
+  [string]$root,
+  [string]$outDir = (Join-Path $PSScriptRoot '..\reports\specs')
+)
 $ids = @('toolu_vrtx_018TKDZaXAXSrknhr6rar7y1','toolu_vrtx_01T9YavVY5YwEBwNVVKSBrvo','toolu_vrtx_01A8czPzd7qjWej7S3aijZVR')
-$root = 'C:\Users\katie\AppData\Roaming\Code\User\workspaceStorage\e30ff4a3c75ded98e0e201d5ab620317\GitHub.copilot-chat\chat-session-resources\71d2c6ee-0317-42a0-8113-526ae7adf813'
-$outDir = 'C:\Users\katie\Documents\Code\cross-stitch\reports\specs'
 foreach ($id in $ids) {
   $dir = Get-ChildItem $root -Directory -Filter "$id*" | Select-Object -First 1
   if (-not $dir) { Write-Host "NO_DIR: $id"; continue }

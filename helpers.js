@@ -995,7 +995,7 @@ function generateShareText(projectName, stats, sessions, totalCompleted, totalSt
     : '0.0';
 
   var lines = [
-    '\uD83E\uDDF5 ' + (projectName || 'Cross Stitch Project') + ' — Progress Update',
+    (projectName || 'Cross Stitch Project') + ' — Progress Update',
     '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
     '[x] ' + totalCompleted.toLocaleString() + ' / ' + totalStitches.toLocaleString() + ' stitches (' + percent + '%)',
     'Time: ' + formatStatsDuration(stats.totalSeconds) + ' across ' + sessions.length + ' session' + (sessions.length !== 1 ? 's' : ''),

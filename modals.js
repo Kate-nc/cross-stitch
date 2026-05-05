@@ -794,9 +794,11 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
 // scrim click, or ESC. Always resolves — never rejects.
 (function () {
   if (typeof window === 'undefined') return;
+  var _confirmCounter = 0;
   function ConfirmDialogInner(props) {
     var h = React.createElement;
     var opts = props.opts || {};
+    var titleId = React.useRef('cs-confirm-title-' + (++_confirmCounter)).current;
     var confirmRef = React.useRef(null);
     React.useEffect(function () {
       // Focus the destructive/primary button on mount so Enter activates it.
@@ -805,11 +807,11 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
     }, []);
     return h(window.Overlay, {
       onClose: props.onCancel, variant: 'dialog', maxWidth: 440,
-      labelledBy: 'cs-confirm-title'
+      labelledBy: titleId
     },
       h(window.Overlay.CloseButton, { onClose: props.onCancel }),
       h('div', { style: { padding: 24 } },
-        h('h3', { id: 'cs-confirm-title', style: { marginTop: 0, marginBottom: 12, fontSize: 18, color: 'var(--text-primary)' } }, opts.title || 'Are you sure?'),
+        h('h3', { id: titleId, style: { marginTop: 0, marginBottom: 12, fontSize: 18, color: 'var(--text-primary)' } }, opts.title || 'Are you sure?'),
         h('p', { style: { margin: 0, color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' } }, opts.message || ''),
         h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 } },
           h('button', {

@@ -1,4 +1,6 @@
-$repo = 'C:\Users\katie\Documents\Code\cross-stitch'
+param(
+  [string]$repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+)
 $out = Join-Path $repo 'reports\00_MASTER_TODO.md'
 
 $specFiles  = Get-ChildItem (Join-Path $repo 'reports\specs') -Filter '*.md' -File | Where-Object { $_.Name -notmatch '^00_' }

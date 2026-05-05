@@ -207,7 +207,9 @@ self.onmessage = function(e) {
       }
     }
 
-    // ── 5. Build final palette ────────────────────────────────────────────────    postProgress('finalizing', 'Building palette…');    var palResult = buildPalette(mapped);
+    // ── 5. Build final palette ────────────────────────────────────────────────
+    postProgress('finalizing', 'Building palette\u2026');
+    var palResult = buildPalette(mapped);
 
     // ── 6. Send result to main thread ─────────────────────────────────────────
     self.postMessage({
