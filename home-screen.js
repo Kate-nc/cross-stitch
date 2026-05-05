@@ -1331,6 +1331,12 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     var file = e.target.files && e.target.files[0];
     if (!file) return;
     if (syncFileRef.current) syncFileRef.current.value = '';
+    // VER-SYNC-012: warn the user before trying to decompress a very large file
+    // so they aren’t left staring at a spinner with no feedback.
+    if (file.size > 50 * 1024 * 1024) {
+      var mb = (file.size / (1024 * 1024)).toFixed(1);
+      if (window.Toast) window.Toast.show({ message: 'Large sync file (' + mb + ' MB) — import may take a moment.', type: 'info', duration: 6000 });
+    }
     setSyncBusy(true);
     setSyncResult(null);
     SyncEngine.readSyncFile(file).then(function(syncObj) {

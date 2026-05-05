@@ -819,6 +819,11 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                   var file = e.target.files && e.target.files[0];
                   if (!file) return;
                   e.target.value = '';
+                  // VER-SYNC-012: warn before decompressing a very large file
+                  if (file.size > 50 * 1024 * 1024) {
+                    var mb = (file.size / (1024 * 1024)).toFixed(1);
+                    if (window.Toast) window.Toast.show({ message: 'Large sync file (' + mb + ' MB) — import may take a moment.', type: 'info', duration: 6000 });
+                  }
                   SyncEngine.readSyncFile(file).then(function(syncObj) {
                     return SyncEngine.prepareImport(syncObj);
                   }).then(function(plan) {

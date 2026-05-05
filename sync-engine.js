@@ -809,7 +809,14 @@ const SyncEngine = (() => {
     // 1. Import new-remote projects
     for (var i = 0; i < plan.newRemote.length; i++) {
       var entry = plan.newRemote[i];
-      await ProjectStorage.save(entry.remote.data);
+      try {
+        await ProjectStorage.save(entry.remote.data);
+      } catch (saveErr) {
+        if (saveErr && saveErr.name === "QuotaExceededError") {
+          throw new Error("Not enough browser storage to import all projects — free up space or clear cached data and try again. (QuotaExceededError saving \"" + (entry.remote.data && entry.remote.data.name || entry.remote.id) + "\")");
+        }
+        throw saveErr;
+      }
     }
 
     // 2. Merge tracking progress (re-read local from IDB to avoid stale data)
@@ -871,7 +878,17 @@ const SyncEngine = (() => {
           tx.onerror = function () { db.close(); reject(tx.error); };
         });
       } catch (e) {
-        console.warn("SyncEngine: stash merge failed:", e);
+        // VER-SYNC-019: surface QuotaExceededError with an actionable message
+        // instead of silently swallowing it. Re-throw so the caller's catch
+        // block shows the error; callers should check err.name to distinguish
+        // this from a project-save failure.
+        if (e && e.name === "QuotaExceededError") {
+          throw new Error("Not enough browser storage to complete the sync — free up space or clear cached data and try again. (QuotaExceededError during stash write)");
+        }
+        // For other stash errors, re-throw with a clear message so the caller
+        // knows the stash portion was not saved (rather than silently proceeding
+        // with stashUpdated: true in the result when the write actually failed).
+        throw new Error("Stash update failed: " + (e && e.message ? e.message : String(e)));
       }
     }
 
