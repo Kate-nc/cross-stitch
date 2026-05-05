@@ -783,9 +783,40 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
     setConfirmDelete(null);
     if (ids.length === 0) return;
     if (typeof ProjectStorage !== 'undefined' && ProjectStorage.deleteMany) {
-      ProjectStorage.deleteMany(ids).then(function() {
-        showToast(ids.length + ' project' + (ids.length === 1 ? '' : 's') + ' deleted', 'success');
-      }).catch(function() {
+      // VER-FB-017 — snapshot full project objects before deletion so the
+      // toast Undo button can restore them. ProjectStorage.save() is the
+      // inverse of delete, so re-saving each snapshot reinstates the
+      // project, its meta, and any stats summary.
+      Promise.all(ids.map(function (id) {
+        return ProjectStorage.get(id).catch(function () { return null; });
+      })).then(function (snapshots) {
+        var restorable = snapshots.filter(Boolean);
+        return ProjectStorage.deleteMany(ids).then(function () {
+          var msg = ids.length + ' project' + (ids.length === 1 ? '' : 's') + ' deleted';
+          if (restorable.length > 0 && window.Toast && window.Toast.show) {
+            window.Toast.show({
+              message: msg,
+              type: 'success',
+              duration: 6000,
+              undoLabel: 'Undo',
+              undoAction: function () {
+                Promise.all(restorable.map(function (p) {
+                  return ProjectStorage.save(p).catch(function (err) {
+                    console.error('Project restore failed:', err);
+                    return null;
+                  });
+                })).then(function () {
+                  if (window.Toast && window.Toast.show) {
+                    window.Toast.show({ message: 'Restored ' + restorable.length + ' project' + (restorable.length === 1 ? '' : 's'), type: 'success' });
+                  }
+                });
+              }
+            });
+          } else {
+            showToast(msg, 'success');
+          }
+        });
+      }).catch(function () {
         showToast('Delete failed', 'error');
       });
     }

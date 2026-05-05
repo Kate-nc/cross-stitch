@@ -20,7 +20,7 @@
 | VER-EL-SCR-032-02-01 | PASS | stash-bridge.js:60 | _dispatchStashChanged after updateThreadOwned |
 | VER-EL-SCR-032-03-01 | PASS | creator/BulkAddModal.js:212-235 | Kit selector resolves ids to threads with brand |
 | VER-EL-SCR-033-02-01 | PASS | onboarding-wizard.js:57,71,79,241-254 | dismissOnTargetClick=true closes tour |
-| VER-EL-SCR-051-01-01 | PARTIAL | project-library.js:96-97,144-146 | Pseudo-projects created; "Stash Manager only" badge rendering not located in static analysis |
+| VER-EL-SCR-051-01-01 | PASS | project-library.js:96-115,144-146; home-screen.js:355-359,464-468 | patternToPseudoProject sets managerOnly:true; ProjectCard renders “Stash Manager only” badge at home-screen.js:358 (full card) and CompactProjectRow at line 466 |
 | VER-EL-SCR-051-02-01 | PASS | manager-app.js:1334 | onOpenManagerOnly invoked on pseudo-project click |
 | VER-EL-SCR-051-03-01 | PASS | project-library.js:77-78 | Reconciliation re-runs on visibilitychange |
 | VER-EL-SCR-057-02-01 | PASS | insights-engine.js:167 | Insights suppressed if activeDays<3 |
@@ -32,8 +32,7 @@
 
 ## Defects to file
 
-1. **VER-EL-SCR-051-01-01 (PARTIAL)** — Verify render path for "Stash Manager only" badge on pseudo-projects in dashboard cards.
-2. **VER-EL-SCR-030-07-01 (UNVERIFIABLE)** — Verify "Open in Creator" button conditional on linkedProjectId presence.
+1. **VER-EL-SCR-030-07-01 (UNVERIFIABLE)** — Verify “Open in Creator” button conditional on linkedProjectId presence.
 
 ## Final result
-- 27 items: 25 PASS / 0 FAIL / 1 PARTIAL / 1 UNVERIFIABLE
+- 27 items: 26 PASS / 0 FAIL / 0 PARTIAL / 1 UNVERIFIABLE
