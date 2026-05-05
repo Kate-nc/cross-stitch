@@ -1,0 +1,30 @@
+- [ ] `VER-SCR-014-01` â€” AdaptModal header renders mode toggle + title correctly; no emoji  <sub>[reports/specs/creator-modals.md#L437](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-014-03` â€” Threshold slider 1â€“25 Î”E; value display correct; debounce to localStorage verified  <sub>[reports/specs/creator-modals.md#L439](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-014-04` â€” Substitution table renders all colours; source/target cells distinct; MatchChip colour-codes by tier  <sub>[reports/specs/creator-modals.md#L440](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-014-05` â€” PickerPopover filters by tab; search debounced; row click updates `overrides` state  <sub>[reports/specs/creator-modals.md#L441](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-014-07` â€” Save button creates new project via `AdaptationEngine.applyProposal()`; original untouched; toast confirms  <sub>[reports/specs/creator-modals.md#L443](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-016-01` â€” ColourReplaceModal source swatch + heading rendered; search input autofocus  <sub>[reports/specs/creator-modals.md#L445](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-016-02` â€” Thread list filters by DMC ID/name; source row disabled; target row click applies  <sub>[reports/specs/creator-modals.md#L446](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-016-03` â€” Entry points: right-click source pre-selected; palette chip source from ID; Replace tool source from `cv.replaceSource`  <sub>[reports/specs/creator-modals.md#L447](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-019-01` â€” Wand tool options render: tolerance slider (0â€“100), contiguous toggle  <sub>[reports/specs/creator-modals.md#L448](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-019-02` â€” Operation mode buttons render SVG icons; clicking updates `cv.setSelectionOpMode()`  <sub>[reports/specs/creator-modals.md#L449](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-019-03` â€” Selection status shows "N stitches selected"; quick action buttons functional  <sub>[reports/specs/creator-modals.md#L450](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-019-04` â€” Confetti panel renders; slider 1â€“10; Preview + Apply buttons functional; status shows count  <sub>[reports/specs/creator-modals.md#L451](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-019-05` â€” Reduce colours panel renders; target input range 1â€“selColours; preview shows merge pairs; Apply functional  <sub>[reports/specs/creator-modals.md#L452](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-019-06` â€” Replace colour panel renders; source/target dropdowns; fuzzy toggle controls slider; Apply disabled if !source || !target  <sub>[reports/specs/creator-modals.md#L453](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-019-07` â€” Stitch info renders table (Colour, DMC, Name, Stitches, Skeins); Export CSV button downloads `.csv`  <sub>[reports/specs/creator-modals.md#L454](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-019-08` â€” Outline panel renders; text input validates DMC ID; Generate button disabled if invalid  <sub>[reports/specs/creator-modals.md#L455](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-020-01` â€” Pattern info popover anchored to trigger; Escape closes; click-outside dismisses  <sub>[reports/specs/creator-modals.md#L456](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-020-02` â€” Pattern dimensions grid renders (Size, Fabric, Stitchable, Colours, Skeins); values formatted correctly  <sub>[reports/specs/creator-modals.md#L457](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-020-03` â€” Stitchability badge renders if `solidPct` defined; format "[pct]% solid"  <sub>[reports/specs/creator-modals.md#L458](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-020-04` â€” Difficulty section renders tier badge + score; if factors array: factor bars + formula disclosure  <sub>[reports/specs/creator-modals.md#L459](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-020-05` â€” Time estimate rows computed from stitchability + stitchSpeed (default 30); formatted via `fmtTimeL()`  <sub>[reports/specs/creator-modals.md#L460](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-056-01` â€” Palette Swap modal renders tab navigation (Presets / Custom / Compare); tab switching functional  <sub>[reports/specs/creator-modals.md#L462](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-056-02` â€” Presets tab renders grid of cards (2â€“3 columns on desktop, 1 on mobile); tier selection automatic  <sub>[reports/specs/creator-modals.md#L463](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-056-03` â€” Custom tab renders hue shift slider (0â€“360), harmony picker, lock toggles; recompute on change  <sub>[reports/specs/creator-modals.md#L464](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-056-04` â€” Mapping table renders (Source | â†’ | Target | Count | Î”E | Actions); locked rows opacity 0.5  <sub>[reports/specs/creator-modals.md#L465](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-056-04a` â€” Î”E badges colour-coded by tier; correct thresholds (dE < 1 / â‰¤ 3 / > 3)  <sub>[reports/specs/creator-modals.md#L466](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-056-04b` â€” Lock toggle button renders lock/unlock icon; clicking updates `lockedIds` set; proposal recomputes  <sub>[reports/specs/creator-modals.md#L467](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-056-06` â€” Mini canvas renders pattern with mapping applied; pixel rendering preserved  <sub>[reports/specs/creator-modals.md#L470](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-056-07` â€” Compare tab shows before/after split or stack; labels clear  <sub>[reports/specs/creator-modals.md#L471](../reports/specs/creator-modals.md)</sub>
+- [ ] `VER-SCR-056-08` â€” Apply button creates new project; toast confirms swap  <sub>[reports/specs/creator-modals.md#L472](../reports/specs/creator-modals.md)</sub>

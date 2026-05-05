@@ -1,0 +1,9 @@
+- [ ] `VER-EL-SCR-007-02-01` â€” Sort order correct for all options  <sub>[reports/specs/creator-legend-export.md#L907](../reports/specs/creator-legend-export.md)</sub>
+- [ ] `VER-EL-SCR-007-05-01` â€” Row click highlights thread on canvas  <sub>[reports/specs/creator-legend-export.md#L910](../reports/specs/creator-legend-export.md)</sub>
+- [ ] `VER-EL-SCR-007-08-01` â€” Fabric size formula correct (sW / fabricCt + marginÃ—2)  <sub>[reports/specs/creator-legend-export.md#L912](../reports/specs/creator-legend-export.md)</sub>
+- [ ] `VER-EL-SCR-008-02-01` â€” Presets apply all settings (pageSize, margins, overlap, etc.)  <sub>[reports/specs/creator-legend-export.md#L916](../reports/specs/creator-legend-export.md)</sub>
+- [ ] `VER-EL-SCR-008-08-01` â€” At least one chart mode required  <sub>[reports/specs/creator-legend-export.md#L918](../reports/specs/creator-legend-export.md)</sub>
+- [ ] `VER-EL-SCR-008-13-01` â€” Export button disabled iff no modes selected  <sub>[reports/specs/creator-legend-export.md#L920](../reports/specs/creator-legend-export.md)</sub>
+- [ ] `VER-EL-SCR-023-06-01` â€” Branding persists to localStorage  <sub>[reports/specs/creator-legend-export.md#L926](../reports/specs/creator-legend-export.md)</sub>
+- [ ] `VER-EL-SCR-023-06-02` â€” Project-level designer override takes precedence  <sub>[reports/specs/creator-legend-export.md#L927](../reports/specs/creator-legend-export.md)</sub>
+- [ ] `VER-INTEGRATION-001` â€” StashBridge unavailable handled gracefully  <sub>[reports/specs/creator-legend-export.md#L933](../reports/specs/creator-legend-export.md)</sub>
