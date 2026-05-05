@@ -87,7 +87,15 @@ const SyncEngine = (() => {
       // Include dimensions so a resize is detected even if some IDs match
       const w = (project.settings && project.settings.sW) || project.w || 0;
       const h = (project.settings && project.settings.sH) || project.h || 0;
-      const raw = w + "x" + h + ":" + parts.join(",");
+      // Include bsLines (backstitch) so backstitch-only edits produce a different fingerprint
+      // and are classified as 'conflict' rather than 'merge-tracking'. Without this, two
+      // charts with the same stitch-colour grid but different backstitch layouts would merge
+      // silently, discarding the remote device's backstitch work.
+      var bsHash = "";
+      if (project.bsLines && project.bsLines.length) {
+        bsHash = "|bs:" + simpleHash(JSON.stringify(project.bsLines));
+      }
+      const raw = w + "x" + h + ":" + parts.join(",") + bsHash;
 
       if (typeof pako === "undefined" || typeof pako.deflate !== "function") {
         return "fp_" + w + "x" + h + "_" + simpleHash(raw);
