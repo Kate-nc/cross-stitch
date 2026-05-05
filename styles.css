@@ -3776,6 +3776,8 @@ kbd {
   padding: 8px 14px; transition: background 0.1s;
 }
 .mpd-state-menu-item:hover { background: var(--surface-tertiary); }
+.mpd-state-menu-item--danger { color: var(--danger, #d33); }
+.mpd-state-menu-item--danger:hover { background: rgba(211, 51, 51, 0.08); }
 
 /* Stats link */
 .mpd-stats-link {

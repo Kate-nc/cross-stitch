@@ -481,7 +481,7 @@ function CompactProjectRow({ proj, state, onOpen, onChangeState }) {
 // ─────────────────────────────────────────────────────────────────
 // StateChangeMenu — inline popover for moving a project to a new state
 // ─────────────────────────────────────────────────────────────────
-function StateChangeMenu({ proj, currentState, onSelect, onClose, onEditDetails }) {
+function StateChangeMenu({ proj, currentState, onSelect, onClose, onEditDetails, onDeleteSingle }) {
   var h = React.createElement;
   var options = [
     { value: 'active',   label: 'Mark as Active' },
@@ -512,7 +512,15 @@ function StateChangeMenu({ proj, currentState, onSelect, onClose, onEditDetails 
         className: 'mpd-state-menu-item',
         onClick: function() { onSelect(proj, o.value); onClose(); }
       }, o.label);
-    })
+    }),
+    // VER-FB-002 / VER-EL-SCR-052-08-02 — single-project delete via styled
+    // BulkDeleteModal (one preselected). window.confirm() is NOT used here.
+    onDeleteSingle && h('div', { className: 'mpd-state-menu-sep' }),
+    onDeleteSingle && h('button', {
+      type: 'button',
+      className: 'mpd-state-menu-item mpd-state-menu-item--danger',
+      onClick: function() { onClose(); onDeleteSingle(proj); }
+    }, Icons.trash ? Icons.trash() : null, ' Delete project…')
   );
 }
 
@@ -608,7 +616,9 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
   var selected = _selected[0], setSelected = _selected[1];
   var _selectionMode = useState(false);
   var selectionMode = _selectionMode[0], setSelectionMode = _selectionMode[1];
-  var _confirmDelete = useState(false);
+  // confirmDelete is null when closed, or an array of project IDs to delete.
+  // Bulk-delete sets it to Array.from(selected); single-card delete sets [id].
+  var _confirmDelete = useState(null);
   var confirmDelete = _confirmDelete[0], setConfirmDelete = _confirmDelete[1];
 
   // Lazy-loaded project payload cache, shared across all rendered cards so
@@ -760,21 +770,31 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
     if (ids.length === 0) return;
     // fix-3.5 — open the styled BulkDelete confirmation modal instead of
     // the native browser dialog. Actual deletion happens in doBulkDelete().
-    setConfirmDelete(true);
+    setConfirmDelete(ids);
+  }
+  // VER-FB-002 / VER-EL-SCR-052-08-02 — single-card delete reuses the same
+  // BulkDeleteModal preselected with one id; window.confirm() is NOT used.
+  function handleSingleDelete(proj) {
+    if (!proj || !proj.id) return;
+    setConfirmDelete([proj.id]);
   }
   function doBulkDelete() {
-    var ids = Array.from(selected);
-    setConfirmDelete(false);
+    var ids = Array.isArray(confirmDelete) ? confirmDelete.slice() : [];
+    setConfirmDelete(null);
     if (ids.length === 0) return;
     if (typeof ProjectStorage !== 'undefined' && ProjectStorage.deleteMany) {
       ProjectStorage.deleteMany(ids).then(function() {
         showToast(ids.length + ' project' + (ids.length === 1 ? '' : 's') + ' deleted', 'success');
       }).catch(function() {
-        showToast('Bulk delete failed', 'error');
+        showToast('Delete failed', 'error');
       });
     }
-    setSelected(new Set());
-    setSelectionMode(false);
+    // Clear bulk selection state if this was a multi-delete, otherwise leave
+    // it alone (single-card delete does not enter selection mode).
+    if (selected.size > 0) {
+      setSelected(new Set());
+      setSelectionMode(false);
+    }
   }
   function handleBulkExport() {
     // Bulk export lands in B4 — surface a placeholder toast for now.
@@ -954,7 +974,8 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
                 currentState: getProjectState(proj, states),
                 onSelect: handleChangeState,
                 onClose: function() { setMenuProj(null); },
-                onEditDetails: openEditDetails
+                onEditDetails: openEditDetails,
+                onDeleteSingle: handleSingleDelete
               })
             );
           })
@@ -984,7 +1005,8 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
                 proj: proj, currentState: 'queued',
                 onSelect: handleChangeState,
                 onClose: function() { setMenuProj(null); },
-                onEditDetails: openEditDetails
+                onEditDetails: openEditDetails,
+                onDeleteSingle: handleSingleDelete
               })
             );
           })
@@ -1015,7 +1037,8 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
             proj: proj, currentState: 'paused',
             onSelect: handleChangeState,
             onClose: function() { setMenuProj(null); },
-            onEditDetails: openEditDetails
+            onEditDetails: openEditDetails,
+            onDeleteSingle: handleSingleDelete
           })
         );
       })
@@ -1046,7 +1069,8 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
             proj: proj, currentState: 'complete',
             onSelect: handleChangeState,
             onClose: function() { setMenuProj(null); },
-            onEditDetails: openEditDetails
+            onEditDetails: openEditDetails,
+            onDeleteSingle: handleSingleDelete
           })
         );
       })
@@ -1075,7 +1099,8 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
             proj: proj, currentState: 'design',
             onSelect: handleChangeState,
             onClose: function() { setMenuProj(null); },
-            onEditDetails: openEditDetails
+            onEditDetails: openEditDetails,
+            onDeleteSingle: handleSingleDelete
           })
         );
       })
@@ -1106,9 +1131,10 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
       onClose: function() { setEditingProj(null); }
     }),
 
-    // fix-3.5 — Bulk delete confirmation modal (replaces window.confirm).
+    // fix-3.5 / VER-FB-002 — Delete confirmation modal (replaces window.confirm).
+    // Used by both bulk delete (multiple ids) and single-card delete (one id).
     confirmDelete && h(BulkDeleteModal, {
-      projectIds: Array.from(selected),
+      projectIds: confirmDelete,
       projectsById: (function () {
         var m = {};
         for (var i = 0; i < projects.length; i++) {
@@ -1118,7 +1144,7 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
         return m;
       })(),
       onConfirm: doBulkDelete,
-      onCancel: function () { setConfirmDelete(false); },
+      onCancel: function () { setConfirmDelete(null); },
     })
   );
 }
