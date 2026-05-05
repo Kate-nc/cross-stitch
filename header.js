@@ -15,11 +15,11 @@
 // event. Used by the "Review sync" manual trigger menu item.
 var _lastReceivedPlan = null;
 
-// Listen for sync-plan-ready events dispatched by header file import and
-// by home-screen.js folder-watch path. Mount the SyncReviewGate for ALL
+// Listen for sync-plan-ready events dispatched after a .csync file is
+// imported via the header's file-picker. Mount the SyncReviewGate for ALL
 // pages (replaces the old per-page confirm-dialog fallback).
-// stopImmediatePropagation prevents home-screen.js's legacy handler from
-// also showing the old SyncSummaryModal.
+// stopImmediatePropagation prevents any legacy handler on another page from
+// also showing an old SyncSummaryModal.
 if (typeof window !== 'undefined') {
   window.addEventListener('sync-plan-ready', function(e) {
     _lastReceivedPlan = e.detail || null;

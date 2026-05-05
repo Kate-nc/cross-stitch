@@ -553,10 +553,13 @@ const SyncEngine = (() => {
     return merged;
   }
 
-  function mergeTrackingProgress(local, remote) {
+  function mergeTrackingProgress(local, remote, metaOverrides) {
     // Merge a project where the chart structure is identical but tracking differs.
     // Take the LOCAL project as base, deep-clone mutable sub-objects to avoid
     // mutating the original local data.
+    // metaOverrides: optional { name: 'keep-local'|'keep-remote', state: ... }
+    // from the SyncReviewGate conflict resolution UI. When absent, name/state
+    // are resolved automatically using updatedAt as a tiebreaker.
     var merged = Object.assign({}, local);
     // PERF (perf-6 #5): structuredClone is ~2-5x faster than JSON parse/stringify
     // for these merge buffers and avoids round-tripping through string form.
@@ -644,6 +647,29 @@ const SyncEngine = (() => {
     // Update timestamp to latest
     if (remote.updatedAt && (!merged.updatedAt || new Date(remote.updatedAt) > new Date(merged.updatedAt))) {
       merged.updatedAt = remote.updatedAt;
+    }
+
+    // Merge project-level metadata (name, state).
+    // Default strategy: the side with the newer updatedAt timestamp wins.
+    // metaOverrides can pin a field to 'keep-local' or 'keep-remote' to
+    // respect explicit user choices made in the SyncReviewGate conflict UI.
+    var localTs = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
+    var remoteTs = remote.updatedAt ? new Date(remote.updatedAt).getTime() : 0;
+    var metaFieldsList = ["name", "state"];
+    for (var mfi = 0; mfi < metaFieldsList.length; mfi++) {
+      var mf = metaFieldsList[mfi];
+      if (remote[mf] !== undefined && remote[mf] !== local[mf]) {
+        var ovr = metaOverrides && metaOverrides[mf];
+        if (ovr === 'keep-remote') {
+          merged[mf] = remote[mf];
+        } else if (ovr === 'keep-local') {
+          // keep local (already in merged via Object.assign)
+        } else if (remoteTs > localTs) {
+          // Default: newer updatedAt wins
+          merged[mf] = remote[mf];
+        }
+        // else local wins (already in merged)
+      }
     }
 
     return merged;
@@ -1133,9 +1159,28 @@ const SyncEngine = (() => {
     return plan;
   }
 
-  async function executeImport(plan, conflictResolutions) {
+  async function executeImport(plan, conflictResolutions, gateResolutions) {
     // conflictResolutions: { [projectId]: "keep-local" | "keep-remote" | "keep-both" }
+    // gateResolutions: optional { [gateConflictId]: "keep-local" | "keep-remote" }
+    //   gateConflictId formats: "meta:<pid>:<field>", "pref:<key>",
+    //                           "stitch:<pid>", "stash:<threadId>"
     conflictResolutions = conflictResolutions || {};
+    gateResolutions = gateResolutions || {};
+
+    // Build a per-project meta overrides map from gateResolutions.
+    // meta gate conflict ids have the form "meta:<projectId>:<field>".
+    var _metaOverridesMap = Object.create(null); // "projectId:field" -> resolution
+    Object.keys(gateResolutions).forEach(function(gid) {
+      if (gid.indexOf('meta:') === 0) {
+        var rest = gid.slice(5); // "<projectId>:<field>"
+        var colonIdx = rest.lastIndexOf(':');
+        if (colonIdx !== -1) {
+          var pid = rest.slice(0, colonIdx);
+          var field = rest.slice(colonIdx + 1);
+          _metaOverridesMap[pid + ':' + field] = gateResolutions[gid];
+        }
+      }
+    });
 
     // VER-SYNC-010: flush any buffered in-flight React saves (e.g. the creator's
     // auto-save debounce) before we start reading/writing IDB records.  Without
@@ -1178,7 +1223,19 @@ const SyncEngine = (() => {
         || (mEntry.local && mEntry.local.id)
         || mEntry.id;
       var freshLocal = await ProjectStorage.get(localId);
-      var merged = mergeTrackingProgress(freshLocal || mEntry.local, mEntry.remote.data);
+      // Build per-field meta overrides for this project from gateResolutions.
+      var projectMetaOverrides = null;
+      var metaProjectId = localId || mEntry.id;
+      var mFields = ["name", "state"];
+      for (var mfi = 0; mfi < mFields.length; mfi++) {
+        var mf = mFields[mfi];
+        var mk = metaProjectId + ':' + mf;
+        if (_metaOverridesMap[mk]) {
+          if (!projectMetaOverrides) projectMetaOverrides = {};
+          projectMetaOverrides[mf] = _metaOverridesMap[mk];
+        }
+      }
+      var merged = mergeTrackingProgress(freshLocal || mEntry.local, mEntry.remote.data, projectMetaOverrides);
 
       if (mEntry.idRewrite) {
         var canon = mEntry.idRewrite.canonicalId;
@@ -1259,6 +1316,29 @@ const SyncEngine = (() => {
           localStorage.setItem(LS_TOMBSTONE_KEY, JSON.stringify(existingTombstones));
         }
       } catch (_) {}
+    }
+
+    // 5b. Apply remote prefs and custom palettes to localStorage.
+    //     For each key in plan.syncObj.prefs, write the remote value unless
+    //     the gate conflict resolution explicitly said "keep-local" for that key.
+    //     A single cs:prefsChanged event is dispatched afterwards so existing
+    //     listeners (apply-prefs.js, preferences-modal.js, etc.) refresh.
+    if (plan.syncObj && plan.syncObj.prefs) {
+      var remotePrefs = plan.syncObj.prefs;
+      var prefApplied = false;
+      var remotePrefKeys = Object.keys(remotePrefs);
+      for (var rpi = 0; rpi < remotePrefKeys.length; rpi++) {
+        var rpk = remotePrefKeys[rpi];
+        // If gate provided keep-local for this pref conflict, honour it
+        if (gateResolutions['pref:' + rpk] === 'keep-local') continue;
+        try {
+          localStorage.setItem(rpk, remotePrefs[rpk]);
+          prefApplied = true;
+        } catch (_) {}
+      }
+      if (prefApplied) {
+        try { window.dispatchEvent(new CustomEvent('cs:prefsChanged')); } catch (_) {}
+      }
     }
 
     // 6. Record import timestamp and mark synced projects

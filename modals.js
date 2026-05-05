@@ -1033,18 +1033,19 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
       if (autoDismissRef.current) { clearTimeout(autoDismissRef.current); autoDismissRef.current = null; }
       setApplying(true);
       setError(null);
-      // Build conflictResolutions map for executeImport
-      // Gate uses keep-local/keep-remote; chart conflicts pass through same keys
+      // Build conflictResolutions map for executeImport (chart-level conflicts)
       var conflictResMap = {};
+      // Build gateResolutions map for executeImport (meta/pref/stitch/stash)
+      var gateResMap = {};
       if (gateState && gateState.conflicts) {
         gateState.conflicts.forEach(function(c) {
           var res = resolutions[c.id] || 'keep-local';
-          // Map gate resolution to executeImport resolution keys
           if (c.type === 'chart') {
-            conflictResMap[c.id] = res;  // already keep-local / keep-remote
+            conflictResMap[c.id] = res;
+          } else {
+            // stitch/stash/meta/pref — pass through to executeImport via gateResMap
+            gateResMap[c.id] = res;
           }
-          // stitch/stash/meta/pref conflicts are not direct executeImport keys
-          // but we store them for the post-merge snapshot
         });
       }
       // Also pass plan.conflicts (fingerprint-level) resolutions
@@ -1055,10 +1056,47 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
           }
         });
       }
+
+      // Pre-apply stitch conflict resolutions by adjusting the plan's done arrays
+      // so that mergeDoneArrays produces the user-chosen result:
+      //   keep-remote → use remote.done exactly (null out local.done so union = remote)
+      //   keep-local  → use local.done exactly  (null out remote.done so union = local)
+      if (gateState && gateState.conflicts && plan) {
+        gateState.conflicts.forEach(function(c) {
+          if (c.type !== 'stitch' || !c.entry) return;
+          var res = resolutions[c.id] || 'keep-local';
+          var entry = c.entry;
+          if (res === 'keep-remote') {
+            // Shallow-clone entry.local so we don't mutate plan data unexpectedly
+            entry.local = Object.assign({}, entry.local);
+            entry.local.done = null;
+          } else {
+            // keep-local: discard remote's done cells so only local.done is used
+            if (entry.remote && entry.remote.data) {
+              entry.remote = Object.assign({}, entry.remote);
+              entry.remote.data = Object.assign({}, entry.remote.data);
+              entry.remote.data.done = null;
+            }
+          }
+        });
+      }
+
+      // Pre-apply stash conflict resolutions by overriding the merged stash
+      // thread owned count with the user's chosen side before IDB write.
+      if (gateState && gateState.conflicts && plan && plan.stashMerge && plan.stashMerge.threads) {
+        gateState.conflicts.forEach(function(c) {
+          if (c.type !== 'stash') return;
+          var res = resolutions[c.id] || 'keep-local';
+          var thread = plan.stashMerge.threads[c.threadId];
+          if (!thread) return;
+          thread.owned = (res === 'keep-remote') ? c.remoteOwned : c.localOwned;
+        });
+      }
+
       // Execute import → write snapshot → dispatch events → onDone
       Promise.resolve().then(function() {
         if (typeof SyncEngine === 'undefined') return { imported: 0, merged: 0, conflictsResolved: 0, stashUpdated: false };
-        return SyncEngine.executeImport(plan, conflictResMap);
+        return SyncEngine.executeImport(plan, conflictResMap, gateResMap);
       }).then(function(result) {
         // Write snapshot after merge
         var writeP = (typeof SyncEngine !== 'undefined' && SyncEngine.writeSnapshot)
