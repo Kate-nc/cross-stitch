@@ -1344,12 +1344,18 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     });
   }
 
-  function handleApplySync(conflictResolutions) {
+  function handleApplySync(conflictResolutions, opts) {
     if (!syncPlan) return;
     setSyncBusy(true);
     setSyncPlan(null);
+    // VER-SYNC-004: honour the "Skip stash update" checkbox from SyncSummaryModal.
+    // Clone the plan so we don't mutate the React state object in place.
+    var activePlan = syncPlan;
+    if (opts && opts.skipStash && activePlan.stashMerge) {
+      activePlan = Object.assign({}, activePlan, { stashMerge: null });
+    }
     var syncingId = (typeof window !== 'undefined' && window.Toast) ? window.Toast.show({ message: 'Syncing\u2026', type: 'info', duration: 60000 }) : null;
-    SyncEngine.executeImport(syncPlan, conflictResolutions).then(function(result) {
+    SyncEngine.executeImport(activePlan, conflictResolutions).then(function(result) {
       if (syncingId && window.Toast) window.Toast.dismiss(syncingId);
       var parts = [];
       if (result.imported > 0) parts.push(result.imported + ' imported');

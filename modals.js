@@ -412,6 +412,8 @@ function SyncSummaryModal({ plan, onApply, onCancel }) {
   var resolutions = _res[0], setResolutions = _res[1];
   var _applying = React.useState(false);
   var applying = _applying[0], setApplying = _applying[1];
+  var _skipStash = React.useState(false);
+  var skipStash = _skipStash[0], setSkipStash = _skipStash[1];
 
   // Block ESC during apply so the user can't dismiss mid-import.
   // (Routed through <Overlay> via escapeOptions below.)
@@ -434,7 +436,7 @@ function SyncSummaryModal({ plan, onApply, onCancel }) {
   function handleApply() {
     if (!canApply || applying) return;
     setApplying(true);
-    onApply(resolutions);
+    onApply(resolutions, { skipStash: skipStash });
   }
 
   // Summary stat row
@@ -554,6 +556,18 @@ function SyncSummaryModal({ plan, onApply, onCancel }) {
           plan.stashMerge.threads && h('span', null, Object.keys(plan.stashMerge.threads).length + ' threads'),
           plan.stashMerge.threads && plan.stashMerge.patterns && ' \u00b7 ',
           plan.stashMerge.patterns && h('span', null, plan.stashMerge.patterns.length + ' patterns')
+        ),
+        // VER-SYNC-004: let the user opt out of merging stash data from the
+        // remote. Useful when the remote device has stale or unwanted thread
+        // counts that would silently inflate local owned quantities.
+        h('label', { className: 'sync-skip-stash-label', style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' } },
+          h('input', {
+            type: 'checkbox',
+            checked: skipStash,
+            disabled: applying,
+            onChange: function(e) { setSkipStash(e.target.checked); }
+          }),
+          'Skip stash update'
         )
       ),
 
