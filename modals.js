@@ -780,3 +780,81 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
       )
   );
 }
+
+// ═══ ConfirmDialog — imperative styled confirmation modal ═══
+// VER-FB-003 — Drop-in replacement for window.confirm() that uses the
+// shared Overlay (variant=dialog) so confirmations match the rest of the
+// app's visual language and respect focus trap, scrim dismiss, and ESC.
+//
+// Usage:
+//   window.ConfirmDialog.show({ message, title?, confirmLabel?, cancelLabel?, danger? })
+//     .then(function (ok) { if (!ok) return; ... });
+//
+// The Promise resolves to true when the user confirms and false on cancel,
+// scrim click, or ESC. Always resolves — never rejects.
+(function () {
+  if (typeof window === 'undefined') return;
+  function ConfirmDialogInner(props) {
+    var h = React.createElement;
+    var opts = props.opts || {};
+    var confirmRef = React.useRef(null);
+    React.useEffect(function () {
+      // Focus the destructive/primary button on mount so Enter activates it.
+      var t = setTimeout(function () { try { confirmRef.current && confirmRef.current.focus(); } catch (e) {} }, 0);
+      return function () { clearTimeout(t); };
+    }, []);
+    return h(window.Overlay, {
+      onClose: props.onCancel, variant: 'dialog', maxWidth: 440,
+      labelledBy: 'cs-confirm-title'
+    },
+      h(window.Overlay.CloseButton, { onClose: props.onCancel }),
+      h('div', { style: { padding: 24 } },
+        h('h3', { id: 'cs-confirm-title', style: { marginTop: 0, marginBottom: 12, fontSize: 18, color: 'var(--text-primary)' } }, opts.title || 'Are you sure?'),
+        h('p', { style: { margin: 0, color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' } }, opts.message || ''),
+        h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 } },
+          h('button', {
+            type: 'button',
+            onClick: props.onCancel,
+            style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', cursor: 'pointer' }
+          }, opts.cancelLabel || 'Cancel'),
+          h('button', {
+            ref: confirmRef,
+            type: 'button',
+            onClick: props.onConfirm,
+            style: {
+              padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none',
+              background: opts.danger ? 'var(--danger, #C0392B)' : 'var(--accent)',
+              color: '#fff', cursor: 'pointer', fontWeight: 600
+            }
+          }, opts.confirmLabel || (opts.danger ? 'Delete' : 'Confirm'))
+        )
+      )
+    );
+  }
+  window.ConfirmDialog = {
+    show: function (opts) {
+      return new Promise(function (resolve) {
+        if (!window.React || !window.ReactDOM || !window.Overlay) {
+          // Last-resort fallback when the React shell isn't loaded yet.
+          resolve(window.confirm((opts && opts.message) || ''));
+          return;
+        }
+        var host = document.createElement('div');
+        document.body.appendChild(host);
+        var root = ReactDOM.createRoot ? ReactDOM.createRoot(host) : null;
+        var settled = false;
+        function cleanup() {
+          try { if (root) root.unmount(); else ReactDOM.unmountComponentAtNode(host); } catch (e) {}
+          if (host.parentNode) host.parentNode.removeChild(host);
+        }
+        function done(v) { if (settled) return; settled = true; cleanup(); resolve(v); }
+        var el = React.createElement(ConfirmDialogInner, {
+          opts: opts || {},
+          onConfirm: function () { done(true); },
+          onCancel: function () { done(false); }
+        });
+        if (root) root.render(el); else ReactDOM.render(el, host);
+      });
+    }
+  };
+})();

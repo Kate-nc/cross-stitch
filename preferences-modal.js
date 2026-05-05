@@ -907,11 +907,16 @@
     }
     function disconnectFolder() {
       if (!window.SyncEngine) return;
-      var ok = window.confirm("Stop watching the sync folder? Your patterns stay where they are.");
-      if (!ok) return;
-      window.SyncEngine.clearWatchDirectory().then(function () {
-        notify("Sync folder disconnected.");
-        syncStatus[1](window.SyncEngine.getSyncStatus());
+      window.ConfirmDialog.show({
+        title: "Disconnect sync folder?",
+        message: "Stop watching the sync folder? Your patterns stay where they are.",
+        confirmLabel: "Disconnect"
+      }).then(function (ok) {
+        if (!ok) return;
+        window.SyncEngine.clearWatchDirectory().then(function () {
+          notify("Sync folder disconnected.");
+          syncStatus[1](window.SyncEngine.getSyncStatus());
+        });
       });
     }
     function saveDeviceName() {
@@ -945,36 +950,54 @@
         msg[1]({ kind: "err", text: "Restore isn't available on this page." });
         return;
       }
-      var ok = window.confirm("Restoring will replace ALL of your current patterns, stash and settings with the contents of the backup file. Continue?");
-      if (!ok) return;
-      busy[1](true); msg[1](null);
-      window.BackupRestore.restoreBackup(f).then(function () {
-        busy[1](false);
-        msg[1]({ kind: "ok", text: "Backup restored. Reload any open pages to see the changes." });
-      }).catch(function (e) {
-        busy[1](false);
-        msg[1]({ kind: "err", text: e && e.message ? e.message : "Could not restore the backup." });
+      window.ConfirmDialog.show({
+        title: "Restore from backup?",
+        message: "Restoring will replace ALL of your current patterns, stash and settings with the contents of the backup file. Continue?",
+        confirmLabel: "Restore",
+        danger: true
+      }).then(function (ok) {
+        if (!ok) return;
+        busy[1](true); msg[1](null);
+        window.BackupRestore.restoreBackup(f).then(function () {
+          busy[1](false);
+          msg[1]({ kind: "ok", text: "Backup restored. Reload any open pages to see the changes." });
+        }).catch(function (e) {
+          busy[1](false);
+          msg[1]({ kind: "err", text: e && e.message ? e.message : "Could not restore the backup." });
+        });
       });
     }
 
     function clearProjects() {
-      var ok = window.confirm("This will delete EVERY pattern saved in this browser. Stash and settings will be kept. Are you sure?");
-      if (!ok) return;
-      try {
-        var req = indexedDB.deleteDatabase("CrossStitchDB");
-        req.onsuccess = function () { msg[1]({ kind: "ok", text: "All patterns deleted. Reload the page to start fresh." }); };
-        req.onerror = function () { msg[1]({ kind: "err", text: "Could not clear the project database." }); };
-      } catch (e) { msg[1]({ kind: "err", text: e.message || "Could not clear the database." }); }
+      window.ConfirmDialog.show({
+        title: "Delete every pattern?",
+        message: "This will delete EVERY pattern saved in this browser. Stash and settings will be kept. Are you sure?",
+        confirmLabel: "Delete patterns",
+        danger: true
+      }).then(function (ok) {
+        if (!ok) return;
+        try {
+          var req = indexedDB.deleteDatabase("CrossStitchDB");
+          req.onsuccess = function () { msg[1]({ kind: "ok", text: "All patterns deleted. Reload the page to start fresh." }); };
+          req.onerror = function () { msg[1]({ kind: "err", text: "Could not clear the project database." }); };
+        } catch (e) { msg[1]({ kind: "err", text: e.message || "Could not clear the database." }); }
+      });
     }
 
     function clearStash() {
-      var ok = window.confirm("This will delete your entire thread stash and pattern library. Patterns saved in the Creator are kept. Are you sure?");
-      if (!ok) return;
-      try {
-        var req = indexedDB.deleteDatabase("stitch_manager_db");
-        req.onsuccess = function () { msg[1]({ kind: "ok", text: "Stash cleared. Reload the page to start fresh." }); };
-        req.onerror = function () { msg[1]({ kind: "err", text: "Could not clear the stash database." }); };
-      } catch (e) { msg[1]({ kind: "err", text: e.message || "Could not clear the database." }); }
+      window.ConfirmDialog.show({
+        title: "Delete stash and pattern library?",
+        message: "This will delete your entire thread stash and pattern library. Patterns saved in the Creator are kept. Are you sure?",
+        confirmLabel: "Delete stash",
+        danger: true
+      }).then(function (ok) {
+        if (!ok) return;
+        try {
+          var req = indexedDB.deleteDatabase("stitch_manager_db");
+          req.onsuccess = function () { msg[1]({ kind: "ok", text: "Stash cleared. Reload the page to start fresh." }); };
+          req.onerror = function () { msg[1]({ kind: "err", text: "Could not clear the stash database." }); };
+        } catch (e) { msg[1]({ kind: "err", text: e.message || "Could not clear the database." }); }
+      });
     }
 
     var st = syncStatus[0] || {};
@@ -1217,36 +1240,47 @@
     }, []);
 
     function clearCacheAndReload() {
-      var ok = window.confirm("This will clear cached app files and reload the page. Your patterns and settings are not affected. Continue?");
-      if (!ok) return;
-      try {
-        if ("caches" in window) {
-          caches.keys().then(function (keys) {
-            return Promise.all(keys.map(function (k) { return caches.delete(k); }));
-          }).then(function () {
-            if ("serviceWorker" in navigator) {
-              navigator.serviceWorker.getRegistrations().then(function (regs) {
-                regs.forEach(function (r) { try { r.unregister(); } catch (_) {} });
+      window.ConfirmDialog.show({
+        title: "Clear cache and reload?",
+        message: "This will clear cached app files and reload the page. Your patterns and settings are not affected. Continue?",
+        confirmLabel: "Clear & reload"
+      }).then(function (ok) {
+        if (!ok) return;
+        try {
+          if ("caches" in window) {
+            caches.keys().then(function (keys) {
+              return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+            }).then(function () {
+              if ("serviceWorker" in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function (regs) {
+                  regs.forEach(function (r) { try { r.unregister(); } catch (_) {} });
+                  window.location.reload();
+                });
+              } else {
                 window.location.reload();
-              });
-            } else {
-              window.location.reload();
-            }
-          });
-        } else {
-          window.location.reload();
-        }
-      } catch (e) { msg[1]({ kind: "err", text: e.message || "Could not clear caches." }); }
+              }
+            });
+          } else {
+            window.location.reload();
+          }
+        } catch (e) { msg[1]({ kind: "err", text: e.message || "Could not clear caches." }); }
+      });
     }
 
     function factoryReset() {
-      var ok = window.confirm("Factory reset will erase ALL preferences, walkthroughs and remembered chart positions, but keep your patterns and stash. Continue?");
-      if (!ok) return;
-      try {
-        if (window.UserPrefs && typeof window.UserPrefs.reset === "function") window.UserPrefs.reset();
-        msg[1]({ kind: "ok", text: "Preferences reset to defaults." });
-        setTimeout(function () { window.location.reload(); }, 500);
-      } catch (e) { msg[1]({ kind: "err", text: e.message || "Could not reset." }); }
+      window.ConfirmDialog.show({
+        title: "Factory reset preferences?",
+        message: "Factory reset will erase ALL preferences, walkthroughs and remembered chart positions, but keep your patterns and stash. Continue?",
+        confirmLabel: "Reset preferences",
+        danger: true
+      }).then(function (ok) {
+        if (!ok) return;
+        try {
+          if (window.UserPrefs && typeof window.UserPrefs.reset === "function") window.UserPrefs.reset();
+          msg[1]({ kind: "ok", text: "Preferences reset to defaults." });
+          setTimeout(function () { window.location.reload(); }, 500);
+        } catch (e) { msg[1]({ kind: "err", text: e.message || "Could not reset." }); }
+      });
     }
 
     return h("div", null,

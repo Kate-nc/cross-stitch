@@ -334,6 +334,20 @@ window.CreatorExportTab = function CreatorExportTab() {
       var pdfBytes = parts[0];
       var pngBlob = parts[1];
 
+      function runZip() {
+        setBundleState({ stage: "zip", msg: "Compressing\u2026" });
+        return window.ZipBundle.build({
+          projectName: project.name,
+          schemaVersion: 11,
+          pdfBytes: pdfBytes,
+          oxsString: oxsString,
+          pngBlob: pngBlob,
+          projectJson: jsonObj,
+        }, {
+          onProgress: function (stage, msg) { setBundleState({ stage: stage, msg: msg }); }
+        });
+      }
+
       // Mobile: warn before producing very large bundles.
       var estBytes = (pdfBytes ? pdfBytes.byteLength : 0)
         + (pngBlob ? pngBlob.size : 0)
@@ -341,22 +355,17 @@ window.CreatorExportTab = function CreatorExportTab() {
         + (jsonObj ? JSON.stringify(jsonObj).length : 0);
       var isCoarse = (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
       if (estBytes > 50 * 1024 * 1024 && isCoarse) {
-        var ok = window.confirm("Bundle is roughly " + (estBytes / 1024 / 1024).toFixed(1)
-          + " MB. Large bundles can be slow on phones. Continue?");
-        if (!ok) { setBundleState(null); return null; }
+        return window.ConfirmDialog.show({
+          title: "Large bundle",
+          message: "Bundle is roughly " + (estBytes / 1024 / 1024).toFixed(1)
+            + " MB. Large bundles can be slow on phones. Continue?",
+          confirmLabel: "Continue"
+        }).then(function (ok) {
+          if (!ok) { setBundleState(null); return null; }
+          return runZip();
+        });
       }
-
-      setBundleState({ stage: "zip", msg: "Compressing…" });
-      return window.ZipBundle.build({
-        projectName: project.name,
-        schemaVersion: 11,
-        pdfBytes: pdfBytes,
-        oxsString: oxsString,
-        pngBlob: pngBlob,
-        projectJson: jsonObj,
-      }, {
-        onProgress: function (stage, msg) { setBundleState({ stage: stage, msg: msg }); }
-      });
+      return runZip();
     }).then(function (zipBlob) {
       if (!zipBlob) return;
       var filename = window.ZipBundle._filename(project.name, 11, new Date());
