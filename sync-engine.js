@@ -782,7 +782,9 @@ const SyncEngine = (() => {
       };
       req.onblocked = function() {
         console.warn("SyncEngine: _openSnapshotDB blocked by another open connection.");
-        reject(new Error("CrossStitchDB open blocked — another tab may be holding an old connection open."));
+        var err = new Error("CrossStitchDB open blocked — another tab may be holding an old connection open.");
+        err.isBlockedError = true;
+        reject(err);
       };
       req.onsuccess = function() {
         var db = req.result;
@@ -804,6 +806,7 @@ const SyncEngine = (() => {
         req.onerror = function() { db.close(); reject(req.error); };
       });
     } catch (e) {
+      if (e && e.isBlockedError) throw e; // propagate — do not treat as "no snapshot"
       console.warn("SyncEngine: readSnapshot failed:", e);
       return null;
     }
@@ -872,6 +875,7 @@ const SyncEngine = (() => {
       });
       return snapshot;
     } catch (e) {
+      if (e && e.isBlockedError) throw e; // propagate — snapshot not written, caller must handle
       console.warn("SyncEngine: writeSnapshot failed:", e);
       return null;
     }

@@ -44,6 +44,9 @@ const BackupRestore = (() => {
           if (!db.objectStoreNames.contains(s)) db.createObjectStore(s);
         });
       };
+      req.onblocked = () => {
+        reject(new Error(name + " upgrade blocked — close other tabs and retry."));
+      };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
@@ -149,12 +152,13 @@ const BackupRestore = (() => {
         const db = await openDB("CrossStitchDB", 4, ["projects", "project_meta", "stats_summaries", "sync_snapshots"]);
         // PERF (perf-3 #4 / perf-5): read all three stores in parallel rather
         // than awaiting them sequentially.
-        const [projects, project_meta, stats_summaries] = await Promise.all([
+        const [projects, project_meta, stats_summaries, sync_snapshots] = await Promise.all([
           readStore(db, "projects"),
           readStore(db, "project_meta"),
-          readStore(db, "stats_summaries")
+          readStore(db, "stats_summaries"),
+          readStore(db, "sync_snapshots")
         ]);
-        backup.databases.CrossStitchDB = { projects, project_meta, stats_summaries };
+        backup.databases.CrossStitchDB = { projects, project_meta, stats_summaries, sync_snapshots };
         db.close();
       } catch (e) {
         console.warn("Backup: could not read CrossStitchDB:", e);
@@ -280,7 +284,7 @@ const BackupRestore = (() => {
       if (backup.databases.CrossStitchDB) {
         const db = await openDB("CrossStitchDB", 4, ["projects", "project_meta", "stats_summaries", "sync_snapshots"]);
         const data = backup.databases.CrossStitchDB;
-        for (const storeName of ["projects", "project_meta", "stats_summaries"]) {
+        for (const storeName of ["projects", "project_meta", "stats_summaries", "sync_snapshots"]) {
           if (!data[storeName]) continue;
           await new Promise((resolve, reject) => {
             const tx = db.transaction(storeName, "readwrite");

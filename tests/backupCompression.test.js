@@ -29,6 +29,7 @@ function loadBackupRestore(opts) {
     const LOCAL_STORAGE_KEYS = { activeProject: 'a', shortcutsHint: 'b', globalGoals: 'c', globalGoalsCompat: 'd' };
     const btoa = (s) => Buffer.from(s, 'binary').toString('base64');
     const atob = (s) => Buffer.from(s, 'base64').toString('binary');
+    const indexedDB = opts.idb || undefined; // shadowed into eval scope — backup-restore.js reads this as a global
     // Re-bind the IIFE result into a non-const so the outer scope can reach it.
     const patched = backupSrc.replace('const BackupRestore =', 'BackupRestore =');
     var BackupRestore;
@@ -146,5 +147,108 @@ describe('serializeBackupFile — flag OFF (legacy fallback)', () => {
     const BR = loadBackupRestore({ flags: { compressedBackups: true } });
     const out = BR.serializeBackupFile(makeSampleBackup(), { compressed: false });
     expect(out.format).toBe('json');
+  });
+});
+
+describe('createBackup / restore — CrossStitchDB round-trip with sync_snapshots', () => {
+  const { IDBFactory } = require('fake-indexeddb');
+
+  // Seed a fake IDB instance with data in all four CrossStitchDB stores
+  async function seedCrossStitchDB(fakeIDB) {
+    await new Promise((resolve, reject) => {
+      const req = fakeIDB.open('CrossStitchDB', 4);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        ['projects', 'project_meta', 'stats_summaries', 'sync_snapshots'].forEach(s => {
+          if (!db.objectStoreNames.contains(s)) db.createObjectStore(s);
+        });
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    }).then(db => new Promise((resolve, reject) => {
+      const tx = db.transaction(
+        ['projects', 'project_meta', 'stats_summaries', 'sync_snapshots'], 'readwrite'
+      );
+      tx.objectStore('projects').put({ id: 'proj_1', name: 'Test', pattern: [] }, 'proj_1');
+      tx.objectStore('project_meta').put({ id: 'proj_1', name: 'Test' }, 'proj_1');
+      tx.objectStore('stats_summaries').put({ total: 0 }, 'auto_save');
+      tx.objectStore('sync_snapshots').put(
+        { _snapshotAt: '2024-01-01T00:00:00.000Z', _deviceId: 'device-test', projects: {}, stash: {}, prefs: {} },
+        'latest'
+      );
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    }));
+  }
+
+  test('createBackup includes sync_snapshots store entries', async () => {
+    const fakeIDB = new IDBFactory();
+    await seedCrossStitchDB(fakeIDB);
+    const BR = loadBackupRestore({ idb: fakeIDB });
+    const backup = await BR.createBackup();
+
+    expect(backup.databases.CrossStitchDB).toBeDefined();
+    expect(Array.isArray(backup.databases.CrossStitchDB.sync_snapshots)).toBe(true);
+    expect(backup.databases.CrossStitchDB.sync_snapshots).toHaveLength(1);
+    expect(backup.databases.CrossStitchDB.sync_snapshots[0].key).toBe('latest');
+    expect(backup.databases.CrossStitchDB.sync_snapshots[0].value._deviceId).toBe('device-test');
+  });
+
+  test('restore writes sync_snapshots entries back into CrossStitchDB', async () => {
+    const fakeIDB = new IDBFactory();
+    const BR = loadBackupRestore({ idb: fakeIDB });
+
+    // Build a backup object that includes sync_snapshots
+    const backupObj = makeSampleBackup();
+    backupObj.databases.CrossStitchDB.sync_snapshots = [
+      { key: 'latest', value: { _snapshotAt: '2024-03-01T00:00:00.000Z', _deviceId: 'restored-device' } }
+    ];
+
+    await BR.restore(backupObj);
+
+    // Verify the sync_snapshots entry was written
+    const snap = await new Promise((resolve, reject) => {
+      const req = fakeIDB.open('CrossStitchDB', 4);
+      req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction('sync_snapshots', 'readonly');
+        const r = tx.objectStore('sync_snapshots').get('latest');
+        r.onsuccess = () => { db.close(); resolve(r.result); };
+        r.onerror = () => { db.close(); reject(r.error); };
+      };
+      req.onerror = () => reject(req.error);
+    });
+
+    expect(snap).toBeDefined();
+    expect(snap._deviceId).toBe('restored-device');
+    expect(snap._snapshotAt).toBe('2024-03-01T00:00:00.000Z');
+  });
+
+  test('createBackup then restore round-trips sync_snapshots byte-for-byte', async () => {
+    const fakeIDB = new IDBFactory();
+    await seedCrossStitchDB(fakeIDB);
+    const BR = loadBackupRestore({ idb: fakeIDB });
+
+    const backup = await BR.createBackup();
+    const originalSnap = backup.databases.CrossStitchDB.sync_snapshots[0].value;
+
+    // Use a fresh IDB instance for restore to avoid state contamination
+    const fakeIDB2 = new IDBFactory();
+    const BR2 = loadBackupRestore({ idb: fakeIDB2 });
+    await BR2.restore(backup);
+
+    const restoredSnap = await new Promise((resolve, reject) => {
+      const req = fakeIDB2.open('CrossStitchDB', 4);
+      req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction('sync_snapshots', 'readonly');
+        const r = tx.objectStore('sync_snapshots').get('latest');
+        r.onsuccess = () => { db.close(); resolve(r.result); };
+        r.onerror = () => { db.close(); reject(r.error); };
+      };
+      req.onerror = () => reject(req.error);
+    });
+
+    expect(restoredSnap).toEqual(originalSnap);
   });
 });
