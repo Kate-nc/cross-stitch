@@ -624,9 +624,11 @@ function ManagerApp() {
       setBackupStatus({ type: "success", message: "Creating backup..." });
       await BackupRestore.downloadBackup();
       setBackupStatus({ type: "success", message: "Backup downloaded!" });
+      try { window.Toast && window.Toast.show && window.Toast.show({ message: "Backup downloaded successfully", type: "success" }); } catch (_) {}
       setTimeout(() => setBackupStatus(null), 3000);
     } catch (e) {
       setBackupStatus({ type: "error", message: "Backup failed: " + e.message });
+      try { window.Toast && window.Toast.show && window.Toast.show({ message: "Backup failed: " + e.message, type: "error" }); } catch (_) {}
     }
   };
 
@@ -650,11 +652,20 @@ function ManagerApp() {
           onConfirm: async () => {
             try {
               setBackupStatus({ type: "success", message: "Restoring..." });
-              await BackupRestore.restore(backup);
+              const summary = await BackupRestore.restore(backup);
               setBackupStatus({ type: "success", message: "Restored! Reloading..." });
+              try {
+                const parts = [];
+                if (summary && summary.projectCount) parts.push(summary.projectCount + " project" + (summary.projectCount === 1 ? "" : "s"));
+                if (summary && summary.threadCount) parts.push(summary.threadCount + " thread" + (summary.threadCount === 1 ? "" : "s"));
+                if (summary && summary.patternCount) parts.push(summary.patternCount + " pattern" + (summary.patternCount === 1 ? "" : "s"));
+                const msg = parts.length ? ("Restore complete: " + parts.join(", ")) : "Restore complete";
+                window.Toast && window.Toast.show && window.Toast.show({ message: msg, type: "success" });
+              } catch (_) {}
               setTimeout(() => window.location.reload(), 1000);
             } catch (err) {
               setBackupStatus({ type: "error", message: "Restore failed: " + err.message });
+              try { window.Toast && window.Toast.show && window.Toast.show({ message: "Restore failed: " + err.message, type: "error" }); } catch (_) {}
             }
           }
         });
