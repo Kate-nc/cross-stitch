@@ -1348,7 +1348,9 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     if (!syncPlan) return;
     setSyncBusy(true);
     setSyncPlan(null);
+    var syncingId = (typeof window !== 'undefined' && window.Toast) ? window.Toast.show({ message: 'Syncing\u2026', type: 'info', duration: 60000 }) : null;
     SyncEngine.executeImport(syncPlan, conflictResolutions).then(function(result) {
+      if (syncingId && window.Toast) window.Toast.dismiss(syncingId);
       var parts = [];
       if (result.imported > 0) parts.push(result.imported + ' imported');
       if (result.merged > 0) parts.push(result.merged + ' merged');
@@ -1361,6 +1363,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
         ProjectStorage.listProjects().then(function(p) { setProjects(p || []); });
       }
     }).catch(function(err) {
+      if (syncingId && window.Toast) window.Toast.dismiss(syncingId);
       setSyncResult({ type: 'error', message: 'Sync failed: ' + err.message });
     }).finally(function() { setSyncBusy(false); });
   }

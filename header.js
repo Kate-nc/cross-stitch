@@ -847,10 +847,15 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                         if (!ok) return;
                         var resolutions = {};
                         plan.conflicts.forEach(function(entry) { resolutions[entry.id] = 'keep-local'; });
+                        var syncingId = window.Toast ? window.Toast.show({ message: 'Syncing\u2026', type: 'info', duration: 60000 }) : null;
                         SyncEngine.executeImport(plan, resolutions).then(function(result) {
+                          if (syncingId && window.Toast) window.Toast.dismiss(syncingId);
                           (window.Toast ? window.Toast.show({ message: 'Sync complete: ' + result.imported + ' imported, ' + result.merged + ' merged.', type: 'success' }) : alert('Sync complete: ' + result.imported + ' imported, ' + result.merged + ' merged.'));
                           window.location.reload();
-                        }).catch(function(err) { (window.Toast ? window.Toast.show({ message: 'Sync failed: ' + err.message, type: 'error' }) : alert('Sync failed: ' + err.message)); });
+                        }).catch(function(err) {
+                          if (syncingId && window.Toast) window.Toast.dismiss(syncingId);
+                          (window.Toast ? window.Toast.show({ message: 'Sync failed: ' + err.message, type: 'error' }) : alert('Sync failed: ' + err.message));
+                        });
                       });
                     }
                   }).catch(function(err) {
