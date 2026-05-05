@@ -794,11 +794,11 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
 // scrim click, or ESC. Always resolves — never rejects.
 (function () {
   if (typeof window === 'undefined') return;
-  var _confirmCounter = 0;
   function ConfirmDialogInner(props) {
     var h = React.createElement;
     var opts = props.opts || {};
-    var titleId = React.useRef('cs-confirm-title-' + (++_confirmCounter)).current;
+    var uid = React.useId();
+    var titleId = 'cs-confirm-title-' + uid;
     var confirmRef = React.useRef(null);
     React.useEffect(function () {
       // Focus the destructive/primary button on mount so Enter activates it.
