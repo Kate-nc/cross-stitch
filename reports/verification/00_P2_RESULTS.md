@@ -15,22 +15,29 @@
 
 PASS rate: 67% (50/75). 9 FAIL items + 15 PARTIAL items identified for follow-up.
 
-## High-impact defects (FAIL — needs implementation)
+## Defect remediation status
 
-### Worker / progress feedback (5 items)
-1. **VER-FB-007** (cross-cutting-A) — generate-worker.js sends only error messages; add Quantizing/Dithering/Cleanup progress.
-2. **VER-FB-008** (cross-cutting-A) — analysis-worker.js silent during analysis; add progress callback.
-3. **VER-FB-010** (cross-cutting-A) — No "Syncing…" toast during SyncEngine merge.
-4. **VER-FB-011** (cross-cutting-A) — Backup download success not toasted.
-5. **VER-FB-012** (cross-cutting-A) — Restore success count not toasted.
+8 of 9 FAILs fixed in this audit cycle. 1 deferred (substantial UI work).
 
-### Error surface gaps (2 items)
-6. **VER-FB-013** (cross-cutting-A) — Command Palette success feedback missing for high-impact actions.
-7. **VER-FB-014** (cross-cutting-A) — saveProjectToDB only console.error; no toast surface.
+| Defect | Commit | Status |
+|---|---|---|
+| VER-FB-011 (backup download toast) | 0c084e4 | FIXED |
+| VER-FB-012 (restore complete toast) | 0c084e4 | FIXED |
+| VER-FB-014 (IDB save error toast) | 7e0d3bb | FIXED |
+| VER-FB-010 (Syncing toast) | 9f5e2f0 | FIXED |
+| VER-FB-007 (generate worker progress) | 708d87b | FIXED |
+| VER-FB-008 (analysis worker progress) | 708d87b | FIXED |
+| VER-FB-013 (command palette success) | b7c9b45 | FIXED |
+| VER-SCR-056-TABLET (palette grid reflow) | 4984f8f | FIXED |
+| VER-EL-SCR-059-02-01 (manager section prefs) | — | DEFERRED |
 
-### UI / responsive (2 items)
-8. **VER-EL-SCR-059-02-01** (manager) — No section visibility prefs persisted in Manager.
-9. **VER-SCR-056-TABLET** (creator-modals) — Palette preset grid no responsive 1-col reflow.
+## Deferred defect
+
+**VER-EL-SCR-059-02-01** — Manager right-panel sections lack
+collapse/expand toggles backed by UserPrefs persistence. This is a
+substantial new UI feature (collapse buttons + headers + state plumbing
+to all sections + UserPrefs schema) rather than a wiring fix. Tracked
+for a future P5/UX commit.
 
 ## PARTIAL items (15)
 
@@ -52,12 +59,4 @@ Cosmetic, edge-case, or scope-ambiguous PARTIALs deferred to P3 cleanup pass:
 
 ## Next steps
 
-P2 defects are concentrated in feedback/progress surfaces (workers + toasts). Recommended approach:
-1. Add progress postMessage protocol to generate-worker.js + analysis-worker.js (resolves 2 items).
-2. Add Toast.show() calls at backup/restore/sync completion paths (resolves 3 items).
-3. Audit command-palette.js handlers for success feedback (resolves 1 item).
-4. Wrap saveProjectToDB callers with try/catch + error toast (resolves 1 item).
-
-PARTIAL items can be batched into a single follow-up commit covering coachmark timing, tablet breakpoints, and tablet touch targets.
-
-Proceed to P3 (16 items) verification.
+P2 verification + remediation complete. Proceeding to P3 (16 items).
