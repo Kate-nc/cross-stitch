@@ -10,6 +10,28 @@
 //   onSave      – callback to download JSON
 //   onNameChange – callback(newName) when user edits the inline name
 //   showAutosaved – if true, show a small “Auto-saved” hint next to the name
+// ── Sync Review Gate wiring ──────────────────────────────────────────────
+// Module-level variable: the most recent plan from the last sync-plan-ready
+// event. Used by the "Review sync" manual trigger menu item.
+var _lastReceivedPlan = null;
+
+// Listen for sync-plan-ready events dispatched after a .csync file is
+// imported via the header's file-picker. Mount the SyncReviewGate for ALL
+// pages (replaces the old per-page confirm-dialog fallback).
+// stopImmediatePropagation prevents any legacy handler on another page from
+// also showing an old SyncSummaryModal.
+if (typeof window !== 'undefined') {
+  window.addEventListener('sync-plan-ready', function(e) {
+    _lastReceivedPlan = e.detail || null;
+    // Prevent confirm-dialog fallback in header and home-screen legacy modal
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (typeof window.SyncReviewGate !== 'undefined' && window.SyncReviewGate.open) {
+      window.SyncReviewGate.open(_lastReceivedPlan, { autoTrigger: false });
+    }
+  });
+}
+
 function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onSave, onHome, onNameChange, showAutosaved }) {
   if (!name) return null;
   const dimStr = dimensions ? `${dimensions.width}×${dimensions.height}` : null;
@@ -819,51 +841,36 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                   var file = e.target.files && e.target.files[0];
                   if (!file) return;
                   e.target.value = '';
+                  // VER-SYNC-012: warn before decompressing a very large file
+                  if (file.size > 50 * 1024 * 1024) {
+                    var mb = (file.size / (1024 * 1024)).toFixed(1);
+                    if (window.Toast) window.Toast.show({ message: 'Large sync file (' + mb + ' MB) — import may take a moment.', type: 'info', duration: 6000 });
+                  }
                   SyncEngine.readSyncFile(file).then(function(syncObj) {
                     return SyncEngine.prepareImport(syncObj);
                   }).then(function(plan) {
-                    // If home screen is mounted it listens for this event
+                    // Dispatch sync-plan-ready — the module-level listener above
+                    // intercepts this and mounts SyncReviewGate. preventDefault()
+                    // and stopImmediatePropagation() prevent old fallback paths from
+                    // also firing. No separate handled check is needed here.
                     var evt = new CustomEvent('sync-plan-ready', { detail: plan, cancelable: true });
-                    var handled = !window.dispatchEvent(evt);
-                    // Fallback for tracker/manager pages: if no listener handled it,
-                    // show a simple confirm dialog
-                    if (!handled && page !== 'home') {
-                      var n = plan.newRemote.length;
-                      var m = plan.mergeTracking.length;
-                      var c = plan.conflicts.length;
-                      var parts = [];
-                      if (n) parts.push(n + ' new');
-                      if (m) parts.push(m + ' to merge');
-                      if (c) parts.push(c + ' conflict' + (c !== 1 ? 's' : ''));
-                      if (plan.stashMerge) parts.push('stash update');
-                      if (parts.length === 0) { (window.Toast ? window.Toast.show({ message: 'Nothing to sync \u2014 all projects are identical.', type: 'info' }) : alert('Nothing to sync — all projects are identical.')); return; }
-                      var msg = 'Import sync file?\n\n' + parts.join(', ');
-                      if (c > 0) msg += '\n\nConflicts will keep local versions. For detailed control, import from the home screen.';
-                      window.ConfirmDialog.show({
-                        title: 'Import sync file?',
-                        message: msg,
-                        confirmLabel: 'Import'
-                      }).then(function (ok) {
-                        if (!ok) return;
-                        var resolutions = {};
-                        plan.conflicts.forEach(function(entry) { resolutions[entry.id] = 'keep-local'; });
-                        var syncingId = window.Toast ? window.Toast.show({ message: 'Syncing\u2026', type: 'info', duration: 60000 }) : null;
-                        SyncEngine.executeImport(plan, resolutions).then(function(result) {
-                          if (syncingId && window.Toast) window.Toast.dismiss(syncingId);
-                          (window.Toast ? window.Toast.show({ message: 'Sync complete: ' + result.imported + ' imported, ' + result.merged + ' merged.', type: 'success' }) : alert('Sync complete: ' + result.imported + ' imported, ' + result.merged + ' merged.'));
-                          window.location.reload();
-                        }).catch(function(err) {
-                          if (syncingId && window.Toast) window.Toast.dismiss(syncingId);
-                          (window.Toast ? window.Toast.show({ message: 'Sync failed: ' + err.message, type: 'error' }) : alert('Sync failed: ' + err.message));
-                        });
-                      });
-                    }
+                    window.dispatchEvent(evt);
                   }).catch(function(err) {
                     (window.Toast ? window.Toast.show({ message: 'Sync import failed: ' + err.message, type: 'error' }) : alert('Sync import failed: ' + err.message));
                   });
                 }
               })
-            )
+            ),
+            // Review sync — manual trigger to re-open gate for last received plan
+            typeof SyncEngine !== 'undefined' && React.createElement('button', {
+              className: 'tb-page-dropdown-item',
+              onClick: function() {
+                setFileMenuOpen(false);
+                if (typeof window.SyncReviewGate !== 'undefined') {
+                  window.SyncReviewGate.open(_lastReceivedPlan, { autoTrigger: false });
+                }
+              }
+            }, Icons.cloudSync(), ' Review sync')
           )
         )
       )

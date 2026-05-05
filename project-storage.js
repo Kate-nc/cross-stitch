@@ -431,6 +431,21 @@ const ProjectStorage = (() => {
           };
           autoSaveReq.onerror = () => reject(autoSaveReq.error);
           tx.oncomplete = () => {
+            // VER-SYNC-009: persist this deletion as a tombstone so SyncEngine can
+            // tell remote devices "we intentionally deleted this project" and stop
+            // it re-appearing on the next sync import.
+            try {
+              var LS_TOMBSTONE_KEY = "cs_deleted_project_ids";
+              var raw = localStorage.getItem(LS_TOMBSTONE_KEY);
+              var tombstones = [];
+              try { tombstones = JSON.parse(raw) || []; } catch (_) {}
+              if (!tombstones.includes(id)) {
+                tombstones.push(id);
+                // Cap at 200 to avoid unbounded localStorage growth.
+                if (tombstones.length > 200) tombstones = tombstones.slice(tombstones.length - 200);
+                localStorage.setItem(LS_TOMBSTONE_KEY, JSON.stringify(tombstones));
+              }
+            } catch (_) {}
             // Brief D — remove any auto-synced Manager pattern entry that was
             // linked to this project so the library doesn't show stale entries.
             if (typeof StashBridge !== "undefined" && StashBridge.unlinkProjectFromLibrary) {

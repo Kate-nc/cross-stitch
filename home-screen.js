@@ -1331,6 +1331,12 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     var file = e.target.files && e.target.files[0];
     if (!file) return;
     if (syncFileRef.current) syncFileRef.current.value = '';
+    // VER-SYNC-012: warn the user before trying to decompress a very large file
+    // so they aren’t left staring at a spinner with no feedback.
+    if (file.size > 50 * 1024 * 1024) {
+      var mb = (file.size / (1024 * 1024)).toFixed(1);
+      if (window.Toast) window.Toast.show({ message: 'Large sync file (' + mb + ' MB) — import may take a moment.', type: 'info', duration: 6000 });
+    }
     setSyncBusy(true);
     setSyncResult(null);
     SyncEngine.readSyncFile(file).then(function(syncObj) {
@@ -1344,23 +1350,42 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     });
   }
 
-  function handleApplySync(conflictResolutions) {
+  function handleApplySync(conflictResolutions, opts) {
     if (!syncPlan) return;
     setSyncBusy(true);
     setSyncPlan(null);
+    // VER-SYNC-004: honour the "Skip stash update" checkbox from SyncSummaryModal.
+    // Clone the plan so we don't mutate the React state object in place.
+    var activePlan = syncPlan;
+    if (opts && opts.skipStash && activePlan.stashMerge) {
+      activePlan = Object.assign({}, activePlan, { stashMerge: null });
+    }
     var syncingId = (typeof window !== 'undefined' && window.Toast) ? window.Toast.show({ message: 'Syncing\u2026', type: 'info', duration: 60000 }) : null;
-    SyncEngine.executeImport(syncPlan, conflictResolutions).then(function(result) {
+    SyncEngine.executeImport(activePlan, conflictResolutions).then(function(result) {
       if (syncingId && window.Toast) window.Toast.dismiss(syncingId);
       var parts = [];
       if (result.imported > 0) parts.push(result.imported + ' imported');
       if (result.merged > 0) parts.push(result.merged + ' merged');
       if (result.conflictsResolved > 0) parts.push(result.conflictsResolved + ' resolved');
       if (result.stashUpdated) parts.push('stash updated');
-      setSyncResult({ type: 'success', message: 'Sync complete: ' + (parts.join(', ') || 'no changes') + '.' });
+      var msg = 'Sync complete: ' + (parts.join(', ') || 'no changes') + '.';
+      setSyncResult({ type: 'success', message: msg });
+      // Show success toast so it's visible even if user has scrolled away from sync section
+      if (window.Toast) window.Toast.show({ message: msg, type: 'success', duration: 5000 });
       setSyncStatus(SyncEngine.getSyncStatus());
       // Refresh project list
       if (typeof ProjectStorage !== 'undefined') {
         ProjectStorage.listProjects().then(function(p) { setProjects(p || []); });
+      }
+      // Notify other components on this page (manager-app, tracker-app, project-library)
+      // and other open tabs (they pick it up via visibilitychange when the user returns).
+      try { window.dispatchEvent(new CustomEvent('cs:backupRestored')); } catch(_) {}
+      if (result.stashUpdated) {
+        try { window.dispatchEvent(new CustomEvent('cs:stashChanged')); } catch(_) {}
+        // Also refresh stash state rendered on this page (home dashboard stash stats)
+        if (typeof StashBridge !== 'undefined') {
+          StashBridge.getGlobalStash().then(function(s) { if (s) setStash(s); }).catch(function(){});
+        }
       }
     }).catch(function(err) {
       if (syncingId && window.Toast) window.Toast.dismiss(syncingId);

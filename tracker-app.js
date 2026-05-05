@@ -7422,3 +7422,4 @@ return(
 }
 window.TrackerApp=TrackerApp;
 if(!window.__UNIFIED__)ReactDOM.createRoot(document.getElementById("root")).render(<TrackerApp/>);
+if (typeof SyncEngine !== 'undefined') SyncEngine.registerBeforeUnloadSnapshot();

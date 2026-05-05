@@ -210,17 +210,21 @@ function getDB() {
   }
   return new Promise((resolve, reject) => {
     ensurePersistence().catch(() => {});
-    let request = indexedDB.open(DB_NAME, 3);
+    let request = indexedDB.open(DB_NAME, 4);
     request.onupgradeneeded = (e) => {
       let db = e.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
+      let oldVersion = e.oldVersion;
+      if (oldVersion < 1) {
+        if (!db.objectStoreNames.contains(STORE_NAME)) { db.createObjectStore(STORE_NAME); }
       }
-      if (!db.objectStoreNames.contains("project_meta")) {
-        db.createObjectStore("project_meta");
+      if (oldVersion < 2) {
+        if (!db.objectStoreNames.contains("project_meta")) { db.createObjectStore("project_meta"); }
       }
-      if (!db.objectStoreNames.contains("stats_summaries")) {
-        db.createObjectStore("stats_summaries");
+      if (oldVersion < 3) {
+        if (!db.objectStoreNames.contains("stats_summaries")) { db.createObjectStore("stats_summaries"); }
+      }
+      if (oldVersion < 4) {
+        if (!db.objectStoreNames.contains("sync_snapshots")) { db.createObjectStore("sync_snapshots"); }
       }
     };
     request.onsuccess = () => {

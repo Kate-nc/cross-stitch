@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v40';
+var CACHE_NAME = 'cross-stitch-cache-v41';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -16,6 +16,7 @@ var PRECACHE_URLS = [
 
   // Shared local assets
   './styles.css',
+  './version.js',
   './constants.js',
   './dmc-data.js',
   './anchor-data.js',

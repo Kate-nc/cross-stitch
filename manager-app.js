@@ -2274,3 +2274,4 @@ function UserProfileModal({ profile, onSave, onClose }) {
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<ManagerApp />);
+if (typeof SyncEngine !== 'undefined') SyncEngine.registerBeforeUnloadSnapshot();
