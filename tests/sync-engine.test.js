@@ -344,8 +344,9 @@ describe('mergeTrackingProgress', () => {
     expect(merged.statsSessions).toHaveLength(2);
     expect(merged.sessions).toHaveLength(2);
 
-    // Total time is max
-    expect(merged.totalTime).toBe(200);
+    // Total time is the sum of both sides: each device records its own elapsed
+    // stitching time independently, so the correct merged value is local + remote.
+    expect(merged.totalTime).toBe(300);
 
     // Thread owned merged
     expect(merged.threadOwned['310']).toBe('owned');

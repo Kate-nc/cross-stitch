@@ -196,7 +196,16 @@ const SyncEngine = (() => {
       // PERF (perf-5 #1): batch project fetches in parallel via Promise.all
       // instead of awaiting each get() sequentially.
       var fetched = await Promise.all(metaList.map(function(m){ return ProjectStorage.get(m.id); }));
-      for (var i = 0; i < fetched.length; i++) { if (fetched[i]) allProjects.push(fetched[i]); }
+      for (var i = 0; i < fetched.length; i++) {
+        if (fetched[i]) {
+          allProjects.push(fetched[i]);
+        } else {
+          // VER-SYNC-001: project entry exists in metadata but the IDB record
+          // returned null (record missing or read race). Log so the developer can
+          // investigate — we skip it rather than crashing the export.
+          console.warn("SyncEngine: project " + (metaList[i] && metaList[i].id) + " returned null from IDB, skipping export.");
+        }
+      }
     } catch (e) {
       console.error("SyncEngine.export: failed to read projects:", e);
       throw new Error("Could not read projects from database.");
@@ -555,8 +564,11 @@ const SyncEngine = (() => {
     merged.statsSessions = mergeSessions(local.statsSessions, remote.statsSessions);
     merged.sessions = mergeSessions(local.sessions, remote.sessions);
 
-    // Take max total time
-    merged.totalTime = Math.max(local.totalTime || 0, remote.totalTime || 0);
+    // Sum total time from both sides: each device tracks its own elapsed stitching
+    // time independently, so the correct merged value is the sum, not the max.
+    // Using Math.max would cap the merged total at whichever device's clock ran
+    // longer, silently discarding the other device's recorded work time.
+    merged.totalTime = (local.totalTime || 0) + (remote.totalTime || 0);
 
     // Merge threadOwned (union: keep owned/tobuy status from either side)
     if (remote.threadOwned && typeof remote.threadOwned === "object") {
@@ -741,6 +753,24 @@ const SyncEngine = (() => {
   async function executeImport(plan, conflictResolutions) {
     // conflictResolutions: { [projectId]: "keep-local" | "keep-remote" | "keep-both" }
     conflictResolutions = conflictResolutions || {};
+
+    // VER-SYNC-010: flush any buffered in-flight React saves (e.g. the creator's
+    // auto-save debounce) before we start reading/writing IDB records.  Without
+    // this, a concurrent save could overwrite a just-merged record immediately
+    // after we write it.
+    if (window.__flushProjectToIDB) {
+      try { await window.__flushProjectToIDB(); } catch (e) {}
+    }
+
+    // VER-SYNC-013 — ATOMICITY BOUNDARY NOTE:
+    // Each project is saved as a separate IDB put() transaction; there is no
+    // wrapping multi-record transaction.  This means an interrupted import
+    // (browser crash, tab close mid-loop) will leave the database in a
+    // partially-imported state.  This is safe to retry: identical projects are
+    // fingerprint-matched (idempotent), merged projects re-derive from the
+    // current IDB state (re-read inside the merge loop), and conflicting
+    // projects are re-presented on next import.  Partial imports do NOT corrupt
+    // data — they only mean some projects were not yet imported.
 
     // 1. Import new-remote projects
     for (var i = 0; i < plan.newRemote.length; i++) {
@@ -976,8 +1006,10 @@ const SyncEngine = (() => {
     var updates = [];
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
-      // Skip our own file
-      if (f.deviceId === myDeviceId) continue;
+      // Skip our own file. Guard: if either device ID is the sentinel "dev_unknown"
+      // we cannot reliably match — treat as a different device and proceed with the
+      // import so the file is not silently dropped.
+      if (f.deviceId && f.deviceId === myDeviceId && myDeviceId !== "dev_unknown") continue;
       // Check if this file is newer than our last import
       var fileTime = f.createdAt ? new Date(f.createdAt).getTime() : (f.lastModified || 0);
       if (fileTime > lastImportMs) {
