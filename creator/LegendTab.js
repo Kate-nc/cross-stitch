@@ -619,7 +619,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                   background: isCurrent ? "var(--success-soft)" : "transparent"
                 }},
                   h("td", {style:{padding:"6px 10px", fontWeight:isCurrent?700:400, color:isCurrent?"var(--accent)":"inherit"}},
-                    f.ct + (overTwo ? " (×2)" : "") + " ct"
+                    f.ct + (overTwo ? " (2 strands)" : "") + " ct"
                   ),
                   h("td", {style:{padding:"6px 10px", textAlign:"right", fontWeight:600, fontVariantNumeric:"tabular-nums"}}, dims.w),
                   h("td", {style:{padding:"6px 10px", textAlign:"right", fontWeight:600, fontVariantNumeric:"tabular-nums"}}, dims.h)

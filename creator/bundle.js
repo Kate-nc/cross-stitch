@@ -11479,9 +11479,10 @@ window.BulkAddModal = (function () {
       },
         React.createElement('span', null, brand === 'anchor' ? 'A' : 'DMC', '\u00a0', item.normalised, '\u00a0\u2014 not found'),
         React.createElement('button', {
+          'aria-label': 'Remove',
           onClick: function () { onRemove(item.raw); },
-          style: { background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize:'var(--text-md)', fontWeight: 700, marginLeft: 2 }
-        }, '×')
+          style: { background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: 0, lineHeight: 1, marginLeft: 2, display: 'inline-flex', alignItems: 'center' }
+        }, window.Icons && window.Icons.x ? window.Icons.x() : null)
       );
     }
     var swatch = React.createElement('span', {
@@ -11493,9 +11494,10 @@ window.BulkAddModal = (function () {
       swatch,
       brand === 'anchor' ? 'A' : 'DMC', '\u00a0', item.normalised,
       React.createElement('button', {
+        'aria-label': 'Remove',
         onClick: function () { onRemove(item.raw); },
-        style: { background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize:'var(--text-md)', fontWeight: 700, marginLeft: 2 }
-      }, '×')
+        style: { background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: 0, lineHeight: 1, marginLeft: 2, display: 'inline-flex', alignItems: 'center' }
+      }, window.Icons && window.Icons.x ? window.Icons.x() : null)
     );
   }
 
@@ -11646,7 +11648,7 @@ window.BulkAddModal = (function () {
             }),
             pasteResolved.length > 0 && React.createElement('div', { style: { marginTop:'var(--s-3)' } },
               React.createElement('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 6 } },
-                validCount + ' valid' + (invalidCount > 0 ? ', ' + invalidCount + ' unrecognised (click × to remove)' : '')
+                validCount + ' valid' + (invalidCount > 0 ? ', ' + invalidCount + ' unrecognised (click the remove icon to clear)' : '')
               ),
               pasteResolved.map(function (item) {
                 return React.createElement(ThreadChip, { key: item.raw, item: item, brand: brand, onRemove: removePasteEntry });
@@ -15114,7 +15116,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                   background: isCurrent ? "var(--success-soft)" : "transparent"
                 }},
                   h("td", {style:{padding:"6px 10px", fontWeight:isCurrent?700:400, color:isCurrent?"var(--accent)":"inherit"}},
-                    f.ct + (overTwo ? " (×2)" : "") + " ct"
+                    f.ct + (overTwo ? " (2 strands)" : "") + " ct"
                   ),
                   h("td", {style:{padding:"6px 10px", textAlign:"right", fontWeight:600, fontVariantNumeric:"tabular-nums"}}, dims.w),
                   h("td", {style:{padding:"6px 10px", textAlign:"right", fontWeight:600, fontVariantNumeric:"tabular-nums"}}, dims.h)

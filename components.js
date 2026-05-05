@@ -41,7 +41,7 @@ function Tooltip({text,children,width=180}){
 function InfoIcon({text,width}){
   return React.createElement("span",{style:{display:"inline-flex",alignItems:"center",flexShrink:0},onClick:function(e){e.preventDefault();e.stopPropagation();}},
     React.createElement(Tooltip,{text:text,width:width||200},
-      React.createElement("span",{role:"img","aria-label":"Information",style:{cursor:"help",color:"var(--text-tertiary)",lineHeight:1,display:"inline-flex",alignItems:"center"}},window.Icons&&window.Icons.info?window.Icons.info():"\u24D8")
+      React.createElement("span",{role:"img","aria-label":"Information",style:{cursor:"help",color:"var(--text-tertiary)",lineHeight:1,display:"inline-flex",alignItems:"center"}},window.Icons&&window.Icons.info?window.Icons.info():null)
     )
   );
 }
@@ -198,7 +198,7 @@ var MiniStatsBar=React.memo(function MiniStatsBar({statsSessions, totalCompleted
       statsBar,
       React.createElement("div", {className:"mini-goal", onClick:onOpenStats},
         React.createElement("span", {className:"mini-goal-label"}, activeGoal.label + ":"),
-        React.createElement("span", {className:"mini-goal-count"}, activeGoal.current.toLocaleString() + " / " + activeGoal.target.toLocaleString() + (activeGoal.met ? " \u2713" : "")),
+        React.createElement("span", {className:"mini-goal-count"}, activeGoal.current.toLocaleString() + " / " + activeGoal.target.toLocaleString(), activeGoal.met && window.Icons && window.Icons.check ? React.createElement("span", {style:{display:"inline-flex",alignItems:"center",marginLeft:4}}, window.Icons.check()) : null),
         React.createElement("div", {className:"mini-goal-track"},
           React.createElement("div", {className:"mini-goal-fill" + (activeGoal.met ? " mini-goal-fill--done" : ""), style:{width:Math.min(100,activeGoal.pct)+'%'}})
         )
@@ -559,10 +559,10 @@ var MonthCalendar = React.memo(function MonthCalendar({sessions}) {
   return React.createElement("div", {style:{padding:'0 8px'}},
     React.createElement("div", {style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'var(--s-2)'}},
       React.createElement("button", {type:"button","aria-label":"Previous month",onClick:function(){ setMonthOffset(monthOffset - 1); },
-        style:{background:'none',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',cursor:'pointer',padding:'2px 8px',fontSize:'var(--text-md)',color:'var(--text-secondary)'}}, "\u2039"),
+        style:{background:'none',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',cursor:'pointer',padding:'2px 8px',color:'var(--text-secondary)',display:'inline-flex',alignItems:'center'}}, window.Icons&&window.Icons.chevronLeft?window.Icons.chevronLeft():null),
       React.createElement("span", {style:{fontSize:'var(--text-md)',fontWeight:600,color:'var(--text-primary)'}}, monthName),
       React.createElement("button", {type:"button","aria-label":"Next month",onClick:function(){ setMonthOffset(Math.min(0, monthOffset + 1)); },
-        style:{background:'none',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',cursor:'pointer',padding:'2px 8px',fontSize:'var(--text-md)',color:monthOffset < 0?'var(--text-secondary)':'#CFC4AC'}}, "\u203a"),
+        style:{background:'none',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',cursor:'pointer',padding:'2px 8px',color:monthOffset < 0?'var(--text-secondary)':'#CFC4AC',display:'inline-flex',alignItems:'center'}}, window.Icons&&window.Icons.chevronRight?window.Icons.chevronRight():null),
       monthOffset !== 0 ? React.createElement("button", {type:"button","aria-label":"Jump to current month",onClick:function(){ setMonthOffset(0); },
         style:{fontSize:'var(--text-xs)',padding:'2px 6px',borderRadius:4,border:'1px solid var(--border)',background:'var(--surface-secondary)',cursor:'pointer',color:'var(--text-tertiary)',marginLeft:'var(--s-1)'}}, "Today") : null
     ),
@@ -997,7 +997,7 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
     sectionThreads&&React.createElement("div",{style:{marginBottom:'var(--s-3)',padding:10,background:'var(--surface-secondary)',borderRadius:'var(--radius-md)',border:'1px solid var(--accent-light)'}},
       React.createElement("div",{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}},
         React.createElement("span",{style:{fontSize:'var(--text-sm)',fontWeight:600,color:'var(--text-primary)'}},selectedLabel+' — threads'),
-        React.createElement("button",{type:"button","aria-label":"Close section threads",onClick:function(){setSelectedKey(null);},style:{fontSize:'var(--text-xs)',padding:'1px 8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--accent-light)',background:'var(--surface-secondary)',cursor:'pointer',color:'var(--accent)',lineHeight:'18px'}},"\u2715")
+        React.createElement("button",{type:"button","aria-label":"Close section threads",onClick:function(){setSelectedKey(null);},style:{padding:'1px 8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--accent-light)',background:'var(--surface-secondary)',cursor:'pointer',color:'var(--accent)',lineHeight:'18px',display:'inline-flex',alignItems:'center'}}, window.Icons&&window.Icons.x?window.Icons.x():null)
       ),
       sectionThreads.length===0
         ? React.createElement("p",{style:{fontSize:'var(--text-sm)',color:'var(--text-tertiary)',margin:0}},"No stitches in this section")
@@ -1025,7 +1025,7 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
     React.createElement("div",{style:{display:'flex',alignItems:'center',gap:'var(--s-2)',fontSize:'var(--text-sm)',color:'var(--text-tertiary)',marginTop:'var(--s-1)'}},
       "Section size:",
       React.createElement("input",{type:"number",min:5,max:200,value:secCols,disabled:!canEdit,onChange:function(e){if(!canEdit)return;var v=Math.max(5,Math.min(200,parseInt(e.target.value)||50));onUpdateSettings(Object.assign({},statsSettings,{sectionCols:v}));},style:{width:52,padding:'2px 6px',fontSize:'var(--text-sm)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)'}}),
-      "\u00d7",
+      " by ",
       React.createElement("input",{type:"number",min:5,max:200,value:secRows,disabled:!canEdit,onChange:function(e){if(!canEdit)return;var v=Math.max(5,Math.min(200,parseInt(e.target.value)||50));onUpdateSettings(Object.assign({},statsSettings,{sectionRows:v}));},style:{width:52,padding:'2px 6px',fontSize:'var(--text-sm)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)'}}),
       "stitches",
       React.createElement("button",{type:"button",disabled:!canEdit,onClick:function(){if(!canEdit)return;onUpdateSettings(Object.assign({},statsSettings,{sectionCols:50,sectionRows:50}));},style:{fontSize:'var(--text-xs)',padding:'2px 8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)',background:'var(--surface-secondary)',cursor:canEdit?'pointer':'default',color:'var(--text-tertiary)',opacity:canEdit?1:0.6}},"Reset")

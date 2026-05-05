@@ -379,7 +379,7 @@ function CustomiseModal({ visibility, onChange, onClose }) {
   }, [onClose]);
   return h('div', { className: 'modal-overlay', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'stats-settings-title', onClick: onClose },
     h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 400, maxHeight: '80vh', overflowY: 'auto' } },
-      h('button', { className: 'modal-close', onClick: onClose, 'aria-label': 'Close' }, '×'),
+      h('button', { className: 'modal-close', onClick: onClose, 'aria-label': 'Close' }, window.Icons && window.Icons.x ? window.Icons.x() : null),
       h('h3', { id: 'stats-settings-title', style: { marginTop: 0, marginBottom:'var(--s-3)', fontSize: 18, color: 'var(--text-primary)' } }, 'Customise Stats'),
       h('p', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)', marginBottom:'var(--s-4)' } }, 'Show or hide sections on your stats page.'),
       Object.entries(SECTION_LABELS).map(([key, label]) =>
@@ -486,7 +486,7 @@ function ShareCardModal({ lifetimeStitches, onClose }) {
 
   return h('div', { className: 'modal-overlay', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'share-stats-title', onClick: onClose },
     h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 480, textAlign: 'center' } },
-      h('button', { className: 'modal-close', onClick: onClose, 'aria-label': 'Close' }, '×'),
+      h('button', { className: 'modal-close', onClick: onClose, 'aria-label': 'Close' }, window.Icons && window.Icons.x ? window.Icons.x() : null),
       h('h3', { id: 'share-stats-title', style: { marginTop: 0, marginBottom:'var(--s-3)', fontSize: 18, color: 'var(--text-primary)' } }, 'Share Your Stats'),
       h('canvas', { ref: canvasRef, style: { width: '100%', maxWidth: 360, borderRadius:'var(--radius-md)', border: '1px solid var(--border)', marginBottom:'var(--s-3)' } }),
       rendered && h('div', { style: { display: 'flex', gap:'var(--s-2)', justifyContent: 'center' } },

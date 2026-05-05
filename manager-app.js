@@ -497,6 +497,30 @@ function ManagerApp() {
         const tx = db.transaction(["manager_state"], "readwrite");
         tx.objectStore("manager_state").put(userProfile, "userProfile");
       } catch (err) { console.error("Profile auto-save failed:", err); }
+      // VER-EL-SCR-031-01-01: mirror profile fields to UserPrefs so Creator's
+      // defaults (which read from cs_pref_*) stay in sync. Dispatch
+      // cs:prefsChanged per the convention in user-prefs.js so any live
+      // listeners react without requiring a reload.
+      try {
+        if (window.UserPrefs && typeof window.UserPrefs.set === "function") {
+          const map = {
+            creatorDefaultFabricCount: userProfile.fabric_count,
+            stitchStrandsUsed: userProfile.strands_used,
+            stashDefaultBrand: userProfile.thread_brand,
+            stitchWasteFactor: userProfile.waste_factor
+          };
+          Object.keys(map).forEach((key) => {
+            const value = map[key];
+            if (value == null) return;
+            try {
+              const prev = window.UserPrefs.get(key);
+              if (prev === value) return;
+              window.UserPrefs.set(key, value);
+              window.dispatchEvent(new CustomEvent("cs:prefsChanged", { detail: { key, value } }));
+            } catch (_) {}
+          });
+        }
+      } catch (_) {}
     }, 1000);
     return () => clearTimeout(saveTimer);
   }, [userProfile]);
@@ -798,6 +822,31 @@ function ManagerApp() {
     if (viewingPattern && viewingPattern.id === patt.id) {
         setViewingPattern(patt);
     }
+  };
+
+  // VER-EL-SCR-030-06-01: per-pattern duplicate action. Clones the record with
+  // a fresh id, suffixes the title with "(copy)" (or "(copy N)" if duplicates
+  // already exist), and clears any linkedProjectId so the copy is independent
+  // of the original's Creator/Tracker project.
+  const duplicatePattern = (id) => {
+    const src = patterns.find(p => p.id === id);
+    if (!src) return null;
+    const baseTitle = (src.title || "Pattern").replace(/\s*\(copy(?:\s+\d+)?\)$/i, "");
+    let suffix = " (copy)";
+    let n = 2;
+    while (patterns.some(p => p.title === baseTitle + suffix)) {
+      suffix = " (copy " + (n++) + ")";
+    }
+    const copy = Object.assign({}, src, {
+      id: "patt_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7),
+      title: baseTitle + suffix,
+      linkedProjectId: null,
+      status: src.status === "completed" ? "wishlist" : src.status
+    });
+    setPatterns(prev => [...prev, copy]);
+    setViewingPattern(copy);
+    if (window.Toast) window.Toast.show({ message: "\"" + copy.title + "\" created", type: "success" });
+    return copy;
   };
 
   const deletePattern = (id) => {
@@ -1596,6 +1645,7 @@ function ManagerApp() {
                   <div className="rp-h">Actions</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     <button className="g-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => { setEditingPattern(p); }}>{Icons.pencil()} Edit Pattern</button>
+                    <button className="g-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => { duplicatePattern(p.id); }}>{Icons.copy()} Duplicate</button>
                     <button className="g-btn" style={{ width: "100%", justifyContent: "center", color: "#B85555", borderColor: "var(--danger-soft)" }} onClick={() => { deletePattern(p.id); setViewingPattern(null); }}>{Icons.trash()} Delete</button>
                   </div>
                 </div>
