@@ -328,6 +328,22 @@ const ProjectStorage = (() => {
         });
       } catch (err) {
         console.error("ProjectStorage.save failed:", err);
+        try {
+          if (typeof window !== 'undefined' && window.Toast && window.Toast.show) {
+            const now = Date.now();
+            if (!window.__psSaveToastAt || (now - window.__psSaveToastAt) > 30000) {
+              window.__psSaveToastAt = now;
+              const isQuota = err && (err.name === 'QuotaExceededError' || /quota/i.test(String(err.message || '')));
+              window.Toast.show({
+                message: isQuota
+                  ? "Couldn't save: storage quota exceeded. Free up space or export a backup."
+                  : "Couldn't save your project. Changes may be lost on reload.",
+                type: "error",
+                duration: 10000
+              });
+            }
+          }
+        } catch (_) {}
         throw err;
       }
     },

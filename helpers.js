@@ -236,12 +236,31 @@ function getDB() {
   });
 }
 
+// Throttle save-failure toasts so a persistent error (e.g. quota exceeded)
+// doesn't spam the user once per autosave tick.
+let __lastSaveErrorToastAt = 0;
+function __surfaceSaveError(err) {
+  console.error("Failed to save project to IndexedDB", err);
+  try {
+    if (typeof window === 'undefined' || !window.Toast || !window.Toast.show) return;
+    const now = Date.now();
+    if (now - __lastSaveErrorToastAt < 30000) return; // 30s cooldown
+    __lastSaveErrorToastAt = now;
+    const name = err && err.name ? err.name : '';
+    const isQuota = name === 'QuotaExceededError' || /quota/i.test(String(err && err.message || ''));
+    const msg = isQuota
+      ? "Couldn't save: storage quota exceeded. Free up space or export a backup."
+      : "Couldn't save your project. Changes may be lost on reload.";
+    window.Toast.show({ message: msg, type: "error", duration: 10000 });
+  } catch (_) { /* never let toast surface throw */ }
+}
+
 async function saveProjectToDB(project) {
   // Skip saving if the project was deleted during this page session
   if (project && project.id && typeof ProjectStorage !== 'undefined' && ProjectStorage.isDeleted(project.id)) return;
   try {
     const db = await getDB();
-    return new Promise((resolve, reject) => {
+    return await new Promise((resolve, reject) => {
       let tx = db.transaction(STORE_NAME, "readwrite");
       let store = tx.objectStore(STORE_NAME);
       let request = store.put(project, "auto_save");
@@ -249,7 +268,7 @@ async function saveProjectToDB(project) {
       request.onerror = () => reject(request.error);
     });
   } catch (err) {
-    console.error("Failed to save project to IndexedDB", err);
+    __surfaceSaveError(err);
   }
 }
 
