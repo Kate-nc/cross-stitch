@@ -1061,21 +1061,24 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
       // so that mergeDoneArrays produces the user-chosen result:
       //   keep-remote → use remote.done exactly (null out local.done so union = remote)
       //   keep-local  → use local.done exactly  (null out remote.done so union = local)
+      // Object.assign creates a new object so the original entry refs are not mutated.
+      // Only the `done` property (a direct scalar/array ref) is replaced with null —
+      // no nested object is modified — so a shallow clone is sufficient here.
       if (gateState && gateState.conflicts && plan) {
         gateState.conflicts.forEach(function(c) {
           if (c.type !== 'stitch' || !c.entry) return;
           var res = resolutions[c.id] || 'keep-local';
           var entry = c.entry;
           if (res === 'keep-remote') {
-            // Shallow-clone entry.local so we don't mutate plan data unexpectedly
-            entry.local = Object.assign({}, entry.local);
-            entry.local.done = null;
+            // Replace entry.local with a new object that has done: null so the
+            // union merge falls back entirely to remote.done.
+            entry.local = Object.assign({}, entry.local, { done: null });
           } else {
-            // keep-local: discard remote's done cells so only local.done is used
+            // keep-local: null out remote's done array so the union returns local.done.
             if (entry.remote && entry.remote.data) {
-              entry.remote = Object.assign({}, entry.remote);
-              entry.remote.data = Object.assign({}, entry.remote.data);
-              entry.remote.data.done = null;
+              entry.remote = Object.assign({}, entry.remote, {
+                data: Object.assign({}, entry.remote.data, { done: null })
+              });
             }
           }
         });

@@ -1169,7 +1169,9 @@ const SyncEngine = (() => {
 
     // Build a per-project meta overrides map from gateResolutions.
     // meta gate conflict ids have the form "meta:<projectId>:<field>".
-    var _metaOverridesMap = Object.create(null); // "projectId:field" -> resolution
+    // lastIndexOf(':') is intentional: project IDs can contain colons, so we
+    // split on the LAST colon to correctly extract the trailing field name.
+    var metaOverridesMap = Object.create(null); // "projectId:field" -> resolution
     Object.keys(gateResolutions).forEach(function(gid) {
       if (gid.indexOf('meta:') === 0) {
         var rest = gid.slice(5); // "<projectId>:<field>"
@@ -1177,7 +1179,7 @@ const SyncEngine = (() => {
         if (colonIdx !== -1) {
           var pid = rest.slice(0, colonIdx);
           var field = rest.slice(colonIdx + 1);
-          _metaOverridesMap[pid + ':' + field] = gateResolutions[gid];
+          metaOverridesMap[pid + ':' + field] = gateResolutions[gid];
         }
       }
     });
@@ -1230,9 +1232,9 @@ const SyncEngine = (() => {
       for (var mfi = 0; mfi < mFields.length; mfi++) {
         var mf = mFields[mfi];
         var mk = metaProjectId + ':' + mf;
-        if (_metaOverridesMap[mk]) {
+        if (metaOverridesMap[mk]) {
           if (!projectMetaOverrides) projectMetaOverrides = {};
-          projectMetaOverrides[mf] = _metaOverridesMap[mk];
+          projectMetaOverrides[mf] = metaOverridesMap[mk];
         }
       }
       var merged = mergeTrackingProgress(freshLocal || mEntry.local, mEntry.remote.data, projectMetaOverrides);
