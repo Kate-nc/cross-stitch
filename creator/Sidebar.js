@@ -1076,7 +1076,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         style:{padding:"8px 14px",fontSize:'var(--text-sm)',fontWeight:600,
           background:gen.busy?"var(--text-tertiary)":"var(--accent)",color:"var(--surface)",
           border:"none",borderRadius:'var(--radius-md)',cursor:gen.busy?"wait":"pointer"}
-      }, gen.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
+      }, gen.busy ? (gen.progressMessage || "Generating...") : (ctx.pat ? "Regenerate" : "Generate Pattern"));
 
   // ─── Unified sidebar tab bar (Polish 13 step 3) ────────────────────────
   // One tab strip across both appModes. Tools/View are locked until a
@@ -1570,7 +1570,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           border:"none",borderRadius:'var(--radius-md)',
           background:gen.busy?"var(--text-tertiary)":gen.hasGenerated?"var(--surface-tertiary)":"var(--accent)",
           color:gen.hasGenerated?"var(--text-primary)":"var(--surface)"}
-      }, gen.busy ? "Generating\u2026" : (gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate Pattern")),
+      }, gen.busy ? (gen.progressMessage || "Generating\u2026") : (gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate Pattern")),
       // First-generation auto-switches to Edit mode (see useCreatorState.doGen),
       // so no explicit "Edit Pattern →" button is needed here. After
       // regeneration the user is already in Edit mode; the Setup tab strip

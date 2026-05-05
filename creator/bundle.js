@@ -5461,6 +5461,7 @@ window.useCreatorState = function useCreatorState() {
   var _pal  = useState(null);         var pal  = _pal[0],  setPal  = _pal[1];
   var _cmap = useState(null);         var cmap = _cmap[0], setCmap = _cmap[1];
   var _busy = useState(false);        var busy = _busy[0], setBusy = _busy[1];
+  var _progressMessage = useState(""); var progressMessage = _progressMessage[0], setProgressMessage = _progressMessage[1];
   var _oW   = useState(0);            var origW = _oW[0],  setOrigW = _oW[1];
   var _oH   = useState(0);            var origH = _oH[0],  setOrigH = _oH[1];
 
@@ -6279,14 +6280,22 @@ window.useCreatorState = function useCreatorState() {
         var w = new Worker('generate-worker.js');
         w.onmessage = function(e) {
           var msg = e.data;
+          if (msg.type === 'progress') {
+            if (msg.reqId === genReqIdRef.current) {
+              setProgressMessage(msg.message || "");
+            }
+            return;
+          }
           if (msg.type === 'error') {
             console.error('Worker generation error:', msg.message, msg.stack || '');
             w.terminate();
             workerRef.current = null;
+            setProgressMessage("");
             setBusy(false);
             return;
           }
           if (msg.type === 'result') {
+            setProgressMessage("");
             applyResultRef.current(msg);
           }
         };
@@ -6294,6 +6303,7 @@ window.useCreatorState = function useCreatorState() {
           console.error('Worker uncaught error:', err.message);
           w.terminate();
           workerRef.current = 'unavailable';
+          setProgressMessage("");
           setBusy(false);
         };
         workerRef.current = w;
@@ -6308,7 +6318,7 @@ window.useCreatorState = function useCreatorState() {
 
   var generate = useCallback(function(overrides) {
     if (!img) return;
-    setBusy(true); setHiId(null); setExportPage(0);
+    setBusy(true); setProgressMessage(""); setHiId(null); setExportPage(0);
     var reqId = ++genReqIdRef.current;
 
     var _seed   = (overrides && overrides.seed   != null)      ? overrides.seed   : variationSeed;
@@ -6592,7 +6602,7 @@ window.useCreatorState = function useCreatorState() {
     dith, dithMode, dithStrength, setDith, setDithMode, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     orphans, setOrphans, allowBlends, setAllowBlends,
-    pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy,
+    pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, progressMessage, setProgressMessage,
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
     appMode, setAppMode, sidebarTab, setSidebarTab,
@@ -12788,7 +12798,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         style:{padding:"8px 14px",fontSize:'var(--text-sm)',fontWeight:600,
           background:gen.busy?"var(--text-tertiary)":"var(--accent)",color:"var(--surface)",
           border:"none",borderRadius:'var(--radius-md)',cursor:gen.busy?"wait":"pointer"}
-      }, gen.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
+      }, gen.busy ? (gen.progressMessage || "Generating...") : (ctx.pat ? "Regenerate" : "Generate Pattern"));
 
   // ─── Unified sidebar tab bar (Polish 13 step 3) ────────────────────────
   // One tab strip across both appModes. Tools/View are locked until a
@@ -13282,7 +13292,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           border:"none",borderRadius:'var(--radius-md)',
           background:gen.busy?"var(--text-tertiary)":gen.hasGenerated?"var(--surface-tertiary)":"var(--accent)",
           color:gen.hasGenerated?"var(--text-primary)":"var(--surface)"}
-      }, gen.busy ? "Generating\u2026" : (gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate Pattern")),
+      }, gen.busy ? (gen.progressMessage || "Generating\u2026") : (gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate Pattern")),
       // First-generation auto-switches to Edit mode (see useCreatorState.doGen),
       // so no explicit "Edit Pattern →" button is needed here. After
       // regeneration the user is already in Edit mode; the Setup tab strip

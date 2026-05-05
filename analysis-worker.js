@@ -96,14 +96,18 @@ function computeNeighbourCounts(pat, sW, sH) {
 }
 
 // ── Full analysis ─────────────────────────────────────────────────────────
-function runAnalysis(pat, done, sW, sH, REGION_SIZE) {
+function runAnalysis(pat, done, sW, sH, REGION_SIZE, postProgress) {
   if (!pat || !sW || !sH) return null;
   var n = pat.length;
+  var noop = function() {};
+  postProgress = postProgress || noop;
 
+  postProgress("clusters", "Detecting clusters\u2026");
   var cc = computeClusters(pat, sW, sH);
   var clusterLabel = cc.clusterLabel;
   var clusterSizes = cc.clusterSizes;
 
+  postProgress("neighbours", "Measuring neighbours\u2026");
   var neighbourCounts = computeNeighbourCounts(pat, sW, sH);
   var nearestDist = computeNearestSameColour(pat, sW, sH);
 
@@ -278,8 +282,13 @@ self.onmessage = function(e) {
   if (msg.type === "analyse" || msg.type === "analyse_incremental") {
     try {
       var bs = (msg.blockSize >= 5 && msg.blockSize <= 100) ? msg.blockSize : REGION_SIZE;
-      var result = runAnalysis(msg.pat, msg.done, msg.sW, msg.sH, bs);
-      self.postMessage({ type: "result", result: result, requestId: msg.requestId });
+      var requestId = msg.requestId;
+      function postProgress(stage, message) {
+        try { self.postMessage({ type: "progress", stage: stage, message: message, requestId: requestId }); } catch (_) {}
+      }
+      postProgress("start", "Analysing pattern\u2026");
+      var result = runAnalysis(msg.pat, msg.done, msg.sW, msg.sH, bs, postProgress);
+      self.postMessage({ type: "result", result: result, requestId: requestId });
     } catch (err) {
       self.postMessage({ type: "error", message: err.message, requestId: msg.requestId });
     }
