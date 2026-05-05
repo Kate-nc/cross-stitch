@@ -874,3 +874,486 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
     }
   };
 })();
+
+// ═══ Sync Review Gate (SCR-062) ═══
+// Blocking modal shown when incoming sync data is detected.
+// Merges all additive non-conflicting changes silently and presents
+// genuine conflicts for binary resolution ("Keep mine" / "Use synced").
+// No dismiss/cancel path on auto-trigger. Continue enabled once all
+// conflicts resolved (or if none exist).
+//
+// Mounted via window.SyncReviewGate.open(plan, options).
+(function() {
+  if (typeof window === 'undefined') return;
+  var h = React.createElement;
+
+  // ── Sub-component: conflict card ────────────────────────────────────────
+  function SrgConflictCard(props) {
+    var conflict = props.conflict;
+    var resolution = props.resolution;
+    var onResolve = props.onResolve;
+    var deviceName = props.deviceName || 'Synced device';
+
+    function ValueBlock(label, value) {
+      return h('div', { className: 'srg-value-block' },
+        h('div', { className: 'srg-value-label' }, label),
+        h('div', { className: 'srg-value-content' }, value)
+      );
+    }
+
+    var subjectText, subjectSub, localLabel, remoteLabel, localContent, remoteContent;
+
+    if (conflict.type === 'stitch') {
+      subjectText = 'Project: ' + conflict.projectName;
+      subjectSub = conflict.disagreeCount + (conflict.disagreeCount === 1 ? ' stitch' : ' stitches') + ' in disagreement';
+      localLabel = 'This device';
+      remoteLabel = 'Synced from ' + deviceName;
+      localContent = conflict.localStitchCount + ' stitches done';
+      remoteContent = conflict.remoteStitchCount + ' stitches done';
+    } else if (conflict.type === 'chart') {
+      subjectText = 'Project: ' + conflict.projectName;
+      subjectSub = 'Pattern layout differs';
+      localLabel = 'This device';
+      remoteLabel = 'Synced from ' + deviceName;
+      localContent = conflict.localStitchCount + ' stitches done' + (conflict.localUpdatedAt ? ' \u00b7 edited ' + new Date(conflict.localUpdatedAt).toLocaleDateString() : '');
+      remoteContent = conflict.remoteStitchCount + ' stitches done' + (conflict.remoteUpdatedAt ? ' \u00b7 edited ' + new Date(conflict.remoteUpdatedAt).toLocaleDateString() : '');
+    } else if (conflict.type === 'stash') {
+      subjectText = 'Thread: DMC ' + conflict.threadId;
+      subjectSub = 'Owned count differs';
+      localLabel = 'This device';
+      remoteLabel = 'Synced from ' + deviceName;
+      localContent = 'Owned: ' + conflict.localOwned;
+      remoteContent = 'Owned: ' + conflict.remoteOwned;
+    } else if (conflict.type === 'meta') {
+      subjectText = 'Project: ' + conflict.projectName;
+      subjectSub = (conflict.field === 'name' ? 'Name' : conflict.field === 'state' ? 'Status' : conflict.field) + ' differs';
+      localLabel = 'This device';
+      remoteLabel = 'Synced from ' + deviceName;
+      localContent = conflict.localValue || '(empty)';
+      remoteContent = conflict.remoteValue || '(empty)';
+    } else if (conflict.type === 'pref') {
+      subjectText = 'Setting: ' + conflict.label;
+      subjectSub = 'Updated on both devices';
+      localLabel = 'This device';
+      remoteLabel = 'Synced from ' + deviceName;
+      localContent = conflict.localValue || '(not set)';
+      remoteContent = conflict.remoteValue || '(not set)';
+    } else {
+      return null;
+    }
+
+    var isResolved = !!resolution;
+    var keptLocal = resolution === 'keep-local';
+    var keptRemote = resolution === 'keep-remote';
+
+    return h('div', { className: 'srg-conflict-card' + (isResolved ? ' srg-conflict-card--resolved' : '') },
+      h('div', { className: 'srg-conflict-subject' },
+        h('span', { className: 'srg-conflict-subject-text' }, subjectText),
+        h('span', { className: 'srg-conflict-subject-sub' }, subjectSub)
+      ),
+      h('div', { className: 'srg-conflict-sides' },
+        ValueBlock(localLabel, localContent),
+        h('div', { className: 'srg-conflict-vs' }, 'vs'),
+        ValueBlock(remoteLabel, remoteContent)
+      ),
+      h('div', { className: 'srg-conflict-choices' },
+        h('button', {
+          type: 'button',
+          className: 'srg-choice-btn' + (keptLocal ? ' srg-choice-btn--chosen' : ''),
+          'aria-pressed': keptLocal ? 'true' : 'false',
+          onClick: function() { onResolve('keep-local'); }
+        }, keptLocal ? h(React.Fragment, null, Icons.check(), ' Keep mine') : 'Keep mine'),
+        h('button', {
+          type: 'button',
+          className: 'srg-choice-btn' + (keptRemote ? ' srg-choice-btn--chosen' : ''),
+          'aria-pressed': keptRemote ? 'true' : 'false',
+          onClick: function() { onResolve('keep-remote'); }
+        }, keptRemote ? h(React.Fragment, null, Icons.check(), ' Use synced') : 'Use synced')
+      ),
+      isResolved && h('div', { className: 'srg-resolution-badge' },
+        Icons.check(), ' ', keptLocal ? 'Mine kept' : 'Synced used'
+      )
+    );
+  }
+
+  // ── Main SyncReviewGate component ────────────────────────────────────────
+  function SyncReviewGateInner(props) {
+    var plan = props.plan;
+    var autoTrigger = !!props.autoTrigger;
+    var onDone = props.onDone;   // callback after Continue pressed + merge complete
+
+    var _gateState = React.useState(null);
+    var gateState = _gateState[0], setGateState = _gateState[1];
+    var _resolutions = React.useState({});
+    var resolutions = _resolutions[0], setResolutions = _resolutions[1];
+    var _applying = React.useState(false);
+    var applying = _applying[0], setApplying = _applying[1];
+    var _error = React.useState(null);
+    var error = _error[0], setError = _error[1];
+    var autoDismissRef = React.useRef(null);
+
+    React.useEffect(function() {
+      // No plan = "nothing new to review" state (manual open with no pending plan)
+      if (!plan) { setGateState({ noPlan: true }); return; }
+      var cancelled = false;
+      // Pre-analysis: flush state and read snapshot
+      Promise.resolve().then(function() {
+        if (typeof SyncEngine !== 'undefined' && SyncEngine.readSnapshot) {
+          return SyncEngine.readSnapshot();
+        }
+        return null;
+      }).then(function(snapshot) {
+        if (cancelled) return;
+        var analysis = (typeof SyncEngine !== 'undefined' && SyncEngine.analyseConflicts)
+          ? SyncEngine.analyseConflicts(plan, snapshot)
+          : { conflicts: [], stitchSummary: { totalAdded: 0, affectedProjects: 0 }, stashSummary: { updatedCount: 0 }, metaSummary: { updatedCount: 0 }, prefsSummary: { updatedCount: 0, usedTimestampFallback: false }, noSnapshot: true, hasChanges: !!(plan.newRemote && plan.newRemote.length) };
+        setGateState(analysis);
+        // Auto-dismiss for empty automatic triggers after 2 s
+        if (autoTrigger && !analysis.hasChanges && analysis.conflicts.length === 0) {
+          autoDismissRef.current = setTimeout(function() {
+            if (!cancelled) onDone && onDone({ silent: true });
+          }, 2000);
+        }
+      }).catch(function(e) {
+        if (!cancelled) setGateState({ error: e.message || 'Analysis failed.' });
+      });
+      return function() {
+        cancelled = true;
+        if (autoDismissRef.current) clearTimeout(autoDismissRef.current);
+      };
+    }, []);
+
+    function setResolution(id, val) {
+      setResolutions(function(prev) { var n = Object.assign({}, prev); n[id] = val; return n; });
+    }
+
+    function handleContinue() {
+      if (applying) return;
+      // Cancel any pending auto-dismiss
+      if (autoDismissRef.current) { clearTimeout(autoDismissRef.current); autoDismissRef.current = null; }
+      setApplying(true);
+      setError(null);
+      // Build conflictResolutions map for executeImport
+      // Gate uses keep-local/keep-remote; chart conflicts pass through same keys
+      var conflictResMap = {};
+      if (gateState && gateState.conflicts) {
+        gateState.conflicts.forEach(function(c) {
+          var res = resolutions[c.id] || 'keep-local';
+          // Map gate resolution to executeImport resolution keys
+          if (c.type === 'chart') {
+            conflictResMap[c.id] = res;  // already keep-local / keep-remote
+          }
+          // stitch/stash/meta/pref conflicts are not direct executeImport keys
+          // but we store them for the post-merge snapshot
+        });
+      }
+      // Also pass plan.conflicts (fingerprint-level) resolutions
+      if (plan && plan.conflicts) {
+        plan.conflicts.forEach(function(entry) {
+          if (!conflictResMap[entry.id]) {
+            conflictResMap[entry.id] = resolutions['chart:' + entry.id] || resolutions[entry.id] || 'keep-local';
+          }
+        });
+      }
+      // Execute import → write snapshot → dispatch events → onDone
+      Promise.resolve().then(function() {
+        if (typeof SyncEngine === 'undefined') return { imported: 0, merged: 0, conflictsResolved: 0, stashUpdated: false };
+        return SyncEngine.executeImport(plan, conflictResMap);
+      }).then(function(result) {
+        // Write snapshot after merge
+        var writeP = (typeof SyncEngine !== 'undefined' && SyncEngine.writeSnapshot)
+          ? SyncEngine.writeSnapshot() : Promise.resolve();
+        return writeP.then(function() { return result; });
+      }).then(function(result) {
+        // Dispatch events (VER-SYNC-GATE-028, VER-SYNC-GATE-029)
+        try { window.dispatchEvent(new CustomEvent('cs:stashChanged')); } catch(_) {}
+        try { window.dispatchEvent(new CustomEvent('cs:backupRestored')); } catch(_) {}
+        onDone && onDone({ result: result });
+      }).catch(function(e) {
+        setApplying(false);
+        setError(e && e.message ? e.message : 'Sync failed. Please try again.');
+      });
+    }
+
+    // Loading state
+    if (!gateState) {
+      return h(window.Overlay, {
+        onClose: null,
+        variant: 'dialog',
+        className: 'srg-modal',
+        dismissOnScrim: false,
+        labelledBy: 'srg-header',
+        'aria-modal': 'true'
+      },
+        h('div', { className: 'srg-body' },
+          h('div', { className: 'srg-loading' },
+            Icons.spinner && Icons.spinner(), ' Preparing sync review\u2026'
+          )
+        )
+      );
+    }
+
+    // No-plan state (manual open with nothing pending)
+    if (gateState.noPlan) {
+      return h(window.Overlay, {
+        onClose: props.onClose || null,
+        variant: 'dialog',
+        className: 'srg-modal',
+        dismissOnScrim: true,
+        labelledBy: 'srg-header',
+        'aria-modal': 'true'
+      },
+        h(window.Overlay.CloseButton, { onClose: props.onClose }),
+        h('div', { className: 'srg-header' },
+          Icons.cloudSync && Icons.cloudSync(),
+          h('h3', { id: 'srg-header' }, 'Nothing new to review')
+        ),
+        h('div', { className: 'srg-body' },
+          h('p', { className: 'srg-body-text' }, 'Import a .csync file to review changes from another device.')
+        ),
+        h('div', { className: 'srg-footer' },
+          h('button', {
+            type: 'button',
+            className: 'srg-btn srg-btn--primary',
+            onClick: props.onClose
+          }, 'Close')
+        )
+      );
+    }
+
+    // Error state
+    if (gateState.error) {
+      return h(window.Overlay, {
+        onClose: props.onClose || null,
+        variant: 'dialog',
+        className: 'srg-modal',
+        dismissOnScrim: true,
+        labelledBy: 'srg-header',
+        'aria-modal': 'true'
+      },
+        h(window.Overlay.CloseButton, { onClose: props.onClose }),
+        h('div', { className: 'srg-header' },
+          Icons.warning && Icons.warning(),
+          h('h3', { id: 'srg-header' }, 'Sync review failed')
+        ),
+        h('div', { className: 'srg-body' },
+          h('p', { style: { color: 'var(--danger, #C0392B)' } }, gateState.error)
+        ),
+        h('div', { className: 'srg-footer' },
+          h('button', { type: 'button', className: 'srg-btn srg-btn--primary', onClick: props.onClose }, 'Close')
+        )
+      );
+    }
+
+    var deviceName = (plan && plan.summary && plan.summary.deviceName) || 'another device';
+    var headerTitle = deviceName ? 'Changes from ' + deviceName : 'Sync Review';
+    var createdAt = plan && plan.summary && plan.summary.createdAt;
+    var conflicts = gateState.conflicts || [];
+    var resolvedCount = conflicts.filter(function(c) { return !!resolutions[c.id]; }).length;
+    var allResolved = resolvedCount === conflicts.length;
+    var canContinue = allResolved && !applying;
+
+    // "Up to date" empty state
+    if (!gateState.hasChanges && conflicts.length === 0) {
+      return h(window.Overlay, {
+        onClose: null,
+        variant: 'dialog',
+        className: 'srg-modal',
+        dismissOnScrim: false,
+        labelledBy: 'srg-header',
+        'aria-modal': 'true'
+      },
+        h('div', { className: 'srg-header' },
+          Icons.cloudSync && Icons.cloudSync(),
+          h('h3', { id: 'srg-header', className: 'srg-header-title' }, headerTitle)
+        ),
+        h('div', { className: 'srg-body' },
+          h('div', { className: 'srg-empty-state' },
+            h('div', { className: 'srg-empty-icon' }, Icons.check && Icons.check()),
+            h('div', { className: 'srg-empty-heading' }, "You're up to date"),
+            h('p', { className: 'srg-empty-body' }, 'Nothing has changed since your last sync.')
+          )
+        ),
+        h('div', { className: 'srg-footer' },
+          h('button', {
+            type: 'button',
+            className: 'srg-btn srg-btn--primary',
+            autoFocus: true,
+            onClick: function() {
+              if (autoDismissRef.current) { clearTimeout(autoDismissRef.current); autoDismissRef.current = null; }
+              onDone && onDone({ silent: true });
+            }
+          }, 'Continue')
+        )
+      );
+    }
+
+    return h(window.Overlay, {
+      onClose: null,
+      variant: 'dialog',
+      className: 'srg-modal',
+      dismissOnScrim: false,
+      labelledBy: 'srg-header',
+      'aria-modal': 'true'
+    },
+      // Header
+      h('div', { className: 'srg-header' },
+        Icons.cloudSync && Icons.cloudSync(),
+        h('div', null,
+          h('h3', { id: 'srg-header', className: 'srg-header-title' }, headerTitle),
+          createdAt && createdAt !== 'unknown' && h('div', { className: 'srg-header-sub' },
+            'Synced on ' + new Date(createdAt).toLocaleString()
+          )
+        )
+      ),
+
+      // Scrollable body
+      h('div', { className: 'srg-body' },
+
+        // No-snapshot notice
+        gateState.noSnapshot && h('div', { className: 'srg-notice' },
+          Icons.info && Icons.info(), ' No sync history found on this device \u2014 changes merged conservatively.'
+        ),
+
+        // ── Summary section ──────────────────────────────────────────────
+        (gateState.stitchSummary.totalAdded > 0 || gateState.stashSummary.updatedCount > 0 || gateState.metaSummary.updatedCount > 0 || gateState.prefsSummary.updatedCount > 0 || (plan && plan.newRemote && plan.newRemote.length > 0)) && h('div', { className: 'srg-section' },
+          h('div', { className: 'srg-section-heading' }, 'Applied automatically'),
+
+          plan && plan.newRemote && plan.newRemote.length > 0 && h('div', { className: 'srg-summary-row' },
+            h('span', { className: 'srg-summary-icon' }, Icons.folder && Icons.folder()),
+            h('span', null, plan.newRemote.length + ' new project' + (plan.newRemote.length !== 1 ? 's' : '') + ' added')
+          ),
+
+          gateState.stitchSummary.totalAdded > 0 && h('div', { className: 'srg-summary-row' },
+            h('span', { className: 'srg-summary-icon' }, Icons.needle && Icons.needle()),
+            h('span', null,
+              gateState.stitchSummary.totalAdded + ' stitch' + (gateState.stitchSummary.totalAdded !== 1 ? 'es' : '') +
+              ' added across ' + gateState.stitchSummary.affectedProjects + ' project' + (gateState.stitchSummary.affectedProjects !== 1 ? 's' : '')
+            )
+          ),
+
+          gateState.stashSummary.updatedCount > 0 && h('div', { className: 'srg-summary-row' },
+            h('span', { className: 'srg-summary-icon' }, Icons.thread && Icons.thread()),
+            h('span', null,
+              gateState.stashSummary.updatedCount + ' thread count' + (gateState.stashSummary.updatedCount !== 1 ? 's' : '') + ' updated'
+            )
+          ),
+
+          gateState.metaSummary.updatedCount > 0 && h('div', { className: 'srg-summary-row' },
+            h('span', { className: 'srg-summary-icon' }, Icons.folder && Icons.folder()),
+            h('span', null,
+              gateState.metaSummary.updatedCount + ' project' + (gateState.metaSummary.updatedCount !== 1 ? 's' : '') + ' updated (name / status / completion)'
+            )
+          ),
+
+          gateState.prefsSummary.updatedCount > 0 && h('div', { className: 'srg-summary-row' },
+            h('span', { className: 'srg-summary-icon' }, Icons.gear && Icons.gear()),
+            h('span', null,
+              gateState.prefsSummary.updatedCount + ' preference' + (gateState.prefsSummary.updatedCount !== 1 ? 's' : '') + ' updated' +
+              (gateState.prefsSummary.usedTimestampFallback ? ' (applied by date)' : '')
+            )
+          )
+        ),
+
+        // ── Conflicts section ────────────────────────────────────────────
+        conflicts.length > 0 && h('div', { className: 'srg-section srg-conflicts-section' },
+          h('div', { className: 'srg-section-divider' }),
+          h('div', { className: 'srg-conflicts-header' },
+            h('span', { className: 'srg-conflicts-heading' }, 'Resolve conflicts'),
+            h('span', {
+              className: 'srg-counter-chip' + (allResolved ? ' srg-counter-chip--complete' : ''),
+              'aria-live': 'polite'
+            }, resolvedCount + ' of ' + conflicts.length + ' resolved')
+          ),
+          conflicts.map(function(c) {
+            return h(SrgConflictCard, {
+              key: c.id,
+              conflict: c,
+              resolution: resolutions[c.id] || null,
+              deviceName: deviceName,
+              onResolve: function(val) { if (!applying) setResolution(c.id, val); }
+            });
+          })
+        ),
+
+        error && h('div', { className: 'srg-error-row' }, Icons.warning && Icons.warning(), ' ', error)
+      ),
+
+      // Footer
+      h('div', { className: 'srg-footer' },
+        h('button', {
+          type: 'button',
+          className: 'srg-btn srg-btn--primary' + (applying ? ' srg-btn--applying' : ''),
+          'aria-disabled': canContinue ? 'false' : 'true',
+          title: canContinue ? undefined : 'Resolve all conflicts above to continue',
+          onClick: canContinue ? handleContinue : undefined
+        },
+          applying
+            ? h(React.Fragment, null, Icons.spinner && Icons.spinner(), ' Applying\u2026')
+            : 'Continue'
+        )
+      )
+    );
+  }
+
+  // ── Public API: window.SyncReviewGate ────────────────────────────────────
+  var _gateRoot = null;
+  var _gateHost = null;
+
+  window.SyncReviewGate = {
+    // Open the gate. plan = prepareImport plan or null.
+    // options: { autoTrigger: bool }
+    open: function(plan, options) {
+      var opts = options || {};
+      var autoTrigger = !!opts.autoTrigger;
+
+      // Find or create the mount node
+      var mountNode = document.getElementById('sync-review-gate-root');
+      if (!mountNode) {
+        // Fallback: create a temporary host
+        mountNode = document.createElement('div');
+        mountNode.id = 'sync-review-gate-root';
+        document.body.appendChild(mountNode);
+      }
+
+      // Unmount any existing instance first
+      try {
+        if (_gateRoot) { _gateRoot.unmount(); _gateRoot = null; }
+        else if (_gateHost) { ReactDOM.unmountComponentAtNode(_gateHost); }
+      } catch (_) {}
+      _gateHost = mountNode;
+
+      function dismiss(result) {
+        try {
+          if (_gateRoot) { _gateRoot.unmount(); _gateRoot = null; }
+          else { ReactDOM.unmountComponentAtNode(mountNode); }
+        } catch (_) {}
+        // Show success toast when a real merge happened
+        if (result && result.result) {
+          var r = result.result;
+          var parts = [];
+          if (r.imported > 0) parts.push(r.imported + ' imported');
+          if (r.merged > 0) parts.push(r.merged + ' merged');
+          if (r.conflictsResolved > 0) parts.push(r.conflictsResolved + ' resolved');
+          if (r.stashUpdated) parts.push('stash updated');
+          var msg = 'Sync complete \u2014 ' + (parts.join(', ') || 'no changes') + '.';
+          if (window.Toast) window.Toast.show({ message: msg, type: 'success', duration: 5000 });
+        }
+      }
+
+      var el = React.createElement(SyncReviewGateInner, {
+        plan: plan,
+        autoTrigger: autoTrigger,
+        onDone: dismiss,
+        onClose: plan ? null : dismiss.bind(null, null)
+      });
+
+      if (ReactDOM.createRoot) {
+        _gateRoot = ReactDOM.createRoot(mountNode);
+        _gateRoot.render(el);
+      } else {
+        ReactDOM.render(el, mountNode);
+      }
+    }
+  };
+})();

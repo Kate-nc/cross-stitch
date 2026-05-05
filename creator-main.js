@@ -1414,3 +1414,4 @@ function UnifiedApp(){
 })();
 
 ReactDOM.createRoot(document.getElementById("root")).render(<UnifiedApp/>);
+if (typeof SyncEngine !== 'undefined') SyncEngine.registerBeforeUnloadSnapshot();

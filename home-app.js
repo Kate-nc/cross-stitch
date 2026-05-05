@@ -1111,4 +1111,5 @@
       mount();
     }
   }
+  if (typeof SyncEngine !== 'undefined') SyncEngine.registerBeforeUnloadSnapshot();
 })();

@@ -715,6 +715,355 @@ const SyncEngine = (() => {
     return merged;
   }
 
+  // ── Snapshot storage (sync_snapshots IDB store in CrossStitchDB v4) ─────
+  //
+  // The snapshot captures the state of THIS device at the moment it last
+  // completed a sync (or on beforeunload). It is used for three-way conflict
+  // detection: S=snapshot, L=local current, R=remote.
+  //   L≠S AND R≠S AND L≠R  → conflict card
+  //   R≠S AND L=S           → apply remote change silently
+  //   L≠S AND R=S           → keep local, count in summary
+
+  // Human-readable labels for SYNC_PREF_ALLOWLIST keys + palette key.
+  // Used by EL-SCR-062-14 conflict card subject lines.
+  var PREF_HUMAN_LABELS = {
+    "cs_pref_designerName":          "Designer name",
+    "cs_pref_designerLogo":          "Designer logo",
+    "cs_pref_designerLogoPosition":  "Designer logo position",
+    "cs_pref_designerCopyright":     "Designer copyright",
+    "cs_pref_designerContact":       "Designer contact",
+    "cs_pref_units":                 "Units",
+    "cs_pref_currency":              "Currency",
+    "cs_pref_fabricUnit":            "Fabric unit",
+    "crossstitch_custom_palettes":   "Custom palettes"
+  };
+
+  function getPrefLabel(key) {
+    return PREF_HUMAN_LABELS[key] || key;
+  }
+
+  // Open the main CrossStitchDB (uses helpers.js getDB which already bumped to v4)
+  function _openSnapshotDB() {
+    return new Promise(function(resolve, reject) {
+      var req = indexedDB.open("CrossStitchDB", 4);
+      req.onupgradeneeded = function(e) {
+        var db = e.target.result;
+        var ov = e.oldVersion;
+        if (ov < 1) { if (!db.objectStoreNames.contains("projects")) db.createObjectStore("projects"); }
+        if (ov < 2) { if (!db.objectStoreNames.contains("project_meta")) db.createObjectStore("project_meta"); }
+        if (ov < 3) { if (!db.objectStoreNames.contains("stats_summaries")) db.createObjectStore("stats_summaries"); }
+        if (ov < 4) { if (!db.objectStoreNames.contains("sync_snapshots")) db.createObjectStore("sync_snapshots"); }
+      };
+      req.onsuccess = function() { resolve(req.result); };
+      req.onerror = function() { reject(req.error); };
+    });
+  }
+
+  // Read the latest snapshot from IDB. Returns the snapshot object or null.
+  async function readSnapshot() {
+    try {
+      var db = await _openSnapshotDB();
+      return await new Promise(function(resolve, reject) {
+        var tx = db.transaction("sync_snapshots", "readonly");
+        var req = tx.objectStore("sync_snapshots").get("latest");
+        req.onsuccess = function() { db.close(); resolve(req.result || null); };
+        req.onerror = function() { db.close(); reject(req.error); };
+      });
+    } catch (e) {
+      console.warn("SyncEngine: readSnapshot failed:", e);
+      return null;
+    }
+  }
+
+  // Build a snapshot of current local state and write it to IDB.
+  // Called after executeImport() and on beforeunload.
+  async function writeSnapshot() {
+    try {
+      // Flush in-flight React state first
+      if (window.__flushProjectToIDB) { try { await window.__flushProjectToIDB(); } catch (_) {} }
+
+      // Read projects (metadata only: name, state, updatedAt)
+      var projectsSnap = {};
+      try {
+        var metaList = await ProjectStorage.listProjects();
+        for (var mi = 0; mi < metaList.length; mi++) {
+          var m = metaList[mi];
+          if (m && m.id) {
+            projectsSnap[m.id] = {
+              name: m.name || null,
+              state: m.state || null,
+              updatedAt: m.updatedAt || null
+            };
+          }
+        }
+      } catch (_) {}
+
+      // Read stash (threads owned counts)
+      var stashSnap = {};
+      try {
+        var stashData = await readManagerStore();
+        var threads = (stashData && stashData.threads) || {};
+        var tKeys = Object.keys(threads);
+        for (var ti = 0; ti < tKeys.length; ti++) {
+          var tid = tKeys[ti];
+          var t = threads[tid];
+          if (t && typeof t.owned === "number") stashSnap[tid] = t.owned;
+        }
+      } catch (_) {}
+
+      // Read synced prefs (SYNC_PREF_ALLOWLIST + custom palettes)
+      var prefsSnap = {};
+      var prefKeys = SYNC_PREF_ALLOWLIST.concat(["crossstitch_custom_palettes"]);
+      for (var pi = 0; pi < prefKeys.length; pi++) {
+        try {
+          var val = localStorage.getItem(prefKeys[pi]);
+          if (val !== null) prefsSnap[prefKeys[pi]] = val;
+        } catch (_) {}
+      }
+
+      var snapshot = {
+        _snapshotAt: new Date().toISOString(),
+        _deviceId: getDeviceId(),
+        projects: projectsSnap,
+        stash: stashSnap,
+        prefs: prefsSnap
+      };
+
+      var db = await _openSnapshotDB();
+      await new Promise(function(resolve, reject) {
+        var tx = db.transaction("sync_snapshots", "readwrite");
+        tx.objectStore("sync_snapshots").put(snapshot, "latest");
+        tx.oncomplete = function() { db.close(); resolve(); };
+        tx.onerror = function() { db.close(); reject(tx.error); };
+      });
+      return snapshot;
+    } catch (e) {
+      console.warn("SyncEngine: writeSnapshot failed:", e);
+      return null;
+    }
+  }
+
+  // Register a beforeunload handler that writes a snapshot when the page closes.
+  // Safe to call multiple times — only registers once.
+  var _beforeUnloadRegistered = false;
+  function registerBeforeUnloadSnapshot() {
+    if (_beforeUnloadRegistered) return;
+    _beforeUnloadRegistered = true;
+    window.addEventListener("beforeunload", function() {
+      // Best-effort only — browsers may truncate beforeunload async work.
+      writeSnapshot().catch(function() {});
+    });
+  }
+
+  // ── Conflict analysis (gate layer, runs BEFORE executeImport) ────────────
+  //
+  // Produces a gate-specific conflict/summary structure from the prepareImport
+  // plan and an optional IDB snapshot.
+  //
+  // Returns:
+  //   {
+  //     conflicts:       Array of gate conflict objects (stitch/stash/meta/pref)
+  //     stitchSummary:   { totalAdded, affectedProjects }
+  //     stashSummary:    { updatedCount }
+  //     metaSummary:     { updatedCount }
+  //     prefsSummary:    { updatedCount, usedTimestampFallback }
+  //     noSnapshot:      true if snapshot was null (first-run mode)
+  //     hasChanges:      true when any category has at least one change
+  //   }
+  function analyseConflicts(plan, snapshot) {
+    var conflicts = [];
+    var stitchAdded = 0, stitchProjects = 0;
+    var stashUpdated = 0;
+    var metaUpdated = 0;
+    var prefsUpdated = 0, usedTimestampFallback = false;
+    var noSnapshot = !snapshot;
+    var remoteDeviceName = (plan.summary && plan.summary.deviceName) || "";
+    var remoteModeCreatedAt = (plan.summary && plan.summary.createdAt) || null;
+
+    // 1. Stitch conflicts from merge-tracking projects
+    //    local.done[i]=1 AND remote.done[i]=0 → conflict card (per project)
+    //    local.done[i]=0 AND remote.done[i]=1 → silent additive (counted in stitchSummary)
+    var mergeCandidates = (plan.mergeTracking || []).concat(plan.newRemote || []);
+    for (var mi = 0; mi < mergeCandidates.length; mi++) {
+      var entry = mergeCandidates[mi];
+      var local = entry.local || null;
+      var remoteData = entry.remote && entry.remote.data;
+      if (!remoteData) continue;
+      var localDone = (local && local.done) || null;
+      var remoteDone = remoteData.done || null;
+      if (!remoteDone) continue;
+      var patLen = (remoteData.pattern && remoteData.pattern.length) || (localDone && localDone.length) || 0;
+      var cellsAdded = 0, localHas1 = false;
+      for (var ci = 0; ci < patLen; ci++) {
+        var lv = localDone && localDone[ci] === 1 ? 1 : 0;
+        var rv = remoteDone[ci] === 1 ? 1 : 0;
+        if (lv === 0 && rv === 1) cellsAdded++;
+        if (lv === 1 && rv === 0) localHas1 = true;
+      }
+      if (cellsAdded > 0) { stitchAdded += cellsAdded; stitchProjects++; }
+      if (localHas1) {
+        var localTotal = 0, remoteTotal = 0;
+        if (localDone) for (var ldi = 0; ldi < localDone.length; ldi++) if (localDone[ldi] === 1) localTotal++;
+        if (remoteDone) for (var rdi = 0; rdi < remoteDone.length; rdi++) if (remoteDone[rdi] === 1) remoteTotal++;
+        var disagreeCount = 0;
+        for (var di = 0; di < patLen; di++) {
+          var l = localDone && localDone[di] === 1 ? 1 : 0;
+          var r = remoteDone[di] === 1 ? 1 : 0;
+          if (l === 1 && r === 0) disagreeCount++;
+        }
+        conflicts.push({
+          type: "stitch",
+          id: entry.id || (remoteData && remoteData.id),
+          projectName: (local && local.name) || (remoteData && remoteData.name) || entry.id,
+          disagreeCount: disagreeCount,
+          localStitchCount: localTotal,
+          remoteStitchCount: remoteTotal,
+          totalCells: patLen,
+          entry: entry
+        });
+      }
+    }
+
+    // 2. Chart-structural conflicts (existing conflict classification) — pass through
+    for (var fi = 0; fi < (plan.conflicts || []).length; fi++) {
+      var cEntry = plan.conflicts[fi];
+      var cLocal = cEntry.local;
+      var cRemote = cEntry.remote && cEntry.remote.data;
+      if (!cLocal || !cRemote) continue;
+      var cLocalDone = 0, cRemoteDone = 0;
+      if (cLocal.done) for (var cd = 0; cd < cLocal.done.length; cd++) if (cLocal.done[cd] === 1) cLocalDone++;
+      if (cRemote.done) for (var rd = 0; rd < cRemote.done.length; rd++) if (cRemote.done[rd] === 1) cRemoteDone++;
+      conflicts.push({
+        type: "chart",
+        id: cEntry.id,
+        projectName: (cLocal && cLocal.name) || (cRemote && cRemote.name) || cEntry.id,
+        localStitchCount: cLocalDone,
+        remoteStitchCount: cRemoteDone,
+        localUpdatedAt: cLocal.updatedAt || null,
+        remoteUpdatedAt: cRemote.updatedAt || null,
+        localProject: cLocal,
+        remoteProject: cRemote,
+        entry: cEntry
+      });
+    }
+
+    // 3. Stash conflicts (requires snapshot)
+    if (plan.stashMerge && plan.syncObj && plan.syncObj.stash) {
+      var localThreads = (plan.localStash && plan.localStash.threads) || {};
+      var remoteThreads = (plan.syncObj.stash && plan.syncObj.stash.threads) || {};
+      var snapStash = (snapshot && snapshot.stash) || {};
+      var allThreadIds = Object.create(null);
+      Object.keys(localThreads).forEach(function(id) { allThreadIds[id] = true; });
+      Object.keys(remoteThreads).forEach(function(id) { allThreadIds[id] = true; });
+      Object.keys(allThreadIds).forEach(function(id) {
+        var L = (localThreads[id] && typeof localThreads[id].owned === "number") ? localThreads[id].owned : 0;
+        var R = (remoteThreads[id] && typeof remoteThreads[id].owned === "number") ? remoteThreads[id].owned : 0;
+        if (L === R) return;
+        if (!noSnapshot) {
+          var S = typeof snapStash[id] === "number" ? snapStash[id] : null;
+          if (S !== null) {
+            if (L !== S && R !== S && L !== R) {
+              // Both devices changed it differently — conflict
+              conflicts.push({ type: "stash", id: "stash:" + id, threadId: id, localOwned: L, remoteOwned: R, snapshotOwned: S });
+            } else if (R !== S && L === S) {
+              stashUpdated++; // apply remote silently
+            } else if (L !== S && R === S) {
+              stashUpdated++; // keep local silently
+            }
+          } else {
+            // Thread not in snapshot — treat as non-conflicting (conservative merge)
+            if (R > L) stashUpdated++;
+          }
+        } else {
+          // No snapshot — all stash differences are non-conflicting (Math.max)
+          if (R > L) stashUpdated++;
+        }
+      });
+    }
+
+    // 4. Metadata conflicts (project name/state — requires snapshot)
+    var snapProjects = (snapshot && snapshot.projects) || {};
+    var metaEntries = (plan.mergeTracking || []).concat(plan.newRemote || []).concat(plan.conflicts || []);
+    var seenMeta = Object.create(null);
+    for (var pi = 0; pi < metaEntries.length; pi++) {
+      var pe = metaEntries[pi];
+      var pLocal = pe.local;
+      var pRemote = pe.remote && pe.remote.data;
+      if (!pLocal || !pRemote) continue;
+      var pid = pe.id;
+      if (seenMeta[pid]) continue;
+      seenMeta[pid] = true;
+      var snapMeta = snapProjects[pid] || null;
+      var metaFields = ["name", "state"];
+      for (var mfi = 0; mfi < metaFields.length; mfi++) {
+        var field = metaFields[mfi];
+        var Lv = pLocal[field] || null;
+        var Rv = pRemote[field] || null;
+        if (Lv === Rv) continue;
+        if (!noSnapshot && snapMeta) {
+          var Sv = snapMeta[field] || null;
+          if (Lv !== Sv && Rv !== Sv && Lv !== Rv) {
+            conflicts.push({ type: "meta", id: "meta:" + pid + ":" + field, projectId: pid, field: field, localValue: Lv, remoteValue: Rv, projectName: pLocal.name || pRemote.name || pid });
+          } else if (Rv !== Sv && Lv === Sv) {
+            metaUpdated++;
+          } else if (Lv !== Sv && Rv === Sv) {
+            metaUpdated++;
+          }
+        } else {
+          // No snapshot — apply remote value conservatively
+          metaUpdated++;
+        }
+      }
+    }
+
+    // 5. Pref conflicts (requires snapshot)
+    if (plan.syncObj && plan.syncObj.prefs) {
+      var remotePrefs = plan.syncObj.prefs;
+      var snapPrefs = (snapshot && snapshot.prefs) || {};
+      var prefKeys = Object.keys(remotePrefs);
+      for (var pkIdx = 0; pkIdx < prefKeys.length; pkIdx++) {
+        var pkey = prefKeys[pkIdx];
+        var Lp = null;
+        try { Lp = localStorage.getItem(pkey); } catch (_) {}
+        var Rp = remotePrefs[pkey] || null;
+        if (Lp === Rp) continue;
+        if (!noSnapshot) {
+          var Sp = snapPrefs[pkey] || null;
+          if (Sp !== null) {
+            if (Lp !== Sp && Rp !== Sp && Lp !== Rp) {
+              conflicts.push({ type: "pref", id: "pref:" + pkey, prefKey: pkey, localValue: Lp, remoteValue: Rp, snapshotValue: Sp, label: getPrefLabel(pkey) });
+            } else if (Rp !== Sp && Lp === Sp) {
+              prefsUpdated++;
+            } else if (Lp !== Sp && Rp === Sp) {
+              prefsUpdated++;
+            }
+          } else {
+            // Key not in snapshot — timestamp wins
+            usedTimestampFallback = true;
+            prefsUpdated++;
+          }
+        } else {
+          // No snapshot — timestamp wins
+          usedTimestampFallback = true;
+          prefsUpdated++;
+        }
+      }
+    }
+
+    var hasChanges = stitchAdded > 0 || stashUpdated > 0 || metaUpdated > 0 || prefsUpdated > 0 ||
+      (plan.newRemote && plan.newRemote.length > 0) || conflicts.length > 0;
+
+    return {
+      conflicts: conflicts,
+      stitchSummary: { totalAdded: stitchAdded, affectedProjects: stitchProjects },
+      stashSummary: { updatedCount: stashUpdated },
+      metaSummary: { updatedCount: metaUpdated },
+      prefsSummary: { updatedCount: prefsUpdated, usedTimestampFallback: usedTimestampFallback },
+      noSnapshot: noSnapshot,
+      hasChanges: hasChanges
+    };
+  }
+
   // ── Import (full pipeline) ───────────────────────────────────────────────
 
   async function prepareImport(syncObj) {
@@ -1162,6 +1511,15 @@ const SyncEngine = (() => {
     validate: validate,
     prepareImport: prepareImport,
     executeImport: executeImport,
+
+    // Snapshot
+    readSnapshot: readSnapshot,
+    writeSnapshot: writeSnapshot,
+    registerBeforeUnloadSnapshot: registerBeforeUnloadSnapshot,
+
+    // Gate-layer conflict analysis
+    analyseConflicts: analyseConflicts,
+    getPrefLabel: getPrefLabel,
 
     // Merge (exposed for testing)
     computeFingerprint: computeFingerprint,
