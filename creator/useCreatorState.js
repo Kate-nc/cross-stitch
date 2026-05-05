@@ -946,18 +946,19 @@ window.useCreatorState = function useCreatorState() {
       setCleanupDiff(null);
     }
     if (!hasGenerated) {
+      // First generation only: collapse all the settings accordions so
+      // they don't clutter the sidebar now that editing has started.
       setDimOpen(false); setPalOpen(false); setFabOpen(false);
       setAdjOpen(false); setBgOpen(false); setCleanupOpen(false);
       setHasGenerated(true);
-      // Auto-switch to Edit mode on the *first* successful generation. Saving
-      // already happens automatically (see useProjectIO.js auto-save effect),
-      // and the previous "Edit Pattern →" button caused confusion because
-      // users assumed they had to click it before the pattern was persisted.
-      // Regenerations stay in the current mode so power users tweaking image
-      // settings aren't bounced back and forth.
-      setAppMode("edit");
-      setSidebarTab("palette");
     }
+    // Always switch to Edit mode after any generation — first or re-generate.
+    // Previously only the first generate did this; regenerating from the
+    // Image / Dimensions / Palette sidebar tabs left users stranded in
+    // create mode with no pattern to show. Now every successful generation
+    // lands on the Palette tab in Edit mode (same as before, but consistently).
+    setAppMode("edit");
+    setSidebarTab("palette");
     var z = Math.min(3, Math.max(0.05, 750 / (sW * 20)));
     setTimeout(function() { setZoom(z); }, 0);
     setBusy(false);

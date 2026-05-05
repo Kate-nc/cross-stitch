@@ -6249,18 +6249,19 @@ window.useCreatorState = function useCreatorState() {
       setCleanupDiff(null);
     }
     if (!hasGenerated) {
+      // First generation only: collapse all the settings accordions so
+      // they don't clutter the sidebar now that editing has started.
       setDimOpen(false); setPalOpen(false); setFabOpen(false);
       setAdjOpen(false); setBgOpen(false); setCleanupOpen(false);
       setHasGenerated(true);
-      // Auto-switch to Edit mode on the *first* successful generation. Saving
-      // already happens automatically (see useProjectIO.js auto-save effect),
-      // and the previous "Edit Pattern →" button caused confusion because
-      // users assumed they had to click it before the pattern was persisted.
-      // Regenerations stay in the current mode so power users tweaking image
-      // settings aren't bounced back and forth.
-      setAppMode("edit");
-      setSidebarTab("palette");
     }
+    // Always switch to Edit mode after any generation — first or re-generate.
+    // Previously only the first generate did this; regenerating from the
+    // Image / Dimensions / Palette sidebar tabs left users stranded in
+    // create mode with no pattern to show. Now every successful generation
+    // lands on the Palette tab in Edit mode (same as before, but consistently).
+    setAppMode("edit");
+    setSidebarTab("palette");
     var z = Math.min(3, Math.max(0.05, 750 / (sW * 20)));
     setTimeout(function() { setZoom(z); }, 0);
     setBusy(false);
@@ -13293,10 +13294,9 @@ window.CreatorSidebar = function CreatorSidebar() {
           background:gen.busy?"var(--text-tertiary)":gen.hasGenerated?"var(--surface-tertiary)":"var(--accent)",
           color:gen.hasGenerated?"var(--text-primary)":"var(--surface)"}
       }, gen.busy ? (gen.progressMessage || "Generating\u2026") : (gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate Pattern")),
-      // First-generation auto-switches to Edit mode (see useCreatorState.doGen),
-      // so no explicit "Edit Pattern →" button is needed here. After
-      // regeneration the user is already in Edit mode; the Setup tab strip
-      // takes them back to Image / Dimensions / Palette.
+      // Every generation (first or re-generate) auto-switches to Edit mode
+      // (see useCreatorState applyResultRef). The Setup tab strip (Image /
+      // Dimensions / Palette tabs) takes the user back to create mode.
       // Hint text
       !gen.img && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textAlign:"center",padding:"4px 0"}},
         "Upload an image to get started")

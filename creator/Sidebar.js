@@ -1571,10 +1571,9 @@ window.CreatorSidebar = function CreatorSidebar() {
           background:gen.busy?"var(--text-tertiary)":gen.hasGenerated?"var(--surface-tertiary)":"var(--accent)",
           color:gen.hasGenerated?"var(--text-primary)":"var(--surface)"}
       }, gen.busy ? (gen.progressMessage || "Generating\u2026") : (gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate Pattern")),
-      // First-generation auto-switches to Edit mode (see useCreatorState.doGen),
-      // so no explicit "Edit Pattern →" button is needed here. After
-      // regeneration the user is already in Edit mode; the Setup tab strip
-      // takes them back to Image / Dimensions / Palette.
+      // Every generation (first or re-generate) auto-switches to Edit mode
+      // (see useCreatorState applyResultRef). The Setup tab strip (Image /
+      // Dimensions / Palette tabs) takes the user back to create mode.
       // Hint text
       !gen.img && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textAlign:"center",padding:"4px 0"}},
         "Upload an image to get started")
