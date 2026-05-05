@@ -44,6 +44,7 @@
     "@babel/standalone": "^7.29.2",
     "@pdf-lib/fontkit": "^1.1.1",
     "@playwright/test": "^1.59.1",
+    "fake-indexeddb": "^6.2.5",
     "fast-check": "^3.23.2",
     "husky": "^9.1.7",
     "jest": "^30.3.0",
