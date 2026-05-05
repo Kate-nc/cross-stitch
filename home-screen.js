@@ -201,7 +201,7 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
   var ts = proj.totalStitches || 0;
   var pct = ts > 0 ? Math.round(cs / ts * 100) : 0;
   var days = daysBetween(proj.lastSessionDate || proj.updatedAt);
-  var isNeglected = days != null && days > 13;
+  var isNeglected = days != null && days >= 13;
   var remHours = estimateRemainingHours(proj);
   var weekSt = proj.stitchesThisWeek || 0;
   var weekSess = 0; // not stored in meta, skip for now

@@ -1,0 +1,4 @@
+- [ ] `VER-EL-SCR-002-03-01` â€” File input must accept all pattern file extensions (.oxs, .xml, .json, .pdf); verify MIME type filtering  <sub>[reports/specs/home.md#L2146](../reports/specs/home.md)</sub>
+- [ ] `VER-EL-SCR-002-04-02` â€” sessionStorage quota exceeded error must display user-friendly message (not raw error)  <sub>[reports/specs/home.md#L2148](../reports/specs/home.md)</sub>
+- [ ] `VER-EL-SCR-052-11-02` â€” Continue Bar sticky positioning must not overlap bulk action bar when selection mode active; test layout on tablet  <sub>[reports/specs/home.md#L2164](../reports/specs/home.md)</sub>
+- [ ] `VER-EL-SCR-053-13-01` â€” Recency warning styling (mpd-card-recency--warn) must apply if days >= 13; test visual distinction  <sub>[reports/specs/home.md#L2173](../reports/specs/home.md)</sub>
