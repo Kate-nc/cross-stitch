@@ -11,7 +11,7 @@ This specification covers keyboard interaction, focus behaviour, ARIA attributes
 ## Global keyboard shortcut registry
 
 [shortcuts.js](shortcuts.js) provides `window.Shortcuts` â€” the single authoritative registry managing all keyboard shortcuts across the app. The registry uses hierarchical dot-separated scopes (e.g. `creator.design`, `tracker.view`) with most-specific-wins dispatch.
-
+{% raw %}
 | Scope | Shortcut | Handler | Triggered on | Platform variants | Notes |
 |---|---|---|---|---|---|
 | `global` | `?` | `cs:openShortcuts` event dispatch | text outside input | Capture phase; prevents browser default | Opens Help Drawer Shortcuts tab |
@@ -485,3 +485,4 @@ Files with `@media (prefers-reduced-motion: reduce)` blocks:
 - [ ] `VER-A11Y-039` â€” Shift+F10 context menu works on Windows; Cmd+Shift+? or equivalent on macOS. **Test on Windows**: Press Shift+F10 on canvas, verify menu appears. **Test on macOS**: Verify equivalent key works or falls back gracefully.
 
 - [ ] `VER-A11Y-040` â€” Keyboard modifiers correctly map to Cmd on macOS, Ctrl on Windows/Linux. **Test**: Inspect shortcuts.js parseKey() output for `mod` token; verify it maps to metaKey on Mac event and ctrlKey on Windows event.
+{% endraw %}

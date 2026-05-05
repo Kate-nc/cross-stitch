@@ -1,6 +1,8 @@
 # Help & Tooltip Patterns — Technical Audit
 <!-- audit ref: help-audit-6 -->
 
+{% raw %}
+
 ## Overview
 
 This audit inventories every mechanism used to surface contextual help, tooltips,
@@ -444,3 +446,5 @@ function InfoIcon({ text, width }) {
 - `onboarding-wizard.js` — new-user flow; separate system
 - `pdf-export-worker.js` / `creator/pdfExport.js` — no user-facing UI
 - `sw.js` / `sw-register.js` — service worker, no UI
+
+{% endraw %}
