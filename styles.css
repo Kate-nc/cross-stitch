@@ -6958,3 +6958,19 @@ body.cs-focus .lpanel-backdrop { display: none !important; }
     width: auto !important;
   }
 }
+
+/* ── App version badge (version.js) ─────────────────────────────── */
+#app-version-badge {
+  position: fixed;
+  bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+  right: 8px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text-secondary);
+  opacity: 0.45;
+  pointer-events: none;
+  user-select: none;
+  z-index: 1;
+  font-family: inherit;
+  letter-spacing: 0.02em;
+}

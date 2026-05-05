@@ -24,8 +24,9 @@ describe('sw.js precache (UX-12 Phase 7 PR #13)', () => {
   // headers and CSS network-first strategy were added. Bumped to v40 when
   // precache requests were upgraded to { cache: 'no-cache' } for
   // defence-in-depth against the browser HTTP cache during SW install.
-  test('CACHE_NAME bumped to v40', () => {
-    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v40['"]/);
+  // Bumped to v41 when version.js was added to the precache.
+  test('CACHE_NAME bumped to v41', () => {
+    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v41['"]/);
   });
 
   test('PRECACHE_URLS includes home.html', () => {
