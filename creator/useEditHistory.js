@@ -1,7 +1,24 @@
 /* creator/useEditHistory.js — Undo/redo for pixel/partial-stitch/backstitch edits.
    Uses a delta (change-list) approach: each history entry stores the OLD values
    of changed cells so they can be restored without keeping full snapshots.
-   Expects a `state` object returned from useCreatorState. */
+   Expects a `state` object returned from useCreatorState.
+
+   Known entry shapes (DEFECT-012 — explicit catalogue so future contributors
+   don't have to reverse-engineer the branches):
+     - { type: "add_colour", addedEntry, changes }
+         Specific branch in undoEdit/redoEdit. Pops/pushes a colour on the
+         scratch palette and rebuilds pal/cmap.
+     - { type: "remove_unused_colours", removedFromPal, removedFromScratch }
+         Specific branch in undoEdit/redoEdit. Restores palette entries.
+     - { type: "colourReplace", changes }    // British spelling — see DEFECT-005.
+     - { type: "paint" | "erase" | "fill" | "rect" | "lasso" | undefined,
+         changes, psChanges?, bsLines? }
+         Generic fallthrough: handled by the same `last.changes` loop. The
+         `type` string is *preserved* on the redo stack but never inspected —
+         any new edit type that produces a `changes` array will Just Work
+         without touching this file. New types that need bespoke palette
+         handling must add their own branch above the generic loop.
+*/
 
 window.useEditHistory = function useEditHistory(state) {
   function undoEdit() {
@@ -37,6 +54,35 @@ window.useEditHistory = function useEditHistory(state) {
         return n;
       });
       if (state.addToast) state.addToast("Undo: removed added colour " + aid, {type:"info", duration:1500});
+      return;
+    }
+
+    // Handle remove_unused_colours undo: restore the removed colours
+    if (last.type === "remove_unused_colours") {
+      var restoredFromPal = last.removedFromPal || [];
+      var restoredFromScratch = last.removedFromScratch || [];
+      state.setPal(function(prev) {
+        if (!prev) return restoredFromPal.slice();
+        var existingIds = new Set(prev.map(function(p) { return p.id; }));
+        return prev.concat(restoredFromPal.filter(function(p) { return !existingIds.has(p.id); }));
+      });
+      state.setScratchPalette(function(prev) {
+        var existingIds = new Set(prev.map(function(p) { return p.id; }));
+        return prev.concat(restoredFromScratch.filter(function(p) { return !existingIds.has(p.id); }));
+      });
+      state.setCmap(function(prev) {
+        if (!prev) return prev;
+        var n = Object.assign({}, prev);
+        restoredFromPal.forEach(function(p) { n[p.id] = p; });
+        return n;
+      });
+      state.setEditHistory(function(prev) { return prev.slice(0, -1); });
+      state.setRedoHistory(function(prev) {
+        var n = prev.concat([{ type: "remove_unused_colours", removedFromPal: restoredFromPal, removedFromScratch: restoredFromScratch }]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      if (state.addToast) state.addToast("Undo: restored " + restoredFromPal.length + " colour" + (restoredFromPal.length !== 1 ? "s" : "") + " to palette", {type:"info", duration:1500});
       return;
     }
 
@@ -94,6 +140,24 @@ window.useEditHistory = function useEditHistory(state) {
         return n;
       });
       if (state.addToast) state.addToast("Redo: re-added colour " + entry.id, {type:"info", duration:1500});
+      return;
+    }
+
+    // Handle remove_unused_colours redo: re-remove the colours
+    if (last.type === "remove_unused_colours") {
+      var toRemove = last.removedFromPal || [];
+      var toRemoveScratch = last.removedFromScratch || [];
+      var toRemoveIds = new Set(toRemove.map(function(p) { return p.id; }));
+      state.setPal(function(prev) { return prev ? prev.filter(function(p) { return !toRemoveIds.has(p.id); }) : prev; });
+      state.setScratchPalette(function(prev) { return prev.filter(function(p) { return !toRemoveIds.has(p.id); }); });
+      state.setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); toRemoveIds.forEach(function(id) { delete n[id]; }); return n; });
+      state.setRedoHistory(function(prev) { return prev.slice(0, -1); });
+      state.setEditHistory(function(prev) {
+        var n = prev.concat([{ type: "remove_unused_colours", removedFromPal: toRemove, removedFromScratch: toRemoveScratch }]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      if (state.addToast) state.addToast("Redo: removed " + toRemove.length + " unused colour" + (toRemove.length !== 1 ? "s" : ""), {type:"info", duration:1500});
       return;
     }
 

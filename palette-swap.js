@@ -1059,6 +1059,7 @@ function usePaletteSwap(props) {
   var setDone = props.setDone;
   var EDIT_HISTORY_MAX = props.EDIT_HISTORY_MAX || 50;
   var buildPaletteWithScratch = props.buildPaletteWithScratch || buildPalette;
+  var genPatSnapshot = props.genPatSnapshot || null;
 
   // State
   var _s1 = React.useState(0), shiftDeg = _s1[0], setShiftDeg = _s1[1];
@@ -1077,6 +1078,26 @@ function usePaletteSwap(props) {
   var beforeRef = React.useRef(null);
   var afterRef = React.useRef(null);
   var debounceRef = React.useRef(null);
+  // Keep a ref to pat so the hasPaletteChanged memo can read the latest pat
+  // without pat being listed as a dep. This avoids running the O(n) scan on
+  // every intermediate paint state — it only reruns when a history entry is
+  // committed (editHistory changes), at which point patRef.current is already
+  // the fully-committed pat value (React 18 batches setPat + setEditHistory).
+  var patRef = React.useRef(pat);
+  patRef.current = pat;
+
+  // True when pat has diverged from the generated snapshot (i.e. at least one
+  // cell id has changed since generation). Used to enable/disable revert button.
+  var hasPaletteChanged = React.useMemo(function() {
+    var currentPat = patRef.current;
+    if (!genPatSnapshot || !currentPat) return false;
+    var snap = genPatSnapshot.pat;
+    if (snap.length !== currentPat.length) return true;
+    for (var i = 0; i < currentPat.length; i++) {
+      if (currentPat[i].id !== snap[i].id) return true;
+    }
+    return false;
+  }, [genPatSnapshot, editHistory]); // dep on editHistory, not pat — see patRef above
 
   // Compute mapping
   var computedMapping = React.useMemo(function() {
@@ -1189,6 +1210,33 @@ function usePaletteSwap(props) {
     });
   }
 
+  // Revert all palette changes back to the generated snapshot
+  function revertToGenPalette() {
+    if (!genPatSnapshot || !hasPaletteChanged) return;
+    var snap = genPatSnapshot;
+    var changes = [];
+    for (var i = 0; i < pat.length; i++) {
+      if (pat[i] && snap.pat[i] && pat[i].id !== snap.pat[i].id) {
+        changes.push({ idx: i, old: Object.assign({}, pat[i]) });
+      }
+    }
+    if (changes.length === 0) return;
+    setEditHistory(function(prev) {
+      var n = prev.concat([{ type: 'revert_to_gen', changes: changes }]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    setRedoHistory([]);
+    setPat(snap.pat.slice());
+    setPal(snap.pal.slice());
+    setCmap(Object.assign({}, snap.cmap));
+    // DO NOT zero `done` here. Palette revert changes colours assigned to each
+    // cell index, but it does NOT move stitches around. A done mark at index i
+    // means "the user stitched cell i" and remains semantically valid after a
+    // revert. Wiping it would silently destroy stitching progress (DEFECT-004).
+    setShiftDeg(0); setActivePreset(null); setActiveTier(null); setMappingOverrides(null);
+  }
+
   // Apply swap
   function applySwap() {
     // Record undo
@@ -1222,7 +1270,9 @@ function usePaletteSwap(props) {
     setPat(newPat);
     setPal(result.pal);
     setCmap(result.cmap);
-    setDone(new Uint8Array(newPat.length));
+    // DO NOT zero `done` here. A palette swap re-colours cells in place but
+    // does not move them, so existing done marks remain valid for the same
+    // indices. Wiping silently would destroy stitching progress (DEFECT-004).
 
     // Reset swap state
     setShiftDeg(0);
@@ -1751,5 +1801,28 @@ function usePaletteSwap(props) {
   ) : null;
 
   // Return the component parts for the host CreatorApp to place
-  return { shiftSection: shiftSection, presetSection: presetSection, confirmView: confirmView, showConfirm: showConfirm };
+  var revertSection = genPatSnapshot
+    ? React.createElement('div', { style: { marginTop: 4, paddingTop: 8, borderTop: '1px solid var(--line)' } },
+        React.createElement('button', {
+          onClick: revertToGenPalette,
+          disabled: !hasPaletteChanged,
+          title: hasPaletteChanged
+            ? 'Restore the palette from when this pattern was generated'
+            : 'Palette is already at the generated state',
+          style: {
+            width: '100%', fontSize: 12, padding: '7px 12px',
+            borderRadius: 'var(--radius-sm)',
+            cursor: hasPaletteChanged ? 'pointer' : 'default',
+            background: 'var(--surface)', color: 'var(--text-primary)',
+            border: '1px solid var(--line)', opacity: hasPaletteChanged ? 1 : 0.5,
+            display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center'
+          }
+        },
+          typeof Icons !== 'undefined' && Icons.undo ? Icons.undo() : null,
+          'Revert to generated palette'
+        )
+      )
+    : null;
+
+  return { shiftSection: shiftSection, presetSection: presetSection, confirmView: confirmView, showConfirm: showConfirm, revertSection: revertSection };
 }

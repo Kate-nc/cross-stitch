@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Proposal B — Visual / Satisfying · Real-Time Stash Deduction</title>
+<style>
+:root {
+  --accent: #5b6af0;
+  --accent-light: #eef0fd;
+  --surface: #ffffff;
+  --surface-2: #f7f8fa;
+  --surface-3: #f0f1f4;
+  --text-primary: #1a1d23;
+  --text-secondary: #5a6278;
+  --text-tertiary: #9aa0b5;
+  --border: #e3e5ec;
+  --success: #2e9e5b;
+  --success-light: #e6f7ee;
+  --warning: #c47a1a;
+  --warning-light: #fef3e2;
+  --danger: #d93c3c;
+  --danger-light: #fdecea;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.08);
+  --shadow-md: 0 4px 16px rgba(0,0,0,.10);
+  font-size: 14px;
+}
+[data-theme="dark"] {
+  --surface: #1a1d23; --surface-2: #22262e; --surface-3: #2a2f3a;
+  --text-primary: #f0f1f5; --text-secondary: #9aa0b5; --text-tertiary: #5a6278;
+  --border: #2e3341; --accent-light: #1e2251;
+  --success-light: #1a2f22; --warning-light: #2b1f0a; --danger-light: #2b0f0f;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--surface-2); color: var(--text-primary); min-height: 100vh; }
+
+.page { display: grid; grid-template-columns: 1fr 340px; height: 100vh; overflow: hidden; }
+.main { display: flex; flex-direction: column; overflow: hidden; }
+.sidebar { background: var(--surface); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden; }
+.toolbar { background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 10px 16px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.toolbar-title { font-weight: 700; font-size: 15px; flex: 1; }
+.canvas-area { flex: 1; display: flex; align-items: center; justify-content: center;
+  background: var(--surface-3); position: relative; overflow: hidden; }
+.canvas-grid { display: grid; gap: 1px; background: var(--border); border: 1px solid var(--border); }
+.cell { width: 14px; height: 14px; cursor: pointer; transition: filter .1s; }
+.cell:hover { filter: brightness(1.15); }
+.cell.done { opacity: .45; }
+
+/* ── Spool SVG component ── */
+.spool-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 6px 0; }
+.spool-svg { width: 44px; height: 52px; }
+.spool-label { font-size: 10px; font-weight: 700; color: var(--text-secondary); }
+.spool-pct { font-size: 11px; color: var(--text-tertiary); }
+
+/* ── Thread chip (spool style) ── */
+.thread-chip { display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+  border-bottom: 1px solid var(--border); cursor: pointer; transition: background .15s; }
+.thread-chip:hover { background: var(--surface-2); }
+.thread-chip.active { background: var(--accent-light); }
+.chip-info { flex: 1; min-width: 0; }
+.chip-id { font-weight: 700; font-size: 13px; }
+.chip-name { font-size: 11px; color: var(--text-tertiary); }
+.chip-counts { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.chip-action { display: flex; gap: 4px; }
+.chip-btn { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--surface); cursor: pointer; display: flex; align-items: center;
+  justify-content: center; font-size: 14px; color: var(--text-secondary);
+  transition: background .1s; }
+.chip-btn:hover { background: var(--surface-3); }
+
+/* ── Stitch burst animation ── */
+@keyframes burst {
+  0%   { transform: scale(1) translate(-50%, -50%); opacity: 1; }
+  100% { transform: scale(2.2) translate(-50%, -50%); opacity: 0; }
+}
+.stitch-burst { position: absolute; pointer-events: none; width: 20px; height: 20px;
+  border-radius: 50%; border: 2px solid var(--accent); transform: translate(-50%, -50%);
+  animation: burst .4s ease-out forwards; z-index: 20; }
+
+/* ── Skein celebration ── */
+@keyframes celebrate {
+  0%   { transform: translateY(0) scale(1); opacity: 1; }
+  50%  { transform: translateY(-24px) scale(1.15); opacity: 1; }
+  100% { transform: translateY(-40px) scale(0.8); opacity: 0; }
+}
+.skein-complete-msg { position: absolute; bottom: 20px; right: 24px;
+  background: var(--success-light); color: var(--success);
+  border: 1px solid rgba(46,158,91,.3); border-radius: 20px;
+  padding: 8px 18px; font-size: 13px; font-weight: 700;
+  animation: celebrate .6s ease-out 0s 1 normal forwards;
+  pointer-events: none; z-index: 30; }
+
+/* ── First-use wizard ── */
+.wizard-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5);
+  display: flex; align-items: center; justify-content: center; z-index: 100; }
+.wizard { background: var(--surface); border-radius: var(--radius-lg); padding: 28px;
+  width: 440px; max-width: 95vw; box-shadow: var(--shadow-md); }
+.wizard-step { display: none; }
+.wizard-step.active { display: block; }
+.wizard-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+.wizard-sub { font-size: 14px; color: var(--text-secondary); margin-bottom: 24px; line-height: 1.5; }
+.wizard-pref-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.wizard-pref-label { flex: 1; }
+.wizard-pref-name { font-weight: 600; font-size: 14px; }
+.wizard-pref-hint { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
+.wizard-pref-control { display: flex; align-items: center; gap: 8px; }
+.pref-input { width: 72px; padding: 6px 8px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--surface); color: var(--text-primary); font-size: 13px; }
+.pref-range { accent-color: var(--accent); width: 90px; }
+.wizard-footer { display: flex; justify-content: space-between; align-items: center;
+  margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); }
+.wizard-dots { display: flex; gap: 6px; }
+.wizard-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+.wizard-dot.active { background: var(--accent); }
+.btn { padding: 9px 18px; border-radius: var(--radius-md); font-size: 14px;
+  font-weight: 600; cursor: pointer; border: none; }
+.btn-primary { background: var(--accent); color: white; }
+.btn-secondary { background: var(--surface-3); color: var(--text-primary);
+  border: 1px solid var(--border); }
+
+.panel-header { padding: 14px 16px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.panel-title { font-weight: 700; font-size: 14px; }
+.panel-meta { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
+.thread-list { flex: 1; overflow-y: auto; }
+.thread-group-header { padding: 8px 16px 4px; font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--text-tertiary); }
+.sw { width: 20px; height: 20px; border-radius: 4px; flex-shrink: 0;
+  border: 1px solid rgba(0,0,0,.1); }
+.warn-badge { display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 700; color: var(--warning);
+  background: var(--warning-light); border-radius: 10px; padding: 1px 7px; }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45);
+  display: flex; align-items: center; justify-content: center; z-index: 90; }
+.modal { background: var(--surface); border-radius: var(--radius-lg); padding: 24px;
+  width: 400px; max-width: 94vw; box-shadow: var(--shadow-md); }
+.modal-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+.modal-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; }
+.modal-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }
+.modal-table th { text-align: left; padding: 4px 8px; font-size: 11px; font-weight: 600;
+  color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .05em;
+  border-bottom: 1px solid var(--border); }
+.modal-table td { padding: 7px 8px; border-bottom: 1px solid var(--border); }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.theme-btn { padding: 5px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--surface); color: var(--text-secondary); cursor: pointer; font-size: 12px; }
+.proposal-header { background: #7c3aed; color: white; padding: 10px 20px;
+  font-size: 13px; display: flex; align-items: center; justify-content: space-between; }
+.proposal-title { font-weight: 700; }
+.proposal-desc { opacity: .85; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="proposal-header">
+  <div>
+    <div class="proposal-title">Proposal B — Visual / Satisfying</div>
+    <div class="proposal-desc">Thread spools drain visually. Completing a skein triggers a small celebration. First-use wizard sets waste preferences.</div>
+  </div>
+  <button class="theme-btn" style="color:white;border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.1)"
+    onclick="document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark'">
+    Dark mode
+  </button>
+</div>
+
+<div class="page">
+  <div class="main">
+    <div class="toolbar">
+      <div class="toolbar-title">Rose Garden · 14ct</div>
+      <label style="display:flex;align-items:center;gap:7px;font-size:13px;cursor:pointer">
+        <input type="checkbox" checked id="rt-toggle" onchange="toggleRT(this.checked)">
+        <span style="color:var(--text-secondary)">Live stash tracking</span>
+      </label>
+      <button class="theme-btn" onclick="showWizard()">Setup wizard</button>
+      <button class="theme-btn" onclick="showCompletionModal()">Simulate 100%</button>
+    </div>
+    <div class="canvas-area" id="canvas-area">
+      <div>
+        <div id="canvas-grid" class="canvas-grid" style="grid-template-columns:repeat(18,14px)"></div>
+        <div style="text-align:center;margin-top:10px;font-size:12px;color:var(--text-tertiary)">
+          Click stitches — spools drain · skein completions celebrate
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="panel-header">
+      <div class="panel-title" id="panel-title">Threads · 6</div>
+      <div class="panel-meta" id="panel-meta">Click a colour to focus</div>
+    </div>
+    <div class="thread-list" id="thread-list"></div>
+  </div>
+</div>
+
+<!-- First-use wizard -->
+<div class="wizard-overlay" id="wizard" style="display:none">
+  <div class="wizard">
+    <!-- Step 1 -->
+    <div class="wizard-step active" id="wiz-1">
+      <div class="wizard-title">Set up stash tracking</div>
+      <div class="wizard-sub">
+        The tracker will estimate how much thread you consume as you stitch, and keep
+        your stash inventory up to date automatically.
+        <br><br>
+        Tell us a little about how you stitch so the estimates are as accurate as possible.
+      </div>
+      <div class="wizard-footer">
+        <div class="wizard-dots">
+          <div class="wizard-dot active"></div><div class="wizard-dot"></div><div class="wizard-dot"></div>
+        </div>
+        <button class="btn btn-primary" onclick="wizNext(1)">Get started</button>
+      </div>
+    </div>
+    <!-- Step 2 -->
+    <div class="wizard-step" id="wiz-2">
+      <div class="wizard-title">Thread runs</div>
+      <div class="wizard-sub">How long do you typically stitch before cutting the thread and starting fresh?</div>
+      <div class="wizard-pref-row">
+        <div class="wizard-pref-label">
+          <div class="wizard-pref-name">Stitches per run</div>
+          <div class="wizard-pref-hint">Average before you cut and re-thread</div>
+        </div>
+        <div class="wizard-pref-control">
+          <input class="pref-input" type="number" id="wiz-run-len" value="30" min="10" max="100" step="5">
+          <span style="font-size:12px;color:var(--text-tertiary)">stitches</span>
+        </div>
+      </div>
+      <div class="wizard-pref-row">
+        <div class="wizard-pref-label">
+          <div class="wizard-pref-name">Tail allowance</div>
+          <div class="wizard-pref-hint">Inches to anchor/bury each tail (×2 per run)</div>
+        </div>
+        <div class="wizard-pref-control">
+          <input class="pref-input" type="number" id="wiz-tail" value="1.5" min="0.5" max="4" step="0.5">
+          <span style="font-size:12px;color:var(--text-tertiary)">inches</span>
+        </div>
+      </div>
+      <div class="wizard-footer">
+        <div class="wizard-dots">
+          <div class="wizard-dot"></div><div class="wizard-dot active"></div><div class="wizard-dot"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="wizBack(2)">Back</button>
+          <button class="btn btn-primary" onclick="wizNext(2)">Next</button>
+        </div>
+      </div>
+    </div>
+    <!-- Step 3 -->
+    <div class="wizard-step" id="wiz-3">
+      <div class="wizard-title">Waste and strands</div>
+      <div class="wizard-sub">Account for tangles, mistakes, and the thread left on the needle at the end of a run.</div>
+      <div class="wizard-pref-row">
+        <div class="wizard-pref-label">
+          <div class="wizard-pref-name">General waste</div>
+          <div class="wizard-pref-hint">Added on top of the per-stitch cost</div>
+        </div>
+        <div class="wizard-pref-control">
+          <input class="pref-range" type="range" id="wiz-waste" value="10" min="0" max="30"
+            oninput="document.getElementById('wiz-waste-val').textContent=this.value+'%'">
+          <span id="wiz-waste-val" style="font-size:12px;color:var(--text-secondary);min-width:32px">10%</span>
+        </div>
+      </div>
+      <div class="wizard-pref-row">
+        <div class="wizard-pref-label">
+          <div class="wizard-pref-name">Strand count</div>
+          <div class="wizard-pref-hint">Pattern default is 2; override if you stitch differently</div>
+        </div>
+        <div class="wizard-pref-control">
+          <input class="pref-input" type="number" id="wiz-strands" value="2" min="1" max="6">
+          <span style="font-size:12px;color:var(--text-tertiary)">strands</span>
+        </div>
+      </div>
+      <div class="wizard-footer">
+        <div class="wizard-dots">
+          <div class="wizard-dot"></div><div class="wizard-dot"></div><div class="wizard-dot active"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="wizBack(3)">Back</button>
+          <button class="btn btn-primary" onclick="wizFinish()">Start tracking</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Completion modal -->
+<div class="modal-backdrop" id="completion-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-title" style="color:var(--success)">Pattern complete!</div>
+    <div class="modal-sub">Your stash has been updated throughout. Here is the final tally.</div>
+    <table class="modal-table">
+      <thead><tr><th>Thread</th><th>Consumed</th><th>Stash now</th></tr></thead>
+      <tbody id="completion-tbody"></tbody>
+    </table>
+    <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:16px">
+      Estimates based on your waste settings. Adjust stash manually if needed.
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="document.getElementById('completion-modal').style.display='none'">
+        Adjust manually
+      </button>
+      <button class="btn btn-primary" onclick="document.getElementById('completion-modal').style.display='none'">
+        Confirm
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SKEIN_TOTAL_IN = 1890;
+const FABRIC_CT = 14;
+const threads = [
+  { id: '321',   name: 'Red',          rgb: [196,40,27],   stitches: 120, owned: 2 },
+  { id: '550',   name: 'Violet (dark)',rgb: [88,30,128],   stitches: 85,  owned: 1 },
+  { id: '703',   name: 'Chartreuse',   rgb: [105,169,60],  stitches: 64,  owned: 2 },
+  { id: '310',   name: 'Black',        rgb: [30,30,30],    stitches: 98,  owned: 0 },
+  { id: '819',   name: 'Pink (light)', rgb: [253,208,214], stitches: 42,  owned: 1 },
+  { id: 'blanc', name: 'Blanc',        rgb: [252,252,252], stitches: 37,  owned: 0 },
+];
+const COLS = 18, ROWS = 14;
+const grid = [];
+const pool = threads.flatMap(t => Array(t.stitches).fill(t.id));
+for (let i = pool.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
+let pi = 0;
+for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+  grid.push({ id: pi < pool.length ? pool[pi++] : null, done: false });
+}
+let done = {}; threads.forEach(t => { done[t.id] = 0; });
+let prevSkeinsComplete = {}; threads.forEach(t => { prevSkeinsComplete[t.id] = 0; });
+let rtEnabled = true;
+let wastePrefs = { tailIn: 1.5, runLen: 30, genWaste: 0.10, strands: 2 };
+
+function effectiveCostIn() {
+  const base = (4.8 * wastePrefs.strands) / FABRIC_CT;
+  const tail = (wastePrefs.tailIn * 2) / wastePrefs.runLen;
+  return (base + tail) * (1 + wastePrefs.genWaste);
+}
+function skeinsConsumed(id) { return (done[id] * effectiveCostIn()) / SKEIN_TOTAL_IN; }
+
+// ── Spool SVG (draining from top) ──
+function spoolSvg(rgb, pctFull, isLow, size=44) {
+  const w = size, h = size * 1.18;
+  const rimH = h * 0.14, bodyH = h - rimH*2;
+  const fillH = bodyH * Math.max(0, Math.min(1, pctFull));
+  const fillY = rimH + (bodyH - fillH);
+  const col = `rgb(${rgb})`;
+  const fillCol = isLow ? '#c47a1a' : col;
+  const bodyOpacity = pctFull <= 0 ? 0.18 : 1;
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+    <!-- top rim -->
+    <rect x="2" y="0" width="${w-4}" height="${rimH}" rx="3" fill="${col}" opacity="0.6"/>
+    <!-- body bg -->
+    <rect x="${w*0.2}" y="${rimH}" width="${w*0.6}" height="${bodyH}" fill="var(--surface-3)"/>
+    <!-- fill level -->
+    <rect x="${w*0.2}" y="${fillY}" width="${w*0.6}" height="${fillH}"
+      fill="${fillCol}" opacity="${bodyOpacity}"/>
+    <!-- body border -->
+    <rect x="${w*0.2}" y="${rimH}" width="${w*0.6}" height="${bodyH}"
+      fill="none" stroke="var(--border)" stroke-width="1"/>
+    <!-- bottom rim -->
+    <rect x="2" y="${h-rimH}" width="${w-4}" height="${rimH}" rx="3" fill="${col}" opacity="0.6"/>
+    <!-- centre hole -->
+    <circle cx="${w/2}" cy="${h/2}" r="${w*0.12}" fill="var(--surface)" stroke="var(--border)" stroke-width="1"/>
+  </svg>`;
+}
+
+function renderGrid() {
+  const el = document.getElementById('canvas-grid');
+  el.innerHTML = '';
+  grid.forEach((cell, idx) => {
+    const div = document.createElement('div');
+    div.className = 'cell' + (cell.done ? ' done' : '');
+    if (cell.id) {
+      const t = threads.find(x => x.id === cell.id);
+      div.style.background = t ? `rgb(${t.rgb})` : '#ccc';
+    } else { div.style.background = 'var(--surface-3)'; }
+    div.onclick = () => toggleCell(idx, div);
+    el.appendChild(div);
+  });
+}
+
+function toggleCell(idx, el) {
+  const cell = grid[idx];
+  if (!cell.id) return;
+  const prev = Math.floor(skeinsConsumed(cell.id));
+  cell.done = !cell.done;
+  done[cell.id] += cell.done ? 1 : -1;
+  // Burst animation on marking done
+  if (cell.done && rtEnabled) {
+    const rect = el.getBoundingClientRect();
+    const area = document.getElementById('canvas-area').getBoundingClientRect();
+    const burst = document.createElement('div');
+    burst.className = 'stitch-burst';
+    const t = threads.find(x => x.id === cell.id);
+    if (t) burst.style.borderColor = `rgb(${t.rgb})`;
+    burst.style.left = (rect.left - area.left + rect.width/2) + 'px';
+    burst.style.top  = (rect.top  - area.top  + rect.height/2) + 'px';
+    document.getElementById('canvas-area').appendChild(burst);
+    setTimeout(() => burst.remove(), 500);
+    // Skein completion celebration
+    const now = Math.floor(skeinsConsumed(cell.id));
+    if (now > prev) {
+      const msg = document.createElement('div');
+      msg.className = 'skein-complete-msg';
+      msg.textContent = `Skein ${now} of DMC ${cell.id} complete`;
+      document.getElementById('canvas-area').appendChild(msg);
+      setTimeout(() => msg.remove(), 700);
+    }
+  }
+  renderGrid();
+  renderPanel();
+}
+
+function renderPanel() {
+  const el = document.getElementById('thread-list');
+  let html = '';
+  threads.forEach(t => {
+    const sc = rtEnabled ? skeinsConsumed(t.id) : 0;
+    const rem = t.owned - sc;
+    const scInt = Math.floor(sc);
+    const fractPct = (sc % 1.0);           // 0..1 — fraction of current skein
+    const spoolPct = 1 - fractPct;          // full → drains down
+    const isLow = rtEnabled && rem < 0.25 && t.owned > 0;
+    const isNeg = rtEnabled && rem < 0;
+    html += `<div class="thread-chip">
+      <div class="spool-wrap">
+        ${rtEnabled ? spoolSvg(t.rgb, spoolPct, isLow) : `<div class="sw" style="background:rgb(${t.rgb})"></div>`}
+        ${rtEnabled ? `<div class="spool-label">sk ${scInt+1}</div>` : ''}
+      </div>
+      <div class="chip-info">
+        <div class="chip-id">DMC ${t.id}${isLow ? ` <span class="warn-badge">Low thread</span>` : ''}</div>
+        <div class="chip-name">${t.name}</div>
+        <div class="chip-counts">
+          ${rtEnabled
+            ? `${sc.toFixed(2)} used · ${isNeg
+                ? `<span style="color:var(--danger)">need ${Math.abs(rem).toFixed(2)} more</span>`
+                : `<span style="color:${isLow?'var(--warning)':'var(--text-secondary)'}">${Math.max(0,rem).toFixed(2)} remaining</span>`}`
+            : `${t.owned} in stash · ${t.stitches} stitches`}
+        </div>
+      </div>
+    </div>`;
+  });
+  el.innerHTML = html;
+}
+
+function toggleRT(on) { rtEnabled = on; renderPanel(); }
+
+// ── Wizard ──
+function showWizard() { document.getElementById('wizard').style.display = 'flex'; }
+function wizNext(step) {
+  document.getElementById('wiz-'+step).classList.remove('active');
+  document.getElementById('wiz-'+(step+1)).classList.add('active');
+}
+function wizBack(step) {
+  document.getElementById('wiz-'+step).classList.remove('active');
+  document.getElementById('wiz-'+(step-1)).classList.add('active');
+}
+function wizFinish() {
+  wastePrefs.runLen   = parseFloat(document.getElementById('wiz-run-len').value)||30;
+  wastePrefs.tailIn   = parseFloat(document.getElementById('wiz-tail').value)||1.5;
+  wastePrefs.genWaste = (parseFloat(document.getElementById('wiz-waste').value)||10)/100;
+  wastePrefs.strands  = parseInt(document.getElementById('wiz-strands').value)||2;
+  document.getElementById('wizard').style.display = 'none';
+  renderPanel();
+}
+
+function showCompletionModal() {
+  threads.forEach(t => { done[t.id] = t.stitches; });
+  renderPanel();
+  const tbody = document.getElementById('completion-tbody');
+  tbody.innerHTML = threads.map(t => {
+    const sc = skeinsConsumed(t.id);
+    const after = Math.max(0, t.owned - sc);
+    return `<tr>
+      <td><span style="display:inline-flex;align-items:center;gap:6px">
+        <span style="width:12px;height:12px;border-radius:2px;background:rgb(${t.rgb});display:inline-block"></span>
+        DMC ${t.id}
+      </span></td>
+      <td>${sc.toFixed(2)} skeins</td>
+      <td style="color:${after<0.1?'var(--danger)':'var(--success)'}">${after.toFixed(2)} left</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('completion-modal').style.display = 'flex';
+}
+
+renderGrid();
+renderPanel();
+</script>
+</body>
+</html>

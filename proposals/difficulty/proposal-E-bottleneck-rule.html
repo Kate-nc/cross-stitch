@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proposal E — Bottleneck Rule (Floor Cap)</title>
+<style>
+  :root {
+    --bg: #111210; --surface: #1a1c18; --card: #252921;
+    --border: #363d30; --text: #e8ead4; --muted: #7d8572;
+    --b: #69a832; --i: #c6a14a; --a: #d95e3b; --e: #8b35c4;
+    --radius: 10px; --gap: 16px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 14px; line-height: 1.5; }
+  h1 { font-size: 1.35rem; font-weight: 700; }
+  h2 { font-size: 1rem; font-weight: 600; margin-bottom: 10px; }
+  h3 { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-bottom: 6px; }
+  .layout { display: grid; grid-template-columns: 330px 1fr; gap: var(--gap); padding: var(--gap); max-width: 1400px; margin: 0 auto; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--gap); }
+  .header { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 20px; margin-bottom: var(--gap); }
+  .tag { background: #c6a14a33; color: var(--i); font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em; border: 1px solid var(--i); }
+  label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 3px; }
+  input[type=range] { width: 100%; accent-color: var(--b); }
+  select { width: 100%; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 0.85rem; }
+  .ctrl { margin-bottom: 11px; }
+  .ctrl-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+  .val { font-size: 0.82rem; font-weight: 600; color: var(--b); }
+  .sep { margin: 11px 0; border: none; border-top: 1px solid var(--border); }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--gap); }
+  .preset-btn { background: var(--card); border: 1px solid var(--border); color: var(--text); font-size: 0.75rem; padding: 5px 10px; border-radius: 6px; cursor: pointer; }
+  .preset-btn:hover, .preset-btn.active { background: var(--b); color: #111; border-color: var(--b); }
+  .model-info { font-size: 0.78rem; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+
+  /* Factor cards */
+  .factor-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .factor-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px; position: relative; }
+  .factor-card.bottleneck { border-color: var(--a) !important; box-shadow: 0 0 12px rgba(217,94,59,0.3); }
+  .factor-card.bottleneck::after { content:'BOTTLENECK'; position:absolute;top:4px;right:6px;font-size:0.6rem;font-weight:800;letter-spacing:0.1em;color:var(--a);background:#d95e3b18;padding:2px 5px;border-radius:3px; }
+  .factor-name { font-size: 0.75rem; color: var(--muted); margin-bottom: 5px; }
+  .factor-tier { font-size: 1.1rem; font-weight: 800; margin-bottom: 2px; }
+  .factor-bar-track { height: 6px; background: #363d30; border-radius: 3px; overflow: hidden; }
+  .factor-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+
+  /* Result */
+  .result-section { display: flex; align-items: center; gap: 20px; padding: 20px; background: var(--card); border-radius: 12px; margin-bottom: var(--gap); }
+  .composite-block { text-align: center; }
+  .composite-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 4px; }
+  .composite-tier { font-size: 2rem; font-weight: 800; }
+  .composite-stars { font-size: 1.1rem; margin-top: 2px; }
+  .floor-block { background: var(--surface); border-radius: 8px; padding: 12px 16px; flex: 1; }
+  .floor-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 6px; }
+  .floor-row { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; margin-bottom: 4px; }
+  .floor-tier-chip { padding: 2px 8px; border-radius: 10px; font-weight: 700; font-size: 0.78rem; }
+  .logic-box { font-family: monospace; font-size: 0.78rem; color: #b8d494; background: #14180e; border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-top: var(--gap); line-height: 1.7; }
+  .kw { color: #8b35c4; } .op { color: #c6a14a; } .val-c { color: #69a832; }
+
+  /* Audience */
+  .audience-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
+  .audience-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+  .audience-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px; }
+  .worst-axis-chip { display:inline-block;padding:4px 10px;border-radius:20px;font-size:0.75rem;font-weight:700;margin-top:6px; }
+  .personal-box { margin-top: var(--gap); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+</style>
+</head>
+<body>
+
+<div style="padding:16px 20px 0;">
+  <div class="header">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+      <h1>Proposal E — Bottleneck Rule</h1>
+      <span class="tag">Model E</span>
+    </div>
+    <p class="model-info">Each factor scores independently. A weighted average gives the "composite" score, BUT the overall tier cannot fall below the tier of the single hardest factor (the bottleneck). The principle: one extreme dimension cannot be outweighed by easy dimensions. A pattern that is Beginner in everything except extreme confetti cannot be rated below Intermediate — the confetti sets a floor. Shows both the composite and the bottleneck factor prominently.</p>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- LEFT: Controls -->
+  <div>
+    <div class="panel" style="margin-bottom:var(--gap);">
+      <h2>Pattern Presets</h2>
+      <div class="presets" id="presets"></div>
+    </div>
+    <div class="panel">
+      <h2>Pattern Characteristics</h2>
+      <hr class="sep">
+      <h3>Size</h3>
+      <div class="ctrl"><div class="ctrl-row"><label>Total Stitches</label><span class="val" id="v-stitches">5000</span></div><input type="range" id="r-stitches" min="100" max="150000" step="100" value="5000"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Fabric Count</label><span class="val" id="v-fabric">14</span></div><input type="range" id="r-fabric" min="11" max="40" step="1" value="14"></div>
+      <hr class="sep">
+      <h3>Colour</h3>
+      <div class="ctrl"><div class="ctrl-row"><label>Unique Colours</label><span class="val" id="v-colours">12</span></div><input type="range" id="r-colours" min="1" max="120" step="1" value="12"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Confusable Pairs</label><span class="val" id="v-confusable">2</span></div><input type="range" id="r-confusable" min="0" max="50" step="1" value="2"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Blend Count</label><span class="val" id="v-blends">0</span></div><input type="range" id="r-blends" min="0" max="40" step="1" value="0"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Colour Distribution Evenness</label><span class="val" id="v-evenness">0.4</span></div><input type="range" id="r-evenness" min="0" max="1" step="0.05" value="0.4"></div>
+      <hr class="sep">
+      <h3>Confetti &amp; Movement</h3>
+      <div class="ctrl"><div class="ctrl-row"><label>Isolated Stitch Fraction</label><span class="val" id="v-confetti">0.15</span></div><input type="range" id="r-confetti" min="0" max="1" step="0.01" value="0.15"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Colour Change Rate</label><span class="val" id="v-changerate">0.20</span></div><input type="range" id="r-changerate" min="0" max="1" step="0.01" value="0.20"></div>
+      <hr class="sep">
+      <h3>Techniques</h3>
+      <div class="ctrl"><div class="ctrl-row"><label>Backstitch per 100 stitches</label><span class="val" id="v-backstitch">5</span></div><input type="range" id="r-backstitch" min="0" max="100" step="1" value="5"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Fractional Stitch %</label><span class="val" id="v-fractional">0</span>%</div><input type="range" id="r-fractional" min="0" max="50" step="1" value="0"></div>
+      <div class="ctrl"><label>Specialty Threads</label>
+        <select id="s-specialty"><option value="0">None</option><option value="0.35">Minor</option><option value="0.65">Moderate</option><option value="1.0">Extensive</option></select></div>
+      <hr class="sep">
+      <h3>Personal Profile</h3>
+      <div class="ctrl"><label>My Experience Level</label>
+        <select id="s-experience"><option value="none">Not set</option><option value="beginner">Beginner</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option><option value="expert">Expert</option></select></div>
+      <div class="ctrl"><div class="ctrl-row"><label>My max colours</label><span class="val" id="v-mycolours">15</span></div><input type="range" id="r-mycolours" min="1" max="80" step="1" value="15"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Output -->
+  <div>
+    <!-- Per-factor scores -->
+    <div class="panel" style="margin-bottom:var(--gap);">
+      <h2>Per-Factor Scores</h2>
+      <div class="factor-grid" id="factor-grid"></div>
+    </div>
+
+    <!-- Bottleneck result -->
+    <div class="panel" style="margin-bottom:var(--gap);">
+      <div class="result-section" id="result-section"></div>
+
+      <div class="logic-box" id="logic-box"></div>
+    </div>
+
+    <!-- Dual audience -->
+    <div class="panel" style="margin-bottom:var(--gap);">
+      <h2>Dual-Audience Presentation</h2>
+      <div class="audience-grid">
+        <div class="audience-card">
+          <div class="audience-label">Stitcher View — Full breakdown</div>
+          <div id="aud-stitcher"></div>
+        </div>
+        <div class="audience-card">
+          <div class="audience-label">Marketplace View — Summary</div>
+          <div id="aud-market"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Personal -->
+    <div class="personal-box" id="personal-section" style="display:none;">
+      <h3 style="margin-bottom:8px;">Personal Adjustment</h3>
+      <div id="personal-content"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const TIERS = [
+  { idx:0, label:'Beginner',     short:'B', c:'#69a832', stars:1, min:0,   max:0.30 },
+  { idx:1, label:'Intermediate', short:'I', c:'#c6a14a', stars:2, min:0.30,max:0.55 },
+  { idx:2, label:'Advanced',     short:'A', c:'#d95e3b', stars:3, min:0.55,max:0.78 },
+  { idx:3, label:'Expert',       short:'E', c:'#8b35c4', stars:4, min:0.78,max:1.01 },
+];
+
+function scoreTier(s) { return TIERS.find(t=>s>=t.min&&s<t.max)||TIERS[3]; }
+function getStars(n){ return '★'.repeat(n)+'☆'.repeat(4-n); }
+
+const FACTORS = [
+  { id:'colour',    label:'Colour Complexity', w:0.25 },
+  { id:'confetti',  label:'Confetti Density',  w:0.28 },
+  { id:'change',    label:'Change Rate',        w:0.17 },
+  { id:'size',      label:'Size & Duration',    w:0.12 },
+  { id:'spatial',   label:'Spatial / Technique',w:0.18 },
+];
+
+function computeFactorScores(vals) {
+  const colour = Math.min(1,
+    ((vals.colours <= 5 ? 0.05 : vals.colours <= 15 ? 0.05+(vals.colours-5)*0.025 : vals.colours <= 30 ? 0.30+(vals.colours-15)*0.022 : vals.colours <= 50 ? 0.63+(vals.colours-30)*0.012 : Math.min(1, 0.87+(vals.colours-50)*0.005)) * 0.35)
+    + (Math.min(1,(vals.confusable/Math.max(1,vals.colours*(vals.colours-1)/2))*8) * 0.30)
+    + ((vals.blends===0?0:0.1+0.9*(vals.blends/Math.max(1,vals.colours)))*0.20)
+    + (vals.evenness * 0.15)
+  );
+  const confetti = Math.min(1, Math.pow(vals.confetti, 0.7));
+  const change   = Math.min(1, Math.pow(vals.changerate, 0.55));
+  const sizeRaw  = vals.stitches<=1000?0.02:vals.stitches<=5000?0.02+Math.log10(vals.stitches/1000)*0.12:vals.stitches<=20000?0.10+Math.log10(vals.stitches/5000)*0.35:vals.stitches<=80000?0.35+Math.log10(vals.stitches/20000)*0.45:Math.min(1,0.75+Math.log10(vals.stitches/80000)*0.4);
+  const fabricP  = vals.fabric<=14?0:vals.fabric<=18?(vals.fabric-14)*0.04:vals.fabric<=22?0.16+(vals.fabric-18)*0.06:Math.min(0.5,0.40+(vals.fabric-22)*0.03);
+  const size = Math.min(1, sizeRaw*0.8+fabricP*0.2);
+  const symScore = Math.min(1,vals.colours<=8?0:vals.colours<=16?(vals.colours-8)*0.018:vals.colours<=30?0.14+(vals.colours-16)*0.022:vals.colours<=50?0.45+(vals.colours-30)*0.015:Math.min(1,0.75+(vals.colours-50)*0.008));
+  const bsScore  = Math.min(1,vals.backstitch<=2?vals.backstitch*0.02:vals.backstitch<=15?0.04+(vals.backstitch-2)*0.025:vals.backstitch<=40?0.37+(vals.backstitch-15)*0.012:Math.min(1,0.67+(vals.backstitch-40)*0.008));
+  const fracScore= Math.min(1,(vals.fractional/100)*2.5);
+  const specScore= parseFloat(vals.specialty)||0;
+  const spatial  = Math.min(1, symScore*0.25+bsScore*0.35+fracScore*0.20+specScore*0.20);
+
+  return { colour, confetti, change, size, spatial };
+}
+
+function render(vals) {
+  const fs = computeFactorScores(vals);
+
+  // Weighted average
+  let wavg = 0;
+  FACTORS.forEach(f => wavg += f.w * fs[f.id]);
+
+  // Bottleneck: max individual factor score
+  const maxFactor = FACTORS.reduce((best,f) => fs[f.id] > fs[best.id] ? f : best, FACTORS[0]);
+  const maxScore  = fs[maxFactor.id];
+
+  // Composite tier from weighted avg
+  const compositeTier = scoreTier(wavg);
+  // Bottleneck tier from worst factor
+  const bottleneckTier = scoreTier(maxScore);
+  // Final tier = max(composite, bottleneck)
+  const finalTierIdx = Math.max(compositeTier.idx, bottleneckTier.idx);
+  const finalTier = TIERS[finalTierIdx];
+  const isBottleneckActive = bottleneckTier.idx > compositeTier.idx;
+
+  // Per-factor cards
+  const gridEl = document.getElementById('factor-grid');
+  gridEl.innerHTML = '';
+  FACTORS.forEach(f => {
+    const s = fs[f.id];
+    const t = scoreTier(s);
+    const isBottom = f.id === maxFactor.id && isBottleneckActive;
+    gridEl.innerHTML += `<div class="factor-card ${isBottom?'bottleneck':''}">
+      <div class="factor-name">${f.label}</div>
+      <div class="factor-tier" style="color:${t.c}">${t.label}</div>
+      <div style="font-size:0.75rem;color:var(--muted);margin-bottom:5px;">${Math.round(s*100)}/100</div>
+      <div class="factor-bar-track"><div class="factor-bar-fill" style="width:${Math.round(s*100)}%;background:${t.c};"></div></div>
+    </div>`;
+  });
+
+  // Result section
+  const estHours=`${Math.round(vals.stitches/300)}–${Math.round(vals.stitches/150)}h`;
+  document.getElementById('result-section').innerHTML = `
+    <div class="composite-block">
+      <div class="composite-label">Final Tier</div>
+      <div class="composite-tier" style="color:${finalTier.c}">${finalTier.label}</div>
+      <div class="composite-stars" style="color:${finalTier.c}">${getStars(finalTier.stars)}</div>
+      ${isBottleneckActive ? `<div style="font-size:0.72rem;color:var(--a);margin-top:4px;background:#d95e3b18;padding:3px 8px;border-radius:10px;">Floor set by bottleneck</div>` : ''}
+    </div>
+    <div style="font-size:1.8rem;color:var(--muted);">|</div>
+    <div class="floor-block">
+      <div class="floor-label">Bottleneck Analysis</div>
+      <div class="floor-row">
+        <span style="color:var(--muted);min-width:100px;">Composite avg:</span>
+        <span class="floor-tier-chip" style="background:${compositeTier.c}22;color:${compositeTier.c};border:1px solid ${compositeTier.c}44">${compositeTier.label}</span>
+        <span style="color:var(--muted);font-size:0.75rem">(${Math.round(wavg*100)}/100 weighted avg)</span>
+      </div>
+      <div class="floor-row">
+        <span style="color:var(--muted);min-width:100px;">Hardest factor:</span>
+        <span class="floor-tier-chip" style="background:${bottleneckTier.c}22;color:${bottleneckTier.c};border:1px solid ${bottleneckTier.c}44">${bottleneckTier.label}</span>
+        <span style="color:var(--muted);font-size:0.75rem">${maxFactor.label} (${Math.round(maxScore*100)}/100)</span>
+      </div>
+      ${isBottleneckActive ? `<div class="floor-row" style="margin-top:4px;padding:6px 8px;background:#d95e3b12;border-radius:6px;border:1px solid #d95e3b33;">
+        <span style="color:var(--a);font-size:0.8rem;">Bottleneck active: ${compositeTier.label} → elevated to ${finalTier.label} by ${maxFactor.label}</span>
+      </div>` : `<div class="floor-row" style="font-size:0.75rem;color:var(--muted)">No bottleneck elevation needed — composite tier already matches or exceeds all factors.</div>`}
+      <div style="font-size:0.75rem;color:var(--muted);margin-top:6px;">Est. completion: ${estHours}</div>
+    </div>`;
+
+  // Logic box
+  document.getElementById('logic-box').innerHTML =
+    `<span class="kw">final</span> = max( composite_avg_tier, worst_factor_tier )\n`+
+    `     = max( <span class="val-c">${compositeTier.label}</span>[${Math.round(wavg*100)}], <span class="val-c">${bottleneckTier.label}</span>[${Math.round(maxScore*100)} via ${maxFactor.label}] )\n`+
+    `     = <span style="color:${finalTier.c};font-weight:700">${finalTier.label}</span>  <span class="op">${isBottleneckActive?'← bottleneck elevated the result':'← composite score used'}</span>`;
+
+  // Audience views
+  document.getElementById('aud-stitcher').innerHTML = `
+    <div style="font-size:1.4rem;font-weight:800;color:${finalTier.c}">${finalTier.label}</div>
+    <div style="color:${finalTier.c}">${getStars(finalTier.stars)}</div>
+    <div style="font-size:0.78rem;color:var(--muted);margin-top:6px;">
+      ${isBottleneckActive ? `Elevated from ${compositeTier.label} because <strong style="color:${bottleneckTier.c}">${maxFactor.label}</strong> scores ${bottleneckTier.label}.` : `Composite score: ${compositeTier.label}. No bottleneck elevation.`}
+    </div>
+    <div style="margin-top:8px;">
+      ${FACTORS.map(f=>{const t=scoreTier(fs[f.id]);return `<div style="display:flex;justify-content:space-between;font-size:0.75rem;padding:2px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">${f.label}</span><span style="color:${t.c};font-weight:600">${t.label}</span></div>`;}).join('')}
+    </div>`;
+
+  document.getElementById('aud-market').innerHTML = `
+    <div style="font-size:1.4rem;font-weight:800;color:${finalTier.c}">${finalTier.label}</div>
+    <div style="color:${finalTier.c}">${getStars(finalTier.stars)}</div>
+    <div style="font-size:0.78rem;color:var(--muted);margin-top:6px;">${vals.stitches.toLocaleString()} stitches · ${vals.colours} colours</div>
+    <div style="font-size:0.75rem;color:var(--muted)">Est. ${estHours}</div>
+    ${isBottleneckActive ? `<div class="worst-axis-chip" style="background:${bottleneckTier.c}22;color:${bottleneckTier.c};border:1px solid ${bottleneckTier.c}44;">Hardest aspect: ${maxFactor.label}</div>` : ''}`;
+
+  // Personal
+  const exp = document.getElementById('s-experience').value;
+  if (exp === 'none') { document.getElementById('personal-section').style.display='none'; return; }
+  document.getElementById('personal-section').style.display='block';
+
+  const myColours = +document.getElementById('r-mycolours').value;
+  const tierLabels = ['Beginner','Intermediate','Advanced','Expert'];
+  let adjIdx = finalTierIdx;
+  const notes = [];
+
+  if (vals.colours > myColours*1.4) {
+    adjIdx = Math.min(3, adjIdx+1);
+    notes.push(`Colour count (${vals.colours}) exceeds your comfort (${myColours})`);
+  }
+  const adjTier = TIERS[adjIdx];
+  const changed = adjIdx !== finalTierIdx;
+
+  let pHtml = `<div style="display:flex;gap:16px;align-items:center;margin-bottom:8px;">
+    <span>Objective: <strong style="color:${finalTier.c}">${finalTier.label}</strong></span>
+    <span>→</span>
+    <span>For you: <strong style="color:${adjTier.c}">${adjTier.label}</strong>
+    ${changed?`<span style="font-size:0.72rem;margin-left:4px;padding:2px 6px;border-radius:10px;background:#d95e3b18;color:var(--a)">elevated for you</span>`:''}
+    </span>
+  </div>`;
+  notes.forEach(n=>{pHtml+=`<div style="font-size:0.78rem;color:var(--muted);padding:2px 0">▲ ${n}</div>`;});
+  if (!notes.length) pHtml+=`<div style="font-size:0.78rem;color:var(--muted)">Pattern matches your experience profile — no adjustment needed.</div>`;
+  document.getElementById('personal-content').innerHTML=pHtml;
+}
+
+const PRESETS=[
+  {label:'Beginner Sampler',       stitches:800,   fabric:14,colours:5, confusable:0, blends:0,evenness:0.3, confetti:0.02,changerate:0.06,backstitch:2, fractional:0, specialty:'0'},
+  {label:'Moderate Landscape',     stitches:12000, fabric:14,colours:20,confusable:3, blends:2,evenness:0.35,confetti:0.12,changerate:0.18,backstitch:8, fractional:2, specialty:'0'},
+  {label:'High-Confetti Portrait', stitches:25000, fabric:18,colours:55,confusable:18,blends:8,evenness:0.72,confetti:0.60,changerate:0.68,backstitch:5, fractional:12,specialty:'0'},
+  {label:'Large Simple Coverage',  stitches:80000, fabric:14,colours:8, confusable:0, blends:0,evenness:0.25,confetti:0.04,changerate:0.08,backstitch:2, fractional:0, specialty:'0'},
+  {label:'Small Technical Piece',  stitches:3000,  fabric:28,colours:30,confusable:8, blends:6,evenness:0.50,confetti:0.35,changerate:0.42,backstitch:40,fractional:25,specialty:'0.65'},
+];
+
+function getVals(){return{stitches:+document.getElementById('r-stitches').value,fabric:+document.getElementById('r-fabric').value,colours:+document.getElementById('r-colours').value,confusable:+document.getElementById('r-confusable').value,blends:+document.getElementById('r-blends').value,evenness:+document.getElementById('r-evenness').value,confetti:+document.getElementById('r-confetti').value,changerate:+document.getElementById('r-changerate').value,backstitch:+document.getElementById('r-backstitch').value,fractional:+document.getElementById('r-fractional').value,specialty:document.getElementById('s-specialty').value};}
+
+function applyPreset(p,btn){document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');['stitches','fabric','colours','confusable','blends','evenness','confetti','changerate','backstitch','fractional'].forEach(id=>{const el=document.getElementById(`r-${id}`);if(el&&p[id]!==undefined)el.value=p[id];});document.getElementById('s-specialty').value=p.specialty||'0';syncLabels();render(getVals());}
+
+const presetsEl=document.getElementById('presets');
+PRESETS.forEach(p=>{const btn=document.createElement('button');btn.className='preset-btn';btn.textContent=p.label;btn.onclick=()=>applyPreset(p,btn);presetsEl.appendChild(btn);});
+
+const labelMap={'r-stitches':'v-stitches','r-fabric':'v-fabric','r-colours':'v-colours','r-confusable':'v-confusable','r-blends':'v-blends','r-evenness':'v-evenness','r-confetti':'v-confetti','r-changerate':'v-changerate','r-backstitch':'v-backstitch','r-fractional':'v-fractional','r-mycolours':'v-mycolours'};
+function syncLabels(){for(const[s,d]of Object.entries(labelMap)){const e=document.getElementById(s);if(e)document.getElementById(d).textContent=e.value;}}
+document.querySelectorAll('input[type=range],select').forEach(el=>el.addEventListener('input',()=>{syncLabels();render(getVals());}));
+syncLabels();render(getVals());
+</script>
+</body>
+</html>

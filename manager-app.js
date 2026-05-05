@@ -51,6 +51,7 @@ function ManagerApp() {
   const [searchQuery, setSearchQuery] = useState("");
   const [threadFilter, setThreadFilter] = useState("all"); // 'all', 'owned', 'tobuy', 'lowstock'
   const [brandFilter, setBrandFilter] = useState("all"); // 'all', 'dmc', 'anchor'
+  const [threadSort, setThreadSort] = useState("number"); // 'number', 'colour', 'name', 'owned_desc', 'owned_asc'
   const _UP = (k, fb) => { try { return (window.UserPrefs && window.UserPrefs.get(k)) || fb; } catch (_) { return fb; } };
   const [patternFilter, setPatternFilter] = useState(() => _UP("patternsDefaultFilter", "all")); // 'all', 'wishlist', 'owned', 'inprogress', 'completed'
   const [patternSort, setPatternSort] = useState(() => _UP("patternsDefaultSort", "date_desc")); // 'date_desc', 'date_asc', 'title_asc', 'designer_asc', 'status'
@@ -568,7 +569,10 @@ function ManagerApp() {
     const activeIds = new Set();
     patterns.forEach(pat => {
       if (pat.status === 'completed') return;
-      if (pat.threads) pat.threads.forEach(t => activeIds.add(t.id));
+      if (pat.threads) pat.threads.forEach(t => {
+        activeIds.add(t.id);
+        if (t.is_blended && t.blend_id) activeIds.add(t.blend_id);
+      });
     });
     return {
       lowStockNeeded: lowStockAlerts.filter(a => activeIds.has(a.bareId || a.id)),
@@ -640,8 +644,9 @@ function ManagerApp() {
 
   const updateThread = (id, field, value) => {
     setThreads(prev => {
+      const prevEntry = prev[id] || {};
       const updated = {
-        ...prev[id],
+        ...prevEntry,
         [field]: value
       };
 
@@ -650,8 +655,32 @@ function ManagerApp() {
         updated.owned = 0;
       }
       // If setting skeins to > 0 while "used-up" is selected, clear "used-up" to prevent conflicting states
-      if (field === "owned" && value > 0 && prev[id]?.partialStatus === "used-up") {
+      if (field === "owned" && value > 0 && prevEntry.partialStatus === "used-up") {
         updated.partialStatus = null;
+      }
+
+      // V3 acquisition/history tracking — mirrors the logic in StashBridge.updateThreadOwned.
+      // Only runs when the entry already has V3 fields (addedAt defined), meaning the
+      // migrateSchemaToV3 auto-migration has already stamped the record.
+      if (prevEntry.addedAt !== undefined) {
+        const LEGACY_EP = '2020-01-01T00:00:00Z';
+        const prevOwned = prevEntry.owned || 0;
+        // Compute the new owned count: direct when field='owned'; implicit zero when partialStatus='used-up'
+        const newOwned = field === 'owned' ? value
+          : (field === 'partialStatus' && value === 'used-up') ? 0
+          : prevOwned;
+        const delta = newOwned - prevOwned;
+        if (delta !== 0) {
+          const now = new Date().toISOString();
+          // Re-acquisition: thread was legacy (at zero) and is now first owned — tag with today's date.
+          if (prevOwned === 0 && newOwned > 0 && prevEntry.addedAt === LEGACY_EP) {
+            updated.addedAt = now;
+            updated.acquisitionSource = null;
+          }
+          updated.lastAdjustedAt = now;
+          const newHistory = [...(prevEntry.history || []), { date: now, delta }];
+          updated.history = newHistory.length > 500 ? newHistory.slice(-500) : newHistory;
+        }
       }
 
       return {
@@ -671,12 +700,36 @@ function ManagerApp() {
     const q = searchQuery.toLowerCase();
     const searched = q ? allItems.filter(d => d.id.toLowerCase().includes(q) || d.name.toLowerCase().includes(q)) : allItems;
 
-    return searched.filter(d => {
+    const filtered = searched.filter(d => {
       if (d.compositeKey === expandedThread) return true;
       const t = threads[d.compositeKey] || { owned: 0, tobuy: false, partialStatus: null };
       return matchesThreadFilter(t, threadFilter, lowStockThreshold);
     });
-  }, [searchQuery, threads, threadFilter, brandFilter, expandedThread]);
+
+    if (threadSort === 'number') return filtered;
+    const sorted = filtered.slice();
+    if (threadSort === 'colour') {
+      sorted.sort((a, b) => rgbToHue(a.rgb) - rgbToHue(b.rgb));
+    } else if (threadSort === 'name') {
+      sorted.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (threadSort === 'owned_desc') {
+      sorted.sort((a, b) => ((threads[b.compositeKey] || {}).owned || 0) - ((threads[a.compositeKey] || {}).owned || 0));
+    } else if (threadSort === 'owned_asc') {
+      sorted.sort((a, b) => ((threads[a.compositeKey] || {}).owned || 0) - ((threads[b.compositeKey] || {}).owned || 0));
+    }
+    return sorted;
+  }, [searchQuery, threads, threadFilter, brandFilter, expandedThread, threadSort]);
+
+  function rgbToHue(rgb) {
+    const r = rgb[0] / 255, g = rgb[1] / 255, b = rgb[2] / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+    if (d < 0.05) return 361; // near-grey/white/black → sort to end
+    let h;
+    if (max === r) h = ((g - b) / d + 6) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    return h * 60;
+  }
 
   function matchesThreadFilter(t, filter, lowStockThreshold) {
     if (filter === 'owned') return t.owned > 0 || ["mostly-full", "about-half", "remnant"].includes(t.partialStatus);
@@ -851,6 +904,19 @@ function ManagerApp() {
           ].map(f => (
             <button key={'brand-' + f.id} className={"mgr-chip" + (brandFilter === f.id ? " on" : "")} onClick={() => setBrandFilter(f.id)}>{f.label}</button>
           ))}
+          <span style={{marginLeft:8,marginRight:2,color:'var(--text-tertiary)',fontSize:11}}>Sort:</span>
+          <select
+            aria-label="Sort threads"
+            value={threadSort}
+            onChange={e => setThreadSort(e.target.value)}
+            style={{fontSize:12,padding:'3px 6px',borderRadius:6,border:'1px solid var(--border)',background:'var(--surface)',color:'var(--text-primary)',cursor:'pointer'}}
+          >
+            <option value="number">Number</option>
+            <option value="colour">Colour</option>
+            <option value="name">Name (A–Z)</option>
+            <option value="owned_desc">Owned: most first</option>
+            <option value="owned_asc">Owned: fewest first</option>
+          </select>
           {typeof window.BulkAddModal !== 'undefined' && (
             <button
               onClick={() => setBulkAddOpen(true)}

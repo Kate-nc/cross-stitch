@@ -65,7 +65,33 @@ const ProjectStorage = (() => {
       isComplete: totalSt > 0 && completedSt >= totalSt,
       statsSessions: p.statsSessions || [],
       achievedMilestones: p.achievedMilestones || [],
-      palette: (p.palette || []).map(c => ({ id: c.id, name: c.name, rgb: c.rgb })),
+      // Derive palette from p.palette if present (tracker-saved projects), otherwise
+      // scan pattern cells (Creator projects embed rgb in cells, no p.palette field).
+      // Used by insights-engine for stash-utilisation analysis and by stats-insights
+      // for total-colour counting — both only need {id}; rgb is best-effort.
+      palette: (function() {
+        if (p.palette && p.palette.length > 0) {
+          return p.palette.map(function(c) { return { id: c.id, name: c.name, rgb: c.rgb }; });
+        }
+        if (!p.pattern || p.pattern.length === 0) return [];
+        var seen = Object.create(null);
+        var out = [];
+        for (var i = 0; i < p.pattern.length; i++) {
+          var cell = p.pattern[i];
+          if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
+          if (typeof cell.id === 'string' && cell.id.indexOf('+') !== -1) {
+            var parts = cell.id.split('+');
+            for (var pi2 = 0; pi2 < parts.length; pi2++) {
+              var pid = parts[pi2].trim();
+              if (pid && !seen[pid]) { seen[pid] = true; out.push({ id: pid, name: pid, rgb: [128,128,128] }); }
+            }
+          } else if (!seen[cell.id]) {
+            seen[cell.id] = true;
+            out.push({ id: cell.id, name: cell.name || cell.id, rgb: cell.rgb || [128,128,128] });
+          }
+        }
+        return out;
+      })(),
       projectColor: p.projectColor || null,
     };
   }
@@ -629,20 +655,27 @@ const ProjectStorage = (() => {
     },
 
     // Return lifetime stitch count across all projects from stitchLog.
+    // Falls back to statsSessions for projects that were last saved before
+    // stitchLog derivation was added to the tracker's buildSnapshot.
     async getLifetimeStitches() {
       try {
         const projects = await this.listProjects();
         let total = 0;
         for (const meta of projects) {
           const proj = await this.get(meta.id);
-          if (!proj || !proj.stitchLog) continue;
-          for (const entry of proj.stitchLog) total += entry.count;
+          if (!proj) continue;
+          if (proj.stitchLog && proj.stitchLog.length > 0) {
+            for (const entry of proj.stitchLog) total += entry.count;
+          } else if (proj.statsSessions && proj.statsSessions.length > 0) {
+            for (const s of proj.statsSessions) total += s.netStitches || 0;
+          }
         }
         return total;
       } catch (e) { return 0; }
     },
 
     // Return aggregated daily stitch totals for charts.
+    // Falls back to statsSessions for projects not yet re-saved by the tracker.
     async getStitchLogByDay(days) {
       days = days || 365;
       try {
@@ -650,9 +683,16 @@ const ProjectStorage = (() => {
         const daily = {};
         for (const meta of projects) {
           const proj = await this.get(meta.id);
-          if (!proj || !proj.stitchLog) continue;
-          for (const entry of proj.stitchLog) {
-            daily[entry.date] = (daily[entry.date] || 0) + entry.count;
+          if (!proj) continue;
+          if (proj.stitchLog && proj.stitchLog.length > 0) {
+            for (const entry of proj.stitchLog) {
+              daily[entry.date] = (daily[entry.date] || 0) + entry.count;
+            }
+          } else if (proj.statsSessions && proj.statsSessions.length > 0) {
+            for (const s of proj.statsSessions) {
+              if (!s || !s.date) continue;
+              daily[s.date] = (daily[s.date] || 0) + (s.netStitches || 0);
+            }
           }
         }
         // Filter to last N days
@@ -719,7 +759,7 @@ const ProjectStorage = (() => {
         const colourTotals = {}; // { threadKey: { count, name, rgb, id } }
         for (const meta of projects) {
           const proj = await this.get(meta.id);
-          if (!proj || !proj.stitchLog || !proj.pattern) continue;
+          if (!proj || !proj.pattern) continue;
           // Calculate per-thread ratios from the pattern. Blends are split: a
           // "310+550" cell contributes 0.5 to "310" and 0.5 to "550".
           const threadCounts = {};
@@ -752,15 +792,47 @@ const ProjectStorage = (() => {
             }
           }
           if (totalStitchable === 0) continue;
-          // Distribute stitchLog counts across threads proportionally
-          const logTotal = proj.stitchLog.reduce((s, e) => s + e.count, 0);
+          // Distribute stitchLog counts across threads proportionally.
+          // Fall back to statsSessions for projects not yet re-saved by the tracker.
+          const logTotal = (proj.stitchLog && proj.stitchLog.length > 0)
+            ? proj.stitchLog.reduce((s, e) => s + e.count, 0)
+            : (proj.statsSessions || []).reduce((s, e) => s + (e.netStitches || 0), 0);
           if (logTotal <= 0) continue;
+          // Build a thread-id → {name, rgb} lookup from the palette field if present,
+          // falling back to pattern cells (Creator projects embed rgb in each cell,
+          // so proj.palette is absent). This is the root cause of grey swatches.
+          const palMap = Object.create(null);
+          if (proj.palette && proj.palette.length > 0) {
+            for (const pe of proj.palette) { if (pe && pe.id) palMap[pe.id] = pe; }
+          } else {
+            // Derive from pattern cells (first occurrence per solid thread id wins).
+            // Blend cells are skipped — their component ids are resolved via the DMC
+            // catalogue fallback below, which gives each thread's own colour rather
+            // than the averaged blend rgb.
+            for (const cell of proj.pattern) {
+              if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
+              if (cell.id.indexOf('+') !== -1) continue; // components resolved by catalogue
+              if (!palMap[cell.id]) {
+                palMap[cell.id] = { id: cell.id, name: cell.name || cell.id, rgb: cell.rgb || [128,128,128] };
+              }
+            }
+          }
           for (const [tid, tcount] of Object.entries(threadCounts)) {
             const ratio = tcount / totalStitchable;
             const attributed = logTotal * ratio;
             if (!colourTotals[tid]) {
-              const pal = (proj.palette || []).find(p => p.id === tid);
-              colourTotals[tid] = { count: 0, name: pal ? pal.name : tid, rgb: pal ? pal.rgb : [128,128,128], id: tid };
+              // Prefer the per-project palMap, then try the global DMC catalogue.
+              let info = palMap[tid];
+              if (!info && typeof DMC !== 'undefined') {
+                const dmcEntry = DMC.find ? DMC.find(d => d.id === tid) : null;
+                if (dmcEntry) info = dmcEntry;
+              }
+              colourTotals[tid] = {
+                count: 0,
+                name: info ? (info.name || tid) : tid,
+                rgb:  info ? (info.rgb  || [128,128,128]) : [128,128,128],
+                id:   tid
+              };
             }
             colourTotals[tid].count += attributed;
           }

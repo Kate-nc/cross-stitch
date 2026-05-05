@@ -180,6 +180,12 @@ window.useCreatorState = function useCreatorState() {
   var _lastGenSnap = useState(null);
   var lastGenSnapshot = _lastGenSnap[0], setLastGenSnapshot = _lastGenSnap[1];
 
+  // Snapshot of pat/pal/cmap at the time the last successful generation
+  // completed. Used by usePaletteSwap to offer a "Revert to generated palette"
+  // button. Session-only — clears on reload or resetAll().
+  var _genPatSnap = useState(null);
+  var genPatSnapshot = _genPatSnap[0], setGenPatSnapshot = _genPatSnap[1];
+
   // App mode: 'create' | 'edit' (track is handled by TrackerApp separately)
   var _appMode = useState("create"); var appMode = _appMode[0], setAppMode = _appMode[1];
 
@@ -463,6 +469,8 @@ window.useCreatorState = function useCreatorState() {
 
   // Context menu
   var _ctxMenu = useState(null);     var contextMenu = _ctxMenu[0], setContextMenu = _ctxMenu[1];
+  // Colour replace modal — null when closed, {srcId, srcName, srcRgb} when open
+  var _crModal = useState(null);     var colourReplaceModal = _crModal[0], setColourReplaceModal = _crModal[1];
 
   // Selection modifier key (null | "add" | "subtract" | "intersect") — tracked via keydown/keyup
   var _selMod = useState(null);      var selectionModifier = _selMod[0], setSelectionModifier = _selMod[1];
@@ -586,7 +594,44 @@ window.useCreatorState = function useCreatorState() {
 
   var totalSkeins = useMemo(function() { return skeinData.reduce(function(s, d) { return s + d.skeins; }, 0); }, [skeinData]);
   var blendCount  = useMemo(function() { return pal ? pal.filter(function(p) { return p.type === "blend"; }).length : 0; }, [pal]);
-  var difficulty  = useMemo(function() { return pal ? calcDifficulty(pal.length, blendCount, totalStitchable) : null; }, [pal, blendCount, totalStitchable]);
+
+  // Scan the pattern once to derive confetti and change-rate scores for the difficulty model.
+  // O(w×h) but cached; only reruns when pat/sW/sH/totalStitchable changes.
+  var difficultyMetrics = useMemo(function() {
+    if (!pat || !sW || !sH || totalStitchable < 1) return {};
+    var isolated = 0, changePairs = 0, totalPairs = 0;
+    for (var y = 0; y < sH; y++) {
+      for (var x = 0; x < sW; x++) {
+        var i = y * sW + x;
+        var cell = pat[i];
+        if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
+        var id = cell.id;
+        var iso = true;
+        var nx, nid;
+        if (x > 0)     { nid = pat[y*sW+(x-1)]; if (nid && nid.id !== '__skip__' && nid.id !== '__empty__' && nid.id === id) iso = false; }
+        if (iso && x+1 < sW)  { nid = pat[y*sW+(x+1)]; if (nid && nid.id !== '__skip__' && nid.id !== '__empty__' && nid.id === id) iso = false; }
+        if (iso && y > 0)     { nid = pat[(y-1)*sW+x]; if (nid && nid.id !== '__skip__' && nid.id !== '__empty__' && nid.id === id) iso = false; }
+        if (iso && y+1 < sH)  { nid = pat[(y+1)*sW+x]; if (nid && nid.id !== '__skip__' && nid.id !== '__empty__' && nid.id === id) iso = false; }
+        if (iso) isolated++;
+        if (x+1 < sW) { nx = pat[y*sW+(x+1)]; if (nx && nx.id !== '__skip__' && nx.id !== '__empty__') { totalPairs++; if (nx.id !== id) changePairs++; } }
+        if (y+1 < sH) { nx = pat[(y+1)*sW+x]; if (nx && nx.id !== '__skip__' && nx.id !== '__empty__') { totalPairs++; if (nx.id !== id) changePairs++; } }
+      }
+    }
+    return {
+      confettiScore: isolated / totalStitchable,
+      changeScore: totalPairs > 0 ? changePairs / totalPairs : 0,
+    };
+  }, [pat, sW, sH, totalStitchable]);
+
+  var difficulty  = useMemo(function() {
+    if (!pal) return null;
+    return calcDifficulty(pal.length, blendCount, totalStitchable, {
+      fabricCt: fabricCt,
+      bsCount: bsLines.length,
+      confettiScore: difficultyMetrics.confettiScore,
+      changeScore: difficultyMetrics.changeScore,
+    });
+  }, [pal, blendCount, totalStitchable, fabricCt, bsLines, difficultyMetrics]);
 
   var doneCount = useMemo(function() {
     if (!done) return 0;
@@ -704,7 +749,7 @@ window.useCreatorState = function useCreatorState() {
     setBsLines([]); setBsStart(null); setActiveTool(null); setSelectedColorId(null);
     setEditHistory([]); setRedoHistory([]); setExportPage(0); setDone(null);
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
-    setLastGenSnapshot(null);
+    setLastGenSnapshot(null); setGenPatSnapshot(null);
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
     setDimOpen(true); setPalOpen(true); setFabOpen(false); setAdjOpen(false);
     setBgOpen(false); setCleanupOpen(false); setIsCropping(false); setCropRect(null);
@@ -818,9 +863,35 @@ window.useCreatorState = function useCreatorState() {
   }
 
   function removeScratchColour(id) {
+    var removedFromPal = pal ? pal.filter(function(p) { return p.id === id; }) : [];
+    var removedFromScratch = scratchPalette ? scratchPalette.filter(function(p) { return p.id === id; }) : [];
+    setEditHistory(function(prev) {
+      var n = prev.concat([{ type: "remove_unused_colours", removedFromPal: removedFromPal.slice(), removedFromScratch: removedFromScratch.slice() }]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    setRedoHistory([]);
     setScratchPalette(function(prev) { return prev.filter(function(p) { return p.id !== id; }); });
     setPal(function(prev) { return prev ? prev.filter(function(p) { return p.id !== id; }) : prev; });
     setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); delete n[id]; return n; });
+  }
+
+  function removeUnusedColours() {
+    if (!pal) return;
+    var unused = pal.filter(function(p) { return p.count === 0; });
+    if (!unused.length) return;
+    var unusedIds = new Set(unused.map(function(p) { return p.id; }));
+    var removedFromScratch = scratchPalette.filter(function(p) { return unusedIds.has(p.id); });
+    setEditHistory(function(prev) {
+      var n = prev.concat([{ type: "remove_unused_colours", removedFromPal: unused.slice(), removedFromScratch: removedFromScratch.slice() }]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    setRedoHistory([]);
+    setPal(function(prev) { return prev ? prev.filter(function(p) { return !unusedIds.has(p.id); }) : prev; });
+    setScratchPalette(function(prev) { return prev.filter(function(p) { return !unusedIds.has(p.id); }); });
+    setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); unusedIds.forEach(function(id) { delete n[id]; }); return n; });
+    addToast("Removed " + unused.length + " unused colour" + (unused.length !== 1 ? "s" : "") + " from palette", { type: "info", duration: 2000 });
   }
 
   function toggleOwned(id) {
@@ -853,6 +924,7 @@ window.useCreatorState = function useCreatorState() {
       bri: bri, con: con, sat: sat, dith: dith, dithMode: dithMode,
       allowBlends: allowBlends, skipBg: skipBg
     });
+    setGenPatSnapshot({ pat: result.mapped.slice(), pal: result.pal.slice(), cmap: Object.assign({}, result.cmap) });
     // Compute cleanup diff mask from preCleanupIds
     setShowCleanupDiff(false);
     if (result.preCleanupIds && result.preCleanupIds.length === result.mapped.length) {
@@ -1166,6 +1238,7 @@ window.useCreatorState = function useCreatorState() {
     setRedoHistory: setRedoHistory,
     EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
     buildPaletteWithScratch: buildPaletteWithScratch,
+    genPatSnapshot: genPatSnapshot,
   });
 
   // ─── Magic Wand integration ──────────────────────────────────────────────────
@@ -1383,7 +1456,7 @@ window.useCreatorState = function useCreatorState() {
     // Functions
     buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType,
     setBrushAndActivate, setTool, setHsTool, setPsTool: setHsTool, fitZ, copyText,
-    resetAll, initBlankGrid, startScratch, addScratchColour, removeScratchColour,
+    resetAll, initBlankGrid, startScratch, addScratchColour, removeScratchColour, removeUnusedColours,
     toggleOwned, generate, randomise, generateGallery, promoteVariation, applyVariationSeed,
     // Eyedropper feedback
     eyedropperEmpty, setEyedropperEmpty,
@@ -1395,6 +1468,7 @@ window.useCreatorState = function useCreatorState() {
     selectionModifier, setSelectionModifier,
     // PaletteSwap
     paletteSwap,
+    genPatSnapshot, setGenPatSnapshot,
     // Magic Wand
     selectionMask: wand.selectionMask, setSelectionMask: wand.setSelectionMask,
     wandTolerance: wand.wandTolerance, setWandTolerance: wand.setWandTolerance,
@@ -1420,6 +1494,9 @@ window.useCreatorState = function useCreatorState() {
     applyColorReduction: wand.applyColorReduction,
     selectionReplaceColorCount: wand.selectionReplaceColorCount,
     applyColorReplacement: wand.applyColorReplacement,
+    applyGlobalColourReplacement: wand.applyGlobalColourReplacement,
+    applyGlobalColorReplacement: wand.applyGlobalColourReplacement,
+    colourReplaceModal, setColourReplaceModal,
     selectionStats: wand.selectionStats,
     applyOutlineGeneration: wand.applyOutlineGeneration,
     selectionCount: wand.selectionCount, hasSelection: wand.hasSelection,

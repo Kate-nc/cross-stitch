@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Proposal C — Data-Forward · Real-Time Stash Deduction</title>
+<style>
+:root {
+  --accent: #5b6af0; --accent-light: #eef0fd;
+  --surface: #ffffff; --surface-2: #f7f8fa; --surface-3: #f0f1f4;
+  --text-primary: #1a1d23; --text-secondary: #5a6278; --text-tertiary: #9aa0b5;
+  --border: #e3e5ec;
+  --success: #2e9e5b; --success-light: #e6f7ee;
+  --warning: #c47a1a; --warning-light: #fef3e2;
+  --danger: #d93c3c; --danger-light: #fdecea;
+  --chart-1: #5b6af0; --chart-2: #e06c3a; --chart-3: #2e9e5b;
+  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.08); --shadow-md: 0 4px 16px rgba(0,0,0,.10);
+  font-size: 14px;
+}
+[data-theme="dark"] {
+  --surface: #1a1d23; --surface-2: #22262e; --surface-3: #2a2f3a;
+  --text-primary: #f0f1f5; --text-secondary: #9aa0b5; --text-tertiary: #5a6278;
+  --border: #2e3341; --accent-light: #1e2251;
+  --success-light: #1a2f22; --warning-light: #2b1f0a; --danger-light: #2b0f0f;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--surface-2); color: var(--text-primary); min-height: 100vh; }
+.page { display: grid; grid-template-columns: 1fr 380px; height: 100vh; overflow: hidden; }
+.main { display: flex; flex-direction: column; overflow: hidden; }
+.sidebar { background: var(--surface); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden; }
+.toolbar { background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 10px 16px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.toolbar-title { font-weight: 700; font-size: 15px; flex: 1; }
+.canvas-area { flex: 1; display: flex; align-items: center; justify-content: center;
+  background: var(--surface-3); position: relative; overflow: hidden; }
+.canvas-grid { display: grid; gap: 1px; background: var(--border); border: 1px solid var(--border); }
+.cell { width: 14px; height: 14px; cursor: pointer; transition: filter .1s; }
+.cell:hover { filter: brightness(1.15); }
+.cell.done { opacity: .45; }
+
+/* ── Tabs ── */
+.tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.tab { flex: 1; padding: 10px 4px; text-align: center; font-size: 12px; font-weight: 600;
+  cursor: pointer; color: var(--text-tertiary); border-bottom: 2px solid transparent;
+  transition: color .1s; }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-panel { display: none; flex: 1; overflow-y: auto; }
+.tab-panel.active { display: block; }
+
+/* ── Summary header ── */
+.summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px;
+  background: var(--border); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.summary-cell { background: var(--surface); padding: 10px 12px; }
+.summary-val { font-size: 18px; font-weight: 700; line-height: 1; }
+.summary-lbl { font-size: 11px; color: var(--text-tertiary); margin-top: 3px; }
+
+/* ── Thread data table ── */
+.data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.data-table th { text-align: right; padding: 6px 10px 6px; font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--text-tertiary);
+  border-bottom: 1px solid var(--border); background: var(--surface-2); position: sticky; top: 0; }
+.data-table th:first-child { text-align: left; }
+.data-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: right;
+  font-variant-numeric: tabular-nums; }
+.data-table td:first-child { text-align: left; }
+.data-table tr:hover td { background: var(--surface-2); }
+.data-table .thread-cell { display: flex; align-items: center; gap: 6px; }
+.sw { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; border: 1px solid rgba(0,0,0,.1); }
+.warn-cell { color: var(--warning); font-weight: 700; }
+.danger-cell { color: var(--danger); font-weight: 700; }
+.ok-cell { color: var(--success); }
+
+/* ── Prefs tab ── */
+.prefs-section { padding: 16px; border-bottom: 1px solid var(--border); }
+.prefs-section-title { font-size: 12px; font-weight: 700; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: .06em; margin-bottom: 12px; }
+.pref-row { display: grid; grid-template-columns: 1fr auto; gap: 12px;
+  align-items: start; margin-bottom: 14px; }
+.pref-label { font-size: 13px; font-weight: 600; }
+.pref-hint { font-size: 11px; color: var(--text-tertiary); margin-top: 3px; line-height: 1.4; }
+.pref-control { display: flex; align-items: center; gap: 6px; }
+.pref-input { width: 72px; padding: 5px 8px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--surface); color: var(--text-primary); font-size: 13px; }
+.pref-range { accent-color: var(--accent); width: 80px; }
+.pref-unit { font-size: 11px; color: var(--text-tertiary); }
+.formula-box { background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: 12px; font-size: 12px; font-family: monospace;
+  color: var(--text-secondary); line-height: 1.8; }
+.formula-result { color: var(--accent); font-weight: 700; }
+
+/* ── Mini sparkline chart ── */
+.chart-section { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.chart-title { font-size: 12px; font-weight: 700; color: var(--text-secondary);
+  margin-bottom: 8px; }
+.sparkline-wrap { position: relative; }
+canvas.sparkline { width: 100%; height: 60px; display: block; }
+
+/* ── Projection row ── */
+.proj-row { display: flex; justify-content: space-between; padding: 6px 16px;
+  font-size: 12px; border-bottom: 1px solid var(--border); }
+.proj-label { color: var(--text-secondary); }
+.proj-val { font-weight: 700; }
+
+/* ── Completion modal ── */
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45);
+  display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal { background: var(--surface); border-radius: var(--radius-lg); padding: 24px;
+  width: 460px; max-width: 95vw; box-shadow: var(--shadow-md); }
+.modal-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+.modal-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; }
+.modal-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 12px; }
+.modal-table th { text-align: left; padding: 4px 8px; font-size: 10px; font-weight: 700;
+  text-transform: uppercase; color: var(--text-tertiary); border-bottom: 1px solid var(--border); }
+.modal-table td { padding: 7px 8px; border-bottom: 1px solid var(--border); }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.btn { padding: 9px 18px; border-radius: var(--radius-md); font-size: 14px;
+  font-weight: 600; cursor: pointer; border: none; }
+.btn-primary { background: var(--accent); color: white; }
+.btn-secondary { background: var(--surface-3); color: var(--text-primary); border: 1px solid var(--border); }
+
+.theme-btn { padding: 5px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--surface); color: var(--text-secondary); cursor: pointer; font-size: 12px; }
+.proposal-header { background: #0d7a5f; color: white; padding: 10px 20px;
+  font-size: 13px; display: flex; align-items: center; justify-content: space-between; }
+.proposal-title { font-weight: 700; }
+.proposal-desc { opacity: .85; font-size: 12px; }
+.warn-badge { display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 700; color: var(--warning);
+  background: var(--warning-light); border-radius: 10px; padding: 1px 7px; }
+</style>
+</head>
+<body>
+
+<div class="proposal-header">
+  <div>
+    <div class="proposal-title">Proposal C — Data-Forward</div>
+    <div class="proposal-desc">Exact inches consumed, rate per hour, projected usage, formula transparency. For optimisers.</div>
+  </div>
+  <button class="theme-btn" style="color:white;border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.1)"
+    onclick="document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark'">
+    Dark mode
+  </button>
+</div>
+
+<div class="page">
+  <div class="main">
+    <div class="toolbar">
+      <div class="toolbar-title">Rose Garden · 14ct</div>
+      <label style="display:flex;align-items:center;gap:7px;font-size:13px;cursor:pointer">
+        <input type="checkbox" checked id="rt-toggle" onchange="toggleRT(this.checked)">
+        <span style="color:var(--text-secondary)">Live stash tracking</span>
+      </label>
+      <button class="theme-btn" onclick="showCompletionModal()">Simulate 100%</button>
+      <button class="theme-btn" onclick="document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark'">Dark</button>
+    </div>
+    <div class="canvas-area" id="canvas-area">
+      <div>
+        <div id="canvas-grid" class="canvas-grid" style="grid-template-columns:repeat(18,14px)"></div>
+        <div style="text-align:center;margin-top:10px;font-size:12px;color:var(--text-tertiary)">
+          Click stitches to mark done
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <!-- Summary stats -->
+    <div class="summary-grid" id="summary-grid">
+      <div class="summary-cell">
+        <div class="summary-val" id="stat-inches">0.0</div>
+        <div class="summary-lbl">inches used</div>
+      </div>
+      <div class="summary-cell">
+        <div class="summary-val" id="stat-skeins">0.00</div>
+        <div class="summary-lbl">skeins consumed</div>
+      </div>
+      <div class="summary-cell">
+        <div class="summary-val" id="stat-remaining">6</div>
+        <div class="summary-lbl">colours active</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('threads')">Threads</div>
+      <div class="tab" onclick="switchTab('projection')">Projection</div>
+      <div class="tab" onclick="switchTab('prefs')">Settings</div>
+    </div>
+
+    <!-- Tab: Threads -->
+    <div class="tab-panel active" id="tab-threads">
+      <table class="data-table" id="thread-table">
+        <thead>
+          <tr>
+            <th>Thread</th>
+            <th>Stitches</th>
+            <th>Inches</th>
+            <th>Used (sk)</th>
+            <th>Left (sk)</th>
+          </tr>
+        </thead>
+        <tbody id="thread-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Tab: Projection -->
+    <div class="tab-panel" id="tab-projection">
+      <div class="chart-section">
+        <div class="chart-title">Cumulative skeins consumed (session)</div>
+        <div class="sparkline-wrap">
+          <canvas id="sparkline" class="sparkline" width="340" height="60"></canvas>
+        </div>
+      </div>
+      <div id="proj-rows">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+
+    <!-- Tab: Settings -->
+    <div class="tab-panel" id="tab-prefs">
+      <div class="prefs-section">
+        <div class="prefs-section-title">Waste preferences</div>
+        <div class="pref-row">
+          <div>
+            <div class="pref-label">Tail allowance</div>
+            <div class="pref-hint">Inches wasted anchoring / burying each thread end. Applied ×2 (start + end) per run.</div>
+          </div>
+          <div class="pref-control">
+            <input class="pref-input" type="number" id="tail-in" value="1.5" min="0.5" max="4" step="0.5" oninput="updateWaste()">
+            <span class="pref-unit">in</span>
+          </div>
+        </div>
+        <div class="pref-row">
+          <div>
+            <div class="pref-label">Run length</div>
+            <div class="pref-hint">Average stitches per thread run before cutting and restarting.</div>
+          </div>
+          <div class="pref-control">
+            <input class="pref-input" type="number" id="run-len" value="30" min="10" max="100" step="5" oninput="updateWaste()">
+            <span class="pref-unit">st</span>
+          </div>
+        </div>
+        <div class="pref-row">
+          <div>
+            <div class="pref-label">General waste</div>
+            <div class="pref-hint">Extra percentage for tangles, frogging, short remnants at run end.</div>
+          </div>
+          <div class="pref-control">
+            <input class="pref-range" type="range" id="gen-waste" value="10" min="0" max="30"
+              oninput="document.getElementById('waste-pct').textContent=this.value+'%';updateWaste()">
+            <span id="waste-pct" class="pref-unit">10%</span>
+          </div>
+        </div>
+        <div class="pref-row">
+          <div>
+            <div class="pref-label">Strand count</div>
+            <div class="pref-hint">Override the pattern default (2) for this project.</div>
+          </div>
+          <div class="pref-control">
+            <input class="pref-input" type="number" id="strands" value="2" min="1" max="6" oninput="updateWaste()">
+          </div>
+        </div>
+      </div>
+      <div class="prefs-section">
+        <div class="prefs-section-title">Effective cost formula</div>
+        <div class="formula-box">
+          baseCost = 4.8 × <span id="f-strands">2</span> / <span id="f-fc">14</span>
+          &nbsp;= <span id="f-base" class="formula-result">0.686</span> in/st<br>
+          tailWaste = (1.5×2) / <span id="f-run">30</span>
+          &nbsp;= <span id="f-tail" class="formula-result">0.100</span> in/st<br>
+          effectiveCost = (<span id="f-base2">0.686</span> + <span id="f-tail2">0.100</span>)
+          × <span id="f-mult">1.10</span><br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+          = <span id="f-eff" class="formula-result">0.864</span> in/st<br>
+          1 skein = 1890 in → <span id="f-spst" class="formula-result">2188</span> st/sk
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Completion modal -->
+<div class="modal-backdrop" id="completion-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-title">Pattern complete — consumption summary</div>
+    <div class="modal-sub">Stash tracking was active. These figures match what has been written to your stash.</div>
+    <table class="modal-table">
+      <thead>
+        <tr><th>Thread</th><th>Stitches</th><th>Inches used</th><th>Skeins used</th><th>Stash now</th></tr>
+      </thead>
+      <tbody id="completion-tbody"></tbody>
+    </table>
+    <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:16px;line-height:1.5">
+      Estimates only. If your actual usage differed, adjust your stash in the Stash Manager.
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="document.getElementById('completion-modal').style.display='none'">
+        Adjust manually
+      </button>
+      <button class="btn btn-primary" onclick="document.getElementById('completion-modal').style.display='none'">
+        Confirm and close
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SKEIN_TOTAL_IN = 1890, FABRIC_CT = 14;
+const threads = [
+  { id: '321',   name: 'Red',          rgb: [196,40,27],   stitches: 120, owned: 2 },
+  { id: '550',   name: 'Violet (dark)',rgb: [88,30,128],   stitches: 85,  owned: 1 },
+  { id: '703',   name: 'Chartreuse',   rgb: [105,169,60],  stitches: 64,  owned: 2 },
+  { id: '310',   name: 'Black',        rgb: [30,30,30],    stitches: 98,  owned: 0 },
+  { id: '819',   name: 'Pink (light)', rgb: [253,208,214], stitches: 42,  owned: 1 },
+  { id: 'blanc', name: 'Blanc',        rgb: [252,252,252], stitches: 37,  owned: 0 },
+];
+const COLS = 18, ROWS = 14;
+const grid = [];
+const pool = threads.flatMap(t => Array(t.stitches).fill(t.id));
+for (let i = pool.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
+let pi = 0;
+for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) {
+  grid.push({ id: pi < pool.length ? pool[pi++] : null, done: false });
+}
+let done = {}; threads.forEach(t => { done[t.id] = 0; });
+let rtEnabled = true;
+let wastePrefs = { tailIn: 1.5, runLen: 30, genWaste: 0.10, strands: 2 };
+const sessionHistory = []; // [{ts, totalSkeins}]
+
+function effectiveCostIn() {
+  const base = (4.8 * wastePrefs.strands) / FABRIC_CT;
+  const tail = (wastePrefs.tailIn * 2) / wastePrefs.runLen;
+  return (base + tail) * (1 + wastePrefs.genWaste);
+}
+function inchesConsumed(id) { return done[id] * effectiveCostIn(); }
+function skeinsConsumed(id) { return inchesConsumed(id) / SKEIN_TOTAL_IN; }
+function totalSkeins() { return threads.reduce((s,t)=>s+skeinsConsumed(t.id),0); }
+function totalInches() { return threads.reduce((s,t)=>s+inchesConsumed(t.id),0); }
+
+function renderGrid() {
+  const el = document.getElementById('canvas-grid');
+  el.innerHTML = '';
+  grid.forEach((cell, idx) => {
+    const div = document.createElement('div');
+    div.className = 'cell' + (cell.done?' done':'');
+    if (cell.id) { const t = threads.find(x=>x.id===cell.id); div.style.background = t?`rgb(${t.rgb})`:'#ccc'; }
+    else div.style.background = 'var(--surface-3)';
+    div.onclick = () => toggleCell(idx);
+    el.appendChild(div);
+  });
+}
+
+function toggleCell(idx) {
+  const cell = grid[idx]; if (!cell.id) return;
+  cell.done = !cell.done;
+  done[cell.id] += cell.done ? 1 : -1;
+  sessionHistory.push({ ts: Date.now(), totalSkeins: totalSkeins() });
+  renderGrid(); renderPanel(); drawSparkline();
+}
+
+function renderPanel() {
+  const ec = effectiveCostIn();
+  // Summary
+  document.getElementById('stat-inches').textContent = totalInches().toFixed(1);
+  document.getElementById('stat-skeins').textContent = totalSkeins().toFixed(2);
+  document.getElementById('stat-remaining').textContent = threads.filter(t=>skeinsConsumed(t.id)>0).length;
+
+  // Thread table
+  const tbody = document.getElementById('thread-tbody');
+  tbody.innerHTML = threads.map(t => {
+    const sc = rtEnabled ? skeinsConsumed(t.id) : 0;
+    const inc = rtEnabled ? inchesConsumed(t.id) : 0;
+    const rem = t.owned - sc;
+    const isLow = rtEnabled && rem < 0.25 && rem >= 0 && t.owned > 0;
+    const isNeg = rtEnabled && rem < 0;
+    const remClass = isNeg ? 'danger-cell' : isLow ? 'warn-cell' : (rem>0?'ok-cell':'');
+    return `<tr>
+      <td><div class="thread-cell">
+        <div class="sw" style="background:rgb(${t.rgb})"></div>
+        <div>
+          <div style="font-weight:700">DMC ${t.id}</div>
+          <div style="font-size:10px;color:var(--text-tertiary)">${t.name}</div>
+        </div>
+      </div></td>
+      <td>${done[t.id]}/${t.stitches}</td>
+      <td>${rtEnabled?inc.toFixed(1):'—'}</td>
+      <td>${rtEnabled?sc.toFixed(3):'—'}</td>
+      <td class="${remClass}">${rtEnabled?(isNeg?`−${Math.abs(rem).toFixed(2)}`:(t.owned>0?rem.toFixed(2):'n/a')):(t.owned||'?')}</td>
+    </tr>`;
+  }).join('');
+
+  // Projection rows
+  const totalDone = Object.values(done).reduce((s,v)=>s+v,0);
+  const totalSt = threads.reduce((s,t)=>s+t.stitches,0);
+  const pct = totalSt > 0 ? totalDone/totalSt : 0;
+  const projSkeins = pct > 0 ? totalSkeins()/pct : 0;
+  const projInches = pct > 0 ? totalInches()/pct : 0;
+  document.getElementById('proj-rows').innerHTML = `
+    <div class="proj-row"><span class="proj-label">Progress</span><span class="proj-val">${(pct*100).toFixed(1)}%</span></div>
+    <div class="proj-row"><span class="proj-label">Skeins consumed so far</span><span class="proj-val">${totalSkeins().toFixed(3)}</span></div>
+    <div class="proj-row"><span class="proj-label">Projected total skeins</span><span class="proj-val">${pct>0.02?projSkeins.toFixed(2):'—'}</span></div>
+    <div class="proj-row"><span class="proj-label">Projected total inches</span><span class="proj-val">${pct>0.02?projInches.toFixed(0):'—'}</span></div>
+    <div class="proj-row"><span class="proj-label">Cost per stitch</span><span class="proj-val">${ec.toFixed(3)} in/st</span></div>
+    <div class="proj-row"><span class="proj-label">Stitches per skein</span><span class="proj-val">${Math.round(SKEIN_TOTAL_IN/ec)}</span></div>
+  `;
+}
+
+function updateWaste() {
+  wastePrefs.tailIn  = parseFloat(document.getElementById('tail-in').value)||1.5;
+  wastePrefs.runLen  = parseFloat(document.getElementById('run-len').value)||30;
+  wastePrefs.genWaste = (parseFloat(document.getElementById('gen-waste').value)||10)/100;
+  wastePrefs.strands  = parseInt(document.getElementById('strands').value)||2;
+  const base = (4.8*wastePrefs.strands)/FABRIC_CT;
+  const tail = (wastePrefs.tailIn*2)/wastePrefs.runLen;
+  const eff = (base+tail)*(1+wastePrefs.genWaste);
+  document.getElementById('f-strands').textContent = wastePrefs.strands;
+  document.getElementById('f-run').textContent = wastePrefs.runLen;
+  document.getElementById('f-base').textContent = base.toFixed(3);
+  document.getElementById('f-base2').textContent = base.toFixed(3);
+  document.getElementById('f-tail').textContent = tail.toFixed(3);
+  document.getElementById('f-tail2').textContent = tail.toFixed(3);
+  document.getElementById('f-mult').textContent = (1+wastePrefs.genWaste).toFixed(2);
+  document.getElementById('f-eff').textContent = eff.toFixed(3);
+  document.getElementById('f-spst').textContent = Math.round(SKEIN_TOTAL_IN/eff);
+  renderPanel(); drawSparkline();
+}
+
+function drawSparkline() {
+  const canvas = document.getElementById('sparkline');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+  if (sessionHistory.length < 2) {
+    ctx.fillStyle = 'var(--text-tertiary)';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Mark some stitches to see the chart', W/2, H/2);
+    return;
+  }
+  const vals = sessionHistory.map(h=>h.totalSkeins);
+  const max = Math.max(...vals, 0.01);
+  const step = W / (vals.length-1);
+  const isDark = document.documentElement.dataset.theme === 'dark';
+  // Area fill
+  ctx.beginPath();
+  ctx.moveTo(0, H);
+  vals.forEach((v,i) => ctx.lineTo(i*step, H - (v/max)*(H-8)));
+  ctx.lineTo((vals.length-1)*step, H);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(91,106,240,0.15)';
+  ctx.fill();
+  // Line
+  ctx.beginPath();
+  vals.forEach((v,i) => i===0?ctx.moveTo(0,H-(v/max)*(H-8)):ctx.lineTo(i*step,H-(v/max)*(H-8)));
+  ctx.strokeStyle = '#5b6af0';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function toggleRT(on) { rtEnabled = on; renderPanel(); drawSparkline(); }
+
+function switchTab(id) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    const ids = ['threads','projection','prefs'];
+    t.classList.toggle('active', ids[i]===id);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+}
+
+function showCompletionModal() {
+  threads.forEach(t => { done[t.id] = t.stitches; });
+  renderPanel(); drawSparkline();
+  const tbody = document.getElementById('completion-tbody');
+  tbody.innerHTML = threads.map(t => {
+    const sc = skeinsConsumed(t.id), inc = inchesConsumed(t.id);
+    const after = Math.max(0, t.owned-sc);
+    return `<tr>
+      <td><span style="display:inline-flex;align-items:center;gap:5px">
+        <span style="width:10px;height:10px;border-radius:2px;background:rgb(${t.rgb});display:inline-block"></span>
+        DMC ${t.id}
+      </span></td>
+      <td>${t.stitches}</td>
+      <td>${inc.toFixed(1)}"</td>
+      <td>${sc.toFixed(3)}</td>
+      <td style="color:${after<0.1?'var(--danger)':'var(--success)'}">${after.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('completion-modal').style.display = 'flex';
+}
+
+renderGrid(); renderPanel(); drawSparkline();
+</script>
+</body>
+</html>

@@ -1162,9 +1162,16 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
           if (proj.finishStatus === 'planned') continue;
           for (const cell of proj.pattern) {
             if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
-            const normalized = normaliseStashKey(cell.id);
-            usedKeys.add(normalized);
-            usedKeys.add(cell.id.indexOf(':') >= 0 ? cell.id.split(':').slice(1).join(':') : cell.id);
+            // Split blend cells ("310+550") into components so stash keys
+            // ("dmc:310", "dmc:550") are correctly matched as 'used'.
+            const cellIds = cell.id.indexOf('+') !== -1
+              ? cell.id.split('+').map(p => p.trim()).filter(Boolean)
+              : [cell.id];
+            for (const cid of cellIds) {
+              const normalized = normaliseStashKey(cid);
+              usedKeys.add(normalized);
+              usedKeys.add(cid.indexOf(':') >= 0 ? cid.split(':').slice(1).join(':') : cid);
+            }
           }
         }
         const LEGACY_EP = typeof StashBridge !== 'undefined' ? StashBridge.LEGACY_EPOCH : '2020-01-01T00:00:00Z';
@@ -1276,9 +1283,12 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       for (const p of fulls) {
         if (!p) continue;
         details.push({ id: p.id, name: p.name, finishStatus: p.finishStatus || 'active', completedAt: p.completedAt, startedAt: p.startedAt });
-        // Compute difficulty + completion + palette stats once per project
-        let total = 0, completed = 0, blendCount = 0;
+        // Compute difficulty + completion + palette stats once per project.
+        // Blend cells ("310+550") are split into their component ids so palLen
+        // counts distinct physical threads, not compound entries.
+        let total = 0, completed = 0;
         const palette = new Set();
+        const blendIds = new Set(); // distinct blend pairs for difficulty calc
         if (p.pattern && p.pattern.length) {
           const done = p.done && p.done.length === p.pattern.length ? p.done : null;
           for (let i = 0; i < p.pattern.length; i++) {
@@ -1286,10 +1296,15 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
             if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
             total++;
             if (done && done[i]) completed++;
-            palette.add(cell.id);
+            if (cell.id.indexOf('+') !== -1) {
+              blendIds.add(cell.id);
+              cell.id.split('+').forEach(function(part) { part = part.trim(); if (part) palette.add(part); });
+            } else {
+              palette.add(cell.id);
+            }
           }
-          for (const id of palette) if (id.indexOf('+') >= 0) blendCount++;
         }
+        const blendCount = blendIds.size;
         const palLen = palette.size;
         const diff = (typeof calcDifficulty === 'function' && palLen > 0)
           ? calcDifficulty(palLen, blendCount, total)
@@ -1436,12 +1451,21 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       const seen = new Set();
       for (const t of pat.threads) {
         if (!t || !t.id) continue;
-        if (ownedKeys.has(t.id) || ownedKeys.has('dmc:' + t.id)) continue;
-        if (seen.has(t.id)) continue;
-        seen.add(t.id);
-        if (!tally[t.id]) tally[t.id] = { id: t.id, name: t.name || t.id, brand: t.brand || 'dmc', patternCount: 0, patterns: [] };
-        tally[t.id].patternCount++;
-        if (tally[t.id].patterns.length < 3) tally[t.id].patterns.push(pat.title || 'Untitled');
+        // Expand blended threads into their two component requirements.
+        // A blend stored as {id:'310', is_blended:true, blend_id:'550'} needs
+        // both DMC 310 and DMC 550 — treat each as an independent buying need.
+        const components = (t.is_blended && t.blend_id)
+          ? [{ id: t.id, name: t.name }, { id: t.blend_id, name: t.blend_name || t.blend_id }]
+          : [{ id: t.id, name: t.name }];
+        const brand = t.brand || 'dmc';
+        for (const comp of components) {
+          if (ownedKeys.has(comp.id) || ownedKeys.has(brand + ':' + comp.id)) continue;
+          if (seen.has(comp.id)) continue;
+          seen.add(comp.id);
+          if (!tally[comp.id]) tally[comp.id] = { id: comp.id, name: comp.name || comp.id, brand, patternCount: 0, patterns: [] };
+          tally[comp.id].patternCount++;
+          if (tally[comp.id].patterns.length < 3) tally[comp.id].patterns.push(pat.title || 'Untitled');
+        }
       }
     }
     // Look up rgb for each
@@ -1463,7 +1487,11 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       if (!pat || !pat.threads || pat.status === 'completed' || pat.status === 'inprogress') continue;
       const matches = [];
       for (const t of pat.threads) {
-        if (t && t.id && dormantIds.has(t.id)) matches.push(t);
+        // Check primary id and, for blended threads, the secondary component.
+        const matchIds = (t && t.is_blended && t.blend_id) ? [t.id, t.blend_id] : (t ? [t.id] : []);
+        for (const mid of matchIds) {
+          if (mid && dormantIds.has(mid)) { matches.push(t); break; }
+        }
       }
       if (matches.length > 0) {
         recs.push({ id: pat.id, title: pat.title || 'Untitled', matches: matches.length, sampleNames: matches.slice(0, 3).map(t => t.name || t.id) });
@@ -1795,7 +1823,30 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
 
   // ── Stitching tab: delegate to GlobalStatsDashboard ──────────
   if (tab === 'stitching') {
-    return h('div', null, tabBar, h(GlobalStatsDashboard, { onClose }));
+    // onViewProject: clicking a project card on the standalone Stats page
+    // routes the user into the Tracker for that project AND auto-opens the
+    // per-project StatsDashboard once the tracker has mounted. The tracker
+    // exposes window.__openTrackerStats(targetId); since loadTrackerApp runs
+    // asynchronously we poll briefly until the hook is available.
+    const handleViewProject = (id) => {
+      if (typeof onNavigateToProject === 'function') onNavigateToProject(id);
+      let tries = 0;
+      const tryOpen = () => {
+        if (typeof window.__openTrackerStats === 'function') {
+          window.__openTrackerStats(id);
+        } else if (tries++ < 50) {
+          setTimeout(tryOpen, 40);
+        } else {
+          // DEFECT-010: previously failed silently. ~2 s of polling without
+          // the hook appearing means tracker-app.js failed to load (script
+          // error, ad-blocker, offline cache miss). Surface it.
+          console.warn('[stats-page] __openTrackerStats hook never appeared after ~2s polling; tracker-app.js may have failed to load. Project id:', id);
+          if (window.Toast) window.Toast.show({ message: 'Could not open per-project stats — tracker failed to load.', type: 'error' });
+        }
+      };
+      tryOpen();
+    };
+    return h('div', null, tabBar, h(GlobalStatsDashboard, { onClose, onViewProject: handleViewProject }));
   }
 
   if (loading) {

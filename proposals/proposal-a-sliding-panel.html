@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proposal A — Sliding Help Panel</title>
+<style>
+:root {
+  --accent: #B85C38;
+  --accent-hover: #944526;
+  --accent-light: #F4DDCF;
+  --accent-border: #E8B89A;
+  --text-primary: #1B1814;
+  --text-secondary: #5C5448;
+  --text-tertiary: #8A7E72;
+  --surface: #ffffff;
+  --surface-secondary: #FBF8F3;
+  --surface-tertiary: #EFE7D6;
+  --line: #E5DCCB;
+  --line-2: #D8CDB6;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-lg: 0 12px 28px rgba(60,40,20,.14);
+  --success: #3a7d44;
+  --motion: 160ms ease-out;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--surface-secondary); color: var(--text-primary); font-size: 14px; line-height: 1.5; }
+
+/* ── Layout ─────────────────────────────────────────────── */
+.app-shell { display: flex; height: 100vh; overflow: hidden; position: relative; }
+.app-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; transition: margin-right var(--motion); }
+.app-main.panel-open { margin-right: 380px; }
+@media (max-width: 700px) { .app-main.panel-open { margin-right: 0; } }
+
+/* ── Proposal badge ──────────────────────────────────────── */
+.proposal-badge { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); background: var(--accent); color: #fff; font-size: 11px; font-weight: 600; letter-spacing: .04em; padding: 4px 12px; border-radius: 999px; z-index: 10000; white-space: nowrap; }
+
+/* ── App Header ──────────────────────────────────────────── */
+.app-header { background: var(--surface); border-bottom: 1px solid var(--line); height: 48px; display: flex; align-items: center; padding: 0 16px; gap: 12px; flex-shrink: 0; }
+.app-header .logo { font-weight: 700; font-size: 15px; color: var(--accent); letter-spacing: -.01em; }
+.app-header .nav { display: flex; gap: 2px; margin-left: 8px; }
+.nav-btn { background: none; border: none; cursor: pointer; padding: 5px 10px; border-radius: var(--radius-sm); font-size: 13px; color: var(--text-secondary); }
+.nav-btn:hover { background: var(--surface-tertiary); color: var(--text-primary); }
+.nav-btn.active { color: var(--accent); font-weight: 600; }
+.header-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+/* ── Help trigger button ─────────────────────────────────── */
+.help-trigger { display: flex; align-items: center; gap: 6px; background: none; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 5px 10px; cursor: pointer; font-size: 13px; color: var(--text-secondary); transition: all var(--motion); }
+.help-trigger:hover { border-color: var(--accent-border); color: var(--accent); background: var(--accent-light); }
+.help-trigger.active { background: var(--accent-light); border-color: var(--accent-border); color: var(--accent); }
+.help-trigger svg { width: 15px; height: 15px; flex-shrink: 0; }
+.help-trigger .kbd { font-size: 10px; background: var(--surface-tertiary); border: 1px solid var(--line); border-radius: 3px; padding: 1px 4px; margin-left: 2px; color: var(--text-tertiary); }
+
+/* ── Workspace area ──────────────────────────────────────── */
+.workspace { flex: 1; display: grid; grid-template-columns: 260px 1fr; overflow: hidden; }
+.sidebar { background: var(--surface); border-right: 1px solid var(--line); padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+.sidebar-section { background: var(--surface-secondary); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px; }
+.sidebar-section-title { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 10px; }
+.field-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.field-label { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+.field-input { width: 100%; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px 8px; font-size: 13px; color: var(--text-primary); background: var(--surface); outline: none; }
+.field-input:focus { border-color: var(--accent-border); box-shadow: 0 0 0 2px rgba(184,92,56,.12); }
+.canvas-area { background: var(--surface-tertiary); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+.canvas-mock { display: grid; grid-template-columns: repeat(20, 18px); grid-template-rows: repeat(15, 18px); gap: 1px; opacity: .7; }
+.canvas-cell { border-radius: 2px; }
+
+/* ── Contextual info icons ───────────────────────────────── */
+.info-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; border: none; background: none; cursor: pointer; color: var(--text-tertiary); padding: 0; position: relative; transition: color var(--motion); }
+.info-icon-btn:hover { color: var(--accent); }
+.info-icon-btn svg { width: 14px; height: 14px; }
+
+/* ── Popover (click-triggered) ───────────────────────────── */
+.popover-anchor { position: relative; display: inline-flex; }
+.popover { position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%); background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--radius-md); padding: 12px 14px; width: 240px; box-shadow: var(--shadow-lg); z-index: 500; font-size: 13px; line-height: 1.55; color: var(--text-secondary); pointer-events: none; opacity: 0; transition: opacity var(--motion), transform var(--motion); transform: translateY(-50%) translateX(-4px); }
+.popover.visible { opacity: 1; transform: translateY(-50%) translateX(0); pointer-events: auto; }
+.popover-title { font-weight: 600; color: var(--text-primary); font-size: 13px; margin-bottom: 4px; }
+.popover-more { display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; font-size: 12px; color: var(--accent); font-weight: 500; cursor: pointer; border: none; background: none; padding: 0; }
+.popover-more:hover { text-decoration: underline; }
+.popover-more svg { width: 12px; height: 12px; }
+@media (max-width: 700px) {
+  .popover { left: auto; right: 0; top: calc(100% + 8px); transform: none; }
+  .popover.visible { transform: none; }
+}
+
+/* ── Slider ──────────────────────────────────────────────── */
+input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+
+/* ── Help Panel ──────────────────────────────────────────── */
+.help-panel { position: fixed; top: 0; right: 0; bottom: 0; width: 380px; background: var(--surface); border-left: 1px solid var(--line); z-index: 800; display: flex; flex-direction: column; transform: translateX(100%); transition: transform 240ms cubic-bezier(.32,.72,0,1); box-shadow: -8px 0 24px rgba(60,40,20,.08); }
+.help-panel.open { transform: translateX(0); }
+@media (max-width: 700px) { .help-panel { width: 100%; border-left: none; } }
+
+.help-panel-header { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; }
+.help-panel-titlerow { display: flex; align-items: center; gap: 8px; }
+.help-panel-title { font-weight: 700; font-size: 15px; flex: 1; }
+.help-panel-close { background: none; border: none; cursor: pointer; padding: 4px; border-radius: var(--radius-sm); color: var(--text-secondary); display: flex; align-items: center; justify-content: center; }
+.help-panel-close:hover { background: var(--surface-tertiary); }
+.help-panel-close svg { width: 18px; height: 18px; }
+
+.help-search { display: flex; align-items: center; gap: 8px; background: var(--surface-secondary); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 7px 10px; }
+.help-search svg { width: 15px; height: 15px; color: var(--text-tertiary); flex-shrink: 0; }
+.help-search input { border: none; background: none; outline: none; font-size: 13px; color: var(--text-primary); flex: 1; }
+.help-search input::placeholder { color: var(--text-tertiary); }
+
+.help-tabs { display: flex; gap: 2px; padding: 0 16px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+.help-tab { padding: 10px 12px; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--text-secondary); border-bottom: 2px solid transparent; background: none; border-top: none; border-left: none; border-right: none; transition: all var(--motion); }
+.help-tab:hover { color: var(--text-primary); }
+.help-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+.help-panel-body { flex: 1; overflow-y: auto; padding: 16px; }
+
+.help-categories { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
+.help-cat-card { background: var(--surface-secondary); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px; cursor: pointer; transition: all var(--motion); display: flex; flex-direction: column; gap: 6px; }
+.help-cat-card:hover { border-color: var(--accent-border); background: var(--accent-light); }
+.help-cat-icon { width: 28px; height: 28px; background: var(--surface-tertiary); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; }
+.help-cat-icon svg { width: 16px; height: 16px; color: var(--accent); }
+.help-cat-name { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+.help-cat-count { font-size: 11px; color: var(--text-tertiary); }
+
+.help-section-head { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 8px; }
+.help-article-list { display: flex; flex-direction: column; gap: 1px; }
+.help-article { padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer; display: flex; flex-direction: column; gap: 2px; transition: background var(--motion); }
+.help-article:hover { background: var(--surface-secondary); }
+.help-article.highlighted { background: var(--accent-light); border: 1px solid var(--accent-border); border-radius: var(--radius-md); }
+.help-article-title { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+.help-article-snippet { font-size: 12px; color: var(--text-secondary); line-height: 1.4; }
+
+/* Article view */
+.help-article-content { display: none; }
+.help-article-content.visible { display: block; }
+.help-category-view { display: block; }
+.help-category-view.hidden { display: none; }
+.article-back { display: flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer; font-size: 13px; color: var(--accent); padding: 0; margin-bottom: 16px; font-weight: 500; }
+.article-back svg { width: 14px; height: 14px; }
+.article-h1 { font-size: 17px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; line-height: 1.3; }
+.article-meta { font-size: 11px; color: var(--text-tertiary); margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.article-body { font-size: 13px; line-height: 1.65; color: var(--text-secondary); }
+.article-body h3 { font-size: 14px; font-weight: 600; color: var(--text-primary); margin: 16px 0 6px; }
+.article-body p { margin-bottom: 10px; }
+.article-body ul { padding-left: 18px; margin-bottom: 10px; }
+.article-body li { margin-bottom: 4px; }
+.article-body .tip-box { background: var(--accent-light); border: 1px solid var(--accent-border); border-radius: var(--radius-md); padding: 10px 12px; margin: 12px 0; font-size: 12px; color: var(--text-primary); }
+.article-body .tip-label { font-weight: 700; color: var(--accent); margin-bottom: 2px; }
+.article-feedback { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-secondary); }
+.feedback-btn { background: var(--surface-secondary); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 5px 10px; font-size: 12px; cursor: pointer; transition: all var(--motion); color: var(--text-secondary); }
+.feedback-btn:hover { border-color: var(--accent-border); color: var(--accent); background: var(--accent-light); }
+
+/* ── Keyboard shortcut badge ─────────────────────────────── */
+kbd { background: var(--surface-tertiary); border: 1px solid var(--line-2); border-radius: 4px; padding: 1px 5px; font-family: inherit; font-size: 11px; color: var(--text-secondary); }
+
+/* ── Demo description overlay ────────────────────────────── */
+.demo-note { background: var(--surface); border: 1px solid var(--accent-border); border-radius: var(--radius-md); padding: 12px 16px; margin: 12px 16px; font-size: 12px; color: var(--text-secondary); line-height: 1.5; flex-shrink: 0; }
+.demo-note strong { color: var(--text-primary); display: block; margin-bottom: 3px; }
+.demo-note ul { padding-left: 16px; margin-top: 4px; }
+.demo-note li { margin-bottom: 2px; }
+
+/* ── Tooltip (Proposal A uses popovers, but retain minimal title-hover style) ── */
+[data-tip] { position: relative; }
+[data-tip]:hover::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #1B1814; color: #fff; font-size: 11px; padding: 4px 8px; border-radius: 4px; white-space: nowrap; pointer-events: none; z-index: 600; }
+
+/* ── Gen settings panel (complex form demo) ─────────────── */
+.gen-title { font-size: 12px; font-weight: 700; color: var(--text-primary); margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+.gen-title .badge { background: var(--accent-light); color: var(--accent); font-size: 10px; padding: 2px 7px; border-radius: 999px; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="proposal-badge">Proposal A — Sliding Help Panel</div>
+
+<div class="app-shell">
+
+  <!-- Main app area -->
+  <div class="app-main" id="appMain">
+
+    <!-- Header -->
+    <header class="app-header">
+      <span class="logo">Stitch Studio</span>
+      <nav class="nav">
+        <button class="nav-btn active">Creator</button>
+        <button class="nav-btn">Tracker</button>
+        <button class="nav-btn">Stash</button>
+      </nav>
+      <div class="header-actions">
+        <button class="help-trigger" id="helpTrigger" aria-expanded="false" aria-controls="helpPanel" onclick="togglePanel()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg>
+          Help
+          <span class="kbd">?</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="demo-note">
+      <strong>Proposal A — Sliding Help Panel</strong>
+      <ul>
+        <li>A persistent help panel slides in from the right, keeping you in context.</li>
+        <li>Click the "?" (Info) icons beside any setting to open a popover with explanation + "Learn more" link into the panel.</li>
+        <li>The panel has search, category browsing, and full article reading — all without a modal or page navigation.</li>
+        <li>On mobile, the panel covers full width as a bottom sheet.</li>
+      </ul>
+    </div>
+
+    <!-- Workspace -->
+    <div class="workspace">
+
+      <!-- Generation settings sidebar (the most complex form in the app) -->
+      <aside class="sidebar">
+        <div class="sidebar-section">
+          <div class="gen-title">
+            Dimensions
+            <span class="badge">Step 1</span>
+          </div>
+
+          <div class="field-row">
+            <label class="field-label">
+              Width (stitches)
+              <span class="popover-anchor" id="widthAnchor">
+                <button class="info-icon-btn" aria-label="About pattern width" onclick="togglePopover('widthPop')" aria-expanded="false">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                </button>
+                <div class="popover" id="widthPop" role="tooltip">
+                  <div class="popover-title">Pattern width</div>
+                  The number of stitches across. Combined with your fabric count, this determines the finished physical width.
+                  <br><br>A 100-stitch pattern on 14ct fabric measures ~18 cm wide.
+                  <button class="popover-more" onclick="openArticle('fabric-count')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    Learn more about fabric count
+                  </button>
+                </div>
+              </span>
+            </label>
+            <input class="field-input" type="number" value="80" min="20" max="400">
+          </div>
+
+          <div class="field-row">
+            <label class="field-label">
+              Fabric count
+              <span class="popover-anchor" id="fabricAnchor">
+                <button class="info-icon-btn" aria-label="About fabric count" onclick="togglePopover('fabricPop')" aria-expanded="false">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                </button>
+                <div class="popover" id="fabricPop" role="tooltip">
+                  <div class="popover-title">Fabric count</div>
+                  The number of holes per inch in your fabric. 14ct is the most common for beginners. Higher count = finer detail, smaller finished piece.
+                  <button class="popover-more" onclick="openArticle('fabric-count')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    Full guide to choosing fabric count
+                  </button>
+                </div>
+              </span>
+            </label>
+            <select class="field-input">
+              <option selected>14 count (Aida)</option>
+              <option>16 count</option>
+              <option>18 count</option>
+              <option>11 count</option>
+              <option>28 count evenweave</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="gen-title">Palette</div>
+
+          <div class="field-row">
+            <label class="field-label">
+              Max colours
+              <span class="popover-anchor">
+                <button class="info-icon-btn" aria-label="About max colours" onclick="togglePopover('coloursPop')" aria-expanded="false">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                </button>
+                <div class="popover" id="coloursPop" role="tooltip">
+                  <div class="popover-title">Maximum number of thread colours</div>
+                  More colours = more realistic, but also more expensive and harder to stitch. 10–15 is a good starting point for beginners.
+                  <button class="popover-more" onclick="openArticle('palette-size')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    Choosing the right palette size
+                  </button>
+                </div>
+              </span>
+            </label>
+            <input class="field-input" type="range" min="4" max="40" value="12">
+            <div style="font-size:11px;color:var(--text-tertiary);text-align:right">12 colours</div>
+          </div>
+
+          <div class="field-row">
+            <label class="field-label">
+              Confetti cleanup
+              <span class="popover-anchor">
+                <button class="info-icon-btn" aria-label="About confetti cleanup" onclick="togglePopover('confettiPop')" aria-expanded="false">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                </button>
+                <div class="popover" id="confettiPop" role="tooltip">
+                  <div class="popover-title">Confetti cleanup</div>
+                  Removes isolated single stitches ("confetti") that are surrounded by different colours. These are difficult to stitch and easy to lose in a project. Higher = more aggressive removal.
+                  <button class="popover-more" onclick="openArticle('confetti')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    Understanding confetti stitches
+                  </button>
+                </div>
+              </span>
+            </label>
+            <select class="field-input">
+              <option>Off</option>
+              <option>Light</option>
+              <option selected>Moderate</option>
+              <option>Aggressive</option>
+              <option>Maximum</option>
+            </select>
+          </div>
+        </div>
+
+        <button onclick="togglePanel()" style="margin-top:auto;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-md);padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg>
+          Open Help Panel
+        </button>
+      </aside>
+
+      <!-- Canvas mock -->
+      <div class="canvas-area">
+        <div class="canvas-mock" id="canvasMock"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sliding Help Panel -->
+  <aside class="help-panel" id="helpPanel" role="complementary" aria-label="Help">
+    <div class="help-panel-header">
+      <div class="help-panel-titlerow">
+        <span class="help-panel-title">Help Centre</span>
+        <button class="help-panel-close" onclick="togglePanel()" aria-label="Close help panel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="help-search" role="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="search" placeholder="Search help articles…" aria-label="Search help" oninput="handleSearch(this.value)">
+      </div>
+    </div>
+
+    <div class="help-tabs" role="tablist" aria-label="Help sections">
+      <button class="help-tab active" role="tab" aria-selected="true" onclick="switchTab(this, 'articles')">Articles</button>
+      <button class="help-tab" role="tab" aria-selected="false" onclick="switchTab(this, 'shortcuts')">Shortcuts</button>
+      <button class="help-tab" role="tab" aria-selected="false" onclick="switchTab(this, 'glossary')">Glossary</button>
+    </div>
+
+    <div class="help-panel-body" id="helpBody">
+
+      <!-- Category / article list view -->
+      <div class="help-category-view" id="categoryView">
+        <div class="help-categories">
+          <div class="help-cat-card" onclick="showCategory('generating')">
+            <div class="help-cat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div>
+            <div class="help-cat-name">Generating patterns</div>
+            <div class="help-cat-count">8 articles</div>
+          </div>
+          <div class="help-cat-card" onclick="showCategory('editing')">
+            <div class="help-cat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
+            <div class="help-cat-name">Editing tools</div>
+            <div class="help-cat-count">12 articles</div>
+          </div>
+          <div class="help-cat-card">
+            <div class="help-cat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+            <div class="help-cat-name">Exporting</div>
+            <div class="help-cat-count">6 articles</div>
+          </div>
+          <div class="help-cat-card">
+            <div class="help-cat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+            <div class="help-cat-name">Stitch Tracker</div>
+            <div class="help-cat-count">9 articles</div>
+          </div>
+          <div class="help-cat-card">
+            <div class="help-cat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
+            <div class="help-cat-name">Stash Manager</div>
+            <div class="help-cat-count">5 articles</div>
+          </div>
+          <div class="help-cat-card">
+            <div class="help-cat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg></div>
+            <div class="help-cat-name">Settings</div>
+            <div class="help-cat-count">4 articles</div>
+          </div>
+        </div>
+
+        <div class="help-section-head" id="articleListTitle" style="display:none">Generating patterns</div>
+        <div class="help-article-list" id="articleList" style="display:none">
+          <div class="help-article highlighted" onclick="openArticle('fabric-count')">
+            <div class="help-article-title">Understanding fabric count</div>
+            <div class="help-article-snippet">How fabric count affects your finished size and thread requirements.</div>
+          </div>
+          <div class="help-article" onclick="openArticle('confetti')">
+            <div class="help-article-title">What are confetti stitches?</div>
+            <div class="help-article-snippet">Isolated single-colour stitches and how to reduce them.</div>
+          </div>
+          <div class="help-article">
+            <div class="help-article-title">Choosing a palette size</div>
+            <div class="help-article-snippet">Balancing colour accuracy with stitchability.</div>
+          </div>
+          <div class="help-article">
+            <div class="help-article-title">Dithering modes explained</div>
+            <div class="help-article-snippet">Floyd-Steinberg, pattern dithering, and when to use each.</div>
+          </div>
+          <div class="help-article">
+            <div class="help-article-title">Using the Import Wizard</div>
+            <div class="help-article-snippet">Step-by-step guided generation for new users.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Article view -->
+      <div class="help-article-content" id="articleView">
+        <button class="article-back" onclick="goBack()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Back to articles
+        </button>
+        <h1 class="article-h1" id="articleTitle">Understanding fabric count</h1>
+        <div class="article-meta" id="articleMeta">Generating patterns · 3 min read</div>
+        <div class="article-body" id="articleBody">
+          <p>Fabric count (also called "count" or "Aida count") refers to the number of holes per inch in your embroidery fabric. It is one of the most important settings when generating a pattern.</p>
+          <h3>How it affects your finished size</h3>
+          <p>A pattern that is 100 stitches wide will have a different physical size depending on your fabric count:</p>
+          <ul>
+            <li>11 count: ~23 cm (9 inches)</li>
+            <li>14 count: ~18 cm (7 inches) — most common for beginners</li>
+            <li>18 count: ~14 cm (5.5 inches) — finer detail, smaller stitches</li>
+            <li>28 count evenweave: ~9 cm (3.5 inches) stitched over two</li>
+          </ul>
+          <div class="tip-box">
+            <div class="tip-label">Tip</div>
+            If you already have fabric, measure it in inches and count the holes across one inch to find your count. Most fabric sold in hobby shops is 14ct Aida.
+          </div>
+          <h3>How it affects thread requirements</h3>
+          <p>Higher fabric counts require more passes per inch, increasing the thread density and the number of skeins you will need. The Materials tab will recalculate automatically when you change the count.</p>
+        </div>
+        <div class="article-feedback">
+          Was this helpful?
+          <button class="feedback-btn">Yes</button>
+          <button class="feedback-btn">No</button>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+</div>
+
+<script>
+// ── Canvas mock ─────────────────────────────────────────────
+const colours = ['#d4392e','#e8865b','#f2c178','#4a7c59','#2e5c8e','#8b5cf6','#c4b5a0','#f9f0e0','#3b2e20','#7a5c3e','#b8a080','#e4d0b0'];
+const mock = document.getElementById('canvasMock');
+for (let i = 0; i < 300; i++) {
+  const c = document.createElement('div');
+  c.className = 'canvas-cell';
+  c.style.background = colours[Math.floor(Math.random() * colours.length)];
+  mock.appendChild(c);
+}
+
+// ── Panel toggle ────────────────────────────────────────────
+function togglePanel() {
+  const panel = document.getElementById('helpPanel');
+  const main = document.getElementById('appMain');
+  const btn = document.getElementById('helpTrigger');
+  const isOpen = panel.classList.toggle('open');
+  main.classList.toggle('panel-open', isOpen);
+  btn.classList.toggle('active', isOpen);
+  btn.setAttribute('aria-expanded', isOpen);
+  if (isOpen) panel.querySelector('input[type=search]').focus();
+}
+
+// ── Popover toggle ───────────────────────────────────────────
+let activePopover = null;
+function togglePopover(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const isVisible = el.classList.contains('visible');
+  // close any open
+  document.querySelectorAll('.popover.visible').forEach(p => { p.classList.remove('visible'); p.previousElementSibling?.setAttribute('aria-expanded','false'); });
+  if (!isVisible) {
+    el.classList.add('visible');
+    el.previousElementSibling?.setAttribute('aria-expanded','true');
+    activePopover = id;
+    // If panel not open, open it to show article link is available
+  }
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.popover-anchor')) {
+    document.querySelectorAll('.popover.visible').forEach(p => p.classList.remove('visible'));
+  }
+});
+
+// ── Help panel article navigation ───────────────────────────
+function showCategory(cat) {
+  document.getElementById('articleListTitle').style.display = 'block';
+  document.getElementById('articleList').style.display = 'flex';
+  document.getElementById('articleList').style.flexDirection = 'column';
+  document.getElementById('articleListTitle').textContent = cat === 'generating' ? 'Generating patterns' : 'Editing tools';
+  if (!document.getElementById('helpPanel').classList.contains('open')) togglePanel();
+}
+
+const articles = {
+  'fabric-count': {
+    title: 'Understanding fabric count',
+    meta: 'Generating patterns · 3 min read',
+    body: document.getElementById('articleBody')?.innerHTML || ''
+  },
+  'confetti': {
+    title: 'What are confetti stitches?',
+    meta: 'Generating patterns · 2 min read',
+    body: `<p>Confetti stitches are isolated single stitches of one colour completely surrounded by stitches of other colours. They get their name because they look like scattered confetti on the finished piece.</p>
+<h3>Why they matter</h3>
+<p>Each confetti stitch requires you to switch thread colours, knot it off, and restart — which can triple the time for a busy area. Many experienced stitchers aim for patterns with a stitch score above 75.</p>
+<div class="tip-box"><div class="tip-label">Tip</div>Set confetti cleanup to "Moderate" for a good balance of detail and stitchability. You can preview the stitch score in the Pattern tab after generating.</div>
+<h3>Using the Magic Wand tool</h3>
+<p>After generating, use the Magic Wand's Confetti Cleanup panel to selectively merge isolated stitches into neighbouring colours without regenerating the entire pattern.</p>`
+  },
+  'palette-size': {
+    title: 'Choosing the right palette size',
+    meta: 'Generating patterns · 2 min read',
+    body: `<p>The palette size controls how many different DMC thread colours appear in your finished pattern. More colours means more realistic colour gradients, but also higher cost and more thread switching while stitching.</p>
+<h3>Recommended starting points</h3>
+<ul><li><strong>Beginner:</strong> 8–12 colours</li><li><strong>Intermediate:</strong> 12–20 colours</li><li><strong>Advanced / detailed portrait:</strong> 20–35 colours</li></ul>
+<div class="tip-box"><div class="tip-label">Tip</div>After generating, visit the Materials tab to see the total cost estimate. If it's too high, reduce the palette size and regenerate.</div>`
+  }
+};
+
+function openArticle(id) {
+  if (!document.getElementById('helpPanel').classList.contains('open')) togglePanel();
+  const a = articles[id] || { title: 'Article', meta: '', body: '<p>Content coming soon.</p>' };
+  document.getElementById('articleTitle').textContent = a.title;
+  document.getElementById('articleMeta').textContent = a.meta;
+  document.getElementById('articleBody').innerHTML = a.body;
+  document.getElementById('categoryView').classList.add('hidden');
+  document.getElementById('articleView').classList.add('visible');
+  document.querySelectorAll('.popover.visible').forEach(p => p.classList.remove('visible'));
+}
+
+function goBack() {
+  document.getElementById('categoryView').classList.remove('hidden');
+  document.getElementById('articleView').classList.remove('visible');
+}
+
+function switchTab(btn, tab) {
+  document.querySelectorAll('.help-tab').forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected','false'); });
+  btn.classList.add('active');
+  btn.setAttribute('aria-selected','true');
+}
+
+function handleSearch(val) {
+  // mock search highlight
+  if (val.length > 2) {
+    document.getElementById('articleList').style.display = 'flex';
+    document.getElementById('articleList').style.flexDirection = 'column';
+    document.getElementById('articleListTitle').textContent = 'Search results';
+    document.getElementById('articleListTitle').style.display = 'block';
+  }
+}
+
+// Keyboard shortcut to open help
+document.addEventListener('keydown', e => {
+  if (e.key === '?' && !e.target.matches('input,textarea,select')) togglePanel();
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.popover.visible').forEach(p => p.classList.remove('visible'));
+    if (document.getElementById('helpPanel').classList.contains('open')) togglePanel();
+  }
+});
+</script>
+</body>
+</html>

@@ -188,6 +188,11 @@ const StashBridge = (() => {
           tx.oncomplete = () => {
             _schemaVersion = 3;
             console.log('Schema migrated to v3');
+            // Notify any open page (e.g. the Manager) that the stash data has been
+            // updated so it reloads from IDB. Without this, a race condition can
+            // cause the Manager's auto-save to overwrite the V3 fields with the
+            // bare pre-migration React state it already loaded.
+            _dispatchStashChanged();
             resolve();
           };
           tx.onerror = () => reject(tx.error);
@@ -1101,10 +1106,21 @@ const StashBridge = (() => {
           // PERF (perf-5 #4): parallel fetch.
           const fulls = await Promise.all(projects.map(m => ProjectStorage.get(m.id).catch(() => null)));
           for (const proj of fulls) {
-            if (!proj || !proj.stitchLog) continue;
-            for (const log of proj.stitchLog) {
-              const m = log.date.slice(0, 7);
-              if (monthMap[m]) monthMap[m].used += log.count / STITCHES_PER_SKEIN;
+            if (!proj) continue;
+            // Prefer stitchLog (derived from statsSessions by buildSnapshot on save).
+            // Fall back to iterating statsSessions directly for projects that were
+            // last saved before the derivation was added to buildSnapshot.
+            if (proj.stitchLog && proj.stitchLog.length > 0) {
+              for (const log of proj.stitchLog) {
+                const m = log.date.slice(0, 7);
+                if (monthMap[m]) monthMap[m].used += log.count / STITCHES_PER_SKEIN;
+              }
+            } else if (proj.statsSessions && proj.statsSessions.length > 0) {
+              for (const s of proj.statsSessions) {
+                if (!s || !s.date) continue;
+                const m = s.date.slice(0, 7);
+                if (monthMap[m]) monthMap[m].used += (s.netStitches || 0) / STITCHES_PER_SKEIN;
+              }
             }
           }
         } catch (e) { /* ProjectStorage may not be loaded */ }

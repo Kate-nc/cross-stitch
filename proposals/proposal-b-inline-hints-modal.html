@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proposal B — Focus-Triggered Inline Hints</title>
+<style>
+:root {
+  --accent: #B85C38;
+  --accent-hover: #944526;
+  --accent-light: #F4DDCF;
+  --accent-border: #E8B89A;
+  --text-primary: #1B1814;
+  --text-secondary: #5C5448;
+  --text-tertiary: #8A7E72;
+  --surface: #ffffff;
+  --surface-secondary: #FBF8F3;
+  --surface-tertiary: #EFE7D6;
+  --line: #E5DCCB;
+  --line-2: #D8CDB6;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-lg: 0 12px 28px rgba(60,40,20,.14);
+  --success: #3a7d44;
+  --motion: 160ms ease-out;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--surface-secondary); color: var(--text-primary); font-size: 14px; line-height: 1.5; }
+
+.proposal-badge { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); background: #2e5c8e; color: #fff; font-size: 11px; font-weight: 600; letter-spacing: .04em; padding: 4px 12px; border-radius: 999px; z-index: 10000; white-space: nowrap; }
+
+/* ── Layout ─────────────────────────────────────────────── */
+.app-shell { display: flex; flex-direction: column; height: 100vh; }
+.app-header { background: var(--surface); border-bottom: 1px solid var(--line); height: 48px; display: flex; align-items: center; padding: 0 16px; gap: 12px; flex-shrink: 0; }
+.app-header .logo { font-weight: 700; font-size: 15px; color: var(--accent); }
+.nav { display: flex; gap: 2px; margin-left: 8px; }
+.nav-btn { background: none; border: none; cursor: pointer; padding: 5px 10px; border-radius: var(--radius-sm); font-size: 13px; color: var(--text-secondary); }
+.nav-btn:hover { background: var(--surface-tertiary); }
+.nav-btn.active { color: var(--accent); font-weight: 600; }
+.header-actions { margin-left: auto; display: flex; gap: 8px; }
+
+.help-modal-trigger { display: flex; align-items: center; gap: 6px; background: var(--surface-secondary); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 5px 10px; cursor: pointer; font-size: 13px; color: var(--text-secondary); transition: all var(--motion); }
+.help-modal-trigger:hover { border-color: var(--accent-border); color: var(--accent); }
+.help-modal-trigger svg { width: 15px; height: 15px; }
+kbd { background: var(--surface-tertiary); border: 1px solid var(--line-2); border-radius: 4px; padding: 1px 5px; font-size: 11px; color: var(--text-tertiary); }
+
+.workspace { flex: 1; display: grid; grid-template-columns: 300px 1fr; overflow: hidden; }
+
+/* ── Sidebar ─────────────────────────────────────────────── */
+.sidebar { background: var(--surface); border-right: 1px solid var(--line); overflow-y: auto; padding: 0; }
+.sidebar-section { border-bottom: 1px solid var(--line); padding: 16px; }
+.sidebar-title { font-size: 12px; font-weight: 700; color: var(--text-tertiary); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 14px; }
+
+/* ── PROPOSAL B: Focus-triggered inline hint ──────────────── */
+.field-group { margin-bottom: 14px; }
+.field-label { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 5px; }
+.field-label .required { color: var(--accent); font-size: 10px; }
+.field-input { width: 100%; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 9px; font-size: 13px; color: var(--text-primary); background: var(--surface); outline: none; transition: all var(--motion); }
+.field-input:hover { border-color: var(--line-2); }
+.field-input:focus { border-color: var(--accent-border); box-shadow: 0 0 0 3px rgba(184,92,56,.1); }
+
+/* The inline hint — slides in below the field on focus */
+.field-hint { overflow: hidden; max-height: 0; opacity: 0; transition: max-height 220ms cubic-bezier(.4,0,.2,1), opacity 160ms ease; }
+.field-hint.visible { max-height: 160px; opacity: 1; }
+.field-hint-inner { display: flex; gap: 8px; background: var(--surface-secondary); border: 1px solid var(--line); border-top: none; border-radius: 0 0 var(--radius-sm) var(--radius-sm); padding: 8px 10px; margin-top: -1px; font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.field-hint-icon { flex-shrink: 0; width: 16px; height: 16px; color: var(--accent); margin-top: 1px; }
+.field-hint-text { flex: 1; }
+.field-hint-more { display: inline; color: var(--accent); font-weight: 500; cursor: pointer; border: none; background: none; padding: 0; font-size: 12px; }
+.field-hint-more:hover { text-decoration: underline; }
+
+/* Connected input + hint */
+.field-input-wrap { position: relative; }
+.field-input.has-hint:focus { border-radius: var(--radius-sm) var(--radius-sm) 0 0; border-bottom-color: var(--accent-border); }
+
+/* Size preview chip */
+.size-preview { display: inline-flex; align-items: center; gap: 4px; background: var(--accent-light); border: 1px solid var(--accent-border); border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 600; color: var(--accent); margin-top: 4px; }
+
+/* Slider with inline hint */
+.slider-row { display: flex; align-items: center; gap: 10px; }
+.slider-row input[type=range] { flex: 1; accent-color: var(--accent); cursor: pointer; }
+.slider-val { font-size: 12px; color: var(--text-secondary); min-width: 30px; text-align: right; }
+.slider-marks { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-tertiary); margin-top: 2px; }
+
+/* ── Canvas area ─────────────────────────────────────────── */
+.canvas-area { background: var(--surface-tertiary); display: flex; align-items: center; justify-content: center; }
+.canvas-mock { display: grid; grid-template-columns: repeat(22, 16px); grid-template-rows: repeat(16, 16px); gap: 1px; opacity: .7; }
+.canvas-cell { border-radius: 2px; }
+
+/* ── Help Modal ──────────────────────────────────────────── */
+.modal-overlay { position: fixed; inset: 0; background: rgba(27,24,20,.5); z-index: 900; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity var(--motion); padding: 16px; }
+.modal-overlay.open { opacity: 1; pointer-events: auto; }
+.help-modal { background: var(--surface); border-radius: var(--radius-xl, 12px); box-shadow: var(--shadow-lg); width: 100%; max-width: 760px; max-height: 85vh; display: flex; flex-direction: column; transform: translateY(12px); transition: transform var(--motion); overflow: hidden; }
+.modal-overlay.open .help-modal { transform: translateY(0); }
+
+.help-modal-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+.help-modal-titlerow { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.help-modal-h { font-size: 18px; font-weight: 700; flex: 1; }
+.modal-close { background: none; border: none; cursor: pointer; padding: 6px; border-radius: var(--radius-sm); color: var(--text-secondary); }
+.modal-close:hover { background: var(--surface-tertiary); }
+.modal-close svg { width: 20px; height: 20px; }
+
+.modal-search { display: flex; align-items: center; gap: 10px; background: var(--surface-secondary); border: 2px solid var(--line); border-radius: var(--radius-md); padding: 9px 12px; transition: border-color var(--motion); }
+.modal-search:focus-within { border-color: var(--accent-border); }
+.modal-search svg { width: 16px; height: 16px; color: var(--text-tertiary); flex-shrink: 0; }
+.modal-search input { border: none; background: none; outline: none; font-size: 14px; color: var(--text-primary); flex: 1; }
+.modal-search input::placeholder { color: var(--text-tertiary); }
+
+.modal-body { display: flex; flex: 1; overflow: hidden; }
+.modal-categories { width: 200px; border-right: 1px solid var(--line); padding: 16px 0; flex-shrink: 0; overflow-y: auto; }
+.modal-cat-item { display: flex; align-items: center; gap: 8px; padding: 8px 16px; cursor: pointer; font-size: 13px; color: var(--text-secondary); transition: all var(--motion); }
+.modal-cat-item:hover { background: var(--surface-secondary); color: var(--text-primary); }
+.modal-cat-item.active { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+.modal-cat-item svg { width: 15px; height: 15px; flex-shrink: 0; }
+.modal-cat-badge { margin-left: auto; background: var(--surface-tertiary); border-radius: 999px; font-size: 10px; padding: 1px 6px; color: var(--text-tertiary); }
+.modal-cat-item.active .modal-cat-badge { background: rgba(184,92,56,.15); color: var(--accent); }
+
+.modal-articles { flex: 1; overflow-y: auto; padding: 16px; }
+.modal-article-group-title { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-tertiary); margin: 0 0 8px 0; }
+.modal-article-card { display: flex; flex-direction: column; gap: 3px; padding: 11px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); cursor: pointer; margin-bottom: 6px; transition: all var(--motion); }
+.modal-article-card:hover { border-color: var(--accent-border); background: var(--accent-light); }
+.modal-article-card.featured { border-color: var(--accent-border); background: var(--surface-secondary); }
+.mac-tag { font-size: 10px; font-weight: 600; color: var(--accent); letter-spacing: .04em; text-transform: uppercase; }
+.mac-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.mac-snippet { font-size: 12px; color: var(--text-secondary); }
+.mac-meta { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+
+/* ── Demo note ───────────────────────────────────────────── */
+.demo-note { background: var(--surface); border: 1px solid #2e5c8e44; border-radius: var(--radius-md); padding: 10px 16px; margin: 10px 16px; font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.demo-note strong { color: var(--text-primary); display: block; margin-bottom: 3px; }
+.demo-note ul { padding-left: 16px; margin-top: 4px; }
+.demo-note li { margin-bottom: 2px; }
+</style>
+</head>
+<body>
+
+<div class="proposal-badge">Proposal B — Focus-Triggered Inline Hints + Modal Help Centre</div>
+
+<div class="app-shell">
+  <header class="app-header">
+    <span class="logo">Stitch Studio</span>
+    <nav class="nav">
+      <button class="nav-btn active">Creator</button>
+      <button class="nav-btn">Tracker</button>
+      <button class="nav-btn">Stash</button>
+    </nav>
+    <div class="header-actions">
+      <button class="help-modal-trigger" onclick="openModal()" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg>
+        Help Centre
+        <kbd>?</kbd>
+      </button>
+    </div>
+  </header>
+
+  <div class="demo-note">
+    <strong>Proposal B — Focus-Triggered Inline Hints + Modal Help Centre</strong>
+    <ul>
+      <li>Hints slide in directly below each field when it receives focus — no extra click needed.</li>
+      <li>The hint shows a 1-sentence summary with a "Learn more" link to open the full Modal Help Centre.</li>
+      <li>The Help Centre is a searchable, categorised modal — like a documentation site that opens in-app.</li>
+      <li>Click any input below to see its inline hint appear.</li>
+    </ul>
+  </div>
+
+  <div class="workspace">
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-title">Dimensions</div>
+
+        <div class="field-group">
+          <label class="field-label" for="widthInput">Width (stitches)</label>
+          <div class="field-input-wrap">
+            <input id="widthInput" class="field-input has-hint" type="number" value="80"
+              onfocus="showHint('widthHint')" onblur="hideHint('widthHint')">
+            <div class="field-hint" id="widthHint" role="note">
+              <div class="field-hint-inner">
+                <svg class="field-hint-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <div class="field-hint-text">
+                  Number of stitches across your finished pattern. At 14ct fabric, 80 stitches ≈ 14.5 cm wide.
+                  <br><button class="field-hint-more" onclick="openModal('fabric-count')" onmousedown="event.preventDefault()">Learn about fabric count →</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="size-preview" id="sizePreview">≈ 14.5 × 11 cm on 14ct</div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="fabricInput">Fabric count</label>
+          <div class="field-input-wrap">
+            <select id="fabricInput" class="field-input has-hint" onfocus="showHint('fabricHint')" onblur="hideHint('fabricHint')">
+              <option selected>14 count (Aida)</option>
+              <option>11 count (Aida)</option>
+              <option>16 count</option>
+              <option>18 count</option>
+              <option>28 count evenweave</option>
+            </select>
+            <div class="field-hint" id="fabricHint" role="note">
+              <div class="field-hint-inner">
+                <svg class="field-hint-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <div class="field-hint-text">
+                  Holes per inch in your fabric — determines the finished physical size. <strong>14ct is the standard</strong> for beginners.
+                  <br><button class="field-hint-more" onclick="openModal('fabric-count')" onmousedown="event.preventDefault()">Full guide to fabric count →</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">Palette</div>
+
+        <div class="field-group">
+          <label class="field-label" for="coloursInput">Max colours</label>
+          <div class="field-input-wrap">
+            <div class="slider-row">
+              <input id="coloursInput" class="has-hint" type="range" min="4" max="40" value="12"
+                onfocus="showHint('coloursHint')" onblur="hideHint('coloursHint')"
+                oninput="document.getElementById('coloursVal').textContent = this.value + ' colours'">
+              <span id="coloursVal" class="slider-val">12 colours</span>
+            </div>
+            <div class="slider-marks"><span>4</span><span>Simple</span><span>Realistic</span><span>40</span></div>
+            <div class="field-hint" id="coloursHint" role="note">
+              <div class="field-hint-inner">
+                <svg class="field-hint-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <div class="field-hint-text">
+                  More colours = more realistic, but harder to stitch and more expensive. 10–15 is ideal for most beginners.
+                  <br><button class="field-hint-more" onclick="openModal('palette-size')" onmousedown="event.preventDefault()">Choosing a palette size →</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="confettiInput">Confetti cleanup</label>
+          <div class="field-input-wrap">
+            <select id="confettiInput" class="field-input has-hint" onfocus="showHint('confettiHint')" onblur="hideHint('confettiHint')">
+              <option>Off</option>
+              <option>Light</option>
+              <option selected>Moderate</option>
+              <option>Aggressive</option>
+              <option>Maximum</option>
+            </select>
+            <div class="field-hint" id="confettiHint" role="note">
+              <div class="field-hint-inner">
+                <svg class="field-hint-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <div class="field-hint-text">
+                  Removes isolated single stitches that would be fiddly to stitch. "Moderate" is recommended for most photos.
+                  <br><button class="field-hint-more" onclick="openModal('confetti')" onmousedown="event.preventDefault()">What are confetti stitches? →</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="ditherInput">Dithering</label>
+          <div class="field-input-wrap">
+            <select id="ditherInput" class="field-input has-hint" onfocus="showHint('ditherHint')" onblur="hideHint('ditherHint')">
+              <option selected>Floyd-Steinberg</option>
+              <option>Ordered (Bayer)</option>
+              <option>None</option>
+            </select>
+            <div class="field-hint" id="ditherHint" role="note">
+              <div class="field-hint-inner">
+                <svg class="field-hint-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <div class="field-hint-text">
+                  How colours in between your palette are approximated. Floyd-Steinberg spreads the error for smooth gradients. Leave at default unless you know what you want.
+                  <br><button class="field-hint-more" onclick="openModal('dithering')" onmousedown="event.preventDefault()">Dithering modes explained →</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="canvas-area">
+      <div class="canvas-mock" id="canvasMock"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Help Modal -->
+<div class="modal-overlay" id="modalOverlay" role="dialog" aria-modal="true" aria-label="Help Centre" onclick="handleOverlayClick(event)">
+  <div class="help-modal">
+    <div class="help-modal-header">
+      <div class="help-modal-titlerow">
+        <h2 class="help-modal-h">Help Centre</h2>
+        <button class="modal-close" onclick="closeModal()" aria-label="Close help">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="search" placeholder="Search help articles, glossary, shortcuts…" aria-label="Search help" autofocus>
+      </div>
+    </div>
+    <div class="modal-body">
+      <nav class="modal-categories" aria-label="Help categories">
+        <div class="modal-cat-item active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          Generating
+          <span class="modal-cat-badge">8</span>
+        </div>
+        <div class="modal-cat-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Editing tools
+          <span class="modal-cat-badge">12</span>
+        </div>
+        <div class="modal-cat-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Exporting
+          <span class="modal-cat-badge">6</span>
+        </div>
+        <div class="modal-cat-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          Stitch Tracker
+          <span class="modal-cat-badge">9</span>
+        </div>
+        <div class="modal-cat-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          Stash Manager
+          <span class="modal-cat-badge">5</span>
+        </div>
+        <div class="modal-cat-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+          Settings
+          <span class="modal-cat-badge">4</span>
+        </div>
+        <div class="modal-cat-item" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          Shortcuts
+          <span class="modal-cat-badge">24</span>
+        </div>
+        <div class="modal-cat-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          Glossary
+          <span class="modal-cat-badge">31</span>
+        </div>
+      </nav>
+
+      <div class="modal-articles">
+        <div class="modal-article-group-title">Getting started with generating</div>
+
+        <div class="modal-article-card featured" onclick="alert('Article: Understanding fabric count')">
+          <div class="mac-tag">Start here</div>
+          <div class="mac-title">Understanding fabric count</div>
+          <div class="mac-snippet">How count affects finished size, thread requirements, and how to choose the right one for your fabric.</div>
+          <div class="mac-meta">3 min read</div>
+        </div>
+
+        <div class="modal-article-card" onclick="alert('Article: What are confetti stitches?')">
+          <div class="mac-title">What are confetti stitches?</div>
+          <div class="mac-snippet">Isolated single-colour stitches, how to measure them with the Stitch Score, and how to reduce them.</div>
+          <div class="mac-meta">2 min read</div>
+        </div>
+
+        <div class="modal-article-card" onclick="alert('Article: Choosing a palette size')">
+          <div class="mac-title">Choosing a palette size</div>
+          <div class="mac-snippet">Balancing colour accuracy, cost, and stitchability for your project.</div>
+          <div class="mac-meta">2 min read</div>
+        </div>
+
+        <div class="modal-article-card" onclick="alert('Article: Dithering modes')">
+          <div class="mac-title">Dithering modes explained</div>
+          <div class="mac-snippet">Floyd-Steinberg, Bayer matrix, and when each produces better results.</div>
+          <div class="mac-meta">3 min read</div>
+        </div>
+
+        <div style="margin-top:16px" class="modal-article-group-title">Import &amp; export</div>
+
+        <div class="modal-article-card">
+          <div class="mac-title">Export presets: Pattern Keeper vs Home Printing</div>
+          <div class="mac-snippet">Which preset to choose and how to customise the chart layout.</div>
+          <div class="mac-meta">2 min read</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Canvas mock
+const colours = ['#d4392e','#e8865b','#f2c178','#4a7c59','#2e5c8e','#8b5cf6','#c4b5a0','#f9f0e0','#3b2e20','#7a5c3e','#b8a080','#e4d0b0'];
+const mock = document.getElementById('canvasMock');
+for (let i = 0; i < 352; i++) {
+  const c = document.createElement('div');
+  c.className = 'canvas-cell';
+  c.style.background = colours[Math.floor(Math.random() * colours.length)];
+  mock.appendChild(c);
+}
+
+// Inline hints
+function showHint(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.add('visible');
+}
+function hideHint(id) {
+  setTimeout(() => {
+    const el = document.getElementById(id);
+    if (el && !el.contains(document.activeElement)) el.classList.remove('visible');
+  }, 150);
+}
+
+// Modal
+function openModal(articleId) {
+  const overlay = document.getElementById('modalOverlay');
+  overlay.classList.add('open');
+  setTimeout(() => overlay.querySelector('input[type=search]').focus(), 100);
+}
+function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+function handleOverlayClick(e) { if (e.target === e.currentTarget) closeModal(); }
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if (e.key === '?' && !e.target.matches('input,textarea,select')) openModal();
+});
+</script>
+</body>
+</html>

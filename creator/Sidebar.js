@@ -139,7 +139,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     var chips = displayPal.map(function(p) {
       var ips = isPaintMode && cv.selectedColorId === p.id;
       var ihs = cv.hiId === p.id;
-      var isUnused = ctx.isScratchMode && p.count === 0;
+      var isUnused = app.appMode === "edit" && p.count === 0;
       var stashStatus = stashStatusForChip(p);
       if (stashStatus === 'needed') _trackUnowned(p);
       // Brief D — when "limit to stash" filter is on, hide unowned chips.
@@ -193,9 +193,30 @@ window.CreatorSidebar = function CreatorSidebar() {
             position:"absolute", top:-2, right:-2, width:6, height:6, borderRadius:"50%",
             background: STASH_DOT[stashStatus], boxShadow:"0 0 0 1px #fff"
           }
-        })
+        }),
+        // Colour swap button — visible on hover in edit mode
+        app.appMode === "edit" && h("button", {
+          key: "swap-" + p.id,
+          title: "Replace DMC " + p.id + " with another colour",
+          "aria-label": "Replace " + (p.name || p.id) + " with another colour",
+          onClick: function(e) {
+            e.stopPropagation();
+            cv.setColourReplaceModal({ srcId: p.id, srcName: p.name || p.id, srcRgb: p.rgb });
+          },
+          style: {
+            position:"absolute", bottom:1, left:1, width:13, height:13, padding:0,
+            border:"none", background:"transparent", cursor:"pointer",
+            color:"var(--text-tertiary)", display:"flex", alignItems:"center", justifyContent:"center",
+            opacity:0, transition:"opacity var(--motion)", borderRadius:2
+          },
+          onMouseEnter: function(e) { e.currentTarget.style.opacity="1"; e.currentTarget.style.color="var(--accent)"; },
+          onMouseLeave: function(e) { e.currentTarget.style.opacity="0"; e.currentTarget.style.color="var(--text-tertiary)"; },
+          onFocus: function(e) { e.currentTarget.style.opacity="1"; e.currentTarget.style.color="var(--accent)"; e.currentTarget.style.outline="2px solid var(--accent)"; e.currentTarget.style.outlineOffset="1px"; },
+          onBlur: function(e) { e.currentTarget.style.opacity="0"; e.currentTarget.style.color="var(--text-tertiary)"; e.currentTarget.style.outline="none"; }
+        }, typeof Icons !== 'undefined' && Icons.colourSwap ? Icons.colourSwap() : null)
       );
     }).filter(Boolean);
+    var unusedCount = displayPal ? displayPal.filter(function(p) { return p.count === 0; }).length : 0;
     return h("div", {style:{borderBottom:"0.5px solid var(--border)"}},
       h("div", {
         onClick:function(){setPalChipsOpen(function(o){return !o;});},
@@ -205,7 +226,14 @@ window.CreatorSidebar = function CreatorSidebar() {
           h("span", {style:{fontSize:9,color:"var(--text-tertiary)",display:"inline-block",transform:palChipsOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
           h("span", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--text-secondary)"}}, "Palette")
         ),
-        h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, displayPal.length + " colour" + (displayPal.length !== 1 ? "s" : ""))
+        h("div", {style:{display:"flex",alignItems:"center",gap:6}},
+          app.appMode === "edit" && unusedCount > 0 && h("button", {
+            onClick: function(e) { e.stopPropagation(); if (typeof ctx.removeUnusedColours === 'function') ctx.removeUnusedColours(); },
+            title: "Remove all colours not used in the pattern",
+            style:{fontSize:'var(--text-xs)',padding:"2px 7px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:500,cursor:"pointer",lineHeight:1.4}
+          }, "Remove unused (" + unusedCount + ")"),
+          h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, displayPal.length + " colour" + (displayPal.length !== 1 ? "s" : ""))
+        )
       ),
       palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
       // Brief D — stash filter toggle + "Need to buy" button (only when stash has data)
@@ -1474,7 +1502,8 @@ window.CreatorSidebar = function CreatorSidebar() {
       palSection,
       tidySection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
-      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.revertSection
     );
 
     // ── Preview tab — chart-mode and comparison controls only.
@@ -1740,6 +1769,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       bgSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.revertSection,
       h("button", {
         onClick:function(){
           if(cv.editHistory.length > 0 && !confirm("Regenerating will replace your current edits. Continue?")) return;

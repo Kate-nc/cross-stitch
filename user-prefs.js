@@ -349,6 +349,29 @@
   }
   migrateState();
 
+  // DEFECT-006: legacy `previewFabricBg` boolean was replaced by `fabricColour`
+  // (#RRGGBB hex). The boolean lived in component state, but if any branch
+  // ever persisted it (or a future migration imports settings from one that
+  // did), preserve the user's intent: true → beige (#F5F0E6).
+  // Idempotent: only fires when the legacy key exists *and* fabricColour has
+  // not been explicitly set. Removes the legacy key on success.
+  (function migratePreviewFabricBg(){
+    try {
+      var legacyKey = PREFIX_GLOBAL + 'previewFabricBg';
+      var legacyRaw = localStorage.getItem(legacyKey);
+      if (legacyRaw === null) return;
+      var legacyVal;
+      try { legacyVal = JSON.parse(legacyRaw); } catch (_) { legacyVal = null; }
+      if (legacyVal === true) {
+        var currentFabricRaw = localStorage.getItem(PREFIX_GLOBAL + 'fabricColour');
+        if (currentFabricRaw === null) {
+          localStorage.setItem(PREFIX_GLOBAL + 'fabricColour', JSON.stringify('#F5F0E6'));
+        }
+      }
+      localStorage.removeItem(legacyKey);
+    } catch (_) {}
+  })();
+
   window.UserPrefs = {
     DEFAULTS: DEFAULTS,
     PVIEW_DEFAULTS: PVIEW_DEFAULTS,

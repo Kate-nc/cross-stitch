@@ -177,7 +177,17 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         title:"Hand — pan / drag to scroll (H)",
         "aria-label":"Hand pan tool",
         "aria-pressed": cv.activeTool === "hand" ? "true" : "false"
-      }, window.Icons.hand(), " Hand")
+      }, window.Icons.hand(), " Hand"),
+      h("button", {
+        className:"tb-btn"+(cv.activeTool==="colourReplace"?" tb-btn--on":""),
+        onClick:function(){
+          if (cv.activeTool === "colourReplace") cv.setActiveTool(null);
+          else { cv.setActiveTool("colourReplace"); cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); }
+        },
+        title:"Replace colour — click a stitch to replace all instances of that colour",
+        "aria-label":"Replace colour tool",
+        "aria-pressed": cv.activeTool === "colourReplace" ? "true" : "false"
+      }, window.Icons.colourSwap(), " Replace")
     )
   ];
 
@@ -306,6 +316,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   } else if (cv.brushMode === "paint") {
     var szTxt = cv.brushSize > 1 ? " " + cv.brushSize + "\xD7" + cv.brushSize : "";
     badgeLabel = "Paint" + szTxt; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "#5C8E4A";
+  } else if (cv.activeTool === "colourReplace") {
+    badgeLabel = "Replace"; badgeBg = "#ede9fe"; badgeColor = "#7c3aed"; badgeDot = "#7c3aed";
   } else {
     badgeLabel = null;
   }

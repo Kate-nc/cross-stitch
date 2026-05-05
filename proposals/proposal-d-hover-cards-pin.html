@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proposal D — Hover Cards with Pin</title>
+<style>
+:root {
+  --accent: #B85C38;
+  --accent-hover: #944526;
+  --accent-light: #F4DDCF;
+  --accent-border: #E8B89A;
+  --text-primary: #1B1814;
+  --text-secondary: #5C5448;
+  --text-tertiary: #8A7E72;
+  --surface: #ffffff;
+  --surface-secondary: #FBF8F3;
+  --surface-tertiary: #EFE7D6;
+  --line: #E5DCCB;
+  --line-2: #D8CDB6;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-lg: 0 12px 28px rgba(60,40,20,.14);
+  --success: #3a7d44;
+  --motion: 160ms ease-out;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--surface-secondary); color: var(--text-primary); font-size: 14px; line-height: 1.5; }
+
+.proposal-badge { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); background: #7c3aed; color: #fff; font-size: 11px; font-weight: 600; letter-spacing: .04em; padding: 4px 12px; border-radius: 999px; z-index: 10000; white-space: nowrap; }
+
+/* ── Layout ─────────────────────────────────────────────── */
+.app-shell { display: flex; flex-direction: column; height: 100vh; }
+.app-header { background: var(--surface); border-bottom: 1px solid var(--line); height: 48px; display: flex; align-items: center; padding: 0 16px; gap: 12px; flex-shrink: 0; }
+.logo { font-weight: 700; font-size: 15px; color: var(--accent); }
+.nav { display: flex; gap: 2px; margin-left: 8px; }
+.nav-btn { background: none; border: none; cursor: pointer; padding: 5px 10px; border-radius: var(--radius-sm); font-size: 13px; color: var(--text-secondary); }
+.nav-btn.active { color: var(--accent); font-weight: 600; }
+.header-actions { margin-left: auto; display: flex; gap: 8px; }
+.help-link { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--text-secondary); text-decoration: none; padding: 5px 8px; border-radius: var(--radius-sm); transition: all var(--motion); }
+.help-link:hover { color: var(--accent); background: var(--accent-light); }
+.help-link svg { width: 14px; height: 14px; }
+kbd { background: var(--surface-tertiary); border: 1px solid var(--line-2); border-radius: 4px; padding: 1px 5px; font-size: 11px; color: var(--text-tertiary); }
+
+.workspace { flex: 1; display: grid; grid-template-columns: 280px 1fr; overflow: hidden; }
+
+/* ── Sidebar ─────────────────────────────────────────────── */
+.sidebar { background: var(--surface); border-right: 1px solid var(--line); overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.sidebar-section { background: var(--surface-secondary); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px; }
+.sidebar-title { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 12px; }
+.field-group { margin-bottom: 10px; }
+.field-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }
+.field-input { width: 100%; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px 8px; font-size: 13px; color: var(--text-primary); background: var(--surface); outline: none; }
+.field-input:focus { border-color: var(--accent-border); box-shadow: 0 0 0 2px rgba(184,92,56,.1); }
+input[type=range] { accent-color: var(--accent); cursor: pointer; width: 100%; }
+
+/* ── PROPOSAL D: Hover card (rich tooltip) with pin ────────── */
+.hover-card-anchor { position: relative; display: inline-flex; align-items: center; }
+
+/* Info trigger button */
+.hc-trigger { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border: none; background: none; cursor: help; color: var(--text-tertiary); padding: 0; transition: color var(--motion); border-radius: 50%; }
+.hc-trigger:hover, .hc-trigger:focus { color: var(--accent); outline: none; }
+.hc-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hc-trigger svg { width: 14px; height: 14px; }
+.hc-trigger.pinned { color: var(--accent); }
+
+/* The hover card itself */
+.hover-card {
+  position: fixed;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  padding: 0;
+  width: 300px;
+  box-shadow: var(--shadow-lg);
+  z-index: 700;
+  font-size: 13px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease, transform 120ms ease;
+  transform: translateY(4px);
+  overflow: hidden;
+}
+.hover-card.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.hover-card.pinned {
+  /* pinned cards stay open */
+  pointer-events: auto;
+}
+
+.hc-header { background: var(--surface-secondary); padding: 10px 12px; display: flex; align-items: flex-start; gap: 8px; border-bottom: 1px solid var(--line); }
+.hc-icon { width: 28px; height: 28px; background: var(--accent-light); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.hc-icon svg { width: 15px; height: 15px; color: var(--accent); }
+.hc-title { font-weight: 700; color: var(--text-primary); font-size: 13px; flex: 1; }
+.hc-pin-btn { background: none; border: none; cursor: pointer; padding: 3px; border-radius: 4px; color: var(--text-tertiary); display: flex; align-items: center; transition: all var(--motion); margin-left: auto; }
+.hc-pin-btn:hover { background: var(--surface-tertiary); color: var(--accent); }
+.hc-pin-btn.active { color: var(--accent); background: var(--accent-light); }
+.hc-pin-btn svg { width: 14px; height: 14px; }
+
+.hc-body { padding: 10px 12px; color: var(--text-secondary); line-height: 1.55; }
+.hc-example { background: var(--surface-tertiary); border-radius: var(--radius-sm); padding: 8px 10px; margin: 8px 0; font-size: 12px; color: var(--text-primary); }
+.hc-example-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-tertiary); margin-bottom: 4px; }
+.hc-example-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; font-size: 11px; }
+.hc-example-row { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.hc-example-val { font-weight: 700; color: var(--accent); }
+.hc-example-desc { color: var(--text-tertiary); text-align: center; }
+
+.hc-footer { padding: 8px 12px 10px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 6px; }
+.hc-more-link { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; color: var(--accent); cursor: pointer; border: none; background: none; padding: 0; text-decoration: none; }
+.hc-more-link:hover { text-decoration: underline; }
+.hc-more-link svg { width: 11px; height: 11px; }
+.hc-close-btn { margin-left: auto; background: none; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 4px 8px; font-size: 11px; cursor: pointer; color: var(--text-secondary); display: none; }
+.hc-close-btn:hover { background: var(--surface-tertiary); }
+.hover-card.pinned .hc-close-btn { display: block; }
+
+/* ── Help documentation link ─────────────────────────────── */
+.docs-banner { display: none; } /* docs page not shown in this proposal, links open in panel */
+
+/* ── Canvas ──────────────────────────────────────────────── */
+.canvas-area { background: var(--surface-tertiary); display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+.canvas-mock { display: grid; grid-template-columns: repeat(22, 16px); grid-template-rows: repeat(16, 16px); gap: 1px; opacity: .7; }
+.canvas-cell { border-radius: 2px; }
+
+/* ── Demo note ───────────────────────────────────────────── */
+.demo-note { background: var(--surface); border: 1px solid #7c3aed33; border-radius: var(--radius-md); padding: 10px 16px; margin: 8px 16px; font-size: 12px; color: var(--text-secondary); flex-shrink: 0; line-height: 1.5; }
+.demo-note strong { color: var(--text-primary); display: block; margin-bottom: 3px; }
+.demo-note ul { padding-left: 16px; margin-top: 4px; }
+.demo-note li { margin-bottom: 2px; }
+</style>
+</head>
+<body>
+
+<div class="proposal-badge">Proposal D — Rich Hover Cards with Pin Functionality</div>
+
+<div class="app-shell">
+  <header class="app-header">
+    <span class="logo">Stitch Studio</span>
+    <nav class="nav">
+      <button class="nav-btn active">Creator</button>
+      <button class="nav-btn">Tracker</button>
+      <button class="nav-btn">Stash</button>
+    </nav>
+    <div class="header-actions">
+      <a href="#" class="help-link">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        Documentation
+        <kbd>?</kbd>
+      </a>
+    </div>
+  </header>
+
+  <div class="demo-note">
+    <strong>Proposal D — Rich Hover Cards with Pin</strong>
+    <ul>
+      <li>Hover the info icon next to any setting for a rich card: title, explanation, live example data, and a "Read more" link.</li>
+      <li>Click the pin icon to keep a card open while you work with both hands.</li>
+      <li>Pinned cards gain a close button. Multiple cards can be pinned simultaneously.</li>
+      <li>Full documentation lives at a separate deep-linkable help URL; "Read more" opens the relevant article.</li>
+    </ul>
+  </div>
+
+  <div class="workspace">
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-title">Dimensions</div>
+
+        <div class="field-group">
+          <label class="field-label">
+            Width (stitches)
+            <span class="hover-card-anchor" id="widthAnchor">
+              <button class="hc-trigger" tabindex="0" aria-describedby="widthCard"
+                onmouseenter="showCard('widthCard', this)"
+                onmouseleave="maybeHide('widthCard', this)"
+                onfocus="showCard('widthCard', this)"
+                onblur="maybeHide('widthCard', this)"
+                aria-label="Help: Pattern width">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              </button>
+            </span>
+          </label>
+          <input class="field-input" type="number" value="80" min="20" max="400">
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">
+            Fabric count
+            <span class="hover-card-anchor" id="fabricAnchor">
+              <button class="hc-trigger" tabindex="0"
+                onmouseenter="showCard('fabricCard', this)"
+                onmouseleave="maybeHide('fabricCard', this)"
+                onfocus="showCard('fabricCard', this)"
+                onblur="maybeHide('fabricCard', this)"
+                aria-label="Help: Fabric count">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              </button>
+            </span>
+          </label>
+          <select class="field-input">
+            <option selected>14 count (Aida)</option>
+            <option>11 count</option>
+            <option>16 count</option>
+            <option>18 count</option>
+            <option>28 count evenweave</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">Palette</div>
+
+        <div class="field-group">
+          <label class="field-label">
+            Max colours
+            <span class="hover-card-anchor">
+              <button class="hc-trigger" tabindex="0"
+                onmouseenter="showCard('coloursCard', this)"
+                onmouseleave="maybeHide('coloursCard', this)"
+                onfocus="showCard('coloursCard', this)"
+                onblur="maybeHide('coloursCard', this)"
+                aria-label="Help: Max colours">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              </button>
+            </span>
+          </label>
+          <input type="range" min="4" max="40" value="12" oninput="this.nextElementSibling.textContent = this.value + ' colours'">
+          <div style="font-size:11px;color:var(--text-tertiary);text-align:right;margin-top:2px">12 colours</div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">
+            Confetti cleanup
+            <span class="hover-card-anchor">
+              <button class="hc-trigger" tabindex="0"
+                onmouseenter="showCard('confettiCard', this)"
+                onmouseleave="maybeHide('confettiCard', this)"
+                onfocus="showCard('confettiCard', this)"
+                onblur="maybeHide('confettiCard', this)"
+                aria-label="Help: Confetti cleanup">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              </button>
+            </span>
+          </label>
+          <select class="field-input">
+            <option>Off</option><option>Light</option><option selected>Moderate</option><option>Aggressive</option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">
+            Dithering
+            <span class="hover-card-anchor">
+              <button class="hc-trigger" tabindex="0"
+                onmouseenter="showCard('ditherCard', this)"
+                onmouseleave="maybeHide('ditherCard', this)"
+                onfocus="showCard('ditherCard', this)"
+                onblur="maybeHide('ditherCard', this)"
+                aria-label="Help: Dithering">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              </button>
+            </span>
+          </label>
+          <select class="field-input">
+            <option selected>Floyd-Steinberg</option>
+            <option>Ordered (Bayer)</option>
+            <option>None</option>
+          </select>
+        </div>
+      </div>
+    </aside>
+
+    <div class="canvas-area">
+      <div class="canvas-mock" id="canvasMock"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Hover Cards (portal-rendered, positioned by JS) -->
+
+<div class="hover-card" id="widthCard" role="tooltip" aria-label="About pattern width">
+  <div class="hc-header">
+    <div class="hc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v3"/><path d="M21 16v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3"/><line x1="4" y1="12" x2="20" y2="12"/></svg></div>
+    <div class="hc-title">Pattern width</div>
+    <button class="hc-pin-btn" onclick="pinCard('widthCard', this)" aria-label="Pin this help card" title="Pin open">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+    </button>
+  </div>
+  <div class="hc-body">
+    The number of stitches across your finished pattern. This, combined with your fabric count, determines the physical width.
+    <div class="hc-example">
+      <div class="hc-example-label">Width at 80 stitches</div>
+      <div class="hc-example-grid">
+        <div class="hc-example-row"><div class="hc-example-val">~23 cm</div><div class="hc-example-desc">on 11ct</div></div>
+        <div class="hc-example-row"><div class="hc-example-val">~14.5 cm</div><div class="hc-example-desc">on 14ct</div></div>
+        <div class="hc-example-row"><div class="hc-example-val">~11.3 cm</div><div class="hc-example-desc">on 18ct</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="hc-footer">
+    <a href="#" class="hc-more-link">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      Read: Pattern size guide
+    </a>
+    <button class="hc-close-btn" onclick="unpinCard('widthCard')">Close</button>
+  </div>
+</div>
+
+<div class="hover-card" id="fabricCard" role="tooltip">
+  <div class="hc-header">
+    <div class="hc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+    <div class="hc-title">Fabric count</div>
+    <button class="hc-pin-btn" onclick="pinCard('fabricCard', this)" aria-label="Pin this help card">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+    </button>
+  </div>
+  <div class="hc-body">
+    Holes per inch in your embroidery fabric. Most beginners use <strong>14ct Aida</strong>. Higher counts give you finer detail but smaller stitches that are harder to see.
+    <div class="hc-example">
+      <div class="hc-example-label">80-stitch pattern finished size</div>
+      <div class="hc-example-grid">
+        <div class="hc-example-row"><div class="hc-example-val">11ct</div><div class="hc-example-desc">~23 cm</div></div>
+        <div class="hc-example-row"><div class="hc-example-val">14ct</div><div class="hc-example-desc">~14.5 cm</div></div>
+        <div class="hc-example-row"><div class="hc-example-val">18ct</div><div class="hc-example-desc">~11.3 cm</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="hc-footer">
+    <a href="#" class="hc-more-link">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      Read: Choosing fabric count
+    </a>
+    <button class="hc-close-btn" onclick="unpinCard('fabricCard')">Close</button>
+  </div>
+</div>
+
+<div class="hover-card" id="coloursCard" role="tooltip">
+  <div class="hc-header">
+    <div class="hc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="6.5" cy="12" r="2.5"/><circle cx="13.5" cy="17.5" r="2.5"/><circle cx="19" cy="12" r="2.5"/></svg></div>
+    <div class="hc-title">Maximum colours</div>
+    <button class="hc-pin-btn" onclick="pinCard('coloursCard', this)" aria-label="Pin">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+    </button>
+  </div>
+  <div class="hc-body">
+    The maximum number of DMC thread colours in your pattern. More colours = more realistic colour gradients but more thread switching and higher cost.
+    <div class="hc-example">
+      <div class="hc-example-label">Recommended ranges</div>
+      <div class="hc-example-grid">
+        <div class="hc-example-row"><div class="hc-example-val">8–12</div><div class="hc-example-desc">Beginner</div></div>
+        <div class="hc-example-row"><div class="hc-example-val">12–20</div><div class="hc-example-desc">Intermediate</div></div>
+        <div class="hc-example-row"><div class="hc-example-val">20–35</div><div class="hc-example-desc">Advanced</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="hc-footer">
+    <a href="#" class="hc-more-link">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      Read: Choosing a palette size
+    </a>
+    <button class="hc-close-btn" onclick="unpinCard('coloursCard')">Close</button>
+  </div>
+</div>
+
+<div class="hover-card" id="confettiCard" role="tooltip">
+  <div class="hc-header">
+    <div class="hc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+    <div class="hc-title">Confetti cleanup</div>
+    <button class="hc-pin-btn" onclick="pinCard('confettiCard', this)" aria-label="Pin">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+    </button>
+  </div>
+  <div class="hc-body">
+    Removes isolated single-colour stitches ("confetti") that are surrounded by stitches of different colours. Each confetti stitch requires a thread change — removing them speeds up stitching significantly.
+    <div class="hc-example">
+      <div class="hc-example-label">Stitch score impact</div>
+      <div class="hc-example-grid">
+        <div class="hc-example-row"><div class="hc-example-val">Off</div><div class="hc-example-desc">~score 45</div></div>
+        <div class="hc-example-row"><div class="hc-example-val">Moderate</div><div class="hc-example-desc">~score 72</div></div>
+        <div class="hc-example-row"><div class="hc-example-val">Max</div><div class="hc-example-desc">~score 91</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="hc-footer">
+    <a href="#" class="hc-more-link">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      Read: What are confetti stitches?
+    </a>
+    <button class="hc-close-btn" onclick="unpinCard('confettiCard')">Close</button>
+  </div>
+</div>
+
+<div class="hover-card" id="ditherCard" role="tooltip">
+  <div class="hc-header">
+    <div class="hc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></div>
+    <div class="hc-title">Dithering mode</div>
+    <button class="hc-pin-btn" onclick="pinCard('ditherCard', this)" aria-label="Pin">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+    </button>
+  </div>
+  <div class="hc-body">
+    Controls how colours between your palette entries are approximated. <strong>Floyd-Steinberg</strong> diffuses the colour error to neighbouring cells, producing smooth-looking gradients. Leave at the default unless you prefer a more graphic, flat look.
+  </div>
+  <div class="hc-footer">
+    <a href="#" class="hc-more-link">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      Read: Dithering modes explained
+    </a>
+    <button class="hc-close-btn" onclick="unpinCard('ditherCard')">Close</button>
+  </div>
+</div>
+
+<script>
+// Canvas mock
+const colours = ['#d4392e','#e8865b','#f2c178','#4a7c59','#2e5c8e','#8b5cf6','#c4b5a0','#f9f0e0','#3b2e20','#7a5c3e','#b8a080'];
+const mock = document.getElementById('canvasMock');
+for (let i = 0; i < 352; i++) {
+  const c = document.createElement('div');
+  c.className = 'canvas-cell';
+  c.style.background = colours[Math.floor(Math.random() * colours.length)];
+  mock.appendChild(c);
+}
+
+// Hover card positioning
+let hideTimers = {};
+let pinnedCards = new Set();
+
+function showCard(cardId, trigger) {
+  if (pinnedCards.has(cardId)) return;
+  clearTimeout(hideTimers[cardId]);
+  
+  const card = document.getElementById(cardId);
+  const rect = trigger.getBoundingClientRect();
+  
+  card.style.top = '';
+  card.style.bottom = '';
+  card.style.left = '';
+  card.style.right = '';
+  
+  // Position to the right of trigger, vertically centered
+  let left = rect.right + 10;
+  let top = rect.top - 40;
+  
+  // Ensure card stays within viewport
+  const cardWidth = 300;
+  const cardHeight = 200; // approximate
+  
+  if (left + cardWidth > window.innerWidth - 16) {
+    left = rect.left - cardWidth - 10;
+  }
+  if (top + cardHeight > window.innerHeight - 16) {
+    top = window.innerHeight - cardHeight - 16;
+  }
+  if (top < 60) top = 60;
+  
+  card.style.left = left + 'px';
+  card.style.top = top + 'px';
+  card.classList.add('visible');
+}
+
+function maybeHide(cardId, trigger) {
+  if (pinnedCards.has(cardId)) return;
+  hideTimers[cardId] = setTimeout(() => {
+    const card = document.getElementById(cardId);
+    if (!card.matches(':hover') && !card.contains(document.activeElement)) {
+      card.classList.remove('visible');
+    }
+  }, 200);
+}
+
+function pinCard(cardId, btn) {
+  const card = document.getElementById(cardId);
+  if (pinnedCards.has(cardId)) {
+    unpinCard(cardId);
+  } else {
+    pinnedCards.add(cardId);
+    card.classList.add('pinned');
+    btn.classList.add('active');
+    btn.setAttribute('aria-label', 'Unpin this help card');
+  }
+}
+
+function unpinCard(cardId) {
+  const card = document.getElementById(cardId);
+  pinnedCards.delete(cardId);
+  card.classList.remove('pinned', 'visible');
+  card.querySelector('.hc-pin-btn').classList.remove('active');
+  card.querySelector('.hc-pin-btn').setAttribute('aria-label', 'Pin this help card');
+}
+
+// Keep card visible when hovering over it
+document.querySelectorAll('.hover-card').forEach(card => {
+  card.addEventListener('mouseenter', () => clearTimeout(hideTimers[card.id]));
+  card.addEventListener('mouseleave', () => {
+    if (!pinnedCards.has(card.id)) {
+      hideTimers[card.id] = setTimeout(() => card.classList.remove('visible'), 200);
+    }
+  });
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.hover-card.visible:not(.pinned)').forEach(c => c.classList.remove('visible'));
+    pinnedCards.forEach(id => unpinCard(id));
+  }
+});
+</script>
+</body>
+</html>

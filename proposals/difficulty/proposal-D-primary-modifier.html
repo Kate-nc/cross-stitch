@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proposal D — Primary + Modifier Model</title>
+<style>
+  :root {
+    --bg: #0f1923; --surface: #162032; --card: #1e2d42;
+    --border: #2d4060; --text: #e8f0fe; --muted: #7b8fa8;
+    --b: #52c41a; --i: #faad14; --a: #ff4d4f; --e: #722ed1;
+    --acc: #1890ff; --radius: 10px; --gap: 16px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 14px; line-height: 1.5; }
+  h1 { font-size: 1.35rem; font-weight: 700; }
+  h2 { font-size: 1rem; font-weight: 600; margin-bottom: 10px; }
+  h3 { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-bottom: 6px; }
+  .layout { display: grid; grid-template-columns: 330px 1fr; gap: var(--gap); padding: var(--gap); max-width: 1400px; margin: 0 auto; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--gap); }
+  .header { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 20px; margin-bottom: var(--gap); }
+  .tag { background: #1890ff33; color: var(--acc); font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em; border: 1px solid var(--acc); }
+  label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 3px; }
+  input[type=range] { width: 100%; accent-color: var(--acc); }
+  select { width: 100%; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 0.85rem; }
+  .ctrl { margin-bottom: 11px; }
+  .ctrl-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+  .val { font-size: 0.82rem; font-weight: 600; color: var(--acc); }
+  .sep { margin: 11px 0; border: none; border-top: 1px solid var(--border); }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--gap); }
+  .preset-btn { background: var(--card); border: 1px solid var(--border); color: var(--text); font-size: 0.75rem; padding: 5px 10px; border-radius: 6px; cursor: pointer; }
+  .preset-btn:hover, .preset-btn.active { background: var(--acc); color: #fff; border-color: var(--acc); }
+  
+  /* Score display */
+  .score-display { display: flex; align-items: stretch; gap: 16px; }
+  .base-box { background: var(--card); border: 2px solid var(--border); border-radius: 10px; padding: 16px 20px; text-align: center; min-width: 130px; }
+  .base-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 6px; }
+  .base-tier { font-size: 1.6rem; font-weight: 800; }
+  .base-score { font-size: 0.9rem; color: var(--muted); margin-top: 2px; }
+  .arrow-box { display: flex; align-items: center; justify-content: center; padding: 0 8px; font-size: 1.5rem; color: var(--muted); }
+  .modifiers-col { flex: 1; }
+  .mod-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: var(--card); border-radius: 8px; margin-bottom: 6px; }
+  .mod-icon { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 800; flex-shrink: 0; }
+  .mod-up { background: #ff4d4f22; color: #ff4d4f; border: 1px solid #ff4d4f44; }
+  .mod-down { background: #52c41a22; color: #52c41a; border: 1px solid #52c41a44; }
+  .mod-neutral { background: #1890ff22; color: #1890ff; border: 1px solid #1890ff44; }
+  .mod-text { flex: 1; font-size: 0.8rem; line-height: 1.4; }
+  .mod-impact { font-size: 0.75rem; font-weight: 700; }
+  .result-box { background: var(--card); border: 2px solid; border-radius: 10px; padding: 16px 20px; text-align: center; min-width: 160px; }
+  .result-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 6px; }
+  .result-tier { font-size: 2rem; font-weight: 800; }
+  .result-score { font-size: 1rem; color: var(--muted); margin-top: 2px; }
+
+  /* Modifier track */
+  .mod-track { margin-top: 16px; }
+  .mod-track-bg { position: relative; height: 32px; background: var(--card); border-radius: 16px; overflow: visible; border: 1px solid var(--border); }
+  .mod-track-fill { position: absolute; top: 0; bottom: 0; border-radius: 16px; transition: all 0.3s; }
+  .mod-track-needle { position: absolute; top: -6px; bottom: -6px; width: 4px; background: white; border-radius: 2px; box-shadow: 0 0 8px rgba(255,255,255,0.5); transition: left 0.3s; }
+  .mod-track-label { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--muted); margin-top: 4px; }
+
+  /* Audience */
+  .audience-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
+  .audience-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+  .audience-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px; }
+  .model-info { font-size: 0.78rem; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+  .personal-box { margin-top: var(--gap); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+</style>
+</head>
+<body>
+
+<div style="padding:16px 20px 0;">
+  <div class="header">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+      <h1>Proposal D — Primary + Modifier</h1>
+      <span class="tag">Model D</span>
+    </div>
+    <p class="model-info">A base score from size and colour count (the "skeleton" difficulty) is modified up or down by confetti, technique, and other factors. The output shows both the base and the modification visibly — users understand WHAT changed the difficulty and by how much. Analogous to a base salary plus bonus/deductions.</p>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- LEFT: Controls -->
+  <div>
+    <div class="panel" style="margin-bottom:var(--gap);">
+      <h2>Pattern Presets</h2>
+      <div class="presets" id="presets"></div>
+    </div>
+    <div class="panel">
+      <h2>Pattern Characteristics</h2>
+      <hr class="sep">
+      <h3>Primary Factors (base score)</h3>
+      <div class="ctrl"><div class="ctrl-row"><label>Total Stitches</label><span class="val" id="v-stitches">5000</span></div><input type="range" id="r-stitches" min="100" max="150000" step="100" value="5000"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Fabric Count</label><span class="val" id="v-fabric">14</span></div><input type="range" id="r-fabric" min="11" max="40" step="1" value="14"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Unique Colours</label><span class="val" id="v-colours">12</span></div><input type="range" id="r-colours" min="1" max="120" step="1" value="12"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Blend Count</label><span class="val" id="v-blends">0</span></div><input type="range" id="r-blends" min="0" max="40" step="1" value="0"></div>
+      <hr class="sep">
+      <h3>Modifiers (push score up or down)</h3>
+      <div class="ctrl"><div class="ctrl-row"><label>Confetti Fraction (+modifier)</label><span class="val" id="v-confetti">0.15</span></div><input type="range" id="r-confetti" min="0" max="1" step="0.01" value="0.15"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Colour Change Rate (+modifier)</label><span class="val" id="v-changerate">0.20</span></div><input type="range" id="r-changerate" min="0" max="1" step="0.01" value="0.20"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Confusable Colour Pairs (+modifier)</label><span class="val" id="v-confusable">2</span></div><input type="range" id="r-confusable" min="0" max="50" step="1" value="2"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Backstitch Density (+modifier)</label><span class="val" id="v-backstitch">5</span></div><input type="range" id="r-backstitch" min="0" max="100" step="1" value="5"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Fractional Stitch % (+modifier)</label><span class="val" id="v-fractional">0</span>%</div><input type="range" id="r-fractional" min="0" max="50" step="1" value="0"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Colour Distribution Evenness (±modifier)</label><span class="val" id="v-evenness">0.4</span></div><input type="range" id="r-evenness" min="0" max="1" step="0.05" value="0.4"></div>
+      <div class="ctrl"><label>Specialty Threads (+modifier)</label>
+        <select id="s-specialty"><option value="0">None</option><option value="1">Minor (+1pt)</option><option value="2">Moderate (+2pts)</option><option value="3">Extensive (+3pts)</option></select></div>
+      <hr class="sep">
+      <h3>Personal Profile</h3>
+      <div class="ctrl"><label>My Experience Level</label>
+        <select id="s-experience"><option value="none">Not set</option><option value="beginner">Beginner</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option><option value="expert">Expert</option></select></div>
+      <div class="ctrl"><div class="ctrl-row"><label>My max colours handled</label><span class="val" id="v-mycolours">15</span></div><input type="range" id="r-mycolours" min="1" max="80" step="1" value="15"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>My usual fabric count</label><span class="val" id="v-myfabric">14</span></div><input type="range" id="r-myfabric" min="11" max="40" step="1" value="14"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Output -->
+  <div>
+    <!-- Main score display -->
+    <div class="panel" style="margin-bottom:var(--gap);">
+      <h2>Difficulty Calculation</h2>
+      <div class="score-display" id="score-display"></div>
+
+      <div class="mod-track" style="margin-top:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <h3>Score Track</h3>
+          <span style="font-size:0.75rem;color:var(--muted)">Base → Modified → Final</span>
+        </div>
+        <div class="mod-track-bg" id="track-bg">
+          <div class="mod-track-fill" id="track-base"></div>
+          <div class="mod-track-fill" id="track-mod"></div>
+          <div class="mod-track-needle" id="track-needle"></div>
+        </div>
+        <div class="mod-track-label">
+          <span style="color:var(--b)">Beginner</span>
+          <span style="color:var(--i)">Intermediate</span>
+          <span style="color:var(--a)">Advanced</span>
+          <span style="color:var(--e)">Expert</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dual audience -->
+    <div class="panel" style="margin-bottom:var(--gap);">
+      <h2>Dual-Audience Presentation</h2>
+      <div class="audience-grid">
+        <div class="audience-card">
+          <div class="audience-label">Stitcher View</div>
+          <div id="aud-stitcher"></div>
+        </div>
+        <div class="audience-card">
+          <div class="audience-label">Marketplace View</div>
+          <div id="aud-market"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Personal -->
+    <div class="personal-box" id="personal-section" style="display:none;">
+      <h3 style="margin-bottom:8px;">Personal Adjustment</h3>
+      <div id="personal-content"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const TIERS = [
+  { min:0,  max:4,  label:'Beginner',     c:'#52c41a', code:'B', stars:1 },
+  { min:5,  max:9,  label:'Intermediate', c:'#faad14', code:'I', stars:2 },
+  { min:10, max:14, label:'Advanced',     c:'#ff4d4f', code:'A', stars:3 },
+  { min:15, max:20, label:'Expert',       c:'#722ed1', code:'E', stars:4 },
+];
+
+function getTier(score) { return TIERS.find(t=>score>=t.min&&score<=t.max)||TIERS[TIERS.length-1]; }
+
+function compute(vals) {
+  // ── BASE SCORE ──────────────────────────────────────────────────────
+  // Colour count (0–4 pts)
+  const colourBase = vals.colours <= 8 ? 1 : vals.colours <= 15 ? 2 : vals.colours <= 25 ? 3 : 4;
+  // Blend (0–1 pt base)
+  const blendBase = vals.blends > 0 ? 1 : 0;
+  // Stitch count (0–3 pts)
+  const sizeBase = vals.stitches <= 5000 ? 0 : vals.stitches <= 15000 ? 1 : vals.stitches <= 40000 ? 2 : 3;
+  const baseScore = colourBase + blendBase + sizeBase;
+
+  // ── MODIFIERS ───────────────────────────────────────────────────────
+  const mods = [];
+
+  // Confetti modifier (+0 to +3 pts)
+  const confettiMod = vals.confetti < 0.10 ? 0 : vals.confetti < 0.30 ? 1 : vals.confetti < 0.55 ? 2 : 3;
+  if (confettiMod > 0) {
+    mods.push({ label:'Confetti density', direction:'up', amount:confettiMod, detail:`${(vals.confetti*100).toFixed(0)}% isolated stitches → ${['','low','moderate','extreme'][confettiMod]} confetti` });
+  }
+
+  // Colour change rate (+0 to +2 pts)
+  const changeMod = vals.changerate < 0.15 ? 0 : vals.changerate < 0.40 ? 1 : 2;
+  if (changeMod > 0) {
+    mods.push({ label:'High colour-change rate', direction:'up', amount:changeMod, detail:`${(vals.changerate*100).toFixed(0)}% transitions per row pair` });
+  }
+
+  // Confusable colours (+0 to +1 pt)
+  const confusableMod = vals.confusable >= 8 ? 1 : 0;
+  if (confusableMod > 0) {
+    mods.push({ label:'Confusable colour pairs', direction:'up', amount:1, detail:`${vals.confusable} pairs with ΔE < 6 — easy to confuse threads` });
+  }
+
+  // Backstitch (+0 to +2 pts)
+  const bsMod = vals.backstitch < 5 ? 0 : vals.backstitch < 20 ? 1 : 2;
+  if (bsMod > 0) {
+    mods.push({ label:'Backstitching', direction:'up', amount:bsMod, detail:`${vals.backstitch} backstitch segments per 100 stitches` });
+  }
+
+  // Fractional stitches (+0 to +1)
+  const fracMod = vals.fractional >= 10 ? 1 : 0;
+  if (fracMod > 0) {
+    mods.push({ label:'Fractional stitches', direction:'up', amount:1, detail:`${vals.fractional}% of stitches are fractional` });
+  }
+
+  // Specialty threads (+0 to +3)
+  const specialtyMod = parseInt(vals.specialty)||0;
+  if (specialtyMod > 0) {
+    mods.push({ label:'Specialty threads', direction:'up', amount:specialtyMod, detail:`Metallic or specialty thread techniques required` });
+  }
+
+  // Fabric count (+0 to +2)
+  const fabricMod = vals.fabric <= 16 ? 0 : vals.fabric <= 22 ? 1 : 2;
+  if (fabricMod > 0) {
+    mods.push({ label:`High fabric count (${vals.fabric}ct)`, direction:'up', amount:fabricMod, detail:`Smaller stitches require better precision and eyesight` });
+  }
+
+  // Colour evenness modifier (uneven = -1, very even = +1)
+  const evennessMod = vals.evenness < 0.25 ? -1 : vals.evenness > 0.7 ? 1 : 0;
+  if (evennessMod !== 0) {
+    mods.push({
+      label: evennessMod < 0 ? 'Dominant colour simplifies work' : 'Very even colour distribution',
+      direction: evennessMod < 0 ? 'down' : 'up',
+      amount: Math.abs(evennessMod),
+      detail: evennessMod < 0 ? 'Most stitches use only a few colours' : 'All colours used roughly equally — more complex to track'
+    });
+  }
+
+  const totalMod = mods.reduce((s,m)=>s+(m.direction==='up'?m.amount:-m.amount), 0);
+  const finalScore = Math.max(0, Math.min(20, baseScore + totalMod));
+
+  return { baseScore, mods, totalMod, finalScore };
+}
+
+function getStars(n) { return '★'.repeat(n)+'☆'.repeat(4-n); }
+
+function render(vals) {
+  const { baseScore, mods, totalMod, finalScore } = compute(vals);
+  const baseTier = getTier(baseScore);
+  const finalTier = getTier(finalScore);
+
+  // Score display
+  const modsSummaryHtml = mods.length === 0 
+    ? '<div class="mod-item"><div class="mod-icon mod-neutral">–</div><div class="mod-text">No significant modifiers</div></div>'
+    : mods.map(m => `<div class="mod-item">
+        <div class="mod-icon ${m.direction==='up'?'mod-up':'mod-down'}">${m.direction==='up'?'+'+m.amount:'-'+m.amount}</div>
+        <div class="mod-text"><div>${m.label}</div><div class="mod-impact" style="color:var(--muted)">${m.detail}</div></div>
+      </div>`).join('');
+
+  const totalSign = totalMod > 0 ? `+${totalMod}` : totalMod < 0 ? `${totalMod}` : '±0';
+  document.getElementById('score-display').innerHTML = `
+    <div class="base-box" style="border-color:${baseTier.c}55;">
+      <div class="base-label">Base Score</div>
+      <div class="base-tier" style="color:${baseTier.c}">${baseTier.label}</div>
+      <div class="base-score">${baseScore} pts (size + colour)</div>
+    </div>
+    <div class="arrow-box">
+      <div style="text-align:center;">
+        <div style="font-size:1rem;color:${totalMod>=0?'#ff4d4f':'#52c41a'}">${totalSign} pts</div>
+        <div style="font-size:0.7rem;color:var(--muted);margin:4px 0;">modifiers</div>
+        <div style="font-size:1.5rem;">→</div>
+      </div>
+    </div>
+    <div style="flex:1;overflow:auto;">${modsSummaryHtml}</div>
+    <div class="arrow-box"><div style="font-size:1.5rem;">→</div></div>
+    <div class="result-box" style="border-color:${finalTier.c}">
+      <div class="result-label">Final Difficulty</div>
+      <div class="result-tier" style="color:${finalTier.c}">${finalTier.label}</div>
+      <div style="color:${finalTier.c};font-size:1rem;">${getStars(finalTier.stars)}</div>
+      <div class="result-score">${finalScore} / 20 pts</div>
+    </div>`;
+
+  // Score track
+  const basePct = (baseScore / 20) * 100;
+  const finalPct = (finalScore / 20) * 100;
+  const isUp = finalScore >= baseScore;
+  document.getElementById('track-base').style.cssText = `left:0;width:${basePct}%;background:${baseTier.c}66;`;
+  if (isUp) {
+    document.getElementById('track-mod').style.cssText = `left:${basePct}%;width:${finalPct-basePct}%;background:${finalTier.c};`;
+  } else {
+    document.getElementById('track-mod').style.cssText = `left:${finalPct}%;width:${basePct-finalPct}%;background:#52c41a66;`;
+  }
+  document.getElementById('track-needle').style.left = `calc(${finalPct}% - 2px)`;
+
+  // Audience
+  const estHours = `${Math.round(vals.stitches/300)}–${Math.round(vals.stitches/150)}h`;
+  document.getElementById('aud-stitcher').innerHTML = `
+    <div style="font-size:1.4rem;font-weight:800;color:${finalTier.c}">${finalTier.label}</div>
+    <div style="color:${finalTier.c};font-size:0.9rem;margin-top:2px;">${getStars(finalTier.stars)}</div>
+    <div style="font-size:0.78rem;color:var(--muted);margin-top:6px;">
+      Base: ${baseTier.label} (${baseScore}pts) + ${totalSign} from modifiers<br>
+      ${mods.slice(0,2).map(m=>`${m.direction==='up'?'▲':'▼'} ${m.label}`).join('<br>')}
+    </div>
+    <div style="font-size:0.75rem;color:var(--muted);margin-top:4px;">Estimated: ${estHours}</div>`;
+
+  document.getElementById('aud-market').innerHTML = `
+    <div style="font-size:1.4rem;font-weight:800;color:${finalTier.c}">${finalTier.label}</div>
+    <div style="color:${finalTier.c};font-size:0.9rem;margin-top:2px;">${getStars(finalTier.stars)}</div>
+    <div style="font-size:0.78rem;color:var(--muted);margin-top:6px;">${vals.stitches.toLocaleString()} stitches · ${vals.colours} colours</div>
+    <div style="font-size:0.75rem;color:var(--muted);margin-top:2px;">Est. ${estHours} to complete</div>`;
+
+  // Personal
+  const exp = document.getElementById('s-experience').value;
+  if (exp === 'none') { document.getElementById('personal-section').style.display='none'; return; }
+  document.getElementById('personal-section').style.display='block';
+
+  const myColours = +document.getElementById('r-mycolours').value;
+  const myFabric  = +document.getElementById('r-myfabric').value;
+  const tierOrder = ['Beginner','Intermediate','Advanced','Expert'];
+  const tierIdx   = tierOrder.indexOf(finalTier.label);
+  let adjIdx = tierIdx;
+  const personalMods = [];
+
+  if (vals.colours > myColours * 1.4) {
+    adjIdx = Math.min(3, adjIdx+1);
+    personalMods.push(`▲ Colour count (${vals.colours}) exceeds your comfort level (${myColours})`);
+  }
+  if (vals.fabric > myFabric + 4) {
+    adjIdx = Math.min(3, adjIdx+1);
+    personalMods.push(`▲ Fabric count ${vals.fabric}ct vs. your usual ${myFabric}ct`);
+  }
+  if (exp === 'beginner' && finalTier.stars >= 3) {
+    personalMods.push(`▲ Advanced patterns typically require 5+ completed projects`);
+  }
+  if (adjIdx < tierIdx) adjIdx = tierIdx; // Don't lower
+
+  const adjTierLabel = tierOrder[adjIdx];
+  const adjTierDef = TIERS.find(t=>t.label===adjTierLabel);
+  const changed = adjIdx !== tierIdx;
+
+  let pHtml = `<div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;">
+    <div>Objective: <strong style="color:${finalTier.c}">${finalTier.label}</strong></div>
+    <div>→</div>
+    <div>For you: <strong style="color:${adjTierDef.c}">${adjTierLabel}</strong>
+      ${changed ? `<span style="background:#ff4d4f22;color:#ff4d4f;font-size:0.72rem;padding:2px 6px;border-radius:10px;margin-left:4px;">harder for you</span>` : ''}
+    </div>
+  </div>`;
+  personalMods.forEach(m=>{pHtml+=`<div style="font-size:0.78rem;color:var(--muted);padding:2px 0">${m}</div>`;});
+  if (personalMods.length===0) pHtml+=`<div style="font-size:0.78rem;color:var(--muted)">No personal adjustments — aligns with your experience.</div>`;
+  document.getElementById('personal-content').innerHTML=pHtml;
+}
+
+const PRESETS=[
+  {label:'Beginner Sampler',       stitches:800,   fabric:14,colours:5, blends:0,confetti:0.02,changerate:0.06,confusable:0, backstitch:2, fractional:0, evenness:0.30,specialty:'0'},
+  {label:'Moderate Landscape',     stitches:12000, fabric:14,colours:20,blends:2,confetti:0.12,changerate:0.18,confusable:3, backstitch:8, fractional:2, evenness:0.35,specialty:'0'},
+  {label:'High-Confetti Portrait', stitches:25000, fabric:18,colours:55,blends:8,confetti:0.60,changerate:0.68,confusable:18,backstitch:5, fractional:12,evenness:0.72,specialty:'0'},
+  {label:'Large Simple Coverage',  stitches:80000, fabric:14,colours:8, blends:0,confetti:0.04,changerate:0.08,confusable:0, backstitch:2, fractional:0, evenness:0.25,specialty:'0'},
+  {label:'Small Technical Piece',  stitches:3000,  fabric:28,colours:30,blends:6,confetti:0.35,changerate:0.42,confusable:8, backstitch:40,fractional:25,evenness:0.50,specialty:'2'},
+];
+
+function getVals(){return{stitches:+document.getElementById('r-stitches').value,fabric:+document.getElementById('r-fabric').value,colours:+document.getElementById('r-colours').value,blends:+document.getElementById('r-blends').value,confetti:+document.getElementById('r-confetti').value,changerate:+document.getElementById('r-changerate').value,confusable:+document.getElementById('r-confusable').value,backstitch:+document.getElementById('r-backstitch').value,fractional:+document.getElementById('r-fractional').value,evenness:+document.getElementById('r-evenness').value,specialty:document.getElementById('s-specialty').value};}
+
+function applyPreset(p,btn){document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');['stitches','fabric','colours','blends','confetti','changerate','confusable','backstitch','fractional','evenness'].forEach(id=>{const el=document.getElementById(`r-${id}`);if(el&&p[id]!==undefined)el.value=p[id];});document.getElementById('s-specialty').value=p.specialty||'0';syncLabels();render(getVals());}
+
+const presetsEl=document.getElementById('presets');
+PRESETS.forEach(p=>{const btn=document.createElement('button');btn.className='preset-btn';btn.textContent=p.label;btn.onclick=()=>applyPreset(p,btn);presetsEl.appendChild(btn);});
+
+const labelMap={'r-stitches':'v-stitches','r-fabric':'v-fabric','r-colours':'v-colours','r-blends':'v-blends','r-confetti':'v-confetti','r-changerate':'v-changerate','r-confusable':'v-confusable','r-backstitch':'v-backstitch','r-fractional':'v-fractional','r-evenness':'v-evenness','r-mycolours':'v-mycolours','r-myfabric':'v-myfabric'};
+function syncLabels(){for(const[s,d]of Object.entries(labelMap)){const e=document.getElementById(s);if(e)document.getElementById(d).textContent=e.value;}}
+document.querySelectorAll('input[type=range],select').forEach(el=>el.addEventListener('input',()=>{syncLabels();render(getVals());}));
+syncLabels();render(getVals());
+</script>
+</body>
+</html>

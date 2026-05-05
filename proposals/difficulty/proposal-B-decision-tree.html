@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proposal B — Decision Tree Tier Classification</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --card: #21262d;
+    --border: #30363d; --text: #e6edf3; --muted: #7d8590;
+    --b: #3fb950; --i: #d29922; --a: #f85149; --e: #bc8cff;
+    --radius: 8px; --gap: 16px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 14px; line-height: 1.6; }
+  h1 { font-size: 1.35rem; font-weight: 700; }
+  h2 { font-size: 1rem; font-weight: 600; margin-bottom: 10px; }
+  h3 { font-size: 0.82rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-bottom: 6px; }
+  .layout { display: grid; grid-template-columns: 340px 1fr; gap: var(--gap); padding: var(--gap); max-width: 1400px; margin: 0 auto; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--gap); }
+  .header { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 20px; margin-bottom: var(--gap); }
+  .tag { background: #d2992233; color: var(--i); font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em; border: 1px solid var(--i); }
+  label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 3px; }
+  input[type=range] { width: 100%; accent-color: var(--b); }
+  select { width: 100%; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 0.85rem; }
+  .ctrl { margin-bottom: 12px; }
+  .ctrl-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+  .val { font-size: 0.82rem; font-weight: 600; color: var(--b); }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--gap); }
+  .preset-btn { background: var(--card); border: 1px solid var(--border); color: var(--text); font-size: 0.75rem; padding: 5px 10px; border-radius: 6px; cursor: pointer; }
+  .preset-btn:hover, .preset-btn.active { background: var(--b); color: #0d1117; border-color: var(--b); }
+  .sep { margin: 12px 0; border: none; border-top: 1px solid var(--border); }
+
+  /* Result display */
+  .tier-badge { display: inline-flex; align-items: center; gap: 10px; padding: 10px 20px; border-radius: 10px; margin: 8px 0; }
+  .tier-badge .lbl { font-size: 1.5rem; font-weight: 800; }
+  .tier-badge .stars { font-size: 1.2rem; letter-spacing: 2px; }
+  .tier-B { background: #3fb95020; border: 2px solid var(--b); }
+  .tier-I { background: #d2992220; border: 2px solid var(--i); }
+  .tier-A { background: #f8514920; border: 2px solid var(--a); }
+  .tier-E { background: #bc8cff20; border: 2px solid var(--e); }
+
+  /* Decision tree viz */
+  .tree-container { overflow-x: auto; margin-top: 10px; }
+  .tree-node { display: flex; align-items: flex-start; gap: 0; }
+  .tree-row { display: flex; align-items: center; margin-bottom: 4px; }
+  .gate { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 5px 10px; font-size: 0.78rem; font-family: monospace; }
+  .gate.pass { border-color: var(--b); background: #3fb95012; color: var(--b); }
+  .gate.fail { border-color: var(--muted); color: var(--muted); text-decoration: line-through; opacity: 0.5; }
+  .gate.active { border-color: var(--i); background: #d2992218; }
+  .connector { width: 20px; height: 1px; background: var(--border); margin: 0 2px; }
+  .connector-v { width: 1px; background: var(--border); min-height: 12px; margin: 0 auto; }
+  .qualifier-list { list-style: none; padding: 0; margin-top: 8px; }
+  .qualifier-list li { display: flex; align-items: flex-start; gap: 8px; font-size: 0.82rem; padding: 5px 0; border-bottom: 1px solid var(--border); }
+  .qualifier-list li:last-child { border-bottom: none; }
+  .q-icon { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 800; flex-shrink: 0; margin-top: 1px; }
+  .q-pass { background: var(--b); color: #0d1117; }
+  .q-fail { background: var(--border); color: var(--muted); }
+  .q-txt { flex: 1; }
+  .q-metric { color: var(--muted); font-size: 0.75rem; }
+
+  /* Dual audience */
+  .audience-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); margin-top: var(--gap); }
+  .audience-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+  .audience-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px; }
+  .justification { font-size: 0.82rem; line-height: 1.5; margin-top: 8px; padding: 8px; background: var(--surface); border-radius: 6px; border-left: 3px solid; }
+  .micro-bar-row { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; margin-bottom: 5px; }
+  .micro-bar-track { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .micro-bar-fill { height: 100%; border-radius: 3px; }
+  .personal-box { margin-top: var(--gap); background: #21262d; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+  .adj-line { display: flex; justify-content: space-between; align-items: center; font-size: 0.82rem; padding: 4px 0; }
+  .up { color: var(--a); } .down { color: var(--b); } .same { color: var(--muted); }
+  .model-info { font-size: 0.78rem; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<div style="padding:16px 20px 0;">
+  <div class="header">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+      <h1>Proposal B — Decision Tree Tier Classification</h1>
+      <span class="tag">Model B</span>
+    </div>
+    <p class="model-info">Each tier has a set of qualifying gates. A pattern reaches a tier only when ALL gates pass, starting from Beginner and testing upward. The output is the highest tier whose gates all pass. Justification text explains exactly which gates drove the result — highly interpretable.</p>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- LEFT: Controls -->
+  <div>
+    <div class="panel" style="margin-bottom:var(--gap);">
+      <h2>Pattern Presets</h2>
+      <div class="presets" id="presets"></div>
+    </div>
+    <div class="panel">
+      <h2>Pattern Characteristics</h2>
+      <hr class="sep">
+      <h3>Size</h3>
+      <div class="ctrl"><div class="ctrl-row"><label>Total Stitches</label><span class="val" id="v-stitches">5000</span></div><input type="range" id="r-stitches" min="100" max="150000" step="100" value="5000"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Fabric Count</label><span class="val" id="v-fabric">14</span></div><input type="range" id="r-fabric" min="11" max="40" step="1" value="14"></div>
+      <hr class="sep">
+      <h3>Colour</h3>
+      <div class="ctrl"><div class="ctrl-row"><label>Unique Colours</label><span class="val" id="v-colours">12</span></div><input type="range" id="r-colours" min="1" max="120" step="1" value="12"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Confusable Pairs (ΔE &lt; 6)</label><span class="val" id="v-confusable">2</span></div><input type="range" id="r-confusable" min="0" max="50" step="1" value="2"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Blend Count</label><span class="val" id="v-blends">0</span></div><input type="range" id="r-blends" min="0" max="40" step="1" value="0"></div>
+      <hr class="sep">
+      <h3>Confetti &amp; Movement</h3>
+      <div class="ctrl"><div class="ctrl-row"><label>Isolated Stitch Fraction</label><span class="val" id="v-confetti">0.15</span></div><input type="range" id="r-confetti" min="0" max="1" step="0.01" value="0.15"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Colour Change Rate</label><span class="val" id="v-changerate">0.20</span></div><input type="range" id="r-changerate" min="0" max="1" step="0.01" value="0.20"></div>
+      <hr class="sep">
+      <h3>Techniques</h3>
+      <div class="ctrl"><div class="ctrl-row"><label>Backstitch Segments per 100 stitches</label><span class="val" id="v-backstitch">5</span></div><input type="range" id="r-backstitch" min="0" max="100" step="1" value="5"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Fractional Stitch %</label><span class="val" id="v-fractional">0</span>%</div><input type="range" id="r-fractional" min="0" max="50" step="1" value="0"></div>
+      <div class="ctrl"><label>Specialty Threads</label>
+        <select id="s-specialty"><option value="none">None</option><option value="minor">Minor (1–2)</option><option value="moderate">Moderate (several)</option><option value="extensive">Extensive (mostly)</option></select></div>
+      <hr class="sep">
+      <h3>Personal Profile</h3>
+      <div class="ctrl"><label>My Experience Level</label>
+        <select id="s-experience"><option value="none">Not set</option><option value="beginner">Beginner</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option><option value="expert">Expert</option></select></div>
+      <div class="ctrl"><div class="ctrl-row"><label>My max colours (projects completed)</label><span class="val" id="v-mycolours">15</span></div><input type="range" id="r-mycolours" min="1" max="80" step="1" value="15"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Output -->
+  <div>
+    <!-- Tier result -->
+    <div class="panel" style="margin-bottom:var(--gap);">
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:start;">
+        <div>
+          <h2>Tier Result</h2>
+          <div id="tier-badge-el"></div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-top:4px;" id="score-note"></div>
+        </div>
+        <div>
+          <h2>Gate Summary</h2>
+          <div id="gate-summary"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tree visualisation -->
+    <div class="panel" style="margin-bottom:var(--gap);">
+      <h2>Decision Tree (live)</h2>
+      <div id="tree-viz"></div>
+    </div>
+
+    <!-- Qualifying criteria -->
+    <div class="panel" style="margin-bottom:var(--gap);">
+      <h2>Qualifying Criteria — Why this tier?</h2>
+      <ul class="qualifier-list" id="qualifier-list"></ul>
+    </div>
+
+    <!-- Dual audience -->
+    <div class="panel" style="margin-bottom:var(--gap);">
+      <h2>Dual-Audience Presentation</h2>
+      <div class="audience-grid">
+        <div class="audience-card">
+          <div class="audience-label">Stitcher View</div>
+          <div id="aud-stitcher"></div>
+        </div>
+        <div class="audience-card">
+          <div class="audience-label">Marketplace / Shared View</div>
+          <div id="aud-market"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Personal adjustment -->
+    <div class="personal-box" id="personal-section" style="display:none;">
+      <h3 style="margin-bottom:8px;">Personal Adjustment</h3>
+      <div id="personal-content"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Decision tree model ────────────────────────────────────────────────────
+
+// Each tier is defined by a list of gates. A gate is:
+// { id, label, test(vals) → bool, metric(vals) → string }
+// The highest tier where ALL gates pass is the result.
+// We find the highest tier ALL gates pass.
+
+const TIERS_DEF = [
+  {
+    tier: 'Expert',
+    code: 'E',
+    colour: '#bc8cff',
+    stars: 4,
+    description: 'Requires advanced skills across multiple dimensions simultaneously.',
+    gates: [
+      { id:'e1', label:'Colour count > 40 OR confusable pairs > 10',
+        test: v => v.colours > 40 || v.confusable > 10,
+        metric: v => `colours=${v.colours}, confusable=${v.confusable}` },
+      { id:'e2', label:'Confetti fraction > 0.45 OR change rate > 0.55',
+        test: v => v.confetti > 0.45 || v.changerate > 0.55,
+        metric: v => `confetti=${v.confetti}, changeRate=${v.changerate}` },
+      { id:'e3', label:'Stitches > 30000 OR specialty threads present',
+        test: v => v.stitches > 30000 || v.specialty === 'extensive' || v.specialty === 'moderate',
+        metric: v => `stitches=${v.stitches.toLocaleString()}, specialty=${v.specialty}` },
+    ]
+  },
+  {
+    tier: 'Advanced',
+    code: 'A',
+    colour: '#f85149',
+    stars: 3,
+    description: 'Requires significant experience with multiple colours, thread management, and/or specialty techniques.',
+    gates: [
+      { id:'a1', label:'Colour count > 20 OR confusable pairs > 5',
+        test: v => v.colours > 20 || v.confusable > 5,
+        metric: v => `colours=${v.colours}, confusable=${v.confusable}` },
+      { id:'a2', label:'Confetti fraction > 0.25 OR change rate > 0.35',
+        test: v => v.confetti > 0.25 || v.changerate > 0.35,
+        metric: v => `confetti=${v.confetti}, changeRate=${v.changerate}` },
+      { id:'a3', label:'Stitches > 10000 OR backstitch > 20/100 OR fractional stitches present',
+        test: v => v.stitches > 10000 || v.backstitch > 20 || v.fractional > 5,
+        metric: v => `stitches=${v.stitches.toLocaleString()}, bs=${v.backstitch}, frac=${v.fractional}%` },
+    ]
+  },
+  {
+    tier: 'Intermediate',
+    code: 'I',
+    colour: '#d29922',
+    stars: 2,
+    description: 'Requires comfortable thread management and chart reading; some colour complexity.',
+    gates: [
+      { id:'i1', label:'Colour count > 8 OR any blends',
+        test: v => v.colours > 8 || v.blends > 0,
+        metric: v => `colours=${v.colours}, blends=${v.blends}` },
+      { id:'i2', label:'Confetti fraction > 0.08 OR change rate > 0.15',
+        test: v => v.confetti > 0.08 || v.changerate > 0.15,
+        metric: v => `confetti=${v.confetti}, changeRate=${v.changerate}` },
+      { id:'i3', label:'Stitches > 3000 OR backstitch present OR fabric > 18',
+        test: v => v.stitches > 3000 || v.backstitch > 3 || v.fabric > 18,
+        metric: v => `stitches=${v.stitches.toLocaleString()}, bs=${v.backstitch}, fabric=${v.fabric}ct` },
+    ]
+  },
+  {
+    tier: 'Beginner',
+    code: 'B',
+    colour: '#3fb950',
+    stars: 1,
+    description: 'Suitable for first-time or early-stage stitchers. Simple thread management, clear chart.',
+    gates: [] // Always passes (floor tier)
+  }
+];
+
+function getStars(n) { return '★'.repeat(n) + '☆'.repeat(4-n); }
+
+function evaluate(vals) {
+  // Find highest tier where all gates pass
+  for (const tier of TIERS_DEF) {
+    if (tier.gates.every(g => g.test(vals))) {
+      // Also collect "nearly reached next tier" if applicable
+      const idx = TIERS_DEF.indexOf(tier);
+      const failedNext = idx > 0 ? TIERS_DEF.slice(0, idx).map(t => ({
+        ...t, failedGates: t.gates.filter(g => !g.test(vals))
+      })) : [];
+      return { tier, failedNext, allGates: TIERS_DEF };
+    }
+  }
+  return { tier: TIERS_DEF[TIERS_DEF.length - 1], failedNext: [], allGates: TIERS_DEF };
+}
+
+function render(vals) {
+  const { tier, failedNext } = evaluate(vals);
+
+  // Tier badge
+  document.getElementById('tier-badge-el').innerHTML = `
+    <div class="tier-badge tier-${tier.code}">
+      <div>
+        <div class="lbl" style="color:${tier.colour}">${tier.tier}</div>
+        <div class="stars" style="color:${tier.colour}">${getStars(tier.stars)}</div>
+      </div>
+    </div>`;
+
+  // Score note
+  const estHours = `${Math.round(vals.stitches/300)}–${Math.round(vals.stitches/150)}h`;
+  document.getElementById('score-note').textContent = `Estimated time: ${estHours} | ${vals.colours} colours | ${vals.stitches.toLocaleString()} stitches`;
+
+  // Gate summary bars
+  const gatesHtml = TIERS_DEF.filter(t => t.gates.length > 0).map(t => {
+    const passed = t.gates.filter(g => g.test(vals)).length;
+    const pct = Math.round(passed / t.gates.length * 100);
+    return `<div class="micro-bar-row">
+      <span style="min-width:90px;color:${t.colour};font-weight:600;font-size:0.78rem;">${t.tier}</span>
+      <div class="micro-bar-track"><div class="micro-bar-fill" style="width:${pct}%;background:${t.colour};"></div></div>
+      <span style="font-size:0.75rem;color:var(--muted)">${passed}/${t.gates.length}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('gate-summary').innerHTML = gatesHtml;
+
+  // Tree viz
+  let treeHtml = '<div style="font-family:monospace;font-size:0.78rem;line-height:2;">';
+  const tierOrder = ['Expert','Advanced','Intermediate','Beginner'];
+  tierOrder.forEach(tierName => {
+    const td = TIERS_DEF.find(t => t.tier === tierName);
+    const isResult = td.tier === tier.tier;
+    const allPass = td.gates.every(g => g.test(vals));
+    treeHtml += `<div style="padding:4px 8px;border-radius:6px;margin-bottom:3px;border-left:3px solid ${allPass ? td.colour : 'var(--border)'};background:${allPass ? td.colour+'15' : 'transparent'};">`;
+    treeHtml += `<span style="color:${td.colour};font-weight:${isResult?'800':'400'};">${isResult ? '→ ' : '  '}${td.tier}</span>`;
+    if (td.gates.length === 0) {
+      treeHtml += ` <span style="color:var(--muted);font-size:0.72rem;">(default floor)</span>`;
+    } else {
+      td.gates.forEach(g => {
+        const pass = g.test(vals);
+        treeHtml += `<div style="padding-left:12px;color:${pass ? 'var(--b)' : 'var(--a)'};font-size:0.75rem;">${pass ? '✓' : '✗'} ${g.label} — <span style="color:var(--muted)">${g.metric(vals)}</span></div>`;
+      });
+    }
+    treeHtml += '</div>';
+  });
+  treeHtml += '</div>';
+  document.getElementById('tree-viz').innerHTML = treeHtml;
+
+  // Qualifier list — show all gates for the result tier and explain
+  const allDrivers = [];
+  TIERS_DEF.filter(t => t.tier === tier.tier || TIERS_DEF.indexOf(t) > TIERS_DEF.indexOf(tier)).forEach(t => {
+    t.gates.forEach(g => allDrivers.push({ tier: t, gate: g, pass: g.test(vals) }));
+  });
+  // Show gates that were tested to reach this tier
+  const testedTiers = TIERS_DEF.slice(0, TIERS_DEF.indexOf(tier) + 1);
+  let qualHtml = '';
+  testedTiers.forEach(t => {
+    if (t.gates.length === 0) return;
+    qualHtml += `<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);padding:8px 0 4px;font-weight:600;">${t.tier} tier gates ${t.tier === tier.tier ? '(all passed)' : '(some failed — ceiling reached)'}</div>`;
+    t.gates.forEach(g => {
+      const pass = g.test(vals);
+      qualHtml += `<li>
+        <span class="q-icon ${pass ? 'q-pass' : 'q-fail'}">${pass ? '✓' : '✗'}</span>
+        <div class="q-txt">
+          <div>${g.label}</div>
+          <div class="q-metric">${g.metric(vals)}</div>
+        </div>
+      </li>`;
+    });
+  });
+  document.getElementById('qualifier-list').innerHTML = qualHtml;
+
+  // Dual audience
+  const justificationText = buildJustification(vals, tier);
+  document.getElementById('aud-stitcher').innerHTML = `
+    <div class="tier-badge tier-${tier.code}" style="display:inline-flex;">
+      <div><div class="lbl" style="color:${tier.colour};font-size:1.2rem;">${tier.tier}</div><div style="font-size:0.9rem;color:${tier.colour}">${getStars(tier.stars)}</div></div>
+    </div>
+    <div class="justification" style="border-color:${tier.colour}">${justificationText}</div>
+    <div style="margin-top:8px;font-size:0.75rem;color:var(--muted);">Expand for full gate breakdown above.</div>`;
+  document.getElementById('aud-market').innerHTML = `
+    <div style="font-size:1.5rem;font-weight:800;color:${tier.colour}">${tier.tier}</div>
+    <div style="font-size:0.9rem;color:${tier.colour}">${getStars(tier.stars)}</div>
+    <div style="font-size:0.8rem;color:var(--muted);margin-top:6px;">${vals.stitches.toLocaleString()} stitches · ${vals.colours} colours · est. ${estHours}</div>
+    <div style="font-size:0.78rem;margin-top:6px;line-height:1.4;">${tier.description}</div>`;
+
+  // Personal adjustment
+  const exp = document.getElementById('s-experience').value;
+  if (exp === 'none') { document.getElementById('personal-section').style.display = 'none'; return; }
+  document.getElementById('personal-section').style.display = 'block';
+
+  const myColours = +document.getElementById('r-mycolours').value;
+  const tierOrder2 = ['Beginner','Intermediate','Advanced','Expert'];
+  const tierIdx = tierOrder2.indexOf(tier.tier);
+  let adjTier = tier.tier;
+  let adjNotes = [];
+
+  if (vals.colours > myColours * 1.4) {
+    const bump = Math.min(1, Math.ceil((vals.colours - myColours) / 10));
+    const adjIdx = Math.min(3, tierIdx + bump);
+    adjTier = tierOrder2[adjIdx];
+    adjNotes.push(`This has ${vals.colours} colours; your max experience is ${myColours} — this may feel one tier harder.`);
+  }
+  if (exp === 'beginner' && (vals.confetti > 0.3 || vals.changerate > 0.4)) {
+    const adjIdx = Math.min(3, tierIdx + 1);
+    adjTier = tierOrder2[adjIdx];
+    adjNotes.push('High confetti can be especially challenging for beginners.');
+  }
+  const adjTierDef = TIERS_DEF.find(t => t.tier === adjTier);
+  const changed = adjTier !== tier.tier;
+
+  let pHtml = `<div class="adj-line">
+    <span>Objective tier: <strong style="color:${tier.colour}">${tier.tier}</strong></span>
+    <span>May feel like: <strong style="color:${adjTierDef.colour}">${adjTier}</strong> for you
+      <span style="font-size:0.72rem;margin-left:6px;padding:2px 6px;border-radius:10px;background:${changed ? '#f8514920' : '#21262d'};color:${changed ? '#f85149' : 'var(--muted)'};">${changed ? 'adjusted' : 'same'}</span>
+    </span>
+  </div>`;
+  adjNotes.forEach(n => { pHtml += `<div style="font-size:0.78rem;color:var(--muted);padding:3px 0;">• ${n}</div>`; });
+  if (adjNotes.length === 0) pHtml += `<div style="font-size:0.78rem;color:var(--muted);">No adjustments — this pattern aligns with your experience.</div>`;
+  document.getElementById('personal-content').innerHTML = pHtml;
+}
+
+function buildJustification(vals, tier) {
+  const points = [];
+  if (vals.colours > 30) points.push(`${vals.colours} colours demands careful thread management`);
+  else if (vals.colours > 15) points.push(`${vals.colours} colours requires organised thread setup`);
+  else points.push(`${vals.colours} colours is manageable`);
+  if (vals.confetti > 0.45) points.push('extreme confetti density makes every stitch a thread change');
+  else if (vals.confetti > 0.25) points.push('significant confetti requires frequent thread changes');
+  else if (vals.confetti < 0.08) points.push('solid block regions allow comfortable rhythm stitching');
+  if (vals.specialty !== 'none') points.push(`specialty threads add technique complexity`);
+  if (vals.backstitch > 20) points.push(`heavy backstitching (${vals.backstitch}/100 stitches) requires precise outlining`);
+  return points.slice(0, 3).join('; ') + '.';
+}
+
+// ── Presets ────────────────────────────────────────────────────────────────
+const PRESETS = [
+  { label: 'Beginner Sampler',       stitches:800,   fabric:14, colours:5,  confusable:0,  blends:0,  confetti:0.02, changerate:0.06, backstitch:2,  fractional:0,  specialty:'none' },
+  { label: 'Moderate Landscape',     stitches:12000, fabric:14, colours:20, confusable:3,  blends:2,  confetti:0.12, changerate:0.18, backstitch:8,  fractional:2,  specialty:'none' },
+  { label: 'High-Confetti Portrait', stitches:25000, fabric:18, colours:55, confusable:18, blends:8,  confetti:0.60, changerate:0.68, backstitch:5,  fractional:12, specialty:'none' },
+  { label: 'Large Simple Coverage',  stitches:80000, fabric:14, colours:8,  confusable:0,  blends:0,  confetti:0.04, changerate:0.08, backstitch:2,  fractional:0,  specialty:'none' },
+  { label: 'Small Technical Piece',  stitches:3000,  fabric:28, colours:30, confusable:8,  blends:6,  confetti:0.35, changerate:0.42, backstitch:40, fractional:25, specialty:'moderate' },
+];
+
+function getVals() {
+  return {
+    stitches:   +document.getElementById('r-stitches').value,
+    fabric:     +document.getElementById('r-fabric').value,
+    colours:    +document.getElementById('r-colours').value,
+    confusable: +document.getElementById('r-confusable').value,
+    blends:     +document.getElementById('r-blends').value,
+    confetti:   +document.getElementById('r-confetti').value,
+    changerate: +document.getElementById('r-changerate').value,
+    backstitch: +document.getElementById('r-backstitch').value,
+    fractional: +document.getElementById('r-fractional').value,
+    specialty:  document.getElementById('s-specialty').value,
+  };
+}
+
+function applyPreset(p, btn) {
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('r-stitches').value = p.stitches;
+  document.getElementById('r-fabric').value = p.fabric;
+  document.getElementById('r-colours').value = p.colours;
+  document.getElementById('r-confusable').value = p.confusable;
+  document.getElementById('r-blends').value = p.blends;
+  document.getElementById('r-confetti').value = p.confetti;
+  document.getElementById('r-changerate').value = p.changerate;
+  document.getElementById('r-backstitch').value = p.backstitch;
+  document.getElementById('r-fractional').value = p.fractional;
+  document.getElementById('s-specialty').value = p.specialty;
+  syncLabels(); render(getVals());
+}
+
+const presetsEl = document.getElementById('presets');
+PRESETS.forEach(p => {
+  const btn = document.createElement('button');
+  btn.className = 'preset-btn';
+  btn.textContent = p.label;
+  btn.onclick = () => applyPreset(p, btn);
+  presetsEl.appendChild(btn);
+});
+
+const labelMap = {
+  'r-stitches':'v-stitches','r-fabric':'v-fabric','r-colours':'v-colours',
+  'r-confusable':'v-confusable','r-blends':'v-blends','r-confetti':'v-confetti',
+  'r-changerate':'v-changerate','r-backstitch':'v-backstitch','r-fractional':'v-fractional',
+  'r-mycolours':'v-mycolours'
+};
+function syncLabels() { for (const [s,d] of Object.entries(labelMap)) { const e=document.getElementById(s); if(e) document.getElementById(d).textContent=e.value; } }
+document.querySelectorAll('input[type=range],select').forEach(el => el.addEventListener('input', () => { syncLabels(); render(getVals()); }));
+syncLabels(); render(getVals());
+</script>
+</body>
+</html>

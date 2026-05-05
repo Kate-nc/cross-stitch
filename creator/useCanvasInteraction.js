@@ -26,6 +26,22 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function getActiveTool() { return state.activeToolRef ? state.activeToolRef.current : state.activeTool; }
   function getPartialStitchTool() { return state.partialStitchToolRef ? state.partialStitchToolRef.current : state.partialStitchTool; }
 
+  // After painting, preserve any pal entries that just dropped to 0 stitches.
+  // buildPaletteWithScratch drops them entirely; this keeps them as count:0 so
+  // the "unused" chip dimming and × / Remove-unused button can appear.
+  function rebuildPreservingZeros(np) {
+    var r = state.buildPaletteWithScratch(np);
+    var existingPal = state.pal || [];
+    var inResult = new Set(r.pal.map(function(p) { return p.id; }));
+    var zeroed = existingPal
+      .filter(function(p) { return !inResult.has(p.id); })
+      .map(function(p) { return Object.assign({}, p, { count: 0 }); });
+    if (!zeroed.length) return r;
+    var cmap2 = Object.assign({}, r.cmap);
+    zeroed.forEach(function(p) { cmap2[p.id] = p; });
+    return { pal: r.pal.concat(zeroed), cmap: cmap2 };
+  }
+
   // Hand tool acts as "explicit pan mode" — for the purposes of the
   // pointer handlers below it is treated identically to "no active
   // tool", which already has a 1-finger touch pan + mouse-drag pan
@@ -326,6 +342,17 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    if (activeTool === "colourReplace") {
+      if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
+      var idx0 = gy * sW + gx;
+      var cell0 = pat[idx0];
+      if (cell0 && cell0.id !== '__skip__' && cell0.id !== '__empty__' && cmap && cmap[cell0.id]) {
+        var entry0 = cmap[cell0.id];
+        state.setColourReplaceModal({ srcId: cell0.id, srcName: entry0.name || cell0.id, srcRgb: entry0.rgb || cell0.rgb });
+      }
+      return;
+    }
+
     if (partialStitchTool) {
       if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
       var idx1 = gy * sW + gx;
@@ -399,7 +426,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         return; // paint handled by mousedown drag
       }
       state.setPat(np2);
-      var r2 = buildPaletteWithScratch(np2); state.setPal(r2.pal); state.setCmap(r2.cmap);
+      var r2 = rebuildPreservingZeros(np2); state.setPal(r2.pal); state.setCmap(r2.cmap);
       return;
     }
 
@@ -483,7 +510,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
-    if (activeTool === "eyedropper" || activeTool === "fill" || activeTool === "backstitch" || activeTool === "eraseBs" || activeTool === "magicWand") {
+    if (activeTool === "eyedropper" || activeTool === "fill" || activeTool === "backstitch" || activeTool === "eraseBs" || activeTool === "magicWand" || activeTool === "colourReplace") {
       handlePatClick(e);
       return;
     }
@@ -580,7 +607,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       });
       state.setRedoHistory([]);
       if (madeChanges) {
-        var r = buildPaletteWithScratch(dragPatRef.current);
+        var r = rebuildPreservingZeros(dragPatRef.current);
         state.setPal(r.pal); state.setCmap(r.cmap);
       }
     }

@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proposal C — Multi-Axis Radar Chart</title>
+<style>
+  :root {
+    --bg: #13111a; --surface: #1e1a2e; --card: #2a2440;
+    --border: #3d3560; --text: #f0eeff; --muted: #9b92b8;
+    --c1:#f72585;--c2:#7209b7;--c3:#3a0ca3;--c4:#4361ee;--c5:#4cc9f0;--c6:#06d6a0;
+    --radius: 10px; --gap: 16px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 14px; line-height: 1.5; }
+  h1 { font-size: 1.35rem; font-weight: 700; }
+  h2 { font-size: 1rem; font-weight: 600; margin-bottom: 10px; }
+  h3 { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-bottom: 6px; }
+  .layout { display: grid; grid-template-columns: 320px 1fr; gap: var(--gap); padding: var(--gap); max-width: 1400px; margin: 0 auto; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--gap); }
+  .header { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 20px; margin-bottom: var(--gap); }
+  .tag { background: #7209b733; color: #b56cff; font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em; border: 1px solid #7209b7; }
+  label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 3px; }
+  input[type=range] { width: 100%; accent-color: var(--c5); }
+  select { width: 100%; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 0.85rem; }
+  .ctrl { margin-bottom: 11px; }
+  .ctrl-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+  .val { font-size: 0.82rem; font-weight: 600; color: var(--c5); }
+  .sep { margin: 11px 0; border: none; border-top: 1px solid var(--border); }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--gap); }
+  .preset-btn { background: var(--card); border: 1px solid var(--border); color: var(--text); font-size: 0.75rem; padding: 5px 10px; border-radius: 6px; cursor: pointer; }
+  .preset-btn:hover, .preset-btn.active { background: var(--c5); color: #111; border-color: var(--c5); }
+  .axis-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 0.82rem; }
+  .axis-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .axis-label { flex: 1; }
+  .axis-bar-track { width: 80px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .axis-bar-fill { height: 100%; border-radius: 3px; }
+  .axis-score { font-size: 0.78rem; font-weight: 700; min-width: 32px; text-align: right; }
+  .summary-badge { display: inline-flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 18px; margin-bottom: 10px; }
+  .audience-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); margin-top: var(--gap); }
+  .audience-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+  .audience-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px; }
+  .mini-radar { display: block; margin: 0 auto; }
+  .model-info { font-size: 0.78rem; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+  .no-number { font-size: 0.72rem; color: var(--muted); margin-top: 4px; font-style: italic; }
+  .profile-match { font-size: 0.82rem; margin-top: 8px; padding: 8px; background: var(--surface); border-radius: 6px; }
+</style>
+</head>
+<body>
+
+<div style="padding:16px 20px 0;">
+  <div class="header">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+      <h1>Proposal C — Multi-Axis Radar Chart</h1>
+      <span class="tag">Model C</span>
+    </div>
+    <p class="model-info">No single number. Six independent axes scored 0–100 each, displayed as a radar chart with no aggregation. Highly informative — tells the stitcher exactly WHAT kind of difficulty to expect. Most useful for personal planning; less suitable for marketplace sorting.</p>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- LEFT: Controls -->
+  <div>
+    <div class="panel" style="margin-bottom:var(--gap);">
+      <h2>Pattern Presets</h2>
+      <div class="presets" id="presets"></div>
+    </div>
+    <div class="panel">
+      <h2>Pattern Characteristics</h2>
+      <hr class="sep">
+      <h3>Size</h3>
+      <div class="ctrl"><div class="ctrl-row"><label>Total Stitches</label><span class="val" id="v-stitches">5000</span></div><input type="range" id="r-stitches" min="100" max="150000" step="100" value="5000"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Fabric Count</label><span class="val" id="v-fabric">14</span></div><input type="range" id="r-fabric" min="11" max="40" step="1" value="14"></div>
+      <hr class="sep">
+      <h3>Colour</h3>
+      <div class="ctrl"><div class="ctrl-row"><label>Unique Colours</label><span class="val" id="v-colours">12</span></div><input type="range" id="r-colours" min="1" max="120" step="1" value="12"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Confusable Pairs</label><span class="val" id="v-confusable">2</span></div><input type="range" id="r-confusable" min="0" max="50" step="1" value="2"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Blend Count</label><span class="val" id="v-blends">0</span></div><input type="range" id="r-blends" min="0" max="40" step="1" value="0"></div>
+      <hr class="sep">
+      <h3>Confetti &amp; Movement</h3>
+      <div class="ctrl"><div class="ctrl-row"><label>Isolated Stitch Fraction</label><span class="val" id="v-confetti">0.15</span></div><input type="range" id="r-confetti" min="0" max="1" step="0.01" value="0.15"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Colour Change Rate</label><span class="val" id="v-changerate">0.20</span></div><input type="range" id="r-changerate" min="0" max="1" step="0.01" value="0.20"></div>
+      <hr class="sep">
+      <h3>Techniques</h3>
+      <div class="ctrl"><div class="ctrl-row"><label>Backstitch per 100 stitches</label><span class="val" id="v-backstitch">5</span></div><input type="range" id="r-backstitch" min="0" max="100" step="1" value="5"></div>
+      <div class="ctrl"><div class="ctrl-row"><label>Fractional Stitch %</label><span class="val" id="v-fractional">0</span>%</div><input type="range" id="r-fractional" min="0" max="50" step="1" value="0"></div>
+      <div class="ctrl"><label>Specialty Threads</label>
+        <select id="s-specialty"><option value="0">None</option><option value="0.3">Minor</option><option value="0.6">Moderate</option><option value="1.0">Extensive</option></select></div>
+      <hr class="sep">
+      <h3>Personal Profile</h3>
+      <div class="ctrl"><label>My Experience Level</label>
+        <select id="s-experience"><option value="none">Not set</option><option value="beginner">Beginner</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option><option value="expert">Expert</option></select></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Radar + details -->
+  <div>
+    <div class="panel" style="margin-bottom:var(--gap);">
+      <div style="display:grid;grid-template-columns:300px 1fr;gap:20px;align-items:center;">
+        <!-- Radar -->
+        <div style="text-align:center;">
+          <canvas id="radar" width="280" height="280"></canvas>
+          <div class="no-number">No single number — see individual axes</div>
+        </div>
+        <!-- Axis scores -->
+        <div>
+          <h2>Axis Scores</h2>
+          <div id="axis-list"></div>
+          <div style="margin-top:14px;">
+            <h3>Summary Suggestion</h3>
+            <div id="summary-suggestion" style="font-size:0.85rem;line-height:1.6;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dual audience -->
+    <div class="panel" style="margin-bottom:var(--gap);">
+      <h2>Dual-Audience Presentation</h2>
+      <div class="audience-grid">
+        <div class="audience-card">
+          <div class="audience-label">Stitcher View — Full breakdown</div>
+          <canvas id="radar-small-stitcher" class="mini-radar" width="140" height="140"></canvas>
+          <div id="stitcher-detail" style="margin-top:8px;font-size:0.78rem;"></div>
+        </div>
+        <div class="audience-card">
+          <div class="audience-label">Marketplace View — Key highlights only</div>
+          <div id="market-summary" style="font-size:0.82rem;line-height:1.8;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Personal overlay -->
+    <div class="panel" id="personal-section" style="display:none;">
+      <h2>Personal Overlay</h2>
+      <div style="display:grid;grid-template-columns:300px 1fr;gap:20px;align-items:center;">
+        <div style="text-align:center;">
+          <canvas id="radar-personal" width="280" height="280"></canvas>
+          <div class="no-number">Grey = objective · Coloured = your experience</div>
+        </div>
+        <div id="personal-content" style="font-size:0.82rem;line-height:1.6;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const AXES = [
+  { id:'colour',    label:'Colour Complexity',  shortLabel:'Colour',   colour:'#f72585', desc:'How many distinct colours, and how confusable they are' },
+  { id:'confetti',  label:'Confetti Density',   shortLabel:'Confetti', colour:'#7209b7', desc:'How fragmented the stitching is — isolated stitches vs. solid blocks' },
+  { id:'change',    label:'Colour Change Rate', shortLabel:'Changes',  colour:'#4361ee', desc:'How often you must switch thread per unit of stitching' },
+  { id:'size',      label:'Size & Duration',    shortLabel:'Size',     colour:'#4cc9f0', desc:'How much time and fabric handling is required' },
+  { id:'spatial',   label:'Spatial Complexity', shortLabel:'Spatial',  colour:'#06d6a0', desc:'Symbol readability, fabric count, navigability' },
+  { id:'technique', label:'Technique Load',     shortLabel:'Technique',colour:'#f8961e', desc:'Backstitching, fractional stitches, specialty threads' },
+];
+
+function computeAxes(v) {
+  const colour = Math.min(100, Math.round(
+    (v.colours <= 5 ? 5 : v.colours <= 15 ? 5+(v.colours-5)*2.5 : v.colours <= 30 ? 30+(v.colours-15)*2.2 : v.colours <= 50 ? 63+(v.colours-30)*1.2 : Math.min(100, 87+(v.colours-50)*0.5)) * 0.35
+    + Math.min(100, (v.confusable / Math.max(1,v.colours*(v.colours-1)/2)) * 800) * 0.30
+    + (v.blends === 0 ? 0 : 10 + 90*(v.blends/Math.max(1,v.colours))) * 0.20
+    + v.evenness * 100 * 0.15
+  ));
+  const confetti = Math.min(100, Math.round(Math.pow(v.confetti, 0.7) * 100));
+  const change   = Math.min(100, Math.round(Math.pow(v.changerate, 0.55) * 100));
+  const sizeRaw  = v.stitches <= 1000 ? 2 : v.stitches <= 5000 ? 2+Math.log10(v.stitches/1000)*12 :
+    v.stitches <= 20000 ? 10+Math.log10(v.stitches/5000)*35 :
+    v.stitches <= 80000 ? 35+Math.log10(v.stitches/20000)*45 : Math.min(100, 75+Math.log10(v.stitches/80000)*40);
+  const fabricPenalty = v.fabric <= 14 ? 0 : v.fabric <= 18 ? (v.fabric-14)*4 : v.fabric <= 22 ? 16+(v.fabric-18)*6 : Math.min(40, 40+(v.fabric-22)*3);
+  const size = Math.min(100, Math.round(sizeRaw*0.8+fabricPenalty*0.2));
+  const symScore = Math.min(100, v.colours <= 8 ? 0 : v.colours <= 16 ? (v.colours-8)*1.8 : v.colours <= 30 ? 14+(v.colours-16)*2.2 : v.colours <= 50 ? 45+(v.colours-30)*1.5 : Math.min(100, 75+(v.colours-50)*0.8));
+  const bsScore  = Math.min(100, v.backstitch <= 2 ? v.backstitch*2 : v.backstitch <= 15 ? 4+(v.backstitch-2)*2.5 : v.backstitch <= 40 ? 37+(v.backstitch-15)*1.2 : Math.min(100, 67+(v.backstitch-40)*0.8));
+  const fracScore = Math.min(100, (v.fractional/100)*250);
+  const fabBonus  = v.fabric >= 25 ? 15 : v.fabric >= 20 ? 8 : 0;
+  const spatial = Math.min(100, Math.round(symScore*0.30+bsScore*0.40+fracScore*0.20+fabBonus*0.10));
+  const technique = Math.min(100, Math.round(parseFloat(v.specialty||0)*100*0.40 + bsScore*0.35 + fracScore*0.25));
+  return { colour, confetti, change, size, spatial, technique };
+}
+
+function drawRadar(canvasId, scores, personal, size=280) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const cx = size/2, cy = size/2, r = size*0.38;
+  const N = AXES.length;
+  const angle = i => (i/N)*Math.PI*2 - Math.PI/2;
+  const pt = (i, v, rad) => {
+    const a = angle(i);
+    return { x: cx + Math.cos(a)*rad*(v/100), y: cy + Math.sin(a)*rad*(v/100) };
+  };
+  const ptFull = (i, rad) => ({ x: cx + Math.cos(angle(i))*rad, y: cy + Math.sin(angle(i))*rad });
+
+  ctx.clearRect(0,0,size,size);
+
+  // Grid rings
+  [0.25,0.5,0.75,1].forEach(f => {
+    ctx.beginPath();
+    for (let i=0;i<N;i++) {
+      const p = ptFull(i,r*f);
+      i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = f===1 ? '#ffffff22' : '#ffffff12';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+
+  // Spokes
+  for (let i=0;i<N;i++) {
+    const p = ptFull(i,r);
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(p.x,p.y);
+    ctx.strokeStyle = '#ffffff18'; ctx.lineWidth=1; ctx.stroke();
+  }
+
+  // Personal overlay (if provided)
+  if (personal) {
+    ctx.beginPath();
+    AXES.forEach((ax,i) => {
+      const v = personal[ax.id]||0;
+      const p = pt(i,v,r);
+      i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y);
+    });
+    ctx.closePath();
+    ctx.fillStyle = '#ffffff10';
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff40';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  // Data polygon
+  ctx.beginPath();
+  AXES.forEach((ax,i) => {
+    const v = scores[ax.id];
+    const p = pt(i,v,r);
+    i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y);
+  });
+  ctx.closePath();
+  ctx.fillStyle = '#4cc9f028';
+  ctx.fill();
+  ctx.strokeStyle = '#4cc9f0';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Points
+  AXES.forEach((ax,i) => {
+    const v = scores[ax.id];
+    const p = pt(i,v,r);
+    ctx.beginPath(); ctx.arc(p.x,p.y,4,0,Math.PI*2);
+    ctx.fillStyle = ax.colour; ctx.fill();
+  });
+
+  // Labels (only for full-size chart)
+  if (size >= 280) {
+    ctx.font = `bold ${size>=280?'11':'9'}px system-ui`;
+    AXES.forEach((ax,i) => {
+      const p = ptFull(i, r+22);
+      ctx.fillStyle = ax.colour;
+      ctx.textAlign = p.x < cx-5 ? 'right' : p.x > cx+5 ? 'left' : 'center';
+      ctx.textBaseline = p.y < cy-5 ? 'bottom' : p.y > cy+5 ? 'top' : 'middle';
+      ctx.fillText(ax.shortLabel, p.x, p.y);
+    });
+  }
+}
+
+function getStrongest(scores) {
+  return AXES.slice().sort((a,b)=>scores[b.id]-scores[a.id]);
+}
+
+function render(vals) {
+  const scores = computeAxes(vals);
+
+  // Axis list
+  const axListEl = document.getElementById('axis-list');
+  axListEl.innerHTML = '';
+  AXES.forEach(ax => {
+    const v = scores[ax.id];
+    axListEl.innerHTML += `<div class="axis-row">
+      <div class="axis-dot" style="background:${ax.colour}"></div>
+      <div class="axis-label">${ax.label}</div>
+      <div class="axis-bar-track"><div class="axis-bar-fill" style="width:${v}%;background:${ax.colour}"></div></div>
+      <div class="axis-score" style="color:${ax.colour}">${v}</div>
+    </div>`;
+  });
+
+  // Draw main radar
+  drawRadar('radar', scores, null, 280);
+
+  // Summary suggestion
+  const sorted = getStrongest(scores);
+  const dominant = sorted[0];
+  const estHours = `${Math.round(vals.stitches/300)}–${Math.round(vals.stitches/150)}h`;
+  // Suggest a tier based on max score
+  const maxScore = Math.max(...AXES.map(a=>scores[a.id]));
+  const sugTier = maxScore >= 75 ? 'Expert' : maxScore >= 55 ? 'Advanced' : maxScore >= 35 ? 'Intermediate' : 'Beginner';
+  const sugColour = {Expert:'#bc8cff',Advanced:'#f85149',Intermediate:'#d29922',Beginner:'#3fb950'}[sugTier];
+  document.getElementById('summary-suggestion').innerHTML = `
+    <strong>Hardest dimension:</strong> <span style="color:${dominant.colour}">${dominant.label} (${scores[dominant.id]})</span><br>
+    <strong>Overall character:</strong> ${buildCharacter(scores)}<br>
+    <strong>Suggested tier</strong> (by hardest axis): <span style="color:${sugColour}">${sugTier}</span><br>
+    <strong>Estimated time:</strong> ${estHours}`;
+
+  // Dual audience
+  drawRadar('radar-small-stitcher', scores, null, 140);
+  let stitcherDetail = '';
+  sorted.slice(0,3).forEach(ax => {
+    const v = scores[ax.id];
+    const bar = `<div style="height:4px;background:${ax.colour};width:${v}%;border-radius:2px;margin-top:2px;margin-bottom:5px;"></div>`;
+    stitcherDetail += `<div style="font-size:0.75rem;color:var(--muted)">${ax.label}: <span style="color:${ax.colour};font-weight:600">${v}</span> — ${describeAxis(ax.id, v)}</div>${bar}`;
+  });
+  document.getElementById('stitcher-detail').innerHTML = stitcherDetail;
+
+  // Market summary — top 2 notable axes only
+  const notableAxes = sorted.filter(a=>scores[a.id]>=35).slice(0,3);
+  let marketHtml = `<div style="font-size:0.85rem;margin-bottom:6px;">`;
+  if (notableAxes.length === 0) {
+    marketHtml += `<span style="color:#3fb950;font-weight:700;">Beginner-friendly</span> — straightforward stitching with no unusual challenges.`;
+  } else {
+    marketHtml += `Notable: `;
+    marketHtml += notableAxes.map(a=>`<span style="color:${a.colour};font-weight:600">${a.shortLabel} (${scores[a.id]})</span>`).join(', ');
+  }
+  marketHtml += `</div>`;
+  marketHtml += `<div style="font-size:0.75rem;color:var(--muted)">${vals.stitches.toLocaleString()} stitches · ${vals.colours} colours · ${estHours} est.</div>`;
+  notableAxes.slice(0,2).forEach(a => {
+    marketHtml += `<div style="font-size:0.75rem;color:var(--muted);margin-top:3px;">• ${a.label}: ${describeAxis(a.id, scores[a.id])}</div>`;
+  });
+  document.getElementById('market-summary').innerHTML = marketHtml;
+
+  // Personal
+  const exp = document.getElementById('s-experience').value;
+  if (exp === 'none') { document.getElementById('personal-section').style.display='none'; return; }
+  document.getElementById('personal-section').style.display='block';
+
+  // Compute "comfort" scores based on experience level
+  const expScores = computeExpScores(exp);
+  drawRadar('radar-personal', scores, expScores, 280);
+
+  let persHtml = '<strong>How this compares to your comfort zone:</strong><br>';
+  AXES.forEach(ax => {
+    const comfort = expScores[ax.id];
+    const actual  = scores[ax.id];
+    const diff = actual - comfort;
+    const color = diff > 15 ? '#f85149' : diff < -15 ? '#3fb950' : 'var(--muted)';
+    const arrow = diff > 15 ? '▲ above' : diff < -15 ? '▼ below' : '≈ at';
+    persHtml += `<div style="padding:3px 0;font-size:0.8rem;"><span style="color:${ax.colour}">${ax.shortLabel}</span>: ${actual} — <span style="color:${color}">${arrow} your comfort level (${comfort})</span></div>`;
+  });
+  document.getElementById('personal-content').innerHTML = persHtml;
+}
+
+function computeExpScores(exp) {
+  const maps = {
+    beginner:     { colour:20, confetti:10, change:10, size:15, spatial:15, technique:5  },
+    intermediate: { colour:45, confetti:30, change:30, size:40, spatial:35, technique:25 },
+    advanced:     { colour:65, confetti:55, change:55, size:65, spatial:60, technique:55 },
+    expert:       { colour:85, confetti:80, change:80, size:85, spatial:80, technique:80 },
+  };
+  return maps[exp] || maps.beginner;
+}
+
+function describeAxis(id, v) {
+  if (v < 20) return 'minimal challenge';
+  if (v < 40) return 'moderate';
+  if (v < 60) return 'significant';
+  if (v < 80) return 'high';
+  return 'extreme';
+}
+
+function buildCharacter(scores) {
+  const high = AXES.filter(a=>scores[a.id]>=55).map(a=>a.shortLabel);
+  if (high.length === 0) return 'Accessible, low challenge across all dimensions';
+  if (high.length >= 4) return 'Demanding across almost all dimensions';
+  return `Challenging in: ${high.join(', ')}`;
+}
+
+const PRESETS = [
+  { label:'Beginner Sampler',       stitches:800,   fabric:14, colours:5,  confusable:0,  blends:0, evenness:0.3,  confetti:0.02, changerate:0.06, backstitch:2,  fractional:0,  specialty:'0' },
+  { label:'Moderate Landscape',     stitches:12000, fabric:14, colours:20, confusable:3,  blends:2, evenness:0.35, confetti:0.12, changerate:0.18, backstitch:8,  fractional:2,  specialty:'0' },
+  { label:'High-Confetti Portrait', stitches:25000, fabric:18, colours:55, confusable:18, blends:8, evenness:0.72, confetti:0.60, changerate:0.68, backstitch:5,  fractional:12, specialty:'0' },
+  { label:'Large Simple Coverage',  stitches:80000, fabric:14, colours:8,  confusable:0,  blends:0, evenness:0.25, confetti:0.04, changerate:0.08, backstitch:2,  fractional:0,  specialty:'0' },
+  { label:'Small Technical Piece',  stitches:3000,  fabric:28, colours:30, confusable:8,  blends:6, evenness:0.50, confetti:0.35, changerate:0.42, backstitch:40, fractional:25, specialty:'0.6' },
+];
+
+function getVals() {
+  return {
+    stitches:   +document.getElementById('r-stitches').value,
+    fabric:     +document.getElementById('r-fabric').value,
+    colours:    +document.getElementById('r-colours').value,
+    confusable: +document.getElementById('r-confusable').value,
+    blends:     +document.getElementById('r-blends').value,
+    evenness:   0.4,
+    confetti:   +document.getElementById('r-confetti').value,
+    changerate: +document.getElementById('r-changerate').value,
+    backstitch: +document.getElementById('r-backstitch').value,
+    fractional: +document.getElementById('r-fractional').value,
+    specialty:  document.getElementById('s-specialty').value,
+  };
+}
+
+function applyPreset(p, btn) {
+  document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const ids = ['stitches','fabric','colours','confusable','blends','confetti','changerate','backstitch','fractional'];
+  ids.forEach(id => { const el=document.getElementById(`r-${id}`); if(el&&p[id]!==undefined) el.value=p[id]; });
+  document.getElementById('s-specialty').value=p.specialty||'0';
+  syncLabels(); render(getVals());
+}
+
+const presetsEl=document.getElementById('presets');
+PRESETS.forEach(p=>{const btn=document.createElement('button');btn.className='preset-btn';btn.textContent=p.label;btn.onclick=()=>applyPreset(p,btn);presetsEl.appendChild(btn);});
+
+const labelMap={'r-stitches':'v-stitches','r-fabric':'v-fabric','r-colours':'v-colours','r-confusable':'v-confusable','r-blends':'v-blends','r-confetti':'v-confetti','r-changerate':'v-changerate','r-backstitch':'v-backstitch','r-fractional':'v-fractional'};
+function syncLabels(){for(const[s,d]of Object.entries(labelMap)){const e=document.getElementById(s);if(e)document.getElementById(d).textContent=e.value;}}
+document.querySelectorAll('input[type=range],select').forEach(el=>el.addEventListener('input',()=>{syncLabels();render(getVals());}));
+syncLabels(); render(getVals());
+</script>
+</body>
+</html>

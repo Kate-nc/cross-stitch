@@ -604,6 +604,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     applyColorReduction: state.applyColorReduction,
     selectionReplaceColorCount: state.selectionReplaceColorCount,
     applyColorReplacement: state.applyColorReplacement,
+    applyGlobalColourReplacement: state.applyGlobalColourReplacement,
+    colourReplaceModal: state.colourReplaceModal, setColourReplaceModal: state.setColourReplaceModal,
     selectionStats: state.selectionStats,
     applyOutlineGeneration: state.applyOutlineGeneration,
     selectionCount: state.selectionCount, hasSelection: state.hasSelection,
@@ -641,6 +643,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.selectionStats, state.selectionReplaceColorCount,
     state.lassoMode, state.lassoPoints, state.lassoActive, state.lassoCursor,
     state.lassoPreviewMask, state.lassoOpMode, state.lassoPointCount, state.lassoInProgress,
+    state.colourReplaceModal,
   ]);
 
   // ── PatternDataContext value (core pattern data, dimensions, derived values) ──
@@ -682,6 +685,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     startScratch: state.startScratch,
     addScratchColour: state.addScratchColour,
     removeScratchColour: state.removeScratchColour,
+    removeUnusedColours: state.removeUnusedColours,
     toggleOwned: state.toggleOwned,
     displayPal: state.displayPal,
     totalStitchable: state.totalStitchable,
@@ -820,6 +824,25 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         mode:state.adaptModalMode,
         onClose:()=>state.setAdaptModalOpen(false)
       })}
+      {state.colourReplaceModal&&typeof window.ColourReplaceModal!=='undefined'&&React.createElement(window.ColourReplaceModal,{
+        modal:state.colourReplaceModal,
+        onClose:()=>state.setColourReplaceModal(null),
+        onApply:function(dstThread){state.applyGlobalColourReplacement(state.colourReplaceModal.srcId,dstThread.id);state.setColourReplaceModal(null);}
+      })}
+      {state.colourReplaceModal&&typeof window.ColourReplaceModal==='undefined'&&(function(){
+        // DEFECT-003: the modal was requested but the component global is
+        // missing (script load order broken or modal file removed). Without
+        // this branch the user clicks Replace, nothing renders, and there is
+        // no console signal. Log once, dismiss the request, surface a toast.
+        if(!window.__colourReplaceModalMissingLogged){
+          window.__colourReplaceModalMissingLogged=true;
+          console.error('[creator-main] window.ColourReplaceModal is undefined; check that creator/ColourReplaceModal.js (bundled into creator/bundle.js) loaded before creator-main.js');
+        }
+        if(window.Toast)window.Toast.show({message:'Colour replace dialog failed to load.',type:'error'});
+        // Defer the state clear so we don't setState during render.
+        Promise.resolve().then(function(){state.setColourReplaceModal(null);});
+        return null;
+      })()}
       {state.namePromptOpen&&<NamePromptModal
         defaultName={state.projectName||(state.sW+'×'+state.sH+' pattern')}
         onConfirm={name=>{
@@ -857,11 +880,11 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
           if(state.addToast)state.addToast("Download cancelled \u2014 give your pattern a name to download a .json file.",{type:"info",duration:3500});
         }}
       />}
-      {state.pat&&state.pal&&window.CreatorActionBar&&<window.CreatorActionBar
-        ready={true}
+      {window.CreatorActionBar&&<window.CreatorActionBar
+        ready={!!(state.pat&&state.pal)}
         sW={state.sW} sH={state.sH}
         fabricCt={state.fabricCt}
-        colourCount={state.pal.length}
+        colourCount={state.pal?state.pal.length:0}
         skeinEstimate={state.totalSkeins}
         totalStitchable={state.totalStitchable}
         difficulty={state.difficulty}

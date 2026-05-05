@@ -30,6 +30,9 @@
 window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
   var h = React.createElement;
   var popoverRef = React.useRef(null);
+  var formulaState = React.useState(false);
+  var formulaExpanded = formulaState[0];
+  var setFormulaExpanded = formulaState[1];
 
   React.useEffect(function() {
     if (!props || !props.open) return undefined;
@@ -92,17 +95,85 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
   }
 
   var badges = [];
-  if (props.difficulty && props.difficulty.label) {
-    badges.push(h("span", {
-      key: "difficulty",
-      className: "creator-popover-info__badge"
-    }, props.difficulty.label));
-  }
   if (typeof props.solidPct === "number" && isFinite(props.solidPct)) {
     badges.push(h("span", {
       key: "solid",
       className: "creator-popover-info__badge"
     }, props.solidPct.toFixed(1) + "% solid"));
+  }
+
+  // Difficulty section — full breakdown when factors are available, otherwise a simple badge.
+  var difficultySection = null;
+  if (props.difficulty && props.difficulty.label) {
+    var diff = props.difficulty;
+    var hasFull = Array.isArray(diff.factors) && diff.factors.length > 0;
+
+    var tierRow = h("div", { key: "tier-row", className: "creator-popover-difficulty__tier-row" },
+      h("span", { className: "creator-popover-difficulty__badge", style: { color: diff.color, borderColor: diff.color } }, diff.label),
+      typeof diff.score === "number" && h("span", { className: "creator-popover-difficulty__score" }, diff.score + " / 100")
+    );
+
+    var factorBars = hasFull ? h("div", { key: "factors", className: "creator-popover-difficulty__factors" },
+      diff.factors.map(function(f, i) {
+        var pct = Math.round(f.score * 100);
+        return h("div", { key: i, className: "creator-popover-difficulty__factor-row" },
+          h("span", { className: "creator-popover-difficulty__factor-label" }, f.label),
+          h("div", { className: "creator-popover-difficulty__factor-track" },
+            h("div", {
+              className: "creator-popover-difficulty__factor-fill",
+              style: { width: pct + "%" }
+            })
+          ),
+          h("span", { className: "creator-popover-difficulty__factor-pct" }, pct + "%")
+        );
+      })
+    ) : null;
+
+    var formulaSection = hasFull ? h("details", {
+      key: "formula",
+      className: "creator-popover-difficulty__details",
+      open: formulaExpanded,
+      onToggle: function(e) { setFormulaExpanded(e.currentTarget.open); }
+    },
+      h("summary", { className: "creator-popover-difficulty__summary" }, "How this is calculated"),
+      h("div", { className: "creator-popover-difficulty__formula" },
+        h("table", { className: "creator-popover-difficulty__formula-table" },
+          h("thead", null,
+            h("tr", null,
+              h("th", null, "Factor"),
+              h("th", null, "Weight"),
+              h("th", null, "Score"),
+              h("th", null, "Contribution")
+            )
+          ),
+          h("tbody", null,
+            diff.factors.map(function(f, i) {
+              return h("tr", { key: i },
+                h("td", null, f.label),
+                h("td", null, Math.round(f.weight * 100) + "%"),
+                h("td", null, Math.round(f.score * 100) + "/100"),
+                h("td", null, (f.weight * f.score * 100).toFixed(1) + "pts")
+              );
+            }),
+            h("tr", { className: "creator-popover-difficulty__formula-total" },
+              h("td", { colSpan: 3 }, "Total"),
+              h("td", null, diff.score + "pts")
+            )
+          )
+        ),
+        diff.score !== Math.round(diff.factors.reduce(function(s, f) { return s + f.weight * f.score * 100; }, 0))
+          ? h("p", { className: "creator-popover-difficulty__formula-note" }, "Floor applied: extreme confetti raises result to Intermediate minimum.")
+          : null
+      )
+    ) : null;
+
+    difficultySection = h("div", { key: "difficulty-section" },
+      h("hr", { key: "d-divider", className: "creator-popover-info__divider" }),
+      h("h3", { key: "d-title", className: "creator-popover-info__title" }, "Difficulty"),
+      tierRow,
+      factorBars,
+      formulaSection
+    );
   }
 
   var children = [
@@ -113,6 +184,9 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
     children.push(h("hr", { key: "d1", className: "creator-popover-info__divider" }));
     children.push(h("h3", { key: "e-title", className: "creator-popover-info__title" }, "Estimates"));
     children.push(h("div", { key: "e-grid", className: "creator-popover-info__grid" }, estimateRows));
+  }
+  if (difficultySection) {
+    children.push(difficultySection);
   }
   if (badges.length) {
     children.push(h("hr", { key: "d2", className: "creator-popover-info__divider" }));

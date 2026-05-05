@@ -3641,10 +3641,10 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
   var sH = ctx.sH;
   var cs = cv.cs;
   var previewShowGrid = app.previewShowGrid;
-  var previewFabricBg = app.previewFabricBg;
+  var fabricColour = app.fabricColour;
 
   // Effect A — build the offscreen 1-px-per-stitch image cache.
-  // Re-runs only when pattern data or fabric-bg toggle changes.
+  // Re-runs only when pattern data or fabric colour changes.
   React.useEffect(function() {
     if (!pat || !sW || !sH) return;
 
@@ -3660,25 +3660,22 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
     var imgData = octx.createImageData(sW, sH);
     var d = imgData.data;
 
-    var FABRIC_R = 245, FABRIC_G = 240, FABRIC_B = 230;
-    var WHITE_R  = 255, WHITE_G  = 255, WHITE_B  = 255;
+    // Resolve the fabric background colour from the user preference (#RRGGBB).
+    // Falls back to white if the value is absent or malformed.
+    var _fabMatch = /^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/.exec(fabricColour || "");
+    var FABRIC_R = _fabMatch ? parseInt(_fabMatch[1], 16) : 255;
+    var FABRIC_G = _fabMatch ? parseInt(_fabMatch[2], 16) : 255;
+    var FABRIC_B = _fabMatch ? parseInt(_fabMatch[3], 16) : 255;
 
     for (var i = 0; i < pat.length; i++) {
       var cell = pat[i];
       var px = i * 4;
 
       if (!cell || cell.id === "__skip__" || cell.id === "__empty__") {
-        if (previewFabricBg) {
-          d[px]     = FABRIC_R;
-          d[px + 1] = FABRIC_G;
-          d[px + 2] = FABRIC_B;
-          d[px + 3] = 255;
-        } else {
-          d[px]     = WHITE_R;
-          d[px + 1] = WHITE_G;
-          d[px + 2] = WHITE_B;
-          d[px + 3] = 255;
-        }
+        d[px]     = FABRIC_R;
+        d[px + 1] = FABRIC_G;
+        d[px + 2] = FABRIC_B;
+        d[px + 3] = 255;
         continue;
       }
 
@@ -3698,9 +3695,9 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
         d[px + 2] = rgb[2];
         d[px + 3] = 255;
       } else {
-        d[px]     = WHITE_R;
-        d[px + 1] = WHITE_G;
-        d[px + 2] = WHITE_B;
+        d[px]     = 255;
+        d[px + 1] = 255;
+        d[px + 2] = 255;
         d[px + 3] = 255;
       }
     }
@@ -3709,7 +3706,7 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
     offscreenRef.current = offscreen;
     // Increment version so Effect B knows to re-draw
     setOffscreenVersion(function(v) { return v + 1; });
-  }, [pat, cmap, sW, sH, previewFabricBg]);
+  }, [pat, cmap, sW, sH, fabricColour]);
 
   // Effect B — draw the offscreen image onto the display canvas at the current zoom level,
   // then overlay the grid if enabled.
@@ -4752,6 +4749,50 @@ window.useMagicWand = function useMagicWand(state) {
     state.setPal(r.pal); state.setCmap(r.cmap);
   }
 
+  // ─── Direct global colour replacement (whole pattern or active selection) ────
+
+  function applyGlobalColourReplacement(srcId, dstId) {
+    var pat = state.pat, cmap = state.cmap;
+    if (!pat || !cmap || !srcId || !dstId || srcId === dstId) return;
+    var dstEntry = cmap[dstId];
+    if (!dstEntry) {
+      if (typeof findThreadInCatalog === 'function') dstEntry = findThreadInCatalog('dmc', dstId);
+      if (!dstEntry && typeof DMC !== 'undefined') dstEntry = DMC.find(function(d) { return d.id === dstId; });
+    }
+    if (!dstEntry) {
+      // DEFECT-002: surface to the user instead of silently no-opping. Reachable
+      // when a future entry point passes a non-DMC id (e.g. 'anchor:403') or if
+      // the DMC catalog data is corrupt at runtime.
+      if (state.addToast) state.addToast("Replacement colour not found.", {type: "error", duration: 3500});
+      return;
+    }
+    var np = pat.slice();
+    var changes = [];
+    for (var i = 0; i < np.length; i++) {
+      if (selectionMask && !selectionMask[i]) continue;
+      var cell = np[i];
+      if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
+      if (cell.id !== srcId) continue;
+      changes.push({ idx: i, old: Object.assign({}, cell) });
+      np[i] = Object.assign({}, dstEntry);
+    }
+    if (!changes.length) {
+      // DEFECT-002 (related): selection mask may have hidden every match.
+      if (state.addToast) state.addToast("No matching cells to replace.", {type: "info", duration: 2500});
+      return;
+    }
+    var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    state.setEditHistory(function(prev) {
+      var n = prev.concat([{ type: 'colourReplace', changes: changes }]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    state.setRedoHistory([]);
+    state.setPat(np);
+    var r = state.buildPaletteWithScratch(np);
+    state.setPal(r.pal); state.setCmap(r.cmap);
+  }
+
   // ─── Phase 3.1: Selection stats ─────────────────────────────────────────────
 
   var selectionStats = useMemo(function() {
@@ -4850,6 +4891,9 @@ window.useMagicWand = function useMagicWand(state) {
     previewConfettiCleanup, applyConfettiCleanup,
     previewColorReduction, applyColorReduction,
     selectionReplaceColorCount, applyColorReplacement,
+    applyGlobalColourReplacement,
+    // Back-compat alias for any external caller still using the misspelled name.
+    applyGlobalColorReplacement: applyGlobalColourReplacement,
     // Phase 3
     selectionStats, applyOutlineGeneration,
     // Derived
@@ -5439,6 +5483,12 @@ window.useCreatorState = function useCreatorState() {
   var _lastGenSnap = useState(null);
   var lastGenSnapshot = _lastGenSnap[0], setLastGenSnapshot = _lastGenSnap[1];
 
+  // Snapshot of pat/pal/cmap at the time the last successful generation
+  // completed. Used by usePaletteSwap to offer a "Revert to generated palette"
+  // button. Session-only — clears on reload or resetAll().
+  var _genPatSnap = useState(null);
+  var genPatSnapshot = _genPatSnap[0], setGenPatSnapshot = _genPatSnap[1];
+
   // App mode: 'create' | 'edit' (track is handled by TrackerApp separately)
   var _appMode = useState("create"); var appMode = _appMode[0], setAppMode = _appMode[1];
 
@@ -5722,6 +5772,8 @@ window.useCreatorState = function useCreatorState() {
 
   // Context menu
   var _ctxMenu = useState(null);     var contextMenu = _ctxMenu[0], setContextMenu = _ctxMenu[1];
+  // Colour replace modal — null when closed, {srcId, srcName, srcRgb} when open
+  var _crModal = useState(null);     var colourReplaceModal = _crModal[0], setColourReplaceModal = _crModal[1];
 
   // Selection modifier key (null | "add" | "subtract" | "intersect") — tracked via keydown/keyup
   var _selMod = useState(null);      var selectionModifier = _selMod[0], setSelectionModifier = _selMod[1];
@@ -5845,7 +5897,44 @@ window.useCreatorState = function useCreatorState() {
 
   var totalSkeins = useMemo(function() { return skeinData.reduce(function(s, d) { return s + d.skeins; }, 0); }, [skeinData]);
   var blendCount  = useMemo(function() { return pal ? pal.filter(function(p) { return p.type === "blend"; }).length : 0; }, [pal]);
-  var difficulty  = useMemo(function() { return pal ? calcDifficulty(pal.length, blendCount, totalStitchable) : null; }, [pal, blendCount, totalStitchable]);
+
+  // Scan the pattern once to derive confetti and change-rate scores for the difficulty model.
+  // O(w×h) but cached; only reruns when pat/sW/sH/totalStitchable changes.
+  var difficultyMetrics = useMemo(function() {
+    if (!pat || !sW || !sH || totalStitchable < 1) return {};
+    var isolated = 0, changePairs = 0, totalPairs = 0;
+    for (var y = 0; y < sH; y++) {
+      for (var x = 0; x < sW; x++) {
+        var i = y * sW + x;
+        var cell = pat[i];
+        if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
+        var id = cell.id;
+        var iso = true;
+        var nx, nid;
+        if (x > 0)     { nid = pat[y*sW+(x-1)]; if (nid && nid.id !== '__skip__' && nid.id !== '__empty__' && nid.id === id) iso = false; }
+        if (iso && x+1 < sW)  { nid = pat[y*sW+(x+1)]; if (nid && nid.id !== '__skip__' && nid.id !== '__empty__' && nid.id === id) iso = false; }
+        if (iso && y > 0)     { nid = pat[(y-1)*sW+x]; if (nid && nid.id !== '__skip__' && nid.id !== '__empty__' && nid.id === id) iso = false; }
+        if (iso && y+1 < sH)  { nid = pat[(y+1)*sW+x]; if (nid && nid.id !== '__skip__' && nid.id !== '__empty__' && nid.id === id) iso = false; }
+        if (iso) isolated++;
+        if (x+1 < sW) { nx = pat[y*sW+(x+1)]; if (nx && nx.id !== '__skip__' && nx.id !== '__empty__') { totalPairs++; if (nx.id !== id) changePairs++; } }
+        if (y+1 < sH) { nx = pat[(y+1)*sW+x]; if (nx && nx.id !== '__skip__' && nx.id !== '__empty__') { totalPairs++; if (nx.id !== id) changePairs++; } }
+      }
+    }
+    return {
+      confettiScore: isolated / totalStitchable,
+      changeScore: totalPairs > 0 ? changePairs / totalPairs : 0,
+    };
+  }, [pat, sW, sH, totalStitchable]);
+
+  var difficulty  = useMemo(function() {
+    if (!pal) return null;
+    return calcDifficulty(pal.length, blendCount, totalStitchable, {
+      fabricCt: fabricCt,
+      bsCount: bsLines.length,
+      confettiScore: difficultyMetrics.confettiScore,
+      changeScore: difficultyMetrics.changeScore,
+    });
+  }, [pal, blendCount, totalStitchable, fabricCt, bsLines, difficultyMetrics]);
 
   var doneCount = useMemo(function() {
     if (!done) return 0;
@@ -5963,7 +6052,7 @@ window.useCreatorState = function useCreatorState() {
     setBsLines([]); setBsStart(null); setActiveTool(null); setSelectedColorId(null);
     setEditHistory([]); setRedoHistory([]); setExportPage(0); setDone(null);
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
-    setLastGenSnapshot(null);
+    setLastGenSnapshot(null); setGenPatSnapshot(null);
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
     setDimOpen(true); setPalOpen(true); setFabOpen(false); setAdjOpen(false);
     setBgOpen(false); setCleanupOpen(false); setIsCropping(false); setCropRect(null);
@@ -6077,9 +6166,35 @@ window.useCreatorState = function useCreatorState() {
   }
 
   function removeScratchColour(id) {
+    var removedFromPal = pal ? pal.filter(function(p) { return p.id === id; }) : [];
+    var removedFromScratch = scratchPalette ? scratchPalette.filter(function(p) { return p.id === id; }) : [];
+    setEditHistory(function(prev) {
+      var n = prev.concat([{ type: "remove_unused_colours", removedFromPal: removedFromPal.slice(), removedFromScratch: removedFromScratch.slice() }]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    setRedoHistory([]);
     setScratchPalette(function(prev) { return prev.filter(function(p) { return p.id !== id; }); });
     setPal(function(prev) { return prev ? prev.filter(function(p) { return p.id !== id; }) : prev; });
     setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); delete n[id]; return n; });
+  }
+
+  function removeUnusedColours() {
+    if (!pal) return;
+    var unused = pal.filter(function(p) { return p.count === 0; });
+    if (!unused.length) return;
+    var unusedIds = new Set(unused.map(function(p) { return p.id; }));
+    var removedFromScratch = scratchPalette.filter(function(p) { return unusedIds.has(p.id); });
+    setEditHistory(function(prev) {
+      var n = prev.concat([{ type: "remove_unused_colours", removedFromPal: unused.slice(), removedFromScratch: removedFromScratch.slice() }]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    setRedoHistory([]);
+    setPal(function(prev) { return prev ? prev.filter(function(p) { return !unusedIds.has(p.id); }) : prev; });
+    setScratchPalette(function(prev) { return prev.filter(function(p) { return !unusedIds.has(p.id); }); });
+    setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); unusedIds.forEach(function(id) { delete n[id]; }); return n; });
+    addToast("Removed " + unused.length + " unused colour" + (unused.length !== 1 ? "s" : "") + " from palette", { type: "info", duration: 2000 });
   }
 
   function toggleOwned(id) {
@@ -6112,6 +6227,7 @@ window.useCreatorState = function useCreatorState() {
       bri: bri, con: con, sat: sat, dith: dith, dithMode: dithMode,
       allowBlends: allowBlends, skipBg: skipBg
     });
+    setGenPatSnapshot({ pat: result.mapped.slice(), pal: result.pal.slice(), cmap: Object.assign({}, result.cmap) });
     // Compute cleanup diff mask from preCleanupIds
     setShowCleanupDiff(false);
     if (result.preCleanupIds && result.preCleanupIds.length === result.mapped.length) {
@@ -6425,6 +6541,7 @@ window.useCreatorState = function useCreatorState() {
     setRedoHistory: setRedoHistory,
     EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
     buildPaletteWithScratch: buildPaletteWithScratch,
+    genPatSnapshot: genPatSnapshot,
   });
 
   // ─── Magic Wand integration ──────────────────────────────────────────────────
@@ -6642,7 +6759,7 @@ window.useCreatorState = function useCreatorState() {
     // Functions
     buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType,
     setBrushAndActivate, setTool, setHsTool, setPsTool: setHsTool, fitZ, copyText,
-    resetAll, initBlankGrid, startScratch, addScratchColour, removeScratchColour,
+    resetAll, initBlankGrid, startScratch, addScratchColour, removeScratchColour, removeUnusedColours,
     toggleOwned, generate, randomise, generateGallery, promoteVariation, applyVariationSeed,
     // Eyedropper feedback
     eyedropperEmpty, setEyedropperEmpty,
@@ -6654,6 +6771,7 @@ window.useCreatorState = function useCreatorState() {
     selectionModifier, setSelectionModifier,
     // PaletteSwap
     paletteSwap,
+    genPatSnapshot, setGenPatSnapshot,
     // Magic Wand
     selectionMask: wand.selectionMask, setSelectionMask: wand.setSelectionMask,
     wandTolerance: wand.wandTolerance, setWandTolerance: wand.setWandTolerance,
@@ -6679,6 +6797,9 @@ window.useCreatorState = function useCreatorState() {
     applyColorReduction: wand.applyColorReduction,
     selectionReplaceColorCount: wand.selectionReplaceColorCount,
     applyColorReplacement: wand.applyColorReplacement,
+    applyGlobalColourReplacement: wand.applyGlobalColourReplacement,
+    applyGlobalColorReplacement: wand.applyGlobalColourReplacement,
+    colourReplaceModal, setColourReplaceModal,
     selectionStats: wand.selectionStats,
     applyOutlineGeneration: wand.applyOutlineGeneration,
     selectionCount: wand.selectionCount, hasSelection: wand.hasSelection,
@@ -6704,7 +6825,24 @@ window.useCreatorState = function useCreatorState() {
 /* creator/useEditHistory.js — Undo/redo for pixel/partial-stitch/backstitch edits.
    Uses a delta (change-list) approach: each history entry stores the OLD values
    of changed cells so they can be restored without keeping full snapshots.
-   Expects a `state` object returned from useCreatorState. */
+   Expects a `state` object returned from useCreatorState.
+
+   Known entry shapes (DEFECT-012 — explicit catalogue so future contributors
+   don't have to reverse-engineer the branches):
+     - { type: "add_colour", addedEntry, changes }
+         Specific branch in undoEdit/redoEdit. Pops/pushes a colour on the
+         scratch palette and rebuilds pal/cmap.
+     - { type: "remove_unused_colours", removedFromPal, removedFromScratch }
+         Specific branch in undoEdit/redoEdit. Restores palette entries.
+     - { type: "colourReplace", changes }    // British spelling — see DEFECT-005.
+     - { type: "paint" | "erase" | "fill" | "rect" | "lasso" | undefined,
+         changes, psChanges?, bsLines? }
+         Generic fallthrough: handled by the same `last.changes` loop. The
+         `type` string is *preserved* on the redo stack but never inspected —
+         any new edit type that produces a `changes` array will Just Work
+         without touching this file. New types that need bespoke palette
+         handling must add their own branch above the generic loop.
+*/
 
 window.useEditHistory = function useEditHistory(state) {
   function undoEdit() {
@@ -6740,6 +6878,35 @@ window.useEditHistory = function useEditHistory(state) {
         return n;
       });
       if (state.addToast) state.addToast("Undo: removed added colour " + aid, {type:"info", duration:1500});
+      return;
+    }
+
+    // Handle remove_unused_colours undo: restore the removed colours
+    if (last.type === "remove_unused_colours") {
+      var restoredFromPal = last.removedFromPal || [];
+      var restoredFromScratch = last.removedFromScratch || [];
+      state.setPal(function(prev) {
+        if (!prev) return restoredFromPal.slice();
+        var existingIds = new Set(prev.map(function(p) { return p.id; }));
+        return prev.concat(restoredFromPal.filter(function(p) { return !existingIds.has(p.id); }));
+      });
+      state.setScratchPalette(function(prev) {
+        var existingIds = new Set(prev.map(function(p) { return p.id; }));
+        return prev.concat(restoredFromScratch.filter(function(p) { return !existingIds.has(p.id); }));
+      });
+      state.setCmap(function(prev) {
+        if (!prev) return prev;
+        var n = Object.assign({}, prev);
+        restoredFromPal.forEach(function(p) { n[p.id] = p; });
+        return n;
+      });
+      state.setEditHistory(function(prev) { return prev.slice(0, -1); });
+      state.setRedoHistory(function(prev) {
+        var n = prev.concat([{ type: "remove_unused_colours", removedFromPal: restoredFromPal, removedFromScratch: restoredFromScratch }]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      if (state.addToast) state.addToast("Undo: restored " + restoredFromPal.length + " colour" + (restoredFromPal.length !== 1 ? "s" : "") + " to palette", {type:"info", duration:1500});
       return;
     }
 
@@ -6797,6 +6964,24 @@ window.useEditHistory = function useEditHistory(state) {
         return n;
       });
       if (state.addToast) state.addToast("Redo: re-added colour " + entry.id, {type:"info", duration:1500});
+      return;
+    }
+
+    // Handle remove_unused_colours redo: re-remove the colours
+    if (last.type === "remove_unused_colours") {
+      var toRemove = last.removedFromPal || [];
+      var toRemoveScratch = last.removedFromScratch || [];
+      var toRemoveIds = new Set(toRemove.map(function(p) { return p.id; }));
+      state.setPal(function(prev) { return prev ? prev.filter(function(p) { return !toRemoveIds.has(p.id); }) : prev; });
+      state.setScratchPalette(function(prev) { return prev.filter(function(p) { return !toRemoveIds.has(p.id); }); });
+      state.setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); toRemoveIds.forEach(function(id) { delete n[id]; }); return n; });
+      state.setRedoHistory(function(prev) { return prev.slice(0, -1); });
+      state.setEditHistory(function(prev) {
+        var n = prev.concat([{ type: "remove_unused_colours", removedFromPal: toRemove, removedFromScratch: toRemoveScratch }]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      if (state.addToast) state.addToast("Redo: removed " + toRemove.length + " unused colour" + (toRemove.length !== 1 ? "s" : ""), {type:"info", duration:1500});
       return;
     }
 
@@ -6862,6 +7047,22 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
   function getActiveTool() { return state.activeToolRef ? state.activeToolRef.current : state.activeTool; }
   function getPartialStitchTool() { return state.partialStitchToolRef ? state.partialStitchToolRef.current : state.partialStitchTool; }
+
+  // After painting, preserve any pal entries that just dropped to 0 stitches.
+  // buildPaletteWithScratch drops them entirely; this keeps them as count:0 so
+  // the "unused" chip dimming and × / Remove-unused button can appear.
+  function rebuildPreservingZeros(np) {
+    var r = state.buildPaletteWithScratch(np);
+    var existingPal = state.pal || [];
+    var inResult = new Set(r.pal.map(function(p) { return p.id; }));
+    var zeroed = existingPal
+      .filter(function(p) { return !inResult.has(p.id); })
+      .map(function(p) { return Object.assign({}, p, { count: 0 }); });
+    if (!zeroed.length) return r;
+    var cmap2 = Object.assign({}, r.cmap);
+    zeroed.forEach(function(p) { cmap2[p.id] = p; });
+    return { pal: r.pal.concat(zeroed), cmap: cmap2 };
+  }
 
   // Hand tool acts as "explicit pan mode" — for the purposes of the
   // pointer handlers below it is treated identically to "no active
@@ -7163,6 +7364,17 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    if (activeTool === "colourReplace") {
+      if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
+      var idx0 = gy * sW + gx;
+      var cell0 = pat[idx0];
+      if (cell0 && cell0.id !== '__skip__' && cell0.id !== '__empty__' && cmap && cmap[cell0.id]) {
+        var entry0 = cmap[cell0.id];
+        state.setColourReplaceModal({ srcId: cell0.id, srcName: entry0.name || cell0.id, srcRgb: entry0.rgb || cell0.rgb });
+      }
+      return;
+    }
+
     if (partialStitchTool) {
       if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
       var idx1 = gy * sW + gx;
@@ -7236,7 +7448,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         return; // paint handled by mousedown drag
       }
       state.setPat(np2);
-      var r2 = buildPaletteWithScratch(np2); state.setPal(r2.pal); state.setCmap(r2.cmap);
+      var r2 = rebuildPreservingZeros(np2); state.setPal(r2.pal); state.setCmap(r2.cmap);
       return;
     }
 
@@ -7320,7 +7532,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
-    if (activeTool === "eyedropper" || activeTool === "fill" || activeTool === "backstitch" || activeTool === "eraseBs" || activeTool === "magicWand") {
+    if (activeTool === "eyedropper" || activeTool === "fill" || activeTool === "backstitch" || activeTool === "eraseBs" || activeTool === "magicWand" || activeTool === "colourReplace") {
       handlePatClick(e);
       return;
     }
@@ -7417,7 +7629,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       });
       state.setRedoHistory([]);
       if (madeChanges) {
-        var r = buildPaletteWithScratch(dragPatRef.current);
+        var r = rebuildPreservingZeros(dragPatRef.current);
         state.setPal(r.pal); state.setCmap(r.cmap);
       }
     }
@@ -9836,7 +10048,17 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         title:"Hand — pan / drag to scroll (H)",
         "aria-label":"Hand pan tool",
         "aria-pressed": cv.activeTool === "hand" ? "true" : "false"
-      }, window.Icons.hand(), " Hand")
+      }, window.Icons.hand(), " Hand"),
+      h("button", {
+        className:"tb-btn"+(cv.activeTool==="colourReplace"?" tb-btn--on":""),
+        onClick:function(){
+          if (cv.activeTool === "colourReplace") cv.setActiveTool(null);
+          else { cv.setActiveTool("colourReplace"); cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); }
+        },
+        title:"Replace colour — click a stitch to replace all instances of that colour",
+        "aria-label":"Replace colour tool",
+        "aria-pressed": cv.activeTool === "colourReplace" ? "true" : "false"
+      }, window.Icons.colourSwap(), " Replace")
     )
   ];
 
@@ -9965,6 +10187,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   } else if (cv.brushMode === "paint") {
     var szTxt = cv.brushSize > 1 ? " " + cv.brushSize + "\xD7" + cv.brushSize : "";
     badgeLabel = "Paint" + szTxt; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "#5C8E4A";
+  } else if (cv.activeTool === "colourReplace") {
+    badgeLabel = "Replace"; badgeBg = "#ede9fe"; badgeColor = "#7c3aed"; badgeDot = "#7c3aed";
   } else {
     badgeLabel = null;
   }
@@ -11625,7 +11849,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     var chips = displayPal.map(function(p) {
       var ips = isPaintMode && cv.selectedColorId === p.id;
       var ihs = cv.hiId === p.id;
-      var isUnused = ctx.isScratchMode && p.count === 0;
+      var isUnused = app.appMode === "edit" && p.count === 0;
       var stashStatus = stashStatusForChip(p);
       if (stashStatus === 'needed') _trackUnowned(p);
       // Brief D — when "limit to stash" filter is on, hide unowned chips.
@@ -11679,9 +11903,30 @@ window.CreatorSidebar = function CreatorSidebar() {
             position:"absolute", top:-2, right:-2, width:6, height:6, borderRadius:"50%",
             background: STASH_DOT[stashStatus], boxShadow:"0 0 0 1px #fff"
           }
-        })
+        }),
+        // Colour swap button — visible on hover in edit mode
+        app.appMode === "edit" && h("button", {
+          key: "swap-" + p.id,
+          title: "Replace DMC " + p.id + " with another colour",
+          "aria-label": "Replace " + (p.name || p.id) + " with another colour",
+          onClick: function(e) {
+            e.stopPropagation();
+            cv.setColourReplaceModal({ srcId: p.id, srcName: p.name || p.id, srcRgb: p.rgb });
+          },
+          style: {
+            position:"absolute", bottom:1, left:1, width:13, height:13, padding:0,
+            border:"none", background:"transparent", cursor:"pointer",
+            color:"var(--text-tertiary)", display:"flex", alignItems:"center", justifyContent:"center",
+            opacity:0, transition:"opacity var(--motion)", borderRadius:2
+          },
+          onMouseEnter: function(e) { e.currentTarget.style.opacity="1"; e.currentTarget.style.color="var(--accent)"; },
+          onMouseLeave: function(e) { e.currentTarget.style.opacity="0"; e.currentTarget.style.color="var(--text-tertiary)"; },
+          onFocus: function(e) { e.currentTarget.style.opacity="1"; e.currentTarget.style.color="var(--accent)"; e.currentTarget.style.outline="2px solid var(--accent)"; e.currentTarget.style.outlineOffset="1px"; },
+          onBlur: function(e) { e.currentTarget.style.opacity="0"; e.currentTarget.style.color="var(--text-tertiary)"; e.currentTarget.style.outline="none"; }
+        }, typeof Icons !== 'undefined' && Icons.colourSwap ? Icons.colourSwap() : null)
       );
     }).filter(Boolean);
+    var unusedCount = displayPal ? displayPal.filter(function(p) { return p.count === 0; }).length : 0;
     return h("div", {style:{borderBottom:"0.5px solid var(--border)"}},
       h("div", {
         onClick:function(){setPalChipsOpen(function(o){return !o;});},
@@ -11691,7 +11936,14 @@ window.CreatorSidebar = function CreatorSidebar() {
           h("span", {style:{fontSize:9,color:"var(--text-tertiary)",display:"inline-block",transform:palChipsOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
           h("span", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--text-secondary)"}}, "Palette")
         ),
-        h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, displayPal.length + " colour" + (displayPal.length !== 1 ? "s" : ""))
+        h("div", {style:{display:"flex",alignItems:"center",gap:6}},
+          app.appMode === "edit" && unusedCount > 0 && h("button", {
+            onClick: function(e) { e.stopPropagation(); if (typeof ctx.removeUnusedColours === 'function') ctx.removeUnusedColours(); },
+            title: "Remove all colours not used in the pattern",
+            style:{fontSize:'var(--text-xs)',padding:"2px 7px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:500,cursor:"pointer",lineHeight:1.4}
+          }, "Remove unused (" + unusedCount + ")"),
+          h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, displayPal.length + " colour" + (displayPal.length !== 1 ? "s" : ""))
+        )
       ),
       palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
       // Brief D — stash filter toggle + "Need to buy" button (only when stash has data)
@@ -12960,7 +13212,8 @@ window.CreatorSidebar = function CreatorSidebar() {
       palSection,
       tidySection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
-      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.revertSection
     );
 
     // ── Preview tab — chart-mode and comparison controls only.
@@ -13226,6 +13479,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       bgSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.revertSection,
       h("button", {
         onClick:function(){
           if(cv.editHistory.length > 0 && !confirm("Regenerating will replace your current edits. Continue?")) return;
@@ -13467,6 +13721,11 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     item([Icons.palette(), " Select all of this colour"], function() {
       if (cellInfo) cv.selectAllOfColorId(cellInfo.id);
     }, {disabled: !hasCellColour, k: 'selectall'}),
+
+    // Replace this colour
+    item([Icons.colourSwap(), " Replace this colour…"], function() {
+      if (cellInfo) cv.setColourReplaceModal({ srcId: cellInfo.id, srcName: cellInfo.name || cellInfo.id, srcRgb: cellInfo.rgb });
+    }, {disabled: !hasCellColour, k: 'replace'}),
 
     sep(),
 
@@ -16382,6 +16641,9 @@ window.CreatorMaterialsHub = function CreatorMaterialsHub() {
 window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
   var h = React.createElement;
   var popoverRef = React.useRef(null);
+  var formulaState = React.useState(false);
+  var formulaExpanded = formulaState[0];
+  var setFormulaExpanded = formulaState[1];
 
   React.useEffect(function() {
     if (!props || !props.open) return undefined;
@@ -16444,17 +16706,85 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
   }
 
   var badges = [];
-  if (props.difficulty && props.difficulty.label) {
-    badges.push(h("span", {
-      key: "difficulty",
-      className: "creator-popover-info__badge"
-    }, props.difficulty.label));
-  }
   if (typeof props.solidPct === "number" && isFinite(props.solidPct)) {
     badges.push(h("span", {
       key: "solid",
       className: "creator-popover-info__badge"
     }, props.solidPct.toFixed(1) + "% solid"));
+  }
+
+  // Difficulty section — full breakdown when factors are available, otherwise a simple badge.
+  var difficultySection = null;
+  if (props.difficulty && props.difficulty.label) {
+    var diff = props.difficulty;
+    var hasFull = Array.isArray(diff.factors) && diff.factors.length > 0;
+
+    var tierRow = h("div", { key: "tier-row", className: "creator-popover-difficulty__tier-row" },
+      h("span", { className: "creator-popover-difficulty__badge", style: { color: diff.color, borderColor: diff.color } }, diff.label),
+      typeof diff.score === "number" && h("span", { className: "creator-popover-difficulty__score" }, diff.score + " / 100")
+    );
+
+    var factorBars = hasFull ? h("div", { key: "factors", className: "creator-popover-difficulty__factors" },
+      diff.factors.map(function(f, i) {
+        var pct = Math.round(f.score * 100);
+        return h("div", { key: i, className: "creator-popover-difficulty__factor-row" },
+          h("span", { className: "creator-popover-difficulty__factor-label" }, f.label),
+          h("div", { className: "creator-popover-difficulty__factor-track" },
+            h("div", {
+              className: "creator-popover-difficulty__factor-fill",
+              style: { width: pct + "%" }
+            })
+          ),
+          h("span", { className: "creator-popover-difficulty__factor-pct" }, pct + "%")
+        );
+      })
+    ) : null;
+
+    var formulaSection = hasFull ? h("details", {
+      key: "formula",
+      className: "creator-popover-difficulty__details",
+      open: formulaExpanded,
+      onToggle: function(e) { setFormulaExpanded(e.currentTarget.open); }
+    },
+      h("summary", { className: "creator-popover-difficulty__summary" }, "How this is calculated"),
+      h("div", { className: "creator-popover-difficulty__formula" },
+        h("table", { className: "creator-popover-difficulty__formula-table" },
+          h("thead", null,
+            h("tr", null,
+              h("th", null, "Factor"),
+              h("th", null, "Weight"),
+              h("th", null, "Score"),
+              h("th", null, "Contribution")
+            )
+          ),
+          h("tbody", null,
+            diff.factors.map(function(f, i) {
+              return h("tr", { key: i },
+                h("td", null, f.label),
+                h("td", null, Math.round(f.weight * 100) + "%"),
+                h("td", null, Math.round(f.score * 100) + "/100"),
+                h("td", null, (f.weight * f.score * 100).toFixed(1) + "pts")
+              );
+            }),
+            h("tr", { className: "creator-popover-difficulty__formula-total" },
+              h("td", { colSpan: 3 }, "Total"),
+              h("td", null, diff.score + "pts")
+            )
+          )
+        ),
+        diff.score !== Math.round(diff.factors.reduce(function(s, f) { return s + f.weight * f.score * 100; }, 0))
+          ? h("p", { className: "creator-popover-difficulty__formula-note" }, "Floor applied: extreme confetti raises result to Intermediate minimum.")
+          : null
+      )
+    ) : null;
+
+    difficultySection = h("div", { key: "difficulty-section" },
+      h("hr", { key: "d-divider", className: "creator-popover-info__divider" }),
+      h("h3", { key: "d-title", className: "creator-popover-info__title" }, "Difficulty"),
+      tierRow,
+      factorBars,
+      formulaSection
+    );
   }
 
   var children = [
@@ -16465,6 +16795,9 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
     children.push(h("hr", { key: "d1", className: "creator-popover-info__divider" }));
     children.push(h("h3", { key: "e-title", className: "creator-popover-info__title" }, "Estimates"));
     children.push(h("div", { key: "e-grid", className: "creator-popover-info__grid" }, estimateRows));
+  }
+  if (difficultySection) {
+    children.push(difficultySection);
   }
   if (badges.length) {
     children.push(h("hr", { key: "d2", className: "creator-popover-info__divider" }));
@@ -16483,6 +16816,121 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
       role: "dialog",
       "aria-label": "Pattern details"
     }, children)
+  );
+};
+
+
+/* ─── ColourReplaceModal.js ─── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   creator/ColourReplaceModal.js — Direct colour replacement modal.
+   Opens when the user right-clicks a stitch → "Replace this colour",
+   clicks the swap button on a palette chip, or uses the Replace tool.
+   Depends on: React (global), window.Overlay (components.js),
+               window.Icons (icons.js), window.DMC (dmc-data.js)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+window.ColourReplaceModal = function ColourReplaceModal(props) {
+  var modal = props.modal;     // { srcId, srcName, srcRgb }
+  var onClose = props.onClose;
+  var onApply = props.onApply; // called with a DMC thread object {id, name, rgb, ...}
+
+  var h = React.createElement;
+  var _search = React.useState(''); var search = _search[0], setSearch = _search[1];
+
+  var filteredThreads = React.useMemo(function() {
+    if (typeof DMC === 'undefined') return [];
+    var q = search.trim().toLowerCase();
+    if (!q) return DMC;
+    return DMC.filter(function(t) {
+      return t.id.toLowerCase().indexOf(q) !== -1 || t.name.toLowerCase().indexOf(q) !== -1;
+    });
+  }, [search]);
+
+  var srcRgb = modal && modal.srcRgb ? modal.srcRgb : [128, 128, 128];
+
+  function handleKey(e) {
+    if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
+  }
+
+  return h(window.Overlay, {
+    onClose: onClose,
+    variant: 'dialog',
+    labelledBy: 'colour-replace-title',
+    onKeyDown: handleKey,
+    style: { maxWidth: 460, width: '100%', display: 'flex', flexDirection: 'column', maxHeight: '80vh' }
+  },
+    h(window.Overlay.CloseButton, { onClose: onClose }),
+    h('div', { style: { padding: 20, display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 } },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 } },
+        h('span', {
+          style: {
+            width: 20, height: 20, borderRadius: 4, flexShrink: 0, display: 'inline-block',
+            background: 'rgb(' + srcRgb + ')', border: '1px solid var(--border)'
+          }
+        }),
+        h('h3', {
+          id: 'colour-replace-title',
+          style: { margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: 'var(--text-primary)' }
+        },
+          'Replace DMC ' + (modal ? modal.srcId : '') +
+          (modal && modal.srcName && modal.srcName !== modal.srcId ? ' \u00B7 ' + modal.srcName : '') +
+          ' with\u2026'
+        )
+      ),
+      h('input', {
+        type: 'text',
+        placeholder: 'Search by DMC code or colour name\u2026',
+        value: search,
+        onChange: function(e) { setSearch(e.target.value); },
+        autoFocus: true,
+        style: {
+          width: '100%', padding: '8px 10px', borderRadius: 'var(--radius-sm)',
+          border: '1px solid var(--border)', fontSize: 'var(--text-sm)',
+          fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 10,
+          background: 'var(--surface)', color: 'var(--text-primary)', outline: 'none'
+        }
+      }),
+      h('div', { style: { flex: 1, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' } },
+        filteredThreads.length === 0
+          ? h('div', { style: { padding: 20, textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 'var(--text-sm)' } }, 'No colours found')
+          : filteredThreads.map(function(t) {
+              var isSrc = modal && t.id === modal.srcId;
+              return h('button', {
+                key: t.id,
+                onClick: function() { if (!isSrc) onApply(t); },
+                disabled: isSrc,
+                style: {
+                  display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                  padding: '7px 12px', border: 'none', borderBottom: '1px solid var(--surface-secondary)',
+                  background: isSrc ? 'var(--surface-secondary)' : 'transparent',
+                  cursor: isSrc ? 'default' : 'pointer', textAlign: 'left', fontFamily: 'inherit'
+                },
+                onMouseEnter: function(e) { if (!isSrc) e.currentTarget.style.background = 'var(--surface-secondary)'; },
+                onMouseLeave: function(e) { if (!isSrc) e.currentTarget.style.background = 'transparent'; }
+              },
+                h('span', {
+                  style: {
+                    width: 18, height: 18, borderRadius: 3, flexShrink: 0, display: 'inline-block',
+                    background: 'rgb(' + t.rgb + ')', border: '1px solid var(--border)'
+                  }
+                }),
+                h('span', { style: { fontFamily: 'monospace', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', flexShrink: 0, minWidth: 35 } }, t.id),
+                h('span', { style: { fontSize: 'var(--text-sm)', color: 'var(--text-primary)', flex: 1, textAlign: 'left' } }, t.name),
+                isSrc && h('span', { style: { fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', flexShrink: 0 } }, 'current')
+              );
+            })
+      ),
+      h('div', { style: { marginTop: 12, display: 'flex', justifyContent: 'flex-end' } },
+        h('button', {
+          onClick: onClose,
+          style: {
+            padding: '7px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
+            background: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit',
+            fontSize: 'var(--text-sm)', color: 'var(--text-primary)'
+          }
+        }, 'Cancel')
+      )
+    )
   );
 };
 
@@ -16588,7 +17036,27 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     };
   }, [menuOpen]);
 
-  if (!props || !props.ready) return null;
+  // When no pattern is loaded yet, show a minimal bar so the Stats link
+  // (and the phase label) are still accessible during Setup.
+  if (!props || !props.ready) {
+    return h("div", {
+        className: "creator-actionbar",
+        role: "toolbar",
+        "aria-label": "Pattern actions"
+      },
+      h("span", { className: "creator-actionbar__mode-phase" }, "Setting up"),
+      h("div", { className: "creator-actionbar__primary" },
+        h("a", {
+            href: "index.html?mode=stats",
+            className: "creator-actionbar__btn creator-actionbar__btn--ghost creator-actionbar__stats-link",
+            title: "View stitching statistics"
+          },
+          Icons.barChart ? Icons.barChart() : null,
+          h("span", null, "Stats")
+        )
+      )
+    );
+  }
 
   function safeCall(fn) {
     return function() {
@@ -16631,10 +17099,19 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     trackBtn
   );
 
+  // Difficulty badge — always-visible tier chip, e.g. "Intermediate".
+  // Full breakdown is inside the Pattern info popover.
+  var difficultyBadge = props.difficulty ? h("span", {
+    className: "creator-actionbar__difficulty-chip",
+    style: { color: props.difficulty.color, borderColor: props.difficulty.color },
+    title: "Difficulty: " + props.difficulty.label + " \u00B7 " + (props.difficulty.score != null ? props.difficulty.score + " / 100" : "") + ". Open \u2018Pattern info\u2019 for the full breakdown."
+  }, props.difficulty.label) : null;
+
   // Pattern info chip — replaces the inline four-stat block. Opens the
   // popover (or, on phones, a bottom sheet) with the canonical summary.
   // British English: "Pattern info" / "colours" used inside the popover.
   var infoChip = h("div", { className: "creator-actionbar__info-wrap" },
+    difficultyBadge,
     h("button", {
         ref: infoBtnRef,
         type: "button",
@@ -16673,6 +17150,14 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     },
     modeSwitch,
     h("div", { className: "creator-actionbar__primary" },
+      h("a", {
+          href: "index.html?mode=stats",
+          className: "creator-actionbar__btn creator-actionbar__btn--ghost creator-actionbar__stats-link",
+          title: "View stitching statistics"
+        },
+        Icons.barChart ? Icons.barChart() : null,
+        h("span", null, "Stats")
+      ),
       h("button", {
           type: "button",
           className: "creator-actionbar__btn creator-actionbar__btn--primary",
