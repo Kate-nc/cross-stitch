@@ -716,13 +716,16 @@ const ProjectStorage = (() => {
         for (const meta of projects) {
           const proj = await this.get(meta.id);
           if (!proj || proj.finishStatus !== 'active') continue;
-          if (!oldest || (proj.lastTouchedAt && proj.lastTouchedAt < oldest.lastTouchedAt)) {
+          // Prefer lastTouchedAt; fall back to updatedAt, then createdAt so
+          // long-abandoned projects with no touch/update timestamps still surface.
+          const projAge = proj.lastTouchedAt || proj.updatedAt || proj.createdAt || LEGACY_EPOCH;
+          if (!oldest || projAge < oldest.lastTouchedAt) {
             // PERF (perf-4 #2 / perf-4 #6): cached counts
             const totalSt = countTotalStitches(proj);
             const completedSt = countCompletedStitches(proj.done);
             oldest = {
               id: proj.id, name: proj.name || 'Untitled',
-              lastTouchedAt: proj.lastTouchedAt || proj.updatedAt || LEGACY_EPOCH,
+              lastTouchedAt: projAge,
               totalStitches: totalSt, completedStitches: completedSt,
               pct: totalSt > 0 ? Math.round(completedSt / totalSt * 100) : 0
             };
