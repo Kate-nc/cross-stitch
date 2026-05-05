@@ -780,7 +780,15 @@ const SyncEngine = (() => {
         if (ov < 3) { if (!db.objectStoreNames.contains("stats_summaries")) db.createObjectStore("stats_summaries"); }
         if (ov < 4) { if (!db.objectStoreNames.contains("sync_snapshots")) db.createObjectStore("sync_snapshots"); }
       };
-      req.onsuccess = function() { resolve(req.result); };
+      req.onblocked = function() {
+        console.warn("SyncEngine: _openSnapshotDB blocked by another open connection.");
+        reject(new Error("CrossStitchDB open blocked — another tab may be holding an old connection open."));
+      };
+      req.onsuccess = function() {
+        var db = req.result;
+        db.onversionchange = function() { try { db.close(); } catch (_) {} };
+        resolve(db);
+      };
       req.onerror = function() { reject(req.error); };
     });
   }
