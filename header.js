@@ -851,6 +851,12 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                         SyncEngine.executeImport(plan, resolutions).then(function(result) {
                           if (syncingId && window.Toast) window.Toast.dismiss(syncingId);
                           (window.Toast ? window.Toast.show({ message: 'Sync complete: ' + result.imported + ' imported, ' + result.merged + ' merged.', type: 'success' }) : alert('Sync complete: ' + result.imported + ' imported, ' + result.merged + ' merged.'));
+                          // Dispatch events before reload so any same-page listeners
+                          // (and other tabs via their next visibilitychange) pick up changes.
+                          try { window.dispatchEvent(new CustomEvent('cs:backupRestored')); } catch(_) {}
+                          if (result.stashUpdated) {
+                            try { window.dispatchEvent(new CustomEvent('cs:stashChanged')); } catch(_) {}
+                          }
                           window.location.reload();
                         }).catch(function(err) {
                           if (syncingId && window.Toast) window.Toast.dismiss(syncingId);

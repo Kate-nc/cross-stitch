@@ -1356,11 +1356,24 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       if (result.merged > 0) parts.push(result.merged + ' merged');
       if (result.conflictsResolved > 0) parts.push(result.conflictsResolved + ' resolved');
       if (result.stashUpdated) parts.push('stash updated');
-      setSyncResult({ type: 'success', message: 'Sync complete: ' + (parts.join(', ') || 'no changes') + '.' });
+      var msg = 'Sync complete: ' + (parts.join(', ') || 'no changes') + '.';
+      setSyncResult({ type: 'success', message: msg });
+      // Show success toast so it's visible even if user has scrolled away from sync section
+      if (window.Toast) window.Toast.show({ message: msg, type: 'success', duration: 5000 });
       setSyncStatus(SyncEngine.getSyncStatus());
       // Refresh project list
       if (typeof ProjectStorage !== 'undefined') {
         ProjectStorage.listProjects().then(function(p) { setProjects(p || []); });
+      }
+      // Notify other components on this page (manager-app, tracker-app, project-library)
+      // and other open tabs (they pick it up via visibilitychange when the user returns).
+      try { window.dispatchEvent(new CustomEvent('cs:backupRestored')); } catch(_) {}
+      if (result.stashUpdated) {
+        try { window.dispatchEvent(new CustomEvent('cs:stashChanged')); } catch(_) {}
+        // Also refresh stash state rendered on this page (home dashboard stash stats)
+        if (typeof StashBridge !== 'undefined') {
+          StashBridge.getGlobalStash().then(function(s) { if (s) setStash(s); }).catch(function(){});
+        }
       }
     }).catch(function(err) {
       if (syncingId && window.Toast) window.Toast.dismiss(syncingId);
