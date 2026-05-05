@@ -1,0 +1,13 @@
+- [ ] `VER-EL-SCR-010-12-02` â€” Pinch zoom smooth on mid-range devices  <sub>[reports/specs/creator-pattern-canvas.md#L757](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-010-15-01` â€” Every shortcut key works  <sub>[reports/specs/creator-pattern-canvas.md#L743](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-010-17-01` â€” Blend stitches render with correct interlace  <sub>[reports/specs/creator-pattern-canvas.md#L733](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-010-20-01` â€” Marching ants smooth  <sub>[reports/specs/creator-pattern-canvas.md#L751](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-011-01-01` â€” Paint auto-selects colour if palette non-empty  <sub>[reports/specs/creator-pattern-canvas.md#L734](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-011-12-01` â€” Tool strip collapses at breakpoints  <sub>[reports/specs/creator-pattern-canvas.md#L744](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-012-01-01` â€” Clicking chip selects colour  <sub>[reports/specs/creator-pattern-canvas.md#L735](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-021-01-01` â€” Level 3 texture memory efficient  <sub>[reports/specs/creator-pattern-canvas.md#L752](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-021-02-01` â€” Preview pinch zoom  <sub>[reports/specs/creator-pattern-canvas.md#L745](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-022-02-01` â€” Divider drag layout stable  <sub>[reports/specs/creator-pattern-canvas.md#L753](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-022-05-01` â€” Mobile: preview collapse/expand  <sub>[reports/specs/creator-pattern-canvas.md#L746](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-054-01-01` â€” PDF preserves bit-stability (PK compat)  <sub>[reports/specs/creator-pattern-canvas.md#L736](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-054-04-01` â€” Popover closes on Esc  <sub>[reports/specs/creator-pattern-canvas.md#L747](../reports/specs/creator-pattern-canvas.md)</sub>
