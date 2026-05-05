@@ -127,7 +127,9 @@
         condition: function () { return typeof window.BackupRestore !== 'undefined' && typeof window.BackupRestore.downloadBackup === 'function'; },
         action: function () {
           try {
-            window.BackupRestore.downloadBackup().catch(function (e) {
+            window.BackupRestore.downloadBackup().then(function () {
+              if (window.Toast && window.Toast.show) window.Toast.show({ message: 'Backup downloaded successfully', type: 'success' });
+            }).catch(function (e) {
               if (window.Toast && window.Toast.show) window.Toast.show({ message: 'Backup failed: ' + e.message, type: 'error' });
             });
           } catch (e) {
