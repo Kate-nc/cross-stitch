@@ -1076,7 +1076,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         style:{padding:"8px 14px",fontSize:'var(--text-sm)',fontWeight:600,
           background:gen.busy?"var(--text-tertiary)":"var(--accent)",color:"var(--surface)",
           border:"none",borderRadius:'var(--radius-md)',cursor:gen.busy?"wait":"pointer"}
-      }, gen.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
+      }, gen.busy ? (gen.progressMessage || "Generating...") : (ctx.pat ? "Regenerate" : "Generate Pattern"));
 
   // ─── Unified sidebar tab bar (Polish 13 step 3) ────────────────────────
   // One tab strip across both appModes. Tools/View are locked until a
@@ -1570,11 +1570,10 @@ window.CreatorSidebar = function CreatorSidebar() {
           border:"none",borderRadius:'var(--radius-md)',
           background:gen.busy?"var(--text-tertiary)":gen.hasGenerated?"var(--surface-tertiary)":"var(--accent)",
           color:gen.hasGenerated?"var(--text-primary)":"var(--surface)"}
-      }, gen.busy ? "Generating\u2026" : (gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate Pattern")),
-      // First-generation auto-switches to Edit mode (see useCreatorState.doGen),
-      // so no explicit "Edit Pattern →" button is needed here. After
-      // regeneration the user is already in Edit mode; the Setup tab strip
-      // takes them back to Image / Dimensions / Palette.
+      }, gen.busy ? (gen.progressMessage || "Generating\u2026") : (gen.hasGenerated ? h(React.Fragment, null, window.Icons.refresh(), " Regenerate") : h(React.Fragment, null, window.Icons.refresh(), " Generate Pattern"))),
+      // Every generation (first or re-generate) auto-switches to Edit mode
+      // (see useCreatorState applyResultRef). The Setup tab strip (Image /
+      // Dimensions / Palette tabs) takes the user back to create mode.
       // Hint text
       !gen.img && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textAlign:"center",padding:"4px 0"}},
         "Upload an image to get started")
@@ -1777,7 +1776,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         },
         disabled:gen.busy,
         style:{width:"100%",padding:"8px",fontSize:'var(--text-sm)',fontWeight:600,cursor:"pointer",border:"none",borderRadius:'var(--radius-md)',background:"var(--accent)",color:"var(--surface)",marginTop:'var(--s-2)'}
-      }, "\u21BB Regenerate")
+      }, window.Icons.refresh(), " Regenerate")
     ),
     h(Section, {title:"Project Info",defaultOpen:false},
       h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"4px 0"}},

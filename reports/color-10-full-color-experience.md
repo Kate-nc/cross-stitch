@@ -1,5 +1,7 @@
 # Color Report 10 — Full Colour Experience: Approach C Implementation Plan
 
+{% raw %}
+
 > **Status:** Ready for implementation after Approach B ships.  
 > **Depends on:** Report 9 Approach B (data fix + CIEDE2000 matching + similar-colour warning rows).  
 > **Wireframes:** `reports/color-wireframes/approach-c-texture.html`, `approach-c-detail-popover.html`, `approach-c-comparator.html`.
@@ -753,3 +755,5 @@ Shipping C2 and C3 together is fine. C1 (texture) should be treated separately �
 ## One Thing That Must Not Be Done
 
 **Do not add an "exact colour" or "calibrated swatch" claim to the detail popover.** The popover's note explicitly says "Code is the authoritative reference — screen colours are approximations." Any copy that implies the 48×48px flat swatch is the reference (rather than the physical thread) would undermine user trust when the screen colour and physical thread diverge. The DMC code is the reference. Always.
+
+{% endraw %}

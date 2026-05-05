@@ -1,0 +1,26 @@
+- [ ] `VER-EL-SCR-039-06-01` â€” "Show finished projects" toggle wired; home page filters projects on cs:prefsChanged  <sub>[reports/specs/shared-shell.md#L1724](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-039-07-01` â€” Creator defaults save; Creator Sidebar reads them on init; per-project overrides still work  <sub>[reports/specs/shared-shell.md#L1725](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-039-08-01` â€” Tracker defaults save; Tracker reads them on init  <sub>[reports/specs/shared-shell.md#L1726](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-039-09-01` â€” Manager defaults save; Manager reads them on init  <sub>[reports/specs/shared-shell.md#L1727](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-040-01-01` â€” WelcomeWizard fires first visit; marked done; can replay from Help  <sub>[reports/specs/shared-shell.md#L1728](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-040-02-01` â€” Step indicator dots update as user advances  <sub>[reports/specs/shared-shell.md#L1729](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-040-04-01` â€” Back button disabled on step 0; final button label "Get started"; Skip always enabled  <sub>[reports/specs/shared-shell.md#L1730](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-043-01-01` â€” Backup import confirmation shows project/thread/pattern counts; destructive operation confirmed before executing  <sub>[reports/specs/shared-shell.md#L1731](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-044-01-01` â€” About modal displays app title, description, tech stack, version  <sub>[reports/specs/shared-shell.md#L1732](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-045-01-01` â€” Help fallback modal shown if HelpDrawer missing; prompts user to reload  <sub>[reports/specs/shared-shell.md#L1733](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-046-01-01` â€” ThreadSelector modal opens; search filters threads; selection fires onSelect callback  <sub>[reports/specs/shared-shell.md#L1734](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-046-04-01` â€” Swap banner appears when In Use thread clicked; "Swap Colours" calls onSwap  <sub>[reports/specs/shared-shell.md#L1735](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-047-01-01` â€” Toast container fixed at bottom-centre; max 3 visible; oldest dismissed if limit exceeded  <sub>[reports/specs/shared-shell.md#L1736](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-047-02-01` â€” Individual toast renders with icon, message, optional Undo button, dismiss button  <sub>[reports/specs/shared-shell.md#L1737](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-047-03-01` â€” Toast icon from window.Icons or fallback coloured dot (no emoji)  <sub>[reports/specs/shared-shell.md#L1738](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-047-05-01` â€” Undo button calls undoAction callback; follow-up "Undone" success toast appears  <sub>[reports/specs/shared-shell.md#L1739](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-048-01-01` â€” Coachmark opens when active step available; Escape skips; Got it marks complete  <sub>[reports/specs/shared-shell.md#L1740](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-048-03-01` â€” Highlight ring appears around target; updated on resize/scroll; z-index below popover  <sub>[reports/specs/shared-shell.md#L1741](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-048-04-01` â€” Popover positioned near target or centred; adaptive placement  <sub>[reports/specs/shared-shell.md#L1742](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-048-08-01` â€” Skip button skips step (per-session, replay on next mount); Got it marks complete (persists to UserPrefs)  <sub>[reports/specs/shared-shell.md#L1743](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-049-01-01` â€” Overlay scrim click dismisses if dismissOnScrim=true (default)  <sub>[reports/specs/shared-shell.md#L1744](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-049-02-01` â€” Overlay panel renders children; variant-specific layout (dialog centred, sheet bottom, drawer side)  <sub>[reports/specs/shared-shell.md#L1745](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-049-03-01` â€” Focus trap applies; Tab cycles focusables; focus restored on close  <sub>[reports/specs/shared-shell.md#L1746](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-049-04-01` â€” Body scroll locked while overlay open; restored on unmount  <sub>[reports/specs/shared-shell.md#L1747](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-049-05-01` â€” CloseButton helper renders Ã— icon (SVG or fallback); click fires onClose  <sub>[reports/specs/shared-shell.md#L1748](../reports/specs/shared-shell.md)</sub>
+- [ ] `VER-EL-SCR-050-01-01` â€” PartialStitchThumb renders canvas-backed <img>; caches result (32-entry LRU); unstitched cells ghosted  <sub>[reports/specs/shared-shell.md#L1749](../reports/specs/shared-shell.md)</sub>

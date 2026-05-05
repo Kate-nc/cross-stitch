@@ -1,0 +1,13 @@
+- [ ] `VER-EL-SCR-010-01-01` â€” Paint action updates pattern array and history  <sub>[reports/specs/creator-pattern-canvas.md#L724](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-010-01-02` â€” Undo reverses paint to old value  <sub>[reports/specs/creator-pattern-canvas.md#L725](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-010-01-03` â€” Paint perf on >100k stitches  <sub>[reports/specs/creator-pattern-canvas.md#L756](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-010-02-01` â€” Erased cells become empty, not deleted  <sub>[reports/specs/creator-pattern-canvas.md#L729](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-010-03-01` â€” Fill stops at colour boundaries  <sub>[reports/specs/creator-pattern-canvas.md#L730](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-010-04-01` â€” Eyedropper rejects empty cells with message  <sub>[reports/specs/creator-pattern-canvas.md#L731](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-010-05-01` â€” Modifier keys merge selections correctly  <sub>[reports/specs/creator-pattern-canvas.md#L732](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-010-05-02` â€” Tablet: long-press triggers wand (no drag)  <sub>[reports/specs/creator-pattern-canvas.md#L739](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-010-06-01` â€” Tablet: 1-finger lasso without pan  <sub>[reports/specs/creator-pattern-canvas.md#L740](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-010-08-01` â€” Magnetic lasso respects colour threshold  <sub>[reports/specs/creator-pattern-canvas.md#L750](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-010-09-02` â€” Tablet: touch tap places backstitch  <sub>[reports/specs/creator-pattern-canvas.md#L741](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-010-11-01` â€” Canvas pan doesn't interfere with tool clicks  <sub>[reports/specs/creator-pattern-canvas.md#L726](../reports/specs/creator-pattern-canvas.md)</sub>
+- [ ] `VER-EL-SCR-010-12-01` â€” Pinch zoom smooth  <sub>[reports/specs/creator-pattern-canvas.md#L742](../reports/specs/creator-pattern-canvas.md)</sub>

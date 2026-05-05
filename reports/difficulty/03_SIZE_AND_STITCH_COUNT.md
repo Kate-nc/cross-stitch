@@ -6,6 +6,8 @@
 
 ---
 
+{% raw %}
+
 ## Table of Contents
 
 1. [Executive Summary](#1-executive-summary)
@@ -874,3 +876,5 @@ fmtNum(Math.round(estimatedHours)) + ' hours'
 - Personalised stitching rate derived from session history (infrastructure exists, needs a `personalStitchRate()` helper in `helpers.js`)
 - Localised time estimates (non-English UIs; estimatedHours is a number and locale-independent, but `classifyTime` strings would need i18n)
 - User-overridable stitching rate preference (e.g., "I stitch 400 st/h — update estimate")
+
+{% endraw %}

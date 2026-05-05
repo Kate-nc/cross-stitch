@@ -5,6 +5,8 @@ _Research agent, May 2026._
 
 ---
 
+{% raw %}
+
 ## 1. Definition
 
 **Colour complexity** is the cognitive and physical burden that a pattern's colour palette places on the stitcher. It is deliberately distinct from _raw colour count_ (palette length), which is only one of five contributing factors.
@@ -816,3 +818,5 @@ The `breakdown` object exposes five 0–1 values. Possible UI: a mini spider/rad
 ---
 
 _End of report._
+
+{% endraw %}

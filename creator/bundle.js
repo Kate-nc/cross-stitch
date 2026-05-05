@@ -5461,6 +5461,7 @@ window.useCreatorState = function useCreatorState() {
   var _pal  = useState(null);         var pal  = _pal[0],  setPal  = _pal[1];
   var _cmap = useState(null);         var cmap = _cmap[0], setCmap = _cmap[1];
   var _busy = useState(false);        var busy = _busy[0], setBusy = _busy[1];
+  var _progressMessage = useState(""); var progressMessage = _progressMessage[0], setProgressMessage = _progressMessage[1];
   var _oW   = useState(0);            var origW = _oW[0],  setOrigW = _oW[1];
   var _oH   = useState(0);            var origH = _oH[0],  setOrigH = _oH[1];
 
@@ -6248,18 +6249,19 @@ window.useCreatorState = function useCreatorState() {
       setCleanupDiff(null);
     }
     if (!hasGenerated) {
+      // First generation only: collapse all the settings accordions so
+      // they don't clutter the sidebar now that editing has started.
       setDimOpen(false); setPalOpen(false); setFabOpen(false);
       setAdjOpen(false); setBgOpen(false); setCleanupOpen(false);
       setHasGenerated(true);
-      // Auto-switch to Edit mode on the *first* successful generation. Saving
-      // already happens automatically (see useProjectIO.js auto-save effect),
-      // and the previous "Edit Pattern →" button caused confusion because
-      // users assumed they had to click it before the pattern was persisted.
-      // Regenerations stay in the current mode so power users tweaking image
-      // settings aren't bounced back and forth.
-      setAppMode("edit");
-      setSidebarTab("palette");
     }
+    // Always switch to Edit mode after any generation — first or re-generate.
+    // Previously only the first generate did this; regenerating from the
+    // Image / Dimensions / Palette sidebar tabs left users stranded in
+    // create mode with no pattern to show. Now every successful generation
+    // lands on the Palette tab in Edit mode (same as before, but consistently).
+    setAppMode("edit");
+    setSidebarTab("palette");
     var z = Math.min(3, Math.max(0.05, 750 / (sW * 20)));
     setTimeout(function() { setZoom(z); }, 0);
     setBusy(false);
@@ -6279,14 +6281,22 @@ window.useCreatorState = function useCreatorState() {
         var w = new Worker('generate-worker.js');
         w.onmessage = function(e) {
           var msg = e.data;
+          if (msg.type === 'progress') {
+            if (msg.reqId === genReqIdRef.current) {
+              setProgressMessage(msg.message || "");
+            }
+            return;
+          }
           if (msg.type === 'error') {
             console.error('Worker generation error:', msg.message, msg.stack || '');
             w.terminate();
             workerRef.current = null;
+            setProgressMessage("");
             setBusy(false);
             return;
           }
           if (msg.type === 'result') {
+            setProgressMessage("");
             applyResultRef.current(msg);
           }
         };
@@ -6294,6 +6304,7 @@ window.useCreatorState = function useCreatorState() {
           console.error('Worker uncaught error:', err.message);
           w.terminate();
           workerRef.current = 'unavailable';
+          setProgressMessage("");
           setBusy(false);
         };
         workerRef.current = w;
@@ -6308,7 +6319,7 @@ window.useCreatorState = function useCreatorState() {
 
   var generate = useCallback(function(overrides) {
     if (!img) return;
-    setBusy(true); setHiId(null); setExportPage(0);
+    setBusy(true); setProgressMessage(""); setHiId(null); setExportPage(0);
     var reqId = ++genReqIdRef.current;
 
     var _seed   = (overrides && overrides.seed   != null)      ? overrides.seed   : variationSeed;
@@ -6592,7 +6603,7 @@ window.useCreatorState = function useCreatorState() {
     dith, dithMode, dithStrength, setDith, setDithMode, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     orphans, setOrphans, allowBlends, setAllowBlends,
-    pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy,
+    pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, progressMessage, setProgressMessage,
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
     appMode, setAppMode, sidebarTab, setSidebarTab,
@@ -11479,9 +11490,10 @@ window.BulkAddModal = (function () {
       },
         React.createElement('span', null, brand === 'anchor' ? 'A' : 'DMC', '\u00a0', item.normalised, '\u00a0\u2014 not found'),
         React.createElement('button', {
+          'aria-label': 'Remove',
           onClick: function () { onRemove(item.raw); },
-          style: { background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize:'var(--text-md)', fontWeight: 700, marginLeft: 2 }
-        }, '×')
+          style: { background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: 0, lineHeight: 1, marginLeft: 2, display: 'inline-flex', alignItems: 'center' }
+        }, window.Icons && window.Icons.x ? window.Icons.x() : null)
       );
     }
     var swatch = React.createElement('span', {
@@ -11493,9 +11505,10 @@ window.BulkAddModal = (function () {
       swatch,
       brand === 'anchor' ? 'A' : 'DMC', '\u00a0', item.normalised,
       React.createElement('button', {
+        'aria-label': 'Remove',
         onClick: function () { onRemove(item.raw); },
-        style: { background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize:'var(--text-md)', fontWeight: 700, marginLeft: 2 }
-      }, '×')
+        style: { background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: 0, lineHeight: 1, marginLeft: 2, display: 'inline-flex', alignItems: 'center' }
+      }, window.Icons && window.Icons.x ? window.Icons.x() : null)
     );
   }
 
@@ -11646,7 +11659,7 @@ window.BulkAddModal = (function () {
             }),
             pasteResolved.length > 0 && React.createElement('div', { style: { marginTop:'var(--s-3)' } },
               React.createElement('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 6 } },
-                validCount + ' valid' + (invalidCount > 0 ? ', ' + invalidCount + ' unrecognised (click × to remove)' : '')
+                validCount + ' valid' + (invalidCount > 0 ? ', ' + invalidCount + ' unrecognised (click the remove icon to clear)' : '')
               ),
               pasteResolved.map(function (item) {
                 return React.createElement(ThreadChip, { key: item.raw, item: item, brand: brand, onRemove: removePasteEntry });
@@ -12786,7 +12799,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         style:{padding:"8px 14px",fontSize:'var(--text-sm)',fontWeight:600,
           background:gen.busy?"var(--text-tertiary)":"var(--accent)",color:"var(--surface)",
           border:"none",borderRadius:'var(--radius-md)',cursor:gen.busy?"wait":"pointer"}
-      }, gen.busy ? "Generating..." : (ctx.pat ? "Regenerate" : "Generate Pattern"));
+      }, gen.busy ? (gen.progressMessage || "Generating...") : (ctx.pat ? "Regenerate" : "Generate Pattern"));
 
   // ─── Unified sidebar tab bar (Polish 13 step 3) ────────────────────────
   // One tab strip across both appModes. Tools/View are locked until a
@@ -13280,11 +13293,10 @@ window.CreatorSidebar = function CreatorSidebar() {
           border:"none",borderRadius:'var(--radius-md)',
           background:gen.busy?"var(--text-tertiary)":gen.hasGenerated?"var(--surface-tertiary)":"var(--accent)",
           color:gen.hasGenerated?"var(--text-primary)":"var(--surface)"}
-      }, gen.busy ? "Generating\u2026" : (gen.hasGenerated ? "\u21BB Regenerate" : "\u21BB Generate Pattern")),
-      // First-generation auto-switches to Edit mode (see useCreatorState.doGen),
-      // so no explicit "Edit Pattern →" button is needed here. After
-      // regeneration the user is already in Edit mode; the Setup tab strip
-      // takes them back to Image / Dimensions / Palette.
+      }, gen.busy ? (gen.progressMessage || "Generating\u2026") : (gen.hasGenerated ? h(React.Fragment, null, window.Icons.refresh(), " Regenerate") : h(React.Fragment, null, window.Icons.refresh(), " Generate Pattern"))),
+      // Every generation (first or re-generate) auto-switches to Edit mode
+      // (see useCreatorState applyResultRef). The Setup tab strip (Image /
+      // Dimensions / Palette tabs) takes the user back to create mode.
       // Hint text
       !gen.img && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textAlign:"center",padding:"4px 0"}},
         "Upload an image to get started")
@@ -13487,7 +13499,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         },
         disabled:gen.busy,
         style:{width:"100%",padding:"8px",fontSize:'var(--text-sm)',fontWeight:600,cursor:"pointer",border:"none",borderRadius:'var(--radius-md)',background:"var(--accent)",color:"var(--surface)",marginTop:'var(--s-2)'}
-      }, "\u21BB Regenerate")
+      }, window.Icons.refresh(), " Regenerate")
     ),
     h(Section, {title:"Project Info",defaultOpen:false},
       h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"4px 0"}},
@@ -15114,7 +15126,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                   background: isCurrent ? "var(--success-soft)" : "transparent"
                 }},
                   h("td", {style:{padding:"6px 10px", fontWeight:isCurrent?700:400, color:isCurrent?"var(--accent)":"inherit"}},
-                    f.ct + (overTwo ? " (×2)" : "") + " ct"
+                    f.ct + (overTwo ? " (2 strands)" : "") + " ct"
                   ),
                   h("td", {style:{padding:"6px 10px", textAlign:"right", fontWeight:600, fontVariantNumeric:"tabular-nums"}}, dims.w),
                   h("td", {style:{padding:"6px 10px", textAlign:"right", fontWeight:600, fontVariantNumeric:"tabular-nums"}}, dims.h)
@@ -16023,6 +16035,20 @@ window.CreatorExportTab = function CreatorExportTab() {
       var pdfBytes = parts[0];
       var pngBlob = parts[1];
 
+      function runZip() {
+        setBundleState({ stage: "zip", msg: "Compressing\u2026" });
+        return window.ZipBundle.build({
+          projectName: project.name,
+          schemaVersion: 11,
+          pdfBytes: pdfBytes,
+          oxsString: oxsString,
+          pngBlob: pngBlob,
+          projectJson: jsonObj,
+        }, {
+          onProgress: function (stage, msg) { setBundleState({ stage: stage, msg: msg }); }
+        });
+      }
+
       // Mobile: warn before producing very large bundles.
       var estBytes = (pdfBytes ? pdfBytes.byteLength : 0)
         + (pngBlob ? pngBlob.size : 0)
@@ -16030,22 +16056,17 @@ window.CreatorExportTab = function CreatorExportTab() {
         + (jsonObj ? JSON.stringify(jsonObj).length : 0);
       var isCoarse = (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
       if (estBytes > 50 * 1024 * 1024 && isCoarse) {
-        var ok = window.confirm("Bundle is roughly " + (estBytes / 1024 / 1024).toFixed(1)
-          + " MB. Large bundles can be slow on phones. Continue?");
-        if (!ok) { setBundleState(null); return null; }
+        return window.ConfirmDialog.show({
+          title: "Large bundle",
+          message: "Bundle is roughly " + (estBytes / 1024 / 1024).toFixed(1)
+            + " MB. Large bundles can be slow on phones. Continue?",
+          confirmLabel: "Continue"
+        }).then(function (ok) {
+          if (!ok) { setBundleState(null); return null; }
+          return runZip();
+        });
       }
-
-      setBundleState({ stage: "zip", msg: "Compressing…" });
-      return window.ZipBundle.build({
-        projectName: project.name,
-        schemaVersion: 11,
-        pdfBytes: pdfBytes,
-        oxsString: oxsString,
-        pngBlob: pngBlob,
-        projectJson: jsonObj,
-      }, {
-        onProgress: function (stage, msg) { setBundleState({ stage: stage, msg: msg }); }
-      });
+      return runZip();
     }).then(function (zipBlob) {
       if (!zipBlob) return;
       var filename = window.ZipBundle._filename(project.name, 11, new Date());

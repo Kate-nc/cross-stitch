@@ -11,6 +11,7 @@
 
      Worker → Main:
        { type: 'result', reqId: number, mapped, pal, cmap, confettiData }
+       { type: 'progress', reqId: number, stage: string, message: string }
        { type: 'error',  message: string, stack?: string }
 
    Dependencies (imported via importScripts — all pure, no DOM):
@@ -47,8 +48,13 @@ self.onmessage = function(e) {
   try {
     var raw = new Uint8ClampedArray(pixels);
 
-    // ── 1. Pre-processing: image smoothing ───────────────────────────────────
+    function postProgress(stage, message) {
+      try { self.postMessage({ type: 'progress', reqId: reqId, stage: stage, message: message }); } catch (_) {}
+    }
+
+    // ── 1. Pre-processing: image smoothing ─────────────────────────────────
     if (settings.smooth > 0) {
+      postProgress('smoothing', 'Smoothing image…');
       if (settings.smoothType === 'gaussian') {
         applyGaussianBlur(raw, width, height, settings.smooth);
       } else {
@@ -68,6 +74,7 @@ self.onmessage = function(e) {
     var orphansOpt = settings.orphans != null ? settings.orphans : null;
 
     var allowedPalette = settings.allowedPalette || null;
+    postProgress('quantizing', 'Choosing colours…');
     var p = quantize(raw, width, height, maxC, allowedPalette, {seed: settings.seed});
     if (!p.length) {
       self.postMessage({ type: 'error', message: 'Could not find enough distinct colours in your image. Try increasing the maximum colours, or use a clearer image.' });
@@ -76,6 +83,7 @@ self.onmessage = function(e) {
 
     var saliencyMap = generateSaliencyMap(raw, width, height);
     var cdt = dith && stitchCleanup && stitchCleanup.smoothDithering ? 4.0 : 0.0;
+    postProgress(dith ? 'dithering' : 'mapping', dith ? 'Dithering colours…' : 'Mapping colours…');
     var mapped = dith
       ? doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt, ditherStrength: dithStrength })
       : doMap(raw, width, height, p, allowBlends);
@@ -94,6 +102,7 @@ self.onmessage = function(e) {
     // matching the ordering in runCleanupPipeline (creator/generate.js).
     var minSt = settings.minSt;
     if (minSt > 0) {
+      postProgress('rarity', 'Removing rare colours…');
       for (var pass = 0; pass < 3; pass++) {
         var ep   = buildPalette(mapped);
         var rare = ep.pal.filter(function(e) { return e.count < minSt; });
@@ -134,6 +143,7 @@ self.onmessage = function(e) {
     var runCleanup = (orphansOpt != null && orphansOpt > 0) || cleanupEnabled;
     if (orphansOpt != null && orphansOpt === 0 && cleanupEnabled) orphansOpt = null;
     if (runCleanup) {
+      postProgress('cleanup', 'Cleaning up stitches…');
       var maxOrphanSize, saliencyMult;
       if (orphansOpt != null) {
         maxOrphanSize = orphansOpt;
@@ -198,6 +208,7 @@ self.onmessage = function(e) {
     }
 
     // ── 5. Build final palette ────────────────────────────────────────────────
+    postProgress('finalizing', 'Building palette\u2026');
     var palResult = buildPalette(mapped);
 
     // ── 6. Send result to main thread ─────────────────────────────────────────

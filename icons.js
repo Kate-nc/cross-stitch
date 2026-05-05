@@ -417,6 +417,13 @@ window.Icons = (function() {
         p('M21 13A9 9 0 1 1 18 6.7L21 13')
       );
     },
+    // Refresh / regenerate — counter-clockwise circular arrow.
+    refresh: function() {
+      return svg(
+        p('M1 4v6h6'),
+        p('M3.5 15a9 9 0 1 0 .5-8.5L1 10')
+      );
+    },
     // Hand / pan tool — open hand with extended thumb. Workshop-style
     // single-stroke outline. Used by the new Hand pan tool (touch UX
     // pass) in the creator and tracker toolbars.

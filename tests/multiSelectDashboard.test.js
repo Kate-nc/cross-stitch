@@ -74,7 +74,9 @@ describe('Bulk action bar', () => {
     // fix-3.5 — handleBulkDelete now opens a styled modal instead of
     // calling window.confirm. The modal lists project names then calls
     // doBulkDelete().
-    expect(home).toMatch(/function handleBulkDelete\(\)[\s\S]{0,300}setConfirmDelete\(true\)/);
+    // VER-FB-002 — confirmDelete state holds the array of ids so single-card
+    // delete (one preselected id) and bulk delete share the same modal.
+    expect(home).toMatch(/function handleBulkDelete\(\)[\s\S]{0,300}setConfirmDelete\(ids\)/);
     expect(home).toMatch(/function BulkDeleteModal/);
     expect(home).toMatch(/cannot be undone/);
   });

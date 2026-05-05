@@ -1,0 +1,27 @@
+- [ ] `VER-EL-SCR-029-02-01` â€” Brand selector correctly switches between DMC-only, Anchor-only, and combined list.  <sub>[reports/specs/manager.md#L533](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-029-03-01` â€” Colour sort algorithm (RGBâ†’HSL hue) places near-grays (saturation < 5%) at end, not scrambled.  <sub>[reports/specs/manager.md#L534](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-029-05-01` â€” Right panel opens on card click; owned/min_stock +/âˆ’ buttons persist changes immediately.  <sub>[reports/specs/manager.md#L536](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-029-06-01` â€” Setting partialStatus='used-up' auto-zeroes owned count; setting owned>0 clears used-up status.  <sub>[reports/specs/manager.md#L537](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-029-07-01` â€” External StashBridge writes (Tracker stitch deductions) do NOT overwrite React state on auto-save; reload from IDB instead.  <sub>[reports/specs/manager.md#L538](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-029-09-01` â€” Smart Hub Conflict alert lists all patterns needing each conflicted thread; sorted by (needed - owned) descending.  <sub>[reports/specs/manager.md#L540](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-029-10-01` â€” Low-stock (needed) includes only threads used by active projects; excludes completed.  <sub>[reports/specs/manager.md#L541](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-030-02-01` â€” Status filter correctly isolates wishlist/owned/inprogress/completed; default is all.  <sub>[reports/specs/manager.md#L546](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-030-03-01` â€” Pattern sort 'date' compares UUID/timestamp (proxy); 'status' sorts by priority (wishlist < owned < inprogress < completed).  <sub>[reports/specs/manager.md#L547](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-030-04-01` â€” Auto-sync reconciliation: unlinked projects appear as new pattern entries with linkedProjectId set.  <sub>[reports/specs/manager.md#L548](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-030-05-01` â€” Renamed Creator projects update pattern title via reconciliation; user-set designer/tags NOT overwritten.  <sub>[reports/specs/manager.md#L549](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-030-07-01` â€” "Open in Creator" link prefilled with project ID; disabled if no linkedProjectId.  <sub>[reports/specs/manager.md#L551](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-031-02-01` â€” Default brand selector writes to UserPref 'stashDefaultBrand'.  <sub>[reports/specs/manager.md#L556](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-031-03-01` â€” cs:prefsChanged event dispatched after each save; other pages detect and update (e.g., Creator palette).  <sub>[reports/specs/manager.md#L557](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-032-01-01` â€” BulkAdd.onSubmit writes to stitch_manager_db.manager_state.threads with composite keys, NOT bare IDs.  <sub>[reports/specs/manager.md#L560](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-032-02-01` â€” After submit, cs:stashChanged fired; Tracker/Creator StashBridge detects update.  <sub>[reports/specs/manager.md#L561](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-032-03-01` â€” Starter kit selection (e.g., "Reds") correctly populates owned counts and brands.  <sub>[reports/specs/manager.md#L562](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-033-02-01` â€” Target highlight (step 2 Threads tab, step 3 Patterns tab) correctly positioned; dismissOnTargetClick closes tour.  <sub>[reports/specs/manager.md#L566](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-051-01-01` â€” Manual-only patterns rendered as pseudo-projects with "Stash Manager only" badge.  <sub>[reports/specs/manager.md#L571](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-051-02-01` â€” Click pseudo-project â†’ calls onOpenManagerOnly callback (not Creator/Tracker nav).  <sub>[reports/specs/manager.md#L572](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-051-03-01` â€” Pattern reconciliation re-runs on visibilitychange; newly-created Creator projects appear without page reload.  <sub>[reports/specs/manager.md#L573](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-057-02-01` â€” Insights fire only if â‰¥3 active stitching days; suppress otherwise.  <sub>[reports/specs/manager.md#L577](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-057-03-01` â€” Duration tracking: sessions.durationSeconds preferred over durationMinutes * 60.  <sub>[reports/specs/manager.md#L578](../reports/specs/manager.md)</sub>
+- [ ] `VER-EL-SCR-059-01-01` â€” Stats Page loads all summaries in parallel (PERF perf-5 #5); no sequential awaits.  <sub>[reports/specs/manager.md#L581](../reports/specs/manager.md)</sub>
+- [ ] `VER-MANAGER-GLOBAL-01` â€” cs:stashChanged propagates from Tracker stitch deductions to Manager; no data loss on concurrent writes.  <sub>[reports/specs/manager.md#L585](../reports/specs/manager.md)</sub>
+- [ ] `VER-MANAGER-GLOBAL-02` â€” BackupRestore.restore() triggers cs:backupRestored; Manager reloads all data (threads, patterns, projects).  <sub>[reports/specs/manager.md#L586](../reports/specs/manager.md)</sub>
+- [ ] `VER-MANAGER-GLOBAL-04` â€” Help Drawer â†’ "Restore tutorials" â†’ resets all onboarding flags (WelcomeWizard + StitchingStyleOnboarding).  <sub>[reports/specs/manager.md#L588](../reports/specs/manager.md)</sub>

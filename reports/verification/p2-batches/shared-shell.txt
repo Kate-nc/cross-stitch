@@ -1,0 +1,1 @@
+- [ ] `VER-EL-SCR-034-01-01` â€” Embroidery Tool out of scope; marked experimental; not surfaced in nav unless pref enabled  <sub>[reports/specs/shared-shell.md#L1750](../reports/specs/shared-shell.md)</sub>

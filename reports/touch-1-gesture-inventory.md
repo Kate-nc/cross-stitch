@@ -13,6 +13,8 @@ discoverability → conflict notes → code refs.
 ──────────────────────────────────────────────────────────────────────
 
 Source of truth: [creator/useCanvasInteraction.js](../creator/useCanvasInteraction.js)
+
+{% raw %}
 mounted on the React canvas in [creator/PatternCanvas.js](../creator/PatternCanvas.js)
 (`<canvas onPointerDown / onPointerMove / onPointerUp / onPointerLeave /
 onPointerCancel / onContextMenu>` at lines 156–180, with `style={{touchAction:"none"}}`).
@@ -346,3 +348,5 @@ should consolidate into a single constants module.
    context menu / focus-block actions.
 7. **No haptics, no per-tap visual preview, no gesture guide** for
    first-time touch users.
+
+{% endraw %}

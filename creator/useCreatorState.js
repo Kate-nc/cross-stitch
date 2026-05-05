@@ -158,6 +158,7 @@ window.useCreatorState = function useCreatorState() {
   var _pal  = useState(null);         var pal  = _pal[0],  setPal  = _pal[1];
   var _cmap = useState(null);         var cmap = _cmap[0], setCmap = _cmap[1];
   var _busy = useState(false);        var busy = _busy[0], setBusy = _busy[1];
+  var _progressMessage = useState(""); var progressMessage = _progressMessage[0], setProgressMessage = _progressMessage[1];
   var _oW   = useState(0);            var origW = _oW[0],  setOrigW = _oW[1];
   var _oH   = useState(0);            var origH = _oH[0],  setOrigH = _oH[1];
 
@@ -945,18 +946,19 @@ window.useCreatorState = function useCreatorState() {
       setCleanupDiff(null);
     }
     if (!hasGenerated) {
+      // First generation only: collapse all the settings accordions so
+      // they don't clutter the sidebar now that editing has started.
       setDimOpen(false); setPalOpen(false); setFabOpen(false);
       setAdjOpen(false); setBgOpen(false); setCleanupOpen(false);
       setHasGenerated(true);
-      // Auto-switch to Edit mode on the *first* successful generation. Saving
-      // already happens automatically (see useProjectIO.js auto-save effect),
-      // and the previous "Edit Pattern →" button caused confusion because
-      // users assumed they had to click it before the pattern was persisted.
-      // Regenerations stay in the current mode so power users tweaking image
-      // settings aren't bounced back and forth.
-      setAppMode("edit");
-      setSidebarTab("palette");
     }
+    // Always switch to Edit mode after any generation — first or re-generate.
+    // Previously only the first generate did this; regenerating from the
+    // Image / Dimensions / Palette sidebar tabs left users stranded in
+    // create mode with no pattern to show. Now every successful generation
+    // lands on the Palette tab in Edit mode (same as before, but consistently).
+    setAppMode("edit");
+    setSidebarTab("palette");
     var z = Math.min(3, Math.max(0.05, 750 / (sW * 20)));
     setTimeout(function() { setZoom(z); }, 0);
     setBusy(false);
@@ -976,14 +978,22 @@ window.useCreatorState = function useCreatorState() {
         var w = new Worker('generate-worker.js');
         w.onmessage = function(e) {
           var msg = e.data;
+          if (msg.type === 'progress') {
+            if (msg.reqId === genReqIdRef.current) {
+              setProgressMessage(msg.message || "");
+            }
+            return;
+          }
           if (msg.type === 'error') {
             console.error('Worker generation error:', msg.message, msg.stack || '');
             w.terminate();
             workerRef.current = null;
+            setProgressMessage("");
             setBusy(false);
             return;
           }
           if (msg.type === 'result') {
+            setProgressMessage("");
             applyResultRef.current(msg);
           }
         };
@@ -991,6 +1001,7 @@ window.useCreatorState = function useCreatorState() {
           console.error('Worker uncaught error:', err.message);
           w.terminate();
           workerRef.current = 'unavailable';
+          setProgressMessage("");
           setBusy(false);
         };
         workerRef.current = w;
@@ -1005,7 +1016,7 @@ window.useCreatorState = function useCreatorState() {
 
   var generate = useCallback(function(overrides) {
     if (!img) return;
-    setBusy(true); setHiId(null); setExportPage(0);
+    setBusy(true); setProgressMessage(""); setHiId(null); setExportPage(0);
     var reqId = ++genReqIdRef.current;
 
     var _seed   = (overrides && overrides.seed   != null)      ? overrides.seed   : variationSeed;
@@ -1289,7 +1300,7 @@ window.useCreatorState = function useCreatorState() {
     dith, dithMode, dithStrength, setDith, setDithMode, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     orphans, setOrphans, allowBlends, setAllowBlends,
-    pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy,
+    pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, progressMessage, setProgressMessage,
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
     appMode, setAppMode, sidebarTab, setSidebarTab,

@@ -8,6 +8,8 @@
 
 ---
 
+{% raw %}
+
 ## Executive Summary
 
 Spatial complexity captures how hard the pattern is to **read and navigate**, as opposed to how hard it is to physically stitch. A beginner pattern and an expert pattern can share the same stitching motions, yet differ enormously in how often the stitcher must consult the chart, how easy it is to find a specific cell, and whether the chart symbols can be decoded at a glance.
@@ -693,3 +695,5 @@ The existing `calcDifficulty(palLen, blendCount, totalSt)` in `helpers.js` is a 
 5. **Backstitch** is the most implementation-complex sub-factor because it benefits from secondary metrics (diagonal fraction, colour count) beyond the simple segment count. The primary `bsRatio` is sufficient for a first-pass implementation.
 
 6. **Fractional stitches** are fully captured by `Object.keys(halfStitches).length`. The challenge is technique-level (piercing Aida fabric between holes), not navigational.
+
+{% endraw %}

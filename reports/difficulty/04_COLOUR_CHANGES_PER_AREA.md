@@ -6,6 +6,8 @@
 
 ---
 
+{% raw %}
+
 ## Table of Contents
 
 1. [Executive Summary](#1-executive-summary)
@@ -744,4 +746,6 @@ This is a question for the synthesis agent. Current suggestion: weight 1.0 out o
 
 ---
 
-_End of report. Ready for implementation review._
+_End of report. Ready for implementation review.
+
+{% endraw %}_

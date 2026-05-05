@@ -328,6 +328,22 @@ const ProjectStorage = (() => {
         });
       } catch (err) {
         console.error("ProjectStorage.save failed:", err);
+        try {
+          if (typeof window !== 'undefined' && window.Toast && window.Toast.show) {
+            const now = Date.now();
+            if (!window.__psSaveToastAt || (now - window.__psSaveToastAt) > 30000) {
+              window.__psSaveToastAt = now;
+              const isQuota = err && (err.name === 'QuotaExceededError' || /quota/i.test(String(err.message || '')));
+              window.Toast.show({
+                message: isQuota
+                  ? "Couldn't save: storage quota exceeded. Free up space or export a backup."
+                  : "Couldn't save your project. Changes may be lost on reload.",
+                type: "error",
+                duration: 10000
+              });
+            }
+          }
+        } catch (_) {}
         throw err;
       }
     },
@@ -460,6 +476,16 @@ const ProjectStorage = (() => {
     // Mark a project as the currently active one (stored in localStorage as a pointer).
     setActiveProject(id) {
       try { localStorage.setItem(ACTIVE_KEY, id); } catch (e) {}
+      // Notify listeners (header switcher, multi-tab sync) so the UI can
+      // refresh without waiting for a full page reload. Wrapped in try/catch
+      // so non-browser test environments don't throw on missing CustomEvent.
+      try {
+        if (typeof window !== "undefined" && typeof CustomEvent !== "undefined") {
+          window.dispatchEvent(new CustomEvent("cs:projectsChanged", {
+            detail: { reason: "setActive", id: id }
+          }));
+        }
+      } catch (_) {}
     },
 
     getActiveProjectId() {
@@ -716,13 +742,16 @@ const ProjectStorage = (() => {
         for (const meta of projects) {
           const proj = await this.get(meta.id);
           if (!proj || proj.finishStatus !== 'active') continue;
-          if (!oldest || (proj.lastTouchedAt && proj.lastTouchedAt < oldest.lastTouchedAt)) {
+          // Prefer lastTouchedAt; fall back to updatedAt, then createdAt so
+          // long-abandoned projects with no touch/update timestamps still surface.
+          const projAge = proj.lastTouchedAt || proj.updatedAt || proj.createdAt || LEGACY_EPOCH;
+          if (!oldest || projAge < oldest.lastTouchedAt) {
             // PERF (perf-4 #2 / perf-4 #6): cached counts
             const totalSt = countTotalStitches(proj);
             const completedSt = countCompletedStitches(proj.done);
             oldest = {
               id: proj.id, name: proj.name || 'Untitled',
-              lastTouchedAt: proj.lastTouchedAt || proj.updatedAt || LEGACY_EPOCH,
+              lastTouchedAt: projAge,
               totalStitches: totalSt, completedStitches: completedSt,
               pct: totalSt > 0 ? Math.round(completedSt / totalSt * 100) : 0
             };
