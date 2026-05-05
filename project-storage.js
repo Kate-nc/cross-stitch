@@ -476,6 +476,16 @@ const ProjectStorage = (() => {
     // Mark a project as the currently active one (stored in localStorage as a pointer).
     setActiveProject(id) {
       try { localStorage.setItem(ACTIVE_KEY, id); } catch (e) {}
+      // Notify listeners (header switcher, multi-tab sync) so the UI can
+      // refresh without waiting for a full page reload. Wrapped in try/catch
+      // so non-browser test environments don't throw on missing CustomEvent.
+      try {
+        if (typeof window !== "undefined" && typeof CustomEvent !== "undefined") {
+          window.dispatchEvent(new CustomEvent("cs:projectsChanged", {
+            detail: { reason: "setActive", id: id }
+          }));
+        }
+      } catch (_) {}
     },
 
     getActiveProjectId() {
