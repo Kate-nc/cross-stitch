@@ -52,6 +52,21 @@ const SyncEngine = (() => {
     try { localStorage.setItem(LS_DEVICE_NAME, String(name).slice(0, 60)); } catch (e) {}
   }
 
+  // VER-SYNC-009 — tombstone helpers
+  // When a project is deleted locally, project-storage.js writes its id to the
+  // 'cs_deleted_project_ids' localStorage array. SyncEngine reads that list
+  // when exporting (so remote devices know not to re-import it) and when
+  // classifying remote projects (so already-deleted projects are skipped).
+  var LS_TOMBSTONE_KEY = "cs_deleted_project_ids";
+
+  function getLocalTombstones() {
+    try {
+      var raw = localStorage.getItem(LS_TOMBSTONE_KEY);
+      var arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+  }
+
   // ── Fingerprinting ───────────────────────────────────────────────────────
   // Uses pako's crc32 (already loaded) for a fast structural fingerprint of a
   // project's pattern data. This detects whether the chart grid itself changed
@@ -235,6 +250,10 @@ const SyncEngine = (() => {
       _mode: mode,
       _since: (mode === "incremental" && lastExport) ? lastExport : null,
       _projectCountTotal: allProjects.length,
+      // VER-SYNC-009: include local tombstones so the importing device knows
+      // which projects this device has intentionally deleted. The receiving
+      // device should not re-import any project whose id appears in this list.
+      deletedProjectIds: getLocalTombstones(),
       projects: projectsToExport.map(function (p) {
         return {
           id: p.id,
@@ -415,6 +434,12 @@ const SyncEngine = (() => {
   }
 
   function classifyProjects(remoteProjects, localProjectsMap) {
+    // Collect tombstones from both local and remote so we can skip projects
+    // that were intentionally deleted on either device.
+    // localTombstoneSet: ids deleted on this device (never re-import them).
+    var localTombstones = getLocalTombstones();
+    var localTombstoneSet = Object.create(null);
+    for (var ti = 0; ti < localTombstones.length; ti++) localTombstoneSet[localTombstones[ti]] = true;
     // Build fingerprint index from local projects so we can match remotes
     // whose ids differ but whose chart contents are identical. Only used
     // when there is no direct id match.
@@ -432,6 +457,12 @@ const SyncEngine = (() => {
     var results = [];
     for (var i = 0; i < remoteProjects.length; i++) {
       var remote = remoteProjects[i];
+
+      // VER-SYNC-009: skip remote projects that this device has tombstoned.
+      // If the local user already deleted this project, do not re-import it
+      // — treat it as if it were identical (already handled) and continue.
+      if (localTombstoneSet[remote.id]) continue;
+
       var local = localProjectsMap[remote.id] || null;
       var entry = {
         id: remote.id,
@@ -723,6 +754,9 @@ const SyncEngine = (() => {
       idRewrites: classified.filter(function (c) { return !!c.idRewrite; }),
       localOnly: [],  // projects only on this device (not in sync file)
       stashMerge: null,
+      // VER-SYNC-009: remote tombstones to absorb into local deleted-ids list.
+      remoteTombstones: (syncObj.deletedProjectIds && Array.isArray(syncObj.deletedProjectIds))
+        ? syncObj.deletedProjectIds : [],
       syncObj: syncObj,
       localMap: localMap,
       localStash: localStash
@@ -841,7 +875,27 @@ const SyncEngine = (() => {
       }
     }
 
-    // 5. Record import timestamp and mark synced projects
+    // 5. Absorb remote tombstones: merge the remote's deleted-project list into
+    //    our local tombstone store so that projects deleted on the remote device
+    //    are also skipped on this device on the next import.
+    if (plan.remoteTombstones && plan.remoteTombstones.length) {
+      try {
+        var existingTombstones = getLocalTombstones();
+        var tombstoneSet = Object.create(null);
+        for (var tsi = 0; tsi < existingTombstones.length; tsi++) tombstoneSet[existingTombstones[tsi]] = true;
+        var changed = false;
+        for (var rti = 0; rti < plan.remoteTombstones.length; rti++) {
+          var rtId = plan.remoteTombstones[rti];
+          if (!tombstoneSet[rtId]) { existingTombstones.push(rtId); changed = true; }
+        }
+        if (changed) {
+          if (existingTombstones.length > 200) existingTombstones = existingTombstones.slice(existingTombstones.length - 200);
+          localStorage.setItem(LS_TOMBSTONE_KEY, JSON.stringify(existingTombstones));
+        }
+      } catch (_) {}
+    }
+
+    // 6. Record import timestamp and mark synced projects
     var importTs = new Date().toISOString();
     try { localStorage.setItem(LS_LAST_IMPORT, importTs); } catch (e) {}
     // Mark all affected project IDs as synced
