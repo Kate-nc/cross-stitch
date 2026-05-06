@@ -1,0 +1,54 @@
+name: CI
+
+# Action plan §2D.3. Runs the Jest test suite on every push and PR so
+# regressions are caught before merge. The suite is fast (~3–5 s) and
+# pure-Node (no browser binaries needed).
+
+on:
+  push:
+    branches:
+      - main
+      - 'performance-upgrades-*'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Jest (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Match the engines pin in package.json (Node 22).
+        node: ['22']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify creator bundle is up to date
+        # `node build-creator-bundle.js` is idempotent (writes only when
+        # content differs). If the committed bundle drifts from the
+        # creator/ source files this step will leave a dirty working
+        # tree and the next step fails with a clear message.
+        run: |
+          node build-creator-bundle.js
+          if ! git diff --quiet -- creator/bundle.js creator/import-wizard-bundle.js; then
+            echo "::error::creator/bundle.js or creator/import-wizard-bundle.js is out of date."
+            echo "Run 'node build-creator-bundle.js' locally and commit the result."
+            git diff --stat -- creator/bundle.js creator/import-wizard-bundle.js
+            exit 1
+          fi
+
+      - name: Run Jest
+        run: npm test -- --ci --reporters=default
