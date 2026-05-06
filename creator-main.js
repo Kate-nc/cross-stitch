@@ -1365,7 +1365,7 @@ function UnifiedApp(){
       {statsModal==='help'&&<SharedModals.Help defaultTab="creator" onClose={()=>setStatsModal(null)} />}
       {statsModal==='shortcuts'&&<SharedModals.Help defaultTab="shortcuts" onClose={()=>setStatsModal(null)} />}
     </div>}
-    {welcomeOpen&&window.WelcomeWizard&&<window.WelcomeWizard page="creator" onClose={()=>setWelcomeOpen(false)}/>}
+    {welcomeOpen&&mode==='design'&&window.WelcomeWizard&&<window.WelcomeWizard page="creator" onClose={()=>setWelcomeOpen(false)}/>}
     {window.HelpHintBanner&&<window.HelpHintBanner/>}
   </>;
 }
