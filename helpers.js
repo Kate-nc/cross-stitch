@@ -112,6 +112,10 @@ function _getAnchorById(){
   for(var j=0;j<ANCHOR.length;j++)_ANCHOR_BY_ID[ANCHOR[j].id]=ANCHOR[j];
   return _ANCHOR_BY_ID;
 }
+// PERF (action plan §2E.1): public getAnchorById() replaces the remaining
+// ANCHOR.find() scans across creator/* and stash-bridge.
+function getAnchorById(id){var m=_getAnchorById();return (m&&id!=null)?(m[id]||null):null;}
+if(typeof window!=='undefined'){window.getAnchorById=getAnchorById;}
 
 function skeinEst(stitchCount,fabricCt){if(typeof stitchesToSkeins==='function'){const result=stitchesToSkeins({stitchCount:stitchCount,fabricCount:fabricCt,strandsUsed:2,wasteFactor:0.20});return Math.max(1,result.skeinsToBuy);}return 1;}
 

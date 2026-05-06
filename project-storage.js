@@ -916,7 +916,9 @@ const ProjectStorage = (() => {
             const attributed = logTotal * ratio;
             if (!colourTotals[tid]) {
               // Prefer the per-project palMap, then try the global DMC catalogue.
+              // PERF (action plan §2E.1): use cached id-map; Array.find left as last fallback.
               let info = palMap[tid];
+              if (!info && typeof getDmcById === 'function') info = getDmcById(tid);
               if (!info && typeof DMC !== 'undefined') {
                 const dmcEntry = DMC.find ? DMC.find(d => d.id === tid) : null;
                 if (dmcEntry) info = dmcEntry;

@@ -4766,6 +4766,8 @@ window.useMagicWand = function useMagicWand(state) {
     var dstEntry = cmap[dstId];
     if (!dstEntry) {
       if (typeof findThreadInCatalog === 'function') dstEntry = findThreadInCatalog('dmc', dstId);
+      // PERF (action plan §2E.1): O(1) id-map lookup; Array.find kept as final fallback.
+      if (!dstEntry && typeof getDmcById === 'function') dstEntry = getDmcById(dstId);
       if (!dstEntry && typeof DMC !== 'undefined') dstEntry = DMC.find(function(d) { return d.id === dstId; });
     }
     if (!dstEntry) {
@@ -11823,7 +11825,8 @@ window.CreatorSidebar = function CreatorSidebar() {
     // resolution used in ShoppingListModal.
     function resolveBrand(id) {
       if (findThreadInCatalog('dmc', id)) return 'dmc';
-      if (typeof ANCHOR !== 'undefined' && ANCHOR.find(function(d){ return d.id === id; })) return 'anchor';
+      // PERF (action plan §2E.1): prefer the cached id-map over O(n) Array.find.
+      if (typeof getAnchorById === 'function' ? getAnchorById(id) : (typeof ANCHOR !== 'undefined' && ANCHOR.find(function(d){ return d.id === id; }))) return 'anchor';
       return 'dmc';
     }
     function stashStatusForChip(p) {
@@ -16362,8 +16365,11 @@ window.CreatorExportTab = function CreatorExportTab() {
         // composite stash key is used to look up owned counts.
         var info = null, brand = 'dmc';
         info = findThreadInCatalog('dmc', id);
-        if (!info && typeof ANCHOR !== 'undefined') {
-          info = ANCHOR.find(function (d) { return d.id === id; });
+        if (!info) {
+          // PERF (action plan §2E.1): O(1) lookup instead of ANCHOR.find scan.
+          info = (typeof getAnchorById === 'function')
+            ? getAnchorById(id)
+            : (typeof ANCHOR !== 'undefined' ? ANCHOR.find(function (d) { return d.id === id; }) : null);
           if (info) brand = 'anchor';
         }
         var entry = stash[brand + ':' + id] || {};
