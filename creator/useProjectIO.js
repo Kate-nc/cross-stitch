@@ -461,6 +461,14 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (window.__pendingCreatorFile) {
       var file = window.__pendingCreatorFile;
       delete window.__pendingCreatorFile;
+      // Clear the sessionStorage handoff items now that the file has been safely
+      // handed to handleFile. They were kept alive up to this point as a
+      // reload-recovery backup (processPendingAction does not remove them).
+      try {
+        sessionStorage.removeItem('cs_pending_image_dataurl');
+        sessionStorage.removeItem('cs_pending_image_name');
+        sessionStorage.removeItem('cs_pending_image_type');
+      } catch (_) {}
       handleFile(file);
       return;
     }

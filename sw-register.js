@@ -13,10 +13,20 @@ if ('serviceWorker' in navigator) {
     // old SW's cached assets are still loaded in memory, so we need one reload
     // to get the freshly-deployed files. The `refreshing` guard prevents a
     // reload loop if the event fires more than once (e.g., rapid deployments).
+    //
+    // Exception: if an image-to-Creator handoff is in progress (sessionStorage
+    // contains the pending data URL), reloading right now would either bounce
+    // the user back to /home (if we're still on home.html) or strip the URL
+    // params and lose the image (if we're mid-load on create.html). In that
+    // case we set `refreshing = true` to silence future fires but skip the
+    // reload — the updated SW assets take effect on the next navigation.
     let refreshing = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!refreshing) {
         refreshing = true;
+        try {
+          if (sessionStorage.getItem('cs_pending_image_dataurl')) return;
+        } catch (_) {}
         window.location.reload();
       }
     });

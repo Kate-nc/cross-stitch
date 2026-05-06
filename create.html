@@ -34,8 +34,12 @@
   try {
     var qs = location.search || '';
     var hasAction = /(\?|&)(from=home|action=)/.test(qs);
-    if (hasAction) return;
-    var active = localStorage.getItem('crossstitch_active_project');
+    if (hasAction) return;    // Safety net: a SW-triggered reload may have stripped the action= param
+    // from the URL (via history.replaceState in processPendingAction) while a
+    // home-image-pending handoff was still in progress. If sessionStorage still
+    // holds the pending data URL, let create.html load so it can reconstruct
+    // the file — processPendingAction's recovery path handles it from there.
+    try { if (sessionStorage.getItem('cs_pending_image_dataurl')) return; } catch (_) {}    var active = localStorage.getItem('crossstitch_active_project');
     if (!active) { location.replace('home.html?tab=create'); return; }
   } catch (_) { /* localStorage blocked â†’ load tool normally */ }
 })();
@@ -187,7 +191,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_43022cc7dc';
+var CREATOR_CACHE_KEY = 'babel_creator_b670c4fc11';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;

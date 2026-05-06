@@ -1392,22 +1392,44 @@ function UnifiedApp(){
   try {
     var p = new URLSearchParams(window.location.search);
     var act = p.get('action');
-    if (!act) return;
-    window.history.replaceState({}, '', window.location.pathname);
-    if (typeof ProjectStorage !== 'undefined') {
-      try { ProjectStorage.clearActiveProject(); } catch (_) {}
+    // Recovery path: a SW-triggered reload may have stripped action= from the
+    // URL (via history.replaceState below) while an image handoff was in
+    // progress. If sessionStorage still holds the data URL AND there is no
+    // active project to resume, treat this as an interrupted home-image-pending
+    // navigation and reconstruct the pending file.
+    var hasPendingImage = false;
+    if (!act) {
+      try {
+        if (sessionStorage.getItem('cs_pending_image_dataurl') &&
+            !localStorage.getItem('crossstitch_active_project')) {
+          hasPendingImage = true;
+        }
+      } catch (_) {}
     }
+    if (!act && !hasPendingImage) return;
+    window.history.replaceState({}, '', window.location.pathname);
     if (act === 'new-blank') {
+      // Clear stale active project so the welcome card doesn't briefly flash.
+      if (typeof ProjectStorage !== 'undefined') {
+        try { ProjectStorage.clearActiveProject(); } catch (_) {}
+      }
       window.__pendingCreatorAction = 'scratch';
       // Match handleHomeOpenCreatorBlank: scratch defaults to Edit, not Create.
       setTimeout(function(){ if (window.__setCreatorAppMode) window.__setCreatorAppMode('edit'); }, 0);
-    } else if (act === 'home-image-pending') {
+    } else if (act === 'home-image-pending' || hasPendingImage) {
+      // Do NOT call clearActiveProject() here: if a SW reload triggers
+      // location.reload() after history.replaceState has already stripped the
+      // URL, the redirect guard would find no action= AND no active project and
+      // bounce the user back to /home. Clearing it was doubly wrong for
+      // home-image-pending anyway (the upload creates a fresh project later).
       var pendingDataUrl = sessionStorage.getItem('cs_pending_image_dataurl');
       var pendingName    = sessionStorage.getItem('cs_pending_image_name') || 'image.jpg';
       var pendingType    = sessionStorage.getItem('cs_pending_image_type') || 'image/jpeg';
-      sessionStorage.removeItem('cs_pending_image_dataurl');
-      sessionStorage.removeItem('cs_pending_image_name');
-      sessionStorage.removeItem('cs_pending_image_type');
+      // Intentionally NOT removing sessionStorage items yet. They serve as a
+      // reload-safety backup: if a SW controllerchange fires between now and
+      // when useProjectIO.js picks up window.__pendingCreatorFile, a reload can
+      // re-enter this branch, reconstruct the file, and proceed normally.
+      // useProjectIO.js clears them after handleFile() is called.
       if (pendingDataUrl) {
         var b64 = pendingDataUrl.split(',')[1];
         var byteStr = atob(b64);
@@ -1426,6 +1448,9 @@ function UnifiedApp(){
       window.location.replace('home.html?tab=create');
       return;
     } else if (act === 'open') {
+      if (typeof ProjectStorage !== 'undefined') {
+        try { ProjectStorage.clearActiveProject(); } catch (_) {}
+      }
       setTimeout(function(){ if (window.__setCreatorAppMode) window.__setCreatorAppMode('edit'); }, 0);
     }
   } catch (_) { /* never block render */ }
