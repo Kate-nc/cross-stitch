@@ -36,20 +36,23 @@
      on /home â€” verified via grep that home-app.js / home-screen.js never
      reference ANCHOR, CONVERSIONS, or getOfficialMatch. Saves 110 KB of
      eager parse on the landing page. -->
-<script src="starter-kits.js"></script>
+<!-- starter-kits.js (~5 KB), components.js (~33 KB — SliderRow / ProgressRing /
+     MiniStatsBar / OverviewCards) and threadCalc.js (~5 KB) are NOT loaded
+     on /home: STARTER_KITS only used by creator/BulkAddModal; the components
+     exports only used by components-stats.js and creator/bundle.js;
+     stitchesToSkeins only invoked from stash-bridge sync flows that don't
+     run on /home. ~43 KB of parse saved. -->
 <script src="colour-utils.js"></script>
 <script src="helpers.js"></script>
 <script src="keyboard-utils.js"></script>
 <script src="shortcuts.js"></script>
 <script src="icons.js"></script>
-<script src="components.js"></script>
 <script src="components/PartialStitchThumb.js"></script>
 <script src="components/Overlay.js"></script>
 <script src="header.js"></script>
 <script src="modals.js"></script>
 <script src="help-drawer.js" defer></script>
 <script src="onboarding-wizard.js" defer></script>
-<script src="threadCalc.js"></script>
 <script src="project-storage.js"></script>
 <script src="stash-bridge.js"></script>
 <script src="backup-restore.js"></script>
