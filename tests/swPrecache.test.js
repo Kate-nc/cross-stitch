@@ -29,8 +29,19 @@ describe('sw.js precache (UX-12 Phase 7 PR #13)', () => {
   // from index.html to home.html (Workshop landing page).
   // Bumped to v43 when components.js was split into core + components-stats.js
   // (action plan headline H1 = 2A.1) so home/manager skip the stats half.
-  test('CACHE_NAME bumped to v43', () => {
-    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v43['"]/);
+  // Bumped to v44 when pdf.worker.min.js (~1 MB) and assets/fontkit.umd.min.js
+  // were dropped from PRECACHE_URLS (action plan headline H2 = 2A.3); both
+  // are runtime-cached on first use so the SW install stays light.
+  test('CACHE_NAME bumped to v44', () => {
+    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v44['"]/);
+  });
+
+  test('PRECACHE_URLS does NOT include heavy lazy vendor blobs', () => {
+    // Guard for action plan H2 (2A.3): keep pdf.worker.min.js and
+    // fontkit.umd.min.js out of the install-time precache. They are still
+    // cached at runtime by the local-asset fetch handler in sw.js.
+    expect(SW).not.toMatch(/['"]\.\/pdf\.worker\.min\.js['"]/);
+    expect(SW).not.toMatch(/['"]\.\/assets\/fontkit\.umd\.min\.js['"]/);
   });
 
   test('PRECACHE_URLS includes home.html', () => {
