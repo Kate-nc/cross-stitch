@@ -12,7 +12,7 @@ function read(p) { return fs.readFileSync(path.join(__dirname, '..', p), 'utf8')
 const hubSrc    = read('creator/MaterialsHub.js');
 const cssSrc    = read('styles.css');
 const iconsSrc  = read('icons.js');
-const bundleSrc = read('creator/bundle.js');
+const bundleSrc = read('creator/bundle.js') + '\n' + read('creator/extras-bundle.js');
 
 describe('C4 — Materials Hub visual hierarchy refresh', () => {
   describe('Sub-tab pill markup', () => {
@@ -139,7 +139,7 @@ describe('C4 — Materials Hub visual hierarchy refresh', () => {
   });
 
   describe('Bundle freshness', () => {
-    it('creator/bundle.js includes the new breadcrumb markup', () => {
+    it('creator/extras-bundle.js includes the new breadcrumb markup', () => {
       expect(bundleSrc).toMatch(/mh-breadcrumb/);
     });
   });

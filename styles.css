@@ -2801,7 +2801,14 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .mgr-content{flex:1;overflow-y:auto;padding:16px 20px;}
 .mgr-rpanel{width:280px;background:var(--surface);border-left:1px solid var(--border);flex-shrink:0;overflow-y:auto;display:flex;flex-direction:column;}
 .thread-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));gap:8px;}
-.tcard{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xl);cursor:pointer;transition:all 0.12s;}
+.tcard{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xl);cursor:pointer;transition:all 0.12s;
+  /* H6 (action plan 2B.2): skip layout + paint for off-screen thread cards.
+     Equivalent to virtualising the ~900-card grid without changing the
+     page-scroll behaviour. `contain-intrinsic-size` reserves a stable
+     placeholder height so scrollbar geometry stays accurate. */
+  content-visibility:auto;
+  contain-intrinsic-size:auto 56px;
+}
 .tcard:hover{border-color:var(--border);box-shadow:var(--shadow-sm);}
 .tcard.on{border-color:var(--accent);box-shadow:0 0 0 2px rgba(184, 92, 56,0.3);background:var(--accent-light);}
 .tcard .sw{width:32px;height:32px;border-radius:8px;border:2px solid var(--border);flex-shrink:0;}
@@ -2810,7 +2817,12 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .tcard .info .tnm{font-size:11px;color:var(--text-tertiary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .tcard .owned{font-size:13px;font-weight:700;color:var(--text-primary);background:var(--surface-tertiary);width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:8px;flex-shrink:0;}
 .pat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:10px;}
-.pcard{padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xl);cursor:pointer;transition:all 0.12s;}
+.pcard{padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xl);cursor:pointer;transition:all 0.12s;
+  /* Same off-screen skip as .tcard (action plan H6 = 2B.2). Pattern cards
+     are taller so reserve a generous intrinsic height. */
+  content-visibility:auto;
+  contain-intrinsic-size:auto 120px;
+}
 .pcard:hover{border-color:var(--border);box-shadow:var(--shadow-sm);}
 .pcard.on{border-color:var(--accent);box-shadow:0 0 0 2px rgba(184, 92, 56,0.3);background:var(--accent-light);}
 .pcard .ptitle{font-weight:700;font-size:14px;margin-bottom:2px;display:flex;align-items:center;gap:6px;}

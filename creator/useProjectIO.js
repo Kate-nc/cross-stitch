@@ -461,6 +461,14 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (window.__pendingCreatorFile) {
       var file = window.__pendingCreatorFile;
       delete window.__pendingCreatorFile;
+      // Clear the sessionStorage handoff items now that the file has been safely
+      // handed to handleFile. They were kept alive up to this point as a
+      // reload-recovery backup (processPendingAction does not remove them).
+      try {
+        sessionStorage.removeItem('cs_pending_image_dataurl');
+        sessionStorage.removeItem('cs_pending_image_name');
+        sessionStorage.removeItem('cs_pending_image_type');
+      } catch (_) {}
       handleFile(file);
       return;
     }
@@ -498,7 +506,6 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (typeof ProjectStorage !== "undefined") {
       var activeId = ProjectStorage.getActiveProjectId();
       if (activeId) {
-        try { console.log('[creator-boot] active project pointer:', activeId); } catch(_) {}
         try { sessionStorage.setItem('__import_trace_creatorBoot', JSON.stringify({ at: Date.now(), step: 'pointer-found', activeId: activeId })); } catch(_) {}
         ProjectStorage.get(activeId).then(function(project3) {
           if (!project3) {
@@ -533,7 +540,6 @@ window.useProjectIO = function useProjectIO(state, history, options) {
             return;
           }
           try {
-            try { console.log('[creator-boot] loading active project:', { id: project3.id, name: project3.name, w: project3.w, h: project3.h, patternLen: project3.pattern.length }); } catch(_) {}
             try { sessionStorage.setItem('__import_trace_creatorBoot', JSON.stringify({ at: Date.now(), step: 'loading', id: project3.id, patternLen: project3.pattern.length })); } catch(_) {}
             processLoadedProject(project3);
           } catch (err) {

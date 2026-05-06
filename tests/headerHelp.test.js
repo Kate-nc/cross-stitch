@@ -4,7 +4,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const src = fs.readFileSync(path.join(__dirname, '..', 'header.js'), 'utf8');
+const { loadSource } = require('./_helpers/loadSource');
+const src = loadSource('header.js');
 
 describe('fix-3.1 — visible Help affordance', () => {
   it('header.js renders a button with className tb-help-btn', () => {

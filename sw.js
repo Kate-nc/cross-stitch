@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v41';
+var CACHE_NAME = 'cross-stitch-cache-v45';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -27,6 +27,7 @@ var PRECACHE_URLS = [
   './icons.js',
   './import-formats.js',
   './components.js',
+  './components-stats.js',
   './header.js',
   './modals.js',
   './threadCalc.js',
@@ -42,6 +43,7 @@ var PRECACHE_URLS = [
 
   // Creator app bundle (compiled from creator/ sub-components)
   './creator/bundle.js',
+  './creator/extras-bundle.js',
   './creator/import-wizard-bundle.js',
   './import-engine/lazy-shim.js',
   './import-engine/bundle.js',
@@ -51,7 +53,11 @@ var PRECACHE_URLS = [
 
   // Lazy-loaded local assets
   './pdf-importer.js',
-  './pdf.worker.min.js',
+  // pdf.worker.min.js (~1 MB) and assets/fontkit.umd.min.js are intentionally
+  // omitted from PRECACHE_URLS. They are only needed when the user opens the
+  // PDF importer or exports a Pattern Keeper PDF; the local-asset fetch
+  // handler below caches them on first use, so they remain available offline
+  // afterwards without bloating the initial SW install.
   './backup-restore.js',
   './sync-engine.js',
   './pdf-export-worker.js',
@@ -64,8 +70,7 @@ var PRECACHE_URLS = [
   'https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
-  './assets/fontkit.umd.min.js'
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
 ];
 
 // Install: pre-cache all assets individually so one failure doesn't block the rest.
@@ -125,7 +130,7 @@ self.addEventListener('fetch', function (event) {
         return response;
       }).catch(function () {
         return caches.match(event.request).then(function (cached) {
-          return cached || caches.match('./index.html');
+          return cached || caches.match('./home.html') || caches.match('./index.html');
         });
       })
     );

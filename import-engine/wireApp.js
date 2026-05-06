@@ -23,24 +23,13 @@
     window.ImportEngine.__build = BUILD;
   } catch (_) {}
 
-  // On every load, dump any breadcrumbs left in sessionStorage by a
-  // previous import so the trace survives the page navigation that
-  // wipes the console. Without this we can never see what happened on
-  // the previous page once the new page loads.
+  // On every load, clear any breadcrumbs left in sessionStorage by a
+  // previous import so they don't leak across pages. (Diagnostic console
+  // dumps were removed; set window.__IMPORT_DEBUG = true and re-add
+  // ad-hoc logging if you need to trace a regression.)
   try {
     var __traceKeys = ['__import_trace_openReview', '__import_trace_modalClose', '__import_trace_save', '__import_trace_navigate', '__import_trace_creatorBoot'];
-    var __traceAny = false;
-    __traceKeys.forEach(function (k) {
-      var v = sessionStorage.getItem(k);
-      if (v) {
-        __traceAny = true;
-        try { console.log('[import-trace]', k, JSON.parse(v)); } catch (_) { console.log('[import-trace]', k, v); }
-      }
-    });
-    if (__traceAny) {
-      console.log('[import-trace] ── end of breadcrumbs from previous page; clearing now ──');
-      __traceKeys.forEach(function (k) { sessionStorage.removeItem(k); });
-    }
+    __traceKeys.forEach(function (k) { sessionStorage.removeItem(k); });
   } catch (_) {}
 
   var ACCEPT = '.oxs,.xml,.json,.pdf,image/*';
@@ -92,7 +81,6 @@
   function importAndReview(file, opts) {
     opts = opts || {};
     var ENGINE = window.ImportEngine;
-    try { console.log('[import] importAndReview start:', { name: file && file.name, type: file && file.type, size: file && file.size }); } catch (_) {}
     if (!ENGINE || typeof ENGINE.importPattern !== 'function') {
       var notLoaded = 'ImportEngine not loaded';
       console.error('[import]', notLoaded);
@@ -104,7 +92,6 @@
       return Promise.reject(new Error(notLoaded));
     }
     return ENGINE.importPattern(file, opts).then(function (result) {
-      try { console.log('[import] importPattern result:', { ok: result && result.ok, error: result && result.error && result.error.message, hasProject: !!(result && result.project), warningsCount: result && result.warnings && result.warnings.length }); } catch (_) {}
       if (!result.ok) {
         var msg = (result.error && result.error.message) || 'Import failed.';
         console.error('[import] pipeline returned not-ok:', result);
@@ -129,7 +116,6 @@
         originalFileUrl: url,
       }).then(function (out) {
         if (url) try { URL.revokeObjectURL(url); } catch (_) {}
-        try { console.log('[import] review modal closed:', { action: out && out.action, hasProject: !!(out && out.project) }); } catch (_) {}
         if (out.action === 'confirm' && out.project) {
           return saveAndNavigate(out.project, opts);
         }
@@ -248,7 +234,6 @@
       settingsKeys: project.settings ? Object.keys(project.settings) : null,
       w: project.w, h: project.h, name: project.name, id: project.id,
     };
-    try { console.log('[import] saving project:', shape); } catch (_) {}
     try { sessionStorage.setItem('__import_trace_save', JSON.stringify({ at: Date.now(), shape: shape })); } catch (_) {}
     if (!Array.isArray(project.pattern) || !project.pattern.length) {
       var emptyMsg = 'The imported pattern has no cells — nothing to save. The source file may be unsupported.';
@@ -271,7 +256,6 @@
       else localStorage.setItem('crossstitch_active_project', id);
     } catch (_) {}
     return Promise.resolve(storage.save(project)).then(function () {
-      try { console.log('[import] storage.save resolved for id:', id); } catch (_) {}
       // Post-save sanity check: read the project back from IDB to confirm
       // it really is there. If listProjects/get returns nothing the user
       // would see the welcome card after navigation with no clue why —
@@ -280,7 +264,6 @@
         ? Promise.resolve(storage.get(id))
         : Promise.resolve(null);
       return verify.then(function (rt) {
-        try { console.log('[import] post-save read-back:', rt ? { id: rt.id, hasPattern: !!rt.pattern, patternLen: rt.pattern && rt.pattern.length, hasSettings: !!rt.settings } : null); } catch (_) {}
         if (!rt || !rt.pattern || !rt.settings) {
           console.error('[import] read-back failed or project is malformed in IDB:', rt);
           // Don't throw — the toast warns the user and we still navigate
@@ -307,7 +290,6 @@
           var skipSamePage = opts.skipSamePageNav === true
             || (opts.navigateTo && isCurrentPage(opts.navigateTo) && /home\.html/i.test(opts.navigateTo));
           if (!skipSamePage) {
-            try { console.log('[import] navigating to:', destination); } catch (_) {}
             try { sessionStorage.setItem('__import_trace_navigate', JSON.stringify({ at: Date.now(), destination: destination, projectId: id })); } catch (_) {}
             window.location.href = destination;
           }

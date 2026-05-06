@@ -89,7 +89,8 @@ window.CreatorSidebar = function CreatorSidebar() {
     // resolution used in ShoppingListModal.
     function resolveBrand(id) {
       if (findThreadInCatalog('dmc', id)) return 'dmc';
-      if (typeof ANCHOR !== 'undefined' && ANCHOR.find(function(d){ return d.id === id; })) return 'anchor';
+      // PERF (action plan §2E.1): prefer the cached id-map over O(n) Array.find.
+      if (typeof getAnchorById === 'function' ? getAnchorById(id) : (typeof ANCHOR !== 'undefined' && ANCHOR.find(function(d){ return d.id === id; }))) return 'anchor';
       return 'dmc';
     }
     function stashStatusForChip(p) {

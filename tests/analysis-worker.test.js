@@ -5,7 +5,8 @@
 const fs = require("fs");
 const path = require("path");
 
-const workerSrc = fs.readFileSync(path.join(__dirname, "../analysis-worker.js"), "utf8");
+const { loadSource } = require('./_helpers/loadSource');
+const workerSrc = loadSource('analysis-worker.js');
 
 // Extract and define the pure functions without the self.onmessage handler
 // Strip the self.onmessage block so we can eval in Node

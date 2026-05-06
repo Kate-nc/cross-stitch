@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -29,7 +29,7 @@
       var skip = /(\?|&)(from=home|action=)/.test(qs);
       if (!skip) { location.replace('home.html'); return; }
     }
-  } catch (_) { /* localStorage blocked → load tool normally */ }
+  } catch (_) { /* localStorage blocked â†’ load tool normally */ }
 })();
 </script>
 <!-- Preconnect so CDN requests start immediately -->
@@ -49,15 +49,15 @@ window.__UNIFIED__=true;
 window.onerror=function(m,s,l,c,e){var d=document.getElementById('root');if(d){d.innerHTML='<pre style="color:red;padding:20px;font:14px monospace;white-space:pre-wrap">ERROR: '+m+'\nSource: '+s+'\nLine: '+l+':'+c+'\n'+(e&&e.stack?e.stack:'')+'</pre>';}};
 window.addEventListener('unhandledrejection',function(e){console.error('Unhandled rejection:',e.reason);});
 </script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" integrity="sha384-tMH8h3BGESGckSAVGZ82T9n90ztNXxvdwvdM6UoR56cYcf+0iGXBliJ29D+wZ/x8" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" integrity="sha384-bm7MnzvK++ykSwVJ2tynSE5TRdN+xL418osEVF2DE/L/gfWHj91J2Sphe582B1Bh" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js" integrity="sha384-ku9eM40vVDsFUiERorrdlHlF0LIhdfn716M7TntM72Uo98T7LWiogD3hNenPx8Q0" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <!-- pako needed at startup (project data uses deflate/inflate) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
-<!-- JSZip (C6 bundle export) — loaded eagerly on the Creator page so the
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js" integrity="sha384-rNlaE5fs9dGIjmxWDALQh/RBAaGRYT5ChrzHo6tRfgrZ36iRFAiquP5g41Jsv+0j" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!-- JSZip (C6 bundle export) â€” loaded eagerly on the Creator page so the
      "Download bundle" action is available without a CDN round-trip on click.
      Pinned to 3.10.1 (immutable on cdnjs). -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <!-- pdf-lib (export), pdf.js (import) and pdf-importer are lazy-loaded on first use -->
 <link rel="stylesheet" href="styles.css">
 <script src="constants.js"></script>
@@ -79,12 +79,13 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="useDragMark.js"></script>
 <script src="import-formats.js"></script>
 <script src="components.js"></script>
+<script src="components-stats.js"></script>
 <script src="components/PartialStitchThumb.js"></script>
 <script src="components/Overlay.js"></script>
 <script src="header.js"></script>
 <script src="modals.js"></script>
-<script src="help-drawer.js"></script>
-<script src="onboarding-wizard.js"></script>
+<script src="help-drawer.js" defer></script>
+<script src="onboarding-wizard.js" defer></script>
 <script src="threadCalc.js"></script>
 <script src="project-storage.js"></script>
 <!-- Lazy import engine: the full bundle (~126 KB) loads on first picker / DnD use. See reports/perf-opt-2-spec.md. -->
@@ -99,22 +100,28 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="apply-prefs.js"></script>
 <script src="toast.js"></script>
 <script>window.__csPageKind = 'creator';</script>
-<script src="command-palette.js"></script>
-<script src="preferences-modal.js"></script>
+<script src="command-palette.js" defer></script>
+<script src="preferences-modal.js" defer></script>
 <script src="insights-engine.js"></script>
 <script src="assets/fonts/CrossStitchSymbols.base64.js"></script>
 <script src="creator/bundle.js"></script>
-<!-- Lazy-load helpers — available to both regular and Babel scripts -->
+<!-- Action plan §3.2: Materials & Output components + Stash-Adapt modal
+     pipeline live in a separate bundle that downloads in parallel with the
+     main bundle but doesn't block HTML parsing. -->
+<script src="creator/extras-bundle.js" defer></script>
+<!-- Lazy-load helpers â€” available to both regular and Babel scripts -->
 <script>
-window.loadScript = function(src) {
+window.loadScript = function(src, opts) {
   if (document.querySelector('script[src="' + src + '"]')) return Promise.resolve();
+  opts = opts || {};
   return new Promise(function(res, rej) {
     var s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej;
+    if (opts.integrity) { s.integrity = opts.integrity; s.crossOrigin = opts.crossOrigin || 'anonymous'; s.referrerPolicy = 'no-referrer'; }
     document.head.appendChild(s);
   });
 };
 window.loadPdfStack = function() {
-  return window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js')
+  return window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', { integrity: 'sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e' })
     .then(function() {
       if (typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
       return window.loadScript('pdf-importer.js');
@@ -160,7 +167,7 @@ window.loadTrackerApp = function() {
     try { localStorage.setItem(TRACKER_CACHE_KEY, compiled); } catch(e) {}
     var s = document.createElement('script'); s.textContent = '(function(){' + compiled + '})();'; document.head.appendChild(s);
   }).catch(function(err) {
-    /* file:// or network error — fall back to Babel MutationObserver path */
+    /* file:// or network error â€” fall back to Babel MutationObserver path */
     console.error('loadTrackerApp failed:', err);
     window.__trackerLoading = false;
     var s = document.createElement('script'); s.type = 'text/babel'; s.src = 'tracker-app.js';
@@ -187,83 +194,44 @@ window.loadCreatorMain = function() {
     window.__creatorMainLoaded = true;
     var s = document.createElement('script'); s.textContent = '(function(){' + compiled + '})();'; document.head.appendChild(s);
   }).catch(function() {
-    /* file:// or network error — fall back to Babel MutationObserver path */
+    /* file:// or network error â€” fall back to Babel MutationObserver path */
     window.__creatorMainLoading = false;
     var s = document.createElement('script'); s.type = 'text/babel'; s.src = 'creator-main.js';
     document.head.appendChild(s);
   });
-};/* Loads stats-activity.js via Babel, caching compiled output in localStorage.
-   Falls back to direct text/babel tag if fetch is unavailable. */
-var ACTIVITY_CACHE_KEY = 'babel_activity_4172b908a9';
+};/* stats-activity.js / stats-insights.js / stats-page.js are pure
+   React.createElement (no JSX), so they're injected as plain <script src>
+   without Babel.transform. SW + HTTP cache handle freshness; old
+   localStorage cache entries are removed on first load to free space. */
 window.loadStatsActivity = function() {
   if (window.__statsActivityLoading || window.__statsActivityLoaded) return;
   window.__statsActivityLoading = true;
-  var cached = null;
-  try { cached = localStorage.getItem(ACTIVITY_CACHE_KEY); } catch(e) {}
-  if (cached) {
-    window.__statsActivityLoaded = true;
-    var s = document.createElement('script'); s.textContent = '(function(){' + cached + '})();'; document.head.appendChild(s); return;
-  }
-  fetch('stats-activity.js').then(function(r) {
-    return r.ok ? r.text() : Promise.reject('fetch failed');
-  }).then(function(src) {
-    var compiled = Babel.transform(src, { presets: ['react'], filename: 'stats-activity.js' }).code;
-    try { localStorage.setItem(ACTIVITY_CACHE_KEY, compiled); } catch(e) {}
-    window.__statsActivityLoaded = true;
-    var s = document.createElement('script'); s.textContent = '(function(){' + compiled + '})();'; document.head.appendChild(s);
-  }).catch(function() {
-    window.__statsActivityLoading = false;
-    var s = document.createElement('script'); s.type = 'text/babel'; s.src = 'stats-activity.js';
-    document.head.appendChild(s);
-  });
-};/* Loads stats-insights.js via Babel, caching compiled output in localStorage.
-   Falls back to direct text/babel tag if fetch is unavailable. (Brief E) */
-var INSIGHTS_CACHE_KEY = 'babel_insights_a9d11c6dc2';
+  try { localStorage.removeItem('babel_activity_b51213250f'); localStorage.removeItem('babel_activity_4172b908a9'); } catch(e) {}
+  var s = document.createElement('script');
+  s.src = 'stats-activity.js';
+  s.onload = function() { window.__statsActivityLoaded = true; window.__statsActivityLoading = false; };
+  s.onerror = function() { window.__statsActivityLoading = false; };
+  document.head.appendChild(s);
+};
 window.loadStatsInsights = function() {
   if (window.__statsInsightsLoading || window.__statsInsightsLoaded) return;
   window.__statsInsightsLoading = true;
-  var cached = null;
-  try { cached = localStorage.getItem(INSIGHTS_CACHE_KEY); } catch(e) {}
-  if (cached) {
-    window.__statsInsightsLoaded = true;
-    var s = document.createElement('script'); s.textContent = '(function(){' + cached + '})();'; document.head.appendChild(s); return;
-  }
-  fetch('stats-insights.js').then(function(r) {
-    return r.ok ? r.text() : Promise.reject('fetch failed');
-  }).then(function(src) {
-    var compiled = Babel.transform(src, { presets: ['react'], filename: 'stats-insights.js' }).code;
-    try { localStorage.setItem(INSIGHTS_CACHE_KEY, compiled); } catch(e) {}
-    window.__statsInsightsLoaded = true;
-    var s = document.createElement('script'); s.textContent = '(function(){' + compiled + '})();'; document.head.appendChild(s);
-  }).catch(function() {
-    window.__statsInsightsLoading = false;
-    var s = document.createElement('script'); s.type = 'text/babel'; s.src = 'stats-insights.js';
-    document.head.appendChild(s);
-  });
-};/* Loads stats-page.js via Babel, caching compiled output in localStorage.
-   Falls back to direct text/babel tag if fetch is unavailable. */
-var STATS_CACHE_KEY = 'babel_stats_eec9875a84';
+  try { localStorage.removeItem('babel_insights_a9d11c6dc2'); } catch(e) {}
+  var s = document.createElement('script');
+  s.src = 'stats-insights.js';
+  s.onload = function() { window.__statsInsightsLoaded = true; window.__statsInsightsLoading = false; };
+  s.onerror = function() { window.__statsInsightsLoading = false; };
+  document.head.appendChild(s);
+};
 window.loadStatsPage = function() {
   if (window.__statsPageLoading || window.__statsPageLoaded) return;
   window.__statsPageLoading = true;
-  var cached = null;
-  try { cached = localStorage.getItem(STATS_CACHE_KEY); } catch(e) {}
-  if (cached) {
-    window.__statsPageLoaded = true;
-    var s = document.createElement('script'); s.textContent = '(function(){' + cached + '})();'; document.head.appendChild(s); return;
-  }
-  fetch('stats-page.js').then(function(r) {
-    return r.ok ? r.text() : Promise.reject('fetch failed');
-  }).then(function(src) {
-    var compiled = Babel.transform(src, { presets: ['react'], filename: 'stats-page.js' }).code;
-    try { localStorage.setItem(STATS_CACHE_KEY, compiled); } catch(e) {}
-    window.__statsPageLoaded = true;
-    var s = document.createElement('script'); s.textContent = '(function(){' + compiled + '})();'; document.head.appendChild(s);
-  }).catch(function() {
-    window.__statsPageLoading = false;
-    var s = document.createElement('script'); s.type = 'text/babel'; s.src = 'stats-page.js';
-    document.head.appendChild(s);
-  });
+  try { localStorage.removeItem('babel_stats_1a95b826aa'); } catch(e) {}
+  var s = document.createElement('script');
+  s.src = 'stats-page.js';
+  s.onload = function() { window.__statsPageLoaded = true; window.__statsPageLoading = false; };
+  s.onerror = function() { window.__statsPageLoading = false; };
+  document.head.appendChild(s);
 };
 </script>
 <!-- TrackerApp is lazy-loaded (above) the first time the user switches to Track mode -->

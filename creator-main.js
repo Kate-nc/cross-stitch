@@ -559,7 +559,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     tintOpacity: state.tintOpacity, setTintOpacity: state.setTintOpacity,
     spotDimOpacity: state.spotDimOpacity, setSpotDimOpacity: state.setSpotDimOpacity,
     antsOffset: state.antsOffset, setAntsOffset: state.setAntsOffset,
-    hoverCoords: state.hoverCoords, setHoverCoords: state.setHoverCoords,
     contextMenu: state.contextMenu, setContextMenu: state.setContextMenu,
     selectionModifier: state.selectionModifier, setSelectionModifier: state.setSelectionModifier,
     bsLines: state.bsLines, setBsLines: state.setBsLines,
@@ -630,7 +629,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.highlightMode, state.bgDimOpacity, state.hiAdvanced,
     state.bgDimDesaturation, state.dimFraction, state.dimHiId,
     state.tintColor, state.tintOpacity, state.spotDimOpacity,
-    state.antsOffset, state.hoverCoords, state.contextMenu,
+    state.antsOffset, state.contextMenu,
     state.selectionModifier, state.bsLines, state.bsStart, state.bsContinuous,
     state.editHistory, state.redoHistory, state.stitchType, state.cs,
     state.paletteSwap,
@@ -646,6 +645,20 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.lassoPreviewMask, state.lassoOpMode, state.lassoPointCount, state.lassoInProgress,
     state.colourReplaceModal,
   ]);
+
+  // ── HoverContext value (pointer hover coords only) ──
+  // Action plan headline H5 (=2B.1). hoverCoords ticks at ~60 fps during a
+  // mouse-move; if it lived inside cvCtx every consumer of CanvasContext
+  // (Sidebar, ToolStrip, MagicWandPanel, ContextMenu, LegendTab, Pattern-
+  // Tab, PreviewCanvas, etc.) would re-render every frame and the
+  // Sidebar's `displayPal.map(...)` would dominate the main thread. With
+  // its own context the hover stream only invalidates PatternCanvas's
+  // overlay effect and PatternTab's coordinate readout — the consumers
+  // that actually look at the value.
+  const hovCtx = useMemo(function() { return {
+    hoverCoords: state.hoverCoords,
+    setHoverCoords: state.setHoverCoords,
+  }; }, [state.hoverCoords]);
 
   // ── PatternDataContext value (core pattern data, dimensions, derived values) ──
   const pdCtx = useMemo(function() { return {
@@ -792,6 +805,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     <window.AppContext.Provider value={appCtx}>
     <window.CanvasContext.Provider value={cvCtx}>
     <window.PatternDataContext.Provider value={pdCtx}>
+    <window.HoverContext.Provider value={hovCtx}>
       <input ref={state.loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={(e)=>{
         var f = e.target.files && e.target.files[0];
         if (!f) return;
@@ -956,7 +970,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             {state.pat&&state.pal&&<div className={"cs-page-fade cs-page-fade--"+state.tab}>
               <window.CreatorPatternTab/>
               <window.CreatorProjectTab/>
-              <window.CreatorMaterialsHub/>
+              {/* Action plan §3.2: MaterialsHub lives in creator/extras-bundle.js
+                  which is loaded with `defer`. Guard against the brief window
+                  before the deferred script finishes parsing. */}
+              {typeof window.CreatorMaterialsHub!=="undefined"&&<window.CreatorMaterialsHub/>}
             </div>}
             {!state.pat&&state.img&&<div style={{display:"flex",flexDirection:"column",gap:16,padding:"20px 16px"}}>
               {!state.previewUrl&&<div className="card" style={{overflow:"hidden"}}>
@@ -1127,6 +1144,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onComplete: ()=>_coach.complete('toolsTab_unlocked'),
         onSkip: ()=>_coach.skip('toolsTab_unlocked')
       })}
+    </window.HoverContext.Provider>
     </window.PatternDataContext.Provider>
     </window.CanvasContext.Provider>
     </window.AppContext.Provider>
@@ -1381,22 +1399,44 @@ function UnifiedApp(){
   try {
     var p = new URLSearchParams(window.location.search);
     var act = p.get('action');
-    if (!act) return;
-    window.history.replaceState({}, '', window.location.pathname);
-    if (typeof ProjectStorage !== 'undefined') {
-      try { ProjectStorage.clearActiveProject(); } catch (_) {}
+    // Recovery path: a SW-triggered reload may have stripped action= from the
+    // URL (via history.replaceState below) while an image handoff was in
+    // progress. If sessionStorage still holds the data URL AND there is no
+    // active project to resume, treat this as an interrupted home-image-pending
+    // navigation and reconstruct the pending file.
+    var hasPendingImage = false;
+    if (!act) {
+      try {
+        if (sessionStorage.getItem('cs_pending_image_dataurl') &&
+            !localStorage.getItem('crossstitch_active_project')) {
+          hasPendingImage = true;
+        }
+      } catch (_) {}
     }
+    if (!act && !hasPendingImage) return;
+    window.history.replaceState({}, '', window.location.pathname);
     if (act === 'new-blank') {
+      // Clear stale active project so the welcome card doesn't briefly flash.
+      if (typeof ProjectStorage !== 'undefined') {
+        try { ProjectStorage.clearActiveProject(); } catch (_) {}
+      }
       window.__pendingCreatorAction = 'scratch';
       // Match handleHomeOpenCreatorBlank: scratch defaults to Edit, not Create.
       setTimeout(function(){ if (window.__setCreatorAppMode) window.__setCreatorAppMode('edit'); }, 0);
-    } else if (act === 'home-image-pending') {
+    } else if (act === 'home-image-pending' || hasPendingImage) {
+      // Do NOT call clearActiveProject() here: if a SW reload triggers
+      // location.reload() after history.replaceState has already stripped the
+      // URL, the redirect guard would find no action= AND no active project and
+      // bounce the user back to /home. Clearing it was doubly wrong for
+      // home-image-pending anyway (the upload creates a fresh project later).
       var pendingDataUrl = sessionStorage.getItem('cs_pending_image_dataurl');
       var pendingName    = sessionStorage.getItem('cs_pending_image_name') || 'image.jpg';
       var pendingType    = sessionStorage.getItem('cs_pending_image_type') || 'image/jpeg';
-      sessionStorage.removeItem('cs_pending_image_dataurl');
-      sessionStorage.removeItem('cs_pending_image_name');
-      sessionStorage.removeItem('cs_pending_image_type');
+      // Intentionally NOT removing sessionStorage items yet. They serve as a
+      // reload-safety backup: if a SW controllerchange fires between now and
+      // when useProjectIO.js picks up window.__pendingCreatorFile, a reload can
+      // re-enter this branch, reconstruct the file, and proceed normally.
+      // useProjectIO.js clears them after handleFile() is called.
       if (pendingDataUrl) {
         var b64 = pendingDataUrl.split(',')[1];
         var byteStr = atob(b64);
@@ -1415,6 +1455,9 @@ function UnifiedApp(){
       window.location.replace('home.html?tab=create');
       return;
     } else if (act === 'open') {
+      if (typeof ProjectStorage !== 'undefined') {
+        try { ProjectStorage.clearActiveProject(); } catch (_) {}
+      }
       setTimeout(function(){ if (window.__setCreatorAppMode) window.__setCreatorAppMode('edit'); }, 0);
     }
   } catch (_) { /* never block render */ }

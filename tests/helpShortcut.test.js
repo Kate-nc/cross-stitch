@@ -37,7 +37,8 @@ global.React = {
   useEffect: function () {} // not exercised in this test
 };
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'keyboard-utils.js'), 'utf8');
+const { loadSource } = require('./_helpers/loadSource');
+const src = loadSource('keyboard-utils.js');
 eval(src);
 
 describe('keyboard-utils global "?" shortcut', () => {

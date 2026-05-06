@@ -1,0 +1,26 @@
+# Default — auto-detect text vs binary, normalise EOLs to LF in repo
+* text=auto eol=lf
+
+# Binary assets — never line-end normalise, never diff inline
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+
+# Generated / vendored bundles — mark as generated so GitHub UI collapses
+# them in PR diffs and the linguist language stats stop counting them.
+creator/bundle.js                            linguist-generated=true -diff
+creator/extras-bundle.js                     linguist-generated=true -diff
+creator/import-wizard-bundle.js              linguist-generated=true -diff
+import-engine/bundle.js                      linguist-generated=true -diff
+assets/fonts/CrossStitchSymbols.base64.js    linguist-generated=true -diff
+pdf.worker.min.js                            linguist-vendored=true -diff
+assets/fontkit.umd.min.js                    linguist-vendored=true -diff

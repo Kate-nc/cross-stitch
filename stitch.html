@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -28,23 +28,28 @@
       var skip = /(\?|&)(from=home|action=)/.test(qs);
       if (!skip) { location.replace('home.html'); return; }
     }
-  } catch (_) { /* localStorage blocked → load tool normally */ }
+  } catch (_) { /* localStorage blocked â†’ load tool normally */ }
 })();
 </script>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" integrity="sha384-tMH8h3BGESGckSAVGZ82T9n90ztNXxvdwvdM6UoR56cYcf+0iGXBliJ29D+wZ/x8" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" integrity="sha384-bm7MnzvK++ykSwVJ2tynSE5TRdN+xL418osEVF2DE/L/gfWHj91J2Sphe582B1Bh" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js" integrity="sha384-ku9eM40vVDsFUiERorrdlHlF0LIhdfn716M7TntM72Uo98T7LWiogD3hNenPx8Q0" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js" integrity="sha384-rNlaE5fs9dGIjmxWDALQh/RBAaGRYT5ChrzHo6tRfgrZ36iRFAiquP5g41Jsv+0j" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <!-- pdf.js + pdf-importer are lazy-loaded on first PDF import -->
 <script>
-window.loadScript = function(src) {
+window.loadScript = function(src, opts) {
   if (document.querySelector('script[src="' + src + '"]')) return Promise.resolve();
-  return new Promise(function(res, rej) { var s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+  opts = opts || {};
+  return new Promise(function(res, rej) {
+    var s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej;
+    if (opts.integrity) { s.integrity = opts.integrity; s.crossOrigin = opts.crossOrigin || 'anonymous'; s.referrerPolicy = 'no-referrer'; }
+    document.head.appendChild(s);
+  });
 };
 window.loadPdfStack = function() {
-  return window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js')
+  return window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', { integrity: 'sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e' })
     .then(function() { if (typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js'; return window.loadScript('pdf-importer.js'); });
 };
 </script>
@@ -65,12 +70,13 @@ window.loadPdfStack = function() {
 <script src="icons.js"></script>
 <script src="import-formats.js"></script>
 <script src="components.js"></script>
+<script src="components-stats.js"></script>
 <script src="components/PartialStitchThumb.js"></script>
 <script src="components/Overlay.js"></script>
 <script src="header.js"></script>
 <script src="modals.js"></script>
-<script src="help-drawer.js"></script>
-<script src="onboarding-wizard.js"></script>
+<script src="help-drawer.js" defer></script>
+<script src="onboarding-wizard.js" defer></script>
 <script src="threadCalc.js"></script>
 <script src="project-storage.js"></script>
 <!-- Lazy import engine: the full bundle (~126 KB) loads on first picker / DnD use. See reports/perf-opt-2-spec.md. -->
@@ -83,8 +89,8 @@ window.loadPdfStack = function() {
 <script src="touch-constants.js"></script>
 <script src="toast.js"></script>
 <script>window.__csPageKind = 'tracker';</script>
-<script src="command-palette.js"></script>
-<script src="preferences-modal.js"></script>
+<script src="command-palette.js" defer></script>
+<script src="preferences-modal.js" defer></script>
 </head>
 <body>
 <a class="skip-to-content" href="#main-content">Skip to content</a>
@@ -113,7 +119,46 @@ window.loadPdfStack = function() {
   } catch (_) {}
 })();
 </script>
-<script type="text/babel" src="tracker-app.js"></script>
+<script>
+/* PERF (action plan Â§2A.5): cache the in-browser Babel compile of
+   tracker-app.js in localStorage. Without this, every page load
+   re-runs Babel on the ~6 KLOC source (~80â€“150 ms TBT). The cache
+   key is shared with index.html so visitors who land on either entry
+   benefit from a single compile. The hash suffix is auto-bumped by
+   build-creator-bundle.js when tracker-app.js content changes. */
+(function () {
+  if (typeof window === 'undefined') return;
+  var TRACKER_CACHE_KEY = 'babel_tracker_16421a6b9e';
+  var cached = null;
+  try { cached = localStorage.getItem(TRACKER_CACHE_KEY); } catch (e) {}
+  if (cached) {
+    /* Wrap in IIFE so const/let don't collide with the surrounding script. */
+    var s = document.createElement('script');
+    s.textContent = '(function(){' + cached + '})();';
+    document.head.appendChild(s);
+    return;
+  }
+  /* No cache yet: fetch + compile. On fetch failure (file://, offline)
+     fall back to a text/babel tag so Babel-standalone compiles inline. */
+  if (typeof Babel === 'undefined') {
+    var fb0 = document.createElement('script'); fb0.type = 'text/babel'; fb0.src = 'tracker-app.js';
+    document.head.appendChild(fb0);
+    return;
+  }
+  fetch('tracker-app.js').then(function (r) {
+    return r.ok ? r.text() : Promise.reject('fetch failed');
+  }).then(function (src) {
+    var compiled = Babel.transform(src, { presets: ['react'], filename: 'tracker-app.js' }).code;
+    try { localStorage.setItem(TRACKER_CACHE_KEY, compiled); } catch (e) {}
+    var s = document.createElement('script');
+    s.textContent = '(function(){' + compiled + '})();';
+    document.head.appendChild(s);
+  }).catch(function () {
+    var fb = document.createElement('script'); fb.type = 'text/babel'; fb.src = 'tracker-app.js';
+    document.head.appendChild(fb);
+  });
+})();
+</script>
 <script src="./version.js"></script>
 <script src="./sw-register.js"></script>
 </body>
