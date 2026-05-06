@@ -1,13 +1,13 @@
 # Getting Started Guide
 
-Welcome to StitchX! This guide walks you through opening the app for the first time and understanding how everything fits together.
+Welcome to stitchx! This guide walks you through opening the app for the first time and understanding how everything fits together.
 
 ## Opening the App
 
 ### First Launch
 
 1. **Go to the Home Screen** — Open `home.html` in your browser, or navigate to your deployment URL.
-2. **No sign-in required** — StitchX stores everything locally in your browser's IndexedDB. No account, no login.
+2. **No sign-in required** — stitchx stores everything locally in your browser's IndexedDB. No account, no login.
 
 > **Tip:** Bookmark the page or use your browser's "Add to home screen" option (iOS/Android) for quick access.
 
@@ -169,7 +169,7 @@ See **[Backup & Restore](Backup-Restore.md)** for full details.
 
 ## Using Across Multiple Devices
 
-StitchX supports two sync methods:
+stitchx supports two sync methods:
 
 ### Method 1: Automatic Folder Sync (Recommended)
 
@@ -209,7 +209,7 @@ Your projects will now appear on Device B. See **Cross-Device Sync** for advance
 
 **A:** Yes. The Stitch Tracker (and the home-screen importer) can load:
 - `.oxs` files (KG-Chart / Pattern Keeper format)
-- `.json` StitchX project files
+- `.json` stitchx project files
 - Image files (`.png`, `.jpg`) — converted to a cross-stitch pattern
 - PDF pattern files (experimental)
 
@@ -226,7 +226,7 @@ See **[Export Formats Explained](Export-Formats.md)** for details.
 
 ### Q: Does this work on my phone?
 
-**A:** Yes. StitchX is responsive and works on iPhones, Android phones, and tablets. The layout adjusts for smaller screens and all core features are accessible on mobile.
+**A:** Yes. stitchx is responsive and works on iPhones, Android phones, and tablets. The layout adjusts for smaller screens and all core features are accessible on mobile.
 
 ### Q: Can I undo my mistakes?
 

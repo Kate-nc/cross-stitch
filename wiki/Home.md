@@ -1,10 +1,10 @@
-# StitchX — Wiki Home
+# stitchx — Wiki Home
 
-Welcome to **StitchX**, a fully client-side web application suite for creating, managing, and tracking cross-stitch patterns. No backend, no installation, no login required — just open it in your browser and start stitching.
+Welcome to **stitchx**, a fully client-side web application suite for creating, managing, and tracking cross-stitch patterns. No backend, no installation, no login required — just open it in your browser and start stitching.
 
-## What is StitchX?
+## What is stitchx?
 
-StitchX is an integrated toolkit of three specialized applications designed to handle every step of the cross-stitch journey:
+stitchx is an integrated toolkit of three specialized applications designed to handle every step of the cross-stitch journey:
 
 1. **Pattern Creator** — Convert images into stitchable charts or design from scratch
 2. **Stitch Tracker** — Track your progress while you physically stitch
@@ -202,7 +202,7 @@ Essential shortcuts across all tools:
 
 ## Browser Support
 
-StitchX works on any modern browser:
+stitchx works on any modern browser:
 
 - Chrome/Edge 90+
 - Firefox 88+
@@ -228,7 +228,7 @@ StitchX works on any modern browser:
 
 ### Contributing
 
-Want to help improve StitchX? See [Contributing Guide](Contributing.md) for details on:
+Want to help improve stitchx? See [Contributing Guide](Contributing.md) for details on:
 
 - Setting up the development environment
 - Running tests

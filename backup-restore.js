@@ -233,7 +233,7 @@ const BackupRestore = (() => {
     // Validates a backup object. Returns { valid: bool, error?: string, summary?: {} }
     validate(backup) {
       if (!backup || backup._format !== "cross-stitch-backup") {
-        return { valid: false, error: "Not a valid StitchX backup file." };
+        return { valid: false, error: "Not a valid stitchx backup file." };
       }
       if (backup._version !== 1) {
         return { valid: false, error: "Unsupported backup version: " + backup._version };

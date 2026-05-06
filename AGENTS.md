@@ -1,4 +1,4 @@
-# Agent Instructions — StitchX
+# Agent Instructions — stitchx
 
 This file is read by AI coding agents (Copilot, Claude, Cursor, Aider, etc.).
 The full project guidance lives in [.github/copilot-instructions.md](.github/copilot-instructions.md);

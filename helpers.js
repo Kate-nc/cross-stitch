@@ -1084,7 +1084,7 @@ function generateShareText(projectName, stats, sessions, totalCompleted, totalSt
   }
 
   lines.push('\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
-  lines.push('Tracked with StitchX');
+  lines.push('Tracked with stitchx');
 
   return lines.join('\n');
 }

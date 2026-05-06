@@ -1,4 +1,4 @@
-# Copilot Instructions — StitchX
+# Copilot Instructions — stitchx
 
 > **No emojis in user-facing UI.** Use the SVG icons in [icons.js](../icons.js)
 > via `window.Icons.{name}()`. If a suitable icon doesn't exist, ADD one to

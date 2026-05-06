@@ -1203,7 +1203,7 @@ function drawProgressCard(canvas, opts) {
   ctx.font = '10px system-ui, sans-serif';
   ctx.textAlign = 'right';
   ctx.textBaseline = 'alphabetic';
-  ctx.fillText('Made with StitchX', W - 18, H - 7);
+  ctx.fillText('Made with stitchx', W - 18, H - 7);
 }
 
 function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStitches, halfStitchCounts, onEditNote, onUpdateSettings, onClose, projectName, onShareProgress, onExportCSV, palette, colourDoneCounts, achievedMilestones, done, pat, sW, sH, doneSnapshots, setDoneSnapshots, sections, currentProjectId, onOpenProject, canEdit}){

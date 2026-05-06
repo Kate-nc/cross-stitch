@@ -453,7 +453,7 @@ function ShareCardModal({ lifetimeStitches, onClose }) {
       // Watermark
       ctx.fillStyle = '#A89E89';
       ctx.font = '400 20px Inter, system-ui, sans-serif';
-      ctx.fillText('StitchX', W / 2, H - 100);
+      ctx.fillText('stitchx', W / 2, H - 100);
       setRendered(true);
     };
     // Ensure font is loaded

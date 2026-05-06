@@ -1,6 +1,6 @@
 {
-  "name": "StitchX",
-  "short_name": "StitchX",
+  "name": "stitchx",
+  "short_name": "stitchx",
   "start_url": "./home.html",
   "scope": "./",
   "display": "standalone",

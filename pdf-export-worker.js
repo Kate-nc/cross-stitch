@@ -145,8 +145,8 @@ async function buildPdf(project, options, reqId) {
 
   var pdfDoc = await PDFLib.PDFDocument.create();
   pdfDoc.setTitle(project.name || "Cross-stitch pattern");
-  pdfDoc.setCreator("StitchX");
-  pdfDoc.setProducer("StitchX (pdf-lib)");
+  pdfDoc.setCreator("stitchx");
+  pdfDoc.setProducer("stitchx (pdf-lib)");
 
   // Register fontkit so pdf-lib can embed custom (non-standard) fonts.
   if (self.fontkit) pdfDoc.registerFontkit(self.fontkit);

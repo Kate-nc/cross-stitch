@@ -1,4 +1,4 @@
-# Recent Fixes Applied to StitchX
+# Recent Fixes Applied to stitchx
 
 This document explains, in everyday language, the bugs that have been fixed in recent commits so users can understand what changed and test the improvements.
 

@@ -1,4 +1,4 @@
-# Suggested Wiki Pages for StitchX
+# Suggested Wiki Pages for stitchx
 
 ## Overview
 

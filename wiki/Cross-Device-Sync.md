@@ -4,7 +4,7 @@ Sync your projects across multiple devices (phone, tablet, laptop) so you can st
 
 ## Overview
 
-StitchX supports two sync methods:
+stitchx supports two sync methods:
 
 | Method | Pros | Cons | Browser Support |
 |--------|------|------|-----------------|

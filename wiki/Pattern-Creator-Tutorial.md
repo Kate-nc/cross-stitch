@@ -1,6 +1,6 @@
 # Pattern Creator Tutorial
 
-Learn to convert images into cross-stitch patterns using StitchX, edit them, and export your first chart.
+Learn to convert images into cross-stitch patterns using stitchx, edit them, and export your first chart.
 
 ## Overview
 

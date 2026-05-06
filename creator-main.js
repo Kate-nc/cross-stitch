@@ -915,7 +915,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       <window.CreatorToolStrip/>
       <div className="cs-page-content">
         {state.loadError&&<div style={{background:"#FCEFEF",border:"1px solid #ECC8C8",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#A53D3D",marginBottom:12}}>{state.loadError}</div>}
-        {/* Hide the legacy "Welcome to StitchX" card
+        {/* Hide the legacy "Welcome to stitchx" card
             while a /home handoff is in flight (image being decoded, scratch
             project being built, JSON being loaded). Without this guard the
             user sees the welcome flash for a beat and assumes their action

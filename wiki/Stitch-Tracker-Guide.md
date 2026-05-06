@@ -205,7 +205,7 @@ Based on your accumulated stitching speed across all sessions:
 
 | Format | How to Use |
 |--------|-----------|
-| **JSON Project** | StitchX project file — click to load |
+| **JSON Project** | stitchx project file — click to load |
 | **OXS File** | Pattern Keeper or KG-Chart format — upload file |
 | **Image** | PNG or JPG file — converted to pattern |
 | **PDF** | Scanned pattern (experimental) — upload file |
