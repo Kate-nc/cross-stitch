@@ -18,6 +18,7 @@
 # Generated / vendored bundles — mark as generated so GitHub UI collapses
 # them in PR diffs and the linguist language stats stop counting them.
 creator/bundle.js                            linguist-generated=true -diff
+creator/extras-bundle.js                     linguist-generated=true -diff
 creator/import-wizard-bundle.js              linguist-generated=true -diff
 import-engine/bundle.js                      linguist-generated=true -diff
 assets/fonts/CrossStitchSymbols.base64.js    linguist-generated=true -diff

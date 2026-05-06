@@ -125,21 +125,8 @@ describe('B3 — Creator sub-page consolidation', () => {
     });
   });
 
-  describe('Consolidation map document', () => {
-    it('exists at reports/b3-consolidation-map.md', () => {
-      const p = path.join(__dirname, '..', 'reports', 'b3-consolidation-map.md');
-      expect(fs.existsSync(p)).toBe(true);
-    });
-
-    it('lists each old page and its new home', () => {
-      const src = read('reports/b3-consolidation-map.md');
-      // The mapping table mentions every former page name.
-      expect(src).toMatch(/Pattern/);
-      expect(src).toMatch(/Project/);
-      expect(src).toMatch(/Materials/);
-      expect(src).toMatch(/Prepare/);
-      expect(src).toMatch(/Export/);
-      expect(src).toMatch(/materialsTab/);
-    });
-  });
+  // Note: the historical consolidation map document
+  // (reports/b3-consolidation-map.md) was archived once the migration
+  // settled. The behavioural assertions above remain the source of
+  // truth for the consolidation.
 });
