@@ -61,4 +61,30 @@ describe('WelcomeWizard', () => {
     expect(window.WelcomeWizard.STEPS.manager.length).toBeGreaterThanOrEqual(2);
     expect(window.WelcomeWizard.STEPS.tracker.length).toBeGreaterThanOrEqual(2);
   });
+
+  test('STEPS.creator[2] targets the home-from-image element', () => {
+    const step = window.WelcomeWizard.STEPS.creator[2];
+    expect(step.target).toBe('[data-onboard="home-from-image"]');
+  });
+
+  test('No creator step body contains stale "Start New" panel reference', () => {
+    const bodies = window.WelcomeWizard.STEPS.creator.map(s => s.body || '');
+    bodies.forEach(body => {
+      expect(body).not.toMatch(/Start New/);
+    });
+  });
+
+  test('No creator step body contains directional references "above" or "below"', () => {
+    const bodies = window.WelcomeWizard.STEPS.creator.map(s => s.body || '');
+    bodies.forEach(body => {
+      expect(body).not.toMatch(/\babove\b/i);
+      expect(body).not.toMatch(/\bbelow\b/i);
+    });
+  });
+
+  test('STEPS.manager step titles do not start with a digit', () => {
+    window.WelcomeWizard.STEPS.manager.forEach(step => {
+      expect(step.title).not.toMatch(/^\d/);
+    });
+  });
 });
