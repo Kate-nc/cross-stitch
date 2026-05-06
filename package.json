@@ -16,6 +16,7 @@
     "lint:terminology": "node scripts/lint-terminology.js",
     "lint:css-tokens": "node scripts/lint-css-tokens.js",
     "build:creator": "node build-creator-bundle.js",
+    "build": "node build-creator-bundle.js",
     "prepare": "node scripts/install-hooks.js"
   },
   "jest": {
