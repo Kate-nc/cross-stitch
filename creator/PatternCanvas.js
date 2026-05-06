@@ -9,6 +9,10 @@ window.PatternCanvas = function PatternCanvas() {
   var cv = window.useCanvas();
   var app = window.useApp();
   var gen = window.useGeneration();
+  // Hover coords live in their own context (action plan H5 = 2B.1) so the
+  // 60 fps mouse-move stream only re-renders the canvas overlay, not the
+  // entire CanvasContext consumer tree.
+  var hov = window.useHover() || {};
   var h = React.createElement;
   var G = app.G;
 
@@ -28,7 +32,7 @@ window.PatternCanvas = function PatternCanvas() {
   // Must be the MERGED snapshot across all 4 contexts because drawPatternBaseOnCanvas
   // and drawPatternOverlayOnCanvas expect the pre-refactor merged state shape.
   var ctxRef = React.useRef({});
-  ctxRef.current = Object.assign({}, ctx, cv, gen, { G: G, pcRef: app.pcRef, tab: app.tab });
+  ctxRef.current = Object.assign({}, ctx, cv, gen, hov, { G: G, pcRef: app.pcRef, tab: app.tab });
 
   // ── Effect: Animated marching ants for highlight outline mode
   var hlAntsRef = React.useRef(null);
@@ -128,7 +132,7 @@ window.PatternCanvas = function PatternCanvas() {
     context.putImageData(baseCacheRef.current, 0, 0);
     drawPatternOverlayOnCanvas(context, 0, 0, ctx.sW, ctx.sH, cv.cs, G, ctxRef.current);
   }, [
-    cv.hoverCoords, cv.selectedColorId, cv.bsStart,
+    hov.hoverCoords, cv.selectedColorId, cv.bsStart,
     // structural deps — needed so the overlay is redrawn correctly when these change
     ctx.pat, ctx.cmap, cv.cs, ctx.sW, ctx.sH, app.tab,
     cv.activeTool, cv.brushSize, cv.stitchType, ctx.partialStitchTool, cv.bsLines,

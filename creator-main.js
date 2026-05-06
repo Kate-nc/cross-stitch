@@ -559,7 +559,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     tintOpacity: state.tintOpacity, setTintOpacity: state.setTintOpacity,
     spotDimOpacity: state.spotDimOpacity, setSpotDimOpacity: state.setSpotDimOpacity,
     antsOffset: state.antsOffset, setAntsOffset: state.setAntsOffset,
-    hoverCoords: state.hoverCoords, setHoverCoords: state.setHoverCoords,
     contextMenu: state.contextMenu, setContextMenu: state.setContextMenu,
     selectionModifier: state.selectionModifier, setSelectionModifier: state.setSelectionModifier,
     bsLines: state.bsLines, setBsLines: state.setBsLines,
@@ -630,7 +629,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.highlightMode, state.bgDimOpacity, state.hiAdvanced,
     state.bgDimDesaturation, state.dimFraction, state.dimHiId,
     state.tintColor, state.tintOpacity, state.spotDimOpacity,
-    state.antsOffset, state.hoverCoords, state.contextMenu,
+    state.antsOffset, state.contextMenu,
     state.selectionModifier, state.bsLines, state.bsStart, state.bsContinuous,
     state.editHistory, state.redoHistory, state.stitchType, state.cs,
     state.paletteSwap,
@@ -646,6 +645,20 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.lassoPreviewMask, state.lassoOpMode, state.lassoPointCount, state.lassoInProgress,
     state.colourReplaceModal,
   ]);
+
+  // ── HoverContext value (pointer hover coords only) ──
+  // Action plan headline H5 (=2B.1). hoverCoords ticks at ~60 fps during a
+  // mouse-move; if it lived inside cvCtx every consumer of CanvasContext
+  // (Sidebar, ToolStrip, MagicWandPanel, ContextMenu, LegendTab, Pattern-
+  // Tab, PreviewCanvas, etc.) would re-render every frame and the
+  // Sidebar's `displayPal.map(...)` would dominate the main thread. With
+  // its own context the hover stream only invalidates PatternCanvas's
+  // overlay effect and PatternTab's coordinate readout — the consumers
+  // that actually look at the value.
+  const hovCtx = useMemo(function() { return {
+    hoverCoords: state.hoverCoords,
+    setHoverCoords: state.setHoverCoords,
+  }; }, [state.hoverCoords]);
 
   // ── PatternDataContext value (core pattern data, dimensions, derived values) ──
   const pdCtx = useMemo(function() { return {
@@ -792,6 +805,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     <window.AppContext.Provider value={appCtx}>
     <window.CanvasContext.Provider value={cvCtx}>
     <window.PatternDataContext.Provider value={pdCtx}>
+    <window.HoverContext.Provider value={hovCtx}>
       <input ref={state.loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={(e)=>{
         var f = e.target.files && e.target.files[0];
         if (!f) return;
@@ -1127,6 +1141,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onComplete: ()=>_coach.complete('toolsTab_unlocked'),
         onSkip: ()=>_coach.skip('toolsTab_unlocked')
       })}
+    </window.HoverContext.Provider>
     </window.PatternDataContext.Provider>
     </window.CanvasContext.Provider>
     </window.AppContext.Provider>

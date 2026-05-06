@@ -6,22 +6,27 @@
    Loaded as a plain <script> tag before any creator component or hook files.
    React is already a global from the CDN script.
 
-   Four contexts, split by concern:
+   Five contexts, split by concern:
    1. GenerationContext — image-to-pattern generation parameters & callbacks
    2. AppContext        — UI housekeeping (tabs, modals, panels, toasts, refs, export, preview)
    3. CanvasContext     — drawing tools, view, zoom, highlight, selection, edit history
    4. PatternDataContext (was CreatorContext) — core pattern data & derived values
+   5. HoverContext      — pointer hover coords (own context so the 60 fps
+      mouse-move stream does not invalidate every CanvasContext consumer;
+      action plan headline H5 = 2B.1).
 */
 
 window.GenerationContext = React.createContext(null);
 window.AppContext = React.createContext(null);
 window.CanvasContext = React.createContext(null);
 window.PatternDataContext = React.createContext(null);
+window.HoverContext = React.createContext(null);
 
 window.useGeneration = function useGeneration() { return React.useContext(window.GenerationContext); };
 window.useApp = function useApp() { return React.useContext(window.AppContext); };
 window.useCanvas = function useCanvas() { return React.useContext(window.CanvasContext); };
 window.usePatternData = function usePatternData() { return React.useContext(window.PatternDataContext); };
+window.useHover = function useHover() { return React.useContext(window.HoverContext); };
 
 
 /* ─── matchQuality.js ─── */
@@ -9335,6 +9340,10 @@ window.PatternCanvas = function PatternCanvas() {
   var cv = window.useCanvas();
   var app = window.useApp();
   var gen = window.useGeneration();
+  // Hover coords live in their own context (action plan H5 = 2B.1) so the
+  // 60 fps mouse-move stream only re-renders the canvas overlay, not the
+  // entire CanvasContext consumer tree.
+  var hov = window.useHover() || {};
   var h = React.createElement;
   var G = app.G;
 
@@ -9354,7 +9363,7 @@ window.PatternCanvas = function PatternCanvas() {
   // Must be the MERGED snapshot across all 4 contexts because drawPatternBaseOnCanvas
   // and drawPatternOverlayOnCanvas expect the pre-refactor merged state shape.
   var ctxRef = React.useRef({});
-  ctxRef.current = Object.assign({}, ctx, cv, gen, { G: G, pcRef: app.pcRef, tab: app.tab });
+  ctxRef.current = Object.assign({}, ctx, cv, gen, hov, { G: G, pcRef: app.pcRef, tab: app.tab });
 
   // ── Effect: Animated marching ants for highlight outline mode
   var hlAntsRef = React.useRef(null);
@@ -9454,7 +9463,7 @@ window.PatternCanvas = function PatternCanvas() {
     context.putImageData(baseCacheRef.current, 0, 0);
     drawPatternOverlayOnCanvas(context, 0, 0, ctx.sW, ctx.sH, cv.cs, G, ctxRef.current);
   }, [
-    cv.hoverCoords, cv.selectedColorId, cv.bsStart,
+    hov.hoverCoords, cv.selectedColorId, cv.bsStart,
     // structural deps — needed so the overlay is redrawn correctly when these change
     ctx.pat, ctx.cmap, cv.cs, ctx.sW, ctx.sH, app.tab,
     cv.activeTool, cv.brushSize, cv.stitchType, ctx.partialStitchTool, cv.bsLines,
@@ -13773,6 +13782,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   var cv = window.useCanvas();
   var app = window.useApp();
   var gen = window.useGeneration();
+  // Hover coords live in their own context (action plan H5 = 2B.1).
+  var hov = window.useHover() || {};
   var h = React.createElement;
 
   var _dismissed = React.useState(false); var confettiBannerDismissed = _dismissed[0], setConfettiBannerDismissed = _dismissed[1];
@@ -13961,9 +13972,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     // Enhanced status bar: tool hint + coordinates + colour-under-cursor
     (function() {
       var parts = [statusText];
-      if (cv.hoverCoords && cv.hoverCoords.gx >= 0 && cv.hoverCoords.gx < ctx.sW && cv.hoverCoords.gy >= 0 && cv.hoverCoords.gy < ctx.sH) {
-        parts.push("X: " + (cv.hoverCoords.gx + 1) + ", Y: " + (cv.hoverCoords.gy + 1));
-        var hIdx = cv.hoverCoords.gy * ctx.sW + cv.hoverCoords.gx;
+      if (hov.hoverCoords && hov.hoverCoords.gx >= 0 && hov.hoverCoords.gx < ctx.sW && hov.hoverCoords.gy >= 0 && hov.hoverCoords.gy < ctx.sH) {
+        parts.push("X: " + (hov.hoverCoords.gx + 1) + ", Y: " + (hov.hoverCoords.gy + 1));
+        var hIdx = hov.hoverCoords.gy * ctx.sW + hov.hoverCoords.gx;
         var hCell = ctx.pat[hIdx];
         if (hCell && hCell.id !== "__skip__" && hCell.id !== "__empty__" && ctx.cmap && ctx.cmap[hCell.id]) {
           var info = ctx.cmap[hCell.id];
@@ -13974,8 +13985,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         h("span", null, parts[0]),
         parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"var(--text-tertiary)",flexShrink:0}}, parts[1]),
         parts.length > 2 && h("span", {style:{display:"flex",alignItems:"center",gap:3,flexShrink:0}},
-          ctx.cmap && ctx.pat && cv.hoverCoords && (function() {
-            var hIdx2 = cv.hoverCoords.gy * ctx.sW + cv.hoverCoords.gx;
+          ctx.cmap && ctx.pat && hov.hoverCoords && (function() {
+            var hIdx2 = hov.hoverCoords.gy * ctx.sW + hov.hoverCoords.gx;
             var hCell2 = ctx.pat[hIdx2];
             if (hCell2 && hCell2.id !== "__skip__" && hCell2.id !== "__empty__" && ctx.cmap[hCell2.id]) {
               return h("span", {style:{width:8,height:8,borderRadius:2,display:"inline-block",border:"1px solid var(--border)",
