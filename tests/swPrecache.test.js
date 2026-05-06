@@ -32,8 +32,8 @@ describe('sw.js precache (UX-12 Phase 7 PR #13)', () => {
   // Bumped to v44 when pdf.worker.min.js (~1 MB) and assets/fontkit.umd.min.js
   // were dropped from PRECACHE_URLS (action plan headline H2 = 2A.3); both
   // are runtime-cached on first use so the SW install stays light.
-  test('CACHE_NAME bumped to v44', () => {
-    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v44['"]/);
+  test('CACHE_NAME bumped to v45', () => {
+    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v45['"]/);
   });
 
   test('PRECACHE_URLS does NOT include heavy lazy vendor blobs', () => {

@@ -970,7 +970,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             {state.pat&&state.pal&&<div className={"cs-page-fade cs-page-fade--"+state.tab}>
               <window.CreatorPatternTab/>
               <window.CreatorProjectTab/>
-              <window.CreatorMaterialsHub/>
+              {/* Action plan §3.2: MaterialsHub lives in creator/extras-bundle.js
+                  which is loaded with `defer`. Guard against the brief window
+                  before the deferred script finishes parsing. */}
+              {typeof window.CreatorMaterialsHub!=="undefined"&&<window.CreatorMaterialsHub/>}
             </div>}
             {!state.pat&&state.img&&<div style={{display:"flex",flexDirection:"column",gap:16,padding:"20px 16px"}}>
               {!state.previewUrl&&<div className="card" style={{overflow:"hidden"}}>

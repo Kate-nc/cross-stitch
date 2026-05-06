@@ -113,6 +113,13 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="insights-engine.js"></script>
 <script src="assets/fonts/CrossStitchSymbols.base64.js"></script>
 <script src="creator/bundle.js"></script>
+<!-- Action plan §3.2: Materials & Output components + Stash-Adapt modal
+     pipeline live in a separate bundle that downloads in parallel with the
+     main bundle but doesn't block HTML parsing. Every consumer guards with
+     `typeof window.X !== 'undefined'`, so a slow extras-bundle never
+     crashes the Pattern tab — the modal/tab just stays hidden until the
+     script finishes parsing. -->
+<script src="creator/extras-bundle.js" defer></script>
 <!-- Lazy-load helpers â€” available to both regular and Babel scripts -->
 <script>
 window.loadScript = function(src, opts) {
@@ -180,7 +187,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_10edaa073c';
+var CREATOR_CACHE_KEY = 'babel_creator_43022cc7dc';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;

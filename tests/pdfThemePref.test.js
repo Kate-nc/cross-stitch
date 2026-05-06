@@ -10,7 +10,9 @@ const path = require('path');
 
 const PREFS_SRC      = fs.readFileSync(path.join(__dirname, '..', 'user-prefs.js'), 'utf8');
 const EXPORT_TAB_SRC = fs.readFileSync(path.join(__dirname, '..', 'creator', 'ExportTab.js'), 'utf8');
-const BUNDLE_SRC     = fs.readFileSync(path.join(__dirname, '..', 'creator', 'bundle.js'), 'utf8');
+const BUNDLE_SRC     = fs.readFileSync(path.join(__dirname, '..', 'creator', 'bundle.js'), 'utf8')
+                     + '\n'
+                     + fs.readFileSync(path.join(__dirname, '..', 'creator', 'extras-bundle.js'), 'utf8');
 
 describe('user-prefs.js DEFAULTS', () => {
   test('defines creator.pdfWorkshopTheme: false', () => {
