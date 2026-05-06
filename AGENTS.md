@@ -7,7 +7,9 @@ this file is a shorter pointer plus the most-broken house rule.
 ## Read this first
 
 - The complete project conventions are in [.github/copilot-instructions.md](.github/copilot-instructions.md).
-- Run unit tests with `npm test -- --runInBand` (Jest).
+- Run unit tests with `npm test` (Jest, parallel by default — ~5 s).
+  Use `npm test -- --runInBand` only when debugging cross-suite state leaks
+  (parallel runs are safe for the current suite).
 - After editing any file in `creator/`, regenerate the bundle with
   `node build-creator-bundle.js` before committing.
 
