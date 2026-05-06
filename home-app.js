@@ -534,7 +534,8 @@
           type: 'button',
           className: 'home-create-tile home-create-tile--primary',
           onClick: handleNewFromImage,
-          disabled: pending
+          disabled: pending,
+          'data-onboard': 'home-from-image'
         },
           h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
             typeof Icons.image === 'function' ? Icons.image() : null),
