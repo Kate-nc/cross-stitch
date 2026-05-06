@@ -6959,7 +6959,7 @@ return(
       // Skip-tour exits the wizard without committing a style choice; if the
       // user has never picked a style, fall back to the standalone modal so
       // the helpful defaults still get applied.
-      try{ if(!localStorage.getItem("cs_styleOnboardingDone")&&!localStorage.getItem("cs_stitchStyle")) setStyleOnboardingOpen(true); }catch(_){}
+      try{ if(!localStorage.getItem("cs_styleOnboardingDone")) setStyleOnboardingOpen(true); }catch(_){}
     }
   })}
   {styleOnboardingOpen&&<StitchingStyleOnboarding startCorner={startCorner} onDone={result=>{
