@@ -227,6 +227,10 @@ function getDB() {
         if (!db.objectStoreNames.contains("sync_snapshots")) { db.createObjectStore("sync_snapshots"); }
       }
     };
+    request.onblocked = () => {
+      console.warn("CrossStitchDB (helpers) open was blocked by another connection at an older version.");
+      reject(new Error("CrossStitchDB open blocked — another tab may be holding an old connection open."));
+    };
     request.onsuccess = () => {
       let db = request.result;
       db.onversionchange = () => {

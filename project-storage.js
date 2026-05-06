@@ -177,7 +177,7 @@ const ProjectStorage = (() => {
     }
     return new Promise((resolve, reject) => {
       ensurePersistence();
-      let request = indexedDB.open(DB_NAME, 3);
+      let request = indexedDB.open(DB_NAME, 4);
       request.onupgradeneeded = (e) => {
         let db = e.target.result;
         let upgradeTx = e.target.transaction;
@@ -204,8 +204,14 @@ const ProjectStorage = (() => {
         if (!db.objectStoreNames.contains(STATS_STORE)) {
           db.createObjectStore(STATS_STORE);
         }
+        if (!db.objectStoreNames.contains("sync_snapshots")) {
+          db.createObjectStore("sync_snapshots");
+        }
       };
-      request.onblocked = () => console.warn("ProjectStorage IndexedDB open was blocked by another open connection.");
+      request.onblocked = () => {
+        console.warn("ProjectStorage IndexedDB open was blocked by another open connection.");
+        reject(new Error("CrossStitchDB open blocked — another tab may be holding an old connection open."));
+      };
       request.onsuccess = () => {
         let db = request.result;
         db.onversionchange = () => {

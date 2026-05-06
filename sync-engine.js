@@ -780,7 +780,17 @@ const SyncEngine = (() => {
         if (ov < 3) { if (!db.objectStoreNames.contains("stats_summaries")) db.createObjectStore("stats_summaries"); }
         if (ov < 4) { if (!db.objectStoreNames.contains("sync_snapshots")) db.createObjectStore("sync_snapshots"); }
       };
-      req.onsuccess = function() { resolve(req.result); };
+      req.onblocked = function() {
+        console.warn("SyncEngine: _openSnapshotDB blocked by another open connection.");
+        var err = new Error("CrossStitchDB open blocked — another tab may be holding an old connection open.");
+        err.isBlockedError = true;
+        reject(err);
+      };
+      req.onsuccess = function() {
+        var db = req.result;
+        db.onversionchange = function() { try { db.close(); } catch (_) {} };
+        resolve(db);
+      };
       req.onerror = function() { reject(req.error); };
     });
   }
@@ -796,6 +806,7 @@ const SyncEngine = (() => {
         req.onerror = function() { db.close(); reject(req.error); };
       });
     } catch (e) {
+      if (e && e.isBlockedError) throw e; // propagate — do not treat as "no snapshot"
       console.warn("SyncEngine: readSnapshot failed:", e);
       return null;
     }
@@ -864,6 +875,7 @@ const SyncEngine = (() => {
       });
       return snapshot;
     } catch (e) {
+      if (e && e.isBlockedError) throw e; // propagate — snapshot not written, caller must handle
       console.warn("SyncEngine: writeSnapshot failed:", e);
       return null;
     }
