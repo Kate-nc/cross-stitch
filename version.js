@@ -3,7 +3,7 @@
 // Bumped automatically by .github/workflows/bump-version.yml on each
 // PR merge to main. Do not edit APP_VERSION manually.
 // ════════════════════════════════════════════════════════════════════
-window.APP_VERSION = '1.0.1';
+window.APP_VERSION = '1.0.2';
 
 (function () {
   function inject() {
