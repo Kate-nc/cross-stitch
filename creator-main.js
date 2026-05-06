@@ -1335,7 +1335,7 @@ function UnifiedApp(){
   },[]);
   React.useEffect(()=>{
     const h=()=>{
-      if(mode==='stats'){setStatsModal('help');}}}
+      if(mode==='stats'){setStatsModal('help');}
       else if(mode==='track'&&typeof T==='function'){/* Tracker has its own listener */}
       else{
         // In design mode, dispatch via state.setModal if available.
