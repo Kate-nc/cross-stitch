@@ -37,11 +37,10 @@
     "url": "https://github.com/Kate-nc/cross-stitch/issues"
   },
   "homepage": "https://github.com/Kate-nc/cross-stitch#readme",
+  "engines": {
+    "node": ">=22"
+  },
   "devDependencies": {
-    "@babel/cli": "^7.28.6",
-    "@babel/core": "^7.29.0",
-    "@babel/preset-react": "^7.28.5",
-    "@babel/standalone": "^7.29.2",
     "@pdf-lib/fontkit": "^1.1.1",
     "@playwright/test": "^1.59.1",
     "fake-indexeddb": "^6.2.5",
@@ -53,9 +52,5 @@
     "pdf-lib": "^1.17.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
-  },
-  "dependencies": {
-    "acorn": "^8.16.0",
-    "prettier": "^3.8.1"
   }
 }

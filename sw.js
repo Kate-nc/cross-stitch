@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v41';
+var CACHE_NAME = 'cross-stitch-cache-v42';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -125,7 +125,7 @@ self.addEventListener('fetch', function (event) {
         return response;
       }).catch(function () {
         return caches.match(event.request).then(function (cached) {
-          return cached || caches.match('./index.html');
+          return cached || caches.match('./home.html') || caches.match('./index.html');
         });
       })
     );
