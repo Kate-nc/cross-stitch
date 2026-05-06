@@ -206,9 +206,8 @@ try {
       path: 'index.html',
       keys: [
         { varName: 'TRACKER_CACHE_KEY',  prefix: 'babel_tracker_',  files: ['tracker-app.js'] },
-        { varName: 'ACTIVITY_CACHE_KEY', prefix: 'babel_activity_', files: ['stats-activity.js'] },
-        { varName: 'INSIGHTS_CACHE_KEY', prefix: 'babel_insights_', files: ['stats-insights.js'] },
-        { varName: 'STATS_CACHE_KEY',    prefix: 'babel_stats_',    files: ['stats-page.js'] },
+        // ACTIVITY_/INSIGHTS_/STATS_CACHE_KEY removed: stats-*.js are now
+        // injected as plain <script src> (no Babel transform required).
       ],
     },
     {
