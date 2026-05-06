@@ -1307,11 +1307,17 @@ function UnifiedApp(){
   },[]);
 
   const[statsModal,setStatsModal]=React.useState(null);
+  const[welcomeOpen,setWelcomeOpen]=React.useState(()=>!!(window.WelcomeWizard&&window.WelcomeWizard.shouldShow('creator')));
   // Global "?" shortcut → open Help Centre. Routes to home or design depending
   // on which mode the user is currently viewing.
   React.useEffect(()=>{
+    function onShow(e){if(e&&e.detail&&e.detail.page==='creator') setWelcomeOpen(true);}
+    window.addEventListener('cs:showWelcome',onShow);
+    return()=>window.removeEventListener('cs:showWelcome',onShow);
+  },[]);
+  React.useEffect(()=>{
     const h=()=>{
-      if(mode==='stats'){setStatsModal('help');}
+      if(mode==='stats'){setStatsModal('help');}}}
       else if(mode==='track'&&typeof T==='function'){/* Tracker has its own listener */}
       else{
         // In design mode, dispatch via state.setModal if available.
@@ -1359,6 +1365,7 @@ function UnifiedApp(){
       {statsModal==='help'&&<SharedModals.Help defaultTab="creator" onClose={()=>setStatsModal(null)} />}
       {statsModal==='shortcuts'&&<SharedModals.Help defaultTab="shortcuts" onClose={()=>setStatsModal(null)} />}
     </div>}
+    {welcomeOpen&&window.WelcomeWizard&&<window.WelcomeWizard page="creator" onClose={()=>setWelcomeOpen(false)}/>}
     {window.HelpHintBanner&&<window.HelpHintBanner/>}
   </>;
 }
