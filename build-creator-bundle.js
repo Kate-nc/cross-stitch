@@ -152,18 +152,40 @@ try {
 // browser that already has the previous compiled output in localStorage —
 // which is the most common cause of "the deploy looks like it didn't take
 // effect" reports. Mapping is { CACHE_KEY_NAME: [sourceFilesToHash], prefix }.
+//
+// Action plan §2A.5: the same cache-key rewrite now also runs against
+// stitch.html (TRACKER_CACHE_KEY) and manager.html (MANAGER_CACHE_KEY) so
+// the tracker / manager Babel-cache loaders introduced in those pages stay
+// in sync with the source.
 try {
-  const indexPath = 'index.html';
-  if (fs.existsSync(indexPath)) {
-    let html = fs.readFileSync(indexPath, 'utf8');
-    const OTHER_KEYS = [
-      { varName: 'TRACKER_CACHE_KEY',  prefix: 'babel_tracker_',  files: ['tracker-app.js'] },
-      { varName: 'ACTIVITY_CACHE_KEY', prefix: 'babel_activity_', files: ['stats-activity.js'] },
-      { varName: 'INSIGHTS_CACHE_KEY', prefix: 'babel_insights_', files: ['stats-insights.js'] },
-      { varName: 'STATS_CACHE_KEY',    prefix: 'babel_stats_',    files: ['stats-page.js'] },
-    ];
+  const HTML_TARGETS = [
+    {
+      path: 'index.html',
+      keys: [
+        { varName: 'TRACKER_CACHE_KEY',  prefix: 'babel_tracker_',  files: ['tracker-app.js'] },
+        { varName: 'ACTIVITY_CACHE_KEY', prefix: 'babel_activity_', files: ['stats-activity.js'] },
+        { varName: 'INSIGHTS_CACHE_KEY', prefix: 'babel_insights_', files: ['stats-insights.js'] },
+        { varName: 'STATS_CACHE_KEY',    prefix: 'babel_stats_',    files: ['stats-page.js'] },
+      ],
+    },
+    {
+      path: 'stitch.html',
+      keys: [
+        { varName: 'TRACKER_CACHE_KEY',  prefix: 'babel_tracker_',  files: ['tracker-app.js'] },
+      ],
+    },
+    {
+      path: 'manager.html',
+      keys: [
+        { varName: 'MANAGER_CACHE_KEY',  prefix: 'babel_manager_',  files: ['manager-app.js'] },
+      ],
+    },
+  ];
+  for (const target of HTML_TARGETS) {
+    if (!fs.existsSync(target.path)) continue;
+    let html = fs.readFileSync(target.path, 'utf8');
     let changed = false;
-    for (const entry of OTHER_KEYS) {
+    for (const entry of target.keys) {
       const missing = entry.files.filter(f => !fs.existsSync(f));
       if (missing.length) {
         console.warn(`Auto-bump skipped for ${entry.varName}: missing ${missing.join(', ')}`);
@@ -174,19 +196,19 @@ try {
       const newKey = `${entry.prefix}${h.digest('hex').slice(0, 10)}`;
       const re = new RegExp(`var\\s+${entry.varName}\\s*=\\s*['"][^'"]+['"]`);
       if (!re.test(html)) {
-        console.warn(`index.html: ${entry.varName} declaration not found — skipped`);
+        console.warn(`${target.path}: ${entry.varName} declaration not found — skipped`);
         continue;
       }
       const updated = html.replace(re, `var ${entry.varName} = '${newKey}'`);
       if (updated !== html) {
         html = updated;
         changed = true;
-        console.log(`index.html ${entry.varName} → ${newKey}`);
+        console.log(`${target.path} ${entry.varName} → ${newKey}`);
       } else {
-        console.log(`index.html ${entry.varName} unchanged (${newKey})`);
+        console.log(`${target.path} ${entry.varName} unchanged (${newKey})`);
       }
     }
-    if (changed) fs.writeFileSync(indexPath, html, 'utf8');
+    if (changed) fs.writeFileSync(target.path, html, 'utf8');
   }
 } catch (e) {
   console.warn('Auto-bump of secondary Babel cache keys failed:', e.message);

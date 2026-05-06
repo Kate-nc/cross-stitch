@@ -85,7 +85,41 @@
 <div id="root"></div>
     <div id="sync-review-gate-root"></div>
 </main>
-<script type="text/babel" src="manager-app.js"></script>
+<script>
+/* PERF (action plan §2A.5): cache the in-browser Babel compile of
+   manager-app.js in localStorage. Without this every page load runs
+   Babel on the ~3.5 KLOC source. The hash suffix is auto-bumped by
+   build-creator-bundle.js when manager-app.js content changes. */
+(function () {
+  if (typeof window === 'undefined') return;
+  var MANAGER_CACHE_KEY = 'babel_manager_2f69ea4f10';
+  var cached = null;
+  try { cached = localStorage.getItem(MANAGER_CACHE_KEY); } catch (e) {}
+  if (cached) {
+    var s = document.createElement('script');
+    s.textContent = '(function(){' + cached + '})();';
+    document.head.appendChild(s);
+    return;
+  }
+  if (typeof Babel === 'undefined') {
+    var fb0 = document.createElement('script'); fb0.type = 'text/babel'; fb0.src = 'manager-app.js';
+    document.head.appendChild(fb0);
+    return;
+  }
+  fetch('manager-app.js').then(function (r) {
+    return r.ok ? r.text() : Promise.reject('fetch failed');
+  }).then(function (src) {
+    var compiled = Babel.transform(src, { presets: ['react'], filename: 'manager-app.js' }).code;
+    try { localStorage.setItem(MANAGER_CACHE_KEY, compiled); } catch (e) {}
+    var s = document.createElement('script');
+    s.textContent = '(function(){' + compiled + '})();';
+    document.head.appendChild(s);
+  }).catch(function () {
+    var fb = document.createElement('script'); fb.type = 'text/babel'; fb.src = 'manager-app.js';
+    document.head.appendChild(fb);
+  });
+})();
+</script>
 <script src="./version.js"></script>
 <script src="./sw-register.js"></script>
 
