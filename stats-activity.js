@@ -39,13 +39,17 @@ function fmtHours(h) {
 // Load all stitch log data from all projects (or a single project if filtered)
 async function loadStitchData(filterProjectId) {
   if (typeof ProjectStorage === 'undefined') return { byDay: {}, durationByDay: {}, projects: [], trackingStart: null };
-  const metas = await ProjectStorage.listProjects();
+  // Use the cached bulk hydration helper (action plan H4 = 2C.1) so this
+  // function shares the IndexedDB read with the other four stats effects
+  // that mount in parallel. Falls back to the manual list+get path on older
+  // ProjectStorage builds that don't expose the helper yet.
+  const fulls = (typeof ProjectStorage.getProjectsAll === 'function')
+    ? (await ProjectStorage.getProjectsAll()).fulls
+    : await Promise.all((await ProjectStorage.listProjects()).map(m => ProjectStorage.get(m.id).catch(() => null)));
   const byDay = {}; // { 'YYYY-MM-DD': { total: number, projects: { id: count } } }
   const durationByDay = {}; // { 'YYYY-MM-DD': number } — real stitching seconds per day
   const projectNames = {};
   let trackingStart = null;
-  // PERF (perf-5 #6): parallel fetch of all projects rather than sequential awaits.
-  const fulls = await Promise.all(metas.map(m => ProjectStorage.get(m.id).catch(() => null)));
   for (const proj of fulls) {
     if (!proj) continue;
     projectNames[proj.id] = proj.name || 'Untitled';

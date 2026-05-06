@@ -270,6 +270,10 @@ const ProjectStorage = (() => {
         return project.id;
       }
       project.updatedAt = new Date().toISOString();
+      // Invalidate the bulk-hydration cache (action plan H4 = 2C.1) so the
+      // next stats render sees this save's data even before metas signature
+      // changes propagate.
+      this._allFullCache = null;
 
       // Fingerprints are computed by sync-specific export/classification flows.
       // Avoid doing expensive whole-project fingerprinting on every normal save.
@@ -411,12 +415,52 @@ const ProjectStorage = (() => {
       }
     },
 
+    // Hydrate the full project body for every project in the library. Used by
+    // the stats surface (stats-page.js, stats-activity.js) which previously
+    // had ~5 separate useEffect blocks each running their own
+    // `Promise.all(metas.map(get))` — that pulled the entire pattern array
+    // for every project from IndexedDB up to five times in a row on every
+    // mount. Action plan headline H4 (=2C.1).
+    //
+    // Memoised on `(metas.length, joined updatedAt signature)`. The first
+    // call computes the bulk fetch and caches the resolved Promise; later
+    // calls within the same browser session return the same Promise instance
+    // unless a project was added, removed, or its updatedAt advanced (which
+    // is the only way the signature can change). The cache is therefore
+    // self-invalidating — no event listeners required.
+    //
+    // Returns an array of full project objects in the same order as metas
+    // (newest-first). Failed individual loads are returned as null so
+    // callers retain index alignment with the metas array.
+    _allFullCache: null, // { sig: string, promise: Promise<Array> }
+    async getAllFull() {
+      const metas = await this.listProjects();
+      const sig = metas.length + '|' + metas.map(m => m.id + ':' + (m.updatedAt || '')).join(',');
+      if (this._allFullCache && this._allFullCache.sig === sig) {
+        return this._allFullCache.promise;
+      }
+      const promise = Promise.all(metas.map(m => this.get(m.id).catch(() => null)));
+      this._allFullCache = { sig, promise };
+      return promise;
+    },
+
+    // Convenience for stats: returns `{ metas, fulls }` together so callers
+    // don't list twice. Both arrays are aligned by index.
+    async getProjectsAll() {
+      const metas = await this.listProjects();
+      // Reuse getAllFull's cache so back-to-back consumers share the work.
+      const fulls = await this.getAllFull();
+      return { metas, fulls };
+    },
+
     // Delete a project by ID.
     async delete(id) {
       try {
         // Record the deletion so in-flight auto-saves from Tracker/Creator
         // don't resurrect the project before the page fully reloads.
         this._deletedIds.add(id);
+        // Invalidate the bulk-hydration cache (action plan H4 = 2C.1).
+        this._allFullCache = null;
         // Clear the active project pointer if it points to this project, so the
         // Creator/Tracker don't try to load a now-deleted project on next open.
         if (this.getActiveProjectId() === id) this.clearActiveProject();

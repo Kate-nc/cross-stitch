@@ -1076,8 +1076,12 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     async function computeCoverage(stashData) {
       if (typeof ProjectStorage === 'undefined') return;
       try {
-        const metas = await ProjectStorage.listProjects();
-        const projects = await Promise.all(metas.map(m => ProjectStorage.get(m.id)));
+        // Cached bulk hydration (action plan H4 = 2C.1) so this and the
+        // sibling effects share a single IndexedDB read for the entire
+        // project library.
+        const projects = (typeof ProjectStorage.getAllFull === 'function')
+          ? await ProjectStorage.getAllFull()
+          : await Promise.all((await ProjectStorage.listProjects()).map(m => ProjectStorage.get(m.id)));
         let totalThreads = 0, coveredThreads = 0;
         const dmcById = new Map(typeof DMC !== 'undefined' ? DMC.map(d => [d.id, d]) : []);
         const anchorById = new Map(typeof ANCHOR !== 'undefined' ? ANCHOR.map(d => [d.id, d]) : []);
@@ -1212,8 +1216,11 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
         const designerMap = {};
         const genreMap = {};
         let hasAny = false;
-        // PERF (perf-5 #7): parallel fetch.
-        const fulls = await Promise.all(metas.map(m => ProjectStorage.get(m.id).catch(() => null)));
+        // PERF (perf-5 #7 + action plan H4): cached bulk hydration shared
+        // with the sibling stats effects.
+        const fulls = (typeof ProjectStorage.getAllFull === 'function')
+          ? await ProjectStorage.getAllFull()
+          : await Promise.all(metas.map(m => ProjectStorage.get(m.id).catch(() => null)));
         for (const proj of fulls) {
           if (!proj) continue;
           const stitches = (proj.w || 0) * (proj.h || 0);
@@ -1278,8 +1285,11 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       const metas = await ProjectStorage.listProjects();
       const details = [];
       const rich = [];
-      // PERF (perf-5 #7): parallel fetch.
-      const fulls = await Promise.all(metas.map(m => ProjectStorage.get(m.id).catch(() => null)));
+      // PERF (perf-5 #7 + action plan H4): cached bulk hydration shared
+      // with the sibling stats effects.
+      const fulls = (typeof ProjectStorage.getAllFull === 'function')
+        ? await ProjectStorage.getAllFull()
+        : await Promise.all(metas.map(m => ProjectStorage.get(m.id).catch(() => null)));
       for (const p of fulls) {
         if (!p) continue;
         details.push({ id: p.id, name: p.name, finishStatus: p.finishStatus || 'active', completedAt: p.completedAt, startedAt: p.startedAt });
