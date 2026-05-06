@@ -611,9 +611,13 @@ window.usePatternData = function usePatternData() { return React.useContext(wind
       }
     });
 
-    // Deep-copy via JSON. The pattern array contains plain {id,type,rgb,...}
-    // objects, so JSON round-trip is faithful and severs all references.
-    var copy = JSON.parse(JSON.stringify(srcProject));
+    // Deep-copy via structuredClone (Chrome 98+, Safari 15.4+, Firefox 94+,
+    // all browsers we target). Faster than JSON.parse(JSON.stringify(...))
+    // and faithfully clones plain {id,type,rgb,...} objects, severing all
+    // references. Falls back to the JSON round-trip on very old engines.
+    var copy = (typeof structuredClone === 'function')
+      ? structuredClone(srcProject)
+      : JSON.parse(JSON.stringify(srcProject));
 
     // New identity.
     var nowIso = new Date().toISOString();
