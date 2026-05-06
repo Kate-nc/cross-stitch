@@ -1,4 +1,4 @@
-# Cross Stitch Studio
+# stitchx
 
 A fully client-side web application suite for creating, managing, and tracking cross-stitch patterns. No backend or installation required — open `home.html` in any modern browser and start stitching.
 

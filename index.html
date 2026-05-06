@@ -4,14 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdnjs.cloudflare.com; worker-src 'self' blob:; frame-src 'self' blob:;">
-<title>Cross Stitch Pattern Generator</title>
+<title>stitchx</title>
 <link rel="manifest" href="./manifest.json">
 <!-- Canonical landing is /home (home.html). External links and search
      results should route through the hub so users always pass through the
      project picker. (Homepage-predominance audit, Tier 3 #11.) -->
 <link rel="canonical" href="./home.html">
-<meta property="og:title" content="Cross Stitch Studio">
-<meta property="og:description" content="Design, track, and manage cross-stitch patterns â€” fully client-side.">
+<meta property="og:title" content="stitchx">
+<meta property="og:description" content="Design, track, and manage cross-stitch patterns — fully client-side.">
 <meta property="og:url" content="./home.html">
 <meta property="og:type" content="website">
 <meta name="theme-color" content="#B85C38">
@@ -144,7 +144,7 @@ window.loadPdfStack = function() {
 })();
 /* Loads TrackerApp via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
-var TRACKER_CACHE_KEY = 'babel_tracker_16421a6b9e';
+var TRACKER_CACHE_KEY = 'babel_tracker_b43056b4cd';
 window.loadTrackerApp = function() {
   if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
   window.__trackerLoading = true;
@@ -176,7 +176,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_b670c4fc11';
+var CREATOR_CACHE_KEY = 'babel_creator_0a3edad853';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;
@@ -206,7 +206,7 @@ window.loadCreatorMain = function() {
 window.loadStatsActivity = function() {
   if (window.__statsActivityLoading || window.__statsActivityLoaded) return;
   window.__statsActivityLoading = true;
-  try { localStorage.removeItem('babel_activity_b51213250f'); } catch(e) {}
+  try { localStorage.removeItem('babel_activity_b51213250f'); localStorage.removeItem('babel_activity_4172b908a9'); } catch(e) {}
   var s = document.createElement('script');
   s.src = 'stats-activity.js';
   s.onload = function() { window.__statsActivityLoaded = true; window.__statsActivityLoading = false; };

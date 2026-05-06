@@ -4,7 +4,7 @@
 
 ## Scope
 
-This specification documents the visual and interaction patterns for LOADING, EMPTY, PARTIAL, and ERROR states across all data-driven screens in the Cross Stitch Pattern Generator. For each component and element, we identify:
+This specification documents the visual and interaction patterns for LOADING, EMPTY, PARTIAL, and ERROR states across all data-driven screens in stitchx. For each component and element, we identify:
 
 - **LOADING**: What renders while data is being fetched, computed, or imported (spinner, skeleton, placeholder)
 - **EMPTY**: What renders when a dataset is truly empty (no projects, no threads, no stitches)

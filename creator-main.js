@@ -915,7 +915,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       <window.CreatorToolStrip/>
       <div className="cs-page-content">
         {state.loadError&&<div style={{background:"#FCEFEF",border:"1px solid #ECC8C8",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#A53D3D",marginBottom:12}}>{state.loadError}</div>}
-        {/* Hide the legacy "Welcome to Cross Stitch Pattern Generator" card
+        {/* Hide the legacy "Welcome to stitchx" card
             while a /home handoff is in flight (image being decoded, scratch
             project being built, JSON being loaded). Without this guard the
             user sees the welcome flash for a beat and assumes their action
@@ -1325,8 +1325,14 @@ function UnifiedApp(){
   },[]);
 
   const[statsModal,setStatsModal]=React.useState(null);
+  const[welcomeOpen,setWelcomeOpen]=React.useState(()=>!!(window.WelcomeWizard&&window.WelcomeWizard.shouldShow('creator')));
   // Global "?" shortcut → open Help Centre. Routes to home or design depending
   // on which mode the user is currently viewing.
+  React.useEffect(()=>{
+    function onShow(e){if(e&&e.detail&&e.detail.page==='creator') setWelcomeOpen(true);}
+    window.addEventListener('cs:showWelcome',onShow);
+    return()=>window.removeEventListener('cs:showWelcome',onShow);
+  },[]);
   React.useEffect(()=>{
     const h=()=>{
       if(mode==='stats'){setStatsModal('help');}
@@ -1377,6 +1383,7 @@ function UnifiedApp(){
       {statsModal==='help'&&<SharedModals.Help defaultTab="creator" onClose={()=>setStatsModal(null)} />}
       {statsModal==='shortcuts'&&<SharedModals.Help defaultTab="shortcuts" onClose={()=>setStatsModal(null)} />}
     </div>}
+    {welcomeOpen&&mode==='design'&&window.WelcomeWizard&&<window.WelcomeWizard page="creator" onClose={()=>setWelcomeOpen(false)}/>}
     {window.HelpHintBanner&&<window.HelpHintBanner/>}
   </>;
 }

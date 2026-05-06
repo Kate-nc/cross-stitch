@@ -453,7 +453,7 @@ function ShareCardModal({ lifetimeStitches, onClose }) {
       // Watermark
       ctx.fillStyle = '#A89E89';
       ctx.font = '400 20px Inter, system-ui, sans-serif';
-      ctx.fillText('Cross Stitch Pattern Generator', W / 2, H - 100);
+      ctx.fillText('stitchx', W / 2, H - 100);
       setRendered(true);
     };
     // Ensure font is loaded
@@ -687,7 +687,7 @@ function drawShowcaseLabel(ctx, text, x, y, size, color) {
 }
 function drawWatermark(ctx, W, H) {
   ctx.fillStyle = '#CFC4AC'; ctx.font = '400 16px Inter, system-ui, sans-serif';
-  ctx.textAlign = 'center'; ctx.fillText('cross stitch pattern generator', W / 2, H - 20);
+  ctx.textAlign = 'center'; ctx.fillText('stitchx', W / 2, H - 20);
 }
 function makeLifetimeCanvas(canvas, stitches) {
   const W = 1080, H = 1080; canvas.width = W; canvas.height = H;

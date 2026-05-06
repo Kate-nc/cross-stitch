@@ -1,6 +1,6 @@
 {
-  "name": "Cross Stitch Pattern Generator",
-  "short_name": "Cross Stitch",
+  "name": "stitchx",
+  "short_name": "stitchx",
   "start_url": "./home.html",
   "scope": "./",
   "display": "standalone",

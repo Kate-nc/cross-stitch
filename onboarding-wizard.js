@@ -40,18 +40,17 @@
     creator: [
       {
         title: "Welcome to the Pattern Creator",
-        body: "Convert any image into a printable cross-stitch pattern. We'll show you around in under a minute.",
-        tip: "Everything runs in your browser — your photos never leave this device."
+        body: "Convert any image into a printable cross-stitch pattern. Everything runs in your browser — your photos never leave this device."
       },
       {
         title: "What lives where",
-        body: "The dashboard above lists projects you've already started. The 'Start New' panel below is how you begin something fresh: from an image, from scratch, or by importing a saved file.",
-        tip: "Your stash and pattern library live one click away under 'Open Stash Manager'."
+        body: "Your saved projects appear in the Projects tab. The Create new tab is how you begin something fresh: from an image, from scratch, or by importing a saved file.",
+        tip: "Your thread stash and pattern library are one click away in the Stash Manager."
       },
       {
         title: "Pick a starting point",
-        body: "When you're ready, click any option in 'Start New'. We'll highlight 'From image' as the most common one — drop a photo or click to browse.",
-        tip: "Clicking any starting option will close this tour and take you into the editor.",
+        body: "When you're ready, click 'New from pattern file' to start from an image or saved pattern, or choose 'New from scratch' to begin with a blank grid.",
+        tip: "Clicking the highlighted tile will close this tour and open the file picker.",
         target: "[data-onboard=\"home-from-image\"]",
         placement: "right",
         dismissOnTargetClick: true
@@ -63,7 +62,7 @@
         body: "Track which DMC and Anchor threads you own, and manage a library of patterns. We'll give you a 60-second tour."
       },
       {
-        title: "1. Build your stash",
+        title: "Build your stash",
         body: "The Threads tab is where you tick the threads you own. Use 'Bulk Add' to paste a list of IDs in one go.",
         tip: "Clicking the highlighted tab will close this tour and take you straight there.",
         target: "[data-onboard=\"mgr-stash-tab\"]",
@@ -71,7 +70,7 @@
         dismissOnTargetClick: true
       },
       {
-        title: "2. Browse your patterns",
+        title: "Browse your patterns",
         body: "The Patterns tab lists patterns saved in the Creator/Tracker (auto-synced) plus any you add manually here.",
         tip: "Clicking the highlighted tab will close this tour.",
         target: "[data-onboard=\"mgr-patterns-tab\"]",
@@ -143,6 +142,8 @@
 
     // Focus-trap container ref + initial-focus management for a11y.
     var contentRef = React.useRef(null);
+    var liveRef = React.useRef(null);
+    var prevFocusRef = React.useRef(null);
     var titleId = React.useMemo(function () { return "ob-title-" + Math.random().toString(36).slice(2, 8); }, []);
 
     // If the wizard is unmounted while still open (the host component
@@ -161,6 +162,16 @@
         props.onClose();
       }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Store the previously-focused element on mount; restore it when the wizard closes.
+    React.useEffect(function () {
+      prevFocusRef.current = document.activeElement;
+      return function () {
+        if (prevFocusRef.current && typeof prevFocusRef.current.focus === "function") {
+          try { prevFocusRef.current.focus(); } catch (_) {}
+        }
+      };
     }, []);
 
     function handleClose(skipFlag) {
@@ -193,6 +204,8 @@
     React.useEffect(function () {
       var node = contentRef.current;
       if (!node) return;
+      // Announce the new step title to screen readers via the hidden live region.
+      if (liveRef.current) { liveRef.current.textContent = (step && step.title) ? step.title : ""; }
       // Move focus to the primary action button on each step change.
       var primary = node.querySelector("[data-ob-primary]") || node.querySelector("button");
       if (primary && typeof primary.focus === "function") {
@@ -253,9 +266,35 @@
       };
     }, [idx, step.target, step.placement, step.dismissOnTargetClick]);
 
+    // In targeted mode, hide background content from assistive technology so
+    // screen readers are constrained to the wizard. aria-hidden (not inert) is
+    // used so pointer events on the highlighted target still fire, which is
+    // required for dismissOnTargetClick to work correctly.
+    React.useEffect(function () {
+      if (!anchor) return;
+      var wrapperEl = contentRef.current;
+      if (!wrapperEl) return;
+      // Walk up from the wizard's content node to find the direct body child.
+      var bodyChild = wrapperEl;
+      while (bodyChild && bodyChild.parentNode !== document.body) {
+        bodyChild = bodyChild.parentNode;
+      }
+      // Only hide elements not already aria-hidden (avoid double-toggling).
+      var toHide = bodyChild
+        ? Array.prototype.filter.call(document.body.children, function (c) {
+            return c !== bodyChild && !c.getAttribute("aria-hidden");
+          })
+        : [];
+      toHide.forEach(function (c) { c.setAttribute("aria-hidden", "true"); });
+      return function () {
+        toHide.forEach(function (c) { c.removeAttribute("aria-hidden"); });
+      };
+    }, [!!anchor]);
+
     // Compute the popover style — either floating near the anchor, or centred.
     // maxWidth is clamped to the viewport so the popover never overflows on
     // narrow phones (the original 420 caused right-edge clipping at <440 px).
+    var motionOk = !window.matchMedia || !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     var vwInit = (typeof window !== 'undefined' ? window.innerWidth : 420);
     var popoverMaxWidth = Math.min(420, Math.max(240, vwInit - 24));
     var popoverStyle = { maxWidth: popoverMaxWidth, padding: 22, position: "relative" };
@@ -295,7 +334,9 @@
         border: "3px solid var(--accent)", borderRadius: 8,
         boxShadow: "0 0 0 9999px rgba(15, 23, 42, 0.45)",
         pointerEvents: "none", zIndex: 2,
-        transition: "all var(--motion, 160ms ease-out)"
+        transition: motionOk
+          ? "box-shadow var(--motion, 160ms ease-out), border-color var(--motion, 160ms ease-out), top var(--motion, 160ms ease-out), left var(--motion, 160ms ease-out), width var(--motion, 160ms ease-out), height var(--motion, 160ms ease-out), border-radius var(--motion, 160ms ease-out)"
+          : "none"
       };
     }
 
@@ -317,8 +358,13 @@
           onClick: function () { handleClose(false); }, "aria-label": "Close",
           style: { background: "transparent", border: "none", color: "var(--text-secondary)", cursor: "pointer" }
         }, closeIcon),
-        // Step counter — visible "Step N of M" text for screen readers and sighted users.
-        !isCustom && steps.length > 1 && h("div", { key: "sc", className: "onboarding-step-counter" },
+        // Visually hidden live region — step title is injected here on each
+        // step change so screen readers announce the transition.
+        h("div", { key: "live-announce", ref: liveRef, "aria-live": "polite", "aria-atomic": "true",
+          style: { position: "absolute", width: "1px", height: "1px", overflow: "hidden",
+            clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0 } }),
+        // Step counter — visible "Step N of M" text for all step types (including custom).
+        steps.length > 1 && h("div", { key: "sc", className: "onboarding-step-counter" },
           "Step " + (idx + 1) + " of " + steps.length
         ),
         // Step indicator dots — decorative, paired with the counter above.
@@ -334,8 +380,7 @@
             });
           })
         ),
-        // Live region — announces step title + body to screen readers on change.
-        h("div", { key: "live", "aria-live": "polite", "aria-atomic": "true" },
+        h("div", { key: "live" },
           isCustom
             ? h(step.customComponent, {
                 key: "custom",

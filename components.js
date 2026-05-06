@@ -227,7 +227,7 @@ var OverviewCards=React.memo(function OverviewCards({statsSessions, totalComplet
   );
 });
 
-// --- EmptyState â€” shared coaching empty-state card ---------------------
+// --- EmptyState — shared coaching empty-state card ---------------------
 // Used on Manager (Patterns/Threads), Home (no projects), and Stats (no data).
 // Props: { icon, title, description, ctaLabel, ctaAction, secondaryLabel?, secondaryAction? }
 function EmptyState(props) {

@@ -1,4 +1,4 @@
-# Progressive Disclosure Audit — Cross Stitch Pattern Generator
+# Progressive Disclosure Audit — stitchx
 **help-audit-7** · May 2026 · Scope: home.html, create.html, stitch.html, manager.html
 
 ---

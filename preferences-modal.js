@@ -1138,8 +1138,9 @@
     });
     function clearOne(page, friendly) {
       try { if (window.WelcomeWizard && window.WelcomeWizard.reset) window.WelcomeWizard.reset(page); } catch (_) {}
+      try { window.dispatchEvent(new CustomEvent("cs:showWelcome", { detail: { page: page } })); } catch (_) {}
       if (page === "tracker") { try { localStorage.removeItem("cs_styleOnboardingDone"); } catch (_) {} }
-      msg[1]("Reset the " + friendly + " walkthrough. Reload that page to see it again.");
+      msg[1]("Reset the " + friendly + " walkthrough. If that page is already open, the tour will appear now.");
     }
     function clearAllTutorials() {
       try { if (window.WelcomeWizard && window.WelcomeWizard.resetAll) window.WelcomeWizard.resetAll(); } catch (_) {}

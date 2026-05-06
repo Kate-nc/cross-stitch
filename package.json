@@ -1,7 +1,7 @@
 {
   "name": "app",
   "version": "1.0.0",
-  "description": "A feature-rich, single-file web application for creating, managing, and tracking cross-stitch patterns directly from your browser.",
+  "description": "stitchx: A feature-rich, single-file web application for creating, managing, and tracking cross-stitch patterns directly from your browser.",
   "main": "colour-utils.js",
   "directories": {
     "test": "tests"

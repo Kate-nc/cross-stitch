@@ -4,7 +4,7 @@
 
 ## Scope
 
-This cross-cutting spec documents every navigation event in the Cross Stitch Pattern Generator. The app has **no client-side router**; each HTML file is a separate entry point loaded directly. Inter-page navigation occurs via full-page loads using `window.location.href` or `<a>` links. Intra-page navigation uses `history.replaceState()` to update the URL without triggering a page reload, allowing the Creator's unified `index.html` entry point to switch between design, track, and stats modes in-memory.
+This cross-cutting spec documents every navigation event in stitchx. The app has **no client-side router**; each HTML file is a separate entry point loaded directly. Inter-page navigation occurs via full-page loads using `window.location.href` or `<a>` links. Intra-page navigation uses `history.replaceState()` to update the URL without triggering a page reload, allowing the Creator's unified `index.html` entry point to switch between design, track, and stats modes in-memory.
 
 Navigation encompasses:
 - Full-page transitions between home.html, create.html, stitch.html, manager.html, and embroidery.html
