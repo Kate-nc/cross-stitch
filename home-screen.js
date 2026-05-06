@@ -336,7 +336,7 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
             alt: ''
           })
         : (proj.thumbnail
-            ? h('img', { src: proj.thumbnail, alt: '', className: 'mpd-card-thumb-img' })
+            ? h('img', { src: proj.thumbnail, alt: '', className: 'mpd-card-thumb-img', loading: 'lazy', decoding: 'async' })
             : h('div', { className: 'mpd-card-thumb-placeholder' }))
     ),
     // Body
@@ -456,7 +456,7 @@ function CompactProjectRow({ proj, state, onOpen, onChangeState }) {
   return h('div', { className: 'mpd-compact-row' },
     h('div', { className: 'mpd-compact-thumb', onClick: function() { onOpen(proj, state === 'design' ? 'creator' : 'tracker'); } },
       proj.thumbnail
-        ? h('img', { src: proj.thumbnail, alt: '', className: 'mpd-compact-thumb-img' })
+        ? h('img', { src: proj.thumbnail, alt: '', className: 'mpd-compact-thumb-img', loading: 'lazy', decoding: 'async' })
         : h('div', { className: 'mpd-compact-thumb-placeholder' })
     ),
     h('div', { className: 'mpd-compact-info', onClick: function() { onOpen(proj, state === 'design' ? 'creator' : 'tracker'); } },
@@ -944,7 +944,7 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
         style: { width: 32, height: 32, borderRadius:'var(--radius-sm)', overflow: 'hidden', flexShrink: 0, background: 'var(--surface)', border: '1px solid var(--border)' }
       },
         continueProj.thumbnail
-          ? h('img', { src: continueProj.thumbnail, alt: '', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' } })
+          ? h('img', { src: continueProj.thumbnail, alt: '', loading: 'lazy', decoding: 'async', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' } })
           : null
       ),
       h('div', { style: { flex: 1, minWidth: 0 } },
@@ -1734,7 +1734,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
                 alt: ''
               })
             : (heroProject.thumbnail
-                ? h('img', { src: heroProject.thumbnail, alt: '', className: 'home-hero-thumb-img' })
+                ? h('img', { src: heroProject.thumbnail, alt: '', className: 'home-hero-thumb-img', loading: 'lazy', decoding: 'async' })
                 : h('div', { className: 'home-hero-thumb-placeholder' }))
         ),
         // Content
@@ -1858,7 +1858,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
                 },
                   h('div', { className: 'home-recent-swatch' },
                     proj.thumbnail
-                      ? h('img', { src: proj.thumbnail, alt: '', className: 'home-recent-swatch-img' })
+                      ? h('img', { src: proj.thumbnail, alt: '', className: 'home-recent-swatch-img', loading: 'lazy', decoding: 'async' })
                       : h('div', { className: 'home-recent-swatch-placeholder' })
                   ),
                   h('span', { className: 'home-recent-name' }, proj.name || 'Untitled'),
