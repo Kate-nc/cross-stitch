@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
      project picker. (Homepage-predominance audit, Tier 3 #11.) -->
 <link rel="canonical" href="./home.html">
 <meta property="og:title" content="Cross Stitch Studio">
-<meta property="og:description" content="Design, track, and manage cross-stitch patterns — fully client-side.">
+<meta property="og:description" content="Design, track, and manage cross-stitch patterns â€” fully client-side.">
 <meta property="og:url" content="./home.html">
 <meta property="og:type" content="website">
 <meta name="theme-color" content="#B85C38">
@@ -28,7 +28,7 @@
       var skip = /(\?|&)(from=home|action=)/.test(qs);
       if (!skip) { location.replace('home.html'); return; }
     }
-  } catch (_) { /* localStorage blocked → load tool normally */ }
+  } catch (_) { /* localStorage blocked â†’ load tool normally */ }
 })();
 </script>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
@@ -75,8 +75,8 @@ window.loadPdfStack = function() {
 <script src="components/Overlay.js"></script>
 <script src="header.js"></script>
 <script src="modals.js"></script>
-<script src="help-drawer.js"></script>
-<script src="onboarding-wizard.js"></script>
+<script src="help-drawer.js" defer></script>
+<script src="onboarding-wizard.js" defer></script>
 <script src="threadCalc.js"></script>
 <script src="project-storage.js"></script>
 <!-- Lazy import engine: the full bundle (~126 KB) loads on first picker / DnD use. See reports/perf-opt-2-spec.md. -->
@@ -89,8 +89,8 @@ window.loadPdfStack = function() {
 <script src="touch-constants.js"></script>
 <script src="toast.js"></script>
 <script>window.__csPageKind = 'tracker';</script>
-<script src="command-palette.js"></script>
-<script src="preferences-modal.js"></script>
+<script src="command-palette.js" defer></script>
+<script src="preferences-modal.js" defer></script>
 </head>
 <body>
 <a class="skip-to-content" href="#main-content">Skip to content</a>
@@ -120,9 +120,9 @@ window.loadPdfStack = function() {
 })();
 </script>
 <script>
-/* PERF (action plan §2A.5): cache the in-browser Babel compile of
+/* PERF (action plan Â§2A.5): cache the in-browser Babel compile of
    tracker-app.js in localStorage. Without this, every page load
-   re-runs Babel on the ~6 KLOC source (~80–150 ms TBT). The cache
+   re-runs Babel on the ~6 KLOC source (~80â€“150 ms TBT). The cache
    key is shared with index.html so visitors who land on either entry
    benefit from a single compile. The hash suffix is auto-bumped by
    build-creator-bundle.js when tracker-app.js content changes. */

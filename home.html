@@ -1,16 +1,16 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdnjs.cloudflare.com; worker-src 'self' blob:; frame-src 'self' blob:;">
-<title>stitch. — Home</title>
+<title>stitch. â€” Home</title>
 <link rel="manifest" href="./manifest.json">
-<!-- Canonical landing — tool pages point their canonical href back here.
+<!-- Canonical landing â€” tool pages point their canonical href back here.
      (Homepage-predominance audit, Tier 3 #11.) -->
 <link rel="canonical" href="./home.html">
 <meta property="og:title" content="Cross Stitch Studio">
-<meta property="og:description" content="Design, track, and manage cross-stitch patterns — fully client-side.">
+<meta property="og:description" content="Design, track, and manage cross-stitch patterns â€” fully client-side.">
 <meta property="og:url" content="./home.html">
 <meta property="og:type" content="website">
 <meta name="theme-color" content="#B85C38">
@@ -24,12 +24,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js" integrity="sha384-ku9eM40vVDsFUiERorrdlHlF0LIhdfn716M7TntM72Uo98T7LWiogD3hNenPx8Q0" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js" integrity="sha384-rNlaE5fs9dGIjmxWDALQh/RBAaGRYT5ChrzHo6tRfgrZ36iRFAiquP5g41Jsv+0j" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <link rel="stylesheet" href="styles.css">
-<!-- Shared chrome scripts only — /home does NOT load creator-main, creator/bundle,
+<!-- Shared chrome scripts only â€” /home does NOT load creator-main, creator/bundle,
      tracker-app, or manager-app. Heavy tool bundles stay on their own pages. -->
 <script src="constants.js"></script>
 <script src="dmc-data.js"></script>
 <!-- anchor-data.js (45 KB) and thread-conversions.js (65 KB) are NOT loaded
-     on /home — verified via grep that home-app.js / home-screen.js never
+     on /home â€” verified via grep that home-app.js / home-screen.js never
      reference ANCHOR, CONVERSIONS, or getOfficialMatch. Saves 110 KB of
      eager parse on the landing page. -->
 <script src="starter-kits.js"></script>
@@ -43,8 +43,8 @@
 <script src="components/Overlay.js"></script>
 <script src="header.js"></script>
 <script src="modals.js"></script>
-<script src="help-drawer.js"></script>
-<script src="onboarding-wizard.js"></script>
+<script src="help-drawer.js" defer></script>
+<script src="onboarding-wizard.js" defer></script>
 <script src="threadCalc.js"></script>
 <script src="project-storage.js"></script>
 <script src="stash-bridge.js"></script>
@@ -60,8 +60,8 @@
 <!-- Mark the page kind BEFORE command-palette.js loads so its pageKind()
      heuristic returns the right registry. -->
 <script>window.__csPageKind = 'home';</script>
-<script src="command-palette.js"></script>
-<script src="preferences-modal.js"></script>
+<script src="command-palette.js" defer></script>
+<script src="preferences-modal.js" defer></script>
 </head>
 <body>
 <a class="skip-to-content" href="#main-content">Skip to content</a>

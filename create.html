@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdnjs.cloudflare.com; worker-src 'self' blob:; frame-src 'self' blob:;">
-<title>Create a Pattern — Cross Stitch Studio</title>
+<title>Create a Pattern â€” Cross Stitch Studio</title>
 <link rel="manifest" href="./manifest.json">
 <!-- Dedicated Creator entry-point. Unlike index.html (which redirects to
      /home when no project is active), create.html is reached only via
@@ -15,7 +15,7 @@
      gateway AND Creator host). create.html does exactly one thing. -->
 <link rel="canonical" href="./create.html">
 <meta property="og:title" content="Cross Stitch Studio">
-<meta property="og:description" content="Design, track, and manage cross-stitch patterns — fully client-side.">
+<meta property="og:description" content="Design, track, and manage cross-stitch patterns â€” fully client-side.">
 <meta property="og:url" content="./home.html">
 <meta property="og:type" content="website">
 <meta name="theme-color" content="#B85C38">
@@ -25,7 +25,7 @@
 <!-- Defensive redirect: create.html is normally reached via a deliberate
      action= deep link (home-image-pending, new-blank, open) OR with an
      active project already set. If neither is true the user has typed the
-     URL or back-navigated to a stale state — send them to /home Create
+     URL or back-navigated to a stale state â€” send them to /home Create
      tab where they can pick the canonical entry point, instead of showing
      the bare welcome card. The check intentionally allows action= and
      from=home through unconditionally so live handoffs always proceed. -->
@@ -37,7 +37,7 @@
     if (hasAction) return;
     var active = localStorage.getItem('crossstitch_active_project');
     if (!active) { location.replace('home.html?tab=create'); return; }
-  } catch (_) { /* localStorage blocked → load tool normally */ }
+  } catch (_) { /* localStorage blocked â†’ load tool normally */ }
 })();
 </script>
 <!-- Preconnect so CDN requests start immediately -->
@@ -62,7 +62,7 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js" integrity="sha384-ku9eM40vVDsFUiERorrdlHlF0LIhdfn716M7TntM72Uo98T7LWiogD3hNenPx8Q0" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <!-- pako needed at startup (project data uses deflate/inflate) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js" integrity="sha384-rNlaE5fs9dGIjmxWDALQh/RBAaGRYT5ChrzHo6tRfgrZ36iRFAiquP5g41Jsv+0j" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<!-- JSZip (C6 bundle export) — loaded eagerly on the Creator page so the
+<!-- JSZip (C6 bundle export) â€” loaded eagerly on the Creator page so the
      "Download bundle" action is available without a CDN round-trip on click.
      Pinned to 3.10.1 (immutable on cdnjs). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -92,8 +92,8 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="components/Overlay.js"></script>
 <script src="header.js"></script>
 <script src="modals.js"></script>
-<script src="help-drawer.js"></script>
-<script src="onboarding-wizard.js"></script>
+<script src="help-drawer.js" defer></script>
+<script src="onboarding-wizard.js" defer></script>
 <script src="threadCalc.js"></script>
 <script src="project-storage.js"></script>
 <!-- Lazy import engine: the full bundle (~126 KB) loads on first picker / DnD use. See reports/perf-opt-2-spec.md. -->
@@ -108,12 +108,12 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="apply-prefs.js"></script>
 <script src="toast.js"></script>
 <script>window.__csPageKind = 'creator';</script>
-<script src="command-palette.js"></script>
-<script src="preferences-modal.js"></script>
+<script src="command-palette.js" defer></script>
+<script src="preferences-modal.js" defer></script>
 <script src="insights-engine.js"></script>
 <script src="assets/fonts/CrossStitchSymbols.base64.js"></script>
 <script src="creator/bundle.js"></script>
-<!-- Lazy-load helpers — available to both regular and Babel scripts -->
+<!-- Lazy-load helpers â€” available to both regular and Babel scripts -->
 <script>
 window.loadScript = function(src, opts) {
   if (document.querySelector('script[src="' + src + '"]')) return Promise.resolve();
@@ -171,7 +171,7 @@ window.loadTrackerApp = function() {
     try { localStorage.setItem(TRACKER_CACHE_KEY, compiled); } catch(e) {}
     var s = document.createElement('script'); s.textContent = '(function(){' + compiled + '})();'; document.head.appendChild(s);
   }).catch(function(err) {
-    /* file:// or network error — fall back to Babel MutationObserver path */
+    /* file:// or network error â€” fall back to Babel MutationObserver path */
     console.error('loadTrackerApp failed:', err);
     window.__trackerLoading = false;
     var s = document.createElement('script'); s.type = 'text/babel'; s.src = 'tracker-app.js';
@@ -198,7 +198,7 @@ window.loadCreatorMain = function() {
     window.__creatorMainLoaded = true;
     var s = document.createElement('script'); s.textContent = '(function(){' + compiled + '})();'; document.head.appendChild(s);
   }).catch(function() {
-    /* file:// or network error — fall back to Babel MutationObserver path */
+    /* file:// or network error â€” fall back to Babel MutationObserver path */
     window.__creatorMainLoading = false;
     var s = document.createElement('script'); s.type = 'text/babel'; s.src = 'creator-main.js';
     document.head.appendChild(s);

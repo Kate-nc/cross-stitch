@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -11,7 +11,7 @@
      project picker. (Homepage-predominance audit, Tier 3 #11.) -->
 <link rel="canonical" href="./home.html">
 <meta property="og:title" content="Cross Stitch Studio">
-<meta property="og:description" content="Design, track, and manage cross-stitch patterns — fully client-side.">
+<meta property="og:description" content="Design, track, and manage cross-stitch patterns â€” fully client-side.">
 <meta property="og:url" content="./home.html">
 <meta property="og:type" content="website">
 <meta name="theme-color" content="#B85C38">
@@ -28,7 +28,7 @@
       var skip = /(\?|&)(from=home|action=)/.test(qs);
       if (!skip) { location.replace('home.html'); return; }
     }
-  } catch (_) { /* localStorage blocked → load tool normally */ }
+  } catch (_) { /* localStorage blocked â†’ load tool normally */ }
 })();
 </script>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
@@ -58,8 +58,8 @@
 <script src="components/Overlay.js"></script>
 <script src="header.js"></script>
 <script src="modals.js"></script>
-<script src="help-drawer.js"></script>
-<script src="onboarding-wizard.js"></script>
+<script src="help-drawer.js" defer></script>
+<script src="onboarding-wizard.js" defer></script>
   <script src="threadCalc.js"></script>
   <script src="project-storage.js"></script>
 <script src="stash-bridge.js"></script>
@@ -70,8 +70,8 @@
 <script src="touch-constants.js"></script>
 <script src="toast.js"></script>
 <script>window.__csPageKind = 'manager';</script>
-<script src="command-palette.js"></script>
-<script src="preferences-modal.js"></script>
+<script src="command-palette.js" defer></script>
+<script src="preferences-modal.js" defer></script>
 <!-- home-screen.js provides MultiProjectDashboard + helpers consumed by project-library.js (see ProjectLibrary mode='manager'). -->
 <script src="home-screen.js"></script>
 <script src="project-library.js"></script>
@@ -86,7 +86,7 @@
     <div id="sync-review-gate-root"></div>
 </main>
 <script>
-/* PERF (action plan §2A.5): cache the in-browser Babel compile of
+/* PERF (action plan Â§2A.5): cache the in-browser Babel compile of
    manager-app.js in localStorage. Without this every page load runs
    Babel on the ~3.5 KLOC source. The hash suffix is auto-bumped by
    build-creator-bundle.js when manager-app.js content changes. */
