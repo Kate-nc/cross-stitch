@@ -27,8 +27,10 @@ describe('sw.js precache (UX-12 Phase 7 PR #13)', () => {
   // Bumped to v41 when version.js was added to the precache.
   // Bumped to v42 when the navigation offline fallback was switched
   // from index.html to home.html (Workshop landing page).
-  test('CACHE_NAME bumped to v42', () => {
-    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v42['"]/);
+  // Bumped to v43 when components.js was split into core + components-stats.js
+  // (action plan headline H1 = 2A.1) so home/manager skip the stats half.
+  test('CACHE_NAME bumped to v43', () => {
+    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v43['"]/);
   });
 
   test('PRECACHE_URLS includes home.html', () => {

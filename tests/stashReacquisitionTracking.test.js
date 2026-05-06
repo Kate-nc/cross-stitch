@@ -79,8 +79,15 @@ describe('stash-bridge.js — re-acquisition tracking', () => {
   });
 });
 
-describe('components.js — activity chart removed from All Projects view', () => {
-  const COMP_SRC = fs.readFileSync(path.join(__dirname, '..', 'components.js'), 'utf8');
+describe('components-stats.js — activity chart removed from All Projects view', () => {
+  // GlobalStatsDashboard moved from components.js to components-stats.js as
+  // part of the H1 split (action plan 2A.1). Read whichever file the symbol
+  // currently lives in so this guard keeps working through future moves.
+  const STATS_PATH = path.join(__dirname, '..', 'components-stats.js');
+  const CORE_PATH  = path.join(__dirname, '..', 'components.js');
+  const COMP_SRC   = fs.existsSync(STATS_PATH) && fs.readFileSync(STATS_PATH, 'utf8').includes('function GlobalStatsDashboard(')
+    ? fs.readFileSync(STATS_PATH, 'utf8')
+    : fs.readFileSync(CORE_PATH, 'utf8');
 
   test('GlobalStatsDashboard no longer renders the gsd-heatmap section', () => {
     // After removing sections 6 & 7, the gsd-heatmap class should not appear
