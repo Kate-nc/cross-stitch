@@ -16,6 +16,57 @@ function fmtNum(n){return(n||0).toLocaleString('en-GB');}
 // threadKm: 14ct cross stitch ≈ 4mm of thread per stitch (0.004 m). Result in km, 1 d.p.
 function threadKm(stitches){return Math.round((stitches||0)*0.004/1000*10)/10;}
 
+// useProjectsAll — React hook returning { metas, fulls, loading } for every
+// project in IndexedDB. Action plan §3.3 (Option B). Wraps the cached
+// ProjectStorage.getProjectsAll() so multiple effects/components on a page
+// share a single IndexedDB read, and re-fetches whenever the
+// `cs:projectsChanged` event fires (dispatched by ProjectStorage on save /
+// delete and indirectly by SyncEngine writes).
+//
+// Returns the same { metas, fulls } shape the underlying API returns, plus
+// `loading` for convenience. `fulls` and `metas` are aligned by id (not by
+// index) — callers that need them paired should index `fulls` by id.
+//
+// Safe to call on pages that don't ship ProjectStorage (returns the empty
+// shape with loading:false); the hook never throws.
+function useProjectsAll() {
+  if (typeof React === 'undefined') return { metas: [], fulls: [], loading: false };
+  var EMPTY = { metas: [], fulls: [], loading: true };
+  var stateRef = React.useState(EMPTY);
+  var data = stateRef[0];
+  var setData = stateRef[1];
+  React.useEffect(function() {
+    if (typeof window === 'undefined' || !window.ProjectStorage) {
+      setData({ metas: [], fulls: [], loading: false });
+      return;
+    }
+    var cancelled = false;
+    function load() {
+      if (typeof window.ProjectStorage.getProjectsAll !== 'function') {
+        setData({ metas: [], fulls: [], loading: false });
+        return;
+      }
+      window.ProjectStorage.getProjectsAll().then(function(out) {
+        if (cancelled) return;
+        setData({ metas: out.metas || [], fulls: out.fulls || [], loading: false });
+      }).catch(function() {
+        if (cancelled) return;
+        setData({ metas: [], fulls: [], loading: false });
+      });
+    }
+    load();
+    function onChange() { load(); }
+    window.addEventListener('cs:projectsChanged', onChange);
+    return function() {
+      cancelled = true;
+      window.removeEventListener('cs:projectsChanged', onChange);
+    };
+  }, []);
+  return data;
+}
+if (typeof window !== 'undefined') window.useProjectsAll = useProjectsAll;
+
+
 // A3 (UX Phase 5) — pure helper used by the Tracker resume modal recap.
 // Returns a short summary of the most recent stitching session, or null when
 // no sessions exist. Pure: takes a project object, touches no globals.
