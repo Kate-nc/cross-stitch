@@ -6,7 +6,9 @@
   "rewrites": [
     { "source": "/", "destination": "/home.html" },
     { "source": "/home", "destination": "/home.html" },
-    { "source": "/create", "destination": "/create.html" }
+    { "source": "/create", "destination": "/create.html" },
+    { "source": "/stitch", "destination": "/stitch.html" },
+    { "source": "/manager", "destination": "/manager.html" }
   ],
   "headers": [
     {

@@ -9,6 +9,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   var cv = window.useCanvas();
   var app = window.useApp();
   var gen = window.useGeneration();
+  // Hover coords live in their own context (action plan H5 = 2B.1).
+  var hov = window.useHover() || {};
   var h = React.createElement;
 
   var _dismissed = React.useState(false); var confettiBannerDismissed = _dismissed[0], setConfettiBannerDismissed = _dismissed[1];
@@ -197,9 +199,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     // Enhanced status bar: tool hint + coordinates + colour-under-cursor
     (function() {
       var parts = [statusText];
-      if (cv.hoverCoords && cv.hoverCoords.gx >= 0 && cv.hoverCoords.gx < ctx.sW && cv.hoverCoords.gy >= 0 && cv.hoverCoords.gy < ctx.sH) {
-        parts.push("X: " + (cv.hoverCoords.gx + 1) + ", Y: " + (cv.hoverCoords.gy + 1));
-        var hIdx = cv.hoverCoords.gy * ctx.sW + cv.hoverCoords.gx;
+      if (hov.hoverCoords && hov.hoverCoords.gx >= 0 && hov.hoverCoords.gx < ctx.sW && hov.hoverCoords.gy >= 0 && hov.hoverCoords.gy < ctx.sH) {
+        parts.push("X: " + (hov.hoverCoords.gx + 1) + ", Y: " + (hov.hoverCoords.gy + 1));
+        var hIdx = hov.hoverCoords.gy * ctx.sW + hov.hoverCoords.gx;
         var hCell = ctx.pat[hIdx];
         if (hCell && hCell.id !== "__skip__" && hCell.id !== "__empty__" && ctx.cmap && ctx.cmap[hCell.id]) {
           var info = ctx.cmap[hCell.id];
@@ -210,8 +212,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         h("span", null, parts[0]),
         parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"var(--text-tertiary)",flexShrink:0}}, parts[1]),
         parts.length > 2 && h("span", {style:{display:"flex",alignItems:"center",gap:3,flexShrink:0}},
-          ctx.cmap && ctx.pat && cv.hoverCoords && (function() {
-            var hIdx2 = cv.hoverCoords.gy * ctx.sW + cv.hoverCoords.gx;
+          ctx.cmap && ctx.pat && hov.hoverCoords && (function() {
+            var hIdx2 = hov.hoverCoords.gy * ctx.sW + hov.hoverCoords.gx;
             var hCell2 = ctx.pat[hIdx2];
             if (hCell2 && hCell2.id !== "__skip__" && hCell2.id !== "__empty__" && ctx.cmap[hCell2.id]) {
               return h("span", {style:{width:8,height:8,borderRadius:2,display:"inline-block",border:"1px solid var(--border)",

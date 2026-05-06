@@ -227,11 +227,11 @@ describe("HelpDrawer — source-level guarantees", () => {
   test("HTML entry points reference help-drawer.js (not help-content / onboarding)", () => {
     ["index.html", "stitch.html", "manager.html"].forEach(name => {
       const html = fs.readFileSync(path.join(__dirname, "..", name), "utf8");
-      expect(html).toMatch(/<script src="help-drawer\.js"><\/script>/);
-      expect(html).not.toMatch(/<script src="help-content\.js"><\/script>/);
-      expect(html).not.toMatch(/<script src="onboarding\.js"><\/script>/);
+      expect(html).toMatch(/<script src="help-drawer\.js"(?:\s+defer)?><\/script>/);
+      expect(html).not.toMatch(/<script src="help-content\.js"(?:\s+defer)?><\/script>/);
+      expect(html).not.toMatch(/<script src="onboarding\.js"(?:\s+defer)?><\/script>/);
       // onboarding-wizard.js is a different file and must remain.
-      expect(html).toMatch(/<script src="onboarding-wizard\.js"><\/script>/);
+      expect(html).toMatch(/<script src="onboarding-wizard\.js"(?:\s+defer)?><\/script>/);
     });
   });
 });

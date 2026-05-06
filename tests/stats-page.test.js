@@ -137,19 +137,25 @@ describe('StatsShowcase — embedded in stats-page.js', () => {
   });
 });
 
-// ── index.html cache key tests ────────────────────────────────────
+// ── index.html stats loader tests ─────────────────────────────────
 
-describe('index.html — Babel cache keys', () => {
+describe('index.html — stats loaders', () => {
   const html = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
-
-  test('STATS_CACHE_KEY is defined', () => {
-    // Accept both legacy `babel_stats_v\d+` and the new content-hash form
-    // (`babel_stats_<10-hex-chars>`) auto-bumped by build-creator-bundle.js.
-    expect(html).toMatch(/STATS_CACHE_KEY\s*=\s*'babel_stats_(v\d+|[0-9a-f]{10})'/);
-  });
 
   test('loadStatsPage function is defined', () => {
     expect(html).toContain('window.loadStatsPage = function()');
+  });
+
+  test('stats loaders inject plain script (no Babel.transform)', () => {
+    // stats-*.js are pure React.createElement, so the loaders should not
+    // run Babel.transform on them. Guard against regressing back to the
+    // fetch + transform + localStorage cache pattern.
+    const loaderRegion = html.slice(
+      html.indexOf('window.loadStatsActivity'),
+      html.indexOf('</script>', html.indexOf('window.loadStatsPage'))
+    );
+    expect(loaderRegion).not.toMatch(/Babel\.transform/);
+    expect(loaderRegion).toContain("s.src = 'stats-page.js'");
   });
 });
 

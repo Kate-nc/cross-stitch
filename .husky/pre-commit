@@ -13,7 +13,7 @@ fi
 
 if ! node scripts/lint-terminology.js; then
   echo ""
-  echo "✗ Pre-commit blocked: terminology lint failed."
+  echo "FAILED: Pre-commit blocked: terminology lint failed."
   echo "  Fix the listed file:line entries (or add '// terminology-lint-allow' to the line"
   echo "  if the term is intentional) and try again. To bypass once, use git commit --no-verify."
   exit 1

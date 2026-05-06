@@ -73,10 +73,6 @@ window.Icons = (function() {
     cart: function() {
       return svg(c(9,21,1), c(20,21,1), p('M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6'));
     },
-    // Alias used by the B4 Manager Shopping tab + MaterialsHub.
-    shoppingCart: function() {
-      return svg(c(9,21,1), c(20,21,1), p('M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6'));
-    },
     // Trash / delete — replaces 🗑
     trash: function() {
       return svg(pl('3 6 5 6 21 6'), p('M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2'), l(10,11,10,17), l(14,11,14,17));
@@ -591,10 +587,6 @@ window.Icons = (function() {
     splitView: function() {
       return svg(rc(3, 5, 8, 14, 1), rc(13, 5, 8, 14, 1));
     },
-    // Grid overlay — 3×3 grid
-    gridOverlay: function() {
-      return svg(rc(3, 3, 18, 18, 2), l(9, 3, 9, 21), l(15, 3, 15, 21), l(3, 9, 21, 9), l(3, 15, 21, 15));
-    },
     // Wand fix — wand with sparkle
     wandFix: function() {
       return svg(p('M15 4V2'), p('M15 16v-2'), p('M8 9h2'), p('M20 9h2'), p('M17.8 11.8 19 13'), p('M15 9h0'), p('M17.8 6.2 19 5'), p('m3 21 9-9'), p('M12.2 6.2 11 5'));
@@ -636,15 +628,6 @@ window.Icons = (function() {
       return svg(
         c(12,12,3),
         p('M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z')
-      );
-    },
-    // Sync — circular double-arrow, distinct from cloudSync
-    sync: function() {
-      return svg(
-        p('M21 2v6h-6'),
-        p('M3 12a9 9 0 0 1 15-6.7L21 8'),
-        p('M3 22v-6h6'),
-        p('M21 12a9 9 0 0 1-15 6.7L3 16')
       );
     }
   };

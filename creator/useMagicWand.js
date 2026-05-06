@@ -454,6 +454,8 @@ window.useMagicWand = function useMagicWand(state) {
     var dstEntry = cmap[dstId];
     if (!dstEntry) {
       if (typeof findThreadInCatalog === 'function') dstEntry = findThreadInCatalog('dmc', dstId);
+      // PERF (action plan §2E.1): O(1) id-map lookup; Array.find kept as final fallback.
+      if (!dstEntry && typeof getDmcById === 'function') dstEntry = getDmcById(dstId);
       if (!dstEntry && typeof DMC !== 'undefined') dstEntry = DMC.find(function(d) { return d.id === dstId; });
     }
     if (!dstEntry) {

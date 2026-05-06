@@ -86,8 +86,11 @@
         // composite stash key is used to look up owned counts.
         var info = null, brand = 'dmc';
         info = findThreadInCatalog('dmc', id);
-        if (!info && typeof ANCHOR !== 'undefined') {
-          info = ANCHOR.find(function (d) { return d.id === id; });
+        if (!info) {
+          // PERF (action plan §2E.1): O(1) lookup instead of ANCHOR.find scan.
+          info = (typeof getAnchorById === 'function')
+            ? getAnchorById(id)
+            : (typeof ANCHOR !== 'undefined' ? ANCHOR.find(function (d) { return d.id === id; }) : null);
           if (info) brand = 'anchor';
         }
         var entry = stash[brand + ':' + id] || {};

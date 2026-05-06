@@ -51,6 +51,7 @@ const sourceFiles = [
   '../home-screen.js',
   '../home-app.js',
   '../components.js',
+  '../components-stats.js',
   '../modals.js',
   '../tracker-app.js',
   '../manager-app.js',

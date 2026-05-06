@@ -29,7 +29,7 @@ function read(rel) { return fs.readFileSync(path.join(ROOT, rel), 'utf8'); }
 describe('Creator bundle completeness', () => {
   const creatorMain = read('creator-main.js');
   const buildScript = read('build-creator-bundle.js');
-  const bundle = read('creator/bundle.js');
+  const bundle = read('creator/bundle.js') + '\n' + read('creator/extras-bundle.js');
 
   // 1. Every <window.Creator…/> JSX reference must resolve in the bundle.
   test('every <window.Creator*/> JSX usage resolves to a window.* assignment in the bundle', () => {
@@ -56,28 +56,35 @@ describe('Creator bundle completeness', () => {
     }
   });
 
-  // 2. Every file in ORDER must exist on disk.
-  test("every file listed in build-creator-bundle.js's ORDER exists in creator/", () => {
+  // 2. Every file in ORDER + EXTRAS_ORDER must exist on disk.
+  test("every file listed in build-creator-bundle.js's ORDER / EXTRAS_ORDER exists in creator/", () => {
     const orderMatch = buildScript.match(/const\s+ORDER\s*=\s*\[([\s\S]*?)\];/);
+    const extrasMatch = buildScript.match(/const\s+EXTRAS_ORDER\s*=\s*\[([\s\S]*?)\];/);
     expect(orderMatch).not.toBeNull();
-    const filenames = Array.from(orderMatch[1].matchAll(/['"]([^'"\n]+)['"]/g)).map((m) => m[1]);
+    expect(extrasMatch).not.toBeNull();
+    const filenames = [
+      ...Array.from(orderMatch[1].matchAll(/['"]([^'"\n]+)['"]/g)).map((m) => m[1]),
+      ...Array.from(extrasMatch[1].matchAll(/['"]([^'"\n]+)['"]/g)).map((m) => m[1]),
+    ];
     expect(filenames.length).toBeGreaterThan(0);
     const missing = filenames.filter((f) => !fs.existsSync(path.join(CREATOR_DIR, f)));
     expect(missing).toEqual([]);
   });
 
-  // 3. Every *Tab.js (and DesignerBrandingSection) source file is wired into the bundle.
-  test('every creator/*Tab.js source file is included in the bundle ORDER', () => {
+  // 3. Every *Tab.js (and DesignerBrandingSection) source file is wired into one of the bundles.
+  test('every creator/*Tab.js source file is included in ORDER or EXTRAS_ORDER', () => {
     const orderMatch = buildScript.match(/const\s+ORDER\s*=\s*\[([\s\S]*?)\];/);
-    const filenames = new Set(
-      Array.from(orderMatch[1].matchAll(/['"]([^'"\n]+)['"]/g)).map((m) => m[1])
-    );
+    const extrasMatch = buildScript.match(/const\s+EXTRAS_ORDER\s*=\s*\[([\s\S]*?)\];/);
+    const filenames = new Set([
+      ...Array.from(orderMatch[1].matchAll(/['"]([^'"\n]+)['"]/g)).map((m) => m[1]),
+      ...Array.from(extrasMatch[1].matchAll(/['"]([^'"\n]+)['"]/g)).map((m) => m[1]),
+    ]);
     const tabFiles = fs.readdirSync(CREATOR_DIR).filter((f) => /Tab\.js$/.test(f));
     expect(tabFiles.length).toBeGreaterThan(0);
     const missingFromOrder = tabFiles.filter((f) => !filenames.has(f));
     if (missingFromOrder.length) {
       throw new Error(
-        'These tab source files exist on disk but are not in build-creator-bundle.js ORDER ' +
+        'These tab source files exist on disk but are not in build-creator-bundle.js ORDER or EXTRAS_ORDER ' +
         '(rendered tree will throw React #130):\n  - ' + missingFromOrder.join('\n  - ')
       );
     }
@@ -98,7 +105,7 @@ describe('Creator bundle completeness', () => {
 
     // Always include creator-main.js itself (locally-defined components like
     // ComparisonSlider / CreatorErrorBoundary / CreatorApp / UnifiedApp).
-    const candidateFiles = new Set(['creator-main.js', 'creator/bundle.js']);
+    const candidateFiles = new Set(['creator-main.js', 'creator/bundle.js', 'creator/extras-bundle.js']);
     for (const src of scriptSrcs) candidateFiles.add(src.replace(/^\.\//, ''));
 
     // Concatenate all candidate file contents into one searchable corpus.

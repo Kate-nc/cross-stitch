@@ -6,7 +6,8 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'command-palette.js'), 'utf8');
+const { loadSource } = require('./_helpers/loadSource');
+const src = loadSource('command-palette.js');
 
 function makeSandbox() {
   const stubEl = () => ({
