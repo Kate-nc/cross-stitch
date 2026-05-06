@@ -45,7 +45,7 @@ There are three ways to mark stitches:
 
 - **Tap** a stitch to mark it done
 - **Tap again** to undo
-- **Two-finger drag** to mark multiple stitches (on tablets)
+- **Drag** to mark multiple stitches in a line
 
 #### 3. Keyboard
 
@@ -63,62 +63,74 @@ Mistakes? No problem:
 
 ## Understanding Views
 
-The Stitch Tracker has three main viewing modes. Click the view buttons in the toolbar:
+The Stitch Tracker has three viewing modes. Switch between them using the view buttons in the toolbar:
 
 ### 1. Symbol View
 
-Shows **stitches as symbols** (letters or shapes) instead of colours.
+Shows **stitches as symbols** (letters, shapes, or icons) on a light background.
 
-**Use when:**
-- Colours are hard to distinguish
-- You're working with many similar shades
-- You prefer symbols over colours
+**Use when:** Colours in your pattern are hard to tell apart, or you find symbols easier to read.
 
-**Example symbols:** `A`, `B`, `1`, `2`, `△`, `○`, etc.
+### 2. Colour View
 
-### 2. Colour + Symbol View (Default)
+Shows **stitches in their actual DMC colours** without symbols.
 
-Shows **both colours and symbols** at once.
-
-**Use when:**
-- You want to use colour AND reference symbols
-- You need maximum clarity
+**Use when:** You prefer to see the pattern as it will look when stitched.
 
 ### 3. Highlight View
 
-Isolates stitches you're actively working on.
+Focuses on one thread colour at a time. Click a thread in the palette panel to pick a focus colour, then choose how the rest of the chart is rendered:
 
-| Option | Effect |
-|--------|--------|
-| **Isolate** | Shows only the active colour; everything else fades |
-| **Outline** | Outlines the active colour's region with a bold line |
-| **Tint** | Slightly dims all colours except the active one |
-| **Spotlight** | Puts a bright spot around the active colour |
+| Sub-mode | Effect |
+|----------|--------|
+| **Isolate** | Everything except the focus colour fades to near-white |
+| **Outline** | The focus colour's region is outlined with marching ants; others render normally |
+| **Tint** | A colour wash is applied to the focus colour stitches |
+| **Spotlight** | A radial spotlight highlights the focus colour; outer stitches dim |
 
-**Use when:** Working on a single thread colour for an extended time.
+**Use when:** Working stitch-by-stitch on one colour for an extended time. Counting aids and stitch-run guides activate automatically in Highlight mode.
 
-## Using the Colours Drawer
+## Thread Panel
 
-On the right side, you'll see all threads in your pattern with their progress.
+The **Threads needed** panel appears in the right sidebar. It shows every thread in your pattern with ownership and consumption data.
 
-### What's Shown
+### Basic Mode
 
-| Column | Info |
-|--------|------|
-| **Colour chip** | Visual colour sample |
-| **Thread ID** | DMC or Anchor number |
-| **Progress bar** | How many stitches are done (blue) vs. remaining (grey) |
-| **Done / Total** | "42 / 100" = 42 stitches done, 100 total |
-| **%** | Progress percentage (e.g., 42%) |
+| Info | Description |
+|------|-------------|
+| **Colour swatch** | Visual colour sample |
+| **Thread ID** | DMC number and colour name |
+| **Skeins needed** | How many skeins the pattern requires |
+| **Stash pip** | Green check if you own enough; orange count if you need to buy more |
 
-### Interact with Colours
+Threads are grouped:
+- **To buy** — threads you don't yet own enough of
+- **In stash** — threads you own
 
-**Click a colour in the drawer** to:
-- Highlight all stitches of that colour in the chart
-- In **Highlight view**, switch the focus to that colour
-- Helps you stay focused on one thread at a time
+**Click any thread row** to switch to Highlight view focused on that colour.
 
-**Scroll the drawer** to see all colours if there are many.
+### Live Stash Deduction
+
+Toggle **Live** in the Threads panel header to activate real-time thread consumption tracking.
+
+When Live is on, the app calculates how much thread each stitch actually uses (based on your waste settings) and deducts it from your stash as you mark stitches:
+
+- Each thread row shows **consumed / owned** fractions (e.g., `1.23/3.0`)
+- Threads running low show a **Low** badge
+- Threads that have run out move to a **Need more** group at the top, highlighted in red
+
+**Gear icon** (next to the Live toggle) — opens the waste settings flyout:
+
+| Setting | Default | What it controls |
+|---------|---------|------------------|
+| **Tail allowance (in)** | 1.5 in | Thread wasted per cut for starting/ending tails |
+| **Run length (stitches)** | 30 | How many stitches you stitch before cutting |
+| **General waste (%)** | 10% | Extra buffer for general wastage |
+| **Strands** | 2 | Number of strands used per stitch |
+
+The flyout shows a live estimate of thread consumed per stitch based on your settings.
+
+> **Requirement:** Live mode reads your stash from the Stash Manager. If your stash isn't set up, toggle it on after adding your thread inventory in the Stash Manager.
 
 ## Navigation & Parking Markers
 
@@ -147,28 +159,35 @@ Mark where you "parked" so you know exactly where to pick up next time.
 
 ## Session Timer & Completion Estimates
 
-### Start a Session
+### Starting a Session
 
-The **Session Timer** tracks how long you've been stitching in this session.
+The session timer tracks how long you've been stitching and how many stitches you complete.
 
-1. Click the **Start Session** button (play icon) in the top toolbar
-2. Timer begins counting up
-3. Work on your stitches
+1. Click the **Start Session** button in the toolbar
+2. A modal opens — optionally set:
+   - **Time available** — 15 min, 30 min, 1 hr, 2 hr, or open-ended
+   - **Stitch goal** — a target number of stitches for this session
+3. Click **Start** — the timer begins
 
-### Pause/Resume
+> **Auto-tracking:** The timer and stitch count update in real time as you mark stitches. You can see the current session's elapsed time and stitch count in the sidebar under **Today**.
 
-- **Pause** — Click the pause button to pause the timer (you can resume later)
-- **Stop** — Click stop to end the session and save it to your project history
+### Ending a Session
 
-**Your session is recorded** — The app learns your stitching pace and estimates completion date.
+Click the stop or end-session button in the toolbar. A **Session complete** summary shows:
+- Time elapsed and stitches completed
+- Speed in stitches per hour (with comparison to your average)
+- Progress gained (% before and after)
+- Any colours finished during this session
+
+The session is saved to your project history automatically.
 
 ### Completion Estimate
 
-Based on your actual stitching speed:
+Based on your accumulated stitching speed across all sessions:
 
-- Progress bar shows "Estimated completion: June 15, 2025"
-- Updates as you stitch more sessions
-- More accurate after 2–3 sessions
+- Shown in the sidebar and Home Screen as an estimated finish date
+- Becomes more accurate after a few sessions of real data
+- Recalculates after each session ends
 
 ## Importing Patterns
 
@@ -311,7 +330,7 @@ See **[Cross-Device Sync](Cross-Device-Sync.md)** for detailed instructions.
 
 ### Q: How do I print a chart to reference while stitching?
 
-**A:** In the **Pattern Creator**, go to **Export** tab → **Download PDF Chart** → Print it. You can cross-stitch from the PDF while using the Tracker on a separate device.
+**A:** In the **Pattern Creator**, open the **Materials** page → **Output** sub-tab → **Print PDF** → Print it. You can cross-stitch from the printed PDF while using the Tracker on a separate device.
 
 ### Q: Can I change the pattern while tracking?
 
@@ -329,9 +348,8 @@ See **[Cross-Device Sync](Cross-Device-Sync.md)** for detailed instructions.
 ### After Completing Your Project
 
 1. Stop the session timer
-2. Optional: Mark the project as complete (**Mark complete** button)
-3. View your **project stats** on the Home Screen
-4. Save a **backup** of your finished project
+2. View your **project stats** on the Home Screen
+3. Save a **backup** of your finished project via Preferences → **Sync, backup & data** → **Download backup**
 
 ### Other Guides
 

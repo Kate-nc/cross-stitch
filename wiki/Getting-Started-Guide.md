@@ -1,16 +1,15 @@
 # Getting Started Guide
 
-Welcome to StitchX! This guide will walk you through opening the app for the first time and understanding how it works.
+Welcome to StitchX! This guide walks you through opening the app for the first time and understanding how everything fits together.
 
 ## Opening the App
 
 ### First Launch
 
-1. **Go to the Home Screen** — Open `home.html` in your web browser (or navigate to your deployment URL)
-2. **Grant Storage Permission** — The browser may ask to allow storage. Click **Allow** to enable data saving
-3. **First-Time Tour** — You'll see a welcome screen with an overview of the three main tools
+1. **Go to the Home Screen** — Open `home.html` in your browser, or navigate to your deployment URL.
+2. **No sign-in required** — StitchX stores everything locally in your browser's IndexedDB. No account, no login.
 
-> **Tip:** Bookmark this page or add it to your home screen (iOS/Android) for quick access next time.
+> **Tip:** Bookmark the page or use your browser's "Add to home screen" option (iOS/Android) for quick access.
 
 ### Desktop vs. Mobile
 
@@ -143,11 +142,11 @@ See **Pattern Creator Tutorial** for step-by-step details.
 
 Your data is stored **locally on your device** using IndexedDB (the browser's built-in database). Nothing is uploaded to a server.
 
-**This means:**
-- ✓ Your data is private — only you can access it
-- ✓ Works fully offline (after initial load)
-- ✓ Faster than cloud-based apps (no network delays)
-- ✓ No login or account required
+This means:
+- Your data is private — only you can access it
+- The app works fully offline after the initial load
+- No login or account is required
+- Saves are instant with no network delays
 
 ### What If I Close the Browser?
 
@@ -157,16 +156,16 @@ Your projects are saved automatically. When you reopen the app, all your project
 
 ### Backing Up Your Data
 
-Your data only exists on this device. To protect against data loss:
+Your data only exists on your device by default. To protect against data loss:
 
-1. Go to **Home Screen** → **Projects** tab
-2. Look for the **Backup** option (gear icon or menu)
-3. Click **Export all data** → Downloads a `.csbackup` file to your computer
-4. Save this file in a safe location (cloud drive, external hard drive, etc.)
+1. Open **Preferences** (`Ctrl+,`)
+2. Click the **Sync, backup & data** category in the left sidebar
+3. Click **Download backup** — this saves a single compressed file containing all your projects, stash, and settings
+4. Store the file somewhere safe (external drive, cloud storage, email to yourself, etc.)
 
-> **Restore later:** Go to Preferences, find **Restore from backup**, and select your `.csbackup` file.
+**To restore:** Open Preferences → **Sync, backup & data** → **Restore from a backup file**, then select your backup file.
 
-See **Backup & Restore** for detailed instructions.
+See **[Backup & Restore](Backup-Restore.md)** for full details.
 
 ## Using Across Multiple Devices
 
@@ -208,47 +207,36 @@ Your projects will now appear on Device B. See **Cross-Device Sync** for advance
 
 ### Q: Can I import a pattern I found online?
 
-**A:** Yes! The Stitch Tracker can import:
+**A:** Yes. The Stitch Tracker (and the home-screen importer) can load:
 - `.oxs` files (KG-Chart / Pattern Keeper format)
-- `.json` project files from StitchX
-- Image files (`.png`, `.jpg`) — converted to patterns
-- PDF files — pattern extraction (experimental)
+- `.json` StitchX project files
+- Image files (`.png`, `.jpg`) — converted to a cross-stitch pattern
+- PDF pattern files (experimental)
 
-Go to **Stitch Tracker** → Import tab to get started.
+Use the import button in the Stitch Tracker toolbar.
 
 ### Q: Can I export my pattern to print?
 
-**A:** Yes! The Pattern Creator has multiple export options:
+**A:** Yes. The Pattern Creator has several export options:
 - **PDF Chart** — Multi-page Pattern Keeper–compatible chart, ready to print
-- **PNG Image** — Full-resolution screenshot or A4 layout
+- **PNG Image** — Full-resolution raster image
 - **ZIP Bundle** — All formats (PDF, PNG, OXS, JSON) in one archive
 
-See **Export Formats Explained** for details.
+See **[Export Formats Explained](Export-Formats.md)** for details.
 
 ### Q: Does this work on my phone?
 
-**A:** Yes! StitchX is fully responsive and works on:
-- iPhones and Android phones
-- Tablets (iPad, Android tablets)
-- Desktops and laptops
-
-The interface adjusts for smaller screens, and all features work on mobile.
+**A:** Yes. StitchX is responsive and works on iPhones, Android phones, and tablets. The layout adjusts for smaller screens and all core features are accessible on mobile.
 
 ### Q: Can I undo my mistakes?
 
-**A:** Yes! Full undo/redo history in both the Creator and Tracker:
+**A:** Yes — full undo/redo history in both the Creator and Tracker:
 - **Undo** — Ctrl+Z (Cmd+Z on Mac)
 - **Redo** — Ctrl+Y (Cmd+Shift+Z on Mac)
-- Works across stitches, edits, colour changes, and more
 
 ### Q: What if I delete a project by accident?
 
-**A:** If you deleted it very recently, you might recover it:
-1. Go to Home Screen → Projects tab
-2. Look for a "Recently deleted" or "Trash" section (if available)
-3. If not there, you'll need to restore from a backup (see above)
-
-> **Prevent future accidents:** Always keep a regular backup of important projects.
+**A:** There is no recycle bin. If you deleted a project and do not have a backup, it cannot be recovered. This is why regular backups are important — use **Preferences** → **Sync, backup & data** → **Download backup** to export a full snapshot before doing bulk deletions.
 
 ## Next Steps
 

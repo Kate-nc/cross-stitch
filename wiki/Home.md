@@ -79,10 +79,15 @@ Your digital replacement for a printed chart while stitching.
 - Session timer to track time spent and estimate completion
 
 **Navigation & Views**
-- Symbol-only, colour + symbol, or highlight mode
+- Symbol view, colour view, or highlight mode (with isolate, outline, tint, and spotlight sub-modes)
 - Place a guide crosshair for navigation
 - Per-colour parking markers (for picking up where you left off)
-- Colours drawer showing progress % and stitch counts per thread
+- Thread panel showing skein needs, stash status, and live consumption tracking
+
+**Live Stash Deduction**
+- Toggle "Live" in the thread panel to track thread consumption in real time as you stitch
+- See consumed vs. owned fractions per thread with low-stock warnings
+- Configurable waste settings (tail allowance, run length, waste %, strand count)
 
 **Import Support**
 - Load `.json` projects from the Creator
@@ -127,14 +132,16 @@ Your data is stored **entirely on your device** using IndexedDB (browser's local
 ### Backup & Sync
 
 **Manual Backup**
-- Export all your data as a single `.csbackup` file from the Home Screen
+- Export all your data as a single compressed backup file from Preferences → **Sync, backup & data** → **Download backup**
 - Store securely on your device
-- Restore anytime, anywhere
+- Restore anytime via the same Preferences panel
 
 **Cloud Sync (Optional)**
-- Export incremental `.csync` files to a cloud folder (Dropbox, iCloud, OneDrive)
-- Sync between devices by importing `.csync` files
-- No account required
+- Connect a cloud storage folder (Dropbox, Google Drive, OneDrive) via Preferences → **Sync, backup & data** → **Sync folder**
+- Changes are automatically exported as `.csync` files every 30 seconds after a save
+- Other devices watching the same folder receive and merge updates automatically
+- No account required; uses the File System Access API (Chrome/Edge 86+)
+- Manual file-transfer sync also available for Firefox and Safari
 
 ### Clearing Your Data
 
@@ -233,7 +240,7 @@ Want to help improve StitchX? See [Contributing Guide](Contributing.md) for deta
 Choose a topic below, or browse the full wiki sidebar:
 
 ### For New Users
-- [Getting Started Guide](Getting-Started.md)
+- [Getting Started Guide](Getting-Started-Guide.md)
 - [Pattern Creator Tutorial](Pattern-Creator-Tutorial.md)
 - [Stitch Tracker Guide](Stitch-Tracker-Guide.md)
 - [Stash Manager Guide](Stash-Manager-Guide.md)
@@ -257,7 +264,6 @@ Choose a topic below, or browse the full wiki sidebar:
 
 ---
 
-**Version:** 1.0.0  
 **Last Updated:** May 2026  
 **License:** ISC
 

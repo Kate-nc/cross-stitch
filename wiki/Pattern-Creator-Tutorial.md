@@ -6,7 +6,7 @@ Learn to convert images into cross-stitch patterns using StitchX, edit them, and
 
 The Pattern Creator is where you turn images into stitchable charts or design patterns from scratch. This tutorial covers the complete image-to-pattern workflow.
 
-**Time:** 10–20 minutes (depending on how much you customize)  
+**Time:** 10–20 minutes (depending on how much you customise)  
 **Required:** A JPG or PNG image (photo, artwork, screenshot, etc.)
 
 ## Starting a New Project
@@ -15,18 +15,20 @@ The Pattern Creator is where you turn images into stitchable charts or design pa
 
 1. Open the app at **home.html**
 2. Click **Create New** tab → **Create from image**
-3. You'll see the **Image Import Wizard**
+3. The **Image Import Wizard** opens — a 5-step guided flow
 
 ### Method 2: Blank Canvas
 
 1. Go to **Create New** tab → **Blank canvas**
 2. Enter width and height (in stitches) — e.g., 100 × 100
 3. Click **Create**
-4. Skip to "Editing Your Pattern" section below
+4. Skip to "Editing Your Pattern" below
 
-## Step 1: Upload Your Image
+## The Image Import Wizard
 
-In the Image Import Wizard:
+The wizard has 5 steps that walk you through setting up your pattern before generating it.
+
+### Step 1: Upload Your Image
 
 1. **Click the upload area** or drag-and-drop your image
 2. **Supported formats:** JPG, PNG, GIF, WebP, BMP
@@ -35,200 +37,155 @@ In the Image Import Wizard:
    - **Avoid:** Very small images (<50 pixels), photos with lots of detail, text
    - **Size:** Any resolution works, but 500–2000 pixels wide is ideal
 
-**Your image appears in the preview once uploaded.**
+Your image appears in the preview once uploaded.
 
-## Step 2: Choose Pattern Size
+### Step 2: Crop & Rotate
 
-### Maximum Colours
+Rotate or mirror your image and choose an aspect-ratio guide. The crop is applied when the pattern is generated.
 
-This controls how many different thread colours will appear in your pattern.
+### Step 3: Choose Dimensions & Colours
 
-| Setting | Use Case | Tip |
-|---------|----------|-----|
-| **2–5 colours** | Minimalist, simple designs, large stitches | Fastest to stitch |
-| **10–15 colours** | Average pattern, most photos | Good balance |
-| **20–40 colours** | Complex photos, detailed artwork | More realistic, slower to stitch |
-| **50–80 colours** | Photo-realistic, highly detailed | Most stitches, most threads |
+**Pattern dimensions** — Width and height in stitches. Larger = more detail but more time to stitch.
 
-**Recommended for beginners:** Start with 10–15 colours.
+**Maximum colours** — How many different thread colours appear in the pattern.
 
-You'll see a **live preview** of your pattern with the chosen colour count. The preview updates as you change settings.
+| Setting | Use Case |
+|---------|----------|
+| **2–5 colours** | Minimalist, logos, simple designs |
+| **10–15 colours** | Most photos — good balance for beginners |
+| **20–40 colours** | Complex photos, detailed artwork |
+| **50–80 colours** | Photo-realistic patterns |
 
-### Minimum Stitch Count
+**Minimum stitch count** — Colours used fewer than this many times are dropped from the palette (default: 0).
 
-Colours used fewer times than this threshold are automatically removed. For example:
-- If set to **10**, colours with fewer than 10 stitches are dropped
-- If set to **50**, very rare colours disappear, simplifying the palette
+### Step 4: Adjustments & Dithering
 
-**Default:** 0 (no minimum)
+**Brightness / Contrast / Saturation** — Sliders to tune the image before conversion. Experiment until the preview looks right.
 
-## Step 3: Adjust Image Quality Settings
-
-These controls affect how the image converts to a pattern. Experiment with the preview!
-
-### Brightness
-
-Slide to make the image lighter (↗) or darker (↙).
-
-**Use when:** Image is too dark/washed out in the preview.
-
-### Contrast
-
-Slide to increase (↗) or decrease (↙) contrast between light and dark areas.
-
-**Use when:** Image looks flat or too harsh.
-
-### Saturation
-
-Slide to increase (↗) colour vibrancy or decrease (↙) for muted tones.
-
-**Use when:** Colours look wrong or boring.
-
-### Smoothing
-
-Reduces image noise before conversion (useful for photos).
+**Smoothing**
 
 | Option | Effect |
 |--------|--------|
-| **Off** | No smoothing (keep sharp edges) |
+| **Off** | No smoothing — keep sharp edges |
 | **Median** | Removes small noise spots |
-| **Gaussian** | Blurs slightly (smooths jagged edges) |
+| **Gaussian** | Slight blur — smooths jagged edges |
 
-**Use when:** Photo has lots of texture/grain.
+**Background removal** — Enable to click a colour on the image to remove it (e.g., a white background behind a logo). Adjust tolerance to remove more or fewer similar shades.
 
-### Background Removal
+**Dithering** — Blends two threads in adjacent stitches to simulate smoother gradients.
 
-Click **Enable background removal** to:
-
-1. **Pick a colour** from the image (click on the background area you want to remove)
-2. **Adjust tolerance** (0–100) — Higher = more similar colours removed
-3. The preview updates to show what will become empty fabric
-
-**Use when:** You want to stitch on a specific background colour (e.g., a logo on white background).
-
-## Step 4: Choose Dithering
-
-Dithering blends colours by mixing two threads in adjacent stitches, creating gradients and smoother transitions.
-
-| Setting | What It Does | When to Use |
-|---------|--------------|------------|
-| **Off** | Solid colours only | Simple graphics, logos, blocks of colour |
-| **Weak** | Minimal dithering | Subtle gradients |
+| Setting | Effect | When to Use |
+|---------|--------|------------|
+| **Off** | Solid colours only | Logos, simple graphics |
+| **Weak** | Subtle blending | Gentle gradients |
 | **Balanced** | Moderate blending | Most photos (default) |
-| **Strong** | Heavy dithering (may add stitches) | Detailed photos, gradients |
+| **Strong** | Heavy blending | Detailed photos, gradients |
 
-**Tip:** Start with **Balanced** and adjust based on preview.
+### Step 5: Confirm
 
-The preview updates in real-time — you'll see the pattern change as you adjust this slider.
+Review the pattern details and click **Generate pattern** to create your pattern. A progress indicator appears while the pattern is generated (10–30 seconds for most images).
 
-## Step 5: Preview Your Pattern
+**Not happy with the result?** Use the Back button to change any setting and regenerate.
 
-The **low-resolution preview** shows approximately what your final pattern will look like:
+## The Pattern Editor
 
-- **Green grid** = Chart grid overlay
-- **Coloured stitches** = Your pattern
-- **Real size reference** = How many inches/cm the finished pattern will be (at different fabric counts)
+After generating, you're in the full Pattern Creator. The interface has three main pages accessible from the top navigation bar.
 
-### Pattern Size
+### Page 1: Pattern (Canvas)
 
-At the bottom of the preview, you'll see:
+The main editing area showing your full cross-stitch chart. On the right is a collapsible **sidebar** with contextual tabs:
 
-```
-100 × 100 stitches
-At 14-count fabric: 7.1 × 7.1 inches
-At 18-count fabric: 5.6 × 5.6 inches
-```
+**During image setup (Create mode):**
+- **Image** — Re-upload or swap the source image
+- **Dimensions** — Change pattern size and colour count
+- **Palette** — Fine-tune colour matching and quality
+- **Project** — Name and settings for this project
 
-> **Fabric count?** That's the number of stitches per inch of fabric. 14-count is standard. See [Fabric Counts Explained](#fabric-counts-explained) below.
+**After generating (Edit mode):**
+- **Palette** — Palette management, colour quality controls
+- **Tools** — Brush, fill, lasso, magic wand, half-stitches, backstitch tools
+- **View** — Symbols, grid, zoom presets, and canvas appearance
+- **Preview** — Realistic canvas mockup showing the finished look
 
-### Satisfied?
+An **action bar** above the canvas gives quick access to **Print PDF** and an **Export...** menu. The mode-switch buttons (**Create / Edit / Track**) let you jump between the import wizard, the editor, and the Stitch Tracker.
 
-Click **Finalise pattern** to continue to the full editor.
+### Page 2: Materials
 
-**Not happy?** Go back and adjust settings, then preview again.
+The Materials page has three sub-tabs:
 
-## Step 6: Your Pattern is Ready!
+| Sub-tab | Contents |
+|---------|----------|
+| **Threads** | Full thread list: DMC number, colour name, stitch count, skeins needed, cost |
+| **Stash status** | Which threads you own (from your Stash) vs. which you need to buy |
+| **Output** | All export options — PDF, PNG, JSON, ZIP, URL share |
 
-You're now in the **Pattern Creator's full editor** where you can:
+### Page 3: Project
 
-- **Paint individual stitches** — Click to change a stitch colour
-- **Fill regions** — Use the bucket tool (flood fill)
-- **Add backstitches** — Draw outlines and details
-- **Place half-stitches** — Stitch fractions for smoother details
-- **Adjust colours** — Swap threads, remove unused colours
-- **Export** — Save as PDF, PNG, JSON, or share
-- **Track** — Open in the Stitch Tracker to start stitching
-
-See **Editing Your Pattern** section below for details.
+Project-level settings — name, fabric count, strand count, and other preferences.
 
 ## Editing Your Pattern
 
-### Main Editor Tabs
+### Toolbar & Brush Tools
 
-| Tab | What It Contains |
-|-----|------------------|
-| **Pattern** | The editable chart, colour palette, and brush tools |
-| **Legend** | Thread list with counts, Anchor equivalents, and costs |
-| **Materials** | Skein calculator, stash status, cost summary |
-| **Preview** | Realistic canvas mockup (hoop, frame, etc.) |
-| **Export** | Download options (PDF, PNG, JSON, ZIP, etc.) |
+Select tools from the **Tools** sidebar tab:
 
-### Painting & Editing
+- **Paint Brush** — Click/drag to paint individual stitches
+- **Fill Bucket** — Flood-fill a region with one colour
+- **Eraser** — Remove stitches (turn to background)
+- **Magic Wand** — Click a stitch to select all matching stitches; refine threshold in the panel
+- **Lasso** — Draw freehand to select a region
 
-#### Brush Tools
+### Half-Stitches & Backstitches
 
-Located in the toolbar:
+Switch modes from the Tools panel or the toolbar:
 
-- **Paint Brush** — Click to paint individual stitches
-- **Fill Bucket** — Click to fill a region with one colour
-- **Eraser** — Click to remove stitches (turn to background)
-- **Magic Wand** — Click a stitch to select all matching stitches; refine in the side panel
-- **Lasso** — Draw to select a freeform region
+- **Half-stitch mode** — Click to place quarter, half, or three-quarter stitches in any quadrant
+- **Backstitch mode** — Click-and-drag to draw outline and detail lines
 
-#### Half-Stitches & Backstitches
+### Undo & Redo
 
-- **Half-Stitch Button** — Switches to half-stitch mode (quarter, half, three-quarter in all quadrants)
-- **Backstitch Button** — Switches to backstitch mode (draw lines)
+- **Ctrl+Z** (Cmd+Z on Mac) — Undo last action
+- **Ctrl+Y** (Cmd+Shift+Z on Mac) — Redo
+- Full history — go back as many steps as needed
 
-#### Selection & Undo
+### Replacing a Colour
 
-- **Ctrl+Z** — Undo last action
-- **Ctrl+Y** — Redo
-- **Ctrl+A** — Select all stitches
-- Full undo history (you can go back many steps)
+To replace one DMC colour with another across the whole pattern:
 
-### Adjusting Colours
+1. Right-click a stitch of the colour to replace, then choose **Replace this colour...**  
+   — or click the swap icon on a palette chip  
+   — or select the Replace tool from the toolbar
+2. The **Colour Replace** modal opens, showing the current colour
+3. Search for or click a replacement DMC colour
+4. Click **Replace** — all stitches update immediately
 
-#### Palette Swap
+### Remove Unused Colours
 
-To replace one colour with another across the **entire pattern**:
-
-1. Right-click a stitch of the colour you want to replace
-2. Choose **Replace this colour...**
-3. Select a new colour from the picker
-4. All stitches of the old colour are replaced
-
-Or use the **Replace tool** in the toolbar (swap icon) and click any stitch.
-
-#### Remove Unused Colours
-
-To clean up colours with very few stitches:
-
-1. Look at the **palette panel** on the right
-2. If a colour has 0 stitches (no longer used), it shows a faint **X button**
-3. Click the X to remove it, or click the **Remove unused (N)** button at the top to remove all at once
+Colours with 0 stitches show an **X** button in the palette panel. Click the X individually, or click **Remove unused** to clear all zero-stitch colours at once.
 
 ### Split-Pane View
 
-To see the editable chart and realistic preview side-by-side:
+See the editable chart and the realistic preview side-by-side:
 
-1. Click the **Split Pane** button (two rectangles icon)
-2. Drag the divider to resize
-3. Paint stitches on the left; see the result on the right in real-time
+1. Click the **Split Pane** button in the toolbar (two-rectangle icon)
+2. Drag the divider to resize the panes
+3. Paint on the left; see a realistic render on the right in real-time
+
+### Adapt Pattern to Your Stash
+
+The **Adapt** feature finds substitutes from your thread stash for colours you don't own, or converts the whole palette to a different brand:
+
+1. Click the **Adapt** button in the action bar or palette panel
+2. Choose mode:
+   - **Match my stash** — Auto-suggests stash threads as closest-match replacements
+   - **Convert to brand** — Converts all threads to an equivalent Anchor or other brand
+3. Review the substitution table — override any individual suggestion using the dropdown
+4. Adjust the **threshold** (ΔE2000 slider) to control how close matches must be
+5. Click **Save** — creates a **new project** with the adapted palette (the original is unchanged)
 
 ## Materials & Thread Info
 
-### Legend Tab
+### Threads Sub-tab
 
 Shows all threads in your pattern:
 
@@ -237,76 +194,45 @@ Shows all threads in your pattern:
 | **Thread** | DMC number and colour name |
 | **Stitches** | How many stitches use this thread |
 | **Skeins** | How many skeins you'll need (based on fabric count) |
-| **Anchor Equiv** | Equivalent Anchor thread (if different from DMC) |
 | **Cost** | Price per skein × skeins needed |
 
-### Materials Tab
+### Stash Status Sub-tab
 
-**Thread Inventory:**
-- Shows which threads you own (from your Stash)
+- Shows which threads you own (from your Stash Manager inventory)
 - Shows threads you need to buy
-- If a thread is in your stash, it's marked as ✓ owned
+- Toggle thread ownership directly from here
 
-**Skein Calculator:**
-- Adjust fabric count, stitch type (full, half, backstitch), strand count
-- See estimated skein requirements update in real-time
-- Cost summary
-
-**Shopping List:**
-- Copy a formatted list of threads you need
-- Useful for online shopping or store visits
-
-## Exporting Your Pattern
-
-### Quick Export Options
+### Output Sub-tab (Export Options)
 
 **Open in Stitch Tracker**
-- Launches the pattern directly in the Stitch Tracker (no file download needed)
-- Start tracking your progress immediately
+- Launches the pattern in the Stitch Tracker — no file download needed
 
-**Download PDF Chart**
-- Multi-page pattern-keeper compatible chart
-- Includes thread legend, finished size, cost summary
-- Ready to print and stitch
-- Choose between colour symbols, image symbols, or black-and-white
+**Print PDF**
+- Multi-page Pattern Keeper–compatible chart
+- Includes thread legend, finished size, and cost summary
+- Choose colour symbols, image symbols, or black-and-white
 
-**Download PNG Image**
-- Full-resolution screenshot of the pattern
+**Download PNG**
+- Full-resolution raster image of the pattern
 - Choose full resolution or A4 page layout
-- Good for digital reference on tablets
 
-**Download JSON Project**
-- Complete project file (save for later editing)
-- Includes pattern, progress (if tracking), session history
+**Download JSON**
+- Complete project file (pattern, any progress, session history)
 - Reload anytime to continue editing
 
-**Download ZIP Bundle**
-- All formats in one archive:
-  - PDF chart
-  - PNG image
-  - JSON project
-  - OXS file (Pattern Keeper format)
-  - Manifest
+**Download ZIP**
+- All formats in one archive: PDF, PNG, JSON, OXS (Pattern Keeper format)
 
 **Share via URL**
-- Compressed pattern encoded into a shareable link
+- Encodes the pattern into a compressed, shareable link
 - Opens directly in the Stitch Tracker on any device
 - No file transfer needed
-- Useful for collaboration
 
-See **[Export Formats Explained](Export-Formats.md)** for detailed info on each format.
+See **[Export Formats Explained](Export-Formats.md)** for detail on each format.
 
 ## Saving Your Work
 
-Your pattern is **automatically saved** to the app's local storage. You don't need to manually save.
-
-**Your project appears in the Home Screen's Projects list**, where you can:
-- See progress (if tracking)
-- Edit it again later
-- Track progress in the Stitch Tracker
-- Delete it (with confirmation)
-
-> **Backup:** Go to Home → Gear icon → **Export all data** to save a backup of all projects. See **[Backup & Restore](Backup-Restore.md)**.
+Your pattern saves **automatically** to local storage. No manual save is needed. The project appears in the Home Screen's Projects list.
 
 ## Tips & Tricks
 
@@ -373,8 +299,8 @@ See **[Stitch Tracker Guide](Stitch-Tracker-Guide.md)** for tracking help.
 
 1. Go to the **Stash Manager** (`manager.html`)
 2. Add the threads you own
-3. Back in the Creator, enable **Stash-only mode** to restrict colours to threads you own
-4. Generate patterns that use only your existing threads
+3. Back in the Creator, use **Adapt → Match my stash** to replace colours you don't own
+4. Generate patterns that use threads you already have
 
 See **[Stash Manager Guide](Stash-Manager-Guide.md)** for details.
 

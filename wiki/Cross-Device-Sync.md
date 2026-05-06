@@ -65,9 +65,9 @@ Pick any cloud storage folder on your device:
 - The cloud provider syncs this file to the cloud
 
 **Automatic Import (Device B)**
-- The app watches the cloud folder for new `.csync` files
-- When a file appears, it's automatically imported and merged with local projects
-- You see a notification: "Sync completed: 1 project merged"
+- Background folder watching is not yet available; Device B does not poll automatically
+- To pick up changes from the connected folder, open the **Home Screen**, scroll to the **Sync** section, and click **Check for updates**
+- The app scans the cloud folder for `.csync` files from other devices and shows a preview before merging
 
 **If You Edit Both Devices Simultaneously**
 - Edits are merged when you next import (see **Conflict Resolution** below)
@@ -105,10 +105,10 @@ For browsers without File System Access API (Firefox, Safari) or if you prefer m
 
 ### Export a Sync File
 
-1. Go to **Preferences** → **Backup & data**
-2. Click **Download sync file**
-3. Browser downloads a `.csync` file (compressed, ~100–500 KB typically)
-4. The filename includes today's date and your device name: `cross-stitch-sync-2026-05-06-Laptop.csync`
+1. On the **Home Screen**, scroll to the **Sync** section
+2. Click **Download .csync**
+3. The browser downloads a `.csync` file (compressed, typically ~100–500 KB)
+4. The filename includes today’s date and your device name: `cross-stitch-sync-2026-05-06-Laptop.csync`
 
 ### Transfer the File
 
@@ -121,9 +121,9 @@ Use any method you prefer:
 
 ### Import on Another Device
 
-1. Go to **Preferences** → **Backup & data**
-2. Click **Import sync file**
-3. Select or drag-and-drop the `.csync` file
+1. On the **Home Screen**, scroll to the **Sync** section
+2. Click **Import .csync**
+3. Select the `.csync` file
 4. The app reads the file and shows a preview:
    - Projects to import
    - Stitching progress to merge
@@ -224,7 +224,7 @@ Choose which approach makes sense for your workflow.
 **Checklist:**
 1. ✓ Both devices are connected to the **same cloud folder** (check folder path in Preferences on both)
 2. ✓ The cloud app on Device A has synced the file (check your cloud drive's app for "syncing..." status)
-3. ✓ Device B has checked for updates (it checks every 10 minutes; if you want faster, go to Preferences → **Check for updates now**)
+3. Device B has checked for updates (**Home Screen** → Sync section → **Check for updates**)
 4. ✓ You haven't disabled syncing in Preferences
 
 If still not working:
@@ -258,17 +258,17 @@ If still not working:
 
 ### Scenario 1: Design on Laptop, Stitch on iPad
 
-1. **Laptop:** Create a pattern and edit it. Changes export to cloud.
-2. **iPad:** Open the app. Pattern appears automatically. Switch to Stitch Tracker and start marking stitches.
+1. **Laptop:** Create a pattern and edit it. Changes export to the cloud folder automatically.
+2. **iPad:** Open the app. On the Home Screen, press **Check for updates** — the pattern appears. Switch to Stitch Tracker and start marking stitches.
 3. **Laptop:** Close laptop. Go back to stitching on iPad.
-4. **Laptop (later):** Reopen app. Your stitching progress appears. Edit the pattern more if needed.
+4. **Laptop (later):** Reopen app. Press **Check for updates**. Your stitching progress appears. Edit the pattern more if needed.
 
 ### Scenario 2: Stitch on Two Devices
 
-1. **Laptop:** Start a project. Track 100 stitches. Sync to cloud.
-2. **iPad:** Import the synced project. Track 50 more stitches.
-3. **Laptop:** Reopen. See 150 stitches marked (100 + 50). Continue stitching, mark 30 more.
-4. **iPad:** Check for sync. See 180 stitches marked (100 + 50 + 30).
+1. **Laptop:** Start a project. Track 100 stitches. Sync exports to cloud folder.
+2. **iPad:** On the Home Screen, press **Check for updates**. The synced project appears. Track 50 more stitches.
+3. **Laptop:** Press **Check for updates**. See 150 stitches marked (100 + 50). Continue stitching, mark 30 more.
+4. **iPad:** Press **Check for updates** again. See 180 stitches marked (100 + 50 + 30).
 
 ### Scenario 3: Backup Strategy
 
