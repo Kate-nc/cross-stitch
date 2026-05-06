@@ -498,7 +498,6 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (typeof ProjectStorage !== "undefined") {
       var activeId = ProjectStorage.getActiveProjectId();
       if (activeId) {
-        try { console.log('[creator-boot] active project pointer:', activeId); } catch(_) {}
         try { sessionStorage.setItem('__import_trace_creatorBoot', JSON.stringify({ at: Date.now(), step: 'pointer-found', activeId: activeId })); } catch(_) {}
         ProjectStorage.get(activeId).then(function(project3) {
           if (!project3) {
@@ -533,7 +532,6 @@ window.useProjectIO = function useProjectIO(state, history, options) {
             return;
           }
           try {
-            try { console.log('[creator-boot] loading active project:', { id: project3.id, name: project3.name, w: project3.w, h: project3.h, patternLen: project3.pattern.length }); } catch(_) {}
             try { sessionStorage.setItem('__import_trace_creatorBoot', JSON.stringify({ at: Date.now(), step: 'loading', id: project3.id, patternLen: project3.pattern.length })); } catch(_) {}
             processLoadedProject(project3);
           } catch (err) {
