@@ -571,7 +571,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
           className: 'tb-logo',
           role: 'link',
           tabIndex: 0,
-          title: page === 'home' ? 'Cross Stitch Studio' : 'Back to home',
+          title: page === 'home' ? 'StitchX' : 'Back to home',
           onClick: () => {
             if (page === 'home') { window.scrollTo(0, 0); return; }
             window.location.href = 'home.html';

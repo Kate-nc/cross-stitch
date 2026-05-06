@@ -11,7 +11,7 @@
 | # | Test | Expected Result |
 |---|------|-----------------|
 | 1.1 | Open Stats (📊 button), click **📋 Copy progress summary** | Button text changes to **✅ Copied!** for ~2.5 s, then reverts |
-| 1.2 | Paste into a text editor | Formatted text block with project name, stitch count, percentage, time, speed, streaks, best day, est. completion, and footer "Tracked with Cross Stitch Studio" |
+| 1.2 | Paste into a text editor | Formatted text block with project name, stitch count, percentage, time, speed, streaks, best day, est. completion, and footer "Tracked with StitchX" |
 | 1.3 | Verify emoji rendering | Line-start emojis (🧵 ✅ ⏱️ 📈 🔥 🏆 📅) display correctly in pasted text |
 | 1.4 | Verify numbers match overview cards | Stitch count, percentage, total time, speed, avg/day in pasted text match the cards above |
 | 1.5 | Copy with **zero sessions** (new project or cleared data) | Still copies cleanly — shows 0/total, 0 h, streaks 0, no "NaN" or "undefined" |

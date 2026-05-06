@@ -23,7 +23,7 @@ On subsequent visits (any project exists), show the normal project dashboard.
 ├──────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │                                                                              │
-│                       Welcome to Cross Stitch Studio                         │
+│                       Welcome to StitchX                                   │
 │                                                                              │
 │              Free forever · No account needed · No export limits            │
 │                                                                              │
@@ -67,11 +67,11 @@ On subsequent visits (any project exists), show the normal project dashboard.
 
 ```
 ┌──────────────────────────────────────┐
-│  Cross Stitch Studio        [Menu]   │
+│  StitchX                    [Menu]   │
 ├──────────────────────────────────────┤
 │                                      │
 │      Welcome to                      │
-│      Cross Stitch Studio             │
+│      StitchX                         │
 │                                      │
 │  Free · No account · No limits       │
 │                                      │

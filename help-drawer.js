@@ -396,7 +396,7 @@
     {
       id: "make-pattern",
       heading: "Make your first pattern",
-      body: "The Pattern Creator turns any image into a cross-stitch chart. Drop a photo, set the dimensions, pick a palette size, and the app does the heavy lifting. From there you can hand-edit, preview a realistic render, and export to PDF.",
+      body: "The Pattern Creator turns any image into a cross-stitch chart. Drop a photo, set the dimensions, pick a palette size, and StitchX does the heavy lifting. From there you can hand-edit, preview a realistic render, and export to PDF.",
       action: { label: "Try a sample pattern", kind: "sample" }
     },
     {

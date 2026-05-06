@@ -1,4 +1,4 @@
-# Tooltip Coverage Audit — Cross Stitch Pattern Generator
+# Tooltip Coverage Audit — StitchX
 
 **Audit scope:** Every interactive element across all five entry points  
 **Files reviewed:** home.html · create.html · stitch.html · manager.html · home-app.js · creator-main.js · creator/ActionBar.js · creator/ToolStrip.js · creator/Sidebar.js · creator/ExportTab.js · creator/PatternTab.js · creator/ProjectTab.js · creator/PrepareTab.js · creator/MaterialsHub.js · creator/LegendTab.js · creator/MagicWandPanel.js · creator/AdaptModal.js · tracker-app.js · manager-app.js · components.js · modals.js · header.js · preferences-modal.js · palette-swap.js · command-palette.js · help-drawer.js · shortcuts.js  
@@ -20,7 +20,7 @@ Tooltip coverage is **inconsistent and bimodal**. The Pattern Creator's **ToolSt
 
 | Element | Has tooltip? | Verdict |
 |---|---|---|
-| Logo "stitch." (go-home link) | `title="Back to home"` / `"Cross Stitch Studio"` | Adequate |
+| Logo "stitch." (go-home link) | `title="Back to home"` / `"StitchX"` | Adequate |
 | App-section nav tabs (Create / Edit / Track / Stash / Stats) | Plain `<a>` with visible text; `aria-current` on active | Adequate — text is self-explanatory |
 | Creator sub-page dropdown trigger button | No `title` | LOW — has visible text; arrow icon `aria-hidden` |
 | Creator sub-page dropdown menu items | No `title` | LOW — text labels present |

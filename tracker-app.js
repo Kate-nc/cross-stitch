@@ -5825,7 +5825,7 @@ return(
         <div style={{display:"flex", flexDirection:"column", gap:10}}>
           <div style={{display:"flex", alignItems:"center", gap:10, fontSize:'var(--text-md)', color:"var(--text-secondary)"}}>
             <span style={{padding:"3px 8px", background:"var(--surface-secondary)", color:"var(--text-primary)", borderRadius:'var(--radius-sm)', border:"1px solid var(--accent-light)", fontWeight:600, fontSize:'var(--text-xs)', width:64, textAlign:"center", flexShrink:0}}>.json</span>
-            Cross Stitch Pattern Generator project files
+            StitchX project files
           </div>
           <div style={{display:"flex", alignItems:"center", gap:10, fontSize:'var(--text-md)', color:"var(--text-secondary)"}}>
             <span style={{padding:"3px 8px", background:"var(--surface-secondary)", color:"var(--accent)", borderRadius:'var(--radius-sm)', border:"1px solid var(--accent-light)", fontWeight:600, fontSize:'var(--text-xs)', width:64, textAlign:"center", flexShrink:0}}>.oxs</span>

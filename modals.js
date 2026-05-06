@@ -49,7 +49,7 @@ const SharedModals = {
         React.createElement('h3', { id: 'about-title', style: { marginTop: 0, marginBottom: 15, fontSize: 22, color: 'var(--text-primary)' } }, 'About'),
         React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 16 } },
           React.createElement('p', { style: { margin: 0, color: 'var(--text-secondary)', fontSize: 15, lineHeight: 1.5 } },
-            "Cross Stitch Pattern Generator is a free, client-side web application designed to help you create and track cross-stitch patterns directly in your browser."
+            "StitchX is a free, client-side web application designed to help you create and track cross-stitch patterns directly in your browser."
           ),
           React.createElement('p', { style: { margin: 0, color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.5 } },
             "Because this app runs entirely in your browser, ",
