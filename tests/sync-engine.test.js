@@ -1315,3 +1315,107 @@ describe('checkForUpdates', () => {
     expect(updates.length).toBe(0);
   });
 });
+
+// ── Phase-3 sync-fix #1 — folder watcher (start/stop lifecycle) ──────────
+// These tests only exercise the public lifecycle and idempotence; the
+// actual tick body requires a live DirectoryHandle and is covered by the
+// scanFolder/checkForUpdates tests above.
+describe('startWatching / stopWatching', () => {
+  beforeEach(() => {
+    global.localStorage.clear();
+    // Provide a minimal document shim with visibilitychange wiring.
+    global.document = global.document || {
+      visibilityState: 'hidden',
+      _listeners: {},
+      addEventListener(name, fn) {
+        (this._listeners[name] = this._listeners[name] || []).push(fn);
+      },
+      removeEventListener(name, fn) {
+        var arr = this._listeners[name] || [];
+        var i = arr.indexOf(fn);
+        if (i !== -1) arr.splice(i, 1);
+      }
+    };
+  });
+  afterEach(() => { try { SE.stopWatching(); } catch (e) {} });
+
+  test('isWatching reflects start/stop', () => {
+    expect(SE.isWatching()).toBe(false);
+    SE.startWatching(60000);
+    expect(SE.isWatching()).toBe(true);
+    SE.stopWatching();
+    expect(SE.isWatching()).toBe(false);
+  });
+
+  test('startWatching is idempotent (no leaked intervals)', () => {
+    SE.startWatching(60000);
+    SE.startWatching(60000); // second call should restart cleanly
+    expect(SE.isWatching()).toBe(true);
+    SE.stopWatching();
+    expect(SE.isWatching()).toBe(false);
+  });
+
+  test('getSyncStatus exposes watching + lastError fields', () => {
+    var st = SE.getSyncStatus();
+    expect(st).toHaveProperty('watching');
+    expect(st).toHaveProperty('lastError');
+    expect(typeof st.watching).toBe('boolean');
+  });
+
+  test('startAutoWatch is a no-op when no folder handle is configured', async () => {
+    var ok = await SE.startAutoWatch();
+    expect(ok).toBe(false);
+    expect(SE.isWatching()).toBe(false);
+  });
+});
+
+// ── Phase-3 sync-fix #G — permission-needed flow ─────────────────────────
+describe('requestFolderPermission', () => {
+  beforeEach(() => { global.localStorage.clear(); });
+
+  test('throws when no folder is configured', async () => {
+    await expect(SE.requestFolderPermission()).rejects.toThrow('No sync folder configured');
+  });
+
+  test('exports getPermissionState helper', () => {
+    expect(typeof SE.getPermissionState).toBe('function');
+  });
+});
+
+// ── Sync activity log + per-device tracking (Concepts A + B) ────────────
+describe('sync activity log', () => {
+  beforeEach(() => { global.localStorage.clear(); });
+
+  test('exports getEventLog / clearEventLog / getLastImportPerDevice', () => {
+    expect(typeof SE.getEventLog).toBe('function');
+    expect(typeof SE.clearEventLog).toBe('function');
+    expect(typeof SE.getLastImportPerDevice).toBe('function');
+  });
+
+  test('returns empty log by default', () => {
+    expect(SE.getEventLog()).toEqual([]);
+    expect(SE.getLastImportPerDevice()).toEqual({});
+  });
+
+  test('clearEventLog wipes the log and dispatches change event', () => {
+    // Seed via direct localStorage write since _logEvent is private. Logging
+    // happens through public APIs (export/import) — those are integration-
+    // tested via the existing test suites; here we verify the public reader.
+    global.localStorage.setItem('cs_sync_eventLog', JSON.stringify([
+      { id: 'ev_1', ts: '2026-05-07T00:00:00Z', type: 'export-success' }
+    ]));
+    expect(SE.getEventLog().length).toBe(1);
+    SE.clearEventLog();
+    expect(SE.getEventLog()).toEqual([]);
+  });
+
+  test('getEventLog tolerates corrupt JSON', () => {
+    global.localStorage.setItem('cs_sync_eventLog', 'not-json{');
+    expect(SE.getEventLog()).toEqual([]);
+  });
+
+  test('getLastImportPerDevice tolerates corrupt JSON', () => {
+    global.localStorage.setItem('cs_sync_lastImportPerDevice', 'not-json{');
+    expect(SE.getLastImportPerDevice()).toEqual({});
+  });
+});

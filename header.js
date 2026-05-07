@@ -455,6 +455,13 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
       if (cancelled) return;
       try { setSyncStatus(SyncEngine.getSyncStatus()); } catch (e) {}
     }).catch(function() {});
+    // Phase-3 sync-fix #1: start the polling watcher on every page so remote
+    // .csync deliveries are picked up regardless of which surface the user
+    // is on (Creator, Tracker, Manager, Home). startAutoWatch is a no-op if
+    // there is no folder configured or permission isn't already granted.
+    if (SyncEngine.startAutoWatch) {
+      try { SyncEngine.startAutoWatch(); } catch (e) {}
+    }
     return function() { cancelled = true; };
   }, []);
 

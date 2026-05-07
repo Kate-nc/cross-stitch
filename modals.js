@@ -589,6 +589,158 @@ function SyncSummaryModal({ plan, onApply, onCancel }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SyncActivityModal — Concept A
+// Shows a chronological log of recent sync events (exports, imports, errors,
+// pending reviews, permission prompts). Data lives in localStorage as a
+// rolling 50-entry ring buffer, written by SyncEngine._logEvent.
+// Props:
+//   onClose — dismiss the modal
+// ─────────────────────────────────────────────────────────────────────────────
+function SyncActivityModal({ onClose }) {
+  var h = React.createElement;
+  var SE = window.SyncEngine;
+
+  function loadEvents() {
+    return (SE && SE.getEventLog) ? SE.getEventLog() : [];
+  }
+
+  var _events = React.useState(loadEvents);
+  var events = _events[0], setEvents = _events[1];
+  var _filter = React.useState('all');
+  var filter = _filter[0], setFilter = _filter[1];
+
+  // Live-update when new events arrive while the modal is open.
+  React.useEffect(function() {
+    function refresh() { setEvents(loadEvents()); }
+    window.addEventListener('cs:syncEventLogChanged', refresh);
+    return function() { window.removeEventListener('cs:syncEventLogChanged', refresh); };
+  }, []);
+
+  function timeAgo(iso) {
+    if (!iso) return '';
+    var diffMs = Date.now() - new Date(iso).getTime();
+    if (isNaN(diffMs)) return '';
+    var s = Math.round(diffMs / 1000);
+    if (s < 60) return 'just now';
+    var m = Math.round(s / 60);
+    if (m < 60) return m + ' min ago';
+    var hr = Math.round(m / 60);
+    if (hr < 24) return hr + ' hr ago';
+    var d = Math.round(hr / 24);
+    if (d < 7) return d + ' day' + (d !== 1 ? 's' : '') + ' ago';
+    return new Date(iso).toLocaleDateString();
+  }
+
+  var filtered = events.filter(function(e) {
+    if (filter === 'all') return true;
+    if (filter === 'in') return e.direction === 'in';
+    if (filter === 'out') return e.direction === 'out';
+    if (filter === 'errors') return /-fail|-error|permission/i.test(e.type);
+    return true;
+  });
+
+  function handleClear() {
+    if (!SE || !SE.clearEventLog) return;
+    if (window.confirm('Clear the sync activity log? This won\u2019t affect your patterns.')) {
+      SE.clearEventLog();
+      setEvents([]);
+    }
+  }
+
+  function eventIcon(type) {
+    if (/permission/i.test(type)) return Icons.warning ? Icons.warning() : null;
+    if (/-fail|-error/i.test(type)) return Icons.warning ? Icons.warning() : null;
+    if (type === 'pending-review') return Icons.cloudAlert ? Icons.cloudAlert() : null;
+    if (type === 'export-success') return Icons.cloudSync ? Icons.cloudSync() : null;
+    if (type === 'import-success') return Icons.cloudCheck ? Icons.cloudCheck() : null;
+    return Icons.cloudSync ? Icons.cloudSync() : null;
+  }
+
+  function eventTitle(e) {
+    var dev = e.deviceName || (e.deviceId ? e.deviceId.slice(0, 12) : 'unknown device');
+    var n = e.projectCount;
+    switch (e.type) {
+      case 'export-success':
+        return 'Exported ' + (n != null ? (n + ' pattern' + (n !== 1 ? 's' : '')) : 'sync file') + ' to folder';
+      case 'import-success':
+        return 'Imported ' + (n || 0) + ' pattern' + ((n || 0) !== 1 ? 's' : '') + ' from ' + dev
+          + (e.conflicts ? ' (' + e.conflicts + ' conflict' + (e.conflicts !== 1 ? 's' : '') + ' resolved)' : '');
+      case 'pending-review':
+        return (n || 0) + ' update' + ((n || 0) !== 1 ? 's' : '') + ' from ' + dev + ' need' + ((n || 0) === 1 ? 's' : '') + ' review';
+      case 'export-fail':
+        return 'Export failed';
+      case 'import-fail':
+        return 'Import failed';
+      case 'permission-needed':
+        return 'Folder permission required';
+      case 'watcher-error':
+        return 'Sync watcher error';
+      default:
+        return e.type;
+    }
+  }
+
+  return h(window.Overlay, {
+    onClose: onClose,
+    variant: 'dialog',
+    className: 'sync-activity-modal',
+    labelledBy: 'sync-activity-title',
+    dismissOnScrim: true
+  },
+    h(window.Overlay.CloseButton, { onClose: onClose }),
+    h('h3', { id: 'sync-activity-title', className: 'sync-summary-title' },
+      Icons.cloudSync ? Icons.cloudSync() : null, ' Sync Activity'
+    ),
+    h('div', { className: 'sync-activity-filters' },
+      ['all', 'in', 'out', 'errors'].map(function(f) {
+        var labels = { all: 'All', in: 'Imports', out: 'Exports', errors: 'Errors' };
+        return h('button', {
+          key: f,
+          className: 'sync-activity-filter' + (filter === f ? ' is-active' : ''),
+          onClick: function() { setFilter(f); }
+        }, labels[f]);
+      })
+    ),
+    h('div', { className: 'sync-activity-list', role: 'list' },
+      filtered.length === 0
+        ? h('div', { className: 'sync-activity-empty' },
+            events.length === 0
+              ? 'No sync activity yet. Activity will appear here once you export or import a sync file.'
+              : 'No events match this filter.'
+          )
+        : filtered.map(function(e) {
+            var cls = 'sync-activity-item sync-activity-item--' + e.type;
+            if (e.direction) cls += ' sync-activity-item--' + e.direction;
+            return h('div', { key: e.id, className: cls, role: 'listitem' },
+              h('div', { className: 'sync-activity-icon', 'aria-hidden': 'true' }, eventIcon(e.type)),
+              h('div', { className: 'sync-activity-body' },
+                h('div', { className: 'sync-activity-title-row' },
+                  h('span', { className: 'sync-activity-title' }, eventTitle(e)),
+                  h('span', { className: 'sync-activity-time' }, timeAgo(e.ts))
+                ),
+                e.fileName && h('div', { className: 'sync-activity-meta' }, e.fileName),
+                e.message && h('div', { className: 'sync-activity-meta sync-activity-meta--error' }, e.message)
+              )
+            );
+          })
+    ),
+    h('div', { className: 'sync-summary-actions' },
+      h('button', {
+        className: 'sync-btn sync-btn--secondary',
+        onClick: handleClear,
+        disabled: events.length === 0
+      }, 'Clear log'),
+      h('button', {
+        className: 'sync-btn sync-btn--primary',
+        onClick: onClose
+      }, 'Close')
+    )
+  );
+}
+
+if (typeof window !== 'undefined') { window.SyncActivityModal = SyncActivityModal; }
+
 // ═══ Sync Conflict Card ═══
 // Shows a side-by-side comparison with resolution buttons.
 // Props:

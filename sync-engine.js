@@ -15,6 +15,14 @@ const SyncEngine = (() => {
   const LS_LAST_IMPORT = "cs_sync_lastImportAt";
   const LS_DEVICE_ID   = "cs_sync_deviceId";
   const LS_DEVICE_NAME = "cs_sync_deviceName";
+  // Per-device "last import" map — { deviceId: { at, fileLastModified, deviceName, projectCount } }.
+  // Updated in executeImport when the source device is known via plan.syncObj._deviceId.
+  // Powers the inline "Devices in this folder" panel (Concept B).
+  const LS_LAST_IMPORT_PER_DEVICE = "cs_sync_lastImportPerDevice";
+  // Rolling event log — most recent at index 0, capped at EVENT_LOG_MAX entries.
+  // Powers the Sync Activity modal (Concept A).
+  const LS_EVENT_LOG = "cs_sync_eventLog";
+  const EVENT_LOG_MAX = 50;
 
   // Allowlist of cs_pref_* UserPrefs keys that are safe to sync across devices.
   // Per-device-only keys (active project pointer, sync state, per-device UI) are
@@ -127,6 +135,81 @@ const SyncEngine = (() => {
       hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
     }
     return (hash >>> 0).toString(16);
+  }
+
+  // ── Sync activity log ────────────────────────────────────────────────────
+  // Rolling ring buffer of the last EVENT_LOG_MAX sync events. Powers the
+  // "Sync activity" modal (Concept A) so users can audit what flowed in/out
+  // and from which device. Stored as a JSON array in localStorage; most
+  // recent first. Failures here are silent — the log is informational.
+
+  function getEventLog() {
+    try {
+      var raw = localStorage.getItem(LS_EVENT_LOG);
+      if (!raw) return [];
+      var arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+  }
+
+  function clearEventLog() {
+    try { localStorage.removeItem(LS_EVENT_LOG); } catch (e) {}
+    try {
+      if (typeof window !== "undefined" && window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent("cs:syncEventLogChanged"));
+      }
+    } catch (e) {}
+  }
+
+  function _logEvent(evt) {
+    if (!evt || typeof evt !== "object") return;
+    var entry = {
+      id: "ev_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
+      ts: evt.ts || new Date().toISOString(),
+      type: String(evt.type || "info"),
+      direction: evt.direction || null,        // "in" | "out" | null
+      deviceId: evt.deviceId || null,
+      deviceName: evt.deviceName || null,
+      fileName: evt.fileName || null,
+      projectCount: (typeof evt.projectCount === "number") ? evt.projectCount : null,
+      conflicts: (typeof evt.conflicts === "number") ? evt.conflicts : null,
+      message: evt.message || null
+    };
+    var log = getEventLog();
+    log.unshift(entry);
+    if (log.length > EVENT_LOG_MAX) log.length = EVENT_LOG_MAX;
+    try { localStorage.setItem(LS_EVENT_LOG, JSON.stringify(log)); } catch (e) {}
+    try {
+      if (typeof window !== "undefined" && window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent("cs:syncEventLogChanged", { detail: { entry: entry } }));
+      }
+    } catch (e) {}
+  }
+
+  // ── Per-device "last imported" tracking ─────────────────────────────────
+  // Records the most recent successful import per source device, so the
+  // "Devices in this folder" panel (Concept B) can show "imported ✓" next
+  // to each device row.
+
+  function getLastImportPerDevice() {
+    try {
+      var raw = localStorage.getItem(LS_LAST_IMPORT_PER_DEVICE);
+      if (!raw) return {};
+      var obj = JSON.parse(raw);
+      return (obj && typeof obj === "object") ? obj : {};
+    } catch (e) { return {}; }
+  }
+
+  function _recordDeviceImport(syncObj, fileLastModified) {
+    if (!syncObj || !syncObj._deviceId) return;
+    var map = getLastImportPerDevice();
+    map[syncObj._deviceId] = {
+      at: new Date().toISOString(),
+      fileLastModified: fileLastModified || null,
+      deviceName: syncObj._deviceName || null,
+      projectCount: (syncObj.projects && syncObj.projects.length) || 0
+    };
+    try { localStorage.setItem(LS_LAST_IMPORT_PER_DEVICE, JSON.stringify(map)); } catch (e) {}
   }
 
   // ── Stash DB helpers ─────────────────────────────────────────────────────
@@ -1372,6 +1455,23 @@ const SyncEngine = (() => {
       try { await ProjectStorage.markSynced(syncedIds, importTs); } catch (e) {}
     }
 
+    // Record activity log entry + per-device "last imported" marker so the
+    // Devices panel and Sync Activity modal can show what happened.
+    try {
+      var srcDeviceId = plan.syncObj && plan.syncObj._deviceId;
+      var srcDeviceName = plan.syncObj && plan.syncObj._deviceName;
+      _recordDeviceImport(plan.syncObj, plan._fileLastModified || null);
+      _logEvent({
+        type: "import-success",
+        direction: "in",
+        deviceId: srcDeviceId,
+        deviceName: srcDeviceName,
+        fileName: plan._fileName || null,
+        projectCount: plan.newRemote.length + plan.mergeTracking.length,
+        conflicts: plan.conflicts.length
+      });
+    } catch (e) {}
+
     return {
       imported: plan.newRemote.length,
       merged: plan.mergeTracking.length,
@@ -1396,6 +1496,9 @@ const SyncEngine = (() => {
         tx.onerror = function () { db.close(); reject(tx.error); };
       });
     } catch (e) { console.warn("SyncEngine: could not persist watch dir handle:", e); }
+    // Phase-3 sync-fix #1: kick off the polling watcher automatically so any
+    // page that configures a sync folder starts receiving remote updates.
+    try { startWatching(); } catch (e) {}
   }
 
   async function getWatchDirectory() {
@@ -1434,6 +1537,7 @@ const SyncEngine = (() => {
   }
 
   async function clearWatchDirectory() {
+    try { stopWatching(); } catch (e) {}
     _watchDirHandle = null;
     try {
       var db = await openSyncMetaDB();
@@ -1469,6 +1573,14 @@ const SyncEngine = (() => {
     var writable = await fileHandle.createWritable();
     await writable.write(compressed);
     await writable.close();
+    _logEvent({
+      type: "export-success",
+      direction: "out",
+      deviceId: syncObj._deviceId,
+      deviceName: syncObj._deviceName,
+      fileName: fileName,
+      projectCount: (syncObj.projects && syncObj.projects.length) || 0
+    });
     return { fileName: fileName, syncObj: syncObj };
   }
 
@@ -1544,37 +1656,378 @@ const SyncEngine = (() => {
     } catch (e) {}
   }
 
-  // Debounced auto-export: writes to the sync folder after a save, at most once per 30s
+  // Auto-export debounce (Phase-3 hardening, sync-fix #3):
+  //   * First save after a quiet period fires quickly (FAST_DELAY) so a user
+  //     who edits and immediately closes the tab doesn't lose the change.
+  //   * Subsequent saves within COOLDOWN_MS coalesce into a single later
+  //     write at the end of the cooldown — this preserves the original
+  //     "don't write 50 times during a paint stroke" behaviour.
   var _autoExportTimer = null;
-  var AUTO_EXPORT_DELAY = 30000; // 30 seconds
+  var _lastExportFiredAt = 0;
+  var AUTO_EXPORT_DELAY = 30000; // legacy export — kept for compatibility
+  var FAST_EXPORT_DELAY = 2000;
+  var COOLDOWN_MS = 30000;
+
+  // Internal helper used by both auto-export and the polling watcher to
+  // surface failures consistently. Dispatches a `cs:syncError` event and
+  // shows a Toast (if available) so permission revocations are visible
+  // instead of buried in the console.
+  function _reportSyncError(stage, err) {
+    try { console.warn("SyncEngine[" + stage + "]:", err); } catch (e) {}
+    var msg = (err && err.message) ? err.message : String(err);
+    try {
+      if (typeof window !== "undefined" && window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent("cs:syncError", {
+          detail: { stage: stage, message: msg }
+        }));
+      }
+    } catch (e) {}
+    // Activity log: record export/import/watcher failures so the modal can
+    // show them. We intentionally don't log every transient watcher tick
+    // failure here as a separate type — the stage label tells the story.
+    _logEvent({
+      type: (stage === "auto-export") ? "export-fail"
+          : (stage === "auto-import") ? "import-fail"
+          : "watcher-error",
+      message: stage + ": " + msg
+    });
+    // Permission errors warrant a visible toast; transient errors don't
+    // (we don't want to spam the user with one toast per failed poll).
+    var isPerm = /permission/i.test(msg);
+    if (isPerm && typeof window !== "undefined" && window.Toast && window.Toast.show) {
+      try {
+        window.Toast.show({
+          message: "Sync paused — folder permission was revoked. Re-open the sync panel to reconnect.",
+          type: "warning",
+          duration: 8000
+        });
+      } catch (e) {}
+    }
+  }
 
   function triggerAutoExport() {
     if (!isAutoSyncEnabled()) return;
     Promise.resolve(_watchDirHandle || getWatchDirectory()).then(function (dirHandle) {
       if (!dirHandle) return;
       _watchDirHandle = dirHandle;
-      if (_autoExportTimer) clearTimeout(_autoExportTimer);
+      // Coalesce: if a write is already scheduled, leave it alone so a
+      // burst of saves all fold into the same write.
+      if (_autoExportTimer) return;
+      var sinceLast = Date.now() - _lastExportFiredAt;
+      var delay;
+      if (_lastExportFiredAt === 0 || sinceLast >= COOLDOWN_MS) {
+        delay = FAST_EXPORT_DELAY;
+      } else {
+        delay = Math.max(FAST_EXPORT_DELAY, COOLDOWN_MS - sinceLast);
+      }
       _autoExportTimer = setTimeout(function () {
         var watchDirHandle = _watchDirHandle;
         _autoExportTimer = null;
+        _lastExportFiredAt = Date.now();
         if (!watchDirHandle) return;
         // Pre-check permission without user gesture — skip if not granted
         watchDirHandle.queryPermission({ mode: "readwrite" }).then(function (perm) {
           if (perm !== "granted") {
-            console.warn("SyncEngine: auto-export skipped — permission not granted (re-open sync panel to re-authorise)");
+            _reportSyncError("auto-export", new Error("Write permission not granted (re-open sync panel to re-authorise)"));
             return;
           }
-          return exportToFolder();
+          return exportToFolder().then(function () {
+            try {
+              if (typeof window !== "undefined" && window.dispatchEvent) {
+                window.dispatchEvent(new CustomEvent("cs:syncStatusChanged", {
+                  detail: { reason: "exported" }
+                }));
+              }
+            } catch (e) {}
+          });
         }).catch(function (e) {
-          console.warn("SyncEngine: auto-export failed:", e);
+          _reportSyncError("auto-export", e);
         });
-      }, AUTO_EXPORT_DELAY);
+      }, delay);
     }).catch(function (e) {
-      console.warn("SyncEngine: auto-export failed:", e);
+      _reportSyncError("auto-export", e);
     });
   }
 
+  // ── Folder watcher (Phase-3, sync-fix #1) ────────────────────────────────
+  // Periodically scans the watch folder for .csync files newer than our
+  // LAST_IMPORT timestamp. Only ticks while the page is visible.
+  // Auto-applies plans that contain ONLY new-remote entries (no conflicts,
+  // no merge-tracking) and dispatches `cs:syncUpdatesAvailable` for the rest
+  // so the existing banner UI can present them for manual review.
+  var _watcherInterval = null;
+  var _watcherInFlight = false;
+  var _watcherVisHandler = null;
+  var WATCHER_INTERVAL_MS = 10000;
+  // Per-session dedup of "pending" updates that we've already surfaced via
+  // cs:syncUpdatesAvailable. Without this, a file containing conflicts
+  // would re-fire the event every poll tick (because LS_LAST_IMPORT is only
+  // updated when executeImport runs, which it doesn't for conflicts).
+  // Keyed by deviceId + "|" + lastModified — a new write from the other
+  // device gets a new lastModified and re-triggers correctly.
+  var _seenPendingKeys = Object.create(null);
+
+  function _pendingKey(update) {
+    var d = (update && update.deviceId) ? update.deviceId : "?";
+    var m = (update && update.lastModified) ? update.lastModified : 0;
+    return d + "|" + m;
+  }
+
+  function _isPlanAutoApplicable(plan) {
+    if (!plan) return false;
+    if (plan.conflicts && plan.conflicts.length > 0) return false;
+    if (plan.mergeTracking && plan.mergeTracking.length > 0) return false;
+    if (plan.newRemote && plan.newRemote.length > 0) return true;
+    // remote tombstones alone could be auto-applied too, but they're
+    // surfaced via the manual flow today — keep parity.
+    return false;
+  }
+
+  async function _processFolderUpdates(updates) {
+    if (!updates || !updates.length) return { autoApplied: [], pending: [] };
+    var autoApplied = [];
+    var pending = [];
+    for (var i = 0; i < updates.length; i++) {
+      var u = updates[i];
+      try {
+        var plan = await prepareImport(u.syncObj);
+        // Decorate the plan so executeImport can attribute the activity-log
+        // entry / per-device "last imported" record to a real file.
+        plan._fileName = u.fileName || null;
+        plan._fileLastModified = u.lastModified || null;
+        if (_isPlanAutoApplicable(plan)) {
+          var result = await executeImport(plan);
+          autoApplied.push({ update: u, plan: plan, result: result });
+          // Tell the rest of the app (home dashboard, manager, tracker) to
+          // refresh — this matches the events fired by the manual import path.
+          try { window.dispatchEvent(new CustomEvent("cs:backupRestored")); } catch (e) {}
+          if (result && result.stashUpdated) {
+            try { window.dispatchEvent(new CustomEvent("cs:stashChanged")); } catch (e) {}
+          }
+        } else {
+          pending.push({ update: u, plan: plan });
+        }
+      } catch (e) {
+        _reportSyncError("auto-import", e);
+        pending.push({ update: u, plan: null, error: (e && e.message) || String(e) });
+      }
+    }
+    if (autoApplied.length) {
+      var totalImported = 0;
+      var deviceNames = Object.create(null);
+      for (var j = 0; j < autoApplied.length; j++) {
+        var pa = autoApplied[j].plan;
+        totalImported += (pa.newRemote ? pa.newRemote.length : 0);
+        var dn = autoApplied[j].update.deviceName;
+        if (dn) deviceNames[dn] = true;
+      }
+      var dnKeys = Object.keys(deviceNames);
+      var deviceLabel = (dnKeys.length === 1) ? dnKeys[0] : "";
+      if (totalImported > 0 && typeof window !== "undefined" && window.Toast && window.Toast.show) {
+        try {
+          var msg = totalImported + " pattern" + (totalImported !== 1 ? "s" : "")
+            + " synced" + (deviceLabel ? " from " + deviceLabel : "");
+          window.Toast.show({ message: msg, type: "success", duration: 5000 });
+        } catch (e) {}
+      }
+    }
+    if (pending.length && typeof window !== "undefined" && window.dispatchEvent) {
+      // Dedup: only dispatch updates we haven't already surfaced this session.
+      var freshPending = [];
+      for (var pk = 0; pk < pending.length; pk++) {
+        var key = _pendingKey(pending[pk].update);
+        if (!_seenPendingKeys[key]) {
+          _seenPendingKeys[key] = true;
+          freshPending.push(pending[pk]);
+        }
+      }
+      if (freshPending.length) {
+        try {
+          window.dispatchEvent(new CustomEvent("cs:syncUpdatesAvailable", {
+            detail: { updates: freshPending.map(function (p) { return p.update; }), pending: freshPending }
+          }));
+        } catch (e) {}
+        // Also log each fresh-pending delivery so the activity log shows
+        // "needs review" entries — otherwise conflicts would be invisible
+        // until the user clicks Review & import.
+        for (var fpi = 0; fpi < freshPending.length; fpi++) {
+          var fp = freshPending[fpi];
+          var fpu = fp.update || {};
+          var fpp = fp.plan || {};
+          _logEvent({
+            type: "pending-review",
+            direction: "in",
+            deviceId: fpu.deviceId,
+            deviceName: fpu.deviceName,
+            fileName: fpu.fileName,
+            projectCount: ((fpp.newRemote && fpp.newRemote.length) || 0)
+              + ((fpp.mergeTracking && fpp.mergeTracking.length) || 0)
+              + ((fpp.conflicts && fpp.conflicts.length) || 0),
+            conflicts: (fpp.conflicts && fpp.conflicts.length) || 0,
+            message: fp.error || null
+          });
+        }
+      }
+    }
+    return { autoApplied: autoApplied, pending: pending };
+  }
+
+  async function _runWatcherTick() {
+    if (_watcherInFlight) return;
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+    var handle = _watchDirHandle || (await getWatchDirectory().catch(function () { return null; }));
+    if (!handle) return;
+    // Permission gate: requestPermission() requires a user gesture, but a
+    // setInterval/visibilitychange tick is NOT a user gesture. If we just
+    // call scanFolder() here, scanFolder's internal requestPermission will
+    // throw a SecurityError on every tick. So check first and skip silently
+    // when permission isn't already granted — the user will re-authorise
+    // by re-opening the sync panel (which IS a user gesture).
+    if (typeof handle.queryPermission === "function") {
+      try {
+        var perm = await handle.queryPermission({ mode: "read" });
+        if (perm !== "granted") return;
+      } catch (e) { return; }
+    }
+    _watcherInFlight = true;
+    try {
+      // Cross-tab coordination: when the user has multiple tabs open, every
+      // tab's header.js starts a watcher. Without coordination, all tabs
+      // would race to import the same .csync deliveries, double-firing the
+      // "synced" toast and double-saving (idempotent but wasteful).
+      // Web Locks API gives us a clean per-origin mutex; ifAvailable=true
+      // means we skip silently when another tab already holds the lock.
+      var doWork = async function () {
+        var updates = await checkForUpdates(handle);
+        if (updates && updates.length) {
+          await _processFolderUpdates(updates);
+        }
+      };
+      if (typeof navigator !== "undefined" && navigator.locks && navigator.locks.request) {
+        await navigator.locks.request("cs_sync_import", { ifAvailable: true }, async function (lock) {
+          if (!lock) return; // Another tab is processing — let it.
+          await doWork();
+        });
+      } else {
+        await doWork();
+      }
+    } catch (e) {
+      _reportSyncError("watcher", e);
+    } finally {
+      _watcherInFlight = false;
+    }
+  }
+
+  function startWatching(intervalMs) {
+    stopWatching();
+    var interval = (typeof intervalMs === "number" && intervalMs > 0) ? intervalMs : WATCHER_INTERVAL_MS;
+    _watcherInterval = setInterval(_runWatcherTick, interval);
+    if (typeof document !== "undefined") {
+      _watcherVisHandler = function () {
+        if (document.visibilityState === "visible") {
+          // Immediate catch-up tick when the user returns to the tab.
+          _runWatcherTick();
+        }
+      };
+      document.addEventListener("visibilitychange", _watcherVisHandler);
+    }
+    // Run one tick now (not awaited) so newly-arrived files are picked up
+    // promptly rather than waiting a full interval.
+    _runWatcherTick();
+  }
+
+  function stopWatching() {
+    if (_watcherInterval) { clearInterval(_watcherInterval); _watcherInterval = null; }
+    if (_watcherVisHandler && typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", _watcherVisHandler);
+      _watcherVisHandler = null;
+    }
+  }
+
+  function isWatching() { return !!_watcherInterval; }
+
+  // Convenience bootstrap for any page that loads SyncEngine but doesn't own
+  // the sync UI: looks up the persisted directory handle and, if present and
+  // permission is already granted (i.e. we won't prompt), starts the watcher.
+  // Safe to call multiple times — startWatching is idempotent.
+  async function startAutoWatch() {
+    try {
+      var handle = await getWatchDirectory();
+      if (!handle) return false;
+      var perm = "granted";
+      if (typeof handle.queryPermission === "function") {
+        try { perm = await handle.queryPermission({ mode: "read" }); } catch (e) { perm = "denied"; }
+      }
+      if (perm !== "granted") {
+        // Persistent handle is restored but the browser has dropped permission
+        // (typical on Chrome session-isolated permissions, after site-data
+        // cleanup, or after the user revokes access). We can't requestPermission
+        // here — that needs a user gesture. Emit a status event so the UI can
+        // surface a "Reconnect" call-to-action instead of silently going dark.
+        try {
+          if (typeof window !== "undefined" && window.dispatchEvent) {
+            window.dispatchEvent(new CustomEvent("cs:syncPermissionNeeded", {
+              detail: { handleName: handle.name || "Sync folder", state: perm }
+            }));
+          }
+        } catch (e) {}
+        _logEvent({
+          type: "permission-needed",
+          message: 'Browser permission was "' + perm + '" for folder "' + (handle.name || "?") + '"'
+        });
+        return false;
+      }
+      startWatching();
+      return true;
+    } catch (e) { return false; }
+  }
+
+  // Best-effort live permission check — used by getSyncStatus and the UI
+  // "Reconnect" button. Returns "granted" | "prompt" | "denied" | null.
+  async function getPermissionState() {
+    try {
+      var handle = _watchDirHandle || (await getWatchDirectory());
+      if (!handle || typeof handle.queryPermission !== "function") return null;
+      return await handle.queryPermission({ mode: "readwrite" });
+    } catch (e) { return null; }
+  }
+
+  // Re-prompt the user for permission and, if granted, start the watcher.
+  // MUST be called from a user gesture (click handler) so the browser will
+  // allow requestPermission to surface its UI.
+  async function requestFolderPermission() {
+    var handle = _watchDirHandle || (await getWatchDirectory());
+    if (!handle) throw new Error("No sync folder configured.");
+    if (typeof handle.requestPermission !== "function") {
+      // Older browsers without the permission API — assume already granted.
+      try { startWatching(); } catch (e) {}
+      return "granted";
+    }
+    var perm = await handle.requestPermission({ mode: "readwrite" });
+    if (perm === "granted") {
+      try { startWatching(); } catch (e) {}
+      try {
+        if (typeof window !== "undefined" && window.dispatchEvent) {
+          window.dispatchEvent(new CustomEvent("cs:syncStatusChanged", {
+            detail: { reason: "permission-granted" }
+          }));
+        }
+      } catch (e) {}
+    }
+    return perm;
+  }
+
   // ── Sync status helpers ──────────────────────────────────────────────────
+
+  var _lastError = null; // { stage, message, at }
+  if (typeof window !== "undefined" && window.addEventListener) {
+    try {
+      window.addEventListener("cs:syncError", function (e) {
+        var d = e && e.detail;
+        if (d) _lastError = { stage: d.stage, message: d.message, at: new Date().toISOString() };
+      });
+    } catch (e) {}
+  }
 
   function getSyncStatus() {
     var lastExport = null, lastImport = null;
@@ -1587,7 +2040,9 @@ const SyncEngine = (() => {
       lastImportAt: lastImport,
       hasFolderWatch: hasFolderWatchSupport(),
       hasWatchDir: !!_watchDirHandle,
-      autoSync: isAutoSyncEnabled()
+      autoSync: isAutoSyncEnabled(),
+      watching: isWatching(),
+      lastError: _lastError
     };
   }
 
@@ -1642,6 +2097,19 @@ const SyncEngine = (() => {
     isAutoSyncEnabled: isAutoSyncEnabled,
     setAutoSyncEnabled: setAutoSyncEnabled,
     triggerAutoExport: triggerAutoExport,
+
+    // Folder watcher (Phase-3)
+    startWatching: startWatching,
+    stopWatching: stopWatching,
+    isWatching: isWatching,
+    startAutoWatch: startAutoWatch,
+    getPermissionState: getPermissionState,
+    requestFolderPermission: requestFolderPermission,
+
+    // Activity log + per-device tracking (Concepts A + B)
+    getEventLog: getEventLog,
+    clearEventLog: clearEventLog,
+    getLastImportPerDevice: getLastImportPerDevice,
 
     // Constants (for testing)
     SYNC_FORMAT: SYNC_FORMAT,

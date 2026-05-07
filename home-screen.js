@@ -580,6 +580,60 @@ function BulkDeleteModal({ projectIds, projectsById, onConfirm, onCancel }) {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// SyncDevicesPanel — Concept B
+// One row per .csync file currently in the watch folder. Shows the device
+// name, when its last write landed, project count, and an "imported" mark
+// if we've successfully merged that device's most recent file. Powered by
+// SyncEngine.scanFolder() output + SyncEngine.getLastImportPerDevice().
+// ─────────────────────────────────────────────────────────────────
+function SyncDevicesPanel({ devices, myDeviceId, lastImportPerDevice }) {
+  var h = React.createElement;
+  if (!devices || devices.length === 0) return null;
+  // Sort: this device first, then most-recently-modified.
+  var sorted = devices.slice().sort(function(a, b) {
+    var aMine = a.deviceId && a.deviceId === myDeviceId;
+    var bMine = b.deviceId && b.deviceId === myDeviceId;
+    if (aMine !== bMine) return aMine ? -1 : 1;
+    return (b.lastModified || 0) - (a.lastModified || 0);
+  });
+  return h('div', { className: 'sync-devices-panel' },
+    h('div', { className: 'sync-devices-title' }, 'Devices in this folder'),
+    h('div', { className: 'sync-devices-list' },
+      sorted.map(function(d) {
+        var isMine = d.deviceId && d.deviceId === myDeviceId;
+        var name = d.deviceName || (d.deviceId ? d.deviceId.slice(0, 12) : 'Unknown device');
+        var seenIso = d.createdAt || (d.lastModified ? new Date(d.lastModified).toISOString() : null);
+        var imp = (!isMine && lastImportPerDevice && d.deviceId) ? lastImportPerDevice[d.deviceId] : null;
+        var importedFromThisFile = imp && imp.fileLastModified && d.lastModified
+          && imp.fileLastModified === d.lastModified;
+        var n = d.projectCount || 0;
+        return h('div', {
+          key: d.deviceId || d.fileName,
+          className: 'sync-device-row' + (isMine ? ' sync-device-row--mine' : '')
+        },
+          h('div', { className: 'sync-device-name' },
+            name,
+            isMine && h('span', { className: 'sync-device-tag' }, 'this device')
+          ),
+          h('div', { className: 'sync-device-meta' },
+            (isMine ? 'Last export ' : 'Last seen ') + (seenIso ? timeAgo(seenIso) : 'unknown'),
+            ' \u00b7 ',
+            n + ' pattern' + (n !== 1 ? 's' : ''),
+            !isMine && imp && h('span', {
+              className: 'sync-device-imported',
+              title: 'Last imported ' + new Date(imp.at).toLocaleString()
+            },
+              ' \u00b7 ',
+              importedFromThisFile ? 'imported' : 'imported earlier'
+            )
+          )
+        );
+      })
+    )
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
 // MultiProjectDashboard — shown on home screen when >1 project exists
 // ─────────────────────────────────────────────────────────────────
 function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalStats, onAddNew, cardExtras }) {
@@ -1218,6 +1272,18 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   var folderUpdates = _folderUpdates[0], setFolderUpdates = _folderUpdates[1];
   var _autoSync = useState(false);
   var autoSync = _autoSync[0], setAutoSync = _autoSync[1];
+  // Phase-3 sync-fix #G: when the persisted folder handle restores but the
+  // browser has dropped permission, we can't silently re-prompt (no user
+  // gesture). Surface a "Reconnect" call-to-action instead.
+  var _permissionNeeded = useState(false);
+  var permissionNeeded = _permissionNeeded[0], setPermissionNeeded = _permissionNeeded[1];
+  // Sync-history UX (Concept B): list of devices currently visible in the
+  // sync folder, populated by SyncEngine.scanFolder. null = not loaded yet.
+  var _syncDevices = useState(null);
+  var syncDevices = _syncDevices[0], setSyncDevices = _syncDevices[1];
+  // Sync activity modal (Concept A) open/closed state.
+  var _activityOpen = useState(false);
+  var activityOpen = _activityOpen[0], setActivityOpen = _activityOpen[1];
 
   // Hidden file inputs
   var imageInputRef = React.useRef(null);
@@ -1278,10 +1344,67 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
           SyncEngine.checkForUpdates(handle).then(function(updates) {
             if (updates && updates.length > 0) setFolderUpdates(updates);
           }).catch(function() {});
+          // Phase-3 sync-fix #1: the polling watcher is started by header.js
+          // on every page (and by setWatchDirectory itself), so we don't need
+          // to start it here. We only react to the events it dispatches —
+          // see the cs:syncUpdatesAvailable listener below.
         }
       }).catch(function() {});
     }
   }, []);
+
+  // Phase-3 sync-fix #1: react to background-detected updates that need user
+  // review (conflicts or merge-tracking entries). Pure new-remote plans are
+  // auto-applied by the engine itself and don't fire this event.
+  useEffect(function() {
+    function onUpdates(e) {
+      var updates = e && e.detail && e.detail.updates;
+      if (updates && updates.length > 0) setFolderUpdates(updates);
+    }
+    function onStatus() {
+      if (typeof SyncEngine !== 'undefined') {
+        setSyncStatus(SyncEngine.getSyncStatus());
+      }
+    }
+    function onPermissionNeeded() { setPermissionNeeded(true); }
+    function onPermissionGranted() { setPermissionNeeded(false); }
+    window.addEventListener('cs:syncUpdatesAvailable', onUpdates);
+    window.addEventListener('cs:syncStatusChanged', onStatus);
+    window.addEventListener('cs:syncStatusChanged', onPermissionGranted);
+    window.addEventListener('cs:syncError', onStatus);
+    window.addEventListener('cs:syncPermissionNeeded', onPermissionNeeded);
+    return function() {
+      window.removeEventListener('cs:syncUpdatesAvailable', onUpdates);
+      window.removeEventListener('cs:syncStatusChanged', onStatus);
+      window.removeEventListener('cs:syncStatusChanged', onPermissionGranted);
+      window.removeEventListener('cs:syncError', onStatus);
+      window.removeEventListener('cs:syncPermissionNeeded', onPermissionNeeded);
+    };
+  }, []);
+
+  // Devices-in-folder refresh (Concept B). Triggers on any sync state
+  // transition that could have changed what's in the folder. scanFolder is
+  // permission-gated and a no-op when no folder is configured, so this is
+  // safe to call generously.
+  function refreshSyncDevices() {
+    if (typeof SyncEngine === 'undefined' || !SyncEngine.scanFolder) return;
+    SyncEngine.scanFolder().then(function(files) {
+      setSyncDevices(Array.isArray(files) ? files : []);
+    }).catch(function() { setSyncDevices([]); });
+  }
+  useEffect(function() {
+    if (!watchDirName) { setSyncDevices(null); return; }
+    refreshSyncDevices();
+    function onChange() { refreshSyncDevices(); }
+    window.addEventListener('cs:syncStatusChanged', onChange);
+    window.addEventListener('cs:syncUpdatesAvailable', onChange);
+    window.addEventListener('cs:syncEventLogChanged', onChange);
+    return function() {
+      window.removeEventListener('cs:syncStatusChanged', onChange);
+      window.removeEventListener('cs:syncUpdatesAvailable', onChange);
+      window.removeEventListener('cs:syncEventLogChanged', onChange);
+    };
+  }, [watchDirName]);
 
   // Listen for sync-plan-ready events dispatched by the header File menu
   useEffect(function() {
@@ -1410,6 +1533,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
         setWatchDirName(dirHandle.name || 'Sync folder');
         setSyncStatus(SyncEngine.getSyncStatus());
         setSyncResult({ type: 'success', message: 'Sync folder set: ' + (dirHandle.name || 'folder') });
+        // setWatchDirectory itself starts the polling watcher.
         // Check for updates immediately
         return SyncEngine.checkForUpdates(dirHandle).then(function(updates) {
           if (updates && updates.length > 0) setFolderUpdates(updates);
@@ -1425,13 +1549,37 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
 
   function handleDisconnectFolder() {
     if (typeof SyncEngine === 'undefined') return;
+    // clearWatchDirectory itself stops the watcher.
     SyncEngine.clearWatchDirectory().then(function() {
       setWatchDirName(null);
       setFolderUpdates(null);
       setAutoSync(false);
+      setPermissionNeeded(false);
       setSyncStatus(SyncEngine.getSyncStatus());
       setSyncResult({ type: 'success', message: 'Sync folder disconnected.' });
     });
+  }
+
+  // Phase-3 sync-fix #G: re-prompt for folder permission. MUST run from a
+  // user gesture (this click handler) so the browser will surface its UI.
+  function handleReconnectFolder() {
+    if (typeof SyncEngine === 'undefined' || !SyncEngine.requestFolderPermission) return;
+    setSyncBusy(true);
+    SyncEngine.requestFolderPermission().then(function(perm) {
+      if (perm === 'granted') {
+        setPermissionNeeded(false);
+        setSyncStatus(SyncEngine.getSyncStatus());
+        setSyncResult({ type: 'success', message: 'Sync folder reconnected.' });
+        // Catch up immediately on any updates that arrived while disconnected.
+        return SyncEngine.checkForUpdates().then(function(updates) {
+          if (updates && updates.length > 0) setFolderUpdates(updates);
+        }).catch(function() {});
+      } else {
+        setSyncResult({ type: 'error', message: 'Permission denied. The sync folder will stay disconnected until you reconnect it.' });
+      }
+    }).catch(function(err) {
+      setSyncResult({ type: 'error', message: 'Could not reconnect: ' + (err.message || err) });
+    }).finally(function() { setSyncBusy(false); });
   }
 
   function handleExportToFolder() {
@@ -2081,6 +2229,26 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
           )
         ),
 
+        // Permission-needed banner (Phase-3 sync-fix #G): the persisted
+        // folder handle restored OK but the browser dropped permission.
+        // Show a clear "Reconnect" CTA so sync isn't silently disabled.
+        permissionNeeded && watchDirName && h('div', { className: 'sync-folder-updates sync-folder-updates--warn' },
+          h('div', { className: 'sync-folder-updates-title' },
+            Icons.warning ? Icons.warning() : Icons.cloudAlert(), ' ',
+            'Sync paused — folder permission needed'
+          ),
+          h('div', { className: 'sync-folder-update-row' },
+            h('span', { className: 'sync-folder-update-info' },
+              'The browser has dropped permission for "' + watchDirName + '". Reconnect to resume automatic sync.'
+            ),
+            h('button', {
+              className: 'home-btn home-btn--primary sync-folder-update-btn',
+              onClick: handleReconnectFolder,
+              disabled: syncBusy
+            }, syncBusy ? 'Working\u2026' : 'Reconnect')
+          )
+        ),
+
         // Folder updates banner
         folderUpdates && folderUpdates.length > 0 && h('div', { className: 'sync-folder-updates' },
           h('div', { className: 'sync-folder-updates-title' },
@@ -2110,8 +2278,22 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
           ),
           syncStatus.lastImportAt && h('div', { className: 'sync-timestamp' },
             Icons.cloudCheck(), ' Last import: ' + timeAgo(syncStatus.lastImportAt)
-          )
+          ),
+          h('button', {
+            type: 'button',
+            className: 'sync-activity-link',
+            onClick: function() { setActivityOpen(true); }
+          }, 'View activity')
         ),
+
+        // Devices in folder (Concept B). Renders one row per .csync file in
+        // the watch folder so users can see at a glance which devices are
+        // contributing to the sync set and when each was last seen / imported.
+        watchDirName && syncDevices && syncDevices.length > 0 && h(SyncDevicesPanel, {
+          devices: syncDevices,
+          myDeviceId: syncStatus && syncStatus.deviceId,
+          lastImportPerDevice: (typeof SyncEngine !== 'undefined' && SyncEngine.getLastImportPerDevice) ? SyncEngine.getLastImportPerDevice() : {}
+        }),
 
         // Result message
         syncResult && h('div', { className: 'sync-result sync-result--' + syncResult.type }, syncResult.message),
@@ -2164,6 +2346,11 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       plan: syncPlan,
       onApply: handleApplySync,
       onCancel: function() { setSyncPlan(null); }
+    }),
+
+    // Sync activity log modal (Concept A)
+    activityOpen && typeof window.SyncActivityModal === 'function' && h(window.SyncActivityModal, {
+      onClose: function() { setActivityOpen(false); }
     })
   );
 }
