@@ -65,7 +65,7 @@ const SharedModals = {
             )
           ),
           React.createElement('p', { style: { margin: 0, color: 'var(--text-tertiary)', fontSize: 12, textAlign: "center", marginTop: 10 } },
-            "Version 1.0.0"
+            "Version " + (window.APP_VERSION || '1.0.0')
           )
         )
       )

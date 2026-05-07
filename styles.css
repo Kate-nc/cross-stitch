@@ -7032,10 +7032,15 @@ body.cs-focus .lpanel-backdrop { display: none !important; }
   font-size: 10px;
   line-height: 1;
   color: var(--text-secondary);
-  opacity: 0.45;
+  opacity: 0.55;
   pointer-events: none;
   user-select: none;
-  z-index: 1;
+  z-index: 9;
   font-family: inherit;
   letter-spacing: 0.02em;
+}
+/* On touch/mobile the badge is covered by bottom sheet panels — hide it
+   there; the version is accessible via Settings > Version history instead. */
+@media (pointer: coarse) {
+  #app-version-badge { display: none; }
 }

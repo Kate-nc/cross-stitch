@@ -1,4 +1,4 @@
-/* preferences-modal.js — Sidebar Workbench preferences overlay.
+﻿/* preferences-modal.js — Sidebar Workbench preferences overlay.
  *
  * Available on Creator, Tracker and Manager pages. Reads/writes via window.UserPrefs.
  * 12 categories shown in a left sidebar; the right pane shows the selected
@@ -1315,6 +1315,51 @@
   }
 
   // ════════════════════════════════════════════════════════════════════
+  // VERSION HISTORY
+  // Reads window.APP_CHANGELOG (version.js) and renders a collapsible
+  // list at the bottom of every settings panel.
+  // ════════════════════════════════════════════════════════════════════
+  function VersionHistory() {
+    var changelog = (window.APP_CHANGELOG || []);
+    var os = useState(false); var open = os[0]; var setOpen = os[1];
+    return h("div", { style: { marginTop: 28, borderTop: "1px solid " + COLOURS.line, paddingTop: 16 } },
+      h("button", {
+        type: "button",
+        onClick: function () { setOpen(function (v) { return !v; }); },
+        "aria-expanded": open,
+        style: {
+          display: "flex", alignItems: "center", gap: 6,
+          background: "none", border: "none", padding: 0,
+          cursor: "pointer", font: "inherit",
+          fontSize: 12, fontWeight: 700, color: COLOURS.slate,
+          textTransform: "uppercase", letterSpacing: ".05em"
+        }
+      },
+        h("span", { style: { display: "inline-flex", color: COLOURS.hint }, "aria-hidden": true },
+          open ? ico("chevronDown") : ico("chevronRight")
+        ),
+        "Version history",
+        h("span", { style: { fontSize: 11, fontWeight: 400, color: COLOURS.hint, textTransform: "none", letterSpacing: 0, marginLeft: 4 } },
+          "(current: v" + (window.APP_VERSION || "") + ")"
+        )
+      ),
+      open && h("div", { style: { marginTop: 14 } },
+        changelog.map(function (entry) {
+          return h("div", { key: entry.version, style: { marginBottom: 16 } },
+            h("div", { style: { display: "flex", gap: 8, alignItems: "baseline", marginBottom: 4 } },
+              h("span", { style: { fontSize: 13, fontWeight: 700, color: COLOURS.ink } }, "v" + entry.version),
+              h("span", { style: { fontSize: 11, color: COLOURS.hint } }, entry.date)
+            ),
+            h("ul", { style: { margin: 0, paddingLeft: 18, color: COLOURS.slate2, fontSize: 12, lineHeight: 1.65 } },
+              entry.notes.map(function (note, i) { return h("li", { key: i }, note); })
+            )
+          );
+        })
+      )
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════
   // CATEGORIES INDEX
   // ════════════════════════════════════════════════════════════════════
   // Each category renders an inline-SVG icon from window.Icons (see icons.js).
@@ -1430,7 +1475,8 @@
             })
           ),
           h("main", { style: isMobile ? { overflowY: "auto", padding: "16px 18px" } : { overflowY: "auto", padding: "24px 28px" } },
-            h(current.Panel)
+            h(current.Panel),
+            h(VersionHistory)
           )
         ),
 
@@ -1442,7 +1488,10 @@
           }
         },
           h("span", { style: { fontSize: 11, color: COLOURS.hint } }, "Changes save automatically. ‘Coming soon’ settings are remembered but not yet active in the app."),
-          h("button", { style: styles.btnPrimary, onClick: onClose }, "Done")
+          h("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
+            h("span", { style: { fontSize: 11, color: COLOURS.hint } }, "v" + (window.APP_VERSION || "")),
+            h("button", { style: styles.btnPrimary, onClick: onClose }, "Done")
+          )
         )
     );
   }
