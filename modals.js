@@ -1122,10 +1122,11 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
         onClose: props.onClose || null,
         variant: 'dialog',
         className: 'srg-modal',
-        dismissOnScrim: false,
+        dismissOnScrim: true,
         labelledBy: 'srg-header',
         'aria-modal': 'true'
       },
+        h(window.Overlay.CloseButton, { onClose: props.onClose }),
         h('div', { className: 'srg-body' },
           h('div', { className: 'srg-loading' },
             Icons.spinner && Icons.spinner(), ' Preparing sync review\u2026'

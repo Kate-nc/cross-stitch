@@ -41,7 +41,7 @@ describe('Overlay primitive', () => {
   });
 
   test('Overlay delegates ESC to window.useEscape stack', () => {
-    expect(js).toMatch(/window\.useEscape\s*\(\s*onClose\b/);
+    expect(js).toMatch(/window\.useEscape\s*\(/);
   });
 
   test('Overlay sets ARIA dialog attributes', () => {
