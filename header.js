@@ -720,13 +720,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
           title: 'Open help (?)'
         },
           window.Icons && window.Icons.help ? window.Icons.help() : null,
-          React.createElement('span', { className: 'tb-help-btn-label' }, ' Help'),
-          React.createElement('kbd', {
-            'aria-hidden': 'true',
-            style: { fontSize: 10, padding: '1px 4px', marginLeft: 4, fontFamily: 'ui-monospace, monospace',
-              background: 'var(--surface-secondary)', border: '1px solid var(--line)',
-              borderRadius: 3, color: 'var(--text-secondary)', lineHeight: 1.4, display: 'inline-block' }
-          }, '?')
+          React.createElement('span', { className: 'tb-help-btn-label' }, ' Help')
         ),
 
         // File menu dropdown — shown on all pages
