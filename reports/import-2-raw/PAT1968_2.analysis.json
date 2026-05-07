@@ -1,0 +1,33 @@
+{
+  "patternId": "PAT1968_2",
+  "pages": [
+    {
+      "pageNum": 1,
+      "longTextSample": "",
+      "fontsUsed": [],
+      "opSummary": { "setFillRGBColor": 100, "fill": 5000, "stroke": 200, "showText": 5 },
+      "images": []
+    },
+    {
+      "pageNum": 2,
+      "longTextSample": "",
+      "fontsUsed": [],
+      "opSummary": { "setFillRGBColor": 10, "fill": 2000, "stroke": 1500, "showText": 5 },
+      "images": []
+    },
+    {
+      "pageNum": 3,
+      "longTextSample": "tool kit cross stitch fabric Aida 14 ct thread needle hoop",
+      "fontsUsed": [],
+      "opSummary": { "showText": 80, "fill": 5 },
+      "images": []
+    },
+    {
+      "pageNum": 4,
+      "longTextSample": "symbol dmc colour 310 930 932 5852 5310 5283 5317",
+      "fontsUsed": [],
+      "opSummary": { "showText": 100, "fill": 5 },
+      "images": []
+    }
+  ]
+}

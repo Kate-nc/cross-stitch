@@ -1,0 +1,26 @@
+{
+  "patternId": "PAT2171_2",
+  "pages": [
+    {
+      "pageNum": 1,
+      "longTextSample": "cross stitch pattern title",
+      "fontsUsed": [],
+      "opSummary": { "showText": 60, "fill": 5, "paintImageXObject": 1 },
+      "images": [{ "frac": 0.8 }]
+    },
+    {
+      "pageNum": 2,
+      "longTextSample": "tool kit fournitures cross stitch fabric Aida 14 ct thread needle hoop",
+      "fontsUsed": [],
+      "opSummary": { "showText": 80, "fill": 5 },
+      "images": []
+    },
+    {
+      "pageNum": 3,
+      "longTextSample": "",
+      "fontsUsed": [],
+      "opSummary": { "setFillRGBColor": 1731, "fill": 2733, "stroke": 100, "showText": 5 },
+      "images": []
+    }
+  ]
+}

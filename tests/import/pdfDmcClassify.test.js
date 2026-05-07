@@ -7,7 +7,11 @@ require(path.resolve(__dirname, '..', '..', 'import-engine', 'pdf', 'dmcPageRole
 const { classifyPage, classifyAllPages, inferLayoutVariant, refineChartPair } = ENGINE;
 
 function loadFixture(name) {
-  return JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', '..', 'reports', 'import-2-raw', name), 'utf8'));
+  const file = path.resolve(__dirname, '..', '..', 'reports', 'import-2-raw', name);
+  if (!fs.existsSync(file)) {
+    throw new Error(`Missing test fixture: ${file}`);
+  }
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
 }
 
 function pageStats(p, fixture) {
