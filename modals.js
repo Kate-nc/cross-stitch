@@ -642,10 +642,16 @@ function SyncActivityModal({ onClose }) {
 
   function handleClear() {
     if (!SE || !SE.clearEventLog) return;
-    if (window.confirm('Clear the sync activity log? This won\u2019t affect your patterns.')) {
+    window.ConfirmDialog.show({
+      title: 'Clear activity log?',
+      message: 'Clear the sync activity log? This won\u2019t affect your patterns.',
+      confirmLabel: 'Clear log',
+      danger: true
+    }).then(function(ok) {
+      if (!ok) return;
       SE.clearEventLog();
       setEvents([]);
-    }
+    });
   }
 
   function eventIcon(type) {
@@ -697,7 +703,9 @@ function SyncActivityModal({ onClose }) {
         var labels = { all: 'All', in: 'Imports', out: 'Exports', errors: 'Errors' };
         return h('button', {
           key: f,
+          type: 'button',
           className: 'sync-activity-filter' + (filter === f ? ' is-active' : ''),
+          'aria-pressed': String(filter === f),
           onClick: function() { setFilter(f); }
         }, labels[f]);
       })

@@ -1382,27 +1382,35 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     };
   }, []);
 
-  // Devices-in-folder refresh (Concept B). Triggers on any sync state
-  // transition that could have changed what's in the folder. scanFolder is
-  // permission-gated and a no-op when no folder is configured, so this is
-  // safe to call generously.
+  // Devices-in-folder refresh (Concept B). Only runs when folder permission
+  // is already granted (queryPermission, no user-gesture needed) so background
+  // callbacks never trigger a permission prompt. Debounced to avoid repeated
+  // full-folder parses during bursts of sync events.
+  var refreshDevicesTimerRef = React.useRef(null);
   function refreshSyncDevices() {
-    if (typeof SyncEngine === 'undefined' || !SyncEngine.scanFolder) return;
-    SyncEngine.scanFolder().then(function(files) {
-      setSyncDevices(Array.isArray(files) ? files : []);
-    }).catch(function() { setSyncDevices([]); });
+    if (typeof SyncEngine === 'undefined' || !SyncEngine.scanFolder || !SyncEngine.getPermissionState) return;
+    clearTimeout(refreshDevicesTimerRef.current);
+    refreshDevicesTimerRef.current = setTimeout(function() {
+      SyncEngine.getPermissionState().then(function(perm) {
+        if (perm !== 'granted') return;
+        return SyncEngine.scanFolder();
+      }).then(function(files) {
+        if (Array.isArray(files)) setSyncDevices(files);
+      }).catch(function() { setSyncDevices([]); });
+    }, 400);
   }
   useEffect(function() {
     if (!watchDirName) { setSyncDevices(null); return; }
     refreshSyncDevices();
-    function onChange() { refreshSyncDevices(); }
-    window.addEventListener('cs:syncStatusChanged', onChange);
-    window.addEventListener('cs:syncUpdatesAvailable', onChange);
-    window.addEventListener('cs:syncEventLogChanged', onChange);
+    // Only listen to events that indicate actual folder content changes;
+    // cs:syncEventLogChanged fires on every log write and does not change
+    // folder contents, so it is intentionally omitted here.
+    window.addEventListener('cs:syncStatusChanged', refreshSyncDevices);
+    window.addEventListener('cs:syncUpdatesAvailable', refreshSyncDevices);
     return function() {
-      window.removeEventListener('cs:syncStatusChanged', onChange);
-      window.removeEventListener('cs:syncUpdatesAvailable', onChange);
-      window.removeEventListener('cs:syncEventLogChanged', onChange);
+      clearTimeout(refreshDevicesTimerRef.current);
+      window.removeEventListener('cs:syncStatusChanged', refreshSyncDevices);
+      window.removeEventListener('cs:syncUpdatesAvailable', refreshSyncDevices);
     };
   }, [watchDirName]);
 
