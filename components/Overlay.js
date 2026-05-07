@@ -117,9 +117,12 @@
     // Pass `escapeOptions={{ skipWhenEditingTextField: false }}` for modals
     // whose only focusable element is a text input — otherwise ESC would
     // be swallowed by the input rather than closing the modal.
-    if (typeof window.useEscape === "function" && typeof onClose === "function") {
-      window.useEscape(onClose, props.escapeOptions || undefined);
-    }
+    //
+    // NOTE: must be called unconditionally — calling a hook inside an `if`
+    // violates Rules of Hooks and causes React to crash when `onClose` changes
+    // between renders (e.g. loading→loaded state in SyncReviewGateInner).
+    // useEscape already guards against non-function handlers internally.
+    window.useEscape(onClose, props.escapeOptions || undefined);
 
     var panelRef = React.useRef(null);
     useFocusTrap(panelRef, true);

@@ -1119,13 +1119,14 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
     // Loading state
     if (!gateState) {
       return h(window.Overlay, {
-        onClose: null,
+        onClose: props.onClose || null,
         variant: 'dialog',
         className: 'srg-modal',
         dismissOnScrim: false,
         labelledBy: 'srg-header',
         'aria-modal': 'true'
       },
+        h(window.Overlay.CloseButton, { onClose: props.onClose }),
         h('div', { className: 'srg-body' },
           h('div', { className: 'srg-loading' },
             Icons.spinner && Icons.spinner(), ' Preparing sync review\u2026'
