@@ -122,7 +122,7 @@
     // violates Rules of Hooks and causes React to crash when `onClose` changes
     // between renders (e.g. loading→loaded state in SyncReviewGateInner).
     // useEscape already guards against non-function handlers internally.
-    window.useEscape(typeof onClose === "function" ? onClose : null, props.escapeOptions || undefined);
+    window.useEscape(onClose, props.escapeOptions || undefined);
 
     var panelRef = React.useRef(null);
     useFocusTrap(panelRef, true);
