@@ -1122,7 +1122,7 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
         onClose: props.onClose || null,
         variant: 'dialog',
         className: 'srg-modal',
-        dismissOnScrim: true,
+        dismissOnScrim: false,
         labelledBy: 'srg-header',
         'aria-modal': 'true'
       },
