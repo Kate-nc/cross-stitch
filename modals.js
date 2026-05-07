@@ -1119,7 +1119,7 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
     // Loading state
     if (!gateState) {
       return h(window.Overlay, {
-        onClose: null,
+        onClose: props.onClose || null,
         variant: 'dialog',
         className: 'srg-modal',
         dismissOnScrim: false,
