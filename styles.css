@@ -3416,6 +3416,45 @@ kbd {
 /* Timestamps */
 .sync-timestamps { display: flex; flex-direction: column; gap: 4px; }
 .sync-timestamp { font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 4px; }
+.sync-activity-link { background: none; border: none; padding: 0; margin-top: 2px; font-size: 11px; color: var(--accent); cursor: pointer; text-align: left; align-self: flex-start; }
+.sync-activity-link:hover { text-decoration: underline; }
+
+/* Devices in this folder (Concept B) */
+.sync-devices-panel { margin: 8px 0; padding: 8px 12px; border-radius: 6px; background: var(--surface-secondary); border: 1px solid var(--border); }
+.sync-devices-title { font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+.sync-devices-list { display: flex; flex-direction: column; gap: 4px; }
+.sync-device-row { display: flex; flex-direction: column; gap: 1px; padding: 4px 0; border-top: 0.5px solid var(--border); }
+.sync-device-row:first-child { border-top: 0; }
+.sync-device-name { font-size: 13px; color: var(--text-primary); display: flex; align-items: center; gap: 6px; }
+.sync-device-tag { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); padding: 1px 6px; border-radius: 3px; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.sync-device-meta { font-size: 11px; color: var(--text-tertiary); }
+.sync-device-imported { color: var(--success, var(--accent)); font-weight: 500; }
+.sync-device-row--mine { /* highlights the row that represents this device */ }
+
+/* Sync Activity modal (Concept A) */
+.sync-activity-modal { max-width: 560px; max-height: 80vh; display: flex; flex-direction: column; }
+.sync-activity-filters { display: flex; gap: 4px; margin: 0 0 12px; flex-wrap: wrap; }
+.sync-activity-filter { background: var(--surface-secondary); border: 1px solid var(--border); border-radius: 4px; padding: 4px 10px; font-size: 12px; color: var(--text-secondary); cursor: pointer; }
+.sync-activity-filter:hover { color: var(--text-primary); }
+.sync-activity-filter.is-active { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.sync-activity-list { flex: 1 1 auto; overflow-y: auto; min-height: 100px; max-height: 50vh; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }
+.sync-activity-empty { padding: 24px 16px; text-align: center; font-size: 13px; color: var(--text-tertiary); }
+.sync-activity-item { display: flex; gap: 10px; padding: 10px 12px; border-bottom: 0.5px solid var(--border); }
+.sync-activity-item:last-child { border-bottom: 0; }
+.sync-activity-icon { flex: 0 0 auto; width: 18px; color: var(--text-tertiary); display: flex; align-items: flex-start; padding-top: 2px; }
+.sync-activity-icon svg { width: 16px; height: 16px; }
+.sync-activity-item--in .sync-activity-icon { color: var(--accent); }
+.sync-activity-item--out .sync-activity-icon { color: var(--success, var(--accent)); }
+.sync-activity-item--export-fail .sync-activity-icon,
+.sync-activity-item--import-fail .sync-activity-icon,
+.sync-activity-item--watcher-error .sync-activity-icon,
+.sync-activity-item--permission-needed .sync-activity-icon { color: var(--warning, #c08410); }
+.sync-activity-body { flex: 1 1 auto; min-width: 0; }
+.sync-activity-title-row { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.sync-activity-title { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+.sync-activity-time { font-size: 11px; color: var(--text-tertiary); white-space: nowrap; flex-shrink: 0; }
+.sync-activity-meta { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; word-break: break-all; }
+.sync-activity-meta--error { color: var(--warning, #c08410); }
 
 /* Result banner */
 .sync-result { padding: 8px 12px; border-radius: 6px; font-size: 13px; }
@@ -3453,6 +3492,9 @@ kbd {
 .sync-folder-updates { padding: 8px 12px; border-radius: 6px; background: var(--surface-secondary); border: 1px solid var(--border); margin-bottom: 8px; }
 .sync-folder-updates-title { font-size: 13px; font-weight: 600; color: var(--accent); display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
 .sync-folder-updates-title svg { width: 16px; height: 16px; }
+/* Warning variant — used when folder permission was dropped and sync is paused. */
+.sync-folder-updates--warn { background: color-mix(in srgb, var(--warning, #c08410) 12%, var(--surface-secondary)); border-color: var(--warning, #c08410); }
+.sync-folder-updates--warn .sync-folder-updates-title { color: var(--warning, #c08410); }
 .sync-folder-update-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; border-top: 0.5px solid var(--border); }
 .sync-folder-update-info { font-size: 12px; color: var(--text-secondary); }
 .sync-folder-update-btn { font-size: 11px; padding: 3px 10px; white-space: nowrap; }
