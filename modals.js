@@ -1237,6 +1237,224 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
   if (typeof window === 'undefined') return;
   var h = React.createElement;
 
+  // ── Sub-component: visual diff viewer ───────────────────────────────────
+  // Renders three side-by-side thumbnails (Local | Diff | Remote) for
+  // chart and stitch conflicts. The diff is computed once per
+  // conflict via React.useMemo and rendered into 3 canvases through
+  // putImageData so DOM cost stays flat regardless of pattern size.
+  //
+  // Per the proposal: nearest-neighbour sampling, chart + stitch only
+  // for Phase 1 (blends and half-stitches deferred), 240×240 desktop
+  // thumbnails shrinking to 120×120 below 400 px (handled in CSS).
+  // The text fallback above the canvas row makes the same delta
+  // legible to screen readers and to anyone who can't load canvas.
+  var DIFF_THUMB_SIZE = 240;
+
+  function _emptyId(c) {
+    if (!c) return true;
+    var id = c.id;
+    return !id || id === '__empty__' || id === '__skip__';
+  }
+
+  function _cellRgb(c, fallback) {
+    if (!c || _emptyId(c)) return fallback;
+    if (Array.isArray(c.rgb) && c.rgb.length >= 3) return c.rgb;
+    return fallback;
+  }
+
+  function _computePatternDiff(localProject, remoteProject, conflictType) {
+    var lp = (localProject && localProject.pattern) || [];
+    var rp = (remoteProject && remoteProject.pattern) || [];
+    var ld = (localProject && localProject.done) || [];
+    var rd = (remoteProject && remoteProject.done) || [];
+    var n = Math.max(lp.length, rp.length);
+    var diff = new Array(n);
+    var stats = {
+      patternDiffs: 0, stitchDiffs: 0,
+      addedInRemote: 0, removedInRemote: 0,
+      colorChanged: 0,
+      stitchedLocalOnly: 0, stitchedRemoteOnly: 0
+    };
+    for (var i = 0; i < n; i++) {
+      var lc = lp[i], rc = rp[i];
+      if (conflictType === 'chart') {
+        var le = _emptyId(lc), re = _emptyId(rc);
+        if (le && re) { diff[i] = null; continue; }
+        if ((lc && lc.id) === (rc && rc.id) && (lc && lc.type) === (rc && rc.type)) { diff[i] = null; continue; }
+        stats.patternDiffs++;
+        if (le && !re) { stats.addedInRemote++; diff[i] = 'added'; }
+        else if (!le && re) { stats.removedInRemote++; diff[i] = 'removed'; }
+        else { stats.colorChanged++; diff[i] = 'changed'; }
+      } else if (conflictType === 'stitch') {
+        var ls = (ld[i] === 1) ? 1 : 0;
+        var rs = (rd[i] === 1) ? 1 : 0;
+        if (ls === rs) { diff[i] = null; continue; }
+        stats.stitchDiffs++;
+        if (ls && !rs) { stats.stitchedLocalOnly++; diff[i] = 'stitched_local_only'; }
+        else { stats.stitchedRemoteOnly++; diff[i] = 'stitched_remote_only'; }
+      } else {
+        diff[i] = null;
+      }
+    }
+    return { diffCells: diff, deltaStats: stats, totalCells: n };
+  }
+
+  // Render a pattern (or diff overlay) into a canvas using nearest-
+  // neighbour sampling. `mode` is 'pattern' (uses the cell's RGB) or
+  // 'diff' (uses the overlay swatch palette).
+  var DIFF_PALETTE = {
+    added:                [46, 204, 113],   // green
+    removed:              [231, 76,  60],   // red
+    changed:              [243, 156, 18],   // yellow/orange
+    stitched_local_only:  [214, 137, 16],   // orange
+    stitched_remote_only: [52, 152, 219]    // blue
+  };
+
+  function _drawCanvas(canvas, project, diff, mode) {
+    if (!canvas) return;
+    var w = (project && project.w) || 1;
+    var hgt = (project && project.h) || 1;
+    var cellsToRender = mode === 'diff' ? diff : (project && project.pattern) || [];
+    var ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    canvas.width = w;
+    canvas.height = hgt;
+    var imageData = ctx.createImageData(w, hgt);
+    var data = imageData.data;
+    var bg = mode === 'diff' ? [40, 40, 40, 40] : [248, 248, 248, 255];
+    for (var i = 0; i < w * hgt; i++) {
+      var off = i * 4;
+      var rgba = bg;
+      if (mode === 'diff') {
+        var key = cellsToRender[i];
+        if (key && DIFF_PALETTE[key]) {
+          var p = DIFF_PALETTE[key];
+          rgba = [p[0], p[1], p[2], 255];
+        }
+      } else {
+        var c = cellsToRender[i];
+        if (c && !_emptyId(c)) {
+          var rgb = _cellRgb(c, [200, 200, 200]);
+          rgba = [rgb[0] | 0, rgb[1] | 0, rgb[2] | 0, 255];
+        }
+      }
+      data[off]     = rgba[0];
+      data[off + 1] = rgba[1];
+      data[off + 2] = rgba[2];
+      data[off + 3] = rgba[3];
+    }
+    ctx.putImageData(imageData, 0, 0);
+  }
+
+  function SrgConflictDiffViewer(props) {
+    var conflict = props.conflict;
+    var localProject = props.localProject;
+    var remoteProject = props.remoteProject;
+    var type = conflict && conflict.type;
+
+    var localCanvasRef = React.useRef(null);
+    var diffCanvasRef = React.useRef(null);
+    var remoteCanvasRef = React.useRef(null);
+    var expanded = React.useState(false);
+
+    // O(n) once per conflict. The deps key on project ids so the
+    // memo survives re-renders triggered by resolution clicks.
+    var diffData = React.useMemo(function () {
+      return _computePatternDiff(localProject, remoteProject, type);
+    }, [
+      localProject && localProject.id,
+      remoteProject && remoteProject.id,
+      type
+    ]);
+
+    React.useEffect(function () {
+      if (!expanded[0]) return;
+      // Defer one tick so the canvas refs are mounted.
+      var t = setTimeout(function () {
+        try { _drawCanvas(localCanvasRef.current, localProject, diffData.diffCells, 'pattern'); } catch (_) {}
+        try { _drawCanvas(diffCanvasRef.current, localProject || remoteProject, diffData.diffCells, 'diff'); } catch (_) {}
+        try { _drawCanvas(remoteCanvasRef.current, remoteProject, diffData.diffCells, 'pattern'); } catch (_) {}
+      }, 0);
+      return function () { clearTimeout(t); };
+    }, [expanded[0], diffData]);
+
+    if (type !== 'chart' && type !== 'stitch') return null;
+    var totalDiffs = diffData.deltaStats.patternDiffs + diffData.deltaStats.stitchDiffs;
+    if (totalDiffs === 0) return null;
+
+    // Text summary lives above the canvas row so screen-reader users
+    // hear the delta first. Canvas gets aria-label too.
+    var summary;
+    if (type === 'chart') {
+      var s = diffData.deltaStats;
+      summary = totalDiffs + ' cells differ \u00b7 ' +
+        s.addedInRemote + ' added, ' +
+        s.removedInRemote + ' removed, ' +
+        s.colorChanged + ' colour changed';
+    } else {
+      var ss = diffData.deltaStats;
+      summary = totalDiffs + ' cells in disagreement \u00b7 ' +
+        ss.stitchedLocalOnly + ' stitched here only, ' +
+        ss.stitchedRemoteOnly + ' stitched there only';
+    }
+
+    function makeThumb(ref, label) {
+      // Use width/height attributes to set the bitmap, but CSS sizes
+      // the displayed thumbnail. imageRendering:pixelated keeps
+      // nearest-neighbour scaling crisp.
+      return h('figure', { className: 'srg-thumbnail-figure' },
+        h('canvas', {
+          ref: ref,
+          className: 'srg-thumbnail',
+          style: { imageRendering: 'pixelated', width: DIFF_THUMB_SIZE, height: DIFF_THUMB_SIZE },
+          'aria-label': label + ' thumbnail'
+        }),
+        h('figcaption', { className: 'srg-thumbnail-caption' }, label)
+      );
+    }
+
+    var legendItems = type === 'chart'
+      ? [
+          { swatch: 'rgb(46,204,113)', label: 'Added in remote' },
+          { swatch: 'rgb(231,76,60)',  label: 'Removed in remote' },
+          { swatch: 'rgb(243,156,18)', label: 'Colour changed' }
+        ]
+      : [
+          { swatch: 'rgb(214,137,16)', label: 'Stitched on this device only' },
+          { swatch: 'rgb(52,152,219)', label: 'Stitched on other device only' }
+        ];
+
+    return h('div', { className: 'srg-diff-viewer' },
+      h('div', { className: 'srg-diff-summary' }, summary),
+      h('button', {
+        type: 'button',
+        className: 'srg-diff-toggle',
+        'aria-expanded': expanded[0] ? 'true' : 'false',
+        onClick: function () { expanded[1](!expanded[0]); }
+      }, expanded[0] ? 'Hide visual diff' : 'Show visual diff'),
+      expanded[0] ? h('div', null,
+        h('div', { className: 'srg-diff-thumbnails' },
+          makeThumb(localCanvasRef, 'Local'),
+          makeThumb(diffCanvasRef, 'Diff'),
+          makeThumb(remoteCanvasRef, 'Remote')
+        ),
+        h('div', { className: 'srg-diff-legend' },
+          legendItems.map(function (it, i) {
+            return h('span', { key: i, className: 'srg-legend-item' },
+              h('span', { className: 'srg-legend-swatch', style: { background: it.swatch } }),
+              h('span', null, it.label)
+            );
+          })
+        )
+      ) : null
+    );
+  }
+  // Expose for tests.
+  window._SrgConflictDiff = {
+    computePatternDiff: _computePatternDiff,
+    DIFF_PALETTE: DIFF_PALETTE
+  };
+
   // ── Sub-component: conflict card ────────────────────────────────────────
   function SrgConflictCard(props) {
     var conflict = props.conflict;
@@ -1296,11 +1514,22 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
     var keptLocal = resolution === 'keep-local';
     var keptRemote = resolution === 'keep-remote';
 
+    // Visual diff is only meaningful for chart and stitch types where
+    // both sides have full project objects to compare. For chart we
+    // get them off conflict.localProject/remoteProject; for stitch
+    // they live under conflict.entry.local / conflict.entry.remote.data.
+    var diffLocal = conflict.localProject || (conflict.entry && conflict.entry.local) || null;
+    var diffRemote = conflict.remoteProject || (conflict.entry && conflict.entry.remote && conflict.entry.remote.data) || null;
+    var showDiff = (conflict.type === 'chart' || conflict.type === 'stitch') && diffLocal && diffRemote;
+
     return h('div', { className: 'srg-conflict-card' + (isResolved ? ' srg-conflict-card--resolved' : '') },
       h('div', { className: 'srg-conflict-subject' },
         h('span', { className: 'srg-conflict-subject-text' }, subjectText),
         h('span', { className: 'srg-conflict-subject-sub' }, subjectSub)
       ),
+      showDiff ? h(SrgConflictDiffViewer, {
+        conflict: conflict, localProject: diffLocal, remoteProject: diffRemote
+      }) : null,
       h('div', { className: 'srg-conflict-sides' },
         ValueBlock(localLabel, localContent),
         h('div', { className: 'srg-conflict-vs' }, 'vs'),
