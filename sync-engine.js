@@ -231,6 +231,24 @@ const SyncEngine = (() => {
       deviceName: syncObj._deviceName || null,
       projectCount: (syncObj.projects && syncObj.projects.length) || 0
     };
+    // QW2: cap the per-device map at 100 entries to bound localStorage
+    // growth for power users who sync with many devices over time. Each
+    // entry is ~150 bytes; 100 keeps us well under any sane localStorage
+    // quota (~5 MB browser default). Eviction is by oldest `at` timestamp
+    // — the device we haven't heard from in the longest time. The current
+    // device is always preserved (it was just inserted/updated).
+    var keys = Object.keys(map);
+    if (keys.length > 100) {
+      keys.sort(function (a, b) {
+        var ta = (map[a] && map[a].at) ? Date.parse(map[a].at) : 0;
+        var tb = (map[b] && map[b].at) ? Date.parse(map[b].at) : 0;
+        return ta - tb; // oldest first
+      });
+      var dropCount = keys.length - 100;
+      for (var i = 0; i < dropCount; i++) {
+        if (keys[i] !== syncObj._deviceId) delete map[keys[i]];
+      }
+    }
     try { localStorage.setItem(LS_LAST_IMPORT_PER_DEVICE, JSON.stringify(map)); } catch (e) {}
   }
 
