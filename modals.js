@@ -748,7 +748,37 @@ function SyncActivityModal({ onClose }) {
         className: 'sync-btn sync-btn--primary',
         onClick: onClose
       }, 'Close')
-    )
+    ),
+    // Phase D — diagnostics footer. Shows session counters from
+    // SyncEngine.getDiagnostics so users can confirm the watcher is
+    // actually firing without DevTools. Counters reset on reload by design.
+    (function() {
+      if (typeof window === 'undefined' || !window.SyncEngine || typeof window.SyncEngine.getDiagnostics !== 'function') return null;
+      var d = window.SyncEngine.getDiagnostics();
+      return h('details', {
+        key: 'diag',
+        className: 'sync-diagnostics',
+        style: { marginTop: 12, fontSize: 12, color: 'var(--text-secondary)' }
+      },
+        h('summary', { style: { cursor: 'pointer' } }, 'Diagnostics'),
+        h('div', { style: { padding: '8px 0', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px' } },
+          h('span', null, 'Watcher:'),
+          h('span', null, d.watching ? ('on (every ' + Math.round(d.watcherIntervalMs / 1000) + 's)') : 'off'),
+          h('span', null, 'Ticks this session:'),
+          h('span', null, String(d.tickCount) + (d.lastTickAt ? ' (last ' + timeAgo(d.lastTickAt) + ')' : '')),
+          h('span', null, 'Updates seen:'),
+          h('span', null, String(d.updatesSeen)),
+          d.tickFailures > 0 && h('span', null, 'Failures:'),
+          d.tickFailures > 0 && h('span', { style: { color: 'var(--danger)' } }, String(d.tickFailures) + (d.lastFailureAt ? ' (last ' + timeAgo(d.lastFailureAt) + ')' : '')),
+          h('span', null, 'Skipped (hidden):'),
+          h('span', null, String(d.skipsHidden)),
+          d.skipsNoPermission > 0 && h('span', null, 'Skipped (no perm):'),
+          d.skipsNoPermission > 0 && h('span', { style: { color: 'var(--warning)' } }, String(d.skipsNoPermission)),
+          d.skipsLockHeld > 0 && h('span', null, 'Skipped (other tab):'),
+          d.skipsLockHeld > 0 && h('span', null, String(d.skipsLockHeld))
+        )
+      );
+    })()
   );
 }
 

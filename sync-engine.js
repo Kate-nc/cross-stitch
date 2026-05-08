@@ -1828,6 +1828,21 @@ const SyncEngine = (() => {
   var _watcherInFlight = false;
   var _watcherVisHandler = null;
   var WATCHER_INTERVAL_MS = 10000;
+  // Phase D — lightweight diagnostics counters. Exposed via getDiagnostics()
+  // so users (and us) can confirm the watcher is actually firing without
+  // having to dig in DevTools. All counters are session-local; a refresh
+  // resets them.
+  var _diagnostics = {
+    tickCount: 0,
+    lastTickAt: null,
+    tickFailures: 0,
+    lastFailureAt: null,
+    updatesSeen: 0,
+    skipsHidden: 0,
+    skipsNoHandle: 0,
+    skipsNoPermission: 0,
+    skipsLockHeld: 0
+  };
   // Per-session dedup of "pending" updates that we've already surfaced via
   // cs:syncUpdatesAvailable. Without this, a file containing conflicts
   // would re-fire the event every poll tick (because LS_LAST_IMPORT is only
@@ -2047,9 +2062,15 @@ const SyncEngine = (() => {
 
   async function _runWatcherTick() {
     if (_watcherInFlight) return;
-    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+      _diagnostics.skipsHidden++;
+      return;
+    }
     var handle = _watchDirHandle || (await getWatchDirectory().catch(function () { return null; }));
-    if (!handle) return;
+    if (!handle) {
+      _diagnostics.skipsNoHandle++;
+      return;
+    }
     // Permission gate: requestPermission() requires a user gesture, but a
     // setInterval/visibilitychange tick is NOT a user gesture. If we just
     // call scanFolder() here, scanFolder's internal requestPermission will
@@ -2059,10 +2080,18 @@ const SyncEngine = (() => {
     if (typeof handle.queryPermission === "function") {
       try {
         var perm = await handle.queryPermission({ mode: "read" });
-        if (perm !== "granted") return;
-      } catch (e) { return; }
+        if (perm !== "granted") {
+          _diagnostics.skipsNoPermission++;
+          return;
+        }
+      } catch (e) {
+        _diagnostics.skipsNoPermission++;
+        return;
+      }
     }
     _watcherInFlight = true;
+    _diagnostics.tickCount++;
+    _diagnostics.lastTickAt = new Date().toISOString();
     try {
       // Cross-tab coordination: when the user has multiple tabs open, every
       // tab's header.js starts a watcher. Without coordination, all tabs
@@ -2073,18 +2102,21 @@ const SyncEngine = (() => {
       var doWork = async function () {
         var updates = await checkForUpdates(handle);
         if (updates && updates.length) {
+          _diagnostics.updatesSeen += updates.length;
           await _processFolderUpdates(updates);
         }
       };
       if (typeof navigator !== "undefined" && navigator.locks && navigator.locks.request) {
         await navigator.locks.request("cs_sync_import", { ifAvailable: true }, async function (lock) {
-          if (!lock) return; // Another tab is processing — let it.
+          if (!lock) { _diagnostics.skipsLockHeld++; return; } // Another tab is processing — let it.
           await doWork();
         });
       } else {
         await doWork();
       }
     } catch (e) {
+      _diagnostics.tickFailures++;
+      _diagnostics.lastFailureAt = new Date().toISOString();
       _reportSyncError("watcher", e);
     } finally {
       _watcherInFlight = false;
@@ -2122,6 +2154,25 @@ const SyncEngine = (() => {
   }
 
   function isWatching() { return !!_watcherInterval; }
+
+  // Phase D — public read-only view of session diagnostics. Returned object
+  // is a shallow clone so callers can't mutate internal counters.
+  function getDiagnostics() {
+    return {
+      tickCount: _diagnostics.tickCount,
+      lastTickAt: _diagnostics.lastTickAt,
+      tickFailures: _diagnostics.tickFailures,
+      lastFailureAt: _diagnostics.lastFailureAt,
+      updatesSeen: _diagnostics.updatesSeen,
+      skipsHidden: _diagnostics.skipsHidden,
+      skipsNoHandle: _diagnostics.skipsNoHandle,
+      skipsNoPermission: _diagnostics.skipsNoPermission,
+      skipsLockHeld: _diagnostics.skipsLockHeld,
+      watcherIntervalMs: WATCHER_INTERVAL_MS,
+      watching: isWatching(),
+      hasWatchDir: !!_watchDirHandle
+    };
+  }
 
   // Convenience bootstrap for any page that loads SyncEngine but doesn't own
   // the sync UI: looks up the persisted directory handle and, if present and
@@ -2296,6 +2347,7 @@ const SyncEngine = (() => {
     startWatching: startWatching,
     stopWatching: stopWatching,
     isWatching: isWatching,
+    getDiagnostics: getDiagnostics,
     startAutoWatch: startAutoWatch,
     getPermissionState: getPermissionState,
     requestFolderPermission: requestFolderPermission,
