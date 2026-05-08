@@ -1138,9 +1138,15 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
 
   // ── Main SyncReviewGate component ────────────────────────────────────────
   function SyncReviewGateInner(props) {
-    var plan = props.plan;
+    var initialPlan = props.plan;
     var autoTrigger = !!props.autoTrigger;
     var onDone = props.onDone;   // callback after Continue pressed + merge complete
+
+    // Plan can be supplied by the caller OR discovered at mount time by
+    // querying the SyncEngine pending-plan cache and (if necessary)
+    // rescanning the watch folder. See reports/sync-reference fix #2.
+    var _resolvedPlan = React.useState(initialPlan || null);
+    var plan = _resolvedPlan[0], setPlan = _resolvedPlan[1];
 
     var _gateState = React.useState(null);
     var gateState = _gateState[0], setGateState = _gateState[1];
@@ -1153,30 +1159,77 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
     var autoDismissRef = React.useRef(null);
 
     React.useEffect(function() {
-      // No plan = "nothing new to review" state (manual open with no pending plan)
-      if (!plan) { setGateState({ noPlan: true }); return; }
       var cancelled = false;
-      // Pre-analysis: flush state and read snapshot
-      Promise.resolve().then(function() {
-        if (typeof SyncEngine !== 'undefined' && SyncEngine.readSnapshot) {
-          return SyncEngine.readSnapshot();
-        }
-        return null;
-      }).then(function(snapshot) {
+
+      // Resolve a plan: caller-supplied → engine pending-plan cache →
+      // rescan the watch folder. Only the last step is async.
+      function resolvePlan() {
+        if (initialPlan) return Promise.resolve(initialPlan);
+        if (typeof SyncEngine === 'undefined') return Promise.resolve(null);
+        var cached = (typeof SyncEngine.getPendingPlan === 'function')
+          ? SyncEngine.getPendingPlan() : null;
+        if (cached) return Promise.resolve(cached);
+        // No cached plan — try a folder rescan if we have a watch dir.
+        // This is the key behavioural change in fix #2: the gate is no
+        // longer a passive read of in-memory state.
+        if (typeof SyncEngine.getWatchDirectory !== 'function') return Promise.resolve(null);
+        return SyncEngine.getWatchDirectory().then(function(handle) {
+          if (!handle) return null;
+          // Permission gate — checkForUpdates calls scanFolder which
+          // requires read permission. queryPermission is non-prompting.
+          if (typeof handle.queryPermission === 'function') {
+            return handle.queryPermission({ mode: 'read' }).then(function(p) {
+              if (p !== 'granted') return null;
+              return SyncEngine.checkForUpdates(handle);
+            });
+          }
+          return SyncEngine.checkForUpdates(handle);
+        }).then(function(updates) {
+          if (!updates || !updates.length) return null;
+          // Take the most recent update; prepareImport into a plan.
+          var latest = updates[updates.length - 1];
+          return SyncEngine.prepareImport(latest.syncObj).then(function(p) {
+            if (p) {
+              p._fileName = latest.fileName || null;
+              p._fileLastModified = latest.lastModified || null;
+            }
+            return p;
+          });
+        }).catch(function(e) {
+          // Rescan failures are not fatal — fall through to the empty
+          // state. Surface in console for debugging.
+          try { console.warn('SyncReviewGate rescan failed:', e); } catch (_) {}
+          return null;
+        });
+      }
+
+      resolvePlan().then(function(resolved) {
         if (cancelled) return;
-        var analysis = (typeof SyncEngine !== 'undefined' && SyncEngine.analyseConflicts)
-          ? SyncEngine.analyseConflicts(plan, snapshot)
-          : { conflicts: [], stitchSummary: { totalAdded: 0, affectedProjects: 0 }, stashSummary: { updatedCount: 0 }, metaSummary: { updatedCount: 0 }, prefsSummary: { updatedCount: 0, usedTimestampFallback: false }, noSnapshot: true, hasChanges: !!(plan.newRemote && plan.newRemote.length) };
-        setGateState(analysis);
-        // Auto-dismiss for empty automatic triggers after 2 s
-        if (autoTrigger && !analysis.hasChanges && analysis.conflicts.length === 0) {
-          autoDismissRef.current = setTimeout(function() {
-            if (!cancelled) onDone && onDone({ silent: true });
-          }, 2000);
-        }
+        if (!resolved) { setGateState({ noPlan: true }); return; }
+        if (resolved !== plan) setPlan(resolved);
+        // Pre-analysis: flush state and read snapshot
+        return Promise.resolve().then(function() {
+          if (typeof SyncEngine !== 'undefined' && SyncEngine.readSnapshot) {
+            return SyncEngine.readSnapshot();
+          }
+          return null;
+        }).then(function(snapshot) {
+          if (cancelled) return;
+          var analysis = (typeof SyncEngine !== 'undefined' && SyncEngine.analyseConflicts)
+            ? SyncEngine.analyseConflicts(resolved, snapshot)
+            : { conflicts: [], stitchSummary: { totalAdded: 0, affectedProjects: 0 }, stashSummary: { updatedCount: 0 }, metaSummary: { updatedCount: 0 }, prefsSummary: { updatedCount: 0, usedTimestampFallback: false }, noSnapshot: true, hasChanges: !!(resolved.newRemote && resolved.newRemote.length) };
+          setGateState(analysis);
+          // Auto-dismiss for empty automatic triggers after 2 s
+          if (autoTrigger && !analysis.hasChanges && analysis.conflicts.length === 0) {
+            autoDismissRef.current = setTimeout(function() {
+              if (!cancelled) onDone && onDone({ silent: true });
+            }, 2000);
+          }
+        });
       }).catch(function(e) {
-        if (!cancelled) setGateState({ error: e.message || 'Analysis failed.' });
+        if (!cancelled) setGateState({ error: (e && e.message) || 'Analysis failed.' });
       });
+
       return function() {
         cancelled = true;
         if (autoDismissRef.current) clearTimeout(autoDismissRef.current);
