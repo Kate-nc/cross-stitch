@@ -232,6 +232,14 @@ const SyncEngine = (() => {
     map[syncObj._deviceId] = {
       at: new Date().toISOString(),
       fileLastModified: fileLastModified || null,
+      // Per-device dedup key used by checkForUpdates. Recording the source
+      // file's _createdAt (rather than only the wall-clock "at") lets us
+      // compare incoming files apples-to-apples against the last one we
+      // imported FROM THIS DEVICE, instead of against a single global
+      // timestamp that gets poisoned by the most recent peer's clock.
+      // This was the root cause of the "changes from Device B never appear
+      // on Device A" bug when multiple devices had drifting clocks.
+      fileCreatedAt: (syncObj && syncObj._createdAt) || null,
       deviceName: syncObj._deviceName || null,
       projectCount: (syncObj.projects && syncObj.projects.length) || 0
     };
@@ -2011,9 +2019,19 @@ const SyncEngine = (() => {
       } catch (e) {}
     }
     var myDeviceId = getDeviceId();
-    var lastImport = null;
-    try { lastImport = localStorage.getItem(LS_LAST_IMPORT); } catch (e) {}
-    var lastImportMs = lastImport ? new Date(lastImport).getTime() : 0;
+    // Per-device dedup: each remote device gets its own "last imported
+    // createdAt" cursor. Using a single global cs_sync_lastImportAt as the
+    // filter caused silent skips when peers had drifting clocks — e.g.
+    // Device A imports B's file (createdAt = T1) and bumps the global to
+    // T1; Device C then writes a file whose createdAt is a few seconds
+    // behind T1 because C's wall clock lags, and A skips it forever even
+    // though A has never seen anything from C. With per-device tracking
+    // each peer is compared only against the last file we imported FROM
+    // THAT PEER, so cross-peer skew can no longer poison the filter.
+    var perDevice = getLastImportPerDevice();
+    var globalLastImport = null;
+    try { globalLastImport = localStorage.getItem(LS_LAST_IMPORT); } catch (e) {}
+    var globalLastImportMs = globalLastImport ? new Date(globalLastImport).getTime() : 0;
     var updates = [];
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
@@ -2021,10 +2039,31 @@ const SyncEngine = (() => {
       // we cannot reliably match — treat as a different device and proceed with the
       // import so the file is not silently dropped.
       if (f.deviceId && f.deviceId === myDeviceId && myDeviceId !== "dev_unknown") continue;
-      // Check if this file is newer than our last import
       var fileTime = f.createdAt ? new Date(f.createdAt).getTime() : (f.lastModified || 0);
-      if (fileTime > lastImportMs) {
-        updates.push(f);
+      var deviceRecord = (f.deviceId && perDevice[f.deviceId]) ? perDevice[f.deviceId] : null;
+      if (deviceRecord) {
+        // Seen this peer before — accept files newer than what we last
+        // imported from THEM. Prefer the recorded fileCreatedAt (matches
+        // f.createdAt exactly); fall back to fileLastModified or the
+        // import wall-clock for older entries that pre-date the
+        // fileCreatedAt field.
+        var lastFromDeviceMs = 0;
+        if (deviceRecord.fileCreatedAt) lastFromDeviceMs = new Date(deviceRecord.fileCreatedAt).getTime();
+        else if (deviceRecord.fileLastModified) lastFromDeviceMs = Number(deviceRecord.fileLastModified) || 0;
+        else if (deviceRecord.at) lastFromDeviceMs = new Date(deviceRecord.at).getTime();
+        if (fileTime > lastFromDeviceMs) updates.push(f);
+      } else {
+        // First contact with this peer. We deliberately do NOT consult the
+        // global lastImportMs here — that's the bug we're fixing. A brand
+        // new device's first file should always be considered new, even if
+        // its createdAt happens to predate our last import from a different
+        // peer. The global is still used as a coarse safety net for files
+        // with no deviceId attribution at all (legacy / corrupted exports).
+        if (!f.deviceId) {
+          if (fileTime > globalLastImportMs) updates.push(f);
+        } else {
+          updates.push(f);
+        }
       }
     }
     return updates;
@@ -2049,6 +2088,11 @@ const SyncEngine = (() => {
   //     "don't write 50 times during a paint stroke" behaviour.
   var _autoExportTimer = null;
   var _lastExportFiredAt = 0;
+  // Timestamp of the most recent permission-warning toast for auto-export failures.
+  // Used to rate-limit repeated toasts on persistent failures.
+  var _lastPermWarningAt = 0;
+  // Cooldown between permission-warning toasts during a persistent failure run.
+  var PERM_WARN_COOLDOWN_MS = 60000;
   var AUTO_EXPORT_DELAY = 30000; // legacy export — kept for compatibility
   var FAST_EXPORT_DELAY = 2000;
   var COOLDOWN_MS = 30000;
@@ -2108,15 +2152,27 @@ const SyncEngine = (() => {
       _autoExportTimer = setTimeout(function () {
         var watchDirHandle = _watchDirHandle;
         _autoExportTimer = null;
-        _lastExportFiredAt = Date.now();
+        // Note: _lastExportFiredAt is intentionally NOT bumped here. We
+        // only count a fire as "happened" once exportToFolder actually
+        // resolves successfully — otherwise a permission-denied or
+        // transient I/O failure would silently inflate the cooldown
+        // window, delaying the *next* legitimate auto-export attempt by
+        // up to COOLDOWN_MS even though no bytes were written.
         if (!watchDirHandle) return;
         // Pre-check permission without user gesture — skip if not granted
         watchDirHandle.queryPermission({ mode: "readwrite" }).then(function (perm) {
           if (perm !== "granted") {
-            _reportSyncError("auto-export", new Error("Write permission not granted (re-open sync panel to re-authorise)"));
+            // Only surface a permission warning toast once per PERM_WARN_COOLDOWN_MS
+            // to avoid spamming when the user keeps making changes with no folder access.
+            var now = Date.now();
+            if (now - _lastPermWarningAt >= PERM_WARN_COOLDOWN_MS) {
+              _lastPermWarningAt = now;
+              _reportSyncError("auto-export", new Error("Write permission not granted (re-open sync panel to re-authorise)"));
+            }
             return;
           }
           return exportToFolder().then(function () {
+            _lastExportFiredAt = Date.now();
             try {
               if (typeof window !== "undefined" && window.dispatchEvent) {
                 window.dispatchEvent(new CustomEvent("cs:syncStatusChanged", {
@@ -2143,6 +2199,10 @@ const SyncEngine = (() => {
   var _watcherInterval = null;
   var _watcherInFlight = false;
   var _watcherVisHandler = null;
+  // Latch: ensures the "permission revoked" prompt fires only once per
+  // session per loss event. Reset by requestFolderPermission when the
+  // user successfully re-grants access.
+  var _permissionLossAnnounced = false;
   var WATCHER_INTERVAL_MS = 10000;
   // Phase D — lightweight diagnostics counters. Exposed via getDiagnostics()
   // so users (and us) can confirm the watcher is actually firing without
@@ -2487,14 +2547,45 @@ const SyncEngine = (() => {
     // when permission isn't already granted — the user will re-authorise
     // by re-opening the sync panel (which IS a user gesture).
     if (typeof handle.queryPermission === "function") {
+      var permState = null;
       try {
-        var perm = await handle.queryPermission({ mode: "read" });
-        if (perm !== "granted") {
-          _diagnostics.skipsNoPermission++;
-          return;
-        }
+        permState = await handle.queryPermission({ mode: "read" });
       } catch (e) {
+        permState = "errored";
+      }
+      if (permState !== "granted") {
         _diagnostics.skipsNoPermission++;
+        // Surface the revocation the FIRST time the watcher notices it,
+        // so a user whose browser silently downgraded permission mid-
+        // session sees a Reconnect prompt instead of a silently-dead
+        // sync. _permissionLossAnnounced is reset whenever permission
+        // is regranted (see requestFolderPermission). Without this the
+        // tick would keep incrementing skipsNoPermission with zero UI
+        // feedback — the exact failure mode that hid this from users
+        // for an entire session of cross-device editing.
+        if (!_permissionLossAnnounced) {
+          _permissionLossAnnounced = true;
+          try {
+            if (typeof window !== "undefined" && window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent("cs:syncPermissionNeeded", {
+                detail: { handleName: handle.name || "Sync folder", state: permState }
+              }));
+            }
+          } catch (e) {}
+          _logEvent({
+            type: "permission-needed",
+            message: 'Browser permission was "' + permState + '" for folder "' + (handle.name || "?") + '" (watcher tick)'
+          });
+          if (typeof window !== "undefined" && window.Toast && window.Toast.show) {
+            try {
+              window.Toast.show({
+                message: "Sync paused — folder permission was revoked. Re-open the sync panel to reconnect.",
+                type: "warning",
+                duration: 8000
+              });
+            } catch (e) {}
+          }
+        }
         return;
       }
     }
@@ -2647,6 +2738,7 @@ const SyncEngine = (() => {
     }
     var perm = await handle.requestPermission({ mode: "readwrite" });
     if (perm === "granted") {
+      _permissionLossAnnounced = false;
       try { startWatching(); } catch (e) {}
       try {
         if (typeof window !== "undefined" && window.dispatchEvent) {
@@ -2697,6 +2789,7 @@ const SyncEngine = (() => {
       lastImportAt: lastImport,
       hasFolderWatch: hasFolderWatchSupport(),
       hasWatchDir: !!_watchDirHandle,
+      watchDirName: (_watchDirHandle && _watchDirHandle.name) || null,
       autoSync: isAutoSyncEnabled(),
       watching: isWatching(),
       lastError: _lastError

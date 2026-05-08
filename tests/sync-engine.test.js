@@ -1294,8 +1294,13 @@ describe('checkForUpdates', () => {
     expect(updates[0].deviceId).toBe('dev_other');
   });
 
-  test('returns empty when all files are older than last import', async () => {
-    global.localStorage.setItem('cs_sync_lastImportAt', '2100-01-01T00:00:00Z');
+  test('returns empty when all files are older than last import (per-device cursor)', async () => {
+    // Per-device dedup: simulate a previous import from dev_other with a
+    // recorded fileCreatedAt in the future. A subsequent (older) file from
+    // the same device must be skipped.
+    global.localStorage.setItem('cs_sync_lastImportPerDevice', JSON.stringify({
+      dev_other: { at: '2100-01-01T00:00:00Z', fileCreatedAt: '2100-01-01T00:00:00Z' }
+    }));
     const syncObj = {
       _format: 'cross-stitch-sync', _version: 1,
       _createdAt: '2024-01-01T00:00:00Z',
@@ -1313,6 +1318,33 @@ describe('checkForUpdates', () => {
 
     const updates = await SE.checkForUpdates(dirHandle);
     expect(updates.length).toBe(0);
+  });
+
+  test('first contact with a peer is always accepted regardless of global lastImport', async () => {
+    // Regression test for the cross-device sync bug: a global
+    // cs_sync_lastImportAt in the future must NOT cause a brand new peer's
+    // first file to be silently skipped. Previously this was the root
+    // cause of "changes from Device B never appear on Device A" when the
+    // two devices had even slightly drifting clocks.
+    global.localStorage.setItem('cs_sync_lastImportAt', '2100-01-01T00:00:00Z');
+    const syncObj = {
+      _format: 'cross-stitch-sync', _version: 1,
+      _createdAt: '2024-01-01T00:00:00Z',
+      _deviceId: 'dev_brand_new_peer', projects: []
+    };
+    const c = SE.compress(syncObj);
+    const entries = [
+      { kind: 'file', name: 'first.csync', getFile: async () => ({ arrayBuffer: async () => c.buffer, size: c.length, lastModified: 0 }) }
+    ];
+    const dirHandle = {
+      queryPermission: async () => 'granted',
+      requestPermission: async () => 'granted',
+      values: async function*() { for (const e of entries) yield e; }
+    };
+
+    const updates = await SE.checkForUpdates(dirHandle);
+    expect(updates.length).toBe(1);
+    expect(updates[0].deviceId).toBe('dev_brand_new_peer');
   });
 });
 

@@ -54,10 +54,23 @@ const StashBridge = (() => {
   // Fires the cross-app 'cs:stashChanged' event so listeners (Home, Manager,
   // Tracker, Creator) reload from the live DB. Guarded for non-browser test
   // environments where window/CustomEvent are unavailable.
+  //
+  // Also pokes SyncEngine.triggerAutoExport so stash mutations actually
+  // propagate to the sync folder. Previously every stash write
+  // (updateThreadOwned, setToBuyQty, markBought, etc.) committed to
+  // stitch_manager_db and stopped there: an export was only ever queued by
+  // ProjectStorage.save, so a user who only updated thread inventory or the
+  // pattern library on Device A would never see those changes reach the
+  // .csync file, and Device B stayed stale forever.
   function _dispatchStashChanged() {
     if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
     if (typeof CustomEvent !== 'function') return;
     try { window.dispatchEvent(new CustomEvent('cs:stashChanged')); } catch (_) { /* swallow */ }
+    try {
+      if (window.SyncEngine && typeof window.SyncEngine.triggerAutoExport === 'function') {
+        window.SyncEngine.triggerAutoExport();
+      }
+    } catch (_) { /* swallow */ }
   }
 
   // Mirror of the above for the patterns store. Fired after the manager-side
@@ -68,6 +81,11 @@ const StashBridge = (() => {
     if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
     if (typeof CustomEvent !== 'function') return;
     try { window.dispatchEvent(new CustomEvent('cs:patternsChanged')); } catch (_) { /* swallow */ }
+    try {
+      if (window.SyncEngine && typeof window.SyncEngine.triggerAutoExport === 'function') {
+        window.SyncEngine.triggerAutoExport();
+      }
+    } catch (_) { /* swallow */ }
   }
 
   // Pure helper: builds the sorted shopping-list rows from a raw threads dict.

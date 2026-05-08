@@ -205,6 +205,40 @@
           ]
         },
         {
+          heading: "Sync status indicator (cloud icon)",
+          body: "The cloud icon in the top-right bar shows the current state of folder-based cross-device sync. Click it on any page to see a quick-status popover with actions — no need to navigate to the Home page.",
+          bullets: [
+            ["Cloud with downward arrow (blue/amber)", "A sync folder is connected, but auto-sync is off. Changes are written manually only. To enable automatic sync: File > Preferences > Sync > Enable auto-sync, or tick the checkbox in the sync popover."],
+            ["Cloud with tick (green)", "Auto-sync is active. The app is automatically writing updates to the connected folder and picking up changes from other devices every few seconds."],
+            ["Cloud with line through it", "No sync folder is connected. Visit the Home page and open the Sync section to connect one."],
+            ["Red dot badge on the cloud icon", "There are incoming changes from another device waiting for your review — usually because they conflict with local edits. Click the icon to open the review screen."],
+            ["Auto-sync off warning in popover", "Auto-sync is disabled. The folder is connected but the app will not write or read from it automatically. Enable it in Preferences to restore automatic sync."]
+          ]
+        },
+        {
+          heading: "Setting up folder sync",
+          body: "Folder sync uses a shared cloud drive folder (Dropbox, iCloud Drive, OneDrive, Google Drive, or any folder synced by your operating system) to keep multiple devices in step.",
+          bullets: [
+            ["Step 1", "On each device, open the Home page and scroll to the Sync section. Click 'Connect folder' and pick the same cloud-synced folder on each device."],
+            ["Step 2", "Enable auto-sync in Preferences (or via the checkbox in the sync panel). The app will write a .csync file to the folder automatically after each save."],
+            ["Step 3", "On the second device, the watcher polls the folder every 10 seconds. When it sees a newer .csync file, it imports the changes automatically."],
+            ["Conflict resolution", "If both devices edited the same project differently, a review screen appears. You choose which version to keep for each conflicting project."],
+            ["Two-device handshake", "To make pairing easier, open Preferences and go to Sync, backup & data — it generates a short code the second device can scan to pre-fill the folder name and device settings."]
+          ]
+        },
+        {
+          heading: "Sync troubleshooting",
+          body: "If changes from another device are not appearing, work through the following checks in order.",
+          bullets: [
+            ["Tab must be visible", "The watcher only polls when the browser tab is the active foreground tab. Bring the tab to the front to trigger an immediate check."],
+            ["Auto-sync must be on", "Check the cloud icon popover — if it shows 'Auto-sync is off', enable it in Preferences > Sync."],
+            ["Folder permission expired", "Browsers can silently revoke folder access after a restart. If the icon turns grey or shows a 'Reconnect' prompt, click it and re-select the folder."],
+            ["Same folder on both devices", "Both devices must point at the identical synced folder — e.g. the same Dropbox sub-folder. If one uses OneDrive and the other Dropbox, they will not see each other's files."],
+            ["Cloud drive not syncing", "The .csync files must actually reach the other device via the cloud service. Check that the cloud app on both machines shows 'Up to date' or equivalent."],
+            ["Review screen open", "A pending review (red badge) blocks some imports until you resolve the conflicts. Click the cloud icon and choose 'Review sync'."]
+          ]
+        },
+        {
           heading: "PDF export options",
           body: "The Export tab (inside Materials & Output) offers several layout options for printing your chart.",
           bullets: [
