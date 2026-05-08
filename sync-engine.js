@@ -2147,7 +2147,12 @@ const SyncEngine = (() => {
       _autoExportTimer = setTimeout(function () {
         var watchDirHandle = _watchDirHandle;
         _autoExportTimer = null;
-        _lastExportFiredAt = Date.now();
+        // Note: _lastExportFiredAt is intentionally NOT bumped here. We
+        // only count a fire as "happened" once exportToFolder actually
+        // resolves successfully — otherwise a permission-denied or
+        // transient I/O failure would silently inflate the cooldown
+        // window, delaying the *next* legitimate auto-export attempt by
+        // up to COOLDOWN_MS even though no bytes were written.
         if (!watchDirHandle) return;
         // Pre-check permission without user gesture — skip if not granted
         watchDirHandle.queryPermission({ mode: "readwrite" }).then(function (perm) {
@@ -2156,6 +2161,7 @@ const SyncEngine = (() => {
             return;
           }
           return exportToFolder().then(function () {
+            _lastExportFiredAt = Date.now();
             try {
               if (typeof window !== "undefined" && window.dispatchEvent) {
                 window.dispatchEvent(new CustomEvent("cs:syncStatusChanged", {
