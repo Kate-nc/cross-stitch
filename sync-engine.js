@@ -1861,6 +1861,28 @@ const SyncEngine = (() => {
     _latestPendingPlan = null;
     _persistPendingPlan(null).catch(function () {});
   }
+  // Big1 unification: single canonical setter so manual file-picker imports
+  // and watcher-driven imports both feed the same authoritative cache.
+  // Before this, manual imports only populated header.js's tab-local
+  // `_lastReceivedPlan`, so opening "Review sync" in another tab — or after
+  // closing the gate — found an empty state even though a plan had just
+  // been prepared. Now both paths converge here, and the IDB persistence
+  // (with TTL) means the plan survives reload regardless of origin.
+  function setPendingPlan(plan) {
+    _latestPendingPlan = plan || null;
+    if (_latestPendingPlan) {
+      _persistPendingPlan(_latestPendingPlan).catch(function () {});
+    } else {
+      _persistPendingPlan(null).catch(function () {});
+    }
+    try {
+      if (typeof window !== "undefined" && window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent("cs:syncPlanPending", {
+          detail: { plan: _latestPendingPlan, update: null }
+        }));
+      }
+    } catch (e) {}
+  }
 
   // Persist the latest pending plan into the same IDB store that holds the
   // watch-folder handle. Survives reloads and tab restarts so the user can
@@ -2376,6 +2398,7 @@ const SyncEngine = (() => {
 
     // Pending-plan cache (sync-reference fix #1)
     getPendingPlan: getPendingPlan,
+    setPendingPlan: setPendingPlan,
     clearPendingPlan: clearPendingPlan,
     // Async hydrate from IDB (sync-reference fix #3) — returns the plan
     // (or null) once the persisted store has been read.

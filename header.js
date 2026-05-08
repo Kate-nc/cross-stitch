@@ -864,6 +864,15 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                   SyncEngine.readSyncFile(file).then(function(syncObj) {
                     return SyncEngine.prepareImport(syncObj);
                   }).then(function(plan) {
+                    // Big1 unification: also push the plan into the engine's
+                    // canonical cache so other tabs / a later "Review sync"
+                    // click can find it. Without this the manual file-picker
+                    // path only populated the in-tab `_lastReceivedPlan` and
+                    // anyone opening the gate from a sibling surface saw the
+                    // empty state.
+                    if (typeof SyncEngine.setPendingPlan === 'function') {
+                      try { SyncEngine.setPendingPlan(plan); } catch (_) {}
+                    }
                     // Dispatch sync-plan-ready — the module-level listener above
                     // intercepts this and mounts SyncReviewGate. preventDefault()
                     // and stopImmediatePropagation() prevent old fallback paths from

@@ -1507,6 +1507,11 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       return SyncEngine.prepareImport(syncObj);
     }).then(function(plan) {
       setSyncBusy(false);
+      // Big1 unification: feed the canonical engine cache so the same
+      // plan is reachable from any tab / surface.
+      if (typeof SyncEngine.setPendingPlan === 'function') {
+        try { SyncEngine.setPendingPlan(plan); } catch (_) {}
+      }
       // Unified review path (fix #5): open the gate everywhere instead
       // of routing manual file picks through SyncSummaryModal.
       if (typeof window.SyncReviewGate !== 'undefined') {
