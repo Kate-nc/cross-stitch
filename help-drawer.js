@@ -223,7 +223,7 @@
             ["Step 2", "Enable auto-sync in Preferences (or via the checkbox in the sync panel). The app will write a .csync file to the folder automatically after each save."],
             ["Step 3", "On the second device, the watcher polls the folder every 10 seconds. When it sees a newer .csync file, it imports the changes automatically."],
             ["Conflict resolution", "If both devices edited the same project differently, a review screen appears. You choose which version to keep for each conflicting project."],
-            ["Two-device handshake", "To make pairing easier, use File > Pair a device — it generates a short code the second device can scan to pre-fill the folder name and device settings."]
+            ["Two-device handshake", "To make pairing easier, open Preferences and go to Sync, backup & data — it generates a short code the second device can scan to pre-fill the folder name and device settings."]
           ]
         },
         {

@@ -14,6 +14,9 @@
 // Module-level variable: the most recent plan from the last sync-plan-ready
 // event. Used by the "Review sync" manual trigger menu item.
 var _lastReceivedPlan = null;
+// Counter for generating stable unique IDs for sync popover titles when
+// React.useId is unavailable (pre-18 fallback only).
+var _syncPopoverIdCounter = 0;
 
 // Listen for sync-plan-ready events dispatched after a .csync file is
 // imported via the header's file-picker. Mount the SyncReviewGate for ALL
@@ -459,16 +462,33 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
   // Sync status popover open/close state
   const [syncPopoverOpen, setSyncPopoverOpen] = React.useState(false);
   const syncPopoverRef = React.useRef(null);
-  // Close the popover when clicking outside it
+  const syncTriggerRef = React.useRef(null);
+  const syncPopoverCloseRef = React.useRef(null);
+  // React.useId is available in React 18 (loaded from CDN). Fallback uses a stable
+  // counter so multiple Header instances on the same page never share the same id.
+  const syncPopoverTitleId = React.useId ? React.useId() : ('sync-popover-title-' + (++_syncPopoverIdCounter));
+  // Close the popover when clicking outside it or pressing Escape; restore focus to trigger
   React.useEffect(function() {
     if (!syncPopoverOpen) return;
+    // Move focus into the popover (close button) so keyboard users aren't stranded
+    if (syncPopoverCloseRef.current) syncPopoverCloseRef.current.focus();
     function onPointerDown(e) {
       if (syncPopoverRef.current && !syncPopoverRef.current.contains(e.target)) {
         setSyncPopoverOpen(false);
       }
     }
+    function onKeyDown(e) {
+      if (e.key === 'Escape') {
+        setSyncPopoverOpen(false);
+        if (syncTriggerRef.current) syncTriggerRef.current.focus();
+      }
+    }
     document.addEventListener('pointerdown', onPointerDown);
-    return function() { document.removeEventListener('pointerdown', onPointerDown); };
+    document.addEventListener('keydown', onKeyDown);
+    return function() {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
   }, [syncPopoverOpen]);
 
   // Pending-conflicts badge state. Reflects window.SyncEngine.getPendingPlan()'s
@@ -763,6 +783,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         },
           // ── Trigger button ──────────────────────────────────────────────
           React.createElement('button', {
+            ref: syncTriggerRef,
             className: 'tb-nav-link tb-sync-indicator' + (syncStatus && syncStatus.hasWatchDir && syncStatus.autoSync
               ? ' tb-sync-indicator--active'
               : (syncStatus && syncStatus.hasWatchDir ? ' tb-sync-indicator--folder' : ''))
@@ -811,7 +832,8 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
           syncPopoverOpen && React.createElement('div', {
             className: 'sync-popover',
             role: 'dialog',
-            'aria-label': 'Sync status'
+            'aria-modal': 'true',
+            'aria-labelledby': syncPopoverTitleId
           },
             // Header row
             React.createElement('div', { className: 'sync-popover-header' },
@@ -820,10 +842,11 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                 if (syncStatus.autoSync) return React.createElement('span', { style: { color: 'var(--success)' } }, Icons.cloudCheck());
                 return React.createElement('span', { style: { color: 'var(--accent)' } }, Icons.cloudSync());
               })(),
-              React.createElement('span', { className: 'sync-popover-title' }, 'Sync'),
+              React.createElement('span', { id: syncPopoverTitleId, className: 'sync-popover-title' }, 'Sync'),
               React.createElement('button', {
+                ref: syncPopoverCloseRef,
                 className: 'sync-popover-close',
-                onClick: () => setSyncPopoverOpen(false),
+                onClick: () => { setSyncPopoverOpen(false); if (syncTriggerRef.current) syncTriggerRef.current.focus(); },
                 'aria-label': 'Close sync status'
               }, Icons.x())
             ),
@@ -883,8 +906,8 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                 className: 'sync-popover-btn sync-popover-btn--primary',
                 onClick: () => {
                   setSyncPopoverOpen(false);
-                  if (typeof SyncEngine !== 'undefined' && SyncEngine.downloadSync) {
-                    SyncEngine.downloadSync().catch(function(e) {
+                  if (typeof SyncEngine !== 'undefined' && SyncEngine.exportToFolder) {
+                    SyncEngine.exportToFolder().catch(function(e) {
                       if (window.Toast) window.Toast.show({ message: 'Sync export failed: ' + e.message, type: 'error' });
                     });
                   }

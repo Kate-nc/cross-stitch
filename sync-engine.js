@@ -2088,6 +2088,11 @@ const SyncEngine = (() => {
   //     "don't write 50 times during a paint stroke" behaviour.
   var _autoExportTimer = null;
   var _lastExportFiredAt = 0;
+  // Timestamp of the most recent permission-warning toast for auto-export failures.
+  // Used to rate-limit repeated toasts on persistent failures.
+  var _lastPermWarningAt = 0;
+  // Cooldown between permission-warning toasts during a persistent failure run.
+  var PERM_WARN_COOLDOWN_MS = 60000;
   var AUTO_EXPORT_DELAY = 30000; // legacy export — kept for compatibility
   var FAST_EXPORT_DELAY = 2000;
   var COOLDOWN_MS = 30000;
@@ -2157,7 +2162,13 @@ const SyncEngine = (() => {
         // Pre-check permission without user gesture — skip if not granted
         watchDirHandle.queryPermission({ mode: "readwrite" }).then(function (perm) {
           if (perm !== "granted") {
-            _reportSyncError("auto-export", new Error("Write permission not granted (re-open sync panel to re-authorise)"));
+            // Only surface a permission warning toast once per PERM_WARN_COOLDOWN_MS
+            // to avoid spamming when the user keeps making changes with no folder access.
+            var now = Date.now();
+            if (now - _lastPermWarningAt >= PERM_WARN_COOLDOWN_MS) {
+              _lastPermWarningAt = now;
+              _reportSyncError("auto-export", new Error("Write permission not granted (re-open sync panel to re-authorise)"));
+            }
             return;
           }
           return exportToFolder().then(function () {
