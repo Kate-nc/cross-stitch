@@ -1256,8 +1256,9 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   var syncBusy = _syncBusy[0], setSyncBusy = _syncBusy[1];
   var _syncResult = useState(null);
   var syncResult = _syncResult[0], setSyncResult = _syncResult[1];
-  var _syncPlan = useState(null);
-  var syncPlan = _syncPlan[0], setSyncPlan = _syncPlan[1];
+  // syncPlan / setSyncPlan state was removed in sync-reference fix #5
+  // (unify review modals). All imports now route through SyncReviewGate
+  // via window.SyncReviewGate.open(plan, ...).
   var _editingDeviceName = useState(false);
   var editingDeviceName = _editingDeviceName[0], setEditingDeviceName = _editingDeviceName[1];
   var _deviceNameDraft = useState('');
@@ -1414,16 +1415,32 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     };
   }, [watchDirName]);
 
-  // Listen for sync-plan-ready events dispatched by the header File menu
+  // Listen for sync-plan-ready events dispatched by the header File menu.
+  // After the unify-modals refactor (sync-reference fix #5), all manual
+  // imports route through the SyncReviewGate — header.js opens it directly
+  // and stops propagation, so this listener is a defensive fallback for
+  // pages where header.js loaded after the import dispatched.
   useEffect(function() {
     function handler(e) {
-      if (e.detail) {
+      if (e.detail && typeof window.SyncReviewGate !== 'undefined') {
         e.preventDefault();
-        setSyncPlan(e.detail);
+        window.SyncReviewGate.open(e.detail, { autoTrigger: false });
       }
     }
     window.addEventListener('sync-plan-ready', handler);
     return function() { window.removeEventListener('sync-plan-ready', handler); };
+  }, []);
+
+  // Refresh local stash state after a sync import or external stash change
+  // — previously handled inline by handleApplySync, now needed because the
+  // SyncReviewGate handles execution itself.
+  useEffect(function() {
+    function refreshStash() {
+      if (typeof StashBridge === 'undefined') return;
+      StashBridge.getGlobalStash().then(function(s) { if (s) setStash(s); }).catch(function(){});
+    }
+    window.addEventListener('cs:stashChanged', refreshStash);
+    return function() { window.removeEventListener('cs:stashChanged', refreshStash); };
   }, []);
 
   // Live-refresh project list on backup restore, project save/delete elsewhere,
@@ -1474,7 +1491,11 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       return SyncEngine.prepareImport(syncObj);
     }).then(function(plan) {
       setSyncBusy(false);
-      setSyncPlan(plan);
+      // Unified review path (fix #5): open the gate everywhere instead
+      // of routing manual file picks through SyncSummaryModal.
+      if (typeof window.SyncReviewGate !== 'undefined') {
+        window.SyncReviewGate.open(plan, { autoTrigger: false });
+      }
     }).catch(function(err) {
       setSyncBusy(false);
       setSyncResult({ type: 'error', message: 'Import failed: ' + err.message });
@@ -1482,46 +1503,10 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   }
 
   function handleApplySync(conflictResolutions, opts) {
-    if (!syncPlan) return;
-    setSyncBusy(true);
-    setSyncPlan(null);
-    // VER-SYNC-004: honour the "Skip stash update" checkbox from SyncSummaryModal.
-    // Clone the plan so we don't mutate the React state object in place.
-    var activePlan = syncPlan;
-    if (opts && opts.skipStash && activePlan.stashMerge) {
-      activePlan = Object.assign({}, activePlan, { stashMerge: null });
-    }
-    var syncingId = (typeof window !== 'undefined' && window.Toast) ? window.Toast.show({ message: 'Syncing\u2026', type: 'info', duration: 60000 }) : null;
-    SyncEngine.executeImport(activePlan, conflictResolutions).then(function(result) {
-      if (syncingId && window.Toast) window.Toast.dismiss(syncingId);
-      var parts = [];
-      if (result.imported > 0) parts.push(result.imported + ' imported');
-      if (result.merged > 0) parts.push(result.merged + ' merged');
-      if (result.conflictsResolved > 0) parts.push(result.conflictsResolved + ' resolved');
-      if (result.stashUpdated) parts.push('stash updated');
-      var msg = 'Sync complete: ' + (parts.join(', ') || 'no changes') + '.';
-      setSyncResult({ type: 'success', message: msg });
-      // Show success toast so it's visible even if user has scrolled away from sync section
-      if (window.Toast) window.Toast.show({ message: msg, type: 'success', duration: 5000 });
-      setSyncStatus(SyncEngine.getSyncStatus());
-      // Refresh project list
-      if (typeof ProjectStorage !== 'undefined') {
-        ProjectStorage.listProjects().then(function(p) { setProjects(p || []); });
-      }
-      // Notify other components on this page (manager-app, tracker-app, project-library)
-      // and other open tabs (they pick it up via visibilitychange when the user returns).
-      try { window.dispatchEvent(new CustomEvent('cs:backupRestored')); } catch(_) {}
-      if (result.stashUpdated) {
-        try { window.dispatchEvent(new CustomEvent('cs:stashChanged')); } catch(_) {}
-        // Also refresh stash state rendered on this page (home dashboard stash stats)
-        if (typeof StashBridge !== 'undefined') {
-          StashBridge.getGlobalStash().then(function(s) { if (s) setStash(s); }).catch(function(){});
-        }
-      }
-    }).catch(function(err) {
-      if (syncingId && window.Toast) window.Toast.dismiss(syncingId);
-      setSyncResult({ type: 'error', message: 'Sync failed: ' + err.message });
-    }).finally(function() { setSyncBusy(false); });
+    // Removed in sync-reference fix #5 — execution now happens inside
+    // SyncReviewGate. Kept as a stub so anything still referencing the
+    // old prop fails loudly in dev rather than silently no-op'ing.
+    if (typeof console !== 'undefined') console.warn('handleApplySync was removed; SyncReviewGate now handles import execution.');
   }
 
   function handleSaveDeviceName() {
@@ -1624,7 +1609,12 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     setSyncResult(null);
     SyncEngine.prepareImport(update.syncObj).then(function(plan) {
       setSyncBusy(false);
-      setSyncPlan(plan);
+      // Unified review path (fix #5): folder-discovered plans now also
+      // route through SyncReviewGate so the user gets the same UI as
+      // manual imports and the in-tab "Review sync" menu.
+      if (typeof window.SyncReviewGate !== 'undefined') {
+        window.SyncReviewGate.open(plan, { autoTrigger: false });
+      }
     }).catch(function(err) {
       setSyncBusy(false);
       setSyncResult({ type: 'error', message: 'Import failed: ' + err.message });
@@ -2349,12 +2339,8 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       )
     ),
 
-    // Sync summary modal
-    syncPlan && h(SyncSummaryModal, {
-      plan: syncPlan,
-      onApply: handleApplySync,
-      onCancel: function() { setSyncPlan(null); }
-    }),
+    // Sync summary modal removed in sync-reference fix #5 — all import
+    // review now happens inside SyncReviewGate (window.SyncReviewGate).
 
     // Sync activity log modal (Concept A)
     activityOpen && typeof window.SyncActivityModal === 'function' && h(window.SyncActivityModal, {

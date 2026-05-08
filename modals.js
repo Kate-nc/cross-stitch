@@ -399,7 +399,12 @@ function NamePromptModal({ defaultName, onConfirm, onCancel }) {
   );
 }
 
-// ═══ Sync Summary Modal ═══
+// ═══ Sync Summary Modal ═══ (DEPRECATED — sync-reference fix #5)
+// Replaced by SyncReviewGate. Kept in place for now in case any external
+// embed still references it via window.SyncSummaryModal — no in-tree
+// caller mounts it as of fix #5. Do not add new callers; route through
+// window.SyncReviewGate.open(plan, { autoTrigger: false }) instead.
+//
 // Shows a preview of what will be imported from a .csync file, with conflict
 // resolution controls, before committing the sync.
 // Props:
