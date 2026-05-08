@@ -2477,7 +2477,17 @@ const SyncEngine = (() => {
 
     // Constants (for testing)
     SYNC_FORMAT: SYNC_FORMAT,
-    SYNC_VERSION: SYNC_VERSION
+    SYNC_VERSION: SYNC_VERSION,
+
+    // Test-only hooks for pure helpers. Exposed so unit tests can pin
+    // down behaviour without re-implementing the heuristics. Not part
+    // of the documented public API — call sites in app code should
+    // continue to go through the higher-level entry points.
+    _test: {
+      isProjectShapeValid: _isProjectShapeValid,
+      isPlanAutoApplicable: _isPlanAutoApplicable,
+      recordDeviceImport: _recordDeviceImport
+    }
   };
 })();
 
