@@ -896,6 +896,335 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
   };
 })();
 
+// ═══ HandshakeGeneratorModal — Device A side of cross-device pairing ═══
+// Shows a 6-digit shortcode and the full Base64url token (Copy button)
+// so a second device can join the same sync folder. Resolves to the
+// generated entry when the user closes the modal.
+(function () {
+  if (typeof window === 'undefined') return;
+  function GeneratorInner(props) {
+    var h = React.createElement;
+    var uid = React.useId();
+    var titleId = 'cs-handshake-gen-title-' + uid;
+    var entry = React.useState(null);
+    var err = React.useState('');
+    var copied = React.useState(false);
+
+    React.useEffect(function () {
+      var cancelled = false;
+      if (!window.SyncEngine || !window.SyncEngine.generateHandshakeToken) {
+        err[1]('Sync engine is not available on this page.');
+        return;
+      }
+      // Surface the watch folder hint when we can — only the displayName
+      // is reliably exposed; size/file-count would need a folder scan,
+      // which we skip for speed.
+      var folderHint = null;
+      try {
+        var st = window.SyncEngine.getSyncStatus && window.SyncEngine.getSyncStatus();
+        if (st && st.hasWatchDir) {
+          folderHint = {
+            displayName: 'Connected folder',
+            lastSyncAt: st.lastExportAt || null
+          };
+        }
+      } catch (_) {}
+      window.SyncEngine.generateHandshakeToken({ folderHint: folderHint }).then(function (e) {
+        if (cancelled) return;
+        entry[1](e);
+      }).catch(function (e) {
+        if (cancelled) return;
+        err[1]((e && e.message) || 'Could not generate code.');
+      });
+      return function () { cancelled = true; };
+    }, []);
+
+    function copyToken() {
+      if (!entry[0]) return;
+      try {
+        navigator.clipboard.writeText(entry[0].token).then(function () {
+          copied[1](true);
+          setTimeout(function () { copied[1](false); }, 1500);
+        });
+      } catch (_) {}
+    }
+
+    var formattedShort = entry[0] ? (entry[0].shortcode.slice(0, 3) + ' ' + entry[0].shortcode.slice(3)) : '';
+
+    return h(window.Overlay, {
+      onClose: props.onClose, variant: 'dialog', maxWidth: 480,
+      labelledBy: titleId
+    },
+      h(window.Overlay.CloseButton, { onClose: props.onClose }),
+      h('div', { style: { padding: 24 } },
+        h('h3', { id: titleId, style: { marginTop: 0, marginBottom: 8, fontSize: 18, color: 'var(--text-primary)' } }, 'Pair another device'),
+        h('p', { style: { margin: 0, color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5 } },
+          'On your other device, open Preferences → Data → Sync and choose ', h('strong', null, 'Join existing sync'), '. Then enter this code:'),
+        err[0]
+          ? h('div', {
+              style: { marginTop: 16, padding: 12, borderRadius: 6, background: '#FCEFEF', color: 'var(--danger, #C0392B)', fontSize: 13 }
+            }, err[0])
+          : !entry[0]
+            ? h('div', { style: { marginTop: 24, textAlign: 'center', color: 'var(--text-secondary)' } }, 'Generating…')
+            : h('div', { style: { marginTop: 16 } },
+                h('div', {
+                  style: {
+                    fontSize: 36, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                    fontWeight: 700, letterSpacing: 4, textAlign: 'center',
+                    padding: '16px 0', color: 'var(--text-primary)'
+                  }
+                }, formattedShort),
+                h('details', { style: { marginTop: 16, fontSize: 12, color: 'var(--text-secondary)' } },
+                  h('summary', { style: { cursor: 'pointer', userSelect: 'none' } }, 'Other device can\u2019t see the code? Use the full token instead'),
+                  h('textarea', {
+                    readOnly: true,
+                    value: entry[0].token,
+                    onClick: function (e) { try { e.target.select(); } catch (_) {} },
+                    style: {
+                      width: '100%', marginTop: 8, padding: 8, fontSize: 11,
+                      fontFamily: 'ui-monospace, monospace', minHeight: 80,
+                      borderRadius: 6, border: '1px solid var(--border)',
+                      background: 'var(--surface)', color: 'var(--text-primary)',
+                      boxSizing: 'border-box', resize: 'vertical'
+                    }
+                  }),
+                  h('button', {
+                    type: 'button',
+                    onClick: copyToken,
+                    style: {
+                      marginTop: 8, padding: '6px 12px', fontSize: 12, borderRadius: 6,
+                      border: '1px solid var(--border)', background: 'var(--surface)',
+                      color: 'var(--text-primary)', cursor: 'pointer'
+                    }
+                  }, copied[0] ? 'Copied!' : 'Copy token to clipboard')
+                )
+              ),
+        h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 } },
+          h('button', {
+            type: 'button',
+            onClick: props.onClose,
+            style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', cursor: 'pointer' }
+          }, 'Done')
+        )
+      )
+    );
+  }
+  window.HandshakeGeneratorModal = {
+    show: function () {
+      return new Promise(function (resolve) {
+        if (!window.React || !window.ReactDOM || !window.Overlay) {
+          resolve(null);
+          return;
+        }
+        var host = document.createElement('div');
+        document.body.appendChild(host);
+        var root = ReactDOM.createRoot ? ReactDOM.createRoot(host) : null;
+        var settled = false;
+        function cleanup() {
+          try { if (root) root.unmount(); else ReactDOM.unmountComponentAtNode(host); } catch (e) {}
+          if (host.parentNode) host.parentNode.removeChild(host);
+        }
+        function done() { if (settled) return; settled = true; cleanup(); resolve(null); }
+        var el = React.createElement(GeneratorInner, { onClose: done });
+        if (root) root.render(el); else ReactDOM.render(el, host);
+      });
+    }
+  };
+})();
+
+// ═══ HandshakeConsumerModal — Device B side of cross-device pairing ═══
+// Asks for the 6-digit code (or full token), validates it, displays the
+// remote device name + folder hint, lets the user adjust the suggested
+// local device name, and finally triggers showDirectoryPicker(). Resolves
+// to {success:true} on completion or null on cancel.
+(function () {
+  if (typeof window === 'undefined') return;
+  function ConsumerInner(props) {
+    var h = React.createElement;
+    var uid = React.useId();
+    var titleId = 'cs-handshake-cons-title-' + uid;
+    // step: 'enter' (input code) → 'verify' (confirm + folder pick) → 'done'
+    var step = React.useState('enter');
+    var input = React.useState('');
+    var bundle = React.useState(null);
+    var warnings = React.useState([]);
+    var localName = React.useState('');
+    var err = React.useState('');
+    var busy = React.useState(false);
+    var inputRef = React.useRef(null);
+
+    React.useEffect(function () {
+      if (step[0] === 'enter') {
+        var t = setTimeout(function () { try { inputRef.current && inputRef.current.focus(); } catch (e) {} }, 0);
+        return function () { clearTimeout(t); };
+      }
+    }, [step[0]]);
+
+    function submit() {
+      var raw = String(input[0] || '').trim();
+      if (!raw) { err[1]('Enter the 6-digit code or paste the full token.'); return; }
+      err[1]('');
+      busy[1](true);
+      window.SyncEngine.validateHandshakeToken(raw).then(function (r) {
+        busy[1](false);
+        if (!r.valid) {
+          if (r.needsToken) {
+            err[1]('No matching code on this device. Paste the full token from the other device below.');
+          } else {
+            err[1](r.error || 'Couldn\u2019t validate that code.');
+          }
+          return;
+        }
+        bundle[1](r.bundle);
+        warnings[1](r.warnings || []);
+        localName[1](window.SyncEngine.suggestDeviceName(r.bundle.deviceName));
+        step[1]('verify');
+      }).catch(function (e) {
+        busy[1](false);
+        err[1]((e && e.message) || 'Could not validate the code.');
+      });
+    }
+
+    function pickFolder() {
+      if (typeof window.showDirectoryPicker !== 'function') {
+        err[1]('Folder watching needs a Chromium-based browser (Chrome, Edge, Brave, Opera).');
+        return;
+      }
+      busy[1](true);
+      // Adopt the suggested local name first.
+      try { window.SyncEngine.setDeviceName(String(localName[0] || '').trim() || window.SyncEngine.getDeviceName()); } catch (_) {}
+      window.showDirectoryPicker({ mode: 'readwrite' }).then(function (handle) {
+        return window.SyncEngine.setWatchDirectory(handle);
+      }).then(function () {
+        busy[1](false);
+        step[1]('done');
+        try { window.dispatchEvent(new CustomEvent('cs:syncStatusChanged')); } catch (_) {}
+      }).catch(function (e) {
+        busy[1](false);
+        if (e && e.name === 'AbortError') return; // user cancelled the picker
+        err[1]((e && e.message) || 'Could not connect to that folder.');
+      });
+    }
+
+    function renderEnter() {
+      return h('div', null,
+        h('p', { style: { margin: 0, color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5 } },
+          'Enter the 6-digit code shown on your other device, or paste the full token if the code didn\u2019t work.'),
+        h('input', {
+          ref: inputRef,
+          type: 'text',
+          autoComplete: 'off',
+          placeholder: '482 917',
+          value: input[0],
+          onChange: function (e) { input[1](e.target.value); err[1](''); },
+          onKeyDown: function (e) { if (e.key === 'Enter') submit(); },
+          style: {
+            width: '100%', marginTop: 16, padding: '12px 14px',
+            fontSize: 18, fontFamily: 'ui-monospace, monospace',
+            borderRadius: 6, border: '1px solid var(--border)',
+            background: 'var(--surface)', color: 'var(--text-primary)',
+            boxSizing: 'border-box'
+          }
+        }),
+        err[0] ? h('p', { style: { margin: '8px 0 0', color: 'var(--danger, #C0392B)', fontSize: 13 } }, err[0]) : null,
+        h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 } },
+          h('button', { type: 'button', onClick: props.onClose, style: btnSec }, 'Cancel'),
+          h('button', { type: 'button', onClick: submit, disabled: busy[0], style: btnPri }, busy[0] ? 'Checking…' : 'Continue')
+        )
+      );
+    }
+
+    function renderVerify() {
+      var b = bundle[0];
+      return h('div', null,
+        h('p', { style: { margin: 0, color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5 } },
+          'You\u2019re joining ', h('strong', { style: { color: 'var(--text-primary)' } }, b.deviceName || 'another device'), '.'),
+        b.folderHint && b.folderHint.lastSyncAt
+          ? h('p', { style: { margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: 12 } },
+              'Last synced ', new Date(b.folderHint.lastSyncAt).toLocaleString())
+          : null,
+        warnings[0].length
+          ? h('ul', { style: { margin: '12px 0 0', paddingLeft: 20, color: 'var(--text-secondary)', fontSize: 12 } },
+              warnings[0].map(function (w, i) { return h('li', { key: i }, w.message); }))
+          : null,
+        h('label', { style: { display: 'block', marginTop: 16, fontSize: 12, color: 'var(--text-secondary)' } }, 'This device\u2019s name'),
+        h('input', {
+          type: 'text', value: localName[0],
+          onChange: function (e) { localName[1](e.target.value); },
+          style: {
+            width: '100%', marginTop: 4, padding: '8px 12px', fontSize: 14,
+            borderRadius: 6, border: '1px solid var(--border)',
+            background: 'var(--surface)', color: 'var(--text-primary)',
+            boxSizing: 'border-box'
+          }
+        }),
+        h('p', { style: { margin: '12px 0 0', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 } },
+          'Next: choose the same sync folder the other device is using. Your browser will ask for permission.'),
+        err[0] ? h('p', { style: { margin: '8px 0 0', color: 'var(--danger, #C0392B)', fontSize: 13 } }, err[0]) : null,
+        h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 } },
+          h('button', { type: 'button', onClick: function () { step[1]('enter'); err[1](''); }, style: btnSec }, 'Back'),
+          h('button', { type: 'button', onClick: pickFolder, disabled: busy[0], style: btnPri }, busy[0] ? 'Connecting…' : 'Choose sync folder')
+        )
+      );
+    }
+
+    function renderDone() {
+      return h('div', null,
+        h('p', { style: { margin: 0, color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.5 } },
+          'Setup complete! This device is now sharing the sync folder. Sync runs in the background \u2014 your patterns and stash will appear after the first check.'),
+        h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 } },
+          h('button', { type: 'button', onClick: function () { props.onSuccess(); }, style: btnPri }, 'Done')
+        )
+      );
+    }
+
+    var btnPri = {
+      padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none',
+      background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontWeight: 600
+    };
+    var btnSec = {
+      padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border)',
+      background: 'var(--surface)', color: 'var(--text-primary)', cursor: 'pointer'
+    };
+
+    return h(window.Overlay, {
+      onClose: props.onClose, variant: 'dialog', maxWidth: 480,
+      labelledBy: titleId
+    },
+      h(window.Overlay.CloseButton, { onClose: props.onClose }),
+      h('div', { style: { padding: 24 } },
+        h('h3', { id: titleId, style: { marginTop: 0, marginBottom: 12, fontSize: 18, color: 'var(--text-primary)' } },
+          step[0] === 'done' ? 'You\u2019re all set' : 'Join another device\u2019s sync'),
+        step[0] === 'enter' ? renderEnter() : step[0] === 'verify' ? renderVerify() : renderDone()
+      )
+    );
+  }
+  window.HandshakeConsumerModal = {
+    show: function () {
+      return new Promise(function (resolve) {
+        if (!window.React || !window.ReactDOM || !window.Overlay) {
+          resolve(null);
+          return;
+        }
+        var host = document.createElement('div');
+        document.body.appendChild(host);
+        var root = ReactDOM.createRoot ? ReactDOM.createRoot(host) : null;
+        var settled = false;
+        function cleanup() {
+          try { if (root) root.unmount(); else ReactDOM.unmountComponentAtNode(host); } catch (e) {}
+          if (host.parentNode) host.parentNode.removeChild(host);
+        }
+        function done(v) { if (settled) return; settled = true; cleanup(); resolve(v); }
+        var el = React.createElement(ConsumerInner, {
+          onClose: function () { done(null); },
+          onSuccess: function () { done({ success: true }); }
+        });
+        if (root) root.render(el); else ReactDOM.render(el, host);
+      });
+    }
+  };
+})();
+
 // ═══ Sync Review Gate (SCR-062) ═══
 // Blocking modal shown when incoming sync data is detected.
 // Merges all additive non-conflicting changes silently and presents

@@ -2698,6 +2698,214 @@ const SyncEngine = (() => {
     };
   }
 
+  // ════════════════════════════════════════════════════════════════════
+  // Handshake (Tier-2) — pair another device by exchanging a tiny
+  // metadata bundle.
+  //
+  // The handshake carries NO secrets. It exists purely to reduce the
+  // friction of the second device picking the right folder and naming
+  // itself sensibly. Encryption passphrases stay device-local.
+  //
+  // Token = JSON({v, deviceId, deviceName, appVersion, folderHint,
+  //              checksum})  →  pako.deflate  →  Base64url
+  //
+  // Shortcode = first 20 bits of SHA-256(JSON-without-checksum) →
+  //             decimal 0..1048575 → 6-digit decimal display.
+  //
+  // Per the proposal recommendations: no token expiry for MVP, manual
+  // code entry only (QR deferred), symmetric pairing, auto-renamed
+  // device-name collisions, pre-checked device-id collisions.
+  // ════════════════════════════════════════════════════════════════════
+
+  var LS_HANDSHAKE_TOKENS = "cs_handshake_tokens";
+  var HANDSHAKE_VERSION = 1;
+  var HANDSHAKE_TOKEN_CACHE_MAX = 5;
+
+  function _b64urlEncode(bytes) {
+    var binary = "";
+    var CHUNK = 0x8000;
+    for (var i = 0; i < bytes.length; i += CHUNK) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+    }
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  function _b64urlDecode(str) {
+    var s = String(str || "").replace(/-/g, "+").replace(/_/g, "/");
+    while (s.length % 4) s += "=";
+    var binary = atob(s);
+    var out = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+    return out;
+  }
+
+  async function _sha256Hex(str) {
+    var enc = new TextEncoder();
+    var digest = await crypto.subtle.digest("SHA-256", enc.encode(str));
+    var bytes = new Uint8Array(digest);
+    var hex = "";
+    for (var i = 0; i < bytes.length; i++) hex += ("0" + bytes[i].toString(16)).slice(-2);
+    return hex;
+  }
+
+  // Derive a 6-digit decimal shortcode from the first 20 bits of the
+  // checksum. 20 bits gives 0–1,048,575 — comfortably within 6 digits.
+  function _shortcodeFromChecksum(hex) {
+    var first5 = String(hex || "").slice(0, 5); // 5 hex chars = 20 bits
+    var n = parseInt(first5, 16);
+    if (!isFinite(n) || n < 0) n = 0;
+    n = n % 1000000;
+    var s = String(n);
+    while (s.length < 6) s = "0" + s;
+    return s;
+  }
+
+  function _readHandshakeCache() {
+    try {
+      var raw = localStorage.getItem(LS_HANDSHAKE_TOKENS);
+      var arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+  }
+
+  function _writeHandshakeCache(arr) {
+    try {
+      var trimmed = arr.slice(-HANDSHAKE_TOKEN_CACHE_MAX);
+      localStorage.setItem(LS_HANDSHAKE_TOKENS, JSON.stringify(trimmed));
+    } catch (e) {}
+  }
+
+  // Public — generate a token + shortcode for this device.
+  // folderHint is optional; the caller (UI) supplies it from the
+  // currently-selected watch folder if available. The returned object
+  // is what UIs render.
+  async function generateHandshakeToken(opts) {
+    opts = opts || {};
+    var bundle = {
+      v: HANDSHAKE_VERSION,
+      deviceId: getDeviceId(),
+      deviceName: opts.deviceName || getDeviceName() || "",
+      appVersion: (typeof window !== "undefined" && window.AppVersion) || (opts.appVersion || ""),
+      folderHint: opts.folderHint || null
+    };
+    var canonical = JSON.stringify(bundle);
+    var checksum = await _sha256Hex(canonical);
+    bundle.checksum = checksum;
+    var json = JSON.stringify(bundle);
+    var compressed = pako.deflate(json);
+    var token = _b64urlEncode(compressed);
+    var shortcode = _shortcodeFromChecksum(checksum);
+    var entry = {
+      shortcode: shortcode,
+      token: token,
+      checksum: checksum,
+      createdAt: new Date().toISOString()
+    };
+    // Cache so a sibling tab on the same device can resolve the
+    // shortcode → token without re-typing. We dedupe on shortcode.
+    var cache = _readHandshakeCache().filter(function (e) { return e.shortcode !== shortcode; });
+    cache.push(entry);
+    _writeHandshakeCache(cache);
+    return { token: token, shortcode: shortcode, checksum: checksum, bundle: bundle };
+  }
+
+  // Public — validate a token (or a shortcode that resolves to a
+  // cached token). Returns {valid:true, bundle, warnings} on success
+  // or {valid:false, error} on failure.
+  async function validateHandshakeToken(input) {
+    input = String(input == null ? "" : input).trim();
+    if (!input) return { valid: false, error: "Enter a code or token." };
+
+    // Numeric-shortcode resolution. Accept "482917", "482 917",
+    // "482-917". Look up the local cache first; if not found, ask the
+    // caller to paste the full token.
+    var digits = input.replace(/\D+/g, "");
+    var token = input;
+    if (digits.length === 6 && digits === input.replace(/[\s-]/g, "")) {
+      var cache = _readHandshakeCache();
+      var hit = null;
+      for (var i = cache.length - 1; i >= 0; i--) {
+        if (cache[i].shortcode === digits) { hit = cache[i]; break; }
+      }
+      if (!hit) {
+        return {
+          valid: false,
+          error: "No matching code on this device. Paste the full token from the other device instead.",
+          needsToken: true,
+          shortcode: digits
+        };
+      }
+      token = hit.token;
+    }
+
+    var bundle;
+    try {
+      var bytes = _b64urlDecode(token);
+      var json = pako.inflate(bytes, { to: "string" });
+      bundle = JSON.parse(json);
+    } catch (e) {
+      return { valid: false, error: "That code or token doesn't look right. Double-check and try again." };
+    }
+    if (!bundle || bundle.v !== HANDSHAKE_VERSION) {
+      return { valid: false, error: "Unsupported handshake version: " + (bundle && bundle.v) };
+    }
+    if (!bundle.deviceId || !bundle.checksum) {
+      return { valid: false, error: "The token is missing required fields." };
+    }
+    var sumCopy = Object.assign({}, bundle);
+    var providedChecksum = sumCopy.checksum;
+    delete sumCopy.checksum;
+    var canonical = JSON.stringify(sumCopy);
+    var actualChecksum = await _sha256Hex(canonical);
+    if (actualChecksum !== providedChecksum) {
+      return { valid: false, error: "Checksum mismatch — the code may have been mistyped." };
+    }
+
+    // Pre-check warnings (non-fatal).
+    var warnings = [];
+    if (bundle.deviceId === getDeviceId()) {
+      warnings.push({
+        code: "self_pairing",
+        message: "That code is from this device. Generate it on the other device instead."
+      });
+    }
+    var lastImport = getLastImportPerDevice();
+    if (lastImport && lastImport[bundle.deviceId]) {
+      warnings.push({
+        code: "already_paired",
+        message: "You've already imported from this device. Pairing again is harmless but shouldn't be needed."
+      });
+    }
+    if (bundle.folderHint && bundle.folderHint.lastSyncAt) {
+      var ageMs = Date.now() - new Date(bundle.folderHint.lastSyncAt).getTime();
+      if (isFinite(ageMs) && ageMs > 7 * 24 * 60 * 60 * 1000) {
+        warnings.push({
+          code: "stale_folder",
+          message: "The other device hasn't synced in over a week — its folder hint may be out of date."
+        });
+      }
+    }
+
+    return { valid: true, bundle: bundle, warnings: warnings };
+  }
+
+  // Suggest a non-colliding device name for the joining device.
+  // The remote bundle's deviceName is the *other* device's name; we
+  // derive a sibling name to avoid users ending up with two "Katie's
+  // iMac" entries in the device list.
+  function suggestDeviceName(remoteName) {
+    var base = String(remoteName || "").trim();
+    if (!base) return getDeviceName() || "This device";
+    var local = getDeviceName();
+    if (local && local !== base) return local;
+    // Avoid exact match: derive "X (other)" so the user can edit it.
+    return base + " (other)";
+  }
+
+  function clearHandshakeCache() {
+    try { localStorage.removeItem(LS_HANDSHAKE_TOKENS); } catch (e) {}
+  }
+
   // ── Public API ───────────────────────────────────────────────────────────
 
   return {
@@ -2783,6 +2991,14 @@ const SyncEngine = (() => {
     clearEncryptionPassphrase: clearEncryptionPassphrase,
     getEncryptionStatus: getEncryptionStatus,
     decryptSyncObj: decryptSyncObj,
+
+    // Handshake (Tier-2) — pair another device with a 6-digit code or
+    // the full Base64url token. See the commentary above
+    // generateHandshakeToken for the threat model.
+    generateHandshakeToken: generateHandshakeToken,
+    validateHandshakeToken: validateHandshakeToken,
+    suggestDeviceName: suggestDeviceName,
+    clearHandshakeCache: clearHandshakeCache,
 
     // Constants (for testing)
     SYNC_FORMAT: SYNC_FORMAT,

@@ -1113,6 +1113,34 @@
             h("button", { style: styles.btn, onClick: saveDeviceName }, "Save")
           )
         ),
+        h(Row, { label: "Pair another device",
+          desc: hasFolder
+            ? "Generate a 6-digit code so a phone or other computer can join this same sync folder."
+            : "Connect a sync folder first. Then you can hand a code to another device so it joins the same folder." },
+          h("button", {
+            style: styles.btn,
+            disabled: !hasFolder,
+            onClick: function () {
+              if (window.HandshakeGeneratorModal) window.HandshakeGeneratorModal.show();
+            }
+          }, "Show pairing code…")
+        ),
+        h(Row, { label: "Join existing sync",
+          desc: "Have a code from another device? Enter it to set this device up to watch the same folder." },
+          h("button", {
+            style: styles.btn,
+            disabled: !folderSupported,
+            onClick: function () {
+              if (!window.HandshakeConsumerModal) return;
+              window.HandshakeConsumerModal.show().then(function (r) {
+                if (r && r.success) {
+                  syncStatus[1](window.SyncEngine.getSyncStatus());
+                  notify("Joined the sync folder.");
+                }
+              });
+            }
+          }, "Enter pairing code…")
+        ),
         h(Row, { last: true, label: "Status",
           desc: "Last exported " + lastExport + " · last imported " + lastImport },
           h("span", { style: { fontSize: 12, color: hasFolder ? COLOURS.tealDark : COLOURS.hint } },
