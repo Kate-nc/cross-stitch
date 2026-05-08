@@ -2269,6 +2269,45 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
           })
         ),
 
+        // Persistent sync warning row (sync-reference Phase 7).
+        // Toasts are easy to miss — if the most recent sync attempt failed
+        // we surface it here so the user can see "sync is unhealthy" without
+        // having to open the activity log. Dismissable: once the user has
+        // re-granted permission or otherwise resolved the issue they can
+        // clear the row, and the next successful tick won't repopulate it.
+        syncStatus && syncStatus.lastError && h('div', {
+          className: 'sync-warning',
+          role: 'alert',
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 12px',
+            margin: '8px 0',
+            background: 'var(--surface-2, var(--surface))',
+            border: '1px solid var(--warning, var(--border))',
+            borderRadius: 'var(--radius-sm, 6px)',
+            fontSize: 13
+          }
+        },
+          typeof Icons !== 'undefined' && Icons.warning ? Icons.warning() : null,
+          h('span', { style: { flex: 1 } },
+            'Sync warning (' + syncStatus.lastError.stage + '): ' + syncStatus.lastError.message
+          ),
+          h('button', {
+            type: 'button',
+            className: 'sync-warning-dismiss',
+            onClick: function() {
+              if (typeof SyncEngine !== 'undefined' && SyncEngine.clearLastError) {
+                SyncEngine.clearLastError();
+                setSyncStatus(SyncEngine.getSyncStatus());
+              }
+            },
+            style: { background: 'transparent', border: 'none', cursor: 'pointer', padding: 4 },
+            'aria-label': 'Dismiss sync warning'
+          }, typeof Icons !== 'undefined' && Icons.x ? Icons.x() : 'Dismiss')
+        ),
+
         // Last sync times
         syncStatus && (syncStatus.lastExportAt || syncStatus.lastImportAt) && h('div', { className: 'sync-timestamps' },
           syncStatus.lastExportAt && h('div', { className: 'sync-timestamp' },

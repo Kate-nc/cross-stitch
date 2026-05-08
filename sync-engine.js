@@ -2128,6 +2128,21 @@ const SyncEngine = (() => {
     } catch (e) {}
   }
 
+  // sync-reference Phase 7: let UI dismiss a stale warning row after the
+  // user has dealt with the underlying issue (e.g. re-granted permission).
+  // Without this, _lastError lingers until the page reloads and a persistent
+  // warning banner stays visible even though sync is healthy again.
+  function clearLastError() {
+    _lastError = null;
+    try {
+      if (typeof window !== "undefined" && window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent("cs:syncStatusChanged", {
+          detail: { reason: "error-cleared" }
+        }));
+      }
+    } catch (e) {}
+  }
+
   function getSyncStatus() {
     var lastExport = null, lastImport = null;
     try { lastExport = localStorage.getItem(LS_LAST_EXPORT); } catch (e) {}
@@ -2184,6 +2199,7 @@ const SyncEngine = (() => {
     getDeviceName: getDeviceName,
     setDeviceName: setDeviceName,
     getSyncStatus: getSyncStatus,
+    clearLastError: clearLastError,
 
     // Folder watching (session 4)
     hasFolderWatchSupport: hasFolderWatchSupport,
