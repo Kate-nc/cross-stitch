@@ -1254,6 +1254,12 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   var syncStatus = _syncStatus[0], setSyncStatus = _syncStatus[1];
   var _syncBusy = useState(false);
   var syncBusy = _syncBusy[0], setSyncBusy = _syncBusy[1];
+  // QW1: re-entry guard for the "Regenerate sync id" button so a panicked
+  // user mashing it doesn't mint half a dozen ids in a row. The flag is
+  // released ~1s after click; that's enough for the engine write +
+  // syncStatus refresh to settle without feeling sluggish.
+  var _regenBusy = useState(false);
+  var regenBusy = _regenBusy[0], setRegenBusy = _regenBusy[1];
   var _syncResult = useState(null);
   var syncResult = _syncResult[0], setSyncResult = _syncResult[1];
   // syncPlan / setSyncPlan state was removed in sync-reference fix #5
@@ -2310,18 +2316,27 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
           syncStatus.lastError.stage === 'device-id-collision' && h('button', {
             type: 'button',
             className: 'sync-warning-action',
+            disabled: regenBusy,
             onClick: function() {
-              if (typeof SyncEngine !== 'undefined' && SyncEngine.regenerateDeviceId) {
+              if (regenBusy) return;
+              if (typeof SyncEngine === 'undefined' || !SyncEngine.regenerateDeviceId) return;
+              setRegenBusy(true);
+              try {
                 var fresh = SyncEngine.regenerateDeviceId();
                 if (fresh) {
                   if (typeof SyncEngine.clearLastError === 'function') SyncEngine.clearLastError();
                   setSyncStatus(SyncEngine.getSyncStatus());
                   if (window.Toast) window.Toast.show({ message: 'New sync id assigned. Future exports will use it.', type: 'success', duration: 5000 });
                 }
+              } finally {
+                // Release the latch on a short timer so a real second
+                // collision (rare) can still be acted on, but a rapid
+                // double-click cannot mint two ids.
+                setTimeout(function() { setRegenBusy(false); }, 1000);
               }
             },
-            style: { background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm, 6px)', padding: '4px 10px', cursor: 'pointer', fontSize: 12 }
-          }, 'Regenerate sync id'),
+            style: { background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm, 6px)', padding: '4px 10px', cursor: regenBusy ? 'wait' : 'pointer', fontSize: 12, opacity: regenBusy ? 0.6 : 1 }
+          }, regenBusy ? 'Regenerating…' : 'Regenerate sync id'),
           h('button', {
             type: 'button',
             className: 'sync-warning-dismiss',

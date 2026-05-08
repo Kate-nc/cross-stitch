@@ -1871,6 +1871,12 @@ const SyncEngine = (() => {
   // it after reload (~10s). See reports/sync-reference fix #3.
   var PENDING_PLAN_KEY = "pendingPlan";
   var PENDING_PLAN_MAX_BYTES = 5 * 1024 * 1024; // 5 MB JSON
+  // QW4: TTL for persisted pending plans. If the user dismissed the app and
+  // never came back to review a queued conflict, we'd rather drop the stale
+  // plan than resurrect a 6-month-old conflict from a project they may have
+  // since deleted. The next watcher tick will re-prepare a current plan
+  // from the still-present .csync files in the watch folder.
+  var PENDING_PLAN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
   async function _persistPendingPlan(plan) {
     try {
@@ -1913,7 +1919,18 @@ const SyncEngine = (() => {
         tx.oncomplete = function () { db.close(); };
       });
       if (stored && stored.plan && !_latestPendingPlan) {
-        _latestPendingPlan = stored.plan;
+        // QW4: TTL check. `at` was written by _persistPendingPlan as ISO
+        // string; tolerate older records lacking it (treat as fresh) so
+        // we don't lose plans during the rollout window.
+        var ageMs = stored.at ? (Date.now() - new Date(stored.at).getTime()) : 0;
+        if (ageMs > PENDING_PLAN_TTL_MS) {
+          // Stale — drop the persisted copy and don't rehydrate. The
+          // watcher will rebuild it from disk on the next tick if the
+          // underlying .csync is still there.
+          _persistPendingPlan(null).catch(function () {});
+        } else {
+          _latestPendingPlan = stored.plan;
+        }
       }
     } catch (e) { /* ignore */ }
     return _latestPendingPlan;
