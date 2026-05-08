@@ -1630,6 +1630,12 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     setSyncResult(null);
     SyncEngine.prepareImport(update.syncObj).then(function(plan) {
       setSyncBusy(false);
+      // Big1 unification: also feed the engine's canonical cache so
+      // sibling tabs and a later "Review sync" click in the header
+      // resolve to the same plan.
+      if (typeof SyncEngine.setPendingPlan === 'function') {
+        try { SyncEngine.setPendingPlan(plan); } catch (_) {}
+      }
       // Unified review path (fix #5): folder-discovered plans now also
       // route through SyncReviewGate so the user gets the same UI as
       // manual imports and the in-tab "Review sync" menu.
@@ -2374,7 +2380,11 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
               if (typeof SyncEngine === 'undefined' || typeof SyncEngine.getDiagnostics !== 'function') return null;
               var d = SyncEngine.getDiagnostics();
               if (!d || !d.lastLockHeldAt) return null;
-              var ageMs = Date.now() - new Date(d.lastLockHeldAt).getTime();
+              // Clamp at 0 so a future-dated timestamp (clock skew between
+              // sessions, system clock change) doesn't pin the indicator
+              // on forever — the >60s gate would always be false on a
+              // negative age.
+              var ageMs = Math.max(0, Date.now() - new Date(d.lastLockHeldAt).getTime());
               if (ageMs > 60000) return null;
               return h('div', { className: 'sync-timestamp', style: { color: 'var(--text-secondary)' } },
                 (typeof Icons !== 'undefined' && Icons.info ? Icons.info() : null),

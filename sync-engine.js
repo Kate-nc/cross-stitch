@@ -236,7 +236,10 @@ const SyncEngine = (() => {
     // entry is ~150 bytes; 100 keeps us well under any sane localStorage
     // quota (~5 MB browser default). Eviction is by oldest `at` timestamp
     // — the device we haven't heard from in the longest time. The current
-    // device is always preserved (it was just inserted/updated).
+    // device is always preserved (it was just inserted/updated). The
+    // while loop guards against the rare case where the oldest entry IS
+    // the current device (e.g. corrupted timestamp): we keep scanning
+    // until we've actually evicted enough non-current entries.
     var keys = Object.keys(map);
     if (keys.length > 100) {
       keys.sort(function (a, b) {
@@ -244,9 +247,13 @@ const SyncEngine = (() => {
         var tb = (map[b] && map[b].at) ? Date.parse(map[b].at) : 0;
         return ta - tb; // oldest first
       });
-      var dropCount = keys.length - 100;
-      for (var i = 0; i < dropCount; i++) {
-        if (keys[i] !== syncObj._deviceId) delete map[keys[i]];
+      var needToDrop = keys.length - 100;
+      var dropped = 0;
+      for (var i = 0; i < keys.length && dropped < needToDrop; i++) {
+        if (keys[i] !== syncObj._deviceId) {
+          delete map[keys[i]];
+          dropped++;
+        }
       }
     }
     try { localStorage.setItem(LS_LAST_IMPORT_PER_DEVICE, JSON.stringify(map)); } catch (e) {}
@@ -1969,6 +1976,14 @@ const SyncEngine = (() => {
           // watcher will rebuild it from disk on the next tick if the
           // underlying .csync is still there.
           _persistPendingPlan(null).catch(function () {});
+          // Audit follow-up: notify any tab caches that the durable plan
+          // is gone so a stale UI doesn't keep referencing it after the
+          // user finally returns to the app.
+          try {
+            if (typeof window !== "undefined" && window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent("cs:syncPlanPending", { detail: { plan: null, reason: "ttl-expired" } }));
+            }
+          } catch (e) {}
         } else {
           _latestPendingPlan = stored.plan;
         }
