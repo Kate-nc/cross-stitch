@@ -2182,6 +2182,10 @@ const SyncEngine = (() => {
   var _watcherInterval = null;
   var _watcherInFlight = false;
   var _watcherVisHandler = null;
+  // Latch: ensures the "permission revoked" prompt fires only once per
+  // session per loss event. Reset by requestFolderPermission when the
+  // user successfully re-grants access.
+  var _permissionLossAnnounced = false;
   var WATCHER_INTERVAL_MS = 10000;
   // Phase D — lightweight diagnostics counters. Exposed via getDiagnostics()
   // so users (and us) can confirm the watcher is actually firing without
@@ -2526,14 +2530,45 @@ const SyncEngine = (() => {
     // when permission isn't already granted — the user will re-authorise
     // by re-opening the sync panel (which IS a user gesture).
     if (typeof handle.queryPermission === "function") {
+      var permState = null;
       try {
-        var perm = await handle.queryPermission({ mode: "read" });
-        if (perm !== "granted") {
-          _diagnostics.skipsNoPermission++;
-          return;
-        }
+        permState = await handle.queryPermission({ mode: "read" });
       } catch (e) {
+        permState = "errored";
+      }
+      if (permState !== "granted") {
         _diagnostics.skipsNoPermission++;
+        // Surface the revocation the FIRST time the watcher notices it,
+        // so a user whose browser silently downgraded permission mid-
+        // session sees a Reconnect prompt instead of a silently-dead
+        // sync. _permissionLossAnnounced is reset whenever permission
+        // is regranted (see requestFolderPermission). Without this the
+        // tick would keep incrementing skipsNoPermission with zero UI
+        // feedback — the exact failure mode that hid this from users
+        // for an entire session of cross-device editing.
+        if (!_permissionLossAnnounced) {
+          _permissionLossAnnounced = true;
+          try {
+            if (typeof window !== "undefined" && window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent("cs:syncPermissionNeeded", {
+                detail: { handleName: handle.name || "Sync folder", state: permState }
+              }));
+            }
+          } catch (e) {}
+          _logEvent({
+            type: "permission-needed",
+            message: 'Browser permission was "' + permState + '" for folder "' + (handle.name || "?") + '" (watcher tick)'
+          });
+          if (typeof window !== "undefined" && window.Toast && window.Toast.show) {
+            try {
+              window.Toast.show({
+                message: "Sync paused — folder permission was revoked. Re-open the sync panel to reconnect.",
+                type: "warning",
+                duration: 8000
+              });
+            } catch (e) {}
+          }
+        }
         return;
       }
     }
@@ -2686,6 +2721,7 @@ const SyncEngine = (() => {
     }
     var perm = await handle.requestPermission({ mode: "readwrite" });
     if (perm === "granted") {
+      _permissionLossAnnounced = false;
       try { startWatching(); } catch (e) {}
       try {
         if (typeof window !== "undefined" && window.dispatchEvent) {
