@@ -1837,6 +1837,11 @@ const SyncEngine = (() => {
     } catch (e) { console.warn("SyncEngine: could not persist watch dir handle:", e); }
     // Phase-3 sync-fix #1: kick off the polling watcher automatically so any
     // page that configures a sync folder starts receiving remote updates.
+    // startWatching() also fires _runWatcherTick() once immediately, which
+    // satisfies the "scan as soon as the user picks a folder" requirement
+    // (UnifiedSyncImportModal relies on this). _runWatcherTick guards against
+    // re-entry via _watcherInFlight, so a concurrent scheduled tick won't
+    // double-scan — do NOT add a redundant checkForUpdates() call here.
     try { startWatching(); } catch (e) {}
   }
 

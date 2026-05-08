@@ -456,6 +456,50 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
     try { return typeof SyncEngine !== 'undefined' ? SyncEngine.getSyncStatus() : null; }
     catch (e) { return null; }
   });
+
+  // Pending-conflicts badge state. Reflects window.SyncEngine.getPendingPlan()'s
+  // conflict count, hidden while SyncReviewGate is currently open. Listens to:
+  //   - cs:syncPlanPending  (fired by setPendingPlan / clearPendingPlan)
+  //   - cs:syncReviewOpened / cs:syncReviewClosed  (gate lifecycle)
+  //   - cs:backupRestored   (any restored state invalidates the plan)
+  const [pendingConflicts, setPendingConflicts] = React.useState(0);
+  const [reviewOpen, setReviewOpen] = React.useState(false);
+  React.useEffect(function () {
+    if (typeof window === 'undefined' || typeof SyncEngine === 'undefined') return;
+    function readCount() {
+      try {
+        var p = SyncEngine.getPendingPlan && SyncEngine.getPendingPlan();
+        return (p && p.conflicts && p.conflicts.length) || 0;
+      } catch (_) { return 0; }
+    }
+    function refresh() { setPendingConflicts(readCount()); }
+    function onPlan(e) {
+      var plan = e && e.detail && e.detail.plan;
+      if (plan && plan.conflicts) setPendingConflicts(plan.conflicts.length);
+      else if (plan === null) setPendingConflicts(0);
+      else refresh();
+    }
+    function onOpened() { setReviewOpen(true); }
+    function onClosed() { setReviewOpen(false); refresh(); }
+    function onRestored() { setPendingConflicts(0); }
+    refresh();
+    // Also try to hydrate the persisted plan so a fresh page load shows
+    // the badge without waiting for a watcher tick.
+    if (SyncEngine.hydratePendingPlan) {
+      SyncEngine.hydratePendingPlan().then(refresh).catch(function () {});
+    }
+    window.addEventListener('cs:syncPlanPending', onPlan);
+    window.addEventListener('cs:syncReviewOpened', onOpened);
+    window.addEventListener('cs:syncReviewClosed', onClosed);
+    window.addEventListener('cs:backupRestored', onRestored);
+    return function () {
+      window.removeEventListener('cs:syncPlanPending', onPlan);
+      window.removeEventListener('cs:syncReviewOpened', onOpened);
+      window.removeEventListener('cs:syncReviewClosed', onClosed);
+      window.removeEventListener('cs:backupRestored', onRestored);
+    };
+  }, []);
+  const showSyncBadge = pendingConflicts > 0 && !reviewOpen;
   React.useEffect(() => {
     if (!fileMenuOpen) return;
     function close(e) { if (fileMenuRef.current && !fileMenuRef.current.contains(e.target)) setFileMenuOpen(false); }
@@ -702,13 +746,30 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         typeof SyncEngine !== 'undefined' && React.createElement('button', {
           className: 'tb-nav-link tb-sync-indicator' + (syncStatus && syncStatus.hasWatchDir && syncStatus.autoSync
             ? ' tb-sync-indicator--active'
-            : (syncStatus && syncStatus.hasWatchDir ? ' tb-sync-indicator--folder' : '')),
+            : (syncStatus && syncStatus.hasWatchDir ? ' tb-sync-indicator--folder' : ''))
+            + (showSyncBadge ? ' tb-sync-indicator--has-pending' : ''),
           onClick: () => {
+            // Pending conflicts take priority over navigation: clicking the
+            // badge opens the review gate so the user can resolve them
+            // without an extra hop through /home.
+            if (showSyncBadge && window.SyncReviewGate && typeof window.SyncReviewGate.open === 'function') {
+              var plan = _lastReceivedPlan;
+              if (!plan && SyncEngine.getPendingPlan) {
+                try { plan = SyncEngine.getPendingPlan() || null; } catch (_) {}
+              }
+              window.SyncReviewGate.open(plan, { autoTrigger: false });
+              return;
+            }
             if (typeof window.__goHome === 'function') window.__goHome();
             else window.location.href = 'home.html';
           },
-          'aria-label': 'Sync status',
+          'aria-label': showSyncBadge
+            ? ('Sync \u2014 ' + pendingConflicts + ' conflict' + (pendingConflicts === 1 ? '' : 's') + ' pending')
+            : 'Sync status',
           title: (function() {
+            if (showSyncBadge) {
+              return pendingConflicts + ' conflict' + (pendingConflicts === 1 ? '' : 's') + ' pending review';
+            }
             var parts = [];
             if (syncStatus && syncStatus.hasWatchDir) parts.push('Sync folder connected' + (syncStatus.autoSync ? ' (auto-sync on)' : ''));
             if (syncStatus && syncStatus.lastExportAt) parts.push('Last export: ' + new Date(syncStatus.lastExportAt).toLocaleString());
@@ -721,7 +782,11 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
             if (syncStatus && syncStatus.hasWatchDir) return Icons.cloudSync();
             if (syncStatus && (syncStatus.lastExportAt || syncStatus.lastImportAt)) return Icons.cloudCheck();
             return Icons.cloudOff();
-          })()
+          })(),
+          showSyncBadge ? React.createElement('span', {
+            className: 'tb-sync-indicator-badge',
+            'aria-hidden': 'true'
+          }) : null
         ),
 
         // Command palette trigger — touch users have no Ctrl/Cmd+K affordance.
@@ -842,75 +907,26 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                 SyncEngine.downloadSync().catch(function(e) { (window.Toast ? window.Toast.show({ message: 'Sync export failed: ' + e.message, type: 'error' }) : alert('Sync export failed: ' + e.message)); });
               }
             }, Icons.cloudSync(), ' Export Sync (.csync)'),
-            typeof SyncEngine !== 'undefined' && React.createElement('label', {
+            typeof SyncEngine !== 'undefined' && React.createElement('button', {
               className: 'tb-page-dropdown-item',
-              style: { display: 'block', cursor: 'pointer' }
-            },
-              Icons.cloudSync(), ' Import Sync (.csync)\u2026',
-              React.createElement('input', {
-                type: 'file',
-                accept: '.csync',
-                style: { display: 'none' },
-                onChange: function(e) {
-                  setFileMenuOpen(false);
-                  var file = e.target.files && e.target.files[0];
-                  if (!file) return;
-                  e.target.value = '';
-                  // VER-SYNC-012: warn before decompressing a very large file
-                  if (file.size > 50 * 1024 * 1024) {
-                    var mb = (file.size / (1024 * 1024)).toFixed(1);
-                    if (window.Toast) window.Toast.show({ message: 'Large sync file (' + mb + ' MB) — import may take a moment.', type: 'info', duration: 6000 });
-                  }
-                  SyncEngine.readSyncFile(file).then(function(syncObj) {
-                    // Encrypted-envelope retry loop. prepareImport throws an
-                    // EncryptionError with code "passphrase_required" when the
-                    // session passphrase is unset, or "incorrect_passphrase"
-                    // when the wrong key was tried. Wrap prepareImport in a
-                    // small loop that prompts via SyncPassphrasePrompt and
-                    // re-runs until the user cancels or import succeeds.
-                    function tryPrepare(errMsg) {
-                      return SyncEngine.prepareImport(syncObj).catch(function (err) {
-                        var code = err && err.code;
-                        if (code === 'passphrase_required' || code === 'incorrect_passphrase') {
-                          if (!window.SyncPassphrasePrompt) throw err;
-                          return window.SyncPassphrasePrompt.show({
-                            title: 'Encrypted sync file',
-                            message: code === 'incorrect_passphrase'
-                              ? 'That passphrase didn\u2019t unlock the file. Try again.'
-                              : 'This sync file is encrypted. Enter the passphrase used to create it.',
-                            deviceName: (syncObj && syncObj._deviceName) || ''
-                          }).then(function (pw) {
-                            if (!pw) throw err;
-                            try { SyncEngine.setEncryptionPassphrase(pw); } catch (_) {}
-                            return tryPrepare();
-                          });
-                        }
-                        throw err;
-                      });
+              onClick: function() {
+                setFileMenuOpen(false);
+                if (window.UnifiedSyncImportModal && typeof window.UnifiedSyncImportModal.show === 'function') {
+                  window.UnifiedSyncImportModal.show().then(function (res) {
+                    if (!res || !res.plan) return;
+                    // The modal already populated SyncEngine.setPendingPlan,
+                    // so other surfaces (badge, sibling tabs) are already in
+                    // sync. Open the review gate to walk the user through
+                    // the merge / conflict resolution.
+                    if (typeof window.SyncReviewGate !== 'undefined') {
+                      window.SyncReviewGate.open(res.plan, { autoTrigger: false });
                     }
-                    return tryPrepare();
-                  }).then(function(plan) {
-                    // Big1 unification: also push the plan into the engine's
-                    // canonical cache so other tabs / a later "Review sync"
-                    // click can find it. Without this the manual file-picker
-                    // path only populated the in-tab `_lastReceivedPlan` and
-                    // anyone opening the gate from a sibling surface saw the
-                    // empty state.
-                    if (typeof SyncEngine.setPendingPlan === 'function') {
-                      try { SyncEngine.setPendingPlan(plan); } catch (_) {}
-                    }
-                    // Dispatch sync-plan-ready — the module-level listener above
-                    // intercepts this and mounts SyncReviewGate. preventDefault()
-                    // and stopImmediatePropagation() prevent old fallback paths from
-                    // also firing. No separate handled check is needed here.
-                    var evt = new CustomEvent('sync-plan-ready', { detail: plan, cancelable: true });
-                    window.dispatchEvent(evt);
-                  }).catch(function(err) {
-                    (window.Toast ? window.Toast.show({ message: 'Sync import failed: ' + err.message, type: 'error' }) : alert('Sync import failed: ' + err.message));
+                  }).catch(function (err) {
+                    if (window.Toast) window.Toast.show({ message: 'Sync import failed: ' + (err && err.message || err), type: 'error' });
                   });
                 }
-              })
-            ),
+              }
+            }, Icons.cloudSync(), ' Import Sync (.csync)\u2026'),
             // Review sync — manual trigger to re-open gate for last received plan
             typeof SyncEngine !== 'undefined' && React.createElement('button', {
               className: 'tb-page-dropdown-item',

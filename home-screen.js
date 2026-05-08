@@ -1270,7 +1270,9 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   var _deviceNameDraft = useState('');
   var deviceNameDraft = _deviceNameDraft[0], setDeviceNameDraft = _deviceNameDraft[1];
   var cancelDeviceNameBlurSaveRef = React.useRef(false);
-  var syncFileRef = React.useRef(null);
+  // syncFileRef removed: manual .csync imports now flow through
+  // window.UnifiedSyncImportModal (modals.js), which owns its own file
+  // input + passphrase retry loop. The button below just opens the modal.
 
   // Folder watch state
   var _watchDirName = useState(null);
@@ -1491,58 +1493,10 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     }).finally(function() { setSyncBusy(false); });
   }
 
-  function handleSyncFileSelect(e) {
-    var file = e.target.files && e.target.files[0];
-    if (!file) return;
-    if (syncFileRef.current) syncFileRef.current.value = '';
-    // VER-SYNC-012: warn the user before trying to decompress a very large file
-    // so they aren’t left staring at a spinner with no feedback.
-    if (file.size > 50 * 1024 * 1024) {
-      var mb = (file.size / (1024 * 1024)).toFixed(1);
-      if (window.Toast) window.Toast.show({ message: 'Large sync file (' + mb + ' MB) — import may take a moment.', type: 'info', duration: 6000 });
-    }
-    setSyncBusy(true);
-    setSyncResult(null);
-    SyncEngine.readSyncFile(file).then(function(syncObj) {
-      // Encrypted-envelope retry loop. See header.js for design notes.
-      function tryPrepare() {
-        return SyncEngine.prepareImport(syncObj).catch(function (err) {
-          var code = err && err.code;
-          if (code === 'passphrase_required' || code === 'incorrect_passphrase') {
-            if (!window.SyncPassphrasePrompt) throw err;
-            return window.SyncPassphrasePrompt.show({
-              title: 'Encrypted sync file',
-              message: code === 'incorrect_passphrase'
-                ? 'That passphrase didn\u2019t unlock the file. Try again.'
-                : 'This sync file is encrypted. Enter the passphrase used to create it.',
-              deviceName: (syncObj && syncObj._deviceName) || ''
-            }).then(function (pw) {
-              if (!pw) throw err;
-              try { SyncEngine.setEncryptionPassphrase(pw); } catch (_) {}
-              return tryPrepare();
-            });
-          }
-          throw err;
-        });
-      }
-      return tryPrepare();
-    }).then(function(plan) {
-      setSyncBusy(false);
-      // Big1 unification: feed the canonical engine cache so the same
-      // plan is reachable from any tab / surface.
-      if (typeof SyncEngine.setPendingPlan === 'function') {
-        try { SyncEngine.setPendingPlan(plan); } catch (_) {}
-      }
-      // Unified review path (fix #5): open the gate everywhere instead
-      // of routing manual file picks through SyncSummaryModal.
-      if (typeof window.SyncReviewGate !== 'undefined') {
-        window.SyncReviewGate.open(plan, { autoTrigger: false });
-      }
-    }).catch(function(err) {
-      setSyncBusy(false);
-      setSyncResult({ type: 'error', message: 'Import failed: ' + err.message });
-    });
-  }
+  // handleSyncFileSelect was removed — manual .csync imports now flow through
+  // window.UnifiedSyncImportModal which owns its own file input, passphrase
+  // retry loop, and watch-folder prompt. The Import .csync button below opens
+  // that modal directly.
 
   function handleApplySync(conflictResolutions, opts) {
     // Removed in sync-reference fix #5 — execution now happens inside
@@ -2469,20 +2423,23 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
             onClick: handleExportSync,
             disabled: syncBusy
           }, syncBusy && !watchDirName ? 'Working\u2026' : 'Download .csync'),
-          h('label', {
+          h('button', {
             className: 'home-btn home-btn--secondary sync-action-btn',
-            style: { cursor: syncBusy ? 'not-allowed' : 'pointer' }
-          },
-            'Import .csync',
-            h('input', {
-              ref: syncFileRef,
-              type: 'file',
-              accept: '.csync',
-              style: { display: 'none' },
-              onChange: handleSyncFileSelect,
-              disabled: syncBusy
-            })
-          )
+            onClick: function () {
+              if (window.UnifiedSyncImportModal && typeof window.UnifiedSyncImportModal.show === 'function') {
+                window.UnifiedSyncImportModal.show().then(function (res) {
+                  if (!res || !res.plan) return;
+                  setSyncStatus(SyncEngine.getSyncStatus());
+                  if (typeof window.SyncReviewGate !== 'undefined') {
+                    window.SyncReviewGate.open(res.plan, { autoTrigger: false });
+                  }
+                }).catch(function (err) {
+                  setSyncResult({ type: 'error', message: 'Import failed: ' + (err && err.message || err) });
+                });
+              }
+            },
+            disabled: syncBusy
+          }, 'Import .csync')
         ),
 
         h('p', { className: 'sync-hint' },

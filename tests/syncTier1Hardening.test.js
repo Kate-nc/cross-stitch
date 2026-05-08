@@ -94,16 +94,22 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('Big1 unification — manual import paths populate the canonical pending-plan cache', () => {
-  test('header.js calls SyncEngine.setPendingPlan after prepareImport', () => {
-    const src = fs.readFileSync(path.join(__dirname, '..', 'header.js'), 'utf8');
+  test('UnifiedSyncImportModal (modals.js) calls SyncEngine.setPendingPlan after prepareImport', () => {
+    // Manual .csync imports from header file menu and home page both flow
+    // through window.UnifiedSyncImportModal, which is the single owner of
+    // the file-pick → prepareImport → setPendingPlan handoff. Header.js and
+    // home-screen.js just open the modal.
+    const src = fs.readFileSync(path.join(__dirname, '..', 'modals.js'), 'utf8');
     expect(src).toMatch(/SyncEngine\.setPendingPlan\s*\(\s*plan\s*\)/);
   });
 
-  test('home-screen.js folder-import handler calls SyncEngine.setPendingPlan', () => {
+  test('home-screen.js folder-import handler still calls SyncEngine.setPendingPlan', () => {
+    // handleImportFromFolder (folder-watcher → manual import) keeps its
+    // own setPendingPlan call. The old per-file picker call site was
+    // removed when manual imports were unified into UnifiedSyncImportModal.
     const src = fs.readFileSync(path.join(__dirname, '..', 'home-screen.js'), 'utf8');
-    // Two call sites: manual file picker + handleImportFromFolder.
     const matches = src.match(/SyncEngine\.setPendingPlan\s*\(\s*plan\s*\)/g) || [];
-    expect(matches.length).toBeGreaterThanOrEqual(2);
+    expect(matches.length).toBeGreaterThanOrEqual(1);
   });
 
   test('setPendingPlan dispatches cs:syncPlanPending with the plan in detail', () => {

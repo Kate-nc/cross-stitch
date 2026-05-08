@@ -1235,6 +1235,322 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
   };
 })();
 
+// ═══ UnifiedSyncImportModal — single entry point for manual .csync imports ═══
+// Replaces the standalone "Import Sync (.csync)…" file input. Walks the user
+// through three steps:
+//   1. Pick a .csync file (with passphrase retry for encrypted envelopes).
+//   2. Ask whether to keep syncing automatically (watch a folder).
+//   3. Confirmation with summary + handoff to SyncReviewGate.
+//
+// Mounted via window.UnifiedSyncImportModal.show(). Resolves to:
+//   { plan, watchEnabled: bool } on completion, or null on cancel.
+// Caller is responsible for opening SyncReviewGate with the returned plan
+// (the modal calls setPendingPlan internally so any other surface can also
+// pick it up via window.SyncEngine.getPendingPlan()).
+(function () {
+  if (typeof window === 'undefined') return;
+
+  function UnifiedImportInner(props) {
+    var h = React.createElement;
+    var uid = React.useId();
+    var titleId = 'cs-unified-sync-title-' + uid;
+
+    // step: 1 = file picker, 2 = watch choice, 3 = confirmation
+    var stepState = React.useState(1);
+    var step = stepState[0], setStep = stepState[1];
+    var fileState = React.useState(null);
+    var file = fileState[0], setFile = fileState[1];
+    var planState = React.useState(null);
+    var plan = planState[0], setPlan = planState[1];
+    var watchChoiceState = React.useState('yes'); // default: enabled
+    var watchChoice = watchChoiceState[0], setWatchChoice = watchChoiceState[1];
+    var watchEnabledState = React.useState(false);
+    var watchEnabled = watchEnabledState[0], setWatchEnabled = watchEnabledState[1];
+    var busyState = React.useState(false);
+    var busy = busyState[0], setBusy = busyState[1];
+    var errState = React.useState('');
+    var err = errState[0], setErr = errState[1];
+
+    var fileInputRef = React.useRef(null);
+
+    function onPickFile(e) {
+      var f = e.target.files && e.target.files[0];
+      if (e.target) e.target.value = '';
+      if (!f) return;
+      // VER-SYNC-012 — warn before decompressing very large files.
+      if (f.size > 50 * 1024 * 1024) {
+        var mb = (f.size / (1024 * 1024)).toFixed(1);
+        if (window.Toast) window.Toast.show({ message: 'Large sync file (' + mb + ' MB) — import may take a moment.', type: 'info', duration: 6000 });
+      }
+      setFile(f);
+      setBusy(true);
+      setErr('');
+      setPlan(null);
+      window.SyncEngine.readSyncFile(f).then(function (syncObj) {
+        // Encrypted-envelope retry loop — same shape used by header.js and
+        // home-screen.js so the user gets the familiar passphrase prompt
+        // when an encrypted envelope is opened without a session key.
+        function tryPrepare() {
+          return window.SyncEngine.prepareImport(syncObj).catch(function (er) {
+            var code = er && er.code;
+            if (code === 'passphrase_required' || code === 'incorrect_passphrase') {
+              if (!window.SyncPassphrasePrompt) throw er;
+              return window.SyncPassphrasePrompt.show({
+                title: 'Encrypted sync file',
+                message: code === 'incorrect_passphrase'
+                  ? 'That passphrase didn\u2019t unlock the file. Try again.'
+                  : 'This sync file is encrypted. Enter the passphrase used to create it.',
+                deviceName: (syncObj && syncObj._deviceName) || ''
+              }).then(function (pw) {
+                if (!pw) throw er;
+                try { window.SyncEngine.setEncryptionPassphrase(pw); } catch (_) {}
+                return tryPrepare();
+              });
+            }
+            throw er;
+          });
+        }
+        return tryPrepare();
+      }).then(function (preparedPlan) {
+        setBusy(false);
+        setPlan(preparedPlan);
+      }).catch(function (e) {
+        setBusy(false);
+        setFile(null);
+        setErr((e && e.message) || 'Could not read sync file.');
+      });
+    }
+
+    function continueFromStep1() {
+      if (!plan || busy) return;
+      setErr('');
+      setStep(2);
+    }
+
+    function continueFromStep2() {
+      setErr('');
+      if (watchChoice === 'yes') {
+        if (typeof window.showDirectoryPicker !== 'function') {
+          setErr('Watching a folder needs a Chromium-based browser (Chrome, Edge, Brave, Opera). You can still import this file once.');
+          return;
+        }
+        setBusy(true);
+        window.showDirectoryPicker({ mode: 'readwrite' }).then(function (handle) {
+          return window.SyncEngine.setWatchDirectory(handle);
+        }).then(function () {
+          // setWatchDirectory → startWatching → immediate _runWatcherTick,
+          // which is gated by _watcherInFlight so a concurrent scheduled
+          // tick won't double-scan. No manual checkForUpdates() call needed.
+          setWatchEnabled(true);
+          try { window.dispatchEvent(new CustomEvent('cs:syncStatusChanged')); } catch (_) {}
+          finalisePendingPlan();
+        }).catch(function (e) {
+          setBusy(false);
+          if (e && e.name === 'AbortError') return; // user cancelled folder picker
+          setErr((e && e.message) || 'Could not connect to that folder.');
+        });
+      } else {
+        setWatchEnabled(false);
+        finalisePendingPlan();
+      }
+    }
+
+    function finalisePendingPlan() {
+      // Push the plan into the canonical engine cache. This dispatches
+      // cs:syncPlanPending so the header badge can update immediately.
+      try { window.SyncEngine.setPendingPlan(plan); } catch (_) {}
+      setBusy(false);
+      setStep(3);
+    }
+
+    function finishAndOpenGate() {
+      props.onSuccess({ plan: plan, watchEnabled: watchEnabled });
+    }
+
+    function openPrefs() {
+      props.onClose();
+      // Best-effort — Preferences modal lives in preferences-modal.js and
+      // is invoked from the header. If unavailable, just close.
+      if (window.PreferencesModal && typeof window.PreferencesModal.open === 'function') {
+        try { window.PreferencesModal.open({ section: 'sync' }); } catch (_) {}
+      }
+    }
+
+    var btnPri = {
+      padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none',
+      background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontWeight: 600
+    };
+    var btnPriDisabled = Object.assign({}, btnPri, { opacity: 0.5, cursor: 'not-allowed' });
+    var btnSec = {
+      padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border)',
+      background: 'var(--surface)', color: 'var(--text-primary)', cursor: 'pointer'
+    };
+
+    function renderStep1() {
+      return h('div', null,
+        h('p', { style: { margin: 0, color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5 } },
+          'Choose a .csync file to import. You\u2019ll be asked for a passphrase if it\u2019s encrypted.'),
+        h('div', { style: { marginTop: 16, padding: '14px', borderRadius: 8, border: '1px dashed var(--border)', background: 'var(--surface-secondary, var(--surface))' } },
+          h('button', {
+            type: 'button',
+            onClick: function () { try { fileInputRef.current && fileInputRef.current.click(); } catch (_) {} },
+            disabled: busy,
+            style: btnSec
+          },
+            (window.Icons && window.Icons.folder) ? window.Icons.folder() : null,
+            ' ', file ? 'Choose a different file\u2026' : 'Choose .csync file\u2026'
+          ),
+          h('input', {
+            ref: fileInputRef,
+            type: 'file',
+            accept: '.csync',
+            style: { display: 'none' },
+            onChange: onPickFile
+          }),
+          file ? h('div', { style: { marginTop: 10, fontSize: 12, color: 'var(--text-secondary)' } },
+            h('strong', { style: { color: 'var(--text-primary)' } }, file.name),
+            ' \u00b7 ', (file.size / 1024).toFixed(1), ' KB'
+          ) : null,
+          plan ? h('div', { style: { marginTop: 10, fontSize: 12, color: 'var(--success)', display: 'inline-flex', alignItems: 'center', gap: 4 } },
+            (window.Icons && window.Icons.check) ? window.Icons.check() : null,
+            ' Ready to import',
+            plan.summary && plan.summary.deviceName ? ' from ' + plan.summary.deviceName : ''
+          ) : null,
+          busy ? h('div', { style: { marginTop: 10, fontSize: 12, color: 'var(--text-secondary)' } }, 'Reading file\u2026') : null
+        ),
+        err ? h('p', { style: { margin: '12px 0 0', color: 'var(--danger, #C0392B)', fontSize: 13 } }, err) : null,
+        h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 } },
+          h('button', { type: 'button', onClick: props.onClose, style: btnSec }, 'Cancel'),
+          h('button', {
+            type: 'button',
+            onClick: continueFromStep1,
+            disabled: !plan || busy,
+            style: (!plan || busy) ? btnPriDisabled : btnPri
+          }, 'Continue')
+        )
+      );
+    }
+
+    function renderStep2() {
+      var radioRow = function (val, label, desc) {
+        var selected = watchChoice === val;
+        return h('label', {
+          style: {
+            display: 'flex', gap: 10, padding: 12, marginTop: 8, cursor: 'pointer',
+            border: '1px solid ' + (selected ? 'var(--accent)' : 'var(--border)'),
+            borderRadius: 8,
+            background: selected ? 'rgba(184, 92, 56, 0.06)' : 'transparent'
+          }
+        },
+          h('input', {
+            type: 'radio', name: 'cs-unified-watch', value: val,
+            checked: selected,
+            onChange: function () { setWatchChoice(val); },
+            style: { marginTop: 2, accentColor: 'var(--accent)' }
+          }),
+          h('div', null,
+            h('div', { style: { fontSize: 14, color: 'var(--text-primary)', fontWeight: 500 } }, label),
+            h('div', { style: { fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.4 } }, desc)
+          )
+        );
+      };
+      return h('div', null,
+        h('p', { style: { margin: 0, color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5 } },
+          'Keep syncing automatically?'),
+        h('p', { style: { margin: '4px 0 0', color: 'var(--text-tertiary, var(--text-secondary))', fontSize: 12, lineHeight: 1.5 } },
+          'Pick the folder this file came from and we\u2019ll watch it for new updates from your other devices.'),
+        radioRow('yes',  'Yes \u2014 watch this folder', 'You\u2019ll be asked to pick the folder. New updates will appear automatically while the app is open.'),
+        radioRow('no',   'No \u2014 just this one file', 'Import this file only. You can set up watching later in Preferences.'),
+        err ? h('p', { style: { margin: '12px 0 0', color: 'var(--danger, #C0392B)', fontSize: 13 } }, err) : null,
+        h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 } },
+          h('button', { type: 'button', onClick: function () { setStep(1); setErr(''); }, style: btnSec, disabled: busy }, 'Back'),
+          h('button', { type: 'button', onClick: continueFromStep2, disabled: busy, style: busy ? btnPriDisabled : btnPri },
+            busy ? 'Connecting\u2026' : 'Continue'
+          )
+        )
+      );
+    }
+
+    function renderStep3() {
+      var hasConflicts = plan && plan.conflicts && plan.conflicts.length > 0;
+      return h('div', null,
+        h('p', { style: { margin: 0, color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.5 } },
+          'File ready to review.'
+        ),
+        h('ul', { style: { margin: '12px 0 0', paddingLeft: 18, color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6 } },
+          h('li', null,
+            (window.Icons && window.Icons.check) ? window.Icons.check() : null,
+            ' Imported ', h('strong', { style: { color: 'var(--text-primary)' } }, (file && file.name) || 'sync file')
+          ),
+          watchEnabled
+            ? h('li', null,
+                (window.Icons && window.Icons.check) ? window.Icons.check() : null,
+                ' Watching the folder for new updates.'
+              )
+            : h('li', null,
+                'Not watching a folder. ',
+                h('button', {
+                  type: 'button',
+                  onClick: openPrefs,
+                  style: { background: 'none', border: 'none', padding: 0, color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline', font: 'inherit' }
+                }, 'Set up watching in Preferences')
+              ),
+          hasConflicts
+            ? h('li', null, h('strong', { style: { color: 'var(--text-primary)' } }, plan.conflicts.length + ' conflict' + (plan.conflicts.length === 1 ? '' : 's')),
+                ' need your attention. We\u2019ll show them next.')
+            : null
+        ),
+        h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 } },
+          h('button', { type: 'button', onClick: finishAndOpenGate, style: btnPri },
+            hasConflicts ? 'Review changes' : 'Done'
+          )
+        )
+      );
+    }
+
+    var stepperLabel = step === 1 ? 'Step 1 of 3 \u00b7 Choose file'
+      : step === 2 ? 'Step 2 of 3 \u00b7 Watch folder?'
+      : 'Step 3 of 3 \u00b7 Confirm';
+
+    return h(window.Overlay, {
+      onClose: props.onClose, variant: 'dialog', maxWidth: 480, labelledBy: titleId
+    },
+      h(window.Overlay.CloseButton, { onClose: props.onClose }),
+      h('div', { style: { padding: 24 } },
+        h('div', { style: { fontSize: 11, fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--text-tertiary, var(--text-secondary))', marginBottom: 6 } }, stepperLabel),
+        h('h3', { id: titleId, style: { marginTop: 0, marginBottom: 14, fontSize: 18, color: 'var(--text-primary)' } },
+          step === 3 ? 'You\u2019re all set' : 'Import sync file'),
+        step === 1 ? renderStep1() : step === 2 ? renderStep2() : renderStep3()
+      )
+    );
+  }
+
+  window.UnifiedSyncImportModal = {
+    show: function () {
+      return new Promise(function (resolve) {
+        if (!window.React || !window.ReactDOM || !window.Overlay || !window.SyncEngine) {
+          resolve(null);
+          return;
+        }
+        var host = document.createElement('div');
+        document.body.appendChild(host);
+        var root = ReactDOM.createRoot ? ReactDOM.createRoot(host) : null;
+        var settled = false;
+        function cleanup() {
+          try { if (root) root.unmount(); else ReactDOM.unmountComponentAtNode(host); } catch (e) {}
+          if (host.parentNode) host.parentNode.removeChild(host);
+        }
+        function done(v) { if (settled) return; settled = true; cleanup(); resolve(v); }
+        var el = React.createElement(UnifiedImportInner, {
+          onClose: function () { done(null); },
+          onSuccess: function (data) { done(data || null); }
+        });
+        if (root) root.render(el); else ReactDOM.render(el, host);
+      });
+    }
+  };
+})();
+
 // ═══ Sync Review Gate (SCR-062) ═══
 // Blocking modal shown when incoming sync data is detected.
 // Merges all additive non-conflicting changes silently and presents
@@ -2134,6 +2450,11 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
           if (_gateRoot) { _gateRoot.unmount(); _gateRoot = null; }
           else { ReactDOM.unmountComponentAtNode(mountNode); }
         } catch (_) {}
+        // Notify badge / nav listeners that the gate has closed so they can
+        // re-evaluate pending state (clearPendingPlan inside executeImport
+        // also fires cs:syncPlanPending, but a dismiss without a merge
+        // wouldn't, hence this dedicated event).
+        try { window.dispatchEvent(new CustomEvent('cs:syncReviewClosed', { detail: { result: result || null } })); } catch (_) {}
         // Show success toast when a real merge happened
         if (result && result.result) {
           var r = result.result;
@@ -2160,6 +2481,9 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
       } else {
         ReactDOM.render(el, mountNode);
       }
+      // Notify badge / nav listeners that the gate is open so the pending
+      // conflicts indicator can hide while the user is reviewing.
+      try { window.dispatchEvent(new CustomEvent('cs:syncReviewOpened', { detail: { hasPlan: !!plan } })); } catch (_) {}
     }
   };
 })();

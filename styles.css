@@ -3472,6 +3472,20 @@ kbd {
 .tb-sync-indicator { position: relative; display: inline-flex; align-items: center; }
 .tb-sync-indicator--active svg { color: var(--success); }
 .tb-sync-indicator--folder svg { color: var(--accent); }
+/* Pending-conflicts dot. Absolute-positioned so adding it doesn't reflow
+   surrounding nav items. Uses --danger so it inherits the workshop palette
+   in both themes. */
+.tb-sync-indicator-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger, #C0392B);
+  box-shadow: 0 0 0 2px var(--surface, #fff);
+  pointer-events: none;
+}
 
 /* Folder watch section */
 .sync-folder-section { margin-bottom: 8px; }
