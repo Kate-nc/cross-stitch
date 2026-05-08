@@ -2778,6 +2778,7 @@ const SyncEngine = (() => {
       lastImportAt: lastImport,
       hasFolderWatch: hasFolderWatchSupport(),
       hasWatchDir: !!_watchDirHandle,
+      watchDirName: (_watchDirHandle && _watchDirHandle.name) || null,
       autoSync: isAutoSyncEnabled(),
       watching: isWatching(),
       lastError: _lastError

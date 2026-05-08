@@ -456,6 +456,20 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
     try { return typeof SyncEngine !== 'undefined' ? SyncEngine.getSyncStatus() : null; }
     catch (e) { return null; }
   });
+  // Sync status popover open/close state
+  const [syncPopoverOpen, setSyncPopoverOpen] = React.useState(false);
+  const syncPopoverRef = React.useRef(null);
+  // Close the popover when clicking outside it
+  React.useEffect(function() {
+    if (!syncPopoverOpen) return;
+    function onPointerDown(e) {
+      if (syncPopoverRef.current && !syncPopoverRef.current.contains(e.target)) {
+        setSyncPopoverOpen(false);
+      }
+    }
+    document.addEventListener('pointerdown', onPointerDown);
+    return function() { document.removeEventListener('pointerdown', onPointerDown); };
+  }, [syncPopoverOpen]);
 
   // Pending-conflicts badge state. Reflects window.SyncEngine.getPendingPlan()'s
   // conflict count, hidden while SyncReviewGate is currently open. Listens to:
@@ -742,51 +756,178 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
 
         React.createElement('div', { className: 'tb-sep' }),
 
-        // Sync status indicator
-        typeof SyncEngine !== 'undefined' && React.createElement('button', {
-          className: 'tb-nav-link tb-sync-indicator' + (syncStatus && syncStatus.hasWatchDir && syncStatus.autoSync
-            ? ' tb-sync-indicator--active'
-            : (syncStatus && syncStatus.hasWatchDir ? ' tb-sync-indicator--folder' : ''))
-            + (showSyncBadge ? ' tb-sync-indicator--has-pending' : ''),
-          onClick: () => {
-            // Pending conflicts take priority over navigation: clicking the
-            // badge opens the review gate so the user can resolve them
-            // without an extra hop through /home.
-            if (showSyncBadge && window.SyncReviewGate && typeof window.SyncReviewGate.open === 'function') {
-              var plan = _lastReceivedPlan;
-              if (!plan && SyncEngine.getPendingPlan) {
-                try { plan = SyncEngine.getPendingPlan() || null; } catch (_) {}
-              }
-              window.SyncReviewGate.open(plan, { autoTrigger: false });
-              return;
-            }
-            if (typeof window.__goHome === 'function') window.__goHome();
-            else window.location.href = 'home.html';
-          },
-          'aria-label': showSyncBadge
-            ? ('Sync \u2014 ' + pendingConflicts + ' conflict' + (pendingConflicts === 1 ? '' : 's') + ' pending')
-            : 'Sync status',
-          title: (function() {
-            if (showSyncBadge) {
-              return pendingConflicts + ' conflict' + (pendingConflicts === 1 ? '' : 's') + ' pending review';
-            }
-            var parts = [];
-            if (syncStatus && syncStatus.hasWatchDir) parts.push('Sync folder connected' + (syncStatus.autoSync ? ' (auto-sync on)' : ''));
-            if (syncStatus && syncStatus.lastExportAt) parts.push('Last export: ' + new Date(syncStatus.lastExportAt).toLocaleString());
-            if (syncStatus && syncStatus.lastImportAt) parts.push('Last import: ' + new Date(syncStatus.lastImportAt).toLocaleString());
-            return parts.length ? parts.join('\n') : 'Sync \u2014 not yet configured';
-          })()
+        // Sync status indicator + popover
+        typeof SyncEngine !== 'undefined' && React.createElement('div', {
+          ref: syncPopoverRef,
+          className: 'sync-popover-wrap'
         },
-          (function() {
-            if (syncStatus && syncStatus.hasWatchDir && syncStatus.autoSync) return Icons.cloudCheck();
-            if (syncStatus && syncStatus.hasWatchDir) return Icons.cloudSync();
-            if (syncStatus && (syncStatus.lastExportAt || syncStatus.lastImportAt)) return Icons.cloudCheck();
-            return Icons.cloudOff();
-          })(),
-          showSyncBadge ? React.createElement('span', {
-            className: 'tb-sync-indicator-badge',
-            'aria-hidden': 'true'
-          }) : null
+          // ── Trigger button ──────────────────────────────────────────────
+          React.createElement('button', {
+            className: 'tb-nav-link tb-sync-indicator' + (syncStatus && syncStatus.hasWatchDir && syncStatus.autoSync
+              ? ' tb-sync-indicator--active'
+              : (syncStatus && syncStatus.hasWatchDir ? ' tb-sync-indicator--folder' : ''))
+              + (showSyncBadge ? ' tb-sync-indicator--has-pending' : ''),
+            onClick: () => {
+              // Pending conflicts: open the review gate directly (highest priority).
+              if (showSyncBadge && window.SyncReviewGate && typeof window.SyncReviewGate.open === 'function') {
+                var plan = _lastReceivedPlan;
+                if (!plan && SyncEngine.getPendingPlan) {
+                  try { plan = SyncEngine.getPendingPlan() || null; } catch (_) {}
+                }
+                window.SyncReviewGate.open(plan, { autoTrigger: false });
+                setSyncPopoverOpen(false);
+                return;
+              }
+              setSyncPopoverOpen(function(o) { return !o; });
+            },
+            'aria-label': showSyncBadge
+              ? ('Sync \u2014 ' + pendingConflicts + ' conflict' + (pendingConflicts === 1 ? '' : 's') + ' pending')
+              : 'Sync status',
+            'aria-expanded': syncPopoverOpen ? 'true' : 'false',
+            title: (function() {
+              if (showSyncBadge) {
+                return pendingConflicts + ' conflict' + (pendingConflicts === 1 ? '' : 's') + ' pending review';
+              }
+              var parts = [];
+              if (syncStatus && syncStatus.hasWatchDir) parts.push('Sync folder connected' + (syncStatus.autoSync ? ' (auto-sync on)' : ''));
+              if (syncStatus && syncStatus.lastExportAt) parts.push('Last export: ' + new Date(syncStatus.lastExportAt).toLocaleString());
+              if (syncStatus && syncStatus.lastImportAt) parts.push('Last import: ' + new Date(syncStatus.lastImportAt).toLocaleString());
+              return parts.length ? parts.join('\n') : 'Sync status';
+            })()
+          },
+            (function() {
+              if (syncStatus && syncStatus.hasWatchDir && syncStatus.autoSync) return Icons.cloudCheck();
+              if (syncStatus && syncStatus.hasWatchDir) return Icons.cloudSync();
+              if (syncStatus && (syncStatus.lastExportAt || syncStatus.lastImportAt)) return Icons.cloudCheck();
+              return Icons.cloudOff();
+            })(),
+            showSyncBadge ? React.createElement('span', {
+              className: 'tb-sync-indicator-badge',
+              'aria-hidden': 'true'
+            }) : null
+          ),
+
+          // ── Status popover ──────────────────────────────────────────────
+          syncPopoverOpen && React.createElement('div', {
+            className: 'sync-popover',
+            role: 'dialog',
+            'aria-label': 'Sync status'
+          },
+            // Header row
+            React.createElement('div', { className: 'sync-popover-header' },
+              (function() {
+                if (!syncStatus || !syncStatus.hasWatchDir) return Icons.cloudOff();
+                if (syncStatus.autoSync) return React.createElement('span', { style: { color: 'var(--success)' } }, Icons.cloudCheck());
+                return React.createElement('span', { style: { color: 'var(--accent)' } }, Icons.cloudSync());
+              })(),
+              React.createElement('span', { className: 'sync-popover-title' }, 'Sync'),
+              React.createElement('button', {
+                className: 'sync-popover-close',
+                onClick: () => setSyncPopoverOpen(false),
+                'aria-label': 'Close sync status'
+              }, Icons.x())
+            ),
+
+            // Status rows
+            (function() {
+              var rows = [];
+              if (!syncStatus || !syncStatus.hasWatchDir) {
+                rows.push(React.createElement('div', { key: 'no-folder', className: 'sync-popover-row' },
+                  Icons.cloudOff(),
+                  React.createElement('span', null, 'No sync folder connected. Set one up on the Home page to sync across devices.')
+                ));
+              } else {
+                var folderName = (syncStatus.watchDirName) || 'Sync folder';
+                rows.push(React.createElement('div', { key: 'folder', className: 'sync-popover-row sync-popover-row--ok' },
+                  Icons.folder(),
+                  React.createElement('span', null, folderName)
+                ));
+                if (syncStatus.autoSync) {
+                  rows.push(React.createElement('div', { key: 'auto', className: 'sync-popover-row sync-popover-row--ok' },
+                    Icons.check(),
+                    React.createElement('span', null, 'Auto-sync on — updates every few seconds')
+                  ));
+                } else {
+                  rows.push(React.createElement('div', { key: 'no-auto', className: 'sync-popover-row sync-popover-row--warn' },
+                    Icons.warning(),
+                    React.createElement('span', null, 'Auto-sync is off — enable it in Preferences to sync automatically')
+                  ));
+                }
+                if (syncStatus.lastExportAt) {
+                  rows.push(React.createElement('div', { key: 'export', className: 'sync-popover-row' },
+                    Icons.cloudSync(),
+                    React.createElement('span', null, 'Last sent: ' + new Date(syncStatus.lastExportAt).toLocaleString())
+                  ));
+                }
+                if (syncStatus.lastImportAt) {
+                  rows.push(React.createElement('div', { key: 'import', className: 'sync-popover-row' },
+                    Icons.cloudSync(),
+                    React.createElement('span', null, 'Last received: ' + new Date(syncStatus.lastImportAt).toLocaleString())
+                  ));
+                }
+                if (!syncStatus.lastExportAt && !syncStatus.lastImportAt) {
+                  rows.push(React.createElement('div', { key: 'never', className: 'sync-popover-row' },
+                    Icons.info ? Icons.info() : Icons.cloudSync(),
+                    React.createElement('span', null, 'No sync activity yet this session')
+                  ));
+                }
+              }
+              return rows;
+            })(),
+
+            React.createElement('div', { className: 'sync-popover-divider' }),
+
+            // Quick actions
+            React.createElement('div', { className: 'sync-popover-actions' },
+              syncStatus && syncStatus.hasWatchDir && React.createElement('button', {
+                className: 'sync-popover-btn sync-popover-btn--primary',
+                onClick: () => {
+                  setSyncPopoverOpen(false);
+                  if (typeof SyncEngine !== 'undefined' && SyncEngine.downloadSync) {
+                    SyncEngine.downloadSync().catch(function(e) {
+                      if (window.Toast) window.Toast.show({ message: 'Sync export failed: ' + e.message, type: 'error' });
+                    });
+                  }
+                }
+              }, Icons.cloudSync(), 'Export now'),
+              React.createElement('button', {
+                className: 'sync-popover-btn',
+                onClick: () => {
+                  setSyncPopoverOpen(false);
+                  if (window.UnifiedSyncImportModal && typeof window.UnifiedSyncImportModal.show === 'function') {
+                    window.UnifiedSyncImportModal.show().then(function(res) {
+                      if (!res || !res.plan) return;
+                      if (typeof window.SyncReviewGate !== 'undefined') {
+                        window.SyncReviewGate.open(res.plan, { autoTrigger: false });
+                      }
+                    }).catch(function(err) {
+                      if (window.Toast) window.Toast.show({ message: 'Sync import failed: ' + (err && err.message || err), type: 'error' });
+                    });
+                  }
+                }
+              }, Icons.folder(), 'Import file'),
+              typeof window !== 'undefined' && window.SyncReviewGate && React.createElement('button', {
+                className: 'sync-popover-btn',
+                onClick: () => {
+                  setSyncPopoverOpen(false);
+                  var plan = _lastReceivedPlan;
+                  if (!plan && SyncEngine.getPendingPlan) {
+                    try { plan = SyncEngine.getPendingPlan() || null; } catch (_) {}
+                  }
+                  window.SyncReviewGate.open(plan, { autoTrigger: false });
+                }
+              }, Icons.cloudSync(), 'Review sync')
+            ),
+
+            // Help link
+            React.createElement('button', {
+              className: 'sync-popover-help-link',
+              onClick: () => {
+                setSyncPopoverOpen(false);
+                if (window.HelpDrawer) window.HelpDrawer.open({ tab: 'help', query: 'sync' });
+              }
+            }, 'What do these icons mean?')
+          )
         ),
 
         // Command palette trigger — touch users have no Ctrl/Cmd+K affordance.
