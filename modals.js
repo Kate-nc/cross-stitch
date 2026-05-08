@@ -1166,39 +1166,48 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
       function resolvePlan() {
         if (initialPlan) return Promise.resolve(initialPlan);
         if (typeof SyncEngine === 'undefined') return Promise.resolve(null);
+        // Try the in-memory cache first; if empty, hydrate from IDB
+        // (sync-reference fix #3) so a fresh page load can surface the
+        // last pending plan before the watcher's next tick.
         var cached = (typeof SyncEngine.getPendingPlan === 'function')
           ? SyncEngine.getPendingPlan() : null;
-        if (cached) return Promise.resolve(cached);
-        // No cached plan — try a folder rescan if we have a watch dir.
-        // This is the key behavioural change in fix #2: the gate is no
-        // longer a passive read of in-memory state.
-        if (typeof SyncEngine.getWatchDirectory !== 'function') return Promise.resolve(null);
-        return SyncEngine.getWatchDirectory().then(function(handle) {
-          if (!handle) return null;
-          // Permission gate — checkForUpdates calls scanFolder which
-          // requires read permission. queryPermission is non-prompting.
-          if (typeof handle.queryPermission === 'function') {
-            return handle.queryPermission({ mode: 'read' }).then(function(p) {
-              if (p !== 'granted') return null;
-              return SyncEngine.checkForUpdates(handle);
-            });
-          }
-          return SyncEngine.checkForUpdates(handle);
-        }).then(function(updates) {
-          if (!updates || !updates.length) return null;
-          // Take the most recent update; prepareImport into a plan.
-          var latest = updates[updates.length - 1];
-          return SyncEngine.prepareImport(latest.syncObj).then(function(p) {
-            if (p) {
-              p._fileName = latest.fileName || null;
-              p._fileLastModified = latest.lastModified || null;
+        var cacheP = cached ? Promise.resolve(cached)
+          : (typeof SyncEngine.hydratePendingPlan === 'function'
+              ? SyncEngine.hydratePendingPlan().catch(function () { return null; })
+              : Promise.resolve(null));
+        return cacheP.then(function (cachedOrHydrated) {
+          if (cachedOrHydrated) return cachedOrHydrated;
+          // No cached plan — try a folder rescan if we have a watch dir.
+          // This is the key behavioural change in fix #2: the gate is no
+          // longer a passive read of in-memory state.
+          if (typeof SyncEngine.getWatchDirectory !== 'function') return null;
+          return SyncEngine.getWatchDirectory().then(function(handle) {
+            if (!handle) return null;
+            // Permission gate — checkForUpdates calls scanFolder which
+            // requires read permission. queryPermission is non-prompting.
+            if (typeof handle.queryPermission === 'function') {
+              return handle.queryPermission({ mode: 'read' }).then(function(p) {
+                if (p !== 'granted') return null;
+                return SyncEngine.checkForUpdates(handle);
+              });
             }
-            return p;
+            return SyncEngine.checkForUpdates(handle);
+          }).then(function(updates) {
+            if (!updates || !updates.length) return null;
+            // Take the most recent update; prepareImport into a plan.
+            var latest = updates[updates.length - 1];
+            return SyncEngine.prepareImport(latest.syncObj).then(function(p) {
+              if (p) {
+                p._fileName = latest.fileName || null;
+                p._fileLastModified = latest.lastModified || null;
+              }
+              return p;
+            });
           });
         }).catch(function(e) {
-          // Rescan failures are not fatal — fall through to the empty
+          // Resolve failures are not fatal — fall through to the empty
           // state. Surface in console for debugging.
-          try { console.warn('SyncReviewGate rescan failed:', e); } catch (_) {}
+          try { console.warn('SyncReviewGate resolvePlan failed:', e); } catch (_) {}
           return null;
         });
       }

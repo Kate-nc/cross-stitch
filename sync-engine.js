@@ -1781,8 +1781,64 @@ const SyncEngine = (() => {
   function getPendingPlan() { return _latestPendingPlan; }
   function clearPendingPlan() {
     _latestPendingPlan = null;
-    // Fix #3 (persistence) hooks here; fix #1 leaves it as a no-op so
-    // each fix can be reviewed independently.
+    _persistPendingPlan(null).catch(function () {});
+  }
+
+  // Persist the latest pending plan into the same IDB store that holds the
+  // watch-folder handle. Survives reloads and tab restarts so the user can
+  // close the browser, reopen later, and "Review sync" still has the plan
+  // queued by the watcher last session. Bounded by PENDING_PLAN_MAX_BYTES
+  // so we never balloon IDB with a multi-megabyte plan; if a plan is too
+  // large we drop persistence and rely on the watcher tick to re-prepare
+  // it after reload (~10s). See reports/sync-reference fix #3.
+  var PENDING_PLAN_KEY = "pendingPlan";
+  var PENDING_PLAN_MAX_BYTES = 5 * 1024 * 1024; // 5 MB JSON
+
+  async function _persistPendingPlan(plan) {
+    try {
+      var db = await openSyncMetaDB();
+      await new Promise(function (resolve, reject) {
+        var tx = db.transaction("sync_state", "readwrite");
+        var store = tx.objectStore("sync_state");
+        if (plan == null) {
+          store.delete(PENDING_PLAN_KEY);
+        } else {
+          // Bounds check on serialised size; very large plans are
+          // dropped from persistence (the in-memory cache still works
+          // for the current session).
+          var serialised;
+          try { serialised = JSON.stringify(plan); } catch (e) { serialised = null; }
+          if (!serialised || serialised.length > PENDING_PLAN_MAX_BYTES) {
+            store.delete(PENDING_PLAN_KEY);
+          } else {
+            store.put({ at: new Date().toISOString(), plan: plan }, PENDING_PLAN_KEY);
+          }
+        }
+        tx.oncomplete = function () { db.close(); resolve(); };
+        tx.onerror = function () { db.close(); reject(tx.error); };
+      });
+    } catch (e) {
+      // Best-effort persistence — never block the watcher on IDB errors.
+      try { console.warn("SyncEngine: persist pending plan failed:", e); } catch (_) {}
+    }
+  }
+
+  async function _hydratePendingPlan() {
+    if (_latestPendingPlan) return _latestPendingPlan; // in-memory wins
+    try {
+      var db = await openSyncMetaDB();
+      var stored = await new Promise(function (resolve, reject) {
+        var tx = db.transaction("sync_state", "readonly");
+        var req = tx.objectStore("sync_state").get(PENDING_PLAN_KEY);
+        req.onsuccess = function () { resolve(req.result || null); };
+        req.onerror = function () { resolve(null); };
+        tx.oncomplete = function () { db.close(); };
+      });
+      if (stored && stored.plan && !_latestPendingPlan) {
+        _latestPendingPlan = stored.plan;
+      }
+    } catch (e) { /* ignore */ }
+    return _latestPendingPlan;
   }
 
   function _pendingKey(update) {
@@ -1868,6 +1924,9 @@ const SyncEngine = (() => {
         // state. See reports/sync-reference/00_DIAGNOSIS.md fix #1.
         var latest = freshPending[freshPending.length - 1];
         _latestPendingPlan = (latest && latest.plan) || null;
+        if (_latestPendingPlan) {
+          _persistPendingPlan(_latestPendingPlan).catch(function () {});
+        }
         try {
           window.dispatchEvent(new CustomEvent("cs:syncUpdatesAvailable", {
             detail: { updates: freshPending.map(function (p) { return p.update; }), pending: freshPending }
@@ -1956,6 +2015,10 @@ const SyncEngine = (() => {
 
   function startWatching(intervalMs) {
     stopWatching();
+    // Lazy hydration: pull any persisted pending plan (fix #3) so the
+    // header "Review sync" menu has a plan to show immediately after
+    // reload, before the first watcher tick has a chance to repopulate.
+    _hydratePendingPlan().catch(function () {});
     var interval = (typeof intervalMs === "number" && intervalMs > 0) ? intervalMs : WATCHER_INTERVAL_MS;
     _watcherInterval = setInterval(_runWatcherTick, interval);
     if (typeof document !== "undefined") {
@@ -2150,6 +2213,9 @@ const SyncEngine = (() => {
     // Pending-plan cache (sync-reference fix #1)
     getPendingPlan: getPendingPlan,
     clearPendingPlan: clearPendingPlan,
+    // Async hydrate from IDB (sync-reference fix #3) — returns the plan
+    // (or null) once the persisted store has been read.
+    hydratePendingPlan: _hydratePendingPlan,
 
     // Constants (for testing)
     SYNC_FORMAT: SYNC_FORMAT,
