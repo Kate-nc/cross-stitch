@@ -1472,6 +1472,12 @@ const SyncEngine = (() => {
       });
     } catch (e) {}
 
+    // Clear the cached pending plan once it's been applied — otherwise a
+    // subsequent "Review sync" click would re-show the same already-merged
+    // plan. The watcher's dedup (_seenPendingKeys) prevents re-publication
+    // unless a fresh file arrives.
+    try { clearPendingPlan(); } catch (e) {}
+
     return {
       imported: plan.newRemote.length,
       merged: plan.mergeTracking.length,
@@ -1766,6 +1772,18 @@ const SyncEngine = (() => {
   // Keyed by deviceId + "|" + lastModified — a new write from the other
   // device gets a new lastModified and re-triggers correctly.
   var _seenPendingKeys = Object.create(null);
+  // Latest pending plan published by the watcher. Read by SyncReviewGate
+  // (via window.SyncEngine.getPendingPlan) so the "Review sync" header
+  // menu can show the same plan as /home's banner instead of an empty
+  // state. See reports/sync-reference/00_DIAGNOSIS.md fixes #1 and #3.
+  var _latestPendingPlan = null;
+
+  function getPendingPlan() { return _latestPendingPlan; }
+  function clearPendingPlan() {
+    _latestPendingPlan = null;
+    // Fix #3 (persistence) hooks here; fix #1 leaves it as a no-op so
+    // each fix can be reviewed independently.
+  }
 
   function _pendingKey(update) {
     var d = (update && update.deviceId) ? update.deviceId : "?";
@@ -1842,9 +1860,27 @@ const SyncEngine = (() => {
         }
       }
       if (freshPending.length) {
+        // Cache the most recent prepared plan so the header "Review sync"
+        // menu (and any other surface) can read it without re-running
+        // prepareImport. Without this, the watcher's plan only reaches
+        // /home's banner via cs:syncUpdatesAvailable; the SyncReviewGate
+        // on /create, /stitch, /manager would silently show its empty
+        // state. See reports/sync-reference/00_DIAGNOSIS.md fix #1.
+        var latest = freshPending[freshPending.length - 1];
+        _latestPendingPlan = (latest && latest.plan) || null;
         try {
           window.dispatchEvent(new CustomEvent("cs:syncUpdatesAvailable", {
             detail: { updates: freshPending.map(function (p) { return p.update; }), pending: freshPending }
+          }));
+        } catch (e) {}
+        // Sibling event for surfaces that want to know "a plan is ready
+        // for review" without subscribing to /home's banner contract.
+        // Listeners must NOT auto-open the gate — that would interrupt
+        // the user mid-action; only the manual `sync-plan-ready` path
+        // opens the modal.
+        try {
+          window.dispatchEvent(new CustomEvent("cs:syncPlanPending", {
+            detail: { plan: _latestPendingPlan, update: (latest && latest.update) || null }
           }));
         } catch (e) {}
         // Also log each fresh-pending delivery so the activity log shows
@@ -2110,6 +2146,10 @@ const SyncEngine = (() => {
     getEventLog: getEventLog,
     clearEventLog: clearEventLog,
     getLastImportPerDevice: getLastImportPerDevice,
+
+    // Pending-plan cache (sync-reference fix #1)
+    getPendingPlan: getPendingPlan,
+    clearPendingPlan: clearPendingPlan,
 
     // Constants (for testing)
     SYNC_FORMAT: SYNC_FORMAT,

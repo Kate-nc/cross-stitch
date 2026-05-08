@@ -30,6 +30,20 @@ if (typeof window !== 'undefined') {
       window.SyncReviewGate.open(_lastReceivedPlan, { autoTrigger: false });
     }
   });
+  // Sibling event from the watcher (sync-engine _processFolderUpdates).
+  // Keeps `_lastReceivedPlan` warm so a manual "Review sync" click on any
+  // page surfaces the same plan as /home's banner. Crucially, this does
+  // NOT auto-open the gate — that would interrupt the user mid-action.
+  // See reports/sync-reference/00_DIAGNOSIS.md fix #1.
+  window.addEventListener('cs:syncPlanPending', function(e) {
+    var plan = e && e.detail && e.detail.plan;
+    if (plan) _lastReceivedPlan = plan;
+  });
+  // Drop the cached plan once it's been applied or invalidated so a
+  // stale plan never resurfaces in "Review sync".
+  window.addEventListener('cs:backupRestored', function() {
+    _lastReceivedPlan = null;
+  });
 }
 
 function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onSave, onHome, onNameChange, showAutosaved }) {
@@ -868,7 +882,16 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               onClick: function() {
                 setFileMenuOpen(false);
                 if (typeof window.SyncReviewGate !== 'undefined') {
-                  window.SyncReviewGate.open(_lastReceivedPlan, { autoTrigger: false });
+                  // Prefer in-tab cache; fall back to the engine's pending
+                  // plan (populated by the folder watcher across tabs and
+                  // after reloads). Without this fallback, "Review sync"
+                  // shows an empty modal even when the watcher has already
+                  // queued a plan. See reports/sync-reference fix #1.
+                  var plan = _lastReceivedPlan;
+                  if (!plan && window.SyncEngine && typeof window.SyncEngine.getPendingPlan === 'function') {
+                    try { plan = window.SyncEngine.getPendingPlan() || null; } catch (_) {}
+                  }
+                  window.SyncReviewGate.open(plan, { autoTrigger: false });
                 }
               }
             }, Icons.cloudSync(), ' Review sync')
