@@ -2364,6 +2364,24 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
           syncStatus.lastImportAt && h('div', { className: 'sync-timestamp' },
             Icons.cloudCheck(), ' Last import: ' + timeAgo(syncStatus.lastImportAt)
           ),
+          // Big5: multi-tab contention indicator. When another tab is
+          // actively syncing the Web Locks API silently skips this tab's
+          // ticks; surface that so the user understands why "Check for
+          // updates" appears to do nothing. Only renders when a contention
+          // event happened in the last 60s — older noise gets filtered out.
+          (function() {
+            try {
+              if (typeof SyncEngine === 'undefined' || typeof SyncEngine.getDiagnostics !== 'function') return null;
+              var d = SyncEngine.getDiagnostics();
+              if (!d || !d.lastLockHeldAt) return null;
+              var ageMs = Date.now() - new Date(d.lastLockHeldAt).getTime();
+              if (ageMs > 60000) return null;
+              return h('div', { className: 'sync-timestamp', style: { color: 'var(--text-secondary)' } },
+                (typeof Icons !== 'undefined' && Icons.info ? Icons.info() : null),
+                ' Another tab is syncing — this tab will retry shortly.'
+              );
+            } catch (e) { return null; }
+          })(),
           h('button', {
             type: 'button',
             className: 'sync-activity-link',

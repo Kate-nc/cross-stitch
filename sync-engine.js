@@ -1859,7 +1859,8 @@ const SyncEngine = (() => {
     skipsHidden: 0,
     skipsNoHandle: 0,
     skipsNoPermission: 0,
-    skipsLockHeld: 0
+    skipsLockHeld: 0,
+    lastLockHeldAt: null
   };
   // Per-session dedup of "pending" updates that we've already surfaced via
   // cs:syncUpdatesAvailable. Without this, a file containing conflicts
@@ -1986,10 +1987,42 @@ const SyncEngine = (() => {
     if (!plan) return false;
     if (plan.conflicts && plan.conflicts.length > 0) return false;
     if (plan.mergeTracking && plan.mergeTracking.length > 0) return false;
-    if (plan.newRemote && plan.newRemote.length > 0) return true;
+    // Big2: integrity gate. Refuse to auto-apply a plan whose newRemote
+    // entries look malformed (missing id, missing pattern, wrong dims).
+    // Falls through to the manual review path so the user can inspect
+    // before importing instead of silently writing garbage to IDB.
+    if (plan.newRemote && plan.newRemote.length > 0) {
+      for (var i = 0; i < plan.newRemote.length; i++) {
+        var entry = plan.newRemote[i];
+        var p = entry && entry.remote && entry.remote.data;
+        if (!_isProjectShapeValid(p)) return false;
+      }
+      return true;
+    }
     // remote tombstones alone could be auto-applied too, but they're
     // surfaced via the manual flow today — keep parity.
     return false;
+  }
+
+  // Big2: cheap structural sanity check used by the auto-apply gate.
+  // We've already passed gzip Adler-32 (in pako) + JSON.parse, so we know
+  // the bytes round-tripped and parsed as valid JSON. This catches the
+  // higher-level case where a project entry is technically JSON but
+  // missing fields the merge engine assumes (id, w/h, pattern array of
+  // expected length). Rejecting auto-apply for malformed entries hands
+  // the plan to manual review instead of corrupting local storage.
+  function _isProjectShapeValid(p) {
+    if (!p || typeof p !== "object") return false;
+    if (typeof p.id !== "string" || !p.id) return false;
+    if (typeof p.w !== "number" || typeof p.h !== "number") return false;
+    if (p.w <= 0 || p.h <= 0 || p.w > 10000 || p.h > 10000) return false;
+    if (!Array.isArray(p.pattern)) return false;
+    // Accept slight length drift (some legacy versions stored sparse arrays)
+    // but reject obvious truncation: pattern shorter than half the expected
+    // grid is almost certainly corrupt.
+    var expected = p.w * p.h;
+    if (p.pattern.length > 0 && p.pattern.length < expected / 2) return false;
+    return true;
   }
 
   async function _processFolderUpdates(updates) {
@@ -2165,7 +2198,11 @@ const SyncEngine = (() => {
       };
       if (typeof navigator !== "undefined" && navigator.locks && navigator.locks.request) {
         await navigator.locks.request("cs_sync_import", { ifAvailable: true }, async function (lock) {
-          if (!lock) { _diagnostics.skipsLockHeld++; return; } // Another tab is processing — let it.
+          if (!lock) {
+            _diagnostics.skipsLockHeld++;
+            _diagnostics.lastLockHeldAt = new Date().toISOString();
+            return;
+          } // Another tab is processing — let it.
           await doWork();
         });
       } else {
@@ -2225,6 +2262,7 @@ const SyncEngine = (() => {
       skipsNoHandle: _diagnostics.skipsNoHandle,
       skipsNoPermission: _diagnostics.skipsNoPermission,
       skipsLockHeld: _diagnostics.skipsLockHeld,
+      lastLockHeldAt: _diagnostics.lastLockHeldAt,
       watcherIntervalMs: WATCHER_INTERVAL_MS,
       watching: isWatching(),
       hasWatchDir: !!_watchDirHandle
