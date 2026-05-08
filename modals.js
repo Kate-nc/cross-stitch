@@ -1214,7 +1214,31 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
 
       resolvePlan().then(function(resolved) {
         if (cancelled) return;
-        if (!resolved) { setGateState({ noPlan: true }); return; }
+        if (!resolved) {
+          // Disambiguate the empty state by capturing what we know about
+          // the watch folder. See reports/sync-reference fix #4.
+          var ctx = { noPlan: true, hasWatchDir: false, folderName: null, permission: null };
+          if (typeof SyncEngine !== 'undefined' && typeof SyncEngine.getWatchDirectory === 'function') {
+            SyncEngine.getWatchDirectory().then(function(handle) {
+              if (cancelled) return;
+              if (!handle) { setGateState(ctx); return; }
+              ctx.hasWatchDir = true;
+              ctx.folderName = handle.name || null;
+              if (typeof handle.queryPermission === 'function') {
+                handle.queryPermission({ mode: 'read' }).then(function(p) {
+                  if (cancelled) return;
+                  ctx.permission = p || null;
+                  setGateState(ctx);
+                }).catch(function() { if (!cancelled) setGateState(ctx); });
+              } else {
+                setGateState(ctx);
+              }
+            }).catch(function() { if (!cancelled) setGateState(ctx); });
+          } else {
+            setGateState(ctx);
+          }
+          return;
+        }
         if (resolved !== plan) setPlan(resolved);
         // Pre-analysis: flush state and read snapshot
         return Promise.resolve().then(function() {
@@ -1357,8 +1381,24 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
       );
     }
 
-    // No-plan state (manual open with nothing pending)
+    // No-plan state (manual open with nothing pending). Disambiguated
+    // into three sub-states by fix #4 so the user gets actionable copy
+    // instead of a one-size-fits-all "import a file" prompt.
     if (gateState.noPlan) {
+      var noPlanTitle, noPlanBody;
+      if (!gateState.hasWatchDir) {
+        noPlanTitle = 'No sync folder connected';
+        noPlanBody = 'Connect a sync folder in Preferences \u2192 Sync, or import a .csync file from another device.';
+      } else if (gateState.permission && gateState.permission !== 'granted') {
+        noPlanTitle = 'Sync folder needs reconnecting';
+        noPlanBody = 'The browser dropped permission for "' + (gateState.folderName || 'your sync folder')
+          + '". Reopen the sync panel on the home screen to reconnect.';
+      } else {
+        noPlanTitle = 'You\u2019re up to date';
+        noPlanBody = gateState.folderName
+          ? 'No new changes in "' + gateState.folderName + '" since your last review.'
+          : 'No new changes since your last review.';
+      }
       return h(window.Overlay, {
         onClose: props.onClose || null,
         variant: 'dialog',
@@ -1370,10 +1410,10 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
         h(window.Overlay.CloseButton, { onClose: props.onClose }),
         h('div', { className: 'srg-header' },
           Icons.cloudSync && Icons.cloudSync(),
-          h('h3', { id: 'srg-header' }, 'Nothing new to review')
+          h('h3', { id: 'srg-header' }, noPlanTitle)
         ),
         h('div', { className: 'srg-body' },
-          h('p', { className: 'srg-body-text' }, 'Import a .csync file to review changes from another device.')
+          h('p', { className: 'srg-body-text' }, noPlanBody)
         ),
         h('div', { className: 'srg-footer' },
           h('button', {
