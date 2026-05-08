@@ -792,6 +792,110 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
   };
 })();
 
+// ═══ SyncPassphrasePrompt — passphrase entry for encrypted sync files ═══
+// Mounted on demand when an import path encounters an EncryptionError of
+// kind "passphrase_required" or "incorrect_passphrase". The prompt is
+// imperative (Promise-based) so the existing import callbacks in
+// header.js / home-screen.js can simply await it before retrying. On
+// success the resolved value is the passphrase string; on cancel the
+// promise resolves to null. Storing the passphrase against
+// SyncEngine.setEncryptionPassphrase is the *caller's* responsibility —
+// this dialog only collects input.
+(function () {
+  if (typeof window === 'undefined') return;
+  function PromptInner(props) {
+    var h = React.createElement;
+    var opts = props.opts || {};
+    var uid = React.useId();
+    var titleId = 'cs-passphrase-title-' + uid;
+    var inputRef = React.useRef(null);
+    var pw = React.useState('');
+    var err = React.useState(opts.error || '');
+    React.useEffect(function () {
+      var t = setTimeout(function () { try { inputRef.current && inputRef.current.focus(); } catch (e) {} }, 0);
+      return function () { clearTimeout(t); };
+    }, []);
+    function submit() {
+      var v = String(pw[0] || '');
+      if (!v) { err[1]('Enter your passphrase.'); return; }
+      props.onConfirm(v);
+    }
+    return h(window.Overlay, {
+      onClose: props.onCancel, variant: 'dialog', maxWidth: 440,
+      labelledBy: titleId
+    },
+      h(window.Overlay.CloseButton, { onClose: props.onCancel }),
+      h('div', { style: { padding: 24 } },
+        h('h3', { id: titleId, style: { marginTop: 0, marginBottom: 12, fontSize: 18, color: 'var(--text-primary)' } }, opts.title || 'Encrypted sync file'),
+        h('p', { style: { margin: 0, color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.5 } },
+          opts.message || 'This sync file is encrypted. Enter the passphrase used to create it.'),
+        opts.deviceName ? h('p', {
+          style: { margin: '8px 0 0', color: 'var(--text-secondary)', fontSize: 13 }
+        }, 'From device: ', h('strong', null, opts.deviceName)) : null,
+        h('div', { style: { marginTop: 16 } },
+          h('input', {
+            ref: inputRef,
+            type: 'password',
+            autoComplete: 'current-password',
+            placeholder: 'Passphrase',
+            value: pw[0],
+            onChange: function (e) { pw[1](e.target.value); err[1](''); },
+            onKeyDown: function (e) { if (e.key === 'Enter') submit(); },
+            style: {
+              width: '100%', padding: '10px 12px', fontSize: 14,
+              borderRadius: 6, border: '1px solid var(--border)',
+              background: 'var(--surface)', color: 'var(--text-primary)',
+              boxSizing: 'border-box'
+            }
+          })
+        ),
+        err[0] ? h('p', { style: { margin: '8px 0 0', color: 'var(--danger, #C0392B)', fontSize: 13 } }, err[0]) : null,
+        h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 } },
+          h('button', {
+            type: 'button',
+            onClick: props.onCancel,
+            style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', cursor: 'pointer' }
+          }, opts.cancelLabel || 'Cancel'),
+          h('button', {
+            type: 'button',
+            onClick: submit,
+            style: {
+              padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none',
+              background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontWeight: 600
+            }
+          }, opts.confirmLabel || 'Unlock')
+        )
+      )
+    );
+  }
+  window.SyncPassphrasePrompt = {
+    show: function (opts) {
+      return new Promise(function (resolve) {
+        if (!window.React || !window.ReactDOM || !window.Overlay) {
+          var p = window.prompt((opts && opts.message) || 'Sync file passphrase:');
+          resolve(p || null);
+          return;
+        }
+        var host = document.createElement('div');
+        document.body.appendChild(host);
+        var root = ReactDOM.createRoot ? ReactDOM.createRoot(host) : null;
+        var settled = false;
+        function cleanup() {
+          try { if (root) root.unmount(); else ReactDOM.unmountComponentAtNode(host); } catch (e) {}
+          if (host.parentNode) host.parentNode.removeChild(host);
+        }
+        function done(v) { if (settled) return; settled = true; cleanup(); resolve(v); }
+        var el = React.createElement(PromptInner, {
+          opts: opts || {},
+          onConfirm: function (v) { done(v); },
+          onCancel: function () { done(null); }
+        });
+        if (root) root.render(el); else ReactDOM.render(el, host);
+      });
+    }
+  };
+})();
+
 // ═══ Sync Review Gate (SCR-062) ═══
 // Blocking modal shown when incoming sync data is detected.
 // Merges all additive non-conflicting changes silently and presents
@@ -953,7 +1057,32 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
             if (!updates || !updates.length) return null;
             // Take the most recent update; prepareImport into a plan.
             var latest = updates[updates.length - 1];
-            return SyncEngine.prepareImport(latest.syncObj).then(function(p) {
+            // Encrypted-envelope retry loop. The folder watcher pushes
+            // _processFolderUpdates failures into the pending queue with
+            // errorCode set so we can intercept here, prompt for the
+            // passphrase, and re-run prepareImport without re-reading
+            // the file.
+            function tryPrepare() {
+              return SyncEngine.prepareImport(latest.syncObj).catch(function (err) {
+                var code = err && err.code;
+                if (code === 'passphrase_required' || code === 'incorrect_passphrase') {
+                  if (!window.SyncPassphrasePrompt) throw err;
+                  return window.SyncPassphrasePrompt.show({
+                    title: 'Encrypted sync file',
+                    message: code === 'incorrect_passphrase'
+                      ? 'That passphrase didn\u2019t unlock the file. Try again.'
+                      : 'A new sync file was found, but it is encrypted. Enter the passphrase to review it.',
+                    deviceName: (latest.syncObj && latest.syncObj._deviceName) || ''
+                  }).then(function (pw) {
+                    if (!pw) throw err;
+                    try { SyncEngine.setEncryptionPassphrase(pw); } catch (_) {}
+                    return tryPrepare();
+                  });
+                }
+                throw err;
+              });
+            }
+            return tryPrepare().then(function(p) {
               if (p) {
                 p._fileName = latest.fileName || null;
                 p._fileLastModified = latest.lastModified || null;

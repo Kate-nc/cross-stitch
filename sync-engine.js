@@ -15,6 +15,10 @@ const SyncEngine = (() => {
   const LS_LAST_IMPORT = "cs_sync_lastImportAt";
   const LS_DEVICE_ID   = "cs_sync_deviceId";
   const LS_DEVICE_NAME = "cs_sync_deviceName";
+  // Encryption: opt-in flag that enables AES-GCM ciphertext payloads on
+  // export and required-passphrase on import. The passphrase itself is
+  // never written to disk — see _sessionPassphrase below.
+  const LS_ENC_ENABLED = "cs_sync_encryption_enabled";
   // Per-device "last import" map — { deviceId: { at, fileLastModified, deviceName, projectCount } }.
   // Updated in executeImport when the source device is known via plan.syncObj._deviceId.
   // Powers the inline "Devices in this folder" panel (Concept B).
@@ -433,6 +437,21 @@ const SyncEngine = (() => {
     var exportTime = syncObj._createdAt;
     try { localStorage.setItem(LS_LAST_EXPORT, exportTime); } catch (e) {}
 
+    // Encryption layer (opt-in). If the user has enabled encryption but
+    // hasn't set a session passphrase, we throw a typed error so callers
+    // (download buttons, folder writers) can prompt without having to
+    // sniff the message string. The plaintext envelope fields are kept
+    // visible — see the rationale block above _encryptSyncObj.
+    if (isEncryptionEnabled()) {
+      if (!_sessionPassphrase) throw EncryptionError("passphrase_required", "Encryption is enabled but no passphrase has been set this session");
+      try {
+        return await _encryptSyncObj(syncObj, _sessionPassphrase);
+      } catch (e) {
+        if (e && e.name === "EncryptionError") throw e;
+        throw EncryptionError("unavailable", (e && e.message) || "Encryption failed");
+      }
+    }
+
     return syncObj;
   }
 
@@ -462,6 +481,238 @@ const SyncEngine = (() => {
       for (var i = 0; i < inflated.length; i++) json += String.fromCharCode(inflated[i]);
     }
     return JSON.parse(json);
+  }
+
+  // ── Encryption (optional, opt-in) ────────────────────────────────────────
+  //
+  // Design: AES-GCM-256 over the JSON-serialised "inner payload" (projects,
+  // stash, prefs, deletedProjectIds and the few count/since metadata
+  // fields). The outer envelope (_format, _version, _encrypted, _encryption,
+  // _createdAt, _deviceId, _deviceName, _mode) stays in plaintext so the
+  // existing devices-in-folder panel and validate() heuristic keep working
+  // without a passphrase.
+  //
+  // Key derivation: PBKDF2-SHA256, 310,000 iterations (OWASP 2023 floor).
+  // Per-file random 16-byte salt; per-file random 12-byte IV. Derived keys
+  // are cached per (passphrase, saltHex) tuple in this session so a folder
+  // tick processing five files only pays the PBKDF2 cost once.
+  //
+  // Passphrase lifetime: kept in module-level memory only. setEncryption-
+  // Passphrase() persists nothing; clearEncryptionPassphrase() wipes it.
+  // The user must re-enter on next session — recommendation 1 of the
+  // proposal (session-only) without the sessionStorage hop, since this
+  // PWA may be installed and run with no separate "session" anyway.
+  //
+  // See reports/sync-reference/proposals/encrypted-csync-payload.md.
+
+  var ENC_PBKDF2_ITERATIONS = 310000;
+  var ENC_SALT_BYTES = 16;
+  var ENC_IV_BYTES = 12;
+  var ENC_INNER_FIELDS = ["projects", "stash", "prefs", "deletedProjectIds", "_projectCountTotal", "_since"];
+
+  var _sessionPassphrase = null;
+  var _derivedKeyCache = new Map(); // key: passphrase + "|" + saltHex + "|" + iter, val: CryptoKey
+
+  function isEncryptionAvailable() {
+    try {
+      return typeof crypto !== "undefined"
+        && !!crypto.subtle
+        && typeof TextEncoder !== "undefined";
+    } catch (e) { return false; }
+  }
+
+  function isEncryptionEnabled() {
+    try { return localStorage.getItem(LS_ENC_ENABLED) === "1"; } catch (e) { return false; }
+  }
+
+  function setEncryptionEnabled(flag) {
+    try {
+      if (flag) localStorage.setItem(LS_ENC_ENABLED, "1");
+      else localStorage.removeItem(LS_ENC_ENABLED);
+    } catch (e) {}
+  }
+
+  function setEncryptionPassphrase(p) {
+    if (p == null || p === "") { _sessionPassphrase = null; return; }
+    _sessionPassphrase = String(p);
+  }
+
+  function clearEncryptionPassphrase() {
+    _sessionPassphrase = null;
+    _derivedKeyCache.clear();
+  }
+
+  function getEncryptionStatus() {
+    return {
+      available: isEncryptionAvailable(),
+      enabled: isEncryptionEnabled(),
+      hasPassphrase: !!_sessionPassphrase
+    };
+  }
+
+  // Typed error so callers (UI, watcher) can distinguish "user input
+  // needed" from "file is genuinely broken".
+  function EncryptionError(code, message) {
+    var e = new Error(message || code);
+    e.name = "EncryptionError";
+    e.code = code; // "passphrase_required" | "incorrect_passphrase" | "unavailable" | "malformed"
+    return e;
+  }
+
+  function _bytesToHex(u8) {
+    var s = "";
+    for (var i = 0; i < u8.length; i++) {
+      var h = u8[i].toString(16);
+      if (h.length === 1) h = "0" + h;
+      s += h;
+    }
+    return s;
+  }
+
+  function _hexToBytes(hex) {
+    if (typeof hex !== "string" || hex.length % 2 !== 0) throw EncryptionError("malformed", "Bad hex");
+    var u8 = new Uint8Array(hex.length / 2);
+    for (var i = 0; i < u8.length; i++) {
+      u8[i] = parseInt(hex.substr(i * 2, 2), 16);
+    }
+    return u8;
+  }
+
+  function _bytesToBase64(u8) {
+    // btoa works on binary strings; chunk to avoid call-stack blowups on
+    // multi-MB ciphertexts.
+    var s = "";
+    var chunk = 0x8000;
+    for (var i = 0; i < u8.length; i += chunk) {
+      s += String.fromCharCode.apply(null, u8.subarray(i, i + chunk));
+    }
+    return btoa(s);
+  }
+
+  function _base64ToBytes(b64) {
+    if (typeof b64 !== "string") throw EncryptionError("malformed", "Bad base64");
+    var bin = atob(b64);
+    var u8 = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    return u8;
+  }
+
+  async function _deriveKey(passphrase, saltBytes, iterations) {
+    var saltHex = _bytesToHex(saltBytes);
+    var cacheKey = passphrase + "|" + saltHex + "|" + iterations;
+    if (_derivedKeyCache.has(cacheKey)) return _derivedKeyCache.get(cacheKey);
+    var enc = new TextEncoder();
+    var pwKey = await crypto.subtle.importKey(
+      "raw",
+      enc.encode(passphrase),
+      "PBKDF2",
+      false,
+      ["deriveKey"]
+    );
+    var key = await crypto.subtle.deriveKey(
+      { name: "PBKDF2", salt: saltBytes, iterations: iterations, hash: "SHA-256" },
+      pwKey,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"]
+    );
+    _derivedKeyCache.set(cacheKey, key);
+    return key;
+  }
+
+  // Encrypts the inner payload of `syncObj`, returning a new object with
+  // the inner fields removed and replaced with `_encrypted: true`,
+  // `_encryption: {...}`, `_ciphertext: base64`. Plaintext envelope fields
+  // are passed through unchanged.
+  async function _encryptSyncObj(syncObj, passphrase) {
+    if (!isEncryptionAvailable()) throw EncryptionError("unavailable", "Web Crypto not available");
+    if (!passphrase) throw EncryptionError("passphrase_required", "Passphrase required for encryption");
+
+    var salt = crypto.getRandomValues(new Uint8Array(ENC_SALT_BYTES));
+    var iv = crypto.getRandomValues(new Uint8Array(ENC_IV_BYTES));
+    var key = await _deriveKey(passphrase, salt, ENC_PBKDF2_ITERATIONS);
+
+    var inner = {};
+    for (var i = 0; i < ENC_INNER_FIELDS.length; i++) {
+      var f = ENC_INNER_FIELDS[i];
+      if (Object.prototype.hasOwnProperty.call(syncObj, f)) inner[f] = syncObj[f];
+    }
+    var plaintext = new TextEncoder().encode(JSON.stringify(inner));
+    var ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, plaintext);
+
+    // Build the encrypted envelope. Strip the inner fields so consumers
+    // that don't decrypt can't accidentally read stale data.
+    var out = {};
+    for (var k in syncObj) {
+      if (!Object.prototype.hasOwnProperty.call(syncObj, k)) continue;
+      if (ENC_INNER_FIELDS.indexOf(k) !== -1) continue;
+      out[k] = syncObj[k];
+    }
+    out._encrypted = true;
+    out._encryption = {
+      algorithm: "AES-GCM-256",
+      kdf: "PBKDF2-SHA256",
+      iterations: ENC_PBKDF2_ITERATIONS,
+      saltHex: _bytesToHex(salt),
+      ivHex: _bytesToHex(iv)
+    };
+    out._ciphertext = _bytesToBase64(new Uint8Array(ciphertext));
+    return out;
+  }
+
+  // Decrypts an encrypted envelope using the supplied passphrase, returning
+  // a fully reconstructed syncObj with the inner fields back in place.
+  async function _decryptSyncObj(syncObj, passphrase) {
+    if (!isEncryptionAvailable()) throw EncryptionError("unavailable", "Web Crypto not available");
+    if (!passphrase) throw EncryptionError("passphrase_required", "Passphrase required to decrypt");
+    if (!syncObj || !syncObj._encrypted) return syncObj;
+    var meta = syncObj._encryption || {};
+    if (!meta.saltHex || !meta.ivHex) throw EncryptionError("malformed", "Missing encryption metadata");
+    if (typeof syncObj._ciphertext !== "string") throw EncryptionError("malformed", "Missing ciphertext");
+
+    var salt = _hexToBytes(meta.saltHex);
+    var iv = _hexToBytes(meta.ivHex);
+    var iterations = (typeof meta.iterations === "number" && meta.iterations > 0)
+      ? meta.iterations : ENC_PBKDF2_ITERATIONS;
+    var key = await _deriveKey(passphrase, salt, iterations);
+
+    var ctBytes = _base64ToBytes(syncObj._ciphertext);
+    var plaintextBuf;
+    try {
+      plaintextBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, ctBytes);
+    } catch (e) {
+      // GCM tag verification failed — wrong passphrase or tampered file.
+      throw EncryptionError("incorrect_passphrase", "Could not decrypt with this passphrase");
+    }
+    var inner;
+    try {
+      inner = JSON.parse(new TextDecoder().decode(plaintextBuf));
+    } catch (e) {
+      throw EncryptionError("malformed", "Decrypted payload was not valid JSON");
+    }
+
+    // Stitch back: outer envelope minus the encryption fields, plus the
+    // recovered inner fields.
+    var out = {};
+    for (var k in syncObj) {
+      if (!Object.prototype.hasOwnProperty.call(syncObj, k)) continue;
+      if (k === "_encrypted" || k === "_encryption" || k === "_ciphertext") continue;
+      out[k] = syncObj[k];
+    }
+    if (inner && typeof inner === "object") {
+      for (var ik in inner) {
+        if (Object.prototype.hasOwnProperty.call(inner, ik)) out[ik] = inner[ik];
+      }
+    }
+    return out;
+  }
+
+  // Public helper for the UI: decrypt an envelope using the session
+  // passphrase (or an override). Returns the full syncObj or throws an
+  // EncryptionError the caller can branch on.
+  async function decryptSyncObj(syncObj, passphrase) {
+    var p = (passphrase != null && passphrase !== "") ? String(passphrase) : _sessionPassphrase;
+    return _decryptSyncObj(syncObj, p);
   }
 
   // ── Download ─────────────────────────────────────────────────────────────
@@ -510,6 +761,32 @@ const SyncEngine = (() => {
     }
     if (syncObj._version !== SYNC_VERSION) {
       return { valid: false, error: "Unsupported sync file version: " + syncObj._version + ". Please update the app." };
+    }
+    // Encrypted envelopes are valid even without a `projects` array — the
+    // projects live inside the ciphertext and only become visible after
+    // decryption. validate() is intentionally cheap; the decryption flow
+    // re-runs validate() on the recovered object, where the projects-array
+    // assertion below will fire.
+    if (syncObj._encrypted) {
+      var encMeta = syncObj._encryption || {};
+      if (!encMeta.saltHex || !encMeta.ivHex || typeof syncObj._ciphertext !== "string") {
+        return { valid: false, error: "Encrypted sync file is missing encryption metadata." };
+      }
+      return {
+        valid: true,
+        summary: {
+          createdAt: syncObj._createdAt || "unknown",
+          deviceId: syncObj._deviceId || "unknown",
+          deviceName: syncObj._deviceName || "",
+          mode: syncObj._mode || "full",
+          encrypted: true,
+          // Project / stash counts are unknown until decryption.
+          projectCount: 0,
+          totalProjectCount: 0,
+          hasStash: false,
+          hasPrefs: false
+        }
+      };
     }
     if (!Array.isArray(syncObj.projects)) {
       return { valid: false, error: "Sync file contains no project data." };
@@ -1235,6 +1512,15 @@ const SyncEngine = (() => {
   // ── Import (full pipeline) ───────────────────────────────────────────────
 
   async function prepareImport(syncObj) {
+    // If the envelope is encrypted, decrypt before any further work.
+    // Throws a typed EncryptionError ("passphrase_required" or
+    // "incorrect_passphrase") that callers — manual import buttons,
+    // SyncReviewGate, the watcher's _processFolderUpdates — branch on
+    // to either prompt for the passphrase or surface the failure.
+    if (syncObj && syncObj._encrypted) {
+      syncObj = await _decryptSyncObj(syncObj, _sessionPassphrase);
+    }
+
     // Validate
     var check = validate(syncObj);
     if (!check.valid) throw new Error(check.error);
@@ -2065,8 +2351,21 @@ const SyncEngine = (() => {
           pending.push({ update: u, plan: plan });
         }
       } catch (e) {
-        _reportSyncError("auto-import", e);
-        pending.push({ update: u, plan: null, error: (e && e.message) || String(e) });
+        // EncryptionError("passphrase_required") is the expected steady
+        // state when a peer ships encrypted files but this device hasn't
+        // unlocked yet — don't blast the activity log with it on every
+        // 10s tick. We still surface it as a pending entry so the UI can
+        // prompt; we just skip the noisy _reportSyncError for that one
+        // specific code.
+        if (!(e && e.name === "EncryptionError" && e.code === "passphrase_required")) {
+          _reportSyncError("auto-import", e);
+        }
+        pending.push({
+          update: u,
+          plan: null,
+          error: (e && e.message) || String(e),
+          errorCode: (e && e.code) || null
+        });
       }
     }
     if (autoApplied.length) {
@@ -2475,6 +2774,16 @@ const SyncEngine = (() => {
     // (or null) once the persisted store has been read.
     hydratePendingPlan: _hydratePendingPlan,
 
+    // Encryption (opt-in, AES-GCM with PBKDF2 key derivation). See the
+    // commentary block above _encryptSyncObj for the threat model.
+    isEncryptionAvailable: isEncryptionAvailable,
+    isEncryptionEnabled: isEncryptionEnabled,
+    setEncryptionEnabled: setEncryptionEnabled,
+    setEncryptionPassphrase: setEncryptionPassphrase,
+    clearEncryptionPassphrase: clearEncryptionPassphrase,
+    getEncryptionStatus: getEncryptionStatus,
+    decryptSyncObj: decryptSyncObj,
+
     // Constants (for testing)
     SYNC_FORMAT: SYNC_FORMAT,
     SYNC_VERSION: SYNC_VERSION,
@@ -2486,7 +2795,10 @@ const SyncEngine = (() => {
     _test: {
       isProjectShapeValid: _isProjectShapeValid,
       isPlanAutoApplicable: _isPlanAutoApplicable,
-      recordDeviceImport: _recordDeviceImport
+      recordDeviceImport: _recordDeviceImport,
+      encryptSyncObj: _encryptSyncObj,
+      decryptSyncObj: _decryptSyncObj,
+      EncryptionError: EncryptionError
     }
   };
 })();

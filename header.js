@@ -862,7 +862,33 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                     if (window.Toast) window.Toast.show({ message: 'Large sync file (' + mb + ' MB) — import may take a moment.', type: 'info', duration: 6000 });
                   }
                   SyncEngine.readSyncFile(file).then(function(syncObj) {
-                    return SyncEngine.prepareImport(syncObj);
+                    // Encrypted-envelope retry loop. prepareImport throws an
+                    // EncryptionError with code "passphrase_required" when the
+                    // session passphrase is unset, or "incorrect_passphrase"
+                    // when the wrong key was tried. Wrap prepareImport in a
+                    // small loop that prompts via SyncPassphrasePrompt and
+                    // re-runs until the user cancels or import succeeds.
+                    function tryPrepare(errMsg) {
+                      return SyncEngine.prepareImport(syncObj).catch(function (err) {
+                        var code = err && err.code;
+                        if (code === 'passphrase_required' || code === 'incorrect_passphrase') {
+                          if (!window.SyncPassphrasePrompt) throw err;
+                          return window.SyncPassphrasePrompt.show({
+                            title: 'Encrypted sync file',
+                            message: code === 'incorrect_passphrase'
+                              ? 'That passphrase didn\u2019t unlock the file. Try again.'
+                              : 'This sync file is encrypted. Enter the passphrase used to create it.',
+                            deviceName: (syncObj && syncObj._deviceName) || ''
+                          }).then(function (pw) {
+                            if (!pw) throw err;
+                            try { SyncEngine.setEncryptionPassphrase(pw); } catch (_) {}
+                            return tryPrepare();
+                          });
+                        }
+                        throw err;
+                      });
+                    }
+                    return tryPrepare();
                   }).then(function(plan) {
                     // Big1 unification: also push the plan into the engine's
                     // canonical cache so other tabs / a later "Review sync"

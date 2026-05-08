@@ -1504,7 +1504,28 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     setSyncBusy(true);
     setSyncResult(null);
     SyncEngine.readSyncFile(file).then(function(syncObj) {
-      return SyncEngine.prepareImport(syncObj);
+      // Encrypted-envelope retry loop. See header.js for design notes.
+      function tryPrepare() {
+        return SyncEngine.prepareImport(syncObj).catch(function (err) {
+          var code = err && err.code;
+          if (code === 'passphrase_required' || code === 'incorrect_passphrase') {
+            if (!window.SyncPassphrasePrompt) throw err;
+            return window.SyncPassphrasePrompt.show({
+              title: 'Encrypted sync file',
+              message: code === 'incorrect_passphrase'
+                ? 'That passphrase didn\u2019t unlock the file. Try again.'
+                : 'This sync file is encrypted. Enter the passphrase used to create it.',
+              deviceName: (syncObj && syncObj._deviceName) || ''
+            }).then(function (pw) {
+              if (!pw) throw err;
+              try { SyncEngine.setEncryptionPassphrase(pw); } catch (_) {}
+              return tryPrepare();
+            });
+          }
+          throw err;
+        });
+      }
+      return tryPrepare();
     }).then(function(plan) {
       setSyncBusy(false);
       // Big1 unification: feed the canonical engine cache so the same
@@ -1628,7 +1649,27 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   function handleImportFromFolder(update) {
     setSyncBusy(true);
     setSyncResult(null);
-    SyncEngine.prepareImport(update.syncObj).then(function(plan) {
+    function tryPrepare() {
+      return SyncEngine.prepareImport(update.syncObj).catch(function (err) {
+        var code = err && err.code;
+        if (code === 'passphrase_required' || code === 'incorrect_passphrase') {
+          if (!window.SyncPassphrasePrompt) throw err;
+          return window.SyncPassphrasePrompt.show({
+            title: 'Encrypted sync file',
+            message: code === 'incorrect_passphrase'
+              ? 'That passphrase didn\u2019t unlock the file. Try again.'
+              : 'This sync file is encrypted. Enter the passphrase to import it.',
+            deviceName: (update.syncObj && update.syncObj._deviceName) || ''
+          }).then(function (pw) {
+            if (!pw) throw err;
+            try { SyncEngine.setEncryptionPassphrase(pw); } catch (_) {}
+            return tryPrepare();
+          });
+        }
+        throw err;
+      });
+    }
+    tryPrepare().then(function(plan) {
       setSyncBusy(false);
       // Big1 unification: also feed the engine's canonical cache so
       // sibling tabs and a later "Review sync" click in the header
