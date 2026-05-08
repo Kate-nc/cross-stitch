@@ -1443,6 +1443,16 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     return function() { window.removeEventListener('cs:stashChanged', refreshStash); };
   }, []);
 
+  // Phase C: cs:openSyncActivity is dispatched by the auto-apply toast's
+  // "View activity" button so users can see exactly what was silently
+  // imported. We open the existing activity modal instead of inventing a
+  // new surface.
+  useEffect(function() {
+    function openActivity() { setActivityOpen(true); }
+    window.addEventListener('cs:openSyncActivity', openActivity);
+    return function() { window.removeEventListener('cs:openSyncActivity', openActivity); };
+  }, []);
+
   // Live-refresh project list on backup restore, project save/delete elsewhere,
   // and tab visibility return. Without these the Home dashboard would show stale
   // data after the user restored a backup or worked on the Tracker in another tab.

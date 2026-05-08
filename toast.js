@@ -83,6 +83,14 @@
     var duration = (typeof opts.duration === "number") ? opts.duration : 6000;
     var undoAction = (typeof opts.undoAction === "function") ? opts.undoAction : null;
     var undoLabel = opts.undoLabel || "Undo";
+    // Generic action button (Phase C). Distinct from undoAction so callers
+    // can offer a follow-up like "View activity" without losing the undo
+    // semantics elsewhere. The handler does NOT auto-dismiss the toast —
+    // the caller can call Toast.dismiss(id) from inside if desired — but
+    // the click resolves before the timer would, so users can read both
+    // the message and follow through.
+    var action = (typeof opts.action === "function") ? opts.action : null;
+    var actionLabel = opts.actionLabel || "View";
 
     // Honour the user's "show toasts" preference. Errors always show so
     // users still see why something failed.
@@ -172,6 +180,29 @@
         show({ message: "Undone", type: "success", duration: 2000 });
       });
       el.appendChild(undoBtn);
+    }
+
+    if (action) {
+      var actionBtn = document.createElement("button");
+      actionBtn.type = "button";
+      actionBtn.textContent = actionLabel;
+      actionBtn.setAttribute("aria-label", actionLabel);
+      actionBtn.style.cssText = [
+        "font-weight:600",
+        "color:var(--accent)",
+        "background:none",
+        "border:none",
+        "cursor:pointer",
+        "margin-left:12px",
+        "padding:2px 4px",
+        "font-family:inherit",
+        "font-size:13px"
+      ].join(";");
+      actionBtn.addEventListener("click", function () {
+        try { action(); } catch (err) { console.error("Toast action handler failed:", err); }
+        removeToast(entry, true);
+      });
+      el.appendChild(actionBtn);
     }
 
     var dismissBtn = document.createElement("button");

@@ -1901,7 +1901,22 @@ const SyncEngine = (() => {
         try {
           var msg = totalImported + " pattern" + (totalImported !== 1 ? "s" : "")
             + " synced" + (deviceLabel ? " from " + deviceLabel : "");
-          window.Toast.show({ message: msg, type: "success", duration: 5000 });
+          window.Toast.show({
+            message: msg,
+            type: "success",
+            duration: 6000,
+            // Phase C: let users jump straight to the activity log so they
+            // can see exactly what was auto-imported (since the gate never
+            // opens for conflict-free syncs). The link dispatches a
+            // window event instead of calling into home-screen directly so
+            // any page can listen and route appropriately.
+            actionLabel: "View activity",
+            action: function () {
+              try {
+                window.dispatchEvent(new CustomEvent("cs:openSyncActivity", { detail: { source: "auto-apply-toast" } }));
+              } catch (e) {}
+            }
+          });
         } catch (e) {}
       }
     }
