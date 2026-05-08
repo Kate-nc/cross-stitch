@@ -232,6 +232,14 @@ const SyncEngine = (() => {
     map[syncObj._deviceId] = {
       at: new Date().toISOString(),
       fileLastModified: fileLastModified || null,
+      // Per-device dedup key used by checkForUpdates. Recording the source
+      // file's _createdAt (rather than only the wall-clock "at") lets us
+      // compare incoming files apples-to-apples against the last one we
+      // imported FROM THIS DEVICE, instead of against a single global
+      // timestamp that gets poisoned by the most recent peer's clock.
+      // This was the root cause of the "changes from Device B never appear
+      // on Device A" bug when multiple devices had drifting clocks.
+      fileCreatedAt: (syncObj && syncObj._createdAt) || null,
       deviceName: syncObj._deviceName || null,
       projectCount: (syncObj.projects && syncObj.projects.length) || 0
     };
@@ -2011,9 +2019,19 @@ const SyncEngine = (() => {
       } catch (e) {}
     }
     var myDeviceId = getDeviceId();
-    var lastImport = null;
-    try { lastImport = localStorage.getItem(LS_LAST_IMPORT); } catch (e) {}
-    var lastImportMs = lastImport ? new Date(lastImport).getTime() : 0;
+    // Per-device dedup: each remote device gets its own "last imported
+    // createdAt" cursor. Using a single global cs_sync_lastImportAt as the
+    // filter caused silent skips when peers had drifting clocks — e.g.
+    // Device A imports B's file (createdAt = T1) and bumps the global to
+    // T1; Device C then writes a file whose createdAt is a few seconds
+    // behind T1 because C's wall clock lags, and A skips it forever even
+    // though A has never seen anything from C. With per-device tracking
+    // each peer is compared only against the last file we imported FROM
+    // THAT PEER, so cross-peer skew can no longer poison the filter.
+    var perDevice = getLastImportPerDevice();
+    var globalLastImport = null;
+    try { globalLastImport = localStorage.getItem(LS_LAST_IMPORT); } catch (e) {}
+    var globalLastImportMs = globalLastImport ? new Date(globalLastImport).getTime() : 0;
     var updates = [];
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
@@ -2021,10 +2039,31 @@ const SyncEngine = (() => {
       // we cannot reliably match — treat as a different device and proceed with the
       // import so the file is not silently dropped.
       if (f.deviceId && f.deviceId === myDeviceId && myDeviceId !== "dev_unknown") continue;
-      // Check if this file is newer than our last import
       var fileTime = f.createdAt ? new Date(f.createdAt).getTime() : (f.lastModified || 0);
-      if (fileTime > lastImportMs) {
-        updates.push(f);
+      var deviceRecord = (f.deviceId && perDevice[f.deviceId]) ? perDevice[f.deviceId] : null;
+      if (deviceRecord) {
+        // Seen this peer before — accept files newer than what we last
+        // imported from THEM. Prefer the recorded fileCreatedAt (matches
+        // f.createdAt exactly); fall back to fileLastModified or the
+        // import wall-clock for older entries that pre-date the
+        // fileCreatedAt field.
+        var lastFromDeviceMs = 0;
+        if (deviceRecord.fileCreatedAt) lastFromDeviceMs = new Date(deviceRecord.fileCreatedAt).getTime();
+        else if (deviceRecord.fileLastModified) lastFromDeviceMs = Number(deviceRecord.fileLastModified) || 0;
+        else if (deviceRecord.at) lastFromDeviceMs = new Date(deviceRecord.at).getTime();
+        if (fileTime > lastFromDeviceMs) updates.push(f);
+      } else {
+        // First contact with this peer. We deliberately do NOT consult the
+        // global lastImportMs here — that's the bug we're fixing. A brand
+        // new device's first file should always be considered new, even if
+        // its createdAt happens to predate our last import from a different
+        // peer. The global is still used as a coarse safety net for files
+        // with no deviceId attribution at all (legacy / corrupted exports).
+        if (!f.deviceId) {
+          if (fileTime > globalLastImportMs) updates.push(f);
+        } else {
+          updates.push(f);
+        }
       }
     }
     return updates;
