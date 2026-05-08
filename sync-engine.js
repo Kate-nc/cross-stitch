@@ -2785,7 +2785,7 @@ const SyncEngine = (() => {
       v: HANDSHAKE_VERSION,
       deviceId: getDeviceId(),
       deviceName: opts.deviceName || getDeviceName() || "",
-      appVersion: (typeof window !== "undefined" && window.AppVersion) || (opts.appVersion || ""),
+      appVersion: (typeof window !== "undefined" && (window.APP_VERSION || window.AppVersion)) || (opts.appVersion || ""),
       folderHint: opts.folderHint || null
     };
     var canonical = JSON.stringify(bundle);

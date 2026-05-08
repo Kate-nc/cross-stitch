@@ -917,25 +917,31 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
         return;
       }
       // Surface the watch folder hint when we can — only the displayName
-      // is reliably exposed; size/file-count would need a folder scan,
-      // which we skip for speed.
-      var folderHint = null;
-      try {
-        var st = window.SyncEngine.getSyncStatus && window.SyncEngine.getSyncStatus();
-        if (st && st.hasWatchDir) {
-          folderHint = {
-            displayName: 'Connected folder',
-            lastSyncAt: st.lastExportAt || null
-          };
-        }
-      } catch (_) {}
-      window.SyncEngine.generateHandshakeToken({ folderHint: folderHint }).then(function (e) {
-        if (cancelled) return;
-        entry[1](e);
-      }).catch(function (e) {
-        if (cancelled) return;
-        err[1]((e && e.message) || 'Could not generate code.');
-      });
+      // (folder name only; OS hides paths) is reliably exposed. Wait for
+      // the directory handle so we can include its name. Skipping the
+      // size/file-count would need a full folder scan.
+      function build(folderHint) {
+        return window.SyncEngine.generateHandshakeToken({ folderHint: folderHint }).then(function (e) {
+          if (cancelled) return;
+          entry[1](e);
+        }).catch(function (e) {
+          if (cancelled) return;
+          err[1]((e && e.message) || 'Could not generate code.');
+        });
+      }
+      var st = (window.SyncEngine.getSyncStatus && window.SyncEngine.getSyncStatus()) || {};
+      var lastSyncAt = st.lastExportAt || st.lastImportAt || null;
+      if (window.SyncEngine.getWatchDirectory) {
+        window.SyncEngine.getWatchDirectory().then(function (handle) {
+          if (cancelled) return;
+          var hint = (handle && handle.name)
+            ? { displayName: handle.name, lastSyncAt: lastSyncAt }
+            : (lastSyncAt ? { lastSyncAt: lastSyncAt } : null);
+          return build(hint);
+        }).catch(function () { if (!cancelled) build(null); });
+      } else {
+        build(null);
+      }
       return function () { cancelled = true; };
     }, []);
 
@@ -1142,6 +1148,10 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
         b.folderHint && b.folderHint.lastSyncAt
           ? h('p', { style: { margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: 12 } },
               'Last synced ', new Date(b.folderHint.lastSyncAt).toLocaleString())
+          : null,
+        b.folderHint && b.folderHint.displayName
+          ? h('p', { style: { margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: 12 } },
+              'Suggested folder: ', h('strong', null, b.folderHint.displayName))
           : null,
         warnings[0].length
           ? h('ul', { style: { margin: '12px 0 0', paddingLeft: 20, color: 'var(--text-secondary)', fontSize: 12 } },
