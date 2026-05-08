@@ -2304,6 +2304,24 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
           h('span', { style: { flex: 1 } },
             'Sync warning (' + syncStatus.lastError.stage + '): ' + syncStatus.lastError.message
           ),
+          // Phase B: collision-specific recovery action. Only renders when
+          // the engine emitted a "device-id-collision" error so unrelated
+          // warnings don't gain a misleading "Regenerate" button.
+          syncStatus.lastError.stage === 'device-id-collision' && h('button', {
+            type: 'button',
+            className: 'sync-warning-action',
+            onClick: function() {
+              if (typeof SyncEngine !== 'undefined' && SyncEngine.regenerateDeviceId) {
+                var fresh = SyncEngine.regenerateDeviceId();
+                if (fresh) {
+                  if (typeof SyncEngine.clearLastError === 'function') SyncEngine.clearLastError();
+                  setSyncStatus(SyncEngine.getSyncStatus());
+                  if (window.Toast) window.Toast.show({ message: 'New sync id assigned. Future exports will use it.', type: 'success', duration: 5000 });
+                }
+              }
+            },
+            style: { background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm, 6px)', padding: '4px 10px', cursor: 'pointer', fontSize: 12 }
+          }, 'Regenerate sync id'),
           h('button', {
             type: 'button',
             className: 'sync-warning-dismiss',

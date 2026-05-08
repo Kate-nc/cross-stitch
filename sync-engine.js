@@ -60,6 +60,28 @@ const SyncEngine = (() => {
     try { localStorage.setItem(LS_DEVICE_NAME, String(name).slice(0, 60)); } catch (e) {}
   }
 
+  // Phase B — recovery path for device-id collisions detected by
+  // _detectDeviceIdCollision. Generating a fresh id makes this device
+  // start writing under a new filename, so it stops overwriting the
+  // colliding peer's exports. We DON'T touch lastImport bookkeeping —
+  // the next watcher tick will treat existing files as new and re-import
+  // them, which is the safe choice (worst case: a few duplicate-detected
+  // skips). Returns the new id.
+  function regenerateDeviceId() {
+    try {
+      var fresh = "dev_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+      localStorage.setItem(LS_DEVICE_ID, fresh);
+      // Reset the collision-warned latch so a future collision can fire.
+      try { _collisionWarned = false; } catch (e) {}
+      try {
+        if (typeof window !== "undefined" && window.dispatchEvent) {
+          window.dispatchEvent(new CustomEvent("cs:syncStatusChanged", { detail: { reason: "device-id-regenerated" } }));
+        }
+      } catch (e) {}
+      return fresh;
+    } catch (e) { return null; }
+  }
+
   // VER-SYNC-009 — tombstone helpers
   // When a project is deleted locally, project-storage.js writes its id to the
   // 'cs_deleted_project_ids' localStorage array. SyncEngine reads that list
@@ -1628,9 +1650,50 @@ const SyncEngine = (() => {
     return results;
   }
 
+  // Phase B — guard against device-id collisions. The .csync filename
+  // pattern is `cross-stitch-sync-<deviceName>-<deviceId>.csync`; if two
+  // devices ever end up with the same deviceId (e.g. user copied the
+  // browser profile, restored a backup that included LS_DEVICE_ID, or
+  // shared a database between machines), they will silently overwrite
+  // each other's exports. We can't fix the collision automatically — that
+  // requires user consent because regenerating a deviceId disconnects
+  // any existing imports — but we can detect it on every scan and surface
+  // a one-time warning so the user knows what to do.
+  var _collisionWarned = false;
+  function _detectDeviceIdCollision(files) {
+    if (_collisionWarned) return null;
+    var myId = getDeviceId();
+    var myName = getDeviceName();
+    if (!myId || myId === "dev_unknown") return null;
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      if (!f.deviceId || f.deviceId !== myId) continue;
+      // Filenames are `cross-stitch-sync-<name>-<id>.csync`; pull the embedded
+      // name back out so we can show what the *other* device thinks it is.
+      var otherName = f.deviceName || "another device";
+      // If the embedded name matches ours we assume it's the same device's
+      // own export — no collision.
+      if (otherName === myName) continue;
+      _collisionWarned = true;
+      return { fileName: f.fileName, otherName: otherName, myName: myName, myId: myId };
+    }
+    return null;
+  }
+
   // Check the sync folder for files from other devices that are newer than our last import
   async function checkForUpdates(dirHandleArg) {
     var files = await scanFolder(dirHandleArg);
+    var collision = _detectDeviceIdCollision(files);
+    if (collision) {
+      try {
+        if (typeof window !== "undefined" && window.dispatchEvent) {
+          window.dispatchEvent(new CustomEvent("cs:syncDeviceIdCollision", { detail: collision }));
+        }
+        _reportSyncError("device-id-collision",
+          new Error("Detected another device using the same sync id (" + collision.otherName
+            + " vs " + collision.myName + "). Open Preferences \u2192 Sync to regenerate this device's id."));
+      } catch (e) {}
+    }
     var myDeviceId = getDeviceId();
     var lastImport = null;
     try { lastImport = localStorage.getItem(LS_LAST_IMPORT); } catch (e) {}
@@ -2213,6 +2276,7 @@ const SyncEngine = (() => {
     getDeviceId: getDeviceId,
     getDeviceName: getDeviceName,
     setDeviceName: setDeviceName,
+    regenerateDeviceId: regenerateDeviceId,
     getSyncStatus: getSyncStatus,
     clearLastError: clearLastError,
 
