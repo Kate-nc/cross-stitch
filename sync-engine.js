@@ -15,6 +15,10 @@ const SyncEngine = (() => {
   const LS_LAST_IMPORT = "cs_sync_lastImportAt";
   const LS_DEVICE_ID   = "cs_sync_deviceId";
   const LS_DEVICE_NAME = "cs_sync_deviceName";
+  // Encryption: opt-in flag that enables AES-GCM ciphertext payloads on
+  // export and required-passphrase on import. The passphrase itself is
+  // never written to disk — see _sessionPassphrase below.
+  const LS_ENC_ENABLED = "cs_sync_encryption_enabled";
   // Per-device "last import" map — { deviceId: { at, fileLastModified, deviceName, projectCount } }.
   // Updated in executeImport when the source device is known via plan.syncObj._deviceId.
   // Powers the inline "Devices in this folder" panel (Concept B).
@@ -58,6 +62,28 @@ const SyncEngine = (() => {
 
   function setDeviceName(name) {
     try { localStorage.setItem(LS_DEVICE_NAME, String(name).slice(0, 60)); } catch (e) {}
+  }
+
+  // Phase B — recovery path for device-id collisions detected by
+  // _detectDeviceIdCollision. Generating a fresh id makes this device
+  // start writing under a new filename, so it stops overwriting the
+  // colliding peer's exports. We DON'T touch lastImport bookkeeping —
+  // the next watcher tick will treat existing files as new and re-import
+  // them, which is the safe choice (worst case: a few duplicate-detected
+  // skips). Returns the new id.
+  function regenerateDeviceId() {
+    try {
+      var fresh = "dev_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+      localStorage.setItem(LS_DEVICE_ID, fresh);
+      // Reset the collision-warned latch so a future collision can fire.
+      try { _collisionWarned = false; } catch (e) {}
+      try {
+        if (typeof window !== "undefined" && window.dispatchEvent) {
+          window.dispatchEvent(new CustomEvent("cs:syncStatusChanged", { detail: { reason: "device-id-regenerated" } }));
+        }
+      } catch (e) {}
+      return fresh;
+    } catch (e) { return null; }
   }
 
   // VER-SYNC-009 — tombstone helpers
@@ -209,6 +235,31 @@ const SyncEngine = (() => {
       deviceName: syncObj._deviceName || null,
       projectCount: (syncObj.projects && syncObj.projects.length) || 0
     };
+    // QW2: cap the per-device map at 100 entries to bound localStorage
+    // growth for power users who sync with many devices over time. Each
+    // entry is ~150 bytes; 100 keeps us well under any sane localStorage
+    // quota (~5 MB browser default). Eviction is by oldest `at` timestamp
+    // — the device we haven't heard from in the longest time. The current
+    // device is always preserved (it was just inserted/updated). The
+    // while loop guards against the rare case where the oldest entry IS
+    // the current device (e.g. corrupted timestamp): we keep scanning
+    // until we've actually evicted enough non-current entries.
+    var keys = Object.keys(map);
+    if (keys.length > 100) {
+      keys.sort(function (a, b) {
+        var ta = (map[a] && map[a].at) ? Date.parse(map[a].at) : 0;
+        var tb = (map[b] && map[b].at) ? Date.parse(map[b].at) : 0;
+        return ta - tb; // oldest first
+      });
+      var needToDrop = keys.length - 100;
+      var dropped = 0;
+      for (var i = 0; i < keys.length && dropped < needToDrop; i++) {
+        if (keys[i] !== syncObj._deviceId) {
+          delete map[keys[i]];
+          dropped++;
+        }
+      }
+    }
     try { localStorage.setItem(LS_LAST_IMPORT_PER_DEVICE, JSON.stringify(map)); } catch (e) {}
   }
 
@@ -386,6 +437,21 @@ const SyncEngine = (() => {
     var exportTime = syncObj._createdAt;
     try { localStorage.setItem(LS_LAST_EXPORT, exportTime); } catch (e) {}
 
+    // Encryption layer (opt-in). If the user has enabled encryption but
+    // hasn't set a session passphrase, we throw a typed error so callers
+    // (download buttons, folder writers) can prompt without having to
+    // sniff the message string. The plaintext envelope fields are kept
+    // visible — see the rationale block above _encryptSyncObj.
+    if (isEncryptionEnabled()) {
+      if (!_sessionPassphrase) throw EncryptionError("passphrase_required", "Encryption is enabled but no passphrase has been set this session");
+      try {
+        return await _encryptSyncObj(syncObj, _sessionPassphrase);
+      } catch (e) {
+        if (e && e.name === "EncryptionError") throw e;
+        throw EncryptionError("unavailable", (e && e.message) || "Encryption failed");
+      }
+    }
+
     return syncObj;
   }
 
@@ -415,6 +481,238 @@ const SyncEngine = (() => {
       for (var i = 0; i < inflated.length; i++) json += String.fromCharCode(inflated[i]);
     }
     return JSON.parse(json);
+  }
+
+  // ── Encryption (optional, opt-in) ────────────────────────────────────────
+  //
+  // Design: AES-GCM-256 over the JSON-serialised "inner payload" (projects,
+  // stash, prefs, deletedProjectIds and the few count/since metadata
+  // fields). The outer envelope (_format, _version, _encrypted, _encryption,
+  // _createdAt, _deviceId, _deviceName, _mode) stays in plaintext so the
+  // existing devices-in-folder panel and validate() heuristic keep working
+  // without a passphrase.
+  //
+  // Key derivation: PBKDF2-SHA256, 310,000 iterations (OWASP 2023 floor).
+  // Per-file random 16-byte salt; per-file random 12-byte IV. Derived keys
+  // are cached per (passphrase, saltHex) tuple in this session so a folder
+  // tick processing five files only pays the PBKDF2 cost once.
+  //
+  // Passphrase lifetime: kept in module-level memory only. setEncryption-
+  // Passphrase() persists nothing; clearEncryptionPassphrase() wipes it.
+  // The user must re-enter on next session — recommendation 1 of the
+  // proposal (session-only) without the sessionStorage hop, since this
+  // PWA may be installed and run with no separate "session" anyway.
+  //
+  // See reports/sync-reference/proposals/encrypted-csync-payload.md.
+
+  var ENC_PBKDF2_ITERATIONS = 310000;
+  var ENC_SALT_BYTES = 16;
+  var ENC_IV_BYTES = 12;
+  var ENC_INNER_FIELDS = ["projects", "stash", "prefs", "deletedProjectIds", "_projectCountTotal", "_since"];
+
+  var _sessionPassphrase = null;
+  var _derivedKeyCache = new Map(); // key: passphrase + "|" + saltHex + "|" + iter, val: CryptoKey
+
+  function isEncryptionAvailable() {
+    try {
+      return typeof crypto !== "undefined"
+        && !!crypto.subtle
+        && typeof TextEncoder !== "undefined";
+    } catch (e) { return false; }
+  }
+
+  function isEncryptionEnabled() {
+    try { return localStorage.getItem(LS_ENC_ENABLED) === "1"; } catch (e) { return false; }
+  }
+
+  function setEncryptionEnabled(flag) {
+    try {
+      if (flag) localStorage.setItem(LS_ENC_ENABLED, "1");
+      else localStorage.removeItem(LS_ENC_ENABLED);
+    } catch (e) {}
+  }
+
+  function setEncryptionPassphrase(p) {
+    if (p == null || p === "") { _sessionPassphrase = null; return; }
+    _sessionPassphrase = String(p);
+  }
+
+  function clearEncryptionPassphrase() {
+    _sessionPassphrase = null;
+    _derivedKeyCache.clear();
+  }
+
+  function getEncryptionStatus() {
+    return {
+      available: isEncryptionAvailable(),
+      enabled: isEncryptionEnabled(),
+      hasPassphrase: !!_sessionPassphrase
+    };
+  }
+
+  // Typed error so callers (UI, watcher) can distinguish "user input
+  // needed" from "file is genuinely broken".
+  function EncryptionError(code, message) {
+    var e = new Error(message || code);
+    e.name = "EncryptionError";
+    e.code = code; // "passphrase_required" | "incorrect_passphrase" | "unavailable" | "malformed"
+    return e;
+  }
+
+  function _bytesToHex(u8) {
+    var s = "";
+    for (var i = 0; i < u8.length; i++) {
+      var h = u8[i].toString(16);
+      if (h.length === 1) h = "0" + h;
+      s += h;
+    }
+    return s;
+  }
+
+  function _hexToBytes(hex) {
+    if (typeof hex !== "string" || hex.length % 2 !== 0) throw EncryptionError("malformed", "Bad hex");
+    var u8 = new Uint8Array(hex.length / 2);
+    for (var i = 0; i < u8.length; i++) {
+      u8[i] = parseInt(hex.substr(i * 2, 2), 16);
+    }
+    return u8;
+  }
+
+  function _bytesToBase64(u8) {
+    // btoa works on binary strings; chunk to avoid call-stack blowups on
+    // multi-MB ciphertexts.
+    var s = "";
+    var chunk = 0x8000;
+    for (var i = 0; i < u8.length; i += chunk) {
+      s += String.fromCharCode.apply(null, u8.subarray(i, i + chunk));
+    }
+    return btoa(s);
+  }
+
+  function _base64ToBytes(b64) {
+    if (typeof b64 !== "string") throw EncryptionError("malformed", "Bad base64");
+    var bin = atob(b64);
+    var u8 = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    return u8;
+  }
+
+  async function _deriveKey(passphrase, saltBytes, iterations) {
+    var saltHex = _bytesToHex(saltBytes);
+    var cacheKey = passphrase + "|" + saltHex + "|" + iterations;
+    if (_derivedKeyCache.has(cacheKey)) return _derivedKeyCache.get(cacheKey);
+    var enc = new TextEncoder();
+    var pwKey = await crypto.subtle.importKey(
+      "raw",
+      enc.encode(passphrase),
+      "PBKDF2",
+      false,
+      ["deriveKey"]
+    );
+    var key = await crypto.subtle.deriveKey(
+      { name: "PBKDF2", salt: saltBytes, iterations: iterations, hash: "SHA-256" },
+      pwKey,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"]
+    );
+    _derivedKeyCache.set(cacheKey, key);
+    return key;
+  }
+
+  // Encrypts the inner payload of `syncObj`, returning a new object with
+  // the inner fields removed and replaced with `_encrypted: true`,
+  // `_encryption: {...}`, `_ciphertext: base64`. Plaintext envelope fields
+  // are passed through unchanged.
+  async function _encryptSyncObj(syncObj, passphrase) {
+    if (!isEncryptionAvailable()) throw EncryptionError("unavailable", "Web Crypto not available");
+    if (!passphrase) throw EncryptionError("passphrase_required", "Passphrase required for encryption");
+
+    var salt = crypto.getRandomValues(new Uint8Array(ENC_SALT_BYTES));
+    var iv = crypto.getRandomValues(new Uint8Array(ENC_IV_BYTES));
+    var key = await _deriveKey(passphrase, salt, ENC_PBKDF2_ITERATIONS);
+
+    var inner = {};
+    for (var i = 0; i < ENC_INNER_FIELDS.length; i++) {
+      var f = ENC_INNER_FIELDS[i];
+      if (Object.prototype.hasOwnProperty.call(syncObj, f)) inner[f] = syncObj[f];
+    }
+    var plaintext = new TextEncoder().encode(JSON.stringify(inner));
+    var ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, plaintext);
+
+    // Build the encrypted envelope. Strip the inner fields so consumers
+    // that don't decrypt can't accidentally read stale data.
+    var out = {};
+    for (var k in syncObj) {
+      if (!Object.prototype.hasOwnProperty.call(syncObj, k)) continue;
+      if (ENC_INNER_FIELDS.indexOf(k) !== -1) continue;
+      out[k] = syncObj[k];
+    }
+    out._encrypted = true;
+    out._encryption = {
+      algorithm: "AES-GCM-256",
+      kdf: "PBKDF2-SHA256",
+      iterations: ENC_PBKDF2_ITERATIONS,
+      saltHex: _bytesToHex(salt),
+      ivHex: _bytesToHex(iv)
+    };
+    out._ciphertext = _bytesToBase64(new Uint8Array(ciphertext));
+    return out;
+  }
+
+  // Decrypts an encrypted envelope using the supplied passphrase, returning
+  // a fully reconstructed syncObj with the inner fields back in place.
+  async function _decryptSyncObj(syncObj, passphrase) {
+    if (!isEncryptionAvailable()) throw EncryptionError("unavailable", "Web Crypto not available");
+    if (!passphrase) throw EncryptionError("passphrase_required", "Passphrase required to decrypt");
+    if (!syncObj || !syncObj._encrypted) return syncObj;
+    var meta = syncObj._encryption || {};
+    if (!meta.saltHex || !meta.ivHex) throw EncryptionError("malformed", "Missing encryption metadata");
+    if (typeof syncObj._ciphertext !== "string") throw EncryptionError("malformed", "Missing ciphertext");
+
+    var salt = _hexToBytes(meta.saltHex);
+    var iv = _hexToBytes(meta.ivHex);
+    var iterations = (typeof meta.iterations === "number" && meta.iterations > 0)
+      ? meta.iterations : ENC_PBKDF2_ITERATIONS;
+    var key = await _deriveKey(passphrase, salt, iterations);
+
+    var ctBytes = _base64ToBytes(syncObj._ciphertext);
+    var plaintextBuf;
+    try {
+      plaintextBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, ctBytes);
+    } catch (e) {
+      // GCM tag verification failed — wrong passphrase or tampered file.
+      throw EncryptionError("incorrect_passphrase", "Could not decrypt with this passphrase");
+    }
+    var inner;
+    try {
+      inner = JSON.parse(new TextDecoder().decode(plaintextBuf));
+    } catch (e) {
+      throw EncryptionError("malformed", "Decrypted payload was not valid JSON");
+    }
+
+    // Stitch back: outer envelope minus the encryption fields, plus the
+    // recovered inner fields.
+    var out = {};
+    for (var k in syncObj) {
+      if (!Object.prototype.hasOwnProperty.call(syncObj, k)) continue;
+      if (k === "_encrypted" || k === "_encryption" || k === "_ciphertext") continue;
+      out[k] = syncObj[k];
+    }
+    if (inner && typeof inner === "object") {
+      for (var ik in inner) {
+        if (Object.prototype.hasOwnProperty.call(inner, ik)) out[ik] = inner[ik];
+      }
+    }
+    return out;
+  }
+
+  // Public helper for the UI: decrypt an envelope using the session
+  // passphrase (or an override). Returns the full syncObj or throws an
+  // EncryptionError the caller can branch on.
+  async function decryptSyncObj(syncObj, passphrase) {
+    var p = (passphrase != null && passphrase !== "") ? String(passphrase) : _sessionPassphrase;
+    return _decryptSyncObj(syncObj, p);
   }
 
   // ── Download ─────────────────────────────────────────────────────────────
@@ -463,6 +761,32 @@ const SyncEngine = (() => {
     }
     if (syncObj._version !== SYNC_VERSION) {
       return { valid: false, error: "Unsupported sync file version: " + syncObj._version + ". Please update the app." };
+    }
+    // Encrypted envelopes are valid even without a `projects` array — the
+    // projects live inside the ciphertext and only become visible after
+    // decryption. validate() is intentionally cheap; the decryption flow
+    // re-runs validate() on the recovered object, where the projects-array
+    // assertion below will fire.
+    if (syncObj._encrypted) {
+      var encMeta = syncObj._encryption || {};
+      if (!encMeta.saltHex || !encMeta.ivHex || typeof syncObj._ciphertext !== "string") {
+        return { valid: false, error: "Encrypted sync file is missing encryption metadata." };
+      }
+      return {
+        valid: true,
+        summary: {
+          createdAt: syncObj._createdAt || "unknown",
+          deviceId: syncObj._deviceId || "unknown",
+          deviceName: syncObj._deviceName || "",
+          mode: syncObj._mode || "full",
+          encrypted: true,
+          // Project / stash counts are unknown until decryption.
+          projectCount: 0,
+          totalProjectCount: 0,
+          hasStash: false,
+          hasPrefs: false
+        }
+      };
     }
     if (!Array.isArray(syncObj.projects)) {
       return { valid: false, error: "Sync file contains no project data." };
@@ -1188,6 +1512,15 @@ const SyncEngine = (() => {
   // ── Import (full pipeline) ───────────────────────────────────────────────
 
   async function prepareImport(syncObj) {
+    // If the envelope is encrypted, decrypt before any further work.
+    // Throws a typed EncryptionError ("passphrase_required" or
+    // "incorrect_passphrase") that callers — manual import buttons,
+    // SyncReviewGate, the watcher's _processFolderUpdates — branch on
+    // to either prompt for the passphrase or surface the failure.
+    if (syncObj && syncObj._encrypted) {
+      syncObj = await _decryptSyncObj(syncObj, _sessionPassphrase);
+    }
+
     // Validate
     var check = validate(syncObj);
     if (!check.valid) throw new Error(check.error);
@@ -1472,6 +1805,12 @@ const SyncEngine = (() => {
       });
     } catch (e) {}
 
+    // Clear the cached pending plan once it's been applied — otherwise a
+    // subsequent "Review sync" click would re-show the same already-merged
+    // plan. The watcher's dedup (_seenPendingKeys) prevents re-publication
+    // unless a fresh file arrives.
+    try { clearPendingPlan(); } catch (e) {}
+
     return {
       imported: plan.newRemote.length,
       merged: plan.mergeTracking.length,
@@ -1498,6 +1837,11 @@ const SyncEngine = (() => {
     } catch (e) { console.warn("SyncEngine: could not persist watch dir handle:", e); }
     // Phase-3 sync-fix #1: kick off the polling watcher automatically so any
     // page that configures a sync folder starts receiving remote updates.
+    // startWatching() also fires _runWatcherTick() once immediately, which
+    // satisfies the "scan as soon as the user picks a folder" requirement
+    // (UnifiedSyncImportModal relies on this). _runWatcherTick guards against
+    // re-entry via _watcherInFlight, so a concurrent scheduled tick won't
+    // double-scan — do NOT add a redundant checkForUpdates() call here.
     try { startWatching(); } catch (e) {}
   }
 
@@ -1622,9 +1966,50 @@ const SyncEngine = (() => {
     return results;
   }
 
+  // Phase B — guard against device-id collisions. The .csync filename
+  // pattern is `cross-stitch-sync-<deviceName>-<deviceId>.csync`; if two
+  // devices ever end up with the same deviceId (e.g. user copied the
+  // browser profile, restored a backup that included LS_DEVICE_ID, or
+  // shared a database between machines), they will silently overwrite
+  // each other's exports. We can't fix the collision automatically — that
+  // requires user consent because regenerating a deviceId disconnects
+  // any existing imports — but we can detect it on every scan and surface
+  // a one-time warning so the user knows what to do.
+  var _collisionWarned = false;
+  function _detectDeviceIdCollision(files) {
+    if (_collisionWarned) return null;
+    var myId = getDeviceId();
+    var myName = getDeviceName();
+    if (!myId || myId === "dev_unknown") return null;
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      if (!f.deviceId || f.deviceId !== myId) continue;
+      // Filenames are `cross-stitch-sync-<name>-<id>.csync`; pull the embedded
+      // name back out so we can show what the *other* device thinks it is.
+      var otherName = f.deviceName || "another device";
+      // If the embedded name matches ours we assume it's the same device's
+      // own export — no collision.
+      if (otherName === myName) continue;
+      _collisionWarned = true;
+      return { fileName: f.fileName, otherName: otherName, myName: myName, myId: myId };
+    }
+    return null;
+  }
+
   // Check the sync folder for files from other devices that are newer than our last import
   async function checkForUpdates(dirHandleArg) {
     var files = await scanFolder(dirHandleArg);
+    var collision = _detectDeviceIdCollision(files);
+    if (collision) {
+      try {
+        if (typeof window !== "undefined" && window.dispatchEvent) {
+          window.dispatchEvent(new CustomEvent("cs:syncDeviceIdCollision", { detail: collision }));
+        }
+        _reportSyncError("device-id-collision",
+          new Error("Detected another device using the same sync id (" + collision.otherName
+            + " vs " + collision.myName + "). Open Preferences > Sync to regenerate this device's id."));
+      } catch (e) {}
+    }
     var myDeviceId = getDeviceId();
     var lastImport = null;
     try { lastImport = localStorage.getItem(LS_LAST_IMPORT); } catch (e) {}
@@ -1759,6 +2144,22 @@ const SyncEngine = (() => {
   var _watcherInFlight = false;
   var _watcherVisHandler = null;
   var WATCHER_INTERVAL_MS = 10000;
+  // Phase D — lightweight diagnostics counters. Exposed via getDiagnostics()
+  // so users (and us) can confirm the watcher is actually firing without
+  // having to dig in DevTools. All counters are session-local; a refresh
+  // resets them.
+  var _diagnostics = {
+    tickCount: 0,
+    lastTickAt: null,
+    tickFailures: 0,
+    lastFailureAt: null,
+    updatesSeen: 0,
+    skipsHidden: 0,
+    skipsNoHandle: 0,
+    skipsNoPermission: 0,
+    skipsLockHeld: 0,
+    lastLockHeldAt: null
+  };
   // Per-session dedup of "pending" updates that we've already surfaced via
   // cs:syncUpdatesAvailable. Without this, a file containing conflicts
   // would re-fire the event every poll tick (because LS_LAST_IMPORT is only
@@ -1766,6 +2167,121 @@ const SyncEngine = (() => {
   // Keyed by deviceId + "|" + lastModified — a new write from the other
   // device gets a new lastModified and re-triggers correctly.
   var _seenPendingKeys = Object.create(null);
+  // Latest pending plan published by the watcher. Read by SyncReviewGate
+  // (via window.SyncEngine.getPendingPlan) so the "Review sync" header
+  // menu can show the same plan as /home's banner instead of an empty
+  // state. See reports/sync-reference/00_DIAGNOSIS.md fixes #1 and #3.
+  var _latestPendingPlan = null;
+
+  function getPendingPlan() { return _latestPendingPlan; }
+  function clearPendingPlan() {
+    _latestPendingPlan = null;
+    _persistPendingPlan(null).catch(function () {});
+  }
+  // Big1 unification: single canonical setter so manual file-picker imports
+  // and watcher-driven imports both feed the same authoritative cache.
+  // Before this, manual imports only populated header.js's tab-local
+  // `_lastReceivedPlan`, so opening "Review sync" in another tab — or after
+  // closing the gate — found an empty state even though a plan had just
+  // been prepared. Now both paths converge here, and the IDB persistence
+  // (with TTL) means the plan survives reload regardless of origin.
+  function setPendingPlan(plan) {
+    _latestPendingPlan = plan || null;
+    if (_latestPendingPlan) {
+      _persistPendingPlan(_latestPendingPlan).catch(function () {});
+    } else {
+      _persistPendingPlan(null).catch(function () {});
+    }
+    try {
+      if (typeof window !== "undefined" && window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent("cs:syncPlanPending", {
+          detail: { plan: _latestPendingPlan, update: null }
+        }));
+      }
+    } catch (e) {}
+  }
+
+  // Persist the latest pending plan into the same IDB store that holds the
+  // watch-folder handle. Survives reloads and tab restarts so the user can
+  // close the browser, reopen later, and "Review sync" still has the plan
+  // queued by the watcher last session. Bounded by PENDING_PLAN_MAX_BYTES
+  // so we never balloon IDB with a multi-megabyte plan; if a plan is too
+  // large we drop persistence and rely on the watcher tick to re-prepare
+  // it after reload (~10s). See reports/sync-reference fix #3.
+  var PENDING_PLAN_KEY = "pendingPlan";
+  var PENDING_PLAN_MAX_BYTES = 5 * 1024 * 1024; // 5 MB JSON
+  // QW4: TTL for persisted pending plans. If the user dismissed the app and
+  // never came back to review a queued conflict, we'd rather drop the stale
+  // plan than resurrect a 6-month-old conflict from a project they may have
+  // since deleted. The next watcher tick will re-prepare a current plan
+  // from the still-present .csync files in the watch folder.
+  var PENDING_PLAN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+  async function _persistPendingPlan(plan) {
+    try {
+      var db = await openSyncMetaDB();
+      await new Promise(function (resolve, reject) {
+        var tx = db.transaction("sync_state", "readwrite");
+        var store = tx.objectStore("sync_state");
+        if (plan == null) {
+          store.delete(PENDING_PLAN_KEY);
+        } else {
+          // Bounds check on serialised size; very large plans are
+          // dropped from persistence (the in-memory cache still works
+          // for the current session).
+          var serialised;
+          try { serialised = JSON.stringify(plan); } catch (e) { serialised = null; }
+          if (!serialised || serialised.length > PENDING_PLAN_MAX_BYTES) {
+            store.delete(PENDING_PLAN_KEY);
+          } else {
+            store.put({ at: new Date().toISOString(), plan: plan }, PENDING_PLAN_KEY);
+          }
+        }
+        tx.oncomplete = function () { db.close(); resolve(); };
+        tx.onerror = function () { db.close(); reject(tx.error); };
+      });
+    } catch (e) {
+      // Best-effort persistence — never block the watcher on IDB errors.
+      try { console.warn("SyncEngine: persist pending plan failed:", e); } catch (_) {}
+    }
+  }
+
+  async function _hydratePendingPlan() {
+    if (_latestPendingPlan) return _latestPendingPlan; // in-memory wins
+    try {
+      var db = await openSyncMetaDB();
+      var stored = await new Promise(function (resolve, reject) {
+        var tx = db.transaction("sync_state", "readonly");
+        var req = tx.objectStore("sync_state").get(PENDING_PLAN_KEY);
+        req.onsuccess = function () { resolve(req.result || null); };
+        req.onerror = function () { resolve(null); };
+        tx.oncomplete = function () { db.close(); };
+      });
+      if (stored && stored.plan && !_latestPendingPlan) {
+        // QW4: TTL check. `at` was written by _persistPendingPlan as ISO
+        // string; tolerate older records lacking it (treat as fresh) so
+        // we don't lose plans during the rollout window.
+        var ageMs = stored.at ? Math.max(0, Date.now() - new Date(stored.at).getTime()) : 0;
+        if (ageMs > PENDING_PLAN_TTL_MS) {
+          // Stale — drop the persisted copy and don't rehydrate. The
+          // watcher will rebuild it from disk on the next tick if the
+          // underlying .csync is still there.
+          _persistPendingPlan(null).catch(function () {});
+          // Audit follow-up: notify any tab caches that the durable plan
+          // is gone so a stale UI doesn't keep referencing it after the
+          // user finally returns to the app.
+          try {
+            if (typeof window !== "undefined" && window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent("cs:syncPlanPending", { detail: { plan: null, reason: "ttl-expired" } }));
+            }
+          } catch (e) {}
+        } else {
+          _latestPendingPlan = stored.plan;
+        }
+      }
+    } catch (e) { /* ignore */ }
+    return _latestPendingPlan;
+  }
 
   function _pendingKey(update) {
     var d = (update && update.deviceId) ? update.deviceId : "?";
@@ -1777,10 +2293,42 @@ const SyncEngine = (() => {
     if (!plan) return false;
     if (plan.conflicts && plan.conflicts.length > 0) return false;
     if (plan.mergeTracking && plan.mergeTracking.length > 0) return false;
-    if (plan.newRemote && plan.newRemote.length > 0) return true;
+    // Big2: integrity gate. Refuse to auto-apply a plan whose newRemote
+    // entries look malformed (missing id, missing pattern, wrong dims).
+    // Falls through to the manual review path so the user can inspect
+    // before importing instead of silently writing garbage to IDB.
+    if (plan.newRemote && plan.newRemote.length > 0) {
+      for (var i = 0; i < plan.newRemote.length; i++) {
+        var entry = plan.newRemote[i];
+        var p = entry && entry.remote && entry.remote.data;
+        if (!_isProjectShapeValid(p)) return false;
+      }
+      return true;
+    }
     // remote tombstones alone could be auto-applied too, but they're
     // surfaced via the manual flow today — keep parity.
     return false;
+  }
+
+  // Big2: cheap structural sanity check used by the auto-apply gate.
+  // We've already passed gzip Adler-32 (in pako) + JSON.parse, so we know
+  // the bytes round-tripped and parsed as valid JSON. This catches the
+  // higher-level case where a project entry is technically JSON but
+  // missing fields the merge engine assumes (id, w/h, pattern array of
+  // expected length). Rejecting auto-apply for malformed entries hands
+  // the plan to manual review instead of corrupting local storage.
+  function _isProjectShapeValid(p) {
+    if (!p || typeof p !== "object") return false;
+    if (typeof p.id !== "string" || !p.id) return false;
+    if (typeof p.w !== "number" || typeof p.h !== "number") return false;
+    if (p.w <= 0 || p.h <= 0 || p.w > 10000 || p.h > 10000) return false;
+    if (!Array.isArray(p.pattern)) return false;
+    // Accept slight length drift (some legacy versions stored sparse arrays)
+    // but reject obvious truncation: pattern shorter than half the expected
+    // grid is almost certainly corrupt.
+    var expected = p.w * p.h;
+    if (p.pattern.length > 0 && p.pattern.length < expected / 2) return false;
+    return true;
   }
 
   async function _processFolderUpdates(updates) {
@@ -1808,8 +2356,21 @@ const SyncEngine = (() => {
           pending.push({ update: u, plan: plan });
         }
       } catch (e) {
-        _reportSyncError("auto-import", e);
-        pending.push({ update: u, plan: null, error: (e && e.message) || String(e) });
+        // EncryptionError("passphrase_required") is the expected steady
+        // state when a peer ships encrypted files but this device hasn't
+        // unlocked yet — don't blast the activity log with it on every
+        // 10s tick. We still surface it as a pending entry so the UI can
+        // prompt; we just skip the noisy _reportSyncError for that one
+        // specific code.
+        if (!(e && e.name === "EncryptionError" && e.code === "passphrase_required")) {
+          _reportSyncError("auto-import", e);
+        }
+        pending.push({
+          update: u,
+          plan: null,
+          error: (e && e.message) || String(e),
+          errorCode: (e && e.code) || null
+        });
       }
     }
     if (autoApplied.length) {
@@ -1827,7 +2388,22 @@ const SyncEngine = (() => {
         try {
           var msg = totalImported + " pattern" + (totalImported !== 1 ? "s" : "")
             + " synced" + (deviceLabel ? " from " + deviceLabel : "");
-          window.Toast.show({ message: msg, type: "success", duration: 5000 });
+          window.Toast.show({
+            message: msg,
+            type: "success",
+            duration: 6000,
+            // Phase C: let users jump straight to the activity log so they
+            // can see exactly what was auto-imported (since the gate never
+            // opens for conflict-free syncs). The link dispatches a
+            // window event instead of calling into home-screen directly so
+            // any page can listen and route appropriately.
+            actionLabel: "View activity",
+            action: function () {
+              try {
+                window.dispatchEvent(new CustomEvent("cs:openSyncActivity", { detail: { source: "auto-apply-toast" } }));
+              } catch (e) {}
+            }
+          });
         } catch (e) {}
       }
     }
@@ -1842,9 +2418,30 @@ const SyncEngine = (() => {
         }
       }
       if (freshPending.length) {
+        // Cache the most recent prepared plan so the header "Review sync"
+        // menu (and any other surface) can read it without re-running
+        // prepareImport. Without this, the watcher's plan only reaches
+        // /home's banner via cs:syncUpdatesAvailable; the SyncReviewGate
+        // on /create, /stitch, /manager would silently show its empty
+        // state. See reports/sync-reference/00_DIAGNOSIS.md fix #1.
+        var latest = freshPending[freshPending.length - 1];
+        _latestPendingPlan = (latest && latest.plan) || null;
+        if (_latestPendingPlan) {
+          _persistPendingPlan(_latestPendingPlan).catch(function () {});
+        }
         try {
           window.dispatchEvent(new CustomEvent("cs:syncUpdatesAvailable", {
             detail: { updates: freshPending.map(function (p) { return p.update; }), pending: freshPending }
+          }));
+        } catch (e) {}
+        // Sibling event for surfaces that want to know "a plan is ready
+        // for review" without subscribing to /home's banner contract.
+        // Listeners must NOT auto-open the gate — that would interrupt
+        // the user mid-action; only the manual `sync-plan-ready` path
+        // opens the modal.
+        try {
+          window.dispatchEvent(new CustomEvent("cs:syncPlanPending", {
+            detail: { plan: _latestPendingPlan, update: (latest && latest.update) || null }
           }));
         } catch (e) {}
         // Also log each fresh-pending delivery so the activity log shows
@@ -1874,9 +2471,15 @@ const SyncEngine = (() => {
 
   async function _runWatcherTick() {
     if (_watcherInFlight) return;
-    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+      _diagnostics.skipsHidden++;
+      return;
+    }
     var handle = _watchDirHandle || (await getWatchDirectory().catch(function () { return null; }));
-    if (!handle) return;
+    if (!handle) {
+      _diagnostics.skipsNoHandle++;
+      return;
+    }
     // Permission gate: requestPermission() requires a user gesture, but a
     // setInterval/visibilitychange tick is NOT a user gesture. If we just
     // call scanFolder() here, scanFolder's internal requestPermission will
@@ -1886,10 +2489,18 @@ const SyncEngine = (() => {
     if (typeof handle.queryPermission === "function") {
       try {
         var perm = await handle.queryPermission({ mode: "read" });
-        if (perm !== "granted") return;
-      } catch (e) { return; }
+        if (perm !== "granted") {
+          _diagnostics.skipsNoPermission++;
+          return;
+        }
+      } catch (e) {
+        _diagnostics.skipsNoPermission++;
+        return;
+      }
     }
     _watcherInFlight = true;
+    _diagnostics.tickCount++;
+    _diagnostics.lastTickAt = new Date().toISOString();
     try {
       // Cross-tab coordination: when the user has multiple tabs open, every
       // tab's header.js starts a watcher. Without coordination, all tabs
@@ -1900,18 +2511,25 @@ const SyncEngine = (() => {
       var doWork = async function () {
         var updates = await checkForUpdates(handle);
         if (updates && updates.length) {
+          _diagnostics.updatesSeen += updates.length;
           await _processFolderUpdates(updates);
         }
       };
       if (typeof navigator !== "undefined" && navigator.locks && navigator.locks.request) {
         await navigator.locks.request("cs_sync_import", { ifAvailable: true }, async function (lock) {
-          if (!lock) return; // Another tab is processing — let it.
+          if (!lock) {
+            _diagnostics.skipsLockHeld++;
+            _diagnostics.lastLockHeldAt = new Date().toISOString();
+            return;
+          } // Another tab is processing — let it.
           await doWork();
         });
       } else {
         await doWork();
       }
     } catch (e) {
+      _diagnostics.tickFailures++;
+      _diagnostics.lastFailureAt = new Date().toISOString();
       _reportSyncError("watcher", e);
     } finally {
       _watcherInFlight = false;
@@ -1920,6 +2538,10 @@ const SyncEngine = (() => {
 
   function startWatching(intervalMs) {
     stopWatching();
+    // Lazy hydration: pull any persisted pending plan (fix #3) so the
+    // header "Review sync" menu has a plan to show immediately after
+    // reload, before the first watcher tick has a chance to repopulate.
+    _hydratePendingPlan().catch(function () {});
     var interval = (typeof intervalMs === "number" && intervalMs > 0) ? intervalMs : WATCHER_INTERVAL_MS;
     _watcherInterval = setInterval(_runWatcherTick, interval);
     if (typeof document !== "undefined") {
@@ -1945,6 +2567,26 @@ const SyncEngine = (() => {
   }
 
   function isWatching() { return !!_watcherInterval; }
+
+  // Phase D — public read-only view of session diagnostics. Returned object
+  // is a shallow clone so callers can't mutate internal counters.
+  function getDiagnostics() {
+    return {
+      tickCount: _diagnostics.tickCount,
+      lastTickAt: _diagnostics.lastTickAt,
+      tickFailures: _diagnostics.tickFailures,
+      lastFailureAt: _diagnostics.lastFailureAt,
+      updatesSeen: _diagnostics.updatesSeen,
+      skipsHidden: _diagnostics.skipsHidden,
+      skipsNoHandle: _diagnostics.skipsNoHandle,
+      skipsNoPermission: _diagnostics.skipsNoPermission,
+      skipsLockHeld: _diagnostics.skipsLockHeld,
+      lastLockHeldAt: _diagnostics.lastLockHeldAt,
+      watcherIntervalMs: WATCHER_INTERVAL_MS,
+      watching: isWatching(),
+      hasWatchDir: !!_watchDirHandle
+    };
+  }
 
   // Convenience bootstrap for any page that loads SyncEngine but doesn't own
   // the sync UI: looks up the persisted directory handle and, if present and
@@ -2029,6 +2671,21 @@ const SyncEngine = (() => {
     } catch (e) {}
   }
 
+  // sync-reference Phase 7: let UI dismiss a stale warning row after the
+  // user has dealt with the underlying issue (e.g. re-granted permission).
+  // Without this, _lastError lingers until the page reloads and a persistent
+  // warning banner stays visible even though sync is healthy again.
+  function clearLastError() {
+    _lastError = null;
+    try {
+      if (typeof window !== "undefined" && window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent("cs:syncStatusChanged", {
+          detail: { reason: "error-cleared" }
+        }));
+      }
+    } catch (e) {}
+  }
+
   function getSyncStatus() {
     var lastExport = null, lastImport = null;
     try { lastExport = localStorage.getItem(LS_LAST_EXPORT); } catch (e) {}
@@ -2044,6 +2701,214 @@ const SyncEngine = (() => {
       watching: isWatching(),
       lastError: _lastError
     };
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // Handshake (Tier-2) — pair another device by exchanging a tiny
+  // metadata bundle.
+  //
+  // The handshake carries NO secrets. It exists purely to reduce the
+  // friction of the second device picking the right folder and naming
+  // itself sensibly. Encryption passphrases stay device-local.
+  //
+  // Token = JSON({v, deviceId, deviceName, appVersion, folderHint,
+  //              checksum})  →  pako.deflate  →  Base64url
+  //
+  // Shortcode = first 20 bits of SHA-256(JSON-without-checksum) →
+  //             decimal 0..1048575 → 6-digit decimal display.
+  //
+  // Per the proposal recommendations: no token expiry for MVP, manual
+  // code entry only (QR deferred), symmetric pairing, auto-renamed
+  // device-name collisions, pre-checked device-id collisions.
+  // ════════════════════════════════════════════════════════════════════
+
+  var LS_HANDSHAKE_TOKENS = "cs_handshake_tokens";
+  var HANDSHAKE_VERSION = 1;
+  var HANDSHAKE_TOKEN_CACHE_MAX = 5;
+
+  function _b64urlEncode(bytes) {
+    var binary = "";
+    var CHUNK = 0x8000;
+    for (var i = 0; i < bytes.length; i += CHUNK) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+    }
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  function _b64urlDecode(str) {
+    var s = String(str || "").replace(/-/g, "+").replace(/_/g, "/");
+    while (s.length % 4) s += "=";
+    var binary = atob(s);
+    var out = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+    return out;
+  }
+
+  async function _sha256Hex(str) {
+    var enc = new TextEncoder();
+    var digest = await crypto.subtle.digest("SHA-256", enc.encode(str));
+    var bytes = new Uint8Array(digest);
+    var hex = "";
+    for (var i = 0; i < bytes.length; i++) hex += ("0" + bytes[i].toString(16)).slice(-2);
+    return hex;
+  }
+
+  // Derive a 6-digit decimal shortcode from the first 20 bits of the
+  // checksum. 20 bits gives 0–1,048,575 — comfortably within 6 digits.
+  function _shortcodeFromChecksum(hex) {
+    var first5 = String(hex || "").slice(0, 5); // 5 hex chars = 20 bits
+    var n = parseInt(first5, 16);
+    if (!isFinite(n) || n < 0) n = 0;
+    n = n % 1000000;
+    var s = String(n);
+    while (s.length < 6) s = "0" + s;
+    return s;
+  }
+
+  function _readHandshakeCache() {
+    try {
+      var raw = localStorage.getItem(LS_HANDSHAKE_TOKENS);
+      var arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+  }
+
+  function _writeHandshakeCache(arr) {
+    try {
+      var trimmed = arr.slice(-HANDSHAKE_TOKEN_CACHE_MAX);
+      localStorage.setItem(LS_HANDSHAKE_TOKENS, JSON.stringify(trimmed));
+    } catch (e) {}
+  }
+
+  // Public — generate a token + shortcode for this device.
+  // folderHint is optional; the caller (UI) supplies it from the
+  // currently-selected watch folder if available. The returned object
+  // is what UIs render.
+  async function generateHandshakeToken(opts) {
+    opts = opts || {};
+    var bundle = {
+      v: HANDSHAKE_VERSION,
+      deviceId: getDeviceId(),
+      deviceName: opts.deviceName || getDeviceName() || "",
+      appVersion: (typeof window !== "undefined" && (window.APP_VERSION || window.AppVersion)) || (opts.appVersion || ""),
+      folderHint: opts.folderHint || null
+    };
+    var canonical = JSON.stringify(bundle);
+    var checksum = await _sha256Hex(canonical);
+    bundle.checksum = checksum;
+    var json = JSON.stringify(bundle);
+    var compressed = pako.deflate(json);
+    var token = _b64urlEncode(compressed);
+    var shortcode = _shortcodeFromChecksum(checksum);
+    var entry = {
+      shortcode: shortcode,
+      token: token,
+      checksum: checksum,
+      createdAt: new Date().toISOString()
+    };
+    // Cache so a sibling tab on the same device can resolve the
+    // shortcode → token without re-typing. We dedupe on shortcode.
+    var cache = _readHandshakeCache().filter(function (e) { return e.shortcode !== shortcode; });
+    cache.push(entry);
+    _writeHandshakeCache(cache);
+    return { token: token, shortcode: shortcode, checksum: checksum, bundle: bundle };
+  }
+
+  // Public — validate a token (or a shortcode that resolves to a
+  // cached token). Returns {valid:true, bundle, warnings} on success
+  // or {valid:false, error} on failure.
+  async function validateHandshakeToken(input) {
+    input = String(input == null ? "" : input).trim();
+    if (!input) return { valid: false, error: "Enter a code or token." };
+
+    // Numeric-shortcode resolution. Accept "482917", "482 917",
+    // "482-917". Look up the local cache first; if not found, ask the
+    // caller to paste the full token.
+    var digits = input.replace(/\D+/g, "");
+    var token = input;
+    if (digits.length === 6 && digits === input.replace(/[\s-]/g, "")) {
+      var cache = _readHandshakeCache();
+      var hit = null;
+      for (var i = cache.length - 1; i >= 0; i--) {
+        if (cache[i].shortcode === digits) { hit = cache[i]; break; }
+      }
+      if (!hit) {
+        return {
+          valid: false,
+          error: "No matching code on this device. Paste the full token from the other device instead.",
+          needsToken: true,
+          shortcode: digits
+        };
+      }
+      token = hit.token;
+    }
+
+    var bundle;
+    try {
+      var bytes = _b64urlDecode(token);
+      var json = pako.inflate(bytes, { to: "string" });
+      bundle = JSON.parse(json);
+    } catch (e) {
+      return { valid: false, error: "That code or token doesn't look right. Double-check and try again." };
+    }
+    if (!bundle || bundle.v !== HANDSHAKE_VERSION) {
+      return { valid: false, error: "Unsupported handshake version: " + (bundle && bundle.v) };
+    }
+    if (!bundle.deviceId || !bundle.checksum) {
+      return { valid: false, error: "The token is missing required fields." };
+    }
+    var sumCopy = Object.assign({}, bundle);
+    var providedChecksum = sumCopy.checksum;
+    delete sumCopy.checksum;
+    var canonical = JSON.stringify(sumCopy);
+    var actualChecksum = await _sha256Hex(canonical);
+    if (actualChecksum !== providedChecksum) {
+      return { valid: false, error: "Checksum mismatch — the code may have been mistyped." };
+    }
+
+    // Pre-check warnings (non-fatal).
+    var warnings = [];
+    if (bundle.deviceId === getDeviceId()) {
+      warnings.push({
+        code: "self_pairing",
+        message: "That code is from this device. Generate it on the other device instead."
+      });
+    }
+    var lastImport = getLastImportPerDevice();
+    if (lastImport && lastImport[bundle.deviceId]) {
+      warnings.push({
+        code: "already_paired",
+        message: "You've already imported from this device. Pairing again is harmless but shouldn't be needed."
+      });
+    }
+    if (bundle.folderHint && bundle.folderHint.lastSyncAt) {
+      var ageMs = Date.now() - new Date(bundle.folderHint.lastSyncAt).getTime();
+      if (isFinite(ageMs) && ageMs > 7 * 24 * 60 * 60 * 1000) {
+        warnings.push({
+          code: "stale_folder",
+          message: "The other device hasn't synced in over a week — its folder hint may be out of date."
+        });
+      }
+    }
+
+    return { valid: true, bundle: bundle, warnings: warnings };
+  }
+
+  // Suggest a non-colliding device name for the joining device.
+  // The remote bundle's deviceName is the *other* device's name; we
+  // derive a sibling name to avoid users ending up with two "Katie's
+  // iMac" entries in the device list.
+  function suggestDeviceName(remoteName) {
+    var base = String(remoteName || "").trim();
+    if (!base) return getDeviceName() || "This device";
+    var local = getDeviceName();
+    if (local && local !== base) return local;
+    // Avoid exact match: derive "X (other)" so the user can edit it.
+    return base + " (other)";
+  }
+
+  function clearHandshakeCache() {
+    try { localStorage.removeItem(LS_HANDSHAKE_TOKENS); } catch (e) {}
   }
 
   // ── Public API ───────────────────────────────────────────────────────────
@@ -2084,7 +2949,9 @@ const SyncEngine = (() => {
     getDeviceId: getDeviceId,
     getDeviceName: getDeviceName,
     setDeviceName: setDeviceName,
+    regenerateDeviceId: regenerateDeviceId,
     getSyncStatus: getSyncStatus,
+    clearLastError: clearLastError,
 
     // Folder watching (session 4)
     hasFolderWatchSupport: hasFolderWatchSupport,
@@ -2102,6 +2969,7 @@ const SyncEngine = (() => {
     startWatching: startWatching,
     stopWatching: stopWatching,
     isWatching: isWatching,
+    getDiagnostics: getDiagnostics,
     startAutoWatch: startAutoWatch,
     getPermissionState: getPermissionState,
     requestFolderPermission: requestFolderPermission,
@@ -2111,9 +2979,48 @@ const SyncEngine = (() => {
     clearEventLog: clearEventLog,
     getLastImportPerDevice: getLastImportPerDevice,
 
+    // Pending-plan cache (sync-reference fix #1)
+    getPendingPlan: getPendingPlan,
+    setPendingPlan: setPendingPlan,
+    clearPendingPlan: clearPendingPlan,
+    // Async hydrate from IDB (sync-reference fix #3) — returns the plan
+    // (or null) once the persisted store has been read.
+    hydratePendingPlan: _hydratePendingPlan,
+
+    // Encryption (opt-in, AES-GCM with PBKDF2 key derivation). See the
+    // commentary block above _encryptSyncObj for the threat model.
+    isEncryptionAvailable: isEncryptionAvailable,
+    isEncryptionEnabled: isEncryptionEnabled,
+    setEncryptionEnabled: setEncryptionEnabled,
+    setEncryptionPassphrase: setEncryptionPassphrase,
+    clearEncryptionPassphrase: clearEncryptionPassphrase,
+    getEncryptionStatus: getEncryptionStatus,
+    decryptSyncObj: decryptSyncObj,
+
+    // Handshake (Tier-2) — pair another device with a 6-digit code or
+    // the full Base64url token. See the commentary above
+    // generateHandshakeToken for the threat model.
+    generateHandshakeToken: generateHandshakeToken,
+    validateHandshakeToken: validateHandshakeToken,
+    suggestDeviceName: suggestDeviceName,
+    clearHandshakeCache: clearHandshakeCache,
+
     // Constants (for testing)
     SYNC_FORMAT: SYNC_FORMAT,
-    SYNC_VERSION: SYNC_VERSION
+    SYNC_VERSION: SYNC_VERSION,
+
+    // Test-only hooks for pure helpers. Exposed so unit tests can pin
+    // down behaviour without re-implementing the heuristics. Not part
+    // of the documented public API — call sites in app code should
+    // continue to go through the higher-level entry points.
+    _test: {
+      isProjectShapeValid: _isProjectShapeValid,
+      isPlanAutoApplicable: _isPlanAutoApplicable,
+      recordDeviceImport: _recordDeviceImport,
+      encryptSyncObj: _encryptSyncObj,
+      decryptSyncObj: _decryptSyncObj,
+      EncryptionError: EncryptionError
+    }
   };
 })();
 

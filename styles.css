@@ -3472,6 +3472,20 @@ kbd {
 .tb-sync-indicator { position: relative; display: inline-flex; align-items: center; }
 .tb-sync-indicator--active svg { color: var(--success); }
 .tb-sync-indicator--folder svg { color: var(--accent); }
+/* Pending-conflicts dot. Absolute-positioned so adding it doesn't reflow
+   surrounding nav items. Uses --danger so it inherits the workshop palette
+   in both themes. */
+.tb-sync-indicator-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger, #C0392B);
+  box-shadow: 0 0 0 2px var(--surface, #fff);
+  pointer-events: none;
+}
 
 /* Folder watch section */
 .sync-folder-section { margin-bottom: 8px; }
@@ -3632,6 +3646,27 @@ kbd {
 .srg-btn--primary[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
 .srg-btn--applying { opacity: 0.8; cursor: wait; }
 @media (max-width: 400px) { .srg-conflict-sides { grid-template-columns: 1fr; } .srg-conflict-vs { display: none; } }
+
+/* ── Visual conflict diff (Tier-2). Shown above the sides row for chart
+   and stitch conflicts. Three thumbnails (Local | Diff | Remote) plus
+   a colour legend. Below 400 px the thumbnails stack vertically and
+   shrink to 120 × 120 so they still fit alongside the choice buttons. */
+.srg-diff-viewer { margin: 0 0 10px; padding: 8px 0; border-top: 1px dashed var(--line); border-bottom: 1px dashed var(--line); }
+.srg-diff-summary { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+.srg-diff-toggle { background: none; border: none; padding: 0; color: var(--accent); font-size: 12px; font-weight: 500; cursor: pointer; font-family: inherit; }
+.srg-diff-toggle:hover { text-decoration: underline; }
+.srg-diff-thumbnails { display: flex; gap: 12px; justify-content: space-around; margin-top: 8px; flex-wrap: wrap; }
+.srg-thumbnail-figure { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 0; }
+.srg-thumbnail { display: block; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-secondary); width: 240px; height: 240px; object-fit: contain; }
+.srg-thumbnail-caption { font-size: 11px; color: var(--text-secondary); }
+.srg-diff-legend { font-size: 11px; color: var(--text-secondary); margin-top: 8px; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 4px; }
+.srg-legend-item { display: flex; align-items: center; gap: 4px; }
+.srg-legend-swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+@media (max-width: 400px) {
+  .srg-diff-thumbnails { flex-direction: column; align-items: center; }
+  .srg-thumbnail { width: 120px; height: 120px; }
+  .srg-diff-legend { grid-template-columns: 1fr 1fr; }
+}
 
 
 .thread-usage-legend>div{display:flex;align-items:center;gap:6px;}

@@ -1254,16 +1254,25 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   var syncStatus = _syncStatus[0], setSyncStatus = _syncStatus[1];
   var _syncBusy = useState(false);
   var syncBusy = _syncBusy[0], setSyncBusy = _syncBusy[1];
+  // QW1: re-entry guard for the "Regenerate sync id" button so a panicked
+  // user mashing it doesn't mint half a dozen ids in a row. The flag is
+  // released ~1s after click; that's enough for the engine write +
+  // syncStatus refresh to settle without feeling sluggish.
+  var _regenBusy = useState(false);
+  var regenBusy = _regenBusy[0], setRegenBusy = _regenBusy[1];
   var _syncResult = useState(null);
   var syncResult = _syncResult[0], setSyncResult = _syncResult[1];
-  var _syncPlan = useState(null);
-  var syncPlan = _syncPlan[0], setSyncPlan = _syncPlan[1];
+  // syncPlan / setSyncPlan state was removed in sync-reference fix #5
+  // (unify review modals). All imports now route through SyncReviewGate
+  // via window.SyncReviewGate.open(plan, ...).
   var _editingDeviceName = useState(false);
   var editingDeviceName = _editingDeviceName[0], setEditingDeviceName = _editingDeviceName[1];
   var _deviceNameDraft = useState('');
   var deviceNameDraft = _deviceNameDraft[0], setDeviceNameDraft = _deviceNameDraft[1];
   var cancelDeviceNameBlurSaveRef = React.useRef(false);
-  var syncFileRef = React.useRef(null);
+  // syncFileRef removed: manual .csync imports now flow through
+  // window.UnifiedSyncImportModal (modals.js), which owns its own file
+  // input + passphrase retry loop. The button below just opens the modal.
 
   // Folder watch state
   var _watchDirName = useState(null);
@@ -1414,16 +1423,42 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     };
   }, [watchDirName]);
 
-  // Listen for sync-plan-ready events dispatched by the header File menu
+  // Listen for sync-plan-ready events dispatched by the header File menu.
+  // After the unify-modals refactor (sync-reference fix #5), all manual
+  // imports route through the SyncReviewGate — header.js opens it directly
+  // and stops propagation, so this listener is a defensive fallback for
+  // pages where header.js loaded after the import dispatched.
   useEffect(function() {
     function handler(e) {
-      if (e.detail) {
+      if (e.detail && typeof window.SyncReviewGate !== 'undefined') {
         e.preventDefault();
-        setSyncPlan(e.detail);
+        window.SyncReviewGate.open(e.detail, { autoTrigger: false });
       }
     }
     window.addEventListener('sync-plan-ready', handler);
     return function() { window.removeEventListener('sync-plan-ready', handler); };
+  }, []);
+
+  // Refresh local stash state after a sync import or external stash change
+  // — previously handled inline by handleApplySync, now needed because the
+  // SyncReviewGate handles execution itself.
+  useEffect(function() {
+    function refreshStash() {
+      if (typeof StashBridge === 'undefined') return;
+      StashBridge.getGlobalStash().then(function(s) { if (s) setStash(s); }).catch(function(){});
+    }
+    window.addEventListener('cs:stashChanged', refreshStash);
+    return function() { window.removeEventListener('cs:stashChanged', refreshStash); };
+  }, []);
+
+  // Phase C: cs:openSyncActivity is dispatched by the auto-apply toast's
+  // "View activity" button so users can see exactly what was silently
+  // imported. We open the existing activity modal instead of inventing a
+  // new surface.
+  useEffect(function() {
+    function openActivity() { setActivityOpen(true); }
+    window.addEventListener('cs:openSyncActivity', openActivity);
+    return function() { window.removeEventListener('cs:openSyncActivity', openActivity); };
   }, []);
 
   // Live-refresh project list on backup restore, project save/delete elsewhere,
@@ -1458,70 +1493,16 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     }).finally(function() { setSyncBusy(false); });
   }
 
-  function handleSyncFileSelect(e) {
-    var file = e.target.files && e.target.files[0];
-    if (!file) return;
-    if (syncFileRef.current) syncFileRef.current.value = '';
-    // VER-SYNC-012: warn the user before trying to decompress a very large file
-    // so they aren’t left staring at a spinner with no feedback.
-    if (file.size > 50 * 1024 * 1024) {
-      var mb = (file.size / (1024 * 1024)).toFixed(1);
-      if (window.Toast) window.Toast.show({ message: 'Large sync file (' + mb + ' MB) — import may take a moment.', type: 'info', duration: 6000 });
-    }
-    setSyncBusy(true);
-    setSyncResult(null);
-    SyncEngine.readSyncFile(file).then(function(syncObj) {
-      return SyncEngine.prepareImport(syncObj);
-    }).then(function(plan) {
-      setSyncBusy(false);
-      setSyncPlan(plan);
-    }).catch(function(err) {
-      setSyncBusy(false);
-      setSyncResult({ type: 'error', message: 'Import failed: ' + err.message });
-    });
-  }
+  // handleSyncFileSelect was removed — manual .csync imports now flow through
+  // window.UnifiedSyncImportModal which owns its own file input, passphrase
+  // retry loop, and watch-folder prompt. The Import .csync button below opens
+  // that modal directly.
 
   function handleApplySync(conflictResolutions, opts) {
-    if (!syncPlan) return;
-    setSyncBusy(true);
-    setSyncPlan(null);
-    // VER-SYNC-004: honour the "Skip stash update" checkbox from SyncSummaryModal.
-    // Clone the plan so we don't mutate the React state object in place.
-    var activePlan = syncPlan;
-    if (opts && opts.skipStash && activePlan.stashMerge) {
-      activePlan = Object.assign({}, activePlan, { stashMerge: null });
-    }
-    var syncingId = (typeof window !== 'undefined' && window.Toast) ? window.Toast.show({ message: 'Syncing\u2026', type: 'info', duration: 60000 }) : null;
-    SyncEngine.executeImport(activePlan, conflictResolutions).then(function(result) {
-      if (syncingId && window.Toast) window.Toast.dismiss(syncingId);
-      var parts = [];
-      if (result.imported > 0) parts.push(result.imported + ' imported');
-      if (result.merged > 0) parts.push(result.merged + ' merged');
-      if (result.conflictsResolved > 0) parts.push(result.conflictsResolved + ' resolved');
-      if (result.stashUpdated) parts.push('stash updated');
-      var msg = 'Sync complete: ' + (parts.join(', ') || 'no changes') + '.';
-      setSyncResult({ type: 'success', message: msg });
-      // Show success toast so it's visible even if user has scrolled away from sync section
-      if (window.Toast) window.Toast.show({ message: msg, type: 'success', duration: 5000 });
-      setSyncStatus(SyncEngine.getSyncStatus());
-      // Refresh project list
-      if (typeof ProjectStorage !== 'undefined') {
-        ProjectStorage.listProjects().then(function(p) { setProjects(p || []); });
-      }
-      // Notify other components on this page (manager-app, tracker-app, project-library)
-      // and other open tabs (they pick it up via visibilitychange when the user returns).
-      try { window.dispatchEvent(new CustomEvent('cs:backupRestored')); } catch(_) {}
-      if (result.stashUpdated) {
-        try { window.dispatchEvent(new CustomEvent('cs:stashChanged')); } catch(_) {}
-        // Also refresh stash state rendered on this page (home dashboard stash stats)
-        if (typeof StashBridge !== 'undefined') {
-          StashBridge.getGlobalStash().then(function(s) { if (s) setStash(s); }).catch(function(){});
-        }
-      }
-    }).catch(function(err) {
-      if (syncingId && window.Toast) window.Toast.dismiss(syncingId);
-      setSyncResult({ type: 'error', message: 'Sync failed: ' + err.message });
-    }).finally(function() { setSyncBusy(false); });
+    // Removed in sync-reference fix #5 — execution now happens inside
+    // SyncReviewGate. Kept as a stub so anything still referencing the
+    // old prop fails loudly in dev rather than silently no-op'ing.
+    if (typeof console !== 'undefined') console.warn('handleApplySync was removed; SyncReviewGate now handles import execution.');
   }
 
   function handleSaveDeviceName() {
@@ -1622,9 +1603,40 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   function handleImportFromFolder(update) {
     setSyncBusy(true);
     setSyncResult(null);
-    SyncEngine.prepareImport(update.syncObj).then(function(plan) {
+    function tryPrepare() {
+      return SyncEngine.prepareImport(update.syncObj).catch(function (err) {
+        var code = err && err.code;
+        if (code === 'passphrase_required' || code === 'incorrect_passphrase') {
+          if (!window.SyncPassphrasePrompt) throw err;
+          return window.SyncPassphrasePrompt.show({
+            title: 'Encrypted sync file',
+            message: code === 'incorrect_passphrase'
+              ? 'That passphrase didn\u2019t unlock the file. Try again.'
+              : 'This sync file is encrypted. Enter the passphrase to import it.',
+            deviceName: (update.syncObj && update.syncObj._deviceName) || ''
+          }).then(function (pw) {
+            if (!pw) throw err;
+            try { SyncEngine.setEncryptionPassphrase(pw); } catch (_) {}
+            return tryPrepare();
+          });
+        }
+        throw err;
+      });
+    }
+    tryPrepare().then(function(plan) {
       setSyncBusy(false);
-      setSyncPlan(plan);
+      // Big1 unification: also feed the engine's canonical cache so
+      // sibling tabs and a later "Review sync" click in the header
+      // resolve to the same plan.
+      if (typeof SyncEngine.setPendingPlan === 'function') {
+        try { SyncEngine.setPendingPlan(plan); } catch (_) {}
+      }
+      // Unified review path (fix #5): folder-discovered plans now also
+      // route through SyncReviewGate so the user gets the same UI as
+      // manual imports and the in-tab "Review sync" menu.
+      if (typeof window.SyncReviewGate !== 'undefined') {
+        window.SyncReviewGate.open(plan, { autoTrigger: false });
+      }
     }).catch(function(err) {
       setSyncBusy(false);
       setSyncResult({ type: 'error', message: 'Import failed: ' + err.message });
@@ -2279,6 +2291,72 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
           })
         ),
 
+        // Persistent sync warning row (sync-reference Phase 7).
+        // Toasts are easy to miss — if the most recent sync attempt failed
+        // we surface it here so the user can see "sync is unhealthy" without
+        // having to open the activity log. Dismissable: once the user has
+        // re-granted permission or otherwise resolved the issue they can
+        // clear the row, and the next successful tick won't repopulate it.
+        syncStatus && syncStatus.lastError && h('div', {
+          className: 'sync-warning',
+          role: 'alert',
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 12px',
+            margin: '8px 0',
+            background: 'var(--surface-2, var(--surface))',
+            border: '1px solid var(--warning, var(--border))',
+            borderRadius: 'var(--radius-sm, 6px)',
+            fontSize: 13
+          }
+        },
+          typeof Icons !== 'undefined' && Icons.warning ? Icons.warning() : null,
+          h('span', { style: { flex: 1 } },
+            'Sync warning (' + syncStatus.lastError.stage + '): ' + syncStatus.lastError.message
+          ),
+          // Phase B: collision-specific recovery action. Only renders when
+          // the engine emitted a "device-id-collision" error so unrelated
+          // warnings don't gain a misleading "Regenerate" button.
+          syncStatus.lastError.stage === 'device-id-collision' && h('button', {
+            type: 'button',
+            className: 'sync-warning-action',
+            disabled: regenBusy,
+            onClick: function() {
+              if (regenBusy) return;
+              if (typeof SyncEngine === 'undefined' || !SyncEngine.regenerateDeviceId) return;
+              setRegenBusy(true);
+              try {
+                var fresh = SyncEngine.regenerateDeviceId();
+                if (fresh) {
+                  if (typeof SyncEngine.clearLastError === 'function') SyncEngine.clearLastError();
+                  setSyncStatus(SyncEngine.getSyncStatus());
+                  if (window.Toast) window.Toast.show({ message: 'New sync id assigned. Future exports will use it.', type: 'success', duration: 5000 });
+                }
+              } finally {
+                // Release the latch on a short timer so a real second
+                // collision (rare) can still be acted on, but a rapid
+                // double-click cannot mint two ids.
+                setTimeout(function() { setRegenBusy(false); }, 1000);
+              }
+            },
+            style: { background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm, 6px)', padding: '4px 10px', cursor: regenBusy ? 'wait' : 'pointer', fontSize: 12, opacity: regenBusy ? 0.6 : 1 }
+          }, regenBusy ? 'Regenerating…' : 'Regenerate sync id'),
+          h('button', {
+            type: 'button',
+            className: 'sync-warning-dismiss',
+            onClick: function() {
+              if (typeof SyncEngine !== 'undefined' && SyncEngine.clearLastError) {
+                SyncEngine.clearLastError();
+                setSyncStatus(SyncEngine.getSyncStatus());
+              }
+            },
+            style: { background: 'transparent', border: 'none', cursor: 'pointer', padding: 4 },
+            'aria-label': 'Dismiss sync warning'
+          }, typeof Icons !== 'undefined' && Icons.x ? Icons.x() : 'Dismiss')
+        ),
+
         // Last sync times
         syncStatus && (syncStatus.lastExportAt || syncStatus.lastImportAt) && h('div', { className: 'sync-timestamps' },
           syncStatus.lastExportAt && h('div', { className: 'sync-timestamp' },
@@ -2287,6 +2365,28 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
           syncStatus.lastImportAt && h('div', { className: 'sync-timestamp' },
             Icons.cloudCheck(), ' Last import: ' + timeAgo(syncStatus.lastImportAt)
           ),
+          // Big5: multi-tab contention indicator. When another tab is
+          // actively syncing the Web Locks API silently skips this tab's
+          // ticks; surface that so the user understands why "Check for
+          // updates" appears to do nothing. Only renders when a contention
+          // event happened in the last 60s — older noise gets filtered out.
+          (function() {
+            try {
+              if (typeof SyncEngine === 'undefined' || typeof SyncEngine.getDiagnostics !== 'function') return null;
+              var d = SyncEngine.getDiagnostics();
+              if (!d || !d.lastLockHeldAt) return null;
+              // Clamp at 0 so a future-dated timestamp (clock skew between
+              // sessions, system clock change) doesn't pin the indicator
+              // on forever — the >60s gate would always be false on a
+              // negative age.
+              var ageMs = Math.max(0, Date.now() - new Date(d.lastLockHeldAt).getTime());
+              if (ageMs > 60000) return null;
+              return h('div', { className: 'sync-timestamp', style: { color: 'var(--text-secondary)' } },
+                (typeof Icons !== 'undefined' && Icons.info ? Icons.info() : null),
+                ' Another tab is syncing — this tab will retry shortly.'
+              );
+            } catch (e) { return null; }
+          })(),
           h('button', {
             type: 'button',
             className: 'sync-activity-link',
@@ -2323,20 +2423,23 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
             onClick: handleExportSync,
             disabled: syncBusy
           }, syncBusy && !watchDirName ? 'Working\u2026' : 'Download .csync'),
-          h('label', {
+          h('button', {
             className: 'home-btn home-btn--secondary sync-action-btn',
-            style: { cursor: syncBusy ? 'not-allowed' : 'pointer' }
-          },
-            'Import .csync',
-            h('input', {
-              ref: syncFileRef,
-              type: 'file',
-              accept: '.csync',
-              style: { display: 'none' },
-              onChange: handleSyncFileSelect,
-              disabled: syncBusy
-            })
-          )
+            onClick: function () {
+              if (window.UnifiedSyncImportModal && typeof window.UnifiedSyncImportModal.show === 'function') {
+                window.UnifiedSyncImportModal.show().then(function (res) {
+                  if (!res || !res.plan) return;
+                  setSyncStatus(SyncEngine.getSyncStatus());
+                  if (typeof window.SyncReviewGate !== 'undefined') {
+                    window.SyncReviewGate.open(res.plan, { autoTrigger: false });
+                  }
+                }).catch(function (err) {
+                  setSyncResult({ type: 'error', message: 'Import failed: ' + (err && err.message || err) });
+                });
+              }
+            },
+            disabled: syncBusy
+          }, 'Import .csync')
         ),
 
         h('p', { className: 'sync-hint' },
@@ -2349,12 +2452,8 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       )
     ),
 
-    // Sync summary modal
-    syncPlan && h(SyncSummaryModal, {
-      plan: syncPlan,
-      onApply: handleApplySync,
-      onCancel: function() { setSyncPlan(null); }
-    }),
+    // Sync summary modal removed in sync-reference fix #5 — all import
+    // review now happens inside SyncReviewGate (window.SyncReviewGate).
 
     // Sync activity log modal (Concept A)
     activityOpen && typeof window.SyncActivityModal === 'function' && h(window.SyncActivityModal, {

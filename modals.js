@@ -399,196 +399,6 @@ function NamePromptModal({ defaultName, onConfirm, onCancel }) {
   );
 }
 
-// ═══ Sync Summary Modal ═══
-// Shows a preview of what will be imported from a .csync file, with conflict
-// resolution controls, before committing the sync.
-// Props:
-//   plan         — object returned by SyncEngine.prepareImport()
-//   onApply      — callback(conflictResolutions) when user clicks Apply
-//   onCancel     — callback to dismiss
-function SyncSummaryModal({ plan, onApply, onCancel }) {
-  var h = React.createElement;
-  var _res = React.useState({});
-  var resolutions = _res[0], setResolutions = _res[1];
-  var _applying = React.useState(false);
-  var applying = _applying[0], setApplying = _applying[1];
-  var _skipStash = React.useState(false);
-  var skipStash = _skipStash[0], setSkipStash = _skipStash[1];
-
-  // Block ESC during apply so the user can't dismiss mid-import.
-  // (Routed through <Overlay> via escapeOptions below.)
-
-  function setResolution(id, val) {
-    setResolutions(function(prev) {
-      var next = Object.assign({}, prev);
-      next[id] = val;
-      return next;
-    });
-  }
-
-  var allConflictsResolved = plan.conflicts.every(function(c) {
-    return !!resolutions[c.id];
-  });
-
-  var canApply = plan.conflicts.length === 0 || allConflictsResolved;
-  var hasChanges = plan.newRemote.length > 0 || plan.mergeTracking.length > 0 || plan.conflicts.length > 0 || !!plan.stashMerge;
-
-  function handleApply() {
-    if (!canApply || applying) return;
-    setApplying(true);
-    onApply(resolutions, { skipStash: skipStash });
-  }
-
-  // Summary stat row
-  function statBadge(count, label, cls) {
-    if (count === 0) return null;
-    return h('span', { className: 'sync-stat-badge' + (cls ? ' ' + cls : '') }, count + ' ' + label);
-  }
-
-  return h(window.Overlay, {
-    onClose: function() { if (!applying) onCancel(); },
-    variant: 'dialog',
-    className: 'sync-summary-modal',
-    labelledBy: 'sync-summary-title',
-    dismissOnScrim: !applying
-  },
-      h(window.Overlay.CloseButton, { onClose: onCancel }),
-      h('h3', { id: 'sync-summary-title', className: 'sync-summary-title' },
-        Icons.cloudSync(), ' Import Sync File'
-      ),
-
-      // Source info
-      plan.summary && h('div', { className: 'sync-summary-source' },
-        'From ',
-        h('strong', null, plan.summary.deviceName || 'Unknown device'),
-        plan.summary.createdAt && plan.summary.createdAt !== 'unknown' ? ' \u00b7 ' + new Date(plan.summary.createdAt).toLocaleString() : ''
-      ),
-
-      // Stats row
-      h('div', { className: 'sync-stats-row' },
-        statBadge(plan.newRemote.length, 'new', 'sync-stat-badge--new'),
-        statBadge(plan.identical.length, 'identical', 'sync-stat-badge--identical'),
-        statBadge(plan.mergeTracking.length, 'merge', 'sync-stat-badge--merge'),
-        statBadge(plan.conflicts.length, 'conflict' + (plan.conflicts.length !== 1 ? 's' : ''), 'sync-stat-badge--conflict'),
-        plan.stashMerge && h('span', { className: 'sync-stat-badge sync-stat-badge--merge' }, 'stash update')
-      ),
-
-      // New projects
-      plan.newRemote.length > 0 && h('div', { className: 'sync-section' },
-        h('div', { className: 'sync-section-header' }, 'New projects to add'),
-        plan.newRemote.map(function(entry) {
-          var p = entry.remote.data;
-          return h('div', { key: p.id, className: 'sync-project-row' },
-            h('span', { className: 'sync-project-name' }, p.name || 'Untitled'),
-            h('span', { className: 'sync-project-meta' },
-              (p.w || 0) + '\u00d7' + (p.h || 0)
-            )
-          );
-        })
-      ),
-
-      // Merge tracking
-      plan.mergeTracking.length > 0 && h('div', { className: 'sync-section' },
-        h('div', { className: 'sync-section-header' }, 'Progress to merge'),
-        plan.mergeTracking.map(function(entry) {
-          var p = entry.remote.data;
-          return h('div', { key: entry.id, className: 'sync-project-row' },
-            h('span', { className: 'sync-project-name' }, p.name || entry.id),
-            h('span', { className: 'sync-project-meta' }, 'tracking \u2192 merge')
-          );
-        })
-      ),
-
-      // Possible duplicates (idRewrites) — shown for reassurance when the
-      // engine has matched a local project to a remote one by chart fingerprint
-      // even though their ids differ. This was historically the silent
-      // duplication bug; surfacing it lets the user confirm the merge is right.
-      plan.idRewrites && plan.idRewrites.length > 0 && h('div', { className: 'sync-section' },
-        h('div', { className: 'sync-section-header' },
-          (Icons.cloudCheck ? Icons.cloudCheck() : null), ' Reconciled duplicates'
-        ),
-        h('div', { className: 'sync-section-help', style: { fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 } },
-          'These charts already exist on this device under a different id. Their progress will be merged together so you don\u2019t end up with two copies.'
-        ),
-        plan.idRewrites.map(function(entry) {
-          var p = (entry.remote && entry.remote.data) || {};
-          return h('div', { key: entry.id, className: 'sync-project-row' },
-            h('span', { className: 'sync-project-name' }, p.name || entry.id),
-            h('span', { className: 'sync-project-meta' },
-              (entry.local && entry.local.name && entry.local.name !== p.name)
-                ? ('matches local "' + entry.local.name + '"')
-                : 'matched by chart contents')
-          );
-        })
-      ),
-
-      // Conflicts
-      plan.conflicts.length > 0 && h('div', { className: 'sync-section' },
-        h('div', { className: 'sync-section-header sync-section-header--conflict' },
-          Icons.cloudAlert(), ' Conflicts \u2014 choose how to resolve'
-        ),
-        plan.conflicts.map(function(entry) {
-          return h(SyncConflictCard, {
-            key: entry.id,
-            entry: entry,
-            resolution: resolutions[entry.id] || null,
-            onResolve: function(val) { if (!applying) setResolution(entry.id, val); }
-          });
-        })
-      ),
-
-      // Local-only info (projects on this device not in the sync file)
-      plan.localOnly && plan.localOnly.length > 0 && h('div', { className: 'sync-section' },
-        h('div', { className: 'sync-section-header' }, 'Local only (not in sync file)'),
-        plan.localOnly.map(function(entry) {
-          var p = entry.local;
-          return h('div', { key: entry.id, className: 'sync-project-row sync-project-row--muted' },
-            h('span', { className: 'sync-project-name' }, p.name || entry.id),
-            h('span', { className: 'sync-project-meta' }, 'kept as-is')
-          );
-        })
-      ),
-
-      // Stash merge preview
-      plan.stashMerge && h('div', { className: 'sync-section' },
-        h('div', { className: 'sync-section-header' }, 'Stash update'),
-        h('div', { className: 'sync-stash-preview' },
-          plan.stashMerge.threads && h('span', null, Object.keys(plan.stashMerge.threads).length + ' threads'),
-          plan.stashMerge.threads && plan.stashMerge.patterns && ' \u00b7 ',
-          plan.stashMerge.patterns && h('span', null, plan.stashMerge.patterns.length + ' patterns')
-        ),
-        // VER-SYNC-004: let the user opt out of merging stash data from the
-        // remote. Useful when the remote device has stale or unwanted thread
-        // counts that would silently inflate local owned quantities.
-        h('label', { className: 'sync-skip-stash-label', style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' } },
-          h('input', {
-            type: 'checkbox',
-            checked: skipStash,
-            disabled: applying,
-            onChange: function(e) { setSkipStash(e.target.checked); }
-          }),
-          'Skip stash update'
-        )
-      ),
-
-      // Actions
-      h('div', { className: 'sync-summary-actions' },
-        h('button', {
-          className: 'sync-btn sync-btn--secondary',
-          onClick: onCancel,
-          disabled: applying
-        }, 'Cancel'),
-        h('button', {
-          className: 'sync-btn sync-btn--primary',
-          onClick: handleApply,
-          disabled: !canApply || !hasChanges || applying
-        },
-          applying ? 'Applying\u2026' : hasChanges ? 'Apply Sync' : 'Nothing to sync'
-        )
-      )
-  );
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // SyncActivityModal — Concept A
 // Shows a chronological log of recent sync events (exports, imports, errors,
@@ -743,102 +553,49 @@ function SyncActivityModal({ onClose }) {
         className: 'sync-btn sync-btn--primary',
         onClick: onClose
       }, 'Close')
-    )
+    ),
+    // Phase D — diagnostics footer. Shows session counters from
+    // SyncEngine.getDiagnostics so users can confirm the watcher is
+    // actually firing without DevTools. Counters reset on reload by design.
+    // QW3: wrapped in try/catch so a future getDiagnostics regression
+    // (missing field, throw) can't blank the whole activity modal — the
+    // log itself is the primary content and must always render.
+    (function() {
+      try {
+        if (typeof window === 'undefined' || !window.SyncEngine || typeof window.SyncEngine.getDiagnostics !== 'function') return null;
+        var d = window.SyncEngine.getDiagnostics() || {};
+        return h('details', {
+          key: 'diag',
+          className: 'sync-diagnostics',
+          style: { marginTop: 12, fontSize: 12, color: 'var(--text-secondary)' }
+        },
+          h('summary', { style: { cursor: 'pointer' } }, 'Diagnostics'),
+          h('div', { style: { padding: '8px 0', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px' } },
+            h('span', null, 'Watcher:'),
+            h('span', null, d.watching ? ('on (every ' + Math.round((d.watcherIntervalMs || 0) / 1000) + 's)') : 'off'),
+            h('span', null, 'Ticks this session:'),
+            h('span', null, String(d.tickCount || 0) + (d.lastTickAt ? ' (last ' + timeAgo(d.lastTickAt) + ')' : '')),
+            h('span', null, 'Updates seen:'),
+            h('span', null, String(d.updatesSeen || 0)),
+            d.tickFailures > 0 && h('span', null, 'Failures:'),
+            d.tickFailures > 0 && h('span', { style: { color: 'var(--danger)' } }, String(d.tickFailures) + (d.lastFailureAt ? ' (last ' + timeAgo(d.lastFailureAt) + ')' : '')),
+            h('span', null, 'Skipped (hidden):'),
+            h('span', null, String(d.skipsHidden || 0)),
+            d.skipsNoPermission > 0 && h('span', null, 'Skipped (no perm):'),
+            d.skipsNoPermission > 0 && h('span', { style: { color: 'var(--warning)' } }, String(d.skipsNoPermission)),
+            d.skipsLockHeld > 0 && h('span', null, 'Skipped (other tab):'),
+            d.skipsLockHeld > 0 && h('span', null, String(d.skipsLockHeld))
+          )
+        );
+      } catch (e) {
+        try { console.warn('SyncActivityModal: diagnostics render failed', e); } catch (_) {}
+        return null;
+      }
+    })()
   );
 }
 
 if (typeof window !== 'undefined') { window.SyncActivityModal = SyncActivityModal; }
-
-// ═══ Sync Conflict Card ═══
-// Shows a side-by-side comparison with resolution buttons.
-// Props:
-//   entry      — classified conflict entry { id, local, remote: { data }, classification }
-//   resolution — current choice or null
-//   onResolve  — callback(choice)
-function SyncConflictCard({ entry, resolution, onResolve }) {
-  var h = React.createElement;
-  var local = entry.local;
-  var remote = entry.remote.data;
-
-  function countDone(proj) {
-    if (!proj || !proj.done) return 0;
-    var n = 0;
-    for (var i = 0; i < proj.done.length; i++) {
-      if (proj.done[i] === 1) n++;
-    }
-    return n;
-  }
-
-  function totalStitches(proj) {
-    if (!proj || !proj.pattern) return 0;
-    var n = 0;
-    for (var i = 0; i < proj.pattern.length; i++) {
-      var c = proj.pattern[i];
-      if (c && c.id !== '__skip__' && c.id !== '__empty__') n++;
-    }
-    return n;
-  }
-
-  function paletteCount(proj) {
-    if (!proj || !proj.pattern) return 0;
-    var ids = {};
-    for (var i = 0; i < proj.pattern.length; i++) {
-      var c = proj.pattern[i];
-      if (c && c.id && c.id !== '__skip__' && c.id !== '__empty__') ids[c.id] = true;
-    }
-    return Object.keys(ids).length;
-  }
-
-  var localDone = countDone(local);
-  var remoteDone = countDone(remote);
-  var localTotal = totalStitches(local);
-  var remoteTotal = totalStitches(remote);
-  var localPct = localTotal > 0 ? Math.round(localDone / localTotal * 100) : 0;
-  var remotePct = remoteTotal > 0 ? Math.round(remoteDone / remoteTotal * 100) : 0;
-  var localPalette = paletteCount(local);
-  var remotePalette = paletteCount(remote);
-
-  function side(label, proj, done, total, pct, palCount) {
-    return h('div', { className: 'sync-conflict-side' },
-      h('div', { className: 'sync-conflict-side-label' }, label),
-      h('div', { className: 'sync-conflict-side-name' }, proj.name || 'Untitled'),
-      h('div', { className: 'sync-conflict-side-meta' },
-        (proj.w || 0) + '\u00d7' + (proj.h || 0) + ' \u00b7 ' + palCount + ' colour' + (palCount !== 1 ? 's' : '') + ' \u00b7 ' + pct + '% done'
-      ),
-      h('div', { className: 'sync-conflict-side-date' },
-        'Edited: ' + (proj.updatedAt ? new Date(proj.updatedAt).toLocaleString() : 'unknown')
-      )
-    );
-  }
-
-  var choices = [
-    { val: 'keep-local', label: 'Keep Local', desc: 'Discard remote changes' },
-    { val: 'keep-remote', label: 'Keep Remote', desc: 'Overwrite local with remote' },
-    { val: 'keep-both', label: 'Keep Both', desc: 'Import remote as a copy' }
-  ];
-
-  return h('div', { className: 'sync-conflict-card' + (resolution ? ' sync-conflict-card--resolved' : '') },
-    h('div', { className: 'sync-conflict-name' }, local.name || remote.name || entry.id),
-    h('div', { className: 'sync-conflict-sides' },
-      side('This device', local, localDone, localTotal, localPct, localPalette),
-      h('div', { className: 'sync-conflict-vs' }, 'vs'),
-      side('Sync file', remote, remoteDone, remoteTotal, remotePct, remotePalette)
-    ),
-    h('div', { className: 'sync-conflict-choices' },
-      choices.map(function(ch) {
-        return h('button', {
-          key: ch.val,
-          className: 'sync-choice-btn' + (resolution === ch.val ? ' sync-choice-btn--active' : ''),
-          onClick: function() { onResolve(ch.val); },
-          title: ch.desc
-        }, ch.label);
-      })
-    ),
-    resolution && h('div', { className: 'sync-conflict-resolved-label' },
-      Icons.check(), ' ' + choices.find(function(c) { return c.val === resolution; }).label
-    )
-  );
-}
 
 // ═══ Edit Project Details Modal ═══
 // Lets users rename a project and edit its designer / description from the
@@ -1035,6 +792,765 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
   };
 })();
 
+// ═══ SyncPassphrasePrompt — passphrase entry for encrypted sync files ═══
+// Mounted on demand when an import path encounters an EncryptionError of
+// kind "passphrase_required" or "incorrect_passphrase". The prompt is
+// imperative (Promise-based) so the existing import callbacks in
+// header.js / home-screen.js can simply await it before retrying. On
+// success the resolved value is the passphrase string; on cancel the
+// promise resolves to null. Storing the passphrase against
+// SyncEngine.setEncryptionPassphrase is the *caller's* responsibility —
+// this dialog only collects input.
+(function () {
+  if (typeof window === 'undefined') return;
+  function PromptInner(props) {
+    var h = React.createElement;
+    var opts = props.opts || {};
+    var uid = React.useId();
+    var titleId = 'cs-passphrase-title-' + uid;
+    var inputRef = React.useRef(null);
+    var pw = React.useState('');
+    var err = React.useState(opts.error || '');
+    React.useEffect(function () {
+      var t = setTimeout(function () { try { inputRef.current && inputRef.current.focus(); } catch (e) {} }, 0);
+      return function () { clearTimeout(t); };
+    }, []);
+    function submit() {
+      var v = String(pw[0] || '');
+      if (!v) { err[1]('Enter your passphrase.'); return; }
+      props.onConfirm(v);
+    }
+    return h(window.Overlay, {
+      onClose: props.onCancel, variant: 'dialog', maxWidth: 440,
+      labelledBy: titleId
+    },
+      h(window.Overlay.CloseButton, { onClose: props.onCancel }),
+      h('div', { style: { padding: 24 } },
+        h('h3', { id: titleId, style: { marginTop: 0, marginBottom: 12, fontSize: 18, color: 'var(--text-primary)' } }, opts.title || 'Encrypted sync file'),
+        h('p', { style: { margin: 0, color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.5 } },
+          opts.message || 'This sync file is encrypted. Enter the passphrase used to create it.'),
+        opts.deviceName ? h('p', {
+          style: { margin: '8px 0 0', color: 'var(--text-secondary)', fontSize: 13 }
+        }, 'From device: ', h('strong', null, opts.deviceName)) : null,
+        h('div', { style: { marginTop: 16 } },
+          h('input', {
+            ref: inputRef,
+            type: 'password',
+            autoComplete: 'current-password',
+            placeholder: 'Passphrase',
+            value: pw[0],
+            onChange: function (e) { pw[1](e.target.value); err[1](''); },
+            onKeyDown: function (e) { if (e.key === 'Enter') submit(); },
+            style: {
+              width: '100%', padding: '10px 12px', fontSize: 14,
+              borderRadius: 6, border: '1px solid var(--border)',
+              background: 'var(--surface)', color: 'var(--text-primary)',
+              boxSizing: 'border-box'
+            }
+          })
+        ),
+        err[0] ? h('p', { style: { margin: '8px 0 0', color: 'var(--danger, #C0392B)', fontSize: 13 } }, err[0]) : null,
+        h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 } },
+          h('button', {
+            type: 'button',
+            onClick: props.onCancel,
+            style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', cursor: 'pointer' }
+          }, opts.cancelLabel || 'Cancel'),
+          h('button', {
+            type: 'button',
+            onClick: submit,
+            style: {
+              padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none',
+              background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontWeight: 600
+            }
+          }, opts.confirmLabel || 'Unlock')
+        )
+      )
+    );
+  }
+  window.SyncPassphrasePrompt = {
+    show: function (opts) {
+      return new Promise(function (resolve) {
+        if (!window.React || !window.ReactDOM || !window.Overlay) {
+          var p = window.prompt((opts && opts.message) || 'Sync file passphrase:');
+          resolve(p || null);
+          return;
+        }
+        var host = document.createElement('div');
+        document.body.appendChild(host);
+        var root = ReactDOM.createRoot ? ReactDOM.createRoot(host) : null;
+        var settled = false;
+        function cleanup() {
+          try { if (root) root.unmount(); else ReactDOM.unmountComponentAtNode(host); } catch (e) {}
+          if (host.parentNode) host.parentNode.removeChild(host);
+        }
+        function done(v) { if (settled) return; settled = true; cleanup(); resolve(v); }
+        var el = React.createElement(PromptInner, {
+          opts: opts || {},
+          onConfirm: function (v) { done(v); },
+          onCancel: function () { done(null); }
+        });
+        if (root) root.render(el); else ReactDOM.render(el, host);
+      });
+    }
+  };
+})();
+
+// ═══ HandshakeGeneratorModal — Device A side of cross-device pairing ═══
+// Shows a 6-digit shortcode and the full Base64url token (Copy button)
+// so a second device can join the same sync folder. Resolves to the
+// generated entry when the user closes the modal.
+(function () {
+  if (typeof window === 'undefined') return;
+  function GeneratorInner(props) {
+    var h = React.createElement;
+    var uid = React.useId();
+    var titleId = 'cs-handshake-gen-title-' + uid;
+    var entry = React.useState(null);
+    var err = React.useState('');
+    var copied = React.useState(false);
+
+    React.useEffect(function () {
+      var cancelled = false;
+      if (!window.SyncEngine || !window.SyncEngine.generateHandshakeToken) {
+        err[1]('Sync engine is not available on this page.');
+        return;
+      }
+      // Surface the watch folder hint when we can — only the displayName
+      // (folder name only; OS hides paths) is reliably exposed. Wait for
+      // the directory handle so we can include its name. Skipping the
+      // size/file-count would need a full folder scan.
+      function build(folderHint) {
+        return window.SyncEngine.generateHandshakeToken({ folderHint: folderHint }).then(function (e) {
+          if (cancelled) return;
+          entry[1](e);
+        }).catch(function (e) {
+          if (cancelled) return;
+          err[1]((e && e.message) || 'Could not generate code.');
+        });
+      }
+      var st = (window.SyncEngine.getSyncStatus && window.SyncEngine.getSyncStatus()) || {};
+      var lastSyncAt = st.lastExportAt || st.lastImportAt || null;
+      if (window.SyncEngine.getWatchDirectory) {
+        window.SyncEngine.getWatchDirectory().then(function (handle) {
+          if (cancelled) return;
+          var hint = (handle && handle.name)
+            ? { displayName: handle.name, lastSyncAt: lastSyncAt }
+            : (lastSyncAt ? { lastSyncAt: lastSyncAt } : null);
+          return build(hint);
+        }).catch(function () { if (!cancelled) build(null); });
+      } else {
+        build(null);
+      }
+      return function () { cancelled = true; };
+    }, []);
+
+    function copyToken() {
+      if (!entry[0]) return;
+      try {
+        navigator.clipboard.writeText(entry[0].token).then(function () {
+          copied[1](true);
+          setTimeout(function () { copied[1](false); }, 1500);
+        });
+      } catch (_) {}
+    }
+
+    var formattedShort = entry[0] ? (entry[0].shortcode.slice(0, 3) + ' ' + entry[0].shortcode.slice(3)) : '';
+
+    return h(window.Overlay, {
+      onClose: props.onClose, variant: 'dialog', maxWidth: 480,
+      labelledBy: titleId
+    },
+      h(window.Overlay.CloseButton, { onClose: props.onClose }),
+      h('div', { style: { padding: 24 } },
+        h('h3', { id: titleId, style: { marginTop: 0, marginBottom: 8, fontSize: 18, color: 'var(--text-primary)' } }, 'Pair another device'),
+        h('p', { style: { margin: 0, color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5 } },
+          'On your other device, open Preferences > Data > Sync and choose ', h('strong', null, 'Join existing sync'), '. Then enter this code:'),
+        err[0]
+          ? h('div', {
+              style: { marginTop: 16, padding: 12, borderRadius: 6, background: '#FCEFEF', color: 'var(--danger, #C0392B)', fontSize: 13 }
+            }, err[0])
+          : !entry[0]
+            ? h('div', { style: { marginTop: 24, textAlign: 'center', color: 'var(--text-secondary)' } }, 'Generating…')
+            : h('div', { style: { marginTop: 16 } },
+                h('div', {
+                  style: {
+                    fontSize: 36, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                    fontWeight: 700, letterSpacing: 4, textAlign: 'center',
+                    padding: '16px 0', color: 'var(--text-primary)'
+                  }
+                }, formattedShort),
+                h('details', { style: { marginTop: 16, fontSize: 12, color: 'var(--text-secondary)' } },
+                  h('summary', { style: { cursor: 'pointer', userSelect: 'none' } }, 'Other device can\u2019t see the code? Use the full token instead'),
+                  h('textarea', {
+                    readOnly: true,
+                    value: entry[0].token,
+                    onClick: function (e) { try { e.target.select(); } catch (_) {} },
+                    style: {
+                      width: '100%', marginTop: 8, padding: 8, fontSize: 11,
+                      fontFamily: 'ui-monospace, monospace', minHeight: 80,
+                      borderRadius: 6, border: '1px solid var(--border)',
+                      background: 'var(--surface)', color: 'var(--text-primary)',
+                      boxSizing: 'border-box', resize: 'vertical'
+                    }
+                  }),
+                  h('button', {
+                    type: 'button',
+                    onClick: copyToken,
+                    style: {
+                      marginTop: 8, padding: '6px 12px', fontSize: 12, borderRadius: 6,
+                      border: '1px solid var(--border)', background: 'var(--surface)',
+                      color: 'var(--text-primary)', cursor: 'pointer'
+                    }
+                  }, copied[0] ? 'Copied!' : 'Copy token to clipboard')
+                )
+              ),
+        h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 } },
+          h('button', {
+            type: 'button',
+            onClick: props.onClose,
+            style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', cursor: 'pointer' }
+          }, 'Done')
+        )
+      )
+    );
+  }
+  window.HandshakeGeneratorModal = {
+    show: function () {
+      return new Promise(function (resolve) {
+        if (!window.React || !window.ReactDOM || !window.Overlay) {
+          resolve(null);
+          return;
+        }
+        var host = document.createElement('div');
+        document.body.appendChild(host);
+        var root = ReactDOM.createRoot ? ReactDOM.createRoot(host) : null;
+        var settled = false;
+        function cleanup() {
+          try { if (root) root.unmount(); else ReactDOM.unmountComponentAtNode(host); } catch (e) {}
+          if (host.parentNode) host.parentNode.removeChild(host);
+        }
+        function done() { if (settled) return; settled = true; cleanup(); resolve(null); }
+        var el = React.createElement(GeneratorInner, { onClose: done });
+        if (root) root.render(el); else ReactDOM.render(el, host);
+      });
+    }
+  };
+})();
+
+// ═══ HandshakeConsumerModal — Device B side of cross-device pairing ═══
+// Asks for the 6-digit code (or full token), validates it, displays the
+// remote device name + folder hint, lets the user adjust the suggested
+// local device name, and finally triggers showDirectoryPicker(). Resolves
+// to {success:true} on completion or null on cancel.
+(function () {
+  if (typeof window === 'undefined') return;
+  function ConsumerInner(props) {
+    var h = React.createElement;
+    var uid = React.useId();
+    var titleId = 'cs-handshake-cons-title-' + uid;
+    // step: 'enter' (input code) → 'verify' (confirm + folder pick) → 'done'
+    var step = React.useState('enter');
+    var input = React.useState('');
+    var bundle = React.useState(null);
+    var warnings = React.useState([]);
+    var localName = React.useState('');
+    var err = React.useState('');
+    var busy = React.useState(false);
+    var inputRef = React.useRef(null);
+
+    React.useEffect(function () {
+      if (step[0] === 'enter') {
+        var t = setTimeout(function () { try { inputRef.current && inputRef.current.focus(); } catch (e) {} }, 0);
+        return function () { clearTimeout(t); };
+      }
+    }, [step[0]]);
+
+    function submit() {
+      var raw = String(input[0] || '').trim();
+      if (!raw) { err[1]('Enter the 6-digit code or paste the full token.'); return; }
+      err[1]('');
+      busy[1](true);
+      window.SyncEngine.validateHandshakeToken(raw).then(function (r) {
+        busy[1](false);
+        if (!r.valid) {
+          if (r.needsToken) {
+            err[1]('No matching code on this device. Paste the full token from the other device below.');
+          } else {
+            err[1](r.error || 'Couldn\u2019t validate that code.');
+          }
+          return;
+        }
+        bundle[1](r.bundle);
+        warnings[1](r.warnings || []);
+        localName[1](window.SyncEngine.suggestDeviceName(r.bundle.deviceName));
+        step[1]('verify');
+      }).catch(function (e) {
+        busy[1](false);
+        err[1]((e && e.message) || 'Could not validate the code.');
+      });
+    }
+
+    function pickFolder() {
+      if (typeof window.showDirectoryPicker !== 'function') {
+        err[1]('Folder watching needs a Chromium-based browser (Chrome, Edge, Brave, Opera).');
+        return;
+      }
+      busy[1](true);
+      // Adopt the suggested local name first.
+      try { window.SyncEngine.setDeviceName(String(localName[0] || '').trim() || window.SyncEngine.getDeviceName()); } catch (_) {}
+      window.showDirectoryPicker({ mode: 'readwrite' }).then(function (handle) {
+        return window.SyncEngine.setWatchDirectory(handle);
+      }).then(function () {
+        busy[1](false);
+        step[1]('done');
+        try { window.dispatchEvent(new CustomEvent('cs:syncStatusChanged')); } catch (_) {}
+      }).catch(function (e) {
+        busy[1](false);
+        if (e && e.name === 'AbortError') return; // user cancelled the picker
+        err[1]((e && e.message) || 'Could not connect to that folder.');
+      });
+    }
+
+    function renderEnter() {
+      return h('div', null,
+        h('p', { style: { margin: 0, color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5 } },
+          'Enter the 6-digit code shown on your other device, or paste the full token if the code didn\u2019t work.'),
+        h('input', {
+          ref: inputRef,
+          type: 'text',
+          autoComplete: 'off',
+          placeholder: '482 917',
+          value: input[0],
+          onChange: function (e) { input[1](e.target.value); err[1](''); },
+          onKeyDown: function (e) { if (e.key === 'Enter') submit(); },
+          style: {
+            width: '100%', marginTop: 16, padding: '12px 14px',
+            fontSize: 18, fontFamily: 'ui-monospace, monospace',
+            borderRadius: 6, border: '1px solid var(--border)',
+            background: 'var(--surface)', color: 'var(--text-primary)',
+            boxSizing: 'border-box'
+          }
+        }),
+        err[0] ? h('p', { style: { margin: '8px 0 0', color: 'var(--danger, #C0392B)', fontSize: 13 } }, err[0]) : null,
+        h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 } },
+          h('button', { type: 'button', onClick: props.onClose, style: btnSec }, 'Cancel'),
+          h('button', { type: 'button', onClick: submit, disabled: busy[0], style: btnPri }, busy[0] ? 'Checking…' : 'Continue')
+        )
+      );
+    }
+
+    function renderVerify() {
+      var b = bundle[0];
+      return h('div', null,
+        h('p', { style: { margin: 0, color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5 } },
+          'You\u2019re joining ', h('strong', { style: { color: 'var(--text-primary)' } }, b.deviceName || 'another device'), '.'),
+        b.folderHint && b.folderHint.lastSyncAt
+          ? h('p', { style: { margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: 12 } },
+              'Last synced ', new Date(b.folderHint.lastSyncAt).toLocaleString())
+          : null,
+        b.folderHint && b.folderHint.displayName
+          ? h('p', { style: { margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: 12 } },
+              'Suggested folder: ', h('strong', null, b.folderHint.displayName))
+          : null,
+        warnings[0].length
+          ? h('ul', { style: { margin: '12px 0 0', paddingLeft: 20, color: 'var(--text-secondary)', fontSize: 12 } },
+              warnings[0].map(function (w, i) { return h('li', { key: i }, w.message); }))
+          : null,
+        h('label', { style: { display: 'block', marginTop: 16, fontSize: 12, color: 'var(--text-secondary)' } }, 'This device\u2019s name'),
+        h('input', {
+          type: 'text', value: localName[0],
+          onChange: function (e) { localName[1](e.target.value); },
+          style: {
+            width: '100%', marginTop: 4, padding: '8px 12px', fontSize: 14,
+            borderRadius: 6, border: '1px solid var(--border)',
+            background: 'var(--surface)', color: 'var(--text-primary)',
+            boxSizing: 'border-box'
+          }
+        }),
+        h('p', { style: { margin: '12px 0 0', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 } },
+          'Next: choose the same sync folder the other device is using. Your browser will ask for permission.'),
+        err[0] ? h('p', { style: { margin: '8px 0 0', color: 'var(--danger, #C0392B)', fontSize: 13 } }, err[0]) : null,
+        h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 } },
+          h('button', { type: 'button', onClick: function () { step[1]('enter'); err[1](''); }, style: btnSec }, 'Back'),
+          h('button', { type: 'button', onClick: pickFolder, disabled: busy[0], style: btnPri }, busy[0] ? 'Connecting…' : 'Choose sync folder')
+        )
+      );
+    }
+
+    function renderDone() {
+      return h('div', null,
+        h('p', { style: { margin: 0, color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.5 } },
+          'Setup complete! This device is now sharing the sync folder. Sync runs in the background \u2014 your patterns and stash will appear after the first check.'),
+        h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 } },
+          h('button', { type: 'button', onClick: function () { props.onSuccess(); }, style: btnPri }, 'Done')
+        )
+      );
+    }
+
+    var btnPri = {
+      padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none',
+      background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontWeight: 600
+    };
+    var btnSec = {
+      padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border)',
+      background: 'var(--surface)', color: 'var(--text-primary)', cursor: 'pointer'
+    };
+
+    return h(window.Overlay, {
+      onClose: props.onClose, variant: 'dialog', maxWidth: 480,
+      labelledBy: titleId
+    },
+      h(window.Overlay.CloseButton, { onClose: props.onClose }),
+      h('div', { style: { padding: 24 } },
+        h('h3', { id: titleId, style: { marginTop: 0, marginBottom: 12, fontSize: 18, color: 'var(--text-primary)' } },
+          step[0] === 'done' ? 'You\u2019re all set' : 'Join another device\u2019s sync'),
+        step[0] === 'enter' ? renderEnter() : step[0] === 'verify' ? renderVerify() : renderDone()
+      )
+    );
+  }
+  window.HandshakeConsumerModal = {
+    show: function () {
+      return new Promise(function (resolve) {
+        if (!window.React || !window.ReactDOM || !window.Overlay) {
+          resolve(null);
+          return;
+        }
+        var host = document.createElement('div');
+        document.body.appendChild(host);
+        var root = ReactDOM.createRoot ? ReactDOM.createRoot(host) : null;
+        var settled = false;
+        function cleanup() {
+          try { if (root) root.unmount(); else ReactDOM.unmountComponentAtNode(host); } catch (e) {}
+          if (host.parentNode) host.parentNode.removeChild(host);
+        }
+        function done(v) { if (settled) return; settled = true; cleanup(); resolve(v); }
+        var el = React.createElement(ConsumerInner, {
+          onClose: function () { done(null); },
+          onSuccess: function () { done({ success: true }); }
+        });
+        if (root) root.render(el); else ReactDOM.render(el, host);
+      });
+    }
+  };
+})();
+
+// ═══ UnifiedSyncImportModal — single entry point for manual .csync imports ═══
+// Replaces the standalone "Import Sync (.csync)…" file input. Walks the user
+// through three steps:
+//   1. Pick a .csync file (with passphrase retry for encrypted envelopes).
+//   2. Ask whether to keep syncing automatically (watch a folder).
+//   3. Confirmation with summary + handoff to SyncReviewGate.
+//
+// Mounted via window.UnifiedSyncImportModal.show(). Resolves to:
+//   { plan, watchEnabled: bool } on completion, or null on cancel.
+// Caller is responsible for opening SyncReviewGate with the returned plan
+// (the modal calls setPendingPlan internally so any other surface can also
+// pick it up via window.SyncEngine.getPendingPlan()).
+(function () {
+  if (typeof window === 'undefined') return;
+
+  function UnifiedImportInner(props) {
+    var h = React.createElement;
+    var uid = React.useId();
+    var titleId = 'cs-unified-sync-title-' + uid;
+
+    // step: 1 = file picker, 2 = watch choice, 3 = confirmation
+    var stepState = React.useState(1);
+    var step = stepState[0], setStep = stepState[1];
+    var fileState = React.useState(null);
+    var file = fileState[0], setFile = fileState[1];
+    var planState = React.useState(null);
+    var plan = planState[0], setPlan = planState[1];
+    var watchChoiceState = React.useState('yes'); // default: enabled
+    var watchChoice = watchChoiceState[0], setWatchChoice = watchChoiceState[1];
+    var watchEnabledState = React.useState(false);
+    var watchEnabled = watchEnabledState[0], setWatchEnabled = watchEnabledState[1];
+    var busyState = React.useState(false);
+    var busy = busyState[0], setBusy = busyState[1];
+    var errState = React.useState('');
+    var err = errState[0], setErr = errState[1];
+
+    var fileInputRef = React.useRef(null);
+
+    function onPickFile(e) {
+      var f = e.target.files && e.target.files[0];
+      if (e.target) e.target.value = '';
+      if (!f) return;
+      // VER-SYNC-012 — warn before decompressing very large files.
+      if (f.size > 50 * 1024 * 1024) {
+        var mb = (f.size / (1024 * 1024)).toFixed(1);
+        if (window.Toast) window.Toast.show({ message: 'Large sync file (' + mb + ' MB) — import may take a moment.', type: 'info', duration: 6000 });
+      }
+      setFile(f);
+      setBusy(true);
+      setErr('');
+      setPlan(null);
+      window.SyncEngine.readSyncFile(f).then(function (syncObj) {
+        // Encrypted-envelope retry loop — same shape used by header.js and
+        // home-screen.js so the user gets the familiar passphrase prompt
+        // when an encrypted envelope is opened without a session key.
+        function tryPrepare() {
+          return window.SyncEngine.prepareImport(syncObj).catch(function (er) {
+            var code = er && er.code;
+            if (code === 'passphrase_required' || code === 'incorrect_passphrase') {
+              if (!window.SyncPassphrasePrompt) throw er;
+              return window.SyncPassphrasePrompt.show({
+                title: 'Encrypted sync file',
+                message: code === 'incorrect_passphrase'
+                  ? 'That passphrase didn\u2019t unlock the file. Try again.'
+                  : 'This sync file is encrypted. Enter the passphrase used to create it.',
+                deviceName: (syncObj && syncObj._deviceName) || ''
+              }).then(function (pw) {
+                if (!pw) throw er;
+                try { window.SyncEngine.setEncryptionPassphrase(pw); } catch (_) {}
+                return tryPrepare();
+              });
+            }
+            throw er;
+          });
+        }
+        return tryPrepare();
+      }).then(function (preparedPlan) {
+        setBusy(false);
+        setPlan(preparedPlan);
+      }).catch(function (e) {
+        setBusy(false);
+        setFile(null);
+        setErr((e && e.message) || 'Could not read sync file.');
+      });
+    }
+
+    function continueFromStep1() {
+      if (!plan || busy) return;
+      setErr('');
+      setStep(2);
+    }
+
+    function continueFromStep2() {
+      setErr('');
+      if (watchChoice === 'yes') {
+        if (typeof window.showDirectoryPicker !== 'function') {
+          setErr('Watching a folder needs a Chromium-based browser (Chrome, Edge, Brave, Opera). You can still import this file once.');
+          return;
+        }
+        setBusy(true);
+        window.showDirectoryPicker({ mode: 'readwrite' }).then(function (handle) {
+          return window.SyncEngine.setWatchDirectory(handle);
+        }).then(function () {
+          // setWatchDirectory → startWatching → immediate _runWatcherTick,
+          // which is gated by _watcherInFlight so a concurrent scheduled
+          // tick won't double-scan. No manual checkForUpdates() call needed.
+          setWatchEnabled(true);
+          try { window.dispatchEvent(new CustomEvent('cs:syncStatusChanged')); } catch (_) {}
+          finalisePendingPlan();
+        }).catch(function (e) {
+          setBusy(false);
+          if (e && e.name === 'AbortError') return; // user cancelled folder picker
+          setErr((e && e.message) || 'Could not connect to that folder.');
+        });
+      } else {
+        setWatchEnabled(false);
+        finalisePendingPlan();
+      }
+    }
+
+    function finalisePendingPlan() {
+      // Push the plan into the canonical engine cache. This dispatches
+      // cs:syncPlanPending so the header badge can update immediately.
+      try { window.SyncEngine.setPendingPlan(plan); } catch (_) {}
+      setBusy(false);
+      setStep(3);
+    }
+
+    function finishAndOpenGate() {
+      props.onSuccess({ plan: plan, watchEnabled: watchEnabled });
+    }
+
+    function openPrefs() {
+      props.onClose();
+      // Best-effort — Preferences modal lives in preferences-modal.js and
+      // is invoked from the header. If unavailable, just close.
+      if (window.PreferencesModal && typeof window.PreferencesModal.open === 'function') {
+        try { window.PreferencesModal.open({ section: 'sync' }); } catch (_) {}
+      }
+    }
+
+    var btnPri = {
+      padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none',
+      background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontWeight: 600
+    };
+    var btnPriDisabled = Object.assign({}, btnPri, { opacity: 0.5, cursor: 'not-allowed' });
+    var btnSec = {
+      padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border)',
+      background: 'var(--surface)', color: 'var(--text-primary)', cursor: 'pointer'
+    };
+
+    function renderStep1() {
+      return h('div', null,
+        h('p', { style: { margin: 0, color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5 } },
+          'Choose a .csync file to import. You\u2019ll be asked for a passphrase if it\u2019s encrypted.'),
+        h('div', { style: { marginTop: 16, padding: '14px', borderRadius: 8, border: '1px dashed var(--border)', background: 'var(--surface-secondary, var(--surface))' } },
+          h('button', {
+            type: 'button',
+            onClick: function () { try { fileInputRef.current && fileInputRef.current.click(); } catch (_) {} },
+            disabled: busy,
+            style: btnSec
+          },
+            (window.Icons && window.Icons.folder) ? window.Icons.folder() : null,
+            ' ', file ? 'Choose a different file\u2026' : 'Choose .csync file\u2026'
+          ),
+          h('input', {
+            ref: fileInputRef,
+            type: 'file',
+            accept: '.csync',
+            style: { display: 'none' },
+            onChange: onPickFile
+          }),
+          file ? h('div', { style: { marginTop: 10, fontSize: 12, color: 'var(--text-secondary)' } },
+            h('strong', { style: { color: 'var(--text-primary)' } }, file.name),
+            ' \u00b7 ', (file.size / 1024).toFixed(1), ' KB'
+          ) : null,
+          plan ? h('div', { style: { marginTop: 10, fontSize: 12, color: 'var(--success)', display: 'inline-flex', alignItems: 'center', gap: 4 } },
+            (window.Icons && window.Icons.check) ? window.Icons.check() : null,
+            ' Ready to import',
+            plan.summary && plan.summary.deviceName ? ' from ' + plan.summary.deviceName : ''
+          ) : null,
+          busy ? h('div', { style: { marginTop: 10, fontSize: 12, color: 'var(--text-secondary)' } }, 'Reading file\u2026') : null
+        ),
+        err ? h('p', { style: { margin: '12px 0 0', color: 'var(--danger, #C0392B)', fontSize: 13 } }, err) : null,
+        h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 } },
+          h('button', { type: 'button', onClick: props.onClose, style: btnSec }, 'Cancel'),
+          h('button', {
+            type: 'button',
+            onClick: continueFromStep1,
+            disabled: !plan || busy,
+            style: (!plan || busy) ? btnPriDisabled : btnPri
+          }, 'Continue')
+        )
+      );
+    }
+
+    function renderStep2() {
+      var radioRow = function (val, label, desc) {
+        var selected = watchChoice === val;
+        return h('label', {
+          style: {
+            display: 'flex', gap: 10, padding: 12, marginTop: 8, cursor: 'pointer',
+            border: '1px solid ' + (selected ? 'var(--accent)' : 'var(--border)'),
+            borderRadius: 8,
+            background: selected ? 'rgba(184, 92, 56, 0.06)' : 'transparent'
+          }
+        },
+          h('input', {
+            type: 'radio', name: 'cs-unified-watch', value: val,
+            checked: selected,
+            onChange: function () { setWatchChoice(val); },
+            style: { marginTop: 2, accentColor: 'var(--accent)' }
+          }),
+          h('div', null,
+            h('div', { style: { fontSize: 14, color: 'var(--text-primary)', fontWeight: 500 } }, label),
+            h('div', { style: { fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.4 } }, desc)
+          )
+        );
+      };
+      return h('div', null,
+        h('p', { style: { margin: 0, color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5 } },
+          'Keep syncing automatically?'),
+        h('p', { style: { margin: '4px 0 0', color: 'var(--text-tertiary, var(--text-secondary))', fontSize: 12, lineHeight: 1.5 } },
+          'Pick the folder this file came from and we\u2019ll watch it for new updates from your other devices.'),
+        radioRow('yes',  'Yes \u2014 watch this folder', 'You\u2019ll be asked to pick the folder. New updates will appear automatically while the app is open.'),
+        radioRow('no',   'No \u2014 just this one file', 'Import this file only. You can set up watching later in Preferences.'),
+        err ? h('p', { style: { margin: '12px 0 0', color: 'var(--danger, #C0392B)', fontSize: 13 } }, err) : null,
+        h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 } },
+          h('button', { type: 'button', onClick: function () { setStep(1); setErr(''); }, style: btnSec, disabled: busy }, 'Back'),
+          h('button', { type: 'button', onClick: continueFromStep2, disabled: busy, style: busy ? btnPriDisabled : btnPri },
+            busy ? 'Connecting\u2026' : 'Continue'
+          )
+        )
+      );
+    }
+
+    function renderStep3() {
+      var hasConflicts = plan && plan.conflicts && plan.conflicts.length > 0;
+      return h('div', null,
+        h('p', { style: { margin: 0, color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.5 } },
+          'File ready to review.'
+        ),
+        h('ul', { style: { margin: '12px 0 0', paddingLeft: 18, color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6 } },
+          h('li', null,
+            (window.Icons && window.Icons.check) ? window.Icons.check() : null,
+            ' Imported ', h('strong', { style: { color: 'var(--text-primary)' } }, (file && file.name) || 'sync file')
+          ),
+          watchEnabled
+            ? h('li', null,
+                (window.Icons && window.Icons.check) ? window.Icons.check() : null,
+                ' Watching the folder for new updates.'
+              )
+            : h('li', null,
+                'Not watching a folder. ',
+                h('button', {
+                  type: 'button',
+                  onClick: openPrefs,
+                  style: { background: 'none', border: 'none', padding: 0, color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline', font: 'inherit' }
+                }, 'Set up watching in Preferences')
+              ),
+          hasConflicts
+            ? h('li', null, h('strong', { style: { color: 'var(--text-primary)' } }, plan.conflicts.length + ' conflict' + (plan.conflicts.length === 1 ? '' : 's')),
+                ' need your attention. We\u2019ll show them next.')
+            : null
+        ),
+        h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 } },
+          h('button', { type: 'button', onClick: finishAndOpenGate, style: btnPri },
+            hasConflicts ? 'Review changes' : 'Done'
+          )
+        )
+      );
+    }
+
+    var stepperLabel = step === 1 ? 'Step 1 of 3 \u00b7 Choose file'
+      : step === 2 ? 'Step 2 of 3 \u00b7 Watch folder?'
+      : 'Step 3 of 3 \u00b7 Confirm';
+
+    return h(window.Overlay, {
+      onClose: props.onClose, variant: 'dialog', maxWidth: 480, labelledBy: titleId
+    },
+      h(window.Overlay.CloseButton, { onClose: props.onClose }),
+      h('div', { style: { padding: 24 } },
+        h('div', { style: { fontSize: 11, fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--text-tertiary, var(--text-secondary))', marginBottom: 6 } }, stepperLabel),
+        h('h3', { id: titleId, style: { marginTop: 0, marginBottom: 14, fontSize: 18, color: 'var(--text-primary)' } },
+          step === 3 ? 'You\u2019re all set' : 'Import sync file'),
+        step === 1 ? renderStep1() : step === 2 ? renderStep2() : renderStep3()
+      )
+    );
+  }
+
+  window.UnifiedSyncImportModal = {
+    show: function () {
+      return new Promise(function (resolve) {
+        if (!window.React || !window.ReactDOM || !window.Overlay || !window.SyncEngine) {
+          resolve(null);
+          return;
+        }
+        var host = document.createElement('div');
+        document.body.appendChild(host);
+        var root = ReactDOM.createRoot ? ReactDOM.createRoot(host) : null;
+        var settled = false;
+        function cleanup() {
+          try { if (root) root.unmount(); else ReactDOM.unmountComponentAtNode(host); } catch (e) {}
+          if (host.parentNode) host.parentNode.removeChild(host);
+        }
+        function done(v) { if (settled) return; settled = true; cleanup(); resolve(v); }
+        var el = React.createElement(UnifiedImportInner, {
+          onClose: function () { done(null); },
+          onSuccess: function (data) { done(data || null); }
+        });
+        if (root) root.render(el); else ReactDOM.render(el, host);
+      });
+    }
+  };
+})();
+
 // ═══ Sync Review Gate (SCR-062) ═══
 // Blocking modal shown when incoming sync data is detected.
 // Merges all additive non-conflicting changes silently and presents
@@ -1047,6 +1563,225 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
   if (typeof window === 'undefined') return;
   var h = React.createElement;
 
+  // ── Sub-component: visual diff viewer ───────────────────────────────────
+  // Renders three side-by-side thumbnails (Local | Diff | Remote) for
+  // chart and stitch conflicts. The diff is computed once per
+  // conflict via React.useMemo and rendered into 3 canvases through
+  // putImageData so DOM cost stays flat regardless of pattern size.
+  //
+  // Per the proposal: nearest-neighbour sampling, chart + stitch only
+  // for Phase 1 (blends and half-stitches deferred), 240×240 desktop
+  // thumbnails shrinking to 120×120 below 400 px (handled in CSS).
+  // The text fallback above the canvas row makes the same delta
+  // legible to screen readers and to anyone who can't load canvas.
+  var DIFF_THUMB_SIZE = 240;
+
+  function _emptyId(c) {
+    if (!c) return true;
+    var id = c.id;
+    return !id || id === '__empty__' || id === '__skip__';
+  }
+
+  function _cellRgb(c, fallback) {
+    if (!c || _emptyId(c)) return fallback;
+    if (Array.isArray(c.rgb) && c.rgb.length >= 3) return c.rgb;
+    return fallback;
+  }
+
+  function _computePatternDiff(localProject, remoteProject, conflictType) {
+    var lp = (localProject && localProject.pattern) || [];
+    var rp = (remoteProject && remoteProject.pattern) || [];
+    var ld = (localProject && localProject.done) || [];
+    var rd = (remoteProject && remoteProject.done) || [];
+    var n = Math.max(lp.length, rp.length);
+    var diff = new Array(n);
+    var stats = {
+      patternDiffs: 0, stitchDiffs: 0,
+      addedInRemote: 0, removedInRemote: 0,
+      colorChanged: 0,
+      stitchedLocalOnly: 0, stitchedRemoteOnly: 0
+    };
+    for (var i = 0; i < n; i++) {
+      var lc = lp[i], rc = rp[i];
+      if (conflictType === 'chart') {
+        var le = _emptyId(lc), re = _emptyId(rc);
+        if (le && re) { diff[i] = null; continue; }
+        if ((lc && lc.id) === (rc && rc.id) && (lc && lc.type) === (rc && rc.type)) { diff[i] = null; continue; }
+        stats.patternDiffs++;
+        if (le && !re) { stats.addedInRemote++; diff[i] = 'added'; }
+        else if (!le && re) { stats.removedInRemote++; diff[i] = 'removed'; }
+        else { stats.colorChanged++; diff[i] = 'changed'; }
+      } else if (conflictType === 'stitch') {
+        var ls = (ld[i] === 1) ? 1 : 0;
+        var rs = (rd[i] === 1) ? 1 : 0;
+        if (ls === rs) { diff[i] = null; continue; }
+        stats.stitchDiffs++;
+        if (ls && !rs) { stats.stitchedLocalOnly++; diff[i] = 'stitched_local_only'; }
+        else { stats.stitchedRemoteOnly++; diff[i] = 'stitched_remote_only'; }
+      } else {
+        diff[i] = null;
+      }
+    }
+    return { diffCells: diff, deltaStats: stats, totalCells: n };
+  }
+
+  // Render a pattern (or diff overlay) into a canvas using nearest-
+  // neighbour sampling. `mode` is 'pattern' (uses the cell's RGB) or
+  // 'diff' (uses the overlay swatch palette).
+  var DIFF_PALETTE = {
+    added:                [46, 204, 113],   // green
+    removed:              [231, 76,  60],   // red
+    changed:              [243, 156, 18],   // yellow/orange
+    stitched_local_only:  [214, 137, 16],   // orange
+    stitched_remote_only: [52, 152, 219]    // blue
+  };
+
+  function _drawCanvas(canvas, project, diff, mode) {
+    if (!canvas) return;
+    var w = (project && project.w) || 1;
+    var hgt = (project && project.h) || 1;
+    var cellsToRender = mode === 'diff' ? diff : (project && project.pattern) || [];
+    var ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    var renderW = Math.max(1, Math.min(DIFF_THUMB_SIZE, w));
+    var renderH = Math.max(1, Math.min(DIFF_THUMB_SIZE, hgt));
+    canvas.width = renderW;
+    canvas.height = renderH;
+    var imageData = ctx.createImageData(renderW, renderH);
+    var data = imageData.data;
+    var bg = mode === 'diff' ? [40, 40, 40, 40] : [248, 248, 248, 255];
+    for (var i = 0; i < renderW * renderH; i++) {
+      var off = i * 4;
+      var x = i % renderW;
+      var y = (i / renderW) | 0;
+      var sx = Math.min(w - 1, ((x * w) / renderW) | 0);
+      var sy = Math.min(hgt - 1, ((y * hgt) / renderH) | 0);
+      var srcIdx = sy * w + sx;
+      var rgba = bg;
+      if (mode === 'diff') {
+        var key = cellsToRender[srcIdx];
+        if (key && DIFF_PALETTE[key]) {
+          var p = DIFF_PALETTE[key];
+          rgba = [p[0], p[1], p[2], 255];
+        }
+      } else {
+        var c = cellsToRender[srcIdx];
+        if (c && !_emptyId(c)) {
+          var rgb = _cellRgb(c, [200, 200, 200]);
+          rgba = [rgb[0] | 0, rgb[1] | 0, rgb[2] | 0, 255];
+        }
+      }
+      data[off]     = rgba[0];
+      data[off + 1] = rgba[1];
+      data[off + 2] = rgba[2];
+      data[off + 3] = rgba[3];
+    }
+    ctx.putImageData(imageData, 0, 0);
+  }
+
+  function SrgConflictDiffViewer(props) {
+    var conflict = props.conflict;
+    var localProject = props.localProject;
+    var remoteProject = props.remoteProject;
+    var type = conflict && conflict.type;
+
+    var localCanvasRef = React.useRef(null);
+    var diffCanvasRef = React.useRef(null);
+    var remoteCanvasRef = React.useRef(null);
+    var expanded = React.useState(false);
+
+    // O(n) once per conflict. The deps key on project ids so the
+    // memo survives re-renders triggered by resolution clicks.
+    var diffData = React.useMemo(function () {
+      return _computePatternDiff(localProject, remoteProject, type);
+    }, [
+      localProject && localProject.id,
+      remoteProject && remoteProject.id,
+      type
+    ]);
+
+    React.useEffect(function () {
+      if (!expanded[0]) return;
+      // Defer one tick so the canvas refs are mounted.
+      var t = setTimeout(function () {
+        try { _drawCanvas(localCanvasRef.current, localProject, diffData.diffCells, 'pattern'); } catch (_) {}
+        try { _drawCanvas(diffCanvasRef.current, localProject || remoteProject, diffData.diffCells, 'diff'); } catch (_) {}
+        try { _drawCanvas(remoteCanvasRef.current, remoteProject, diffData.diffCells, 'pattern'); } catch (_) {}
+      }, 0);
+      return function () { clearTimeout(t); };
+    }, [expanded[0], diffData]);
+
+    if (type !== 'chart' && type !== 'stitch') return null;
+    var totalDiffs = diffData.deltaStats.patternDiffs + diffData.deltaStats.stitchDiffs;
+    if (totalDiffs === 0) return null;
+
+    // Text summary lives above the canvas row so screen-reader users
+    // hear the delta first. Canvas gets aria-label too.
+    var summary;
+    if (type === 'chart') {
+      var s = diffData.deltaStats;
+      summary = totalDiffs + ' cells differ \u00b7 ' +
+        s.addedInRemote + ' added, ' +
+        s.removedInRemote + ' removed, ' +
+        s.colorChanged + ' colour changed';
+    } else {
+      var ss = diffData.deltaStats;
+      summary = totalDiffs + ' cells in disagreement \u00b7 ' +
+        ss.stitchedLocalOnly + ' stitched here only, ' +
+        ss.stitchedRemoteOnly + ' stitched there only';
+    }
+
+    function makeThumb(ref, label) {
+      // Use width/height attributes to set the bitmap, but CSS sizes
+      // the displayed thumbnail. imageRendering:pixelated keeps
+      // nearest-neighbour scaling crisp.
+      return h('figure', { className: 'srg-thumbnail-figure' },
+        h('canvas', {
+          ref: ref,
+          className: 'srg-thumbnail',
+          style: { imageRendering: 'pixelated', width: DIFF_THUMB_SIZE, height: DIFF_THUMB_SIZE },
+          'aria-label': label + ' thumbnail'
+        }),
+        h('figcaption', { className: 'srg-thumbnail-caption' }, label)
+      );
+    }
+
+    var legendItems = type === 'chart'
+      ? [
+          { swatch: 'rgb(46,204,113)', label: 'Added in remote' },
+          { swatch: 'rgb(231,76,60)',  label: 'Removed in remote' },
+          { swatch: 'rgb(243,156,18)', label: 'Colour changed' }
+        ]
+      : [
+          { swatch: 'rgb(214,137,16)', label: 'Stitched on this device only' },
+          { swatch: 'rgb(52,152,219)', label: 'Stitched on other device only' }
+        ];
+
+    return h('div', { className: 'srg-diff-viewer' },
+      h('div', { className: 'srg-diff-summary' }, summary),
+      h('button', {
+        type: 'button',
+        className: 'srg-diff-toggle',
+        'aria-expanded': expanded[0] ? 'true' : 'false',
+        onClick: function () { expanded[1](!expanded[0]); }
+      }, expanded[0] ? 'Hide visual diff' : 'Show visual diff'),
+      expanded[0] ? h('div', null,
+        h('div', { className: 'srg-diff-thumbnails' },
+          makeThumb(localCanvasRef, 'Local'),
+          makeThumb(diffCanvasRef, 'Diff'),
+          makeThumb(remoteCanvasRef, 'Remote')
+        ),
+        h('div', { className: 'srg-diff-legend' },
+          legendItems.map(function (it, i) {
+            return h('span', { key: i, className: 'srg-legend-item' },
+              h('span', { className: 'srg-legend-swatch', style: { background: it.swatch } }),
+              h('span', null, it.label)
+            );
+          })
+        )
+      ) : null
+    );
+  }
   // ── Sub-component: conflict card ────────────────────────────────────────
   function SrgConflictCard(props) {
     var conflict = props.conflict;
@@ -1106,11 +1841,22 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
     var keptLocal = resolution === 'keep-local';
     var keptRemote = resolution === 'keep-remote';
 
+    // Visual diff is only meaningful for chart and stitch types where
+    // both sides have full project objects to compare. For chart we
+    // get them off conflict.localProject/remoteProject; for stitch
+    // they live under conflict.entry.local / conflict.entry.remote.data.
+    var diffLocal = conflict.localProject || (conflict.entry && conflict.entry.local) || null;
+    var diffRemote = conflict.remoteProject || (conflict.entry && conflict.entry.remote && conflict.entry.remote.data) || null;
+    var showDiff = (conflict.type === 'chart' || conflict.type === 'stitch') && diffLocal && diffRemote;
+
     return h('div', { className: 'srg-conflict-card' + (isResolved ? ' srg-conflict-card--resolved' : '') },
       h('div', { className: 'srg-conflict-subject' },
         h('span', { className: 'srg-conflict-subject-text' }, subjectText),
         h('span', { className: 'srg-conflict-subject-sub' }, subjectSub)
       ),
+      showDiff ? h(SrgConflictDiffViewer, {
+        conflict: conflict, localProject: diffLocal, remoteProject: diffRemote
+      }) : null,
       h('div', { className: 'srg-conflict-sides' },
         ValueBlock(localLabel, localContent),
         h('div', { className: 'srg-conflict-vs' }, 'vs'),
@@ -1138,9 +1884,15 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
 
   // ── Main SyncReviewGate component ────────────────────────────────────────
   function SyncReviewGateInner(props) {
-    var plan = props.plan;
+    var initialPlan = props.plan;
     var autoTrigger = !!props.autoTrigger;
     var onDone = props.onDone;   // callback after Continue pressed + merge complete
+
+    // Plan can be supplied by the caller OR discovered at mount time by
+    // querying the SyncEngine pending-plan cache and (if necessary)
+    // rescanning the watch folder. See reports/sync-reference fix #2.
+    var _resolvedPlan = React.useState(initialPlan || null);
+    var plan = _resolvedPlan[0], setPlan = _resolvedPlan[1];
 
     var _gateState = React.useState(null);
     var gateState = _gateState[0], setGateState = _gateState[1];
@@ -1153,30 +1905,135 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
     var autoDismissRef = React.useRef(null);
 
     React.useEffect(function() {
-      // No plan = "nothing new to review" state (manual open with no pending plan)
-      if (!plan) { setGateState({ noPlan: true }); return; }
       var cancelled = false;
-      // Pre-analysis: flush state and read snapshot
-      Promise.resolve().then(function() {
-        if (typeof SyncEngine !== 'undefined' && SyncEngine.readSnapshot) {
-          return SyncEngine.readSnapshot();
-        }
-        return null;
-      }).then(function(snapshot) {
+
+      // Resolve a plan: caller-supplied → engine pending-plan cache →
+      // rescan the watch folder. Only the last step is async.
+      function resolvePlan() {
+        if (initialPlan) return Promise.resolve(initialPlan);
+        if (typeof SyncEngine === 'undefined') return Promise.resolve(null);
+        // Try the in-memory cache first; if empty, hydrate from IDB
+        // (sync-reference fix #3) so a fresh page load can surface the
+        // last pending plan before the watcher's next tick.
+        var cached = (typeof SyncEngine.getPendingPlan === 'function')
+          ? SyncEngine.getPendingPlan() : null;
+        var cacheP = cached ? Promise.resolve(cached)
+          : (typeof SyncEngine.hydratePendingPlan === 'function'
+              ? SyncEngine.hydratePendingPlan().catch(function () { return null; })
+              : Promise.resolve(null));
+        return cacheP.then(function (cachedOrHydrated) {
+          if (cachedOrHydrated) return cachedOrHydrated;
+          // No cached plan — try a folder rescan if we have a watch dir.
+          // This is the key behavioural change in fix #2: the gate is no
+          // longer a passive read of in-memory state.
+          if (typeof SyncEngine.getWatchDirectory !== 'function') return null;
+          return SyncEngine.getWatchDirectory().then(function(handle) {
+            if (!handle) return null;
+            // Permission gate — checkForUpdates calls scanFolder which
+            // requires read permission. queryPermission is non-prompting.
+            if (typeof handle.queryPermission === 'function') {
+              return handle.queryPermission({ mode: 'read' }).then(function(p) {
+                if (p !== 'granted') return null;
+                return SyncEngine.checkForUpdates(handle);
+              });
+            }
+            return SyncEngine.checkForUpdates(handle);
+          }).then(function(updates) {
+            if (!updates || !updates.length) return null;
+            // Take the most recent update; prepareImport into a plan.
+            var latest = updates[updates.length - 1];
+            // Encrypted-envelope retry loop. The folder watcher pushes
+            // _processFolderUpdates failures into the pending queue with
+            // errorCode set so we can intercept here, prompt for the
+            // passphrase, and re-run prepareImport without re-reading
+            // the file.
+            function tryPrepare() {
+              return SyncEngine.prepareImport(latest.syncObj).catch(function (err) {
+                var code = err && err.code;
+                if (code === 'passphrase_required' || code === 'incorrect_passphrase') {
+                  if (!window.SyncPassphrasePrompt) throw err;
+                  return window.SyncPassphrasePrompt.show({
+                    title: 'Encrypted sync file',
+                    message: code === 'incorrect_passphrase'
+                      ? 'That passphrase didn\u2019t unlock the file. Try again.'
+                      : 'A new sync file was found, but it is encrypted. Enter the passphrase to review it.',
+                    deviceName: (latest.syncObj && latest.syncObj._deviceName) || ''
+                  }).then(function (pw) {
+                    if (!pw) throw err;
+                    try { SyncEngine.setEncryptionPassphrase(pw); } catch (_) {}
+                    return tryPrepare();
+                  });
+                }
+                throw err;
+              });
+            }
+            return tryPrepare().then(function(p) {
+              if (p) {
+                p._fileName = latest.fileName || null;
+                p._fileLastModified = latest.lastModified || null;
+              }
+              return p;
+            });
+          });
+        }).catch(function(e) {
+          // Resolve failures are not fatal — fall through to the empty
+          // state. Surface in console for debugging.
+          try { console.warn('SyncReviewGate resolvePlan failed:', e); } catch (_) {}
+          return null;
+        });
+      }
+
+      resolvePlan().then(function(resolved) {
         if (cancelled) return;
-        var analysis = (typeof SyncEngine !== 'undefined' && SyncEngine.analyseConflicts)
-          ? SyncEngine.analyseConflicts(plan, snapshot)
-          : { conflicts: [], stitchSummary: { totalAdded: 0, affectedProjects: 0 }, stashSummary: { updatedCount: 0 }, metaSummary: { updatedCount: 0 }, prefsSummary: { updatedCount: 0, usedTimestampFallback: false }, noSnapshot: true, hasChanges: !!(plan.newRemote && plan.newRemote.length) };
-        setGateState(analysis);
-        // Auto-dismiss for empty automatic triggers after 2 s
-        if (autoTrigger && !analysis.hasChanges && analysis.conflicts.length === 0) {
-          autoDismissRef.current = setTimeout(function() {
-            if (!cancelled) onDone && onDone({ silent: true });
-          }, 2000);
+        if (!resolved) {
+          // Disambiguate the empty state by capturing what we know about
+          // the watch folder. See reports/sync-reference fix #4.
+          var ctx = { noPlan: true, hasWatchDir: false, folderName: null, permission: null };
+          if (typeof SyncEngine !== 'undefined' && typeof SyncEngine.getWatchDirectory === 'function') {
+            SyncEngine.getWatchDirectory().then(function(handle) {
+              if (cancelled) return;
+              if (!handle) { setGateState(ctx); return; }
+              ctx.hasWatchDir = true;
+              ctx.folderName = handle.name || null;
+              if (typeof handle.queryPermission === 'function') {
+                handle.queryPermission({ mode: 'read' }).then(function(p) {
+                  if (cancelled) return;
+                  ctx.permission = p || null;
+                  setGateState(ctx);
+                }).catch(function() { if (!cancelled) setGateState(ctx); });
+              } else {
+                setGateState(ctx);
+              }
+            }).catch(function() { if (!cancelled) setGateState(ctx); });
+          } else {
+            setGateState(ctx);
+          }
+          return;
         }
+        if (resolved !== plan) setPlan(resolved);
+        // Pre-analysis: flush state and read snapshot
+        return Promise.resolve().then(function() {
+          if (typeof SyncEngine !== 'undefined' && SyncEngine.readSnapshot) {
+            return SyncEngine.readSnapshot();
+          }
+          return null;
+        }).then(function(snapshot) {
+          if (cancelled) return;
+          var analysis = (typeof SyncEngine !== 'undefined' && SyncEngine.analyseConflicts)
+            ? SyncEngine.analyseConflicts(resolved, snapshot)
+            : { conflicts: [], stitchSummary: { totalAdded: 0, affectedProjects: 0 }, stashSummary: { updatedCount: 0 }, metaSummary: { updatedCount: 0 }, prefsSummary: { updatedCount: 0, usedTimestampFallback: false }, noSnapshot: true, hasChanges: !!(resolved.newRemote && resolved.newRemote.length) };
+          setGateState(analysis);
+          // Auto-dismiss for empty automatic triggers after 2 s
+          if (autoTrigger && !analysis.hasChanges && analysis.conflicts.length === 0) {
+            autoDismissRef.current = setTimeout(function() {
+              if (!cancelled) onDone && onDone({ silent: true });
+            }, 2000);
+          }
+        });
       }).catch(function(e) {
-        if (!cancelled) setGateState({ error: e.message || 'Analysis failed.' });
+        if (!cancelled) setGateState({ error: (e && e.message) || 'Analysis failed.' });
       });
+
       return function() {
         cancelled = true;
         if (autoDismissRef.current) clearTimeout(autoDismissRef.current);
@@ -1185,6 +2042,26 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
 
     function setResolution(id, val) {
       setResolutions(function(prev) { var n = Object.assign({}, prev); n[id] = val; return n; });
+    }
+
+    // Bulk-resolve every conflict to the same side (Phase A). Lets the user
+    // decide "keep all of mine" / "use all synced" without clicking each
+    // card individually — a real time saver when a sync brings in many
+    // small disagreements (e.g. several stitch-count drifts after offline
+    // tracking on two devices). Only overwrites unresolved conflicts when
+    // `onlyUnresolved` is true so a half-finished review doesn't clobber
+    // intentional per-card choices.
+    function bulkResolve(val, onlyUnresolved) {
+      setResolutions(function(prev) {
+        var next = Object.assign({}, prev);
+        var list = (gateState && gateState.conflicts) || [];
+        for (var i = 0; i < list.length; i++) {
+          var c = list[i];
+          if (onlyUnresolved && next[c.id]) continue;
+          next[c.id] = val;
+        }
+        return next;
+      });
     }
 
     function handleContinue() {
@@ -1295,8 +2172,24 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
       );
     }
 
-    // No-plan state (manual open with nothing pending)
+    // No-plan state (manual open with nothing pending). Disambiguated
+    // into three sub-states by fix #4 so the user gets actionable copy
+    // instead of a one-size-fits-all "import a file" prompt.
     if (gateState.noPlan) {
+      var noPlanTitle, noPlanBody;
+      if (!gateState.hasWatchDir) {
+        noPlanTitle = 'No sync folder connected';
+        noPlanBody = 'Connect a sync folder in Preferences > Sync, or import a .csync file from another device.';
+      } else if (gateState.permission && gateState.permission !== 'granted') {
+        noPlanTitle = 'Sync folder needs reconnecting';
+        noPlanBody = 'The browser dropped permission for "' + (gateState.folderName || 'your sync folder')
+          + '". Reopen the sync panel on the home screen to reconnect.';
+      } else {
+        noPlanTitle = 'You\u2019re up to date';
+        noPlanBody = gateState.folderName
+          ? 'No new changes in "' + gateState.folderName + '" since your last review.'
+          : 'No new changes since your last review.';
+      }
       return h(window.Overlay, {
         onClose: props.onClose || null,
         variant: 'dialog',
@@ -1308,10 +2201,10 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
         h(window.Overlay.CloseButton, { onClose: props.onClose }),
         h('div', { className: 'srg-header' },
           Icons.cloudSync && Icons.cloudSync(),
-          h('h3', { id: 'srg-header' }, 'Nothing new to review')
+          h('h3', { id: 'srg-header' }, noPlanTitle)
         ),
         h('div', { className: 'srg-body' },
-          h('p', { className: 'srg-body-text' }, 'Import a .csync file to review changes from another device.')
+          h('p', { className: 'srg-body-text' }, noPlanBody)
         ),
         h('div', { className: 'srg-footer' },
           h('button', {
@@ -1467,6 +2360,34 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
               'aria-live': 'polite'
             }, resolvedCount + ' of ' + conflicts.length + ' resolved')
           ),
+          // Phase A bulk-resolution row. Only shown when there are at least
+          // two conflicts — for a single conflict the per-card buttons are
+          // already a one-click action.
+          conflicts.length > 1 && h('div', {
+            className: 'srg-bulk-actions',
+            style: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8, fontSize: 12 }
+          },
+            h('span', { style: { color: 'var(--text-secondary)' } }, 'Bulk resolve:'),
+            h('button', {
+              type: 'button',
+              className: 'srg-btn srg-btn--ghost',
+              disabled: applying,
+              onClick: function() { if (!applying) bulkResolve('keep-local', false); }
+            }, 'Keep all mine'),
+            h('button', {
+              type: 'button',
+              className: 'srg-btn srg-btn--ghost',
+              disabled: applying,
+              onClick: function() { if (!applying) bulkResolve('keep-remote', false); }
+            }, 'Use all synced'),
+            resolvedCount < conflicts.length && resolvedCount > 0 && h('button', {
+              type: 'button',
+              className: 'srg-btn srg-btn--ghost',
+              disabled: applying,
+              title: 'Apply this side only to conflicts you haven\u2019t already resolved',
+              onClick: function() { if (!applying) bulkResolve('keep-remote', true); }
+            }, 'Use synced for remaining')
+          ),
           conflicts.map(function(c) {
             return h(SrgConflictCard, {
               key: c.id,
@@ -1530,6 +2451,11 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
           if (_gateRoot) { _gateRoot.unmount(); _gateRoot = null; }
           else { ReactDOM.unmountComponentAtNode(mountNode); }
         } catch (_) {}
+        // Notify badge / nav listeners that the gate has closed so they can
+        // re-evaluate pending state (clearPendingPlan inside executeImport
+        // also fires cs:syncPlanPending, but a dismiss without a merge
+        // wouldn't, hence this dedicated event).
+        try { window.dispatchEvent(new CustomEvent('cs:syncReviewClosed', { detail: { result: result || null } })); } catch (_) {}
         // Show success toast when a real merge happened
         if (result && result.result) {
           var r = result.result;
@@ -1556,6 +2482,9 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
       } else {
         ReactDOM.render(el, mountNode);
       }
+      // Notify badge / nav listeners that the gate is open so the pending
+      // conflicts indicator can hide while the user is reviewing.
+      try { window.dispatchEvent(new CustomEvent('cs:syncReviewOpened', { detail: { hasPlan: !!plan } })); } catch (_) {}
     }
   };
 })();

@@ -852,6 +852,22 @@
     var defaultConflictAction = usePref("sync.defaultConflictAction", "ask");
     var advancedOpen = useState(false);
 
+    // Encryption state. The toggle is mirrored from SyncEngine, not from
+    // UserPrefs, because SyncEngine owns the localStorage flag and the
+    // module-scoped session passphrase. We re-poll on cs:syncStatusChanged
+    // so flipping the toggle from another tab updates this one.
+    function _encStatus() {
+      try {
+        return (window.SyncEngine && window.SyncEngine.getEncryptionStatus)
+          ? window.SyncEngine.getEncryptionStatus()
+          : { available: false, enabled: false, hasPassphrase: false };
+      } catch (_) { return { available: false, enabled: false, hasPassphrase: false }; }
+    }
+    var encStatus = useState(_encStatus);
+    var encDraft = useState("");
+    var encDraft2 = useState("");
+    var encMsg = useState(null);
+
     // Live sync status for the folder section. We poll on focus + on
     // cs:syncStatusChanged so the panel stays accurate without re-rendering
     // the whole modal.
@@ -869,6 +885,7 @@
         try {
           if (window.SyncEngine && window.SyncEngine.getSyncStatus) syncStatus[1](window.SyncEngine.getSyncStatus());
         } catch (_) {}
+        encStatus[1](_encStatus());
       }
       window.addEventListener("cs:syncStatusChanged", refresh);
       window.addEventListener("focus", refresh);
@@ -888,6 +905,64 @@
       try {
         window.dispatchEvent(new CustomEvent("cs:syncStatusChanged"));
       } catch (_) {}
+    }
+
+    // Encryption handlers. Each notifies via the encMsg slot (separate
+    // from the panel-wide msg so other actions don't clobber it). After
+    // any state change we dispatch cs:syncStatusChanged so peer tabs
+    // also re-poll their encStatus.
+    function encEnable() {
+      var p1 = String(encDraft[0] || "");
+      var p2 = String(encDraft2[0] || "");
+      if (p1.length < 8) { encMsg[1]({ kind: "err", text: "Passphrase must be at least 8 characters." }); return; }
+      if (p1 !== p2) { encMsg[1]({ kind: "err", text: "The two passphrases don't match." }); return; }
+      try {
+        window.SyncEngine.setEncryptionPassphrase(p1);
+        window.SyncEngine.setEncryptionEnabled(true);
+        encDraft[1](""); encDraft2[1]("");
+        encStatus[1](_encStatus());
+        encMsg[1]({ kind: "ok", text: "Encryption enabled. Sync files written from now on will be encrypted." });
+        try { window.dispatchEvent(new CustomEvent("cs:syncStatusChanged")); } catch (_) {}
+      } catch (e) {
+        encMsg[1]({ kind: "err", text: "Could not enable encryption: " + ((e && e.message) || e) });
+      }
+    }
+    function encUnlock() {
+      var p1 = String(encDraft[0] || "");
+      if (p1.length < 1) { encMsg[1]({ kind: "err", text: "Enter your passphrase." }); return; }
+      try {
+        window.SyncEngine.setEncryptionPassphrase(p1);
+        encDraft[1](""); encDraft2[1]("");
+        encStatus[1](_encStatus());
+        encMsg[1]({ kind: "ok", text: "Unlocked for this session." });
+        try { window.dispatchEvent(new CustomEvent("cs:syncStatusChanged")); } catch (_) {}
+      } catch (e) {
+        encMsg[1]({ kind: "err", text: "Could not unlock: " + ((e && e.message) || e) });
+      }
+    }
+    function encLock() {
+      try {
+        window.SyncEngine.clearEncryptionPassphrase();
+        encStatus[1](_encStatus());
+        encMsg[1]({ kind: "ok", text: "Locked. The passphrase will be needed again to read or write encrypted sync files." });
+        try { window.dispatchEvent(new CustomEvent("cs:syncStatusChanged")); } catch (_) {}
+      } catch (_) {}
+    }
+    function encDisable() {
+      window.ConfirmDialog.show({
+        title: "Turn off sync encryption?",
+        message: "New sync files will be written in plain text. Existing encrypted files won't decrypt without the passphrase.",
+        confirmLabel: "Turn off"
+      }).then(function (ok) {
+        if (!ok) return;
+        try {
+          window.SyncEngine.setEncryptionEnabled(false);
+          window.SyncEngine.clearEncryptionPassphrase();
+          encStatus[1](_encStatus());
+          encMsg[1]({ kind: "ok", text: "Encryption turned off." });
+          try { window.dispatchEvent(new CustomEvent("cs:syncStatusChanged")); } catch (_) {}
+        } catch (_) {}
+      });
     }
 
     function chooseSyncFolder() {
@@ -1038,6 +1113,34 @@
             h("button", { style: styles.btn, onClick: saveDeviceName }, "Save")
           )
         ),
+        h(Row, { label: "Pair another device",
+          desc: hasFolder
+            ? "Generate a 6-digit code so a phone or other computer can join this same sync folder."
+            : "Connect a sync folder first. Then you can hand a code to another device so it joins the same folder." },
+          h("button", {
+            style: styles.btn,
+            disabled: !hasFolder,
+            onClick: function () {
+              if (window.HandshakeGeneratorModal) window.HandshakeGeneratorModal.show();
+            }
+          }, "Show pairing code…")
+        ),
+        h(Row, { label: "Join existing sync",
+          desc: "Have a code from another device? Enter it to set this device up to watch the same folder." },
+          h("button", {
+            style: styles.btn,
+            disabled: !folderSupported,
+            onClick: function () {
+              if (!window.HandshakeConsumerModal) return;
+              window.HandshakeConsumerModal.show().then(function (r) {
+                if (r && r.success) {
+                  syncStatus[1](window.SyncEngine.getSyncStatus());
+                  notify("Joined the sync folder.");
+                }
+              });
+            }
+          }, "Enter pairing code…")
+        ),
         h(Row, { last: true, label: "Status",
           desc: "Last exported " + lastExport + " · last imported " + lastImport },
           h("span", { style: { fontSize: 12, color: hasFolder ? COLOURS.tealDark : COLOURS.hint } },
@@ -1062,6 +1165,65 @@
           desc: "Not currently included in sync files. User preferences such as theme, accent and units stay on this device only." },
           h(Switch, { checked: false, onChange: function () {}, disabled: true })
         )
+      ),
+
+      // ── Encryption (opt-in) ───────────────────────────────────────
+      // Three states drive the UI here:
+      //   • not enabled         → toggle off, single setup form (passphrase + confirm)
+      //   • enabled, locked     → toggle on, single passphrase field + Unlock
+      //   • enabled, unlocked   → toggle on, Lock button + Turn-off button
+      h(Section, { title: "Encryption" },
+        !encStatus[0].available
+          ? h(Row, { last: true, label: "Encrypt sync files",
+              desc: "Encryption needs the Web Crypto API, which this browser doesn't expose." },
+              h("span", { style: { fontSize: 11, color: COLOURS.hint, fontStyle: "italic" } }, "Unavailable")
+            )
+          : !encStatus[0].enabled
+            ? h("div", null,
+                h(Row, { label: "Encrypt sync files",
+                  desc: "Wraps the contents of every sync file in AES-GCM-256 with a passphrase you choose. Cloud providers (Dropbox, OneDrive, iCloud) can no longer read your patterns or stash. Forgetting the passphrase means losing access to encrypted files — there is no recovery." },
+                  h("span", { style: { fontSize: 11, color: COLOURS.hint, fontStyle: "italic" } }, "Off")
+                ),
+                h("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "10px 16px" } },
+                  h("input", { type: "password", autoComplete: "new-password", placeholder: "Passphrase (min 8 chars)",
+                    value: encDraft[0], onChange: function (e) { encDraft[1](e.target.value); },
+                    style: Object.assign({}, styles.input, { width: 200 }) }),
+                  h("input", { type: "password", autoComplete: "new-password", placeholder: "Confirm passphrase",
+                    value: encDraft2[0], onChange: function (e) { encDraft2[1](e.target.value); },
+                    style: Object.assign({}, styles.input, { width: 200 }) }),
+                  h("button", { type: "button", style: styles.btn, onClick: encEnable }, "Turn on encryption")
+                )
+              )
+            : h("div", null,
+                h(Row, { label: "Encrypt sync files",
+                  desc: encStatus[0].hasPassphrase
+                    ? "Encryption is on and unlocked for this session."
+                    : "Encryption is on but locked. Enter the passphrase to read or write sync files this session." },
+                  h("span", { style: { fontSize: 11, color: COLOURS.tealDark, fontWeight: 600 } }, "On")
+                ),
+                !encStatus[0].hasPassphrase
+                  ? h("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "10px 16px" } },
+                      h("input", { type: "password", autoComplete: "current-password", placeholder: "Passphrase",
+                        value: encDraft[0], onChange: function (e) { encDraft[1](e.target.value); },
+                        onKeyDown: function (e) { if (e.key === "Enter") encUnlock(); },
+                        style: Object.assign({}, styles.input, { width: 240 }) }),
+                      h("button", { type: "button", style: styles.btn, onClick: encUnlock }, "Unlock")
+                    )
+                  : h("div", { style: { display: "flex", gap: 8, alignItems: "center", padding: "10px 16px" } },
+                      h("button", { type: "button", style: styles.btn, onClick: encLock }, "Lock")
+                    ),
+                h("div", { style: { padding: "0 16px 12px" } },
+                  h("button", { type: "button", style: styles.btnDanger, onClick: encDisable }, "Turn off encryption")
+                )
+              ),
+        encMsg[0] ? h("div", {
+          style: {
+            margin: "0 16px 12px", padding: "8px 12px", borderRadius: 8, fontSize: 12,
+            background: encMsg[0].kind === "err" ? "#FCEFEF" : COLOURS.tealBg,
+            border: "1px solid " + (encMsg[0].kind === "err" ? "#ECC8C8" : COLOURS.tealBorder),
+            color: encMsg[0].kind === "err" ? COLOURS.danger : COLOURS.tealDark
+          }
+        }, encMsg[0].text) : null
       ),
 
       h(Section, { title: "Behaviour" },
