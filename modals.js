@@ -1278,6 +1278,26 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
       setResolutions(function(prev) { var n = Object.assign({}, prev); n[id] = val; return n; });
     }
 
+    // Bulk-resolve every conflict to the same side (Phase A). Lets the user
+    // decide "keep all of mine" / "use all synced" without clicking each
+    // card individually — a real time saver when a sync brings in many
+    // small disagreements (e.g. several stitch-count drifts after offline
+    // tracking on two devices). Only overwrites unresolved conflicts when
+    // `onlyUnresolved` is true so a half-finished review doesn't clobber
+    // intentional per-card choices.
+    function bulkResolve(val, onlyUnresolved) {
+      setResolutions(function(prev) {
+        var next = Object.assign({}, prev);
+        var list = (gateState && gateState.conflicts) || [];
+        for (var i = 0; i < list.length; i++) {
+          var c = list[i];
+          if (onlyUnresolved && next[c.id]) continue;
+          next[c.id] = val;
+        }
+        return next;
+      });
+    }
+
     function handleContinue() {
       if (applying) return;
       // Cancel any pending auto-dismiss
@@ -1573,6 +1593,34 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
               className: 'srg-counter-chip' + (allResolved ? ' srg-counter-chip--complete' : ''),
               'aria-live': 'polite'
             }, resolvedCount + ' of ' + conflicts.length + ' resolved')
+          ),
+          // Phase A bulk-resolution row. Only shown when there are at least
+          // two conflicts — for a single conflict the per-card buttons are
+          // already a one-click action.
+          conflicts.length > 1 && h('div', {
+            className: 'srg-bulk-actions',
+            style: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8, fontSize: 12 }
+          },
+            h('span', { style: { color: 'var(--text-secondary)' } }, 'Bulk resolve:'),
+            h('button', {
+              type: 'button',
+              className: 'srg-btn srg-btn--ghost',
+              disabled: applying,
+              onClick: function() { if (!applying) bulkResolve('keep-local', false); }
+            }, 'Keep all mine'),
+            h('button', {
+              type: 'button',
+              className: 'srg-btn srg-btn--ghost',
+              disabled: applying,
+              onClick: function() { if (!applying) bulkResolve('keep-remote', false); }
+            }, 'Use all synced'),
+            resolvedCount < conflicts.length && resolvedCount > 0 && h('button', {
+              type: 'button',
+              className: 'srg-btn srg-btn--ghost',
+              disabled: applying,
+              title: 'Apply this side only to conflicts you haven\u2019t already resolved',
+              onClick: function() { if (!applying) bulkResolve('keep-remote', true); }
+            }, 'Use synced for remaining')
           ),
           conflicts.map(function(c) {
             return h(SrgConflictCard, {
