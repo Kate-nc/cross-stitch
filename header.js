@@ -37,7 +37,7 @@ if (typeof window !== 'undefined') {
   // See reports/sync-reference/00_DIAGNOSIS.md fix #1.
   window.addEventListener('cs:syncPlanPending', function(e) {
     var plan = e && e.detail && e.detail.plan;
-    if (plan) _lastReceivedPlan = plan;
+    _lastReceivedPlan = plan || null;
   });
   // Drop the cached plan once it's been applied or invalidated so a
   // stale plan never resurfaces in "Review sync".

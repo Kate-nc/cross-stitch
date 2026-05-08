@@ -85,10 +85,8 @@
     var undoLabel = opts.undoLabel || "Undo";
     // Generic action button (Phase C). Distinct from undoAction so callers
     // can offer a follow-up like "View activity" without losing the undo
-    // semantics elsewhere. The handler does NOT auto-dismiss the toast —
-    // the caller can call Toast.dismiss(id) from inside if desired — but
-    // the click resolves before the timer would, so users can read both
-    // the message and follow through.
+    // semantics elsewhere. Like undo, action clicks run the handler and
+    // then immediately dismiss this toast entry.
     var action = (typeof opts.action === "function") ? opts.action : null;
     var actionLabel = opts.actionLabel || "View";
 

@@ -965,7 +965,7 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
       h('div', { style: { padding: 24 } },
         h('h3', { id: titleId, style: { marginTop: 0, marginBottom: 8, fontSize: 18, color: 'var(--text-primary)' } }, 'Pair another device'),
         h('p', { style: { margin: 0, color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5 } },
-          'On your other device, open Preferences → Data → Sync and choose ', h('strong', null, 'Join existing sync'), '. Then enter this code:'),
+          'On your other device, open Preferences > Data > Sync and choose ', h('strong', null, 'Join existing sync'), '. Then enter this code:'),
         err[0]
           ? h('div', {
               style: { marginTop: 16, padding: 12, borderRadius: 6, background: '#FCEFEF', color: 'var(--danger, #C0392B)', fontSize: 13 }
@@ -1643,22 +1643,29 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
     var cellsToRender = mode === 'diff' ? diff : (project && project.pattern) || [];
     var ctx = canvas.getContext('2d');
     if (!ctx) return;
-    canvas.width = w;
-    canvas.height = hgt;
-    var imageData = ctx.createImageData(w, hgt);
+    var renderW = Math.max(1, Math.min(DIFF_THUMB_SIZE, w));
+    var renderH = Math.max(1, Math.min(DIFF_THUMB_SIZE, hgt));
+    canvas.width = renderW;
+    canvas.height = renderH;
+    var imageData = ctx.createImageData(renderW, renderH);
     var data = imageData.data;
     var bg = mode === 'diff' ? [40, 40, 40, 40] : [248, 248, 248, 255];
-    for (var i = 0; i < w * hgt; i++) {
+    for (var i = 0; i < renderW * renderH; i++) {
       var off = i * 4;
+      var x = i % renderW;
+      var y = (i / renderW) | 0;
+      var sx = Math.min(w - 1, ((x * w) / renderW) | 0);
+      var sy = Math.min(hgt - 1, ((y * hgt) / renderH) | 0);
+      var srcIdx = sy * w + sx;
       var rgba = bg;
       if (mode === 'diff') {
-        var key = cellsToRender[i];
+        var key = cellsToRender[srcIdx];
         if (key && DIFF_PALETTE[key]) {
           var p = DIFF_PALETTE[key];
           rgba = [p[0], p[1], p[2], 255];
         }
       } else {
-        var c = cellsToRender[i];
+        var c = cellsToRender[srcIdx];
         if (c && !_emptyId(c)) {
           var rgb = _cellRgb(c, [200, 200, 200]);
           rgba = [rgb[0] | 0, rgb[1] | 0, rgb[2] | 0, 255];
@@ -1775,12 +1782,6 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
       ) : null
     );
   }
-  // Expose for tests.
-  window._SrgConflictDiff = {
-    computePatternDiff: _computePatternDiff,
-    DIFF_PALETTE: DIFF_PALETTE
-  };
-
   // ── Sub-component: conflict card ────────────────────────────────────────
   function SrgConflictCard(props) {
     var conflict = props.conflict;
@@ -2178,7 +2179,7 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
       var noPlanTitle, noPlanBody;
       if (!gateState.hasWatchDir) {
         noPlanTitle = 'No sync folder connected';
-        noPlanBody = 'Connect a sync folder in Preferences \u2192 Sync, or import a .csync file from another device.';
+        noPlanBody = 'Connect a sync folder in Preferences > Sync, or import a .csync file from another device.';
       } else if (gateState.permission && gateState.permission !== 'granted') {
         noPlanTitle = 'Sync folder needs reconnecting';
         noPlanBody = 'The browser dropped permission for "' + (gateState.folderName || 'your sync folder')

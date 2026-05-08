@@ -2007,7 +2007,7 @@ const SyncEngine = (() => {
         }
         _reportSyncError("device-id-collision",
           new Error("Detected another device using the same sync id (" + collision.otherName
-            + " vs " + collision.myName + "). Open Preferences \u2192 Sync to regenerate this device's id."));
+            + " vs " + collision.myName + "). Open Preferences > Sync to regenerate this device's id."));
       } catch (e) {}
     }
     var myDeviceId = getDeviceId();
@@ -2261,7 +2261,7 @@ const SyncEngine = (() => {
         // QW4: TTL check. `at` was written by _persistPendingPlan as ISO
         // string; tolerate older records lacking it (treat as fresh) so
         // we don't lose plans during the rollout window.
-        var ageMs = stored.at ? (Date.now() - new Date(stored.at).getTime()) : 0;
+        var ageMs = stored.at ? Math.max(0, Date.now() - new Date(stored.at).getTime()) : 0;
         if (ageMs > PENDING_PLAN_TTL_MS) {
           // Stale — drop the persisted copy and don't rehydrate. The
           // watcher will rebuild it from disk on the next tick if the
