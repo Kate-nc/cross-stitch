@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v45';
+var CACHE_NAME = 'cross-stitch-cache-v47';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -63,6 +63,25 @@ var PRECACHE_URLS = [
   './pdf-export-worker.js',
   './assets/fonts/CrossStitchSymbols.base64.js',
   './assets/fonts/CrossStitchSymbols.ttf',
+
+  // Raster cross-stitch chart importer (Phase 1). The small JS modules below
+  // are precached so the importer is offline-ready, but the heavy CV/OCR
+  // vendor blobs (OpenCV.js ~8 MB, Tesseract.js + language data) are NOT
+  // precached — they are runtime-cached on first use by the local-asset
+  // fetch handler when the chart importer is first opened. This mirrors the
+  // pdf.worker.min.js / fontkit treatment above.
+  './creator/rasterChart/hog.js',
+  './creator/rasterChart/ocrRepair.js',
+  './creator/rasterChart/projectionProfile.js',
+  './creator/rasterChart/dbscan.js',
+  './creator/rasterChart/matScope.js',
+  './creator/rasterChart/cvPipeline.js',
+  './creator/rasterChart/pendingImportStore.js',
+  './creator/rasterChart/CorrectionUI.js',
+  './creator/rasterChart/telemetry.js',
+  './creator/rasterChart/DebugUI.js',
+  './creator/rasterChartWorker.js',
+  './import-engine/strategies/rasterChartStrategy.js',
 
   // External CDN dependencies (exact versioned URLs from HTML)
   'https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js',

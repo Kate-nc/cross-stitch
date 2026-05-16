@@ -286,6 +286,7 @@
     var refOpac = usePref("creatorReferenceOpacity", 35);
     var importWiz = usePref("experimental.importWizard", false);
     var embroidery = usePref("experimental.embroideryTool", false);
+    var importerTel = usePref("importer.telemetryEnabled", true);
     var threadSheen = usePref("creatorCanvasTexture", false);
 
     return h("div", null,
@@ -362,9 +363,13 @@
           desc: "Replaces the single‑step image import dialog with a five‑step wizard. Off by default while we iterate." },
           h(Switch, { checked: importWiz[0], onChange: importWiz[1] })
         ),
-        h(Row, { last: true, label: "Show Embroidery planner link (experimental)",
+        h(Row, { label: "Show Embroidery planner link (experimental)",
           desc: "Surfaces a link to the experimental embroidery pattern planner (embroidery.html). Direct access still works regardless of this toggle - it only controls whether the link appears in the UI." },
           h(Switch, { checked: embroidery[0], onChange: embroidery[1] })
+        ),
+        h(Row, { last: true, label: "Improve the raster chart importer (local-only)",
+          desc: "Records per-stage timings, confidence scores and the manual corrections you make on imported charts. All telemetry is stored locally in your browser (CrossStitchDB › importerTelemetry) and is never transmitted off-device. Press Ctrl+Shift+I on the Pattern Creator to view, export or clear the data. Disable to opt out." },
+          h(Switch, { checked: importerTel[0], onChange: importerTel[1] })
         )
       )
     );

@@ -88,6 +88,7 @@ window.loadPdfStack = function() {
 <script src="apply-prefs.js"></script>
 <script src="touch-constants.js"></script>
 <script src="toast.js"></script>
+<script src="creator/rasterChart/telemetry.js"></script>
 <script>window.__csPageKind = 'tracker';</script>
 <script src="command-palette.js" defer></script>
 <script src="preferences-modal.js" defer></script>
@@ -128,7 +129,7 @@ window.loadPdfStack = function() {
    build-creator-bundle.js when tracker-app.js content changes. */
 (function () {
   if (typeof window === 'undefined') return;
-  var TRACKER_CACHE_KEY = 'babel_tracker_16421a6b9e';
+  var TRACKER_CACHE_KEY = 'babel_tracker_61970e946c';
   var cached = null;
   try { cached = localStorage.getItem(TRACKER_CACHE_KEY); } catch (e) {}
   if (cached) {

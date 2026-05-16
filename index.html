@@ -99,6 +99,9 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="user-prefs.js"></script>
 <script src="apply-prefs.js"></script>
 <script src="toast.js"></script>
+<script src="creator/rasterChart/ocrRepair.js"></script>
+<script src="creator/rasterChart/telemetry.js"></script>
+<script src="creator/rasterChart/DebugUI.js" defer></script>
 <script>window.__csPageKind = 'creator';</script>
 <script src="command-palette.js" defer></script>
 <script src="preferences-modal.js" defer></script>
@@ -144,7 +147,7 @@ window.loadPdfStack = function() {
 })();
 /* Loads TrackerApp via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
-var TRACKER_CACHE_KEY = 'babel_tracker_b43056b4cd';
+var TRACKER_CACHE_KEY = 'babel_tracker_61970e946c';
 window.loadTrackerApp = function() {
   if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
   window.__trackerLoading = true;
@@ -176,7 +179,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_0a3edad853';
+var CREATOR_CACHE_KEY = 'babel_creator_dbc872d6a7';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;

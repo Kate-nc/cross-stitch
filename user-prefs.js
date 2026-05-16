@@ -52,6 +52,12 @@
     exportCentreMarks:      true,
     "creator.pdfWorkshopTheme": false,       // UX-12 PR #14: opt-in Workshop print theme (terracotta + linen). OFF = bit-identical PK output.
 
+    // ─── Raster cross-stitch chart importer (Phase 1) ─────────────────
+    // Local-only, opt-out telemetry that powers Phase 2 design decisions.
+    // No data leaves the device — written to CrossStitchDB
+    // 'importerTelemetry' store. See creator/rasterChart/telemetry.js.
+    "importer.telemetryEnabled": true,
+
     // ─── Pattern Creator generation defaults (read by Sidebar on init) ──
     creatorDefaultPaletteSize:    24,
     creatorDefaultFabricCount:    16,
