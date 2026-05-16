@@ -1318,6 +1318,11 @@ const[leftSidebarMode,setLeftSidebarMode]=useState(()=>{
   }catch(_){return "hidden";}
 });
 const leftSidebarOpen = leftSidebarMode === "open" || leftSidebarMode === "rail";
+// Ref that mirrors leftSidebarMode so the orientation-change handler can
+// read the current mode without becoming a captured-stale-closure or adding
+// leftSidebarMode as an effect dependency.
+const leftSidebarModeRef=useRef(leftSidebarMode);
+leftSidebarModeRef.current=leftSidebarMode;
 const setLeftSidebarOpen = useCallback((next)=>{
   setLeftSidebarMode(prev=>{
     var want = typeof next==="function" ? next(prev==="open"||prev==="rail") : !!next;
@@ -1331,7 +1336,10 @@ const cycleLeftSidebar = useCallback(()=>{
 // Tracks whether the screen is currently ≥1024px (docked lpanel mode).
 // Updated by the orientation-change effect; used by the persist effect
 // to write to the correct orientation-specific localStorage key.
-const isWideRef=useRef(typeof window!=='undefined'&&window.matchMedia&&window.matchMedia('(min-width: 1024px)').matches);
+// Null-guard ensures the matchMedia query runs exactly once on mount
+// (useRef's argument is otherwise evaluated on every render).
+const isWideRef=useRef(null);
+if(isWideRef.current===null)isWideRef.current=!!(typeof window!=='undefined'&&window.matchMedia&&window.matchMedia('(min-width: 1024px)').matches);
 const[leftSidebarTab,setLeftSidebarTab]=useState(()=>{
   try{var p=window.UserPrefs&&window.UserPrefs.get("trackerLeftSidebarTab");return p||"highlight";}catch(_){return"highlight";}
 });
@@ -1392,15 +1400,17 @@ useEffect(()=>{
   const mql=window.matchMedia('(max-width: 1023px)');
   const onChange=()=>{
     if(mql.matches){
-      // Going narrow: persist current wide mode, then close.
+      // Going narrow: persist current wide mode outside the updater so the
+      // write happens exactly once, then close the panel.
       isWideRef.current=false;
-      setLeftSidebarMode(prev=>{
-        try{localStorage.setItem('cs_pref_trackerLeftSidebarMode_wide',JSON.stringify(prev));}catch(_){}
-        return 'hidden';
-      });
+      try{localStorage.setItem('cs_pref_trackerLeftSidebarMode_wide',JSON.stringify(leftSidebarModeRef.current));}catch(_){}
+      setLeftSidebarMode('hidden');
     } else {
-      // Going wide: reload the saved wide preference (or fall back to "open").
+      // Going wide: persist current narrow mode before switching so the
+      // narrow key accurately reflects what the user had, then restore
+      // the saved wide preference (defaulting to "open").
       isWideRef.current=true;
+      try{localStorage.setItem('cs_pref_trackerLeftSidebarMode_narrow',JSON.stringify(leftSidebarModeRef.current));}catch(_){}
       var wideMode='open';
       try{
         var saved=localStorage.getItem('cs_pref_trackerLeftSidebarMode_wide');
