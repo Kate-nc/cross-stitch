@@ -77,6 +77,61 @@ describe('cvPipeline.extractCellColors', () => {
   });
 });
 
+// ── cvPipeline: detectBarrelDistortion (Phase 2 §4) ──────────────────────
+describe('cvPipeline.detectBarrelDistortion', () => {
+  let detectBarrelDistortion;
+
+  beforeAll(() => {
+    global.RasterChartProjection = global.RasterChartProjection || {
+      gridFromProfiles: () => ({}),
+    };
+    global.cv = global.cv || {};
+    const mod = require('../creator/rasterChart/cvPipeline.js');
+    detectBarrelDistortion = mod.detectBarrelDistortion;
+  });
+
+  test('exported from module', () => {
+    expect(typeof detectBarrelDistortion).toBe('function');
+  });
+
+  test('uniform peak spacing → ratio ≈ 1 and not distorted', () => {
+    // 30 evenly-spaced peaks at pitch 10
+    const peaks = Array.from({ length: 30 }, (_, i) => i * 10);
+    const res = detectBarrelDistortion({ colPeaks: peaks, rowPeaks: peaks });
+    expect(res.ratio).toBeCloseTo(1, 3);
+    expect(res.distorted).toBe(false);
+  });
+
+  test('curved page (compressed centre) flagged as distorted', () => {
+    // Edges pitch 12, centre pitch 6 — ratio 2.0
+    const peaks = [];
+    let x = 0;
+    for (let i = 0; i < 8; i++) { peaks.push(x); x += 12; }   // left third
+    for (let i = 0; i < 8; i++) { peaks.push(x); x += 6;  }   // centre
+    for (let i = 0; i < 8; i++) { peaks.push(x); x += 12; }   // right third
+    const res = detectBarrelDistortion({ colPeaks: peaks, rowPeaks: peaks });
+    expect(res.ratio).toBeGreaterThan(1.15);
+    expect(res.distorted).toBe(true);
+  });
+
+  test('too few peaks → safe defaults, not flagged', () => {
+    const res = detectBarrelDistortion({ colPeaks: [0, 10, 20], rowPeaks: [0, 10] });
+    expect(res.distorted).toBe(false);
+    expect(res.ratio).toBe(1);
+  });
+
+  test('mild 10% pitch variation does NOT trip the threshold', () => {
+    // Left pitch 10, mid 10, right 11 → ratio 1.1
+    const peaks = [];
+    let x = 0;
+    for (let i = 0; i < 8; i++) { peaks.push(x); x += 10; }
+    for (let i = 0; i < 8; i++) { peaks.push(x); x += 10; }
+    for (let i = 0; i < 8; i++) { peaks.push(x); x += 11; }
+    const res = detectBarrelDistortion({ colPeaks: peaks, rowPeaks: peaks });
+    expect(res.distorted).toBe(false);
+  });
+});
+
 // ── dbscan: zScoreNormalize ───────────────────────────────────────────────
 describe('dbscan.zScoreNormalize', () => {
   let zScoreNormalize;

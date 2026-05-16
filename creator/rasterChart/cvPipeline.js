@@ -225,7 +225,59 @@
     });
     // PHASE 1 NOTE: Hough + morphological fallbacks are stubbed; we surface
     // the low-confidence flag so the UI can prompt the user to nudge.
+
+    // Phase 2 §4: barrel-distortion detection. Compare cell-pitch ratios
+    // across left/middle/right thirds (and top/middle/bottom thirds). If
+    // any pair's ratio exceeds 1.15 we flag the grid as distorted so the
+    // strategy can attach a warning and the UI can prompt the user.
+    result.distortion = detectBarrelDistortion(result);
     return result;
+  }
+
+  // ── 4b. barrel-distortion detection (Phase 2 §4) ───────────────────────
+  // Returns { ratio, distorted, horizontal:[L,M,R], vertical:[T,M,B] } where
+  // each *.[3] is the median peak gap (pitch) in that third. `ratio` is the
+  // maximum pairwise ratio across both axes; `distorted` is true if it
+  // exceeds 1.15. Safe to call with a low-confidence grid — returns a
+  // zero-ratio shape if there aren't enough peaks per third.
+
+  function detectBarrelDistortion(grid) {
+    const horizontal = pitchesByThirds(grid.colPeaks);
+    const vertical   = pitchesByThirds(grid.rowPeaks);
+    const allPitches = [...horizontal, ...vertical].filter(v => v > 0);
+    let ratio = 1;
+    if (allPitches.length >= 2) {
+      ratio = Math.max(...allPitches) / Math.max(1e-6, Math.min(...allPitches));
+    }
+    return {
+      ratio,
+      distorted: ratio > 1.15,
+      horizontal,
+      vertical,
+    };
+  }
+
+  function pitchesByThirds(peaks) {
+    if (!peaks || peaks.length < 6) return [0, 0, 0];
+    const gaps = [];
+    for (let i = 1; i < peaks.length; i++) {
+      gaps.push({ pos: (peaks[i] + peaks[i - 1]) / 2, gap: peaks[i] - peaks[i - 1] });
+    }
+    const min = peaks[0], max = peaks[peaks.length - 1];
+    const t1 = min + (max - min) / 3, t2 = min + 2 * (max - min) / 3;
+    const buckets = [[], [], []];
+    for (const g of gaps) {
+      if      (g.pos <  t1) buckets[0].push(g.gap);
+      else if (g.pos <  t2) buckets[1].push(g.gap);
+      else                  buckets[2].push(g.gap);
+    }
+    return buckets.map(b => b.length ? median(b) : 0);
+  }
+
+  function median(arr) {
+    const a = arr.slice().sort((x, y) => x - y);
+    const m = a.length >> 1;
+    return a.length % 2 ? a[m] : 0.5 * (a[m - 1] + a[m]);
   }
 
   // ── 5. cell extraction ─────────────────────────────────────────────────
@@ -351,6 +403,7 @@
     extractCells,
     featurise,
     extractCellColors,
+    detectBarrelDistortion,
   };
   if (typeof self !== 'undefined') self.RasterChartCV = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

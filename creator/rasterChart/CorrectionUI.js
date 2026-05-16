@@ -157,6 +157,7 @@
   function CornerEditor({ pending, corners, onChange }) {
     const canvasRef = useRef(null);
     const [drag, setDrag] = useState(-1);
+    const distortion = pending.distortion || null;
 
     const c = corners || pending.autoCorners || defaultCorners(pending);
     useEffect(() => {
@@ -186,6 +187,23 @@
     function onPointerUp() { setDrag(-1); }
 
     return h('div', { className: 'rc-corner-editor' },
+      distortion && distortion.distorted && h('div', {
+        className: 'rc-distortion-warning',
+        role: 'alert',
+        style: {
+          padding: '10px 14px',
+          marginBottom: 12,
+          borderRadius: 6,
+          border: '1px solid var(--accent, #d97706)',
+          background: 'var(--surface-warning, #fef3c7)',
+          color: 'var(--text-primary, #1f2937)',
+        },
+      },
+        h('strong', null, 'This chart appears to be distorted.'),
+        h('p', { style: { margin: '4px 0 0' } },
+          'For best results, please use the four-corner tool below to mark the chart edges, or retake the photo with the book pressed flat. ' +
+          'Detected pitch ratio: ' + (distortion.ratio ? distortion.ratio.toFixed(2) : '?') + ' (anything above 1.15 looks curved).'),
+      ),
       h('p', null, 'Drag the four corners to match the chart\'s outer border. Use this if auto-detection picked the wrong region.'),
       h('canvas', {
         ref: canvasRef, width: 800, height: 600,

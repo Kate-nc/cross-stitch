@@ -256,10 +256,22 @@
           palette: [],
           meta: { publisher: 'image-chart', title: (probe.fileName || '').replace(/\.[^.]+$/, '') },
           flags: {
-            warnings: clu.assignments.includes(-1)
-              ? [{ code: 'CLUSTER_NOISE', message: 'Some cells could not be clustered confidently', severity: 'warning' }]
-              : [],
+            warnings: [
+              ...(clu.assignments.includes(-1)
+                ? [{ code: 'CLUSTER_NOISE', message: 'Some cells could not be clustered confidently', severity: 'warning' }]
+                : []),
+              ...(grid && grid.distortion && grid.distortion.distorted
+                ? [{
+                    code: 'CHART_DISTORTED',
+                    message: 'This chart appears to be distorted. For best results, please use the four-corner tool to mark the chart edges, or retake the photo with the book pressed flat.',
+                    severity: 'warning',
+                    detail: { ratio: grid.distortion.ratio, horizontal: grid.distortion.horizontal, vertical: grid.distortion.vertical },
+                  }]
+                : []),
+            ],
             uncertainCells: clu.assignments.filter(a => a < 0).length,
+            distorted: !!(grid && grid.distortion && grid.distortion.distorted),
+            distortionRatio: (grid && grid.distortion && grid.distortion.ratio) || 1,
           },
           // Phase 2: colour cell samples (null in B&W / Phase 1 mode)
           cellColors: colourResult ? colourResult.cellColors : null,
