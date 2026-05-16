@@ -48,6 +48,7 @@ var PRECACHE_URLS = [
   './import-engine/lazy-shim.js',
   './import-engine/bundle.js',
   './creator-main.js',
+  './wake-lock.js',
   './tracker-app.js',
   './manager-app.js',
 
