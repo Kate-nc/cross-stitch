@@ -180,6 +180,7 @@
             const noiseCount = clu.assignments.filter(a => a < 0).length;
             const clusterCount = new Set(clu.assignments.filter(a => a >= 0)).size;
             const totalCells = clu.assignments.length || 1;
+            const meanSilhouette = computeSilhouetteProxy(clu, feat);
             const sourceType = pre.otsuFastPath ? 'screenshot' : 'photo';
           timings.match = 0;            // Phase 1 has no match step (label step lives in UI).
             timings['legend-ocr'] = timings['legend-ocr'] || 0;
@@ -188,7 +189,7 @@
               confidence: {
                 grid: { peakProminenceRatio: (grid && grid.confidence) || 0 },
                 cluster: {
-                  meanSilhouette: 0,           // computed by UI/labelling step if/when available
+                  meanSilhouette,              // proxy: medoid-based silhouette score
                   noiseCount,
                   clusterCount,
                 },
@@ -344,6 +345,56 @@
       if (e.source === 'repaired') confusionRepairedCount++;
     }
     return { meanWordConfidence, regexValidatedCount, confusionRepairedCount };
+  }
+
+  // ── Silhouette proxy (Phase 2 §5) ──────────────────────────────────────
+  // A true silhouette score needs O(N²) intra-cluster distances. As a
+  // cheap proxy we use medoid-based silhouette: for each assigned point i,
+  //   a_i = euclidean(feature_i, medoid_of_own_cluster)
+  //   b_i = min over other clusters c' of euclidean(feature_i, medoid_c')
+  //   s_i = (b_i - a_i) / max(a_i, b_i)
+  // Mean s_i across all non-noise points. Returns 0 when clusters < 2 or
+  // no assigned points (no signal). Range [-1, 1]; higher is better.
+  function computeSilhouetteProxy(clu, feat) {
+    if (!clu || !feat || !feat.features || !clu.assignments || !clu.medoids) return 0;
+    const features = feat.features;
+    const assigns = clu.assignments;
+    const medoids = clu.medoids;
+    // Collect cluster ids with valid medoids.
+    const clusterIds = [];
+    for (let c = 0; c < medoids.length; c++) {
+      if (medoids[c] != null && features[medoids[c]]) clusterIds.push(c);
+    }
+    if (clusterIds.length < 2) return 0;
+    // Cache medoid feature vectors.
+    const medoidVecs = clusterIds.map(c => features[medoids[c]]);
+    function dist(a, b) {
+      let s = 0; const n = a.length;
+      for (let i = 0; i < n; i++) { const d = a[i] - b[i]; s += d * d; }
+      return Math.sqrt(s);
+    }
+    let sum = 0, count = 0;
+    for (let i = 0; i < assigns.length; i++) {
+      const own = assigns[i];
+      if (own < 0) continue;
+      const vec = features[i];
+      if (!vec) continue;
+      const ownIdx = clusterIds.indexOf(own);
+      if (ownIdx < 0) continue;
+      const a = dist(vec, medoidVecs[ownIdx]);
+      let b = Infinity;
+      for (let k = 0; k < clusterIds.length; k++) {
+        if (k === ownIdx) continue;
+        const d = dist(vec, medoidVecs[k]);
+        if (d < b) b = d;
+      }
+      if (!isFinite(b)) continue;
+      const denom = Math.max(a, b);
+      if (denom === 0) continue;
+      sum += (b - a) / denom;
+      count++;
+    }
+    return count > 0 ? sum / count : 0;
   }
 
   // ── Colour-mode path (Phase 2) ─────────────────────────────────────────
