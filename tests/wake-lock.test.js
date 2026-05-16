@@ -187,6 +187,31 @@ describe('WakeLockManager — supported environment', () => {
     mgr.destroy();
   });
 
+  it('does not keep the lock when release() is called during a pending acquire()', async () => {
+    const mgr = new WakeLockManager();
+    const pendingSentinel = makeMockSentinel();
+    const addSpy = jest.spyOn(document, 'addEventListener');
+    let resolveRequest;
+
+    navigator.wakeLock.request.mockImplementation(
+      () => new Promise(resolve => { resolveRequest = resolve; })
+    );
+
+    const acquiring = mgr.acquire();
+    await flushMicrotasks();
+    await mgr.release();
+
+    resolveRequest(pendingSentinel);
+    await acquiring;
+    await flushMicrotasks();
+
+    expect(mgr.isActive).toBe(false);
+    expect(pendingSentinel.release).toHaveBeenCalledTimes(1);
+    expect(addSpy).not.toHaveBeenCalledWith('visibilitychange', expect.any(Function));
+    addSpy.mockRestore();
+    mgr.destroy();
+  });
+
   // ── Toggle ─────────────────────────────────────────────────────────────
 
   it('toggle acquires when inactive', async () => {

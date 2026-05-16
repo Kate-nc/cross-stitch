@@ -173,6 +173,20 @@ class WakeLockManager {
     try {
       const newSentinel = await navigator.wakeLock.request('screen');
 
+      // release() may have been called while request() was pending.
+      // If the user no longer wants a lock, immediately release this sentinel
+      // and exit without wiring listeners or publishing active state.
+      if (!this._userWantsLock) {
+        try {
+          await newSentinel.release();
+        } catch (_) {
+          // Ignore: browser may have already released it.
+        }
+        this._clearSentinel();
+        this._notify();
+        return;
+      }
+
       // Clear any stale sentinel reference before storing the new one
       this._clearSentinel();
       this._sentinel = newSentinel;
