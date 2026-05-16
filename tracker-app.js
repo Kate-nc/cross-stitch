@@ -1281,6 +1281,18 @@ const[mobileDrawerOpen,setMobileDrawerOpen]=useState(false);
 // existing render code that already reads it.
 const[leftSidebarMode,setLeftSidebarMode]=useState(()=>{
   try{
+    // Orientation-specific key takes priority when the user has previously
+    // used the app in both orientations (written by the orientation-change
+    // effect so each orientation remembers its own preference).
+    var _isWide=typeof window!=='undefined'&&window.matchMedia&&window.matchMedia('(min-width: 1024px)').matches;
+    var _orientKey=_isWide?'cs_pref_trackerLeftSidebarMode_wide':'cs_pref_trackerLeftSidebarMode_narrow';
+    var _orientRaw=localStorage.getItem(_orientKey);
+    if(_orientRaw!==null){
+      try{
+        var _orientStored=JSON.parse(_orientRaw);
+        if(_orientStored==="hidden"||_orientStored==="rail"||_orientStored==="open")return _orientStored;
+      }catch(_){}
+    }
     // Use localStorage directly so we can distinguish "key never set" from
     // "key set to the default value".  UserPrefs.get() always returns the
     // DEFAULTS fallback and can't detect a true first run.
@@ -1306,6 +1318,11 @@ const[leftSidebarMode,setLeftSidebarMode]=useState(()=>{
   }catch(_){return "hidden";}
 });
 const leftSidebarOpen = leftSidebarMode === "open" || leftSidebarMode === "rail";
+// Ref that mirrors leftSidebarMode so the orientation-change handler can
+// read the current mode without becoming a captured-stale-closure or adding
+// leftSidebarMode as an effect dependency.
+const leftSidebarModeRef=useRef(leftSidebarMode);
+leftSidebarModeRef.current=leftSidebarMode;
 const setLeftSidebarOpen = useCallback((next)=>{
   setLeftSidebarMode(prev=>{
     var want = typeof next==="function" ? next(prev==="open"||prev==="rail") : !!next;
@@ -1316,10 +1333,25 @@ const setLeftSidebarOpen = useCallback((next)=>{
 const cycleLeftSidebar = useCallback(()=>{
   setLeftSidebarMode(prev=>prev==="hidden"?"rail":prev==="rail"?"open":"hidden");
 },[]);
+// Tracks whether the screen is currently ≥1024px (docked lpanel mode).
+// Updated by the orientation-change effect; used by the persist effect
+// to write to the correct orientation-specific localStorage key.
+// Null-guard ensures the matchMedia query runs exactly once on mount
+// (useRef's argument is otherwise evaluated on every render).
+const isWideRef=useRef(null);
+if(isWideRef.current===null)isWideRef.current=!!(typeof window!=='undefined'&&window.matchMedia&&window.matchMedia('(min-width: 1024px)').matches);
 const[leftSidebarTab,setLeftSidebarTab]=useState(()=>{
   try{var p=window.UserPrefs&&window.UserPrefs.get("trackerLeftSidebarTab");return p||"highlight";}catch(_){return"highlight";}
 });
-useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLeftSidebarMode",leftSidebarMode);}catch(_){}},[leftSidebarMode]);
+useEffect(()=>{
+  try{
+    window.UserPrefs&&window.UserPrefs.set("trackerLeftSidebarMode",leftSidebarMode);
+    // Also persist to the orientation-specific key so each orientation
+    // independently remembers its last state.
+    var _ok=isWideRef.current?'cs_pref_trackerLeftSidebarMode_wide':'cs_pref_trackerLeftSidebarMode_narrow';
+    localStorage.setItem(_ok,JSON.stringify(leftSidebarMode));
+  }catch(_){}
+},[leftSidebarMode]);
 useEffect(()=>{try{window.UserPrefs&&window.UserPrefs.set("trackerLeftSidebarTab",leftSidebarTab);}catch(_){}},[leftSidebarTab]);
 
 // Phase 4: palette-legend sort key persisted via UserPrefs (global default)
@@ -1352,12 +1384,48 @@ useEffect(()=>{
   const onKey=e=>{
     if(e.key!=="Escape")return;
     if(typeof window==='undefined'||!window.matchMedia)return;
-    if(!window.matchMedia("(max-width: 899px)").matches)return;
+    if(!window.matchMedia("(max-width: 1023px)").matches)return;
     setLeftSidebarOpen(false);
   };
   window.addEventListener("keydown",onKey);
   return()=>window.removeEventListener("keydown",onKey);
 },[leftSidebarOpen]);
+// Orientation-aware sidebar handler. On rotation to narrow (<1024px) the
+// lpanel switches from a docked side panel to a full-screen overlay, so we
+// save the current wide-mode preference and auto-close. On rotation back to
+// wide (≥1024px) we reload the saved preference (defaulting to "open") so
+// the sidebar comes back without the user having to tap the hamburger again.
+useEffect(()=>{
+  if(typeof window==='undefined'||!window.matchMedia)return;
+  const mql=window.matchMedia('(max-width: 1023px)');
+  const onChange=()=>{
+    if(mql.matches){
+      // Going narrow: persist current wide mode outside the updater so the
+      // write happens exactly once, then close the panel.
+      isWideRef.current=false;
+      try{localStorage.setItem('cs_pref_trackerLeftSidebarMode_wide',JSON.stringify(leftSidebarModeRef.current));}catch(_){}
+      setLeftSidebarMode('hidden');
+    } else {
+      // Going wide: persist current narrow mode before switching so the
+      // narrow key accurately reflects what the user had, then restore
+      // the saved wide preference (defaulting to "open").
+      isWideRef.current=true;
+      try{localStorage.setItem('cs_pref_trackerLeftSidebarMode_narrow',JSON.stringify(leftSidebarModeRef.current));}catch(_){}
+      var wideMode='open';
+      try{
+        var saved=localStorage.getItem('cs_pref_trackerLeftSidebarMode_wide');
+        if(saved!==null){var p=JSON.parse(saved);if(p==="hidden"||p==="rail"||p==="open")wideMode=p;}
+      }catch(_){}
+      setLeftSidebarMode(wideMode);
+    }
+  };
+  if(mql.addEventListener)mql.addEventListener('change',onChange);
+  else if(mql.addListener)mql.addListener(onChange);
+  return()=>{
+    if(mql.removeEventListener)mql.removeEventListener('change',onChange);
+    else if(mql.removeListener)mql.removeListener(onChange);
+  };
+},[]);
 
 // Touch-1 H-2: Focus mode. Strips chrome to canvas + a floating
 // mini-bar (.cs-focus-bar). Toggled with the F key (when no input is

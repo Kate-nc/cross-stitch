@@ -101,6 +101,20 @@ function ManagerApp() {
     window.addEventListener("cs:openBulkAdd", h);
     return () => window.removeEventListener("cs:openBulkAdd", h);
   }, []);
+  // Auto-close the detail panel when the screen drops below 900px (portrait)
+  // where the panel backdrop is visible but the side panel is gone — prevents
+  // a ghost dark overlay after screen rotation.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mql = window.matchMedia('(max-width: 899px)');
+    const onNarrow = () => { if (mql.matches) setPanelOpen(false); };
+    if (mql.addEventListener) mql.addEventListener('change', onNarrow);
+    else if (mql.addListener) mql.addListener(onNarrow);
+    return () => {
+      if (mql.removeEventListener) mql.removeEventListener('change', onNarrow);
+      else if (mql.removeListener) mql.removeListener(onNarrow);
+    };
+  }, []);
   // Command Palette → Preferences modal bridge (UX-12 Phase 6 PR #11).
   useEffect(() => {
     const h = () => { if (typeof window.PreferencesModal !== 'undefined') setPreferencesOpen(true); };

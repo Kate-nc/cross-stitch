@@ -137,3 +137,70 @@ describe('Tracker left sidebar (toolbar-rework phase 1)', () => {
     expect(trackerSrc).not.toMatch(/['"`][^'"`]*[▶⏸⏹⏱][^'"`]*['"`]/);
   });
 });
+
+describe('Tracker sidebar — screen-rotation handling', () => {
+  test('ESC handler uses the 1024px CSS docked/overlay boundary, not 899px', () => {
+    // The lpanel switches from overlay to docked at 1024px in CSS.
+    // The ESC handler must use the same breakpoint so ESC works in the
+    // 900–1023px range where the panel is still a floating overlay.
+    expect(trackerSrc).toMatch(/matchMedia\(["']\(max-width: 1023px\)["']\)\.matches/);
+    expect(trackerSrc).not.toMatch(/matchMedia\(["']\(max-width: 899px\)["']\)\.matches/);
+  });
+
+  test('orientation-change effect uses matchMedia (max-width: 1023px)', () => {
+    // The effect must watch the same breakpoint the CSS uses to decide
+    // docked vs overlay so the auto-close fires at exactly the right moment.
+    expect(trackerSrc).toMatch(/matchMedia\(['"][(]max-width: 1023px[)]['"]\)/);
+  });
+
+  test('orientation-change effect auto-closes on narrow transition', () => {
+    // When rotating to portrait the panel must set mode to "hidden".
+    expect(trackerSrc).toMatch(/return\s*['"]hidden['"]/);
+  });
+
+  test('orientation-change effect restores on wide transition (rotate-to-expand)', () => {
+    // When rotating back to landscape the effect loads the saved wide
+    // preference rather than leaving the panel closed.
+    expect(trackerSrc).toMatch(/cs_pref_trackerLeftSidebarMode_wide/);
+    expect(trackerSrc).toMatch(/wideMode/);
+    expect(trackerSrc).toMatch(/setLeftSidebarMode\(wideMode\)/);
+  });
+
+  test('isWideRef tracks the current orientation for the persist effect', () => {
+    expect(trackerSrc).toMatch(/isWideRef\s*=\s*useRef/);
+    expect(trackerSrc).toMatch(/isWideRef\.current/);
+  });
+
+  test('persist effect writes to orientation-specific key', () => {
+    // Every time the mode changes, the orientation-specific key is also
+    // updated so the next cold-start in that orientation loads it.
+    expect(trackerSrc).toMatch(/cs_pref_trackerLeftSidebarMode_wide/);
+    expect(trackerSrc).toMatch(/cs_pref_trackerLeftSidebarMode_narrow/);
+  });
+
+  test('state initialiser reads orientation-specific key on first load', () => {
+    // On mount the correct orientation key is checked before falling
+    // back to the universal key so a fresh load in portrait vs landscape
+    // uses the right saved value.
+    expect(trackerSrc).toMatch(/_orientKey.*trackerLeftSidebarMode_wide|trackerLeftSidebarMode_wide.*_orientKey/);
+    expect(trackerSrc).toMatch(/_orientKey.*trackerLeftSidebarMode_narrow|trackerLeftSidebarMode_narrow.*_orientKey/);
+  });
+
+  test('styles.css: lpanel desktop rule includes safe-area-inset-left padding', () => {
+    // iOS landscape puts the notch on the left. The docked lpanel must
+    // add padding-left so its content isn't clipped behind the sensor area.
+    expect(stylesSrc).toMatch(/\.lpanel\s*\{[^}]*padding-left\s*:\s*env\(safe-area-inset-left/);
+  });
+
+  test('styles.css: lp-tab-content includes safe-area-inset-bottom padding', () => {
+    // The lpanel scroll area must clear the iOS home indicator bar when
+    // displayed as a bottom sheet in portrait mode.
+    expect(stylesSrc).toMatch(/lp-tab-content[^}]*padding-bottom\s*:\s*env\(safe-area-inset-bottom/);
+  });
+
+  test('styles.css: mgr-rpanel--open includes safe-area-inset-bottom padding', () => {
+    // The manager detail panel also appears as a bottom sheet and needs
+    // the same home-indicator clearance.
+    expect(stylesSrc).toMatch(/mgr-rpanel--open[^}]*padding-bottom\s*:\s*env\(safe-area-inset-bottom/);
+  });
+});

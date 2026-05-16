@@ -1277,6 +1277,21 @@ window.useCreatorState = function useCreatorState() {
     lasso.setLassoOpMode(mode);
   }
 
+  // Auto-close the right panel when the screen drops below 900px (portrait
+  // phone) where the rpanel is hidden by CSS but its backdrop is still
+  // rendered — preventing a ghost dark overlay after screen rotation.
+  useEffect(function() {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    var mql = window.matchMedia('(max-width: 899px)');
+    function onNarrow() { if (mql.matches) setPanelOpen(false); }
+    if (mql.addEventListener) mql.addEventListener('change', onNarrow);
+    else if (mql.addListener) mql.addListener(onNarrow);
+    return function() {
+      if (mql.removeEventListener) mql.removeEventListener('change', onNarrow);
+      else if (mql.removeListener) mql.removeListener(onNarrow);
+    };
+  }, []);
+
   // ─── Scratch resize effect ───────────────────────────────────────────────────
   useEffect(function() {
     if (!isScratchMode || !pat) return;
