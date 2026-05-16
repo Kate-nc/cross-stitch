@@ -203,3 +203,25 @@ delightful than manual drag-and-drop. We are deliberately shipping the
 boring defaults because the telemetry from Phase 1 will tell us, with
 real numbers, whether the aggressive answer is worth its engineering
 cost. Until those numbers exist, the boring default wins.
+
+## Appendix � Lab conversion benchmark (Phase 2 �6)
+
+Micro-benchmark of `d50RgbToLab()` (Bradford-adapted sRGB→Lab) on Node 20:
+
+```
+Workload A — 8 000 cells × 1 000 iterations
+  per-import (8 000 cells):  2.28 ms
+  per-cell:                  0.285 µs
+
+Workload B — 640×480 pixels × 10 iterations
+  per-image (307 200 px):   95.69 ms
+  per-pixel:                 0.311 µs
+```
+
+Budget: 500 ms per import for all Lab conversion work. Measured cost is
+**2.28 ms (0.5% of budget)** for the cell-averaged path Phase 2 uses, so
+there is no need to migrate to a WASM or lookup-table implementation.
+The pixel workload (96 ms per 640�480 image) is documented for reference
+in case future passes operate on raw pixels rather than cell averages.
+
+Reproduce with `node scripts/lab-conversion-bench.js`.
