@@ -116,9 +116,90 @@ const BackupRestore = (() => {
     return JSON.parse(text);
   }
 
+  // Phase 2 §5: cellColors round-trip helpers.
+  // CrossStitchDB stores `project.cellColors` as a Uint8Array (structured
+  // clone handles it natively). JSON.stringify, however, would turn a
+  // Uint8Array into a `{"0":255,...}` object and balloon the file. To keep
+  // backups compact and lossless we deflate the bytes, base64-encode the
+  // result, and tag the field with `cellColors_enc: 'pako-deflate-b64'`.
+  // The whole backup is then deflated again by serializeBackupFile, but
+  // that outer deflate is a no-op on already-compressed base64 strings so
+  // the cost is minimal and the bytes survive round-trips exactly.
+
+  function encodeCellColorsForExport(project) {
+    if (!project || !(project.cellColors instanceof Uint8Array)) return project;
+    if (typeof pako === 'undefined' || !pako || !pako.deflate || typeof btoa !== 'function') {
+      // No pako → leave Uint8Array in place; JSON.stringify will still
+      // produce a (verbose but correct) array-of-numbers form.
+      return project;
+    }
+    try {
+      const bytes = pako.deflate(project.cellColors);
+      const CHUNK = 0x8000;
+      const chunks = [];
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        chunks.push(String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK)));
+      }
+      const b64 = btoa(chunks.join(''));
+      const clone = Object.assign({}, project);
+      delete clone.cellColors;
+      clone.cellColors_enc = 'pako-deflate-b64';
+      clone.cellColors_b64 = b64;
+      clone.cellColors_len = project.cellColors.length;
+      return clone;
+    } catch (e) {
+      console.warn('Backup: cellColors compression failed, leaving raw', e);
+      return project;
+    }
+  }
+
+  function decodeCellColorsFromImport(project) {
+    if (!project || project.cellColors_enc !== 'pako-deflate-b64') return project;
+    if (typeof pako === 'undefined' || !pako || !pako.inflate || typeof atob !== 'function') {
+      console.warn('Restore: cannot decode cellColors — pako missing');
+      return project;
+    }
+    try {
+      const bin = atob(project.cellColors_b64 || '');
+      const buf = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+      const inflated = pako.inflate(buf);
+      const clone = Object.assign({}, project);
+      delete clone.cellColors_enc;
+      delete clone.cellColors_b64;
+      delete clone.cellColors_len;
+      clone.cellColors = inflated;
+      return clone;
+    } catch (e) {
+      console.warn('Restore: cellColors decompression failed', e);
+      return project;
+    }
+  }
+
+  function encodeProjectEntriesForExport(entries) {
+    if (!Array.isArray(entries)) return entries;
+    return entries.map(entry => {
+      if (!entry || !entry.value || typeof entry.value !== 'object') return entry;
+      const encoded = encodeCellColorsForExport(entry.value);
+      if (encoded === entry.value) return entry;
+      return { key: entry.key, value: encoded };
+    });
+  }
+
+  function decodeProjectEntriesFromImport(entries) {
+    if (!Array.isArray(entries)) return entries;
+    return entries.map(entry => {
+      if (!entry || !entry.value || typeof entry.value !== 'object') return entry;
+      if (entry.value.cellColors_enc !== 'pako-deflate-b64') return entry;
+      return { key: entry.key, value: decodeCellColorsFromImport(entry.value) };
+    });
+  }
+
   return {
     serializeBackupFile,
     parseBackupText,
+    encodeCellColorsForExport,
+    decodeCellColorsFromImport,
     // Reads a File/Blob, parses (supports both .json and .csb), validates and restores.
     async restoreBackup(file) {
       if (!file) throw new Error("No backup file selected.");
@@ -158,7 +239,12 @@ const BackupRestore = (() => {
           readStore(db, "stats_summaries"),
           readStore(db, "sync_snapshots")
         ]);
-        backup.databases.CrossStitchDB = { projects, project_meta, stats_summaries, sync_snapshots };
+        backup.databases.CrossStitchDB = {
+          projects: encodeProjectEntriesForExport(projects),
+          project_meta,
+          stats_summaries,
+          sync_snapshots,
+        };
         db.close();
       } catch (e) {
         console.warn("Backup: could not read CrossStitchDB:", e);
@@ -286,11 +372,14 @@ const BackupRestore = (() => {
         const data = backup.databases.CrossStitchDB;
         for (const storeName of ["projects", "project_meta", "stats_summaries", "sync_snapshots"]) {
           if (!data[storeName]) continue;
+          const entries = storeName === 'projects'
+            ? decodeProjectEntriesFromImport(data[storeName])
+            : data[storeName];
           await new Promise((resolve, reject) => {
             const tx = db.transaction(storeName, "readwrite");
             const store = tx.objectStore(storeName);
             store.clear();
-            data[storeName].forEach(entry => store.put(entry.value, entry.key));
+            entries.forEach(entry => store.put(entry.value, entry.key));
             tx.oncomplete = () => resolve();
             tx.onerror = () => reject(tx.error);
           });
