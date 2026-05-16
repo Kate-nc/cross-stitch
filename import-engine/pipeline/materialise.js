@@ -76,6 +76,19 @@
       project._import = { perCellConfidence: conf };
     }
 
+    // Phase 2 §5: attach the per-cell colour samples (Uint8Array of length
+    // w*h*3) so they survive the IndexedDB write. Structured-clone handles
+    // typed arrays natively — no compression here, gzip happens only at
+    // export time in backup-restore.js.
+    if (raw.cellColors instanceof Uint8Array && raw.cellColors.length > 0) {
+      project.cellColors = raw.cellColors;
+      project.cellColorsMeta = {
+        cols: raw.colourCols || raw.width || w,
+        rows: raw.colourRows || raw.height || h,
+        version: 1,
+      };
+    }
+
     return attachOriginalFile(project, ctx);
   }
 

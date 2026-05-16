@@ -61,6 +61,33 @@ describe('materialiseProject', () => {
   it('throws on invalid dimensions', () => {
     expect(() => materialiseProject({ width: 0, height: 5, cells: [] })).toThrow();
   });
+
+  it('attaches cellColors (Phase 2 §5) as Uint8Array on the project', () => {
+    const cellColors = new Uint8Array([255, 0, 0, 0, 255, 0]); // 2 cells × RGB
+    const raw = {
+      width: 2, height: 1,
+      cells: [
+        { col: 0, row: 0, code: '666', color: [255, 0, 0], type: 'full', matchConfidence: 1 },
+        { col: 1, row: 0, code: '700', color: [0, 255, 0], type: 'full', matchConfidence: 1 },
+      ],
+      cellColors,
+      colourCols: 2, colourRows: 1,
+    };
+    const p = materialiseProject(raw, { fabricCt: 14 });
+    expect(p.cellColors).toBeInstanceOf(Uint8Array);
+    expect(p.cellColors.length).toBe(6);
+    expect(Array.from(p.cellColors)).toEqual([255, 0, 0, 0, 255, 0]);
+    expect(p.cellColorsMeta).toEqual({ cols: 2, rows: 1, version: 1 });
+  });
+
+  it('omits cellColors when extraction has none (B&W path)', () => {
+    const raw = { width: 1, height: 1, cells: [
+      { col: 0, row: 0, code: '310', color: [0, 0, 0], type: 'full', matchConfidence: 1 },
+    ] };
+    const p = materialiseProject(raw, {});
+    expect(p.cellColors).toBeUndefined();
+    expect(p.cellColorsMeta).toBeUndefined();
+  });
 });
 
 describe('attachOriginalFile', () => {

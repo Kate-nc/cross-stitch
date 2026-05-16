@@ -275,6 +275,8 @@
           },
           // Phase 2: colour cell samples (null in B&W / Phase 1 mode)
           cellColors: colourResult ? colourResult.cellColors : null,
+          colourCols: colourResult ? colourResult.cols : null,
+          colourRows: colourResult ? colourResult.rows : null,
           multiPageMetadata: null,
           // Telemetry id so the correction UI can append events and mark
           // acceptance / abandonment.
