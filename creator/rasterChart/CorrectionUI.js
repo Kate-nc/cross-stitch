@@ -28,11 +28,12 @@
   const h = window.React.createElement;
 
   const TABS = [
-    { id: 'corners', label: 'Corners' },
-    { id: 'grid',    label: 'Grid' },
-    { id: 'clusters',label: 'Symbols' },
-    { id: 'review',  label: 'Needs review' },
-    { id: 'legend',  label: 'Legend' },
+    { id: 'corners',    label: 'Corners' },
+    { id: 'grid',       label: 'Grid' },
+    { id: 'clusters',   label: 'Symbols' },
+    { id: 'review',     label: 'Needs review' },
+    { id: 'legend',     label: 'Legend' },
+    { id: 'multipage',  label: 'Pages' },
   ];
 
   function RasterChartCorrectionUI(props) {
@@ -133,10 +134,14 @@
             onCellFix: (cellIdx, fromCid, toCid) =>
               logCorrection('flagged-cell-corrected', { cellIdx, from: fromCid, to: toCid }),
           }),
-          tab === 'legend'  && h(LegendMappingPanel, {
+          tab === 'legend'    && h(LegendMappingPanel, {
             pending, labels, onLabelChange,
             onManualMap: (legendSymbolIdx, clusterId) =>
               logCorrection('legend-manual-map', { legendSymbolIdx, clusterId }),
+          }),
+          tab === 'multipage' && h(MultiPageTab, {
+            pending,
+            onReorder: (newOrder) => logCorrection('multi-page-reorder', { newOrder }),
           }),
         ),
         h('footer', { className: 'rc-correction-footer' },
@@ -302,6 +307,21 @@
               : h('em', null, 'unmatched')),
           ))),
       ),
+    );
+  }
+
+  // ── Surface 6: multi-page ─────────────────────────────────────────────
+  // Uses the standalone MultiPageDropzone component when available;
+  // falls back to a plain message.
+  function MultiPageTab({ pending, onReorder }) {
+    if (typeof window !== 'undefined' && window.RasterChartMultiPageDropzone) {
+      return h(window.RasterChartMultiPageDropzone, {
+        pages: pending.pages || [],
+        onReorder,
+      });
+    }
+    return h('div', { className: 'rc-multipage-placeholder' },
+      h('p', null, 'Multi-page support coming soon. Load this page as part of a multi-page sequence using the Import wizard.'),
     );
   }
 

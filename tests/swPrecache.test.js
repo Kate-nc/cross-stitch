@@ -36,11 +36,9 @@ describe('sw.js precache (UX-12 Phase 7 PR #13)', () => {
   // added (10 new local JS modules under creator/rasterChart/ +
   // creator/rasterChartWorker.js + the import-engine strategy). The heavy
   // CV/OCR vendor blobs are deliberately NOT in PRECACHE_URLS.
-  // Bumped to v47 when Phase 1 telemetry (telemetry.js + DebugUI.js) was
-  // added — local-only opt-out instrumentation that gates Phase 2 design
-  // decisions.
-  test('CACHE_NAME bumped to v47', () => {
-    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v47['"]/);
+  // Bumped to v48 when Phase 2 MultiPageDropzone.js was added to precache.
+  test('CACHE_NAME bumped to v48', () => {
+    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v48['"]/);
   });
 
   test('PRECACHE_URLS does NOT include heavy lazy vendor blobs', () => {

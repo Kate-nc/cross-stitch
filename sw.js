@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v47';
+var CACHE_NAME = 'cross-stitch-cache-v48';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -78,6 +78,7 @@ var PRECACHE_URLS = [
   './creator/rasterChart/cvPipeline.js',
   './creator/rasterChart/pendingImportStore.js',
   './creator/rasterChart/CorrectionUI.js',
+  './creator/rasterChart/MultiPageDropzone.js',
   './creator/rasterChart/telemetry.js',
   './creator/rasterChart/DebugUI.js',
   './creator/rasterChartWorker.js',

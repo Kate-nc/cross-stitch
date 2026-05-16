@@ -1,6 +1,6 @@
-// tests/swPrecache-rasterChart.test.js — Phase 1 of the raster cross-stitch
-// chart importer. Mirrors the swPrecache.test.js contract so future cache
-// bumps that drop these files will fail loudly.
+// tests/swPrecache-rasterChart.test.js — Phase 1 & Phase 2 of the raster
+// cross-stitch chart importer. Mirrors the swPrecache.test.js contract so
+// future cache bumps that drop these files will fail loudly.
 //
 // Heavy CV/OCR vendor blobs (OpenCV.js ~8 MB, Tesseract.js + language data)
 // are explicitly NOT in PRECACHE_URLS — they're runtime-cached on first use
@@ -39,6 +39,7 @@ describe('sw.js precache (raster chart importer Phase 1)', () => {
     './creator/rasterChart/cvPipeline.js',
     './creator/rasterChart/pendingImportStore.js',
     './creator/rasterChart/CorrectionUI.js',
+    './creator/rasterChart/MultiPageDropzone.js',
     './creator/rasterChart/telemetry.js',
     './creator/rasterChart/DebugUI.js',
     './creator/rasterChartWorker.js',
