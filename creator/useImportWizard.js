@@ -96,7 +96,7 @@
       crop: d.crop || { rotate: 0, flipH: false, flipV: false, aspect: "free" },
       palette: d.palette || { mode: "dmc", maxColours: 30, allowBlends: true },
       size: d.size || { w: fitted.w, h: fitted.h, lock: true, fabricCt: 14 },
-      settings: d.settings || { dither: true, contrast: 0, saliency: false, skipBg: false, bgThreshold: 15 },
+      settings: d.settings || { dither: true, contrast: 0, saliency: false, skipBg: false, bgThreshold: 15, colourMode: false },
       name: d.name || baseName || ""
     };
   }
@@ -168,7 +168,11 @@
         // Pass-through for downstream wiring (allowBlends, dither, etc.).
         crop:     s.crop,
         palette:  s.palette,
-        settings: s.settings
+        settings: s.settings,
+        // Phase 2 §4: surface colourMode on the engineOpts shape so the
+        // import-engine worker client can forward it to the raster-chart
+        // strategy (opts.image.colourMode).
+        engineOpts: { image: { colourMode: !!s.settings.colourMode } }
       };
     }
 

@@ -101,7 +101,7 @@
       crop: d.crop || { rotate: 0, flipH: false, flipV: false, aspect: "free" },
       palette: d.palette || { mode: "dmc", maxColours: 30, allowBlends: true },
       size: d.size || { w: fitted.w, h: fitted.h, lock: true, fabricCt: 14 },
-      settings: d.settings || { dither: true, contrast: 0, saliency: false, skipBg: false, bgThreshold: 15 },
+      settings: d.settings || { dither: true, contrast: 0, saliency: false, skipBg: false, bgThreshold: 15, colourMode: false },
       name: d.name || baseName || ""
     };
   }
@@ -173,7 +173,11 @@
         // Pass-through for downstream wiring (allowBlends, dither, etc.).
         crop:     s.crop,
         palette:  s.palette,
-        settings: s.settings
+        settings: s.settings,
+        // Phase 2 §4: surface colourMode on the engineOpts shape so the
+        // import-engine worker client can forward it to the raster-chart
+        // strategy (opts.image.colourMode).
+        engineOpts: { image: { colourMode: !!s.settings.colourMode } }
       };
     }
 
@@ -510,6 +514,7 @@
       function setSaliency()  { wizard.setSettings(Object.assign({}, s, { saliency: !s.saliency })); }
       function setSkipBg()    { wizard.setSettings(Object.assign({}, s, { skipBg: !s.skipBg })); }
       function setBgT(n)      { wizard.setSettings(Object.assign({}, s, { bgThreshold: Math.max(3, Math.min(50, n | 0)) })); }
+      function setColourMode(){ wizard.setSettings(Object.assign({}, s, { colourMode: !s.colourMode })); }
       return h("div", { className: "iw-step iw-step-preview" },
         h("h2", { id: "iw-step-heading", ref: headingRef, tabIndex: -1, className: "iw-step-title" }, "Step 4 of 5: Preview & tune"),
         h("p", { className: "iw-step-desc" }, "Live preview is coming in a follow-up. For now, choose how the pixels should be processed."),
@@ -537,6 +542,14 @@
         h("label", { className: "iw-checkbox" },
           h("input", { type: "checkbox", checked: !!s.skipBg, onChange: setSkipBg }),
           h("span", null, "Skip near-white background")
+        ),
+        // Phase 2 §4: raster-chart colour mode. When checked, image-chart
+        // imports cluster cell colours into a palette instead of treating
+        // the chart as black-and-white symbols only. No-op for non-chart
+        // image imports.
+        h("label", { className: "iw-checkbox", title: "Treat this as a colour-printed chart. Detected colours will be clustered and matched to DMC threads." },
+          h("input", { type: "checkbox", checked: !!s.colourMode, onChange: setColourMode }),
+          h("span", null, "Source is a colour chart (extract colours, not just symbols)")
         ),
         s.skipBg ? h("div", { className: "iw-row" },
           h("label", { className: "iw-field-label", htmlFor: "iw-bgt" }, "Background tolerance"),

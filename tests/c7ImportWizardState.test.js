@@ -152,6 +152,22 @@ describe("useImportWizard hook", () => {
     expect(storage.getItem("cs_import_wizard_draft")).toBeNull();
   });
 
+  test("colourMode toggle threads through to engineOpts.image.colourMode (Phase 2 §4)", () => {
+    const { win, reset } = loadHook(); reset();
+    const wiz = win.useImportWizard({ image: { width: 80, height: 80 }, baseName: "chart" });
+    // Default: off
+    expect(wiz.settings.colourMode).toBe(false);
+    let out = wiz.commit();
+    expect(out.engineOpts).toEqual({ image: { colourMode: false } });
+
+    // Reset + flip it on
+    reset();
+    const wiz2 = win.useImportWizard({ image: { width: 80, height: 80 }, baseName: "chart" });
+    wiz2.setSettings(Object.assign({}, wiz2.settings, { colourMode: true }));
+    out = wiz2.commit();
+    expect(out.engineOpts).toEqual({ image: { colourMode: true } });
+  });
+
   test("name is trimmed and capped at 60 chars on commit", () => {
     const { win, reset } = loadHook(); reset();
     const wiz = win.useImportWizard({ image: { width: 64, height: 64 } });
