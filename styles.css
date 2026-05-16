@@ -565,7 +565,9 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   display:inline-flex;align-items:center;justify-content:center;
 }
 .lp-close:hover{color:var(--accent);}
-.lp-tab-content{flex:1;overflow-y:auto;}
+/* Pad the bottom of the lpanel scroll area so content isn't hidden behind
+   the iOS home indicator in bottom-sheet mode. env() is 0 on desktop. */
+.lp-tab-content{flex:1;overflow-y:auto;padding-bottom:env(safe-area-inset-bottom,0px);}
 .lp-section{padding:12px 14px;border-bottom:1px solid var(--border-subtle);}
 .lp-heading{
   font-size:11px;font-weight:700;letter-spacing:0.05em;
@@ -623,6 +625,8 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
     border-radius:0;border-right:1px solid var(--border);border-top:none;
     box-shadow:2px 0 12px rgba(0,0,0,0.08);
     animation:lpanel-slide-right 0.22s ease-out;
+    /* Push panel content past the iOS landscape notch on the left. */
+    padding-left:env(safe-area-inset-left,0px);
   }
   @keyframes lpanel-slide-right{from{transform:translateX(-100%);}to{transform:translateX(0);}}
   .lpanel-backdrop{display:none;}
@@ -2076,7 +2080,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   .rpanel-backdrop{position:fixed;inset:0;z-index:499;background:rgba(0,0,0,0.25);}
   /* Manager right panel drawer */
   .mgr-rpanel{position:fixed;bottom:0;left:0;right:0;width:100%;max-height:44px;overflow:hidden;transition:max-height 0.25s ease;z-index:500;border-radius:16px 16px 0 0;border-left:none;border-top:1px solid var(--border);box-shadow:0 -2px 12px rgba(0,0,0,0.08);}
-  .mgr-rpanel--open{max-height:70dvh;overflow-y:auto;}
+  .mgr-rpanel--open{max-height:70dvh;overflow-y:auto;padding-bottom:env(safe-area-inset-bottom,0px);}
   /* Panel handle strip in manager */
   .mgr-panel-handle{height:44px;display:flex;align-items:center;justify-content:center;flex-direction:column;cursor:pointer;background:var(--surface);flex-shrink:0;}
   /* Bottom padding so content isn't hidden behind peek handle */
