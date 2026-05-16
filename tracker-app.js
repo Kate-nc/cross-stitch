@@ -1352,12 +1352,27 @@ useEffect(()=>{
   const onKey=e=>{
     if(e.key!=="Escape")return;
     if(typeof window==='undefined'||!window.matchMedia)return;
-    if(!window.matchMedia("(max-width: 899px)").matches)return;
+    if(!window.matchMedia("(max-width: 1023px)").matches)return;
     setLeftSidebarOpen(false);
   };
   window.addEventListener("keydown",onKey);
   return()=>window.removeEventListener("keydown",onKey);
 },[leftSidebarOpen]);
+// Auto-close the sidebar when the screen rotates to a narrow viewport
+// (< 1024px) where the lpanel switches from a docked side panel to a
+// full-screen overlay. Without this, the panel stays open as a
+// blocking sheet that the user didn't ask for.
+useEffect(()=>{
+  if(typeof window==='undefined'||!window.matchMedia)return;
+  const mql=window.matchMedia('(max-width: 1023px)');
+  const onNarrow=()=>{if(mql.matches)setLeftSidebarOpen(false);};
+  if(mql.addEventListener)mql.addEventListener('change',onNarrow);
+  else if(mql.addListener)mql.addListener(onNarrow);
+  return()=>{
+    if(mql.removeEventListener)mql.removeEventListener('change',onNarrow);
+    else if(mql.removeListener)mql.removeListener(onNarrow);
+  };
+},[]);
 
 // Touch-1 H-2: Focus mode. Strips chrome to canvas + a floating
 // mini-bar (.cs-focus-bar). Toggled with the F key (when no input is
