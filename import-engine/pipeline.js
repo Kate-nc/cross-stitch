@@ -181,7 +181,15 @@
       const raw = await stages.extract(strategy, probe, opts, ctx);
       if (raw && raw.flags && Array.isArray(raw.flags.warnings)) {
         for (const w of raw.flags.warnings) {
-          warnings.push({ code: 'EXTRACT_WARNING', message: w, severity: 'warning' });
+          // w may already be a structured { code, message, severity } object
+          // (e.g. from rasterChartStrategy). Push it as-is; only wrap plain
+          // strings to avoid nesting an object inside the `message` field,
+          // which React would refuse to render as a child (error #31).
+          if (w && typeof w === 'object' && typeof w.message === 'string') {
+            warnings.push(w);
+          } else {
+            warnings.push({ code: 'EXTRACT_WARNING', message: String(w), severity: 'warning' });
+          }
         }
       }
 

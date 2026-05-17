@@ -177,7 +177,7 @@ const ProjectStorage = (() => {
     }
     return new Promise((resolve, reject) => {
       ensurePersistence();
-      let request = indexedDB.open(DB_NAME, 4);
+      let request = indexedDB.open(DB_NAME, 5);
       request.onupgradeneeded = (e) => {
         let db = e.target.result;
         let upgradeTx = e.target.transaction;
@@ -206,6 +206,15 @@ const ProjectStorage = (() => {
         }
         if (!db.objectStoreNames.contains("sync_snapshots")) {
           db.createObjectStore("sync_snapshots");
+        }
+        // v5 stores added by telemetry.js / pendingImportStore.js.
+        // Created here too so project-storage.js is always the canonical
+        // schema owner and won't lose to a race on first open.
+        if (!db.objectStoreNames.contains("importerTelemetry")) {
+          db.createObjectStore("importerTelemetry", { keyPath: "id" });
+        }
+        if (!db.objectStoreNames.contains("pendingImports")) {
+          db.createObjectStore("pendingImports", { keyPath: "id" });
         }
       };
       request.onblocked = () => {
