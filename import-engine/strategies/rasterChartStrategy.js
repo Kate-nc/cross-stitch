@@ -156,26 +156,32 @@
         }));
 
         // ── Phase 2: colour mode ─────────────────────────────────────────
-        // When opts.image.colourMode is set, extract per-cell RGB, cluster
-        // by Lab colour in the worker, and pre-fill DMC labels before the
-        // correction UI shows. The B&W glyph path continues below and is
-        // used for Phase 1 (default) or for the "Symbols" tab in colour mode.
-        let colourResult = null;
-        if (opts.image && opts.image.colourMode) {
-          colourResult = await parseColourMode(
-            worker, imageBitmap, workingW, workingH, grid, cellRes, timings, ctx,
-          );
-        }
-
+        // When opts.image.colourMode is set, extract per-cell RGB and
+        // cluster on a combined shape+colour feature vector (HOG + dHash +
+        // Lab) so two colours sharing a glyph are split by colour, and
+        // anti-aliased glyph variants of one colour are joined by colour.
+        // The B&W glyph-only path remains for Phase 1 / mono charts.
+        //
+        // Order matters: featurise must run before parseColourMode so the
+        // symbol features can be forwarded into the colour clustering.
         if (ctx) safeReport(ctx, { stage: 'extract', label: 'featurise' });
         const feat = await rpc(worker, { type: 'featurise', cells: cellRes.cells });
 
-        if (ctx) safeReport(ctx, { stage: 'extract', label: 'cluster' });
-        const clu = await timed('cluster', rpc(worker, {
-          type: 'cluster', features: feat.features,
-          dHashes: feat.dHashes.map(b => b.toString()),
-          opts: { minPts: 2 },
-        }));
+        let colourResult = null;
+        let clu;
+        if (opts.image && opts.image.colourMode) {
+          colourResult = await parseColourMode(
+            worker, imageBitmap, workingW, workingH, grid, cellRes, feat, timings, ctx,
+          );
+          clu = colourResult.clu;
+        } else {
+          if (ctx) safeReport(ctx, { stage: 'extract', label: 'cluster' });
+          clu = await timed('cluster', rpc(worker, {
+            type: 'cluster', features: feat.features,
+            dHashes: feat.dHashes.map(b => b.toString()),
+            opts: { minPts: 2 },
+          }));
+        }
 
         // ── Legend OCR (anchor-first, Phase 1 backport) ─────────────────
         // Re-decode a fresh RGBA from imageBitmap at working dimensions;
@@ -568,7 +574,7 @@
   // is unchanged; the correction UI still shows for user review, but the
   // label suggestions are pre-filled with DMC matches.
 
-  async function parseColourMode(worker, imageBitmap, workingW, workingH, grid, cellRes, timings, ctx) {
+  async function parseColourMode(worker, imageBitmap, workingW, workingH, grid, cellRes, feat, timings, ctx) {
     if (ctx) safeReport(ctx, { stage: 'extract', label: 'colour-sample' });
     const colourRgba = imageBitmapToRGBA(imageBitmap, workingW, workingH);
     const colRes = await rpc(worker, {
@@ -577,10 +583,17 @@
 
     if (ctx) safeReport(ctx, { stage: 'extract', label: 'colour-cluster' });
     const t0 = nowMs();
+    // Forward HOG features + dHashes so the worker can cluster on
+    // combined shape+colour (DBSCAN with z-score normalisation +
+    // labWeight=0.6). Hamming-merge post-step joins clusters with
+    // near-identical glyphs (dHash distance ≤ 4).
+    const features = (feat && feat.features) || null;
+    const dHashes = (feat && feat.dHashes) ? feat.dHashes.map(b => b.toString()) : null;
     const clu = await rpc(worker, {
       type: 'colourCluster',
       cellColors: colRes.cellColors, cols: colRes.cols, rows: colRes.rows,
-      opts: { minPts: 2, normalise: true, labStartIdx: 0, labDims: 3, labWeight: 0.6 },
+      features, dHashes,
+      opts: { minPts: 2, normalise: true, labDims: 3, labWeight: 0.6 },
     }, [colRes.cellColors.buffer]);
     timings.cluster = nowMs() - t0;
 

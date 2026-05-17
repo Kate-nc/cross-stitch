@@ -171,6 +171,12 @@
           progress(id, 'cluster', 'Lab DBSCAN');
           {
             // Convert per-cell RGB → Lab, then cluster with z-score + Lab weight.
+            // If symbol features (HOG + dHash) are supplied, concatenate them
+            // with Lab so DBSCAN clusters on shape AND colour simultaneously.
+            // This is the right thing to do for printed colour charts where
+            // each colour has a unique symbol — two colours sharing a glyph
+            // get separated by Lab, and one colour with anti-aliased glyph
+            // variants gets joined by Lab.
             const { cellColors, cols, rows } = msg;
             const n = cols * rows;
             const labFeatures = [];
@@ -178,12 +184,40 @@
               const r = cellColors[i * 3], g = cellColors[i * 3 + 1], b = cellColors[i * 3 + 2];
               labFeatures.push(Float32Array.from(d50RgbToLab(r, g, b)));
             }
-            const opts = Object.assign({ minPts: 2, normalise: true, labStartIdx: 0, labDims: 3, labWeight: 0.6 },
+            const symbolFeatures = msg.features || null;
+            let combined, labStartIdx;
+            if (symbolFeatures && symbolFeatures.length === n) {
+              combined = new Array(n);
+              const hogLen = symbolFeatures[0] ? symbolFeatures[0].length : 0;
+              labStartIdx = hogLen;
+              for (let i = 0; i < n; i++) {
+                const v = new Float32Array(hogLen + 3);
+                if (symbolFeatures[i]) v.set(symbolFeatures[i], 0);
+                v[hogLen]     = labFeatures[i][0];
+                v[hogLen + 1] = labFeatures[i][1];
+                v[hogLen + 2] = labFeatures[i][2];
+                combined[i] = v;
+              }
+            } else {
+              combined = labFeatures;
+              labStartIdx = 0;
+            }
+            const opts = Object.assign({ minPts: 2, normalise: true, labDims: 3, labWeight: 0.6 },
               msg.opts || {});
-            const dummyHashes = labFeatures.map(() => 0n);
-            const out = RasterChartDBSCAN.cluster(labFeatures, opts);
+            opts.labStartIdx = labStartIdx;
+            const out = RasterChartDBSCAN.cluster(combined, opts);
+            // Post-merge clusters with near-identical glyphs (Hamming<=4 on dHash).
+            // Only runs when symbol dHashes are supplied. Mirrors the B&W
+            // path's mergeByHashHamming step.
+            let assignments = out.assignments;
+            if (msg.dHashes && msg.dHashes.length === n && out.medoids) {
+              const dHashesBig = msg.dHashes.map(x => typeof x === 'bigint' ? x : BigInt(x));
+              assignments = RasterChartDBSCAN.mergeByHashHamming(
+                out.assignments, out.medoids, dHashesBig, 4,
+              );
+            }
             send('result', id, { payload: {
-              assignments: Array.from(out.assignments),
+              assignments: Array.from(assignments),
               medoids: out.medoids,
               eps: out.eps,
               labFeatures: labFeatures.map(f => Array.from(f)),

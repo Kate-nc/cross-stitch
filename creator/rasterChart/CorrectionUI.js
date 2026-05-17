@@ -76,6 +76,31 @@
     const [merges, setMerges] = useState({}); // clusterId → mergedIntoId
     const [reviewIdx, setReviewIdx] = useState(null);
 
+    // Auto-seed empty cluster labels with the top-1 DMC match derived
+    // from the cluster's average colour. Runs once per pending mount so
+    // the Symbols tab is "review and accept" rather than "type from
+    // scratch". Only fills clusters that don't already have a label —
+    // worker-side findBest matches and user-typed codes are preserved.
+    useEffect(() => {
+      const cc = pending.clusterColors || [];
+      const palette = dmcPalette || (typeof window !== 'undefined' && window.DMC) || [];
+      if (!cc.length || !palette.length) return;
+      setLabels(prev => {
+        const next = Object.assign({}, prev);
+        let changed = false;
+        for (let cid = 0; cid < cc.length; cid++) {
+          const rgb = cc[cid];
+          if (!rgb || (prev[cid] && prev[cid].code)) continue;
+          const top = topNDmcMatches(rgb, palette, 1);
+          if (top.length) {
+            next[cid] = { code: top[0].id, rgb: top[0].rgb };
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }, [pending]);
+
     // ─── Phase 1 telemetry: record each manual correction surface ─────
     // Skipped when telemetryId is absent (caller opted out, or the
     // pending payload is synthetic). Telemetry writes are fire-and-forget.
@@ -864,21 +889,29 @@
     }, [pending.cellDistances]);
 
     return h('div', { className: 'rc-review' },
-      h('p', null, `${flagged.length} cells flagged as low-confidence (top 5%). Click each to verify or reassign.`),
+      h('p', { className: 'rc-help' }, `${flagged.length} cells flagged as low-confidence (top 5%). Click each to verify or reassign.`),
+      flagged.length === 0 && h('p', { className: 'rc-help rc-help--center' }, 'No low-confidence cells in this chart.'),
       h('div', { className: 'rc-review-list' },
         flagged.map(i => h('button', {
-          key: i, type: 'button', className: 'tb-btn' + (reviewIdx === i ? ' tb-btn--on' : ''),
+          key: i, type: 'button',
+          className: 'tb-btn rc-review-chip' + (reviewIdx === i ? ' tb-btn--on' : ''),
           onClick: () => setReviewIdx(i),
-        }, `Cell #${i}`))),
+        }, `#${i}`))),
       reviewIdx != null && h(CellInspector, { pending, idx: reviewIdx, labels }),
     );
   }
   function CellInspector({ pending, idx, labels }) {
     const candidates = (pending.cellTopCandidates && pending.cellTopCandidates[idx]) || [];
     return h('div', { className: 'rc-cell-inspector' },
-      h('h4', null, `Cell #${idx} — top candidates`),
-      h('ul', null, candidates.map((c, i) =>
-        h('li', { key: i }, `Cluster ${c.cluster} (label ${(labels[c.cluster] || {}).code || '?'}) — distance ${c.distance.toFixed(3)}`))),
+      h('h4', { className: 'rc-cell-inspector-title' }, `Cell #${idx} — top candidates`),
+      candidates.length === 0
+        ? h('p', { className: 'rc-help' }, 'No candidate data captured for this cell.')
+        : h('ul', { className: 'rc-cell-inspector-list' }, candidates.map((c, i) =>
+            h('li', { key: i, className: 'rc-cell-inspector-row' },
+              h('span', { className: 'rc-cell-inspector-cluster' }, `Cluster ${c.cluster}`),
+              h('span', { className: 'rc-cell-inspector-code' }, (labels[c.cluster] || {}).code || '—'),
+              h('span', { className: 'rc-cell-inspector-dist' }, `Δ ${c.distance.toFixed(3)}`),
+            ))),
     );
   }
 
@@ -886,18 +919,23 @@
   function LegendMappingPanel({ pending, labels, onLabelChange }) {
     const rows = pending.legendRows || [];
     return h('div', { className: 'rc-legend' },
-      h('p', null, 'Drag an OCR-detected legend entry onto a cluster, or type the code directly into the Symbols tab.'),
-      h('table', { className: 'rc-legend-table' },
-        h('thead', null, h('tr', null, h('th', null, 'OCR text'), h('th', null, 'Parsed code'), h('th', null, 'Matched cluster'))),
-        h('tbody', null, rows.map((r, i) =>
-          h('tr', { key: i },
-            h('td', null, r.raw || ''),
-            h('td', null, r.code || '—'),
-            h('td', null, r.matchedCluster != null
-              ? `#${r.matchedCluster}`
-              : h('em', null, 'unmatched')),
-          ))),
-      ),
+      h('p', { className: 'rc-help' }, 'OCR-detected legend rows. Codes that match a cluster are linked automatically; unmatched rows can be typed into the Symbols tab instead.'),
+      rows.length === 0
+        ? h('p', { className: 'rc-help rc-help--center' }, 'No legend rows detected. Type DMC codes directly in the Symbols tab.')
+        : h('table', { className: 'rc-legend-table' },
+            h('thead', null, h('tr', null,
+              h('th', null, 'OCR text'),
+              h('th', null, 'Parsed code'),
+              h('th', null, 'Matched cluster'))),
+            h('tbody', null, rows.map((r, i) =>
+              h('tr', { key: i },
+                h('td', { className: 'rc-legend-raw' }, r.raw || ''),
+                h('td', { className: 'rc-legend-code' }, r.code || '—'),
+                h('td', { className: 'rc-legend-match' }, r.matchedCluster != null
+                  ? '#' + r.matchedCluster
+                  : h('em', { className: 'rc-legend-unmatched' }, 'unmatched')),
+              ))),
+          ),
     );
   }
 
@@ -911,8 +949,8 @@
         onReorder,
       });
     }
-    return h('div', { className: 'rc-multipage-placeholder' },
-      h('p', null, 'Multi-page support coming soon. Load this page as part of a multi-page sequence using the Import wizard.'),
+    return h('div', { className: 'rc-multipage' },
+      h('p', { className: 'rc-help rc-help--center' }, 'Multi-page support coming soon. Load this page as part of a multi-page sequence using the Import wizard.'),
     );
   }
 
