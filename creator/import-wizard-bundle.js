@@ -377,34 +377,40 @@
       return h("div", { className: "iw-step iw-step-crop" },
         h("h2", { id: "iw-step-heading", ref: headingRef, tabIndex: -1, className: "iw-step-title" }, "Step 1 of 5: Crop & orient"),
         h("p", { className: "iw-step-desc" }, "Rotate or mirror your image, and pick an aspect-ratio guide. The crop is applied when the pattern is generated."),
-        image ? h("div", { className: "iw-crop-viewport" },
-          h("img", {
-            src: image.src,
-            alt: "Source image preview",
-            style: {
-              transform: "rotate(" + (c.rotate || 0) + "deg)"
-                + " scaleX(" + (c.flipH ? -1 : 1) + ")"
-                + " scaleY(" + (c.flipV ? -1 : 1) + ")"
-            }
-          })
-        ) : h("div", { className: "iw-crop-empty" }, "No image loaded."),
-        h("div", { className: "iw-crop-controls" },
-          h("button", { type: "button", className: "iw-btn", onClick: function () { setRotate(((c.rotate || 0) + 90) % 360); } }, "Rotate 90°"),
-          h("button", { type: "button", className: "iw-btn", onClick: function () { toggle("flipH"); }, "aria-pressed": !!c.flipH }, "Mirror horizontally"),
-          h("button", { type: "button", className: "iw-btn", onClick: function () { toggle("flipV"); }, "aria-pressed": !!c.flipV }, "Mirror vertically")
-        ),
-        h("fieldset", { className: "iw-aspect-group" },
-          h("legend", { className: "iw-aspect-legend" }, "Aspect ratio"),
-          ratios.map(function (r) {
-            return h("label", { key: r.v, className: "iw-radio" },
-              h("input", {
-                type: "radio", name: "iw-aspect",
-                value: r.v, checked: (c.aspect || "free") === r.v,
-                onChange: function () { setAspect(r.v); }
-              }),
-              h("span", null, r.label)
-            );
-          })
+        h("div", { className: "iw-step-split" },
+          h("div", { className: "iw-step-split__preview" },
+            image ? h("div", { className: "iw-crop-viewport" },
+              h("img", {
+                src: image.src,
+                alt: "Source image preview",
+                style: {
+                  transform: "rotate(" + (c.rotate || 0) + "deg)"
+                    + " scaleX(" + (c.flipH ? -1 : 1) + ")"
+                    + " scaleY(" + (c.flipV ? -1 : 1) + ")"
+                }
+              })
+            ) : h("div", { className: "iw-crop-empty" }, "No image loaded.")
+          ),
+          h("div", { className: "iw-step-split__controls" },
+            h("div", { className: "iw-crop-controls" },
+              h("button", { type: "button", className: "iw-btn", onClick: function () { setRotate(((c.rotate || 0) + 90) % 360); } }, "Rotate 90\u00B0"),
+              h("button", { type: "button", className: "iw-btn", onClick: function () { toggle("flipH"); }, "aria-pressed": !!c.flipH }, "Mirror horizontally"),
+              h("button", { type: "button", className: "iw-btn", onClick: function () { toggle("flipV"); }, "aria-pressed": !!c.flipV }, "Mirror vertically")
+            ),
+            h("fieldset", { className: "iw-aspect-group" },
+              h("legend", { className: "iw-aspect-legend" }, "Aspect ratio"),
+              ratios.map(function (r) {
+                return h("label", { key: r.v, className: "iw-radio" },
+                  h("input", {
+                    type: "radio", name: "iw-aspect",
+                    value: r.v, checked: (c.aspect || "free") === r.v,
+                    onChange: function () { setAspect(r.v); }
+                  }),
+                  h("span", null, r.label)
+                );
+              })
+            )
+          )
         )
       );
     }
