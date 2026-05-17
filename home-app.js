@@ -417,10 +417,11 @@
   //      Same handoff as before: serialise to sessionStorage, navigate to
   //      create.html?action=home-image-pending, Creator picks up the File.
   //   2. "Digitise a printed chart" — image picker (image/* only).
-  //      Sets cs_force_wizard='1' in sessionStorage, navigates to
-  //      stitch.html?action=open-wizard. The Tracker reconstructs the File
-  //      and force-mounts the 5-step ImportWizard regardless of the
-  //      experimental.importWizard pref.
+  //      Routed through ImportEngine.importAndReview with image.mode='chart'
+  //      and colourMode=true so rasterChartStrategy interprets the grid,
+  //      clusters symbols, OCRs the legend, and auto-matches DMC codes.
+  //      The review modal then opens in-place on home.html before saving
+  //      and navigating to the Creator.
   //   3. "Start from scratch" — create.html?action=new-blank.
   //
   // Plus a separate "Open pattern file" strip for users who already have a
@@ -531,7 +532,16 @@
       handImageOff(file, { forceWizard: false });
     }
 
-    // Tile 2: printed-chart photo -> Tracker import wizard
+    // Tile 2: printed-chart photo -> raster-chart interpreter.
+    // Unlike the photo route (which is about generating a *new* design from
+    // an image), the chart route asks the importer to interpret an existing
+    // printed/scanned chart: detect the grid, cluster the symbols, OCR the
+    // legend, and produce a project whose palette reflects the chart's own
+    // DMC codes. Routed via ImportEngine.importAndReview with image.mode =
+    // 'chart' so rasterChartStrategy wins canHandle. The colourMode flag
+    // tells the worker to also extract per-cell RGB and auto-match clusters
+    // to DMC so the resulting project has real thread codes (not just
+    // cluster IDs) when the user lands in the review modal.
     function handleNewFromChart() {
       var input = chartInputRef.current;
       if (input) input.click();
@@ -544,7 +554,19 @@
         alert('Please choose an image file (JPG, PNG, GIF or WebP). To open a Pattern Keeper PDF, use "Open pattern file" below.');
         return;
       }
-      handImageOff(file, { forceWizard: true });
+      if (!(window.ImportEngine && typeof window.ImportEngine.importAndReview === 'function')) {
+        alert('Pattern importer is still loading. Please try again in a moment.');
+        return;
+      }
+      setPending(true);
+      window.ImportEngine.importAndReview(file, {
+        image: { mode: 'chart', colourMode: true },
+        navigateTo: 'create.html?from=home'
+      }).catch(function (err) {
+        console.error('[home] Chart import failed:', err);
+      }).then(function () {
+        setPending(false);
+      });
     }
 
     // Bottom strip: open an existing .oxs / .xml / .json / .pdf file.
@@ -717,8 +739,7 @@
         ),
         h('div', { className: 'home-create-tips' },
           h('strong', null, 'Tips for best results:'),
-          ' press the book flat under a lamp · keep the camera parallel to the page · include the legend if it sits on the same page · the wizard runs ', h('strong', null, 'five guided steps'), ': ',
-          h('em', null, 'Crop, Detect grid, Match palette, Map symbols, Review.'),
+          ' press the book flat under a lamp · keep the camera parallel to the page · include the legend if it sits on the same page · we detect the grid, cluster the symbols, OCR the legend, then auto-match DMC codes before showing you the review screen.',
           h('br', null),
           h('span', { style: { display: 'inline-block', marginTop: 6, color: 'var(--text-secondary)' } },
             'Got a multi-page PDF chart? Use ',
