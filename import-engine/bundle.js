@@ -3585,8 +3585,17 @@
       }
       return Promise.reject(new Error(notLoaded));
     }
+    // Chart-mode imports run OpenCV + Tesseract in a Web Worker and
+    // routinely take 30-90 s on phone photos. Without visible feedback
+    // users assume the app has hung. Show a non-dismissable progress
+    // overlay for the duration; the overlay self-removes when the chart
+    // correction UI mounts or when any non-chart path resolves.
+    var isChartMode = opts && opts.image && opts.image.mode === 'chart';
+    var progress = isChartMode ? showImportProgress(file) : null;
+    function clearProgress() { if (progress) { try { progress.close(); } catch (_) {} progress = null; } }
     return ENGINE.importPattern(file, opts).then(function (result) {
       if (!result.ok) {
+        clearProgress();
         var msg = (result.error && result.error.message) || 'Import failed.';
         console.error('[import] pipeline returned not-ok:', result);
         if (window.Toast && window.Toast.show) {
@@ -3605,8 +3614,11 @@
       // user labels each cluster / nudges the grid / maps legend rows, we
       // re-materialise the corrected extraction, then save + navigate.
       if (result.raw && result.raw._correction && result.raw._correction.extraction) {
-        return openChartCorrection(file, result, opts);
+        // Leave the progress overlay up until the correction UI mounts —
+        // openChartCorrection clears it just before rendering.
+        return openChartCorrection(file, result, opts, clearProgress);
       }
+      clearProgress();
       // Always show the review modal in v1 (no auto-import).
       var url = null;
       try { url = URL.createObjectURL(file); } catch (_) {}
@@ -3625,6 +3637,7 @@
         return out;
       });
     }).catch(function (err) {
+      clearProgress();
       // Final safety net: anything thrown by importPattern, openReview, or
       // saveAndNavigate that wasn't already handled lands here.
       console.error('[import] unhandled error in importAndReview:', err);
@@ -3686,6 +3699,104 @@
   }
 
   // ─────────────────────────────────────────────────────────────────────
+  // Import progress overlay (chart mode)
+  // ─────────────────────────────────────────────────────────────────────
+  //
+  // Lightweight non-React DOM overlay shown for the full duration of a
+  // chart import. Communicates that the work can take a few minutes (so
+  // users don't assume the tab is frozen) and rotates through the major
+  // pipeline phases so the elapsed time has visible structure. Returns
+  // a handle with a `close()` method used by importAndReview /
+  // openChartCorrection to remove it.
+  function showImportProgress(file) {
+    if (typeof document === 'undefined') return null;
+    var host = document.createElement('div');
+    host.className = 'rc-import-progress-overlay';
+    host.setAttribute('role', 'status');
+    host.setAttribute('aria-live', 'polite');
+    host.style.cssText = [
+      'position:fixed', 'inset:0', 'z-index:9999',
+      'display:flex', 'align-items:center', 'justify-content:center',
+      'background:rgba(15,23,42,0.65)', 'backdrop-filter:blur(2px)',
+    ].join(';');
+
+    var card = document.createElement('div');
+    card.style.cssText = [
+      'background:var(--surface, #fff)', 'color:var(--text-primary, #1f2937)',
+      'border-radius:10px', 'padding:24px 28px', 'min-width:320px', 'max-width:90vw',
+      'box-shadow:0 12px 40px rgba(0,0,0,0.35)', 'text-align:center',
+      'font-family:system-ui, -apple-system, sans-serif',
+    ].join(';');
+    host.appendChild(card);
+
+    var title = document.createElement('h2');
+    title.textContent = 'Reading your chart\u2026';
+    title.style.cssText = 'margin:0 0 10px;font-size:18px;font-weight:600;';
+    card.appendChild(title);
+
+    var phase = document.createElement('p');
+    phase.style.cssText = 'margin:0 0 6px;font-size:14px;font-weight:500;color:var(--accent, #0d9488);';
+    card.appendChild(phase);
+
+    var hint = document.createElement('p');
+    hint.style.cssText = 'margin:0 0 14px;font-size:13px;line-height:1.45;opacity:0.85;';
+    hint.textContent = 'This may take a few minutes for a high-resolution photo. The page hasn\u2019t frozen \u2014 we\u2019re running OpenCV, OCR, and clustering on your device. Nothing is uploaded.';
+    card.appendChild(hint);
+
+    // Indeterminate progress bar
+    var bar = document.createElement('div');
+    bar.style.cssText = 'height:6px;background:var(--border, #e5e7eb);border-radius:3px;overflow:hidden;position:relative;';
+    var fill = document.createElement('div');
+    fill.style.cssText = 'position:absolute;left:-40%;top:0;bottom:0;width:40%;background:var(--accent, #0d9488);border-radius:3px;animation:rcProgress 1.6s linear infinite;';
+    bar.appendChild(fill);
+    card.appendChild(bar);
+
+    if (file && file.name) {
+      var fileLine = document.createElement('p');
+      fileLine.style.cssText = 'margin:14px 0 0;font-size:12px;opacity:0.6;word-break:break-all;';
+      fileLine.textContent = file.name;
+      card.appendChild(fileLine);
+    }
+
+    // Inject keyframes once.
+    if (!document.getElementById('rc-progress-anim')) {
+      var style = document.createElement('style');
+      style.id = 'rc-progress-anim';
+      style.textContent = '@keyframes rcProgress { 0% { left:-40%; } 100% { left:100%; } }';
+      document.head.appendChild(style);
+    }
+
+    document.body.appendChild(host);
+
+    var phases = [
+      'Decoding image\u2026',
+      'Detecting chart corners\u2026',
+      'Correcting perspective\u2026',
+      'Finding grid lines\u2026',
+      'Reading legend text (OCR)\u2026',
+      'Clustering cell colours\u2026',
+      'Matching to DMC palette\u2026',
+      'Almost there\u2026',
+    ];
+    var idx = 0;
+    phase.textContent = phases[0];
+    var timer = setInterval(function () {
+      idx = Math.min(idx + 1, phases.length - 1);
+      phase.textContent = phases[idx];
+    }, 7000);
+
+    var closed = false;
+    return {
+      close: function () {
+        if (closed) return;
+        closed = true;
+        try { clearInterval(timer); } catch (_) {}
+        try { if (host.parentNode) host.parentNode.removeChild(host); } catch (_) {}
+      },
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
   // Chart-mode correction surface
   // ─────────────────────────────────────────────────────────────────────
   //
@@ -3736,7 +3847,7 @@
     });
   }
 
-  function openChartCorrection(file, result, opts) {
+  function openChartCorrection(file, result, opts, onMounted) {
     var corr = result.raw._correction;
     return Promise.all([loadRasterChartUI(), decodeDataUrl(corr.previewImageDataUrl)])
       .then(function (resolved) {
@@ -3778,6 +3889,7 @@
           var UI = window.RasterChartCorrectionUI && window.RasterChartCorrectionUI.RasterChartCorrectionUI;
           if (!UI) {
             cleanup();
+            if (typeof onMounted === 'function') { try { onMounted(); } catch (_) {} }
             console.error('[import] RasterChartCorrectionUI failed to load — using auto-matched project.');
             return resolve(saveAndNavigate(result.project, opts));
           }
@@ -3815,9 +3927,11 @@
           var element = window.React.createElement(UI, props);
           if (root) root.render(element);
           else window.ReactDOM.render(element, host);
+          if (typeof onMounted === 'function') { try { onMounted(); } catch (_) {} }
         });
       })
       .catch(function (err) {
+        if (typeof onMounted === 'function') { try { onMounted(); } catch (_) {} }
         console.error('[import] openChartCorrection failed:', err);
         showImportError(err);
         return { action: 'cancel', error: err };
