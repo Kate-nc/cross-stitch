@@ -6815,8 +6815,14 @@ return(
     // parameter modal. The flag defaults off so existing users see no
     // change. The wizard's commit() returns the same shape the legacy
     // path expects so the generation call below stays identical.
+    //
+    // The Home "Digitise a printed chart" tile (Design 1) sets
+    // window.__forceImportWizard=true so the wizard always opens for that
+    // pathway regardless of the experimental pref. The flag is consumed
+    // once and cleared so subsequent image opens follow the pref again.
     let _useWizard=false;
     try{ _useWizard=!!(window.UserPrefs&&window.UserPrefs.get&&window.UserPrefs.get('experimental.importWizard')); }catch(_){_useWizard=false;}
+    if(window.__forceImportWizard){ _useWizard=true; try{ delete window.__forceImportWizard; }catch(_){window.__forceImportWizard=false;} }
     if(_useWizard&&window.ImportWizard){
       return React.createElement(window.ImportWizard,{
         image:importImage,

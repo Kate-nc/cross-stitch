@@ -359,11 +359,11 @@
       ),
 
       h(Section, { title: "Experimental" },
-        h(Row, { label: "Use guided import wizard (experimental)",
-          desc: "Replaces the single‑step image import dialog with a five‑step wizard. Off by default while we iterate." },
+        h(Row, { label: "Always use the guided import wizard for images (experimental)",
+          desc: "When on, every image you open in the Creator or Tracker is routed through the five‑step wizard. The dedicated \"Digitise a printed chart\" tile on the Home page always uses the wizard regardless of this toggle." },
           h(Switch, { checked: importWiz[0], onChange: importWiz[1] })
         ),
-        importWiz[0] && h("div", {
+        h("div", {
           style: {
             margin: "4px 0 8px",
             padding: "12px 14px",
@@ -377,15 +377,18 @@
         },
           h("div", { style: { display: "flex", alignItems: "center", gap: 6, fontWeight: 700, marginBottom: 8, color: "var(--accent)" } },
             h("span", { style: { display: "inline-flex" }, "aria-hidden": "true" }, Icons.wand ? Icons.wand() : null),
-            "Import Chart Wizard — how to use it"
+            "Import Chart Wizard — where to find it"
+          ),
+          h("p", { style: { margin: "0 0 8px", lineHeight: 1.6 } },
+            "The wizard is the dedicated path for digitising photos of printed charts (from books, magazines, screenshots). It has its own tile on the Home page — no flag needed."
           ),
           h("ol", { style: { margin: "0 0 10px", paddingLeft: 18, lineHeight: 1.6 } },
-            h("li", null, "Open the ", h("strong", null, "Pattern Creator")),
-            h("li", null, "Click the ", h("strong", null, "Open"), " button in the header (or drag-and-drop an image onto the page)"),
-            h("li", null, "Pick a ", h("strong", null, ".png / .jpg / .jpeg / .gif / .bmp / .webp"), " file — the wizard launches in place of the standard import modal")
+            h("li", null, "Open the ", h("strong", null, "Home"), " page"),
+            h("li", null, "Switch to the ", h("strong", null, "Create new"), " tab"),
+            h("li", null, "Click ", h("strong", null, "Digitise a printed chart"), " and pick an image (.jpg / .png / .gif / .webp)")
           ),
           h("a", {
-            href: "create.html",
+            href: "home.html#tab=create",
             style: {
               display: "inline-block",
               padding: "6px 14px",
@@ -396,7 +399,7 @@
               fontSize: 13,
               textDecoration: "none"
             }
-          }, "Open Pattern Creator")
+          }, "Go to Home › Create new")
         ),
         h(Row, { label: "Show Embroidery planner link (experimental)",
           desc: "Surfaces a link to the experimental embroidery pattern planner (embroidery.html). Direct access still works regardless of this toggle - it only controls whether the link appears in the UI." },

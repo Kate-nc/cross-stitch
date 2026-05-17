@@ -412,21 +412,32 @@
   // ── CreatePanel ─────────────────────────────────────────────────────────
   // "Create new" tab content.
   //
-  // "New from image": triggers the file picker in the same user-gesture as the
-  // button click (so the browser allows it), serialises the selected file to
-  // sessionStorage as a data URL, then navigates to
-  // create.html?action=home-image-pending where creator-main.js reconstructs
-  // the File object and passes it to the Creator without a second click.
+  // Three distinct pathways (Design 1 IA, May 2026 overhaul):
+  //   1. "Create from photo or artwork" — image picker (image/* only).
+  //      Same handoff as before: serialise to sessionStorage, navigate to
+  //      create.html?action=home-image-pending, Creator picks up the File.
+  //   2. "Digitise a printed chart" — image picker (image/* only).
+  //      Sets cs_force_wizard='1' in sessionStorage, navigates to
+  //      stitch.html?action=open-wizard. The Tracker reconstructs the File
+  //      and force-mounts the 5-step ImportWizard regardless of the
+  //      experimental.importWizard pref.
+  //   3. "Start from scratch" — create.html?action=new-blank.
   //
-  // "New from scratch": navigates to create.html?action=new-blank which already
-  // sets mode='design' + pendingCreatorAction='scratch' in one step.
+  // Plus a separate "Open pattern file" strip for users who already have a
+  // .oxs/.xml/.json/.pdf file — routed through ImportEngine.importAndReview.
   //
-  // "Embroidery planner (beta)": optional third tile, only rendered when the
+  // Each pathway has its own file input element so the accept= filter is
+  // pathway-specific (no more single combined input that mixes image and
+  // pattern-file MIME types).
+  //
+  // "Embroidery planner (beta)": optional fourth tile, only rendered when the
   // experimental.embroideryTool pref is on. Goes to embroidery.html (a
   // separate prototype page).
   function CreatePanel() {
     var Icons = window.Icons || {};
-    var fileInputRef = React.useRef(null);
+    var photoInputRef  = React.useRef(null);
+    var chartInputRef  = React.useRef(null);
+    var openInputRef   = React.useRef(null);
     var pendingState = React.useState(false);
     var pending = pendingState[0]; var setPending = pendingState[1];
 
@@ -452,11 +463,6 @@
       return function () { window.removeEventListener('pageshow', reset); };
     }, []);
 
-    function handleNewFromImage() {
-      var input = fileInputRef.current;
-      if (input) input.click();
-    }
-
     function navigateAfterPaint(href) {
       // Two rAFs guarantee the spinner has actually painted before the
       // browser commits the navigation, so the visual hand-off feels
@@ -466,30 +472,12 @@
       });
     }
 
-    function handleFileChange(e) {
-      var file = e.target.files && e.target.files[0];
-      // Reset so the same file can be re-selected if needed
-      e.target.value = '';
-      if (!file) return;
-      // Route non-image pattern files through the new import engine.
-      var name = (file.name || '').toLowerCase();
-      var isImage = (file.type || '').indexOf('image/') === 0;
-      var isPattern = /\.(oxs|xml|json|pdf)$/i.test(name);
-      if (!isImage && isPattern && window.ImportEngine && typeof window.ImportEngine.openImportPicker === 'function') {
-        // We already have the file — call importAndReview directly so the
-        // user doesn't have to pick it again.
-        try { console.log('[home] routing pattern file to ImportEngine:', name, '— ImportEngine.__build =', window.ImportEngine.__build || 'unknown'); } catch (_) {}
-        setPending(true);
-        window.ImportEngine.importAndReview(file).catch(function (err) {
-          console.error('[home] importAndReview rejected:', err);
-          if (window.Toast && window.Toast.show) {
-            window.Toast.show({ message: 'Could not import: ' + (err && err.message || err), type: 'error', duration: 10000 });
-          } else {
-            alert('Could not import: ' + (err && err.message || err));
-          }
-        }).finally(function () { setPending(false); });
-        return;
-      }
+    // Common image handoff used by both Tile 1 (photo) and Tile 2 (chart).
+    // For the wizard route, set forceWizard=true so the destination page
+    // (stitch.html) force-mounts the ImportWizard. For the photo route the
+    // destination is create.html in the regular Creator flow.
+    function handImageOff(file, opts) {
+      var forceWizard = !!(opts && opts.forceWizard);
       var reader = new FileReader();
       reader.onload = function (ev) {
         var dataUrl = ev.target.result;
@@ -497,12 +485,24 @@
           sessionStorage.setItem('cs_pending_image_dataurl', dataUrl);
           sessionStorage.setItem('cs_pending_image_name', file.name);
           sessionStorage.setItem('cs_pending_image_type', file.type || 'image/jpeg');
+          if (forceWizard) {
+            sessionStorage.setItem('cs_force_wizard', '1');
+          } else {
+            // Defensive: a previous chart-import that never landed could
+            // have left the flag set. Clear it so a plain photo-import
+            // doesn't accidentally re-open the wizard.
+            try { sessionStorage.removeItem('cs_force_wizard'); } catch (_) {}
+          }
           setPending(true);
-          navigateAfterPaint('create.html?action=home-image-pending&from=home');
+          if (forceWizard) {
+            navigateAfterPaint('stitch.html?action=open-wizard&from=home');
+          } else {
+            navigateAfterPaint('create.html?action=home-image-pending&from=home');
+          }
         } catch (_) {
           // sessionStorage quota exceeded (very large image): the in-page
-          // file -> Creator handoff is impossible. Surface the failure
-          // immediately instead of bouncing through create.html with no
+          // file -> target-page handoff is impossible. Surface the failure
+          // immediately instead of bouncing through a stub page with no
           // image, which would just round-trip back to here.
           setPending(false);
           alert('That image is too large to hand off (over the browser session limit). Try a smaller file (under ~5 MB).');
@@ -515,35 +515,133 @@
       reader.readAsDataURL(file);
     }
 
+    // Tile 1: photo / artwork -> Creator
+    function handleNewFromPhoto() {
+      var input = photoInputRef.current;
+      if (input) input.click();
+    }
+    function onPhotoChange(e) {
+      var file = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      if (!(file.type || '').startsWith('image/')) {
+        alert('Please choose an image file (JPG, PNG, GIF or WebP).');
+        return;
+      }
+      handImageOff(file, { forceWizard: false });
+    }
+
+    // Tile 2: printed-chart photo -> Tracker import wizard
+    function handleNewFromChart() {
+      var input = chartInputRef.current;
+      if (input) input.click();
+    }
+    function onChartChange(e) {
+      var file = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      if (!(file.type || '').startsWith('image/')) {
+        alert('Please choose an image file (JPG, PNG, GIF or WebP). To open a Pattern Keeper PDF, use "Open pattern file" below.');
+        return;
+      }
+      handImageOff(file, { forceWizard: true });
+    }
+
+    // Bottom strip: open an existing .oxs / .xml / .json / .pdf file.
+    function handleOpenExisting() {
+      var input = openInputRef.current;
+      if (input) input.click();
+    }
+    function onOpenExistingChange(e) {
+      var file = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      var name = (file.name || '').toLowerCase();
+      var isPattern = /\.(oxs|xml|json|pdf)$/i.test(name);
+      if (!isPattern) {
+        alert('Please choose an .oxs, .xml, .json or .pdf pattern file. To create a pattern from a photo or chart image, use the tiles above.');
+        return;
+      }
+      if (!(window.ImportEngine && typeof window.ImportEngine.importAndReview === 'function')) {
+        alert('Pattern import is still loading. Please try again in a moment.');
+        return;
+      }
+      try { console.log('[home] routing pattern file to ImportEngine:', name, '— ImportEngine.__build =', window.ImportEngine.__build || 'unknown'); } catch (_) {}
+      setPending(true);
+      window.ImportEngine.importAndReview(file).catch(function (err) {
+        console.error('[home] importAndReview rejected:', err);
+        if (window.Toast && window.Toast.show) {
+          window.Toast.show({ message: 'Could not import: ' + (err && err.message || err), type: 'error', duration: 10000 });
+        } else {
+          alert('Could not import: ' + (err && err.message || err));
+        }
+      }).finally(function () { setPending(false); });
+    }
+
     return h('section', {
       className: 'home-create-panel',
       'aria-labelledby': 'home-create-panel-title'
     },
       h('h2', { id: 'home-create-panel-title', className: 'home-section__title' }, 'Start a new pattern'),
+      h('p', { className: 'home-create-panel__sub' },
+        'Pick the option that matches what you have on hand.'),
+
+      // Three hidden file inputs — one per pathway so the accept filter
+      // is pathway-specific. Triggered by the matching tile click.
       h('input', {
-        ref: fileInputRef,
-        type: 'file',
-        accept: 'image/*,.oxs,.xml,.json,.pdf',
-        className: 'home-create-file-input',
-        onChange: handleFileChange,
-        'aria-hidden': 'true',
-        tabIndex: -1
+        ref: photoInputRef, type: 'file', accept: 'image/*',
+        className: 'home-create-file-input', onChange: onPhotoChange,
+        'aria-hidden': 'true', tabIndex: -1
       }),
-      h('div', { className: 'home-create-panel__grid' },
+      h('input', {
+        ref: chartInputRef, type: 'file', accept: 'image/*',
+        className: 'home-create-file-input', onChange: onChartChange,
+        'aria-hidden': 'true', tabIndex: -1
+      }),
+      h('input', {
+        ref: openInputRef, type: 'file', accept: '.oxs,.xml,.json,.pdf',
+        className: 'home-create-file-input', onChange: onOpenExistingChange,
+        'aria-hidden': 'true', tabIndex: -1
+      }),
+
+      h('div', { className: 'home-create-panel__grid home-create-panel__grid--three' },
+
+        // Tile 1: Photo / artwork -> Pattern Creator
         h('button', {
           type: 'button',
-          className: 'home-create-tile home-create-tile--primary',
-          onClick: handleNewFromImage,
+          className: 'home-create-tile',
+          onClick: handleNewFromPhoto,
           disabled: pending,
           'data-onboard': 'home-from-image'
         },
           h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
             typeof Icons.image === 'function' ? Icons.image() : null),
           h('span', { className: 'home-create-tile__copy' },
-            h('strong', null, 'New from pattern file'),
-            h('span', null, 'Image, .oxs, .json or .pdf')
+            h('strong', null, 'Create from photo or artwork'),
+            h('span', null, 'Turn a photo, drawing or pixel art into a stitchable pattern. Best for original designs.'),
+            h('span', { className: 'home-create-tile__formats' }, 'JPG · PNG · GIF · WebP')
           )
         ),
+
+        // Tile 2: Digitise a printed chart -> Tracker ImportWizard (forced)
+        h('button', {
+          type: 'button',
+          className: 'home-create-tile home-create-tile--primary',
+          onClick: handleNewFromChart,
+          disabled: pending,
+          'data-onboard': 'home-from-chart'
+        },
+          h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
+            typeof Icons.wand === 'function' ? Icons.wand() : null),
+          h('span', { className: 'home-create-tile__copy' },
+            h('strong', null, 'Digitise a printed chart ',
+              h('span', { className: 'home-create-tile__badge home-create-tile__badge--new' }, 'New')),
+            h('span', null, 'Photo of a chart from a book or magazine? Five guided steps detect the grid, symbols and DMC codes.'),
+            h('span', { className: 'home-create-tile__formats' }, 'JPG · PNG · GIF · WebP')
+          )
+        ),
+
+        // Tile 3: Blank grid -> Pattern Creator (scratch)
         h('a', {
           href: 'create.html?action=new-blank',
           className: 'home-create-tile' + (pending ? ' home-create-tile--disabled' : ''),
@@ -553,11 +651,12 @@
           h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
             typeof Icons.plus === 'function' ? Icons.plus() : null),
           h('span', { className: 'home-create-tile__copy' },
-            h('strong', null, 'New from scratch'),
-            h('span', null, 'Start with a blank grid')
+            h('strong', null, 'Start from scratch'),
+            h('span', null, 'Open a blank grid and design pixel-by-pixel.')
           )
         ),
-        // Embroidery planner: experimental third tile, only rendered when the
+
+        // Embroidery planner: experimental fourth tile, only rendered when the
         // user has opted in via Preferences -> Creator -> Experimental. Carries a
         // "Beta" badge so users know this lives outside the supported flows.
         embroideryEnabled && h('a', {
@@ -576,7 +675,29 @@
           )
         )
       ),
-      // Transitional overlay shown between FileReader-load and the Creator
+
+      // "Open an existing pattern file" strip — sits visually below the
+      // create tiles to reinforce the IA split between *create* (above)
+      // and *open* (below). Same handler as the legacy combined input
+      // but with a pattern-file-only accept= filter.
+      h('div', { className: 'home-create-open-strip' },
+        h('div', { className: 'home-create-open-strip__copy' },
+          h('span', { className: 'home-create-open-strip__icon', 'aria-hidden': 'true' },
+            typeof Icons.folder === 'function' ? Icons.folder() : null),
+          h('div', null,
+            h('strong', null, 'Already have a pattern file?'),
+            h('span', null, 'Open .oxs, .xml, .json or a Pattern Keeper .pdf.')
+          )
+        ),
+        h('button', {
+          type: 'button',
+          className: 'btn btn-secondary home-create-open-strip__btn',
+          onClick: handleOpenExisting,
+          disabled: pending
+        }, 'Open pattern file')
+      ),
+
+      // Transitional overlay shown between FileReader-load and the target
       // page taking over. Stops the page change feeling like a teleport.
       pending && h('div', {
         className: 'home-create-pending',
@@ -584,7 +705,7 @@
         'aria-live': 'polite'
       },
         h('div', { className: 'home-create-pending__spinner', 'aria-hidden': 'true' }),
-        h('div', { className: 'home-create-pending__msg' }, 'Preparing your image\u2026')
+        h('div', { className: 'home-create-pending__msg' }, 'Preparing your file\u2026')
       )
     );
   }

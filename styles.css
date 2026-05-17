@@ -6063,10 +6063,22 @@ details[open] .creator-popover-difficulty__summary::before {
 /* ── Create new panel ── */
 .home-create-file-input { display: none; }
 .home-create-panel { padding: var(--s-3, 12px) 0 0; position: relative; }
+.home-create-panel__sub {
+  margin: 0 0 var(--s-3, 12px);
+  font-size: var(--text-sm, 13px);
+  color: var(--text-secondary);
+}
 .home-create-panel__grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--s-3, 12px);
+}
+/* Design 1 (May 2026 overhaul): three primary pathways — Photo / Chart
+   / Scratch — laid out side-by-side on desktop and stacked on narrow
+   screens. The auto-fit + minmax pattern preserves the side-by-side
+   layout down to ~640 px, then collapses gracefully. */
+.home-create-panel__grid--three {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 /* Disabled state for the secondary tile while the primary tile is mid-handoff. */
 .home-create-tile--disabled { opacity: 0.5; pointer-events: none; }
@@ -6152,6 +6164,94 @@ details[open] .creator-popover-difficulty__summary::before {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   vertical-align: 1px;
+}
+/* "New" variant of the tile badge — used on the "Digitise a printed
+   chart" tile to flag it as a recently-shipped pathway. Uses the
+   secondary accent (--accent-2, the green-leaning Workshop swatch) so it
+   reads differently from the orange "Beta" badge alongside it. */
+.home-create-tile__badge--new {
+  background: var(--accent-2, var(--success, #2E5A47));
+  color: #fff;
+}
+/* Tile primary state inverts the "New" badge so it stays legible on the
+   solid-accent background of the "Digitise" tile itself. */
+.home-create-tile--primary .home-create-tile__badge--new {
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--accent);
+}
+/* Small format-hint line at the bottom of each tile's body (e.g. "JPG ·
+   PNG · GIF · WebP"). Renders smaller and dimmer than the description so
+   it reads as supporting metadata rather than primary copy. */
+.home-create-tile__formats {
+  margin-top: 4px;
+  font-size: var(--text-xs, 11px);
+  font-weight: 600;
+  color: var(--text-tertiary, var(--text-secondary));
+  letter-spacing: 0.02em;
+}
+.home-create-tile--primary .home-create-tile__formats {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+/* "Already have a pattern file?" strip — sits below the create tile
+   grid. Visually separated to reinforce the IA split between
+   *create* (above) and *open* (below). */
+.home-create-open-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3, 12px);
+  margin-top: var(--s-4, 16px);
+  padding: var(--s-3, 12px) var(--s-4, 16px);
+  background: var(--surface-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+}
+.home-create-open-strip__copy {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3, 12px);
+  min-width: 0;
+}
+.home-create-open-strip__copy > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.home-create-open-strip__copy strong {
+  font-size: var(--text-md, 13px);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.home-create-open-strip__copy span {
+  font-size: var(--text-sm, 12px);
+  color: var(--text-secondary);
+}
+.home-create-open-strip__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.home-create-open-strip__btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .home-create-open-strip {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .home-create-open-strip__btn {
+    align-self: stretch;
+  }
 }
 
 /* ── Stash panel ── */

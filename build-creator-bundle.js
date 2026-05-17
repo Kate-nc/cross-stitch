@@ -217,6 +217,12 @@ try {
       ],
     },
     {
+      path: 'create.html',
+      keys: [
+        { varName: 'TRACKER_CACHE_KEY',  prefix: 'babel_tracker_',  files: ['tracker-app.js'] },
+      ],
+    },
+    {
       path: 'manager.html',
       keys: [
         { varName: 'MANAGER_CACHE_KEY',  prefix: 'babel_manager_',  files: ['manager-app.js'] },

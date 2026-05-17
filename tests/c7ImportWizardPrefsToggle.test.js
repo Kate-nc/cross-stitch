@@ -25,7 +25,7 @@ describe("experimental.importWizard preference", () => {
 
   test("rendered as a Switch row with descriptive label", () => {
     // Label and the Switch wiring should appear together in the Experimental section.
-    expect(PREFS_MODAL).toMatch(/Use guided import wizard \(experimental\)/);
+    expect(PREFS_MODAL).toMatch(/guided import wizard/);
     expect(PREFS_MODAL).toMatch(/h\(Switch,\s*\{\s*checked:\s*importWiz\[0\]/);
   });
 

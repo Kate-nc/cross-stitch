@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Import UX overhaul — three proposals</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<style>
+  /* Tokens — pulled directly from the Workshop theme in styles.css so the
+     mockups look like the real app. */
+  :root {
+    --bg: #FAF6EE;
+    --surface: #FFFFFF;
+    --surface-secondary: #F4ECDC;
+    --text-primary: #1B1814;
+    --text-secondary: #5C5448;
+    --text-tertiary: #8A8270;
+    --accent: #B85C38;
+    --accent-hover: #944526;
+    --accent-light: #F4DDCF;
+    --accent-border: #E8B89A;
+    --accent-2: #2E5A47;
+    --success: #4F7D3F;
+    --success-soft: #E1EBD8;
+    --border: #E5DCCB;
+    --line: #CFC4AC;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 18px;
+    --shadow-sm: 0 1px 2px rgba(27,24,20,.06);
+    --shadow-md: 0 6px 18px rgba(27,24,20,.08);
+    --text-xs: 12px;
+    --text-sm: 13px;
+    --text-md: 14px;
+    --text-lg: 16px;
+    --text-xl: 18px;
+    --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 24px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--text-primary); margin: 0;
+    line-height: 1.5;
+  }
+  .page { max-width: 1180px; margin: 0 auto; padding: 32px 24px 64px; }
+  .doc-title { font-size: 26px; margin: 0 0 4px; }
+  .doc-sub { color: var(--text-secondary); margin: 0 0 24px; font-size: 15px; }
+
+  .mock-frame {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    margin: 40px 0;
+    overflow: hidden;
+  }
+  .mock-frame__head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 18px;
+    background: linear-gradient(180deg, var(--surface-secondary), var(--surface));
+    border-bottom: 1px solid var(--border);
+  }
+  .mock-frame__title { font-weight: 700; font-size: 15px; }
+  .mock-frame__tag {
+    font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 999px;
+    background: var(--accent-light); color: var(--accent); border: 1px solid var(--accent-border);
+  }
+  .mock-frame__body { padding: 0; }
+
+  /* Fake browser chrome to make these feel like real pages */
+  .browser {
+    background: var(--surface-secondary);
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .browser__dots { display: flex; gap: 6px; }
+  .browser__dots span { width: 11px; height: 11px; border-radius: 50%; background: var(--line); }
+  .browser__url {
+    flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 999px;
+    padding: 4px 12px; font-size: 12px; color: var(--text-tertiary); font-family: ui-monospace, Menlo, monospace;
+  }
+
+  /* === Shared "fake app" styles to mimic /home === */
+  .app-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 28px; border-bottom: 1px solid var(--border); background: var(--surface);
+  }
+  .app-header__brand { font-weight: 800; color: var(--accent); letter-spacing: .02em; }
+  .app-header__nav { display: flex; gap: 18px; font-size: 14px; color: var(--text-secondary); }
+  .app-header__nav span { cursor: default; }
+  .app-header__nav .on { color: var(--text-primary); font-weight: 700; }
+
+  .tab-bar {
+    display: flex; gap: 8px; padding: 14px 28px 0; background: var(--surface);
+  }
+  .tab-bar button {
+    background: transparent; border: 0; padding: 10px 14px; cursor: default; font-size: 14px;
+    color: var(--text-secondary); border-bottom: 2px solid transparent; font-weight: 600;
+  }
+  .tab-bar button.on { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .panel { padding: 28px; }
+  .panel h2 { margin: 0 0 18px; font-size: 20px; }
+  .panel-sub { color: var(--text-secondary); margin: -10px 0 22px; font-size: 14px; }
+
+  /* Tile primitives */
+  .tile-grid { display: grid; gap: 16px; }
+  .tile-grid--2 { grid-template-columns: repeat(2, 1fr); }
+  .tile-grid--3 { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 760px) { .tile-grid { grid-template-columns: 1fr !important; } }
+
+  .tile {
+    display: flex; gap: 16px; padding: 20px;
+    border: 1px solid var(--border); border-radius: var(--radius-lg);
+    background: var(--surface); cursor: default;
+    transition: border-color .12s, transform .12s;
+    text-align: left;
+  }
+  .tile:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .tile--primary { border-color: var(--accent); background: var(--accent-light); }
+  .tile__icon {
+    width: 48px; height: 48px; flex-shrink: 0;
+    background: var(--surface-secondary); border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--accent);
+  }
+  .tile--primary .tile__icon { background: var(--surface); border-color: var(--accent-border); }
+  .tile__copy { flex: 1; min-width: 0; }
+  .tile__copy strong { display: block; font-size: 15px; margin-bottom: 4px; }
+  .tile__copy span { display: block; color: var(--text-secondary); font-size: 13px; }
+  .tile__badge {
+    display: inline-block; margin-left: 8px;
+    font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+    padding: 2px 6px; border-radius: 999px;
+    background: var(--accent-2); color: #fff;
+  }
+
+  /* Inline svg helper */
+  .ico { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* === Design 1: split tiles === */
+  .d1-cta-row { display: flex; gap: 12px; margin-top: 22px; padding-top: 18px; border-top: 1px dashed var(--border); }
+  .d1-cta-row a { font-size: 13px; color: var(--accent); font-weight: 600; text-decoration: none; }
+
+  /* === Design 2: tabbed sub-IA === */
+  .d2-subtabs { display: flex; gap: 4px; padding: 4px; background: var(--surface-secondary); border-radius: var(--radius-md); margin-bottom: 22px; width: max-content; }
+  .d2-subtabs button { background: transparent; border: 0; padding: 8px 14px; font-size: 13px; font-weight: 600; color: var(--text-secondary); border-radius: var(--radius-sm); cursor: default; }
+  .d2-subtabs button.on { background: var(--surface); color: var(--text-primary); box-shadow: var(--shadow-sm); }
+  .d2-tabpanel-illus {
+    margin-top: 18px; padding: 18px; border: 1px dashed var(--border); border-radius: var(--radius-md);
+    background: var(--surface-secondary); font-size: 13px; color: var(--text-secondary);
+  }
+
+  /* === Design 3: dedicated wizard surface (route-level page) === */
+  .d3-hero {
+    padding: 36px 28px; background: linear-gradient(180deg, var(--accent-light), var(--surface));
+    border-bottom: 1px solid var(--border);
+  }
+  .d3-hero h1 { margin: 0 0 6px; font-size: 26px; }
+  .d3-hero p  { margin: 0; color: var(--text-secondary); max-width: 620px; }
+  .d3-steps {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;
+    padding: 18px 28px; background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .d3-step {
+    padding: 10px 12px; border-radius: var(--radius-md); background: var(--surface-secondary);
+    border: 1px solid var(--border); font-size: 12px; color: var(--text-secondary);
+    text-align: center;
+  }
+  .d3-step b { display: block; color: var(--text-primary); font-size: 13px; margin-bottom: 2px; }
+  .d3-step.on { border-color: var(--accent); background: var(--accent-light); }
+  .d3-step.on b { color: var(--accent); }
+
+  .d3-drop {
+    margin: 24px 28px; padding: 60px 24px; text-align: center;
+    border: 2px dashed var(--line); border-radius: var(--radius-lg); background: var(--surface);
+  }
+  .d3-drop strong { display: block; font-size: 18px; margin-bottom: 6px; }
+  .d3-drop p { margin: 0 0 18px; color: var(--text-secondary); font-size: 14px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px; border-radius: var(--radius-md);
+    background: var(--accent); color: #fff; border: 0;
+    font-size: 14px; font-weight: 700; cursor: default;
+  }
+  .btn--ghost {
+    background: transparent; color: var(--accent); border: 1px solid var(--accent);
+  }
+  .btn-row { display: flex; gap: 10px; justify-content: center; }
+
+  .d3-tips {
+    margin: 0 28px 28px; padding: 16px 18px;
+    background: var(--surface-secondary); border-radius: var(--radius-md);
+    border-left: 3px solid var(--accent-2);
+    font-size: 13px; color: var(--text-secondary);
+  }
+  .d3-tips b { color: var(--text-primary); display: block; margin-bottom: 6px; }
+  .d3-tips ul { margin: 0; padding-left: 18px; }
+
+  /* Header note row used in design 1 + 2 */
+  .open-existing-strip {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 22px; padding: 14px 18px;
+    background: var(--surface-secondary); border: 1px solid var(--border); border-radius: var(--radius-md);
+  }
+  .open-existing-strip strong { font-size: 14px; }
+  .open-existing-strip span { color: var(--text-secondary); font-size: 13px; }
+
+  /* Implementation proposal block under each design */
+  .impl {
+    padding: 22px 28px; background: var(--surface-secondary);
+    border-top: 1px solid var(--border);
+    font-size: 13px; color: var(--text-primary);
+  }
+  .impl h3 { margin: 0 0 10px; font-size: 14px; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; }
+  .impl ul { margin: 0; padding-left: 20px; }
+  .impl li { margin-bottom: 6px; }
+  .impl li code { background: var(--surface); padding: 1px 6px; border-radius: 4px; font-size: 12px; border: 1px solid var(--border); }
+  .impl-pro-con { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 12px; }
+  .impl-pro-con div { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 14px; }
+  .impl-pro-con b { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .impl-pro-con .pros b { color: var(--success); }
+  .impl-pro-con .cons b { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1 class="doc-title">Import overhaul — three design options</h1>
+  <p class="doc-sub">All three reorganise the IA so each user intent has its own entry. Open this file in a browser to see the rendered mockups; copy any single CSS class into <code>styles.css</code> verbatim — the variables match the live tokens.</p>
+
+  <!-- =========================================================== -->
+  <!-- DESIGN 1: Three tiles on Home/Create — flat, no extra clicks -->
+  <!-- =========================================================== -->
+  <div class="mock-frame">
+    <div class="mock-frame__head">
+      <span class="mock-frame__title">Design 1 — Three tiles, one row (recommended)</span>
+      <span class="mock-frame__tag">Lowest risk · least code</span>
+    </div>
+    <div class="mock-frame__body">
+      <div class="browser"><div class="browser__dots"><span></span><span></span><span></span></div><div class="browser__url">stitchx.app/home.html#tab=create</div></div>
+      <div class="app-header">
+        <div class="app-header__brand">stitchx</div>
+        <div class="app-header__nav"><span>Projects</span><span class="on">Create new</span><span>Stash</span><span>Stats</span></div>
+      </div>
+      <div class="panel">
+        <h2>Start something</h2>
+        <p class="panel-sub">Pick the option that matches what you have on hand.</p>
+
+        <div class="tile-grid tile-grid--3">
+
+          <!-- Tile A: from photo -->
+          <button class="tile">
+            <div class="tile__icon">
+              <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M3 17l5-5 4 4 3-3 6 6"/></svg>
+            </div>
+            <div class="tile__copy">
+              <strong>Create from photo or artwork</strong>
+              <span>Turn a photo, drawing or pixel art into a stitchable pattern. Best for original designs.</span>
+              <span style="margin-top:8px;color:var(--accent);font-weight:600;">.jpg · .png · .gif · .webp</span>
+            </div>
+          </button>
+
+          <!-- Tile B: digitise printed chart — NEW -->
+          <button class="tile tile--primary">
+            <div class="tile__icon">
+              <svg class="ico" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M4 9h16M4 14h16M9 4v16M14 4v16"/><path d="M16 16l3 3"/></svg>
+            </div>
+            <div class="tile__copy">
+              <strong>Digitise a printed chart <span class="tile__badge">New</span></strong>
+              <span>Photo of a printed chart from a book or magazine? Five guided steps to detect grid, symbols and DMC codes.</span>
+              <span style="margin-top:8px;color:var(--accent);font-weight:600;">.jpg · .png · .pdf</span>
+            </div>
+          </button>
+
+          <!-- Tile C: blank grid -->
+          <button class="tile">
+            <div class="tile__icon">
+              <svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            </div>
+            <div class="tile__copy">
+              <strong>Start from scratch</strong>
+              <span>Open a blank grid and design pixel-by-pixel.</span>
+            </div>
+          </button>
+        </div>
+
+        <!-- Open existing strip -->
+        <div class="open-existing-strip">
+          <div>
+            <strong>Already have a pattern file?</strong>
+            <span> Open <code style="font-size:12px;background:var(--surface);padding:1px 6px;border-radius:4px;border:1px solid var(--border);">.oxs</code>, <code style="font-size:12px;background:var(--surface);padding:1px 6px;border-radius:4px;border:1px solid var(--border);">.json</code> or Pattern Keeper <code style="font-size:12px;background:var(--surface);padding:1px 6px;border-radius:4px;border:1px solid var(--border);">.pdf</code> in the Tracker.</span>
+          </div>
+          <button class="btn btn--ghost">Open pattern file</button>
+        </div>
+      </div>
+
+      <div class="impl">
+        <h3>Implementation proposal — Design 1</h3>
+        <ul>
+          <li>Split <code>CreatePanel</code> in <a href="../../home-app.js">home-app.js</a> from a 2-tile grid into a 3-tile grid plus an "Open pattern file" strip. ~80 LOC change, no new files.</li>
+          <li>Tile A (photo) keeps the current image-only file picker (filter <code>image/*</code>) and routes to <code>create.html?action=home-image-pending</code> as today.</li>
+          <li>Tile B (digitise) opens its own picker (filter <code>image/*,.pdf</code>) and sets <code>sessionStorage['cs_pending_wizard_image']</code> + navigates to <code>create.html?action=open-wizard</code>. <a href="../../creator-main.js">creator-main.js</a> grows a new action branch that auto-opens <code>ImportWizard</code> with that image, regardless of the <code>experimental.importWizard</code> flag (the flag is repurposed as a "show wizard as the only image path" advanced toggle).</li>
+          <li>Tile C is unchanged.</li>
+          <li>The bottom strip's "Open pattern file" reuses today's <code>.oxs/.json/.pdf</code> handler in <code>handleFileChange</code> — the only change is splitting it out of the "New" tile so the IA reads as <em>create</em> vs <em>open</em>.</li>
+          <li>The <code>experimental.importWizard</code> preference + per-modal intent screen we shipped on the <code>import</code> branch stay, but become belt-and-braces rather than the primary discovery surface.</li>
+        </ul>
+        <div class="impl-pro-con">
+          <div class="pros"><b>Pros</b><br/>· Flat IA — every intent is one click from the homepage.<br/>· Lowest code risk; reuses existing routing.<br/>· The "Digitise" tile's filter is naturally restrictive (only image+pdf), so users self-select correctly.<br/>· Mobile-friendly (3 tiles stack to a column).</div>
+          <div class="cons"><b>Cons</b><br/>· The Create tab grows visually busier; needs the "Beta" badge work to flag wizard's experimental status.<br/>· No room to explain when each option is right — copy must do the work.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================== -->
+  <!-- DESIGN 2: Two-step segmented chooser inside Create tab        -->
+  <!-- =========================================================== -->
+  <div class="mock-frame">
+    <div class="mock-frame__head">
+      <span class="mock-frame__title">Design 2 — Sub-tabs inside the Create panel</span>
+      <span class="mock-frame__tag">Discoverable · self-explaining</span>
+    </div>
+    <div class="mock-frame__body">
+      <div class="browser"><div class="browser__dots"><span></span><span></span><span></span></div><div class="browser__url">stitchx.app/home.html#tab=create&sub=chart</div></div>
+      <div class="app-header">
+        <div class="app-header__brand">stitchx</div>
+        <div class="app-header__nav"><span>Projects</span><span class="on">Create new</span><span>Stash</span><span>Stats</span></div>
+      </div>
+      <div class="panel">
+        <h2>What are you working with?</h2>
+        <p class="panel-sub">Choose how you'd like to start — each path has different tools.</p>
+
+        <div class="d2-subtabs" role="tablist">
+          <button>Photo / artwork</button>
+          <button class="on">Printed chart</button>
+          <button>Pattern file</button>
+          <button>Blank grid</button>
+        </div>
+
+        <!-- One detailed panel per intent. Shown: 'Printed chart' -->
+        <div class="tile-grid tile-grid--2">
+          <button class="tile tile--primary">
+            <div class="tile__icon">
+              <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M3 17l5-5 4 4 3-3 6 6"/></svg>
+            </div>
+            <div class="tile__copy">
+              <strong>Upload a photo of the chart</strong>
+              <span>Phone snap of a book page, or a scanned page. We'll detect the grid and read the legend for you.</span>
+            </div>
+          </button>
+          <button class="tile">
+            <div class="tile__icon">
+              <svg class="ico" viewBox="0 0 24 24"><path d="M4 5h12l4 4v10a1 1 0 01-1 1H4z"/><path d="M16 5v4h4"/></svg>
+            </div>
+            <div class="tile__copy">
+              <strong>Upload a multi-page PDF</strong>
+              <span>Pattern booklet split across pages. We'll let you reorder and stitch them together (Phase 2).</span>
+            </div>
+          </button>
+        </div>
+
+        <div class="d2-tabpanel-illus">
+          <b>Tips for best results:</b> press the book flat under a lamp · keep the camera parallel to the page · include the legend if it's on the same page · the wizard's <strong>5 steps</strong> are: <i>Crop → Detect grid → Match palette → Map symbols → Review</i>.
+        </div>
+      </div>
+
+      <div class="impl">
+        <h3>Implementation proposal — Design 2</h3>
+        <ul>
+          <li>Replace <code>CreatePanel</code>'s tile grid with a 4-button segmented control + a per-mode panel below it. Single new piece of state: <code>const [createMode, setCreateMode] = useState('photo')</code>.</li>
+          <li>Each sub-mode renders its own tiles with its own picker filter:
+            <br/>• <em>Photo</em> → <code>image/*</code>, current Creator route.
+            <br/>• <em>Printed chart</em> → <code>image/*,.pdf</code>, routes to wizard (as Design 1).
+            <br/>• <em>Pattern file</em> → <code>.oxs,.xml,.json,.pdf</code>, current ImportEngine route.
+            <br/>• <em>Blank grid</em> → unchanged.
+          </li>
+          <li>URL state: <code>?tab=create&amp;sub=chart</code> deep-links to the right sub-mode, so the help drawer / onboarding can link straight to the wizard surface.</li>
+          <li>Each sub-mode's body can include format-specific tips (the dashed callout in the mockup) — answers "is this the right tool?" before the user commits.</li>
+          <li>The legacy <code>experimental.importWizard</code> flag is removed; the wizard becomes the only chart-import path.</li>
+        </ul>
+        <div class="impl-pro-con">
+          <div class="pros"><b>Pros</b><br/>· Strongest user education — each path has room for tips and supporting copy.<br/>· No tile-grid bloat; tab keeps the panel a fixed visual weight.<br/>· Cleanest deep-link story for help / onboarding.</div>
+          <div class="cons"><b>Cons</b><br/>· Two clicks instead of one to get to the picker (tab → tile).<br/>· Larger UI change; more LOC; needs new icons.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================== -->
+  <!-- DESIGN 3: Dedicated wizard route (chart.html / import-chart) -->
+  <!-- =========================================================== -->
+  <div class="mock-frame">
+    <div class="mock-frame__head">
+      <span class="mock-frame__title">Design 3 — Dedicated <code>/chart-import.html</code> route</span>
+      <span class="mock-frame__tag">Most ambitious · best wayfinding</span>
+    </div>
+    <div class="mock-frame__body">
+      <div class="browser"><div class="browser__dots"><span></span><span></span><span></span></div><div class="browser__url">stitchx.app/chart-import.html</div></div>
+      <div class="app-header">
+        <div class="app-header__brand">stitchx</div>
+        <div class="app-header__nav"><span>Home</span><span>Create</span><span>Tracker</span><span>Stash</span><span class="on">Chart import</span></div>
+      </div>
+
+      <div class="d3-hero">
+        <h1>Digitise a printed cross-stitch chart</h1>
+        <p>Upload a photo or PDF of a published chart. The wizard walks you through five steps so the detected grid, symbols and DMC codes are correct before anything is committed to a project.</p>
+      </div>
+
+      <div class="d3-steps">
+        <div class="d3-step on"><b>1</b>Upload</div>
+        <div class="d3-step"><b>2</b>Crop</div>
+        <div class="d3-step"><b>3</b>Detect grid</div>
+        <div class="d3-step"><b>4</b>Match palette</div>
+        <div class="d3-step"><b>5</b>Review &amp; finish</div>
+      </div>
+
+      <div class="d3-drop">
+        <svg class="ico" style="width:36px;height:36px;margin-bottom:8px;color:var(--accent);" viewBox="0 0 24 24"><path d="M12 16V4M6 10l6-6 6 6"/><path d="M4 20h16"/></svg>
+        <strong>Drop a chart photo or PDF here</strong>
+        <p>JPG, PNG or PDF · single page or multi-page · phone snap is fine</p>
+        <div class="btn-row">
+          <button class="btn">Choose a file</button>
+          <button class="btn btn--ghost">Use camera</button>
+        </div>
+      </div>
+
+      <div class="d3-tips">
+        <b>Best results checklist</b>
+        <ul>
+          <li>Press the book or magazine as flat as you can — a curved page distorts the grid.</li>
+          <li>Shoot under bright, even light (window or lamp, no flash) so symbols stay sharp.</li>
+          <li>Keep the camera parallel to the page; the wizard can correct mild perspective but not severe tilt.</li>
+          <li>Include the legend in the same shot when possible — saves you mapping symbols by hand later.</li>
+        </ul>
+      </div>
+
+      <div class="impl">
+        <h3>Implementation proposal — Design 3</h3>
+        <ul>
+          <li>New top-level entry point <code>chart-import.html</code> that loads only the scripts the wizard needs: <code>icons.js</code>, <code>user-prefs.js</code>, <code>colour-utils.js</code>, <code>dmc-data.js</code>, <code>creator/import-wizard-bundle.js</code>. Avoids dragging in the full Creator bundle for users who only want to scan a chart.</li>
+          <li>Home / Create tile becomes a single "Digitise a printed chart →" link that navigates to <code>chart-import.html</code>.</li>
+          <li>Wizard's existing 5-step state machine moves into a full-page layout (the steps bar across the top is just the existing wizard chrome lifted out of the modal). On commit, the wizard saves a new project via <code>ProjectStorage.save()</code>, sets it active, and navigates to <code>create.html</code> (or <code>stitch.html</code>) for the user to continue.</li>
+          <li>Add the route to <a href="../../sw.js">sw.js</a> precache + manifest so it ships as a first-class PWA entry.</li>
+          <li>The legacy modal wizard is removed entirely; the <code>experimental.importWizard</code> preference is retired.</li>
+          <li>Add a tracker on home: when a user opens an image &gt; 2 MP or with a phone-photo aspect ratio via "Create from photo", surface a one-time hint card "Looks like a printed chart? Try the Chart import tool".</li>
+        </ul>
+        <div class="impl-pro-con">
+          <div class="pros"><b>Pros</b><br/>· Maximum discoverability — visible in the global nav.<br/>· Bookmarkable / shareable URL.<br/>· Fastest first paint for the wizard (no Creator overhead).<br/>· Camera capture becomes trivial to add (own page, own permissions prompt).<br/>· Lays groundwork for Phase 2 multi-page PDF UX which needs more vertical real estate than a modal.</div>
+          <div class="cons"><b>Cons</b><br/>· Largest change: new HTML entry, sw.js precache update, manifest, header nav.<br/>· Splits the import code path between Creator-embedded and standalone — needs a clean interface for the wizard to ship project data back to <code>ProjectStorage</code>.<br/>· Adds a 6th top-level page (already at 5).</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2 style="margin-top:48px;font-size:18px;">Recommendation</h2>
+  <p style="color:var(--text-secondary);max-width:780px;">
+    <strong>Ship Design 1 first</strong> — it directly fixes the discoverability problem with the smallest change to <a href="../../home-app.js">home-app.js</a> and routes the wizard via the same handoff plumbing the photo path already uses. <strong>Design 2</strong> is the natural Phase 2 once the wizard graduates from experimental, because each pathway needs its own tips/help copy and the segmented control gives it room without bloating the homepage. <strong>Design 3</strong> is the right end-state for a multi-page Phase 2 PDF UX and PWA camera capture, but it's a much bigger commitment and shouldn't be done until the wizard's success metrics from Designs 1/2 justify a top-level surface.
+  </p>
+
+</div>
+</body>
+</html>
