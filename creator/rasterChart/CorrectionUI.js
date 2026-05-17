@@ -29,7 +29,7 @@
 
   const TABS = [
     { id: 'corners',    label: 'Corners' },
-    { id: 'grid',       label: 'Grid' },
+    { id: 'grid',       label: 'Grid lines' },
     { id: 'clusters',   label: 'Symbols' },
     { id: 'review',     label: 'Needs review' },
     { id: 'legend',     label: 'Legend' },
@@ -521,18 +521,129 @@
   // ── Surface 2: grid handles ────────────────────────────────────────────
   function GridEditor({ pending, grid, onChange }) {
     const g = grid || pending.grid || { cellPitch: 20, originRow: 0, originCol: 0, rows: 50, cols: 50 };
-    function nudge(key, delta) { onChange(Object.assign({}, g, { [key]: g[key] + delta })); }
+    // Show the warped preview with the current grid overlaid so the user
+    // can see exactly which lines need nudging. Pitch nudges live in
+    // grid-cells (one whole row/column), origin nudges in canvas px so
+    // a "1" actually moves the grid visibly.
+    function setField(key, value) { onChange(Object.assign({}, g, { [key]: value })); }
+    function nudge(key, delta) { setField(key, (g[key] || 0) + delta); }
+    function resetGrid() { onChange(Object.assign({}, pending.grid || {})); }
+    const detectedRows = (pending.grid && pending.grid.rows) || g.rows || 0;
+    const detectedCols = (pending.grid && pending.grid.cols) || g.cols || 0;
+    const confidence = (g.confidence != null ? g.confidence : (pending.grid && pending.grid.confidence)) || 0;
     return h('div', { className: 'rc-grid-editor' },
-      h('p', null, 'Nudge the grid until cells align with the chart squares.'),
-      h('div', { className: 'rc-grid-controls' },
-        ['cellPitch', 'originRow', 'originCol'].map(k =>
-          h('div', { key: k, className: 'rc-grid-row' },
-            h('label', null, k + ': ' + (g[k] || 0).toFixed(1)),
-            h('button', { type: 'button', className: 'tb-btn', onClick: () => nudge(k, -1) }, '−1'),
-            h('button', { type: 'button', className: 'tb-btn', onClick: () => nudge(k, +1) }, '+1'),
-          )),
-        h('div', null, `Detected: ${g.rows} rows × ${g.cols} columns, confidence ${(g.confidence || 0).toFixed(2)}`),
+      h('p', { className: 'rc-help' },
+        'Each cell of the grid corresponds to one stitch. The detected grid is shown over the chart below — if the lines drift away from the squares as you scan across, nudge the cell size up or down. If everything is shifted by half a cell, nudge the origin.'),
+      h(GridOverlayPreview, { pending, grid: g }),
+      h('div', { className: 'rc-grid-summary' },
+        h('span', null, 'Detected: '),
+        h('strong', null, detectedRows + ' rows \u00d7 ' + detectedCols + ' columns'),
+        h('span', null, ' \u00b7 cell size '),
+        h('strong', null, (g.cellPitch || 0).toFixed(1) + ' px'),
+        h('span', null, ' \u00b7 confidence '),
+        h('strong', null, (confidence * 100).toFixed(0) + '%'),
       ),
+      h('div', { className: 'rc-grid-controls' },
+        h(GridControlRow, {
+          label: 'Cell size',
+          value: (g.cellPitch || 0).toFixed(1) + ' px',
+          help: 'How wide each grid cell is. Increase if the grid looks too tight; decrease if it looks too loose.',
+          onMinus: () => nudge('cellPitch', -1),
+          onPlus:  () => nudge('cellPitch', +1),
+          onMinusBig: () => nudge('cellPitch', -5),
+          onPlusBig:  () => nudge('cellPitch', +5),
+        }),
+        h(GridControlRow, {
+          label: 'Row offset',
+          value: (g.originRow || 0).toFixed(0) + ' px',
+          help: 'Shift the entire grid up or down so the top edge lines up with the first row of stitches.',
+          onMinus: () => nudge('originRow', -1),
+          onPlus:  () => nudge('originRow', +1),
+          onMinusBig: () => nudge('originRow', -5),
+          onPlusBig:  () => nudge('originRow', +5),
+        }),
+        h(GridControlRow, {
+          label: 'Column offset',
+          value: (g.originCol || 0).toFixed(0) + ' px',
+          help: 'Shift the entire grid left or right so the leftmost line meets the first column of stitches.',
+          onMinus: () => nudge('originCol', -1),
+          onPlus:  () => nudge('originCol', +1),
+          onMinusBig: () => nudge('originCol', -5),
+          onPlusBig:  () => nudge('originCol', +5),
+        }),
+      ),
+      h('div', { className: 'rc-grid-actions' },
+        h('button', { type: 'button', className: 'tb-btn', onClick: resetGrid },
+          'Reset to auto-detected grid'),
+      ),
+    );
+  }
+
+  function GridControlRow({ label, value, help, onMinus, onPlus, onMinusBig, onPlusBig }) {
+    return h('div', { className: 'rc-grid-row' },
+      h('div', { className: 'rc-grid-row-head' },
+        h('span', { className: 'rc-grid-row-label' }, label),
+        h('span', { className: 'rc-grid-row-value' }, value),
+      ),
+      h('div', { className: 'rc-grid-row-buttons' },
+        h('button', { type: 'button', className: 'tb-btn', onClick: onMinusBig, title: label + ' \u2212 5' }, '\u2212\u2212'),
+        h('button', { type: 'button', className: 'tb-btn', onClick: onMinus,    title: label + ' \u2212 1' }, '\u2212'),
+        h('button', { type: 'button', className: 'tb-btn', onClick: onPlus,     title: label + ' + 1' }, '+'),
+        h('button', { type: 'button', className: 'tb-btn', onClick: onPlusBig,  title: label + ' + 5' }, '++'),
+      ),
+      h('p', { className: 'rc-help rc-grid-row-help' }, help),
+    );
+  }
+
+  // Draws the warped preview with the current grid superimposed. Grid
+  // values are in pending-working-image pixels; we scale them to the
+  // canvas size for display so the editor stays responsive even on phone
+  // photos that were warped to a 1024+ px working image.
+  function GridOverlayPreview({ pending, grid }) {
+    const ref = useRef(null);
+    useEffect(() => {
+      const cv = ref.current;
+      if (!cv || !pending.previewImage) return;
+      const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+      const W = CANVAS_W, H = CANVAS_H;
+      cv.width = W * dpr; cv.height = H * dpr;
+      cv.style.width = W + 'px'; cv.style.height = H + 'px';
+      const ctx = cv.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(pending.previewImage, 0, 0, W, H);
+      // Scale grid pixels (working-image space) → preview canvas (CANVAS_W×CANVAS_H).
+      const workingW = pending.workingW || W;
+      const workingH = pending.workingH || H;
+      const sx = W / workingW, sy = H / workingH;
+      const pitchX = (grid.cellPitch || 20) * sx;
+      const pitchY = (grid.cellPitch || 20) * sy;
+      const ox = (grid.originCol || 0) * sx;
+      const oy = (grid.originRow || 0) * sy;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(184, 92, 56, 0.85)';
+      ctx.lineWidth = 1;
+      for (let x = ox; x <= W; x += pitchX) {
+        ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, H); ctx.stroke();
+      }
+      for (let y = oy; y <= H; y += pitchY) {
+        ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(W, y + 0.5); ctx.stroke();
+      }
+      // Heavier marks every 10 cells for orientation.
+      ctx.strokeStyle = 'rgba(92, 42, 20, 0.95)';
+      ctx.lineWidth = 1.5;
+      for (let i = 0, x = ox; x <= W; i++, x += pitchX) {
+        if (i % 10 !== 0) continue;
+        ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, H); ctx.stroke();
+      }
+      for (let i = 0, y = oy; y <= H; i++, y += pitchY) {
+        if (i % 10 !== 0) continue;
+        ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(W, y + 0.5); ctx.stroke();
+      }
+      ctx.restore();
+    }, [pending.previewImage, pending.workingW, pending.workingH, grid.cellPitch, grid.originRow, grid.originCol]);
+    return h('div', { className: 'rc-grid-overlay-pane' },
+      h('canvas', { ref, className: 'rc-grid-overlay-canvas' }),
     );
   }
 

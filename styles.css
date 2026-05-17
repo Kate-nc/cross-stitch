@@ -7457,3 +7457,18 @@ body.cs-focus .lpanel-backdrop { display: none !important; }
 .rc-corner-status { font-size: 12px; color: var(--text-secondary); margin-left: auto; }
 .rc-corner-stage { display: flex; gap: 12px; flex-wrap: wrap; }
 .rc-corner-stage canvas { flex: 1 1 480px; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-secondary); }
+/* --- Grid (Grid lines) tab --- */
+.rc-grid-editor { display: flex; flex-direction: column; gap: 12px; }
+.rc-grid-overlay-pane { display: flex; justify-content: center; padding: 10px; background: var(--surface-secondary); border: 1px solid var(--line); border-radius: 8px; }
+.rc-grid-overlay-canvas { max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
+.rc-grid-summary { font-size: 13px; color: var(--text-secondary); padding: 6px 10px; background: var(--surface-secondary); border-radius: 6px; border: 1px solid var(--line); }
+.rc-grid-summary strong { color: var(--text-primary); font-weight: 600; }
+.rc-grid-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.rc-grid-row { display: flex; flex-direction: column; gap: 6px; padding: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.rc-grid-row-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.rc-grid-row-label { font-weight: 600; color: var(--text-primary); font-size: 14px; }
+.rc-grid-row-value { font-family: ui-monospace, monospace; font-size: 13px; color: var(--text-secondary); }
+.rc-grid-row-buttons { display: flex; gap: 4px; }
+.rc-grid-row-buttons .tb-btn { flex: 1 1 auto; justify-content: center; font-family: ui-monospace, monospace; min-width: 36px; }
+.rc-grid-row-help { margin: 2px 0 0; font-size: 12px; color: var(--text-secondary); }
+.rc-grid-actions { display: flex; gap: 8px; }
