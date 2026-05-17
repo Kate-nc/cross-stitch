@@ -7404,3 +7404,56 @@ body.cs-focus .lpanel-backdrop { display: none !important; }
 @media (pointer: coarse) {
   #app-version-badge { display: none; }
 }
+
+/* -----------------------------------------------------------------------
+   Raster chart importer — correction UI (workshop theme)
+   Styles for RasterChartCorrectionUI (creator/rasterChart/CorrectionUI.js).
+   ----------------------------------------------------------------------- */
+.rc-correction-content { display: flex; flex-direction: column; gap: 12px; max-height: 92vh; }
+.rc-correction-header { display: flex; flex-direction: column; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.rc-correction-header h2 { margin: 0; font-size: 18px; font-weight: 600; color: var(--text-primary); }
+.rc-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.rc-correction-body { flex: 1 1 auto; overflow-y: auto; min-height: 0; padding-right: 4px; }
+.rc-correction-footer { display: flex; justify-content: flex-end; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.rc-help { margin: 0 0 10px; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+.rc-help--center { text-align: center; }
+.rc-help kbd { display: inline-block; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--line); background: var(--surface-secondary); font-family: ui-monospace, monospace; font-size: 12px; color: var(--text-primary); }
+
+/* --- Cluster (Symbols) tab --- */
+.rc-cluster-overlay-pane { display: flex; flex-direction: column; gap: 6px; align-items: center; margin-bottom: 12px; padding: 10px; background: var(--surface-secondary); border: 1px solid var(--line); border-radius: 8px; }
+.rc-cluster-overlay-canvas { max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
+.rc-cluster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.rc-cluster-card { display: flex; flex-direction: column; gap: 8px; padding: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; transition: border-color 120ms, box-shadow 120ms; }
+.rc-cluster-card--active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.rc-cluster-card-head { display: flex; gap: 10px; align-items: center; }
+.rc-cluster-medoid { width: 56px; height: 56px; image-rendering: pixelated; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-secondary); flex: 0 0 auto; }
+.rc-cluster-card-meta { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.rc-cluster-card-title { font-weight: 600; color: var(--text-primary); font-size: 14px; }
+.rc-cluster-card-count { font-size: 12px; color: var(--text-secondary); }
+.rc-cluster-eye { flex: 0 0 auto; padding: 4px 6px; }
+.rc-cluster-eye svg { width: 18px; height: 18px; }
+.rc-cluster-field { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--text-secondary); }
+.rc-cluster-field > span { font-weight: 500; }
+.rc-cluster-field input[type="text"] { padding: 5px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--text-primary); font-family: inherit; font-size: 14px; }
+.rc-cluster-field input[type="text"]:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+.rc-cluster-field--colour input[type="color"] { width: 100%; height: 28px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); cursor: pointer; padding: 2px; }
+.rc-cluster-suggestions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding-top: 4px; border-top: 1px dashed var(--line-2); }
+.rc-cluster-suggestions-label { font-size: 11px; color: var(--text-secondary); margin-right: 2px; }
+.rc-dmc-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--text-primary); font-size: 11px; cursor: pointer; }
+.rc-dmc-chip:hover { background: var(--surface-secondary); border-color: var(--line-2); }
+.rc-dmc-chip--active { border: 2px solid var(--accent); background: var(--accent-soft); padding: 1px 5px; }
+.rc-dmc-chip-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px; border: 1px solid rgba(0,0,0,0.2); }
+.rc-cluster-actions { display: flex; gap: 6px; }
+.rc-cluster-action { flex: 1 1 auto; justify-content: center; }
+
+/* --- Distortion / global banners --- */
+.rc-correction-global-banner { margin: 0 0 10px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--text-primary); display: flex; align-items: center; gap: 12px; }
+.rc-distortion-warning { padding: 10px 14px; margin-bottom: 12px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--text-primary); }
+
+/* --- Corners tab --- */
+.rc-corner-editor { display: flex; flex-direction: column; gap: 8px; }
+.rc-corner-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.rc-corner-toolbar > .tb-btn { flex: 0 0 auto; }
+.rc-corner-status { font-size: 12px; color: var(--text-secondary); margin-left: auto; }
+.rc-corner-stage { display: flex; gap: 12px; flex-wrap: wrap; }
+.rc-corner-stage canvas { flex: 1 1 480px; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-secondary); }

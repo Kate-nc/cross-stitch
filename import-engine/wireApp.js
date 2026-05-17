@@ -471,6 +471,8 @@
               pages: c.pages || [],
               cellDistances: c.cellDistances || [],
               cellTopCandidates: c.cellTopCandidates || [],
+              cellClusterIds: c.cellClusterIds || [],
+              cellEmptyMask: c.cellEmptyMask || [],
             };
           }
 

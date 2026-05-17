@@ -140,13 +140,6 @@
         pending.distortion && pending.distortion.distorted && tab !== 'corners' && h('div', {
           className: 'rc-correction-global-banner',
           role: 'alert',
-          style: {
-            margin: '0 0 10px', padding: '8px 12px', borderRadius: 6,
-            border: '1px solid var(--accent, #d97706)',
-            background: 'var(--surface-warning, #fef3c7)',
-            color: 'var(--text-primary, #1f2937)',
-            display: 'flex', alignItems: 'center', gap: 12,
-          },
         },
           h('span', null, 'This chart looks distorted (pitch ratio ' + ((pending.distortion.ratio || 1).toFixed(2)) + '). Use the Corners tab to mark the chart edges.'),
           h('button', { type: 'button', className: 'tb-btn', onClick: () => setTab('corners') }, 'Open Corners tab'),
@@ -198,7 +191,7 @@
         ),
         h('footer', { className: 'rc-correction-footer' },
           h('button', { type: 'button', className: 'tb-btn', onClick: handleCancel }, 'Cancel'),
-          h('button', { type: 'button', className: 'tb-btn tb-btn--primary', onClick: handleCommit },
+          h('button', { type: 'button', className: 'tb-btn tb-btn--green', onClick: handleCommit },
             'Finish import'),
         ),
       ),
@@ -308,35 +301,27 @@
       distortion && distortion.distorted && h('div', {
         className: 'rc-distortion-warning',
         role: 'alert',
-        style: {
-          padding: '10px 14px',
-          marginBottom: 12,
-          borderRadius: 6,
-          border: '1px solid var(--accent, #d97706)',
-          background: 'var(--surface-warning, #fef3c7)',
-          color: 'var(--text-primary, #1f2937)',
-        },
       },
         h('strong', null, 'This chart appears to be distorted.'),
         h('p', { style: { margin: '4px 0 0' } },
           'For best results, please use the four-corner tool below to mark the chart edges, or retake the photo with the book pressed flat. ' +
           'Detected pitch ratio: ' + (distortion.ratio ? distortion.ratio.toFixed(2) : '?') + ' (anything above 1.15 looks curved).'),
       ),
-      h('p', null, 'Drag the four corners to match the chart\'s outer border. Click a handle and use the arrow keys (Shift = 10px) for precise nudges.'),
-      h('div', { style: { display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' } },
+      h('p', { className: 'rc-help' }, 'Drag the four corners to match the chart\'s outer border. Click a handle and use the arrow keys (Shift = 10px) for precise nudges.'),
+      h('div', { className: 'rc-corner-toolbar' },
         h('button', { type: 'button', className: 'tb-btn', onClick: resetCorners, disabled: recomputing }, 'Reset to auto-detected'),
         onRecompute && h('button', {
-          type: 'button', className: 'tb-btn tb-btn--primary',
+          type: 'button', className: 'tb-btn tb-btn--green',
           onClick: onRecompute, disabled: recomputing,
           title: 'Re-run perspective warp, grid detection, and clustering using these corners',
         }, recomputing ? 'Recomputing\u2026 (this may take a minute)' : 'Recompute extraction'),
-        h('span', { style: { fontSize: 12, opacity: 0.75 } },
+        h('span', { className: 'rc-corner-status' },
           'Focused corner: ' + (['top-left','top-right','bottom-right','bottom-left'][focused] || focused)),
       ),
-      h('div', { style: { display: 'flex', gap: 12, flexWrap: 'wrap' } },
+      h('div', { className: 'rc-corner-stage' },
         h('canvas', {
           ref: canvasRef, width: CANVAS_W, height: CANVAS_H, tabIndex: 0,
-          style: { flex: '1 1 480px', maxWidth: '100%', height: 'auto', cursor: drag >= 0 ? 'grabbing' : 'crosshair', border: '1px solid var(--border)', opacity: recomputing ? 0.6 : 1 },
+          style: { cursor: drag >= 0 ? 'grabbing' : 'crosshair', opacity: recomputing ? 0.6 : 1 },
           onMouseDown: recomputing ? null : onPointerDown,
           onMouseMove: recomputing ? null : onPointerMove,
           onMouseUp: onPointerUp, onMouseLeave: onPointerUp,
@@ -555,64 +540,155 @@
   function ClusterGallery({ pending, labels, palette, onLabelChange, onSplit, onMerge }) {
     const medoids = pending.medoidImages || [];
     const clusterColors = pending.clusterColors || [];
+    // Track which cluster the user is currently inspecting on the chart
+    // overlay. Hovering a card sets `previewCid`; clicking the eye icon
+    // pins it so they can still type/click DMC chips without losing the
+    // highlight. `pinnedCid` wins over hover.
+    const [hoverCid, setHoverCid] = useState(null);
+    const [pinnedCid, setPinnedCid] = useState(null);
+    const activeCid = pinnedCid != null ? pinnedCid : hoverCid;
+    const clusterIds = pending.cellClusterIds || [];
+    const grows = (pending.grid && pending.grid.rows) || 0;
+    const gcols = (pending.grid && pending.grid.cols) || 0;
+    const showOverlay = activeCid != null && pending.previewImage && grows > 0 && gcols > 0 && clusterIds.length === grows * gcols;
     return h('div', { className: 'rc-cluster-gallery' },
-      h('p', null, `${medoids.length} unique symbols detected. Label each with its DMC code; merge any duplicates. Suggested DMC matches appear below each cluster — click a chip to apply.`),
+      h('p', { className: 'rc-help' }, `${medoids.length} unique symbols detected. Hover a card to see where it appears on the chart; click the highlight button to keep it visible while you type a DMC code or merge duplicates.`),
+      showOverlay && h(ClusterOverlayPreview, {
+        previewImage: pending.previewImage,
+        rows: grows, cols: gcols,
+        clusterIds, activeCid,
+        clusterColor: clusterColors[activeCid] || (labels[activeCid] && labels[activeCid].rgb) || null,
+      }),
       h('div', { className: 'rc-cluster-grid' },
         medoids.map((src, cid) => {
           const lbl = labels[cid] || {};
           const swatchRgb = clusterColors[cid] || lbl.rgb || null;
           const top3 = swatchRgb ? topNDmcMatches(swatchRgb, palette, 3) : [];
           const currentCode = (lbl.code || '').trim();
-          return h('div', { key: cid, className: 'rc-cluster-card' },
-            h('img', { src, alt: 'Cluster ' + cid, width: 48, height: 48, style: { imageRendering: 'pixelated' } }),
-            h('input', {
-              type: 'text', placeholder: 'DMC code', value: lbl.code || '',
-              onChange: (e) => onLabelChange(cid, { code: e.target.value }),
-              list: 'rc-dmc-codes',
-            }),
-            h('input', {
-              type: 'color', value: rgbToHex(lbl.rgb) || '#000000',
-              onChange: (e) => onLabelChange(cid, { rgb: hexToRgb(e.target.value) }),
-            }),
-            h('button', { type: 'button', className: 'tb-btn', onClick: () => onSplit(cid, 2) }, 'Split'),
-            h('button', { type: 'button', className: 'tb-btn', onClick: () => {
-              const target = prompt('Merge into cluster #?');
-              if (target != null && !isNaN(+target)) onMerge(cid, +target);
-            }}, 'Merge\u2026'),
-            top3.length > 0 && h('div', {
-              className: 'rc-cluster-suggestions',
-              style: { display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap', flexBasis: '100%' },
-            },
+          const pinned = pinnedCid === cid;
+          const cellCount = countCellsForCluster(clusterIds, cid);
+          return h('div', {
+            key: cid,
+            className: 'rc-cluster-card' + (activeCid === cid ? ' rc-cluster-card--active' : ''),
+            onMouseEnter: () => setHoverCid(cid),
+            onMouseLeave: () => setHoverCid(c => c === cid ? null : c),
+          },
+            h('div', { className: 'rc-cluster-card-head' },
+              h('img', { src, alt: 'Cluster ' + cid, className: 'rc-cluster-medoid' }),
+              h('div', { className: 'rc-cluster-card-meta' },
+                h('div', { className: 'rc-cluster-card-title' }, '#' + cid),
+                h('div', { className: 'rc-cluster-card-count' }, cellCount + ' cells'),
+              ),
+              h('button', {
+                type: 'button',
+                className: 'tb-btn rc-cluster-eye' + (pinned ? ' tb-btn--on' : ''),
+                onClick: () => setPinnedCid(p => p === cid ? null : cid),
+                title: pinned ? 'Stop highlighting this symbol' : 'Highlight this symbol on the chart',
+                'aria-pressed': pinned,
+              }, window.Icons && window.Icons.eye ? window.Icons.eye() : 'Show'),
+            ),
+            h('label', { className: 'rc-cluster-field' },
+              h('span', null, 'DMC code'),
+              h('input', {
+                type: 'text', placeholder: 'e.g. 310', value: lbl.code || '',
+                onChange: (e) => onLabelChange(cid, { code: e.target.value }),
+                list: 'rc-dmc-codes',
+              }),
+            ),
+            h('label', { className: 'rc-cluster-field rc-cluster-field--colour' },
+              h('span', null, 'Colour'),
+              h('input', {
+                type: 'color', value: rgbToHex(lbl.rgb || swatchRgb) || '#000000',
+                onChange: (e) => onLabelChange(cid, { rgb: hexToRgb(e.target.value) }),
+              }),
+            ),
+            top3.length > 0 && h('div', { className: 'rc-cluster-suggestions' },
+              h('span', { className: 'rc-cluster-suggestions-label' }, 'Suggested:'),
               top3.map(m => {
                 const active = currentCode === m.id;
                 return h('button', {
                   key: m.id,
                   type: 'button',
-                  title: `${m.id} \u00b7 ${m.name || ''} \u00b7 \u0394E ${m.dE.toFixed(1)}`,
+                  className: 'rc-dmc-chip' + (active ? ' rc-dmc-chip--active' : ''),
+                  title: `${m.id} · ${m.name || ''} · ΔE ${m.dE.toFixed(1)}`,
                   onClick: () => onLabelChange(cid, { code: m.id, rgb: m.rgb }),
-                  style: {
-                    display: 'inline-flex', alignItems: 'center', gap: 4,
-                    padding: '2px 6px',
-                    border: active ? '2px solid var(--accent, #d97706)' : '1px solid var(--border, #d1d5db)',
-                    borderRadius: 4,
-                    background: 'var(--surface, #fff)',
-                    fontSize: 11, cursor: 'pointer',
-                  },
                 },
-                  h('span', { style: {
-                    display: 'inline-block', width: 12, height: 12,
-                    background: 'rgb(' + m.rgb.join(',') + ')',
-                    border: '1px solid #0003',
-                  }}),
+                  h('span', { className: 'rc-dmc-chip-swatch', style: { background: 'rgb(' + m.rgb.join(',') + ')' } }),
                   h('span', null, m.id),
                 );
               }),
+            ),
+            h('div', { className: 'rc-cluster-actions' },
+              h('button', { type: 'button', className: 'tb-btn rc-cluster-action', onClick: () => onSplit(cid, 2) },
+                'Split in two'),
+              h('button', { type: 'button', className: 'tb-btn rc-cluster-action', onClick: () => {
+                const target = prompt('Merge cluster #' + cid + ' into which cluster number?');
+                if (target != null && !isNaN(+target)) onMerge(cid, +target);
+              }}, 'Merge into\u2026'),
             ),
           );
         }),
         h('datalist', { id: 'rc-dmc-codes' },
           palette.slice(0, 500).map(p => h('option', { key: p.id, value: p.id }))),
       ),
+    );
+  }
+
+  // Tally the number of grid cells assigned to a given cluster id.
+  function countCellsForCluster(ids, cid) {
+    if (!ids || !ids.length) return 0;
+    let n = 0;
+    for (let i = 0; i < ids.length; i++) if (ids[i] === cid) n++;
+    return n;
+  }
+
+  // Renders the warped-preview image with all cells of `activeCid`
+  // highlighted in the cluster's colour. Drawn at modest size (CANVAS_W
+  // wide, height matched to image aspect) so the overlay stays glanceable
+  // while the user works through the cluster cards.
+  function ClusterOverlayPreview({ previewImage, rows, cols, clusterIds, activeCid, clusterColor }) {
+    const ref = useRef(null);
+    useEffect(() => {
+      const cv = ref.current;
+      if (!cv || !previewImage) return;
+      const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+      const W = CANVAS_W, H = CANVAS_H;
+      cv.width = W * dpr; cv.height = H * dpr;
+      cv.style.width = W + 'px'; cv.style.height = H + 'px';
+      const ctx = cv.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(previewImage, 0, 0, W, H);
+      // Dim non-active cells so the highlighted ones pop.
+      ctx.save();
+      ctx.fillStyle = 'rgba(20, 18, 15, 0.55)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+      const cellW = W / cols, cellH = H / rows;
+      const rgb = clusterColor || [184, 92, 56];
+      // Cut out the highlighted cells (clear the dim) and draw their tint.
+      for (let i = 0; i < clusterIds.length; i++) {
+        if (clusterIds[i] !== activeCid) continue;
+        const r = (i / cols) | 0, c = i % cols;
+        const x = c * cellW, y = r * cellH;
+        ctx.clearRect(x, y, cellW, cellH);
+        ctx.drawImage(previewImage,
+          (x / W) * previewImage.width, (y / H) * previewImage.height,
+          (cellW / W) * previewImage.width, (cellH / H) * previewImage.height,
+          x, y, cellW, cellH);
+        ctx.save();
+        ctx.fillStyle = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',0.35)';
+        ctx.fillRect(x, y, cellW, cellH);
+        ctx.strokeStyle = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',0.95)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 0.5, y + 0.5, cellW - 1, cellH - 1);
+        ctx.restore();
+      }
+    }, [previewImage, rows, cols, clusterIds, activeCid, clusterColor]);
+    return h('div', { className: 'rc-cluster-overlay-pane' },
+      h('canvas', { ref, className: 'rc-cluster-overlay-canvas' }),
+      h('p', { className: 'rc-help rc-help--center' },
+        'Highlighted cells belong to cluster #' + activeCid + '.'),
     );
   }
 

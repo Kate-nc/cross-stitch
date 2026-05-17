@@ -431,6 +431,12 @@
               return cc;
             }()),
             legendRows,
+            // Per-cell cluster id (row-major, length rows*cols, -1 = noise).
+            // Used by CorrectionUI's Symbols-tab "show on chart" overlay
+            // and the Grid-tab live preview so we can highlight where a
+            // given cluster lives without re-running the worker.
+            cellClusterIds: Array.from(clu.assignments || []),
+            cellEmptyMask: Array.from(cellRes.emptyMask || []),
             // Multi-page payload is empty in single-image imports; the
             // multi-page dropzone surface still mounts but with no thumbs.
             pages: [],
