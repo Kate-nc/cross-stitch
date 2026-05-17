@@ -46,6 +46,28 @@
     const [corners, setCorners] = useState(initialCanvasCorners);
     const [recomputing, setRecomputing] = useState(false);
     const [grid, setGrid] = useState(pending.grid || null);
+    // Synthesise a rectified ("warped") preview image so the Symbols and
+    // Grid-lines tabs can overlay highlights / grid lines on a chart that
+    // actually looks square. `pending.previewImage` is the ORIGINAL photo
+    // (possibly letterboxed), so drawing the grid directly on it would
+    // never line up with the chart cells. We use the same CPU homography
+    // the corner editor already uses for its WarpedPreviewPane.
+    const [warpedPreview, setWarpedPreview] = useState(null);
+    useEffect(() => {
+      if (!pending.previewImage) { setWarpedPreview(null); return; }
+      const cornersForWarp = normToCanvas(pending.autoCornersNorm) || defaultCornersCanvas();
+      try {
+        const off = document.createElement('canvas');
+        off.width = CANVAS_W; off.height = CANVAS_H;
+        drawWarpedPreview(off, pending.previewImage, cornersForWarp);
+        const img = new Image();
+        img.onload = () => setWarpedPreview(img);
+        img.src = off.toDataURL('image/jpeg', 0.85);
+      } catch (e) {
+        // Tainted canvas or homography failure — fall back to the raw preview.
+        setWarpedPreview(pending.previewImage);
+      }
+    }, [pending]);
     // Seed labels from caller-supplied initialLabels so colour-mode
     // auto-matches survive even if the user clicks Finish without
     // touching the Symbols tab. The map is shaped { clusterId → {code, rgb, name} }.
@@ -162,9 +184,9 @@
                 .then(() => setRecomputing(false));
             } : null,
           }),
-          tab === 'grid'    && h(GridEditor,   { pending, grid, onChange: setGrid }),
+          tab === 'grid'    && h(GridEditor,   { pending, grid, onChange: setGrid, warpedPreview }),
           tab === 'clusters'&& h(ClusterGallery, {
-            pending, labels, palette, onLabelChange,
+            pending, labels, palette, onLabelChange, warpedPreview,
             onSplit: (cid, n) => {
               setSplits(s => Object.assign({}, s, { [cid]: n }));
               logCorrection('cluster-split', { clusterId: cid, into: n });
@@ -519,7 +541,7 @@
   }
 
   // ── Surface 2: grid handles ────────────────────────────────────────────
-  function GridEditor({ pending, grid, onChange }) {
+  function GridEditor({ pending, grid, onChange, warpedPreview }) {
     const g = grid || pending.grid || { cellPitch: 20, originRow: 0, originCol: 0, rows: 50, cols: 50 };
     // Show the warped preview with the current grid overlaid so the user
     // can see exactly which lines need nudging. Pitch nudges live in
@@ -534,7 +556,7 @@
     return h('div', { className: 'rc-grid-editor' },
       h('p', { className: 'rc-help' },
         'Each cell of the grid corresponds to one stitch. The detected grid is shown over the chart below — if the lines drift away from the squares as you scan across, nudge the cell size up or down. If everything is shifted by half a cell, nudge the origin.'),
-      h(GridOverlayPreview, { pending, grid: g }),
+      h(GridOverlayPreview, { pending, grid: g, warpedPreview }),
       h('div', { className: 'rc-grid-summary' },
         h('span', null, 'Detected: '),
         h('strong', null, detectedRows + ' rows \u00d7 ' + detectedCols + ' columns'),
@@ -599,11 +621,12 @@
   // values are in pending-working-image pixels; we scale them to the
   // canvas size for display so the editor stays responsive even on phone
   // photos that were warped to a 1024+ px working image.
-  function GridOverlayPreview({ pending, grid }) {
+  function GridOverlayPreview({ pending, grid, warpedPreview }) {
     const ref = useRef(null);
+    const img = warpedPreview || pending.previewImage;
     useEffect(() => {
       const cv = ref.current;
-      if (!cv || !pending.previewImage) return;
+      if (!cv || !img) return;
       const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
       const W = CANVAS_W, H = CANVAS_H;
       cv.width = W * dpr; cv.height = H * dpr;
@@ -611,7 +634,7 @@
       const ctx = cv.getContext('2d');
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, W, H);
-      ctx.drawImage(pending.previewImage, 0, 0, W, H);
+      ctx.drawImage(img, 0, 0, W, H);
       // Scale grid pixels (working-image space) → preview canvas (CANVAS_W×CANVAS_H).
       const workingW = pending.workingW || W;
       const workingH = pending.workingH || H;
@@ -641,16 +664,17 @@
         ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(W, y + 0.5); ctx.stroke();
       }
       ctx.restore();
-    }, [pending.previewImage, pending.workingW, pending.workingH, grid.cellPitch, grid.originRow, grid.originCol]);
+    }, [img, pending.workingW, pending.workingH, grid.cellPitch, grid.originRow, grid.originCol]);
     return h('div', { className: 'rc-grid-overlay-pane' },
       h('canvas', { ref, className: 'rc-grid-overlay-canvas' }),
     );
   }
 
   // ── Surface 3: cluster gallery ─────────────────────────────────────────
-  function ClusterGallery({ pending, labels, palette, onLabelChange, onSplit, onMerge }) {
+  function ClusterGallery({ pending, labels, palette, onLabelChange, onSplit, onMerge, warpedPreview }) {
     const medoids = pending.medoidImages || [];
     const clusterColors = pending.clusterColors || [];
+    const overlayImage = warpedPreview || pending.previewImage;
     // Track which cluster the user is currently inspecting on the chart
     // overlay. Hovering a card sets `previewCid`; clicking the eye icon
     // pins it so they can still type/click DMC chips without losing the
@@ -661,11 +685,11 @@
     const clusterIds = pending.cellClusterIds || [];
     const grows = (pending.grid && pending.grid.rows) || 0;
     const gcols = (pending.grid && pending.grid.cols) || 0;
-    const showOverlay = activeCid != null && pending.previewImage && grows > 0 && gcols > 0 && clusterIds.length === grows * gcols;
+    const showOverlay = activeCid != null && overlayImage && grows > 0 && gcols > 0 && clusterIds.length === grows * gcols;
     return h('div', { className: 'rc-cluster-gallery' },
       h('p', { className: 'rc-help' }, `${medoids.length} unique symbols detected. Hover a card to see where it appears on the chart; click the highlight button to keep it visible while you type a DMC code or merge duplicates.`),
       showOverlay && h(ClusterOverlayPreview, {
-        previewImage: pending.previewImage,
+        previewImage: overlayImage,
         rows: grows, cols: gcols,
         clusterIds, activeCid,
         clusterColor: clusterColors[activeCid] || (labels[activeCid] && labels[activeCid].rgb) || null,
