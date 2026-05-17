@@ -263,7 +263,12 @@
 
     function onPointerDown(ev) {
       const rect = canvasRef.current.getBoundingClientRect();
-      const px = ev.clientX - rect.left, py = ev.clientY - rect.top;
+      // T4#16: corners live in CANVAS_W×CANVAS_H logical space, but the
+      // element may be rendered at a different CSS size. Normalise the
+      // pointer position through rect.width/height so hit-testing works
+      // at any zoom level or DPR.
+      const sx = CANVAS_W / rect.width, sy = CANVAS_H / rect.height;
+      const px = (ev.clientX - rect.left) * sx, py = (ev.clientY - rect.top) * sy;
       let best = -1, bd = 20;
       for (let i = 0; i < 4; i++) {
         const d = Math.hypot(px - c[i].x, py - c[i].y);
@@ -275,7 +280,8 @@
     function onPointerMove(ev) {
       if (drag < 0) return;
       const rect = canvasRef.current.getBoundingClientRect();
-      const px = ev.clientX - rect.left, py = ev.clientY - rect.top;
+      const sx = CANVAS_W / rect.width, sy = CANVAS_H / rect.height;
+      const px = (ev.clientX - rect.left) * sx, py = (ev.clientY - rect.top) * sy;
       const next = c.slice();
       next[drag] = { x: px, y: py };
       onChange(next);
@@ -362,19 +368,52 @@
     const w = pending.workingW || 800, ht = pending.workingH || 600;
     return [{ x: 0, y: 0 }, { x: w - 1, y: 0 }, { x: w - 1, y: ht - 1 }, { x: 0, y: ht - 1 }];
   }
+  // T4#16: render at device-pixel-ratio for crisp handles on high-DPI
+  // (Retina, 4K) displays. The canvas backing store is CANVAS_W*dpr ×
+  // CANVAS_H*dpr; we set its CSS dimensions to CANVAS_W × CANVAS_H (and
+  // the React style: { maxWidth: '100%', height: 'auto' } keeps the
+  // element responsive) and pre-scale the context so callers can keep
+  // drawing in logical CANVAS_W×CANVAS_H coordinates.
   function drawCornerPreview(canvas, image, corners, focused) {
+    const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    const wantW = CANVAS_W * dpr, wantH = CANVAS_H * dpr;
+    if (canvas.width !== wantW || canvas.height !== wantH) {
+      canvas.width = wantW; canvas.height = wantH;
+      // Lock the display size: aspect-ratio + max-width keeps the canvas
+      // responsive (shrinks with the parent flex column) while the
+      // backing bitmap stays at dpr resolution for crisp rendering.
+      canvas.style.aspectRatio = CANVAS_W + ' / ' + CANVAS_H;
+      canvas.style.maxWidth = CANVAS_W + 'px';
+      canvas.style.height = 'auto';
+    }
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (image && image.width) ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    if (image && image.width) ctx.drawImage(image, 0, 0, CANVAS_W, CANVAS_H);
     ctx.strokeStyle = '#0d9488'; ctx.lineWidth = 2;
     ctx.beginPath();
     corners.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
     ctx.closePath(); ctx.stroke();
+    // T4#17: per-handle TL/TR/BR/BL labels so the user can tell which
+    // corner is which (especially after dragging two corners across).
+    const LABELS = ['TL', 'TR', 'BR', 'BL'];
     for (let i = 0; i < corners.length; i++) {
       const p = corners[i];
       ctx.fillStyle = i === focused ? '#ea580c' : '#0d9488';
       ctx.beginPath(); ctx.arc(p.x, p.y, i === focused ? 10 : 8, 0, Math.PI * 2); ctx.fill();
+      // Label offset: push outward from the canvas centre so the badge
+      // doesn't overlap the chart.
+      const cx = CANVAS_W / 2, cy = CANVAS_H / 2;
+      const ox = p.x < cx ? -22 : 14;
+      const oy = p.y < cy ? -10 : 22;
+      ctx.font = 'bold 12px system-ui, sans-serif';
+      const text = LABELS[i] || String(i);
+      const tw = ctx.measureText(text).width;
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+      ctx.fillRect(p.x + ox - 4, p.y + oy - 12, tw + 8, 16);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(text, p.x + ox, p.y + oy);
     }
   }
 
