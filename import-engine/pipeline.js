@@ -220,6 +220,12 @@
       return {
         ok: errs.length === 0,
         project: built.project,
+        // Expose the strategy's raw extraction so callers (wireApp.js) can
+        // detect chart-mode imports via raw._correction and mount the
+        // RasterChartCorrectionUI. Without this the chart 4-corner / grid
+        // / cluster surface is unreachable and the user falls through to
+        // the generic review modal with a misleading warning.
+        raw: raw,
         publisher: (resolved.meta && resolved.meta.publisher) || (raw.meta && raw.meta.publisher),
         confidence: { overall, perCell, perPaletteEntry: perPalette },
         warnings,

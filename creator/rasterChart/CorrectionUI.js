@@ -115,8 +115,24 @@
               key: t.id, type: 'button',
               className: 'tb-btn' + (tab === t.id ? ' tb-btn--on' : ''),
               onClick: () => setTab(t.id),
-            }, t.label)
+            }, t.label + (t.id === 'corners' && pending.distortion && pending.distortion.distorted ? ' \u2022' : ''))
           )),
+        ),
+        // Distortion banner visible from any tab so the user always knows
+        // why the import looks wrong and how to fix it.
+        pending.distortion && pending.distortion.distorted && tab !== 'corners' && h('div', {
+          className: 'rc-correction-global-banner',
+          role: 'alert',
+          style: {
+            margin: '0 0 10px', padding: '8px 12px', borderRadius: 6,
+            border: '1px solid var(--accent, #d97706)',
+            background: 'var(--surface-warning, #fef3c7)',
+            color: 'var(--text-primary, #1f2937)',
+            display: 'flex', alignItems: 'center', gap: 12,
+          },
+        },
+          h('span', null, 'This chart looks distorted (pitch ratio ' + ((pending.distortion.ratio || 1).toFixed(2)) + '). Use the Corners tab to mark the chart edges.'),
+          h('button', { type: 'button', className: 'tb-btn', onClick: () => setTab('corners') }, 'Open Corners tab'),
         ),
         h('div', { className: 'rc-correction-body' },
           tab === 'corners' && h(CornerEditor, { pending, corners, onChange: setCorners }),
@@ -160,14 +176,36 @@
   function CornerEditor({ pending, corners, onChange }) {
     const canvasRef = useRef(null);
     const [drag, setDrag] = useState(-1);
+    const [focused, setFocused] = useState(0);
     const distortion = pending.distortion || null;
 
     const c = corners || pending.autoCorners || defaultCorners(pending);
     useEffect(() => {
       const cv = canvasRef.current;
       if (!cv || !pending.previewImage) return;
-      drawCornerPreview(cv, pending.previewImage, c);
-    }, [pending.previewImage, c]);
+      drawCornerPreview(cv, pending.previewImage, c, focused);
+    }, [pending.previewImage, c, focused]);
+
+    // Keyboard nudge: 1px per Arrow, 10px with Shift. Wraps focus with Tab.
+    useEffect(() => {
+      function onKey(ev) {
+        if (ev.target && /input|textarea|select/i.test(ev.target.tagName || '')) return;
+        const step = ev.shiftKey ? 10 : 1;
+        let dx = 0, dy = 0;
+        if (ev.key === 'ArrowLeft') dx = -step;
+        else if (ev.key === 'ArrowRight') dx = step;
+        else if (ev.key === 'ArrowUp') dy = -step;
+        else if (ev.key === 'ArrowDown') dy = step;
+        else if (ev.key === 'Tab') { ev.preventDefault(); setFocused((focused + (ev.shiftKey ? 3 : 1)) % 4); return; }
+        else return;
+        ev.preventDefault();
+        const next = c.slice();
+        next[focused] = { x: next[focused].x + dx, y: next[focused].y + dy };
+        onChange(next);
+      }
+      document.addEventListener('keydown', onKey);
+      return () => document.removeEventListener('keydown', onKey);
+    }, [c, focused, onChange]);
 
     function onPointerDown(ev) {
       const rect = canvasRef.current.getBoundingClientRect();
@@ -178,6 +216,7 @@
         if (d < bd) { bd = d; best = i; }
       }
       setDrag(best);
+      if (best >= 0) setFocused(best);
     }
     function onPointerMove(ev) {
       if (drag < 0) return;
@@ -188,6 +227,9 @@
       onChange(next);
     }
     function onPointerUp() { setDrag(-1); }
+    function resetCorners() {
+      onChange(pending.autoCorners ? pending.autoCorners.slice() : defaultCorners(pending));
+    }
 
     return h('div', { className: 'rc-corner-editor' },
       distortion && distortion.distorted && h('div', {
@@ -207,9 +249,14 @@
           'For best results, please use the four-corner tool below to mark the chart edges, or retake the photo with the book pressed flat. ' +
           'Detected pitch ratio: ' + (distortion.ratio ? distortion.ratio.toFixed(2) : '?') + ' (anything above 1.15 looks curved).'),
       ),
-      h('p', null, 'Drag the four corners to match the chart\'s outer border. Use this if auto-detection picked the wrong region.'),
+      h('p', null, 'Drag the four corners to match the chart\'s outer border. Click a handle and use the arrow keys (Shift = 10px) for precise nudges.'),
+      h('div', { style: { display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' } },
+        h('button', { type: 'button', className: 'tb-btn', onClick: resetCorners }, 'Reset to auto-detected'),
+        h('span', { style: { fontSize: 12, opacity: 0.75 } },
+          'Focused corner: ' + (['top-left','top-right','bottom-right','bottom-left'][focused] || focused)),
+      ),
       h('canvas', {
-        ref: canvasRef, width: 800, height: 600,
+        ref: canvasRef, width: 800, height: 600, tabIndex: 0,
         style: { width: '100%', height: 'auto', cursor: drag >= 0 ? 'grabbing' : 'crosshair', border: '1px solid var(--border)' },
         onMouseDown: onPointerDown, onMouseMove: onPointerMove, onMouseUp: onPointerUp, onMouseLeave: onPointerUp,
       }),
@@ -220,7 +267,7 @@
     const w = pending.workingW || 800, ht = pending.workingH || 600;
     return [{ x: 0, y: 0 }, { x: w - 1, y: 0 }, { x: w - 1, y: ht - 1 }, { x: 0, y: ht - 1 }];
   }
-  function drawCornerPreview(canvas, image, corners) {
+  function drawCornerPreview(canvas, image, corners, focused) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -229,8 +276,11 @@
     ctx.beginPath();
     corners.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
     ctx.closePath(); ctx.stroke();
-    ctx.fillStyle = '#0d9488';
-    for (const p of corners) { ctx.beginPath(); ctx.arc(p.x, p.y, 8, 0, Math.PI * 2); ctx.fill(); }
+    for (let i = 0; i < corners.length; i++) {
+      const p = corners[i];
+      ctx.fillStyle = i === focused ? '#ea580c' : '#0d9488';
+      ctx.beginPath(); ctx.arc(p.x, p.y, i === focused ? 10 : 8, 0, Math.PI * 2); ctx.fill();
+    }
   }
 
   // ── Surface 2: grid handles ────────────────────────────────────────────
@@ -354,14 +404,24 @@
     const resolve = (cid) => { while (remap[cid] != null) cid = remap[cid]; return cid; };
 
     if (out.cells) {
+      const surviving = [];
       for (const c of out.cells) {
         // The strategy stored cluster id encoded in the placeholder code "C<n>".
         const m = /^C(\d+)$/.exec(c.code);
-        if (!m) continue;
+        if (!m) { surviving.push(c); continue; }
         const cid = resolve(parseInt(m[1], 10));
         const lbl = edits.labels[cid];
-        if (lbl && lbl.code) { c.code = lbl.code; c.color = lbl.rgb || c.color; }
+        if (lbl && lbl.code) {
+          c.code = lbl.code;
+          c.color = lbl.rgb || c.color;
+          surviving.push(c);
+        }
+        // Drop unlabelled placeholder cells rather than emit invalid "C<n>"
+        // codes downstream (materialise would treat them as DMC ids that
+        // don't exist, polluting the palette). The Symbols tab is the
+        // user's chance to label them; anything they skip becomes empty.
       }
+      out.cells = surviving;
     }
     out._corrections = edits;
     return out;

@@ -476,6 +476,12 @@
       return {
         ok: errs.length === 0,
         project: built.project,
+        // Expose the strategy's raw extraction so callers (wireApp.js) can
+        // detect chart-mode imports via raw._correction and mount the
+        // RasterChartCorrectionUI. Without this the chart 4-corner / grid
+        // / cluster surface is unreachable and the user falls through to
+        // the generic review modal with a misleading warning.
+        raw: raw,
         publisher: (resolved.meta && resolved.meta.publisher) || (raw.meta && raw.meta.publisher),
         confidence: { overall, perCell, perPaletteEntry: perPalette },
         warnings,
@@ -2884,7 +2890,17 @@
           flags: {
             warnings: [
               ...(clu.assignments.includes(-1)
-                ? [{ code: 'CLUSTER_NOISE', message: 'Some cells could not be clustered confidently', severity: 'warning' }]
+                ? (function () {
+                    const noise = clu.assignments.filter(a => a < 0).length;
+                    const total = clu.assignments.length || 1;
+                    const pct = Math.round((noise / total) * 100);
+                    return [{
+                      code: 'CLUSTER_NOISE',
+                      message: noise + ' of ' + total + ' cells (' + pct + '%) couldn\u2019t be grouped confidently. Review the Symbols tab \u2014 you may need to split or merge clusters, or relabel low-confidence cells.',
+                      severity: 'warning',
+                      detail: { noiseCount: noise, totalCells: total, percent: pct },
+                    }];
+                  }())
                 : []),
               ...(grid && grid.distortion && grid.distortion.distorted
                 ? [{
