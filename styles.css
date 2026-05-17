@@ -4741,6 +4741,10 @@ html.pref-dark a { color: var(--accent); }
   width: min(720px, 92vw); max-height: 92vh;
   display: flex; flex-direction: column; font-family: inherit;
 }
+/* Intent screen: narrower, centred, no progress header */
+.iw-wizard--intro { width: min(480px, 92vw); }
+.iw-step-intro { text-align: left; }
+.iw-intro-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; }
 .iw-header { padding: 18px 20px 0; border-bottom: 1px solid var(--border); }
 .iw-progress {
   list-style: none; margin: 0 0 12px; padding: 0;

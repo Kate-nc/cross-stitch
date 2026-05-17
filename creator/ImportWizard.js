@@ -403,6 +403,55 @@
                     : wizard.step === 4 ? renderStep4
                     : renderStep5;
 
+    // ── Step 0: intent screen (Option A/B UX fix) ─────────────────────────
+    // Shown on every fresh mount (introSeen === false). Explains what the
+    // wizard is for and gives users who accidentally ended up here a clear
+    // escape route back to the normal "Create from image" flow.
+    if (!wizard.introSeen) {
+      return h("div", {
+        className: "iw-wizard-root",
+        role: "dialog",
+        "aria-modal": "true",
+        "aria-labelledby": "iw-intro-heading"
+      },
+        h("div", { className: "iw-scrim", "aria-hidden": "true" }),
+        h("div", { className: "iw-wizard iw-wizard--intro" },
+          h("div", { className: "iw-body" },
+            h("div", { className: "iw-step iw-step-intro" },
+              h("h2", {
+                id: "iw-intro-heading",
+                ref: headingRef,
+                tabIndex: -1,
+                className: "iw-step-title"
+              }, "Import a printed chart"),
+              h("p", { className: "iw-step-desc" },
+                "This wizard digitises a ", h("strong", null, "published cross-stitch chart"),
+                " \u2014 a page from a book, a magazine, or a screenshot from Pattern Keeper or WCS.",
+                " It detects the grid, reads the legend, and matches thread codes automatically."
+              ),
+              h("p", { className: "iw-step-desc" },
+                "If you want to ", h("strong", null, "create a new pattern from a photo or artwork"),
+                ", close this wizard and use ", h("strong", null, "Create from image"),
+                " in the sidebar instead."
+              ),
+              h("div", { className: "iw-intro-actions" },
+                h("button", {
+                  type: "button",
+                  className: "iw-btn iw-btn--primary",
+                  onClick: function () { wizard.setIntroSeen(true); }
+                }, "Continue \u2014 import a chart"),
+                h("button", {
+                  type: "button",
+                  className: "iw-btn iw-btn--ghost",
+                  onClick: onCancel
+                }, "Cancel \u2014 go to Create from image")
+              )
+            )
+          )
+        )
+      );
+    }
+
     return h("div", {
       className: "iw-wizard-root",
       role: "dialog",
@@ -413,7 +462,7 @@
       h("div", { className: "iw-scrim", "aria-hidden": "true", onClick: function () { setDiscardOpen(true); } }),
       h("div", { className: "iw-wizard" },
         h("div", { className: "iw-header" },
-          h("span", { id: "iw-wizard-desc", className: "sr-only" }, "Image import wizard. Five steps to convert an image into a cross-stitch pattern."),
+          h("span", { id: "iw-wizard-desc", className: "sr-only" }, "Chart import wizard. Five steps to digitise a printed cross-stitch chart into a pattern."),
           renderProgress()
         ),
         h("div", { className: "iw-body" }, bodyRender()),

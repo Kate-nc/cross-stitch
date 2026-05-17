@@ -63,6 +63,7 @@
         v: 1, ts: Date.now(),
         step: state.step, crop: state.crop, palette: state.palette,
         size: state.size, settings: state.settings, name: state.name,
+        introSeen: !!state.introSeen,
         imageW: match ? (match.imageW | 0) : 0,
         imageH: match ? (match.imageH | 0) : 0,
         baseName: match ? (match.baseName || "") : ""
@@ -98,6 +99,9 @@
     var fitted = _autoFitSize(image);
     return {
       step: d.step || 1,
+      // introSeen: true when the user has already acknowledged the intent screen
+      // (or when resuming a draft that was already past step 1).
+      introSeen: !!(d.introSeen || (d.step && d.step > 1)),
       crop: d.crop || { rotate: 0, flipH: false, flipV: false, aspect: "free" },
       palette: d.palette || { mode: "dmc", maxColours: 30, allowBlends: true },
       size: d.size || { w: fitted.w, h: fitted.h, lock: true, fabricCt: 14 },
@@ -149,6 +153,7 @@
     function setSize(v)     { setState(function (prev) { var nv = typeof v === "function" ? v(prev.size)     : v; var n = Object.assign({}, prev, { size: nv });     _writeDraft(n, match); return n; }); }
     function setSettings(v) { setState(function (prev) { var nv = typeof v === "function" ? v(prev.settings) : v; var n = Object.assign({}, prev, { settings: nv }); _writeDraft(n, match); return n; }); }
     function setName(v)     { setState(function (prev) { var nv = typeof v === "function" ? v(prev.name)     : v; var n = Object.assign({}, prev, { name: nv });     _writeDraft(n, match); return n; }); }
+    function setIntroSeen(v) { setState(function (prev) { var n = Object.assign({}, prev, { introSeen: !!v }); _writeDraft(n, match); return n; }); }
 
     function reset() {
       _clearDraft();
@@ -183,6 +188,7 @@
 
     return {
       step: state.step,
+      introSeen: state.introSeen,
       image: image,
       crop: state.crop,
       palette: state.palette,
@@ -194,6 +200,7 @@
       setSize: setSize,
       setSettings: setSettings,
       setName: setName,
+      setIntroSeen: setIntroSeen,
       next: next,
       back: back,
       goto: goto_,
@@ -625,6 +632,55 @@
                     : wizard.step === 4 ? renderStep4
                     : renderStep5;
 
+    // ── Step 0: intent screen (Option A/B UX fix) ─────────────────────────
+    // Shown on every fresh mount (introSeen === false). Explains what the
+    // wizard is for and gives users who accidentally ended up here a clear
+    // escape route back to the normal "Create from image" flow.
+    if (!wizard.introSeen) {
+      return h("div", {
+        className: "iw-wizard-root",
+        role: "dialog",
+        "aria-modal": "true",
+        "aria-labelledby": "iw-intro-heading"
+      },
+        h("div", { className: "iw-scrim", "aria-hidden": "true" }),
+        h("div", { className: "iw-wizard iw-wizard--intro" },
+          h("div", { className: "iw-body" },
+            h("div", { className: "iw-step iw-step-intro" },
+              h("h2", {
+                id: "iw-intro-heading",
+                ref: headingRef,
+                tabIndex: -1,
+                className: "iw-step-title"
+              }, "Import a printed chart"),
+              h("p", { className: "iw-step-desc" },
+                "This wizard digitises a ", h("strong", null, "published cross-stitch chart"),
+                " \u2014 a page from a book, a magazine, or a screenshot from Pattern Keeper or WCS.",
+                " It detects the grid, reads the legend, and matches thread codes automatically."
+              ),
+              h("p", { className: "iw-step-desc" },
+                "If you want to ", h("strong", null, "create a new pattern from a photo or artwork"),
+                ", close this wizard and use ", h("strong", null, "Create from image"),
+                " in the sidebar instead."
+              ),
+              h("div", { className: "iw-intro-actions" },
+                h("button", {
+                  type: "button",
+                  className: "iw-btn iw-btn--primary",
+                  onClick: function () { wizard.setIntroSeen(true); }
+                }, "Continue \u2014 import a chart"),
+                h("button", {
+                  type: "button",
+                  className: "iw-btn iw-btn--ghost",
+                  onClick: onCancel
+                }, "Cancel \u2014 go to Create from image")
+              )
+            )
+          )
+        )
+      );
+    }
+
     return h("div", {
       className: "iw-wizard-root",
       role: "dialog",
@@ -635,7 +691,7 @@
       h("div", { className: "iw-scrim", "aria-hidden": "true", onClick: function () { setDiscardOpen(true); } }),
       h("div", { className: "iw-wizard" },
         h("div", { className: "iw-header" },
-          h("span", { id: "iw-wizard-desc", className: "sr-only" }, "Image import wizard. Five steps to convert an image into a cross-stitch pattern."),
+          h("span", { id: "iw-wizard-desc", className: "sr-only" }, "Chart import wizard. Five steps to digitise a printed cross-stitch chart into a pattern."),
           renderProgress()
         ),
         h("div", { className: "iw-body" }, bodyRender()),

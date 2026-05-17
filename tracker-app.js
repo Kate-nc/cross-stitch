@@ -6849,7 +6849,8 @@ return(
     return <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="import-pattern-title" onClick={()=>{setImportDialog(null);setImportImage(null);}}>
     <div className="modal-content" style={{maxWidth:600}} onClick={e=>e.stopPropagation()}>
       <button className="modal-close" onClick={()=>{setImportDialog(null);setImportImage(null);}} aria-label="Close">{Icons.x?Icons.x():null}</button>
-      <h3 id="import-pattern-title" style={{marginTop:0,marginBottom:15}}>Import Image Pattern</h3>
+      <h3 id="import-pattern-title" style={{marginTop:0,marginBottom:6}}>Create pattern from photo or artwork</h3>
+      <p style={{margin:'0 0 14px',fontSize:'var(--text-sm)',color:'var(--text-secondary)'}}>Turn any photo, drawing, or artwork into a stitchable cross-stitch pattern. If you have a <strong>printed chart</strong> to digitise, enable the Import Chart Wizard in Settings &rarr; Experimental instead.</p>
       <div style={{display:"flex", flexDirection:"column", gap:'var(--s-3)', marginBottom:'var(--s-4)'}}>
         <div style={{display:"flex", flexDirection:"column", gap:'var(--s-1)'}}>
           <label style={{fontSize:'var(--text-sm)', fontWeight:600, color:"var(--text-secondary)"}}>Project Name</label>
