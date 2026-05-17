@@ -302,13 +302,38 @@
         h('span', { style: { fontSize: 12, opacity: 0.75 } },
           'Focused corner: ' + (['top-left','top-right','bottom-right','bottom-left'][focused] || focused)),
       ),
+      h('div', { style: { display: 'flex', gap: 12, flexWrap: 'wrap' } },
+        h('canvas', {
+          ref: canvasRef, width: CANVAS_W, height: CANVAS_H, tabIndex: 0,
+          style: { flex: '1 1 480px', maxWidth: '100%', height: 'auto', cursor: drag >= 0 ? 'grabbing' : 'crosshair', border: '1px solid var(--border)', opacity: recomputing ? 0.6 : 1 },
+          onMouseDown: recomputing ? null : onPointerDown,
+          onMouseMove: recomputing ? null : onPointerMove,
+          onMouseUp: onPointerUp, onMouseLeave: onPointerUp,
+        }),
+        h(WarpedPreviewPane, { previewImage: pending.previewImage, corners: c }),
+      ),
+    );
+  }
+
+  // Tiny live preview of what the chart will look like after the warp.
+  // Cheap CPU homography on a downsampled canvas. Updates whenever the
+  // user drags or nudges a corner so they can see when the perspective
+  // actually looks square.
+  function WarpedPreviewPane({ previewImage, corners }) {
+    const ref = useRef(null);
+    useEffect(() => {
+      const cv = ref.current;
+      if (!cv || !previewImage || !corners || corners.length !== 4) return;
+      drawWarpedPreview(cv, previewImage, corners);
+    }, [previewImage, corners]);
+    return h('div', { style: { flex: '0 0 240px', minWidth: 200 } },
+      h('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4, opacity: 0.8 } }, 'Warped preview'),
       h('canvas', {
-        ref: canvasRef, width: CANVAS_W, height: CANVAS_H, tabIndex: 0,
-        style: { width: '100%', height: 'auto', cursor: drag >= 0 ? 'grabbing' : 'crosshair', border: '1px solid var(--border)', opacity: recomputing ? 0.6 : 1 },
-        onMouseDown: recomputing ? null : onPointerDown,
-        onMouseMove: recomputing ? null : onPointerMove,
-        onMouseUp: onPointerUp, onMouseLeave: onPointerUp,
+        ref: ref, width: 240, height: 180,
+        style: { width: '100%', height: 'auto', border: '1px solid var(--border)', background: '#0f172a' },
       }),
+      h('p', { style: { fontSize: 11, opacity: 0.7, marginTop: 4 } },
+        'Live preview of how the corners will warp the chart. Click \u201cRecompute extraction\u201d when this looks square.'),
     );
   }
 
@@ -339,6 +364,99 @@
       ctx.fillStyle = i === focused ? '#ea580c' : '#0d9488';
       ctx.beginPath(); ctx.arc(p.x, p.y, i === focused ? 10 : 8, 0, Math.PI * 2); ctx.fill();
     }
+  }
+
+  // ── Warped-preview helper ─────────────────────────────────────────────
+  //
+  // Solves the 3x3 homography H mapping the unit rectangle [0,0]→[1,0]→
+  // [1,1]→[0,1] to the four user-placed corners (in the *source* preview
+  // image coords scaled by CANVAS_W/H). Then for each output pixel we
+  // compute the source (x,y) via H · (u, v, 1) and sample nearest-neighbour.
+  // Renders at 240×180 so the per-frame cost is ~43k samples — well under
+  // 16 ms even on mobile.
+  function drawWarpedPreview(canvas, image, cornersCanvas) {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Source coordinates: corners are in CANVAS_W×CANVAS_H space. Convert
+    // to the natural source-image space (image.width × image.height) so
+    // sampling uses the freshest available pixels.
+    const sx = image.width / CANVAS_W, sy = image.height / CANVAS_H;
+    const src = cornersCanvas.map(p => ({ x: p.x * sx, y: p.y * sy }));
+    // Off-screen canvas to read source pixel data once.
+    const off = document.createElement('canvas');
+    off.width = image.width; off.height = image.height;
+    const offCtx = off.getContext('2d');
+    offCtx.drawImage(image, 0, 0);
+    let srcData;
+    try { srcData = offCtx.getImageData(0, 0, image.width, image.height); }
+    catch (_) { return; /* CORS-tainted; skip */ }
+    const sw = image.width, sh = image.height;
+    const out = ctx.createImageData(canvas.width, canvas.height);
+    const H = solveHomographyUnitToQuad(src);
+    if (!H) return;
+    const ow = canvas.width, oh = canvas.height;
+    for (let y = 0; y < oh; y++) {
+      const v = y / oh;
+      for (let x = 0; x < ow; x++) {
+        const u = x / ow;
+        const w = H[6] * u + H[7] * v + H[8];
+        if (w === 0) continue;
+        const px = (H[0] * u + H[1] * v + H[2]) / w;
+        const py = (H[3] * u + H[4] * v + H[5]) / w;
+        const ix = px | 0, iy = py | 0;
+        if (ix < 0 || iy < 0 || ix >= sw || iy >= sh) continue;
+        const si = (iy * sw + ix) * 4;
+        const di = (y * ow + x) * 4;
+        out.data[di]     = srcData.data[si];
+        out.data[di + 1] = srcData.data[si + 1];
+        out.data[di + 2] = srcData.data[si + 2];
+        out.data[di + 3] = 255;
+      }
+    }
+    ctx.putImageData(out, 0, 0);
+  }
+
+  // Solve H so that:  unit-rect corners (0,0),(1,0),(1,1),(0,1) map to
+  // the four supplied source-image corners. Standard 8-DoF perspective
+  // solve via Gauss elimination on the 8×8 system. Returns a 9-element
+  // row-major array [h00..h22] with h22 = 1, or null if singular.
+  function solveHomographyUnitToQuad(q) {
+    // Unit-square source points u,v ∈ {0,1}
+    const U = [[0,0],[1,0],[1,1],[0,1]];
+    const A = [], b = [];
+    for (let i = 0; i < 4; i++) {
+      const [u, v] = U[i];
+      const X = q[i].x, Y = q[i].y;
+      A.push([u, v, 1, 0, 0, 0, -u * X, -v * X]); b.push(X);
+      A.push([0, 0, 0, u, v, 1, -u * Y, -v * Y]); b.push(Y);
+    }
+    const x = gaussSolve(A, b);
+    if (!x) return null;
+    return [x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], 1];
+  }
+
+  function gaussSolve(A, b) {
+    const n = b.length;
+    const M = A.map((row, i) => row.concat([b[i]]));
+    for (let col = 0; col < n; col++) {
+      // Partial pivot
+      let piv = col;
+      for (let r = col + 1; r < n; r++) if (Math.abs(M[r][col]) > Math.abs(M[piv][col])) piv = r;
+      if (Math.abs(M[piv][col]) < 1e-10) return null;
+      if (piv !== col) { const t = M[piv]; M[piv] = M[col]; M[col] = t; }
+      for (let r = col + 1; r < n; r++) {
+        const f = M[r][col] / M[col][col];
+        for (let c = col; c <= n; c++) M[r][c] -= f * M[col][c];
+      }
+    }
+    const x = new Array(n);
+    for (let r = n - 1; r >= 0; r--) {
+      let s = M[r][n];
+      for (let c = r + 1; c < n; c++) s -= M[r][c] * x[c];
+      x[r] = s / M[r][r];
+    }
+    return x;
   }
 
   // ── Surface 2: grid handles ────────────────────────────────────────────
