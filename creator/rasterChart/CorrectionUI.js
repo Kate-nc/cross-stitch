@@ -115,13 +115,25 @@
       h('div', { className: 'modal-content rc-correction-content', style: { maxWidth: 1100, width: '95vw' } },
         h('header', { className: 'rc-correction-header' },
           h('h2', null, 'Review chart import'),
-          h('div', { className: 'rc-tabs' }, TABS.map(t =>
-            h('button', {
+          h('div', { className: 'rc-tabs' }, TABS.map(t => {
+            const showBadge = t.id === 'corners' && pending.distortion && pending.distortion.distorted;
+            return h('button', {
               key: t.id, type: 'button',
               className: 'tb-btn' + (tab === t.id ? ' tb-btn--on' : ''),
               onClick: () => setTab(t.id),
-            }, t.label + (t.id === 'corners' && pending.distortion && pending.distortion.distorted ? ' \u2022' : ''))
-          )),
+              title: showBadge ? 'This chart looks distorted — adjust the corners.' : undefined,
+            },
+              h('span', null, t.label),
+              showBadge && h('span', {
+                'aria-label': 'distortion detected',
+                style: {
+                  display: 'inline-block', marginLeft: 6, minWidth: 8, height: 8,
+                  borderRadius: '50%', background: 'var(--accent, #d97706)',
+                  verticalAlign: 'middle',
+                },
+              }),
+            );
+          })),
         ),
         // Distortion banner visible from any tab so the user always knows
         // why the import looks wrong and how to fix it.
