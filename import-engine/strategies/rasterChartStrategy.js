@@ -91,7 +91,12 @@
         // Re-decode rgba at the (possibly downsized) working dimensions for warp re-use.
         const workingRgba = imageBitmapToRGBA(imageBitmap, workingW, workingH);
 
+        // Track the detected/manual corners so the correction UI can show
+        // them in the 4-corner editor (and so the user can nudge them).
+        let autoCorners = null;
+
         if (opts.image && opts.image.manualCorners) {
+          autoCorners = opts.image.manualCorners.slice();
           const warped = await rpc(worker, {
             type: 'warp', rgba: workingRgba, w: workingW, h: workingH,
             corners: opts.image.manualCorners, opts: (opts.image.tunings) || {},
@@ -103,6 +108,7 @@
             type: 'detectCorners', binary: workingBinary, w: workingW, h: workingH, opts: {},
           });
           if (corners && corners.corners) {
+            autoCorners = corners.corners.slice();
             const warped = await rpc(worker, {
               type: 'warp', rgba: workingRgba, w: workingW, h: workingH,
               corners: corners.corners, opts: (opts.image.tunings) || {},
@@ -218,6 +224,13 @@
         const colourLabels = colourResult ? colourResult.clusterLabels : null;
         const labels = (opts.image && opts.image.labelledClusters) || {};
         const cells = [];
+        // Parallel placeholder copy with every cell coded as "C<clusterId>".
+        // RasterChartCorrectionUI.applyCorrections() rewrites these codes
+        // when the user commits cluster labels in the Symbols / Legend tabs,
+        // then we re-materialise the corrected RawExtraction into a project.
+        // The top-level `cells` (with auto-matched DMC codes) is what the
+        // "skip review" path uses if a caller opts out of the correction UI.
+        const placeholderCells = [];
         for (let r = 0; r < cellRes.rows; r++) {
           for (let c = 0; c < cellRes.cols; c++) {
             const idx = r * cellRes.cols + c;
@@ -227,16 +240,65 @@
             const lbl = labels[cid]
               || (colourLabels && colourLabels[cid])
               || { code: 'C' + (cid >= 0 ? cid : 'noise'), rgb: [0, 0, 0] };
+            const conf = cid >= 0 ? (colourLabels ? 0.85 : 0.9) : 0.2;
             cells.push({
               col: c,
               row: r,
               code: lbl.code,
               color: lbl.rgb,
               type: 'solid',
-              matchConfidence: cid >= 0 ? (colourLabels ? 0.85 : 0.9) : 0.2,
+              matchConfidence: conf,
+            });
+            placeholderCells.push({
+              col: c,
+              row: r,
+              code: 'C' + (cid >= 0 ? cid : 'noise'),
+              color: lbl.rgb,
+              type: 'solid',
+              matchConfidence: conf,
             });
           }
         }
+
+        // Build initial label state for the correction UI from colour-mode
+        // auto-matches. The user can override any of these in the gallery.
+        const initialLabels = {};
+        if (colourLabels) {
+          for (const k of Object.keys(colourLabels)) initialLabels[k] = colourLabels[k];
+        }
+        for (const k of Object.keys(labels)) initialLabels[k] = labels[k];
+
+        // Render a JPEG data URL of the original image so the corner editor
+        // canvas + cluster gallery have a backdrop image. JPEG keeps the
+        // payload small (typical 30-100 KB even for phone photos).
+        let previewImageDataUrl = null;
+        try { previewImageDataUrl = imageBitmapToDataUrl(imageBitmap, 800, 600); } catch (_) {}
+
+        // Build per-cluster swatch data URLs from auto-matched RGB values.
+        // In B&W mode (no colourLabels), the swatch is black so the gallery
+        // still shows a card per cluster (the user labels by code).
+        const medoidImages = [];
+        try {
+          const allClusters = new Set();
+          for (const a of clu.assignments) if (a >= 0) allClusters.add(a);
+          const sorted = Array.from(allClusters).sort((a, b) => a - b);
+          for (const cid of sorted) {
+            const rgb = (initialLabels[cid] && initialLabels[cid].rgb) || [40, 40, 40];
+            medoidImages[cid] = rgbSwatchDataUrl(rgb, 48);
+          }
+        } catch (_) {}
+
+        // Legend rows for the LegendMappingPanel — initial matchedCluster
+        // is null until the user maps it (a future enhancement could auto-
+        // match by comparing the OCR'd DMC code to colourLabels per cluster).
+        const legendRows = legend.map(l => ({
+          raw: l.name || l.code || '',
+          code: l.code || '',
+          matchedCluster: null,
+          confidence: l.confidence || 0,
+          source: l.source || '',
+        }));
+
 
         // Record the wall-clock total for sanity-checking aggregate timings.
         if (T && telemetryId) {
@@ -282,10 +344,41 @@
           // Telemetry id so the correction UI can append events and mark
           // acceptance / abandonment.
           telemetryId,
-          // Debug payload for the correction UI
+          // Payload for RasterChartCorrectionUI. wireApp.js mounts the UI
+          // when this block is present on the raw extraction and the user
+          // can edit corners/grid/cluster labels before materialise runs.
           _correction: {
-            grid, clusters: clu, features: feat,
+            // The placeholder-coded extraction is what applyCorrections()
+            // mutates; the corrected version is then re-materialised.
+            extraction: {
+              width: cellRes.cols,
+              height: cellRes.rows,
+              cells: placeholderCells,
+              legend,
+              palette: [],
+              meta: { publisher: 'image-chart', title: (probe.fileName || '').replace(/\.[^.]+$/, '') },
+              flags: {
+                warnings: [],
+                uncertainCells: clu.assignments.filter(a => a < 0).length,
+              },
+            },
+            grid: Object.assign({}, grid, { rows: cellRes.rows, cols: cellRes.cols }),
+            autoCorners,
+            distortion: (grid && grid.distortion) || null,
+            previewImageDataUrl,
             workingW, workingH,
+            initialLabels,
+            medoidImages,
+            legendRows,
+            // Multi-page payload is empty in single-image imports; the
+            // multi-page dropzone surface still mounts but with no thumbs.
+            pages: [],
+            cellDistances: [],
+            cellTopCandidates: [],
+            // Original debug payload kept for compatibility with code that
+            // already reaches into it (telemetry export, debug overlay).
+            clusters: clu,
+            features: feat,
             ocrRaw: ocrResult,
             colourResult: colourResult || null,
           },
@@ -452,6 +545,49 @@
     const cx = oc.getContext('2d');
     cx.drawImage(bm, 0, 0, w, h);
     return new Uint8ClampedArray(cx.getImageData(0, 0, w, h).data);
+  }
+
+  // Render an ImageBitmap to a JPEG data URL for the correction UI's
+  // corner / cluster / review canvases. Uses an OffscreenCanvas when
+  // available (Chromium / Firefox 105+) and falls back to a regular
+  // canvas. Returns null on any failure rather than throwing.
+  function imageBitmapToDataUrl(bm, maxW, maxH) {
+    if (!bm) return null;
+    const ratio = Math.min(maxW / bm.width, maxH / bm.height, 1);
+    const w = Math.max(1, Math.round(bm.width * ratio));
+    const h = Math.max(1, Math.round(bm.height * ratio));
+    try {
+      if (typeof OffscreenCanvas !== 'undefined' && OffscreenCanvas.prototype.convertToBlob) {
+        // OffscreenCanvas.toDataURL isn't universally supported; use a
+        // regular canvas for the encode step instead.
+      }
+    } catch (_) {}
+    try {
+      if (typeof document !== 'undefined') {
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(bm, 0, 0, w, h);
+        return cv.toDataURL('image/jpeg', 0.78);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  // Small solid-colour swatch as a data URL — used by the cluster gallery
+  // when colourMode has auto-matched each cluster to a DMC RGB triple.
+  function rgbSwatchDataUrl(rgb, size) {
+    if (typeof document === 'undefined') return null;
+    try {
+      const cv = document.createElement('canvas');
+      cv.width = size; cv.height = size;
+      const cx = cv.getContext('2d');
+      const r = Math.max(0, Math.min(255, rgb[0] | 0));
+      const g = Math.max(0, Math.min(255, rgb[1] | 0));
+      const b = Math.max(0, Math.min(255, rgb[2] | 0));
+      cx.fillStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
+      cx.fillRect(0, 0, size, size);
+      return cv.toDataURL('image/png');
+    } catch (_) { return null; }
   }
 
   function loadImage(url) {

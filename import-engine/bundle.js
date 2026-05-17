@@ -2646,7 +2646,12 @@
         // Re-decode rgba at the (possibly downsized) working dimensions for warp re-use.
         const workingRgba = imageBitmapToRGBA(imageBitmap, workingW, workingH);
 
+        // Track the detected/manual corners so the correction UI can show
+        // them in the 4-corner editor (and so the user can nudge them).
+        let autoCorners = null;
+
         if (opts.image && opts.image.manualCorners) {
+          autoCorners = opts.image.manualCorners.slice();
           const warped = await rpc(worker, {
             type: 'warp', rgba: workingRgba, w: workingW, h: workingH,
             corners: opts.image.manualCorners, opts: (opts.image.tunings) || {},
@@ -2658,6 +2663,7 @@
             type: 'detectCorners', binary: workingBinary, w: workingW, h: workingH, opts: {},
           });
           if (corners && corners.corners) {
+            autoCorners = corners.corners.slice();
             const warped = await rpc(worker, {
               type: 'warp', rgba: workingRgba, w: workingW, h: workingH,
               corners: corners.corners, opts: (opts.image.tunings) || {},
@@ -2735,6 +2741,7 @@
             const noiseCount = clu.assignments.filter(a => a < 0).length;
             const clusterCount = new Set(clu.assignments.filter(a => a >= 0)).size;
             const totalCells = clu.assignments.length || 1;
+            const meanSilhouette = computeSilhouetteProxy(clu, feat);
             const sourceType = pre.otsuFastPath ? 'screenshot' : 'photo';
           timings.match = 0;            // Phase 1 has no match step (label step lives in UI).
             timings['legend-ocr'] = timings['legend-ocr'] || 0;
@@ -2743,7 +2750,7 @@
               confidence: {
                 grid: { peakProminenceRatio: (grid && grid.confidence) || 0 },
                 cluster: {
-                  meanSilhouette: 0,           // computed by UI/labelling step if/when available
+                  meanSilhouette,              // proxy: medoid-based silhouette score
                   noiseCount,
                   clusterCount,
                 },
@@ -2772,6 +2779,13 @@
         const colourLabels = colourResult ? colourResult.clusterLabels : null;
         const labels = (opts.image && opts.image.labelledClusters) || {};
         const cells = [];
+        // Parallel placeholder copy with every cell coded as "C<clusterId>".
+        // RasterChartCorrectionUI.applyCorrections() rewrites these codes
+        // when the user commits cluster labels in the Symbols / Legend tabs,
+        // then we re-materialise the corrected RawExtraction into a project.
+        // The top-level `cells` (with auto-matched DMC codes) is what the
+        // "skip review" path uses if a caller opts out of the correction UI.
+        const placeholderCells = [];
         for (let r = 0; r < cellRes.rows; r++) {
           for (let c = 0; c < cellRes.cols; c++) {
             const idx = r * cellRes.cols + c;
@@ -2781,16 +2795,65 @@
             const lbl = labels[cid]
               || (colourLabels && colourLabels[cid])
               || { code: 'C' + (cid >= 0 ? cid : 'noise'), rgb: [0, 0, 0] };
+            const conf = cid >= 0 ? (colourLabels ? 0.85 : 0.9) : 0.2;
             cells.push({
               col: c,
               row: r,
               code: lbl.code,
               color: lbl.rgb,
               type: 'solid',
-              matchConfidence: cid >= 0 ? (colourLabels ? 0.85 : 0.9) : 0.2,
+              matchConfidence: conf,
+            });
+            placeholderCells.push({
+              col: c,
+              row: r,
+              code: 'C' + (cid >= 0 ? cid : 'noise'),
+              color: lbl.rgb,
+              type: 'solid',
+              matchConfidence: conf,
             });
           }
         }
+
+        // Build initial label state for the correction UI from colour-mode
+        // auto-matches. The user can override any of these in the gallery.
+        const initialLabels = {};
+        if (colourLabels) {
+          for (const k of Object.keys(colourLabels)) initialLabels[k] = colourLabels[k];
+        }
+        for (const k of Object.keys(labels)) initialLabels[k] = labels[k];
+
+        // Render a JPEG data URL of the original image so the corner editor
+        // canvas + cluster gallery have a backdrop image. JPEG keeps the
+        // payload small (typical 30-100 KB even for phone photos).
+        let previewImageDataUrl = null;
+        try { previewImageDataUrl = imageBitmapToDataUrl(imageBitmap, 800, 600); } catch (_) {}
+
+        // Build per-cluster swatch data URLs from auto-matched RGB values.
+        // In B&W mode (no colourLabels), the swatch is black so the gallery
+        // still shows a card per cluster (the user labels by code).
+        const medoidImages = [];
+        try {
+          const allClusters = new Set();
+          for (const a of clu.assignments) if (a >= 0) allClusters.add(a);
+          const sorted = Array.from(allClusters).sort((a, b) => a - b);
+          for (const cid of sorted) {
+            const rgb = (initialLabels[cid] && initialLabels[cid].rgb) || [40, 40, 40];
+            medoidImages[cid] = rgbSwatchDataUrl(rgb, 48);
+          }
+        } catch (_) {}
+
+        // Legend rows for the LegendMappingPanel — initial matchedCluster
+        // is null until the user maps it (a future enhancement could auto-
+        // match by comparing the OCR'd DMC code to colourLabels per cluster).
+        const legendRows = legend.map(l => ({
+          raw: l.name || l.code || '',
+          code: l.code || '',
+          matchedCluster: null,
+          confidence: l.confidence || 0,
+          source: l.source || '',
+        }));
+
 
         // Record the wall-clock total for sanity-checking aggregate timings.
         if (T && telemetryId) {
@@ -2836,10 +2899,41 @@
           // Telemetry id so the correction UI can append events and mark
           // acceptance / abandonment.
           telemetryId,
-          // Debug payload for the correction UI
+          // Payload for RasterChartCorrectionUI. wireApp.js mounts the UI
+          // when this block is present on the raw extraction and the user
+          // can edit corners/grid/cluster labels before materialise runs.
           _correction: {
-            grid, clusters: clu, features: feat,
+            // The placeholder-coded extraction is what applyCorrections()
+            // mutates; the corrected version is then re-materialised.
+            extraction: {
+              width: cellRes.cols,
+              height: cellRes.rows,
+              cells: placeholderCells,
+              legend,
+              palette: [],
+              meta: { publisher: 'image-chart', title: (probe.fileName || '').replace(/\.[^.]+$/, '') },
+              flags: {
+                warnings: [],
+                uncertainCells: clu.assignments.filter(a => a < 0).length,
+              },
+            },
+            grid: Object.assign({}, grid, { rows: cellRes.rows, cols: cellRes.cols }),
+            autoCorners,
+            distortion: (grid && grid.distortion) || null,
+            previewImageDataUrl,
             workingW, workingH,
+            initialLabels,
+            medoidImages,
+            legendRows,
+            // Multi-page payload is empty in single-image imports; the
+            // multi-page dropzone surface still mounts but with no thumbs.
+            pages: [],
+            cellDistances: [],
+            cellTopCandidates: [],
+            // Original debug payload kept for compatibility with code that
+            // already reaches into it (telemetry export, debug overlay).
+            clusters: clu,
+            features: feat,
             ocrRaw: ocrResult,
             colourResult: colourResult || null,
           },
@@ -2901,6 +2995,56 @@
     return { meanWordConfidence, regexValidatedCount, confusionRepairedCount };
   }
 
+  // ── Silhouette proxy (Phase 2 §5) ──────────────────────────────────────
+  // A true silhouette score needs O(N²) intra-cluster distances. As a
+  // cheap proxy we use medoid-based silhouette: for each assigned point i,
+  //   a_i = euclidean(feature_i, medoid_of_own_cluster)
+  //   b_i = min over other clusters c' of euclidean(feature_i, medoid_c')
+  //   s_i = (b_i - a_i) / max(a_i, b_i)
+  // Mean s_i across all non-noise points. Returns 0 when clusters < 2 or
+  // no assigned points (no signal). Range [-1, 1]; higher is better.
+  function computeSilhouetteProxy(clu, feat) {
+    if (!clu || !feat || !feat.features || !clu.assignments || !clu.medoids) return 0;
+    const features = feat.features;
+    const assigns = clu.assignments;
+    const medoids = clu.medoids;
+    // Collect cluster ids with valid medoids.
+    const clusterIds = [];
+    for (let c = 0; c < medoids.length; c++) {
+      if (medoids[c] != null && features[medoids[c]]) clusterIds.push(c);
+    }
+    if (clusterIds.length < 2) return 0;
+    // Cache medoid feature vectors.
+    const medoidVecs = clusterIds.map(c => features[medoids[c]]);
+    function dist(a, b) {
+      let s = 0; const n = a.length;
+      for (let i = 0; i < n; i++) { const d = a[i] - b[i]; s += d * d; }
+      return Math.sqrt(s);
+    }
+    let sum = 0, count = 0;
+    for (let i = 0; i < assigns.length; i++) {
+      const own = assigns[i];
+      if (own < 0) continue;
+      const vec = features[i];
+      if (!vec) continue;
+      const ownIdx = clusterIds.indexOf(own);
+      if (ownIdx < 0) continue;
+      const a = dist(vec, medoidVecs[ownIdx]);
+      let b = Infinity;
+      for (let k = 0; k < clusterIds.length; k++) {
+        if (k === ownIdx) continue;
+        const d = dist(vec, medoidVecs[k]);
+        if (d < b) b = d;
+      }
+      if (!isFinite(b)) continue;
+      const denom = Math.max(a, b);
+      if (denom === 0) continue;
+      sum += (b - a) / denom;
+      count++;
+    }
+    return count > 0 ? sum / count : 0;
+  }
+
   // ── Colour-mode path (Phase 2) ─────────────────────────────────────────
   // Invoked when opts.image.colourMode === true. Extracts per-cell average
   // RGB, converts to Lab inside the worker, and runs DBSCAN with z-score
@@ -2956,6 +3100,49 @@
     const cx = oc.getContext('2d');
     cx.drawImage(bm, 0, 0, w, h);
     return new Uint8ClampedArray(cx.getImageData(0, 0, w, h).data);
+  }
+
+  // Render an ImageBitmap to a JPEG data URL for the correction UI's
+  // corner / cluster / review canvases. Uses an OffscreenCanvas when
+  // available (Chromium / Firefox 105+) and falls back to a regular
+  // canvas. Returns null on any failure rather than throwing.
+  function imageBitmapToDataUrl(bm, maxW, maxH) {
+    if (!bm) return null;
+    const ratio = Math.min(maxW / bm.width, maxH / bm.height, 1);
+    const w = Math.max(1, Math.round(bm.width * ratio));
+    const h = Math.max(1, Math.round(bm.height * ratio));
+    try {
+      if (typeof OffscreenCanvas !== 'undefined' && OffscreenCanvas.prototype.convertToBlob) {
+        // OffscreenCanvas.toDataURL isn't universally supported; use a
+        // regular canvas for the encode step instead.
+      }
+    } catch (_) {}
+    try {
+      if (typeof document !== 'undefined') {
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(bm, 0, 0, w, h);
+        return cv.toDataURL('image/jpeg', 0.78);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  // Small solid-colour swatch as a data URL — used by the cluster gallery
+  // when colourMode has auto-matched each cluster to a DMC RGB triple.
+  function rgbSwatchDataUrl(rgb, size) {
+    if (typeof document === 'undefined') return null;
+    try {
+      const cv = document.createElement('canvas');
+      cv.width = size; cv.height = size;
+      const cx = cv.getContext('2d');
+      const r = Math.max(0, Math.min(255, rgb[0] | 0));
+      const g = Math.max(0, Math.min(255, rgb[1] | 0));
+      const b = Math.max(0, Math.min(255, rgb[2] | 0));
+      cx.fillStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
+      cx.fillRect(0, 0, size, size);
+      return cv.toDataURL('image/png');
+    } catch (_) { return null; }
   }
 
   function loadImage(url) {
@@ -3387,6 +3574,15 @@
         }
         return { action: 'cancel', error: result.error };
       }
+      // Chart-mode imports route through RasterChartCorrectionUI instead
+      // of the generic review modal: the strategy emits a `_correction`
+      // payload with a placeholder-coded RawExtraction, autoCorners, a
+      // preview JPEG, per-cluster swatches, and initial label state. The
+      // user labels each cluster / nudges the grid / maps legend rows, we
+      // re-materialise the corrected extraction, then save + navigate.
+      if (result.raw && result.raw._correction && result.raw._correction.extraction) {
+        return openChartCorrection(file, result, opts);
+      }
       // Always show the review modal in v1 (no auto-import).
       var url = null;
       try { url = URL.createObjectURL(file); } catch (_) {}
@@ -3463,6 +3659,145 @@
       }
     } catch (_) {}
     if (typeof alert === 'function') alert(msg);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Chart-mode correction surface
+  // ─────────────────────────────────────────────────────────────────────
+  //
+  // When the raster-chart strategy succeeds it returns the auto-matched
+  // project (used by the "skip review" path) plus a `_correction` payload
+  // containing a parallel placeholder-coded RawExtraction. We mount
+  // RasterChartCorrectionUI on that payload, then re-materialise the
+  // corrected extraction with ImportEngine.materialiseProject() before
+  // saving + navigating.
+  //
+  // Most of the work here is glue: lazy-loading the three UI scripts the
+  // home page doesn't preload, decoding the preview JPEG back into an
+  // HTMLImageElement, and tearing down the React mount on commit/cancel.
+
+  function loadRasterChartUI() {
+    if (typeof window === 'undefined') return Promise.resolve();
+    if (window.RasterChartCorrectionUI && window.RasterChartCorrectionUI.RasterChartCorrectionUI) {
+      return Promise.resolve();
+    }
+    var scripts = [
+      'creator/rasterChart/CorrectionUI.js',
+      'creator/rasterChart/MultiPageDropzone.js',
+      'creator/rasterChart/DebugUI.js',
+    ];
+    return scripts.reduce(function (p, src) {
+      return p.then(function () {
+        return new Promise(function (resolve, reject) {
+          var existing = document.querySelector('script[src="' + src + '"]');
+          if (existing) return resolve();
+          var s = document.createElement('script');
+          s.src = src;
+          s.async = false;
+          s.onload = function () { resolve(); };
+          s.onerror = function () { reject(new Error('Failed to load ' + src)); };
+          document.head.appendChild(s);
+        });
+      });
+    }, Promise.resolve());
+  }
+
+  function decodeDataUrl(url) {
+    if (!url) return Promise.resolve(null);
+    return new Promise(function (resolve) {
+      var im = new Image();
+      im.onload = function () { resolve(im); };
+      im.onerror = function () { resolve(null); };
+      im.src = url;
+    });
+  }
+
+  function openChartCorrection(file, result, opts) {
+    var corr = result.raw._correction;
+    return Promise.all([loadRasterChartUI(), decodeDataUrl(corr.previewImageDataUrl)])
+      .then(function (resolved) {
+        var previewImage = resolved[1];
+        var pending = {
+          extraction: corr.extraction,
+          grid: corr.grid,
+          corners: corr.autoCorners,
+          autoCorners: corr.autoCorners,
+          distortion: corr.distortion,
+          previewImage: previewImage,
+          workingW: corr.workingW,
+          workingH: corr.workingH,
+          medoidImages: corr.medoidImages || [],
+          legendRows: corr.legendRows || [],
+          pages: corr.pages || [],
+          cellDistances: corr.cellDistances || [],
+          cellTopCandidates: corr.cellTopCandidates || [],
+        };
+        return new Promise(function (resolve) {
+          var host = document.createElement('div');
+          host.className = 'rc-correction-host';
+          host.setAttribute('role', 'dialog');
+          host.setAttribute('aria-modal', 'true');
+          host.setAttribute('aria-label', 'Chart import correction');
+          document.body.appendChild(host);
+          var root = window.ReactDOM && window.ReactDOM.createRoot
+            ? window.ReactDOM.createRoot(host)
+            : null;
+
+          var cleaned = false;
+          function cleanup() {
+            if (cleaned) return;
+            cleaned = true;
+            try { if (root) root.unmount(); else if (window.ReactDOM) window.ReactDOM.unmountComponentAtNode(host); } catch (_) {}
+            try { if (host.parentNode) host.parentNode.removeChild(host); } catch (_) {}
+          }
+
+          var UI = window.RasterChartCorrectionUI && window.RasterChartCorrectionUI.RasterChartCorrectionUI;
+          if (!UI) {
+            cleanup();
+            console.error('[import] RasterChartCorrectionUI failed to load — using auto-matched project.');
+            return resolve(saveAndNavigate(result.project, opts));
+          }
+
+          var props = {
+            pending: pending,
+            initialLabels: corr.initialLabels || {},
+            dmcPalette: window.DMC || [],
+            telemetryId: result.raw.telemetryId,
+            onCommit: function (correctedExtraction) {
+              cleanup();
+              var ENGINE = window.ImportEngine;
+              if (!ENGINE || typeof ENGINE.materialiseProject !== 'function') {
+                console.error('[import] materialiseProject unavailable; using auto-matched project.');
+                return resolve(saveAndNavigate(result.project, opts));
+              }
+              try {
+                var project = ENGINE.materialiseProject(correctedExtraction, {
+                  originalFile: file,
+                  generatedAt: new Date().toISOString(),
+                });
+                resolve(saveAndNavigate(project, opts));
+              } catch (err) {
+                console.error('[import] materialiseProject threw after correction:', err);
+                showImportError(err);
+                resolve({ action: 'cancel', error: err });
+              }
+            },
+            onCancel: function () {
+              cleanup();
+              resolve({ action: 'cancel' });
+            },
+          };
+
+          var element = window.React.createElement(UI, props);
+          if (root) root.render(element);
+          else window.ReactDOM.render(element, host);
+        });
+      })
+      .catch(function (err) {
+        console.error('[import] openChartCorrection failed:', err);
+        showImportError(err);
+        return { action: 'cancel', error: err };
+      });
   }
 
   function saveAndNavigate(project, opts) {

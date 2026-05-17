@@ -37,11 +37,14 @@
   ];
 
   function RasterChartCorrectionUI(props) {
-    const { pending, onCommit, onCancel, dmcPalette, telemetryId } = props;
+    const { pending, onCommit, onCancel, dmcPalette, telemetryId, initialLabels } = props;
     const [tab, setTab] = useState('corners');
     const [corners, setCorners] = useState(pending.corners || null);
     const [grid, setGrid] = useState(pending.grid || null);
-    const [labels, setLabels] = useState({}); // clusterId → { code, name, rgb }
+    // Seed labels from caller-supplied initialLabels so colour-mode
+    // auto-matches survive even if the user clicks Finish without
+    // touching the Symbols tab. The map is shaped { clusterId → {code, rgb, name} }.
+    const [labels, setLabels] = useState(initialLabels ? Object.assign({}, initialLabels) : {});
     const [splits, setSplits] = useState({}); // clusterId → split-into-N
     const [merges, setMerges] = useState({}); // clusterId → mergedIntoId
     const [reviewIdx, setReviewIdx] = useState(null);

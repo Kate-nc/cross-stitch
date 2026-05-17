@@ -104,6 +104,15 @@
         }
         return { action: 'cancel', error: result.error };
       }
+      // Chart-mode imports route through RasterChartCorrectionUI instead
+      // of the generic review modal: the strategy emits a `_correction`
+      // payload with a placeholder-coded RawExtraction, autoCorners, a
+      // preview JPEG, per-cluster swatches, and initial label state. The
+      // user labels each cluster / nudges the grid / maps legend rows, we
+      // re-materialise the corrected extraction, then save + navigate.
+      if (result.raw && result.raw._correction && result.raw._correction.extraction) {
+        return openChartCorrection(file, result, opts);
+      }
       // Always show the review modal in v1 (no auto-import).
       var url = null;
       try { url = URL.createObjectURL(file); } catch (_) {}
@@ -180,6 +189,145 @@
       }
     } catch (_) {}
     if (typeof alert === 'function') alert(msg);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Chart-mode correction surface
+  // ─────────────────────────────────────────────────────────────────────
+  //
+  // When the raster-chart strategy succeeds it returns the auto-matched
+  // project (used by the "skip review" path) plus a `_correction` payload
+  // containing a parallel placeholder-coded RawExtraction. We mount
+  // RasterChartCorrectionUI on that payload, then re-materialise the
+  // corrected extraction with ImportEngine.materialiseProject() before
+  // saving + navigating.
+  //
+  // Most of the work here is glue: lazy-loading the three UI scripts the
+  // home page doesn't preload, decoding the preview JPEG back into an
+  // HTMLImageElement, and tearing down the React mount on commit/cancel.
+
+  function loadRasterChartUI() {
+    if (typeof window === 'undefined') return Promise.resolve();
+    if (window.RasterChartCorrectionUI && window.RasterChartCorrectionUI.RasterChartCorrectionUI) {
+      return Promise.resolve();
+    }
+    var scripts = [
+      'creator/rasterChart/CorrectionUI.js',
+      'creator/rasterChart/MultiPageDropzone.js',
+      'creator/rasterChart/DebugUI.js',
+    ];
+    return scripts.reduce(function (p, src) {
+      return p.then(function () {
+        return new Promise(function (resolve, reject) {
+          var existing = document.querySelector('script[src="' + src + '"]');
+          if (existing) return resolve();
+          var s = document.createElement('script');
+          s.src = src;
+          s.async = false;
+          s.onload = function () { resolve(); };
+          s.onerror = function () { reject(new Error('Failed to load ' + src)); };
+          document.head.appendChild(s);
+        });
+      });
+    }, Promise.resolve());
+  }
+
+  function decodeDataUrl(url) {
+    if (!url) return Promise.resolve(null);
+    return new Promise(function (resolve) {
+      var im = new Image();
+      im.onload = function () { resolve(im); };
+      im.onerror = function () { resolve(null); };
+      im.src = url;
+    });
+  }
+
+  function openChartCorrection(file, result, opts) {
+    var corr = result.raw._correction;
+    return Promise.all([loadRasterChartUI(), decodeDataUrl(corr.previewImageDataUrl)])
+      .then(function (resolved) {
+        var previewImage = resolved[1];
+        var pending = {
+          extraction: corr.extraction,
+          grid: corr.grid,
+          corners: corr.autoCorners,
+          autoCorners: corr.autoCorners,
+          distortion: corr.distortion,
+          previewImage: previewImage,
+          workingW: corr.workingW,
+          workingH: corr.workingH,
+          medoidImages: corr.medoidImages || [],
+          legendRows: corr.legendRows || [],
+          pages: corr.pages || [],
+          cellDistances: corr.cellDistances || [],
+          cellTopCandidates: corr.cellTopCandidates || [],
+        };
+        return new Promise(function (resolve) {
+          var host = document.createElement('div');
+          host.className = 'rc-correction-host';
+          host.setAttribute('role', 'dialog');
+          host.setAttribute('aria-modal', 'true');
+          host.setAttribute('aria-label', 'Chart import correction');
+          document.body.appendChild(host);
+          var root = window.ReactDOM && window.ReactDOM.createRoot
+            ? window.ReactDOM.createRoot(host)
+            : null;
+
+          var cleaned = false;
+          function cleanup() {
+            if (cleaned) return;
+            cleaned = true;
+            try { if (root) root.unmount(); else if (window.ReactDOM) window.ReactDOM.unmountComponentAtNode(host); } catch (_) {}
+            try { if (host.parentNode) host.parentNode.removeChild(host); } catch (_) {}
+          }
+
+          var UI = window.RasterChartCorrectionUI && window.RasterChartCorrectionUI.RasterChartCorrectionUI;
+          if (!UI) {
+            cleanup();
+            console.error('[import] RasterChartCorrectionUI failed to load — using auto-matched project.');
+            return resolve(saveAndNavigate(result.project, opts));
+          }
+
+          var props = {
+            pending: pending,
+            initialLabels: corr.initialLabels || {},
+            dmcPalette: window.DMC || [],
+            telemetryId: result.raw.telemetryId,
+            onCommit: function (correctedExtraction) {
+              cleanup();
+              var ENGINE = window.ImportEngine;
+              if (!ENGINE || typeof ENGINE.materialiseProject !== 'function') {
+                console.error('[import] materialiseProject unavailable; using auto-matched project.');
+                return resolve(saveAndNavigate(result.project, opts));
+              }
+              try {
+                var project = ENGINE.materialiseProject(correctedExtraction, {
+                  originalFile: file,
+                  generatedAt: new Date().toISOString(),
+                });
+                resolve(saveAndNavigate(project, opts));
+              } catch (err) {
+                console.error('[import] materialiseProject threw after correction:', err);
+                showImportError(err);
+                resolve({ action: 'cancel', error: err });
+              }
+            },
+            onCancel: function () {
+              cleanup();
+              resolve({ action: 'cancel' });
+            },
+          };
+
+          var element = window.React.createElement(UI, props);
+          if (root) root.render(element);
+          else window.ReactDOM.render(element, host);
+        });
+      })
+      .catch(function (err) {
+        console.error('[import] openChartCorrection failed:', err);
+        showImportError(err);
+        return { action: 'cancel', error: err };
+      });
   }
 
   function saveAndNavigate(project, opts) {
