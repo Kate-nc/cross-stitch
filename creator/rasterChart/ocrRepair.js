@@ -138,6 +138,6 @@
   }
 
   const api = { classifyToken, repairCode, parseLegendLine, CODE_PATTERNS, CONFUSION };
-  if (typeof window !== 'undefined') window.RasterChartOCRRepair = api;
+  if (typeof globalThis !== 'undefined') globalThis.RasterChartOCRRepair = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

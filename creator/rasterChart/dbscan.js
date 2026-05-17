@@ -303,7 +303,7 @@
 
   const api = { estimateEps, cluster, mergeByHashHamming, computeMedoids, reclusterNoise,
     zScoreNormalize, applyColumnWeight, l2 };
-  if (typeof window !== 'undefined') window.RasterChartDBSCAN = api;
+  if (typeof globalThis !== 'undefined') globalThis.RasterChartDBSCAN = api;
   if (typeof self !== 'undefined' && typeof window === 'undefined') self.RasterChartDBSCAN = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

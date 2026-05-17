@@ -66,7 +66,7 @@
   }
 
   const api = { create, withScope, heapUsed };
-  if (typeof window !== 'undefined') window.MatScope = api;
+  if (typeof globalThis !== 'undefined') globalThis.MatScope = api;
   if (typeof self !== 'undefined' && typeof window === 'undefined') self.MatScope = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

@@ -154,6 +154,6 @@
   }
 
   const api = { findPeaks, gridFromProfiles, median, detectMajorPeriod };
-  if (typeof window !== 'undefined') window.RasterChartProjection = api;
+  if (typeof globalThis !== 'undefined') globalThis.RasterChartProjection = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

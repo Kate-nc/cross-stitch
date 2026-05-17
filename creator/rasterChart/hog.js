@@ -171,6 +171,6 @@
   }
 
   const api = { hog, l2, dHash, hammingBigInt, DEFAULTS };
-  if (typeof window !== 'undefined') window.RasterChartHOG = api;
+  if (typeof globalThis !== 'undefined') globalThis.RasterChartHOG = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();
