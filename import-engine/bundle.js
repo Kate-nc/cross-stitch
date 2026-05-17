@@ -2969,6 +2969,24 @@
             workingW, workingH,
             initialLabels,
             medoidImages,
+            // Per-cluster representative RGB so the UI can render "top-N
+            // DMC candidate" chips next to each cluster card. Falls back
+            // to the auto-matched label colour in B&W mode where colour
+            // clustering didn't run.
+            clusterColors: (function () {
+              var cc = [];
+              try {
+                var seen = new Set();
+                for (var i = 0; i < clu.assignments.length; i++) {
+                  var a = clu.assignments[i];
+                  if (a < 0 || seen.has(a)) continue;
+                  seen.add(a);
+                  var rgb = (initialLabels[a] && initialLabels[a].rgb) || null;
+                  if (rgb) cc[a] = rgb.slice ? rgb.slice() : [rgb[0], rgb[1], rgb[2]];
+                }
+              } catch (_) {}
+              return cc;
+            }()),
             legendRows,
             // Multi-page payload is empty in single-image imports; the
             // multi-page dropzone surface still mounts but with no thumbs.
@@ -3928,6 +3946,7 @@
               workingW: c.workingW,
               workingH: c.workingH,
               medoidImages: c.medoidImages || [],
+              clusterColors: c.clusterColors || [],
               legendRows: c.legendRows || [],
               pages: c.pages || [],
               cellDistances: c.cellDistances || [],

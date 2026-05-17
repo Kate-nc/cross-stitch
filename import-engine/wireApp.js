@@ -413,6 +413,7 @@
               workingW: c.workingW,
               workingH: c.workingH,
               medoidImages: c.medoidImages || [],
+              clusterColors: c.clusterColors || [],
               legendRows: c.legendRows || [],
               pages: c.pages || [],
               cellDistances: c.cellDistances || [],

@@ -480,11 +480,15 @@
   // ── Surface 3: cluster gallery ─────────────────────────────────────────
   function ClusterGallery({ pending, labels, palette, onLabelChange, onSplit, onMerge }) {
     const medoids = pending.medoidImages || [];
+    const clusterColors = pending.clusterColors || [];
     return h('div', { className: 'rc-cluster-gallery' },
-      h('p', null, `${medoids.length} unique symbols detected. Label each with its DMC code; merge any duplicates.`),
+      h('p', null, `${medoids.length} unique symbols detected. Label each with its DMC code; merge any duplicates. Suggested DMC matches appear below each cluster — click a chip to apply.`),
       h('div', { className: 'rc-cluster-grid' },
         medoids.map((src, cid) => {
           const lbl = labels[cid] || {};
+          const swatchRgb = clusterColors[cid] || lbl.rgb || null;
+          const top3 = swatchRgb ? topNDmcMatches(swatchRgb, palette, 3) : [];
+          const currentCode = (lbl.code || '').trim();
           return h('div', { key: cid, className: 'rc-cluster-card' },
             h('img', { src, alt: 'Cluster ' + cid, width: 48, height: 48, style: { imageRendering: 'pixelated' } }),
             h('input', {
@@ -500,13 +504,68 @@
             h('button', { type: 'button', className: 'tb-btn', onClick: () => {
               const target = prompt('Merge into cluster #?');
               if (target != null && !isNaN(+target)) onMerge(cid, +target);
-            }}, 'Merge…'),
+            }}, 'Merge\u2026'),
+            top3.length > 0 && h('div', {
+              className: 'rc-cluster-suggestions',
+              style: { display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap', flexBasis: '100%' },
+            },
+              top3.map(m => {
+                const active = currentCode === m.id;
+                return h('button', {
+                  key: m.id,
+                  type: 'button',
+                  title: `${m.id} \u00b7 ${m.name || ''} \u00b7 \u0394E ${m.dE.toFixed(1)}`,
+                  onClick: () => onLabelChange(cid, { code: m.id, rgb: m.rgb }),
+                  style: {
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    padding: '2px 6px',
+                    border: active ? '2px solid var(--accent, #d97706)' : '1px solid var(--border, #d1d5db)',
+                    borderRadius: 4,
+                    background: 'var(--surface, #fff)',
+                    fontSize: 11, cursor: 'pointer',
+                  },
+                },
+                  h('span', { style: {
+                    display: 'inline-block', width: 12, height: 12,
+                    background: 'rgb(' + m.rgb.join(',') + ')',
+                    border: '1px solid #0003',
+                  }}),
+                  h('span', null, m.id),
+                );
+              }),
+            ),
           );
         }),
         h('datalist', { id: 'rc-dmc-codes' },
           palette.slice(0, 500).map(p => h('option', { key: p.id, value: p.id }))),
       ),
     );
+  }
+
+  // Top-N DMC palette matches by \u0394E (Lab if available, sRGB fallback).
+  // The palette entries are expected to be {id, name, rgb, lab}; we tolerate
+  // missing .lab by computing it on the fly via window.rgbToLab.
+  function topNDmcMatches(rgb, palette, n) {
+    if (!palette || !palette.length) return [];
+    const toLab = (typeof window !== 'undefined' && typeof window.rgbToLab === 'function')
+      ? window.rgbToLab : null;
+    const queryLab = toLab ? toLab(rgb[0], rgb[1], rgb[2]) : null;
+    const scored = [];
+    for (const p of palette) {
+      let d;
+      if (queryLab) {
+        const pl = p.lab || (toLab ? toLab(p.rgb[0], p.rgb[1], p.rgb[2]) : null);
+        if (!pl) continue;
+        const dl = queryLab[0] - pl[0], da = queryLab[1] - pl[1], db = queryLab[2] - pl[2];
+        d = Math.sqrt(dl * dl + da * da + db * db);
+      } else {
+        const dr = rgb[0] - p.rgb[0], dg = rgb[1] - p.rgb[1], db = rgb[2] - p.rgb[2];
+        d = Math.sqrt(dr * dr + dg * dg + db * db);
+      }
+      scored.push({ id: p.id, name: p.name, rgb: p.rgb, dE: d });
+    }
+    scored.sort((a, b) => a.dE - b.dE);
+    return scored.slice(0, n);
   }
 
   // ── Surface 4: needs-review overlay ───────────────────────────────────
