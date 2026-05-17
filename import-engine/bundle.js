@@ -3166,11 +3166,17 @@
     }, [colRes.cellColors.buffer]);
     timings.cluster = nowMs() - t0;
 
-    // Auto-match cluster Lab centroids → nearest DMC code (D50 ΔE).
-    const findBest = typeof window !== 'undefined' && window.findBest;
+    // Auto-match cluster Lab centroids → nearest DMC code (CIEDE2000).
+    // Previously this used findBest(...) with a misordered argument list
+    // (lab[0], lab[1], lab[2], palette) which threw inside findSolid and was
+    // silently swallowed by the surrounding try/catch — so the auto-label
+    // step has been a no-op until now. Doing the palette walk inline avoids
+    // ambiguity about the helper's signature and lets us use ΔE2000 directly.
     const dmc = (typeof window !== 'undefined' && window.DMC) || [];
+    const dE2000 = (typeof window !== 'undefined' && typeof window.dE2000 === 'function')
+      ? window.dE2000 : null;
     const clusterLabels = {};
-    if (findBest && dmc.length && clu.labFeatures) {
+    if (dmc.length && clu.labFeatures) {
       const medoidsByCluster = new Map();
       for (let i = 0; i < clu.assignments.length; i++) {
         const c = clu.assignments[i];
@@ -3180,8 +3186,19 @@
       }
       for (const [cid, lab] of medoidsByCluster) {
         try {
-          const match = findBest(lab[0], lab[1], lab[2], dmc);
-          if (match) clusterLabels[cid] = { code: match.id, rgb: match.rgb || [0, 0, 0] };
+          let best = null;
+          let bestD = Infinity;
+          for (let i = 0; i < dmc.length; i++) {
+            const p = dmc[i];
+            if (!p.lab) continue;
+            const d = dE2000 ? dE2000(lab, p.lab) : (
+              (lab[0] - p.lab[0]) ** 2 +
+              (lab[1] - p.lab[1]) ** 2 +
+              (lab[2] - p.lab[2]) ** 2
+            );
+            if (d < bestD) { bestD = d; best = p; }
+          }
+          if (best) clusterLabels[cid] = { code: best.id, rgb: best.rgb || [0, 0, 0] };
         } catch (_) {}
       }
     }

@@ -529,7 +529,17 @@
   function extractCellColors(rgba, w, h, grid) {
     const { cellPitch, originRow, originCol, rows, cols } = grid;
     const out = new Uint8Array(rows * cols * 3);
-    const pad = Math.floor(cellPitch * DEFAULT_OPTS.cellInwardPadFrac);
+    // Tighter inward pad than the default so grid-line ink doesn't bleed
+    // into the colour sample. We also use a per-channel median rather
+    // than a mean — printed grid lines are thin but darker than every
+    // colour swatch, so the mean is biased toward black on cells where
+    // pad-clipping leaves any line pixels behind. Median is robust against
+    // that one-sided contamination.
+    const pad = Math.max(
+      Math.floor(cellPitch * 0.18),
+      Math.floor(cellPitch * DEFAULT_OPTS.cellInwardPadFrac),
+    );
+    const rBuf = []; const gBuf = []; const bBuf = [];
 
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
@@ -538,22 +548,28 @@
         const x1 = Math.round(originCol + (c + 1) * cellPitch) - pad;
         const y1 = Math.round(originRow + (r + 1) * cellPitch) - pad;
 
-        let sumR = 0, sumG = 0, sumB = 0, count = 0;
+        rBuf.length = 0; gBuf.length = 0; bBuf.length = 0;
         for (let py = Math.max(0, y0); py < Math.min(h, y1); py++) {
           for (let px = Math.max(0, x0); px < Math.min(w, x1); px++) {
             const base = (py * w + px) * 4;
-            sumR += rgba[base];
-            sumG += rgba[base + 1];
-            sumB += rgba[base + 2];
-            count++;
+            rBuf.push(rgba[base]);
+            gBuf.push(rgba[base + 1]);
+            bBuf.push(rgba[base + 2]);
           }
         }
 
         const base = (r * cols + c) * 3;
-        if (count > 0) {
-          out[base]     = Math.round(sumR / count);
-          out[base + 1] = Math.round(sumG / count);
-          out[base + 2] = Math.round(sumB / count);
+        if (rBuf.length > 0) {
+          // Sort + take middle. ~200 pixels per cell; the sort cost is
+          // negligible compared to the OpenCV / DBSCAN steps that bracket
+          // this function.
+          rBuf.sort((a, b) => a - b);
+          gBuf.sort((a, b) => a - b);
+          bBuf.sort((a, b) => a - b);
+          const mid = rBuf.length >> 1;
+          out[base]     = rBuf[mid];
+          out[base + 1] = gBuf[mid];
+          out[base + 2] = bBuf[mid];
         }
       }
     }

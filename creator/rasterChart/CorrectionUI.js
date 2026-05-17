@@ -852,18 +852,29 @@
     );
   }
 
-  // Top-N DMC palette matches by \u0394E (Lab if available, sRGB fallback).
+  // Top-N DMC palette matches by CIEDE2000 (Lab if available, sRGB fallback).
   // The palette entries are expected to be {id, name, rgb, lab}; we tolerate
   // missing .lab by computing it on the fly via window.rgbToLab.
+  // CIEDE2000 is perceptually-uniform: a ΔE = 2 between two pastels reflects
+  // the same perceived difference as ΔE = 2 between two saturated blues, which
+  // plain Euclidean Lab (ΔE76) gets wrong. For ranking palette candidates next
+  // to a user-selectable chip strip the perceptual ordering matters more than
+  // the ~3× cost compared to Euclidean.
   function topNDmcMatches(rgb, palette, n) {
     if (!palette || !palette.length) return [];
     const toLab = (typeof window !== 'undefined' && typeof window.rgbToLab === 'function')
       ? window.rgbToLab : null;
+    const dE2000 = (typeof window !== 'undefined' && typeof window.dE2000 === 'function')
+      ? window.dE2000 : null;
     const queryLab = toLab ? toLab(rgb[0], rgb[1], rgb[2]) : null;
     const scored = [];
     for (const p of palette) {
       let d;
-      if (queryLab) {
+      if (queryLab && dE2000) {
+        const pl = p.lab || (toLab ? toLab(p.rgb[0], p.rgb[1], p.rgb[2]) : null);
+        if (!pl) continue;
+        d = dE2000(queryLab, pl);
+      } else if (queryLab) {
         const pl = p.lab || (toLab ? toLab(p.rgb[0], p.rgb[1], p.rgb[2]) : null);
         if (!pl) continue;
         const dl = queryLab[0] - pl[0], da = queryLab[1] - pl[1], db = queryLab[2] - pl[2];
