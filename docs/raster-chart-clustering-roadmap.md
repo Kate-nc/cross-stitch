@@ -89,6 +89,18 @@ the original failure modes from §1 directly: two reds that map to two
 different DMC codes are now two clusters, and a red whose glyphs jitter
 is a single cluster because every cell still hits the same DMC code.
 
+### 6. Legend-restricted palette (E, shipped)
+
+Legend OCR now runs **before** colour clustering. When the OCR returns
+≥ 3 exact-source DMC codes, the palette-seeded cluster step is
+restricted to just those codes (plus any 'repaired'-source codes) — a
+chart whose printed legend lists 14 colours can no longer have a cell
+snap to a 15th. Falls back to the full DMC catalogue when the legend is
+short, low-confidence, or missing.
+
+`colourResult.paletteRestricted` exposes whether the restriction fired
+so downstream UI / telemetry can distinguish the two paths.
+
 ## Larger changes — research notes & plan
 
 Each item below is a deliberately separate commit because they have
@@ -117,6 +129,8 @@ Implemented as `paletteSeededCluster` in the worker; now the default
 for colour mode.
 
 ### D. Median Lab per cell (instead of mean) — *shipped (§3)*
+
+### E. Use OCR'd legend codes to restrict the palette — *shipped (§6)*
 
 The legend OCR already finds the legend swatch position. We sample its
 RGB but never use it to disambiguate clusters. If the legend says

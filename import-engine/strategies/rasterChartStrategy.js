@@ -167,11 +167,38 @@
         if (ctx) safeReport(ctx, { stage: 'extract', label: 'featurise' });
         const feat = await rpc(worker, { type: 'featurise', cells: cellRes.cells });
 
+        // ── Legend OCR (anchor-first, Phase 1 backport) ─────────────────
+        // Runs before colour clustering so legend codes can restrict the
+        // DMC palette (task E) — a chart whose legend lists only 12
+        // colours should never snap a cell to a 13th. Re-decode a fresh
+        // RGBA from imageBitmap at working dimensions; the earlier
+        // workingRgba buffer was transferred to the warp call and is now
+        // detached. The worker is still alive so we can call OCR before
+        // the finally-block terminates it.
+        let ocrResult = null;
+        {
+          const ocrRgba = imageBitmapToRGBA(imageBitmap, workingW, workingH);
+          try {
+            if (ctx) safeReport(ctx, { stage: 'extract', label: 'legend-ocr' });
+            ocrResult = await timed('legend-ocr', rpc(worker, {
+              type: 'ocrLegend', rgba: ocrRgba, w: workingW, h: workingH,
+              anchorFirst: true,
+            }, [ocrRgba.buffer]));
+          } catch (_) { /* legend OCR failure is non-fatal */ }
+        }
+
+        // Parse OCR lines → structured legend entries using the OCR repair
+        // module (available as a main-thread global from create.html).
+        const legend = buildLegend(ocrResult);
+        // Telemetry legend metrics
+        const legMeta = buildLegendMeta(legend, ocrResult);
+
         let colourResult = null;
         let clu;
         if (opts.image && opts.image.colourMode) {
           colourResult = await parseColourMode(
             worker, imageBitmap, workingW, workingH, grid, cellRes, feat, timings, ctx,
+            legend,
           );
           clu = colourResult.clu;
         } else {
@@ -183,26 +210,8 @@
           }));
         }
 
-        // ── Legend OCR (anchor-first, Phase 1 backport) ─────────────────
-        // Re-decode a fresh RGBA from imageBitmap at working dimensions;
-        // the earlier workingRgba buffer was transferred to the warp call
-        // and is now detached. The worker is still alive so we can call OCR
-        // before the finally-block terminates it.
-        let ocrResult = null;
-        const ocrRgba = imageBitmapToRGBA(imageBitmap, workingW, workingH);
-        try {
-          if (ctx) safeReport(ctx, { stage: 'extract', label: 'legend-ocr' });
-          ocrResult = await timed('legend-ocr', rpc(worker, {
-            type: 'ocrLegend', rgba: ocrRgba, w: workingW, h: workingH,
-            anchorFirst: true,
-          }, [ocrRgba.buffer]));
-        } catch (_) { /* legend OCR failure is non-fatal */ }
-
-        // Parse OCR lines → structured legend entries using the OCR repair
-        // module (available as a main-thread global from create.html).
-        const legend = buildLegend(ocrResult);
-        // Telemetry legend metrics
-        const legMeta = buildLegendMeta(legend, ocrResult);
+        // ── Legend OCR + parsing already ran above (moved so it can
+        // restrict the colour-mode palette) ─────────────────────────────
 
         // Compute final telemetry payload before returning. Skipping the
         // write when the user has opted out happens inside
@@ -574,7 +583,7 @@
   // is unchanged; the correction UI still shows for user review, but the
   // label suggestions are pre-filled with DMC matches.
 
-  async function parseColourMode(worker, imageBitmap, workingW, workingH, grid, cellRes, feat, timings, ctx) {
+  async function parseColourMode(worker, imageBitmap, workingW, workingH, grid, cellRes, feat, timings, ctx, legend) {
     if (ctx) safeReport(ctx, { stage: 'extract', label: 'colour-sample' });
     const colourRgba = imageBitmapToRGBA(imageBitmap, workingW, workingH);
     const colRes = await rpc(worker, {
@@ -590,15 +599,44 @@
     // cluster is present (covers the case where the chart legend reuses a
     // colour for multiple symbols, e.g. back-stitch + full-stitch in 310).
     //
-    // The old generic-DBSCAN path (cluster on [HOG + dHash + Lab]) is kept
-    // as a fallback for when the palette is unavailable (very rare —
-    // window.DMC is loaded as a global on every page).
+    // Palette restriction (task E): when the legend OCR returned ≥ 3
+    // confidently-parsed DMC codes, we restrict the palette to just those
+    // codes. A printed chart can't possibly use a code that isn't in its
+    // own legend, so this lets us avoid snapping borderline cells to a
+    // nearby-but-absent code (e.g. mistaking a chart's 311 swatch for the
+    // unlisted 312). Falls back to the full DMC catalogue when the legend
+    // is missing, ambiguous, or unusually short.
+    //
+    // The old generic-DBSCAN path (cluster on [HOG + dHash + Lab]) is
+    // kept as a fallback for when the palette is unavailable.
     const features = (feat && feat.features) || null;
     const dHashes = (feat && feat.dHashes) ? feat.dHashes.map(b => b.toString()) : null;
     const dmc = (typeof window !== 'undefined' && window.DMC) || [];
-    const palette = dmc
+    const fullPalette = dmc
       .filter(p => p && p.lab)
       .map(p => ({ id: p.id, lab: p.lab, rgb: p.rgb }));
+    // Build the restricted palette from legend codes if usable.
+    let palette = fullPalette;
+    let paletteRestricted = false;
+    if (legend && Array.isArray(legend)) {
+      const exactCodes = new Set(
+        legend.filter(l => l.source === 'exact' && l.code).map(l => l.code),
+      );
+      const repairedCodes = new Set(
+        legend.filter(l => l.source === 'repaired' && l.code).map(l => l.code),
+      );
+      // Require ≥ 3 exact matches before restricting. Below that the
+      // legend OCR is too unreliable; we'd rather over-match into the full
+      // catalogue than drop real codes on the floor.
+      if (exactCodes.size >= 3) {
+        const allowed = new Set([...exactCodes, ...repairedCodes]);
+        const restricted = fullPalette.filter(p => allowed.has(p.id));
+        if (restricted.length >= 3) {
+          palette = restricted;
+          paletteRestricted = true;
+        }
+      }
+    }
     let clu;
     let usedPaletteSeed = false;
     if (palette.length) {
@@ -662,7 +700,11 @@
       }
     }
 
-    return { clu, clusterLabels, cellColors: colRes.cellColors, cols: colRes.cols, rows: colRes.rows };
+    return {
+      clu, clusterLabels,
+      cellColors: colRes.cellColors, cols: colRes.cols, rows: colRes.rows,
+      paletteRestricted, paletteSize: palette.length,
+    };
   }
 
   function imageBitmapToRGBA(bm, w, h) {
