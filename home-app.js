@@ -473,12 +473,9 @@
       });
     }
 
-    // Common image handoff used by both Tile 1 (photo) and Tile 2 (chart).
-    // For the wizard route, set forceWizard=true so the destination page
-    // (stitch.html) force-mounts the ImportWizard. For the photo route the
-    // destination is create.html in the regular Creator flow.
-    function handImageOff(file, opts) {
-      var forceWizard = !!(opts && opts.forceWizard);
+    // Image handoff used by the photo route: stash the picked image in
+    // sessionStorage so create.html can pick it up after navigation.
+    function handImageOff(file) {
       var reader = new FileReader();
       reader.onload = function (ev) {
         var dataUrl = ev.target.result;
@@ -486,20 +483,8 @@
           sessionStorage.setItem('cs_pending_image_dataurl', dataUrl);
           sessionStorage.setItem('cs_pending_image_name', file.name);
           sessionStorage.setItem('cs_pending_image_type', file.type || 'image/jpeg');
-          if (forceWizard) {
-            sessionStorage.setItem('cs_force_wizard', '1');
-          } else {
-            // Defensive: a previous chart-import that never landed could
-            // have left the flag set. Clear it so a plain photo-import
-            // doesn't accidentally re-open the wizard.
-            try { sessionStorage.removeItem('cs_force_wizard'); } catch (_) {}
-          }
           setPending(true);
-          if (forceWizard) {
-            navigateAfterPaint('stitch.html?action=open-wizard&from=home');
-          } else {
-            navigateAfterPaint('create.html?action=home-image-pending&from=home');
-          }
+          navigateAfterPaint('create.html?action=home-image-pending&from=home');
         } catch (_) {
           // sessionStorage quota exceeded (very large image): the in-page
           // file -> target-page handoff is impossible. Surface the failure
@@ -529,7 +514,7 @@
         alert('Please choose an image file (JPG, PNG, GIF or WebP).');
         return;
       }
-      handImageOff(file, { forceWizard: false });
+      handImageOff(file);
     }
 
     // Tile 2: printed-chart photo -> raster-chart interpreter.

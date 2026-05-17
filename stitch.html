@@ -101,76 +101,23 @@ window.loadPdfStack = function() {
 </main>
 <script src="useDragMark.js"></script>
 <!-- Cat C perf split: conditionally preload the ImportWizard bundle only
-     when the experimental flag is on OR when the user has just clicked the
-     Home "Digitise a printed chart" tile (Design 1 — sessionStorage flag
-     cs_force_wizard set by home-app.js handleNewFromChart). Default users
-     never fetch the 30 KB. The wizard branch in tracker-app.js already
-     falls back to the legacy modal if window.ImportWizard isn't present. -->
+     when the experimental flag is on. Default users never fetch the 30 KB.
+     The wizard branch in tracker-app.js already falls back to the legacy
+     modal if window.ImportWizard isn't present. -->
 <script>
 (function maybePreloadImportWizard() {
   try {
     var on = window.UserPrefs && window.UserPrefs.get && window.UserPrefs.get('experimental.importWizard');
-    var forced = false;
-    try { forced = sessionStorage.getItem('cs_force_wizard') === '1'; } catch (_) {}
-    if (!on && !forced) return;
+    if (!on) return;
     var go = function () {
       if (document.querySelector('script[src="creator/import-wizard-bundle.js"]')) return;
       var s = document.createElement('script');
       s.src = 'creator/import-wizard-bundle.js';
       document.head.appendChild(s);
     };
-    // When forced (user just clicked the Home tile), load immediately —
-    // they're about to need it. Otherwise wait for idle.
-    if (forced) go();
-    else if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 2000 });
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 2000 });
     else setTimeout(go, 0);
   } catch (_) {}
-})();
-
-/* Home "Digitise a printed chart" handoff (Design 1).
-   When the user clicks the Home tile we serialise the picked image into
-   sessionStorage (cs_pending_image_dataurl / _name / _type), set
-   cs_force_wizard='1', and navigate here with ?action=open-wizard.
-   This synchronous IIFE reconstructs the File object, hands it to
-   tracker-app.js via window.__pendingTrackerImportFile (which the existing
-   useEffect at the top of TrackerApp picks up), and sets
-   window.__forceImportWizard so the wizard branch activates regardless of
-   the experimental pref. */
-(function processOpenWizardAction() {
-  try {
-    var p = new URLSearchParams(window.location.search);
-    if (p.get('action') !== 'open-wizard') return;
-    // Strip the action= param so a reload doesn't re-trigger the handoff
-    // after the user has already started editing in the wizard.
-    var clean = window.location.pathname + (function () {
-      p.delete('action'); p.delete('from');
-      var rest = p.toString();
-      return rest ? '?' + rest : '';
-    })();
-    window.history.replaceState({}, '', clean);
-    var dataUrl = null, name = 'chart.jpg', type = 'image/jpeg';
-    try {
-      dataUrl = sessionStorage.getItem('cs_pending_image_dataurl');
-      name    = sessionStorage.getItem('cs_pending_image_name') || name;
-      type    = sessionStorage.getItem('cs_pending_image_type') || type;
-    } catch (_) {}
-    if (!dataUrl) return;
-    var b64 = dataUrl.split(',')[1] || '';
-    var byteStr = atob(b64);
-    var ab = new ArrayBuffer(byteStr.length);
-    var ia = new Uint8Array(ab);
-    for (var i = 0; i < byteStr.length; i++) ia[i] = byteStr.charCodeAt(i);
-    var blob = new Blob([ab], { type: type });
-    window.__pendingTrackerImportFile = new File([blob], name, { type: type });
-    window.__forceImportWizard = true;
-    // Clear handoff payload — tracker-app's useEffect has the File now.
-    try {
-      sessionStorage.removeItem('cs_pending_image_dataurl');
-      sessionStorage.removeItem('cs_pending_image_name');
-      sessionStorage.removeItem('cs_pending_image_type');
-      sessionStorage.removeItem('cs_force_wizard');
-    } catch (_) {}
-  } catch (e) { /* never block the page */ }
 })();
 </script>
 <script>
