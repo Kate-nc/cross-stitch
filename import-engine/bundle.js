@@ -2662,7 +2662,14 @@
 
         // Track the detected/manual corners so the correction UI can show
         // them in the 4-corner editor (and so the user can nudge them).
+        // The dimensions in which `autoCorners` are expressed must be
+        // captured at the moment we assign them, because `warp` below
+        // RESIZES the working image and reassigns workingW/workingH.
+        // Without this, autoCornersNorm divides by the post-warp size
+        // and produces corners far outside [0,1] — they then render
+        // off-canvas in the CorrectionUI 4-corner editor.
         let autoCorners = null;
+        let autoCornersSrcW = workingW, autoCornersSrcH = workingH;
 
         // Manual corners can arrive either as absolute working-image
         // pixels (legacy `manualCorners`) or as normalised [0,1] fractions
@@ -2679,6 +2686,7 @@
 
         if (manualCornersForWarp) {
           autoCorners = manualCornersForWarp.slice();
+          autoCornersSrcW = workingW; autoCornersSrcH = workingH;
           const warped = await rpc(worker, {
             type: 'warp', rgba: workingRgba, w: workingW, h: workingH,
             corners: manualCornersForWarp, opts: (opts.image.tunings) || {},
@@ -2691,6 +2699,7 @@
           });
           if (corners && corners.corners) {
             autoCorners = corners.corners.slice();
+            autoCornersSrcW = workingW; autoCornersSrcH = workingH;
             const warped = await rpc(worker, {
               type: 'warp', rgba: workingRgba, w: workingW, h: workingH,
               corners: corners.corners, opts: (opts.image.tunings) || {},
@@ -2957,12 +2966,15 @@
             grid: Object.assign({}, grid, { rows: cellRes.rows, cols: cellRes.cols }),
             autoCorners,
             // Normalised [0,1] form: the CorrectionUI works in preview-
-            // canvas pixels, and workingW/H is the dimension `autoCorners`
-            // are expressed in *for the run that just finished*. The UI
-            // converts these to canvas px for display and back to norm
-            // when the user clicks "Recompute extraction".
+            // canvas pixels stretched to 800×600. We divide by the
+            // dimensions in which `autoCorners` were captured (before
+            // warp resized the working image), NOT by the post-warp
+            // workingW/H, otherwise the corners land far outside [0,1].
             autoCornersNorm: autoCorners ? autoCorners.map(function (p) {
-              return { x: p.x / workingW, y: p.y / workingH };
+              return {
+                x: Math.max(0, Math.min(1, p.x / autoCornersSrcW)),
+                y: Math.max(0, Math.min(1, p.y / autoCornersSrcH)),
+              };
             }) : null,
             distortion: (grid && grid.distortion) || null,
             previewImageDataUrl,
@@ -3677,6 +3689,11 @@
       });
     }).catch(function (err) {
       clearProgress();
+      // Suppress the generic "Import failed" toast when we already showed
+      // a specific one (e.g. correction-UI script fetch failure).
+      if (err && err._handled) {
+        return err.saved || { action: 'cancel', error: err };
+      }
       // Final safety net: anything thrown by importPattern, openReview, or
       // saveAndNavigate that wasn't already handled lands here.
       console.error('[import] unhandled error in importAndReview:', err);
@@ -3865,12 +3882,36 @@
       return p.then(function () {
         return new Promise(function (resolve, reject) {
           var existing = document.querySelector('script[src="' + src + '"]');
-          if (existing) return resolve();
+          if (existing) {
+            // Follow-up: if a tag already exists, wait for its load/error
+            // event before resolving. Previously we resolved immediately
+            // and could end up checking window.* before the script ran.
+            // If readyState says it's already complete, resolve now.
+            if (existing.dataset && existing.dataset.rcLoaded === '1') return resolve();
+            if (existing.dataset && existing.dataset.rcFailed === '1') {
+              var err0 = new Error('Previously failed chart correction script: ' + src);
+              err0.chartUIScript = src;
+              return reject(err0);
+            }
+            existing.addEventListener('load', function () { resolve(); }, { once: true });
+            existing.addEventListener('error', function () {
+              var err1 = new Error('Failed to load chart correction script: ' + src);
+              err1.chartUIScript = src;
+              reject(err1);
+            }, { once: true });
+            // Heuristic fallback: if the tag has been in the DOM for a
+            // while it almost certainly already ran; resolve after a
+            // short tick so we don't hang forever on events that already
+            // fired before we attached listeners.
+            setTimeout(function () { resolve(); }, 250);
+            return;
+          }
           var s = document.createElement('script');
           s.src = src;
           s.async = false;
-          s.onload = function () { resolve(); };
+          s.onload = function () { s.dataset.rcLoaded = '1'; resolve(); };
           s.onerror = function () {
+            s.dataset.rcFailed = '1';
             var err = new Error('Failed to load chart correction script: ' + src);
             err.chartUIScript = src;
             reject(err);
@@ -3894,6 +3935,26 @@
   function openChartCorrection(file, result, opts, onMounted) {
     var corr = result.raw._correction;
     return Promise.all([loadRasterChartUI(), decodeDataUrl(corr.previewImageDataUrl)])
+      .catch(function (loadErr) {
+        // Follow-up: a script fetch failure (offline, CSP, 404) used to
+        // silently reject and the user just saw an "Import failed:
+        // [object Object]" toast from the outer .catch. Surface a more
+        // specific message so we can tell network problems apart from
+        // an export-shape regression.
+        if (typeof onMounted === 'function') { try { onMounted(); } catch (_) {} }
+        console.error('[import] could not fetch correction UI scripts:', loadErr);
+        if (window.Toast && window.Toast.show) {
+          window.Toast.show({
+            message: 'Couldn\u2019t fetch the chart correction UI (' + ((loadErr && loadErr.chartUIScript) || 'network error') + '). Saved the auto-matched pattern instead.',
+            type: 'warning',
+            duration: 9000,
+          });
+        }
+        return saveAndNavigate(result.project, opts).then(function (saved) {
+          // Return a rejected continuation so the outer .then chain bails.
+          throw Object.assign(new Error('chart-ui-fetch-failed'), { _handled: true, saved: saved });
+        });
+      })
       .then(function (resolved) {
         var previewImage = resolved[1];
         // Mountable correction-UI state. Wrapped so we can fully re-mount

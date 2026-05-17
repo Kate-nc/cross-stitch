@@ -213,8 +213,21 @@
   // the worker for a recompute.
   const CANVAS_W = 800, CANVAS_H = 600;
   function normToCanvas(norm) {
-    if (!norm) return null;
-    return norm.map(p => ({ x: p.x * CANVAS_W, y: p.y * CANVAS_H }));
+    if (!norm || !Array.isArray(norm) || norm.length !== 4) return null;
+    // Defensive: clamp to a 10% margin inside the canvas so handles
+    // detected slightly outside the image (sub-pixel rounding, old
+    // pre-fix data) are still draggable. Anything wildly out of range
+    // (>2× the canvas) is rejected so we fall back to the default
+    // inset quad instead of showing handles a screenful away.
+    for (const p of norm) {
+      if (!p || typeof p.x !== 'number' || typeof p.y !== 'number') return null;
+      if (!isFinite(p.x) || !isFinite(p.y)) return null;
+      if (p.x < -1 || p.x > 2 || p.y < -1 || p.y > 2) return null;
+    }
+    return norm.map(p => ({
+      x: Math.max(0, Math.min(CANVAS_W, p.x * CANVAS_W)),
+      y: Math.max(0, Math.min(CANVAS_H, p.y * CANVAS_H)),
+    }));
   }
   function workingToCanvas(corners, pending) {
     if (!corners) return null;
@@ -356,11 +369,15 @@
   }
 
   function defaultCornersCanvas() {
+    // Inset by ~6% so the four handles are clearly grabbable instead of
+    // pinned to the canvas border (which fights the page chrome and
+    // looks like the chart fills the entire image).
+    const mx = CANVAS_W * 0.06, my = CANVAS_H * 0.06;
     return [
-      { x: 0,        y: 0 },
-      { x: CANVAS_W, y: 0 },
-      { x: CANVAS_W, y: CANVAS_H },
-      { x: 0,        y: CANVAS_H },
+      { x: mx,            y: my },
+      { x: CANVAS_W - mx, y: my },
+      { x: CANVAS_W - mx, y: CANVAS_H - my },
+      { x: mx,            y: CANVAS_H - my },
     ];
   }
 

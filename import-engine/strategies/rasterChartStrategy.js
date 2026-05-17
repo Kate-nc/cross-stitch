@@ -93,7 +93,14 @@
 
         // Track the detected/manual corners so the correction UI can show
         // them in the 4-corner editor (and so the user can nudge them).
+        // The dimensions in which `autoCorners` are expressed must be
+        // captured at the moment we assign them, because `warp` below
+        // RESIZES the working image and reassigns workingW/workingH.
+        // Without this, autoCornersNorm divides by the post-warp size
+        // and produces corners far outside [0,1] — they then render
+        // off-canvas in the CorrectionUI 4-corner editor.
         let autoCorners = null;
+        let autoCornersSrcW = workingW, autoCornersSrcH = workingH;
 
         // Manual corners can arrive either as absolute working-image
         // pixels (legacy `manualCorners`) or as normalised [0,1] fractions
@@ -110,6 +117,7 @@
 
         if (manualCornersForWarp) {
           autoCorners = manualCornersForWarp.slice();
+          autoCornersSrcW = workingW; autoCornersSrcH = workingH;
           const warped = await rpc(worker, {
             type: 'warp', rgba: workingRgba, w: workingW, h: workingH,
             corners: manualCornersForWarp, opts: (opts.image.tunings) || {},
@@ -122,6 +130,7 @@
           });
           if (corners && corners.corners) {
             autoCorners = corners.corners.slice();
+            autoCornersSrcW = workingW; autoCornersSrcH = workingH;
             const warped = await rpc(worker, {
               type: 'warp', rgba: workingRgba, w: workingW, h: workingH,
               corners: corners.corners, opts: (opts.image.tunings) || {},
@@ -388,12 +397,15 @@
             grid: Object.assign({}, grid, { rows: cellRes.rows, cols: cellRes.cols }),
             autoCorners,
             // Normalised [0,1] form: the CorrectionUI works in preview-
-            // canvas pixels, and workingW/H is the dimension `autoCorners`
-            // are expressed in *for the run that just finished*. The UI
-            // converts these to canvas px for display and back to norm
-            // when the user clicks "Recompute extraction".
+            // canvas pixels stretched to 800×600. We divide by the
+            // dimensions in which `autoCorners` were captured (before
+            // warp resized the working image), NOT by the post-warp
+            // workingW/H, otherwise the corners land far outside [0,1].
             autoCornersNorm: autoCorners ? autoCorners.map(function (p) {
-              return { x: p.x / workingW, y: p.y / workingH };
+              return {
+                x: Math.max(0, Math.min(1, p.x / autoCornersSrcW)),
+                y: Math.max(0, Math.min(1, p.y / autoCornersSrcH)),
+              };
             }) : null,
             distortion: (grid && grid.distortion) || null,
             previewImageDataUrl,

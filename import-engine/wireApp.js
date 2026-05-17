@@ -144,6 +144,11 @@
       });
     }).catch(function (err) {
       clearProgress();
+      // Suppress the generic "Import failed" toast when we already showed
+      // a specific one (e.g. correction-UI script fetch failure).
+      if (err && err._handled) {
+        return err.saved || { action: 'cancel', error: err };
+      }
       // Final safety net: anything thrown by importPattern, openReview, or
       // saveAndNavigate that wasn't already handled lands here.
       console.error('[import] unhandled error in importAndReview:', err);
@@ -332,12 +337,36 @@
       return p.then(function () {
         return new Promise(function (resolve, reject) {
           var existing = document.querySelector('script[src="' + src + '"]');
-          if (existing) return resolve();
+          if (existing) {
+            // Follow-up: if a tag already exists, wait for its load/error
+            // event before resolving. Previously we resolved immediately
+            // and could end up checking window.* before the script ran.
+            // If readyState says it's already complete, resolve now.
+            if (existing.dataset && existing.dataset.rcLoaded === '1') return resolve();
+            if (existing.dataset && existing.dataset.rcFailed === '1') {
+              var err0 = new Error('Previously failed chart correction script: ' + src);
+              err0.chartUIScript = src;
+              return reject(err0);
+            }
+            existing.addEventListener('load', function () { resolve(); }, { once: true });
+            existing.addEventListener('error', function () {
+              var err1 = new Error('Failed to load chart correction script: ' + src);
+              err1.chartUIScript = src;
+              reject(err1);
+            }, { once: true });
+            // Heuristic fallback: if the tag has been in the DOM for a
+            // while it almost certainly already ran; resolve after a
+            // short tick so we don't hang forever on events that already
+            // fired before we attached listeners.
+            setTimeout(function () { resolve(); }, 250);
+            return;
+          }
           var s = document.createElement('script');
           s.src = src;
           s.async = false;
-          s.onload = function () { resolve(); };
+          s.onload = function () { s.dataset.rcLoaded = '1'; resolve(); };
           s.onerror = function () {
+            s.dataset.rcFailed = '1';
             var err = new Error('Failed to load chart correction script: ' + src);
             err.chartUIScript = src;
             reject(err);
@@ -361,6 +390,26 @@
   function openChartCorrection(file, result, opts, onMounted) {
     var corr = result.raw._correction;
     return Promise.all([loadRasterChartUI(), decodeDataUrl(corr.previewImageDataUrl)])
+      .catch(function (loadErr) {
+        // Follow-up: a script fetch failure (offline, CSP, 404) used to
+        // silently reject and the user just saw an "Import failed:
+        // [object Object]" toast from the outer .catch. Surface a more
+        // specific message so we can tell network problems apart from
+        // an export-shape regression.
+        if (typeof onMounted === 'function') { try { onMounted(); } catch (_) {} }
+        console.error('[import] could not fetch correction UI scripts:', loadErr);
+        if (window.Toast && window.Toast.show) {
+          window.Toast.show({
+            message: 'Couldn\u2019t fetch the chart correction UI (' + ((loadErr && loadErr.chartUIScript) || 'network error') + '). Saved the auto-matched pattern instead.',
+            type: 'warning',
+            duration: 9000,
+          });
+        }
+        return saveAndNavigate(result.project, opts).then(function (saved) {
+          // Return a rejected continuation so the outer .then chain bails.
+          throw Object.assign(new Error('chart-ui-fetch-failed'), { _handled: true, saved: saved });
+        });
+      })
       .then(function (resolved) {
         var previewImage = resolved[1];
         // Mountable correction-UI state. Wrapped so we can fully re-mount
