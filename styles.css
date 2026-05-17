@@ -6060,6 +6060,94 @@ details[open] .creator-popover-difficulty__summary::before {
   flex-shrink: 0;
 }
 
+/* Design 2 (May 2026, follow-up to Design 1): segmented sub-tabs inside
+   the Create panel. The sub-tabs replace the side-by-side tile grid
+   with one focused panel at a time so each pathway can carry its own
+   primary action + "Tips for best results" callout. */
+.home-create-subtabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  margin: var(--s-3, 12px) 0 var(--s-4, 16px);
+}
+.home-create-subtabs__btn {
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm, 13px);
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  transition: background var(--motion, 160ms) ease,
+              color var(--motion, 160ms) ease,
+              border-color var(--motion, 160ms) ease;
+}
+.home-create-subtabs__btn:hover:not(:disabled):not(.home-create-subtabs__btn--on) {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+.home-create-subtabs__btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.home-create-subtabs__btn--on {
+  background: var(--surface);
+  color: var(--text-primary);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.home-create-subtabs__btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.home-create-subpanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3, 12px);
+}
+/* Full-width single-tile variant — used inside each sub-mode body so
+   the primary action gets the full column rather than sitting in a
+   grid of equal-weight tiles. */
+.home-create-tile--wide {
+  width: 100%;
+}
+
+/* "Tips for best results:" callout — dashed border + tinted background
+   so it reads as supporting copy without competing with the primary
+   tile above it. */
+.home-create-tips {
+  padding: var(--s-3, 12px) var(--s-4, 16px);
+  background: var(--surface-secondary);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md, 8px);
+  font-size: var(--text-sm, 13px);
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+.home-create-tips strong { color: var(--text-primary); }
+.home-create-tips em { font-style: normal; font-weight: 600; color: var(--text-primary); }
+.home-create-tips__link {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.home-create-tips__link:hover { color: var(--accent-hover, var(--accent)); }
+.home-create-tips__link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
 /* ── Create new panel ── */
 .home-create-file-input { display: none; }
 .home-create-panel { padding: var(--s-3, 12px) 0 0; position: relative; }

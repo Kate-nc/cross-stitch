@@ -578,16 +578,62 @@
       }).finally(function () { setPending(false); });
     }
 
+    // ── Design 2: segmented sub-tabs inside the Create panel ──────────────
+    // A four-mode segmented control (Photo / Printed chart / Pattern file /
+    // Blank grid, +Embroidery when the experimental flag is on) replaces
+    // the tile-grid IA from Design 1. Each sub-mode renders its own
+    // detailed panel with:
+    //   - the primary picker / action button
+    //   - a "Tips for best results" callout under it that answers
+    //     "is this the right tool for what I have?"
+    //
+    // The active sub-mode is reflected in the URL as `?tab=create&sub=<id>`
+    // so help drawer / onboarding links can deep-link straight to the
+    // right surface. Each mode's hidden file input keeps its own
+    // pathway-specific accept= filter (same as Design 1).
+    var SUB_MODES = ['photo', 'chart', 'file', 'blank'];
+    if (embroideryEnabled) SUB_MODES.push('embroidery');
+
+    function readSubFromUrl() {
+      try {
+        var p = new URLSearchParams(window.location.search);
+        var s = p.get('sub');
+        if (s && SUB_MODES.indexOf(s) !== -1) return s;
+      } catch (_) {}
+      return 'photo';
+    }
+
+    var subState = React.useState(readSubFromUrl);
+    var sub = subState[0]; var setSub = subState[1];
+
+    // Mirror the active sub-mode back into the URL so the back button +
+    // deep links work without re-mounting the panel.
+    React.useEffect(function () {
+      try {
+        var p = new URLSearchParams(window.location.search);
+        var current = p.get('sub');
+        if (current === sub) return;
+        if (sub === 'photo' && !current) return; // photo is the default
+        p.set('tab', 'create');
+        p.set('sub', sub);
+        var qs = '?' + p.toString();
+        window.history.replaceState(null, '', qs + window.location.hash);
+      } catch (_) {}
+    }, [sub]);
+
+    function pickSub(next) { if (!pending) setSub(next); }
+
     return h('section', {
       className: 'home-create-panel',
       'aria-labelledby': 'home-create-panel-title'
     },
-      h('h2', { id: 'home-create-panel-title', className: 'home-section__title' }, 'Start a new pattern'),
+      h('h2', { id: 'home-create-panel-title', className: 'home-section__title' }, 'What are you working with?'),
       h('p', { className: 'home-create-panel__sub' },
-        'Pick the option that matches what you have on hand.'),
+        "Choose how you'd like to start — each path has different tools."),
 
-      // Three hidden file inputs — one per pathway so the accept filter
-      // is pathway-specific. Triggered by the matching tile click.
+      // Hidden file inputs (one per pathway) — kept at the top of the
+      // panel rather than inside each sub-mode body so they aren't
+      // re-mounted when the user flips between sub-tabs.
       h('input', {
         ref: photoInputRef, type: 'file', accept: 'image/*',
         className: 'home-create-file-input', onChange: onPhotoChange,
@@ -604,12 +650,37 @@
         'aria-hidden': 'true', tabIndex: -1
       }),
 
-      h('div', { className: 'home-create-panel__grid home-create-panel__grid--three' },
+      // Segmented control (role=tablist) — keyboard activation is the
+      // browser default for button focus + Enter/Space.
+      h('div', { className: 'home-create-subtabs', role: 'tablist', 'aria-label': 'Choose how to start' },
+        SUB_MODES.map(function (id) {
+          var label = id === 'photo' ? 'Photo / artwork'
+            : id === 'chart' ? 'Printed chart'
+            : id === 'file' ? 'Pattern file'
+            : id === 'blank' ? 'Blank grid'
+            : 'Embroidery';
+          var isOn = sub === id;
+          return h('button', {
+            key: id,
+            type: 'button',
+            role: 'tab',
+            'aria-selected': isOn ? 'true' : 'false',
+            className: 'home-create-subtabs__btn' + (isOn ? ' home-create-subtabs__btn--on' : ''),
+            onClick: function () { pickSub(id); },
+            disabled: pending
+          },
+            label,
+            id === 'chart' && h('span', { className: 'home-create-tile__badge home-create-tile__badge--new', style: { marginLeft: 6 } }, 'New'),
+            id === 'embroidery' && h('span', { className: 'home-create-tile__badge', style: { marginLeft: 6 } }, 'Beta')
+          );
+        })
+      ),
 
-        // Tile 1: Photo / artwork -> Pattern Creator
+      // Per-sub-mode body.
+      sub === 'photo' && h('div', { className: 'home-create-subpanel', role: 'tabpanel' },
         h('button', {
           type: 'button',
-          className: 'home-create-tile',
+          className: 'home-create-tile home-create-tile--primary home-create-tile--wide',
           onClick: handleNewFromPhoto,
           disabled: pending,
           'data-onboard': 'home-from-image'
@@ -617,16 +688,21 @@
           h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
             typeof Icons.image === 'function' ? Icons.image() : null),
           h('span', { className: 'home-create-tile__copy' },
-            h('strong', null, 'Create from photo or artwork'),
-            h('span', null, 'Turn a photo, drawing or pixel art into a stitchable pattern. Best for original designs.'),
-            h('span', { className: 'home-create-tile__formats' }, 'JPG · PNG · GIF · WebP')
+            h('strong', null, 'Create a pattern from a photo or artwork'),
+            h('span', null, "Pick an image and we'll convert it into a stitchable chart with DMC colours. Best for original designs, photos, and pixel art."),
+            h('span', { className: 'home-create-tile__formats' }, 'JPG · PNG · GIF · WebP · up to ~5 MB')
           )
         ),
+        h('div', { className: 'home-create-tips' },
+          h('strong', null, 'Tips for best results:'),
+          ' use a clear, well-lit image · crop tightly around the subject · simple backgrounds quantise more cleanly · the Creator lets you tweak colour count and palette after import.'
+        )
+      ),
 
-        // Tile 2: Digitise a printed chart -> Tracker ImportWizard (forced)
+      sub === 'chart' && h('div', { className: 'home-create-subpanel', role: 'tabpanel' },
         h('button', {
           type: 'button',
-          className: 'home-create-tile home-create-tile--primary',
+          className: 'home-create-tile home-create-tile--primary home-create-tile--wide',
           onClick: handleNewFromChart,
           disabled: pending,
           'data-onboard': 'home-from-chart'
@@ -634,34 +710,81 @@
           h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
             typeof Icons.wand === 'function' ? Icons.wand() : null),
           h('span', { className: 'home-create-tile__copy' },
-            h('strong', null, 'Digitise a printed chart ',
-              h('span', { className: 'home-create-tile__badge home-create-tile__badge--new' }, 'New')),
-            h('span', null, 'Photo of a chart from a book or magazine? Five guided steps detect the grid, symbols and DMC codes.'),
+            h('strong', null, 'Upload a photo of the chart'),
+            h('span', null, "Phone snap of a book page, or a scanned page. We'll detect the grid and read the symbols and DMC codes for you."),
             h('span', { className: 'home-create-tile__formats' }, 'JPG · PNG · GIF · WebP')
           )
         ),
+        h('div', { className: 'home-create-tips' },
+          h('strong', null, 'Tips for best results:'),
+          ' press the book flat under a lamp · keep the camera parallel to the page · include the legend if it sits on the same page · the wizard runs ', h('strong', null, 'five guided steps'), ': ',
+          h('em', null, 'Crop, Detect grid, Match palette, Map symbols, Review.'),
+          h('br', null),
+          h('span', { style: { display: 'inline-block', marginTop: 6, color: 'var(--text-secondary)' } },
+            'Got a multi-page PDF chart? Use ',
+            h('button', {
+              type: 'button',
+              className: 'home-create-tips__link',
+              onClick: function () { pickSub('file'); }
+            }, 'Pattern file'),
+            ' instead.'
+          )
+        )
+      ),
 
-        // Tile 3: Blank grid -> Pattern Creator (scratch)
+      sub === 'file' && h('div', { className: 'home-create-subpanel', role: 'tabpanel' },
+        h('button', {
+          type: 'button',
+          className: 'home-create-tile home-create-tile--primary home-create-tile--wide',
+          onClick: handleOpenExisting,
+          disabled: pending
+        },
+          h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
+            typeof Icons.folder === 'function' ? Icons.folder() : null),
+          h('span', { className: 'home-create-tile__copy' },
+            h('strong', null, 'Open an existing pattern file'),
+            h('span', null, "Already have a chart file? Open it directly — we'll preserve the original palette and layout."),
+            h('span', { className: 'home-create-tile__formats' }, '.oxs · .xml · .json · Pattern Keeper .pdf')
+          )
+        ),
+        h('div', { className: 'home-create-tips' },
+          h('strong', null, 'Tips:'),
+          ' .oxs and .xml come from KG-Chart and most online generators · .json is a stitchx-native export · .pdf works for charts produced by Pattern Keeper. For photos of printed charts, use ',
+          h('button', {
+            type: 'button',
+            className: 'home-create-tips__link',
+            onClick: function () { pickSub('chart'); }
+          }, 'Printed chart'),
+          ' instead.'
+        )
+      ),
+
+      sub === 'blank' && h('div', { className: 'home-create-subpanel', role: 'tabpanel' },
         h('a', {
           href: 'create.html?action=new-blank',
-          className: 'home-create-tile' + (pending ? ' home-create-tile--disabled' : ''),
+          className: 'home-create-tile home-create-tile--primary home-create-tile--wide'
+            + (pending ? ' home-create-tile--disabled' : ''),
           'aria-disabled': pending ? 'true' : undefined,
           onClick: pending ? function (e) { e.preventDefault(); } : undefined
         },
           h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
             typeof Icons.plus === 'function' ? Icons.plus() : null),
           h('span', { className: 'home-create-tile__copy' },
-            h('strong', null, 'Start from scratch'),
-            h('span', null, 'Open a blank grid and design pixel-by-pixel.')
+            h('strong', null, 'Start from a blank grid'),
+            h('span', null, 'Open the Pattern Creator with an empty canvas. Set your dimensions and design pixel-by-pixel.')
           )
         ),
+        h('div', { className: 'home-create-tips' },
+          h('strong', null, 'Tips:'),
+          ' you can change the grid size later · pick fewer DMC colours up front to keep the palette tidy · the Creator includes drawing tools, symbol palettes and a full undo history.'
+        )
+      ),
 
-        // Embroidery planner: experimental fourth tile, only rendered when the
-        // user has opted in via Preferences -> Creator -> Experimental. Carries a
-        // "Beta" badge so users know this lives outside the supported flows.
-        embroideryEnabled && h('a', {
+      embroideryEnabled && sub === 'embroidery' && h('div', { className: 'home-create-subpanel', role: 'tabpanel' },
+        h('a', {
           href: 'embroidery.html?from=home',
-          className: 'home-create-tile' + (pending ? ' home-create-tile--disabled' : ''),
+          className: 'home-create-tile home-create-tile--primary home-create-tile--wide'
+            + (pending ? ' home-create-tile--disabled' : ''),
           'aria-disabled': pending ? 'true' : undefined,
           onClick: pending ? function (e) { e.preventDefault(); } : undefined
         },
@@ -669,32 +792,14 @@
             typeof Icons.thread === 'function' ? Icons.thread()
               : (typeof Icons.image === 'function' ? Icons.image() : null)),
           h('span', { className: 'home-create-tile__copy' },
-            h('strong', null, 'Embroidery planner ',
-              h('span', { className: 'home-create-tile__badge' }, 'Beta')),
-            h('span', null, 'Sketch a freehand embroidery layout (experimental)')
-          )
-        )
-      ),
-
-      // "Open an existing pattern file" strip — sits visually below the
-      // create tiles to reinforce the IA split between *create* (above)
-      // and *open* (below). Same handler as the legacy combined input
-      // but with a pattern-file-only accept= filter.
-      h('div', { className: 'home-create-open-strip' },
-        h('div', { className: 'home-create-open-strip__copy' },
-          h('span', { className: 'home-create-open-strip__icon', 'aria-hidden': 'true' },
-            typeof Icons.folder === 'function' ? Icons.folder() : null),
-          h('div', null,
-            h('strong', null, 'Already have a pattern file?'),
-            h('span', null, 'Open .oxs, .xml, .json or a Pattern Keeper .pdf.')
+            h('strong', null, 'Open the embroidery planner'),
+            h('span', null, 'Sketch a freehand embroidery layout with stitches and threads (experimental prototype).')
           )
         ),
-        h('button', {
-          type: 'button',
-          className: 'btn btn-secondary home-create-open-strip__btn',
-          onClick: handleOpenExisting,
-          disabled: pending
-        }, 'Open pattern file')
+        h('div', { className: 'home-create-tips' },
+          h('strong', null, 'Heads up:'),
+          ' this is a separate prototype and the projects it produces are not interchangeable with cross-stitch patterns. Disable it under Preferences › Experimental to hide this sub-tab.'
+        )
       ),
 
       // Transitional overlay shown between FileReader-load and the target
