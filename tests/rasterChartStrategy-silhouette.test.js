@@ -33,8 +33,8 @@ describe('rasterChartStrategy.computeSilhouetteProxy', () => {
   beforeAll(() => { silhouette = extractSilhouetteFn(); });
 
   test('returns 0 when fewer than 2 clusters', () => {
-    expect(silhouette(null, null)).toBe(0);
-    expect(silhouette({ assignments: [0, 0], medoids: [0] }, { features: [new Float32Array([1, 2])] })).toBe(0);
+    expect(silhouette(null, null).score).toBe(0);
+    expect(silhouette({ assignments: [0, 0], medoids: [0] }, { features: [new Float32Array([1, 2])] }).score).toBe(0);
   });
 
   test('returns positive score on well-separated clusters', () => {
@@ -49,7 +49,7 @@ describe('rasterChartStrategy.computeSilhouetteProxy', () => {
     ];
     const assignments = [0, 0, 0, 1, 1, 1];
     const medoids = [0, 3]; // index into features
-    const score = silhouette({ assignments, medoids }, { features });
+    const score = silhouette({ assignments, medoids }, { features }).score;
     expect(score).toBeGreaterThan(0.9);
   });
 
@@ -64,7 +64,7 @@ describe('rasterChartStrategy.computeSilhouetteProxy', () => {
     const sepScore = silhouette(
       { assignments: [0, 0, 1, 1], medoids: [0, 2] },
       { features: sepFeat }
-    );
+    ).score;
     // Clusters that interleave: medoids close together.
     const ovFeat = [
       new Float32Array([0, 0]),
@@ -75,7 +75,7 @@ describe('rasterChartStrategy.computeSilhouetteProxy', () => {
     const ovScore = silhouette(
       { assignments: [0, 1, 0, 1], medoids: [0, 1] },
       { features: ovFeat }
-    );
+    ).score;
     expect(sepScore).toBeGreaterThan(ovScore);
   });
 
@@ -89,7 +89,7 @@ describe('rasterChartStrategy.computeSilhouetteProxy', () => {
     ];
     const assignments = [0, 0, -1, 1, 1];
     const medoids = [0, 3];
-    const score = silhouette({ assignments, medoids }, { features });
+    const score = silhouette({ assignments, medoids }, { features }).score;
     expect(score).toBeGreaterThan(0.9);
   });
 });

@@ -2792,7 +2792,9 @@
             const noiseCount = clu.assignments.filter(a => a < 0).length;
             const clusterCount = new Set(clu.assignments.filter(a => a >= 0)).size;
             const totalCells = clu.assignments.length || 1;
-            const meanSilhouette = computeSilhouetteProxy(clu, feat);
+            const silhouette = computeSilhouetteProxy(clu, feat);
+            const meanSilhouette = silhouette.score;
+            const silhouetteMode = silhouette.mode;
             const sourceType = pre.otsuFastPath ? 'screenshot' : 'photo';
           timings.match = 0;            // Phase 1 has no match step (label step lives in UI).
             timings['legend-ocr'] = timings['legend-ocr'] || 0;
@@ -2802,8 +2804,12 @@
                 grid: { peakProminenceRatio: (grid && grid.confidence) || 0 },
                 cluster: {
                   meanSilhouette,              // proxy: medoid-based silhouette score
+                  silhouetteMode,              // 'lab' (colour mode) | 'shape' (B&W / fallback)
                   noiseCount,
                   clusterCount,
+                  paletteRestricted: !!(colourResult && colourResult.paletteRestricted),
+                  paletteSize:        (colourResult && colourResult.paletteSize) || null,
+                  bgOffset:           (colourResult && colourResult.bgOffset) || null,
                 },
                 legend: {
                   meanWordConfidence: legMeta.meanWordConfidence,
@@ -3099,9 +3105,30 @@
   //   s_i = (b_i - a_i) / max(a_i, b_i)
   // Mean s_i across all non-noise points. Returns 0 when clusters < 2 or
   // no assigned points (no signal). Range [-1, 1]; higher is better.
+  //
+  // Feature-set selection (post palette-seeded migration):
+  //   • Colour-mode (paletteSeededCluster) returns `clu.labFeatures` — a
+  //     per-cell Lab vector. The cluster identity is driven by Lab, so we
+  //     prefer Lab features when present so the score actually reflects
+  //     what was clustered.
+  //   • B&W / fallback DBSCAN paths leave `clu.labFeatures` undefined; we
+  //     fall back to HOG `feat.features` so the existing telemetry path
+  //     keeps producing the same numbers it did before.
+  // Returns { score, mode: 'lab' | 'shape' | 'none' }.
   function computeSilhouetteProxy(clu, feat) {
-    if (!clu || !feat || !feat.features || !clu.assignments || !clu.medoids) return 0;
-    const features = feat.features;
+    if (!clu || !clu.assignments || !clu.medoids) {
+      return { score: 0, mode: 'none' };
+    }
+    let features, mode;
+    if (Array.isArray(clu.labFeatures) && clu.labFeatures.length) {
+      features = clu.labFeatures;
+      mode = 'lab';
+    } else if (feat && feat.features && feat.features.length) {
+      features = feat.features;
+      mode = 'shape';
+    } else {
+      return { score: 0, mode: 'none' };
+    }
     const assigns = clu.assignments;
     const medoids = clu.medoids;
     // Collect cluster ids with valid medoids.
@@ -3109,7 +3136,7 @@
     for (let c = 0; c < medoids.length; c++) {
       if (medoids[c] != null && features[medoids[c]]) clusterIds.push(c);
     }
-    if (clusterIds.length < 2) return 0;
+    if (clusterIds.length < 2) return { score: 0, mode };
     // Cache medoid feature vectors.
     const medoidVecs = clusterIds.map(c => features[medoids[c]]);
     function dist(a, b) {
@@ -3138,7 +3165,7 @@
       sum += (b - a) / denom;
       count++;
     }
-    return count > 0 ? sum / count : 0;
+    return { score: count > 0 ? sum / count : 0, mode };
   }
 
   // ── Colour-mode path (Phase 2) ─────────────────────────────────────────
@@ -3273,6 +3300,7 @@
       clu, clusterLabels,
       cellColors: colRes.cellColors, cols: colRes.cols, rows: colRes.rows,
       paletteRestricted, paletteSize: palette.length,
+      bgOffset: (clu && clu.bgOffset) || null,
     };
   }
 

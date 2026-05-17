@@ -9,8 +9,10 @@ describe('classifyToken — all CODE_PATTERNS branches', () => {
     ['E940',     'code'], ['E5200', 'code'],
     ['S520',     'code'],
     ['310',      'code'], ['1', 'code'], ['12345', 'code'],
+    ['#310',     'code'], ['#5200', 'code'],
     ['DMC 310',  'code'], ['Anchor 47', 'code'], ['Madeira 1003', 'code'],
     ['Mad. 1003','code'], ['Sulky 1005', 'code'],
+    ['DMC #310', 'code'], ['Anchor #47', 'code'],
     ['Black',    'name'],
     ['Very dark violet', 'name'],
     ['',         'unknown'],
@@ -80,5 +82,16 @@ describe('parseLegendLine — full line parsing', () => {
   });
   test('unrecognised first token → null', () => {
     expect(parseLegendLine('Hello world', set)).toBeNull();
+  });
+  test('"#310 Black" → exact (hash prefix stripped)', () => {
+    const r = parseLegendLine('#310 Black', set);
+    expect(r.code).toBe('#310');
+    expect(r.name).toBe('Black');
+    expect(r.source).toBe('exact');
+  });
+  test('"DMC #310 Black" → exact (brand + hash prefix stripped)', () => {
+    const r = parseLegendLine('DMC #310 Black', set);
+    expect(r.code).toBe('DMC #310');
+    expect(r.source).toBe('exact');
   });
 });

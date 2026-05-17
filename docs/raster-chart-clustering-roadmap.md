@@ -101,6 +101,41 @@ short, low-confidence, or missing.
 `colourResult.paletteRestricted` exposes whether the restriction fired
 so downstream UI / telemetry can distinguish the two paths.
 
+### 7. Lab-space silhouette telemetry (shipped)
+
+`computeSilhouetteProxy` now prefers `clu.labFeatures` over HOG
+features when present, which is the case for every colour-mode run
+(palette-seeded path). The medoid-based silhouette score therefore
+actually reflects what was clustered — previously it was scoring the
+new palette-seeded clusters against shape features the clusters didn't
+use, producing meaningless numbers. The B&W / fallback DBSCAN path
+keeps using HOG features so its historical numbers stay comparable.
+Telemetry now records `confidence.cluster.silhouetteMode = 'lab' |
+'shape'` so the two populations can be analysed separately.
+
+### 8. Background-tint normalisation (shipped)
+
+`paletteSeededCluster` now estimates a per-image background a*,b*
+offset from the brightest near-neutral cells (top 10 % by L* whose
+|a*|+|b*| ≤ 12) and subtracts it from every cell's Lab before the
+palette snap. This closes the gap where cream paper, scanned charts,
+or photos under non-D50 lighting tilt every cell consistently —
+previously a 310 swatch on cream paper drifted ~ΔE 4–6 from the
+catalogue 310, often enough to snap to ECRU-adjacent neighbours.
+Only fires when the drift is large enough to matter (|a̅| or |b̅| ≥
+1.0), so clean screenshots are bit-stable. The detected offset is
+returned as `clu.bgOffset` and recorded in
+`confidence.cluster.bgOffset` for telemetry.
+
+### 9. OCR legend tolerance for `#` prefix (shipped)
+
+`ocrRepair.CODE_PATTERNS` now accepts `#310`, `DMC #310`,
+`Anchor #47`, etc. The same prefix is stripped before set lookup in
+`repairCode` and `parseLegendLine`. Some print exporters
+(particularly Pattern Maker and a handful of Etsy templates) emit
+`#NNN` in the legend; previously those rows were silently dropped and
+the chart fell back to the full DMC catalogue.
+
 ## Larger changes — research notes & plan
 
 Each item below is a deliberately separate commit because they have

@@ -20,8 +20,8 @@
     /^(BLANC|B5200|ECRU)$/i,
     /^E\d{3,4}$/i,            // DMC Light Effects
     /^S\d{3}$/i,              // DMC Satin
-    /^\d{1,5}$/,              // Generic numeric
-    /^(DMC|Anchor|Madeira|Mad\.?|Sulky)\s*[A-Z]?\d{1,5}$/i,
+    /^#?\d{1,5}$/,            // Generic numeric, optional leading #
+    /^(DMC|Anchor|Madeira|Mad\.?|Sulky)\s*#?[A-Z]?\d{1,5}$/i,
   ];
 
   // Bidirectional confusion map. The keys are the OCR-recognised glyphs
@@ -74,8 +74,11 @@
     }
     if (!dmcCodeSet || dmcCodeSet.size === 0) return null;
 
-    // Strip brand prefix for matching but remember the original for return.
-    const stripped = raw.replace(/^(DMC|Anchor|Madeira|Mad\.?|Sulky)\s*/i, '');
+    // Strip brand prefix and any leading '#' for matching but remember
+    // the original for return.
+    const stripped = raw
+      .replace(/^(DMC|Anchor|Madeira|Mad\.?|Sulky)\s*/i, '')
+      .replace(/^#/, '');
     if (stripped !== raw && dmcCodeSet.has(stripped)) {
       return { code: stripped, repaired: false, candidates: [stripped] };
     }
@@ -119,7 +122,10 @@
     for (const c of candidates) {
       const kind = classifyToken(c.code);
       if (kind === 'code') {
-        if (dmcCodeSet && dmcCodeSet.has(c.code.replace(/^(DMC|Anchor|Madeira|Mad\.?|Sulky)\s*/i, ''))) {
+        const bare = c.code
+          .replace(/^(DMC|Anchor|Madeira|Mad\.?|Sulky)\s*/i, '')
+          .replace(/^#/, '');
+        if (dmcCodeSet && dmcCodeSet.has(bare)) {
           return { code: c.code, name: c.rest, source: 'exact' };
         }
         const repaired = repairCode(c.code, dmcCodeSet);

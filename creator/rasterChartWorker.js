@@ -250,15 +250,54 @@
             const minPts = (msg.opts && msg.opts.minPts) || 2;
             const shapeSplit = !(msg.opts && msg.opts.shapeSubSplit === false);
             const subSplitMin = (msg.opts && msg.opts.subSplitMin) || 8;
+            const normaliseBg = !(msg.opts && msg.opts.normaliseBackground === false);
 
-            // 1. Per-cell Lab and nearest-palette match by ΔE2000.
+            // 1a. Per-cell Lab (sRGB → D50 Lab). The palette-snap step is
+            //     deferred until after optional background normalisation.
             const labFeatures = new Array(n);
+            for (let i = 0; i < n; i++) {
+              const r = cellColors[i * 3], g = cellColors[i * 3 + 1], b = cellColors[i * 3 + 2];
+              labFeatures[i] = d50RgbToLab(r, g, b);
+            }
+
+            // 1b. Background-tint normalisation. Charts printed on cream
+            //     paper or photographed under non-D50 lighting tilt every
+            //     cell's Lab by a consistent a*,b* offset. We estimate
+            //     that offset from the brightest near-neutral cells (top
+            //     10 % by L* with low chroma) and subtract it before the
+            //     palette snap. Only applied when the drift is large
+            //     enough to matter (|a̅| or |b̅| ≥ 1.0 in Lab units), so
+            //     clean screenshots are unaffected.
+            let bgOffset = [0, 0, 0];
+            if (normaliseBg && n >= 50) {
+              const order = new Array(n);
+              for (let i = 0; i < n; i++) order[i] = i;
+              order.sort((x, y) => labFeatures[y][0] - labFeatures[x][0]);
+              const topN = Math.max(10, Math.floor(n * 0.10));
+              let sa = 0, sb = 0, k = 0;
+              for (let j = 0; j < topN; j++) {
+                const lab = labFeatures[order[j]];
+                if (Math.abs(lab[1]) + Math.abs(lab[2]) > 12) continue;
+                sa += lab[1]; sb += lab[2]; k++;
+              }
+              if (k >= 5) {
+                const aMean = sa / k, bMean = sb / k;
+                if (Math.abs(aMean) >= 1.0 || Math.abs(bMean) >= 1.0) {
+                  bgOffset = [0, aMean, bMean];
+                  for (let i = 0; i < n; i++) {
+                    labFeatures[i][1] -= aMean;
+                    labFeatures[i][2] -= bMean;
+                  }
+                }
+              }
+            }
+
+            // 1c. Nearest-palette match by ΔE2000 on the (possibly
+            //     normalised) per-cell Lab values.
             const cellPaletteIdx = new Int32Array(n);
             const cellPaletteDist = new Float32Array(n);
             for (let i = 0; i < n; i++) {
-              const r = cellColors[i * 3], g = cellColors[i * 3 + 1], b = cellColors[i * 3 + 2];
-              const lab = d50RgbToLab(r, g, b);
-              labFeatures[i] = lab;
+              const lab = labFeatures[i];
               let bestIdx = -1, bestD = Infinity;
               for (let p = 0; p < palette.length; p++) {
                 const pl = palette[p].lab;
@@ -355,6 +394,7 @@
               clusterCodes,
               eps: 0,
               labFeatures: labFeatures.map(f => Array.from(f)),
+              bgOffset,
             }});
           }
           return;
