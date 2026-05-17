@@ -539,7 +539,18 @@
       Math.floor(cellPitch * 0.18),
       Math.floor(cellPitch * DEFAULT_OPTS.cellInwardPadFrac),
     );
-    const rBuf = []; const gBuf = []; const bBuf = [];
+    // Per-pixel scratch buffers reused across cells. Avoids allocating a
+    // fresh array for every cell (cells × ~200 px = millions of GC objects
+    // on a typical chart otherwise).
+    const rBuf = []; const gBuf = []; const bBuf = []; const yBuf = [];
+    // Luminance histogram for modal-window median. 16 buckets × 16 Y per
+    // bucket spans 0–255. The densest bucket is overwhelmingly the cell
+    // background; the printed symbol (whatever its polarity) usually lives
+    // 2+ buckets away in luminance, so a ±16 Y window around the mode
+    // keeps only background pixels.
+    const NUM_BUCKETS = 16;
+    const BUCKET_WIDTH = 16; // 256 / 16
+    const hist = new Int32Array(NUM_BUCKETS);
 
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
@@ -548,29 +559,67 @@
         const x1 = Math.round(originCol + (c + 1) * cellPitch) - pad;
         const y1 = Math.round(originRow + (r + 1) * cellPitch) - pad;
 
-        rBuf.length = 0; gBuf.length = 0; bBuf.length = 0;
+        rBuf.length = 0; gBuf.length = 0; bBuf.length = 0; yBuf.length = 0;
         for (let py = Math.max(0, y0); py < Math.min(h, y1); py++) {
           for (let px = Math.max(0, x0); px < Math.min(w, x1); px++) {
             const base = (py * w + px) * 4;
-            rBuf.push(rgba[base]);
-            gBuf.push(rgba[base + 1]);
-            bBuf.push(rgba[base + 2]);
+            const r8 = rgba[base], g8 = rgba[base + 1], b8 = rgba[base + 2];
+            rBuf.push(r8); gBuf.push(g8); bBuf.push(b8);
+            // Rec. 601 luma (cheap, integer-friendly). Pure-perceptual L*
+            // would need an sRGB→Lab per pixel — overkill for picking the
+            // dominant brightness bucket.
+            yBuf.push((r8 * 77 + g8 * 150 + b8 * 29) >> 8);
           }
         }
 
         const base = (r * cols + c) * 3;
-        if (rBuf.length > 0) {
-          // Sort + take middle. ~200 pixels per cell; the sort cost is
-          // negligible compared to the OpenCV / DBSCAN steps that bracket
-          // this function.
-          rBuf.sort((a, b) => a - b);
-          gBuf.sort((a, b) => a - b);
-          bBuf.sort((a, b) => a - b);
-          const mid = rBuf.length >> 1;
-          out[base]     = rBuf[mid];
-          out[base + 1] = gBuf[mid];
-          out[base + 2] = bBuf[mid];
+        const n = rBuf.length;
+        if (!n) continue;
+
+        // ── Modal-window median ─────────────────────────────────────────
+        // 1. Bucketise luminance, find the densest bucket = background mode.
+        // 2. Keep pixels within ±1 bucket of the mode (±32 Y).
+        // 3. If the kept subset is at least 20 % of the cell, median over
+        //    that subset — this is the background colour, free of the
+        //    printed symbol's ink. Otherwise fall back to a full-pixel
+        //    median (degenerate cell, or symbol covers > 80 %).
+        hist.fill(0);
+        for (let i = 0; i < n; i++) {
+          const b = yBuf[i] >> 4; // / BUCKET_WIDTH
+          hist[b < 0 ? 0 : b >= NUM_BUCKETS ? NUM_BUCKETS - 1 : b]++;
         }
+        let modeBucket = 0, modeCount = hist[0];
+        for (let i = 1; i < NUM_BUCKETS; i++) {
+          if (hist[i] > modeCount) { modeCount = hist[i]; modeBucket = i; }
+        }
+        const yMin = (modeBucket - 1) * BUCKET_WIDTH;
+        const yMax = (modeBucket + 2) * BUCKET_WIDTH; // exclusive upper bound (covers mode bucket + 1)
+        // Collect kept-pixel indices. Threshold of 20 % of cell pixels —
+        // below that the mode bucket is probably noise rather than the
+        // true background, so we keep the original full-cell median for
+        // backwards compatibility.
+        const keepThresh = Math.max(8, Math.floor(n * 0.20));
+        let kept = 0;
+        // Compact in place: move kept pixels to the front of the buffers.
+        for (let i = 0; i < n; i++) {
+          const y = yBuf[i];
+          if (y >= yMin && y < yMax) {
+            rBuf[kept] = rBuf[i]; gBuf[kept] = gBuf[i]; bBuf[kept] = bBuf[i];
+            kept++;
+          }
+        }
+        const useKept = kept >= keepThresh;
+        const len = useKept ? kept : n;
+        // Median each channel over the active range. Array.prototype.sort
+        // honours the explicit length when we truncate via .length=.
+        rBuf.length = len; gBuf.length = len; bBuf.length = len;
+        rBuf.sort((a, b) => a - b);
+        gBuf.sort((a, b) => a - b);
+        bBuf.sort((a, b) => a - b);
+        const mid = len >> 1;
+        out[base]     = rBuf[mid];
+        out[base + 1] = gBuf[mid];
+        out[base + 2] = bBuf[mid];
       }
     }
     return { cellColors: out, rows, cols };

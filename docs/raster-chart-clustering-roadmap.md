@@ -167,6 +167,65 @@ almost never matches a printed-and-photographed chart. Telemetry adds
 left of a code) and near-black (likely a glyph leaking into the
 swatch ROI) samples are dropped silently.
 
+### 12. Skip-the-symbol cell sampling (shipped)
+
+`cvPipeline.extractCellColors` previously took a per-channel median
+over every pixel inside the inward-padded cell ROI. On real charts
+the printed symbol covers 25–50 % of the inner box; with a 14 %
+inward pad the symbol is still inside the sample window, so the
+median is biased toward black ink and every cell snaps to the
+darkest few DMC codes (310 / 3799 / 535 / 939). The new algorithm
+is a **modal-window median**: bin per-pixel Rec. 601 luma into 16
+buckets of width 16 Y, find the densest bucket (= background, since
+the background is the largest connected colour region in the cell),
+keep only pixels whose Y is within ±1 bucket of the mode, then
+median R/G/B over that subset. Falls back to the full-cell median
+when the kept subset drops below 20 % of the cell — this preserves
+the uniform-colour test fixture's bit-exact output and handles
+degenerate cells (covers > 80 %) without producing garbage.
+
+Works for both glyph polarities (dark glyph on light background,
+light glyph on dark background) because the heuristic locks onto
+the densest luminance, not the brighter or darker tail. Scratch
+buffers (`rBuf`, `gBuf`, `bBuf`, `yBuf`, `Int32Array(16)` histogram)
+are reused across cells to avoid millions of per-cell allocations
+on a 200×200 chart. Regression test in
+`tests/rasterChart-phase2.test.js` constructs a light-blue cell with
+a 25 % dark-glyph patch and verifies the output is exactly the
+background colour, not a darkened mix.
+
+### 13. Grid tab visual diagnostic & pitch ruler (shipped)
+
+Two changes to `CorrectionUI.GridEditor` aimed at the failure mode
+where the auto-detected grid drifts ~0.5 px per cell on
+photographed charts — by the time the warp reaches the far edge the
+sample window has slid into a grid-line and every cell snaps to
+black:
+
+* **`CellSamplePreview`** — a new compact swatch grid rendered
+  beneath the warped-preview overlay. One tiny 2–8 px swatch per
+  cell, sampled live from the warped preview using the same
+  modal-window-median heuristic as §12 above. Re-samples on every
+  grid nudge so the user can confirm "the swatches look mostly
+  coloured, not grey" before committing. When the grid is
+  misaligned the diagnostic is unmistakeable — long bands of grey /
+  black across rows that have drifted onto a grid-line.
+
+* **Pitch ruler** — a two-click manual measurement tool. User
+  enters how many cells apart the two reference intersections are
+  (default 10), clicks "Measure pitch", then clicks each
+  intersection on the overlay. The system computes
+  `pitch = max(|Δx|, |Δy|) / spanCells` in working-image px and
+  also snaps the origin to the first click, so a single 10-cell
+  measurement aligns the entire grid sub-pixel-accurately. Useful
+  when auto-detection latches onto an off-by-one period or when
+  perspective correction left a residual gradient that the global
+  ±1 px nudges can't fix. Marks `pitchSource: 'user-ruler'` on the
+  grid record. `GridOverlayPreview` was extended with an
+  `onCanvasClick(canvasX, canvasY)` callback and a `rulerPoint`
+  marker (crosshair + disc) so the first click stays visible while
+  the user lines up the second.
+
 ## Larger changes — research notes & plan
 
 Each item below is a deliberately separate commit because they have

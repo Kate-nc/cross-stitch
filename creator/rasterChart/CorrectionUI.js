@@ -578,10 +578,74 @@
     const detectedRows = (pending.grid && pending.grid.rows) || g.rows || 0;
     const detectedCols = (pending.grid && pending.grid.cols) || g.cols || 0;
     const confidence = (g.confidence != null ? g.confidence : (pending.grid && pending.grid.confidence)) || 0;
+
+    // ── Pitch ruler ─────────────────────────────────────────────────────
+    // Click 2 grid intersections on the overlay that are `spanCells` cells
+    // apart along the dominant axis (or both). The system derives cell
+    // pitch sub-pixel-accurately from the span — this is the manual
+    // equivalent of the automatic major-grid pitch refinement, and works
+    // on charts where the auto-detected pitch drifts across the image.
+    // The first click sets the origin (snap one corner to a known
+    // intersection); the second click sets the pitch.
+    const [rulerSpan, setRulerSpan] = useState(10);
+    const [ruler, setRuler] = useState(null); // null | { firstPt: { x, y } | null }
+    const [rulerNotice, setRulerNotice] = useState(null);
+    const workingW = pending.workingW || CANVAS_W;
+    const workingH = pending.workingH || CANVAS_H;
+
+    function startRuler() {
+      setRuler({ firstPt: null });
+      setRulerNotice('Click the first grid intersection.');
+    }
+    function cancelRuler() {
+      setRuler(null);
+      setRulerNotice(null);
+    }
+    function handleOverlayClick(canvasX, canvasY) {
+      if (!ruler) return;
+      // Map canvas px → working-image px. The overlay canvas is rendered
+      // at CANVAS_W × CANVAS_H but the grid lives in working-image coords.
+      const wx = canvasX * (workingW / CANVAS_W);
+      const wy = canvasY * (workingH / CANVAS_H);
+      if (!ruler.firstPt) {
+        setRuler({ firstPt: { x: wx, y: wy } });
+        setRulerNotice('Click the second intersection (' + rulerSpan + ' cells away).');
+        return;
+      }
+      const dx = Math.abs(wx - ruler.firstPt.x);
+      const dy = Math.abs(wy - ruler.firstPt.y);
+      const span = Math.max(dx, dy);
+      const newPitch = span / Math.max(1, rulerSpan);
+      if (newPitch < 4 || newPitch > 200) {
+        setRulerNotice('That span gave an unrealistic cell size (' + newPitch.toFixed(1) + ' px). Try again.');
+        setRuler({ firstPt: null });
+        return;
+      }
+      // Snap origin to the first click so the grid aligns with the
+      // anchor point. The user can re-nudge it afterwards if needed.
+      const originCol = ruler.firstPt.x - Math.round(ruler.firstPt.x / newPitch) * newPitch;
+      const originRow = ruler.firstPt.y - Math.round(ruler.firstPt.y / newPitch) * newPitch;
+      onChange(Object.assign({}, g, {
+        cellPitch: newPitch,
+        originCol: ((originCol % newPitch) + newPitch) % newPitch,
+        originRow: ((originRow % newPitch) + newPitch) % newPitch,
+        pitchSource: 'user-ruler',
+      }));
+      setRuler(null);
+      setRulerNotice('Cell size set to ' + newPitch.toFixed(2) + ' px from your ' + rulerSpan + '-cell measurement.');
+    }
+    const rulerStep = ruler ? (ruler.firstPt ? 2 : 1) : 0;
+
     return h('div', { className: 'rc-grid-editor' },
       h('p', { className: 'rc-help' },
         'Each cell of the grid corresponds to one stitch. The detected grid is shown over the chart below — if the lines drift away from the squares as you scan across, nudge the cell size up or down. If everything is shifted by half a cell, nudge the origin.'),
-      h(GridOverlayPreview, { pending, grid: g, warpedPreview }),
+      h(GridOverlayPreview, {
+        pending, grid: g, warpedPreview,
+        onCanvasClick: ruler ? handleOverlayClick : null,
+        rulerPoint: ruler && ruler.firstPt,
+        rulerActive: !!ruler,
+      }),
+      h(CellSamplePreview, { pending, grid: g, warpedPreview }),
       h('div', { className: 'rc-grid-summary' },
         h('span', null, 'Detected: '),
         h('strong', null, detectedRows + ' rows \u00d7 ' + detectedCols + ' columns'),
@@ -589,6 +653,30 @@
         h('strong', null, (g.cellPitch || 0).toFixed(1) + ' px'),
         h('span', null, ' \u00b7 confidence '),
         h('strong', null, (confidence * 100).toFixed(0) + '%'),
+      ),
+      h('div', { className: 'rc-grid-ruler' },
+        h('div', { className: 'rc-grid-ruler-head' },
+          h('span', { className: 'rc-grid-row-label' }, 'Pitch ruler'),
+          h('label', { className: 'rc-grid-ruler-span' },
+            h('span', null, 'Cells between clicks:'),
+            h('input', {
+              type: 'number', min: 2, max: 50, step: 1, value: rulerSpan,
+              onChange: (e) => setRulerSpan(Math.max(2, Math.min(50, parseInt(e.target.value, 10) || 10))),
+              disabled: !!ruler,
+              style: { width: 60, marginLeft: 8 },
+            }),
+          ),
+          ruler
+            ? h('button', { type: 'button', className: 'tb-btn', onClick: cancelRuler }, 'Cancel ruler')
+            : h('button', { type: 'button', className: 'tb-btn tb-btn--on', onClick: startRuler }, 'Measure pitch'),
+        ),
+        h('p', { className: 'rc-help rc-grid-row-help' },
+          'Find two grid intersections that you know are exactly ' + rulerSpan + ' cells apart (along a row, a column, or diagonally — whichever is easiest to see). Click "Measure pitch", then click each intersection in turn. The cell size is derived from the span and the grid origin snaps to your first click.'),
+        rulerNotice && h('p', {
+          className: 'rc-grid-ruler-notice',
+          role: 'status',
+          style: { color: 'var(--accent, #d97706)' },
+        }, rulerStep ? '(Step ' + rulerStep + ' of 2) ' + rulerNotice : rulerNotice),
       ),
       h('div', { className: 'rc-grid-controls' },
         h(GridControlRow, {
@@ -646,7 +734,7 @@
   // values are in pending-working-image pixels; we scale them to the
   // canvas size for display so the editor stays responsive even on phone
   // photos that were warped to a 1024+ px working image.
-  function GridOverlayPreview({ pending, grid, warpedPreview }) {
+  function GridOverlayPreview({ pending, grid, warpedPreview, onCanvasClick, rulerPoint, rulerActive }) {
     const ref = useRef(null);
     const img = warpedPreview || pending.previewImage;
     useEffect(() => {
@@ -688,10 +776,148 @@
         if (i % 10 !== 0) continue;
         ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(W, y + 0.5); ctx.stroke();
       }
+      // Pitch-ruler first-click marker (working-image px → canvas px).
+      if (rulerPoint) {
+        const cx = rulerPoint.x * sx, cy = rulerPoint.y * sy;
+        ctx.strokeStyle = 'rgba(217, 119, 6, 1)';
+        ctx.fillStyle   = 'rgba(217, 119, 6, 0.35)';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(cx, cy, 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx - 14, cy); ctx.lineTo(cx + 14, cy); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx, cy - 14); ctx.lineTo(cx, cy + 14); ctx.stroke();
+      }
       ctx.restore();
-    }, [img, pending.workingW, pending.workingH, grid.cellPitch, grid.originRow, grid.originCol]);
+    }, [img, pending.workingW, pending.workingH, grid.cellPitch, grid.originRow, grid.originCol, rulerPoint && rulerPoint.x, rulerPoint && rulerPoint.y]);
+
+    // Forward clicks (canvas-px) up to GridEditor for the pitch-ruler tool.
+    function handleClick(ev) {
+      if (!onCanvasClick) return;
+      const cv = ref.current;
+      if (!cv) return;
+      const rect = cv.getBoundingClientRect();
+      const x = (ev.clientX - rect.left) * (CANVAS_W / rect.width);
+      const y = (ev.clientY - rect.top)  * (CANVAS_H / rect.height);
+      onCanvasClick(x, y);
+    }
     return h('div', { className: 'rc-grid-overlay-pane' },
-      h('canvas', { ref, className: 'rc-grid-overlay-canvas' }),
+      h('canvas', {
+        ref, className: 'rc-grid-overlay-canvas',
+        onClick: handleClick,
+        style: rulerActive ? { cursor: 'crosshair' } : undefined,
+      }),
+    );
+  }
+
+  // ── Cell sample preview ───────────────────────────────────────────────
+  // Renders one tiny swatch per grid cell, sampled from the warped preview
+  // at the current grid alignment. This is the user's "did the grid land
+  // in the right place?" sanity check — if the swatch grid looks mostly
+  // black/grey, the grid is misaligned and the colour-snap step will
+  // produce garbage. Re-samples reactively whenever the user nudges the
+  // grid, so they can confirm the fix before committing.
+  //
+  // Sampling intentionally mirrors cvPipeline.extractCellColors at lower
+  // fidelity: 18 % inward pad, modal-window median. We work off the
+  // already-loaded warped-preview image (canvas-space pixels) rather than
+  // round-tripping to the worker because this needs to update on every
+  // ±1 px nudge.
+  function CellSamplePreview({ pending, grid, warpedPreview }) {
+    const ref = useRef(null);
+    const img = warpedPreview || pending.previewImage;
+    useEffect(() => {
+      const cv = ref.current;
+      if (!cv || !img || !grid || !grid.cellPitch) return;
+      const rows = Math.max(1, grid.rows || (pending.grid && pending.grid.rows) || 50);
+      const cols = Math.max(1, grid.cols || (pending.grid && pending.grid.cols) || 50);
+      // Cap the displayed swatch grid at 360 px wide / 240 px tall so it
+      // stays compact even on 200×200 charts.
+      const maxW = 360, maxH = 240;
+      const swatch = Math.max(2, Math.min(8, Math.floor(Math.min(maxW / cols, maxH / rows))));
+      const W = cols * swatch, H = rows * swatch;
+      const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+      cv.width = W * dpr; cv.height = H * dpr;
+      cv.style.width = W + 'px'; cv.style.height = H + 'px';
+      const ctx = cv.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      // Render the warped preview to a sampling canvas at working-image
+      // resolution so cell pixel coords line up with the grid.
+      const workingW = pending.workingW || CANVAS_W;
+      const workingH = pending.workingH || CANVAS_H;
+      const off = document.createElement('canvas');
+      off.width = workingW; off.height = workingH;
+      const offCtx = off.getContext('2d');
+      offCtx.drawImage(img, 0, 0, workingW, workingH);
+      let pixels;
+      try {
+        pixels = offCtx.getImageData(0, 0, workingW, workingH).data;
+      } catch (_) {
+        // Tainted canvas — draw a hatched warning and bail.
+        ctx.fillStyle = '#ccc'; ctx.fillRect(0, 0, W, H);
+        return;
+      }
+
+      const pad = Math.max(2, Math.floor(grid.cellPitch * 0.18));
+      const pitch = grid.cellPitch;
+      const ox = grid.originCol || 0;
+      const oy = grid.originRow || 0;
+      const yBuf = []; const rBuf = []; const gBuf = []; const bBuf = [];
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const x0 = Math.round(ox + c * pitch) + pad;
+          const y0 = Math.round(oy + r * pitch) + pad;
+          const x1 = Math.round(ox + (c + 1) * pitch) - pad;
+          const y1 = Math.round(oy + (r + 1) * pitch) - pad;
+          yBuf.length = 0; rBuf.length = 0; gBuf.length = 0; bBuf.length = 0;
+          for (let py = Math.max(0, y0); py < Math.min(workingH, y1); py++) {
+            for (let px = Math.max(0, x0); px < Math.min(workingW, x1); px++) {
+              const base = (py * workingW + px) * 4;
+              const r8 = pixels[base], g8 = pixels[base + 1], b8 = pixels[base + 2];
+              rBuf.push(r8); gBuf.push(g8); bBuf.push(b8);
+              yBuf.push((r8 * 77 + g8 * 150 + b8 * 29) >> 8);
+            }
+          }
+          let rOut = 0, gOut = 0, bOut = 0;
+          if (rBuf.length) {
+            // Same modal-window median as the worker: bin Y, find mode,
+            // keep pixels within ±1 bucket, median those. Falls back to
+            // straight median when the kept subset is too small.
+            const hist = new Int32Array(16);
+            for (let i = 0; i < yBuf.length; i++) {
+              const b = yBuf[i] >> 4;
+              hist[b < 0 ? 0 : b > 15 ? 15 : b]++;
+            }
+            let mode = 0, mc = hist[0];
+            for (let i = 1; i < 16; i++) if (hist[i] > mc) { mc = hist[i]; mode = i; }
+            const yMin = (mode - 1) * 16, yMax = (mode + 2) * 16;
+            let kept = 0;
+            for (let i = 0; i < yBuf.length; i++) {
+              if (yBuf[i] >= yMin && yBuf[i] < yMax) {
+                rBuf[kept] = rBuf[i]; gBuf[kept] = gBuf[i]; bBuf[kept] = bBuf[i];
+                kept++;
+              }
+            }
+            const len = kept >= Math.max(8, yBuf.length * 0.20) ? kept : yBuf.length;
+            rBuf.length = len; gBuf.length = len; bBuf.length = len;
+            rBuf.sort((a, b) => a - b);
+            gBuf.sort((a, b) => a - b);
+            bBuf.sort((a, b) => a - b);
+            const mid = len >> 1;
+            rOut = rBuf[mid]; gOut = gBuf[mid]; bOut = bBuf[mid];
+          }
+          ctx.fillStyle = 'rgb(' + rOut + ',' + gOut + ',' + bOut + ')';
+          ctx.fillRect(c * swatch, r * swatch, swatch, swatch);
+        }
+      }
+    }, [img, pending.workingW, pending.workingH, grid.cellPitch, grid.originRow, grid.originCol, grid.rows, grid.cols]);
+
+    return h('div', { className: 'rc-cell-sample-preview' },
+      h('p', { className: 'rc-help', style: { marginTop: 12, marginBottom: 4 } },
+        'Each tiny square below is the colour the importer would sample from that cell with the current grid. If the swatches look mostly dark grey or black, the grid is sitting on the symbols / grid-lines instead of the colour swatches — nudge it or use the pitch ruler.'),
+      h('canvas', {
+        ref, className: 'rc-cell-sample-canvas',
+        style: { display: 'block', border: '1px solid var(--line, #ccc)', imageRendering: 'pixelated' },
+      }),
     );
   }
 

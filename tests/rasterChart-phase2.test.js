@@ -75,6 +75,39 @@ describe('cvPipeline.extractCellColors', () => {
     const grid = { cellPitch, originRow: 0, originCol: 0, rows, cols };
     expect(() => extractCellColors(rgba, w, h, grid)).not.toThrow();
   });
+
+  // Regression for the "skip-the-symbol" behaviour shipped in §12 of the
+  // raster-chart roadmap. The dominant chunk of each printed cell is the
+  // background swatch; a dark glyph covers maybe a third of the cell.
+  // Old algorithm: median over every pixel → biased toward the glyph and
+  // every cell snaps to a dark DMC. New algorithm: modal-window median →
+  // glyph pixels fall outside the dominant-luminance bucket and are
+  // dropped before the median is taken.
+  test('ignores dark glyph pixels when background dominates', () => {
+    const rows = 1, cols = 1, cellPitch = 20, w = 20, h = 20;
+    const rgba = new Uint8ClampedArray(w * h * 4);
+    // Fill background light-blue (200, 220, 240) with Y ≈ 220
+    for (let i = 0; i < w * h; i++) {
+      rgba[i * 4] = 200;
+      rgba[i * 4 + 1] = 220;
+      rgba[i * 4 + 2] = 240;
+      rgba[i * 4 + 3] = 255;
+    }
+    // Paint a 7-px-wide black "symbol" in the centre — ~25 % of pixels.
+    for (let py = 6; py < 13; py++) {
+      for (let px = 6; px < 13; px++) {
+        const base = (py * w + px) * 4;
+        rgba[base] = 0; rgba[base + 1] = 0; rgba[base + 2] = 0;
+      }
+    }
+    const grid = { cellPitch, originRow: 0, originCol: 0, rows, cols };
+    const { cellColors } = extractCellColors(rgba, w, h, grid);
+    // Background should be recovered — not a darkened average. The
+    // glyph pixels live in a different luminance bucket and are dropped.
+    expect(cellColors[0]).toBe(200);
+    expect(cellColors[1]).toBe(220);
+    expect(cellColors[2]).toBe(240);
+  });
 });
 
 // ── cvPipeline: detectBarrelDistortion (Phase 2 §4) ──────────────────────
