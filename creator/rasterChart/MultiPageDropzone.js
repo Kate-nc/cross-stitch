@@ -126,6 +126,9 @@
     const [dragOver, setDragOver] = useState(false);
     const [dragIdx, setDragIdx] = useState(null);
     const [dropIdx, setDropIdx] = useState(null);
+    // T4#18: assembly preview column count. 'auto' picks a near-square
+    // layout (ceil(sqrt(n))). Otherwise an explicit fixed count.
+    const [assemblyCols, setAssemblyCols] = useState('auto');
     const fileInputRef = useRef(null);
 
     // File drop handler — adds new pages from dropped image files.
@@ -283,6 +286,83 @@
           h('button', { type: 'button', className: 'tb-btn', onClick: rejectOrder }, 'Keep current'),
         ),
       ),
+
+      // T4#18: assembly preview — shows how the pages will tile when
+      // stitched together. Lets the user sanity-check page order against
+      // the intended grid layout before running the import.
+      pages.length > 1 && (function () {
+        const n = pages.length;
+        const cols = assemblyCols === 'auto'
+          ? Math.max(1, Math.ceil(Math.sqrt(n)))
+          : Math.max(1, Math.min(n, parseInt(assemblyCols, 10) || 1));
+        const rows = Math.ceil(n / cols);
+        const rowSummary = [];
+        for (let r = 0; r < rows; r++) {
+          const cells = [];
+          for (let c = 0; c < cols; c++) {
+            const idx = r * cols + c;
+            if (idx < n) cells.push(String(idx + 1));
+          }
+          rowSummary.push(`Row ${r + 1}: ${cells.join(', ')}`);
+        }
+        return h('div', { className: 'rc-multipage-assembly' },
+          h('div', { className: 'rc-multipage-assembly-header', style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 12 } },
+            h('strong', null, 'Assembly preview'),
+            h('label', { style: { fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 } },
+              'Columns:',
+              h('select', {
+                value: assemblyCols,
+                onChange: (ev) => setAssemblyCols(ev.target.value),
+              },
+                h('option', { value: 'auto' }, 'Auto'),
+                [1, 2, 3, 4, 5, 6].map(k => h('option', { key: k, value: String(k) }, String(k))),
+              ),
+            ),
+            h('span', { style: { fontSize: 12, opacity: 0.75 } }, `${rows} row${rows !== 1 ? 's' : ''} × ${cols} col${cols !== 1 ? 's' : ''}`),
+          ),
+          h('div', {
+            className: 'rc-multipage-assembly-grid',
+            style: {
+              display: 'grid',
+              gridTemplateColumns: `repeat(${cols}, minmax(60px, 120px))`,
+              gap: 4,
+              marginTop: 8,
+              padding: 6,
+              border: '1px dashed var(--border, #cbd5e1)',
+              borderRadius: 4,
+              background: 'var(--surface-2, #f8fafc)',
+            },
+          },
+            pages.map((pg, i) => h('div', {
+              key: i,
+              style: {
+                position: 'relative',
+                aspectRatio: '1 / 1',
+                border: '1px solid var(--border, #cbd5e1)',
+                background: '#fff',
+                overflow: 'hidden',
+              },
+              title: pg.name || ('Page ' + (i + 1)),
+            },
+              h('img', {
+                src: pg.previewUrl, alt: '',
+                style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
+              }),
+              h('span', {
+                style: {
+                  position: 'absolute', top: 2, left: 2,
+                  background: 'rgba(15, 23, 42, 0.78)', color: '#fff',
+                  fontSize: 11, fontWeight: 600,
+                  padding: '1px 5px', borderRadius: 3,
+                },
+              }, i + 1),
+            )),
+          ),
+          h('ul', { style: { margin: '6px 0 0', paddingLeft: 18, fontSize: 12, opacity: 0.85 } },
+            rowSummary.map((s, i) => h('li', { key: i }, s)),
+          ),
+        );
+      })(),
     );
   }
 
