@@ -331,6 +331,38 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     return () => { if (window.CommandPalette) window.CommandPalette.registerPage('creator', []); };
   },[state.setModal]);
 
+  // T4#15 — paste-from-clipboard support on the upload screen.
+  // Listens for `paste` events while the dropzone is visible (no project
+  // loaded yet). If the clipboard contains an image (typical screenshot
+  // tools and "Copy image" from web pages), we hand it to the same
+  // io.handleFile path the dropzone uses. Wrapped in a File so the
+  // downstream code that reads .name + .type works unchanged.
+  React.useEffect(() => {
+    if (state.img || state.pat || state.isUploading) return;
+    const handler = (e) => {
+      const target = e.target;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+      const items = (e.clipboardData && e.clipboardData.items) || [];
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        if (it.kind === 'file' && it.type && it.type.indexOf('image/') === 0) {
+          const blob = it.getAsFile();
+          if (!blob) continue;
+          e.preventDefault();
+          // The native clipboard File has a generic name like "image.png";
+          // give it a friendlier timestamped name so the project default name is clearer.
+          const ts = new Date().toISOString().replace(/[:.]/g, '-');
+          const ext = (it.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+          const named = new File([blob], 'clipboard-' + ts + '.' + ext, { type: it.type });
+          if (_ioRef.current) _ioRef.current.handleFile(named);
+          return;
+        }
+      }
+    };
+    document.addEventListener('paste', handler);
+    return () => document.removeEventListener('paste', handler);
+  }, [state.img, state.pat, state.isUploading]);
+
   // Brief D — load global stash from manager DB on mount, and refresh whenever
   // the tab becomes visible again (covers the "edit in another tab" case).
   React.useEffect(() => {
@@ -936,7 +968,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             onDrop={(e)=>{e.preventDefault();state.setIsDragging(false);if(e.dataTransfer.files&&e.dataTransfer.files.length>0){var df=e.dataTransfer.files[0];var dn=(df.name||'').toLowerCase();var dImg=(df.type||'').indexOf('image/')===0;var dPat=!dImg&&/\.(oxs|xml|json|pdf)$/i.test(dn);if(dPat&&window.ImportEngine&&typeof window.ImportEngine.importAndReview==='function'){window.ImportEngine.importAndReview(df,{navigateTo:'create.html?from=home'}).catch(function(err){console.error('[creator] Import failed:',err);});}else{io.handleFile(df);}e.dataTransfer.clearData();}}}
           >
           <h1 style={{fontSize:28,fontWeight:700,color:"#1B1814",marginBottom:8}}>Start a new pattern</h1>
-          <p style={{fontSize:15,color:"#5C5448",marginBottom:32}}>Drop an image anywhere here, pick one with the tile below, or load a saved project to keep working.</p>
+          <p style={{fontSize:15,color:"#5C5448",marginBottom:32}}>Drop an image anywhere here, paste one with Ctrl+V (or Cmd+V), pick one with the tile below, or load a saved project to keep working.</p>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(260px, 1fr))",gap:24}}>
             <div onClick={()=>state.fRef.current.click()} className="upload-area" style={{position:"relative"}}>
               <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
