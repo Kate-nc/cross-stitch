@@ -265,7 +265,7 @@ function getDB() {
   }
   return new Promise((resolve, reject) => {
     ensurePersistence().catch(() => {});
-    let request = indexedDB.open(DB_NAME, 4);
+    let request = indexedDB.open(DB_NAME, 5);
     request.onupgradeneeded = (e) => {
       let db = e.target.result;
       let oldVersion = e.oldVersion;
@@ -280,6 +280,12 @@ function getDB() {
       }
       if (oldVersion < 4) {
         if (!db.objectStoreNames.contains("sync_snapshots")) { db.createObjectStore("sync_snapshots"); }
+      }
+      if (oldVersion < 5) {
+        // v5 stores owned by creator/rasterChart/{telemetry,pendingImportStore}.js.
+        // Created here too so helpers.js never opens at a stale version.
+        if (!db.objectStoreNames.contains("importerTelemetry")) { db.createObjectStore("importerTelemetry", { keyPath: "id" }); }
+        if (!db.objectStoreNames.contains("pendingImports")) { db.createObjectStore("pendingImports", { keyPath: "id" }); }
       }
     };
     request.onblocked = () => {

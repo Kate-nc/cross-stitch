@@ -346,15 +346,19 @@
   }
 
   // Returns the dominant near-horizontal line angle in degrees, or 0 if
-  // there aren't enough lines to be confident. Uses HoughLinesP on the
-  // binary (after a light dilation to bridge broken grid lines).
+  // there aren't enough well-clustered lines to be confident. Uses
+  // HoughLinesP on the binary and only returns a non-zero angle when:
+  //   • ≥ 30 near-horizontal lines pass the length threshold
+  //   • their inter-quartile spread is < 1° (lines well-clustered)
+  //   • the median magnitude is > 0.7° (a real skew, not measurement noise)
+  // Otherwise we return 0 — better no rotation than a wrong one.
   function estimateSkewAngle(binary, w, h) {
     return MatScope.withScope(s => {
       const bw = s.track(cv.matFromArray(h, w, cv.CV_8UC1, binary));
       const lines = s.track(new cv.Mat());
       const shortEdge = Math.min(w, h);
-      const threshold = Math.max(40, (shortEdge * 0.08) | 0);
-      const minLineLength = Math.max(40, (shortEdge * 0.2) | 0);
+      const threshold = Math.max(60, (shortEdge * 0.1) | 0);
+      const minLineLength = Math.max(60, (shortEdge * 0.25) | 0);
       const maxLineGap = Math.max(4, (shortEdge * 0.01) | 0);
       try {
         cv.HoughLinesP(bw, lines, 1, Math.PI / 180, threshold, minLineLength, maxLineGap);
@@ -367,18 +371,21 @@
         const x2 = lines.data32S[i * 4 + 2];
         const y2 = lines.data32S[i * 4 + 3];
         const ang = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
-        // Normalise into (-90, 90]
         let a = ang;
         while (a > 90) a -= 180;
         while (a <= -90) a += 180;
-        // Keep horizontal-ish lines only (within ±15° of 0°)
-        if (Math.abs(a) <= 15) angles.push(a);
+        if (Math.abs(a) <= 10) angles.push(a);
       }
-      if (angles.length < 8) return 0;
+      if (angles.length < 30) return 0;
       angles.sort((x, y) => x - y);
-      // Median is robust to noise lines.
       const m = angles.length >> 1;
-      return angles.length % 2 ? angles[m] : 0.5 * (angles[m - 1] + angles[m]);
+      const median = angles.length % 2 ? angles[m] : 0.5 * (angles[m - 1] + angles[m]);
+      const q1 = angles[Math.floor(angles.length * 0.25)];
+      const q3 = angles[Math.floor(angles.length * 0.75)];
+      const iqr = q3 - q1;
+      if (iqr > 1.0) return 0; // too noisy to trust
+      if (Math.abs(median) < 0.7) return 0; // below measurement noise
+      return median;
     });
   }
 

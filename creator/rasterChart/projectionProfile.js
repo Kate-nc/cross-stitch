@@ -185,24 +185,24 @@
 
     // Autocorrelation cross-check. Useful when the peak picker is fooled
     // by interspersed text/watermark peaks that bias the median gap.
+    // We only let autocorr *override* the peak-based pitch when the peak-
+    // based pitches strongly disagree (cells far from square) AND the
+    // autocorr pitches strongly agree — otherwise we keep peak-based to
+    // avoid breaking grids the peak picker handled fine.
     const rowAc = autocorrPitch(rowSum, { minLag: minSpacing });
     const colAc = autocorrPitch(colSum, { minLag: minSpacing });
     let pitchSource = 'peaks';
     if (rowAc && colAc) {
       const acRatio = Math.min(rowAc, colAc) / Math.max(rowAc, colAc);
       const peakRatio = rowPitch && colPitch ? Math.min(rowPitch, colPitch) / Math.max(rowPitch, colPitch) : 0;
-      // If autocorr agrees row≈col and peak-based pitches disagree, prefer autocorr.
-      if (acRatio > 0.9 && peakRatio < 0.8) {
+      if (acRatio > 0.95 && peakRatio < 0.7) {
         rowPitch = rowAc; colPitch = colAc;
         pitchSource = 'autocorr';
-      } else {
-        // If pitches roughly agree, average the two estimates (sub-pixel refine).
-        const rowAgree = rowPitch && Math.abs(rowAc - rowPitch) / rowPitch < 0.15;
-        const colAgree = colPitch && Math.abs(colAc - colPitch) / colPitch < 0.15;
-        if (rowAgree) rowPitch = 0.5 * (rowPitch + rowAc);
-        if (colAgree) colPitch = 0.5 * (colPitch + colAc);
-        if (rowAgree || colAgree) pitchSource = 'blend';
       }
+      // Note: peaks-and-autocorr blending was removed because shifting
+      // pitch by even 5% can offset every column peak by a cell and
+      // produce empty cells across the grid. Pure peaks is safer; we
+      // only switch wholesale when the peak picker is clearly wrong.
     }
     // Cells should be roughly square; if the two pitches disagree by >20%
     // the grid hypothesis is probably wrong.

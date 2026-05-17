@@ -34,14 +34,20 @@ const BackupRestore = (() => {
     });
   }
 
-  // Open an IndexedDB by name, creating expected stores if needed
+  // Open an IndexedDB by name, creating expected stores if needed.
+  // storeNames entries may be plain strings (no keyPath) or
+  // `{name, options}` objects to pass keyPath/autoIncrement through.
   function openDB(name, version, storeNames) {
     return new Promise((resolve, reject) => {
       const req = indexedDB.open(name, version);
       req.onupgradeneeded = (e) => {
         const db = e.target.result;
         storeNames.forEach(s => {
-          if (!db.objectStoreNames.contains(s)) db.createObjectStore(s);
+          if (typeof s === 'string') {
+            if (!db.objectStoreNames.contains(s)) db.createObjectStore(s);
+          } else if (s && s.name) {
+            if (!db.objectStoreNames.contains(s.name)) db.createObjectStore(s.name, s.options || undefined);
+          }
         });
       };
       req.onblocked = () => {
@@ -230,7 +236,11 @@ const BackupRestore = (() => {
 
       // 1. CrossStitchDB
       try {
-        const db = await openDB("CrossStitchDB", 4, ["projects", "project_meta", "stats_summaries", "sync_snapshots"]);
+        const db = await openDB("CrossStitchDB", 5, [
+          "projects", "project_meta", "stats_summaries", "sync_snapshots",
+          { name: "importerTelemetry", options: { keyPath: "id" } },
+          { name: "pendingImports", options: { keyPath: "id" } },
+        ]);
         // PERF (perf-3 #4 / perf-5): read all three stores in parallel rather
         // than awaiting them sequentially.
         const [projects, project_meta, stats_summaries, sync_snapshots] = await Promise.all([
@@ -368,7 +378,11 @@ const BackupRestore = (() => {
 
       // 1. CrossStitchDB
       if (backup.databases.CrossStitchDB) {
-        const db = await openDB("CrossStitchDB", 4, ["projects", "project_meta", "stats_summaries", "sync_snapshots"]);
+        const db = await openDB("CrossStitchDB", 5, [
+          "projects", "project_meta", "stats_summaries", "sync_snapshots",
+          { name: "importerTelemetry", options: { keyPath: "id" } },
+          { name: "pendingImports", options: { keyPath: "id" } },
+        ]);
         const data = backup.databases.CrossStitchDB;
         for (const storeName of ["projects", "project_meta", "stats_summaries", "sync_snapshots"]) {
           if (!data[storeName]) continue;

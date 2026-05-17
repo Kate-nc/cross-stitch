@@ -156,7 +156,7 @@ describe('createBackup / restore — CrossStitchDB round-trip with sync_snapshot
   // Seed a fake IDB instance with data in all four CrossStitchDB stores
   async function seedCrossStitchDB(fakeIDB) {
     await new Promise((resolve, reject) => {
-      const req = fakeIDB.open('CrossStitchDB', 4);
+      const req = fakeIDB.open('CrossStitchDB', 5);
       req.onupgradeneeded = (e) => {
         const db = e.target.result;
         ['projects', 'project_meta', 'stats_summaries', 'sync_snapshots'].forEach(s => {
@@ -208,7 +208,7 @@ describe('createBackup / restore — CrossStitchDB round-trip with sync_snapshot
 
     // Verify the sync_snapshots entry was written
     const snap = await new Promise((resolve, reject) => {
-      const req = fakeIDB.open('CrossStitchDB', 4);
+      const req = fakeIDB.open('CrossStitchDB', 5);
       req.onsuccess = () => {
         const db = req.result;
         const tx = db.transaction('sync_snapshots', 'readonly');
@@ -238,7 +238,7 @@ describe('createBackup / restore — CrossStitchDB round-trip with sync_snapshot
     await BR2.restore(backup);
 
     const restoredSnap = await new Promise((resolve, reject) => {
-      const req = fakeIDB2.open('CrossStitchDB', 4);
+      const req = fakeIDB2.open('CrossStitchDB', 5);
       req.onsuccess = () => {
         const db = req.result;
         const tx = db.transaction('sync_snapshots', 'readonly');

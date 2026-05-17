@@ -383,14 +383,20 @@
     // sampling uses the freshest available pixels.
     const sx = image.width / CANVAS_W, sy = image.height / CANVAS_H;
     const src = cornersCanvas.map(p => ({ x: p.x * sx, y: p.y * sy }));
-    // Off-screen canvas to read source pixel data once.
-    const off = document.createElement('canvas');
-    off.width = image.width; off.height = image.height;
-    const offCtx = off.getContext('2d');
-    offCtx.drawImage(image, 0, 0);
-    let srcData;
-    try { srcData = offCtx.getImageData(0, 0, image.width, image.height); }
-    catch (_) { return; /* CORS-tainted; skip */ }
+    // Cache the source ImageData on the image object so we only do the
+    // off-screen draw + getImageData once — every mousemove during a
+    // corner drag would otherwise re-allocate a canvas the size of the
+    // full source image, which is expensive on phone photos.
+    let srcData = image.__rcCachedImageData;
+    if (!srcData) {
+      try {
+        const off = document.createElement('canvas');
+        off.width = image.width; off.height = image.height;
+        off.getContext('2d').drawImage(image, 0, 0);
+        srcData = off.getContext('2d').getImageData(0, 0, image.width, image.height);
+        image.__rcCachedImageData = srcData;
+      } catch (_) { return; /* CORS-tainted; skip */ }
+    }
     const sw = image.width, sh = image.height;
     const out = ctx.createImageData(canvas.width, canvas.height);
     const H = solveHomographyUnitToQuad(src);
