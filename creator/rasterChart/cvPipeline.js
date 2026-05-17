@@ -152,14 +152,106 @@
         approx.delete();
       }
 
-      if (!bestQuad) return { corners: null };
+      if (!bestQuad) {
+        // Fallback: largest-quad heuristic failed (text-heavy chart, broken
+        // border, or no contour reached the area threshold). Try a Hough-
+        // line + RANSAC-style approach — find the two strongest near-
+        // horizontal and near-vertical lines that bound the content, and
+        // intersect them. Much more robust on photographed pages where the
+        // border isn't a clean closed contour.
+        const hough = detectCornersViaHough(bw, w, h, opts);
+        if (hough) return { corners: orderCorners(hough), method: 'hough' };
+        return { corners: null };
+      }
       const pts = [];
       for (let i = 0; i < 4; i++) {
         pts.push({ x: bestQuad.intAt(i, 0), y: bestQuad.intAt(i, 1) });
       }
       bestQuad.delete();
-      return { corners: orderCorners(pts) };
+      return { corners: orderCorners(pts), method: 'contour' };
     });
+  }
+
+  // Hough-based fallback. Returns 4 unordered points or null.
+  function detectCornersViaHough(bw, w, h, opts) {
+    return MatScope.withScope(s => {
+      const lines = s.track(new cv.Mat());
+      // Tuning: threshold proportional to short edge; minLineLength ~10%
+      // of short edge; maxGap allows for broken/dashed borders.
+      const shortEdge = Math.min(w, h);
+      const threshold = Math.max(40, (shortEdge * 0.08) | 0);
+      const minLineLength = Math.max(40, (shortEdge * 0.15) | 0);
+      const maxLineGap = Math.max(8, (shortEdge * 0.02) | 0);
+      try {
+        cv.HoughLinesP(bw, lines, 1, Math.PI / 180, threshold, minLineLength, maxLineGap);
+      } catch (_) { return null; }
+      if (!lines.rows) return null;
+
+      // Bucket into near-horizontal (within ±20°) and near-vertical.
+      const horiz = [], vert = [];
+      for (let i = 0; i < lines.rows; i++) {
+        const x1 = lines.data32S[i * 4 + 0];
+        const y1 = lines.data32S[i * 4 + 1];
+        const x2 = lines.data32S[i * 4 + 2];
+        const y2 = lines.data32S[i * 4 + 3];
+        const dx = x2 - x1, dy = y2 - y1;
+        const ang = Math.atan2(dy, dx) * 180 / Math.PI; // (-180, 180]
+        const absAng = Math.abs(((ang + 180) % 180) - 90); // dist from vertical
+        if (absAng > 70) horiz.push({ x1, y1, x2, y2, len: Math.hypot(dx, dy) });
+        else if (absAng < 20) vert.push({ x1, y1, x2, y2, len: Math.hypot(dx, dy) });
+      }
+      if (horiz.length < 2 || vert.length < 2) return null;
+
+      // Pick the two horizontals furthest from image centre vertically
+      // (one above, one below) and the two verticals furthest left/right.
+      // Weighting by line length keeps short noisy lines from winning.
+      const cy = h / 2, cx = w / 2;
+      let top = null, bot = null, left = null, right = null;
+      for (const l of horiz) {
+        const my = (l.y1 + l.y2) / 2;
+        if (my < cy && (!top || (cy - my) * l.len > (cy - (top.y1 + top.y2) / 2) * top.len)) top = l;
+        if (my > cy && (!bot || (my - cy) * l.len > ((bot.y1 + bot.y2) / 2 - cy) * bot.len)) bot = l;
+      }
+      for (const l of vert) {
+        const mx = (l.x1 + l.x2) / 2;
+        if (mx < cx && (!left || (cx - mx) * l.len > (cx - (left.x1 + left.x2) / 2) * left.len)) left = l;
+        if (mx > cx && (!right || (mx - cx) * l.len > ((right.x1 + right.x2) / 2 - cx) * right.len)) right = l;
+      }
+      if (!top || !bot || !left || !right) return null;
+
+      const tl = lineIntersect(top, left);
+      const tr = lineIntersect(top, right);
+      const br = lineIntersect(bot, right);
+      const bl = lineIntersect(bot, left);
+      const all = [tl, tr, br, bl];
+      if (all.some(p => !p)) return null;
+      // Sanity: keep all points inside a generous bounding box.
+      const margin = Math.max(w, h) * 0.05;
+      for (const p of all) {
+        if (p.x < -margin || p.y < -margin || p.x > w + margin || p.y > h + margin) return null;
+      }
+      // Min area threshold
+      const area = Math.abs(polygonArea(all));
+      if (area < opts.minCornerAreaFrac * w * h) return null;
+      return all;
+    });
+  }
+
+  function lineIntersect(a, b) {
+    const x1 = a.x1, y1 = a.y1, x2 = a.x2, y2 = a.y2;
+    const x3 = b.x1, y3 = b.y1, x4 = b.x2, y4 = b.y2;
+    const den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+    if (Math.abs(den) < 1e-6) return null;
+    const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / den;
+    return { x: x1 + t * (x2 - x1), y: y1 + t * (y2 - y1) };
+  }
+  function polygonArea(pts) {
+    let a = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i], q = pts[(i + 1) % pts.length];
+      a += p.x * q.y - q.x * p.y;
+    }
+    return a / 2;
   }
 
   function orderCorners(pts) {
