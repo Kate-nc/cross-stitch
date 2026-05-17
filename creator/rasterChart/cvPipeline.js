@@ -291,7 +291,25 @@
       const warped = s.track(new cv.Mat());
       cv.warpPerspective(src, warped, M, new cv.Size(W, H));
       const warpedRgba = new Uint8ClampedArray(warped.data);
-      return preprocess(warpedRgba, W, H, opts);
+      const pre = preprocess(warpedRgba, W, H, opts);
+      // Skew/rotation correction. Even after a perspective warp the
+      // chart can still sit at a small rotation (printed grids aren't
+      // always orthogonal to the page, and user-placed corners imply a
+      // slight tilt). Estimate the dominant near-horizontal line angle
+      // via HoughLinesP and rotate the binary so the grid lines are
+      // axis-aligned. Doing it *here* (not in detectGrid) ensures the
+      // rotation also applies to extractCells, keeping cell coordinates
+      // consistent across the pipeline.
+      try {
+        const skewAngleDeg = estimateSkewAngle(pre.binary, pre.w, pre.h);
+        if (Math.abs(skewAngleDeg) > 0.3 && Math.abs(skewAngleDeg) < 15) {
+          pre.binary = rotateBinary(pre.binary, pre.w, pre.h, -skewAngleDeg);
+          pre.skewAngleDeg = skewAngleDeg;
+        } else {
+          pre.skewAngleDeg = 0;
+        }
+      } catch (_) { pre.skewAngleDeg = 0; }
+      return pre;
     });
   }
 
@@ -299,6 +317,7 @@
 
   function detectGrid(binary, w, h, opts) {
     opts = Object.assign({}, DEFAULT_OPTS, opts || {});
+
     // Row/col sums of binary inverse (ink = 255)
     const rowSum = new Float32Array(h);
     const colSum = new Float32Array(w);
@@ -324,6 +343,54 @@
     // strategy can attach a warning and the UI can prompt the user.
     result.distortion = detectBarrelDistortion(result);
     return result;
+  }
+
+  // Returns the dominant near-horizontal line angle in degrees, or 0 if
+  // there aren't enough lines to be confident. Uses HoughLinesP on the
+  // binary (after a light dilation to bridge broken grid lines).
+  function estimateSkewAngle(binary, w, h) {
+    return MatScope.withScope(s => {
+      const bw = s.track(cv.matFromArray(h, w, cv.CV_8UC1, binary));
+      const lines = s.track(new cv.Mat());
+      const shortEdge = Math.min(w, h);
+      const threshold = Math.max(40, (shortEdge * 0.08) | 0);
+      const minLineLength = Math.max(40, (shortEdge * 0.2) | 0);
+      const maxLineGap = Math.max(4, (shortEdge * 0.01) | 0);
+      try {
+        cv.HoughLinesP(bw, lines, 1, Math.PI / 180, threshold, minLineLength, maxLineGap);
+      } catch (_) { return 0; }
+      if (!lines.rows) return 0;
+      const angles = [];
+      for (let i = 0; i < lines.rows; i++) {
+        const x1 = lines.data32S[i * 4 + 0];
+        const y1 = lines.data32S[i * 4 + 1];
+        const x2 = lines.data32S[i * 4 + 2];
+        const y2 = lines.data32S[i * 4 + 3];
+        const ang = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+        // Normalise into (-90, 90]
+        let a = ang;
+        while (a > 90) a -= 180;
+        while (a <= -90) a += 180;
+        // Keep horizontal-ish lines only (within ±15° of 0°)
+        if (Math.abs(a) <= 15) angles.push(a);
+      }
+      if (angles.length < 8) return 0;
+      angles.sort((x, y) => x - y);
+      // Median is robust to noise lines.
+      const m = angles.length >> 1;
+      return angles.length % 2 ? angles[m] : 0.5 * (angles[m - 1] + angles[m]);
+    });
+  }
+
+  function rotateBinary(binary, w, h, angleDeg) {
+    return MatScope.withScope(s => {
+      const bw = s.track(cv.matFromArray(h, w, cv.CV_8UC1, binary));
+      const centre = new cv.Point(w / 2, h / 2);
+      const M = s.track(cv.getRotationMatrix2D(centre, angleDeg, 1));
+      const dst = s.track(new cv.Mat());
+      cv.warpAffine(bw, dst, M, new cv.Size(w, h), cv.INTER_NEAREST, cv.BORDER_CONSTANT, new cv.Scalar(0));
+      return new Uint8Array(dst.data);
+    });
   }
 
   // ── 4b. barrel-distortion detection (Phase 2 §4) ───────────────────────
