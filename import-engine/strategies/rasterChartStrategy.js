@@ -241,6 +241,7 @@
                   paletteRestricted: !!(colourResult && colourResult.paletteRestricted),
                   paletteSize:        (colourResult && colourResult.paletteSize) || null,
                   bgOffset:           (colourResult && colourResult.bgOffset) || null,
+                  swatchOverrideCount:(colourResult && colourResult.swatchOverrideCount) || 0,
                 },
                 legend: {
                   meanWordConfidence: legMeta.meanWordConfidence,
@@ -491,8 +492,15 @@
 
   /**
    * Build a structured legend from a raw ocrResult (returned by the worker).
-   * Returns an array of { code, name, confidence, source } entries.
+   * Returns an array of { code, name, confidence, source, swatchRgb? } entries.
    * Requires window.RasterChartOCRRepair and window.DMC on the main thread.
+   *
+   * Swatch RGB attachment: when the worker's word records carry a
+   * `swatchRgb` (sampled from the colour swatch to the left of each code
+   * during OCR), we walk the words to find the first one whose text
+   * parses to the same code as the legend line and copy its swatch RGB
+   * onto the entry. Used downstream by parseColourMode to override the
+   * catalogue Lab with a ground-truth per-code Lab anchor.
    */
   function buildLegend(ocrResult) {
     if (!ocrResult || !ocrResult.text) return [];
@@ -501,16 +509,37 @@
     const dmcSet = (typeof window !== 'undefined' && window.DMC)
       ? new Set(window.DMC.map(d => d.id))
       : null;
+    // Pre-index word swatches by parsed-code so we can attach RGB to each
+    // legend entry in O(1). When two words parse to the same code, the
+    // first-seen wins (top-to-bottom in image coordinates).
+    const swatchByCode = new Map();
+    if (Array.isArray(ocrResult.words)) {
+      for (const wd of ocrResult.words) {
+        if (!wd || !wd.swatchRgb || !wd.text) continue;
+        const parsed = OCR.parseLegendLine(wd.text, dmcSet);
+        if (!parsed || !parsed.code) continue;
+        const key = parsed.code
+          .replace(/^(DMC|Anchor|Madeira|Mad\.?|Sulky)\s*/i, '')
+          .replace(/^#/, '');
+        if (!swatchByCode.has(key)) swatchByCode.set(key, wd.swatchRgb);
+      }
+    }
     return ocrResult.text.split('\n')
       .map(line => {
         const parsed = OCR.parseLegendLine(line.trim(), dmcSet);
         if (!parsed) return null;
-        return {
+        const bareCode = parsed.code
+          .replace(/^(DMC|Anchor|Madeira|Mad\.?|Sulky)\s*/i, '')
+          .replace(/^#/, '');
+        const entry = {
           code:       parsed.code,
           name:       parsed.name || '',
           confidence: parsed.source === 'exact' ? 0.95 : parsed.source === 'repaired' ? 0.7 : 0.5,
           source:     parsed.source,
         };
+        const swatch = swatchByCode.get(bareCode);
+        if (swatch) entry.swatchRgb = swatch;
+        return entry;
       })
       .filter(Boolean);
   }
@@ -664,6 +693,42 @@
         }
       }
     }
+
+    // ── Legend-swatch Lab override ──────────────────────────────────────
+    // For every palette code whose legend entry carried a swatchRgb (mean
+    // RGB of the printed colour swatch next to the code), recompute its
+    // Lab from the swatch instead of using the catalogue Lab. The printed
+    // swatch is a ground-truth measurement of how the printer rendered
+    // *this code on this chart*, so it tracks ink-shift and lighting
+    // automatically. Falls back to catalogue Lab silently when swatch is
+    // missing or window.rgbToLab is unavailable.
+    let swatchOverrideCount = 0;
+    if (legend && Array.isArray(legend) && palette.length) {
+      const toLab = (typeof window !== 'undefined' && typeof window.rgbToLab === 'function')
+        ? window.rgbToLab : null;
+      if (toLab) {
+        const swatchByCode = new Map();
+        for (const l of legend) {
+          if (l && l.swatchRgb && l.code) {
+            const bare = l.code
+              .replace(/^(DMC|Anchor|Madeira|Mad\.?|Sulky)\s*/i, '')
+              .replace(/^#/, '');
+            if (!swatchByCode.has(bare)) swatchByCode.set(bare, l.swatchRgb);
+          }
+        }
+        if (swatchByCode.size) {
+          palette = palette.map(p => {
+            const sw = swatchByCode.get(p.id);
+            if (!sw) return p;
+            try {
+              const lab = toLab(sw[0], sw[1], sw[2]);
+              swatchOverrideCount++;
+              return { id: p.id, rgb: p.rgb, lab };
+            } catch (_) { return p; }
+          });
+        }
+      }
+    }
     let clu;
     let usedPaletteSeed = false;
     if (palette.length) {
@@ -732,6 +797,7 @@
       cellColors: colRes.cellColors, cols: colRes.cols, rows: colRes.rows,
       paletteRestricted, paletteSize: palette.length,
       bgOffset: (clu && clu.bgOffset) || null,
+      swatchOverrideCount,
     };
   }
 

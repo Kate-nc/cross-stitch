@@ -436,6 +436,44 @@
       ? words.reduce((s, wd) => s + wd.confidence, 0) / words.length
       : 0;
 
+    // ── Legend swatch RGB sampling ──────────────────────────────────────
+    // For every code-looking word with a bbox, sample the mean RGB of a
+    // small region directly to the LEFT of the text (where the printed
+    // colour swatch lives in a standard "swatch + code" legend layout).
+    // The strategy uses these samples as per-code Lab anchors that beat
+    // the catalogue Lab on prints with ink-shift or photos with non-D50
+    // lighting. Samples whose mean is too close to white (likely a gap)
+    // or black (likely a glyph) are dropped.
+    for (const wd of words) {
+      if (!wd.bbox || !wd.text || !/\d/.test(wd.text)) continue;
+      const lineHeight = wd.bbox.y1 - wd.bbox.y0;
+      if (lineHeight < 4) continue;
+      // Swatch geometry: square ~0.8× line height, sitting just left of
+      // the text with a small (4 px) gap allowance.
+      const swSize = Math.max(4, Math.floor(lineHeight * 0.8));
+      const xR = Math.max(0, wd.bbox.x0 - 4);
+      const xL = Math.max(0, xR - swSize);
+      const yT = Math.max(0, wd.bbox.y0);
+      const yB = Math.min(h, wd.bbox.y1);
+      if (xR - xL < 3 || yB - yT < 3) continue;
+      let rs = 0, gs = 0, bs = 0, count = 0;
+      for (let y = yT; y < yB; y++) {
+        const rowOff = y * w * 4;
+        for (let x = xL; x < xR; x++) {
+          const i = rowOff + x * 4;
+          rs += rgba[i]; gs += rgba[i + 1]; bs += rgba[i + 2];
+          count++;
+        }
+      }
+      if (!count) continue;
+      const r = rs / count, g = gs / count, b = bs / count;
+      // Drop near-white (likely empty gap) and near-black (likely glyph).
+      const maxCh = Math.max(r, g, b), minCh = Math.min(r, g, b);
+      if (maxCh > 240 && minCh > 230) continue;
+      if (maxCh < 30) continue;
+      wd.swatchRgb = [Math.round(r), Math.round(g), Math.round(b)];
+    }
+
     // ── Anchor-first filtering ──────────────────────────────────────────
     // The anchor is the leftmost element of each legend row: a glyph
     // symbol (Phase 1 B&W) or a colour swatch (Phase 2 colour charts).

@@ -136,6 +136,37 @@ returned as `clu.bgOffset` and recorded in
 `#NNN` in the legend; previously those rows were silently dropped and
 the chart fell back to the full DMC catalogue.
 
+### 10. Major-grid pitch refinement (shipped)
+
+`projectionProfile.refinePitchFromMajors` re-derives the cell pitch
+from the span between bold every-10-cell major lines whenever
+`detectMajorPeriod` returns 10. The span between widely-spaced majors
+is sub-pixel-accurate because peak-rounding noise averages out over
+10+ cells, where minor-gap medians can drift one pixel per cell on
+photographed charts with anti-aliased minor lines. The refined value
+is only adopted when it agrees with the peak-derived pitch within 5 %
+(rejects stray bold lines / watermarks) and when the major-to-major
+spans themselves are within ±15 % of their own median (rejects
+mis-detected majors). `gridFromProfiles` reports `pitchSource:
+'majors'` when the refinement is taken.
+
+### 11. Legend swatch Lab anchors (shipped)
+
+The OCR worker now samples the mean RGB of a small region directly
+left of every code-bearing word's bounding box and attaches it as
+`swatchRgb` on the word record. `buildLegend` maps each parsed legend
+entry back to its word and copies the swatch through. In
+`parseColourMode`, when building the restricted palette, every entry
+with a swatchRgb has its Lab recomputed via `rgbToLab(swatchRgb)`
+instead of the catalogue Lab. The printed swatch is a ground-truth
+measurement of *how the printer rendered this specific code on this
+specific chart*, so it tracks ink-shift and lighting automatically —
+catalogue Lab is calibrated for skein silk under D50 lighting, which
+almost never matches a printed-and-photographed chart. Telemetry adds
+`cluster.swatchOverrideCount`. Near-white (likely an empty gap to the
+left of a code) and near-black (likely a glyph leaking into the
+swatch ROI) samples are dropped silently.
+
 ## Larger changes — research notes & plan
 
 Each item below is a deliberately separate commit because they have

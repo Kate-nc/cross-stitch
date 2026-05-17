@@ -94,6 +94,45 @@
   }
 
   /**
+   * Sub-pixel pitch refinement using the bold-every-10 major lines.
+   *
+   * When `detectMajorPeriod` returns 10, the bold gridlines are 10 cells
+   * apart. Their pixel positions are far apart, so any rounding noise in
+   * peak picking averages out — the spacing between the first and last
+   * detected major divided by 10 × (count-1) is a more accurate cell
+   * pitch than the median of minor-peak gaps, which can drift one pixel
+   * per cell on photographed charts with anti-aliased minor lines.
+   *
+   * Returns 0 when there's no usable major pattern (< 3 majors found, or
+   * majors not at every-10th-peak positions).
+   */
+  function refinePitchFromMajors(peaks, profile, majorEvery) {
+    if (majorEvery !== 10 || !peaks || peaks.length < 12) return 0;
+    const heights = peaks.map(p => profile[p]);
+    const med = median(heights);
+    const majorThresh = med * 1.6;
+    const majorPositions = [];
+    for (let i = 0; i < peaks.length; i++) {
+      if (heights[i] >= majorThresh) majorPositions.push(peaks[i]);
+    }
+    if (majorPositions.length < 3) return 0;
+    // Verify the majors are evenly spaced (within ±15 %) before trusting
+    // the span — otherwise a stray bold peak could drag the average.
+    const spans = [];
+    for (let i = 1; i < majorPositions.length; i++) {
+      spans.push(majorPositions[i] - majorPositions[i - 1]);
+    }
+    const medSpan = median(spans);
+    if (!medSpan) return 0;
+    for (const s of spans) {
+      if (Math.abs(s - medSpan) / medSpan > 0.15) return 0;
+    }
+    const totalSpan = majorPositions[majorPositions.length - 1] - majorPositions[0];
+    const cellCount = (majorPositions.length - 1) * 10;
+    return totalSpan / cellCount;
+  }
+
+  /**
    * Autocorrelation-based pitch estimate. Computes the 1D autocorrelation
    * of the zero-mean profile and returns the lag of the first prominent
    * non-trivial peak in [minLag, maxLag]. More robust than peak-counting
@@ -221,8 +260,31 @@
     const majorEvery = detectMajorPeriod(colPeaks, colSum) ||
                        detectMajorPeriod(rowPeaks, rowSum) || 0;
 
+    // Major-grid pitch refinement. When the bold-every-10 pattern is
+    // present in either axis, the span between widely-spaced majors is a
+    // sub-pixel-accurate cell-pitch estimate (peak-rounding noise averages
+    // out over 10+ cells, where minor-gap medians can drift). Only adopt
+    // the refined value when it agrees with the peak-based pitch within
+    // 5 % — a larger disagreement means the majors themselves are wrong
+    // (stray dark line, watermark, etc.).
+    let refinedPitch = 0;
+    {
+      const colRefined = refinePitchFromMajors(colPeaks, colSum, majorEvery);
+      const rowRefined = refinePitchFromMajors(rowPeaks, rowSum, majorEvery);
+      const candidates = [colRefined, rowRefined].filter(p => p > 0);
+      if (candidates.length && cellPitch > 0) {
+        const cand = candidates.length === 2
+          ? 0.5 * (candidates[0] + candidates[1])
+          : candidates[0];
+        if (Math.abs(cand - cellPitch) / cellPitch <= 0.05) {
+          refinedPitch = cand;
+        }
+      }
+    }
+    const finalCellPitch = refinedPitch || cellPitch;
+
     return {
-      cellPitch,
+      cellPitch: finalCellPitch,
       originRow: rowPeaks[0],
       originCol: colPeaks[0],
       // Number of cells = number of inter-peak gaps.
@@ -232,12 +294,12 @@
       colPeaks,
       majorEvery,
       confidence,
-      pitchSource,
+      pitchSource: refinedPitch ? 'majors' : pitchSource,
       autocorrPitch: { row: rowAc, col: colAc },
     };
   }
 
-  const api = { findPeaks, gridFromProfiles, median, detectMajorPeriod, autocorrPitch };
+  const api = { findPeaks, gridFromProfiles, median, detectMajorPeriod, refinePitchFromMajors, autocorrPitch };
   if (typeof globalThis !== 'undefined') globalThis.RasterChartProjection = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();
