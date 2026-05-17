@@ -336,7 +336,11 @@
           s.src = src;
           s.async = false;
           s.onload = function () { resolve(); };
-          s.onerror = function () { reject(new Error('Failed to load ' + src)); };
+          s.onerror = function () {
+            var err = new Error('Failed to load chart correction script: ' + src);
+            err.chartUIScript = src;
+            reject(err);
+          };
           document.head.appendChild(s);
         });
       });
@@ -397,6 +401,13 @@
             cleanup();
             if (typeof onMounted === 'function') { try { onMounted(); } catch (_) {} }
             console.error('[import] RasterChartCorrectionUI failed to load — using auto-matched project.');
+            if (window.Toast && window.Toast.show) {
+              window.Toast.show({
+                message: 'Chart correction UI couldn\u2019t load. Saved the auto-matched pattern instead \u2014 you can edit it in the Creator.',
+                type: 'warning',
+                duration: 9000,
+              });
+            }
             return resolve(saveAndNavigate(result.project, opts));
           }
 
@@ -410,6 +421,13 @@
               var ENGINE = window.ImportEngine;
               if (!ENGINE || typeof ENGINE.materialiseProject !== 'function') {
                 console.error('[import] materialiseProject unavailable; using auto-matched project.');
+                if (window.Toast && window.Toast.show) {
+                  window.Toast.show({
+                    message: 'Couldn\u2019t apply your chart corrections (engine method missing). Saved the auto-matched pattern instead.',
+                    type: 'warning',
+                    duration: 9000,
+                  });
+                }
                 return resolve(saveAndNavigate(result.project, opts));
               }
               try {
