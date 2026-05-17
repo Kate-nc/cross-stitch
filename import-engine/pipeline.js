@@ -44,7 +44,7 @@
     if (typeof reg !== 'function') {
       throw ENGINE.errors.UnsupportedError('Strategy registry not available');
     }
-    const strategy = await reg(probe);
+    const strategy = await reg(probe, opts);
     if (!strategy) {
       throw ENGINE.errors.UnsupportedError(
         'No strategy can handle this file (' + probe.format + ')',

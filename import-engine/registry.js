@@ -44,13 +44,13 @@
   }
 
   // Return all strategies that score > 0 for this probe, sorted by score desc.
-  async function rank(probe) {
+  async function rank(probe, opts) {
     const scored = [];
     for (let i = 0; i < strategies.length; i++) {
       const s = strategies[i];
       if (s.formats && probe && probe.format && s.formats.indexOf(probe.format) === -1) continue;
       let score;
-      try { score = await s.canHandle(probe); }
+      try { score = await s.canHandle(probe, opts); }
       catch (e) { score = 0; }
       if (typeof score === 'number' && score > 0) {
         scored.push({ strategy: s, score: score, order: i });
@@ -60,8 +60,8 @@
     return scored;
   }
 
-  async function pick(probe) {
-    const ranked = await rank(probe);
+  async function pick(probe, opts) {
+    const ranked = await rank(probe, opts);
     return ranked.length ? ranked[0].strategy : null;
   }
 
