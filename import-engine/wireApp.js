@@ -319,7 +319,8 @@
 
   function loadRasterChartUI() {
     if (typeof window === 'undefined') return Promise.resolve();
-    if (window.RasterChartCorrectionUI && window.RasterChartCorrectionUI.RasterChartCorrectionUI) {
+    var existingNs = window.RasterChartCorrectionUI;
+    if (existingNs && (existingNs.RasterChartCorrectionUI || typeof existingNs === 'function')) {
       return Promise.resolve();
     }
     var scripts = [
@@ -385,7 +386,10 @@
             try { if (host.parentNode) host.parentNode.removeChild(host); } catch (_) {}
           }
 
-          var UI = window.RasterChartCorrectionUI && window.RasterChartCorrectionUI.RasterChartCorrectionUI;
+          var ns = window.RasterChartCorrectionUI;
+          // Tolerate both export shapes: namespace object
+          // ({RasterChartCorrectionUI: fn}) and bare-function (older).
+          var UI = ns && (ns.RasterChartCorrectionUI || (typeof ns === 'function' ? ns : null));
           if (!UI) {
             cleanup();
             if (typeof onMounted === 'function') { try { onMounted(); } catch (_) {} }

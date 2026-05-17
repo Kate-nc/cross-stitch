@@ -729,6 +729,12 @@
     return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : [0, 0, 0];
   }
 
+  // Export shape: wireApp.js looks for `window.RasterChartCorrectionUI
+  // .RasterChartCorrectionUI` (namespace style). Some debug/test code
+  // historically used `window.RasterChartCorrectionUI` directly as the
+  // component. Satisfy both by assigning the function and adding a
+  // self-reference + the applyCorrections helper as properties.
   window.RasterChartCorrectionUI = RasterChartCorrectionUI;
+  window.RasterChartCorrectionUI.RasterChartCorrectionUI = RasterChartCorrectionUI;
   window.RasterChartCorrectionUI.applyCorrections = applyCorrections;
 })();
