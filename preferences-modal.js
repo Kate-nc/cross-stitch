@@ -363,6 +363,41 @@
           desc: "Replaces the single‑step image import dialog with a five‑step wizard. Off by default while we iterate." },
           h(Switch, { checked: importWiz[0], onChange: importWiz[1] })
         ),
+        importWiz[0] && h("div", {
+          style: {
+            margin: "4px 0 8px",
+            padding: "12px 14px",
+            background: "var(--accent-light)",
+            border: "0.5px solid var(--accent-border)",
+            borderLeft: "3px solid var(--accent)",
+            borderRadius: "var(--radius-md)",
+            fontSize: 13,
+            color: "var(--text-primary)"
+          }
+        },
+          h("div", { style: { display: "flex", alignItems: "center", gap: 6, fontWeight: 700, marginBottom: 8, color: "var(--accent)" } },
+            h("span", { style: { display: "inline-flex" }, "aria-hidden": "true" }, Icons.wand ? Icons.wand() : null),
+            "Import Chart Wizard — how to use it"
+          ),
+          h("ol", { style: { margin: "0 0 10px", paddingLeft: 18, lineHeight: 1.6 } },
+            h("li", null, "Open the ", h("strong", null, "Pattern Creator")),
+            h("li", null, "Click the ", h("strong", null, "Open"), " button in the header (or drag-and-drop an image onto the page)"),
+            h("li", null, "Pick a ", h("strong", null, ".png / .jpg / .jpeg / .gif / .bmp / .webp"), " file — the wizard launches in place of the standard import modal")
+          ),
+          h("a", {
+            href: "create.html",
+            style: {
+              display: "inline-block",
+              padding: "6px 14px",
+              background: "var(--accent)",
+              color: "#fff",
+              borderRadius: "var(--radius-sm)",
+              fontWeight: 600,
+              fontSize: 13,
+              textDecoration: "none"
+            }
+          }, "Open Pattern Creator")
+        ),
         h(Row, { label: "Show Embroidery planner link (experimental)",
           desc: "Surfaces a link to the experimental embroidery pattern planner (embroidery.html). Direct access still works regardless of this toggle - it only controls whether the link appears in the UI." },
           h(Switch, { checked: embroidery[0], onChange: embroidery[1] })
