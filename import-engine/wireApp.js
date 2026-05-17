@@ -362,21 +362,10 @@
     return Promise.all([loadRasterChartUI(), decodeDataUrl(corr.previewImageDataUrl)])
       .then(function (resolved) {
         var previewImage = resolved[1];
-        var pending = {
-          extraction: corr.extraction,
-          grid: corr.grid,
-          corners: corr.autoCorners,
-          autoCorners: corr.autoCorners,
-          distortion: corr.distortion,
-          previewImage: previewImage,
-          workingW: corr.workingW,
-          workingH: corr.workingH,
-          medoidImages: corr.medoidImages || [],
-          legendRows: corr.legendRows || [],
-          pages: corr.pages || [],
-          cellDistances: corr.cellDistances || [],
-          cellTopCandidates: corr.cellTopCandidates || [],
-        };
+        // Mountable correction-UI state. Wrapped so we can fully re-mount
+        // after a "Recompute extraction" call (which re-runs the worker
+        // pipeline with the user's manually-placed corners).
+        var session = { file: file, result: result, previewImage: previewImage, mountToken: 0 };
         return new Promise(function (resolve) {
           var host = document.createElement('div');
           host.className = 'rc-correction-host';
@@ -411,46 +400,102 @@
             return resolve(saveAndNavigate(result.project, opts));
           }
 
-          var props = {
-            pending: pending,
-            initialLabels: corr.initialLabels || {},
-            dmcPalette: window.DMC || [],
-            telemetryId: result.raw.telemetryId,
-            onCommit: function (correctedExtraction) {
-              cleanup();
-              var ENGINE = window.ImportEngine;
-              if (!ENGINE || typeof ENGINE.materialiseProject !== 'function') {
-                console.error('[import] materialiseProject unavailable; using auto-matched project.');
-                if (window.Toast && window.Toast.show) {
-                  window.Toast.show({
-                    message: 'Couldn\u2019t apply your chart corrections (engine method missing). Saved the auto-matched pattern instead.',
-                    type: 'warning',
-                    duration: 9000,
-                  });
-                }
-                return resolve(saveAndNavigate(result.project, opts));
-              }
-              try {
-                var project = ENGINE.materialiseProject(correctedExtraction, {
-                  originalFile: file,
-                  generatedAt: new Date().toISOString(),
-                });
-                resolve(saveAndNavigate(project, opts));
-              } catch (err) {
-                console.error('[import] materialiseProject threw after correction:', err);
-                showImportError(err);
-                resolve({ action: 'cancel', error: err });
-              }
-            },
-            onCancel: function () {
-              cleanup();
-              resolve({ action: 'cancel' });
-            },
-          };
+          function buildPending(curResult, curPreviewImage) {
+            var c = curResult.raw._correction;
+            return {
+              extraction: c.extraction,
+              grid: c.grid,
+              corners: c.autoCorners,
+              autoCorners: c.autoCorners,
+              autoCornersNorm: c.autoCornersNorm || null,
+              distortion: c.distortion,
+              previewImage: curPreviewImage,
+              workingW: c.workingW,
+              workingH: c.workingH,
+              medoidImages: c.medoidImages || [],
+              legendRows: c.legendRows || [],
+              pages: c.pages || [],
+              cellDistances: c.cellDistances || [],
+              cellTopCandidates: c.cellTopCandidates || [],
+            };
+          }
 
-          var element = window.React.createElement(UI, props);
-          if (root) root.render(element);
-          else window.ReactDOM.render(element, host);
+          // Re-run the chart extraction with user-placed corners. Returns
+          // a Promise so the UI can show a busy state. On success the UI
+          // is fully re-mounted with the new pending state (force-remount
+          // via incrementing mountToken/`key`).
+          function onRecomputeCorners(normCorners) {
+            var ENGINE = window.ImportEngine;
+            if (!ENGINE || typeof ENGINE.importPattern !== 'function') {
+              return Promise.reject(new Error('ImportEngine not available'));
+            }
+            var newOpts = Object.assign({}, opts, {
+              image: Object.assign({}, opts.image || {}, {
+                mode: 'chart',
+                manualCornersNorm: normCorners,
+              }),
+            });
+            return ENGINE.importPattern(session.file, newOpts).then(function (r2) {
+              if (!r2.ok || !r2.raw || !r2.raw._correction) {
+                throw new Error((r2.error && r2.error.message) || 'Recompute failed');
+              }
+              return decodeDataUrl(r2.raw._correction.previewImageDataUrl).then(function (img2) {
+                session.result = r2;
+                session.previewImage = img2 || session.previewImage;
+                session.mountToken++;
+                renderUI();
+                return true;
+              });
+            });
+          }
+
+          function renderUI() {
+            var pending = buildPending(session.result, session.previewImage);
+            var c = session.result.raw._correction;
+            var props = {
+              key: 'rc-' + session.mountToken,
+              pending: pending,
+              initialLabels: c.initialLabels || {},
+              dmcPalette: window.DMC || [],
+              telemetryId: session.result.raw.telemetryId,
+              onRecomputeCorners: onRecomputeCorners,
+              onCommit: function (correctedExtraction) {
+                cleanup();
+                var ENGINE = window.ImportEngine;
+                if (!ENGINE || typeof ENGINE.materialiseProject !== 'function') {
+                  console.error('[import] materialiseProject unavailable; using auto-matched project.');
+                  if (window.Toast && window.Toast.show) {
+                    window.Toast.show({
+                      message: 'Couldn\u2019t apply your chart corrections (engine method missing). Saved the auto-matched pattern instead.',
+                      type: 'warning',
+                      duration: 9000,
+                    });
+                  }
+                  return resolve(saveAndNavigate(session.result.project, opts));
+                }
+                try {
+                  var project = ENGINE.materialiseProject(correctedExtraction, {
+                    originalFile: session.file,
+                    generatedAt: new Date().toISOString(),
+                  });
+                  resolve(saveAndNavigate(project, opts));
+                } catch (err) {
+                  console.error('[import] materialiseProject threw after correction:', err);
+                  showImportError(err);
+                  resolve({ action: 'cancel', error: err });
+                }
+              },
+              onCancel: function () {
+                cleanup();
+                resolve({ action: 'cancel' });
+              },
+            };
+            var element = window.React.createElement(UI, props);
+            if (root) root.render(element);
+            else window.ReactDOM.render(element, host);
+          }
+
+          renderUI();
           if (typeof onMounted === 'function') { try { onMounted(); } catch (_) {} }
         });
       })

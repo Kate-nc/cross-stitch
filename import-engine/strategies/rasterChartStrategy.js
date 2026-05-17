@@ -95,11 +95,24 @@
         // them in the 4-corner editor (and so the user can nudge them).
         let autoCorners = null;
 
-        if (opts.image && opts.image.manualCorners) {
-          autoCorners = opts.image.manualCorners.slice();
+        // Manual corners can arrive either as absolute working-image
+        // pixels (legacy `manualCorners`) or as normalised [0,1] fractions
+        // (`manualCornersNorm`). The CorrectionUI's recompute path uses
+        // the normalised form because workingW/H may differ between runs.
+        let manualCornersForWarp = null;
+        if (opts.image && opts.image.manualCornersNorm) {
+          manualCornersForWarp = opts.image.manualCornersNorm.map(function (p) {
+            return { x: Math.round(p.x * workingW), y: Math.round(p.y * workingH) };
+          });
+        } else if (opts.image && opts.image.manualCorners) {
+          manualCornersForWarp = opts.image.manualCorners.slice();
+        }
+
+        if (manualCornersForWarp) {
+          autoCorners = manualCornersForWarp.slice();
           const warped = await rpc(worker, {
             type: 'warp', rgba: workingRgba, w: workingW, h: workingH,
-            corners: opts.image.manualCorners, opts: (opts.image.tunings) || {},
+            corners: manualCornersForWarp, opts: (opts.image.tunings) || {},
           }, [workingRgba.buffer]);
           workingBinary = warped.binary; workingW = warped.w; workingH = warped.h;
         } else {
@@ -374,6 +387,14 @@
             },
             grid: Object.assign({}, grid, { rows: cellRes.rows, cols: cellRes.cols }),
             autoCorners,
+            // Normalised [0,1] form: the CorrectionUI works in preview-
+            // canvas pixels, and workingW/H is the dimension `autoCorners`
+            // are expressed in *for the run that just finished*. The UI
+            // converts these to canvas px for display and back to norm
+            // when the user clicks "Recompute extraction".
+            autoCornersNorm: autoCorners ? autoCorners.map(function (p) {
+              return { x: p.x / workingW, y: p.y / workingH };
+            }) : null,
             distortion: (grid && grid.distortion) || null,
             previewImageDataUrl,
             workingW, workingH,

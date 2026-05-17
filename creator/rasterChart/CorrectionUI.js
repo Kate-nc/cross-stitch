@@ -37,9 +37,14 @@
   ];
 
   function RasterChartCorrectionUI(props) {
-    const { pending, onCommit, onCancel, dmcPalette, telemetryId, initialLabels } = props;
+    const { pending, onCommit, onCancel, dmcPalette, telemetryId, initialLabels, onRecomputeCorners } = props;
     const [tab, setTab] = useState('corners');
-    const [corners, setCorners] = useState(pending.corners || null);
+    // Corner state lives in *canvas pixel* coordinates (CANVAS_W × CANVAS_H).
+    // We seed from autoCornersNorm → canvas px so the overlay always lines
+    // up with the preview image regardless of the working-image dims.
+    const initialCanvasCorners = useMemo(() => normToCanvas(pending.autoCornersNorm) || workingToCanvas(pending.autoCorners, pending), [pending]);
+    const [corners, setCorners] = useState(initialCanvasCorners);
+    const [recomputing, setRecomputing] = useState(false);
     const [grid, setGrid] = useState(pending.grid || null);
     // Seed labels from caller-supplied initialLabels so colour-mode
     // auto-matches survive even if the user clicks Finish without
@@ -135,7 +140,23 @@
           h('button', { type: 'button', className: 'tb-btn', onClick: () => setTab('corners') }, 'Open Corners tab'),
         ),
         h('div', { className: 'rc-correction-body' },
-          tab === 'corners' && h(CornerEditor, { pending, corners, onChange: setCorners }),
+          tab === 'corners' && h(CornerEditor, {
+            pending, corners, onChange: setCorners,
+            recomputing,
+            onRecompute: onRecomputeCorners ? () => {
+              if (recomputing) return;
+              setRecomputing(true);
+              const norm = canvasToNorm(corners);
+              return Promise.resolve(onRecomputeCorners(norm))
+                .catch(err => {
+                  console.error('[CorrectionUI] recompute failed:', err);
+                  if (window.Toast && window.Toast.show) {
+                    window.Toast.show({ message: 'Recompute failed: ' + (err && err.message || err), type: 'error', duration: 8000 });
+                  }
+                })
+                .then(() => setRecomputing(false));
+            } : null,
+          }),
           tab === 'grid'    && h(GridEditor,   { pending, grid, onChange: setGrid }),
           tab === 'clusters'&& h(ClusterGallery, {
             pending, labels, palette, onLabelChange,
@@ -173,13 +194,34 @@
   }
 
   // ── Surface 1: 4-corner drag tool ──────────────────────────────────────
-  function CornerEditor({ pending, corners, onChange }) {
+  // Canvas dimensions for the corner overlay. The preview JPEG is
+  // pre-rendered at this size by the strategy (see imageBitmapToDataUrl),
+  // so working in canvas pixels keeps everything in one coordinate
+  // system. We convert to normalised [0,1] when sending corners back to
+  // the worker for a recompute.
+  const CANVAS_W = 800, CANVAS_H = 600;
+  function normToCanvas(norm) {
+    if (!norm) return null;
+    return norm.map(p => ({ x: p.x * CANVAS_W, y: p.y * CANVAS_H }));
+  }
+  function workingToCanvas(corners, pending) {
+    if (!corners) return null;
+    const w = pending.workingW || CANVAS_W;
+    const ht = pending.workingH || CANVAS_H;
+    return corners.map(p => ({ x: p.x / w * CANVAS_W, y: p.y / ht * CANVAS_H }));
+  }
+  function canvasToNorm(corners) {
+    if (!corners) return null;
+    return corners.map(p => ({ x: p.x / CANVAS_W, y: p.y / CANVAS_H }));
+  }
+
+  function CornerEditor({ pending, corners, onChange, recomputing, onRecompute }) {
     const canvasRef = useRef(null);
     const [drag, setDrag] = useState(-1);
     const [focused, setFocused] = useState(0);
     const distortion = pending.distortion || null;
 
-    const c = corners || pending.autoCorners || defaultCorners(pending);
+    const c = corners || normToCanvas(pending.autoCornersNorm) || defaultCornersCanvas();
     useEffect(() => {
       const cv = canvasRef.current;
       if (!cv || !pending.previewImage) return;
@@ -228,7 +270,7 @@
     }
     function onPointerUp() { setDrag(-1); }
     function resetCorners() {
-      onChange(pending.autoCorners ? pending.autoCorners.slice() : defaultCorners(pending));
+      onChange(normToCanvas(pending.autoCornersNorm) || defaultCornersCanvas());
     }
 
     return h('div', { className: 'rc-corner-editor' },
@@ -251,16 +293,32 @@
       ),
       h('p', null, 'Drag the four corners to match the chart\'s outer border. Click a handle and use the arrow keys (Shift = 10px) for precise nudges.'),
       h('div', { style: { display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' } },
-        h('button', { type: 'button', className: 'tb-btn', onClick: resetCorners }, 'Reset to auto-detected'),
+        h('button', { type: 'button', className: 'tb-btn', onClick: resetCorners, disabled: recomputing }, 'Reset to auto-detected'),
+        onRecompute && h('button', {
+          type: 'button', className: 'tb-btn tb-btn--primary',
+          onClick: onRecompute, disabled: recomputing,
+          title: 'Re-run perspective warp, grid detection, and clustering using these corners',
+        }, recomputing ? 'Recomputing\u2026 (this may take a minute)' : 'Recompute extraction'),
         h('span', { style: { fontSize: 12, opacity: 0.75 } },
           'Focused corner: ' + (['top-left','top-right','bottom-right','bottom-left'][focused] || focused)),
       ),
       h('canvas', {
-        ref: canvasRef, width: 800, height: 600, tabIndex: 0,
-        style: { width: '100%', height: 'auto', cursor: drag >= 0 ? 'grabbing' : 'crosshair', border: '1px solid var(--border)' },
-        onMouseDown: onPointerDown, onMouseMove: onPointerMove, onMouseUp: onPointerUp, onMouseLeave: onPointerUp,
+        ref: canvasRef, width: CANVAS_W, height: CANVAS_H, tabIndex: 0,
+        style: { width: '100%', height: 'auto', cursor: drag >= 0 ? 'grabbing' : 'crosshair', border: '1px solid var(--border)', opacity: recomputing ? 0.6 : 1 },
+        onMouseDown: recomputing ? null : onPointerDown,
+        onMouseMove: recomputing ? null : onPointerMove,
+        onMouseUp: onPointerUp, onMouseLeave: onPointerUp,
       }),
     );
+  }
+
+  function defaultCornersCanvas() {
+    return [
+      { x: 0,        y: 0 },
+      { x: CANVAS_W, y: 0 },
+      { x: CANVAS_W, y: CANVAS_H },
+      { x: 0,        y: CANVAS_H },
+    ];
   }
 
   function defaultCorners(pending) {
