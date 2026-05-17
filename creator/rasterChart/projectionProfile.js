@@ -94,6 +94,66 @@
   }
 
   /**
+   * Autocorrelation-based pitch estimate. Computes the 1D autocorrelation
+   * of the zero-mean profile and returns the lag of the first prominent
+   * non-trivial peak in [minLag, maxLag]. More robust than peak-counting
+   * for photographed charts where text, watermarks, and partial-cell rows
+   * confuse the projection-profile peak picker.
+   *
+   * @param {Float32Array|number[]} profile
+   * @param {object} [opts]
+   * @param {number} [opts.minLag=3]
+   * @param {number} [opts.maxLag] defaults to profile.length / 4
+   * @param {number} [opts.minPeakStrength=0.2]  fraction of zero-lag autocorr
+   * @returns {number} pitch in pixels, or 0 if no confident peak found
+   */
+  function autocorrPitch(profile, opts) {
+    opts = opts || {};
+    const n = profile.length;
+    if (n < 8) return 0;
+    const minLag = Math.max(2, opts.minLag || 3);
+    const maxLag = Math.min(n - 2, opts.maxLag || Math.floor(n / 4));
+    if (maxLag <= minLag) return 0;
+    const minPeakStrength = opts.minPeakStrength == null ? 0.2 : opts.minPeakStrength;
+
+    // Zero-mean the profile so DC doesn't dominate.
+    let mean = 0;
+    for (let i = 0; i < n; i++) mean += profile[i];
+    mean /= n;
+    const z = new Float64Array(n);
+    for (let i = 0; i < n; i++) z[i] = profile[i] - mean;
+
+    // Compute autocorr[lag=0..maxLag]. O(n*maxLag) — fine for n≤2000, maxLag≤500.
+    const ac = new Float64Array(maxLag + 1);
+    for (let lag = 0; lag <= maxLag; lag++) {
+      let s = 0;
+      for (let i = 0; i + lag < n; i++) s += z[i] * z[i + lag];
+      ac[lag] = s;
+    }
+    const ac0 = ac[0];
+    if (ac0 <= 0) return 0;
+    const thresh = ac0 * minPeakStrength;
+
+    // Walk lag forward, skip the initial monotonic descent from lag=0, then
+    // return the first local maximum that exceeds threshold.
+    let descending = true;
+    for (let lag = 1; lag < maxLag; lag++) {
+      if (descending) {
+        if (ac[lag] >= ac[lag - 1]) descending = false; else continue;
+      }
+      if (lag < minLag) continue;
+      if (ac[lag] >= thresh && ac[lag] >= ac[lag - 1] && ac[lag] >= ac[lag + 1]) {
+        // Parabolic refine around the integer peak for sub-pixel pitch.
+        const y0 = ac[lag - 1], y1 = ac[lag], y2 = ac[lag + 1];
+        const denom = (y0 - 2 * y1 + y2);
+        const delta = denom !== 0 ? 0.5 * (y0 - y2) / denom : 0;
+        return lag + (isFinite(delta) ? delta : 0);
+      }
+    }
+    return 0;
+  }
+
+  /**
    * Combine row + col projections into a grid hypothesis.
    * @param {Float32Array|number[]} rowSum  length = image height
    * @param {Float32Array|number[]} colSum  length = image width
@@ -120,8 +180,30 @@
     const colGaps = [];
     for (let i = 1; i < colPeaks.length; i++) colGaps.push(colPeaks[i] - colPeaks[i - 1]);
 
-    const rowPitch = median(rowGaps);
-    const colPitch = median(colGaps);
+    let rowPitch = median(rowGaps);
+    let colPitch = median(colGaps);
+
+    // Autocorrelation cross-check. Useful when the peak picker is fooled
+    // by interspersed text/watermark peaks that bias the median gap.
+    const rowAc = autocorrPitch(rowSum, { minLag: minSpacing });
+    const colAc = autocorrPitch(colSum, { minLag: minSpacing });
+    let pitchSource = 'peaks';
+    if (rowAc && colAc) {
+      const acRatio = Math.min(rowAc, colAc) / Math.max(rowAc, colAc);
+      const peakRatio = rowPitch && colPitch ? Math.min(rowPitch, colPitch) / Math.max(rowPitch, colPitch) : 0;
+      // If autocorr agrees row≈col and peak-based pitches disagree, prefer autocorr.
+      if (acRatio > 0.9 && peakRatio < 0.8) {
+        rowPitch = rowAc; colPitch = colAc;
+        pitchSource = 'autocorr';
+      } else {
+        // If pitches roughly agree, average the two estimates (sub-pixel refine).
+        const rowAgree = rowPitch && Math.abs(rowAc - rowPitch) / rowPitch < 0.15;
+        const colAgree = colPitch && Math.abs(colAc - colPitch) / colPitch < 0.15;
+        if (rowAgree) rowPitch = 0.5 * (rowPitch + rowAc);
+        if (colAgree) colPitch = 0.5 * (colPitch + colAc);
+        if (rowAgree || colAgree) pitchSource = 'blend';
+      }
+    }
     // Cells should be roughly square; if the two pitches disagree by >20%
     // the grid hypothesis is probably wrong.
     const ratio = rowPitch && colPitch ? Math.min(rowPitch, colPitch) / Math.max(rowPitch, colPitch) : 0;
@@ -150,10 +232,12 @@
       colPeaks,
       majorEvery,
       confidence,
+      pitchSource,
+      autocorrPitch: { row: rowAc, col: colAc },
     };
   }
 
-  const api = { findPeaks, gridFromProfiles, median, detectMajorPeriod };
+  const api = { findPeaks, gridFromProfiles, median, detectMajorPeriod, autocorrPitch };
   if (typeof globalThis !== 'undefined') globalThis.RasterChartProjection = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

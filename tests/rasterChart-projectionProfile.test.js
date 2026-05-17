@@ -1,5 +1,5 @@
 /* tests/rasterChart-projectionProfile.test.js */
-const { findPeaks, gridFromProfiles, median, detectMajorPeriod } =
+const { findPeaks, gridFromProfiles, median, detectMajorPeriod, autocorrPitch } =
   require('../creator/rasterChart/projectionProfile.js');
 
 function synthesise1D(n, peakIndices, peakValue, minorValue) {
@@ -86,4 +86,29 @@ describe('median', () => {
   test('odd-length', () => { expect(median([1, 2, 3])).toBe(2); });
   test('even-length', () => { expect(median([1, 2, 3, 4])).toBe(2.5); });
   test('empty', () => { expect(median([])).toBe(0); });
+});
+
+describe('autocorrPitch', () => {
+  test('recovers periodic spacing from a clean signal', () => {
+    const n = 400, pitch = 12;
+    const profile = new Float32Array(n);
+    for (let i = 0; i < n; i++) profile[i] = (i % pitch === 0) ? 1 : 0;
+    const p = autocorrPitch(profile, { minLag: 4 });
+    expect(Math.abs(p - pitch)).toBeLessThanOrEqual(1);
+  });
+
+  test('returns 0 for flat input', () => {
+    expect(autocorrPitch(new Float32Array(100))).toBe(0);
+  });
+
+  test('is robust to additive noise on a periodic signal', () => {
+    const n = 600, pitch = 17;
+    const profile = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      // base period plus a smaller off-frequency bump (watermark/text noise)
+      profile[i] = (i % pitch === 0 ? 1 : 0) + (i % 23 === 5 ? 0.3 : 0) + 0.1 * Math.sin(i / 3);
+    }
+    const p = autocorrPitch(profile, { minLag: 5 });
+    expect(Math.abs(p - pitch)).toBeLessThanOrEqual(1);
+  });
 });
