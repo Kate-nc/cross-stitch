@@ -51,72 +51,72 @@ preserved. Effect: the Symbols tab is now "review and accept" rather
 than "type from scratch" even on charts where the worker's findBest
 couldn't match a few clusters.
 
+### 3. Median per-cell RGB (D, shipped)
+
+`extractCellColors` now collects per-channel R/G/B from each cell's
+inner ~70 % window and returns the **median** instead of the mean. On
+printed charts the cell border tends to clip a thin grid-line strip
+even after `cellInwardPadFrac` padding; the mean was biased toward
+black by that one-sided contamination. Median is robust against the
+asymmetric outliers. Pad-frac was also raised to a hard floor of 18 %
+of cell pitch.
+
+### 4. CIEDE2000 for cluster → DMC matching (B, shipped)
+
+`CorrectionUI.topNDmcMatches` (the chip strip in the Symbols / Needs-
+review tabs) and the strategy's auto-label step both use ΔE2000 now.
+Previously the strategy was calling `findBest(lab[0], lab[1], lab[2],
+palette)` with a misordered argument list, throwing inside `findSolid`
+and silently swallowing the result — so auto-labels were a no-op. They
+now fire and use a perceptual metric instead of plain Euclidean.
+
+### 5. Palette-seeded clustering with shape sub-splitting (C + A, shipped)
+
+The colour-mode default is now `paletteSeededCluster`:
+
+1. Every cell is snapped to its nearest DMC code by ΔE2000.
+2. Cells sharing a code form a cluster (with `minPts = 2` to drop
+   single-cell noise).
+3. Within each palette cluster (≥ 8 cells) a second DBSCAN pass on the
+   per-cell HOG features detects multi-symbol palette groups and splits
+   them. Sub-noise cells are reattached to the largest sub-group to
+   avoid dropping legitimate cells.
+
+Cluster labels are now exact (the palette index is the cluster seed
+itself, no medoid re-matching). The old generic-DBSCAN combined path
+stays as a fallback when `window.DMC` is somehow empty. This addresses
+the original failure modes from §1 directly: two reds that map to two
+different DMC codes are now two clusters, and a red whose glyphs jitter
+is a single cluster because every cell still hits the same DMC code.
+
 ## Larger changes — research notes & plan
 
 Each item below is a deliberately separate commit because they have
 distinct telemetry signals and risk profiles. Pick the one whose
 telemetry confirms a real-world failure mode before implementing.
 
-### A. Two-stage colour-then-shape clustering
+### A. Two-stage colour-then-shape clustering — *shipped as part of palette-seeded mode (§5)*
 
-Cluster on colour first (DBSCAN, generous ε so each colour bucket is
-loose), then within each colour bucket run a second pass on HOG + dHash
-to split colours whose chart cells were rendered with different symbols
-(rare but happens with cross-stitch / quarter-stitch mixed cells).
+Originally proposed as DBSCAN-on-colour → DBSCAN-on-shape-per-bucket.
+The shipped palette-seeded pipeline does exactly this: palette buckets
+*are* the colour buckets, and the per-bucket HOG-DBSCAN sub-split is the
+shape pass. The standalone two-stage DBSCAN variant is no longer worth
+implementing.
 
-**Telemetry trigger:** `corrections.surface == 'cluster-split'` rate > 15 %
-in colour-mode imports.
+### B. ΔE2000 instead of ΔE76 / Euclidean Lab — *shipped (§4)*
 
-**Effort:** medium. Requires DBSCAN to accept a per-point cluster ID
-seed (or running it on each sub-bucket from JS).
+In use for cluster→DMC matching (`topNDmcMatches` + the strategy auto-
+label loop) and for the palette-seeded per-cell snap. DBSCAN's internal
+neighbour search still uses normalised Euclidean — appropriate for
+shape+Lab feature vectors where the Lab columns are only 3 of N
+dimensions.
 
-### B. ΔE2000 instead of ΔE76 / Euclidean Lab
+### C. Use the DMC palette as initial cluster seeds — *shipped (§5)*
 
-DBSCAN currently uses raw Euclidean distance in normalised Lab, which is
-ΔE76 in disguise. ΔE2000 is significantly more perceptual, especially
-for desaturated greys and pastels — exactly the failure region for
-"two greys merged together".
+Implemented as `paletteSeededCluster` in the worker; now the default
+for colour mode.
 
-**Telemetry trigger:** `corrections.surface == 'cluster-merge'` rate
-where both clusters' top-1 DMC suggestions disagree but their RGB
-distance is < 15.
-
-**Effort:** small (~50 LOC). DBSCAN's distance metric is plugged in via
-a callback already. ΔE2000 cost per pair is ~10× ΔE76 — measure first
-on a 100×100 chart (10 000 cells × ~20 neighbour comparisons = 2M ops;
-should still be well under the 500 ms Lab budget).
-
-### C. Use the DMC palette as initial cluster seeds (constrained
-k-means-like start)
-
-Instead of running unsupervised DBSCAN and *then* matching centroids to
-DMC, snap each cell directly to its nearest DMC code (k = palette size
-≈ 500) and only keep DMC codes used by ≥ 2 cells. This is exactly what
-the existing `colour-utils.js findBest()` already does for image-based
-pattern generation in the Creator. Symbol features would only be used
-for the disambiguation step (when two adjacent DMC matches are within
-ΔE < threshold of each other).
-
-**Telemetry trigger:** `confidence.cluster.meanSilhouette` median < 0.4
-across captured colour-mode imports (i.e. DBSCAN's natural cluster
-boundaries are weak).
-
-**Effort:** medium — but this is the proven approach used elsewhere in
-the codebase, so the risk profile is low.
-
-### D. Median Lab per cell (instead of mean)
-
-The current `extractCellColors` returns a per-cell mean. On a printed
-chart the inner pixels of a cell are the colour we want, but the
-borders pick up the grid-line ink (black) which biases the mean toward
-darker. A median over the cell's inner 70 % is robust against this.
-
-**Telemetry trigger:** Across captured colour-mode imports, compute
-mean-vs-median ΔE per cell; if median > 5 in > 20 % of cells, ship.
-
-**Effort:** small. `cvPipeline.extractCellColors` is a single function.
-
-### E. Use OCR'd legend swatch RGB to label clusters
+### D. Median Lab per cell (instead of mean) — *shipped (§3)*
 
 The legend OCR already finds the legend swatch position. We sample its
 RGB but never use it to disambiguate clusters. If the legend says

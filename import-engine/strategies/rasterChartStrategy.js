@@ -583,54 +583,82 @@
 
     if (ctx) safeReport(ctx, { stage: 'extract', label: 'colour-cluster' });
     const t0 = nowMs();
-    // Forward HOG features + dHashes so the worker can cluster on
-    // combined shape+colour (DBSCAN with z-score normalisation +
-    // labWeight=0.6). Hamming-merge post-step joins clusters with
-    // near-identical glyphs (dHash distance ≤ 4).
+    // Palette-seeded clustering is the colour-mode default. Every cell is
+    // snapped to the nearest DMC code (CIEDE2000 in Lab); cells that share
+    // a code form a cluster. Within each palette cluster a second pass
+    // looks at HOG features and splits if more than one dense glyph sub-
+    // cluster is present (covers the case where the chart legend reuses a
+    // colour for multiple symbols, e.g. back-stitch + full-stitch in 310).
+    //
+    // The old generic-DBSCAN path (cluster on [HOG + dHash + Lab]) is kept
+    // as a fallback for when the palette is unavailable (very rare —
+    // window.DMC is loaded as a global on every page).
     const features = (feat && feat.features) || null;
     const dHashes = (feat && feat.dHashes) ? feat.dHashes.map(b => b.toString()) : null;
-    const clu = await rpc(worker, {
-      type: 'colourCluster',
-      cellColors: colRes.cellColors, cols: colRes.cols, rows: colRes.rows,
-      features, dHashes,
-      opts: { minPts: 2, normalise: true, labDims: 3, labWeight: 0.6 },
-    }, [colRes.cellColors.buffer]);
+    const dmc = (typeof window !== 'undefined' && window.DMC) || [];
+    const palette = dmc
+      .filter(p => p && p.lab)
+      .map(p => ({ id: p.id, lab: p.lab, rgb: p.rgb }));
+    let clu;
+    let usedPaletteSeed = false;
+    if (palette.length) {
+      clu = await rpc(worker, {
+        type: 'paletteSeededCluster',
+        cellColors: colRes.cellColors, cols: colRes.cols, rows: colRes.rows,
+        palette, features, dHashes,
+        opts: { minPts: 2, shapeSubSplit: true, subSplitMin: 8 },
+      }, [colRes.cellColors.buffer]);
+      usedPaletteSeed = true;
+    } else {
+      clu = await rpc(worker, {
+        type: 'colourCluster',
+        cellColors: colRes.cellColors, cols: colRes.cols, rows: colRes.rows,
+        features, dHashes,
+        opts: { minPts: 2, normalise: true, labDims: 3, labWeight: 0.6 },
+      }, [colRes.cellColors.buffer]);
+    }
     timings.cluster = nowMs() - t0;
 
-    // Auto-match cluster Lab centroids → nearest DMC code (CIEDE2000).
-    // Previously this used findBest(...) with a misordered argument list
-    // (lab[0], lab[1], lab[2], palette) which threw inside findSolid and was
-    // silently swallowed by the surrounding try/catch — so the auto-label
-    // step has been a no-op until now. Doing the palette walk inline avoids
-    // ambiguity about the helper's signature and lets us use ΔE2000 directly.
-    const dmc = (typeof window !== 'undefined' && window.DMC) || [];
-    const dE2000 = (typeof window !== 'undefined' && typeof window.dE2000 === 'function')
-      ? window.dE2000 : null;
+    // Cluster→DMC labels.
+    // In palette-seeded mode the worker already tells us which palette
+    // index seeded each cluster, so labels are exact and free. In the
+    // fallback DBSCAN mode we walk the cluster medoids and look them up
+    // by ΔE2000 (used to use findBest with the wrong argument order, which
+    // silently threw — see commit history).
     const clusterLabels = {};
-    if (dmc.length && clu.labFeatures) {
-      const medoidsByCluster = new Map();
-      for (let i = 0; i < clu.assignments.length; i++) {
-        const c = clu.assignments[i];
-        if (c < 0 || medoidsByCluster.has(c)) continue;
-        if (clu.medoids[c] == null) continue;
-        medoidsByCluster.set(c, clu.labFeatures[clu.medoids[c]]);
+    if (usedPaletteSeed && clu.clusterCodes) {
+      for (let cid = 0; cid < clu.clusterCodes.length; cid++) {
+        const p = palette[clu.clusterCodes[cid]];
+        if (p) clusterLabels[cid] = { code: p.id, rgb: p.rgb || [0, 0, 0] };
       }
-      for (const [cid, lab] of medoidsByCluster) {
-        try {
-          let best = null;
-          let bestD = Infinity;
-          for (let i = 0; i < dmc.length; i++) {
-            const p = dmc[i];
-            if (!p.lab) continue;
-            const d = dE2000 ? dE2000(lab, p.lab) : (
-              (lab[0] - p.lab[0]) ** 2 +
-              (lab[1] - p.lab[1]) ** 2 +
-              (lab[2] - p.lab[2]) ** 2
-            );
-            if (d < bestD) { bestD = d; best = p; }
-          }
-          if (best) clusterLabels[cid] = { code: best.id, rgb: best.rgb || [0, 0, 0] };
-        } catch (_) {}
+    } else {
+      const dE2000 = (typeof window !== 'undefined' && typeof window.dE2000 === 'function')
+        ? window.dE2000 : null;
+      if (dmc.length && clu.labFeatures) {
+        const medoidsByCluster = new Map();
+        for (let i = 0; i < clu.assignments.length; i++) {
+          const c = clu.assignments[i];
+          if (c < 0 || medoidsByCluster.has(c)) continue;
+          if (clu.medoids[c] == null) continue;
+          medoidsByCluster.set(c, clu.labFeatures[clu.medoids[c]]);
+        }
+        for (const [cid, lab] of medoidsByCluster) {
+          try {
+            let best = null;
+            let bestD = Infinity;
+            for (let i = 0; i < dmc.length; i++) {
+              const p = dmc[i];
+              if (!p.lab) continue;
+              const d = dE2000 ? dE2000(lab, p.lab) : (
+                (lab[0] - p.lab[0]) ** 2 +
+                (lab[1] - p.lab[1]) ** 2 +
+                (lab[2] - p.lab[2]) ** 2
+              );
+              if (d < bestD) { bestD = d; best = p; }
+            }
+            if (best) clusterLabels[cid] = { code: best.id, rgb: best.rgb || [0, 0, 0] };
+          } catch (_) {}
+        }
       }
     }
 
