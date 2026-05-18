@@ -898,7 +898,10 @@
             // interrupted by a page unload), clear the stale pointer so the
             // index.html redirect guard stops sending users to a tool with
             // no project loaded.
-            if (!p && window.ProjectStorage.getActiveProjectId &&
+            // Guard with !cancelled: if the user clicked Track/Edit and
+            // setActiveProject() ran while this IDB query was in-flight,
+            // cancelled will be true and we must NOT clear the fresh pointer.
+            if (!cancelled && !p && window.ProjectStorage.getActiveProjectId &&
                 window.ProjectStorage.getActiveProjectId() &&
                 window.ProjectStorage.clearActiveProject) {
               try { window.ProjectStorage.clearActiveProject(); } catch (_) {}
@@ -1020,10 +1023,6 @@
       };
     }, []);
 
-    function onOpenProject() {
-      window.location.href = 'stitch.html?from=home';
-    }
-
     var Header = window.Header;
     // Projects tab excludes active project from "All projects" list since it
     // already appears in ActiveProjectCard above. The `homeShowCompleted`
@@ -1054,7 +1053,6 @@
             page: 'home',
             tab: 'home',
             activeProject: active,
-            onOpenProject: onOpenProject,
             onPreferences: function () {
               try { window.dispatchEvent(new CustomEvent('cs:openPreferences')); } catch (_) {}
             }
