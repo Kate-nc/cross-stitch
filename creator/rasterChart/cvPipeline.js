@@ -541,9 +541,12 @@
 
     // Measure peak non-uniformity to decide whether rectification is worth
     // the extra pass. We compute the max deviation of any inter-peak gap from
-    // the median (as a fraction of the median). Distortions > 3 % are
+    // the median (as a fraction of the median). Distortions > 7 % are
     // corrected; below that the improvement is invisible and the remap costs
-    // CPU for no benefit (e.g. clean digital screenshots).
+    // CPU for no benefit (e.g. clean digital screenshots, or photos whose
+    // perspective has already been corrected by the warp stage — these
+    // routinely show 3–6 % residual variation from JPEG compression and
+    // sub-pixel peak detection, not genuine geometric distortion).
     function gapUniformity(peaks) {
       const gaps = [];
       for (let i = 1; i < peaks.length; i++) gaps.push(peaks[i] - peaks[i - 1]);
@@ -555,7 +558,7 @@
     }
     const rowUniform = gapUniformity(rowPeaks);
     const colUniform = gapUniformity(colPeaks);
-    if (rowUniform < 0.03 && colUniform < 0.03) {
+    if (rowUniform < 0.07 && colUniform < 0.07) {
       return { binary, rgba: rgbaIn, w, h, grid };
     }
 
@@ -605,9 +608,13 @@
       const mapYMat = s.track(cv.matFromArray(outH, outW, cv.CV_32FC1, mapYData));
 
       // Rectify binary.
+      // INTER_NEAREST preserves the 0/255 binary nature of the image.
+      // INTER_LINEAR would blend ink (255) with background (0) pixels,
+      // producing intermediate gray values that make all cells' HOG features
+      // more similar and corrupt the ink-density check in extractCells.
       const srcBin = s.track(cv.matFromArray(h, w, cv.CV_8UC1, binary));
       const dstBin = s.track(new cv.Mat());
-      cv.remap(srcBin, dstBin, mapXMat, mapYMat, cv.INTER_LINEAR,
+      cv.remap(srcBin, dstBin, mapXMat, mapYMat, cv.INTER_NEAREST,
                cv.BORDER_REPLICATE, new cv.Scalar(0));
       const rectBinary = new Uint8Array(dstBin.data);
 
