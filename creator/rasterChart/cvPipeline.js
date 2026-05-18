@@ -81,6 +81,41 @@
       const gray = s.track(new cv.Mat());
       cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
 
+      // ── Item 5: Morphological background normalisation ─────────────────
+      // Estimate the illumination envelope via large-kernel morphological
+      // close (fills all symbol-sized voids, leaving only the slowly-varying
+      // paper/background gradient). If the gradient is significant (std > 12
+      // grey levels), divide grey by it to flatten the illumination before
+      // any threshold step. Improves Otsu on photos with vignetting,
+      // single-sided lighting, or partial shadow. Gate is conservative so
+      // clean digital screenshots (near-zero bg gradient) are untouched.
+      {
+        const kSize  = Math.max(41, ((opts.adaptiveBlockSize * 1.5) | 1));
+        const kernel = cv.getStructuringElement(
+          cv.MORPH_ELLIPSE, new cv.Size(kSize, kSize));
+        const bg = s.track(new cv.Mat());
+        cv.morphologyEx(gray, bg, cv.MORPH_CLOSE, kernel);
+        kernel.delete();
+        const bgMeanVec = s.track(new cv.Mat());
+        const bgStdVec  = s.track(new cv.Mat());
+        cv.meanStdDev(bg, bgMeanVec, bgStdVec);
+        const bgStdVal = bgStdVec.doubleAt(0, 0);
+        if (bgStdVal > 12) {
+          // normalised_px = gray_px / bg_px × 192
+          // 192 (¾ of 255) keeps the normalised background light without
+          // saturating the brighter regions.
+          const gray32   = s.track(new cv.Mat());
+          const bg32     = s.track(new cv.Mat());
+          gray.convertTo(gray32, cv.CV_32F);
+          bg.convertTo(bg32, cv.CV_32F);
+          const norm32   = s.track(new cv.Mat());
+          cv.divide(gray32, bg32, norm32, 192.0, cv.CV_32F);
+          const normGray = s.track(new cv.Mat());
+          norm32.convertTo(normGray, cv.CV_8U);
+          normGray.copyTo(gray); // update gray in-place for the steps below
+        }
+      }
+
       // Otsu fast-path probe: a clean screenshot has a strongly bimodal
       // histogram and Otsu will give an excellent threshold by itself.
       // We detect this by checking whether Otsu's split point is "decisive"
@@ -102,6 +137,37 @@
         cv.adaptiveThreshold(blurred, ad, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C,
                              cv.THRESH_BINARY_INV, opts.adaptiveBlockSize, opts.adaptiveC);
         bw = ad;
+
+        // ── Item 4: Per-strip adaptive binarisation ──────────────────────
+        // Run CLAHE + adaptive threshold on 4 overlapping horizontal strips
+        // and OR the results into bw. Rescues ink pixels that the single
+        // global pass misses due to large-scale luminance variation (e.g.
+        // vignetting, a shadow covering one quadrant of the photo).
+        // Union strategy: ink at (x,y) if ANY strip detected it.
+        // Only runs on the slow path — clean screenshots already Otsu-pathed.
+        const dw = downscaled.w, dh = downscaled.h;
+        const minStripH = opts.adaptiveBlockSize + 2;
+        const N_STRIPS  = 4;
+        for (let si = 0; si < N_STRIPS; si++) {
+          const stride = dh / N_STRIPS;
+          const y0s    = Math.max(0, Math.round(si * stride - stride * 0.5));
+          const y1s    = Math.min(dh, Math.round((si + 1) * stride + stride * 0.5));
+          if (y1s - y0s < minStripH) continue;
+          const stripH    = y1s - y0s;
+          const stripGray = s.track(gray.roi(new cv.Rect(0, y0s, dw, stripH)));
+          const stripBlur = s.track(new cv.Mat());
+          cv.GaussianBlur(stripGray, stripBlur, new cv.Size(3, 3), 0);
+          const sClahe = new cv.CLAHE(opts.claheClip,
+            new cv.Size(opts.claheTile, opts.claheTile));
+          sClahe.apply(stripBlur, stripBlur);
+          sClahe.delete();
+          const stripAd = s.track(new cv.Mat());
+          cv.adaptiveThreshold(stripBlur, stripAd, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C,
+                               cv.THRESH_BINARY_INV, opts.adaptiveBlockSize, opts.adaptiveC);
+          const bwRoi = bw.roi(new cv.Rect(0, y0s, dw, stripH));
+          cv.bitwise_or(bwRoi, stripAd, bwRoi);
+          bwRoi.delete();
+        }
       }
 
       const out = new Uint8Array(bw.data); // copy out as plain bytes
