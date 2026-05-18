@@ -138,12 +138,24 @@
     }
     const medoids = [];
     const sortedIds = Array.from(groups.keys()).sort((a, b) => a - b);
+    // Cap per-cluster sample to avoid O(n²) stalls in the worker when
+    // DBSCAN produces a large single cluster before Fix D has a chance to
+    // gate reclusterNoise. 200 evenly-spaced members give a representative
+    // medoid and keep the cost at O(40 000) L2 calls per cluster regardless
+    // of the total cell count.
+    const MEDOID_SAMPLE_CAP = 200;
     for (const cid of sortedIds) {
       const members = groups.get(cid);
-      let best = members[0], bestSum = Infinity;
-      for (const i of members) {
+      let sample = members;
+      if (members.length > MEDOID_SAMPLE_CAP) {
+        sample = [];
+        const step = members.length / MEDOID_SAMPLE_CAP;
+        for (let k = 0; k < MEDOID_SAMPLE_CAP; k++) sample.push(members[Math.floor(k * step)]);
+      }
+      let best = sample[0], bestSum = Infinity;
+      for (const i of sample) {
         let s = 0;
-        for (const j of members) s += l2(features[i], features[j]);
+        for (const j of sample) s += l2(features[i], features[j]);
         if (s < bestSum) { bestSum = s; best = i; }
       }
       medoids[cid] = best;
