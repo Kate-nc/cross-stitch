@@ -158,7 +158,18 @@
             const dHashesBig = (msg.dHashes || []).map(x => typeof x === 'bigint' ? x : BigInt(x));
             const out = RasterChartDBSCAN.cluster(msg.features, msg.opts || {});
             const merged = RasterChartDBSCAN.mergeByHashHamming(out.assignments, out.medoids, dHashesBig, 2);
-            send('result', id, { payload: { assignments: merged, eps: out.eps, medoids: out.medoids } });
+            // Recompute medoids indexed by the post-merge (compacted) cluster IDs.
+            // out.medoids is indexed by pre-merge IDs; after mergeByHashHamming
+            // remaps and compacts the IDs, out.medoids[cid] no longer corresponds
+            // to the correct cell for post-merge cid. We use an O(n) first-member
+            // proxy rather than the exact O(n²) medoid to avoid stalling the
+            // worker on large inputs (Fix H addresses the medoid cost separately).
+            const mergedMedoids = [];
+            for (let _mi = 0; _mi < merged.length; _mi++) {
+              const _mc = merged[_mi];
+              if (_mc >= 0 && mergedMedoids[_mc] == null) mergedMedoids[_mc] = _mi;
+            }
+            send('result', id, { payload: { assignments: merged, eps: out.eps, medoids: mergedMedoids } });
           }
           return;
 
@@ -221,15 +232,22 @@
             // Only runs when symbol dHashes are supplied. Mirrors the B&W
             // path's mergeByHashHamming step.
             let assignments = out.assignments;
+            let finalMedoids = out.medoids;
             if (msg.dHashes && msg.dHashes.length === n && out.medoids) {
               const dHashesBig = msg.dHashes.map(x => typeof x === 'bigint' ? x : BigInt(x));
               assignments = RasterChartDBSCAN.mergeByHashHamming(
                 out.assignments, out.medoids, dHashesBig, 2,
               );
+              // Fresh proxy medoids for the compacted post-merge cluster IDs.
+              finalMedoids = [];
+              for (let _mi = 0; _mi < assignments.length; _mi++) {
+                const _mc = assignments[_mi];
+                if (_mc >= 0 && finalMedoids[_mc] == null) finalMedoids[_mc] = _mi;
+              }
             }
             send('result', id, { payload: {
               assignments: Array.from(assignments),
-              medoids: out.medoids,
+              medoids: finalMedoids,
               eps: out.eps,
               labFeatures: labFeatures.map(f => Array.from(f)),
             }});
