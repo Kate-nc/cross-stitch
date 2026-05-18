@@ -1183,10 +1183,10 @@ const SyncEngine = (() => {
     return PREF_HUMAN_LABELS[key] || key;
   }
 
-  // Open the main CrossStitchDB (uses helpers.js getDB which already bumped to v4)
+  // Open the main CrossStitchDB (uses helpers.js getDB which already bumped to v5)
   function _openSnapshotDB() {
     return new Promise(function(resolve, reject) {
-      var req = indexedDB.open("CrossStitchDB", 4);
+      var req = indexedDB.open("CrossStitchDB", 5);
       req.onupgradeneeded = function(e) {
         var db = e.target.result;
         var ov = e.oldVersion;
@@ -1194,6 +1194,10 @@ const SyncEngine = (() => {
         if (ov < 2) { if (!db.objectStoreNames.contains("project_meta")) db.createObjectStore("project_meta"); }
         if (ov < 3) { if (!db.objectStoreNames.contains("stats_summaries")) db.createObjectStore("stats_summaries"); }
         if (ov < 4) { if (!db.objectStoreNames.contains("sync_snapshots")) db.createObjectStore("sync_snapshots"); }
+        if (ov < 5) {
+          if (!db.objectStoreNames.contains("importerTelemetry")) db.createObjectStore("importerTelemetry", { keyPath: "id" });
+          if (!db.objectStoreNames.contains("pendingImports")) db.createObjectStore("pendingImports", { keyPath: "id" });
+        }
       };
       req.onblocked = function() {
         console.warn("SyncEngine: _openSnapshotDB blocked by another open connection.");
