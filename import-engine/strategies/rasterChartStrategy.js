@@ -206,7 +206,14 @@
           clu = await timed('cluster', rpc(worker, {
             type: 'cluster', features: feat.features,
             dHashes: feat.dHashes.map(b => b.toString()),
-            opts: { minPts: 2 },
+            // normalise: true ensures the density scalar appended by featurise()
+            // is z-score-scaled to the same magnitude as the HOG dimensions before
+            // DBSCAN distance computation. Without it the density term (~0.05–0.20)
+            // is ~20× smaller than typical HOG values and contributes negligibly,
+            // causing circularly-symmetric glyphs that differ only in fill fraction
+            // (e.g. hollow ring vs small filled dot) to collapse into one cluster.
+            // The colourCluster path already passes normalise: true for the same reason.
+            opts: { minPts: 2, normalise: true },
           }));
         }
 

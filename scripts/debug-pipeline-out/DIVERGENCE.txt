@@ -1,0 +1,54 @@
+PIPELINE DIVERGENCE REPORT
+==========================
+
+Stages [OCV] (preprocess, detectCorners, warpAndPreprocess, extractCells) require
+OpenCV.js WASM and cannot run in Node.js — synthetic inputs are used instead.
+Stage [BRW] (ocrLegend via Tesseract) is browser-only and is skipped.
+
+─── A_clean_bw ───────────────────────────────────
+Clean B&W screenshot — 3 distinct glyph shapes, 1 colour
+  Stage 4 (detectGrid):        FAIL  <── earliest divergence?
+  Stage 6 (featurise):         PASS (pure HOG on synthetic patches)
+  Stage 7 (extractCellColors): PASS
+  Stage 8 (cluster):           FAIL  <── got 2 clusters, wanted 3
+
+  >>> EARLIEST DIVERGENCE: Stage 4 (detectGrid)
+
+─── B_colour_same_glyph ───────────────────────────────────
+Colour chart — 2 background colours, identical glyphs (should split by colour)
+  Stage 4 (detectGrid):        FAIL  <── earliest divergence?
+  Stage 6 (featurise):         PASS (pure HOG on synthetic patches)
+  Stage 7 (extractCellColors): PASS
+  Stage 8 (cluster):           FAIL  <── got 1 clusters, wanted 2
+
+  >>> EARLIEST DIVERGENCE: Stage 4 (detectGrid)
+
+─── C_cream_paper_tint ───────────────────────────────────
+Printed chart on cream paper — tint shifts every cell toward yellow; background normalisation should recover 2 clusters
+  Stage 4 (detectGrid):        FAIL  <── earliest divergence?
+  Stage 6 (featurise):         PASS (pure HOG on synthetic patches)
+  Stage 7 (extractCellColors): PASS
+  Stage 8 (cluster):           FAIL  <── got 1 clusters, wanted 2
+
+  >>> EARLIEST DIVERGENCE: Stage 4 (detectGrid)
+
+
+NOTES ON STAGES NOT EXERCISED HERE
+───────────────────────────────────
+[OCV] Stage 1 preprocess: To debug, open the browser DevTools,
+  paste this into the console after importing a chart:
+    window._debugPreprocess = true;
+  Then in creator/rasterChart/cvPipeline.js add after line "return { binary, w, h, otsuFastPath }":
+    if (window._debugPreprocess) { window._lastBinary = out; window._lastBinaryW = downscaled.w; window._lastBinaryH = downscaled.h; }
+  Render it with: ctx.putImageData(new ImageData(new Uint8ClampedArray(window._lastBinary.flatMap(v=>[v,v,v,255])), window._lastBinaryW, window._lastBinaryH), 0, 0)
+
+[OCV] Stage 3 warpAndPreprocess: Incorrect corners → wrong warp → everything downstream fails.
+  Check `autoCorners` in rasterChartStrategy.js — they are stored in the CorrectionUI state.
+  Open the Grid tab in the importer UI; the corner pins should sit exactly at the chart border corners.
+
+[OCV] Stage 5 extractCells: Cell-pitch drift → sample windows slide onto grid lines → all cells snap to black DMC.
+  Diagnostic already exists: the Grid tab CellSamplePreview shows one swatch per cell.
+  Long grey/black bands = pitch drift; use the pitch ruler to correct.
+
+[BRW] Stage 9 ocrLegend: OCR failure is non-fatal; the pipeline falls back to the full DMC palette.
+  Check confidence.legend.meanWordConfidence in telemetry (IndexedDB importerTelemetry store).

@@ -1,0 +1,27 @@
+{
+  "eps": 1,
+  "expectedClusters": 2,
+  "gotClusters": 1,
+  "noiseCount": 0,
+  "pass": false,
+  "wrongCells": [],
+  "mergedClusters": [],
+  "assignments": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ]
+}

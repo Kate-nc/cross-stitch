@@ -1,0 +1,53 @@
+{
+  "input": {
+    "w": 81,
+    "h": 81,
+    "rows": 4,
+    "cols": 4,
+    "pitch": 20
+  },
+  "output": {
+    "cellPitch": 20,
+    "originRow": 20,
+    "originCol": 20,
+    "rows": 2,
+    "cols": 2,
+    "rowPeaks": [
+      20,
+      40,
+      60
+    ],
+    "colPeaks": [
+      20,
+      40,
+      60
+    ],
+    "majorEvery": 0,
+    "confidence": 1,
+    "pitchSource": "peaks",
+    "autocorrPitch": {
+      "row": 0,
+      "col": 0
+    },
+    "distortion": {
+      "ratio": 1,
+      "distorted": false,
+      "horizontal": [
+        0,
+        0,
+        0
+      ],
+      "vertical": [
+        0,
+        0,
+        0
+      ]
+    }
+  },
+  "checks": {
+    "pitchCorrect": true,
+    "rowCountCorrect": false,
+    "colCountCorrect": false,
+    "notDistorted": true
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "featureDim": 324,
+  "cellCount": 16,
+  "samples": [
+    {
+      "glyph": "solid",
+      "cellIndex": 0,
+      "hogPreview": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "dHash": "606060600000"
+    }
+  ]
+}

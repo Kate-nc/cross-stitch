@@ -1,0 +1,55 @@
+{
+  "eps": 4.000482356278324,
+  "expectedClusters": 3,
+  "gotClusters": 2,
+  "noiseCount": 0,
+  "pass": false,
+  "wrongCells": [],
+  "mergedClusters": [
+    {
+      "clusterId": 1,
+      "glyphsMerged": [
+        "ring",
+        "dot"
+      ]
+    }
+  ],
+  "assignments": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+  ]
+}

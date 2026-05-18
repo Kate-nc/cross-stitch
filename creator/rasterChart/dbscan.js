@@ -66,9 +66,21 @@
     }
 
     // Find first local maximum, then first local minimum after it.
+    // Special-case bin[0]: on clean digital charts every cell of a given
+    // glyph type is pixel-identical, so ALL intra-cluster distances land at
+    // exactly 0 and produce a spike in bin[0]. The original loop started at
+    // i=1 and could not nominate bin[0] as a peak, causing the first real
+    // inter-cluster distance (e.g. ring vs dot) to be mistaken for the
+    // intra-cluster peak and eps to be set far too high. Checking bin[0] as
+    // a candidate fixes this without changing behaviour on noisy-real-world
+    // data where bin[0] is empty.
     let firstPeak = 0;
-    for (let i = 1; i < bins - 1; i++) {
-      if (hist[i] > hist[i - 1] && hist[i] >= hist[i + 1]) { firstPeak = i; break; }
+    if (hist[0] > 0 && hist[0] >= hist[1]) {
+      firstPeak = 0; // intra-cluster spike at zero distance
+    } else {
+      for (let i = 1; i < bins - 1; i++) {
+        if (hist[i] > hist[i - 1] && hist[i] >= hist[i + 1]) { firstPeak = i; break; }
+      }
     }
     let valley = firstPeak + 1;
     for (let i = firstPeak + 1; i < bins - 1; i++) {
