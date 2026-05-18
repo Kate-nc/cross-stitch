@@ -458,20 +458,39 @@
     const padFrac = opts.cellInwardPadFrac;
     const cells = [];
     const emptyMask = new Uint8Array(rows * cols);
+    // Use actual detected grid-line positions when available. This absorbs
+    // per-column / per-row pitch drift, barrel distortion, and paper-curvature
+    // without a separate undistort pass. Falls back to the uniform-pitch
+    // formula (origin + n × pitch) when the peak arrays are absent or too
+    // short (e.g. from older grid-detection results).
+    const rowPks = (grid.rowPeaks && grid.rowPeaks.length >= rows + 1)
+      ? grid.rowPeaks : null;
+    const colPks = (grid.colPeaks && grid.colPeaks.length >= cols + 1)
+      ? grid.colPeaks : null;
 
     return MatScope.withScope(s => {
       const bw = s.track(cv.matFromArray(h, w, cv.CV_8UC1, binary));
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
-          const x0 = Math.round(originCol + c * cellPitch + padFrac * cellPitch);
-          const y0 = Math.round(originRow + r * cellPitch + padFrac * cellPitch);
-          const sz = Math.max(1, Math.round(cellPitch * (1 - 2 * padFrac)));
-          if (x0 < 0 || y0 < 0 || x0 + sz > w || y0 + sz > h) {
+          // Cell boundary: prefer detected peak edges over uniform pitch.
+          const cellTop    = rowPks ? rowPks[r]     : originRow +  r      * cellPitch;
+          const cellBottom = rowPks ? rowPks[r + 1] : originRow + (r + 1) * cellPitch;
+          const cellLeft   = colPks ? colPks[c]     : originCol +  c      * cellPitch;
+          const cellRight  = colPks ? colPks[c + 1] : originCol + (c + 1) * cellPitch;
+          const cellH = Math.max(1, cellBottom - cellTop);
+          const cellW = Math.max(1, cellRight  - cellLeft);
+          const padY  = Math.max(1, Math.round(cellH * padFrac));
+          const padX  = Math.max(1, Math.round(cellW * padFrac));
+          const x0    = Math.round(cellLeft + padX);
+          const y0    = Math.round(cellTop  + padY);
+          const roiW  = Math.max(1, Math.round(cellW - 2 * padX));
+          const roiH  = Math.max(1, Math.round(cellH - 2 * padY));
+          if (x0 < 0 || y0 < 0 || x0 + roiW > w || y0 + roiH > h) {
             cells.push(new Uint8Array(P * P));
             emptyMask[r * cols + c] = 1;
             continue;
           }
-          const roi = bw.roi(new cv.Rect(x0, y0, sz, sz));
+          const roi = bw.roi(new cv.Rect(x0, y0, roiW, roiH));
           // Ink density check.
           let ink = 0;
           for (let i = 0; i < roi.data.length; i++) if (roi.data[i]) ink++;
@@ -529,13 +548,20 @@
   function extractCellColors(rgba, w, h, grid) {
     const { cellPitch, originRow, originCol, rows, cols } = grid;
     const out = new Uint8Array(rows * cols * 3);
+    // Use actual detected grid-line positions when available — same policy
+    // as extractCells — so colour sampling uses the corrected boundaries.
+    const rowPks = (grid.rowPeaks && grid.rowPeaks.length >= rows + 1)
+      ? grid.rowPeaks : null;
+    const colPks = (grid.colPeaks && grid.colPeaks.length >= cols + 1)
+      ? grid.colPeaks : null;
     // Tighter inward pad than the default so grid-line ink doesn't bleed
     // into the colour sample. We also use a per-channel median rather
     // than a mean — printed grid lines are thin but darker than every
     // colour swatch, so the mean is biased toward black on cells where
     // pad-clipping leaves any line pixels behind. Median is robust against
     // that one-sided contamination.
-    const pad = Math.max(
+    // fallbackPad is used only when peak arrays are absent.
+    const fallbackPad = Math.max(
       Math.floor(cellPitch * 0.18),
       Math.floor(cellPitch * DEFAULT_OPTS.cellInwardPadFrac),
     );
@@ -554,10 +580,22 @@
 
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
-        const x0 = Math.round(originCol + c * cellPitch) + pad;
-        const y0 = Math.round(originRow + r * cellPitch) + pad;
-        const x1 = Math.round(originCol + (c + 1) * cellPitch) - pad;
-        const y1 = Math.round(originRow + (r + 1) * cellPitch) - pad;
+        const cellTop    = rowPks ? rowPks[r]     : Math.round(originRow +  r      * cellPitch);
+        const cellBottom = rowPks ? rowPks[r + 1] : Math.round(originRow + (r + 1) * cellPitch);
+        const cellLeft   = colPks ? colPks[c]     : Math.round(originCol +  c      * cellPitch);
+        const cellRight  = colPks ? colPks[c + 1] : Math.round(originCol + (c + 1) * cellPitch);
+        // Per-cell padding: proportional to the local cell size so it
+        // scales correctly for charts with non-uniform pitch.
+        const localPitch = (rowPks || colPks)
+          ? Math.round(0.5 * ((cellBottom - cellTop) + (cellRight - cellLeft)))
+          : cellPitch;
+        const pad = (rowPks || colPks)
+          ? Math.max(Math.floor(localPitch * 0.18), Math.floor(localPitch * DEFAULT_OPTS.cellInwardPadFrac))
+          : fallbackPad;
+        const x0 = cellLeft   + pad;
+        const y0 = cellTop    + pad;
+        const x1 = cellRight  - pad;
+        const y1 = cellBottom - pad;
 
         rBuf.length = 0; gBuf.length = 0; bBuf.length = 0; yBuf.length = 0;
         for (let py = Math.max(0, y0); py < Math.min(h, y1); py++) {
