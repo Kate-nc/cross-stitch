@@ -607,16 +607,20 @@
       const mapXMat = s.track(cv.matFromArray(outH, outW, cv.CV_32FC1, mapXData));
       const mapYMat = s.track(cv.matFromArray(outH, outW, cv.CV_32FC1, mapYData));
 
-      // Rectify binary.
+      // Rectify binary (if provided — may be null when called from
+      // extractCellColors which only needs the RGBA warp).
       // INTER_NEAREST preserves the 0/255 binary nature of the image.
       // INTER_LINEAR would blend ink (255) with background (0) pixels,
       // producing intermediate gray values that make all cells' HOG features
       // more similar and corrupt the ink-density check in extractCells.
-      const srcBin = s.track(cv.matFromArray(h, w, cv.CV_8UC1, binary));
-      const dstBin = s.track(new cv.Mat());
-      cv.remap(srcBin, dstBin, mapXMat, mapYMat, cv.INTER_NEAREST,
-               cv.BORDER_REPLICATE, new cv.Scalar(0));
-      const rectBinary = new Uint8Array(dstBin.data);
+      let rectBinary = binary;
+      if (binary) {
+        const srcBin = s.track(cv.matFromArray(h, w, cv.CV_8UC1, binary));
+        const dstBin = s.track(new cv.Mat());
+        cv.remap(srcBin, dstBin, mapXMat, mapYMat, cv.INTER_NEAREST,
+                 cv.BORDER_REPLICATE, new cv.Scalar(0));
+        rectBinary = new Uint8Array(dstBin.data);
+      }
 
       // Rectify RGBA if provided.
       let rectRgba = rgbaIn;
@@ -754,6 +758,17 @@
   // colour-chart imports that need both glyph shape AND colour information.
 
   function extractCellColors(rgba, w, h, grid) {
+    // Apply the same mesh rectification that extractCells uses so that glyph
+    // extraction and colour sampling operate in the same coordinate space.
+    // meshRectify returns the inputs unchanged when the grid is already
+    // uniform (< 7 % non-uniformity), so this is a no-op for most charts.
+    const _rect = meshRectify(null, rgba, w, h, grid);
+    if (_rect.rgba !== rgba) {
+      rgba = _rect.rgba;
+      w    = _rect.w;
+      h    = _rect.h;
+      grid = _rect.grid;
+    }
     const { cellPitch, originRow, originCol, rows, cols } = grid;
     const out = new Uint8Array(rows * cols * 3);
     // Use actual detected grid-line positions when available — same policy
