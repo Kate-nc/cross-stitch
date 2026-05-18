@@ -2931,17 +2931,43 @@
         let previewImageDataUrl = null;
         try { previewImageDataUrl = imageBitmapToDataUrl(imageBitmap, 800, 600); } catch (_) {}
 
-        // Build per-cluster swatch data URLs from auto-matched RGB values.
-        // In B&W mode (no colourLabels), the swatch is black so the gallery
-        // still shows a card per cluster (the user labels by code).
+        // For each cluster, track the index of the first assigned cell so we
+        // can render a representative thumbnail even when clu.medoids is stale
+        // (it may not be updated after mergeByHashHamming — see Cause E).
+        const clusterRepCell = {};
+        for (let _rci = 0; _rci < clu.assignments.length; _rci++) {
+          const _cid = clu.assignments[_rci];
+          if (_cid >= 0 && !(_cid in clusterRepCell)) clusterRepCell[_cid] = _rci;
+        }
+
+        // In B&W mode, sample per-cluster average non-background colour from the
+        // original image so the DMC-chip suggestion row is populated. In colour
+        // mode this is already handled by colourLabels / initialLabels.
+        let bwClusterColours = null;
+        if (!colourResult) {
+          try {
+            const _swRgba = imageBitmapToRGBA(imageBitmap, workingW, workingH);
+            bwClusterColours = sampleClusterColours(_swRgba, workingW, clu.assignments, grid, cellRes.cols);
+          } catch (_) {}
+        }
+
+        // Build per-cluster swatch data URLs.
+        // Colour mode: solid swatch from the auto-matched DMC RGB.
+        // B&W mode: grayscale thumbnail of the representative cell so each card
+        //           shows the actual symbol shape rather than an identical grey square.
         const medoidImages = [];
         try {
           const allClusters = new Set();
           for (const a of clu.assignments) if (a >= 0) allClusters.add(a);
           const sorted = Array.from(allClusters).sort((a, b) => a - b);
           for (const cid of sorted) {
-            const rgb = (initialLabels[cid] && initialLabels[cid].rgb) || [40, 40, 40];
-            medoidImages[cid] = rgbSwatchDataUrl(rgb, 48);
+            if (initialLabels[cid] && initialLabels[cid].rgb) {
+              medoidImages[cid] = rgbSwatchDataUrl(initialLabels[cid].rgb, 48);
+            } else {
+              const repIdx = clusterRepCell[cid];
+              const cellPx = (repIdx != null && cellRes && cellRes.cells) ? cellRes.cells[repIdx] : null;
+              medoidImages[cid] = grayCellToDataUrl(cellPx, 48) || rgbSwatchDataUrl([40, 40, 40], 48);
+            }
           }
         } catch (_) {}
 
@@ -3061,7 +3087,12 @@
                   var a = clu.assignments[i];
                   if (a < 0 || seen.has(a)) continue;
                   seen.add(a);
-                  var rgb = (initialLabels[a] && initialLabels[a].rgb) || null;
+                  // Colour mode: use the auto-matched DMC RGB.
+                  // B&W mode: fall back to the RGBA-sampled average colour so the
+                  //           DMC chip suggestion row is populated in the gallery.
+                  var rgb = (initialLabels[a] && initialLabels[a].rgb)
+                         || (bwClusterColours && bwClusterColours[a])
+                         || null;
                   if (rgb) cc[a] = rgb.slice ? rgb.slice() : [rgb[0], rgb[1], rgb[2]];
                 }
               } catch (_) {}
@@ -3447,6 +3478,72 @@
       }
     } catch (_) {}
     return null;
+  }
+
+  // Renders a 32×32 grayscale pixel buffer (Uint8Array from extractCells) as a
+  // data-URL thumbnail at `size`×`size`. Used by the cluster gallery in B&W mode
+  // so each card shows the actual symbol shape instead of an identical grey square.
+  function grayCellToDataUrl(pixels, size) {
+    if (!pixels || typeof document === 'undefined') return null;
+    try {
+      const tmp = document.createElement('canvas');
+      tmp.width = 32; tmp.height = 32;
+      const cx = tmp.getContext('2d');
+      const imgData = cx.createImageData(32, 32);
+      for (let i = 0; i < 1024; i++) {
+        const v = pixels[i];
+        imgData.data[i * 4]     = v;
+        imgData.data[i * 4 + 1] = v;
+        imgData.data[i * 4 + 2] = v;
+        imgData.data[i * 4 + 3] = 255;
+      }
+      cx.putImageData(imgData, 0, 0);
+      const out = document.createElement('canvas');
+      out.width = size; out.height = size;
+      out.getContext('2d').drawImage(tmp, 0, 0, size, size);
+      return out.toDataURL('image/png');
+    } catch (_) { return null; }
+  }
+
+  // For each cluster, compute the average non-background RGB by sampling every
+  // cell assigned to that cluster from the RGBA pixel buffer. Near-white pixels
+  // (r>220 && g>220 && b>220) are skipped as chart background. Returns a plain
+  // object { clusterId: [r, g, b] } or null if the grid lacks peak arrays.
+  function sampleClusterColours(rgba, w, assignments, grid, cols) {
+    const rp = grid && grid.rowPeaks;
+    const cp = grid && grid.colPeaks;
+    const pitch = grid && grid.cellPitch;
+    if (!rp || !cp || !pitch || !rgba || !w) return null;
+    const half = Math.max(1, Math.round(pitch * 0.4));
+    const imgH = Math.round(rgba.length / (4 * w));
+    const sums = {};
+    for (let idx = 0; idx < assignments.length; idx++) {
+      const cid = assignments[idx];
+      if (cid < 0) continue;
+      const r = (idx / cols) | 0;
+      const c = idx % cols;
+      if (r >= rp.length || c >= cp.length) continue;
+      const x0 = Math.max(0, Math.round(cp[c]) - half);
+      const x1 = Math.min(w - 1, Math.round(cp[c]) + half);
+      const y0 = Math.max(0, Math.round(rp[r]) - half);
+      const y1 = Math.min(imgH - 1, Math.round(rp[r]) + half);
+      if (!sums[cid]) sums[cid] = [0, 0, 0, 0];
+      const s = sums[cid];
+      for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) {
+          const i4 = (y * w + x) * 4;
+          const rv = rgba[i4], gv = rgba[i4 + 1], bv = rgba[i4 + 2];
+          if (rv > 220 && gv > 220 && bv > 220) continue; // skip background
+          s[0] += rv; s[1] += gv; s[2] += bv; s[3]++;
+        }
+      }
+    }
+    const result = {};
+    for (const cid of Object.keys(sums)) {
+      const s = sums[cid];
+      if (s[3] > 0) result[+cid] = [Math.round(s[0] / s[3]), Math.round(s[1] / s[3]), Math.round(s[2] / s[3])];
+    }
+    return result;
   }
 
   // Small solid-colour swatch as a data URL — used by the cluster gallery
