@@ -446,6 +446,119 @@
     return a.length % 2 ? a[m] : 0.5 * (a[m - 1] + a[m]);
   }
 
+  // ── 4b. mesh rectification ─────────────────────────────────────────────
+  // Warp the binary (and optionally RGBA) so that every detected grid
+  // intersection maps to a perfectly regular lattice. Each output pixel
+  // (ox, oy) is mapped back to source coordinates via bilinear interpolation
+  // between the four surrounding detected peak positions. This handles barrel
+  // distortion, pincushion, and mild book-binding curvature in a single pass.
+  //
+  // Only runs when rowPeaks AND colPeaks are available (detectGrid must have
+  // produced them) AND there is measurable non-uniformity. Returns the
+  // original binary/rgba unchanged if the prerequisite data is absent or the
+  // grid is already sufficiently regular.
+  //
+  // Returns { binary, rgba (nullable), w, h, grid } where w/h and grid are
+  // updated to reflect the new (regular) coordinate space so downstream
+  // stages (extractCells, extractCellColors) do not need peak tracking.
+
+  function meshRectify(binary, rgbaIn, w, h, grid, opts) {
+    opts = Object.assign({}, DEFAULT_OPTS, opts || {});
+    const { rowPeaks, colPeaks, rows, cols, cellPitch } = grid;
+
+    // Bail out if we don't have the peak data needed for rectification.
+    if (!rowPeaks || !colPeaks ||
+        rowPeaks.length < rows + 1 || colPeaks.length < cols + 1 ||
+        rows < 2 || cols < 2) {
+      return { binary, rgba: rgbaIn, w, h, grid };
+    }
+
+    // Measure peak non-uniformity to decide whether rectification is worth
+    // the extra pass. We compute the max deviation of any inter-peak gap from
+    // the median (as a fraction of the median). Distortions > 3 % are
+    // corrected; below that the improvement is invisible and the remap costs
+    // CPU for no benefit (e.g. clean digital screenshots).
+    function gapUniformity(peaks) {
+      const gaps = [];
+      for (let i = 1; i < peaks.length; i++) gaps.push(peaks[i] - peaks[i - 1]);
+      const med = median(gaps);
+      if (med <= 0) return 0;
+      let maxDev = 0;
+      for (const g of gaps) maxDev = Math.max(maxDev, Math.abs(g - med) / med);
+      return maxDev;
+    }
+    const rowUniform = gapUniformity(rowPeaks);
+    const colUniform = gapUniformity(colPeaks);
+    if (rowUniform < 0.03 && colUniform < 0.03) {
+      return { binary, rgba: rgbaIn, w, h, grid };
+    }
+
+    // Target: a regular grid where every cell is cellPitch × cellPitch.
+    // (Preserves scale and keeps the output image roughly the same size.)
+    const targetPitch = cellPitch;
+    const outW = Math.round(cols * targetPitch);
+    const outH = Math.round(rows * targetPitch);
+    if (outW < 4 || outH < 4) return { binary, rgba: rgbaIn, w, h, grid };
+
+    // Build the inverse-map arrays: for each output pixel (ox, oy), what
+    // source pixel (sx, sy) should we sample? We use the detected peak
+    // positions as control points and bilinear interpolation within each
+    // cell span.
+    const mapXData = new Float32Array(outH * outW);
+    const mapYData = new Float32Array(outH * outW);
+
+    for (let oy = 0; oy < outH; oy++) {
+      // Which row cell does this output pixel fall in?
+      const rFrac = oy / targetPitch;
+      const ri    = Math.min(rows - 1, Math.floor(rFrac));
+      const tr    = rFrac - ri; // fractional offset within the row cell [0,1)
+      const srcY  = rowPeaks[ri] + tr * (rowPeaks[ri + 1] - rowPeaks[ri]);
+
+      for (let ox = 0; ox < outW; ox++) {
+        const cFrac = ox / targetPitch;
+        const ci    = Math.min(cols - 1, Math.floor(cFrac));
+        const tc    = cFrac - ci;
+        const srcX  = colPeaks[ci] + tc * (colPeaks[ci + 1] - colPeaks[ci]);
+        mapXData[oy * outW + ox] = srcX;
+        mapYData[oy * outW + ox] = srcY;
+      }
+    }
+
+    // Build the updated grid descriptor for the regular output space.
+    // Peak arrays are no longer needed (the image IS the regular grid now).
+    const rectifiedGrid = Object.assign({}, grid, {
+      cellPitch:  targetPitch,
+      originRow:  0,
+      originCol:  0,
+      rowPeaks:   null,
+      colPeaks:   null,
+    });
+
+    return MatScope.withScope(s => {
+      const mapXMat = s.track(cv.matFromArray(outH, outW, cv.CV_32FC1, mapXData));
+      const mapYMat = s.track(cv.matFromArray(outH, outW, cv.CV_32FC1, mapYData));
+
+      // Rectify binary.
+      const srcBin = s.track(cv.matFromArray(h, w, cv.CV_8UC1, binary));
+      const dstBin = s.track(new cv.Mat());
+      cv.remap(srcBin, dstBin, mapXMat, mapYMat, cv.INTER_LINEAR,
+               cv.BORDER_REPLICATE, new cv.Scalar(0));
+      const rectBinary = new Uint8Array(dstBin.data);
+
+      // Rectify RGBA if provided.
+      let rectRgba = rgbaIn;
+      if (rgbaIn && rgbaIn.length === w * h * 4) {
+        const srcRgba = s.track(cv.matFromImageData({ data: rgbaIn, width: w, height: h }));
+        const dstRgba = s.track(new cv.Mat());
+        cv.remap(srcRgba, dstRgba, mapXMat, mapYMat, cv.INTER_LINEAR,
+                 cv.BORDER_REPLICATE, new cv.Scalar(0, 0, 0, 255));
+        rectRgba = new Uint8ClampedArray(dstRgba.data);
+      }
+
+      return { binary: rectBinary, rgba: rectRgba, w: outW, h: outH, grid: rectifiedGrid };
+    });
+  }
+
   // ── 5. cell extraction ─────────────────────────────────────────────────
 
   function extractCells(binary, w, h, grid, opts) {
@@ -463,20 +576,42 @@
     // without a separate undistort pass. Falls back to the uniform-pitch
     // formula (origin + n × pitch) when the peak arrays are absent or too
     // short (e.g. from older grid-detection results).
-    const rowPks = (grid.rowPeaks && grid.rowPeaks.length >= rows + 1)
+    const rowPks0 = (grid.rowPeaks && grid.rowPeaks.length >= rows + 1)
       ? grid.rowPeaks : null;
-    const colPks = (grid.colPeaks && grid.colPeaks.length >= cols + 1)
+    const colPks0 = (grid.colPeaks && grid.colPeaks.length >= cols + 1)
       ? grid.colPeaks : null;
 
+    // When both peak arrays are available, attempt mesh rectification to
+    // warp the binary to a perfectly regular grid. The rectified binary is
+    // used only for HOG/dHash extraction (the RGBA colour path is unaffected).
+    // meshRectify is a no-op when non-uniformity is below 3 %.
+    let workBin = binary, workW = w, workH = h;
+    let rowPks = rowPks0, colPks = colPks0;
+    let workOriginRow = originRow, workOriginCol = originCol, workPitch = cellPitch;
+    if (rowPks0 && colPks0) {
+      const rect = meshRectify(binary, null, w, h, grid, opts);
+      if (rect.w !== w || rect.h !== h) {
+        // Non-trivial rectification: switch to the regular-grid view.
+        workBin       = rect.binary;
+        workW         = rect.w;
+        workH         = rect.h;
+        workOriginRow = rect.grid.originRow;
+        workOriginCol = rect.grid.originCol;
+        workPitch     = rect.grid.cellPitch;
+        rowPks        = null; // regular grid — no peak tracking needed
+        colPks        = null;
+      }
+    }
+
     return MatScope.withScope(s => {
-      const bw = s.track(cv.matFromArray(h, w, cv.CV_8UC1, binary));
+      const bw = s.track(cv.matFromArray(workH, workW, cv.CV_8UC1, workBin));
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
           // Cell boundary: prefer detected peak edges over uniform pitch.
-          const cellTop    = rowPks ? rowPks[r]     : originRow +  r      * cellPitch;
-          const cellBottom = rowPks ? rowPks[r + 1] : originRow + (r + 1) * cellPitch;
-          const cellLeft   = colPks ? colPks[c]     : originCol +  c      * cellPitch;
-          const cellRight  = colPks ? colPks[c + 1] : originCol + (c + 1) * cellPitch;
+          const cellTop    = rowPks ? rowPks[r]     : workOriginRow +  r      * workPitch;
+          const cellBottom = rowPks ? rowPks[r + 1] : workOriginRow + (r + 1) * workPitch;
+          const cellLeft   = colPks ? colPks[c]     : workOriginCol +  c      * workPitch;
+          const cellRight  = colPks ? colPks[c + 1] : workOriginCol + (c + 1) * workPitch;
           const cellH = Math.max(1, cellBottom - cellTop);
           const cellW = Math.max(1, cellRight  - cellLeft);
           const padY  = Math.max(1, Math.round(cellH * padFrac));
@@ -485,7 +620,7 @@
           const y0    = Math.round(cellTop  + padY);
           const roiW  = Math.max(1, Math.round(cellW - 2 * padX));
           const roiH  = Math.max(1, Math.round(cellH - 2 * padY));
-          if (x0 < 0 || y0 < 0 || x0 + roiW > w || y0 + roiH > h) {
+          if (x0 < 0 || y0 < 0 || x0 + roiW > workW || y0 + roiH > workH) {
             cells.push(new Uint8Array(P * P));
             emptyMask[r * cols + c] = 1;
             continue;
@@ -669,6 +804,7 @@
     detectCorners,
     warpAndPreprocess,
     detectGrid,
+    meshRectify,
     extractCells,
     featurise,
     extractCellColors,

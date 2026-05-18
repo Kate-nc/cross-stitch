@@ -130,6 +130,17 @@
           send('result', id, { payload: RasterChartCV.detectGrid(msg.binary, msg.w, msg.h, msg.opts) });
           return;
 
+        case 'meshRectify':
+          // Warp binary (and optional rgba) to a regular grid using detected
+          // peak positions as control points. Only runs when non-uniformity
+          // exceeds the built-in threshold; returns the input unchanged otherwise.
+          await loadOpenCV();
+          progress(id, 'grid', 'Mesh rectification');
+          send('result', id, { payload: RasterChartCV.meshRectify(
+            msg.binary, msg.rgba || null, msg.w, msg.h, msg.grid, msg.opts || {},
+          )});
+          return;
+
         case 'extractCells':
           await loadOpenCV();
           progress(id, 'cells', 'Cropping ' + (msg.grid.rows * msg.grid.cols) + ' cells');
