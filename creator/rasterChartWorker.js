@@ -96,6 +96,14 @@
   loadHelpers();
   loadAuxLibs();
 
+  // Tesseract.js creates an internal sub-worker to load its WASM core.  When
+  // that CDN resource is unavailable the sub-worker throws an importScripts
+  // NetworkError that surfaces on this worker's global scope as an
+  // unhandledrejection event — even though our ocrLegend handler has its own
+  // try-catch.  Suppress it here so it doesn't appear as "Uncaught" in the
+  // console and doesn't confuse any tooling that monitors worker health.
+  self.addEventListener('unhandledrejection', function (ev) { ev.preventDefault(); });
+
   self.addEventListener('message', async function (ev) {
     const msg = ev.data || {};
     const id = msg.id;
@@ -174,12 +182,28 @@
           return;
 
         case 'ocrLegend':
-          await loadTesseract();
-          progress(id, 'legend-ocr', 'Tesseract');
+          // Wrap in a try-catch with a hard timeout.  Tesseract.js spins up an
+          // internal sub-worker to load the WASM core; if the CDN is down that
+          // sub-worker dies without cleanly rejecting its promises, so
+          // runOCR() can hang indefinitely.  rpc() has no built-in timeout,
+          // so without this gate the whole import would stall on "loading".
+          // Sending null lets the strategy continue without legend OCR.
           {
-            const result = await runOCR(msg.rgba, msg.w, msg.h,
-              { anchorFirst: msg.anchorFirst !== false });
-            send('result', id, { payload: result });
+            const _OCR_TIMEOUT = 12000;
+            try {
+              await loadTesseract();
+              progress(id, 'legend-ocr', 'Tesseract');
+              const _ocrResult = await Promise.race([
+                runOCR(msg.rgba, msg.w, msg.h, { anchorFirst: msg.anchorFirst !== false }),
+                new Promise((_, _rej) =>
+                  setTimeout(() => _rej(new Error('OCR timeout')), _OCR_TIMEOUT)),
+              ]);
+              send('result', id, { payload: _ocrResult });
+            } catch (_ocrErr) {
+              // CDN unavailable, WASM load failure, timeout, or parse error.
+              // Legend OCR is best-effort; null payload keeps the import moving.
+              send('result', id, { payload: null });
+            }
           }
           return;
 
