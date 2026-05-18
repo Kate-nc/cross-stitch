@@ -157,7 +157,7 @@
           {
             const dHashesBig = (msg.dHashes || []).map(x => typeof x === 'bigint' ? x : BigInt(x));
             const out = RasterChartDBSCAN.cluster(msg.features, msg.opts || {});
-            const merged = RasterChartDBSCAN.mergeByHashHamming(out.assignments, out.medoids, dHashesBig, 4);
+            const merged = RasterChartDBSCAN.mergeByHashHamming(out.assignments, out.medoids, dHashesBig, 2);
             send('result', id, { payload: { assignments: merged, eps: out.eps, medoids: out.medoids } });
           }
           return;
@@ -224,7 +224,7 @@
             if (msg.dHashes && msg.dHashes.length === n && out.medoids) {
               const dHashesBig = msg.dHashes.map(x => typeof x === 'bigint' ? x : BigInt(x));
               assignments = RasterChartDBSCAN.mergeByHashHamming(
-                out.assignments, out.medoids, dHashesBig, 4,
+                out.assignments, out.medoids, dHashesBig, 2,
               );
             }
             send('result', id, { payload: {

@@ -30,13 +30,25 @@
   }
 
   /**
-   * Sample up to N points if features is larger; compute all-pairs L2 then
-   * find the first "valley" in the histogram.
+   * Estimate DBSCAN epsilon using the Kneedle-style k-NN elbow method.
+   *
+   * For each sampled point we compute the distance to its k-th nearest
+   * neighbour (k = minPts, default 2).  Sorting these distances ascending
+   * gives a curve that transitions from small intra-cluster values to large
+   * inter-cluster values.  The "knee" of this curve — found via the point of
+   * maximum perpendicular distance from the chord connecting the first and
+   * last points — is a robust automatic eps estimate.
+   *
+   * This replaces the earlier all-pairs histogram-valley approach which
+   * failed on monotonically-decreasing pairwise-distance distributions
+   * (a common shape for real HOG features) and produced either a
+   * pathologically small eps (all cells become noise) or one so large that
+   * all cells collapsed into a single cluster.
    */
   function estimateEps(features, opts) {
     opts = opts || {};
     const sampleCap = opts.sampleCap || 500;
-    const bins = opts.bins || 40;
+    const minPts = opts.minPts || 2;
     const n = features.length;
     if (n < 4) return 1.0;
 
@@ -48,46 +60,37 @@
     }
 
     const m = sample.length;
-    const dists = [];
-    let dmax = 0;
+    const k = Math.min(minPts, m - 1);
+
+    // For each sampled point, find the distance to its k-th nearest neighbour.
+    const knnDists = new Float64Array(m);
     for (let i = 0; i < m; i++) {
-      for (let j = i + 1; j < m; j++) {
-        const d = l2(sample[i], sample[j]);
-        dists.push(d);
-        if (d > dmax) dmax = d;
+      const row = [];
+      for (let j = 0; j < m; j++) {
+        if (j !== i) row.push(l2(sample[i], sample[j]));
+      }
+      row.sort((a, b) => a - b);
+      knnDists[i] = row[k - 1] !== undefined ? row[k - 1] : 0;
+    }
+    // Sort ascending to build the k-NN distance curve.
+    knnDists.sort((a, b) => a - b);
+
+    // Kneedle: find the index with maximum signed perpendicular distance from
+    // the chord connecting (0, knnDists[0]) to (m-1, knnDists[m-1]).
+    // On a flat-then-steep k-NN curve this is the intra/inter-cluster boundary.
+    const x0 = 0,     y0 = knnDists[0];
+    const x1 = m - 1, y1 = knnDists[m - 1];
+    const dx = x1 - x0, dy = y1 - y0;
+    let elbowIdx = Math.floor(m / 2); // fallback: median
+    const lineLen2 = dx * dx + dy * dy;
+    if (lineLen2 > 0) {
+      let maxCross = -Infinity;
+      for (let i = 0; i < m; i++) {
+        const cross = (i - x0) * dy - (knnDists[i] - y0) * dx;
+        if (cross > maxCross) { maxCross = cross; elbowIdx = i; }
       }
     }
-    if (dmax === 0) return 1.0;
-
-    const hist = new Uint32Array(bins);
-    for (const d of dists) {
-      const b = Math.min(bins - 1, Math.floor((d / dmax) * bins));
-      hist[b]++;
-    }
-
-    // Find first local maximum, then first local minimum after it.
-    // Special-case bin[0]: on clean digital charts every cell of a given
-    // glyph type is pixel-identical, so ALL intra-cluster distances land at
-    // exactly 0 and produce a spike in bin[0]. The original loop started at
-    // i=1 and could not nominate bin[0] as a peak, causing the first real
-    // inter-cluster distance (e.g. ring vs dot) to be mistaken for the
-    // intra-cluster peak and eps to be set far too high. Checking bin[0] as
-    // a candidate fixes this without changing behaviour on noisy-real-world
-    // data where bin[0] is empty.
-    let firstPeak = 0;
-    if (hist[0] > 0 && hist[0] >= hist[1]) {
-      firstPeak = 0; // intra-cluster spike at zero distance
-    } else {
-      for (let i = 1; i < bins - 1; i++) {
-        if (hist[i] > hist[i - 1] && hist[i] >= hist[i + 1]) { firstPeak = i; break; }
-      }
-    }
-    let valley = firstPeak + 1;
-    for (let i = firstPeak + 1; i < bins - 1; i++) {
-      if (hist[i] <= hist[i - 1] && hist[i] < hist[i + 1]) { valley = i; break; }
-    }
-    // eps = valley centre in distance units. Floor to avoid touching 0.
-    return Math.max(1e-3, (valley + 0.5) / bins * dmax);
+    return Math.max(1e-3, knnDists[elbowIdx]);
   }
 
   /**
@@ -173,7 +176,12 @@
    * dHashes: BigInt[] parallel to features; medoids: cluster→featureIdx.
    */
   function mergeByHashHamming(assignments, medoids, dHashes, threshold) {
-    threshold = threshold == null ? 4 : threshold;
+    // Default threshold reduced from 4 to 2: a 64-bit dHash at typical
+    // cross-stitch cell sizes (8–25 px) has many distinct symbols within
+    // 3–4 Hamming bits, so 4 caused aggressive over-merging. Threshold 2
+    // still catches true same-symbol sub-cluster splits (0–1 bits of noise)
+    // while preserving genuinely different symbols that differ by 3+ bits.
+    threshold = threshold == null ? 2 : threshold;
     const out = assignments.slice();
     const remap = medoids.map((_, i) => i);
 
@@ -259,9 +267,21 @@
     }
 
     const medoids = computeMedoids(workFeatures, assignments);
-    const reclassified = reclusterNoise(workFeatures, assignments, medoids, eps, 1.5);
-    const medoids2 = computeMedoids(workFeatures, reclassified);
 
+    // Skip noise re-absorption when DBSCAN found at most 1 valid cluster.
+    // With only one cluster, reclusterNoise would pull all noise points into
+    // it (within 1.5×eps), creating one giant cluster that hides every symbol
+    // distinction. Adding noise to a single cluster can never improve
+    // separation, so we leave those cells as noise (-1) instead.
+    const numDbscanClusters = new Set(assignments.filter(a => a >= 0)).size;
+    let reclassified;
+    if (numDbscanClusters <= 1) {
+      reclassified = assignments.slice();
+    } else {
+      reclassified = reclusterNoise(workFeatures, assignments, medoids, eps, 1.5);
+    }
+
+    const medoids2 = computeMedoids(workFeatures, reclassified);
     return { assignments: reclassified, medoids: medoids2, eps, minPts };
   }
 
