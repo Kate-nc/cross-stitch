@@ -1183,7 +1183,7 @@ const SyncEngine = (() => {
     return PREF_HUMAN_LABELS[key] || key;
   }
 
-  // Open the main CrossStitchDB (uses helpers.js getDB which already bumped to v5)
+  // Open the main CrossStitchDB directly (schema kept aligned with helpers.js getDB, v5).
   function _openSnapshotDB() {
     return new Promise(function(resolve, reject) {
       var req = indexedDB.open("CrossStitchDB", 5);
