@@ -247,14 +247,6 @@
       showImportError({ message: noSettingsMsg });
       return Promise.reject(new Error(noSettingsMsg));
     }
-    // Set the active-project pointer BEFORE the async save resolves so
-    // any concurrent reload still picks up the new project. The tracker's
-    // boot path reads localStorage synchronously and then awaits the
-    // IndexedDB get(), so the pointer is the source of truth.
-    try {
-      if (typeof storage.setActiveProject === 'function') storage.setActiveProject(id);
-      else localStorage.setItem('crossstitch_active_project', id);
-    } catch (_) {}
     return Promise.resolve(storage.save(project)).then(function () {
       // Post-save sanity check: read the project back from IDB to confirm
       // it really is there. If listProjects/get returns nothing the user
@@ -280,6 +272,15 @@
         } else {
           showImportToast(project);
         }
+        // Set the active-project pointer now that the project is confirmed in
+        // storage. Setting it before save() resolves triggered a race on
+        // home.html: the self-heal in refreshAll() would call get(id) before
+        // the IDB write committed, receive null, and clear the pointer — so
+        // the destination page would arrive with no active project.
+        try {
+          if (typeof storage.setActiveProject === 'function') storage.setActiveProject(id);
+          else localStorage.setItem('crossstitch_active_project', id);
+        } catch (_) {}
         // Always navigate to the destination on success. The new project is
         // recorded as the active project (above), so the destination page
         // will load it fresh on boot — including the case where the user
@@ -290,6 +291,11 @@
           var skipSamePage = opts.skipSamePageNav === true
             || (opts.navigateTo && isCurrentPage(opts.navigateTo) && /home\.html/i.test(opts.navigateTo));
           if (!skipSamePage) {
+            // Signal to home-app.js that we are navigating away so the
+            // self-heal in refreshAll() doesn't clear the fresh pointer
+            // while the in-flight IDB query triggered by setActiveProject
+            // above is still resolving.
+            window.__navigatingAway = true;
             try { sessionStorage.setItem('__import_trace_navigate', JSON.stringify({ at: Date.now(), destination: destination, projectId: id })); } catch (_) {}
             window.location.href = destination;
           }
