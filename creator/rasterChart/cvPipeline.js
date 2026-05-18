@@ -682,32 +682,65 @@
 
     return MatScope.withScope(s => {
       const bw = s.track(cv.matFromArray(workH, workW, cv.CV_8UC1, workBin));
+
+      // Helper: compute padded cell boundary for row r, col c.
+      function cellBounds(r, c) {
+        const top   = rowPks ? rowPks[r]     : workOriginRow +  r      * workPitch;
+        const bot   = rowPks ? rowPks[r + 1] : workOriginRow + (r + 1) * workPitch;
+        const left  = colPks ? colPks[c]     : workOriginCol +  c      * workPitch;
+        const right = colPks ? colPks[c + 1] : workOriginCol + (c + 1) * workPitch;
+        const cH = Math.max(1, bot   - top);
+        const cW = Math.max(1, right - left);
+        const pY = Math.max(1, Math.round(cH * padFrac));
+        const pX = Math.max(1, Math.round(cW * padFrac));
+        return {
+          x0:   Math.round(left + pX),
+          y0:   Math.round(top  + pY),
+          roiW: Math.max(1, Math.round(cW - 2 * pX)),
+          roiH: Math.max(1, Math.round(cH - 2 * pY)),
+        };
+      }
+
+      // ── First pass: collect ink densities for adaptive threshold ────
+      // The fixed opts.inkDensityThreshold (0.05) silently discards
+      // low-density cells (thin strokes, dashes, quarter-stitches).
+      // Instead we use the 5th-percentile of the actual non-background
+      // density distribution so the threshold self-calibrates to the
+      // chart's symbol weight. Clamped to 0.01 to exclude genuine
+      // background cells that happen to contain a stray pixel.
+      const _allDensities = [];
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
-          // Cell boundary: prefer detected peak edges over uniform pitch.
-          const cellTop    = rowPks ? rowPks[r]     : workOriginRow +  r      * workPitch;
-          const cellBottom = rowPks ? rowPks[r + 1] : workOriginRow + (r + 1) * workPitch;
-          const cellLeft   = colPks ? colPks[c]     : workOriginCol +  c      * workPitch;
-          const cellRight  = colPks ? colPks[c + 1] : workOriginCol + (c + 1) * workPitch;
-          const cellH = Math.max(1, cellBottom - cellTop);
-          const cellW = Math.max(1, cellRight  - cellLeft);
-          const padY  = Math.max(1, Math.round(cellH * padFrac));
-          const padX  = Math.max(1, Math.round(cellW * padFrac));
-          const x0    = Math.round(cellLeft + padX);
-          const y0    = Math.round(cellTop  + padY);
-          const roiW  = Math.max(1, Math.round(cellW - 2 * padX));
-          const roiH  = Math.max(1, Math.round(cellH - 2 * padY));
+          const { x0, y0, roiW, roiH } = cellBounds(r, c);
+          if (x0 < 0 || y0 < 0 || x0 + roiW > workW || y0 + roiH > workH) continue;
+          const roi = bw.roi(new cv.Rect(x0, y0, roiW, roiH));
+          let ink = 0;
+          for (let i = 0; i < roi.data.length; i++) if (roi.data[i]) ink++;
+          _allDensities.push(ink / roi.data.length);
+          roi.delete();
+        }
+      }
+      // Filter to cells that have measurable ink, then use 5th percentile.
+      const _inkCells = _allDensities.filter(d => d > 0.005).sort((a, b) => a - b);
+      const adaptiveThr = _inkCells.length > 0
+        ? Math.max(0.01, _inkCells[Math.floor(_inkCells.length * 0.05)])
+        : (opts.inkDensityThreshold || 0.05);
+
+      // ── Second pass: extract cell images using the adaptive threshold ─
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const { x0, y0, roiW, roiH } = cellBounds(r, c);
           if (x0 < 0 || y0 < 0 || x0 + roiW > workW || y0 + roiH > workH) {
             cells.push(new Uint8Array(P * P));
             emptyMask[r * cols + c] = 1;
             continue;
           }
           const roi = bw.roi(new cv.Rect(x0, y0, roiW, roiH));
-          // Ink density check.
+          // Ink density check against the adaptive threshold.
           let ink = 0;
           for (let i = 0; i < roi.data.length; i++) if (roi.data[i]) ink++;
           const density = ink / roi.data.length;
-          if (density < opts.inkDensityThreshold) {
+          if (density < adaptiveThr) {
             emptyMask[r * cols + c] = 1;
             cells.push(new Uint8Array(P * P));
             roi.delete();
