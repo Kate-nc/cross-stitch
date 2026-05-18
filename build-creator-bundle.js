@@ -222,6 +222,12 @@ try {
         { varName: 'MANAGER_CACHE_KEY',  prefix: 'babel_manager_',  files: ['manager-app.js'] },
       ],
     },
+    {
+      path: 'create.html',
+      keys: [
+        { varName: 'TRACKER_CACHE_KEY',  prefix: 'babel_tracker_',  files: ['tracker-app.js'] },
+      ],
+    },
   ];
   for (const target of HTML_TARGETS) {
     if (!fs.existsSync(target.path)) continue;

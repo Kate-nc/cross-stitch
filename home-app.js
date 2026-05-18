@@ -81,6 +81,11 @@
         window.ProjectStorage.setActiveProject(id);
       }
     } catch (_) {}
+    // Prevent the self-heal in refreshAll from clearing the active-project
+    // pointer while the IDB query started by cs:projectsChanged is still
+    // in flight (React cleanup doesn't run during window.location.href
+    // navigation, so the !cancelled guard alone is not sufficient).
+    window.__navigatingAway = true;
     // ?from=home tells the per-tool page's redirect-to-home guard to stand down.
     var sep = href.indexOf('?') === -1 ? '?' : '&';
     window.location.href = href + sep + 'from=home';
@@ -901,7 +906,8 @@
             // Guard with !cancelled: if the user clicked Track/Edit and
             // setActiveProject() ran while this IDB query was in-flight,
             // cancelled will be true and we must NOT clear the fresh pointer.
-            if (!cancelled && !p && window.ProjectStorage.getActiveProjectId &&
+            if (!cancelled && !p && !window.__navigatingAway &&
+                window.ProjectStorage.getActiveProjectId &&
                 window.ProjectStorage.getActiveProjectId() &&
                 window.ProjectStorage.clearActiveProject) {
               try { window.ProjectStorage.clearActiveProject(); } catch (_) {}

@@ -246,6 +246,7 @@ function HeaderProjectSwitcher({ activeProject, projectName, onOpenAll }) {
 
   function pickProject(id) {
     setOpen(false);
+    window.__navigatingAway = true;
     if (typeof window.ProjectStorage !== 'undefined' && window.ProjectStorage.setActiveProject) {
       try { window.ProjectStorage.setActiveProject(id); } catch (_) {}
     }

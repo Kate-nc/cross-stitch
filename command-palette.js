@@ -210,6 +210,7 @@
           section: 'recent',
           action: (function (id) {
             return function () {
+              window.__navigatingAway = true;
               if (typeof ProjectStorage !== 'undefined' && ProjectStorage.setActiveProject) {
                 ProjectStorage.setActiveProject(id);
               }
