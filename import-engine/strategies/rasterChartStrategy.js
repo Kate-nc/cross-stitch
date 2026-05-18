@@ -195,6 +195,15 @@
 
         let colourResult = null;
         let clu;
+        // For B&W mode, filteredAssign holds assignments indexed over non-empty
+        // cells only, and filteredFeat holds the matching feature subset. We
+        // scatter filteredAssign back to the full rows×cols index space after
+        // clustering so the output loop can access clu.assignments[r*cols+c].
+        // Keeping the filtered versions lets telemetry / warnings compute
+        // accurate noise counts without counting empty cells (which also carry
+        // −1 after the scatter) as unassigned glyph cells.
+        let filteredAssign = null;
+        let filteredFeat   = null;
         if (opts.image && opts.image.colourMode) {
           colourResult = await parseColourMode(
             worker, imageBitmap, workingW, workingH, grid, cellRes, feat, timings, ctx,
@@ -203,9 +212,20 @@
           clu = colourResult.clu;
         } else {
           if (ctx) safeReport(ctx, { stage: 'extract', label: 'cluster' });
+          // Exclude empty cells from DBSCAN. Their all-zero feature vectors form a
+          // dominant cluster (large hist[0] spike in estimateEps) that corrupts the
+          // valley search — either collapsing all glyph symbols into one cluster or
+          // forcing every glyph cell to noise (−1 assignment) → one-colour output.
+          const neIdx = [];
+          for (let ni = 0; ni < cellRes.emptyMask.length; ni++) {
+            if (!cellRes.emptyMask[ni]) neIdx.push(ni);
+          }
+          const neFeatures = neIdx.map(i => feat.features[i]);
+          const neDHashes  = neIdx.map(i => feat.dHashes[i]);
+          filteredFeat = { features: neFeatures, dHashes: neDHashes };
           clu = await timed('cluster', rpc(worker, {
-            type: 'cluster', features: feat.features,
-            dHashes: feat.dHashes.map(b => b.toString()),
+            type: 'cluster', features: neFeatures,
+            dHashes: neDHashes.map(b => b.toString()),
             // normalise: true ensures the density scalar appended by featurise()
             // is z-score-scaled to the same magnitude as the HOG dimensions before
             // DBSCAN distance computation. Without it the density term (~0.05–0.20)
@@ -215,6 +235,13 @@
             // The colourCluster path already passes normalise: true for the same reason.
             opts: { minPts: 2, normalise: true },
           }));
+          // Scatter non-empty-cell assignments back to the full rows×cols index
+          // space so clu.assignments[r*cols+c] works in the output loop below.
+          // Empty-cell slots keep −1 and are already skipped via emptyMask.
+          filteredAssign = clu.assignments.slice();
+          const fullAssign = new Array(cellRes.emptyMask.length).fill(-1);
+          for (let ni = 0; ni < neIdx.length; ni++) fullAssign[neIdx[ni]] = filteredAssign[ni];
+          clu = { ...clu, assignments: fullAssign };
         }
 
         // ── Legend OCR + parsing already ran above (moved so it can
@@ -227,10 +254,20 @@
         if (T) {
           try {
             const fp = await T.fingerprint(w, h, cellRes.cols, cellRes.rows);
-            const noiseCount = clu.assignments.filter(a => a < 0).length;
-            const clusterCount = new Set(clu.assignments.filter(a => a >= 0)).size;
-            const totalCells = clu.assignments.length || 1;
-            const silhouette = computeSilhouetteProxy(clu, feat);
+            // Use the filtered (non-empty only) arrays for B&W mode so that
+            // empty cells (which also carry −1 in the full assignments after
+            // the scatter) are not counted as noise or inflate totalCells.
+            const _statsAssign = filteredAssign || clu.assignments;
+            const _statsFeat   = filteredFeat   || feat;
+            const noiseCount = _statsAssign.filter(a => a < 0).length;
+            const clusterCount = new Set(_statsAssign.filter(a => a >= 0)).size;
+            const totalCells = _statsAssign.length || 1;
+            const silhouette = computeSilhouetteProxy(
+              filteredAssign
+                ? { assignments: filteredAssign, medoids: clu.medoids, labFeatures: clu.labFeatures }
+                : clu,
+              _statsFeat,
+            );
             const meanSilhouette = silhouette.score;
             const silhouetteMode = silhouette.mode;
             const sourceType = pre.otsuFastPath ? 'screenshot' : 'photo';
@@ -371,10 +408,13 @@
           meta: { publisher: 'image-chart', title: (probe.fileName || '').replace(/\.[^.]+$/, '') },
           flags: {
             warnings: [
-              ...(clu.assignments.includes(-1)
-                ? (function () {
-                    const noise = clu.assignments.filter(a => a < 0).length;
-                    const total = clu.assignments.length || 1;
+              ...(function () {
+                    // Use the filtered assignments for B&W mode (empty cells
+                    // also carry −1 after scatter and must not be counted as noise).
+                    const _wa = filteredAssign || clu.assignments;
+                    const noise = _wa.filter(a => a < 0).length;
+                    if (!noise) return [];
+                    const total = _wa.length || 1;
                     const pct = Math.round((noise / total) * 100);
                     return [{
                       code: 'CLUSTER_NOISE',
@@ -382,8 +422,7 @@
                       severity: 'warning',
                       detail: { noiseCount: noise, totalCells: total, percent: pct },
                     }];
-                  }())
-                : []),
+                  }()),
               ...(grid && grid.distortion && grid.distortion.distorted
                 ? [{
                     code: 'CHART_DISTORTED',
@@ -393,7 +432,7 @@
                   }]
                 : []),
             ],
-            uncertainCells: clu.assignments.filter(a => a < 0).length,
+            uncertainCells: (filteredAssign || clu.assignments).filter(a => a < 0).length,
             distorted: !!(grid && grid.distortion && grid.distortion.distorted),
             distortionRatio: (grid && grid.distortion && grid.distortion.ratio) || 1,
           },
@@ -420,7 +459,7 @@
               meta: { publisher: 'image-chart', title: (probe.fileName || '').replace(/\.[^.]+$/, '') },
               flags: {
                 warnings: [],
-                uncertainCells: clu.assignments.filter(a => a < 0).length,
+                uncertainCells: (filteredAssign || clu.assignments).filter(a => a < 0).length,
               },
             },
             grid: Object.assign({}, grid, { rows: cellRes.rows, cols: cellRes.cols }),
