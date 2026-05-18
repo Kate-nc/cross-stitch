@@ -1,19 +1,11 @@
 {
-  "eps": 4.000482356278324,
+  "eps": 2.026218336296813,
   "expectedClusters": 3,
-  "gotClusters": 2,
+  "gotClusters": 3,
   "noiseCount": 0,
-  "pass": false,
+  "pass": true,
   "wrongCells": [],
-  "mergedClusters": [
-    {
-      "clusterId": 1,
-      "glyphsMerged": [
-        "ring",
-        "dot"
-      ]
-    }
-  ],
+  "mergedClusters": [],
   "assignments": [
     0,
     0,
@@ -39,17 +31,17 @@
     1,
     1,
     1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2
   ]
 }

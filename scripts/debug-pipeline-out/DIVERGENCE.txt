@@ -10,7 +10,7 @@ Clean B&W screenshot — 3 distinct glyph shapes, 1 colour
   Stage 4 (detectGrid):        FAIL  <── earliest divergence?
   Stage 6 (featurise):         PASS (pure HOG on synthetic patches)
   Stage 7 (extractCellColors): PASS
-  Stage 8 (cluster):           FAIL  <── got 2 clusters, wanted 3
+  Stage 8 (cluster):           PASS
 
   >>> EARLIEST DIVERGENCE: Stage 4 (detectGrid)
 
