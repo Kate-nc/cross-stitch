@@ -303,6 +303,13 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (!gc) return;
     var gx = gc.gx, gy = gc.gy;
 
+    // Cleanup tool click (click sub-tool only; brush drag handled in mousedown/move/up)
+    if (activeTool === "cleanup") {
+      var _ch = state.cleanupHandlersRef && state.cleanupHandlersRef.current;
+      if (_ch && state.cleanupSelTool === "click") _ch.handleCleanupClick(gx, gy);
+      return;
+    }
+
     // Temporary eyedropper: Alt+click samples colour without switching tool
     if (e.altKey && activeTool !== "magicWand" && activeTool !== "lasso") {
       doEyedropSample(pat, cmap, sW, sH, partialStitches, gx, gy);
@@ -496,6 +503,13 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (!gc) return;
     var gx = gc.gx, gy = gc.gy;
 
+    // Cleanup brush drag — pointer down starts the drag-paint
+    if (activeTool === "cleanup" && state.cleanupSelTool === "brush") {
+      var _chdp = state.cleanupHandlersRef && state.cleanupHandlersRef.current;
+      if (_chdp) { _chdp.handleCleanupPointerDown(gx, gy); }
+      return;
+    }
+
     if (activeTool === "lasso") {
       if (gx < 0 || gx >= state.sW || gy < 0 || gy >= state.sH) return;
       var opModeL = (e.shiftKey && e.altKey) ? "intersect"
@@ -549,6 +563,14 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (!gc) return;
     var hc = state.hoverCoords;
     if (!hc || hc.gx !== gc.gx || hc.gy !== gc.gy) state.setHoverCoords(gc);
+
+    // Cleanup brush drag move
+    if (activeTool === "cleanup" && state.cleanupSelTool === "brush") {
+      var _chm = state.cleanupHandlersRef && state.cleanupHandlersRef.current;
+      if (_chm) _chm.handleCleanupPointerMove(gc.gx, gc.gy);
+      return;
+    }
+
     if (activeTool === "lasso") {
       if (gc.gx >= 0 && gc.gx < state.sW && gc.gy >= 0 && gc.gy < state.sH) {
         state.setLassoCursor({ x: gc.gx, y: gc.gy });
@@ -560,6 +582,12 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   }
 
   function handlePatMouseUp(e) {
+    // Cleanup brush drag end
+    if (getActiveTool() === "cleanup" && state.cleanupSelTool === "brush") {
+      var _chup = state.cleanupHandlersRef && state.cleanupHandlersRef.current;
+      if (_chup) _chup.handleCleanupPointerUp();
+      return;
+    }
     if (getActiveTool() === "lasso") {
       if (state.lassoMode === "freehand" && state.lassoActive) state.finalizeLasso();
       return;

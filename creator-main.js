@@ -264,6 +264,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const state = useCreatorStateHook();
   const history = useEditHistoryHook(state);
   const canvas = useCanvasInteractionHook(state, history);
+  // Cleanup mode hook (optional — gracefully absent if bundle not rebuilt yet).
+  const cleanupMode = (typeof window.useCleanupMode === 'function') ? window.useCleanupMode(state, history) : null;
   // useProjectIO's auto-save, beforeunload flush, and active-project effect all
   // gate on state.isActive. useCreatorState does NOT set isActive (it's a prop
   // of CreatorApp tied to the design/track mode toggle in UnifiedApp), so we
@@ -624,6 +626,23 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     lassoLinePath: state.lassoLinePath,
     lassoMagneticPath: state.lassoMagneticPath,
     lassoBoundaryPath: state.lassoBoundaryPath,
+    // Cleanup mode state (from useCreatorState)
+    cleanupTargetColorId: state.cleanupTargetColorId, setCleanupTargetColorId: state.setCleanupTargetColorId,
+    cleanupTolerance: state.cleanupTolerance, setCleanupTolerance: state.setCleanupTolerance,
+    cleanupSelTool: state.cleanupSelTool, setCleanupSelTool: state.setCleanupSelTool,
+    cleanupBrushSize: state.cleanupBrushSize, setCleanupBrushSize: state.setCleanupBrushSize,
+    cleanupPendingMask: state.cleanupPendingMask, setCleanupPendingMask: state.setCleanupPendingMask,
+    cleanupAutoRunning: state.cleanupAutoRunning,
+    cleanupAutoError: state.cleanupAutoError,
+    // Cleanup mode actions (from useCleanupMode hook)
+    enterCleanup: cleanupMode ? cleanupMode.enterCleanup : null,
+    exitCleanup: cleanupMode ? cleanupMode.exitCleanup : null,
+    cancelCleanup: cleanupMode ? cleanupMode.cancelCleanup : null,
+    applyCleanup: cleanupMode ? cleanupMode.applyCleanup : null,
+    runAutoDetect: cleanupMode ? cleanupMode.runAutoDetect : null,
+    handleCleanupPointerDown: cleanupMode ? cleanupMode.handleCleanupPointerDown : null,
+    handleCleanupPointerMove: cleanupMode ? cleanupMode.handleCleanupPointerMove : null,
+    handleCleanupPointerUp: cleanupMode ? cleanupMode.handleCleanupPointerUp : null,
   }; }, [
     state.activeTool, state.brushMode, state.brushSize,
     state.selectedColorId, state.view, state.zoom,
@@ -646,6 +665,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.lassoMode, state.lassoPoints, state.lassoActive, state.lassoCursor,
     state.lassoPreviewMask, state.lassoOpMode, state.lassoPointCount, state.lassoInProgress,
     state.colourReplaceModal,
+    state.cleanupTargetColorId, state.cleanupTolerance, state.cleanupSelTool,
+    state.cleanupBrushSize, state.cleanupPendingMask, state.cleanupAutoRunning,
+    state.cleanupAutoError, cleanupMode,
   ]);
 
   // ── HoverContext value (pointer hover coords only) ──
