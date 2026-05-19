@@ -3296,7 +3296,10 @@ kbd {
 }
 .gsd-heatmap-cell {
   border-radius: 2px;
-  aspect-ratio: 1;
+  /* Safari <15 fallback: cells will use the grid row height and may not be square */
+}
+@supports (aspect-ratio: 1) {
+  .gsd-heatmap-cell { aspect-ratio: 1; }
 }
 .gsd-heatmap-legend {
   display: flex;
@@ -4791,9 +4794,12 @@ html.pref-dark a { color: var(--accent); }
 .iw-warn { background: var(--warning-soft); border: 1px solid var(--warning); color: var(--accent-ink); border-radius: 8px; padding: 8px 12px; font-size: 12px; margin-top: 10px; }
 
 .iw-crop-viewport {
-  width: 100%; max-width: 320px; aspect-ratio: 1 / 1;
+  width: 100%; max-width: 320px; height: 320px; /* Safari <15 fallback: explicit square */
   border: 1px solid var(--border); border-radius: 8px; background: var(--surface-secondary);
   display: flex; align-items: center; justify-content: center; overflow: hidden; margin: 0 auto 14px;
+}
+@supports (aspect-ratio: 1) {
+  .iw-crop-viewport { height: auto; aspect-ratio: 1 / 1; }
 }
 .iw-crop-viewport img { max-width: 100%; max-height: 100%; object-fit: contain; transition: transform 120ms ease-out; }
 .iw-crop-empty { padding: 40px 20px; text-align: center; color: var(--text-tertiary); font-size: 13px; }
@@ -4813,9 +4819,12 @@ html.pref-dark a { color: var(--accent); }
 .iw-card-desc { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
 
 .iw-preview-thumb {
-  width: 100%; max-width: 256px; aspect-ratio: 1 / 1;
+  width: 100%; max-width: 256px; height: 256px; /* Safari <15 fallback: explicit square */
   border: 1px solid var(--border); border-radius: 8px;
   display: flex; align-items: center; justify-content: center; overflow: hidden; margin: 0 auto 14px;
+}
+@supports (aspect-ratio: 1) {
+  .iw-preview-thumb { height: auto; aspect-ratio: 1 / 1; }
 }
 .iw-preview-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
 
