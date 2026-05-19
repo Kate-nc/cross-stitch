@@ -118,6 +118,8 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
       setDiffUrl(cb.toDataURL());
     }
     imgA.onload = onLoad; imgB.onload = onLoad;
+    imgA.onerror = function() { cancelled = true; };
+    imgB.onerror = function() { cancelled = true; };
     imgA.src = prevSrc; imgB.src = previewSrc;
     return function() { cancelled = true; };
   }, [previewSrc]);

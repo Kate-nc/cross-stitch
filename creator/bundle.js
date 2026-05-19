@@ -7073,6 +7073,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           state.setImg(li); state.setOrigW(li.width); state.setOrigH(li.height);
         }
       };
+      li.onerror = function() {
+        // Saved image data is corrupt or undecodeable — continue without it.
+        console.warn("useProjectIO: could not decode saved project image data.");
+      };
       li.src = project.imgData;
     } else if (s.isScratchMode) {
       state.setImg({ src: null, w: s.sW, h: s.sH });
@@ -7117,6 +7121,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var rd = new FileReader();
     rd.onload = function(ev) {
       var i = new Image();
+      i.onerror = function() {
+        console.warn("useProjectIO: could not decode uploaded image.");
+        state.setIsUploading(false);
+      };
       var proceed = function() {
         try {
           var targetW = i.width, targetH = i.height;
