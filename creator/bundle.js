@@ -4811,7 +4811,16 @@ window.useCreatorState = function useCreatorState() {
       }
       cx.drawImage(img, 0, 0, sW, sH);
       if (_canvasFilterSupported) cx.filter = "none";
-      var imageData = cx.getImageData(0, 0, sW, sH);
+      var imageData;
+      try {
+        imageData = cx.getImageData(0, 0, sW, sH);
+      } catch (secErr) {
+        // SecurityError: canvas is tainted (cross-origin image without CORS).
+        // Surface a clear message and abort generation rather than crashing silently.
+        addToast("Cannot read image pixels — the image may be cross-origin. Try saving the image to your device and uploading it directly.", { type: "error", duration: 8000 });
+        setBusy(false);
+        return;
+      }
       if (!_canvasFilterSupported) _applyImageFilters(imageData, bri, con, sat);
 
       var worker = getOrCreateWorker();
@@ -4933,7 +4942,14 @@ window.useCreatorState = function useCreatorState() {
         if (_canvasFilterSupported && (bri !== 0 || con !== 0 || sat !== 0)) { gcx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)"; }
         gcx.drawImage(img, 0, 0, gw, gh);
         if (_canvasFilterSupported) gcx.filter = "none";
-        var _gcxImgData = gcx.getImageData(0, 0, gw, gh);
+        var _gcxImgData;
+        try {
+          _gcxImgData = gcx.getImageData(0, 0, gw, gh);
+        } catch (_) {
+          // SecurityError: skip this gallery slot silently — generation will
+          // still use the main canvas which already showed an error toast.
+          return;
+        }
         if (!_canvasFilterSupported) _applyImageFilters(_gcxImgData, bri, con, sat);
         var rawPx = _gcxImgData.data;
         if (smooth > 0) { if (smoothType === "gaussian") applyGaussianBlur(rawPx, gw, gh, smooth); else applyMedianFilter(rawPx, gw, gh, smooth); }
