@@ -5363,6 +5363,14 @@ useEffect(()=>{
 },[!!pat]);
 
 // Attach touch listeners once when pattern loads — wrapper delegates to latest handler
+// NOTE (Safari iOS): the canvas uses Touch Events (not Pointer Events) because
+// {passive:false} touch listeners are required to call preventDefault() and block
+// both scroll and the browser's own selection / magnifier gestures.  Pointer Events
+// with {passive:false} do not reliably suppress those gestures on Safari iOS.
+// UI chrome (toolbar, modals) uses React's synthetic onPointerDown/Up events, which
+// is fine because those elements do not need to block default browser behaviour.
+// This intentional mixed strategy is the recommended practice for canvas-based
+// drawing surfaces on iOS (see MDN "Pointer Events — Touch action").
 useEffect(()=>{
   const canvas=stitchRef.current;
   if(!canvas||!pat)return;
