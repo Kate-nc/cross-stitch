@@ -58,6 +58,8 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
      "Download bundle" action is available without a CDN round-trip on click.
      Pinned to 3.10.1 (immutable on cdnjs). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!-- CDN failure detection: show a banner if React, ReactDOM, or Babel failed to load -->
+<script>(function(){if(typeof React==='undefined'||typeof ReactDOM==='undefined'||typeof Babel==='undefined'){document.addEventListener('DOMContentLoaded',function(){var d=document.createElement('div');d.setAttribute('role','alert');d.style.cssText='position:fixed;top:0;left:0;right:0;padding:1.2rem 2rem;background:#c0392b;color:#fff;font-family:sans-serif;font-size:0.9rem;text-align:center;z-index:99999;';d.textContent='This page could not load (a required library failed to download). Please check your connection and reload.';document.body.prepend(d);});}}());</script>
 <!-- pdf-lib (export), pdf.js (import) and pdf-importer are lazy-loaded on first use -->
 <link rel="stylesheet" href="styles.css">
 <script src="constants.js"></script>
@@ -144,7 +146,7 @@ window.loadPdfStack = function() {
 })();
 /* Loads TrackerApp via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
-var TRACKER_CACHE_KEY = 'babel_tracker_e986a3efc0';
+var TRACKER_CACHE_KEY = 'babel_tracker_8649e26838';
 window.loadTrackerApp = function() {
   if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
   window.__trackerLoading = true;
@@ -176,7 +178,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_3803b36365';
+var CREATOR_CACHE_KEY = 'babel_creator_2e5ae11a78';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;
