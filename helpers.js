@@ -259,7 +259,29 @@ async function ensurePersistence() {
 }
 
 var _helpersCachedDB = null;
+// Set to true once we have confirmed IDB is unavailable (e.g. Safari private mode).
+var _idbUnavailable = false;
+
+function _notifyIdbUnavailable() {
+  if (_idbUnavailable) return; // already notified
+  _idbUnavailable = true;
+  console.warn('[CrossStitchDB] IndexedDB unavailable — likely private browsing mode. Projects will not persist.');
+  try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('idb-unavailable'));
+    }
+    if (typeof window !== 'undefined' && window.Toast && window.Toast.show) {
+      window.Toast.show({
+        message: 'Storage is not available in private browsing mode. Changes will be lost when you close this tab.',
+        type: 'warning',
+        duration: 12000
+      });
+    }
+  } catch (_) {}
+}
+
 function getDB() {
+  if (_idbUnavailable) return Promise.reject(new Error('IndexedDB unavailable in private browsing mode'));
   if (_helpersCachedDB) {
     try { _helpersCachedDB.transaction(STORE_NAME); return Promise.resolve(_helpersCachedDB); } catch(_) { _helpersCachedDB = null; }
   }
@@ -299,7 +321,14 @@ function getDB() {
       _helpersCachedDB = db;
       resolve(db);
     };
-    request.onerror = () => reject(request.error);
+    request.onerror = () => {
+      const err = request.error;
+      const name = err && err.name ? err.name : '';
+      if (name === 'SecurityError' || name === 'NotSupportedError' || name === 'UnknownError') {
+        _notifyIdbUnavailable();
+      }
+      reject(err);
+    };
   });
 }
 
