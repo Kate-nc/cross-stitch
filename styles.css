@@ -1,3 +1,13 @@
+/*
+ * Browser support note — flex gap
+ * ─────────────────────────────────
+ * gap on flex containers requires Safari 14.1+ (released April 2021).
+ * Safari ≤14.0 is not officially supported; no margin-based fallbacks are
+ * provided for the 20+ flex-gap usages throughout this file.
+ * If a margin fallback is ever needed, wrap the gap declaration in:
+ *   @supports (gap: 0) { .rule { gap: Xpx; } }
+ * and add margin/padding equivalents to the base rule.
+ */
 :root {
   --accent: #B85C38;
   --accent-hover: #944526;
