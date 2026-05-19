@@ -2080,6 +2080,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   .tb-btn,.tb-fit-btn,.tb-overflow-btn{min-width:44px;min-height:44px;justify-content:center;touch-action:manipulation;}
   .tb-swatch-scroll-btn{min-width:44px;min-height:44px;}
   .pal-chip-swap{opacity:1!important;min-width:24px;min-height:24px;}
+  .tb-overflow-wrap--open::before{content:'';position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:299;}
   .tb-more-panel{position:fixed;bottom:0;left:0;right:0;top:auto;border-radius:var(--radius-md) var(--radius-md) 0 0;max-height:50dvh;overflow-y:auto;box-shadow:0 -4px 20px rgba(0,0,0,0.12);}
   .tb-grp{min-height:48px;align-items:stretch;}
   .tb-zoom-grp{min-height:44px;}

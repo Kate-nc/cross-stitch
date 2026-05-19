@@ -69,6 +69,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     };
   }, [morePanelOpen]);
 
+  // Close More panel when active tool changes via keyboard shortcut
+  React.useEffect(function() { setMorePanelOpen(false); }, [cv.activeTool]);
+
   // (The Preview chart-mode dropdown that used to live here has moved into
   // the Sidebar Preview tab — see creator/Sidebar.js previewPanel.)
 
@@ -383,7 +386,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       h("span", {style:{fontWeight:600,color:"var(--accent)",flexShrink:0}}, cv.selectedColorId),
       ctx.cmap[cv.selectedColorId].name ? h("span", {style:{color:"var(--accent-hover)",fontWeight:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, "\u00B7 " + ctx.cmap[cv.selectedColorId].name) : null
     ) : h("span", {style:{fontSize:10,color:"var(--text-tertiary)",marginRight:6,flexShrink:0}}, "none selected"),
-    h("button", {
+    palData.length > 5 && h("button", {
       className:"tb-swatch-scroll-btn",
       onClick:function(){ swatchRowRef.current && swatchRowRef.current.scrollBy({left:-120,behavior:"smooth"}); },
       "aria-label":"Scroll swatches left", title:"Scroll left"
@@ -408,7 +411,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         });
       })
     ),
-    h("button", {
+    palData.length > 5 && h("button", {
       className:"tb-swatch-scroll-btn",
       onClick:function(){ swatchRowRef.current && swatchRowRef.current.scrollBy({left:120,behavior:"smooth"}); },
       "aria-label":"Scroll swatches right", title:"Scroll right"
@@ -640,7 +643,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     )
   ) : null;
 
-  var morePanelWrap = h("div", {className:"tb-overflow-wrap"},
+  var morePanelWrap = h("div", {className:"tb-overflow-wrap" + (morePanelOpen ? " tb-overflow-wrap--open" : "")},
     h("button", {
       ref:moreBtnRef,
       className:"tb-btn"+(morePanelOpen||morePanelHasActiveTool?" tb-btn--on":""),
