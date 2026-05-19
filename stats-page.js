@@ -477,7 +477,10 @@ function ShareCardModal({ lifetimeStitches, onClose }) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     try {
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      const blob = await new Promise((resolve, reject) => {
+        const _t = setTimeout(() => reject(new Error('toBlob timed out')), 8000);
+        canvas.toBlob(b => { clearTimeout(_t); if (b) resolve(b); else reject(new Error('toBlob returned null')); }, 'image/png');
+      });
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
     } catch (e) {
       console.warn('Copy to clipboard failed:', e);
@@ -654,7 +657,10 @@ function ShowcaseShareModal({ title, drawFn, onClose }) {
   const handleCopy = useCallback(async () => {
     const canvas = canvasRef.current; if (!canvas) return;
     try {
-      const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+      const blob = await new Promise((resolve, reject) => {
+        const _t = setTimeout(() => reject(new Error('toBlob timed out')), 8000);
+        canvas.toBlob(b => { clearTimeout(_t); if (b) resolve(b); else reject(new Error('toBlob returned null')); }, 'image/png');
+      });
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       setCopied(true); setTimeout(() => setCopied(false), 2000);
     } catch(e) { console.warn('Copy failed:', e); }
