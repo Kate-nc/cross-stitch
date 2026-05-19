@@ -26,7 +26,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       run: function () {
         if (state.namePromptOpen) { state.setNamePromptOpen(false); return; }
         if (state.modal) { state.setModal(null); return; }
-        if (state.overflowOpen) { state.setOverflowOpen(false); return; }
+        if (state.morePanelOpen) { state.setMorePanelOpen(false); return; }
         // Background-pick mode: ESC backs out without sampling.
         if (state.pickBg) { state.setPickBg(false); return; }
         if (state.lassoInProgress) { state.cancelLasso(); return; }
@@ -183,7 +183,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
     window.useShortcuts(entries, [
       state.isActive, state.activeTool, state.bsStart,
       state.editHistory, state.redoHistory, state.pat, state.pal,
-      state.namePromptOpen, state.modal, state.overflowOpen,
+      state.namePromptOpen, state.modal, state.morePanelOpen,
       state.selectedColorId, state.partialStitchTool, state.hiId,
       state.hasSelection, state.lassoInProgress, state.highlightMode,
       state.splitPaneEnabled, state.stitchType,

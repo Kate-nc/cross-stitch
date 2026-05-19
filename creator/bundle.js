@@ -4160,7 +4160,7 @@ window.useCreatorState = function useCreatorState() {
   var brushModeRef = useRef("paint");
   function setBrushMode(v) { brushModeRef.current = v; _brushM[1](v); }
   var _brushSz  = useState(1);       var brushSize = _brushSz[0], setBrushSize = _brushSz[1];
-  var _ovfOpen  = useState(false);   var overflowOpen = _ovfOpen[0], setOverflowOpen = _ovfOpen[1];
+  var _morePOpen= useState(false);   var morePanelOpen = _morePOpen[0], setMorePanelOpen = _morePOpen[1];
   var _panOpen  = useState(false);   var panelOpen = _panOpen[0], setPanelOpen = _panOpen[1];
   var _stripCol = useState({view:false,brush:false,bs:false});
   var stripCollapsed = _stripCol[0], setStripCollapsed = _stripCol[1];
@@ -4358,7 +4358,6 @@ window.useCreatorState = function useCreatorState() {
   var trackerFieldsRef = useRef({});
   var userActedRef = useRef(false);
   var stripRef   = useRef(null);
-  var overflowRef= useRef(null);
   var workerRef      = useRef(null); // null | Worker | 'unavailable'
   var applyResultRef = useRef(null); // updated each render, captures fresh state
   var genReqIdRef    = useRef(0);    // incremented per generation; stale results are discarded
@@ -5178,7 +5177,7 @@ window.useCreatorState = function useCreatorState() {
     redoHistory, setRedoHistory, EDIT_HISTORY_MAX,
     shortcutsHintDismissed, setShortcutsHintDismissed,
     brushMode, setBrushMode, brushModeRef, brushSize, setBrushSize,
-    overflowOpen, setOverflowOpen, panelOpen, setPanelOpen, stripCollapsed, setStripCollapsed,
+    morePanelOpen, setMorePanelOpen, panelOpen, setPanelOpen, stripCollapsed, setStripCollapsed,
     exportPage, setExportPage, pageMode, setPageMode,
     pdfDisplayMode, setPdfDisplayMode, pdfCellSize, setPdfCellSize,
     pdfSinglePage, setPdfSinglePage,
@@ -5224,7 +5223,7 @@ window.useCreatorState = function useCreatorState() {
     cleanupAutoRunning, setCleanupAutoRunning,
     cleanupAutoError, setCleanupAutoError,
     pcRef, fRef, scrollRef, expRef, loadRef,
-    prevSW, prevSH, projectIdRef, createdAtRef, trackerFieldsRef, userActedRef, stripRef, overflowRef,
+    prevSW, prevSH, projectIdRef, createdAtRef, trackerFieldsRef, userActedRef, stripRef,
     cleanupHandlersRef,
     G, EDIT_HISTORY_MAX,
     // Derived
@@ -7173,7 +7172,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       run: function () {
         if (state.namePromptOpen) { state.setNamePromptOpen(false); return; }
         if (state.modal) { state.setModal(null); return; }
-        if (state.overflowOpen) { state.setOverflowOpen(false); return; }
+        if (state.morePanelOpen) { state.setMorePanelOpen(false); return; }
         // Background-pick mode: ESC backs out without sampling.
         if (state.pickBg) { state.setPickBg(false); return; }
         if (state.lassoInProgress) { state.cancelLasso(); return; }
@@ -7330,7 +7329,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
     window.useShortcuts(entries, [
       state.isActive, state.activeTool, state.bsStart,
       state.editHistory, state.redoHistory, state.pat, state.pal,
-      state.namePromptOpen, state.modal, state.overflowOpen,
+      state.namePromptOpen, state.modal, state.morePanelOpen,
       state.selectedColorId, state.partialStitchTool, state.hiId,
       state.hasSelection, state.lassoInProgress, state.highlightMode,
       state.splitPaneEnabled, state.stitchType,
@@ -9077,18 +9076,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     return function() { obs.disconnect(); if (frame) cancelAnimationFrame(frame); };
   }, []);
 
-  // Close overflow menu on outside click
-  React.useEffect(function() {
-    if (!app.overflowOpen) return;
-    function close(e) {
-      if (app.overflowRef.current && !app.overflowRef.current.contains(e.target)) app.setOverflowOpen(false);
-    }
-    document.addEventListener("pointerdown", close);
-    return function() { document.removeEventListener("pointerdown", close); };
-  }, [app.overflowOpen]);
-
   // "More" panel state (secondary tools flyout / mobile bottom sheet)
-  var _mp = React.useState(false); var morePanelOpen = _mp[0], setMorePanelOpen = _mp[1];
+  var morePanelOpen = !!app.morePanelOpen;
+  var setMorePanelOpen = app.setMorePanelOpen;
   var morePanelRef = React.useRef(null);
   var moreBtnRef = React.useRef(null);
   var swatchRowRef = React.useRef(null);
@@ -9099,12 +9089,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       if (moreBtnRef.current && moreBtnRef.current.contains(e.target)) return;
       setMorePanelOpen(false);
     }
-    function onKey(e) { if (e.key === 'Escape') setMorePanelOpen(false); }
     document.addEventListener('pointerdown', closeMp);
-    document.addEventListener('keydown', onKey);
     return function() {
       document.removeEventListener('pointerdown', closeMp);
-      document.removeEventListener('keydown', onKey);
     };
   }, [morePanelOpen]);
 
@@ -10080,7 +10067,8 @@ window.MagicWandPanel = function MagicWandPanel() {
 
   // ─── Merged strip (tool active + selection exists simultaneously) ────────────
   // Collapses two 38px strips into one, recovering a full row of canvas height.
-  var mergedRow = (isSelTool && hasSelection) ? h("div", { className: "tb-strip--sel" },
+  var shouldMergeRows = isSelTool && hasSelection;
+  var mergedRow = shouldMergeRows ? h("div", { className: "tb-strip--sel" },
     h("div", { className: "tb-strip-inner" },
       // Tool label
       h("span", { style: { fontWeight: 600, fontSize: 11, color: "var(--text-secondary)", flexShrink: 0 } }, toolLabel),
@@ -10149,10 +10137,12 @@ window.MagicWandPanel = function MagicWandPanel() {
     )
   ) : null;
 
+  var topRows = shouldMergeRows
+    ? mergedRow
+    : h(React.Fragment, null, optionsRow, selRow);
+
   return h("div", null,
-    mergedRow,
-    !mergedRow && optionsRow,
-    !mergedRow && selRow,
+    topRows,
     confettiPanel,
     reducePanel,
     replacePanel,

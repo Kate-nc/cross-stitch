@@ -360,7 +360,8 @@ window.MagicWandPanel = function MagicWandPanel() {
 
   // ─── Merged strip (tool active + selection exists simultaneously) ────────────
   // Collapses two 38px strips into one, recovering a full row of canvas height.
-  var mergedRow = (isSelTool && hasSelection) ? h("div", { className: "tb-strip--sel" },
+  var shouldMergeRows = isSelTool && hasSelection;
+  var mergedRow = shouldMergeRows ? h("div", { className: "tb-strip--sel" },
     h("div", { className: "tb-strip-inner" },
       // Tool label
       h("span", { style: { fontWeight: 600, fontSize: 11, color: "var(--text-secondary)", flexShrink: 0 } }, toolLabel),
@@ -429,10 +430,12 @@ window.MagicWandPanel = function MagicWandPanel() {
     )
   ) : null;
 
+  var topRows = shouldMergeRows
+    ? mergedRow
+    : h(React.Fragment, null, optionsRow, selRow);
+
   return h("div", null,
-    mergedRow,
-    !mergedRow && optionsRow,
-    !mergedRow && selRow,
+    topRows,
     confettiPanel,
     reducePanel,
     replacePanel,

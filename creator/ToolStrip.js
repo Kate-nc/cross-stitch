@@ -38,18 +38,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     return function() { obs.disconnect(); if (frame) cancelAnimationFrame(frame); };
   }, []);
 
-  // Close overflow menu on outside click
-  React.useEffect(function() {
-    if (!app.overflowOpen) return;
-    function close(e) {
-      if (app.overflowRef.current && !app.overflowRef.current.contains(e.target)) app.setOverflowOpen(false);
-    }
-    document.addEventListener("pointerdown", close);
-    return function() { document.removeEventListener("pointerdown", close); };
-  }, [app.overflowOpen]);
-
   // "More" panel state (secondary tools flyout / mobile bottom sheet)
-  var _mp = React.useState(false); var morePanelOpen = _mp[0], setMorePanelOpen = _mp[1];
+  var morePanelOpen = !!app.morePanelOpen;
+  var setMorePanelOpen = app.setMorePanelOpen;
   var morePanelRef = React.useRef(null);
   var moreBtnRef = React.useRef(null);
   var swatchRowRef = React.useRef(null);
@@ -60,12 +51,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       if (moreBtnRef.current && moreBtnRef.current.contains(e.target)) return;
       setMorePanelOpen(false);
     }
-    function onKey(e) { if (e.key === 'Escape') setMorePanelOpen(false); }
     document.addEventListener('pointerdown', closeMp);
-    document.addEventListener('keydown', onKey);
     return function() {
       document.removeEventListener('pointerdown', closeMp);
-      document.removeEventListener('keydown', onKey);
     };
   }, [morePanelOpen]);
 
