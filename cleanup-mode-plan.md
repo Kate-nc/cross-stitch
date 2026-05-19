@@ -264,7 +264,7 @@ Phase 3 — Boundary filter:
       exclude (the cell is inside a solid region, not on a boundary/thin line)
       
 Phase 4 — Connected-run filter:
-  Label connected components among surviving candidates (4-connected BFS).
+  Label connected components among surviving candidates (8-connected BFS).
   Discard components with < AUTODETECT_MIN_CONNECTED_RUN_LENGTH cells.
   (Prevents isolated noise pixels from being flagged.)
 

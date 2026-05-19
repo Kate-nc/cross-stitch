@@ -96,7 +96,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         h("span", {style:{fontSize:11}},
           cv.cleanupTargetColorId ? "DMC " + cv.cleanupTargetColorId : "None"
         ),
-        h("span", {"aria-hidden":"true", style:{fontSize:9,opacity:0.6,marginLeft:1}}, "\u25BE")
+        h("span", {"aria-hidden":"true", style:{display:"inline-flex",opacity:0.6,marginLeft:1}}, window.Icons && window.Icons.chevronDown ? window.Icons.chevronDown() : null)
       ),
       openDrop === 'cleanup-target' && h("div", {
         role: "listbox",
@@ -177,7 +177,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           onClick:function(){ cv.setCleanupBrushSize(Math.max(1, (cv.cleanupBrushSize||1)-1)); },
           "aria-label":"Decrease brush size",
           disabled:(cv.cleanupBrushSize||1) <= 1
-        }, "\u2212"),
+        }, window.Icons && window.Icons.minus ? window.Icons.minus() : null),
         h("span", {style:{fontSize:11,minWidth:16,textAlign:"center",color:"var(--text-secondary)"}}, cv.cleanupBrushSize||1),
         h("button", {
           className:"tb-btn", style:{padding:"1px 7px",fontSize:12},
@@ -384,7 +384,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             if (cv.enterCleanup) cv.enterCleanup();
           }
         },
-        title:"Cleanup Mode — remove lineart pixels averaged into stitch colours (K)",
+        title:"Cleanup Mode — remove lineart pixels averaged into stitch colours",
         "aria-label":"Cleanup mode",
         "aria-pressed": cv.activeTool === "cleanup" ? "true" : "false"
       }, window.Icons && window.Icons.cleanup ? window.Icons.cleanup() : null, " Cleanup")

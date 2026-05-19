@@ -39,6 +39,7 @@ global.rgbToLab = function(r, g, b) {
 // ─── Extract functions from source files via regex+eval ─────────────────────
 
 const fs = require('fs');
+const vm = require('vm');
 
 // ── From creator/useCleanupMode.js ──
 
@@ -95,109 +96,45 @@ eval(hookPreamble); // eslint-disable-line no-eval
 
 // ── From cleanup-worker.js ──
 
-const workerSrc = fs
-  .readFileSync('./cleanup-worker.js', 'utf8')
-  // Remove the importScripts line (not available in Node)
-  .replace(/importScripts\([^)]*\);/, '');
+const workerSrc = fs.readFileSync('./cleanup-worker.js', 'utf8');
+const workerSandbox = {
+  importScripts: function() {},
+  dE2000: global.dE2000,
+  Uint8Array,
+  Array,
+  console,
+  __lastMessage: null,
+  postMessage: function(msg) {
+    workerSandbox.__lastMessage = msg;
+  }
+};
+workerSandbox.self = workerSandbox;
+vm.createContext(workerSandbox);
+vm.runInContext(workerSrc, workerSandbox);
+if (typeof workerSandbox.onmessage !== 'function') {
+  throw new Error('Could not load cleanup-worker.js onmessage handler');
+}
 
-// Extract the body of the onmessage handler (minus the outer try/catch
-// and the postMessage calls) so we can call the phases directly.
-// Instead, we extract a standalone runAutoDetect function that mirrors
-// the worker's algorithm (same code, wrapped in a callable function).
-
-// Build a runnable version of the worker algorithm as a function:
-const workerAlgoSrc = `
 function runAutodetectAlgo(pat, sW, sH, targetLab, toleranceDe, opts) {
   opts = opts || {};
-  var INTERIOR_CARDINAL_THRESH = opts.interiorCardinalThreshold !== undefined ? opts.interiorCardinalThreshold : 4;
-  var MIN_FOREIGN_RATIO        = opts.minForeignRatio          !== undefined ? opts.minForeignRatio          : 0.5;
-  var MIN_RUN_LENGTH           = opts.minRunLength             !== undefined ? opts.minRunLength             : 3;
-
-  var n = sW * sH;
-
-  // Phase 1
-  var candidate = new Uint8Array(n);
-  for (var i = 0; i < n; i++) {
-    var cell = pat[i];
-    if (!cell || !cell.lab) continue;
-    if (cell.id === '__skip__' || cell.id === '__empty__') continue;
-    var de = dE2000(targetLab, cell.lab);
-    if (de <= toleranceDe) candidate[i] = 1;
-  }
-
-  // Phase 2
-  var filtered = new Uint8Array(n);
-  for (var j = 0; j < n; j++) {
-    if (!candidate[j]) continue;
-    var jx = j % sW;
-    var jy = (j / sW) | 0;
-    var cardinalCount = 0;
-    if (jx > 0      && candidate[jy * sW + (jx - 1)]) cardinalCount++;
-    if (jx < sW - 1 && candidate[jy * sW + (jx + 1)]) cardinalCount++;
-    if (jy > 0      && candidate[(jy - 1) * sW + jx]) cardinalCount++;
-    if (jy < sH - 1 && candidate[(jy + 1) * sW + jx]) cardinalCount++;
-    if (cardinalCount >= INTERIOR_CARDINAL_THRESH) continue;
-    filtered[j] = 1;
-  }
-
-  // Phase 3
-  var boundary = new Uint8Array(n);
-  for (var k = 0; k < n; k++) {
-    if (!filtered[k]) continue;
-    var kx = k % sW;
-    var ky = (k / sW) | 0;
-    var totalValid = 0;
-    var foreignCount = 0;
-    for (var ndy = -1; ndy <= 1; ndy++) {
-      for (var ndx = -1; ndx <= 1; ndx++) {
-        if (ndx === 0 && ndy === 0) continue;
-        var nnx = kx + ndx, nny = ky + ndy;
-        if (nnx < 0 || nnx >= sW || nny < 0 || nny >= sH) continue;
-        var nni = nny * sW + nnx;
-        var ncell = pat[nni];
-        if (!ncell || ncell.id === '__skip__' || ncell.id === '__empty__') continue;
-        totalValid++;
-        if (!candidate[nni]) foreignCount++;
-      }
+  workerSandbox.__lastMessage = null;
+  workerSandbox.onmessage({
+    data: {
+      type: 'autodetect',
+      pat,
+      sW,
+      sH,
+      targetLab,
+      toleranceDe,
+      interiorCardinalThreshold: opts.interiorCardinalThreshold,
+      minForeignRatio: opts.minForeignRatio,
+      minRunLength: opts.minRunLength
     }
-    if (totalValid === 0) continue;
-    if (foreignCount / totalValid >= MIN_FOREIGN_RATIO) boundary[k] = 1;
-  }
-
-  // Phase 4
-  var visited = new Uint8Array(n);
-  var selected = new Array(n).fill(0);
-  for (var s = 0; s < n; s++) {
-    if (!boundary[s] || visited[s]) continue;
-    var component = [];
-    var stack = [s];
-    visited[s] = 1;
-    while (stack.length > 0) {
-      var cur = stack.pop();
-      component.push(cur);
-      var cx = cur % sW;
-      var cy = (cur / sW) | 0;
-      for (var cdy = -1; cdy <= 1; cdy++) {
-        for (var cdx = -1; cdx <= 1; cdx++) {
-          if (cdx === 0 && cdy === 0) continue;
-          var cnx = cx + cdx, cny = cy + cdy;
-          if (cnx < 0 || cnx >= sW || cny < 0 || cny >= sH) continue;
-          var cni = cny * sW + cnx;
-          if (!boundary[cni] || visited[cni]) continue;
-          visited[cni] = 1;
-          stack.push(cni);
-        }
-      }
-    }
-    if (component.length >= MIN_RUN_LENGTH) {
-      for (var q = 0; q < component.length; q++) selected[component[q]] = 1;
-    }
-  }
-
-  return selected;
+  });
+  if (!workerSandbox.__lastMessage) throw new Error('Worker did not post a message');
+  if (workerSandbox.__lastMessage.type === 'error') throw new Error(workerSandbox.__lastMessage.message);
+  return workerSandbox.__lastMessage.selected;
 }
-`;
-eval(workerAlgoSrc); // eslint-disable-line no-eval
 
 // ─── Test helpers ────────────────────────────────────────────────────────────
 

@@ -583,7 +583,10 @@ window.useCreatorState = function useCreatorState() {
   var addToast = useCallback(function(message, opts) {
     opts = opts || {};
     var id = ++toastIdRef.current;
-    var toast = { id: id, message: message, type: opts.type || "info", duration: opts.duration || 2500 };
+    var action = opts.action && typeof opts.action.onClick === "function"
+      ? { label: opts.action.label || "Action", onClick: opts.action.onClick }
+      : null;
+    var toast = { id: id, message: message, type: opts.type || "info", duration: opts.duration || 2500, action: action };
     setToasts(function(prev) { return prev.concat([toast]); });
     setTimeout(function() {
       setToasts(function(prev) { return prev.filter(function(t) { return t.id !== id; }); });

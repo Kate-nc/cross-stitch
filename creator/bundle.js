@@ -4325,7 +4325,10 @@ window.useCreatorState = function useCreatorState() {
   var addToast = useCallback(function(message, opts) {
     opts = opts || {};
     var id = ++toastIdRef.current;
-    var toast = { id: id, message: message, type: opts.type || "info", duration: opts.duration || 2500 };
+    var action = opts.action && typeof opts.action.onClick === "function"
+      ? { label: opts.action.label || "Action", onClick: opts.action.onClick }
+      : null;
+    var toast = { id: id, message: message, type: opts.type || "info", duration: opts.duration || 2500, action: action };
     setToasts(function(prev) { return prev.concat([toast]); });
     setTimeout(function() {
       setToasts(function(prev) { return prev.filter(function(t) { return t.id !== id; }); });
@@ -5640,6 +5643,7 @@ window.useCleanupMode = function useCleanupMode(state, history) {
 
   // Reference to the active cleanup Web Worker instance.
   var workerRef = useRef(null);
+  var lastAutoToleranceRef = useRef(null);
 
   // ── Derived: tolerance in ΔE ──────────────────────────────────────────────
   function toleranceDe(sliderVal) {
@@ -5802,6 +5806,7 @@ window.useCleanupMode = function useCleanupMode(state, history) {
     if (workerRef.current) { workerRef.current.terminate(); workerRef.current = null; }
     state.setCleanupAutoRunning(true);
     state.setCleanupAutoError(null);
+    lastAutoToleranceRef.current = state.cleanupTolerance;
 
     var worker;
     try {
@@ -5812,6 +5817,11 @@ window.useCleanupMode = function useCleanupMode(state, history) {
       return;
     }
     workerRef.current = worker;
+
+    function releaseWorker(doneWorker) {
+      if (doneWorker && typeof doneWorker.terminate === 'function') doneWorker.terminate();
+      if (workerRef.current === doneWorker) workerRef.current = null;
+    }
 
     // Serialise only the data the worker needs — avoid transferring the full
     // React element objects. We send {id, lab} per cell.
@@ -5826,37 +5836,42 @@ window.useCleanupMode = function useCleanupMode(state, history) {
     worker.onmessage = function(e) {
       var msg = e.data;
       if (msg.type === 'result') {
-        workerRef.current = null;
+        releaseWorker(worker);
         state.setCleanupAutoRunning(false);
         // Worker sends a plain Array of 0/1; convert to Uint8Array
         var arr = new Uint8Array(msg.selected.length);
         for (var j = 0; j < msg.selected.length; j++) arr[j] = msg.selected[j];
         state.setCleanupPendingMask(arr);
       } else if (msg.type === 'error') {
-        workerRef.current = null;
+        releaseWorker(worker);
         state.setCleanupAutoRunning(false);
         state.setCleanupAutoError(msg.message || 'Auto-detect failed');
       }
     };
     worker.onerror = function(ev) {
-      workerRef.current = null;
+      releaseWorker(worker);
       state.setCleanupAutoRunning(false);
       state.setCleanupAutoError('Worker error: ' + (ev.message || 'unknown'));
     };
-
-    worker.postMessage({
-      type: 'autodetect',
-      pat: slimPat,
-      sW: sW,
-      sH: sH,
-      targetLab: tgtEntry.lab,
-      toleranceDe: toleranceDe(state.cleanupTolerance),
-      // Forward tunable constants so they can be overridden in future without
-      // editing the worker file.
-      interiorCardinalThreshold: AUTODETECT_INTERIOR_CARDINAL_THRESHOLD,
-      minForeignRatio: AUTODETECT_MIN_FOREIGN_RATIO,
-      minRunLength: AUTODETECT_MIN_RUN_LENGTH,
-    });
+    try {
+      worker.postMessage({
+        type: 'autodetect',
+        pat: slimPat,
+        sW: sW,
+        sH: sH,
+        targetLab: tgtEntry.lab,
+        toleranceDe: toleranceDe(state.cleanupTolerance),
+        // Forward tunable constants so they can be overridden in future without
+        // editing the worker file.
+        interiorCardinalThreshold: AUTODETECT_INTERIOR_CARDINAL_THRESHOLD,
+        minForeignRatio: AUTODETECT_MIN_FOREIGN_RATIO,
+        minRunLength: AUTODETECT_MIN_RUN_LENGTH,
+      });
+    } catch (postErr) {
+      releaseWorker(worker);
+      state.setCleanupAutoRunning(false);
+      state.setCleanupAutoError('Could not run cleanup worker: ' + (postErr && postErr.message || String(postErr)));
+    }
   }, [state]);
 
   // Re-run auto-detect when tolerance changes while auto sub-tool is active
@@ -5864,10 +5879,11 @@ window.useCleanupMode = function useCleanupMode(state, history) {
   useEffect(function() {
     if (state.activeTool !== 'cleanup') return;
     if (state.cleanupSelTool !== 'auto') return;
-    if (!state.cleanupPendingMask) return; // no previous result yet
+    if (!state.cleanupPendingMask && !state.cleanupAutoRunning) return;
     if (state.cleanupAutoRunning) return;
+    if (lastAutoToleranceRef.current === state.cleanupTolerance) return;
     runAutoDetect();
-  }, [state.cleanupTolerance]);
+  }, [state.cleanupTolerance, state.cleanupAutoRunning, state.cleanupPendingMask, state.cleanupSelTool, state.activeTool]);
 
   // Auto-trigger when the user switches to the Auto sub-tool, or enters
   // cleanup mode while Auto is already the active sub-tool.
@@ -6016,9 +6032,10 @@ window.useCleanupMode = function useCleanupMode(state, history) {
     // visible as "unused" chips in the UI.
     var built = state.buildPaletteWithScratch(np);
     var existingPal = state.pal || [];
+    var changedIds = new Set(changes.map(function(change) { return change.old && change.old.id; }));
     var inResult = new Set(built.pal.map(function(p) { return p.id; }));
     var zeroed = existingPal
-      .filter(function(p) { return !inResult.has(p.id); })
+      .filter(function(p) { return changedIds.has(p.id) && !inResult.has(p.id); })
       .map(function(p) { return Object.assign({}, p, { count: 0 }); });
     if (zeroed.length) {
       var cmap2 = Object.assign({}, built.cmap);
@@ -9118,7 +9135,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         h("span", {style:{fontSize:11}},
           cv.cleanupTargetColorId ? "DMC " + cv.cleanupTargetColorId : "None"
         ),
-        h("span", {"aria-hidden":"true", style:{fontSize:9,opacity:0.6,marginLeft:1}}, "\u25BE")
+        h("span", {"aria-hidden":"true", style:{display:"inline-flex",opacity:0.6,marginLeft:1}}, window.Icons && window.Icons.chevronDown ? window.Icons.chevronDown() : null)
       ),
       openDrop === 'cleanup-target' && h("div", {
         role: "listbox",
@@ -9199,7 +9216,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           onClick:function(){ cv.setCleanupBrushSize(Math.max(1, (cv.cleanupBrushSize||1)-1)); },
           "aria-label":"Decrease brush size",
           disabled:(cv.cleanupBrushSize||1) <= 1
-        }, "\u2212"),
+        }, window.Icons && window.Icons.minus ? window.Icons.minus() : null),
         h("span", {style:{fontSize:11,minWidth:16,textAlign:"center",color:"var(--text-secondary)"}}, cv.cleanupBrushSize||1),
         h("button", {
           className:"tb-btn", style:{padding:"1px 7px",fontSize:12},
@@ -9406,7 +9423,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             if (cv.enterCleanup) cv.enterCleanup();
           }
         },
-        title:"Cleanup Mode — remove lineart pixels averaged into stitch colours (K)",
+        title:"Cleanup Mode — remove lineart pixels averaged into stitch colours",
         "aria-label":"Cleanup mode",
         "aria-pressed": cv.activeTool === "cleanup" ? "true" : "false"
       }, window.Icons && window.Icons.cleanup ? window.Icons.cleanup() : null, " Cleanup")
@@ -12237,14 +12254,25 @@ window.CreatorToastContainer = function CreatorToastContainer() {
       },
         h("span", { style: { fontSize:'var(--text-lg)', flexShrink: 0 } }, ts.icon()),
         h("span", { style: { flex: 1 } }, toast.message),
-        h("button", {
-          onClick: function() { app.dismissToast(toast.id); },
+        toast.action && h("button", {
+          onClick: function() {
+            try { toast.action.onClick(); } finally { app.dismissToast(toast.id); }
+          },
           style: {
             background: "none", border: "none", cursor: "pointer",
-            color: ts.color, opacity: 0.6, fontSize:'var(--text-lg)', padding: 0,
+            color: ts.color, fontWeight: 600, padding: "0 2px",
+            fontSize: "inherit", fontFamily: "inherit", flexShrink: 0
+          }
+        }, toast.action.label),
+        h("button", {
+          onClick: function() { app.dismissToast(toast.id); },
+          "aria-label": "Dismiss toast",
+          style: {
+            background: "none", border: "none", cursor: "pointer",
+            color: ts.color, opacity: 0.6, display:"inline-flex", alignItems:"center", justifyContent:"center", padding: 0,
             lineHeight: 1, flexShrink: 0
           }
-        }, "\xD7")
+        }, Icons.x())
       );
     })
   );

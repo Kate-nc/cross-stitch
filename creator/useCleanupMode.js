@@ -58,6 +58,7 @@ window.useCleanupMode = function useCleanupMode(state, history) {
 
   // Reference to the active cleanup Web Worker instance.
   var workerRef = useRef(null);
+  var lastAutoToleranceRef = useRef(null);
 
   // ── Derived: tolerance in ΔE ──────────────────────────────────────────────
   function toleranceDe(sliderVal) {
@@ -220,6 +221,7 @@ window.useCleanupMode = function useCleanupMode(state, history) {
     if (workerRef.current) { workerRef.current.terminate(); workerRef.current = null; }
     state.setCleanupAutoRunning(true);
     state.setCleanupAutoError(null);
+    lastAutoToleranceRef.current = state.cleanupTolerance;
 
     var worker;
     try {
@@ -230,6 +232,11 @@ window.useCleanupMode = function useCleanupMode(state, history) {
       return;
     }
     workerRef.current = worker;
+
+    function releaseWorker(doneWorker) {
+      if (doneWorker && typeof doneWorker.terminate === 'function') doneWorker.terminate();
+      if (workerRef.current === doneWorker) workerRef.current = null;
+    }
 
     // Serialise only the data the worker needs — avoid transferring the full
     // React element objects. We send {id, lab} per cell.
@@ -244,37 +251,42 @@ window.useCleanupMode = function useCleanupMode(state, history) {
     worker.onmessage = function(e) {
       var msg = e.data;
       if (msg.type === 'result') {
-        workerRef.current = null;
+        releaseWorker(worker);
         state.setCleanupAutoRunning(false);
         // Worker sends a plain Array of 0/1; convert to Uint8Array
         var arr = new Uint8Array(msg.selected.length);
         for (var j = 0; j < msg.selected.length; j++) arr[j] = msg.selected[j];
         state.setCleanupPendingMask(arr);
       } else if (msg.type === 'error') {
-        workerRef.current = null;
+        releaseWorker(worker);
         state.setCleanupAutoRunning(false);
         state.setCleanupAutoError(msg.message || 'Auto-detect failed');
       }
     };
     worker.onerror = function(ev) {
-      workerRef.current = null;
+      releaseWorker(worker);
       state.setCleanupAutoRunning(false);
       state.setCleanupAutoError('Worker error: ' + (ev.message || 'unknown'));
     };
-
-    worker.postMessage({
-      type: 'autodetect',
-      pat: slimPat,
-      sW: sW,
-      sH: sH,
-      targetLab: tgtEntry.lab,
-      toleranceDe: toleranceDe(state.cleanupTolerance),
-      // Forward tunable constants so they can be overridden in future without
-      // editing the worker file.
-      interiorCardinalThreshold: AUTODETECT_INTERIOR_CARDINAL_THRESHOLD,
-      minForeignRatio: AUTODETECT_MIN_FOREIGN_RATIO,
-      minRunLength: AUTODETECT_MIN_RUN_LENGTH,
-    });
+    try {
+      worker.postMessage({
+        type: 'autodetect',
+        pat: slimPat,
+        sW: sW,
+        sH: sH,
+        targetLab: tgtEntry.lab,
+        toleranceDe: toleranceDe(state.cleanupTolerance),
+        // Forward tunable constants so they can be overridden in future without
+        // editing the worker file.
+        interiorCardinalThreshold: AUTODETECT_INTERIOR_CARDINAL_THRESHOLD,
+        minForeignRatio: AUTODETECT_MIN_FOREIGN_RATIO,
+        minRunLength: AUTODETECT_MIN_RUN_LENGTH,
+      });
+    } catch (postErr) {
+      releaseWorker(worker);
+      state.setCleanupAutoRunning(false);
+      state.setCleanupAutoError('Could not run cleanup worker: ' + (postErr && postErr.message || String(postErr)));
+    }
   }, [state]);
 
   // Re-run auto-detect when tolerance changes while auto sub-tool is active
@@ -282,10 +294,11 @@ window.useCleanupMode = function useCleanupMode(state, history) {
   useEffect(function() {
     if (state.activeTool !== 'cleanup') return;
     if (state.cleanupSelTool !== 'auto') return;
-    if (!state.cleanupPendingMask) return; // no previous result yet
+    if (!state.cleanupPendingMask && !state.cleanupAutoRunning) return;
     if (state.cleanupAutoRunning) return;
+    if (lastAutoToleranceRef.current === state.cleanupTolerance) return;
     runAutoDetect();
-  }, [state.cleanupTolerance]);
+  }, [state.cleanupTolerance, state.cleanupAutoRunning, state.cleanupPendingMask, state.cleanupSelTool, state.activeTool]);
 
   // Auto-trigger when the user switches to the Auto sub-tool, or enters
   // cleanup mode while Auto is already the active sub-tool.
@@ -434,9 +447,10 @@ window.useCleanupMode = function useCleanupMode(state, history) {
     // visible as "unused" chips in the UI.
     var built = state.buildPaletteWithScratch(np);
     var existingPal = state.pal || [];
+    var changedIds = new Set(changes.map(function(change) { return change.old && change.old.id; }));
     var inResult = new Set(built.pal.map(function(p) { return p.id; }));
     var zeroed = existingPal
-      .filter(function(p) { return !inResult.has(p.id); })
+      .filter(function(p) { return changedIds.has(p.id) && !inResult.has(p.id); })
       .map(function(p) { return Object.assign({}, p, { count: 0 }); });
     if (zeroed.length) {
       var cmap2 = Object.assign({}, built.cmap);

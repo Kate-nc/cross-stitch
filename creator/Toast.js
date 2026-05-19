@@ -38,14 +38,25 @@ window.CreatorToastContainer = function CreatorToastContainer() {
       },
         h("span", { style: { fontSize:'var(--text-lg)', flexShrink: 0 } }, ts.icon()),
         h("span", { style: { flex: 1 } }, toast.message),
-        h("button", {
-          onClick: function() { app.dismissToast(toast.id); },
+        toast.action && h("button", {
+          onClick: function() {
+            try { toast.action.onClick(); } finally { app.dismissToast(toast.id); }
+          },
           style: {
             background: "none", border: "none", cursor: "pointer",
-            color: ts.color, opacity: 0.6, fontSize:'var(--text-lg)', padding: 0,
+            color: ts.color, fontWeight: 600, padding: "0 2px",
+            fontSize: "inherit", fontFamily: "inherit", flexShrink: 0
+          }
+        }, toast.action.label),
+        h("button", {
+          onClick: function() { app.dismissToast(toast.id); },
+          "aria-label": "Dismiss toast",
+          style: {
+            background: "none", border: "none", cursor: "pointer",
+            color: ts.color, opacity: 0.6, display:"inline-flex", alignItems:"center", justifyContent:"center", padding: 0,
             lineHeight: 1, flexShrink: 0
           }
-        }, "\xD7")
+        }, Icons.x())
       );
     })
   );
