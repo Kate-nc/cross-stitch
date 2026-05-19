@@ -205,7 +205,7 @@ function TrackerPreviewModal({pat,cmap,sW,sH,fabricCt,level,onLevelChange,onClos
     var canvas=displayRef.current;
     canvas.width=sW*displayCs;canvas.height=sH*displayCs;
     var ctx2d=canvas.getContext("2d");
-    ctx2d.imageSmoothingEnabled=true;ctx2d.imageSmoothingQuality="high";
+    ctx2d.imageSmoothingEnabled=true;if('imageSmoothingQuality' in ctx2d){ctx2d.imageSmoothingQuality="high";}
     ctx2d.drawImage(off,0,0,sW*displayCs,sH*displayCs);
   },[offscreenVersion,sW,sH]);
 

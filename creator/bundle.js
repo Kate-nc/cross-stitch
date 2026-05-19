@@ -2660,7 +2660,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
     var ctx2d = canvas.getContext("2d");
     // Use bilinear smoothing for the textured render — looks better than pixelated when downscaling
     ctx2d.imageSmoothingEnabled = true;
-    ctx2d.imageSmoothingQuality = "high";
+    if ('imageSmoothingQuality' in ctx2d) { ctx2d.imageSmoothingQuality = "high"; }
 
     ctx2d.drawImage(offscreenRef.current, 0, 0, sW * cs, sH * cs);
 
