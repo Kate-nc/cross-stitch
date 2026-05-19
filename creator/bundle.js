@@ -10655,9 +10655,10 @@ window.CreatorSidebar = function CreatorSidebar() {
             background: STASH_DOT[stashStatus], boxShadow:"0 0 0 1px #fff"
           }
         }),
-        // Colour swap button — visible on hover in edit mode
+        // Colour swap button — visible on hover (mouse) or always (touch)
         app.appMode === "edit" && h("button", {
           key: "swap-" + p.id,
+          className: "pal-chip-swap",
           title: "Replace DMC " + p.id + " with another colour",
           "aria-label": "Replace " + (p.name || p.id) + " with another colour",
           onClick: function(e) {
