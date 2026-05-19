@@ -1286,7 +1286,9 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      // Defer revocation to give Safari time to start the download before the
+      // Blob URL is invalidated.
+      setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
     },'image/png');
   }
 
