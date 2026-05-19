@@ -463,11 +463,16 @@
     }
 
     function navigateAfterPaint(href) {
-      // Two rAFs guarantee the spinner has actually painted before the
-      // browser commits the navigation, so the visual hand-off feels
-      // continuous instead of a blank flash.
+      // One rAF lets the spinner paint, then queueMicrotask (or setTimeout
+      // fallback) defers the navigation until after the paint commits.
+      // Double-rAF timing differs between Safari and Chromium; this approach
+      // is more consistent across engines.
       requestAnimationFrame(function () {
-        requestAnimationFrame(function () { window.location.href = href; });
+        if (typeof queueMicrotask === 'function') {
+          queueMicrotask(function () { window.location.href = href; });
+        } else {
+          setTimeout(function () { window.location.href = href; }, 0);
+        }
       });
     }
 
