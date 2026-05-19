@@ -496,6 +496,18 @@
         return;
       }
       var reader = new FileReader();
+      // Guard against very large images (> 4 MB raw) that would overflow the
+      // ~5 MB sessionStorage quota once base64-encoded. Prompt the user to
+      // resize before uploading rather than failing silently mid-navigation.
+      var MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+      if (file.size > MAX_IMAGE_BYTES) {
+        if (window.Toast && window.Toast.show) {
+          window.Toast.show({ message: 'That image is too large to load from here (over 4 MB). Please resize it first or load it directly from the pattern creator.', type: 'error', duration: 10000 });
+        } else {
+          alert('That image is too large to load from here (over 4 MB). Please resize it first or load it directly from the pattern creator.');
+        }
+        return;
+      }
       reader.onload = function (ev) {
         var dataUrl = ev.target.result;
         try {
@@ -510,12 +522,20 @@
           // immediately instead of bouncing through create.html with no
           // image, which would just round-trip back to here.
           setPending(false);
-          alert('That image is too large to hand off (over the browser session limit). Try a smaller file (under ~5 MB).');
+          if (window.Toast && window.Toast.show) {
+            window.Toast.show({ message: 'That image is too large to hand off (over the browser session limit). Please use a smaller file.', type: 'error', duration: 10000 });
+          } else {
+            alert('That image is too large to hand off (over the browser session limit). Try a smaller file (under ~5 MB).');
+          }
         }
       };
       reader.onerror = function () {
         setPending(false);
-        alert('Could not read the image file. Please try again or pick a different file.');
+        if (window.Toast && window.Toast.show) {
+          window.Toast.show({ message: 'Could not read the image file. Please try again or pick a different file.', type: 'error', duration: 8000 });
+        } else {
+          alert('Could not read the image file. Please try again or pick a different file.');
+        }
       };
       reader.readAsDataURL(file);
     }
