@@ -1810,37 +1810,48 @@ useEffect(()=>{
 // later write overwrites the earlier (net deduction = max, not sum). A full
 // fix needs atomic read-modify-write inside StashBridge; here we at least
 // warn the user when a second tab joins. Uses BroadcastChannel where
-// available (all evergreen browsers); silent no-op if not supported.
+// available (all evergreen browsers); falls back to localStorage storage
+// events for Safari <15.4 which lacks BroadcastChannel support.
 useEffect(()=>{
   if(!wastePrefs.enabled)return;
-  if(typeof BroadcastChannel==='undefined')return;
+  var useBroadcast=!(typeof BroadcastChannel==='undefined');
   var chan;
-  try{chan=new BroadcastChannel('cs-rt-tracker');}catch(_){return;}
   var myId=Math.random().toString(36).slice(2)+Date.now().toString(36);
   var warned=false;
-  function announce(){try{chan.postMessage({type:'rt-active',id:myId,t:Date.now()});}catch(_){}}
+  var LS_KEY='cs-rt-tracker-hb';
+  function showWarning(){
+    if(!warned&&window.Toast){
+      warned=true;
+      window.Toast.show({
+        message:'Live tracking is active in another tab — stash deductions may collide. Disable Live in one tab to avoid lost edits.',
+        type:'warning',duration:8000
+      });
+    }
+  }
+  function announce(){
+    if(useBroadcast){try{chan.postMessage({type:'rt-active',id:myId,t:Date.now()});}catch(_){}}
+    else{try{localStorage.setItem(LS_KEY,JSON.stringify({id:myId,t:Date.now()}));}catch(_){}}
+  }
   function onMsg(ev){
     var msg=ev&&ev.data;
     if(!msg||msg.id===myId)return;
-    if(msg.type==='rt-active'){
-      // Another tab is also live. Re-announce so they know about us too.
-      announce();
-      if(!warned&&window.Toast){
-        warned=true;
-        window.Toast.show({
-          message:'Live tracking is active in another tab — stash deductions may collide. Disable Live in one tab to avoid lost edits.',
-          type:'warning',duration:8000
-        });
-      }
-    }
+    if(msg.type==='rt-active'){announce();showWarning();}
   }
-  chan.addEventListener('message',onMsg);
-  // Announce on mount and every 30s.
+  function onStorage(ev){
+    if(ev.key!==LS_KEY)return;
+    try{var msg=JSON.parse(ev.newValue);if(!msg||msg.id===myId)return;announce();showWarning();}catch(_){}
+  }
+  if(useBroadcast){
+    try{chan=new BroadcastChannel('cs-rt-tracker');}catch(_){useBroadcast=false;}
+  }
+  if(useBroadcast){chan.addEventListener('message',onMsg);}
+  else{window.addEventListener('storage',onStorage);}
   announce();
   var hb=setInterval(announce,30000);
   return function(){
     clearInterval(hb);
-    try{chan.removeEventListener('message',onMsg);chan.close();}catch(_){}
+    if(useBroadcast&&chan){try{chan.removeEventListener('message',onMsg);chan.close();}catch(_){}}
+    else{window.removeEventListener('storage',onStorage);try{localStorage.removeItem(LS_KEY);}catch(_){}}
   };
 },[wastePrefs.enabled]);
 
