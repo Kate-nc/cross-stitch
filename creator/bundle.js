@@ -4160,7 +4160,7 @@ window.useCreatorState = function useCreatorState() {
   var brushModeRef = useRef("paint");
   function setBrushMode(v) { brushModeRef.current = v; _brushM[1](v); }
   var _brushSz  = useState(1);       var brushSize = _brushSz[0], setBrushSize = _brushSz[1];
-  var _ovfOpen  = useState(false);   var overflowOpen = _ovfOpen[0], setOverflowOpen = _ovfOpen[1];
+  var _morePOpen= useState(false);   var morePanelOpen = _morePOpen[0], setMorePanelOpen = _morePOpen[1];
   var _panOpen  = useState(false);   var panelOpen = _panOpen[0], setPanelOpen = _panOpen[1];
   var _stripCol = useState({view:false,brush:false,bs:false});
   var stripCollapsed = _stripCol[0], setStripCollapsed = _stripCol[1];
@@ -4358,7 +4358,6 @@ window.useCreatorState = function useCreatorState() {
   var trackerFieldsRef = useRef({});
   var userActedRef = useRef(false);
   var stripRef   = useRef(null);
-  var overflowRef= useRef(null);
   var workerRef      = useRef(null); // null | Worker | 'unavailable'
   var applyResultRef = useRef(null); // updated each render, captures fresh state
   var genReqIdRef    = useRef(0);    // incremented per generation; stale results are discarded
@@ -5178,7 +5177,7 @@ window.useCreatorState = function useCreatorState() {
     redoHistory, setRedoHistory, EDIT_HISTORY_MAX,
     shortcutsHintDismissed, setShortcutsHintDismissed,
     brushMode, setBrushMode, brushModeRef, brushSize, setBrushSize,
-    overflowOpen, setOverflowOpen, panelOpen, setPanelOpen, stripCollapsed, setStripCollapsed,
+    morePanelOpen, setMorePanelOpen, panelOpen, setPanelOpen, stripCollapsed, setStripCollapsed,
     exportPage, setExportPage, pageMode, setPageMode,
     pdfDisplayMode, setPdfDisplayMode, pdfCellSize, setPdfCellSize,
     pdfSinglePage, setPdfSinglePage,
@@ -5224,7 +5223,7 @@ window.useCreatorState = function useCreatorState() {
     cleanupAutoRunning, setCleanupAutoRunning,
     cleanupAutoError, setCleanupAutoError,
     pcRef, fRef, scrollRef, expRef, loadRef,
-    prevSW, prevSH, projectIdRef, createdAtRef, trackerFieldsRef, userActedRef, stripRef, overflowRef,
+    prevSW, prevSH, projectIdRef, createdAtRef, trackerFieldsRef, userActedRef, stripRef,
     cleanupHandlersRef,
     G, EDIT_HISTORY_MAX,
     // Derived
@@ -7173,7 +7172,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       run: function () {
         if (state.namePromptOpen) { state.setNamePromptOpen(false); return; }
         if (state.modal) { state.setModal(null); return; }
-        if (state.overflowOpen) { state.setOverflowOpen(false); return; }
+        if (state.morePanelOpen) { state.setMorePanelOpen(false); return; }
         // Background-pick mode: ESC backs out without sampling.
         if (state.pickBg) { state.setPickBg(false); return; }
         if (state.lassoInProgress) { state.cancelLasso(); return; }
@@ -7330,7 +7329,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
     window.useShortcuts(entries, [
       state.isActive, state.activeTool, state.bsStart,
       state.editHistory, state.redoHistory, state.pat, state.pal,
-      state.namePromptOpen, state.modal, state.overflowOpen,
+      state.namePromptOpen, state.modal, state.morePanelOpen,
       state.selectedColorId, state.partialStitchTool, state.hiId,
       state.hasSelection, state.lassoInProgress, state.highlightMode,
       state.splitPaneEnabled, state.stitchType,
@@ -9050,7 +9049,6 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var h = React.createElement;
 
   // Local state
-  var _swe = React.useState(false); var swatchExpanded = _swe[0], setSwatchExpanded = _swe[1];
   // Click-to-toggle state for hover dropdowns (touch-friendly).
   var _od = React.useState(null); var openDrop = _od[0], setOpenDrop = _od[1];
   React.useEffect(function() {
@@ -9078,15 +9076,27 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     return function() { obs.disconnect(); if (frame) cancelAnimationFrame(frame); };
   }, []);
 
-  // Close overflow menu on outside click
+  // "More" panel state (secondary tools flyout / mobile bottom sheet)
+  var morePanelOpen = !!app.morePanelOpen;
+  var setMorePanelOpen = app.setMorePanelOpen;
+  var morePanelRef = React.useRef(null);
+  var moreBtnRef = React.useRef(null);
+  var swatchRowRef = React.useRef(null);
   React.useEffect(function() {
-    if (!app.overflowOpen) return;
-    function close(e) {
-      if (app.overflowRef.current && !app.overflowRef.current.contains(e.target)) app.setOverflowOpen(false);
+    if (!morePanelOpen) return;
+    function closeMp(e) {
+      if (morePanelRef.current && morePanelRef.current.contains(e.target)) return;
+      if (moreBtnRef.current && moreBtnRef.current.contains(e.target)) return;
+      setMorePanelOpen(false);
     }
-    document.addEventListener("pointerdown", close);
-    return function() { document.removeEventListener("pointerdown", close); };
-  }, [app.overflowOpen]);
+    document.addEventListener('pointerdown', closeMp);
+    return function() {
+      document.removeEventListener('pointerdown', closeMp);
+    };
+  }, [morePanelOpen]);
+
+  // Close More panel when active tool changes via keyboard shortcut
+  React.useEffect(function() { setMorePanelOpen(false); }, [cv.activeTool]);
 
   // (The Preview chart-mode dropdown that used to live here has moved into
   // the Sidebar Preview tab — see creator/Sidebar.js previewPanel.)
@@ -9314,8 +9324,6 @@ window.CreatorToolStrip = function CreatorToolStrip() {
 
   // ─── Edit Mode: full editing toolbar (current behaviour) ──────────────────────
 
-  var sc = app.stripCollapsed || {};
-
   // Palette data sorted by usage — needed early for auto-select
   var palData = (ctx.displayPal || ctx.pal || []).slice().sort(function(a,b){return (b.count||0)-(a.count||0);});
   var svgX = h("svg", {width:11,height:11,viewBox:"0 0 12 12"},
@@ -9360,20 +9368,16 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("line", {x1:"8.3",y1:"1.5",x2:"9.7",y2:"1.5",stroke:"currentColor",strokeWidth:"1.1",strokeLinecap:"round"})
   );
 
-  // Brush group — always shown (first choice)
+  // Brush group — primary tools only; secondary tools (Hand/Pick/Wand/Lasso/Replace/Cleanup) live in More panel
   var brushGrp = [
-    h("div", {
-      key:"brush-grp",
-      className:"tb-grp"+(sc.brush?" tb-hidden":"")
-    },
+    h("div", {key:"brush-grp", className:"tb-grp"},
       h("button", {
         className:"tb-btn"+(cv.brushMode==="paint" && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase"?" tb-btn--on":""),
         onClick:function(){
           if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
           cv.setBrushAndActivate("paint");
         },
-        title:"Paint (P)",
-        "aria-label":"Paint tool"
+        title:"Paint (P)", "aria-label":"Paint tool"
       }, "Paint"),
       h("button", {
         className:"tb-btn"+(cv.brushMode==="fill" && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase"?" tb-btn--on":""),
@@ -9381,52 +9385,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
           cv.setBrushAndActivate("fill");
         },
-        title:"Fill (F)",
-        "aria-label":"Fill tool"
+        title:"Fill (F)", "aria-label":"Fill tool"
       }, "Fill"),
       h("button", {
         className:"tb-btn"+(cv.stitchType==="erase"?" tb-btn--red":""),
         onClick:function(){cv.selectStitchType("erase");}, title:"Erase (5)", "aria-label":"Erase tool"
-      }, svgErase, "Erase"),
-      h("button", {
-        className:"tb-btn"+(cv.activeTool==="eyedropper"?" tb-btn--on":""),
-        onClick:function(){cv.setActiveTool("eyedropper"); cv.setBsStart(null); ctx.setPartialStitchTool(null);},
-        title:"Eyedropper (I)",
-        "aria-label":"Eyedropper tool"
-      }, "Pick"),
-      h("button", {
-        className:"tb-btn"+(cv.activeTool==="hand"?" tb-btn--on":""),
-        onClick:function(){
-          if (cv.activeTool === "hand") cv.setActiveTool(null);
-          else { cv.setActiveTool("hand"); cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); }
-        },
-        title:"Hand — pan / drag to scroll (H)",
-        "aria-label":"Hand pan tool",
-        "aria-pressed": cv.activeTool === "hand" ? "true" : "false"
-      }, window.Icons.hand(), " Hand"),
-      h("button", {
-        className:"tb-btn"+(cv.activeTool==="colourReplace"?" tb-btn--on":""),
-        onClick:function(){
-          if (cv.activeTool === "colourReplace") cv.setActiveTool(null);
-          else { cv.setActiveTool("colourReplace"); cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); }
-        },
-        title:"Replace colour — click a stitch to replace all instances of that colour",
-        "aria-label":"Replace colour tool",
-        "aria-pressed": cv.activeTool === "colourReplace" ? "true" : "false"
-      }, window.Icons.colourSwap(), " Replace"),
-      h("button", {
-        className:"tb-btn"+(cv.activeTool==="cleanup"?" tb-btn--on":""),
-        onClick:function(){
-          if (cv.activeTool === "cleanup") { if (cv.exitCleanup) cv.exitCleanup(); }
-          else {
-            cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso();
-            if (cv.enterCleanup) cv.enterCleanup();
-          }
-        },
-        title:"Cleanup Mode — remove lineart pixels averaged into stitch colours",
-        "aria-label":"Cleanup mode",
-        "aria-pressed": cv.activeTool === "cleanup" ? "true" : "false"
-      }, window.Icons && window.Icons.cleanup ? window.Icons.cleanup() : null, " Cleanup")
+      }, svgErase, "Erase")
     )
   ];
 
@@ -9436,101 +9400,61 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   // (Stitch type cycles with the T shortcut from the keyboard; sub-modes
   // for the lasso are picked once in the Tools tab and remembered.)
 
-  // Colour swatch strip — second toolbar row, sorted by usage, with expand
-  var SWATCH_INIT = 20;
-  var swatchesShown = swatchExpanded ? palData : palData.slice(0, SWATCH_INIT);
+  // Colour swatch strip — second toolbar row, sorted by usage, all swatches scrollable
   var showSwatchRow = ((cv.brushMode==="paint" || cv.brushMode==="fill") && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase" || cv.activeTool==="eyedropper") && palData.length > 0;
   var swatchRow = showSwatchRow ? h("div", {className:"swatch-strip-row"},
     h("span", {style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",marginRight:'var(--s-1)',flexShrink:0,letterSpacing:0.5}}, "Colour"),
     cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId] ? h("span", {
-      style:{display:"inline-flex",alignItems:"center",gap:'var(--s-1)',fontSize:'var(--text-xs)',padding:"1px 7px 1px 3px",borderRadius:'var(--radius-lg)',background:"var(--accent-light)",border:"1px solid var(--accent-border)",marginRight:6,flexShrink:0,maxWidth:"60vw",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},
+      style:{display:"inline-flex",alignItems:"center",gap:'var(--s-1)',fontSize:'var(--text-xs)',padding:"1px 7px 1px 3px",borderRadius:'var(--radius-lg)',background:"var(--accent-light)",border:"1px solid var(--accent-border)",marginRight:6,flexShrink:0,maxWidth:"40vw",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},
       title: ctx.cmap[cv.selectedColorId].name || cv.selectedColorId
     },
       h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",border:"1px solid var(--border)",display:"inline-block",flexShrink:0}}),
       h("span", {style:{fontWeight:600,color:"var(--accent)",flexShrink:0}}, cv.selectedColorId),
       ctx.cmap[cv.selectedColorId].name ? h("span", {style:{color:"var(--accent-hover)",fontWeight:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, "\u00B7 " + ctx.cmap[cv.selectedColorId].name) : null
     ) : h("span", {style:{fontSize:10,color:"var(--text-tertiary)",marginRight:6,flexShrink:0}}, "none selected"),
-    swatchesShown.map(function(p) {
-      var isSel = cv.selectedColorId === p.id;
-      return h("button", {
-        key: p.id,
-        onClick: function() { cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id); },
-        title: "DMC " + p.id + (p.name ? " \xB7 " + p.name : "") + (p.count ? " \xB7 " + p.count + " st" : ""),
-        "aria-label": "Select DMC " + p.id + (p.name ? " " + p.name : ""),
-        "aria-pressed": isSel,
-        style:{
-          width:20, height:20, flexShrink:0,
-          borderRadius:4, cursor:"pointer", padding:0,
-          background:"rgb("+p.rgb+")",
-          border: isSel ? "2px solid var(--accent)" : "1.5px solid rgba(0,0,0,0.15)",
-          boxShadow: isSel ? "0 0 0 2px #fff inset" : "none",
-          outline:"none"
-        }
-      });
-    }),
-    palData.length > SWATCH_INIT && h("button", {
-      key:"swatch-expand",
-      onClick:function(){setSwatchExpanded(function(e){return !e;});},
-      title:swatchExpanded?"Collapse":"Show all "+palData.length+" colours",
-      style:{
-        flexShrink:0, marginLeft:'var(--s-1)', fontSize:'var(--text-xs)', padding:"0 8px",
-        height:20, borderRadius:'var(--radius-lg)', border:"1px solid var(--border)",
-        background:"var(--surface)", cursor:"pointer",
-        color:"var(--text-secondary)", fontWeight:500, lineHeight:1, fontFamily:"inherit"
-      }
-    },
-      swatchExpanded
-        ? (window.Icons && window.Icons.chevronUp ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.chevronUp()) : "\u2212")
-        : h("span", {style:{display:"inline-flex",alignItems:"center",gap:3}},
-            "+" + (palData.length - SWATCH_INIT),
-            window.Icons && window.Icons.chevronDown ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.chevronDown()) : null
-          )
-    )
+    palData.length > 5 && h("button", {
+      className:"tb-swatch-scroll-btn",
+      onClick:function(){ swatchRowRef.current && swatchRowRef.current.scrollBy({left:-120,behavior:"smooth"}); },
+      "aria-label":"Scroll swatches left", title:"Scroll left"
+    }, window.Icons && window.Icons.chevronLeft ? window.Icons.chevronLeft() : null),
+    h("div", {ref:swatchRowRef, className:"swatch-scroll-inner"},
+      palData.map(function(p) {
+        var isSel = cv.selectedColorId === p.id;
+        return h("button", {
+          key: p.id,
+          onClick: function() { cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id); },
+          title: "DMC " + p.id + (p.name ? " \xB7 " + p.name : "") + (p.count ? " \xB7 " + p.count + " st" : ""),
+          "aria-label": "Select DMC " + p.id + (p.name ? " " + p.name : ""),
+          "aria-pressed": isSel,
+          style:{
+            width:40, height:40, flexShrink:0,
+            borderRadius:6, cursor:"pointer", padding:0,
+            background:"rgb("+p.rgb+")",
+            border: isSel ? "2.5px solid var(--accent)" : "1.5px solid rgba(0,0,0,0.15)",
+            boxShadow: isSel ? "0 0 0 2px #fff inset" : "none",
+            outline:"none"
+          }
+        });
+      })
+    ),
+    palData.length > 5 && h("button", {
+      className:"tb-swatch-scroll-btn",
+      onClick:function(){ swatchRowRef.current && swatchRowRef.current.scrollBy({left:120,behavior:"smooth"}); },
+      "aria-label":"Scroll swatches right", title:"Scroll right"
+    }, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null)
   ) : null;
 
-  // Selection: simple Wand + Lasso primary buttons. Sub-modes
-  // (Freehand / Polygon / Magnetic) and the Clear-selection control now
-  // live in the Sidebar Tools tab.
-  var selectGrp = [
-    h("div", {key:"sdiv-select", className:"tb-sdiv"}),
-    h("div", {key:"select-grp", className:"tb-grp"},
-      h("button", {
-        className:"tb-btn"+(cv.activeTool==="magicWand"?" tb-btn--on":""),
-        onClick:function(){
-          if (cv.activeTool==="magicWand") cv.setActiveTool(null);
-          else { cv.setActiveTool("magicWand"); ctx.setPartialStitchTool(null); cv.setBsStart(null); if (cv.cancelLasso) cv.cancelLasso(); }
-        },
-        title:"Magic Wand (W)",
-        "aria-label":"Magic wand",
-        "aria-pressed": cv.activeTool==="magicWand" ? "true" : "false"
-      }, svgWand, " Wand"),
-      h("button", {
-        className:"tb-btn"+(cv.activeTool==="lasso"?" tb-btn--on":""),
-        onClick:function(){
-          if (cv.activeTool==="lasso") { if (cv.cancelLasso) cv.cancelLasso(); cv.setActiveTool(null); }
-          else {
-            cv.setActiveTool("lasso");
-            cv.setLassoMode(cv.lassoMode || "freehand");
-            ctx.setPartialStitchTool(null); cv.setBsStart(null);
-          }
-        },
-        title:"Lasso \u2014 mode in Tools tab",
-        "aria-label":"Lasso",
-        "aria-pressed": cv.activeTool==="lasso" ? "true" : "false"
-      },
-        cv.lassoMode === "polygon" ? svgPolygon :
-        cv.lassoMode === "magnetic" ? svgMagnetic : svgFreehand,
-        " Lasso"
-      ),
-      (cv.hasSelection || cv.lassoInProgress) && h("button", {
-        className:"tb-btn",
-        onClick:function(){ if(cv.cancelLasso) cv.cancelLasso(); if(cv.clearSelection) cv.clearSelection(); },
-        title:"Clear selection (Esc)",
-        "aria-label":"Clear selection",
-        style:{fontSize:10,padding:"2px 6px",color:"var(--text-secondary)"}
-      }, (cv.selectionCount||0).toLocaleString()+" sel ", window.Icons.x())
-    )
-  ];
+  // Clear selection — shown in pill when a selection is active (Wand/Lasso are in More panel)
+  var clearSelBtn = (cv.hasSelection || cv.lassoInProgress) ? [
+    h("div", {key:"sdiv-clrsel", className:"tb-sdiv"}),
+    h("button", {
+      key:"clr-sel",
+      className:"tb-btn",
+      onClick:function(){ if(cv.cancelLasso) cv.cancelLasso(); if(cv.clearSelection) cv.clearSelection(); },
+      title:"Clear selection (Esc)", "aria-label":"Clear selection",
+      style:{fontSize:10,padding:"2px 6px",color:"var(--text-secondary)"}
+    }, (cv.selectionCount||0).toLocaleString()+" sel ", window.Icons.x())
+  ] : null;
 
   // Active tool indicator badge — tooltip surfaces the selected colour
   // since the toolbar no longer carries a colour chip.
@@ -9610,78 +9534,150 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     }, "\u21AA")
   ];
 
-  // Overflow menu items
-  var overlayItems = (gen.img && gen.img.src) ? [
-    h("button", {
-      key:"overlay-btn",
-      className:"tb-ovf-item"+(cv.showOverlay?" tb-ovf-item--on":""),
-      onClick:function(){cv.setShowOverlay(function(v){return !v;});},
-      style:{display:"inline-flex",alignItems:"center",gap:6}
-    },
-      h("span", {style:{width:14,height:14,borderRadius:3,flexShrink:0,display:"inline-block",
-        border:"2px solid "+(cv.showOverlay?"var(--accent)":"var(--border)")}}),
-      " Overlay",
-      cv.showOverlay && window.Icons && window.Icons.check ? h("span", {"aria-hidden":"true", style:{display:"inline-flex",marginLeft:4}}, window.Icons.check()) : null
+  // "More" panel — secondary tools + settings flyout (dropdown on desktop, bottom sheet on touch)
+  var morePanelHasActiveTool = cv.activeTool === "eyedropper" || cv.activeTool === "hand" ||
+    cv.activeTool === "magicWand" || cv.activeTool === "lasso" ||
+    cv.activeTool === "colourReplace" || cv.activeTool === "cleanup";
+
+  var stitchTypeOptions = [
+    { id:"cross", label:"Cross" },
+    { id:"quarter", label:"\u00BC St" },
+    { id:"half-fwd", label:"Half /" },
+    { id:"half-bck", label:"Half \\" },
+    { id:"three-quarter", label:"\u00BE St" },
+    { id:"backstitch", label:"Backstitch" }
+  ];
+
+  var morePanelContent = morePanelOpen ? h("div", {
+    ref:morePanelRef,
+    className:"tb-more-panel",
+    role:"dialog",
+    "aria-label":"More tools"
+  },
+    // ── Tools ──
+    h("div", {className:"tb-more-panel__section"},
+      h("span", {className:"tb-ovf-lbl"}, "Tools"),
+      h("div", {className:"tb-grp", style:{flexWrap:"wrap",gap:2}},
+        h("button", {
+          className:"tb-btn"+(cv.activeTool==="hand"?" tb-btn--on":""),
+          onClick:function(){
+            if (cv.activeTool==="hand") cv.setActiveTool(null);
+            else { cv.setActiveTool("hand"); cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); }
+            setMorePanelOpen(false);
+          },
+          title:"Hand — pan / drag to scroll (H)", "aria-label":"Hand pan tool",
+          "aria-pressed": cv.activeTool==="hand"?"true":"false"
+        }, window.Icons.hand(), " Hand"),
+        h("button", {
+          className:"tb-btn"+(cv.activeTool==="eyedropper"?" tb-btn--on":""),
+          onClick:function(){
+            cv.setActiveTool("eyedropper"); cv.setBsStart(null); ctx.setPartialStitchTool(null);
+            setMorePanelOpen(false);
+          },
+          title:"Eyedropper (I)", "aria-label":"Eyedropper tool"
+        }, "Pick"),
+        h("button", {
+          className:"tb-btn"+(cv.activeTool==="magicWand"?" tb-btn--on":""),
+          onClick:function(){
+            if (cv.activeTool==="magicWand") cv.setActiveTool(null);
+            else { cv.setActiveTool("magicWand"); ctx.setPartialStitchTool(null); cv.setBsStart(null); if (cv.cancelLasso) cv.cancelLasso(); }
+            setMorePanelOpen(false);
+          },
+          title:"Magic Wand (W)", "aria-label":"Magic wand",
+          "aria-pressed": cv.activeTool==="magicWand"?"true":"false"
+        }, svgWand, " Wand"),
+        h("button", {
+          className:"tb-btn"+(cv.activeTool==="lasso"?" tb-btn--on":""),
+          onClick:function(){
+            if (cv.activeTool==="lasso") { if (cv.cancelLasso) cv.cancelLasso(); cv.setActiveTool(null); }
+            else { cv.setActiveTool("lasso"); cv.setLassoMode(cv.lassoMode||"freehand"); ctx.setPartialStitchTool(null); cv.setBsStart(null); }
+            setMorePanelOpen(false);
+          },
+          title:"Lasso \u2014 mode in Tools tab", "aria-label":"Lasso",
+          "aria-pressed": cv.activeTool==="lasso"?"true":"false"
+        }, cv.lassoMode==="polygon"?svgPolygon:cv.lassoMode==="magnetic"?svgMagnetic:svgFreehand, " Lasso"),
+        h("button", {
+          className:"tb-btn"+(cv.activeTool==="colourReplace"?" tb-btn--on":""),
+          onClick:function(){
+            if (cv.activeTool==="colourReplace") cv.setActiveTool(null);
+            else { cv.setActiveTool("colourReplace"); cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); }
+            setMorePanelOpen(false);
+          },
+          title:"Replace colour \u2014 click a stitch to replace all instances", "aria-label":"Replace colour tool",
+          "aria-pressed": cv.activeTool==="colourReplace"?"true":"false"
+        }, window.Icons.colourSwap(), " Replace")
+      )
     ),
-    cv.showOverlay && h("div", {key:"overlay-slider", style:{padding:"4px 14px 6px"}},
-      h("input", {
-        type:"range",min:0.1,max:0.8,step:0.05,value:cv.overlayOpacity,
-        onChange:function(e){cv.setOverlayOpacity(Number(e.target.value));},
-        style:{width:"100%"}
+    // ── Cleanup ──
+    h("div", {className:"tb-more-panel__section tb-more-panel__section--cleanup"},
+      h("button", {
+        className:"tb-btn"+(cv.activeTool==="cleanup"?" tb-btn--on":""),
+        onClick:function(){
+          if (cv.activeTool==="cleanup") { if (cv.exitCleanup) cv.exitCleanup(); }
+          else { cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); if (cv.enterCleanup) cv.enterCleanup(); }
+          setMorePanelOpen(false);
+        },
+        title:"Cleanup Mode \u2014 remove stray lineart pixels", "aria-label":"Cleanup mode",
+        "aria-pressed": cv.activeTool==="cleanup"?"true":"false",
+        style:{width:"100%",justifyContent:"flex-start"}
+      }, window.Icons&&window.Icons.cleanup?window.Icons.cleanup():null, " Cleanup mode")
+    ),
+    // ── Stitch type ──
+    h("div", {className:"tb-more-panel__section"},
+      h("span", {className:"tb-ovf-lbl"}, "Stitch type"),
+      h("div", {className:"tb-grp", style:{flexWrap:"wrap",gap:2}},
+        stitchTypeOptions.map(function(st) {
+          var isOn = cv.stitchType === st.id;
+          return h("button", {
+            key:st.id,
+            className:"tb-btn"+(isOn?" tb-btn--on":""),
+            onClick:function(){ cv.selectStitchType(st.id); },
+            title:st.label, "aria-label":st.label+" stitch", "aria-pressed":isOn
+          }, st.label);
+        })
+      )
+    ),
+    // ── Brush size ──
+    h("div", {className:"tb-more-panel__section"},
+      h("span", {className:"tb-ovf-lbl"}, "Brush size"),
+      h("div", {className:"tb-grp"},
+        [1,2,3].map(function(sz) {
+          var isOn = (cv.brushSize||1) === sz;
+          return h("button", {
+            key:sz,
+            className:"tb-btn"+(isOn?" tb-btn--on":""),
+            onClick:function(){ cv.setBrushSize(sz); },
+            title:sz+"\xD7"+sz, "aria-label":sz+" by "+sz+" brush"
+          }, sz);
+        })
+      )
+    ),
+    // ── Overlay (conditional) ──
+    (gen.img && gen.img.src) && h("div", {className:"tb-more-panel__section"},
+      h("span", {className:"tb-ovf-lbl"}, "Display"),
+      h("label", {style:{display:"flex",alignItems:"center",gap:6,padding:"2px 0",cursor:"pointer",fontSize:12}},
+        h("input", {
+          type:"checkbox", checked:!!cv.showOverlay,
+          onChange:function(e){ cv.setShowOverlay(e.target.checked); }
+        }), " Overlay"
+      ),
+      cv.showOverlay && h("input", {
+        type:"range", min:0.1, max:0.8, step:0.05, value:cv.overlayOpacity,
+        onChange:function(e){ cv.setOverlayOpacity(Number(e.target.value)); },
+        style:{width:"100%",marginTop:4}, "aria-label":"Overlay opacity"
       })
     )
-  ] : null;
-
-  var brushItems = sc.brush ? [
-    h("div", {key:"ovf-sep-brush", className:"tb-ovf-sep"}),
-    h("span", {key:"ovf-lbl-brush", className:"tb-ovf-lbl"}, "Brush"),
-    [["paint","Paint"],["fill","Fill"]].map(function(kl) {
-      return h("button", {
-        key:kl[0],
-        className:"tb-ovf-item"+(cv.brushMode===kl[0]?" tb-ovf-item--on":""),
-        onClick:function(){cv.setBrushAndActivate(kl[0]); app.setOverflowOpen(false);},
-        style:{display:"inline-flex",alignItems:"center",gap:6}
-      }, kl[1], cv.brushMode===kl[0] && window.Icons && window.Icons.check ? h("span", {"aria-hidden":"true", style:{display:"inline-flex",marginLeft:4}}, window.Icons.check()) : null);
-    })
-  ] : null;
-
-  var overflowMenu = app.overflowOpen ? h("div", {className:"tb-overflow-menu"},
-    h("span", {className:"tb-ovf-lbl"}, "Display"),
-    overlayItems,
-    brushItems
   ) : null;
 
-  // (The Preview chart-mode dropdown formerly built here has been removed.
-  //  All preview controls — Chart/Pixel/Realistic, quality level, coverage,
-  //  grid overlay, fabric background — now live in the Sidebar Preview tab.)
-
-  // Source-image overlay toggle — replaces the old Preview dropdown in the top
-  // toolbar. The Preview chart-mode/coverage controls now live in the Sidebar
-  // Preview tab (less duplication, more room here for editing tools). The
-  // overlay is the one display affordance that's most useful while editing.
-  var overlayBtn = (gen.img && gen.img.src) ? h("button", {
-    className:"tb-btn"+(cv.showOverlay?" tb-btn--on":""),
-    onClick:function(){ cv.setShowOverlay(function(v){return !v;}); },
-    title:"Toggle source image overlay (O)",
-    "aria-label":"Toggle source image overlay",
-    "aria-pressed": cv.showOverlay ? "true" : "false"
-  }, "Overlay") : null;
-  var overlayOpacityCtl = (gen.img && gen.img.src && cv.showOverlay) ? h("input", {
-    type:"range", min:0.1, max:0.8, step:0.05, value:cv.overlayOpacity,
-    onChange:function(e){ cv.setOverlayOpacity(Number(e.target.value)); },
-    title:"Overlay opacity",
-    "aria-label":"Overlay opacity",
-    style:{width:60}
-  }) : null;
-
-  var overflowWrap = h("div", {className:"tb-overflow-wrap", ref:app.overflowRef},
+  var morePanelWrap = h("div", {className:"tb-overflow-wrap" + (morePanelOpen ? " tb-overflow-wrap--open" : "")},
     h("button", {
-      className:"tb-overflow-btn",
-      onClick:function(){app.setOverflowOpen(function(o){return !o;});},
-      title:"More options",
-      "aria-label":"More options menu"
-    }, "\u00B7\u00B7\u00B7"),
-    overflowMenu
+      ref:moreBtnRef,
+      className:"tb-btn"+(morePanelOpen||morePanelHasActiveTool?" tb-btn--on":""),
+      onClick:function(){ setMorePanelOpen(function(o){ return !o; }); },
+      title:"More tools", "aria-label":"More tools",
+      "aria-expanded":morePanelOpen?"true":"false", "aria-haspopup":"dialog"
+    }, "More ", window.Icons&&window.Icons.chevronDown?window.Icons.chevronDown():null),
+    morePanelContent
   );
 
   // cleanupRow is computed before the create-mode early return above,
@@ -9692,15 +9688,13 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       h("div", {className:"pill-row"},
         h("div", {ref:app.stripRef, className:"pill"},
           brushGrp,
-          selectGrp,
+          clearSelBtn,
           toolBadge,
+          h("div", {className:"tb-sdiv"}),
           zoomGrp,
           undoRedo,
-          overlayBtn && h("div", {className:"tb-sdiv"}),
-          overlayBtn,
-          overlayOpacityCtl,
           h("div", {className:"tb-sdiv"}),
-          overflowWrap
+          morePanelWrap
         )
       ),
       swatchRow,
@@ -9720,6 +9714,18 @@ window.MagicWandPanel = function MagicWandPanel() {
   var cv = window.useCanvas();
   var app = window.useApp();
   var h = React.createElement;
+
+  // Panel operations sub-menu state (must be before early returns — Rules of Hooks)
+  var _pd = React.useState(false); var panelMenuOpen = _pd[0], setPanelMenuOpen = _pd[1];
+  var panelMenuRef = React.useRef(null);
+  React.useEffect(function() {
+    if (!panelMenuOpen) return;
+    function closePm(e) {
+      if (panelMenuRef.current && !panelMenuRef.current.contains(e.target)) setPanelMenuOpen(false);
+    }
+    document.addEventListener('pointerdown', closePm);
+    return function() { document.removeEventListener('pointerdown', closePm); };
+  }, [panelMenuOpen]);
 
   if (!(ctx.pat && ctx.pal && app.tab === "pattern")) return null;
   if (cv.activeTool !== "magicWand" && cv.activeTool !== "lasso" && !cv.hasSelection) return null;
@@ -10059,9 +10065,84 @@ window.MagicWandPanel = function MagicWandPanel() {
     btn("\u00D7", function() { cv.setWandPanel(null); }, { style: { fontSize: 10 } })
   ) : null;
 
+  // ─── Merged strip (tool active + selection exists simultaneously) ────────────
+  // Collapses two 38px strips into one, recovering a full row of canvas height.
+  var shouldMergeRows = isSelTool && hasSelection;
+  var mergedRow = shouldMergeRows ? h("div", { className: "tb-strip--sel" },
+    h("div", { className: "tb-strip-inner" },
+      // Tool label
+      h("span", { style: { fontWeight: 600, fontSize: 11, color: "var(--text-secondary)", flexShrink: 0 } }, toolLabel),
+      h("div", { className: "tb-sdiv" }),
+      // Tolerance slider (wand only)
+      cv.activeTool === "magicWand" && h("label", { style: { display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--text-secondary)", flexShrink: 0 } },
+        "Tol.",
+        h("input", {
+          type: "range", min: 0, max: 100, step: 1, value: cv.wandTolerance,
+          onChange: function(e) { cv.setWandTolerance(Number(e.target.value)); },
+          style: { width: 70 }
+        }),
+        h("span", { style: { minWidth: 22, textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 11 } }, cv.wandTolerance)
+      ),
+      cv.activeTool === "magicWand" && h("div", { className: "tb-sdiv" }),
+      // Contiguous / Global toggle (wand only)
+      cv.activeTool === "magicWand" && h("div", { className: "tb-grp" },
+        btn("Conn.", function() { cv.setWandContiguous(true); }, { active: cv.wandContiguous, title: "Connected only" }),
+        btn("All",   function() { cv.setWandContiguous(false); }, { active: !cv.wandContiguous, title: "All matching" })
+      ),
+      cv.activeTool === "magicWand" && h("div", { className: "tb-sdiv" }),
+      // Op mode buttons
+      h("div", { className: "tb-grp" },
+        opBtn(svgSelReplace,   "New",       "replace",   "New selection"),
+        opBtn(svgSelAdd,       "Add",        "add",        "Add to selection (Shift)"),
+        opBtn(svgSelSubtract,  "Sub",       "subtract",   "Subtract (Alt)"),
+        opBtn(svgSelIntersect, "Int",       "intersect",  "Intersect (Shift+Alt)")
+      ),
+      h("div", { className: "tb-sdiv" }),
+      // Selection count + actions
+      h("span", { style: { fontWeight: 600, fontSize: 11, color: "var(--text-secondary)", flexShrink: 0, whiteSpace: "nowrap" } },
+        cv.selectionCount.toLocaleString() + "\u00a0sel"
+      ),
+      h("div", { className: "tb-sdiv" }),
+      h("div", { className: "tb-grp" },
+        btn("Deselect", cv.clearSelection,  { title: "Deselect all (Esc)" }),
+        btn("Invert",   cv.invertSelection, { title: "Invert selection (Ctrl+\u21E7+I)" }),
+        btn("All",      cv.selectAll,       { title: "Select all (Ctrl+A)" })
+      ),
+      h("div", { className: "tb-sdiv" }),
+      // Panel operations sub-menu (collapses the 5 panel buttons)
+      h("div", { ref: panelMenuRef, className: "tb-overflow-wrap" },
+        h("button", {
+          className: "tb-overflow-btn" + (panelMenuOpen || panel ? " tb-btn--on" : ""),
+          onClick: function() { setPanelMenuOpen(function(o) { return !o; }); },
+          title: "Selection operations", "aria-label": "Selection operations menu",
+          "aria-expanded": panelMenuOpen ? "true" : "false"
+        }, "\u00B7\u00B7\u00B7"),
+        panelMenuOpen && h("div", { className: "tb-overflow-menu" },
+          h("span", { className: "tb-ovf-lbl" }, "Apply to selection"),
+          [
+            { key: "confetti", label: "Confetti\u2026" },
+            { key: "reduce",   label: "Reduce Colours\u2026" },
+            { key: "replace",  label: "Replace Colour\u2026" },
+            { key: "info",     label: "Stitch Info\u2026" },
+            { key: "outline",  label: "Outline\u2026" }
+          ].map(function(item) {
+            return h("button", {
+              key: item.key,
+              className: "tb-ovf-item" + (panel === item.key ? " tb-ovf-item--on" : ""),
+              onClick: function() { cv.setWandPanel(panel === item.key ? null : item.key); setPanelMenuOpen(false); }
+            }, item.label);
+          })
+        )
+      )
+    )
+  ) : null;
+
+  var topRows = shouldMergeRows
+    ? mergedRow
+    : h(React.Fragment, null, optionsRow, selRow);
+
   return h("div", null,
-    optionsRow,
-    selRow,
+    topRows,
     confettiPanel,
     reducePanel,
     replacePanel,
@@ -10569,9 +10650,10 @@ window.CreatorSidebar = function CreatorSidebar() {
             background: STASH_DOT[stashStatus], boxShadow:"0 0 0 1px #fff"
           }
         }),
-        // Colour swap button — visible on hover in edit mode
+        // Colour swap button — visible on hover (mouse) or always (touch)
         app.appMode === "edit" && h("button", {
           key: "swap-" + p.id,
+          className: "pal-chip-swap",
           title: "Replace DMC " + p.id + " with another colour",
           "aria-label": "Replace " + (p.name || p.id) + " with another colour",
           onClick: function(e) {
@@ -12652,112 +12734,10 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     })(),
 
     h("div", {style:{display:"flex",gap:'var(--s-1)',justifyContent:"flex-end",marginTop:'var(--s-1)',marginBottom:'var(--s-1)'}},
-      cv.editHistory.length > 0 && h("button", {
-        onClick: cv.undoEdit,
-        style:{fontSize:'var(--text-xs)',padding:"4px 10px",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-sm)',background:"var(--accent-light)",color:"var(--accent)",cursor:"pointer"}
-      }, "\u21A9 Undo"),
-      cv.redoHistory.length > 0 && h("button", {
-        onClick: cv.redoEdit,
-        style:{fontSize:'var(--text-xs)',padding:"4px 10px",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-sm)',background:"var(--accent-light)",color:"var(--accent)",cursor:"pointer"}
-      }, "\u21AA Redo"),
       cv.hiId && h("button", {
         onClick: function(){cv.setHiId(null);},
         style:{fontSize:'var(--text-xs)',padding:"4px 10px",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-sm)',background:"var(--danger-soft)",color:"var(--danger)",cursor:"pointer"}
       }, "Clear \u2715")
-    ),
-
-    cv.hiId && h("div", {style:{background:"#F8EFD8",border:"0.5px solid #E5C99A",borderRadius:'var(--radius-md)',padding:"8px 10px",marginBottom:6,fontSize:'var(--text-xs)',color:"var(--accent-ink)"}},
-      // ── Mode toggle segmented control ──
-      h("div", {style:{display:"flex",gap:0,marginBottom:6,borderRadius:'var(--radius-sm)',overflow:"hidden",border:"1px solid #D4A570"}},
-        ["isolate","outline","tint","spotlight"].map(function(m) {
-          var labels = {isolate:"Isolate",outline:"Outline",tint:"Tint",spotlight:"Spotlight"};
-          var active = cv.highlightMode === m;
-          return h("button", {
-            key: m,
-            onClick: function() { cv.setHighlightMode(m); },
-            style:{
-              flex:1, padding:"4px 0", fontSize:10, fontWeight: active ? 700 : 500, cursor:"pointer",
-              border:"none", borderRight:"1px solid #D4A570",
-              background: active ? "var(--accent-hover)" : "#F8EFD8",
-              color: active ? "var(--surface)" : "var(--accent-ink)"
-            }
-          }, labels[m]);
-        })
-      ),
-
-      // ── Isolate settings ──
-      cv.highlightMode === "isolate" && h("div", null,
-        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:'var(--s-1)'}},
-          h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Background dimming"),
-          h("input", {
-            type:"range", min:5, max:60, step:1,
-            value: Math.round(cv.bgDimOpacity * 100),
-            onChange: function(e) {
-              var op = parseInt(e.target.value) / 100;
-              cv.setBgDimOpacity(op);
-              if (!cv.hiAdvanced) cv.setBgDimDesaturation(Math.min(1, (100 - parseInt(e.target.value)) / 100));
-            },
-            style:{flex:1,accentColor:"var(--accent-hover)"}
-          }),
-          h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.bgDimOpacity * 100) + "%")
-        ),
-        cv.hiAdvanced && h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:'var(--s-1)'}},
-          h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Desaturation"),
-          h("input", {
-            type:"range", min:0, max:100, step:1,
-            value: Math.round(cv.bgDimDesaturation * 100),
-            onChange: function(e) { cv.setBgDimDesaturation(parseInt(e.target.value) / 100); },
-            style:{flex:1,accentColor:"var(--accent-hover)"}
-          }),
-          h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.bgDimDesaturation * 100) + "%")
-        ),
-        h("div", {style:{display:"flex",justifyContent:"flex-end"}},
-          h("label", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',cursor:"pointer",userSelect:"none"}},
-            h("input", {type:"checkbox", checked:cv.hiAdvanced, onChange:function(e){cv.setHiAdvanced(e.target.checked);}, style:{accentColor:"var(--accent-hover)"}}),
-            h("span", {style:{fontSize:10,color:"var(--accent-ink)"}}, "Advanced (decouple sliders)")
-          )
-        )
-      ),
-
-      // ── Outline settings ──
-      cv.highlightMode === "outline" && h("div", {style:{fontSize:10,color:"#78350f",fontStyle:"italic"}},
-        "Animated marching ants highlight the boundary of the selected colour."
-      ),
-
-      // ── Tint settings ──
-      cv.highlightMode === "tint" && h("div", null,
-        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:'var(--s-1)'}},
-          h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Tint colour"),
-          h("input", {
-            type:"color",
-            value: cv.tintColor,
-            onChange: function(e) { cv.setTintColor(e.target.value); },
-            style:{width:28,height:22,padding:0,border:"1px solid #D4A570",borderRadius:4,cursor:"pointer"}
-          }),
-          h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f",marginLeft:'var(--s-2)'}}, "Opacity"),
-          h("input", {
-            type:"range", min:10, max:80, step:1,
-            value: Math.round(cv.tintOpacity * 100),
-            onChange: function(e) { cv.setTintOpacity(parseInt(e.target.value) / 100); },
-            style:{flex:1,accentColor:"var(--accent-hover)"}
-          }),
-          h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.tintOpacity * 100) + "%")
-        )
-      ),
-
-      // ── Spotlight settings ──
-      cv.highlightMode === "spotlight" && h("div", null,
-        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:'var(--s-1)'}},
-          h("label", {style:{flexShrink:0,fontWeight:600,color:"#78350f"}}, "Dim strength"),
-          h("input", {
-            type:"range", min:5, max:50, step:1,
-            value: Math.round(cv.spotDimOpacity * 100),
-            onChange: function(e) { cv.setSpotDimOpacity(parseInt(e.target.value) / 100); },
-            style:{flex:1,accentColor:"var(--accent-hover)"}
-          }),
-          h("span", {style:{width:30,textAlign:"right",fontVariantNumeric:"tabular-nums"}}, Math.round(cv.spotDimOpacity * 100) + "%")
-        )
-      )
     ),
 
   );
@@ -13597,25 +13577,14 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     };
   }, [menuOpen]);
 
-  // When no pattern is loaded yet, show a minimal bar so the Stats link
-  // (and the phase label) are still accessible during Setup.
+  // When no pattern is loaded yet, show an empty bar to hold space.
   if (!props || !props.ready) {
     return h("div", {
         className: "creator-actionbar",
         role: "toolbar",
         "aria-label": "Pattern actions"
       },
-      h("span", { className: "creator-actionbar__mode-phase" }, "Setting up"),
-      h("div", { className: "creator-actionbar__primary" },
-        h("a", {
-            href: "index.html?mode=stats",
-            className: "creator-actionbar__btn creator-actionbar__btn--ghost creator-actionbar__stats-link",
-            title: "View stitching statistics"
-          },
-          Icons.barChart ? Icons.barChart() : null,
-          h("span", null, "Stats")
-        )
-      )
+      h("div", { className: "creator-actionbar__primary" })
     );
   }
 
@@ -13709,16 +13678,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
       role: "toolbar",
       "aria-label": "Pattern actions"
     },
-    modeSwitch,
     h("div", { className: "creator-actionbar__primary" },
-      h("a", {
-          href: "index.html?mode=stats",
-          className: "creator-actionbar__btn creator-actionbar__btn--ghost creator-actionbar__stats-link",
-          title: "View stitching statistics"
-        },
-        Icons.barChart ? Icons.barChart() : null,
-        h("span", null, "Stats")
-      ),
       h("button", {
           type: "button",
           className: "creator-actionbar__btn creator-actionbar__btn--primary",

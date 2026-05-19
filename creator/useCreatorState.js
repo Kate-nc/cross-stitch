@@ -418,7 +418,7 @@ window.useCreatorState = function useCreatorState() {
   var brushModeRef = useRef("paint");
   function setBrushMode(v) { brushModeRef.current = v; _brushM[1](v); }
   var _brushSz  = useState(1);       var brushSize = _brushSz[0], setBrushSize = _brushSz[1];
-  var _ovfOpen  = useState(false);   var overflowOpen = _ovfOpen[0], setOverflowOpen = _ovfOpen[1];
+  var _morePOpen= useState(false);   var morePanelOpen = _morePOpen[0], setMorePanelOpen = _morePOpen[1];
   var _panOpen  = useState(false);   var panelOpen = _panOpen[0], setPanelOpen = _panOpen[1];
   var _stripCol = useState({view:false,brush:false,bs:false});
   var stripCollapsed = _stripCol[0], setStripCollapsed = _stripCol[1];
@@ -616,7 +616,6 @@ window.useCreatorState = function useCreatorState() {
   var trackerFieldsRef = useRef({});
   var userActedRef = useRef(false);
   var stripRef   = useRef(null);
-  var overflowRef= useRef(null);
   var workerRef      = useRef(null); // null | Worker | 'unavailable'
   var applyResultRef = useRef(null); // updated each render, captures fresh state
   var genReqIdRef    = useRef(0);    // incremented per generation; stale results are discarded
@@ -1436,7 +1435,7 @@ window.useCreatorState = function useCreatorState() {
     redoHistory, setRedoHistory, EDIT_HISTORY_MAX,
     shortcutsHintDismissed, setShortcutsHintDismissed,
     brushMode, setBrushMode, brushModeRef, brushSize, setBrushSize,
-    overflowOpen, setOverflowOpen, panelOpen, setPanelOpen, stripCollapsed, setStripCollapsed,
+    morePanelOpen, setMorePanelOpen, panelOpen, setPanelOpen, stripCollapsed, setStripCollapsed,
     exportPage, setExportPage, pageMode, setPageMode,
     pdfDisplayMode, setPdfDisplayMode, pdfCellSize, setPdfCellSize,
     pdfSinglePage, setPdfSinglePage,
@@ -1482,7 +1481,7 @@ window.useCreatorState = function useCreatorState() {
     cleanupAutoRunning, setCleanupAutoRunning,
     cleanupAutoError, setCleanupAutoError,
     pcRef, fRef, scrollRef, expRef, loadRef,
-    prevSW, prevSH, projectIdRef, createdAtRef, trackerFieldsRef, userActedRef, stripRef, overflowRef,
+    prevSW, prevSH, projectIdRef, createdAtRef, trackerFieldsRef, userActedRef, stripRef,
     cleanupHandlersRef,
     G, EDIT_HISTORY_MAX,
     // Derived
