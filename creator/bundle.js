@@ -8510,7 +8510,7 @@ window.PatternCanvas = function PatternCanvas() {
   // Must be the MERGED snapshot across all 4 contexts because drawPatternBaseOnCanvas
   // and drawPatternOverlayOnCanvas expect the pre-refactor merged state shape.
   var ctxRef = React.useRef({});
-  ctxRef.current = Object.assign({}, ctx, cv, gen, hov, { G: G, pcRef: app.pcRef, tab: app.tab });
+  ctxRef.current = Object.assign({}, ctx, cv, gen, hov, { G: G, pcRef: app.pcRef, tab: app.tab, fabricColour: app.fabricColour, canvasTexture: app.canvasTexture });
 
   // ── Effect: Animated marching ants for highlight outline mode
   var hlAntsRef = React.useRef(null);
@@ -8599,7 +8599,7 @@ window.PatternCanvas = function PatternCanvas() {
     gen.showCleanupDiff, gen.cleanupDiff,
     cv.dimFraction, cv.dimHiId, cv.bgDimOpacity, cv.bgDimDesaturation,
     cv.highlightMode, cv.tintColor, cv.tintOpacity, cv.spotDimOpacity,
-    ctx.fabricColour, ctx.canvasTexture
+    app.fabricColour, app.canvasTexture
   ]);
 
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).
