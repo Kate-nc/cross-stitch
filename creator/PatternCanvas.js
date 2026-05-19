@@ -98,8 +98,14 @@ window.PatternCanvas = function PatternCanvas() {
     rafRef.current = requestAnimationFrame(function() {
       rafRef.current = null;
       if (!canvas) return;
-      canvas.width  = snap.sW * snap.cs + G + 2;
-      canvas.height = snap.sH * snap.cs + G + 2;
+      var rawW = snap.sW * snap.cs + G + 2;
+      var rawH = snap.sH * snap.cs + G + 2;
+      var MAX_CANVAS_DIM = 16384; // iOS Safari hard limit
+      if (rawW > MAX_CANVAS_DIM || rawH > MAX_CANVAS_DIM) {
+        console.warn('PatternCanvas: computed canvas size (' + rawW + '\xd7' + rawH + ') exceeds 16384px limit; clamping.');
+      }
+      canvas.width  = Math.min(rawW, MAX_CANVAS_DIM);
+      canvas.height = Math.min(rawH, MAX_CANVAS_DIM);
       var context = canvas.getContext("2d", { willReadFrequently: true });
       drawPatternBaseOnCanvas(context, 0, 0, snap.sW, snap.sH, snap.cs, G, snap);
       baseCacheRef.current = context.getImageData(0, 0, canvas.width, canvas.height);
