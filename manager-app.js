@@ -987,7 +987,7 @@ function ManagerApp() {
           >
             <option value="number">Number</option>
             <option value="colour">Colour</option>
-            <option value="name">Name (A–Z)</option>
+            <option value="name">Name (A-Z)</option>
             <option value="owned_desc">Owned: most first</option>
             <option value="owned_asc">Owned: fewest first</option>
           </select>
@@ -1232,10 +1232,10 @@ function ManagerApp() {
                     <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginBottom: 4, textAlign: "center" }}>Opened skein level</div>
                     <div className="gauge-lg">
                       {[
-                        { val: null, label: "—" },
-                        { val: "mostly-full", label: "¾" },
-                        { val: "about-half", label: "½" },
-                        { val: "remnant", label: "¼" }
+                        { val: null, label: "0" },
+                        { val: "mostly-full", label: "3/4" },
+                        { val: "about-half", label: "1/2" },
+                        { val: "remnant", label: "1/4" }
                       ].map(opt => {
                         const isActive = state.partialStatus === opt.val || (opt.val === null && !state.partialStatus);
                         return <div key={opt.val || "none"} className={"seg" + (isActive ? " full" : "")} title={opt.val || "None"} onClick={() => updateThread(selectedThread, "partialStatus", opt.val)}>{opt.label}</div>;
@@ -1473,7 +1473,7 @@ function ManagerApp() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: "#1B1814", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
                           <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
-                            {p.dimensions.width}×{p.dimensions.height} · {pct}% done · {p.source === "tracker" ? "Tracked" : "Created"} · {p.updatedAt ? new Date(p.updatedAt).toLocaleDateString('en-GB') : ""}
+                            {p.dimensions.width}x{p.dimensions.height} - {pct}% done - {p.source === "tracker" ? "Tracked" : "Created"} - {p.updatedAt ? new Date(p.updatedAt).toLocaleDateString('en-GB') : ""}
                           </div>
                         </div>
                         <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 12 }}>
@@ -2142,7 +2142,7 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads, userP
             <span style={{ padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: statusColors[pattern.status].bg, color: statusColors[pattern.status].text }}>
               {statusColors[pattern.status].label}
             </span>
-            {pattern.fabric && <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>· {pattern.fabric}</span>}
+              {pattern.fabric && <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>- {pattern.fabric}</span>}
           </div>
 
           {pattern.tags && pattern.tags.length > 0 && (
