@@ -49,6 +49,22 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     return function() { document.removeEventListener("pointerdown", close); };
   }, [app.overflowOpen]);
 
+  // "More" panel state (secondary tools flyout / mobile bottom sheet)
+  var _mp = React.useState(false); var morePanelOpen = _mp[0], setMorePanelOpen = _mp[1];
+  var morePanelRef = React.useRef(null);
+  var moreBtnRef = React.useRef(null);
+  var swatchRowRef = React.useRef(null);
+  React.useEffect(function() {
+    if (!morePanelOpen) return;
+    function closeMp(e) {
+      if (morePanelRef.current && morePanelRef.current.contains(e.target)) return;
+      if (moreBtnRef.current && moreBtnRef.current.contains(e.target)) return;
+      setMorePanelOpen(false);
+    }
+    document.addEventListener('pointerdown', closeMp);
+    return function() { document.removeEventListener('pointerdown', closeMp); };
+  }, [morePanelOpen]);
+
   // (The Preview chart-mode dropdown that used to live here has moved into
   // the Sidebar Preview tab — see creator/Sidebar.js previewPanel.)
 
@@ -321,20 +337,16 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("line", {x1:"8.3",y1:"1.5",x2:"9.7",y2:"1.5",stroke:"currentColor",strokeWidth:"1.1",strokeLinecap:"round"})
   );
 
-  // Brush group — always shown (first choice)
+  // Brush group — primary tools only; secondary tools (Hand/Pick/Wand/Lasso/Replace/Cleanup) live in More panel
   var brushGrp = [
-    h("div", {
-      key:"brush-grp",
-      className:"tb-grp"+(sc.brush?" tb-hidden":"")
-    },
+    h("div", {key:"brush-grp", className:"tb-grp"},
       h("button", {
         className:"tb-btn"+(cv.brushMode==="paint" && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase"?" tb-btn--on":""),
         onClick:function(){
           if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
           cv.setBrushAndActivate("paint");
         },
-        title:"Paint (P)",
-        "aria-label":"Paint tool"
+        title:"Paint (P)", "aria-label":"Paint tool"
       }, "Paint"),
       h("button", {
         className:"tb-btn"+(cv.brushMode==="fill" && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase"?" tb-btn--on":""),
@@ -342,52 +354,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
           cv.setBrushAndActivate("fill");
         },
-        title:"Fill (F)",
-        "aria-label":"Fill tool"
+        title:"Fill (F)", "aria-label":"Fill tool"
       }, "Fill"),
       h("button", {
         className:"tb-btn"+(cv.stitchType==="erase"?" tb-btn--red":""),
         onClick:function(){cv.selectStitchType("erase");}, title:"Erase (5)", "aria-label":"Erase tool"
-      }, svgErase, "Erase"),
-      h("button", {
-        className:"tb-btn"+(cv.activeTool==="eyedropper"?" tb-btn--on":""),
-        onClick:function(){cv.setActiveTool("eyedropper"); cv.setBsStart(null); ctx.setPartialStitchTool(null);},
-        title:"Eyedropper (I)",
-        "aria-label":"Eyedropper tool"
-      }, "Pick"),
-      h("button", {
-        className:"tb-btn"+(cv.activeTool==="hand"?" tb-btn--on":""),
-        onClick:function(){
-          if (cv.activeTool === "hand") cv.setActiveTool(null);
-          else { cv.setActiveTool("hand"); cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); }
-        },
-        title:"Hand — pan / drag to scroll (H)",
-        "aria-label":"Hand pan tool",
-        "aria-pressed": cv.activeTool === "hand" ? "true" : "false"
-      }, window.Icons.hand(), " Hand"),
-      h("button", {
-        className:"tb-btn"+(cv.activeTool==="colourReplace"?" tb-btn--on":""),
-        onClick:function(){
-          if (cv.activeTool === "colourReplace") cv.setActiveTool(null);
-          else { cv.setActiveTool("colourReplace"); cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); }
-        },
-        title:"Replace colour — click a stitch to replace all instances of that colour",
-        "aria-label":"Replace colour tool",
-        "aria-pressed": cv.activeTool === "colourReplace" ? "true" : "false"
-      }, window.Icons.colourSwap(), " Replace"),
-      h("button", {
-        className:"tb-btn"+(cv.activeTool==="cleanup"?" tb-btn--on":""),
-        onClick:function(){
-          if (cv.activeTool === "cleanup") { if (cv.exitCleanup) cv.exitCleanup(); }
-          else {
-            cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso();
-            if (cv.enterCleanup) cv.enterCleanup();
-          }
-        },
-        title:"Cleanup Mode — remove lineart pixels averaged into stitch colours",
-        "aria-label":"Cleanup mode",
-        "aria-pressed": cv.activeTool === "cleanup" ? "true" : "false"
-      }, window.Icons && window.Icons.cleanup ? window.Icons.cleanup() : null, " Cleanup")
+      }, svgErase, "Erase")
     )
   ];
 
@@ -397,101 +369,61 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   // (Stitch type cycles with the T shortcut from the keyboard; sub-modes
   // for the lasso are picked once in the Tools tab and remembered.)
 
-  // Colour swatch strip — second toolbar row, sorted by usage, with expand
-  var SWATCH_INIT = 20;
-  var swatchesShown = swatchExpanded ? palData : palData.slice(0, SWATCH_INIT);
+  // Colour swatch strip — second toolbar row, sorted by usage, all swatches scrollable
   var showSwatchRow = ((cv.brushMode==="paint" || cv.brushMode==="fill") && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase" || cv.activeTool==="eyedropper") && palData.length > 0;
   var swatchRow = showSwatchRow ? h("div", {className:"swatch-strip-row"},
     h("span", {style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",marginRight:'var(--s-1)',flexShrink:0,letterSpacing:0.5}}, "Colour"),
     cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId] ? h("span", {
-      style:{display:"inline-flex",alignItems:"center",gap:'var(--s-1)',fontSize:'var(--text-xs)',padding:"1px 7px 1px 3px",borderRadius:'var(--radius-lg)',background:"var(--accent-light)",border:"1px solid var(--accent-border)",marginRight:6,flexShrink:0,maxWidth:"60vw",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},
+      style:{display:"inline-flex",alignItems:"center",gap:'var(--s-1)',fontSize:'var(--text-xs)',padding:"1px 7px 1px 3px",borderRadius:'var(--radius-lg)',background:"var(--accent-light)",border:"1px solid var(--accent-border)",marginRight:6,flexShrink:0,maxWidth:"40vw",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},
       title: ctx.cmap[cv.selectedColorId].name || cv.selectedColorId
     },
       h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",border:"1px solid var(--border)",display:"inline-block",flexShrink:0}}),
       h("span", {style:{fontWeight:600,color:"var(--accent)",flexShrink:0}}, cv.selectedColorId),
       ctx.cmap[cv.selectedColorId].name ? h("span", {style:{color:"var(--accent-hover)",fontWeight:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, "\u00B7 " + ctx.cmap[cv.selectedColorId].name) : null
     ) : h("span", {style:{fontSize:10,color:"var(--text-tertiary)",marginRight:6,flexShrink:0}}, "none selected"),
-    swatchesShown.map(function(p) {
-      var isSel = cv.selectedColorId === p.id;
-      return h("button", {
-        key: p.id,
-        onClick: function() { cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id); },
-        title: "DMC " + p.id + (p.name ? " \xB7 " + p.name : "") + (p.count ? " \xB7 " + p.count + " st" : ""),
-        "aria-label": "Select DMC " + p.id + (p.name ? " " + p.name : ""),
-        "aria-pressed": isSel,
-        style:{
-          width:20, height:20, flexShrink:0,
-          borderRadius:4, cursor:"pointer", padding:0,
-          background:"rgb("+p.rgb+")",
-          border: isSel ? "2px solid var(--accent)" : "1.5px solid rgba(0,0,0,0.15)",
-          boxShadow: isSel ? "0 0 0 2px #fff inset" : "none",
-          outline:"none"
-        }
-      });
-    }),
-    palData.length > SWATCH_INIT && h("button", {
-      key:"swatch-expand",
-      onClick:function(){setSwatchExpanded(function(e){return !e;});},
-      title:swatchExpanded?"Collapse":"Show all "+palData.length+" colours",
-      style:{
-        flexShrink:0, marginLeft:'var(--s-1)', fontSize:'var(--text-xs)', padding:"0 8px",
-        height:20, borderRadius:'var(--radius-lg)', border:"1px solid var(--border)",
-        background:"var(--surface)", cursor:"pointer",
-        color:"var(--text-secondary)", fontWeight:500, lineHeight:1, fontFamily:"inherit"
-      }
-    },
-      swatchExpanded
-        ? (window.Icons && window.Icons.chevronUp ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.chevronUp()) : "\u2212")
-        : h("span", {style:{display:"inline-flex",alignItems:"center",gap:3}},
-            "+" + (palData.length - SWATCH_INIT),
-            window.Icons && window.Icons.chevronDown ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.chevronDown()) : null
-          )
-    )
+    h("button", {
+      className:"tb-swatch-scroll-btn",
+      onClick:function(){ swatchRowRef.current && swatchRowRef.current.scrollBy({left:-120,behavior:"smooth"}); },
+      "aria-label":"Scroll swatches left", title:"Scroll left"
+    }, window.Icons && window.Icons.chevronLeft ? window.Icons.chevronLeft() : null),
+    h("div", {ref:swatchRowRef, className:"swatch-scroll-inner"},
+      palData.map(function(p) {
+        var isSel = cv.selectedColorId === p.id;
+        return h("button", {
+          key: p.id,
+          onClick: function() { cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id); },
+          title: "DMC " + p.id + (p.name ? " \xB7 " + p.name : "") + (p.count ? " \xB7 " + p.count + " st" : ""),
+          "aria-label": "Select DMC " + p.id + (p.name ? " " + p.name : ""),
+          "aria-pressed": isSel,
+          style:{
+            width:40, height:40, flexShrink:0,
+            borderRadius:6, cursor:"pointer", padding:0,
+            background:"rgb("+p.rgb+")",
+            border: isSel ? "2.5px solid var(--accent)" : "1.5px solid rgba(0,0,0,0.15)",
+            boxShadow: isSel ? "0 0 0 2px #fff inset" : "none",
+            outline:"none"
+          }
+        });
+      })
+    ),
+    h("button", {
+      className:"tb-swatch-scroll-btn",
+      onClick:function(){ swatchRowRef.current && swatchRowRef.current.scrollBy({left:120,behavior:"smooth"}); },
+      "aria-label":"Scroll swatches right", title:"Scroll right"
+    }, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null)
   ) : null;
 
-  // Selection: simple Wand + Lasso primary buttons. Sub-modes
-  // (Freehand / Polygon / Magnetic) and the Clear-selection control now
-  // live in the Sidebar Tools tab.
-  var selectGrp = [
-    h("div", {key:"sdiv-select", className:"tb-sdiv"}),
-    h("div", {key:"select-grp", className:"tb-grp"},
-      h("button", {
-        className:"tb-btn"+(cv.activeTool==="magicWand"?" tb-btn--on":""),
-        onClick:function(){
-          if (cv.activeTool==="magicWand") cv.setActiveTool(null);
-          else { cv.setActiveTool("magicWand"); ctx.setPartialStitchTool(null); cv.setBsStart(null); if (cv.cancelLasso) cv.cancelLasso(); }
-        },
-        title:"Magic Wand (W)",
-        "aria-label":"Magic wand",
-        "aria-pressed": cv.activeTool==="magicWand" ? "true" : "false"
-      }, svgWand, " Wand"),
-      h("button", {
-        className:"tb-btn"+(cv.activeTool==="lasso"?" tb-btn--on":""),
-        onClick:function(){
-          if (cv.activeTool==="lasso") { if (cv.cancelLasso) cv.cancelLasso(); cv.setActiveTool(null); }
-          else {
-            cv.setActiveTool("lasso");
-            cv.setLassoMode(cv.lassoMode || "freehand");
-            ctx.setPartialStitchTool(null); cv.setBsStart(null);
-          }
-        },
-        title:"Lasso \u2014 mode in Tools tab",
-        "aria-label":"Lasso",
-        "aria-pressed": cv.activeTool==="lasso" ? "true" : "false"
-      },
-        cv.lassoMode === "polygon" ? svgPolygon :
-        cv.lassoMode === "magnetic" ? svgMagnetic : svgFreehand,
-        " Lasso"
-      ),
-      (cv.hasSelection || cv.lassoInProgress) && h("button", {
-        className:"tb-btn",
-        onClick:function(){ if(cv.cancelLasso) cv.cancelLasso(); if(cv.clearSelection) cv.clearSelection(); },
-        title:"Clear selection (Esc)",
-        "aria-label":"Clear selection",
-        style:{fontSize:10,padding:"2px 6px",color:"var(--text-secondary)"}
-      }, (cv.selectionCount||0).toLocaleString()+" sel ", window.Icons.x())
-    )
-  ];
+  // Clear selection — shown in pill when a selection is active (Wand/Lasso are in More panel)
+  var clearSelBtn = (cv.hasSelection || cv.lassoInProgress) ? [
+    h("div", {key:"sdiv-clrsel", className:"tb-sdiv"}),
+    h("button", {
+      key:"clr-sel",
+      className:"tb-btn",
+      onClick:function(){ if(cv.cancelLasso) cv.cancelLasso(); if(cv.clearSelection) cv.clearSelection(); },
+      title:"Clear selection (Esc)", "aria-label":"Clear selection",
+      style:{fontSize:10,padding:"2px 6px",color:"var(--text-secondary)"}
+    }, (cv.selectionCount||0).toLocaleString()+" sel ", window.Icons.x())
+  ] : null;
 
   // Active tool indicator badge — tooltip surfaces the selected colour
   // since the toolbar no longer carries a colour chip.
@@ -571,78 +503,150 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     }, "\u21AA")
   ];
 
-  // Overflow menu items
-  var overlayItems = (gen.img && gen.img.src) ? [
-    h("button", {
-      key:"overlay-btn",
-      className:"tb-ovf-item"+(cv.showOverlay?" tb-ovf-item--on":""),
-      onClick:function(){cv.setShowOverlay(function(v){return !v;});},
-      style:{display:"inline-flex",alignItems:"center",gap:6}
-    },
-      h("span", {style:{width:14,height:14,borderRadius:3,flexShrink:0,display:"inline-block",
-        border:"2px solid "+(cv.showOverlay?"var(--accent)":"var(--border)")}}),
-      " Overlay",
-      cv.showOverlay && window.Icons && window.Icons.check ? h("span", {"aria-hidden":"true", style:{display:"inline-flex",marginLeft:4}}, window.Icons.check()) : null
+  // "More" panel — secondary tools + settings flyout (dropdown on desktop, bottom sheet on touch)
+  var morePanelHasActiveTool = cv.activeTool === "eyedropper" || cv.activeTool === "hand" ||
+    cv.activeTool === "magicWand" || cv.activeTool === "lasso" ||
+    cv.activeTool === "colourReplace" || cv.activeTool === "cleanup";
+
+  var stitchTypeOptions = [
+    { id:"cross", label:"Cross" },
+    { id:"quarter", label:"\u00BC St" },
+    { id:"half-fwd", label:"Half /" },
+    { id:"half-bck", label:"Half \\" },
+    { id:"three-quarter", label:"\u00BE St" },
+    { id:"backstitch", label:"Backstitch" }
+  ];
+
+  var morePanelContent = morePanelOpen ? h("div", {
+    ref:morePanelRef,
+    className:"tb-more-panel",
+    role:"dialog",
+    "aria-label":"More tools"
+  },
+    // ── Tools ──
+    h("div", {className:"tb-more-panel__section"},
+      h("span", {className:"tb-ovf-lbl"}, "Tools"),
+      h("div", {className:"tb-grp", style:{flexWrap:"wrap",gap:2}},
+        h("button", {
+          className:"tb-btn"+(cv.activeTool==="hand"?" tb-btn--on":""),
+          onClick:function(){
+            if (cv.activeTool==="hand") cv.setActiveTool(null);
+            else { cv.setActiveTool("hand"); cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); }
+            setMorePanelOpen(false);
+          },
+          title:"Hand — pan / drag to scroll (H)", "aria-label":"Hand pan tool",
+          "aria-pressed": cv.activeTool==="hand"?"true":"false"
+        }, window.Icons.hand(), " Hand"),
+        h("button", {
+          className:"tb-btn"+(cv.activeTool==="eyedropper"?" tb-btn--on":""),
+          onClick:function(){
+            cv.setActiveTool("eyedropper"); cv.setBsStart(null); ctx.setPartialStitchTool(null);
+            setMorePanelOpen(false);
+          },
+          title:"Eyedropper (I)", "aria-label":"Eyedropper tool"
+        }, "Pick"),
+        h("button", {
+          className:"tb-btn"+(cv.activeTool==="magicWand"?" tb-btn--on":""),
+          onClick:function(){
+            if (cv.activeTool==="magicWand") cv.setActiveTool(null);
+            else { cv.setActiveTool("magicWand"); ctx.setPartialStitchTool(null); cv.setBsStart(null); if (cv.cancelLasso) cv.cancelLasso(); }
+            setMorePanelOpen(false);
+          },
+          title:"Magic Wand (W)", "aria-label":"Magic wand",
+          "aria-pressed": cv.activeTool==="magicWand"?"true":"false"
+        }, svgWand, " Wand"),
+        h("button", {
+          className:"tb-btn"+(cv.activeTool==="lasso"?" tb-btn--on":""),
+          onClick:function(){
+            if (cv.activeTool==="lasso") { if (cv.cancelLasso) cv.cancelLasso(); cv.setActiveTool(null); }
+            else { cv.setActiveTool("lasso"); cv.setLassoMode(cv.lassoMode||"freehand"); ctx.setPartialStitchTool(null); cv.setBsStart(null); }
+            setMorePanelOpen(false);
+          },
+          title:"Lasso \u2014 mode in Tools tab", "aria-label":"Lasso",
+          "aria-pressed": cv.activeTool==="lasso"?"true":"false"
+        }, cv.lassoMode==="polygon"?svgPolygon:cv.lassoMode==="magnetic"?svgMagnetic:svgFreehand, " Lasso"),
+        h("button", {
+          className:"tb-btn"+(cv.activeTool==="colourReplace"?" tb-btn--on":""),
+          onClick:function(){
+            if (cv.activeTool==="colourReplace") cv.setActiveTool(null);
+            else { cv.setActiveTool("colourReplace"); cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); }
+            setMorePanelOpen(false);
+          },
+          title:"Replace colour \u2014 click a stitch to replace all instances", "aria-label":"Replace colour tool",
+          "aria-pressed": cv.activeTool==="colourReplace"?"true":"false"
+        }, window.Icons.colourSwap(), " Replace")
+      )
     ),
-    cv.showOverlay && h("div", {key:"overlay-slider", style:{padding:"4px 14px 6px"}},
-      h("input", {
-        type:"range",min:0.1,max:0.8,step:0.05,value:cv.overlayOpacity,
-        onChange:function(e){cv.setOverlayOpacity(Number(e.target.value));},
-        style:{width:"100%"}
+    // ── Cleanup ──
+    h("div", {className:"tb-more-panel__section tb-more-panel__section--cleanup"},
+      h("button", {
+        className:"tb-btn"+(cv.activeTool==="cleanup"?" tb-btn--on":""),
+        onClick:function(){
+          if (cv.activeTool==="cleanup") { if (cv.exitCleanup) cv.exitCleanup(); }
+          else { cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); if (cv.enterCleanup) cv.enterCleanup(); }
+          setMorePanelOpen(false);
+        },
+        title:"Cleanup Mode \u2014 remove stray lineart pixels", "aria-label":"Cleanup mode",
+        "aria-pressed": cv.activeTool==="cleanup"?"true":"false",
+        style:{width:"100%",justifyContent:"flex-start"}
+      }, window.Icons&&window.Icons.cleanup?window.Icons.cleanup():null, " Cleanup mode")
+    ),
+    // ── Stitch type ──
+    h("div", {className:"tb-more-panel__section"},
+      h("span", {className:"tb-ovf-lbl"}, "Stitch type"),
+      h("div", {className:"tb-grp", style:{flexWrap:"wrap",gap:2}},
+        stitchTypeOptions.map(function(st) {
+          var isOn = cv.stitchType === st.id;
+          return h("button", {
+            key:st.id,
+            className:"tb-btn"+(isOn?" tb-btn--on":""),
+            onClick:function(){ cv.selectStitchType(st.id); },
+            title:st.label, "aria-label":st.label+" stitch", "aria-pressed":isOn
+          }, st.label);
+        })
+      )
+    ),
+    // ── Brush size ──
+    h("div", {className:"tb-more-panel__section"},
+      h("span", {className:"tb-ovf-lbl"}, "Brush size"),
+      h("div", {className:"tb-grp"},
+        [1,2,3].map(function(sz) {
+          var isOn = (cv.brushSize||1) === sz;
+          return h("button", {
+            key:sz,
+            className:"tb-btn"+(isOn?" tb-btn--on":""),
+            onClick:function(){ cv.setBrushSize(sz); },
+            title:sz+"\xD7"+sz, "aria-label":sz+" by "+sz+" brush"
+          }, sz);
+        })
+      )
+    ),
+    // ── Overlay (conditional) ──
+    (gen.img && gen.img.src) && h("div", {className:"tb-more-panel__section"},
+      h("span", {className:"tb-ovf-lbl"}, "Display"),
+      h("label", {style:{display:"flex",alignItems:"center",gap:6,padding:"2px 0",cursor:"pointer",fontSize:12}},
+        h("input", {
+          type:"checkbox", checked:!!cv.showOverlay,
+          onChange:function(e){ cv.setShowOverlay(e.target.checked); }
+        }), " Overlay"
+      ),
+      cv.showOverlay && h("input", {
+        type:"range", min:0.1, max:0.8, step:0.05, value:cv.overlayOpacity,
+        onChange:function(e){ cv.setOverlayOpacity(Number(e.target.value)); },
+        style:{width:"100%",marginTop:4}, "aria-label":"Overlay opacity"
       })
     )
-  ] : null;
-
-  var brushItems = sc.brush ? [
-    h("div", {key:"ovf-sep-brush", className:"tb-ovf-sep"}),
-    h("span", {key:"ovf-lbl-brush", className:"tb-ovf-lbl"}, "Brush"),
-    [["paint","Paint"],["fill","Fill"]].map(function(kl) {
-      return h("button", {
-        key:kl[0],
-        className:"tb-ovf-item"+(cv.brushMode===kl[0]?" tb-ovf-item--on":""),
-        onClick:function(){cv.setBrushAndActivate(kl[0]); app.setOverflowOpen(false);},
-        style:{display:"inline-flex",alignItems:"center",gap:6}
-      }, kl[1], cv.brushMode===kl[0] && window.Icons && window.Icons.check ? h("span", {"aria-hidden":"true", style:{display:"inline-flex",marginLeft:4}}, window.Icons.check()) : null);
-    })
-  ] : null;
-
-  var overflowMenu = app.overflowOpen ? h("div", {className:"tb-overflow-menu"},
-    h("span", {className:"tb-ovf-lbl"}, "Display"),
-    overlayItems,
-    brushItems
   ) : null;
 
-  // (The Preview chart-mode dropdown formerly built here has been removed.
-  //  All preview controls — Chart/Pixel/Realistic, quality level, coverage,
-  //  grid overlay, fabric background — now live in the Sidebar Preview tab.)
-
-  // Source-image overlay toggle — replaces the old Preview dropdown in the top
-  // toolbar. The Preview chart-mode/coverage controls now live in the Sidebar
-  // Preview tab (less duplication, more room here for editing tools). The
-  // overlay is the one display affordance that's most useful while editing.
-  var overlayBtn = (gen.img && gen.img.src) ? h("button", {
-    className:"tb-btn"+(cv.showOverlay?" tb-btn--on":""),
-    onClick:function(){ cv.setShowOverlay(function(v){return !v;}); },
-    title:"Toggle source image overlay (O)",
-    "aria-label":"Toggle source image overlay",
-    "aria-pressed": cv.showOverlay ? "true" : "false"
-  }, "Overlay") : null;
-  var overlayOpacityCtl = (gen.img && gen.img.src && cv.showOverlay) ? h("input", {
-    type:"range", min:0.1, max:0.8, step:0.05, value:cv.overlayOpacity,
-    onChange:function(e){ cv.setOverlayOpacity(Number(e.target.value)); },
-    title:"Overlay opacity",
-    "aria-label":"Overlay opacity",
-    style:{width:60}
-  }) : null;
-
-  var overflowWrap = h("div", {className:"tb-overflow-wrap", ref:app.overflowRef},
+  var morePanelWrap = h("div", {className:"tb-overflow-wrap"},
     h("button", {
-      className:"tb-overflow-btn",
-      onClick:function(){app.setOverflowOpen(function(o){return !o;});},
-      title:"More options",
-      "aria-label":"More options menu"
-    }, "\u00B7\u00B7\u00B7"),
-    overflowMenu
+      ref:moreBtnRef,
+      className:"tb-btn"+(morePanelOpen||morePanelHasActiveTool?" tb-btn--on":""),
+      onClick:function(){ setMorePanelOpen(function(o){ return !o; }); },
+      title:"More tools", "aria-label":"More tools",
+      "aria-expanded":morePanelOpen?"true":"false", "aria-haspopup":"dialog"
+    }, "More ", window.Icons&&window.Icons.chevronDown?window.Icons.chevronDown():null),
+    morePanelContent
   );
 
   // cleanupRow is computed before the create-mode early return above,
@@ -653,15 +657,13 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       h("div", {className:"pill-row"},
         h("div", {ref:app.stripRef, className:"pill"},
           brushGrp,
-          selectGrp,
+          clearSelBtn,
           toolBadge,
+          h("div", {className:"tb-sdiv"}),
           zoomGrp,
           undoRedo,
-          overlayBtn && h("div", {className:"tb-sdiv"}),
-          overlayBtn,
-          overlayOpacityCtl,
           h("div", {className:"tb-sdiv"}),
-          overflowWrap
+          morePanelWrap
         )
       ),
       swatchRow,

@@ -8,6 +8,18 @@ window.MagicWandPanel = function MagicWandPanel() {
   var app = window.useApp();
   var h = React.createElement;
 
+  // Panel operations sub-menu state (must be before early returns — Rules of Hooks)
+  var _pd = React.useState(false); var panelMenuOpen = _pd[0], setPanelMenuOpen = _pd[1];
+  var panelMenuRef = React.useRef(null);
+  React.useEffect(function() {
+    if (!panelMenuOpen) return;
+    function closePm(e) {
+      if (panelMenuRef.current && !panelMenuRef.current.contains(e.target)) setPanelMenuOpen(false);
+    }
+    document.addEventListener('pointerdown', closePm);
+    return function() { document.removeEventListener('pointerdown', closePm); };
+  }, [panelMenuOpen]);
+
   if (!(ctx.pat && ctx.pal && app.tab === "pattern")) return null;
   if (cv.activeTool !== "magicWand" && cv.activeTool !== "lasso" && !cv.hasSelection) return null;
 
@@ -346,9 +358,81 @@ window.MagicWandPanel = function MagicWandPanel() {
     btn("\u00D7", function() { cv.setWandPanel(null); }, { style: { fontSize: 10 } })
   ) : null;
 
+  // ─── Merged strip (tool active + selection exists simultaneously) ────────────
+  // Collapses two 38px strips into one, recovering a full row of canvas height.
+  var mergedRow = (isSelTool && hasSelection) ? h("div", { className: "tb-strip--sel" },
+    h("div", { className: "tb-strip-inner" },
+      // Tool label
+      h("span", { style: { fontWeight: 600, fontSize: 11, color: "var(--text-secondary)", flexShrink: 0 } }, toolLabel),
+      h("div", { className: "tb-sdiv" }),
+      // Tolerance slider (wand only)
+      cv.activeTool === "magicWand" && h("label", { style: { display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--text-secondary)", flexShrink: 0 } },
+        "Tol.",
+        h("input", {
+          type: "range", min: 0, max: 100, step: 1, value: cv.wandTolerance,
+          onChange: function(e) { cv.setWandTolerance(Number(e.target.value)); },
+          style: { width: 70 }
+        }),
+        h("span", { style: { minWidth: 22, textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 11 } }, cv.wandTolerance)
+      ),
+      cv.activeTool === "magicWand" && h("div", { className: "tb-sdiv" }),
+      // Contiguous / Global toggle (wand only)
+      cv.activeTool === "magicWand" && h("div", { className: "tb-grp" },
+        btn("Conn.", function() { cv.setWandContiguous(true); }, { active: cv.wandContiguous, title: "Connected only" }),
+        btn("All",   function() { cv.setWandContiguous(false); }, { active: !cv.wandContiguous, title: "All matching" })
+      ),
+      cv.activeTool === "magicWand" && h("div", { className: "tb-sdiv" }),
+      // Op mode buttons
+      h("div", { className: "tb-grp" },
+        opBtn(svgSelReplace,   "New",       "replace",   "New selection"),
+        opBtn(svgSelAdd,       "Add",        "add",        "Add to selection (Shift)"),
+        opBtn(svgSelSubtract,  "Sub",       "subtract",   "Subtract (Alt)"),
+        opBtn(svgSelIntersect, "Int",       "intersect",  "Intersect (Shift+Alt)")
+      ),
+      h("div", { className: "tb-sdiv" }),
+      // Selection count + actions
+      h("span", { style: { fontWeight: 600, fontSize: 11, color: "var(--text-secondary)", flexShrink: 0, whiteSpace: "nowrap" } },
+        cv.selectionCount.toLocaleString() + "\u00a0sel"
+      ),
+      h("div", { className: "tb-sdiv" }),
+      h("div", { className: "tb-grp" },
+        btn("Deselect", cv.clearSelection,  { title: "Deselect all (Esc)" }),
+        btn("Invert",   cv.invertSelection, { title: "Invert selection (Ctrl+\u21E7+I)" }),
+        btn("All",      cv.selectAll,       { title: "Select all (Ctrl+A)" })
+      ),
+      h("div", { className: "tb-sdiv" }),
+      // Panel operations sub-menu (collapses the 5 panel buttons)
+      h("div", { ref: panelMenuRef, className: "tb-overflow-wrap" },
+        h("button", {
+          className: "tb-overflow-btn" + (panelMenuOpen || panel ? " tb-btn--on" : ""),
+          onClick: function() { setPanelMenuOpen(function(o) { return !o; }); },
+          title: "Selection operations", "aria-label": "Selection operations menu",
+          "aria-expanded": panelMenuOpen ? "true" : "false"
+        }, "\u00B7\u00B7\u00B7"),
+        panelMenuOpen && h("div", { className: "tb-overflow-menu" },
+          h("span", { className: "tb-ovf-lbl" }, "Apply to selection"),
+          [
+            { key: "confetti", label: "Confetti\u2026" },
+            { key: "reduce",   label: "Reduce Colours\u2026" },
+            { key: "replace",  label: "Replace Colour\u2026" },
+            { key: "info",     label: "Stitch Info\u2026" },
+            { key: "outline",  label: "Outline\u2026" }
+          ].map(function(item) {
+            return h("button", {
+              key: item.key,
+              className: "tb-ovf-item" + (panel === item.key ? " tb-ovf-item--on" : ""),
+              onClick: function() { cv.setWandPanel(panel === item.key ? null : item.key); setPanelMenuOpen(false); }
+            }, item.label);
+          })
+        )
+      )
+    )
+  ) : null;
+
   return h("div", null,
-    optionsRow,
-    selRow,
+    mergedRow,
+    !mergedRow && optionsRow,
+    !mergedRow && selRow,
     confettiPanel,
     reducePanel,
     replacePanel,

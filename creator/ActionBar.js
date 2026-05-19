@@ -98,25 +98,14 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     };
   }, [menuOpen]);
 
-  // When no pattern is loaded yet, show a minimal bar so the Stats link
-  // (and the phase label) are still accessible during Setup.
+  // When no pattern is loaded yet, show an empty bar to hold space.
   if (!props || !props.ready) {
     return h("div", {
         className: "creator-actionbar",
         role: "toolbar",
         "aria-label": "Pattern actions"
       },
-      h("span", { className: "creator-actionbar__mode-phase" }, "Setting up"),
-      h("div", { className: "creator-actionbar__primary" },
-        h("a", {
-            href: "index.html?mode=stats",
-            className: "creator-actionbar__btn creator-actionbar__btn--ghost creator-actionbar__stats-link",
-            title: "View stitching statistics"
-          },
-          Icons.barChart ? Icons.barChart() : null,
-          h("span", null, "Stats")
-        )
-      )
+      h("div", { className: "creator-actionbar__primary" })
     );
   }
 
@@ -210,16 +199,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
       role: "toolbar",
       "aria-label": "Pattern actions"
     },
-    modeSwitch,
     h("div", { className: "creator-actionbar__primary" },
-      h("a", {
-          href: "index.html?mode=stats",
-          className: "creator-actionbar__btn creator-actionbar__btn--ghost creator-actionbar__stats-link",
-          title: "View stitching statistics"
-        },
-        Icons.barChart ? Icons.barChart() : null,
-        h("span", null, "Stats")
-      ),
       h("button", {
           type: "button",
           className: "creator-actionbar__btn creator-actionbar__btn--primary",
