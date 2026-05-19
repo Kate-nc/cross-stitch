@@ -174,8 +174,10 @@ const ProjectStorage = (() => {
   let _idbUnavailable = false;
 
   function _notifyIdbUnavailable() {
-    if (_idbUnavailable) return;
+    // Use a window-level flag so this fires at most once even if multiple modules detect IDB failure.
+    if (_idbUnavailable || (typeof window !== 'undefined' && window._stitchxIdbUnavailable)) return;
     _idbUnavailable = true;
+    if (typeof window !== 'undefined') window._stitchxIdbUnavailable = true;
     console.warn('[ProjectStorage] IndexedDB unavailable — likely private browsing mode. Projects will not persist.');
     try {
       if (typeof window !== 'undefined') {
@@ -198,7 +200,14 @@ const ProjectStorage = (() => {
     }
     return new Promise((resolve, reject) => {
       ensurePersistence();
-      let request = indexedDB.open(DB_NAME, 5);
+      let request;
+      try {
+        request = indexedDB.open(DB_NAME, 5);
+      } catch (e) {
+        _notifyIdbUnavailable();
+        reject(e);
+        return;
+      }
       request.onupgradeneeded = (e) => {
         let db = e.target.result;
         let upgradeTx = e.target.transaction;

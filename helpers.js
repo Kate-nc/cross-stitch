@@ -263,8 +263,10 @@ var _helpersCachedDB = null;
 var _idbUnavailable = false;
 
 function _notifyIdbUnavailable() {
-  if (_idbUnavailable) return; // already notified
+  // Use a window-level flag so this fires at most once even if multiple modules detect IDB failure.
+  if (_idbUnavailable || (typeof window !== 'undefined' && window._stitchxIdbUnavailable)) return;
   _idbUnavailable = true;
+  if (typeof window !== 'undefined') window._stitchxIdbUnavailable = true;
   console.warn('[CrossStitchDB] IndexedDB unavailable — likely private browsing mode. Projects will not persist.');
   try {
     if (typeof window !== 'undefined') {
@@ -287,7 +289,14 @@ function getDB() {
   }
   return new Promise((resolve, reject) => {
     ensurePersistence().catch(() => {});
-    let request = indexedDB.open(DB_NAME, 5);
+    let request;
+    try {
+      request = indexedDB.open(DB_NAME, 5);
+    } catch (e) {
+      _notifyIdbUnavailable();
+      reject(e);
+      return;
+    }
     request.onupgradeneeded = (e) => {
       let db = e.target.result;
       let oldVersion = e.oldVersion;
