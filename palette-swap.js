@@ -992,7 +992,7 @@ function MappingTableRow(props) {
       ),
       showPicker && React.createElement(DmcPickerPopover, { onSelect: handleSelectPicker })
     ),
-    React.createElement("td", { style: { padding: "4px 6px", textAlign: "right", fontSize: 11, color: "#A89E89" } }, (props.count || 0).toLocaleString()),
+    React.createElement("td", { style: { padding: "4px 6px", textAlign: "right", fontSize: 11, color: "#A89E89" } }, (props.count || 0).toLocaleString('en-GB')),
     React.createElement("td", { style: { padding: "4px 6px" } },
       m.locked
         ? React.createElement("span", { style: { fontSize: 10, color: "#8A5C26", background: "#F2E2BE", padding: "1px 6px", borderRadius: 8 } }, "Locked")
@@ -1757,7 +1757,7 @@ function usePaletteSwap(props) {
     doneCount > 0 && React.createElement("div", {
       style: { background: "#FAF5E1", border: "1px solid #E5C97D", borderRadius: 6, padding: "8px 10px", fontSize: 11, color: "#A06F2D", marginBottom: 8 }
     },
-      "This pattern has tracking progress (" + doneCount.toLocaleString() + " stitches marked). Applying a palette swap will reset your progress."
+      "This pattern has tracking progress (" + doneCount.toLocaleString('en-GB') + " stitches marked). Applying a palette swap will reset your progress."
     ),
 
     // Collision warnings

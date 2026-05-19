@@ -1,4 +1,4 @@
-﻿/* preferences-modal.js — Sidebar Workbench preferences overlay.
+/* preferences-modal.js � Sidebar Workbench preferences overlay.
  *
  * Available on Creator, Tracker and Manager pages. Reads/writes via window.UserPrefs.
  * 12 categories shown in a left sidebar; the right pane shows the selected
@@ -6,7 +6,7 @@
  * "cs:prefsChanged" CustomEvent so other modules can react.
  *
  * Settings flagged with `_soon: true` are stored in UserPrefs but not yet
- * fully wired to runtime behaviour — they appear with a small "Coming soon"
+ * fully wired to runtime behaviour � they appear with a small "Coming soon"
  * badge so users know the toggle is honest.
  *
  * Exposes window.PreferencesModal as a React function component:
@@ -27,7 +27,7 @@
     return (typeof Icons[name] === "function") ? Icons[name]() : null;
   }
 
-  // ─── UserPrefs bridge ────────────────────────────────────────────────
+  // --- UserPrefs bridge ------------------------------------------------
   function UP_get(key, fallback) {
     if (window.UserPrefs && typeof window.UserPrefs.get === "function") {
       var v = window.UserPrefs.get(key);
@@ -80,7 +80,7 @@
     });
   }
 
-  // ─── Reusable atoms ──────────────────────────────────────────────────
+  // --- Reusable atoms --------------------------------------------------
   // NOTE: values are CSS custom-property references so this modal respects
   // light AND dark theme tokens defined in styles.css. Hex fallbacks remain
   // only for resilience if a token is somehow undefined at runtime.
@@ -167,7 +167,7 @@
     }, "Coming soon");
   }
 
-  // Render one row: label · description · control. Optional `soon` flag.
+  // Render one row: label � description � control. Optional `soon` flag.
   function Row(props) {
     return h("div", { style: props.last ? styles.rowLast : styles.row },
       h("div", { style: { minWidth: 0 } },
@@ -187,15 +187,15 @@
 
   function PageHeader(props) {
     return h("div", { style: { marginBottom: 16 } },
-      h("div", { style: styles.crumb }, "Settings · ", props.crumb || props.title),
+      h("div", { style: styles.crumb }, "Settings � ", props.crumb || props.title),
       h("h2", { style: styles.pageH }, props.title),
       props.subtitle ? h("p", { style: styles.pageSub }, props.subtitle) : null
     );
   }
 
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   // PROFILE & BRANDING
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   function ProfilePanel() {
     var n = usePref("designerName", "");
     var lg = usePref("designerLogo", null);
@@ -224,18 +224,18 @@
         ),
         h(Row, { label: "Copyright line", desc: "Shown in the PDF footer of every chart." },
           h("input", { type: "text", style: Object.assign({}, styles.input, { width: 280 }), value: cp[0],
-            placeholder: "© 2026 Your Name", onChange: function (e) { cp[1](e.target.value); } })
+            placeholder: "� 2026 Your Name", onChange: function (e) { cp[1](e.target.value); } })
         ),
         h(Row, { label: "Contact or website", desc: "Email or a link printed on PDF cover pages." },
           h("input", { type: "text", autoComplete: "email url", inputMode: "email", style: Object.assign({}, styles.input, { width: 280 }), value: ct[0],
             placeholder: "hello@example.com", onChange: function (e) { ct[1](e.target.value); } })
         ),
-        h(Row, { last: true, label: "Logo", desc: "Up to 600 × 600 px. PNG or JPEG." },
+        h(Row, { last: true, label: "Logo", desc: "Up to 600 � 600 px. PNG or JPEG." },
           h("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
             lg[0] ? h("img", { src: lg[0], alt: "Logo preview", style: { maxHeight: 44, maxWidth: 140, border: "1px solid " + COLOURS.line, borderRadius: 4, background: "#fff" } })
                   : h("span", { style: { fontSize: 12, color: COLOURS.hint } }, "No logo yet"),
             h("label", { style: Object.assign({}, styles.btn, { display: "inline-flex", alignItems: "center" }) },
-              lg[0] ? "Replace…" : "Upload…",
+              lg[0] ? "Replace�" : "Upload�",
               h("input", { type: "file", accept: "image/png,image/jpeg", style: { display: "none" }, onChange: onLogoFile })
             ),
             lg[0] ? h("button", { style: styles.btnDanger, onClick: function () { lg[1](null); } }, "Remove") : null
@@ -267,9 +267,9 @@
     );
   }
 
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   // PATTERN CREATOR
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   function CreatorPanel() {
     var pal = usePref("creatorDefaultPaletteSize", 24);
     var fab = usePref("creatorDefaultFabricCount", 16);
@@ -290,7 +290,7 @@
 
     return h("div", null,
       h(PageHeader, { title: "Pattern Creator",
-        subtitle: "Defaults used when starting a new pattern. You can still adjust everything per‑project from the Creator's sidebar." }),
+        subtitle: "Defaults used when starting a new pattern. You can still adjust everything per-project from the Creator's sidebar." }),
 
       h(Section, { title: "Generation defaults" },
         h(Row, { label: "Maximum colours", desc: "How many DMC colours the Creator may use when matching an image." },
@@ -352,14 +352,14 @@
         h(Row, { label: "Thread sheen", desc: "Adds a subtle specular highlight to pattern squares to better suggest how thread catches light." },
           h(Switch, { checked: threadSheen[0], onChange: threadSheen[1] })
         ),
-        h(Row, { last: true, label: "Show grid overlay by default", desc: "Adds 10‑stitch grid lines to the chart canvas." },
+        h(Row, { last: true, label: "Show grid overlay by default", desc: "Adds 10-stitch grid lines to the chart canvas." },
           h(Switch, { checked: grid[0], onChange: grid[1] })
         )
       ),
 
       h(Section, { title: "Experimental" },
         h(Row, { label: "Use guided import wizard (experimental)",
-          desc: "Replaces the single‑step image import dialog with a five‑step wizard. Off by default while we iterate." },
+          desc: "Replaces the single-step image import dialog with a five-step wizard. Off by default while we iterate." },
           h(Switch, { checked: importWiz[0], onChange: importWiz[1] })
         ),
         h(Row, { last: true, label: "Show Embroidery planner link (experimental)",
@@ -370,9 +370,9 @@
     );
   }
 
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   // STITCH TRACKER
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   function TrackerPanel() {
     var defView = usePref("trackerDefaultView", "symbol");
     var defHl = usePref("trackerDefaultHighlightMode", "isolate");
@@ -405,7 +405,7 @@
             { value: "highlight", label: "Highlight" }
           ]})
         ),
-        h(Row, { last: true, label: "Highlight rendering", desc: "How the focused colour is emphasised in highlight view. Outline draws marching ants around matching cells; tint paints a translucent overlay; spotlight dims everything else; isolate hides non‑matching colours." },
+        h(Row, { last: true, label: "Highlight rendering", desc: "How the focused colour is emphasised in highlight view. Outline draws marching ants around matching cells; tint paints a translucent overlay; spotlight dims everything else; isolate hides non-matching colours." },
           h(Segmented, { value: defHl[0], onChange: defHl[1], options: [
             { value: "isolate",   label: "Isolate" },
             { value: "outline",   label: "Outline" },
@@ -460,17 +460,17 @@
       ),
 
       h(Section, { title: "Your stitching style" },
-        h(Row, { label: "How you stitch", desc: "Block fills small areas at a time · cross‑country follows colour across the chart · freestyle is anything goes." },
+        h(Row, { label: "How you stitch", desc: "Block fills small areas at a time � cross-country follows colour across the chart � freestyle is anything goes." },
           h(Segmented, { value: style[0], onChange: style[1], options: [
-            { value: "block", label: "Block" }, { value: "crosscountry", label: "Cross‑country" }, { value: "freestyle", label: "Freestyle" }, { value: "royal", label: "Royal" }
+            { value: "block", label: "Block" }, { value: "crosscountry", label: "Cross-country" }, { value: "freestyle", label: "Freestyle" }, { value: "royal", label: "Royal" }
           ]})
         ),
-        h(Row, { label: "Block shape", desc: "Width × height of the area you fill at a time." },
+        h(Row, { label: "Block shape", desc: "Width � height of the area you fill at a time." },
           h("select", { value: block[0], onChange: function (e) { block[1](e.target.value); }, style: styles.input },
-            h("option", { value: "5x5" },   "5 × 5"),
-            h("option", { value: "10x10" }, "10 × 10 (most common)"),
-            h("option", { value: "15x15" }, "15 × 15"),
-            h("option", { value: "20x20" }, "20 × 20")
+            h("option", { value: "5x5" },   "5 � 5"),
+            h("option", { value: "10x10" }, "10 � 10 (most common)"),
+            h("option", { value: "15x15" }, "15 � 15"),
+            h("option", { value: "20x20" }, "20 � 20")
           )
         ),
         h(Row, { last: true, label: "Where you start", desc: "The corner you typically begin a new pattern from." },
@@ -483,7 +483,7 @@
       ),
 
       h(Section, { title: "Counting" },
-        // Half-stitch counting and undo-depth rows hidden — not wired yet.
+        // Half-stitch counting and undo-depth rows hidden � not wired yet.
         h(Row, { last: true, label: "Show parking markers", desc: "Small dots that remember where you parked each colour between sessions." },
           h(Switch, { checked: parking[0], onChange: parking[1] })
         )
@@ -507,9 +507,9 @@
     );
   }
 
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   // STASH MANAGER
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   function ManagerPanel() {
     var brand = usePref("stashDefaultBrand", "dmc");
     var lowStock = usePref("stashLowStockThreshold", 1);
@@ -530,7 +530,7 @@
             { value: "DMC", label: "DMC" }, { value: "Anchor", label: "Anchor" }, { value: "both", label: "Both" }
           ]})
         ),
-        h(Row, { last: true, label: "Warn me when a thread runs low", desc: "Show a low‑stock badge when you have this many skeins or fewer. Fractions such as 0.25 or 0.5 are useful for part-skeins." },
+        h(Row, { last: true, label: "Warn me when a thread runs low", desc: "Show a low-stock badge when you have this many skeins or fewer. Fractions such as 0.25 or 0.5 are useful for part-skeins." },
           h("input", { type: "number", inputMode: "decimal", min: 0, max: 20, step: 0.25, value: lowStock[0],
             onChange: function (e) { lowStock[1](Math.max(0, parseFloat(e.target.value) || 0)); },
             style: Object.assign({}, styles.input, { width: 70 }) }),
@@ -539,7 +539,7 @@
       ),
 
       h(Section, { title: "Skein calculations" },
-        h(Row, { label: "Strands used per stitch", desc: "Most cross stitch uses 2 strands on 14‑ or 16‑count Aida." },
+        h(Row, { label: "Strands used per stitch", desc: "Most cross stitch uses 2 strands on 14- or 16-count Aida." },
           h("input", { type: "number", inputMode: "numeric", min: 1, max: 6, value: strands[0],
             onChange: function (e) { strands[1](Math.max(1, Math.min(6, parseInt(e.target.value, 10) || 2))); },
             style: Object.assign({}, styles.input, { width: 70 }) })
@@ -560,8 +560,8 @@
           h("select", { value: sort[0], onChange: function (e) { sort[1](e.target.value); }, style: styles.input },
             h("option", { value: "date_desc" }, "Recently updated"),
             h("option", { value: "date_asc" }, "Oldest first"),
-            h("option", { value: "title_asc" }, "Title (A → Z)"),
-            h("option", { value: "designer_asc" }, "Designer (A → Z)"),
+            h("option", { value: "title_asc" }, "Title (A ? Z)"),
+            h("option", { value: "designer_asc" }, "Designer (A ? Z)"),
             h("option", { value: "status" }, "Status")
           )
         ),
@@ -574,15 +574,15 @@
             h("option", { value: "completed" }, "Completed")
           )
         ),
-        // Detailed thread grid toggle hidden — old denser view not implemented.
+        // Detailed thread grid toggle hidden � old denser view not implemented.
         null
       )
     );
   }
 
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   // PREVIEW & DISPLAY
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   function PreviewPanel() {
     var lvl = usePref("preferredPreviewLevel", "level2");
     var fab = usePref("fabricColour", "#F5F0E6");
@@ -595,22 +595,22 @@
 
     return h("div", null,
       h(PageHeader, { title: "Preview & display",
-        subtitle: "How patterns look when you open them. Per‑pattern overrides still take precedence." }),
+        subtitle: "How patterns look when you open them. Per-pattern overrides still take precedence." }),
 
       h(Section, { title: "Default preview" },
         h(Row, { label: "Preview detail level", desc: "Level 1 is the bare chart; Level 4 shows your work in a hoop or frame." },
           h("select", { value: lvl[0], onChange: function (e) { lvl[1](e.target.value); }, style: styles.input },
-            h("option", { value: "level1" }, "Level 1 — Chart only"),
-            h("option", { value: "level2" }, "Level 2 — Standard preview"),
-            h("option", { value: "level3" }, "Level 3 — Realistic fabric"),
-            h("option", { value: "level4" }, "Level 4 — Hoop or frame")
+            h("option", { value: "level1" }, "Level 1 � Chart only"),
+            h("option", { value: "level2" }, "Level 2 � Standard preview"),
+            h("option", { value: "level3" }, "Level 3 � Realistic fabric"),
+            h("option", { value: "level4" }, "Level 4 � Hoop or frame")
           )
         ),
         h(Row, { label: "Default fabric colour", desc: "Used as the chart background and behind realistic previews." },
           h("input", { type: "color", value: fab[0], onChange: function (e) { fab[1](e.target.value); }, style: { width: 44, height: 30, padding: 0, border: "1px solid " + COLOURS.line2, borderRadius: 6 } }),
           h("input", { type: "text", value: fab[0], onChange: function (e) { fab[1](e.target.value); }, style: Object.assign({}, styles.input, { width: 110 }) })
         ),
-        h(Row, { last: true, label: "Show grid overlay by default", desc: "Adds 10‑stitch grid lines to the chart." },
+        h(Row, { last: true, label: "Show grid overlay by default", desc: "Adds 10-stitch grid lines to the chart." },
           h(Switch, { checked: grid[0], onChange: grid[1] })
         )
       ),
@@ -648,9 +648,9 @@
     );
   }
 
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   // PDF EXPORT
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   function PdfPanel() {
     var preset = usePref("exportPreset", "patternKeeper");
     var pageSize = usePref("exportPageSize", "auto");
@@ -671,7 +671,7 @@
         subtitle: "Default settings used when exporting a pattern. You can still change anything per export." }),
 
       h(Section, { title: "Preset & paper" },
-        h(Row, { label: "Preset", desc: "“Pattern Keeper compatible” is best for the popular tracking app on phones and tablets." },
+        h(Row, { label: "Preset", desc: "�Pattern Keeper compatible� is best for the popular tracking app on phones and tablets." },
           h("select", { value: preset[0], onChange: function (e) { preset[1](e.target.value); }, style: styles.input },
             h("option", { value: "patternKeeper" }, "Pattern Keeper compatible"),
             h("option", { value: "homePrinting" }, "Home printing")
@@ -696,7 +696,7 @@
       h(Section, { title: "Chart" },
         h(Row, { label: "Black & white chart" }, h(Switch, { checked: bw[0], onChange: bw[1] })),
         h(Row, { label: "Colour chart" }, h(Switch, { checked: col[0], onChange: col[1] })),
-        h(Row, { label: "Show grid lines every…", desc: "Heavier grid lines every N stitches make counting easier." },
+        h(Row, { label: "Show grid lines every�", desc: "Heavier grid lines every N stitches make counting easier." },
           h("input", { type: "number", inputMode: "numeric", min: 2, max: 50, value: gridInt[0], onChange: function (e) { gridInt[1](Math.max(2, parseInt(e.target.value, 10) || 10)); }, style: Object.assign({}, styles.input, { width: 70 }) }),
           h("span", { style: { fontSize: 12, color: COLOURS.slate2 } }, "stitches")
         ),
@@ -713,9 +713,9 @@
     );
   }
 
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   // ACCESSIBILITY
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   function AccessibilityPanel() {
     var fs = usePref("a11yFontScale", "m");
     var hc = usePref("a11yHighContrast", false);
@@ -746,7 +746,7 @@
       ),
 
       h(Section, { title: "Motion & colour" },
-        // Colour-blind aid hidden — colour-shift logic not wired yet.
+        // Colour-blind aid hidden � colour-shift logic not wired yet.
         h(Row, { label: "Reduce motion", desc: "Turns off slide and fade animations and the completion confetti." },
           h(Switch, { checked: rm[0], onChange: rm[1] })
         ),
@@ -757,9 +757,9 @@
     );
   }
 
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   // NOTIFICATIONS
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   function NotificationsPanel() {
     var on = usePref("toastsEnabled", true);
     var sound = usePref("notifSound", false);
@@ -773,7 +773,7 @@
         subtitle: "Control the small messages and sounds the app uses to keep you informed." }),
 
       h(Section, { title: "Toast notifications" },
-        h(Row, { label: "Show toast notifications", desc: "Brief messages that pop up at the bottom of the screen, e.g. ‘Pattern saved’." },
+        h(Row, { label: "Show toast notifications", desc: "Brief messages that pop up at the bottom of the screen, e.g. �Pattern saved�." },
           h(Switch, { checked: on[0], onChange: on[1] })
         ),
         h(Row, { last: true, label: "How many to show at once" },
@@ -787,19 +787,19 @@
         h(Row, { label: "Celebrate milestones", desc: "Shows toast messages at 25%, 50%, 75% and when you finish a pattern." },
           h(Switch, { checked: milestones[0], onChange: milestones[1] })
         ),
-        h(Row, { last: true, label: "Low‑stock alerts", desc: "Show a notice when threads in your stash drop below the warning level." },
+        h(Row, { last: true, label: "Low-stock alerts", desc: "Show a notice when threads in your stash drop below the warning level." },
           h(Switch, { checked: lowStockNotify[0], onChange: lowStockNotify[1] })
         )
       ),
 
-      // Sound & touch section hidden — audio/haptic feedback not wired yet.
+      // Sound & touch section hidden � audio/haptic feedback not wired yet.
       null
     );
   }
 
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   // REGIONAL & UNITS
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   function RegionalPanel() {
     var cur = usePref("currency", "GBP");
     var lenUnit = usePref("threadLengthUnit", "in");
@@ -813,7 +813,7 @@
       h(Section, { title: "Currency" },
         h(Row, { label: "Currency", desc: "Used for thread cost estimates and the stash value summary." },
           h(Segmented, { value: cur[0], onChange: cur[1], options: [
-            { value: "GBP", label: "£ GBP" }, { value: "USD", label: "$ USD" }, { value: "EUR", label: "€ EUR" }, { value: "CAD", label: "$ CAD" }, { value: "AUD", label: "$ AUD" }
+            { value: "GBP", label: "� GBP" }, { value: "USD", label: "$ USD" }, { value: "EUR", label: "� EUR" }, { value: "CAD", label: "$ CAD" }, { value: "AUD", label: "$ AUD" }
           ]})
         ),
         h(Row, { last: true, label: "Default skein price", desc: "Cost of a single skein in the currency above." },
@@ -838,9 +838,9 @@
     );
   }
 
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   // SYNC, BACKUP & DATA
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   function DataPanel() {
     var autosync = usePref("autoSyncEnabled", true);
     var autoLib = usePref("autoLibraryLink", true);
@@ -1079,8 +1079,8 @@
     var hasFolder = !!st.hasWatchDir;
     var folderSupported = (typeof window.showDirectoryPicker === "function");
     var folderName = hasFolder ? "Sync folder" : "Not connected";
-    var lastExport = st.lastExportAt ? new Date(st.lastExportAt).toLocaleString() : "Never";
-    var lastImport = st.lastImportAt ? new Date(st.lastImportAt).toLocaleString() : "Never";
+    var lastExport = st.lastExportAt ? new Date(st.lastExportAt).toLocaleString('en-GB') : "Never";
+    var lastImport = st.lastImportAt ? new Date(st.lastImportAt).toLocaleString('en-GB') : "Never";
     var currentAutoSync = (window.SyncEngine && typeof window.SyncEngine.isAutoSyncEnabled === "function")
       ? window.SyncEngine.isAutoSyncEnabled()
       : autosync[0];
@@ -1098,10 +1098,10 @@
               : "Folder watching needs a Chromium-based browser (Chrome, Edge, Brave, Opera).") },
           hasFolder
             ? h("div", { style: { display: "flex", gap: 6 } },
-                h("button", { style: styles.btn, onClick: chooseSyncFolder, disabled: !folderSupported }, "Change folder…"),
+                h("button", { style: styles.btn, onClick: chooseSyncFolder, disabled: !folderSupported }, "Change folder�"),
                 h("button", { style: styles.btnDanger, onClick: disconnectFolder }, "Disconnect")
               )
-            : h("button", { style: styles.btnPrimary, onClick: chooseSyncFolder, disabled: !folderSupported }, "Choose folder…")
+            : h("button", { style: styles.btnPrimary, onClick: chooseSyncFolder, disabled: !folderSupported }, "Choose folder�")
         ),
         h(Row, { label: "This device's name", desc: "Shown to other devices in sync summaries so you can tell them apart." },
           h("div", { style: { display: "flex", gap: 6 } },
@@ -1123,7 +1123,7 @@
             onClick: function () {
               if (window.HandshakeGeneratorModal) window.HandshakeGeneratorModal.show();
             }
-          }, "Show pairing code…")
+          }, "Show pairing code�")
         ),
         h(Row, { label: "Join existing sync",
           desc: "Have a code from another device? Enter it to set this device up to watch the same folder." },
@@ -1139,10 +1139,10 @@
                 }
               });
             }
-          }, "Enter pairing code…")
+          }, "Enter pairing code�")
         ),
         h(Row, { last: true, label: "Status",
-          desc: "Last exported " + lastExport + " · last imported " + lastImport },
+          desc: "Last exported " + lastExport + " � last imported " + lastImport },
           h("span", { style: { fontSize: 12, color: hasFolder ? COLOURS.tealDark : COLOURS.hint } },
             hasFolder ? "Connected" : "Not connected")
         )
@@ -1167,11 +1167,11 @@
         )
       ),
 
-      // ── Encryption (opt-in) ───────────────────────────────────────
+      // -- Encryption (opt-in) ---------------------------------------
       // Three states drive the UI here:
-      //   • not enabled         → toggle off, single setup form (passphrase + confirm)
-      //   • enabled, locked     → toggle on, single passphrase field + Unlock
-      //   • enabled, unlocked   → toggle on, Lock button + Turn-off button
+      //   � not enabled         ? toggle off, single setup form (passphrase + confirm)
+      //   � enabled, locked     ? toggle on, single passphrase field + Unlock
+      //   � enabled, unlocked   ? toggle on, Lock button + Turn-off button
       h(Section, { title: "Encryption" },
         !encStatus[0].available
           ? h(Row, { last: true, label: "Encrypt sync files",
@@ -1181,7 +1181,7 @@
           : !encStatus[0].enabled
             ? h("div", null,
                 h(Row, { label: "Encrypt sync files",
-                  desc: "Wraps the contents of every sync file in AES-GCM-256 with a passphrase you choose. Cloud providers (Dropbox, OneDrive, iCloud) can no longer read your patterns or stash. Forgetting the passphrase means losing access to encrypted files — there is no recovery." },
+                  desc: "Wraps the contents of every sync file in AES-GCM-256 with a passphrase you choose. Cloud providers (Dropbox, OneDrive, iCloud) can no longer read your patterns or stash. Forgetting the passphrase means losing access to encrypted files � there is no recovery." },
                   h("span", { style: { fontSize: 11, color: COLOURS.hint, fontStyle: "italic" } }, "Off")
                 ),
                 h("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "10px 16px" } },
@@ -1256,11 +1256,11 @@
 
       h(Section, { title: "Backup" },
         h(Row, { label: "Download a backup", desc: "Saves every pattern, your stash and your settings into a single file." },
-          h("button", { style: styles.btn, disabled: busy[0], onClick: downloadBackup }, busy[0] ? "Working…" : "Download backup")
+          h("button", { style: styles.btn, disabled: busy[0], onClick: downloadBackup }, busy[0] ? "Working�" : "Download backup")
         ),
         h(Row, { last: true, label: "Restore from a backup file", desc: "Replaces everything with the contents of a backup. Choose carefully." },
           h("label", { style: Object.assign({}, styles.btn, { display: "inline-flex", alignItems: "center", cursor: "pointer" }) },
-            "Choose file…",
+            "Choose file�",
             h("input", { type: "file", accept: "application/json,.json", style: { display: "none" }, onChange: pickRestoreFile })
           )
         )
@@ -1268,10 +1268,10 @@
 
       h(Section, { title: "Start over" },
         h(Row, { label: "Delete all patterns", desc: "Clears every pattern saved in the Creator and Tracker." },
-          h("button", { style: styles.btnDanger, onClick: clearProjects }, "Delete patterns…")
+          h("button", { style: styles.btnDanger, onClick: clearProjects }, "Delete patterns�")
         ),
         h(Row, { last: true, label: "Delete my stash", desc: "Clears the Stash Manager's thread inventory and pattern library." },
-          h("button", { style: styles.btnDanger, onClick: clearStash }, "Delete stash…")
+          h("button", { style: styles.btnDanger, onClick: clearStash }, "Delete stash�")
         )
       ),
       msg[0] ? h("div", {
@@ -1285,9 +1285,9 @@
     );
   }
 
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   // ONBOARDING & HELP
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   function OnboardingPanel() {
     var msg = useState(null);
     var hint = useState(function () {
@@ -1364,7 +1364,7 @@
     );
   }
 
-  // Track narrow viewport so ≤480px gets a stacked single-column layout.
+  // Track narrow viewport so =480px gets a stacked single-column layout.
   function useIsMobile() {
     var _m = useState(function () {
       return typeof window !== "undefined" && window.matchMedia
@@ -1386,13 +1386,13 @@
     return isMobile;
   }
 
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   // ADVANCED
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   function AdvancedPanel() {
     var palette = usePref("commandPaletteHotkey", "ctrl+k");
     var experimental = usePref("flagExperimentalPreview", false);
-    var swStatus = useState("Checking…");
+    var swStatus = useState("Checking�");
     var msg = useState(null);
 
     useEffect(function () {
@@ -1476,11 +1476,11 @@
     );
   }
 
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   // VERSION HISTORY
   // Reads window.APP_CHANGELOG (version.js) and renders a collapsible
   // list at the bottom of every settings panel.
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   function VersionHistory() {
     var changelog = (window.APP_CHANGELOG || []);
     var os = useState(false); var open = os[0]; var setOpen = os[1];
@@ -1521,11 +1521,11 @@
     );
   }
 
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   // CATEGORIES INDEX
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   // Each category renders an inline-SVG icon from window.Icons (see icons.js).
-  // No emoji — we use icons everywhere for visual consistency.
+  // No emoji � we use icons everywhere for visual consistency.
   var CATEGORIES = [
     { group: "General",   id: "profile",  iconName: "user",          label: "Profile & branding",   Panel: ProfilePanel },
     { group: "General",   id: "regional", iconName: "globe",         label: "Regional & units",     Panel: RegionalPanel },
@@ -1541,9 +1541,9 @@
     { group: "System",    id: "advanced", iconName: "gear",          label: "Advanced",             Panel: AdvancedPanel }
   ];
 
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   // MODAL SHELL
-  // ════════════════════════════════════════════════════════════════════
+  // --------------------------------------------------------------------
   function PreferencesModal(props) {
     var onClose = props.onClose;
     // Initial category: respect a passed-in `initialCategory`, otherwise default
@@ -1649,7 +1649,7 @@
             padding: "12px 22px", borderTop: "1px solid " + COLOURS.line, background: "#fafbfc"
           }
         },
-          h("span", { style: { fontSize: 11, color: COLOURS.hint } }, "Changes save automatically. ‘Coming soon’ settings are remembered but not yet active in the app."),
+          h("span", { style: { fontSize: 11, color: COLOURS.hint } }, "Changes save automatically. �Coming soon� settings are remembered but not yet active in the app."),
           h("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
             h("span", { style: { fontSize: 11, color: COLOURS.hint } }, "v" + (window.APP_VERSION || "")),
             h("button", { style: styles.btnPrimary, onClick: onClose }, "Done")

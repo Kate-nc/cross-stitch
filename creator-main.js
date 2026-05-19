@@ -1014,8 +1014,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
               {state.previewUrl&&state.previewStats&&<div className="card" style={{padding:"12px 14px"}}>
                 <div style={{fontSize:11,fontWeight:600,color:"#5C5448",textTransform:"uppercase",marginBottom:8}}>Preview Estimates</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px"}}>
-                  <div><div style={{fontSize:10,color:"#A89E89"}}>Stitchable</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.stitchable.toLocaleString()}</div></div>
-                  {state.skipBg&&<div><div style={{fontSize:10,color:"#A89E89"}}>Skipped</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.skipped.toLocaleString()}</div></div>}
+                  <div><div style={{fontSize:10,color:"#A89E89"}}>Stitchable</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.stitchable.toLocaleString('en-GB')}</div></div>
+                  {state.skipBg&&<div><div style={{fontSize:10,color:"#A89E89"}}>Skipped</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.skipped.toLocaleString('en-GB')}</div></div>}
                   <div><div style={{fontSize:10,color:"#A89E89"}}>Colours</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.uniqueColors}</div></div>
                   {state.previewStats.stashUsage&&<div><div style={{fontSize:10,color:"#A89E89"}}>Stash usage</div><div style={{fontSize:13,fontWeight:600,color:"#B85C38"}}>{state.previewStats.stashUsage.used} of {state.previewStats.stashUsage.available}</div></div>}
                   <div><div style={{fontSize:10,color:"#A89E89"}}>Skeins ({state.fabricCt}ct)</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.estSkeins}</div></div>
@@ -1035,9 +1035,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                         <div style={{flex:1,height:5,background:"#E5DCCB",borderRadius:3,overflow:"hidden"}}>
                           <div style={{height:"100%",width:Math.min(100,state.previewStats.confettiPct*4)+"%",background:t.color,borderRadius:3}}/>
                         </div>
-                        <span style={{fontSize:12,fontWeight:700,color:t.color,flexShrink:0}}>{state.previewStats.confettiSingles.toLocaleString()} ({state.previewStats.confettiPct.toFixed(1)}%)</span>
+                        <span style={{fontSize:12,fontWeight:700,color:t.color,flexShrink:0}}>{state.previewStats.confettiSingles.toLocaleString('en-GB')} ({state.previewStats.confettiPct.toFixed(1)}%)</span>
                       </div>
-                      <div style={{fontSize:10,color:"#A89E89",marginTop:4}}>{tips[t.label]||""}{state.previewStats.confettiCleanSingles!=null&&state.previewStats.confettiCleanSingles<state.previewStats.confettiSingles?` · ${state.previewStats.confettiCleanSingles.toLocaleString()} after cleanup`:""}</div>
+                      <div style={{fontSize:10,color:"#A89E89",marginTop:4}}>{tips[t.label]||""}{state.previewStats.confettiCleanSingles!=null&&state.previewStats.confettiCleanSingles<state.previewStats.confettiSingles?` · ${state.previewStats.confettiCleanSingles.toLocaleString('en-GB')} after cleanup`:""}</div>
                     </div>
                   );
                 })()}
@@ -1067,7 +1067,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                           <div style={{width:12,height:12,borderRadius:2,flexShrink:0,background:'rgb('+pcol.rgb[0]+','+pcol.rgb[1]+','+pcol.rgb[2]+')',border:"0.5px solid rgba(0,0,0,0.12)"}}/>
                           <span style={{fontSize:10,fontWeight:600,color:"#5C5448",flexShrink:0,minWidth:28}}>{pcol.id}</span>
                           <span style={{fontSize:10,color:"#A89E89",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n?n.name:''}</span>
-                          <span style={{fontSize:10,fontWeight:600,color:"#1B1814",flexShrink:0}}>{Math.round(pcol.count*sf).toLocaleString()}</span>
+                          <span style={{fontSize:10,fontWeight:600,color:"#1B1814",flexShrink:0}}>{Math.round(pcol.count*sf).toLocaleString('en-GB')}</span>
                         </div>
                       );
                     })}

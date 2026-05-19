@@ -335,11 +335,11 @@
       var patternRows = [];
       if (dim) patternRows.push(['Dimensions', dim]);
       if (fabric) patternRows.push(['Fabric', fabric]);
-      if (stitchable > 0) patternRows.push(['Stitchable', stitchable.toLocaleString()]);
+      if (stitchable > 0) patternRows.push(['Stitchable', stitchable.toLocaleString('en-GB')]);
       if (distinctColours > 0) patternRows.push(['Colours', String(distinctColours)]);
-      if (pct !== null) patternRows.push(['Progress', pct + '% (' + done.toLocaleString() + '/' + stitchable.toLocaleString() + ')']);
+      if (pct !== null) patternRows.push(['Progress', pct + '% (' + done.toLocaleString('en-GB') + '/' + stitchable.toLocaleString('en-GB') + ')']);
       var metaRows = [];
-      if (p.createdAt) metaRows.push(['Created', new Date(p.createdAt).toLocaleDateString()]);
+      if (p.createdAt) metaRows.push(['Created', new Date(p.createdAt).toLocaleDateString('en-GB')]);
       if (p.updatedAt) metaRows.push(['Last edited', timeAgo(p.updatedAt)]);
       if (totalSec > 0) metaRows.push(['Time spent', fmtL(totalSec)]);
       var children = [

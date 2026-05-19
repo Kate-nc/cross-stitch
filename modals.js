@@ -439,7 +439,7 @@ function SyncActivityModal({ onClose }) {
     if (hr < 24) return hr + ' hr ago';
     var d = Math.round(hr / 24);
     if (d < 7) return d + ' day' + (d !== 1 ? 's' : '') + ' ago';
-    return new Date(iso).toLocaleDateString();
+    return new Date(iso).toLocaleDateString('en-GB');
   }
 
   var filtered = events.filter(function(e) {
@@ -1147,7 +1147,7 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
           'You\u2019re joining ', h('strong', { style: { color: 'var(--text-primary)' } }, b.deviceName || 'another device'), '.'),
         b.folderHint && b.folderHint.lastSyncAt
           ? h('p', { style: { margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: 12 } },
-              'Last synced ', new Date(b.folderHint.lastSyncAt).toLocaleString())
+              'Last synced ', new Date(b.folderHint.lastSyncAt).toLocaleString('en-GB'))
           : null,
         b.folderHint && b.folderHint.displayName
           ? h('p', { style: { margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: 12 } },
@@ -1810,8 +1810,8 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
       subjectSub = 'Pattern layout differs';
       localLabel = 'This device';
       remoteLabel = 'Synced from ' + deviceName;
-      localContent = conflict.localStitchCount + ' stitches done' + (conflict.localUpdatedAt ? ' \u00b7 edited ' + new Date(conflict.localUpdatedAt).toLocaleDateString() : '');
-      remoteContent = conflict.remoteStitchCount + ' stitches done' + (conflict.remoteUpdatedAt ? ' \u00b7 edited ' + new Date(conflict.remoteUpdatedAt).toLocaleDateString() : '');
+      localContent = conflict.localStitchCount + ' stitches done' + (conflict.localUpdatedAt ? ' \u00b7 edited ' + new Date(conflict.localUpdatedAt).toLocaleDateString('en-GB') : '');
+      remoteContent = conflict.remoteStitchCount + ' stitches done' + (conflict.remoteUpdatedAt ? ' \u00b7 edited ' + new Date(conflict.remoteUpdatedAt).toLocaleDateString('en-GB') : '');
     } else if (conflict.type === 'stash') {
       subjectText = 'Thread: DMC ' + conflict.threadId;
       subjectSub = 'Owned count differs';
@@ -2297,7 +2297,7 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
         h('div', null,
           h('h3', { id: 'srg-header', className: 'srg-header-title' }, headerTitle),
           createdAt && createdAt !== 'unknown' && h('div', { className: 'srg-header-sub' },
-            'Synced on ' + new Date(createdAt).toLocaleString()
+            'Synced on ' + new Date(createdAt).toLocaleString('en-GB')
           )
         )
       ),
