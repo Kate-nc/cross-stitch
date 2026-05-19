@@ -12750,8 +12750,6 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       }, "Clear \u2715")
     ),
 
-    ),
-
   );
 };
 
