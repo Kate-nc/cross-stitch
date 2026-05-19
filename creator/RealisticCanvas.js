@@ -451,13 +451,18 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
     if (!offscreenRef.current || !displayRef.current || !sW || !sH) return;
 
     var canvas = displayRef.current;
-    canvas.width  = sW * cs;
-    canvas.height = sH * cs;
+    var MAX_CANVAS_DIM = 16384; // iOS Safari hard limit
+    var rawW = sW * cs, rawH = sH * cs;
+    if (rawW > MAX_CANVAS_DIM || rawH > MAX_CANVAS_DIM) {
+      console.warn('RealisticCanvas: computed size (' + rawW + '\xd7' + rawH + ') exceeds 16384px; clamping.');
+    }
+    canvas.width  = Math.min(rawW, MAX_CANVAS_DIM);
+    canvas.height = Math.min(rawH, MAX_CANVAS_DIM);
 
     var ctx2d = canvas.getContext("2d");
     // Use bilinear smoothing for the textured render — looks better than pixelated when downscaling
     ctx2d.imageSmoothingEnabled = true;
-    ctx2d.imageSmoothingQuality = "high";
+    if ('imageSmoothingQuality' in ctx2d) { ctx2d.imageSmoothingQuality = "high"; }
 
     ctx2d.drawImage(offscreenRef.current, 0, 0, sW * cs, sH * cs);
 

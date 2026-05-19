@@ -3710,7 +3710,11 @@ window.CreatorExportTab = function CreatorExportTab() {
           g.fillRect(x * CELL, y * CELL, CELL, CELL);
         }
       }
+      var _toBlobTimer = setTimeout(function () {
+        reject(new Error("PNG creation timed out — try a smaller pattern or refresh the page."));
+      }, 10000);
       c.toBlob(function (blob) {
+        clearTimeout(_toBlobTimer);
         if (!blob) { reject(new Error("Failed to create PNG")); return; }
         resolve(blob);
       }, "image/png");
@@ -3727,7 +3731,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
     }).catch(function (err) {
       setError(err.message || "Failed to create PNG");
     });

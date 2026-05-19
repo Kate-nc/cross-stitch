@@ -205,7 +205,7 @@ function TrackerPreviewModal({pat,cmap,sW,sH,fabricCt,level,onLevelChange,onClos
     var canvas=displayRef.current;
     canvas.width=sW*displayCs;canvas.height=sH*displayCs;
     var ctx2d=canvas.getContext("2d");
-    ctx2d.imageSmoothingEnabled=true;ctx2d.imageSmoothingQuality="high";
+    ctx2d.imageSmoothingEnabled=true;if('imageSmoothingQuality' in ctx2d){ctx2d.imageSmoothingQuality="high";}
     ctx2d.drawImage(off,0,0,sW*displayCs,sH*displayCs);
   },[offscreenVersion,sW,sH]);
 
@@ -414,8 +414,8 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
                   </div>
                   <div style={{fontSize:10,color:"var(--text-tertiary)",marginTop:3}}>
                     {p.dimensions?(p.dimensions.width+"\u00D7"+p.dimensions.height+" \u00B7 "):""}
-                    {done.toLocaleString()+" / "+total.toLocaleString()+" stitches"}
-                    {p.updatedAt?(" \u00B7 updated "+new Date(p.updatedAt).toLocaleDateString()):""}
+                    {done.toLocaleString('en-GB')+" / "+total.toLocaleString('en-GB')+" stitches"}
+                    {p.updatedAt?(" \u00B7 updated "+new Date(p.updatedAt).toLocaleDateString('en-GB')):""}
                   </div>
                 </div>
               </button>
@@ -532,9 +532,9 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
     React.createElement('div',{className:'tracker-side-panel',role:'complementary','aria-label':'Today and palette',style:collapsed?{display:'none'}:undefined},
       React.createElement('section',{className:'tsp-card'},
         React.createElement('h3',{className:'tsp-h'},'Today'),
-        React.createElement('div',{className:'tsp-stat'},React.createElement('span',null,'Stitches'),React.createElement('strong',null,(todayStitchesForBar||0).toLocaleString())),
+        React.createElement('div',{className:'tsp-stat'},React.createElement('span',null,'Stitches'),React.createElement('strong',null,(todayStitchesForBar||0).toLocaleString('en-GB'))),
         React.createElement('div',{className:'tsp-stat'},React.createElement('span',null,'Session'),React.createElement('strong',null,timer)),
-        React.createElement('div',{className:'tsp-stat'},React.createElement('span',null,'Active'),React.createElement('strong',null,(liveAutoStitches||0).toLocaleString()+' st'))
+        React.createElement('div',{className:'tsp-stat'},React.createElement('span',null,'Active'),React.createElement('strong',null,(liveAutoStitches||0).toLocaleString('en-GB')+' st'))
       ),
       React.createElement('section',{className:'tsp-card'},
         (function(){
@@ -1810,37 +1810,48 @@ useEffect(()=>{
 // later write overwrites the earlier (net deduction = max, not sum). A full
 // fix needs atomic read-modify-write inside StashBridge; here we at least
 // warn the user when a second tab joins. Uses BroadcastChannel where
-// available (all evergreen browsers); silent no-op if not supported.
+// available (all evergreen browsers); falls back to localStorage storage
+// events for Safari <15.4 which lacks BroadcastChannel support.
 useEffect(()=>{
   if(!wastePrefs.enabled)return;
-  if(typeof BroadcastChannel==='undefined')return;
+  var useBroadcast=!(typeof BroadcastChannel==='undefined');
   var chan;
-  try{chan=new BroadcastChannel('cs-rt-tracker');}catch(_){return;}
   var myId=Math.random().toString(36).slice(2)+Date.now().toString(36);
   var warned=false;
-  function announce(){try{chan.postMessage({type:'rt-active',id:myId,t:Date.now()});}catch(_){}}
+  var LS_KEY='cs-rt-tracker-hb';
+  function showWarning(){
+    if(!warned&&window.Toast){
+      warned=true;
+      window.Toast.show({
+        message:'Live tracking is active in another tab — stash deductions may collide. Disable Live in one tab to avoid lost edits.',
+        type:'warning',duration:8000
+      });
+    }
+  }
+  function announce(){
+    if(useBroadcast){try{chan.postMessage({type:'rt-active',id:myId,t:Date.now()});}catch(_){}}
+    else{try{localStorage.setItem(LS_KEY,JSON.stringify({id:myId,t:Date.now()}));}catch(_){}}
+  }
   function onMsg(ev){
     var msg=ev&&ev.data;
     if(!msg||msg.id===myId)return;
-    if(msg.type==='rt-active'){
-      // Another tab is also live. Re-announce so they know about us too.
-      announce();
-      if(!warned&&window.Toast){
-        warned=true;
-        window.Toast.show({
-          message:'Live tracking is active in another tab — stash deductions may collide. Disable Live in one tab to avoid lost edits.',
-          type:'warning',duration:8000
-        });
-      }
-    }
+    if(msg.type==='rt-active'){announce();showWarning();}
   }
-  chan.addEventListener('message',onMsg);
-  // Announce on mount and every 30s.
+  function onStorage(ev){
+    if(ev.key!==LS_KEY)return;
+    try{var msg=JSON.parse(ev.newValue);if(!msg||msg.id===myId)return;announce();showWarning();}catch(_){}
+  }
+  if(useBroadcast){
+    try{chan=new BroadcastChannel('cs-rt-tracker');}catch(_){useBroadcast=false;}
+  }
+  if(useBroadcast){chan.addEventListener('message',onMsg);}
+  else{window.addEventListener('storage',onStorage);}
   announce();
   var hb=setInterval(announce,30000);
   return function(){
     clearInterval(hb);
-    try{chan.removeEventListener('message',onMsg);chan.close();}catch(_){}
+    if(useBroadcast&&chan){try{chan.removeEventListener('message',onMsg);chan.close();}catch(_){}}
+    else{window.removeEventListener('storage',onStorage);try{localStorage.removeItem(LS_KEY);}catch(_){}}
   };
 },[wastePrefs.enabled]);
 
@@ -2162,17 +2173,17 @@ useEffect(()=>{
     const prev=goalCelebrationRef.current;
     if(dailyGoal>0){
       const cur=todayStitchesForBar;
-      if(!prev.daily&&cur>=dailyGoal){goalCelebrationRef.current={...prev,daily:true};setCelebration({label:'Daily goal reached! '+cur.toLocaleString()+' / '+dailyGoal.toLocaleString()+' stitches',pct:null});}
+      if(!prev.daily&&cur>=dailyGoal){goalCelebrationRef.current={...prev,daily:true};setCelebration({label:'Daily goal reached! '+cur.toLocaleString('en-GB')+' / '+dailyGoal.toLocaleString('en-GB')+' stitches',pct:null});}
       else if(prev.daily&&cur<dailyGoal)goalCelebrationRef.current={...prev,daily:false};
     }
     if(weeklyGoal>0){
       const cur=getStatsThisWeekStitches(statsSessions||[],deh)+liveExtra;
-      if(!prev.weekly&&cur>=weeklyGoal){goalCelebrationRef.current={...prev,weekly:true};setCelebration({label:'Weekly goal reached! '+cur.toLocaleString()+' / '+weeklyGoal.toLocaleString()+' stitches',pct:null});}
+      if(!prev.weekly&&cur>=weeklyGoal){goalCelebrationRef.current={...prev,weekly:true};setCelebration({label:'Weekly goal reached! '+cur.toLocaleString('en-GB')+' / '+weeklyGoal.toLocaleString('en-GB')+' stitches',pct:null});}
       else if(prev.weekly&&cur<weeklyGoal)goalCelebrationRef.current={...prev,weekly:false};
     }
     if(monthlyGoal>0){
       const cur=getStatsThisMonthStitches(statsSessions||[],deh)+liveExtra;
-      if(!prev.monthly&&cur>=monthlyGoal){goalCelebrationRef.current={...prev,monthly:true};setCelebration({label:'Monthly goal reached! '+cur.toLocaleString()+' / '+monthlyGoal.toLocaleString()+' stitches',pct:null});}
+      if(!prev.monthly&&cur>=monthlyGoal){goalCelebrationRef.current={...prev,monthly:true};setCelebration({label:'Monthly goal reached! '+cur.toLocaleString('en-GB')+' / '+monthlyGoal.toLocaleString('en-GB')+' stitches',pct:null});}
       else if(prev.monthly&&cur<monthlyGoal)goalCelebrationRef.current={...prev,monthly:false};
     }
   }catch(e){}
@@ -2713,7 +2724,7 @@ async function exportPDF(options={}){
 
     let infoLines=[
       ["Pattern size",`${sW} × ${sH} stitches`],
-      ["Stitchable stitches",totalStitchable.toLocaleString()],
+      ["Stitchable stitches",totalStitchable.toLocaleString('en-GB')],
       ["Colours",`${pal.length} (${blendCount} blend${blendCount!==1?"s":""})`],
       ["Skeins needed",`${totalSkeins}`],
       ["Fabric",`${fabricCt} count`],
@@ -2729,7 +2740,7 @@ async function exportPDF(options={}){
       let localDoneCount=0;for(let i=0;i<done.length;i++)if(done[i])localDoneCount++;
       if(localDoneCount>0){
         let localProgressPct=Math.round(localDoneCount/totalStitchable*1000)/10;
-        pdf.setFontSize(11);pdf.setTextColor(100);pdf.text("PROGRESS",mg,y);y+=7;pdf.setFontSize(10);pdf.setTextColor(40);pdf.text(`${localProgressPct}% complete — ${localDoneCount.toLocaleString()} of ${totalStitchable.toLocaleString()} stitches`,mg,y);y+=8;if(totalTime>0){pdf.text(`Time stitched: ${fmtTimeL(totalTime)} (${(statsSessions?statsSessions.length:0)} session${(statsSessions?statsSessions.length:0)!==1?"s":""})`,mg,y);y+=5.5;let actualSpeed=Math.round(localDoneCount/(totalTime/3600));pdf.text(`Actual speed: ${actualSpeed} stitches/hr`,mg,y);y+=5.5;}y+=4;
+        pdf.setFontSize(11);pdf.setTextColor(100);pdf.text("PROGRESS",mg,y);y+=7;pdf.setFontSize(10);pdf.setTextColor(40);pdf.text(`${localProgressPct}% complete — ${localDoneCount.toLocaleString('en-GB')} of ${totalStitchable.toLocaleString('en-GB')} stitches`,mg,y);y+=8;if(totalTime>0){pdf.text(`Time stitched: ${fmtTimeL(totalTime)} (${(statsSessions?statsSessions.length:0)} session${(statsSessions?statsSessions.length:0)!==1?"s":""})`,mg,y);y+=5.5;let actualSpeed=Math.round(localDoneCount/(totalTime/3600));pdf.text(`Actual speed: ${actualSpeed} stitches/hr`,mg,y);y+=5.5;}y+=4;
       }
     }
 
@@ -4912,7 +4923,7 @@ function scheduleZoomUpdate(newZoom){
 }
 
 function handleStitchWheel(e){
-  if(!e.ctrlKey)return;
+  if(!e.ctrlKey&&!e.metaKey)return;
   e.preventDefault();
   const container=stitchScrollRef.current;
   if(!container)return;
@@ -4921,7 +4932,9 @@ function handleStitchWheel(e){
   const mouseY=e.clientY-rect.top;
   const canvasX=container.scrollLeft+mouseX;
   const canvasY=container.scrollTop+mouseY;
-  const delta=-e.deltaY*0.005;
+  // Normalise deltaY for deltaMode: 0=pixels, 1=lines (~16px), 2=pages (~400px)
+  const normDy=e.deltaMode===1?e.deltaY*16:e.deltaMode===2?e.deltaY*400:e.deltaY;
+  const delta=-normDy*0.005;
   const oldZoom=stitchZoomRef.current;
   const newZoom=Math.max(0.3,Math.min(4,oldZoom+delta));
   const scale=newZoom/oldZoom;
@@ -5350,6 +5363,14 @@ useEffect(()=>{
 },[!!pat]);
 
 // Attach touch listeners once when pattern loads — wrapper delegates to latest handler
+// NOTE (Safari iOS): the canvas uses Touch Events (not Pointer Events) because
+// {passive:false} touch listeners are required to call preventDefault() and block
+// both scroll and the browser's own selection / magnifier gestures.  Pointer Events
+// with {passive:false} do not reliably suppress those gestures on Safari iOS.
+// UI chrome (toolbar, modals) uses React's synthetic onPointerDown/Up events, which
+// is fine because those elements do not need to block default browser behaviour.
+// This intentional mixed strategy is the recommended practice for canvas-based
+// drawing surfaces on iOS (see MDN "Pointer Events — Touch action").
 useEffect(()=>{
   const canvas=stitchRef.current;
   if(!canvas||!pat)return;
@@ -5796,13 +5817,13 @@ return(
     const remainingStitches = Math.max(0, effectiveCombinedTotal - effectiveCombinedDone);
     const fmtL = window.fmtTimeL || (s => Math.round(s/3600)+'h');
     const progressRows = [
-      ['Done', `${Math.round(effectiveCombinedDone).toLocaleString()} / ${Math.round(effectiveCombinedTotal).toLocaleString()} (${progressPct.toFixed(1)}%)`],
-      ['Today', todayStitchesForBar.toLocaleString()],
-      ['This week', weekStitchesForChip.toLocaleString()]
+      ['Done', `${Math.round(effectiveCombinedDone).toLocaleString('en-GB')} / ${Math.round(effectiveCombinedTotal).toLocaleString('en-GB')} (${progressPct.toFixed(1)}%)`],
+      ['Today', todayStitchesForBar.toLocaleString('en-GB')],
+      ['This week', weekStitchesForChip.toLocaleString('en-GB')]
     ];
     const timeRows = [['Time spent', fmtL(totalSec)]];
     if (speedPerHour > 0) {
-      timeRows.push(['Average pace', `${speedPerHour.toLocaleString()} st/hr`]);
+      timeRows.push(['Average pace', `${speedPerHour.toLocaleString('en-GB')} st/hr`]);
       if (remainingStitches > 0) {
         timeRows.push(['Remaining', fmtL(Math.round(remainingStitches/speedPerHour*3600))]);
       }
@@ -6149,7 +6170,7 @@ return(
           return <label key={layer.id} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 0",fontSize:'var(--text-xs)',cursor:"pointer",opacity:count>0?1:0.4}}>
             <input type="checkbox" checked={vis} onChange={()=>{setSoloPreState(null);setLayerVis(v=>({...v,[layer.id]:!v[layer.id]}));}} style={{cursor:"pointer",accentColor:"var(--accent)"}}/>
             <span style={{flex:1}}>{layer.label}</span>
-            <span style={{fontSize:10,color:"var(--text-tertiary)"}}>{count.toLocaleString()}</span>
+            <span style={{fontSize:10,color:"var(--text-tertiary)"}}>{count.toLocaleString('en-GB')}</span>
           </label>;
         })}
       </div>}
@@ -6211,11 +6232,11 @@ return(
           )}
         </div>
         {threadUsageSummary&&<div style={{padding:"8px 10px",borderRadius:'var(--radius-md)',background:"var(--surface-secondary)",border:"1px solid var(--border)",fontSize:'var(--text-xs)',marginBottom:10}}>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"var(--text-secondary)"}}>Confetti</span><span style={{fontWeight:700,color:"var(--danger)"}}>{threadUsageSummary.isolated.toLocaleString()} ({threadUsageSummary.total>0?((threadUsageSummary.isolated/threadUsageSummary.total)*100).toFixed(1):0}%)</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"var(--text-secondary)"}}>Small (2–4)</span><span style={{fontWeight:600,color:"var(--accent-ink)"}}>{threadUsageSummary.small.toLocaleString()}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"var(--text-secondary)"}}>Medium (5–19)</span><span style={{fontWeight:600,color:"var(--text-secondary)"}}>{threadUsageSummary.medium.toLocaleString()}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{color:"var(--text-secondary)"}}>Large (20+)</span><span style={{fontWeight:600,color:"var(--success)"}}>{threadUsageSummary.large.toLocaleString()}</span></div>
-          {threadUsageSummary.estChanges>0&&<div style={{display:"flex",justifyContent:"space-between",paddingTop:5,borderTop:"0.5px solid var(--border)"}}><span style={{color:"var(--text-secondary)"}}>Est. thread changes</span><span style={{fontWeight:700}}>~{threadUsageSummary.estChanges.toLocaleString()}</span></div>}
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"var(--text-secondary)"}}>Confetti</span><span style={{fontWeight:700,color:"var(--danger)"}}>{threadUsageSummary.isolated.toLocaleString('en-GB')} ({threadUsageSummary.total>0?((threadUsageSummary.isolated/threadUsageSummary.total)*100).toFixed(1):0}%)</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"var(--text-secondary)"}}>Small (2–4)</span><span style={{fontWeight:600,color:"var(--accent-ink)"}}>{threadUsageSummary.small.toLocaleString('en-GB')}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"var(--text-secondary)"}}>Medium (5–19)</span><span style={{fontWeight:600,color:"var(--text-secondary)"}}>{threadUsageSummary.medium.toLocaleString('en-GB')}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{color:"var(--text-secondary)"}}>Large (20+)</span><span style={{fontWeight:600,color:"var(--success)"}}>{threadUsageSummary.large.toLocaleString('en-GB')}</span></div>
+          {threadUsageSummary.estChanges>0&&<div style={{display:"flex",justifyContent:"space-between",paddingTop:5,borderTop:"0.5px solid var(--border)"}}><span style={{color:"var(--text-secondary)"}}>Est. thread changes</span><span style={{fontWeight:700}}>~{threadUsageSummary.estChanges.toLocaleString('en-GB')}</span></div>}
         </div>}
 
         <div className="lp-heading" style={{marginTop:6}}>Focus area</div>
@@ -6270,7 +6291,7 @@ return(
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 16px",fontSize:'var(--text-xs)',marginBottom:10}}>
           <div>
             <div style={{color:"var(--text-tertiary)",fontWeight:600,marginBottom:1}}>Started</div>
-            <div style={{fontWeight:600,color:"var(--text-primary)"}}>{createdAtRef.current?new Date(createdAtRef.current).toLocaleDateString():"—"}</div>
+            <div style={{fontWeight:600,color:"var(--text-primary)"}}>{createdAtRef.current?new Date(createdAtRef.current).toLocaleDateString('en-GB'):"—"}</div>
           </div>
           <div>
             <div style={{color:"var(--text-tertiary)",fontWeight:600,marginBottom:1}}>Pattern size</div>
@@ -6278,7 +6299,7 @@ return(
           </div>
           <div>
             <div style={{color:"var(--text-tertiary)",fontWeight:600,marginBottom:1}}>Stitchable</div>
-            <div style={{fontWeight:600,color:"var(--text-primary)"}}>{totalStitchable.toLocaleString()}</div>
+            <div style={{fontWeight:600,color:"var(--text-primary)"}}>{totalStitchable.toLocaleString('en-GB')}</div>
           </div>
           <div>
             <div style={{color:"var(--text-tertiary)",fontWeight:600,marginBottom:1}}>Colours</div>
@@ -6705,7 +6726,7 @@ return(
             <span className="tcc-sw" style={{background:`rgb(${focusInfo.rgb})`}}/>
             <span className="tcc-id">DMC {focusInfo.id}</span>
             <span className="tcc-name">{focusInfo.name||""}</span>
-            {focusTotal>0&&<span className="tcc-rem">{focusRem.toLocaleString()} / {focusTotal.toLocaleString()} left</span>}
+            {focusTotal>0&&<span className="tcc-rem">{focusRem.toLocaleString('en-GB')} / {focusTotal.toLocaleString('en-GB')} left</span>}
           </>:<>
             <span className="tcc-sw tcc-sw--empty" aria-hidden="true"/>
             <span className="tcc-name">Tap to pick a colour</span>
@@ -7075,7 +7096,7 @@ return(
           if(days<=0)lastStr='Last stitched today';
           else if(days===1)lastStr='Last stitched yesterday';
           else if(days<7)lastStr='Last stitched '+days+' days ago';
-          else lastStr='Last stitched '+d.toLocaleDateString();
+          else lastStr='Last stitched '+d.toLocaleDateString('en-GB');
         }
       }catch(_){}
     }
@@ -7103,12 +7124,12 @@ return(
               <span className="resume-recap-progress-pct">{pct}%</span>
             </div>
             <div className="resume-recap-bar"><div className="resume-recap-bar-fill" style={{width:pct+'%'}}/></div>
-            <div className="resume-recap-progress-meta">{r.doneSt.toLocaleString()} / {r.totalSt.toLocaleString()} stitches</div>
+            <div className="resume-recap-progress-meta">{r.doneSt.toLocaleString('en-GB')} / {r.totalSt.toLocaleString('en-GB')} stitches</div>
           </div>
           <div className="resume-recap-section-label">Your last session</div>
           <div className="resume-recap-grid">
             <div className="resume-recap-card">
-              <div className="resume-recap-card-num">{(sm.count||0).toLocaleString()}</div>
+              <div className="resume-recap-card-num">{(sm.count||0).toLocaleString('en-GB')}</div>
               <div className="resume-recap-card-lbl">stitches</div>
             </div>
             <div className="resume-recap-card">

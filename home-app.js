@@ -335,11 +335,11 @@
       var patternRows = [];
       if (dim) patternRows.push(['Dimensions', dim]);
       if (fabric) patternRows.push(['Fabric', fabric]);
-      if (stitchable > 0) patternRows.push(['Stitchable', stitchable.toLocaleString()]);
+      if (stitchable > 0) patternRows.push(['Stitchable', stitchable.toLocaleString('en-GB')]);
       if (distinctColours > 0) patternRows.push(['Colours', String(distinctColours)]);
-      if (pct !== null) patternRows.push(['Progress', pct + '% (' + done.toLocaleString() + '/' + stitchable.toLocaleString() + ')']);
+      if (pct !== null) patternRows.push(['Progress', pct + '% (' + done.toLocaleString('en-GB') + '/' + stitchable.toLocaleString('en-GB') + ')']);
       var metaRows = [];
-      if (p.createdAt) metaRows.push(['Created', new Date(p.createdAt).toLocaleDateString()]);
+      if (p.createdAt) metaRows.push(['Created', new Date(p.createdAt).toLocaleDateString('en-GB')]);
       if (p.updatedAt) metaRows.push(['Last edited', timeAgo(p.updatedAt)]);
       if (totalSec > 0) metaRows.push(['Time spent', fmtL(totalSec)]);
       var children = [
@@ -463,11 +463,16 @@
     }
 
     function navigateAfterPaint(href) {
-      // Two rAFs guarantee the spinner has actually painted before the
-      // browser commits the navigation, so the visual hand-off feels
-      // continuous instead of a blank flash.
+      // One rAF lets the spinner paint, then queueMicrotask (or setTimeout
+      // fallback) defers the navigation until after the paint commits.
+      // Double-rAF timing differs between Safari and Chromium; this approach
+      // is more consistent across engines.
       requestAnimationFrame(function () {
-        requestAnimationFrame(function () { window.location.href = href; });
+        if (typeof queueMicrotask === 'function') {
+          queueMicrotask(function () { window.location.href = href; });
+        } else {
+          setTimeout(function () { window.location.href = href; }, 0);
+        }
       });
     }
 
@@ -496,6 +501,18 @@
         return;
       }
       var reader = new FileReader();
+      // Guard against very large images (> 4 MB raw) that would overflow the
+      // ~5 MB sessionStorage quota once base64-encoded. Prompt the user to
+      // resize before uploading rather than failing silently mid-navigation.
+      var MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+      if (file.size > MAX_IMAGE_BYTES) {
+        if (window.Toast && window.Toast.show) {
+          window.Toast.show({ message: 'That image is too large to load from here (over 4 MB). Please resize it first or load it directly from the pattern creator.', type: 'error', duration: 10000 });
+        } else {
+          alert('That image is too large to load from here (over 4 MB). Please resize it first or load it directly from the pattern creator.');
+        }
+        return;
+      }
       reader.onload = function (ev) {
         var dataUrl = ev.target.result;
         try {
@@ -510,12 +527,20 @@
           // immediately instead of bouncing through create.html with no
           // image, which would just round-trip back to here.
           setPending(false);
-          alert('That image is too large to hand off (over the browser session limit). Try a smaller file (under ~5 MB).');
+          if (window.Toast && window.Toast.show) {
+            window.Toast.show({ message: 'That image is too large to hand off (over the browser session limit). Please use a smaller file.', type: 'error', duration: 10000 });
+          } else {
+            alert('That image is too large to hand off (over the browser session limit). Try a smaller file (under ~5 MB).');
+          }
         }
       };
       reader.onerror = function () {
         setPending(false);
-        alert('Could not read the image file. Please try again or pick a different file.');
+        if (window.Toast && window.Toast.show) {
+          window.Toast.show({ message: 'Could not read the image file. Please try again or pick a different file.', type: 'error', duration: 8000 });
+        } else {
+          alert('Could not read the image file. Please try again or pick a different file.');
+        }
       };
       reader.readAsDataURL(file);
     }

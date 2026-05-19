@@ -95,8 +95,13 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
     if (!offscreenRef.current || !displayRef.current || !sW || !sH) return;
 
     var canvas = displayRef.current;
-    canvas.width  = sW * cs;
-    canvas.height = sH * cs;
+    var MAX_CANVAS_DIM = 16384; // iOS Safari hard limit
+    var rawW = sW * cs, rawH = sH * cs;
+    if (rawW > MAX_CANVAS_DIM || rawH > MAX_CANVAS_DIM) {
+      console.warn('PreviewCanvas: computed size (' + rawW + '\xd7' + rawH + ') exceeds 16384px; clamping.');
+    }
+    canvas.width  = Math.min(rawW, MAX_CANVAS_DIM);
+    canvas.height = Math.min(rawH, MAX_CANVAS_DIM);
 
     var ctx2d = canvas.getContext("2d");
     if (!ctx2d) return;

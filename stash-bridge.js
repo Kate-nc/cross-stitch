@@ -480,12 +480,20 @@ const StashBridge = (() => {
     async detectConflicts() {
       try {
         const db = await openManagerDB();
-        const tx = db.transaction("manager_state", "readonly");
-        const store = tx.objectStore("manager_state");
-        const [threadsData, patternsData] = await Promise.all([
-          new Promise((r, j) => { const q = store.get("threads"); q.onsuccess = () => r(q.result || {}); q.onerror = () => j(q.error); }),
-          new Promise((r, j) => { const q = store.get("patterns"); q.onsuccess = () => r(q.result || []); q.onerror = () => j(q.error); })
-        ]);
+        // Both IDB requests are queued synchronously inside a single Promise so no
+        // await ever yields while the transaction is open (Safari auto-commits on yield).
+        const [threadsData, patternsData] = await new Promise((resolve, reject) => {
+          const tx = db.transaction("manager_state", "readonly");
+          const store = tx.objectStore("manager_state");
+          let threads = null, patterns = null, settled = 0;
+          function check() { if (++settled === 2) resolve([threads, patterns]); }
+          const q1 = store.get("threads");
+          q1.onsuccess = () => { threads = q1.result || {}; check(); };
+          q1.onerror = () => reject(q1.error);
+          const q2 = store.get("patterns");
+          q2.onsuccess = () => { patterns = q2.result || []; check(); };
+          q2.onerror = () => reject(q2.error);
+        });
         // Only consider active patterns (owned, inprogress, wishlist — exclude completed)
         const active = patternsData.filter(p => p.status !== "completed");
         const demand = {}; // { threadKey: { total, patterns: [{title, qty}] } }
@@ -524,12 +532,20 @@ const StashBridge = (() => {
     async whatCanIStart() {
       try {
         const db = await openManagerDB();
-        const tx = db.transaction("manager_state", "readonly");
-        const store = tx.objectStore("manager_state");
-        const [threadsData, patternsData] = await Promise.all([
-          new Promise((r, j) => { const q = store.get("threads"); q.onsuccess = () => r(q.result || {}); q.onerror = () => j(q.error); }),
-          new Promise((r, j) => { const q = store.get("patterns"); q.onsuccess = () => r(q.result || []); q.onerror = () => j(q.error); })
-        ]);
+        // Both IDB requests are queued synchronously inside a single Promise so no
+        // await ever yields while the transaction is open (Safari auto-commits on yield).
+        const [threadsData, patternsData] = await new Promise((resolve, reject) => {
+          const tx = db.transaction("manager_state", "readonly");
+          const store = tx.objectStore("manager_state");
+          let threads = null, patterns = null, settled = 0;
+          function check() { if (++settled === 2) resolve([threads, patterns]); }
+          const q1 = store.get("threads");
+          q1.onsuccess = () => { threads = q1.result || {}; check(); };
+          q1.onerror = () => reject(q1.error);
+          const q2 = store.get("patterns");
+          q2.onsuccess = () => { patterns = q2.result || []; check(); };
+          q2.onerror = () => reject(q2.error);
+        });
         const notStarted = patternsData.filter(p => p.status !== "completed" && p.status !== "inprogress");
         const results = [];
         for (const pat of notStarted) {

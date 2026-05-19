@@ -226,7 +226,10 @@ const BackupRestore = (() => {
         } catch (_) {}
         throw err;
       } finally {
-        if (url) { try { URL.revokeObjectURL(url); } catch (_) {} }
+        // Defer revocation so Safari has time to start the download before the
+        // Blob URL is invalidated (synchronous revoke races the browser's
+        // download initiation on Safari).
+        if (url) { setTimeout(function() { try { URL.revokeObjectURL(url); } catch (_) {} }, 5000); }
       }
     },
 

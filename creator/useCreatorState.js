@@ -29,6 +29,47 @@ function _extractDmcId(key) {
   return key.slice(idx + 1);
 }
 
+// Feature-detect ctx.filter support (not available on Safari <15).
+// Result is constant per page-load so we compute it once here.
+var _canvasFilterSupported = (function() {
+  try {
+    var _fc = document.createElement('canvas');
+    var _fx = _fc.getContext('2d');
+    _fx.filter = 'brightness(1)';
+    return _fx.filter !== '';
+  } catch (_) { return false; }
+})();
+
+// Pixel-level fallback for brightness / contrast / saturation applied when
+// ctx.filter is unavailable. Mutates the ImageData's pixel array in-place.
+// bri/con/sat each range -100 to +100 (0 = no change, matches the CSS filter
+// percentages: brightness((100+bri)%) contrast((100+con)%) saturate((100+sat)%)).
+function _applyImageFilters(imageData, bri, con, sat) {
+  if (bri === 0 && con === 0 && sat === 0) return;
+  var d = imageData.data;
+  var briFactor = (100 + bri) / 100;
+  var conFactor = (100 + con) / 100;
+  var satFactor = (100 + sat) / 100;
+  for (var i = 0; i < d.length; i += 4) {
+    var r = d[i], g = d[i + 1], b = d[i + 2];
+    // brightness
+    r *= briFactor; g *= briFactor; b *= briFactor;
+    // contrast (pivot at 128)
+    r = (r - 128) * conFactor + 128;
+    g = (g - 128) * conFactor + 128;
+    b = (b - 128) * conFactor + 128;
+    // saturation
+    var gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    r = gray + (r - gray) * satFactor;
+    g = gray + (g - gray) * satFactor;
+    b = gray + (b - gray) * satFactor;
+    // clamp to [0, 255]
+    d[i]   = r < 0 ? 0 : r > 255 ? 255 : (r + 0.5) | 0;
+    d[i+1] = g < 0 ? 0 : g > 255 ? 255 : (g + 0.5) | 0;
+    d[i+2] = b < 0 ? 0 : b > 255 ? 255 : (b + 0.5) | 0;
+  }
+}
+
 // ── Canonical conversion-settings helpers ──────────────────────────────────
 //
 // The image-to-pattern conversion engine (runCleanupPipeline /
@@ -985,6 +1026,10 @@ window.useCreatorState = function useCreatorState() {
             return;
           }
           if (msg.type === 'error') {
+            // Ignore errors from superseded requests (stale worker responses)
+            if (msg.reqId !== undefined && msg.reqId !== genReqIdRef.current) {
+              w.terminate(); return;
+            }
             console.error('Worker generation error:', msg.message, msg.stack || '');
             w.terminate();
             workerRef.current = null;
@@ -1053,10 +1098,22 @@ window.useCreatorState = function useCreatorState() {
       var c = document.createElement("canvas");
       c.width = sW; c.height = sH;
       var cx = c.getContext("2d");
-      cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
+      if (_canvasFilterSupported && (bri !== 0 || con !== 0 || sat !== 0)) {
+        cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";  
+      }
       cx.drawImage(img, 0, 0, sW, sH);
-      cx.filter = "none";
-      var imageData = cx.getImageData(0, 0, sW, sH);
+      if (_canvasFilterSupported) cx.filter = "none";
+      var imageData;
+      try {
+        imageData = cx.getImageData(0, 0, sW, sH);
+      } catch (secErr) {
+        // SecurityError: canvas is tainted (cross-origin image without CORS).
+        // Surface a clear message and abort generation rather than crashing silently.
+        addToast("Cannot read image pixels — the image may be cross-origin. Try saving the image to your device and uploading it directly.", { type: "error", duration: 8000 });
+        setBusy(false);
+        return;
+      }
+      if (!_canvasFilterSupported) _applyImageFilters(imageData, bri, con, sat);
 
       var worker = getOrCreateWorker();
       if (!worker) {
@@ -1174,9 +1231,19 @@ window.useCreatorState = function useCreatorState() {
         if (gw * gh > MAX_GAL) { var sc = Math.sqrt(MAX_GAL / (gw * gh)); gw = Math.max(4, Math.round(gw * sc)); gh = Math.max(4, Math.round(gh * sc)); }
         var cv = document.createElement("canvas"); cv.width = gw; cv.height = gh;
         var gcx = cv.getContext("2d");
-        gcx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-        gcx.drawImage(img, 0, 0, gw, gh); gcx.filter = "none";
-        var rawPx = gcx.getImageData(0, 0, gw, gh).data;
+        if (_canvasFilterSupported && (bri !== 0 || con !== 0 || sat !== 0)) { gcx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)"; }
+        gcx.drawImage(img, 0, 0, gw, gh);
+        if (_canvasFilterSupported) gcx.filter = "none";
+        var _gcxImgData;
+        try {
+          _gcxImgData = gcx.getImageData(0, 0, gw, gh);
+        } catch (_) {
+          // SecurityError: skip this gallery slot silently — generation will
+          // still use the main canvas which already showed an error toast.
+          return;
+        }
+        if (!_canvasFilterSupported) _applyImageFilters(_gcxImgData, bri, con, sat);
+        var rawPx = _gcxImgData.data;
         if (smooth > 0) { if (smoothType === "gaussian") applyGaussianBlur(rawPx, gw, gh, smooth); else applyMedianFilter(rawPx, gw, gh, smooth); }
         var res = runCleanupPipeline(rawPx, gw, gh, {
           maxC: effN, dith: dith, dithStrength: dithStrength, allowBlends: allowBlends && slotSubset.length >= 6,

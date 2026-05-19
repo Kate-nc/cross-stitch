@@ -1,4 +1,4 @@
-﻿const { useState, useEffect, useMemo, useCallback, useRef } = React;
+const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
 // Hoisted out of PartialGauge so the lookup table isn't reallocated each render.
 const PARTIAL_GAUGE_SEGMENTS = {
@@ -83,19 +83,19 @@ function ManagerApp() {
   const [welcomeOpen, setWelcomeOpen] = useState(() => {
     try { return !!(window.WelcomeWizard && window.WelcomeWizard.shouldShow('manager')); } catch (_) { return false; }
   });
-  // Global "?" shortcut → open Help Centre.
+  // Global "?" shortcut ? open Help Centre.
   useEffect(() => {
     const h = () => setModal("help");
     window.addEventListener("cs:openHelp", h);
     return () => window.removeEventListener("cs:openHelp", h);
   }, []);
-  // Command Palette → Keyboard Shortcuts modal.
+  // Command Palette ? Keyboard Shortcuts modal.
   useEffect(() => {
     const h = () => setModal("shortcuts");
     window.addEventListener("cs:openShortcuts", h);
     return () => window.removeEventListener("cs:openShortcuts", h);
   }, []);
-  // Command Palette → Bulk Add Threads bridge.
+  // Command Palette ? Bulk Add Threads bridge.
   useEffect(() => {
     const h = () => setBulkAddOpen(true);
     window.addEventListener("cs:openBulkAdd", h);
@@ -115,7 +115,7 @@ function ManagerApp() {
       else if (mql.removeListener) mql.removeListener(onNarrow);
     };
   }, []);
-  // Command Palette → Preferences modal bridge (UX-12 Phase 6 PR #11).
+  // Command Palette ? Preferences modal bridge (UX-12 Phase 6 PR #11).
   useEffect(() => {
     const h = () => { if (typeof window.PreferencesModal !== 'undefined') setPreferencesOpen(true); };
     window.addEventListener("cs:openPreferences", h);
@@ -139,7 +139,7 @@ function ManagerApp() {
     return () => { if (window.CommandPalette) window.CommandPalette.registerPage('manager', []); };
   }, []);
 
-  // Global "B" shortcut → open Bulk Add Threads from anywhere on the Manager
+  // Global "B" shortcut ? open Bulk Add Threads from anywhere on the Manager
   // page. Registered through the central shortcuts registry.
   if(typeof window.useShortcuts==='function'){
     window.useShortcuts(typeof window.BulkAddModal==='undefined'?[]:[
@@ -148,7 +148,7 @@ function ManagerApp() {
         run: ()=>setBulkAddOpen(true) }
     ],[]);
   }
-  // "Show welcome tour again" from HelpCentre → re-open the wizard.
+  // "Show welcome tour again" from HelpCentre ? re-open the wizard.
   useEffect(() => {
     const h = (e) => { if (!e || !e.detail || e.detail.page === "manager") setWelcomeOpen(true); };
     window.addEventListener("cs:showWelcome", h);
@@ -190,7 +190,7 @@ function ManagerApp() {
     };
   };
   const reconcileAutoSyncedPatterns = useCallback(async (basePatterns, allMeta) => {
-    // Build a map of linkedProjectId → index for fast lookup.
+    // Build a map of linkedProjectId ? index for fast lookup.
     const linkedIdxMap = new Map(
       basePatterns.map((p, i) => p.linkedProjectId ? [p.linkedProjectId, i] : null).filter(Boolean)
     );
@@ -281,7 +281,7 @@ function ManagerApp() {
           // Backup
           store.put(threadsData, "threads_backup_v1");
 
-          // Migrate v1 → v3
+          // Migrate v1 ? v3
           finalThreads = {};
           for (const [id, t] of Object.entries(threadsData)) {
             finalThreads[id] = { ...t, partialStatus: t.partialStatus || null, min_stock: 0 };
@@ -289,7 +289,7 @@ function ManagerApp() {
           store.put(finalThreads, "threads");
           store.put(3, "stashDataVersion");
         } else if (threadsData && versionData === 2) {
-          // Migrate v2 → v3: add min_stock
+          // Migrate v2 ? v3: add min_stock
           finalThreads = {};
           for (const [id, t] of Object.entries(threadsData)) {
             finalThreads[id] = { ...t, min_stock: t.min_stock || 0 };
@@ -310,7 +310,7 @@ function ManagerApp() {
           store.put(4, "stashDataVersion");
         }
 
-        // v3 → v4: convert bare DMC keys to composite keys and add Anchor threads
+        // v3 ? v4: convert bare DMC keys to composite keys and add Anchor threads
         if (threadsData && versionData === 3) {
           const migrated = {};
           for (const [key, val] of Object.entries(finalThreads)) {
@@ -661,7 +661,7 @@ function ManagerApp() {
         }
         setBackupStatus({
           type: "confirm",
-          message: `Restore backup from ${check.summary.createdAt ? new Date(check.summary.createdAt).toLocaleString() : "unknown date"}? This will replace all current data.`,
+          message: `Restore backup from ${check.summary.createdAt ? new Date(check.summary.createdAt).toLocaleString('en-GB') : "unknown date"}? This will replace all current data.`,
           summary: check.summary,
           onConfirm: async () => {
             try {
@@ -772,7 +772,7 @@ function ManagerApp() {
   function rgbToHue(rgb) {
     const r = rgb[0] / 255, g = rgb[1] / 255, b = rgb[2] / 255;
     const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
-    if (d < 0.05) return 361; // near-grey/white/black → sort to end
+    if (d < 0.05) return 361; // near-grey/white/black ? sort to end
     let h;
     if (max === r) h = ((g - b) / d + 6) % 6;
     else if (max === g) h = (b - r) / d + 2;
@@ -987,7 +987,7 @@ function ManagerApp() {
           >
             <option value="number">Number</option>
             <option value="colour">Colour</option>
-            <option value="name">Name (A–Z)</option>
+            <option value="name">Name (A-Z)</option>
             <option value="owned_desc">Owned: most first</option>
             <option value="owned_asc">Owned: fewest first</option>
           </select>
@@ -1038,8 +1038,8 @@ function ManagerApp() {
               const lowNeeded = (lowStockNeeded && lowStockNeeded.length) || 0;
               const lowNotNeeded = (lowStockNotNeeded && lowStockNotNeeded.length) || 0;
               const inventoryRows = [
-                ['Total skeins owned', totalOwnedCount.toLocaleString()],
-                ['Distinct threads owned', distinctOwned.toLocaleString()],
+                ['Total skeins owned', totalOwnedCount.toLocaleString('en-GB')],
+                ['Distinct threads owned', distinctOwned.toLocaleString('en-GB')],
                 ['Low-stock threshold', String(lowStockThreshold)]
               ];
               const statusRows = [];
@@ -1209,7 +1209,7 @@ function ManagerApp() {
                   <div className="td-row">
                     <span className="lbl">Full skeins</span>
                     <div className="qty-ctrl">
-                      <button onClick={() => updateThread(selectedThread, "owned", Math.max(0, state.owned - 1))}>−</button>
+                      <button onClick={() => updateThread(selectedThread, "owned", Math.max(0, state.owned - 1))}>-</button>
                       <span className="num">{state.owned}</span>
                       <button onClick={() => updateThread(selectedThread, "owned", state.owned + 1)}>+</button>
                     </div>
@@ -1217,7 +1217,7 @@ function ManagerApp() {
                   <div className="td-row">
                     <span className="lbl">Min stock</span>
                     <div className="qty-ctrl">
-                      <button onClick={() => updateThread(selectedThread, "min_stock", Math.max(0, (state.min_stock || 0) - 1))}>−</button>
+                      <button onClick={() => updateThread(selectedThread, "min_stock", Math.max(0, (state.min_stock || 0) - 1))}>-</button>
                       <span className="num">{state.min_stock || 0}</span>
                       <button onClick={() => updateThread(selectedThread, "min_stock", (state.min_stock || 0) + 1)}>+</button>
                     </div>
@@ -1232,10 +1232,10 @@ function ManagerApp() {
                     <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginBottom: 4, textAlign: "center" }}>Opened skein level</div>
                     <div className="gauge-lg">
                       {[
-                        { val: null, label: "—" },
-                        { val: "mostly-full", label: "¾" },
-                        { val: "about-half", label: "½" },
-                        { val: "remnant", label: "¼" }
+                        { val: null, label: "0" },
+                        { val: "mostly-full", label: "3/4" },
+                        { val: "about-half", label: "1/2" },
+                        { val: "remnant", label: "1/4" }
                       ].map(opt => {
                         const isActive = state.partialStatus === opt.val || (opt.val === null && !state.partialStatus);
                         return <div key={opt.val || "none"} className={"seg" + (isActive ? " full" : "")} title={opt.val || "None"} onClick={() => updateThread(selectedThread, "partialStatus", opt.val)}>{opt.label}</div>;
@@ -1390,7 +1390,7 @@ function ManagerApp() {
                     const pct = total > 0 ? Math.round(completed / total * 100) : null;
                     const pctBg = pct === null ? null : (pct >= 100 ? "var(--success-soft)" : pct > 0 ? "#dbeafe" : "#EFE7D6");
                     const pctFg = pct === null ? null : (pct >= 100 ? "var(--success)" : pct > 0 ? "var(--accent)" : "var(--text-tertiary)");
-                    // 7-day sparkline (oldest → newest, ending today). Only
+                    // 7-day sparkline (oldest ? newest, ending today). Only
                     // rendered when there's actual activity to show.
                     const weekly = (meta && Array.isArray(meta.weeklyStitches)) ? meta.weeklyStitches : null;
                     const weeklyMax = weekly ? Math.max.apply(null, weekly) : 0;
@@ -1399,11 +1399,11 @@ function ManagerApp() {
                     return (
                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 11 }}>
                         {pct !== null && (
-                          <span style={{ padding: "2px 8px", borderRadius: 12, background: pctBg, color: pctFg, fontWeight: 700 }} title={completed.toLocaleString() + " of " + total.toLocaleString() + " stitches"}>{pct}% stitched</span>
+                          <span style={{ padding: "2px 8px", borderRadius: 12, background: pctBg, color: pctFg, fontWeight: 700 }} title={completed.toLocaleString('en-GB') + " of " + total.toLocaleString('en-GB') + " stitches"}>{pct}% stitched</span>
                         )}
                         {weekly && weeklyTotal > 0 && (
                           <span
-                            title={"Last 7 days: " + weeklyTotal.toLocaleString() + " stitches"}
+                            title={"Last 7 days: " + weeklyTotal.toLocaleString('en-GB') + " stitches"}
                             style={{ display: "inline-flex", alignItems: "flex-end", height: SPARK_H, gap: GAP, padding: "2px 6px", borderRadius: 8, background: "#EFE7D6" }}
                           >
                             {weekly.map((v, i) => {
@@ -1473,7 +1473,7 @@ function ManagerApp() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: "#1B1814", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
                           <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
-                            {p.dimensions.width}×{p.dimensions.height} · {pct}% done · {p.source === "tracker" ? "Tracked" : "Created"} · {p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : ""}
+                            {p.dimensions.width}x{p.dimensions.height} - {pct}% done - {p.source === "tracker" ? "Tracked" : "Created"} - {p.updatedAt ? new Date(p.updatedAt).toLocaleDateString('en-GB') : ""}
                           </div>
                         </div>
                         <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 12 }}>
@@ -2142,7 +2142,7 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads, userP
             <span style={{ padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: statusColors[pattern.status].bg, color: statusColors[pattern.status].text }}>
               {statusColors[pattern.status].label}
             </span>
-            {pattern.fabric && <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>• {pattern.fabric}</span>}
+              {pattern.fabric && <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>- {pattern.fabric}</span>}
           </div>
 
           {pattern.tags && pattern.tags.length > 0 && (
@@ -2186,11 +2186,11 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads, userP
                       }
                   } else {
                       if (t.unit === "stitches") {
-                          text = `DMC ${t.id} (${t.name}) — ${t.qty.toLocaleString()} stitches (~${t.skToBuy} skeins)`;
+                          text = `DMC ${t.id} (${t.name}) — ${t.qty.toLocaleString('en-GB')} stitches (~${t.skToBuy} skeins)`;
                       } else {
                           // Is skeins or fallback
                           if (t.unit === "skeins" && t.isApprox) {
-                              text = `DMC ${t.id} (${t.name}) — ${t.qty} skein(s) (~${t.stApprox.toLocaleString()} stitches)`;
+                              text = `DMC ${t.id} (${t.name}) — ${t.qty} skein(s) (~${t.stApprox.toLocaleString('en-GB')} stitches)`;
                           } else {
                               text = `DMC ${t.id} (${t.name}) — ${t.qty} skein(s)`;
                           }

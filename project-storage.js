@@ -170,14 +170,44 @@ const ProjectStorage = (() => {
   }
 
   let _cachedDB = null;
+  // Set to true once IDB is confirmed unavailable (e.g. Safari private browsing).
+  let _idbUnavailable = false;
+
+  function _notifyIdbUnavailable() {
+    // Use a window-level flag so this fires at most once even if multiple modules detect IDB failure.
+    if (_idbUnavailable || (typeof window !== 'undefined' && window._stitchxIdbUnavailable)) return;
+    _idbUnavailable = true;
+    if (typeof window !== 'undefined') window._stitchxIdbUnavailable = true;
+    console.warn('[ProjectStorage] IndexedDB unavailable — likely private browsing mode. Projects will not persist.');
+    try {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('idb-unavailable'));
+      }
+      if (typeof window !== 'undefined' && window.Toast && window.Toast.show) {
+        window.Toast.show({
+          message: 'Storage is not available in private browsing mode. Changes will be lost when you close this tab.',
+          type: 'warning',
+          duration: 12000
+        });
+      }
+    } catch (_) {}
+  }
 
   function getDB() {
+    if (_idbUnavailable) return Promise.reject(new Error('IndexedDB unavailable in private browsing mode'));
     if (_cachedDB) {
       try { _cachedDB.transaction(STORE_NAME); return Promise.resolve(_cachedDB); } catch(_) { _cachedDB = null; }
     }
     return new Promise((resolve, reject) => {
       ensurePersistence();
-      let request = indexedDB.open(DB_NAME, 5);
+      let request;
+      try {
+        request = indexedDB.open(DB_NAME, 5);
+      } catch (e) {
+        _notifyIdbUnavailable();
+        reject(e);
+        return;
+      }
       request.onupgradeneeded = (e) => {
         let db = e.target.result;
         let upgradeTx = e.target.transaction;
@@ -227,7 +257,14 @@ const ProjectStorage = (() => {
         _cachedDB = db;
         resolve(db);
       };
-      request.onerror = () => reject(request.error);
+      request.onerror = () => {
+        const err = request.error;
+        const name = err && err.name ? err.name : '';
+        if (name === 'SecurityError' || name === 'NotSupportedError' || name === 'UnknownError') {
+          _notifyIdbUnavailable();
+        }
+        reject(err);
+      };
     });
   }
 

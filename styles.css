@@ -1,3 +1,13 @@
+/*
+ * Browser support note — flex gap
+ * ─────────────────────────────────
+ * gap on flex containers requires Safari 14.1+ (released April 2021).
+ * Safari ≤14.0 is not officially supported; no margin-based fallbacks are
+ * provided for the 20+ flex-gap usages throughout this file.
+ * If a margin fallback is ever needed, wrap the gap declaration in:
+ *   @supports (gap: 0) { .rule { gap: Xpx; } }
+ * and add margin/padding equivalents to the base rule.
+ */
 :root {
   --accent: #B85C38;
   --accent-hover: #944526;
@@ -135,7 +145,11 @@ html{height:100%;}
 body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--surface-secondary);color:var(--text-primary);height:100%;display:flex;flex-direction:column;-webkit-tap-highlight-color:transparent;overscroll-behavior:none;}
 /* Touch surface hardening: prevent the page from rubber-banding /
    pull-to-refreshing while a finger is on the canvas, and silence the
-   blue tap-highlight that flashes on every button on iOS. */
+   blue tap-highlight that flashes on every button on iOS.
+   NOTE (Safari): overscroll-behavior is not supported on Safari <16 — the
+   body will still rubber-band vertically on older iOS. There is no pure-CSS
+   equivalent; pages that need hard scroll-lock (e.g. the tracker canvas) add
+   touch-action:none at the element level instead. */
 @supports (padding: max(0px)) {
   body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
 }
@@ -3292,7 +3306,10 @@ kbd {
 }
 .gsd-heatmap-cell {
   border-radius: 2px;
-  aspect-ratio: 1;
+  /* Safari <15 fallback: cells will use the grid row height and may not be square */
+}
+@supports (aspect-ratio: 1) {
+  .gsd-heatmap-cell { aspect-ratio: 1; }
 }
 .gsd-heatmap-legend {
   display: flex;
@@ -4787,9 +4804,12 @@ html.pref-dark a { color: var(--accent); }
 .iw-warn { background: var(--warning-soft); border: 1px solid var(--warning); color: var(--accent-ink); border-radius: 8px; padding: 8px 12px; font-size: 12px; margin-top: 10px; }
 
 .iw-crop-viewport {
-  width: 100%; max-width: 320px; aspect-ratio: 1 / 1;
+  width: 100%; max-width: 320px; height: 320px; /* Safari <15 fallback: explicit square */
   border: 1px solid var(--border); border-radius: 8px; background: var(--surface-secondary);
   display: flex; align-items: center; justify-content: center; overflow: hidden; margin: 0 auto 14px;
+}
+@supports (aspect-ratio: 1) {
+  .iw-crop-viewport { height: auto; aspect-ratio: 1 / 1; }
 }
 .iw-crop-viewport img { max-width: 100%; max-height: 100%; object-fit: contain; transition: transform 120ms ease-out; }
 .iw-crop-empty { padding: 40px 20px; text-align: center; color: var(--text-tertiary); font-size: 13px; }
@@ -4809,9 +4829,12 @@ html.pref-dark a { color: var(--accent); }
 .iw-card-desc { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
 
 .iw-preview-thumb {
-  width: 100%; max-width: 256px; aspect-ratio: 1 / 1;
+  width: 100%; max-width: 256px; height: 256px; /* Safari <15 fallback: explicit square */
   border: 1px solid var(--border); border-radius: 8px;
   display: flex; align-items: center; justify-content: center; overflow: hidden; margin: 0 auto 14px;
+}
+@supports (aspect-ratio: 1) {
+  .iw-preview-thumb { height: auto; aspect-ratio: 1 / 1; }
 }
 .iw-preview-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
 

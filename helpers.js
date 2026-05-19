@@ -258,14 +258,92 @@ async function ensurePersistence() {
   return false;
 }
 
+// Safari (pre-17, non-standalone) evicts IDB/localStorage after ~7 days of
+// inactivity. Warn the user when we detect this risk on startup.
+// Fires at most once per browser session (sessionStorage gate).
+function checkSafariEvictionRisk() {
+  try {
+    // Only warn in Safari-family browsers (not Chrome or Firefox on iOS).
+    var ua = navigator.userAgent || '';
+    var isSafariFamily = /Safari/.test(ua) && !/Chrome|CriOS|FxiOS|EdgA/.test(ua);
+    if (!isSafariFamily) return;
+    // Standalone PWA: iOS grants persistence automatically — no warning needed.
+    if (navigator.standalone) return;
+    // Already warned this session.
+    if (sessionStorage.getItem('cs_eviction_warned')) return;
+    // Check whether durable persistence has been granted.
+    if (navigator.storage && navigator.storage.persisted) {
+      navigator.storage.persisted().then(function(persisted) {
+        if (persisted) return; // safe — no warning needed
+        _showEvictionWarning();
+      }).catch(function() { _showEvictionWarning(); });
+    } else {
+      // persist API absent — definitely at risk
+      _showEvictionWarning();
+    }
+  } catch (_) {}
+}
+function _showEvictionWarning() {
+  try { sessionStorage.setItem('cs_eviction_warned', '1'); } catch (_) {}
+  // Defer so Toast system is ready (this runs before React mounts).
+  setTimeout(function() {
+    try {
+      if (window.Toast && window.Toast.show) {
+        window.Toast.show({
+          message: 'Your projects are stored in your browser. Safari may clear them after a period of inactivity — download a backup regularly to keep your work safe.',
+          type: 'warning',
+          duration: 15000
+        });
+      }
+    } catch (_) {}
+  }, 3000);
+}
+// Kick off the check shortly after page load so it doesn't block anything.
+if (typeof window !== 'undefined') {
+  window.addEventListener('load', function() {
+    setTimeout(checkSafariEvictionRisk, 500);
+  }, { once: true });
+}
+
 var _helpersCachedDB = null;
+// Set to true once we have confirmed IDB is unavailable (e.g. Safari private mode).
+var _idbUnavailable = false;
+
+function _notifyIdbUnavailable() {
+  // Use a window-level flag so this fires at most once even if multiple modules detect IDB failure.
+  if (_idbUnavailable || (typeof window !== 'undefined' && window._stitchxIdbUnavailable)) return;
+  _idbUnavailable = true;
+  if (typeof window !== 'undefined') window._stitchxIdbUnavailable = true;
+  console.warn('[CrossStitchDB] IndexedDB unavailable — likely private browsing mode. Projects will not persist.');
+  try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('idb-unavailable'));
+    }
+    if (typeof window !== 'undefined' && window.Toast && window.Toast.show) {
+      window.Toast.show({
+        message: 'Storage is not available in private browsing mode. Changes will be lost when you close this tab.',
+        type: 'warning',
+        duration: 12000
+      });
+    }
+  } catch (_) {}
+}
+
 function getDB() {
+  if (_idbUnavailable) return Promise.reject(new Error('IndexedDB unavailable in private browsing mode'));
   if (_helpersCachedDB) {
     try { _helpersCachedDB.transaction(STORE_NAME); return Promise.resolve(_helpersCachedDB); } catch(_) { _helpersCachedDB = null; }
   }
   return new Promise((resolve, reject) => {
     ensurePersistence().catch(() => {});
-    let request = indexedDB.open(DB_NAME, 5);
+    let request;
+    try {
+      request = indexedDB.open(DB_NAME, 5);
+    } catch (e) {
+      _notifyIdbUnavailable();
+      reject(e);
+      return;
+    }
     request.onupgradeneeded = (e) => {
       let db = e.target.result;
       let oldVersion = e.oldVersion;
@@ -299,7 +377,14 @@ function getDB() {
       _helpersCachedDB = db;
       resolve(db);
     };
-    request.onerror = () => reject(request.error);
+    request.onerror = () => {
+      const err = request.error;
+      const name = err && err.name ? err.name : '';
+      if (name === 'SecurityError' || name === 'NotSupportedError' || name === 'UnknownError') {
+        _notifyIdbUnavailable();
+      }
+      reject(err);
+    };
   });
 }
 
@@ -1064,7 +1149,7 @@ function generateShareText(projectName, stats, sessions, totalCompleted, totalSt
   var lines = [
     (projectName || 'Cross Stitch Project') + ' — Progress Update',
     '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
-    '[x] ' + totalCompleted.toLocaleString() + ' / ' + totalStitches.toLocaleString() + ' stitches (' + percent + '%)',
+    '[x] ' + totalCompleted.toLocaleString('en-GB') + ' / ' + totalStitches.toLocaleString('en-GB') + ' stitches (' + percent + '%)',
     'Time: ' + formatStatsDuration(stats.totalSeconds) + ' across ' + sessions.length + ' session' + (sessions.length !== 1 ? 's' : ''),
     'Speed: ' + stats.stitchesPerHour + ' stitches/hour · ' + stats.avgPerDay + '/day average'
   ];

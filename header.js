@@ -379,7 +379,7 @@ function formatRelative(date) {
   if (m < 60) return m + ' min ago';
   var h = Math.round(m / 60);
   if (h < 24) return h + ' h ago';
-  try { return 'at ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+  try { return 'at ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); }
   catch (_) { return d.toISOString(); }
 }
 
@@ -571,7 +571,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         var check = BackupRestore.validate(backup);
         if (!check.valid) { (window.Toast ? window.Toast.show({ message: check.error, type: 'error' }) : alert(check.error)); return; }
         var s = check.summary;
-        var when = s.createdAt ? new Date(s.createdAt).toLocaleString() : 'unknown date';
+        var when = s.createdAt ? new Date(s.createdAt).toLocaleString('en-GB') : 'unknown date';
         var msg = 'Restore backup from ' + when + '?\n\n'
           + s.projectCount + ' projects \u00b7 ' + s.threadCount + ' owned threads \u00b7 ' + s.patternCount + ' patterns'
           + '\n\nThis will replace all current data.';
@@ -812,8 +812,8 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               }
               var parts = [];
               if (syncStatus && syncStatus.hasWatchDir) parts.push('Sync folder connected' + (syncStatus.autoSync ? ' (auto-sync on)' : ''));
-              if (syncStatus && syncStatus.lastExportAt) parts.push('Last export: ' + new Date(syncStatus.lastExportAt).toLocaleString());
-              if (syncStatus && syncStatus.lastImportAt) parts.push('Last import: ' + new Date(syncStatus.lastImportAt).toLocaleString());
+              if (syncStatus && syncStatus.lastExportAt) parts.push('Last export: ' + new Date(syncStatus.lastExportAt).toLocaleString('en-GB'));
+              if (syncStatus && syncStatus.lastImportAt) parts.push('Last import: ' + new Date(syncStatus.lastImportAt).toLocaleString('en-GB'));
               return parts.length ? parts.join('\n') : 'Sync status';
             })()
           },
@@ -880,13 +880,13 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                 if (syncStatus.lastExportAt) {
                   rows.push(React.createElement('div', { key: 'export', className: 'sync-popover-row' },
                     Icons.cloudSync(),
-                    React.createElement('span', null, 'Last sent: ' + new Date(syncStatus.lastExportAt).toLocaleString())
+                    React.createElement('span', null, 'Last sent: ' + new Date(syncStatus.lastExportAt).toLocaleString('en-GB'))
                   ));
                 }
                 if (syncStatus.lastImportAt) {
                   rows.push(React.createElement('div', { key: 'import', className: 'sync-popover-row' },
                     Icons.cloudSync(),
-                    React.createElement('span', null, 'Last received: ' + new Date(syncStatus.lastImportAt).toLocaleString())
+                    React.createElement('span', null, 'Last received: ' + new Date(syncStatus.lastImportAt).toLocaleString('en-GB'))
                   ));
                 }
                 if (!syncStatus.lastExportAt && !syncStatus.lastImportAt) {

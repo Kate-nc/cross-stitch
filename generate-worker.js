@@ -12,7 +12,7 @@
      Worker → Main:
        { type: 'result', reqId: number, mapped, pal, cmap, confettiData }
        { type: 'progress', reqId: number, stage: string, message: string }
-       { type: 'error',  message: string, stack?: string }
+       { type: 'error',  reqId: number, message: string, stack?: string }
 
    Dependencies (imported via importScripts — all pure, no DOM):
      constants.js  → FABRIC_COUNTS, A4W, A4H, etc.
@@ -77,7 +77,7 @@ self.onmessage = function(e) {
     postProgress('quantizing', 'Choosing colours…');
     var p = quantize(raw, width, height, maxC, allowedPalette, {seed: settings.seed});
     if (!p.length) {
-      self.postMessage({ type: 'error', message: 'Could not find enough distinct colours in your image. Try increasing the maximum colours, or use a clearer image.' });
+      self.postMessage({ type: 'error', reqId: reqId, message: 'Could not find enough distinct colours in your image. Try increasing the maximum colours, or use a clearer image.' });
       return;
     }
 
@@ -223,6 +223,6 @@ self.onmessage = function(e) {
     });
 
   } catch (err) {
-    self.postMessage({ type: 'error', message: err.message, stack: err.stack });
+    self.postMessage({ type: 'error', reqId: reqId, message: err.message, stack: err.stack });
   }
 };

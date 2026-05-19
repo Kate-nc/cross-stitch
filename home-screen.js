@@ -395,7 +395,7 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
       ),
       // Session summary
       weekSt > 0 && h('div', { className: 'mpd-card-session' },
-        'This week: ' + weekSt.toLocaleString() + ' stitches'
+        'This week: ' + weekSt.toLocaleString('en-GB') + ' stitches'
       ),
       // Time estimate
       remHours > 0 && h('div', { className: 'mpd-card-estimate' },
@@ -621,7 +621,7 @@ function SyncDevicesPanel({ devices, myDeviceId, lastImportPerDevice }) {
             n + ' pattern' + (n !== 1 ? 's' : ''),
             !isMine && imp && h('span', {
               className: 'sync-device-imported',
-              title: 'Last imported ' + new Date(imp.at).toLocaleString()
+              title: 'Last imported ' + new Date(imp.at).toLocaleString('en-GB')
             },
               ' \u00b7 ',
               importedFromThisFile ? 'imported' : 'imported earlier'
@@ -1015,7 +1015,7 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
     // ── Summary bar ──
     h('div', { className: 'mpd-summary-bar' },
       h('span', null, summary.activeCount + ' active project' + (summary.activeCount !== 1 ? 's' : '')),
-      summary.monthStitches > 0 && h('span', null, '\u00B7 ' + summary.monthStitches.toLocaleString() + ' stitches this month'),
+      summary.monthStitches > 0 && h('span', null, '\u00B7 ' + summary.monthStitches.toLocaleString('en-GB') + ' stitches this month'),
       summary.streak > 1 && h('span', { className: 'mpd-streak', style: { display: 'inline-flex', alignItems: 'center', gap:'var(--s-1)' } },
         window.Icons && window.Icons.fire ? window.Icons.fire() : null,
         h('span', null, summary.streak + '-day streak')
@@ -1922,7 +1922,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
             style: { fontSize:'var(--text-sm)', color: 'var(--text-tertiary)', marginTop:'var(--s-1)' }
           },
             'Last session: '
-              + (heroProject.lastSessionStitches > 0 ? heroProject.lastSessionStitches.toLocaleString() + ' stitches' : '\u2014')
+              + (heroProject.lastSessionStitches > 0 ? heroProject.lastSessionStitches.toLocaleString('en-GB') + ' stitches' : '\u2014')
               + (heroProject.lastSessionDate ? ' \u00B7 ' + timeAgo(heroProject.lastSessionDate) : '')
           ),
           h('div', { className: 'home-hero-actions' },
@@ -2145,11 +2145,11 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
               }, totalRatio > 0 ? Math.round(ownedFrac * 100) + '%' : '–')
             ),
             h('div', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)', lineHeight: 1.45 } },
-              h('div', null, h('strong', { style: { color: 'var(--text-primary)' } }, owned.toLocaleString() + ' threads owned'),
+              h('div', null, h('strong', { style: { color: 'var(--text-primary)' } }, owned.toLocaleString('en-GB') + ' threads owned'),
                 brandCount > 0 && h('span', { style: { color: 'var(--text-tertiary)', marginLeft:'var(--s-2)' } }, '\u00B7 ' + brandCount + ' brand' + (brandCount === 1 ? '' : 's'))
               ),
               wishlist > 0
-                ? h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--accent-ink)', marginTop: 2 } }, wishlist.toLocaleString() + ' on wishlist (still to buy)')
+                ? h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--accent-ink)', marginTop: 2 } }, wishlist.toLocaleString('en-GB') + ' on wishlist (still to buy)')
                 : owned > 0 && h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--success)', marginTop: 2 } }, 'No outstanding wishlist')
             )
           );

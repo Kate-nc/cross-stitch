@@ -2122,8 +2122,13 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
     if (!offscreenRef.current || !displayRef.current || !sW || !sH) return;
 
     var canvas = displayRef.current;
-    canvas.width  = sW * cs;
-    canvas.height = sH * cs;
+    var MAX_CANVAS_DIM = 16384; // iOS Safari hard limit
+    var rawW = sW * cs, rawH = sH * cs;
+    if (rawW > MAX_CANVAS_DIM || rawH > MAX_CANVAS_DIM) {
+      console.warn('PreviewCanvas: computed size (' + rawW + '\xd7' + rawH + ') exceeds 16384px; clamping.');
+    }
+    canvas.width  = Math.min(rawW, MAX_CANVAS_DIM);
+    canvas.height = Math.min(rawH, MAX_CANVAS_DIM);
 
     var ctx2d = canvas.getContext("2d");
     if (!ctx2d) return;
@@ -2644,13 +2649,18 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
     if (!offscreenRef.current || !displayRef.current || !sW || !sH) return;
 
     var canvas = displayRef.current;
-    canvas.width  = sW * cs;
-    canvas.height = sH * cs;
+    var MAX_CANVAS_DIM = 16384; // iOS Safari hard limit
+    var rawW = sW * cs, rawH = sH * cs;
+    if (rawW > MAX_CANVAS_DIM || rawH > MAX_CANVAS_DIM) {
+      console.warn('RealisticCanvas: computed size (' + rawW + '\xd7' + rawH + ') exceeds 16384px; clamping.');
+    }
+    canvas.width  = Math.min(rawW, MAX_CANVAS_DIM);
+    canvas.height = Math.min(rawH, MAX_CANVAS_DIM);
 
     var ctx2d = canvas.getContext("2d");
     // Use bilinear smoothing for the textured render — looks better than pixelated when downscaling
     ctx2d.imageSmoothingEnabled = true;
-    ctx2d.imageSmoothingQuality = "high";
+    if ('imageSmoothingQuality' in ctx2d) { ctx2d.imageSmoothingQuality = "high"; }
 
     ctx2d.drawImage(offscreenRef.current, 0, 0, sW * cs, sH * cs);
 
@@ -3741,6 +3751,47 @@ function _extractDmcId(key) {
   return key.slice(idx + 1);
 }
 
+// Feature-detect ctx.filter support (not available on Safari <15).
+// Result is constant per page-load so we compute it once here.
+var _canvasFilterSupported = (function() {
+  try {
+    var _fc = document.createElement('canvas');
+    var _fx = _fc.getContext('2d');
+    _fx.filter = 'brightness(1)';
+    return _fx.filter !== '';
+  } catch (_) { return false; }
+})();
+
+// Pixel-level fallback for brightness / contrast / saturation applied when
+// ctx.filter is unavailable. Mutates the ImageData's pixel array in-place.
+// bri/con/sat each range -100 to +100 (0 = no change, matches the CSS filter
+// percentages: brightness((100+bri)%) contrast((100+con)%) saturate((100+sat)%)).
+function _applyImageFilters(imageData, bri, con, sat) {
+  if (bri === 0 && con === 0 && sat === 0) return;
+  var d = imageData.data;
+  var briFactor = (100 + bri) / 100;
+  var conFactor = (100 + con) / 100;
+  var satFactor = (100 + sat) / 100;
+  for (var i = 0; i < d.length; i += 4) {
+    var r = d[i], g = d[i + 1], b = d[i + 2];
+    // brightness
+    r *= briFactor; g *= briFactor; b *= briFactor;
+    // contrast (pivot at 128)
+    r = (r - 128) * conFactor + 128;
+    g = (g - 128) * conFactor + 128;
+    b = (b - 128) * conFactor + 128;
+    // saturation
+    var gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    r = gray + (r - gray) * satFactor;
+    g = gray + (g - gray) * satFactor;
+    b = gray + (b - gray) * satFactor;
+    // clamp to [0, 255]
+    d[i]   = r < 0 ? 0 : r > 255 ? 255 : (r + 0.5) | 0;
+    d[i+1] = g < 0 ? 0 : g > 255 ? 255 : (g + 0.5) | 0;
+    d[i+2] = b < 0 ? 0 : b > 255 ? 255 : (b + 0.5) | 0;
+  }
+}
+
 // ── Canonical conversion-settings helpers ──────────────────────────────────
 //
 // The image-to-pattern conversion engine (runCleanupPipeline /
@@ -4697,6 +4748,10 @@ window.useCreatorState = function useCreatorState() {
             return;
           }
           if (msg.type === 'error') {
+            // Ignore errors from superseded requests (stale worker responses)
+            if (msg.reqId !== undefined && msg.reqId !== genReqIdRef.current) {
+              w.terminate(); return;
+            }
             console.error('Worker generation error:', msg.message, msg.stack || '');
             w.terminate();
             workerRef.current = null;
@@ -4765,10 +4820,22 @@ window.useCreatorState = function useCreatorState() {
       var c = document.createElement("canvas");
       c.width = sW; c.height = sH;
       var cx = c.getContext("2d");
-      cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
+      if (_canvasFilterSupported && (bri !== 0 || con !== 0 || sat !== 0)) {
+        cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";  
+      }
       cx.drawImage(img, 0, 0, sW, sH);
-      cx.filter = "none";
-      var imageData = cx.getImageData(0, 0, sW, sH);
+      if (_canvasFilterSupported) cx.filter = "none";
+      var imageData;
+      try {
+        imageData = cx.getImageData(0, 0, sW, sH);
+      } catch (secErr) {
+        // SecurityError: canvas is tainted (cross-origin image without CORS).
+        // Surface a clear message and abort generation rather than crashing silently.
+        addToast("Cannot read image pixels — the image may be cross-origin. Try saving the image to your device and uploading it directly.", { type: "error", duration: 8000 });
+        setBusy(false);
+        return;
+      }
+      if (!_canvasFilterSupported) _applyImageFilters(imageData, bri, con, sat);
 
       var worker = getOrCreateWorker();
       if (!worker) {
@@ -4886,9 +4953,19 @@ window.useCreatorState = function useCreatorState() {
         if (gw * gh > MAX_GAL) { var sc = Math.sqrt(MAX_GAL / (gw * gh)); gw = Math.max(4, Math.round(gw * sc)); gh = Math.max(4, Math.round(gh * sc)); }
         var cv = document.createElement("canvas"); cv.width = gw; cv.height = gh;
         var gcx = cv.getContext("2d");
-        gcx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-        gcx.drawImage(img, 0, 0, gw, gh); gcx.filter = "none";
-        var rawPx = gcx.getImageData(0, 0, gw, gh).data;
+        if (_canvasFilterSupported && (bri !== 0 || con !== 0 || sat !== 0)) { gcx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)"; }
+        gcx.drawImage(img, 0, 0, gw, gh);
+        if (_canvasFilterSupported) gcx.filter = "none";
+        var _gcxImgData;
+        try {
+          _gcxImgData = gcx.getImageData(0, 0, gw, gh);
+        } catch (_) {
+          // SecurityError: skip this gallery slot silently — generation will
+          // still use the main canvas which already showed an error toast.
+          return;
+        }
+        if (!_canvasFilterSupported) _applyImageFilters(_gcxImgData, bri, con, sat);
+        var rawPx = _gcxImgData.data;
         if (smooth > 0) { if (smoothType === "gaussian") applyGaussianBlur(rawPx, gw, gh, smooth); else applyMedianFilter(rawPx, gw, gh, smooth); }
         var res = runCleanupPipeline(rawPx, gw, gh, {
           maxC: effN, dith: dith, dithStrength: dithStrength, allowBlends: allowBlends && slotSubset.length >= 6,
@@ -7000,6 +7077,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           state.setImg(li); state.setOrigW(li.width); state.setOrigH(li.height);
         }
       };
+      li.onerror = function() {
+        // Saved image data is corrupt or undecodeable — continue without it.
+        console.warn("useProjectIO: could not decode saved project image data.");
+      };
       li.src = project.imgData;
     } else if (s.isScratchMode) {
       state.setImg({ src: null, w: s.sW, h: s.sH });
@@ -7044,6 +7125,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var rd = new FileReader();
     rd.onload = function(ev) {
       var i = new Image();
+      i.onerror = function() {
+        console.warn("useProjectIO: could not decode uploaded image.");
+        state.setIsUploading(false);
+      };
       var proceed = function() {
         try {
           var targetW = i.width, targetH = i.height;
@@ -7079,7 +7164,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       };
       if (typeof i.decode === "function") {
         i.src = ev.target.result;
-        i.decode().then(proceed).catch(function() { i.onload = proceed; });
+        i.decode().then(proceed).catch(function() {
+          // decode() rejected: if the image already loaded (i.complete),
+          // call proceed directly — onload won't fire again.
+          if (i.complete) proceed(); else i.onload = proceed;
+        });
       } else {
         i.onload = proceed; i.src = ev.target.result;
       }
@@ -7852,8 +7941,14 @@ window.PatternCanvas = function PatternCanvas() {
     rafRef.current = requestAnimationFrame(function() {
       rafRef.current = null;
       if (!canvas) return;
-      canvas.width  = snap.sW * snap.cs + G + 2;
-      canvas.height = snap.sH * snap.cs + G + 2;
+      var rawW = snap.sW * snap.cs + G + 2;
+      var rawH = snap.sH * snap.cs + G + 2;
+      var MAX_CANVAS_DIM = 16384; // iOS Safari hard limit
+      if (rawW > MAX_CANVAS_DIM || rawH > MAX_CANVAS_DIM) {
+        console.warn('PatternCanvas: computed canvas size (' + rawW + '\xd7' + rawH + ') exceeds 16384px limit; clamping.');
+      }
+      canvas.width  = Math.min(rawW, MAX_CANVAS_DIM);
+      canvas.height = Math.min(rawH, MAX_CANVAS_DIM);
       var context = canvas.getContext("2d", { willReadFrequently: true });
       drawPatternBaseOnCanvas(context, 0, 0, snap.sW, snap.sH, snap.cs, G, snap);
       baseCacheRef.current = context.getImageData(0, 0, canvas.width, canvas.height);
