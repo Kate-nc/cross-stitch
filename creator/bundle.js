@@ -9050,7 +9050,6 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var h = React.createElement;
 
   // Local state
-  var _swe = React.useState(false); var swatchExpanded = _swe[0], setSwatchExpanded = _swe[1];
   // Click-to-toggle state for hover dropdowns (touch-friendly).
   var _od = React.useState(null); var openDrop = _od[0], setOpenDrop = _od[1];
   React.useEffect(function() {
@@ -9100,8 +9099,13 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       if (moreBtnRef.current && moreBtnRef.current.contains(e.target)) return;
       setMorePanelOpen(false);
     }
+    function onKey(e) { if (e.key === 'Escape') setMorePanelOpen(false); }
     document.addEventListener('pointerdown', closeMp);
-    return function() { document.removeEventListener('pointerdown', closeMp); };
+    document.addEventListener('keydown', onKey);
+    return function() {
+      document.removeEventListener('pointerdown', closeMp);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [morePanelOpen]);
 
   // (The Preview chart-mode dropdown that used to live here has moved into
@@ -9329,8 +9333,6 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   }
 
   // ─── Edit Mode: full editing toolbar (current behaviour) ──────────────────────
-
-  var sc = app.stripCollapsed || {};
 
   // Palette data sorted by usage — needed early for auto-select
   var palData = (ctx.displayPal || ctx.pal || []).slice().sort(function(a,b){return (b.count||0)-(a.count||0);});
