@@ -1,4 +1,4 @@
-﻿// components-stats.js - Stats UI components extracted from components.js.
+// components-stats.js - Stats UI components extracted from components.js.
 // Loaded only by pages that render Stats: index.html and stitch.html (for
 // the Tracker's StatsContainer + MilestoneCelebration) and stats-page.js
 // (for the standalone GlobalStatsDashboard surface). Home and Manager skip
@@ -85,7 +85,7 @@ function SessionTimeline({sessions, statsSettings, onEditNote, palette}){
   );
 }
 
-// â•â•â• Phase B: Charts & Milestones â•â•â•
+// ═══ Phase B: Charts & Milestones ═══
 
 var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches, targetDate, whatIfPace}){
   var data = getCumulativeProgressData(sessions);
@@ -200,11 +200,11 @@ var DailyBarChart=React.memo(function DailyBarChart({sessions, dailyGoal, daysTo
   );
 });
 
-// â•â•â• Phase E: Speed Trend Chart â•â•â•
+// ═══ Phase E: Speed Trend Chart ═══
 
 var SpeedTrendChart=React.memo(function SpeedTrendChart({sessions}){
   var raw = getSpeedTrendData(sessions);
-  if (raw.length < 3) return React.createElement("p", {className:"stats-empty"}, "Need more sessions (â‰¥10 min each) to show speed trend");
+  if (raw.length < 3) return React.createElement("p", {className:"stats-empty"}, "Need more sessions (≥10 min each) to show speed trend");
   var data = getRollingAverage(raw);
   var width = 600, height = 130;
   var pl = 42, pr = 8, pt = 8, pb = 4;
@@ -250,7 +250,7 @@ var SpeedTrendChart=React.memo(function SpeedTrendChart({sessions}){
   );
 });
 
-// â•â•â• Phase E: Colour Timeline â•â•â•
+// ═══ Phase E: Colour Timeline ═══
 
 var ColourTimeline=React.memo(function ColourTimeline({sessions, palette, colourDoneCounts}){
   var timeline = getColourTimeline(sessions);
@@ -272,7 +272,7 @@ var ColourTimeline=React.memo(function ColourTimeline({sessions, palette, colour
       background:'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')'};
     var nameLabel = p.name || p.id;
     var dateInfo = tl
-      ? formatShortDate(tl.firstDate) + (tl.lastDate !== tl.firstDate ? ' â€“ ' + formatShortDate(tl.lastDate) : '') + ' Â· ' + tl.sessionCount + ' session' + (tl.sessionCount !== 1 ? 's' : '')
+      ? formatShortDate(tl.firstDate) + (tl.lastDate !== tl.firstDate ? ' – ' + formatShortDate(tl.lastDate) : '') + ' · ' + tl.sessionCount + ' session' + (tl.sessionCount !== 1 ? 's' : '')
       : 'No session data';
     rows.push(React.createElement("div", {key:p.id, className:"colour-tl-row" + (isComplete ? ' complete' : '')},
       React.createElement("div", {className:"colour-tl-swatch", style:swatchStyle}),
@@ -295,7 +295,7 @@ var ColourTimeline=React.memo(function ColourTimeline({sessions, palette, colour
   );
 });
 
-// â•â•â• Phase E: Monthly Calendar view â•â•â•
+// ═══ Phase E: Monthly Calendar view ═══
 
 var MonthCalendar = React.memo(function MonthCalendar({sessions}) {
   var _mo = React.useState(0); var monthOffset = _mo[0], setMonthOffset = _mo[1];
@@ -395,7 +395,7 @@ function StatsChartSection({statsSessions, statsSettings, totalStitches, chartVi
 
 var MilestoneTracker=React.memo(function MilestoneTracker({milestones, achievedMilestones}){
   if (!milestones || milestones.length === 0) return null;
-  // Build a lookup from pct â†’ exact achievedAt timestamp
+  // Build a lookup from pct → exact achievedAt timestamp
   var exactDates = {};
   if (achievedMilestones && achievedMilestones.length > 0) {
     for (var ai = 0; ai < achievedMilestones.length; ai++) {
@@ -431,7 +431,7 @@ var MilestoneTracker=React.memo(function MilestoneTracker({milestones, achievedM
   );
 });
 
-// â•â•â• Phase C: Goals, Motivation & Celebrations â•â•â•
+// ═══ Phase C: Goals, Motivation & Celebrations ═══
 
 function DailyGoalSetting({currentGoal, avgPerDay, remaining, onSet}){
   var st = React.useState(currentGoal != null ? String(currentGoal) : '');
@@ -509,7 +509,7 @@ function GoalTracker({statsSettings, statsSessions, totalCompleted, totalStitche
       React.createElement("div", {className:"goal-row"},
         React.createElement("span", {className:"goal-row-label"}, label),
         React.createElement("span", {className:"goal-row-value" + (met ? ' met' : ' pending')},
-          current.toLocaleString() + " / " + goal.toLocaleString() + (met ? ' \u2713' : ''))
+          current.toLocaleString('en-GB') + " / " + goal.toLocaleString('en-GB') + (met ? ' \u2713' : ''))
       ),
       React.createElement("div", {className:"goal-bar-container"},
         React.createElement("div", {className:"goal-bar-fill", style:{width:pct+'%'}})
@@ -645,9 +645,9 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
       React.createElement("div", {className:"stats-colour-summary"},
         React.createElement("span", null, coloursComplete + " / " + totalColours + " colour" + (totalColours !== 1 ? "s" : "") + " complete"),
         mostRemaining && React.createElement("span", null,
-          "Most remaining: DMC " + mostRemaining.id + " (" + mostRemaining.remaining.toLocaleString() + " stitches)"),
+          "Most remaining: DMC " + mostRemaining.id + " (" + mostRemaining.remaining.toLocaleString('en-GB') + " stitches)"),
         leastRemaining && leastRemaining !== mostRemaining && React.createElement("span", null,
-          "Least remaining: DMC " + leastRemaining.id + " (" + leastRemaining.remaining.toLocaleString() + " left)")
+          "Least remaining: DMC " + leastRemaining.id + " (" + leastRemaining.remaining.toLocaleString('en-GB') + " left)")
       ),
       React.createElement("div", {className:"stats-colour-list"},
         colourStats.map(function(c){
@@ -660,7 +660,7 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
             React.createElement("div", {className:"colour-bar"},
               React.createElement("div", {className:"colour-bar-fill", style:{width:c.pct+'%'}})
             ),
-            React.createElement("span", {className:"colour-remaining"}, c.remaining === 0 ? (c.halfTotal > 0 && c.halfDone < c.halfTotal ? c.halfTotal - c.halfDone + " half left" : "\u2713") : c.remaining.toLocaleString() + " left" + (c.halfTotal > 0 && c.halfDone < c.halfTotal ? " + " + (c.halfTotal - c.halfDone) + " half" : "")),
+            React.createElement("span", {className:"colour-remaining"}, c.remaining === 0 ? (c.halfTotal > 0 && c.halfDone < c.halfTotal ? c.halfTotal - c.halfDone + " half left" : "\u2713") : c.remaining.toLocaleString('en-GB') + " left" + (c.halfTotal > 0 && c.halfDone < c.halfTotal ? " + " + (c.halfTotal - c.halfDone) + " half" : "")),
             avgSessionStitches > 0 && c.remaining > 0 ? React.createElement("span", {style:{fontSize:'var(--text-xs)',color:'var(--text-tertiary)',whiteSpace:'nowrap'}}, "~" + Math.ceil(c.remaining / avgSessionStitches) + " sessions") : null
           );
         })
@@ -668,7 +668,7 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
     );
 }
 
-// â•â•â• Visual Progress: Section completion grid â•â•â•
+// ═══ Visual Progress: Section completion grid ═══
 function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, palette, canEdit}){
   if(canEdit==null)canEdit=true;
   var numX=0,numY=0;
@@ -726,7 +726,7 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
       React.createElement("h4",{style:{fontSize:'var(--text-lg)',fontWeight:600,color:'var(--text-primary)',margin:0}},"Sections"),
       numX>0&&React.createElement("span",{style:{fontSize:'var(--text-sm)',color:'var(--text-tertiary)'}},complete+" / "+(sections?sections.length:0)+" complete")
     ),
-    React.createElement("p",{style:{fontSize:'var(--text-xs)',color:'var(--text-tertiary)',margin:'0 0 8px',lineHeight:1.4}},canEdit?"Click a section to see its threads Â· click again to rename":"Click a section to see its threads"),
+    React.createElement("p",{style:{fontSize:'var(--text-xs)',color:'var(--text-tertiary)',margin:'0 0 8px',lineHeight:1.4}},canEdit?"Click a section to see its threads · click again to rename":"Click a section to see its threads"),
     sections&&sections.length>0&&React.createElement("div",{className:"section-grid",style:{display:'grid',gridTemplateColumns:'repeat('+numX+', 1fr)',gap:3,marginBottom:'var(--s-3)'}},
       sections.map(function(sec){
         var cellKey=sec.sx+','+sec.sy;
@@ -740,7 +740,7 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
           tabIndex:isEditing?-1:0,
           className:"section-cell"+(isSelected?" section-cell--selected":""),
           style:{background:sec.isDone?'var(--success)':sectionColor(sec.pct),aspectRatio:'1',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',borderRadius:4,fontSize:fs,color:sec.pct>50?'var(--surface)':'var(--text-primary)',fontWeight:sec.isDone?700:400,cursor:'pointer',padding:1,overflow:'hidden',position:'relative',outlineOffset:1},
-          "aria-label":(customLabel?customLabel+' ('+sec.pct+'%)':'Section '+sec.label+': '+sec.completed+'/'+sec.total+' ('+sec.pct+'%)')+(isSelected?' â€” selected':'')+(sec.isDone?' â€” complete':''),
+          "aria-label":(customLabel?customLabel+' ('+sec.pct+'%)':'Section '+sec.label+': '+sec.completed+'/'+sec.total+' ('+sec.pct+'%)')+(isSelected?' — selected':'')+(sec.isDone?' — complete':''),
           title:customLabel?customLabel+' ('+sec.pct+'%)':'Section '+sec.label+': '+sec.completed+'/'+sec.total+' ('+sec.pct+'%)',
           onClick:function(){
             if(isEditing)return;
@@ -778,7 +778,7 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
     ),
     sectionThreads&&React.createElement("div",{style:{marginBottom:'var(--s-3)',padding:10,background:'var(--surface-secondary)',borderRadius:'var(--radius-md)',border:'1px solid var(--accent-light)'}},
       React.createElement("div",{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}},
-        React.createElement("span",{style:{fontSize:'var(--text-sm)',fontWeight:600,color:'var(--text-primary)'}},selectedLabel+' â€” threads'),
+        React.createElement("span",{style:{fontSize:'var(--text-sm)',fontWeight:600,color:'var(--text-primary)'}},selectedLabel+' — threads'),
         React.createElement("button",{type:"button","aria-label":"Close section threads",onClick:function(){setSelectedKey(null);},style:{padding:'1px 8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--accent-light)',background:'var(--surface-secondary)',cursor:'pointer',color:'var(--accent)',lineHeight:'18px',display:'inline-flex',alignItems:'center'}}, window.Icons&&window.Icons.x?window.Icons.x():null)
       ),
       sectionThreads.length===0
@@ -797,7 +797,7 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
                   React.createElement("div",{style:{width:pct+'%',height:'100%',background:t.doneCount===t.total?'var(--success)':'var(--accent)',borderRadius:3}})
                 ),
                 React.createElement("span",{style:{fontSize:'var(--text-xs)',color:'var(--text-tertiary)',flexShrink:0,minWidth:70,textAlign:'right'}},
-                  remaining>0?(remaining.toLocaleString()+' left'):'\u2713 done'
+                  remaining>0?(remaining.toLocaleString('en-GB')+' left'):'\u2713 done'
                 )
               );
             })
@@ -815,7 +815,7 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
   );
 }
 
-// â•â•â• Visual Progress: Before/After comparison â•â•â•
+// ═══ Visual Progress: Before/After comparison ═══
 function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
   var selSt=React.useState(null);var selectedId=selSt[0],setSelectedId=selSt[1];
   var diffSt=React.useState(false);var showDiff=diffSt[0],setShowDiff=diffSt[1];
@@ -1085,13 +1085,13 @@ function ProjectComparison({currentProjectId, onClose, onOpenProject}) {
                 isCurrent && !isComplete && React.createElement('span', {style:{marginLeft:6, fontSize:10, color:'var(--accent)', background:'var(--accent-light)', padding:'1px 6px', borderRadius:4, border:'1px solid var(--accent-border)', fontWeight:600}}, 'current')
               ),
               React.createElement('td', {style:{padding:'8px 10px', fontSize:'var(--text-sm)', color:'var(--text-tertiary)', whiteSpace:'nowrap'}},
-                w && h ? (w + '\u00D7' + h + ' \u2014 ' + (p.totalStitches || 0).toLocaleString() + ' st') : ((p.totalStitches || 0).toLocaleString() + ' st')
+                w && h ? (w + '\u00D7' + h + ' \u2014 ' + (p.totalStitches || 0).toLocaleString('en-GB') + ' st') : ((p.totalStitches || 0).toLocaleString('en-GB') + ' st')
               ),
               React.createElement('td', {style:{padding:'8px 10px', fontSize:'var(--text-sm)', whiteSpace:'nowrap'}},
                 React.createElement('span', {style:{color: isComplete ? 'var(--success)' : pct >= 50 ? 'var(--accent)' : 'var(--text-tertiary)', fontWeight:600}}, pct + '%'),
-                React.createElement('span', {style:{color:'#CFC4AC', fontSize:'var(--text-xs)', marginLeft:'var(--s-1)'}}, '(' + (p.completedStitches||0).toLocaleString() + '/' + (p.totalStitches||0).toLocaleString() + ')')
+                React.createElement('span', {style:{color:'#CFC4AC', fontSize:'var(--text-xs)', marginLeft:'var(--s-1)'}}, '(' + (p.completedStitches||0).toLocaleString('en-GB') + '/' + (p.totalStitches||0).toLocaleString('en-GB') + ')')
               ),
-              React.createElement('td', {style:{padding:'8px 10px', fontSize:'var(--text-sm)', color:'var(--text-tertiary)', whiteSpace:'nowrap'}}, p.stitchesPerHour ? p.stitchesPerHour.toLocaleString() + ' st/hr' : '\u2014'),
+              React.createElement('td', {style:{padding:'8px 10px', fontSize:'var(--text-sm)', color:'var(--text-tertiary)', whiteSpace:'nowrap'}}, p.stitchesPerHour ? p.stitchesPerHour.toLocaleString('en-GB') + ' st/hr' : '\u2014'),
               React.createElement('td', {style:{padding:'8px 10px', fontSize:'var(--text-sm)', color:'var(--text-tertiary)', whiteSpace:'nowrap'}}, fmtTime(p.totalMinutes)),
               React.createElement('td', {style:{padding:'8px 10px', fontSize:'var(--text-sm)', color:'var(--text-tertiary)', whiteSpace:'nowrap'}}, p.uniqueActiveDays || '\u2014'),
               React.createElement('td', {style:{padding:'8px 10px', fontSize:'var(--text-sm)', color:'var(--text-tertiary)', whiteSpace:'nowrap'}}, relativeDate(p.updatedAt))
@@ -1104,15 +1104,15 @@ function ProjectComparison({currentProjectId, onClose, onOpenProject}) {
     React.createElement('div', {className:'comparison-insights'},
       fastest && React.createElement('div', {className:'comparison-insight-card'},
         React.createElement('span', {className:'comparison-insight-icon'}, '\uD83C\uDFC6'),
-        React.createElement('span', null, React.createElement('strong', null, 'Fastest: '), fastest.name + ' (' + fastest.stitchesPerHour.toLocaleString() + ' st/hr)')
+        React.createElement('span', null, React.createElement('strong', null, 'Fastest: '), fastest.name + ' (' + fastest.stitchesPerHour.toLocaleString('en-GB') + ' st/hr)')
       ),
       largest && React.createElement('div', {className:'comparison-insight-card'},
         React.createElement('span', {className:'comparison-insight-icon'}, Icons.clipboard()),
-        React.createElement('span', null, React.createElement('strong', null, 'Largest: '), largest.name + ' (' + (largest.totalStitches||0).toLocaleString() + ' stitches)')
+        React.createElement('span', null, React.createElement('strong', null, 'Largest: '), largest.name + ' (' + (largest.totalStitches||0).toLocaleString('en-GB') + ' stitches)')
       ),
       closestToDone && React.createElement('div', {className:'comparison-insight-card'},
         React.createElement('span', {className:'comparison-insight-icon'}, Icons.hourglass()),
-        React.createElement('span', null, React.createElement('strong', null, 'Closest to done: '), closestToDone.name + ' (' + ((closestToDone.totalStitches||0) - (closestToDone.completedStitches||0)).toLocaleString() + ' remaining)')
+        React.createElement('span', null, React.createElement('strong', null, 'Closest to done: '), closestToDone.name + ' (' + ((closestToDone.totalStitches||0) - (closestToDone.completedStitches||0)).toLocaleString('en-GB') + ' remaining)')
       ),
       mostNeglected && React.createElement('div', {className:'comparison-insight-card'},
         React.createElement('span', {className:'comparison-insight-icon'}, Icons.sleep()),
@@ -1122,7 +1122,7 @@ function ProjectComparison({currentProjectId, onClose, onOpenProject}) {
   );
 }
 
-// â•â•â• PNG Progress Card drawing â•â•â•
+// ═══ PNG Progress Card drawing ═══
 function drawProgressCard(canvas, opts) {
   var ctx = canvas.getContext('2d');
   var W = canvas.width, H = canvas.height;
@@ -1380,9 +1380,9 @@ const pill=a=>({padding:"5px 14px",fontSize:'var(--text-sm)',borderRadius:'var(-
 const tBtn=(a)=>({padding:"5px 12px",fontSize:'var(--text-sm)',borderRadius:'var(--radius-md)',cursor:"pointer",border:a?"1px solid var(--accent-border)":"0.5px solid var(--border)",background:a?"var(--accent-light)":"var(--surface)",fontWeight:a?600:400,color:a?"var(--accent)":"var(--text-secondary)"});
 const tabSt=a=>({padding:"8px 16px",fontSize:'var(--text-md)',fontWeight:a?600:400,background:a?"var(--accent-light)":"transparent",border:"none",cursor:"pointer",borderBottom:a?"2px solid var(--accent)":"2px solid transparent",color:a?"var(--accent)":"var(--text-tertiary)",marginBottom:-2, borderRadius: "6px 6px 0 0"});
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════════
 // GLOBAL STATS DASHBOARD
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════════
 
 var PROJECT_COLORS = ['#0F6E56','#378ADD','#639922','var(--accent)','#534AB7','#D4537E','#BA7517','#E24B4A'];
 
@@ -1597,7 +1597,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
     var dailyTotals = {};
     allSessions.forEach(function(s) { if (s.date) dailyTotals[s.date] = (dailyTotals[s.date] || 0) + (s.netStitches || 0); });
     var bestDay = Object.entries(dailyTotals).sort(function(a, b) { return b[1] - a[1]; })[0];
-    if (bestDay && bestDay[1] > 0) result.push({icon: 'star', color: 'teal', text: 'Best day ever: ' + bestDay[1].toLocaleString() + ' stitches on ' + formatDateReadable(bestDay[0])});
+    if (bestDay && bestDay[1] > 0) result.push({icon: 'star', color: 'teal', text: 'Best day ever: ' + bestDay[1].toLocaleString('en-GB') + ' stitches on ' + formatDateReadable(bestDay[0])});
     var fastest = allSessions.filter(function(s) { return getSessionSeconds(s) >= 600 && (s.netStitches || 0) > 0; }).sort(function(a, b) { return (b.netStitches / getSessionSeconds(b)) - (a.netStitches / getSessionSeconds(a)); })[0];
     if (fastest) {
       var spd = Math.round(fastest.netStitches / (getSessionSeconds(fastest) / 3600));
@@ -1686,7 +1686,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
             // only present on tracker/stats page
             window.__flushProjectToIDB().then(doRefresh).catch(doRefresh);
           } else { doRefresh(); }
-        }, style: {fontSize:'var(--text-md)', padding: '4px 12px', borderRadius:'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--text-secondary)'}}, 'â†» Refresh'),
+        }, style: {fontSize:'var(--text-md)', padding: '4px 12px', borderRadius:'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--text-secondary)'}}, '↻ Refresh'),
         React.createElement('button', {onClick: onClose, style: {fontSize:'var(--text-md)', padding: '4px 14px', borderRadius:'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--text-secondary)'}}, '\u2190 Back to grid')
       )
     ),
@@ -1694,7 +1694,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
     // Section 1: Lifetime totals
     React.createElement('h3', {className: 'gsd-section-label'}, 'All time'),
     React.createElement('div', {className: 'gsd-metrics'},
-      React.createElement(MetricCard, {label: 'Total stitches', value: lifetimeTotals.totalStitches.toLocaleString(), sub: 'across ' + lifetimeTotals.total + ' project' + (lifetimeTotals.total !== 1 ? 's' : '')}),
+      React.createElement(MetricCard, {label: 'Total stitches', value: lifetimeTotals.totalStitches.toLocaleString('en-GB'), sub: 'across ' + lifetimeTotals.total + ' project' + (lifetimeTotals.total !== 1 ? 's' : '')}),
       React.createElement(MetricCard, {label: 'Time stitching', value: formatDurationCompact(lifetimeTotals.totalSeconds), sub: lifetimeTotals.activeDays + ' active days'}),
       React.createElement(MetricCard, {label: 'Average speed', value: lifetimeTotals.speed, sub: 'stitches / hour'}),
       React.createElement(MetricCard, {label: 'Projects', value: lifetimeTotals.complete + ' / ' + lifetimeTotals.total, sub: (lifetimeTotals.total - lifetimeTotals.complete) + ' in progress'})
@@ -1723,7 +1723,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
         return React.createElement('div', {key: p.id, className: 'gsd-project-card', onClick: function() { if (onViewProject) onViewProject(p.id); }},
           React.createElement('div', {className: 'gsd-pc-name'}, p.name || 'Untitled'),
           React.createElement(RingChart, {size: 52, pct: pct, color: color}),
-          React.createElement('div', {className: 'gsd-pc-sub'}, p.isComplete ? 'Complete!' : remaining.toLocaleString() + ' left')
+          React.createElement('div', {className: 'gsd-pc-sub'}, p.isComplete ? 'Complete!' : remaining.toLocaleString('en-GB') + ' left')
         );
       })
     ),
@@ -1732,7 +1732,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
     React.createElement('h3', {className: 'gsd-section-label'}, 'This week vs last week'),
     React.createElement('div', {className: 'gsd-week'},
       React.createElement('div', {className: 'gsd-week-grid'},
-        React.createElement(WeekMetric, {label: 'stitches', value: weekComparison.thisWeek.stitches.toLocaleString(), delta: weekComparison.stitchesDelta}),
+        React.createElement(WeekMetric, {label: 'stitches', value: weekComparison.thisWeek.stitches.toLocaleString('en-GB'), delta: weekComparison.stitchesDelta}),
         React.createElement(WeekMetric, {label: 'time', value: formatDurationCompact(weekComparison.thisWeek.seconds), delta: weekComparison.timeDelta}),
         React.createElement(WeekMetric, {label: 'st/hour', value: weekComparison.thisWeek.speed, delta: weekComparison.speedDelta}),
         React.createElement(WeekMetric, {label: 'days active', value: weekComparison.thisWeek.activeDays + ' / 7', delta: weekComparison.daysDelta, isDays: true})
@@ -1784,7 +1784,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
                     formatDurationCompact(entry.seconds) + (entry.speed > 0 ? ' \u00B7 ' + entry.speed + ' st/hr' : '')),
                   entry.note ? React.createElement('div', {className: 'gsd-tl-note'}, '\u201C' + entry.note + '\u201D') : null
                 ),
-                React.createElement('div', {className: 'gsd-tl-stitches'}, '+' + entry.stitches.toLocaleString())
+                React.createElement('div', {className: 'gsd-tl-stitches'}, '+' + entry.stitches.toLocaleString('en-GB'))
               );
             }
             return React.createElement('div', {key: i, className: 'gsd-tl-milestone'},

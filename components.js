@@ -1,4 +1,4 @@
-﻿function calculateTooltipPosition(x, width){
+function calculateTooltipPosition(x, width){
   return Math.max(width/2+8,Math.min(x,window.innerWidth-width/2-8));
 }
 function Tooltip({text,children,width=180}){
@@ -46,7 +46,7 @@ function InfoIcon({text,width}){
   );
 }
 
-// â”€â”€ Proposal B: Inline hint bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Proposal B: Inline hint bar ───────────────────────────────────────────────
 // Slides in below a field when it receives focus. `topic` is a search query
 // passed to HelpDrawer.open() when the user clicks "Learn more".
 function InlineHint({visible,text,topic}){
@@ -132,7 +132,7 @@ var SliderRow=React.memo(function SliderRow({label,value,min,max,step=1,onChange
   );
 });
 
-// â•â•â• Stats Components â•â•â•
+// ═══ Stats Components ═══
 
 var ProgressRing=React.memo(function ProgressRing({percent, size}){
   size = size || 56;
@@ -198,7 +198,7 @@ var MiniStatsBar=React.memo(function MiniStatsBar({statsSessions, totalCompleted
       statsBar,
       React.createElement("div", {className:"mini-goal", onClick:onOpenStats},
         React.createElement("span", {className:"mini-goal-label"}, activeGoal.label + ":"),
-        React.createElement("span", {className:"mini-goal-count"}, activeGoal.current.toLocaleString() + " / " + activeGoal.target.toLocaleString(), activeGoal.met && window.Icons && window.Icons.check ? React.createElement("span", {style:{display:"inline-flex",alignItems:"center",marginLeft:4}}, window.Icons.check()) : null),
+        React.createElement("span", {className:"mini-goal-count"}, activeGoal.current.toLocaleString('en-GB') + " / " + activeGoal.target.toLocaleString('en-GB'), activeGoal.met && window.Icons && window.Icons.check ? React.createElement("span", {style:{display:"inline-flex",alignItems:"center",marginLeft:4}}, window.Icons.check()) : null),
         React.createElement("div", {className:"mini-goal-track"},
           React.createElement("div", {className:"mini-goal-fill" + (activeGoal.met ? " mini-goal-fill--done" : ""), style:{width:Math.min(100,activeGoal.pct)+'%'}})
         )
@@ -213,9 +213,9 @@ var OverviewCards=React.memo(function OverviewCards({statsSessions, totalComplet
     React.createElement("div", {className:"stats-overview-main"},
       React.createElement(ProgressRing, {percent:stats.percent, size:56}),
       React.createElement("div", null,
-        React.createElement("span", {className:"stats-big-number"}, totalCompleted.toLocaleString()),
-        React.createElement("span", {className:"stats-label"}, " of " + totalStitches.toLocaleString() + " stitches"),
-        hasHalf && React.createElement("span", {className:"stats-sublabel"}, halfStitchCounts.done.toLocaleString() + " / " + halfStitchCounts.total.toLocaleString() + " half stitches (\xbd\xd7)")
+        React.createElement("span", {className:"stats-big-number"}, totalCompleted.toLocaleString('en-GB')),
+        React.createElement("span", {className:"stats-label"}, " of " + totalStitches.toLocaleString('en-GB') + " stitches"),
+        hasHalf && React.createElement("span", {className:"stats-sublabel"}, halfStitchCounts.done.toLocaleString('en-GB') + " / " + halfStitchCounts.total.toLocaleString('en-GB') + " half stitches (\xbd\xd7)")
       )
     ),
     React.createElement("div", {className:"stats-overview-grid"},
@@ -227,7 +227,7 @@ var OverviewCards=React.memo(function OverviewCards({statsSessions, totalComplet
   );
 });
 
-// --- EmptyState — shared coaching empty-state card ---------------------
+// --- EmptyState � shared coaching empty-state card ---------------------
 // Used on Manager (Patterns/Threads), Home (no projects), and Stats (no data).
 // Props: { icon, title, description, ctaLabel, ctaAction, secondaryLabel?, secondaryAction? }
 function EmptyState(props) {
@@ -262,8 +262,8 @@ function EmptyState(props) {
 }
 window.EmptyState = EmptyState;
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   AppInfoPopover â€” UX-12 Plan B: shared summary chip + popover.
+/* ════════════════════════════════════════════════════════════════
+   AppInfoPopover — UX-12 Plan B: shared summary chip + popover.
 
    Reusable across Tracker, Stash Manager, /home, and Stats. Owns
    only its own dismissal lifecycle (Escape + click-outside via
@@ -271,17 +271,17 @@ window.EmptyState = EmptyState;
    phones (<600px) the matching CSS converts it to a bottom sheet.
 
    Props:
-     open        â€” boolean; render only when true
-     onClose     â€” required; called on Escape, click-outside, scrim tap
-     triggerRef  â€” ref to the trigger button (so its own clicks are ignored)
-     ariaLabel   â€” dialog label, defaults to "Details"
-     children    â€” popover body. Use AppInfoSection / AppInfoGrid helpers.
+     open        — boolean; render only when true
+     onClose     — required; called on Escape, click-outside, scrim tap
+     triggerRef  — ref to the trigger button (so its own clicks are ignored)
+     ariaLabel   — dialog label, defaults to "Details"
+     children    — popover body. Use AppInfoSection / AppInfoGrid helpers.
 
    Helpers:
-     window.AppInfoSection({ title, children }) â€” titled subsection
-     window.AppInfoGrid({ rows }) â€” rows: [[label, value], â€¦]
-     window.AppInfoBadges({ items }) â€” pills, items: [{ label, kind? }]
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+     window.AppInfoSection({ title, children }) — titled subsection
+     window.AppInfoGrid({ rows }) — rows: [[label, value], …]
+     window.AppInfoBadges({ items }) — pills, items: [{ label, kind? }]
+   ════════════════════════════════════════════════════════════════ */
 
 function AppInfoPopover(props) {
   var h = React.createElement;
@@ -377,9 +377,9 @@ window.AppInfoDivider = AppInfoDivider;
 
 
 
-// AdaptedBadge â€” small lavender pill shown next to adapted-project titles in
+// AdaptedBadge — small lavender pill shown next to adapted-project titles in
 // the pattern library and on /home. Clicking opens the source project (via
-// onClick handler â€” usually navigates to the original).
+// onClick handler — usually navigates to the original).
 //   Props: { fromName, onClick?, compact? }
 function AdaptedBadge(props) {
   var h = React.createElement;
@@ -419,25 +419,25 @@ function AdaptedBadge(props) {
 }
 window.AdaptedBadge = AdaptedBadge;
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ════════════════════════════════════════════════════════════════
    color-3 (C2 + C3): Swatch detail popover and similar-colour
-   comparator. Both share the deDescriptor() helper for Î”Eâ‚€â‚€
+   comparator. Both share the deDescriptor() helper for ΔE₀₀
    plain-English labels. SwatchDetailPopover is portalled into
    document.body so it escapes overflow:hidden ancestors (Legend
    list, MaterialsHub tabs). SimilarColourComparator renders
    inline directly under the warning row that triggered it.
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ════════════════════════════════════════════════════════════════ */
 
 window.deDescriptor = function deDescriptor(de) {
-  if (de < 1.0) return 'imperceptible â€” identical in practice';
-  if (de < 2.0) return 'at the threshold of perception â€” side-by-side test recommended';
+  if (de < 1.0) return 'imperceptible — identical in practice';
+  if (de < 2.0) return 'at the threshold of perception — side-by-side test recommended';
   if (de < 3.5) return 'barely perceptible in person';
   if (de < 5.0) return 'perceptible on close inspection';
   if (de < 8.0) return 'clearly different on close inspection';
   return 'clearly different at a glance';
 };
 
-// Find the nearest other thread in `palette` to `thread` within a Î”Eâ‚€â‚€
+// Find the nearest other thread in `palette` to `thread` within a ΔE₀₀
 // budget (default 8). Returns null if nothing matches. O(n).
 window.findNearestSimilarThread = function findNearestSimilarThread(thread, palette, maxDe) {
   if (!thread || !thread.lab || !palette || !palette.length) return null;
@@ -453,7 +453,7 @@ window.findNearestSimilarThread = function findNearestSimilarThread(thread, pale
   return { id: best.id, name: best.name || '', rgb: best.rgb, dE: bestDe, descriptor: window.deDescriptor(bestDe) };
 };
 
-// Canonical pair key â€” sort IDs alphabetically and join with '+'.
+// Canonical pair key — sort IDs alphabetically and join with '+'.
 window.similarPairKey = function similarPairKey(a, b) {
   var s = [String(a), String(b)].sort();
   return s[0] + '+' + s[1];
