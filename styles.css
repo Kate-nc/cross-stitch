@@ -135,7 +135,11 @@ html{height:100%;}
 body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--surface-secondary);color:var(--text-primary);height:100%;display:flex;flex-direction:column;-webkit-tap-highlight-color:transparent;overscroll-behavior:none;}
 /* Touch surface hardening: prevent the page from rubber-banding /
    pull-to-refreshing while a finger is on the canvas, and silence the
-   blue tap-highlight that flashes on every button on iOS. */
+   blue tap-highlight that flashes on every button on iOS.
+   NOTE (Safari): overscroll-behavior is not supported on Safari <16 — the
+   body will still rubber-band vertically on older iOS. There is no pure-CSS
+   equivalent; pages that need hard scroll-lock (e.g. the tracker canvas) add
+   touch-action:none at the element level instead. */
 @supports (padding: max(0px)) {
   body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
 }
