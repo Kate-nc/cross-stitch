@@ -4912,7 +4912,7 @@ function scheduleZoomUpdate(newZoom){
 }
 
 function handleStitchWheel(e){
-  if(!e.ctrlKey)return;
+  if(!e.ctrlKey&&!e.metaKey)return;
   e.preventDefault();
   const container=stitchScrollRef.current;
   if(!container)return;
@@ -4921,7 +4921,9 @@ function handleStitchWheel(e){
   const mouseY=e.clientY-rect.top;
   const canvasX=container.scrollLeft+mouseX;
   const canvasY=container.scrollTop+mouseY;
-  const delta=-e.deltaY*0.005;
+  // Normalise deltaY for deltaMode: 0=pixels, 1=lines (~16px), 2=pages (~400px)
+  const normDy=e.deltaMode===1?e.deltaY*16:e.deltaMode===2?e.deltaY*400:e.deltaY;
+  const delta=-normDy*0.005;
   const oldZoom=stitchZoomRef.current;
   const newZoom=Math.max(0.3,Math.min(4,oldZoom+delta));
   const scale=newZoom/oldZoom;
