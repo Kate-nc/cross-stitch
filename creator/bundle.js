@@ -4748,6 +4748,10 @@ window.useCreatorState = function useCreatorState() {
             return;
           }
           if (msg.type === 'error') {
+            // Ignore errors from superseded requests (stale worker responses)
+            if (msg.reqId !== undefined && msg.reqId !== genReqIdRef.current) {
+              w.terminate(); return;
+            }
             console.error('Worker generation error:', msg.message, msg.stack || '');
             w.terminate();
             workerRef.current = null;
