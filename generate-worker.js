@@ -12,7 +12,7 @@
      Worker → Main:
        { type: 'result', reqId: number, mapped, pal, cmap, confettiData }
        { type: 'progress', reqId: number, stage: string, message: string }
-       { type: 'error',  message: string, stack?: string }
+       { type: 'error',  reqId: number, message: string, stack?: string }
 
    Dependencies (imported via importScripts — all pure, no DOM):
      constants.js  → FABRIC_COUNTS, A4W, A4H, etc.

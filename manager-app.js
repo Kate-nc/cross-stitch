@@ -102,7 +102,7 @@ function ManagerApp() {
     return () => window.removeEventListener("cs:openBulkAdd", h);
   }, []);
   // Auto-close the detail panel when the screen drops below 900px (portrait)
-  // where the panel backdrop is visible but the side panel is gone — prevents
+  // where the panel backdrop is visible but the side panel is gone â€” prevents
   // a ghost dark overlay after screen rotation.
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
@@ -197,7 +197,7 @@ function ManagerApp() {
     const unlinked = allMeta.filter(m => !linkedIdxMap.has(m.id));
 
     // For each project that already has a library entry, check whether its name
-    // changed (e.g. renamed on another device via sync). If so, update title only —
+    // changed (e.g. renamed on another device via sync). If so, update title only â€”
     // leave user-set fields (designer, tags, status) untouched.
     let reconciled = updateTitleIfChanged(basePatterns, allMeta, linkedIdxMap);
 
@@ -367,7 +367,7 @@ function ManagerApp() {
     };
 
     // Await loadManagerData so ensurePersistence() has settled before we read the
-    // storage estimate — otherwise the persistent flag races and shows false.
+    // storage estimate â€” otherwise the persistent flag races and shows false.
     loadManagerData().then(() => {
       ProjectStorage.getStorageEstimate().then(setStorageUsage).catch(e => console.warn('getStorageEstimate failed:', e));
     });
@@ -426,7 +426,7 @@ function ManagerApp() {
 
     // Live refresh when other tabs/components mutate projects, the auto-synced
     // pattern library, or the stash. Without these the Manager only refreshes
-    // on visibilitychange — so a pattern just generated in the Creator wouldn't
+    // on visibilitychange â€” so a pattern just generated in the Creator wouldn't
     // appear here until the user clicked away and back.
     const handleProjectsOrPatternsChanged = () => {
       handleVisibilityChange();
@@ -436,7 +436,7 @@ function ManagerApp() {
 
     // External writers (StashBridge.setToBuyQty, markBought, etc.) mutate
     // manager_state.threads directly and dispatch cs:stashChanged. We must
-    // re-load the threads slice from IDB so the React copy doesn't go stale —
+    // re-load the threads slice from IDB so the React copy doesn't go stale â€”
     // otherwise the next debounced auto-save will write the stale React state
     // back over IDB and silently wipe the bridge's mutation.
     const handleStashChanged = async () => {
@@ -708,7 +708,7 @@ function ManagerApp() {
         updated.partialStatus = null;
       }
 
-      // V3 acquisition/history tracking — mirrors the logic in StashBridge.updateThreadOwned.
+      // V3 acquisition/history tracking â€” mirrors the logic in StashBridge.updateThreadOwned.
       // Only runs when the entry already has V3 fields (addedAt defined), meaning the
       // migrateSchemaToV3 auto-migration has already stamped the record.
       if (prevEntry.addedAt !== undefined) {
@@ -721,7 +721,7 @@ function ManagerApp() {
         const delta = newOwned - prevOwned;
         if (delta !== 0) {
           const now = new Date().toISOString();
-          // Re-acquisition: thread was legacy (at zero) and is now first owned — tag with today's date.
+          // Re-acquisition: thread was legacy (at zero) and is now first owned â€” tag with today's date.
           if (prevOwned === 0 && newOwned > 0 && prevEntry.addedAt === LEGACY_EP) {
             updated.addedAt = now;
             updated.acquisitionSource = null;
@@ -950,7 +950,7 @@ function ManagerApp() {
         </button>
       </div>
 
-      {/* Filter bar — threads */}
+      {/* Filter bar â€” threads */}
       {tab === "inventory" && (
         <div className="mgr-filter-bar">
           <input
@@ -987,7 +987,7 @@ function ManagerApp() {
           >
             <option value="number">Number</option>
             <option value="colour">Colour</option>
-            <option value="name">Name (A–Z)</option>
+            <option value="name">Name (Aâ€“Z)</option>
             <option value="owned_desc">Owned: most first</option>
             <option value="owned_asc">Owned: fewest first</option>
           </select>
@@ -1001,11 +1001,11 @@ function ManagerApp() {
         </div>
       )}
 
-      {/* Stats strip — threads.
+      {/* Stats strip â€” threads.
           Plan B Phase 2: collapsed into a "Stash" info chip. The full
           breakdown (owned / to-buy / low-stock / conflicts / ready-to-start)
           opens in the shared AppInfoPopover one click away. The smart-hub
-          alert cards below stay intact — critical conflicts must remain
+          alert cards below stay intact â€” critical conflicts must remain
           surfaced inline. */}
       {tab === "inventory" && (
         <div className="mgr-stats-strip">
@@ -1100,10 +1100,10 @@ function ManagerApp() {
               </div>
             )}
 
-            {/* Smart Hub: Low-Stock Alerts — needed by active projects */}
+            {/* Smart Hub: Low-Stock Alerts â€” needed by active projects */}
             {lowStockNeeded && lowStockNeeded.length > 0 && (
               <div className="alert-card warn" style={{ marginBottom: 16 }}>
-                <div className="at">{Icons.box()} Low Stock — Needed ({lowStockNeeded.length})</div>
+                <div className="at">{Icons.box()} Low Stock â€” Needed ({lowStockNeeded.length})</div>
                 <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 10 }}>Threads below your minimum stock level that are used by active projects.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflow: "auto" }}>
                   {lowStockNeeded.map(a => (
@@ -1120,10 +1120,10 @@ function ManagerApp() {
               </div>
             )}
 
-            {/* Smart Hub: Low-Stock — not currently needed */}
+            {/* Smart Hub: Low-Stock â€” not currently needed */}
             {lowStockNotNeeded && lowStockNotNeeded.length > 0 && (
               <div className="alert-card" style={{ marginBottom: 16, background: "#f8fafc", border: "1px solid var(--border)" }}>
-                <div className="at" style={{ color: "var(--text-tertiary)" }}>{Icons.box()} Low stash — not currently needed ({lowStockNotNeeded.length})</div>
+                <div className="at" style={{ color: "var(--text-tertiary)" }}>{Icons.box()} Low stash â€” not currently needed ({lowStockNotNeeded.length})</div>
                 <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginBottom: 10 }}>These threads are below minimum stock but aren't used by any active project.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflow: "auto" }}>
                   {lowStockNotNeeded.map(a => (
@@ -1183,7 +1183,7 @@ function ManagerApp() {
             </div>
           </div>
 
-          {/* Right Panel — Thread Detail */}
+          {/* Right Panel â€” Thread Detail */}
           {panelOpen && <div className="rpanel-backdrop" onClick={() => setPanelOpen(false)} />}
           <div className={"mgr-rpanel" + (panelOpen ? " mgr-rpanel--open" : "")}>
             <div className="mgr-panel-handle" onClick={() => setPanelOpen(o => !o)}>
@@ -1232,10 +1232,10 @@ function ManagerApp() {
                     <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginBottom: 4, textAlign: "center" }}>Opened skein level</div>
                     <div className="gauge-lg">
                       {[
-                        { val: null, label: "—" },
-                        { val: "mostly-full", label: "¾" },
-                        { val: "about-half", label: "½" },
-                        { val: "remnant", label: "¼" }
+                        { val: null, label: "â€”" },
+                        { val: "mostly-full", label: "Â¾" },
+                        { val: "about-half", label: "Â½" },
+                        { val: "remnant", label: "Â¼" }
                       ].map(opt => {
                         const isActive = state.partialStatus === opt.val || (opt.val === null && !state.partialStatus);
                         return <div key={opt.val || "none"} className={"seg" + (isActive ? " full" : "")} title={opt.val || "None"} onClick={() => updateThread(selectedThread, "partialStatus", opt.val)}>{opt.label}</div>;
@@ -1339,7 +1339,7 @@ function ManagerApp() {
                 + Add Pattern
               </button>
             </div>
-            {/* Unified Project Library — same card view as Home dashboard so users
+            {/* Unified Project Library â€” same card view as Home dashboard so users
                 see one consistent picture of their work across pages. */}
             {window.ProjectLibrary && (
               <div className="mgr-project-library" style={{ marginBottom: 16, padding: 12, border: "1px solid var(--border)", borderRadius: 12, background: "#fafafa" }}>
@@ -1452,7 +1452,7 @@ function ManagerApp() {
                       {r.pct === 100 ? (
                         <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: "var(--success-soft)", color: "#4F7D3F" }}>100% kitted</span>
                       ) : (
-                        <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: "var(--warning-soft)", color: "var(--accent-ink)" }}>{r.pct}% — {r.missing.length} missing</span>
+                        <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: "var(--warning-soft)", color: "var(--accent-ink)" }}>{r.pct}% â€” {r.missing.length} missing</span>
                       )}
                     </div>
                   ))}
@@ -1473,7 +1473,7 @@ function ManagerApp() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: "#1B1814", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
                           <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
-                            {p.dimensions.width}×{p.dimensions.height} · {pct}% done · {p.source === "tracker" ? "Tracked" : "Created"} · {p.updatedAt ? new Date(p.updatedAt).toLocaleDateString('en-GB') : ""}
+                            {p.dimensions.width}Ã—{p.dimensions.height} Â· {pct}% done Â· {p.source === "tracker" ? "Tracked" : "Created"} Â· {p.updatedAt ? new Date(p.updatedAt).toLocaleDateString('en-GB') : ""}
                           </div>
                         </div>
                         <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 12 }}>
@@ -1566,7 +1566,7 @@ function ManagerApp() {
               </div>
             )}
 
-            {/* Detailed pattern grid removed — missing-thread badges now
+            {/* Detailed pattern grid removed â€” missing-thread badges now
                 live on the unified "Your Projects" cards above (see the
                 cardExtras callback on ProjectLibrary). If no patterns exist
                 yet, surface an empty-state nudge. */}
@@ -1587,7 +1587,7 @@ function ManagerApp() {
             )}
           </div>
 
-          {/* Right Panel — Pattern Detail */}
+          {/* Right Panel â€” Pattern Detail */}
           {panelOpen && <div className="rpanel-backdrop" onClick={() => setPanelOpen(false)} />}
           <div className={"mgr-rpanel" + (panelOpen ? " mgr-rpanel--open" : "")}>
             <div className="mgr-panel-handle" onClick={() => setPanelOpen(o => !o)}>
@@ -1918,7 +1918,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
                 </div>
               </div>
 
-              {threadQty === "" && <div style={{ fontSize: 11, color: "#A06F2D" }}>Quantity cleared — please enter the value in {threadUnit}.</div>}
+              {threadQty === "" && <div style={{ fontSize: 11, color: "#A06F2D" }}>Quantity cleared â€” please enter the value in {threadUnit}.</div>}
 
               <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
                 <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
@@ -2142,7 +2142,7 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads, userP
             <span style={{ padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: statusColors[pattern.status].bg, color: statusColors[pattern.status].text }}>
               {statusColors[pattern.status].label}
             </span>
-            {pattern.fabric && <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>• {pattern.fabric}</span>}
+            {pattern.fabric && <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>Â· {pattern.fabric}</span>}
           </div>
 
           {pattern.tags && pattern.tags.length > 0 && (
@@ -2174,32 +2174,32 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads, userP
                   if (t.is_blended) {
                       const rA = t.blend_ratio ? t.blend_ratio[0] : 1;
                       const rB = t.blend_ratio ? t.blend_ratio[1] : 1;
-                      text = `DMC ${t.id} + DMC ${t.blend_id} [${rA}:${rB}] — ${t.unit === "stitches" ? t.qty + " stitches" : t.qty + " skeins"}`;
+                      text = `DMC ${t.id} + DMC ${t.blend_id} [${rA}:${rB}] â€” ${t.unit === "stitches" ? t.qty + " stitches" : t.qty + " skeins"}`;
                       if (t.unit === "stitches") {
                           if (rA === rB) {
                               subtext = `~${t.skToBuy} skein(s) each`;
                           } else {
-                              subtext = `DMC ${t.id}: ~${t.skToBuy} skeins · DMC ${t.blend_id}: ~${t.skBToBuy} skeins`;
+                              subtext = `DMC ${t.id}: ~${t.skToBuy} skeins Â· DMC ${t.blend_id}: ~${t.skBToBuy} skeins`;
                           }
                       } else {
                           subtext = `Stitch estimate not available for blended entries stored as skeins.`;
                       }
                   } else {
                       if (t.unit === "stitches") {
-                          text = `DMC ${t.id} (${t.name}) — ${t.qty.toLocaleString('en-GB')} stitches (~${t.skToBuy} skeins)`;
+                          text = `DMC ${t.id} (${t.name}) â€” ${t.qty.toLocaleString('en-GB')} stitches (~${t.skToBuy} skeins)`;
                       } else {
                           // Is skeins or fallback
                           if (t.unit === "skeins" && t.isApprox) {
-                              text = `DMC ${t.id} (${t.name}) — ${t.qty} skein(s) (~${t.stApprox.toLocaleString('en-GB')} stitches)`;
+                              text = `DMC ${t.id} (${t.name}) â€” ${t.qty} skein(s) (~${t.stApprox.toLocaleString('en-GB')} stitches)`;
                           } else {
-                              text = `DMC ${t.id} (${t.name}) — ${t.qty} skein(s)`;
+                              text = `DMC ${t.id} (${t.name}) â€” ${t.qty} skein(s)`;
                           }
                       }
                   }
 
                   const settingsUsed = t.settings;
                   const isOverride = !!pattern.project_overrides;
-                  const settingsBadge = `Based on: ${settingsUsed.fabricCount}ct · ${settingsUsed.strandsUsed} strands · ${settingsUsed.threadBrand} · ${Math.round(settingsUsed.wasteFactor * 100)}% waste ${isOverride ? "(project settings)" : ""}`;
+                  const settingsBadge = `Based on: ${settingsUsed.fabricCount}ct Â· ${settingsUsed.strandsUsed} strands Â· ${settingsUsed.threadBrand} Â· ${Math.round(settingsUsed.wasteFactor * 100)}% waste ${isOverride ? "(project settings)" : ""}`;
 
                   return (
                     <div key={idx} style={{ display: "flex", flexDirection: "column", gap: 6, padding: "12px 16px", background: "#FBF8F3", borderRadius: 8, border: "1px solid var(--border)" }}>
