@@ -31,9 +31,9 @@ onmessage = function(e) {
     var sH                        = msg.sH;
     var targetLab                 = msg.targetLab;
     var toleranceDe               = msg.toleranceDe;
-    var INTERIOR_CARDINAL_THRESH  = (msg.interiorCardinalThreshold !== undefined) ? msg.interiorCardinalThreshold : 4;
-    var MIN_FOREIGN_RATIO         = (msg.minForeignRatio          !== undefined) ? msg.minForeignRatio          : 0.5;
-    var MIN_RUN_LENGTH            = (msg.minRunLength             !== undefined) ? msg.minRunLength             : 3;
+    var INTERIOR_CARDINAL_THRESH  = (msg.interiorCardinalThreshold !== undefined) ? msg.interiorCardinalThreshold : 3;
+    var MIN_FOREIGN_RATIO         = (msg.minForeignRatio          !== undefined) ? msg.minForeignRatio          : 0.35;
+    var MIN_RUN_LENGTH            = (msg.minRunLength             !== undefined) ? msg.minRunLength             : 2;
 
     var n = sW * sH;
 

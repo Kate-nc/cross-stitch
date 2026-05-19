@@ -25,16 +25,16 @@ var CLEANUP_TOLERANCE_MAX_DE = 30;
 // Auto-detect: a candidate cell is considered "interior to a filled block"
 // (not lineart) when it has this many or more cardinal-direction neighbours
 // that are also candidate-coloured. 4 = fully surrounded.
-var AUTODETECT_INTERIOR_CARDINAL_THRESHOLD = 4;
+var AUTODETECT_INTERIOR_CARDINAL_THRESHOLD = 3;
 
 // Auto-detect: a candidate cell must have at least this fraction of its valid
 // 8-connected neighbours belonging to a DIFFERENT colour to qualify as lineart
 // (boundary / thin-line criterion).
-var AUTODETECT_MIN_FOREIGN_RATIO = 0.5;
+var AUTODETECT_MIN_FOREIGN_RATIO = 0.35;
 
 // Auto-detect: connected components smaller than this cell count are discarded
 // (isolated noise pixels, not real lineart runs).
-var AUTODETECT_MIN_RUN_LENGTH = 3;
+var AUTODETECT_MIN_RUN_LENGTH = 2;
 
 // Neighbour vote: radius of the wider neighbourhood used for first tie-break.
 // 5 means a 5×5 region (radius 2 from center).
@@ -286,6 +286,15 @@ window.useCleanupMode = function useCleanupMode(state, history) {
     if (state.cleanupAutoRunning) return;
     runAutoDetect();
   }, [state.cleanupTolerance]);
+
+  // Auto-trigger when the user switches to the Auto sub-tool, or enters
+  // cleanup mode while Auto is already the active sub-tool.
+  useEffect(function() {
+    if (state.activeTool !== 'cleanup') return;
+    if (state.cleanupSelTool !== 'auto') return;
+    if (state.cleanupAutoRunning) return;
+    runAutoDetect();
+  }, [state.cleanupSelTool, state.activeTool]);
 
   // ── Neighbour vote ────────────────────────────────────────────────────────
   // Determines the replacement colour for a single selected cell based on

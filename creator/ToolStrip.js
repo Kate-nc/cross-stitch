@@ -54,6 +54,180 @@ window.CreatorToolStrip = function CreatorToolStrip() {
 
   if (!(ctx.pat && ctx.pal && app.tab === "pattern")) return null;
 
+  // ─── Cleanup Mode control row ─────────────────────────────────────────────
+  // Computed here — before the create-mode early return — so it renders in
+  // both create mode and edit mode. A compact target chip replaces the old
+  // inline full-palette swatch array so the row fits on narrow toolbars.
+  var cleanupRow = null;
+  if (cv.activeTool === "cleanup") {
+    var palForCleanup = (ctx.displayPal || ctx.pal || []).filter(function(p){ return p.id !== '__skip__' && p.id !== '__empty__'; });
+    var pendingCt = 0;
+    if (cv.cleanupPendingMask) { for (var pci = 0; pci < cv.cleanupPendingMask.length; pci++) { if (cv.cleanupPendingMask[pci]) pendingCt++; } }
+    var hasPending = pendingCt > 0;
+    var subTools = [
+      { id: "click", label: "Click" },
+      { id: "brush", label: "Brush" },
+      { id: "auto",  label: "Auto" }
+    ];
+    // Compact target chip — shows the current target colour; opens a swatch
+    // popover on click. Reuses the openDrop / outside-click-close mechanism.
+    var clTgtEntry = ctx.cmap && cv.cleanupTargetColorId ? ctx.cmap[cv.cleanupTargetColorId] : null;
+    var cleanupTgtChip = h("div", {
+      className: "tb-drop-wrap" + (openDrop === 'cleanup-target' ? " tb-drop-wrap--open" : ""),
+      style: { position: "relative", display: "inline-flex", flexShrink: 0 }
+    },
+      h("button", {
+        className: "tb-btn" + (openDrop === 'cleanup-target' ? " tb-btn--on" : ""),
+        onClick: function(e) {
+          e.stopPropagation();
+          setOpenDrop(function(v) { return v === 'cleanup-target' ? null : 'cleanup-target'; });
+        },
+        title: "Target: DMC " + (cv.cleanupTargetColorId || "") + (clTgtEntry && clTgtEntry.name ? " " + clTgtEntry.name : "") + " — click to change",
+        "aria-label": "Change cleanup target colour",
+        "aria-expanded": openDrop === 'cleanup-target' ? "true" : "false",
+        "aria-haspopup": "listbox",
+        style: { display:"inline-flex", alignItems:"center", gap:5, padding:"2px 8px 2px 5px" }
+      },
+        clTgtEntry && h("span", {
+          "aria-hidden": "true",
+          style: { width:12, height:12, borderRadius:2, flexShrink:0, display:"inline-block",
+                   background:"rgb("+clTgtEntry.rgb+")", border:"1.5px solid rgba(0,0,0,0.2)" }
+        }),
+        h("span", {style:{fontSize:11}},
+          cv.cleanupTargetColorId ? "DMC " + cv.cleanupTargetColorId : "None"
+        ),
+        h("span", {"aria-hidden":"true", style:{fontSize:9,opacity:0.6,marginLeft:1}}, "\u25BE")
+      ),
+      openDrop === 'cleanup-target' && h("div", {
+        role: "listbox",
+        "aria-label": "Select cleanup target colour",
+        style: {
+          position:"absolute", top:"calc(100% + 2px)", left:0, zIndex:200,
+          background:"var(--surface)", border:"1px solid var(--line)", borderRadius:"var(--radius-sm)",
+          boxShadow:"var(--shadow-sm)", padding:6, display:"flex", flexWrap:"wrap", gap:3,
+          minWidth:100, maxWidth:210
+        }
+      },
+        palForCleanup.map(function(p) {
+          var isTgt = cv.cleanupTargetColorId === p.id;
+          return h("button", {
+            key: p.id,
+            role: "option",
+            "aria-selected": isTgt,
+            onClick: function(e) { e.stopPropagation(); cv.setCleanupTargetColorId(p.id); setOpenDrop(null); },
+            title: "DMC " + p.id + (p.name ? " \xB7 " + p.name : ""),
+            "aria-label": "Set cleanup target to DMC " + p.id + (p.name ? " " + p.name : ""),
+            style:{
+              width:18, height:18, flexShrink:0, borderRadius:3, cursor:"pointer", padding:0,
+              background:"rgb("+p.rgb+")",
+              border: isTgt ? "2px solid var(--accent)" : "1.5px solid rgba(0,0,0,0.15)",
+              boxShadow: isTgt ? "0 0 0 2px #fff inset" : "none",
+              outline: "none"
+            }
+          });
+        })
+      )
+    );
+    cleanupRow = h("div", {
+      className: "swatch-strip-row",
+      role: "group",
+      "aria-label": "Cleanup mode controls",
+      style: { gap: "var(--s-2)", paddingTop: "var(--s-1)", alignItems: "center" }
+    },
+      // ── Target colour chip ────────────────────────────────────────────────
+      h("span", {
+        style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",flexShrink:0,letterSpacing:0.5}
+      }, "Target"),
+      cleanupTgtChip,
+      // ── Tolerance slider ──────────────────────────────────────────────────
+      h("span", {
+        style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",flexShrink:0,letterSpacing:0.5,marginLeft:4}
+      }, "Tol"),
+      h("input", {
+        type:"range", min:0, max:100, step:1, value: cv.cleanupTolerance,
+        onChange: function(e){ cv.setCleanupTolerance(Number(e.target.value)); },
+        style:{width:60},
+        title:"Colour tolerance: " + cv.cleanupTolerance + " (\u0394E \u2248" + Math.round(cv.cleanupTolerance / 100 * 30) + ")",
+        "aria-label": "Colour tolerance"
+      }),
+      h("span", {style:{fontSize:10,color:"var(--text-tertiary)",minWidth:20,textAlign:"right"}}, cv.cleanupTolerance),
+      // ── Sub-tool radios ───────────────────────────────────────────────────
+      h("span", {
+        style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",flexShrink:0,letterSpacing:0.5,marginLeft:4}
+      }, "Mode"),
+      subTools.map(function(st) {
+        var isActive = cv.cleanupSelTool === st.id;
+        return h("button", {
+          key: st.id,
+          className: "tb-btn" + (isActive ? " tb-btn--on" : ""),
+          onClick: function(){ cv.setCleanupSelTool(st.id); },
+          title: st.label + " selection",
+          "aria-label": st.label + " selection mode",
+          "aria-pressed": isActive,
+          style:{padding:"1px 8px",fontSize:11}
+        }, st.label);
+      }),
+      // ── Brush size (only when Brush sub-tool is active) ───────────────────
+      cv.cleanupSelTool === "brush" && h(React.Fragment, null,
+        h("span", {
+          style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",flexShrink:0,letterSpacing:0.5,marginLeft:4}
+        }, "Size"),
+        h("button", {
+          className:"tb-btn", style:{padding:"1px 7px",fontSize:12},
+          onClick:function(){ cv.setCleanupBrushSize(Math.max(1, (cv.cleanupBrushSize||1)-1)); },
+          "aria-label":"Decrease brush size",
+          disabled:(cv.cleanupBrushSize||1) <= 1
+        }, "\u2212"),
+        h("span", {style:{fontSize:11,minWidth:16,textAlign:"center",color:"var(--text-secondary)"}}, cv.cleanupBrushSize||1),
+        h("button", {
+          className:"tb-btn", style:{padding:"1px 7px",fontSize:12},
+          onClick:function(){ cv.setCleanupBrushSize(Math.min(10, (cv.cleanupBrushSize||1)+1)); },
+          "aria-label":"Increase brush size",
+          disabled:(cv.cleanupBrushSize||1) >= 10
+        }, "+")
+      ),
+      // ── Re-run button (Auto sub-tool only — first run triggers automatically) ──
+      cv.cleanupSelTool === "auto" && h("button", {
+        className:"tb-btn",
+        onClick: function(){ if (cv.runAutoDetect) cv.runAutoDetect(); },
+        disabled: cv.cleanupAutoRunning || !cv.cleanupTargetColorId,
+        title: cv.cleanupAutoRunning ? "Detecting\u2026" : "Re-run auto-detect",
+        "aria-label": "Re-run auto-detect",
+        style:{marginLeft:4}
+      }, cv.cleanupAutoRunning ? "Detecting\u2026" : "Re-run"),
+      // ── Auto-error notice ─────────────────────────────────────────────────
+      cv.cleanupAutoError && h("span", {
+        role:"alert",
+        style:{fontSize:10,color:"var(--danger)",marginLeft:4,flexShrink:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:160}
+      }, cv.cleanupAutoError),
+      // ── Apply / Cancel ────────────────────────────────────────────────────
+      h("button", {
+        className:"tb-btn tb-btn--primary",
+        onClick: function(){ if (cv.applyCleanup) cv.applyCleanup(); },
+        disabled: !hasPending,
+        title: hasPending ? "Apply cleanup (" + pendingCt.toLocaleString("en-GB") + " cells)" : "No cells selected",
+        "aria-label": "Apply cleanup",
+        "aria-disabled": !hasPending,
+        style:{
+          marginLeft:8, opacity: hasPending ? 1 : 0.4,
+          background: hasPending ? "var(--accent)" : undefined,
+          color: hasPending ? "#fff" : undefined,
+          border: hasPending ? "none" : undefined
+        }
+      }, "Apply"),
+      h("button", {
+        className:"tb-btn",
+        onClick: function(){
+          if (cv.cancelCleanup) cv.cancelCleanup();
+          if (cv.exitCleanup) cv.exitCleanup();
+        },
+        title:"Cancel cleanup mode",
+        "aria-label":"Cancel cleanup mode",
+        style:{marginLeft:4}
+      }, "Cancel")
+    );
+  }
+
   // ─── Create Mode: minimal toolbar ────────────────────────────────────────────
   if (app.appMode === "create") {
     var createZoomGrp = [
@@ -94,7 +268,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           // Zoom
           createZoomGrp
         )
-      )
+      ),
+      cleanupRow
     );
   }
 
@@ -470,137 +645,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     overflowMenu
   );
 
-  // ─── Cleanup Mode control row ─────────────────────────────────────────────
-  // Rendered as a second toolbar row below the swatch strip when
-  // activeTool === "cleanup". Contains: target colour picker (palette
-  // swatches filtered by tolerance), tolerance slider, sub-tool radios,
-  // brush size stepper, Auto-Detect and Apply/Cancel buttons.
-  var cleanupRow = null;
-  if (cv.activeTool === "cleanup") {
-    var palForCleanup = (ctx.displayPal || ctx.pal || []).filter(function(p){ return p.id !== '__skip__' && p.id !== '__empty__'; });
-    var pendingCt = 0;
-    if (cv.cleanupPendingMask) { for (var pci = 0; pci < cv.cleanupPendingMask.length; pci++) { if (cv.cleanupPendingMask[pci]) pendingCt++; } }
-    var hasPending = pendingCt > 0;
-    var subTools = [
-      { id: "click", label: "Click" },
-      { id: "brush", label: "Brush" },
-      { id: "auto",  label: "Auto" }
-    ];
-    cleanupRow = h("div", {
-      className: "swatch-strip-row",
-      role: "group",
-      "aria-label": "Cleanup mode controls",
-      style: { flexWrap: "wrap", gap: "var(--s-2)", paddingTop: "var(--s-1)", alignItems: "center" }
-    },
-      // ── Target colour label + swatches ────────────────────────────────────
-      h("span", {
-        style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",flexShrink:0,letterSpacing:0.5}
-      }, "Target"),
-      palForCleanup.map(function(p) {
-        var isTgt = cv.cleanupTargetColorId === p.id;
-        return h("button", {
-          key: p.id,
-          onClick: function() { cv.setCleanupTargetColorId(p.id); },
-          title: "DMC " + p.id + (p.name ? " \xB7 " + p.name : "") + (p.count ? " \xB7 " + p.count + " st" : ""),
-          "aria-label": "Set cleanup target to DMC " + p.id + (p.name ? " " + p.name : ""),
-          "aria-pressed": isTgt,
-          style:{
-            width:16, height:16, flexShrink:0, borderRadius:3, cursor:"pointer", padding:0,
-            background:"rgb("+p.rgb+")",
-            border: isTgt ? "2px solid var(--accent)" : "1.5px solid rgba(0,0,0,0.15)",
-            boxShadow: isTgt ? "0 0 0 2px #fff inset" : "none",
-            outline: "none"
-          }
-        });
-      }),
-      // ── Tolerance slider ────────────────────────────────────────────────────
-      h("span", {
-        style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",flexShrink:0,letterSpacing:0.5,marginLeft:4}
-      }, "Tolerance"),
-      h("input", {
-        type:"range", min:0, max:100, step:1, value: cv.cleanupTolerance,
-        onChange: function(e){ cv.setCleanupTolerance(Number(e.target.value)); },
-        style:{width:70},
-        title:"Colour tolerance: " + cv.cleanupTolerance,
-        "aria-label": "Colour tolerance"
-      }),
-      h("span", {style:{fontSize:10,color:"var(--text-tertiary)",minWidth:24,textAlign:"right"}}, cv.cleanupTolerance),
-      // ── Sub-tool radios ─────────────────────────────────────────────────────
-      h("span", {
-        style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",flexShrink:0,letterSpacing:0.5,marginLeft:4}
-      }, "Mode"),
-      subTools.map(function(st) {
-        var isActive = cv.cleanupSelTool === st.id;
-        return h("button", {
-          key: st.id,
-          className: "tb-btn" + (isActive ? " tb-btn--on" : ""),
-          onClick: function(){ cv.setCleanupSelTool(st.id); },
-          title: st.label + " selection",
-          "aria-label": st.label + " selection mode",
-          "aria-pressed": isActive,
-          style:{padding:"1px 8px",fontSize:11}
-        }, st.label);
-      }),
-      // ── Brush size (only when Brush sub-tool is active) ──────────────────────
-      cv.cleanupSelTool === "brush" && h(React.Fragment, null,
-        h("span", {
-          style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",flexShrink:0,letterSpacing:0.5,marginLeft:4}
-        }, "Size"),
-        h("button", {
-          className:"tb-btn", style:{padding:"1px 7px",fontSize:12},
-          onClick:function(){ cv.setCleanupBrushSize(Math.max(1, (cv.cleanupBrushSize||1)-1)); },
-          "aria-label":"Decrease brush size",
-          disabled:(cv.cleanupBrushSize||1) <= 1
-        }, "\u2212"),
-        h("span", {style:{fontSize:11,minWidth:16,textAlign:"center",color:"var(--text-secondary)"}}, cv.cleanupBrushSize||1),
-        h("button", {
-          className:"tb-btn", style:{padding:"1px 7px",fontSize:12},
-          onClick:function(){ cv.setCleanupBrushSize(Math.min(10, (cv.cleanupBrushSize||1)+1)); },
-          "aria-label":"Increase brush size",
-          disabled:(cv.cleanupBrushSize||1) >= 10
-        }, "+")
-      ),
-      // ── Auto-Detect button (when Auto sub-tool is active) ────────────────────
-      cv.cleanupSelTool === "auto" && h("button", {
-        className:"tb-btn",
-        onClick: function(){ if (cv.runAutoDetect) cv.runAutoDetect(); },
-        disabled: cv.cleanupAutoRunning || !cv.cleanupTargetColorId,
-        title:"Auto-detect lineart pixels and build selection",
-        "aria-label":"Auto-detect lineart pixels",
-        style:{marginLeft:4}
-      }, cv.cleanupAutoRunning ? "Detecting\u2026" : "Detect"),
-      // ── Auto-error notice ────────────────────────────────────────────────────
-      cv.cleanupAutoError && h("span", {
-        role:"alert",
-        style:{fontSize:10,color:"var(--danger)",marginLeft:4,flexShrink:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:200}
-      }, cv.cleanupAutoError),
-      // ── Apply / Cancel ───────────────────────────────────────────────────────
-      h("button", {
-        className:"tb-btn tb-btn--primary",
-        onClick: function(){ if (cv.applyCleanup) cv.applyCleanup(); },
-        disabled: !hasPending,
-        title: hasPending ? "Apply cleanup (" + pendingCt.toLocaleString() + " cells)" : "No cells selected",
-        "aria-label": "Apply cleanup",
-        "aria-disabled": !hasPending,
-        style:{
-          marginLeft:8, opacity: hasPending ? 1 : 0.4,
-          background: hasPending ? "var(--accent)" : undefined,
-          color: hasPending ? "#fff" : undefined,
-          border: hasPending ? "none" : undefined
-        }
-      }, "Apply"),
-      h("button", {
-        className:"tb-btn",
-        onClick: function(){
-          if (cv.cancelCleanup) cv.cancelCleanup();
-          if (cv.exitCleanup) cv.exitCleanup();
-        },
-        title:"Cancel cleanup mode",
-        "aria-label":"Cancel cleanup mode",
-        style:{marginLeft:4}
-      }, "Cancel")
-    );
-  }
+  // cleanupRow is computed before the create-mode early return above,
+  // so it is available here for both modes without duplication.
 
   return h(React.Fragment, null,
     h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Edit mode tools"},

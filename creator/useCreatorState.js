@@ -240,7 +240,7 @@ window.useCreatorState = function useCreatorState() {
   // cleanupAutoRunning: true while cleanup-worker is computing auto-detect result
   // cleanupAutoError: last error string from cleanup-worker, or null
   var _cltgt = useState(null); var cleanupTargetColorId = _cltgt[0], setCleanupTargetColorId = _cltgt[1];
-  var _cltol = useState(20);   var cleanupTolerance = _cltol[0], setCleanupTolerance = _cltol[1];
+  var _cltol = useState(40);   var cleanupTolerance = _cltol[0], setCleanupTolerance = _cltol[1];
   var _clsel = useState("click"); var cleanupSelTool = _clsel[0], setCleanupSelTool = _clsel[1];
   var _clbsz = useState(1);    var cleanupBrushSize = _clbsz[0], setCleanupBrushSize = _clbsz[1];
   var _clmsk = useState(null); var cleanupPendingMask = _clmsk[0], setCleanupPendingMask = _clmsk[1];
