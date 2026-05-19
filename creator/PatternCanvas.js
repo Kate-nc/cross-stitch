@@ -143,7 +143,8 @@ window.PatternCanvas = function PatternCanvas() {
     ctx.pat, ctx.cmap, cv.cs, ctx.sW, ctx.sH, app.tab,
     cv.activeTool, cv.brushSize, cv.stitchType, ctx.partialStitchTool, cv.bsLines,
     cv.lassoMode, cv.lassoPoints, cv.lassoPreviewMask, cv.lassoCursor, cv.lassoInProgress,
-    cv.selectionMask, cv.confettiPreview
+    cv.selectionMask, cv.confettiPreview,
+    cv.cleanupPendingMask
   ]);
 
   return h("canvas", {

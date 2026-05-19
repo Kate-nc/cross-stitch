@@ -231,6 +231,22 @@ window.useCreatorState = function useCreatorState() {
   // App mode: 'create' | 'edit' (track is handled by TrackerApp separately)
   var _appMode = useState("create"); var appMode = _appMode[0], setAppMode = _appMode[1];
 
+  // ── Cleanup mode state ──────────────────────────────────────────────────────
+  // cleanupTargetColorId: id of the palette colour being cleaned up
+  // cleanupTolerance: slider 0-100 (mapped to 0-30 ΔE in useCleanupMode)
+  // cleanupSelTool: 'click' | 'brush' | 'auto'
+  // cleanupBrushSize: brush footprint for drag-paint selection
+  // cleanupPendingMask: Uint8Array (sW*sH), 1=selected-for-cleanup, null until first use
+  // cleanupAutoRunning: true while cleanup-worker is computing auto-detect result
+  // cleanupAutoError: last error string from cleanup-worker, or null
+  var _cltgt = useState(null); var cleanupTargetColorId = _cltgt[0], setCleanupTargetColorId = _cltgt[1];
+  var _cltol = useState(20);   var cleanupTolerance = _cltol[0], setCleanupTolerance = _cltol[1];
+  var _clsel = useState("click"); var cleanupSelTool = _clsel[0], setCleanupSelTool = _clsel[1];
+  var _clbsz = useState(1);    var cleanupBrushSize = _clbsz[0], setCleanupBrushSize = _clbsz[1];
+  var _clmsk = useState(null); var cleanupPendingMask = _clmsk[0], setCleanupPendingMask = _clmsk[1];
+  var _clrun = useState(false); var cleanupAutoRunning = _clrun[0], setCleanupAutoRunning = _clrun[1];
+  var _clerr = useState(null); var cleanupAutoError = _clerr[0], setCleanupAutoError = _clerr[1];
+
   // Sidebar tab within current mode (mode-specific).
   // Create mode tabs: "image" | "dimensions" | "palette" | "preview" | "project".
   // Legacy "settings" (pre-2026-04 toolbar rework) is remapped to "image".
@@ -368,6 +384,10 @@ window.useCreatorState = function useCreatorState() {
   var _cropRect= useState(null);     var cropRect   = _cropRect[0], setCropRect = _cropRect[1];
   var cropStartRef = useRef(null);
   var cropRef      = useRef(null);
+
+  // Cleanup mode handlers ref — set by useCleanupMode so useCanvasInteraction
+  // can dispatch click/drag events without a circular hook dependency.
+  var cleanupHandlersRef = useRef(null);
 
   // Tools / editing
   var _actTool  = useState(null);    var activeTool     = _actTool[0];
@@ -1451,8 +1471,16 @@ window.useCreatorState = function useCreatorState() {
     nameModalReason, setNameModalReason,
     preferencesOpen, setPreferencesOpen,
     cleanupDiff, setCleanupDiff, showCleanupDiff, setShowCleanupDiff,
+    cleanupTargetColorId, setCleanupTargetColorId,
+    cleanupTolerance, setCleanupTolerance,
+    cleanupSelTool, setCleanupSelTool,
+    cleanupBrushSize, setCleanupBrushSize,
+    cleanupPendingMask, setCleanupPendingMask,
+    cleanupAutoRunning, setCleanupAutoRunning,
+    cleanupAutoError, setCleanupAutoError,
     pcRef, fRef, scrollRef, expRef, loadRef,
     prevSW, prevSH, projectIdRef, createdAtRef, trackerFieldsRef, userActedRef, stripRef, overflowRef,
+    cleanupHandlersRef,
     G, EDIT_HISTORY_MAX,
     // Derived
     totalStitchable, cs, fitZ, pxX, pxY, totPg,

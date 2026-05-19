@@ -623,6 +623,22 @@ window.Icons = (function() {
         p('M3 21v-5h5')
       );
     },
+    // Cleanup mode — broom sweeping lineart pixels off a pattern grid.
+    // Single-stroke outline, 24×24 viewBox, 1.6 stroke-width via SVG_PROPS.
+    cleanup: function() {
+      return svg(
+        // Handle: diagonal from upper-right to centre
+        l(20, 4, 12, 12),
+        // Ferrule (binding ring where handle meets head)
+        p('M12 12 L10 14'),
+        // Broom head: fan of three bristles spreading left and down
+        p('M10 14 L4 20'),
+        p('M10 14 L6 21'),
+        p('M10 14 L9 21'),
+        // Short stroke at the top of the handle for a grip
+        l(20, 4, 18, 6)
+      );
+    },
     // Settings — alias for gear (used by spec EL-SCR-062-* references)
     settings: function() {
       return svg(

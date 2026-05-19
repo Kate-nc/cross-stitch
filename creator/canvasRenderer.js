@@ -1049,4 +1049,24 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
 
     ctx2d.restore();
   }
+
+  // ─── Cleanup mode pending-mask overlay ───────────────────────────────────────
+  // Solid warm-orange fill over every cell selected for cleanup.  No ctx.filter
+  // (not supported in Safari <15).  Drawn last so it sits above everything else.
+  if (activeTool === 'cleanup' && state.cleanupPendingMask) {
+    var cMask = state.cleanupPendingMask;
+    var cSW   = state.sW;
+    ctx2d.save();
+    // Use the exported constant if available; fall back to the literal.
+    ctx2d.fillStyle = (typeof CLEANUP_OVERLAY_COLOR !== 'undefined') ? CLEANUP_OVERLAY_COLOR : 'rgba(255,90,0,0.50)';
+    for (var coy = 0; coy < dH; coy++) {
+      for (var cox = 0; cox < dW; cox++) {
+        var coi = (offY + coy) * cSW + (offX + cox);
+        if (cMask[coi]) {
+          ctx2d.fillRect(gut + cox * cSz, gut + coy * cSz, cSz, cSz);
+        }
+      }
+    }
+    ctx2d.restore();
+  }
 };
