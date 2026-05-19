@@ -49,6 +49,13 @@ class PdfLoader {
     if (typeof pdfjsLib === 'undefined') {
       throw new Error("PDF.js library is not loaded.");
     }
+    // OffscreenCanvas is used by PDF.js internally and is not available on
+    // Safari <16.4. The import path here only uses getTextContent /
+    // getOperatorList (no rendering), so this is typically safe; but log a
+    // warning so unexpected parse errors are easier to diagnose.
+    if (typeof OffscreenCanvas === 'undefined') {
+      console.warn('[pdf-importer] OffscreenCanvas unavailable — PDF import may fail on this browser. Upgrade to Safari 16.4+ for full support.');
+    }
     try {
       let data;
       if (file instanceof File) {
