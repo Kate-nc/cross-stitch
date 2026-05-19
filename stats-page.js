@@ -481,9 +481,15 @@ function ShareCardModal({ lifetimeStitches, onClose }) {
         const _t = setTimeout(() => reject(new Error('toBlob timed out')), 8000);
         canvas.toBlob(b => { clearTimeout(_t); if (b) resolve(b); else reject(new Error('toBlob returned null')); }, 'image/png');
       });
+      if (typeof ClipboardItem === 'undefined') {
+        throw new TypeError('ClipboardItem is not available in this browser');
+      }
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
     } catch (e) {
       console.warn('Copy to clipboard failed:', e);
+      if (window.Toast && window.Toast.show) {
+        window.Toast.show({ message: 'Copy is not supported in this browser. Please right-click the image to save or copy it.', type: 'info', duration: 6000 });
+      }
     }
   }, []);
 
@@ -661,9 +667,17 @@ function ShowcaseShareModal({ title, drawFn, onClose }) {
         const _t = setTimeout(() => reject(new Error('toBlob timed out')), 8000);
         canvas.toBlob(b => { clearTimeout(_t); if (b) resolve(b); else reject(new Error('toBlob returned null')); }, 'image/png');
       });
+      if (typeof ClipboardItem === 'undefined') {
+        throw new TypeError('ClipboardItem is not available in this browser');
+      }
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       setCopied(true); setTimeout(() => setCopied(false), 2000);
-    } catch(e) { console.warn('Copy failed:', e); }
+    } catch(e) {
+      console.warn('Copy failed:', e);
+      if (window.Toast && window.Toast.show) {
+        window.Toast.show({ message: 'Copy is not supported in this browser. Please right-click the image to save or copy it.', type: 'info', duration: 6000 });
+      }
+    }
   }, []);
   return h('div', { className: 'modal-overlay', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'share-image-title', onClick: handleClose },
     h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 500, textAlign: 'center' } },
