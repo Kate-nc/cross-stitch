@@ -1385,6 +1385,11 @@ window.useCreatorState = function useCreatorState() {
   useEffect(function() {
     if (!isScratchMode || !pat) return;
     if (sW === prevSW.current && sH === prevSH.current) return;
+    // If pat already matches the target dimensions, this is a project load
+    // (processLoadedProject batched sW/sH/isScratchMode/pat together), not a
+    // user-initiated resize.  Sync the refs and bail — do NOT re-index the
+    // freshly-restored pattern or wipe the done array.
+    if (pat.length === sW * sH) { prevSW.current = sW; prevSH.current = sH; return; }
     var oldW = prevSW.current, oldH = prevSH.current;
     prevSW.current = sW; prevSH.current = sH;
     var newPat = Array.from({ length: sW * sH }, function(_, i) {

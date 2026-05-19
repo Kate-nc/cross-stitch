@@ -1352,7 +1352,7 @@ function ManagerApp() {
                   onOpenProject: (proj, target) => {
                     if (!proj || !proj.id || proj.managerOnly) return;
                     try { ProjectStorage.setActiveProject(proj.id); } catch (e) {}
-                    window.location.href = (target === "creator" ? "create.html" : "stitch.html") + "?source=manager";
+                    window.location.href = (target === "creator" ? "create.html" : "stitch.html") + "?from=home&source=manager";
                   },
                   onAddNew: () => { window.location.href = "home.html?tab=create"; },
                   onOpenGlobalStats: () => { window.location.href = "index.html?mode=stats&from=home"; },
@@ -1478,12 +1478,12 @@ function ManagerApp() {
                         </div>
                         <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 12 }}>
                           <button
-                            onClick={() => { ProjectStorage.setActiveProject(p.id); window.location.href = "create.html?source=manager"; }}
+                            onClick={() => { ProjectStorage.setActiveProject(p.id); window.location.href = "create.html?from=home&source=manager"; }}
                             title="Open in Pattern Creator"
                             style={{ padding: "5px 10px", fontSize: 12, fontWeight: 600, background: "var(--surface)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 6, cursor: "pointer" }}
                           >Edit</button>
                           <button
-                            onClick={() => { ProjectStorage.setActiveProject(p.id); window.location.href = "stitch.html?source=manager"; }}
+                            onClick={() => { ProjectStorage.setActiveProject(p.id); window.location.href = "stitch.html?from=home&source=manager"; }}
                             style={{ padding: "5px 10px", fontSize: 12, fontWeight: 600, background: "var(--accent-ink)", color: "var(--surface)", border: "none", borderRadius: 6, cursor: "pointer" }}
                           >Track</button>
                           <button
@@ -1713,7 +1713,7 @@ function ManagerApp() {
 function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile }) {
   function handleTrack() {
     localStorage.setItem("crossstitch_handoff", JSON.stringify(pattern));
-    window.location.href = "stitch.html?source=manager";
+    window.location.href = "stitch.html?from=home&source=manager";
   }
   const [edited, setEdited] = useState({ ...pattern, threads: pattern.threads || [], fabric: pattern.fabric || "", project_overrides: pattern.project_overrides || null });
   const [threadInput, setThreadInput] = useState("");
