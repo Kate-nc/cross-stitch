@@ -7160,7 +7160,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       };
       if (typeof i.decode === "function") {
         i.src = ev.target.result;
-        i.decode().then(proceed).catch(function() { i.onload = proceed; });
+        i.decode().then(proceed).catch(function() {
+          // decode() rejected: if the image already loaded (i.complete),
+          // call proceed directly — onload won't fire again.
+          if (i.complete) proceed(); else i.onload = proceed;
+        });
       } else {
         i.onload = proceed; i.src = ev.target.result;
       }
