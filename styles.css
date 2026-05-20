@@ -2766,7 +2766,7 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .info-strip-fill--done{background:var(--success);}
 .info-strip-today{background:var(--success);border-radius:0 2px 2px 0;animation:todayGlow 2s ease-in-out infinite alternate;}
 .info-strip-row{display:flex;align-items:center;justify-content:space-between;padding:0 16px;height:24px;max-width:1300px;margin:0 auto;width:100%;gap:12px;}
-.info-strip-pct{font-size:11px;font-weight:700;color:var(--text-primary);white-space:nowrap;display:flex;align-items:center;gap:4px;}
+.info-strip-pct{font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap;display:flex;align-items:center;gap:4px;}
 .info-strip-timer{font-size:11px;font-weight:500;color:var(--text-secondary);white-space:nowrap;font-variant-numeric:tabular-nums;margin-left:auto;}
 @keyframes todayGlow{0%{filter:brightness(1);}100%{filter:brightness(1.15);}}
 /* ═══ Mini-goal bar (unified daily/weekly/monthly) ═══ */
@@ -2791,6 +2791,12 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .session-toast button[aria-label="Dismiss"]{background:transparent;border-color:transparent;color:var(--success);padding:3px 6px;}
 .session-toast input{flex:1;font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid var(--success);background:var(--surface);color:var(--success);font-family:inherit;outline:none;}
 .session-toast input:focus{border-color:var(--success);}
+/* Focus block nav row — chip + "Next section" button ───────────────── */
+.focus-block-nav{display:flex;align-items:center;gap:6px;width:fit-content;margin-bottom:var(--s-1);}
+.focus-block-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px 3px 8px;background:var(--accent-light);border:1px solid var(--accent-border);border-radius:20px;font-size:var(--text-xs);font-weight:600;color:var(--accent);cursor:pointer;user-select:none;}
+.focus-block-chip:hover{background:var(--accent-border);}
+.focus-block-next-btn{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;background:var(--surface);border:1px solid var(--accent-border);border-radius:20px;font-size:var(--text-xs);font-weight:600;color:var(--accent);cursor:pointer;user-select:none;font-family:inherit;transition:background 120ms;}
+.focus-block-next-btn:hover{background:var(--accent-light);}
 .sess-card{padding:10px;background:var(--accent-light);border-radius:var(--radius-md);border:1px solid var(--accent-light);display:flex;flex-direction:column;gap:6px;}
 .sess-card .row{display:flex;justify-content:space-between;font-size:12px;}
 .sess-card .val{font-weight:700;color:var(--accent);}
@@ -7233,4 +7239,202 @@ body.cs-focus .lpanel-backdrop { display: none !important; }
    there; the version is accessible via Settings > Version history instead. */
 @media (pointer: coarse) {
   #app-version-badge { display: none; }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Option 3 — Split Palette UI (UX-12 Phase 3)
+   Palette panel replaces the lpanel tab system. Mode strip floats
+   on the right edge of the canvas. More panel slides over the canvas.
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Palette panel wrapper (inside .lpanel.lpanel--open) ─────── */
+.ppal-wrap{display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden;}
+
+/* Panel header */
+.ppal-header{padding:10px 12px 8px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.ppal-header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.ppal-title{font-size:var(--text-sm);font-weight:700;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;}
+.ppal-close{background:none;border:none;cursor:pointer;color:var(--text-tertiary);padding:2px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1;}
+.ppal-close:hover{color:var(--text-primary);background:var(--surface-tertiary);}
+.ppal-progress-bar{height:4px;background:var(--surface-tertiary);border-radius:2px;overflow:hidden;margin-bottom:6px;}
+.ppal-progress-fill{height:100%;background:var(--accent);border-radius:2px;transition:width 0.3s ease;}
+.ppal-header-stats{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.ppal-pct{font-size:var(--text-xs);font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;}
+.ppal-session-time{font-size:var(--text-xs);color:var(--text-secondary);display:inline-flex;align-items:center;gap:3px;}
+.ppal-session-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:var(--radius-pill);border:1px solid var(--accent-border);background:var(--accent-light);color:var(--accent);font-size:10px;font-weight:600;cursor:pointer;margin-left:auto;flex-shrink:0;}
+.ppal-session-chip:hover{background:var(--accent-border);}
+
+/* Sort row */
+.ppal-sort-row{display:flex;gap:4px;padding:6px 12px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.ppal-sort-btn{flex:1;padding:4px 0;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-secondary);color:var(--text-secondary);font-size:10px;font-weight:500;cursor:pointer;font-family:inherit;transition:background var(--motion-fast),color var(--motion-fast);}
+.ppal-sort-btn:hover{background:var(--surface-tertiary);}
+.ppal-sort-btn--on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600;}
+
+/* Active colour tile (pinned, always-visible) */
+.ppal-active-tile{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--accent-light);border-bottom:1px solid var(--accent-border);flex-shrink:0;min-height:72px;}
+.ppal-active-tile--done{background:var(--success-soft);}
+.ppal-active-swatch-wrap{flex-shrink:0;width:56px;height:56px;display:flex;align-items:center;justify-content:center;}
+.ppal-active-swatch{width:48px;height:48px;border-radius:var(--radius-md);border:2px solid var(--border);display:block;}
+.ppal-active-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.ppal-active-id{font-size:13px;font-weight:700;color:var(--accent);}
+.ppal-active-name{font-size:11px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ppal-active-count{font-size:11px;color:var(--text-tertiary);font-variant-numeric:tabular-nums;}
+.ppal-active-none{padding:10px 12px;background:var(--surface-secondary);border-bottom:1px solid var(--border);font-size:var(--text-xs);color:var(--text-tertiary);display:flex;align-items:center;gap:6px;min-height:44px;flex-shrink:0;}
+.ppal-find-btn{flex-shrink:0;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border:1px solid var(--accent-border);border-radius:var(--radius-sm);background:var(--surface);color:var(--accent);cursor:pointer;transition:background var(--motion-fast);}
+.ppal-find-btn:hover{background:var(--accent);color:var(--surface);}
+@media (pointer:coarse){.ppal-find-btn{width:44px;height:44px;}}
+
+/* Colour tile list */
+.ppal-tile-list{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:4px 0;}
+.ppal-tile{display:flex;align-items:stretch;gap:0;cursor:pointer;border-radius:0;border-bottom:0.5px solid var(--border);transition:background var(--motion-fast);}
+.ppal-tile:hover{background:var(--surface-secondary);}
+.ppal-tile--on{background:var(--accent-light)!important;}
+.ppal-tile--done:not(.ppal-tile--on){opacity:0.5;}
+.ppal-tile-swatch{width:40px;min-width:40px;border-radius:0;border-right:1px solid var(--border);flex-shrink:0;cursor:pointer;}
+@media (pointer:coarse){.ppal-tile-swatch{width:48px;min-width:48px;}}
+.ppal-tile-body{flex:1;min-width:0;padding:6px 10px;display:flex;flex-direction:column;gap:3px;}
+.ppal-tile-id-row{display:flex;align-items:center;gap:6px;}
+.ppal-tile-id{font-size:11px;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums;flex-shrink:0;}
+.ppal-tile--on .ppal-tile-id{color:var(--accent);}
+.ppal-tile-name{font-size:11px;color:var(--text-secondary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ppal-tile-pct{font-size:10px;color:var(--text-tertiary);font-variant-numeric:tabular-nums;flex-shrink:0;}
+.ppal-tile-bar{height:3px;background:var(--surface-tertiary);border-radius:2px;overflow:hidden;}
+.ppal-tile-bar-fill{height:100%;background:var(--accent);border-radius:2px;}
+.ppal-tile-count-row{display:flex;align-items:center;gap:4px;}
+.ppal-tile-count{font-size:10px;color:var(--text-tertiary);font-variant-numeric:tabular-nums;flex:1;}
+.ppal-tile-actions{display:flex;align-items:center;gap:3px;flex-shrink:0;}
+.ppal-tile-park-btn,.ppal-tile-done-btn{display:inline-flex;align-items:center;gap:2px;font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--surface);cursor:pointer;white-space:nowrap;font-family:inherit;font-weight:600;}
+@media (pointer:coarse){.ppal-tile-park-btn,.ppal-tile-done-btn{min-height:32px;padding:4px 8px;font-size:10px;}}
+
+/* ── Canvas column wrapper (for mode strip positioning) ────── */
+.ppal-canvas-col{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;position:relative;overflow:hidden;}
+.ppal-canvas-col .canvas-area{flex:1;min-height:0;overflow:auto;}
+
+/* ── Floating mode strip (right edge of canvas) ─────────────── */
+.ppal-mode-strip{
+  position:absolute;
+  right:8px;
+  top:50%;
+  transform:translateY(-50%);
+  z-index:10;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  padding:4px;
+  box-shadow:var(--shadow-md,0 4px 12px rgba(0,0,0,0.12));
+}
+.ppal-mode-btn{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:2px;
+  width:48px;
+  min-height:48px;
+  border:none;
+  border-radius:var(--radius-sm);
+  background:transparent;
+  color:var(--text-secondary);
+  cursor:pointer;
+  font-family:inherit;
+  transition:background var(--motion-fast),color var(--motion-fast);
+  padding:4px 2px;
+}
+.ppal-mode-btn:hover{background:var(--surface-tertiary);color:var(--text-primary);}
+.ppal-mode-btn--on{background:var(--accent-light);color:var(--accent);}
+.ppal-mode-btn:disabled{opacity:0.35;cursor:not-allowed;}
+.ppal-mode-btn-icon{display:flex;align-items:center;justify-content:center;font-size:18px;line-height:1;}
+.ppal-mode-btn-label{font-size:9px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;line-height:1;}
+/* On narrow screens the strip takes less space */
+@media (max-width:480px){
+  .ppal-mode-strip{right:4px;gap:2px;padding:3px;}
+  .ppal-mode-btn{width:40px;min-height:40px;}
+}
+
+/* ── More panel (slides in from right over canvas) ───────────── */
+.ppal-more-backdrop{
+  position:absolute;
+  inset:0;
+  z-index:19;
+  background:rgba(0,0,0,0.2);
+  animation:ppal-fade-in var(--motion-fast);
+}
+@keyframes ppal-fade-in{from{opacity:0;}to{opacity:1;}}
+@media (prefers-reduced-motion:reduce){.ppal-more-backdrop{animation:none;}}
+.ppal-more-panel{
+  position:absolute;
+  top:0;
+  right:0;
+  bottom:0;
+  width:300px;
+  max-width:90%;
+  background:var(--surface);
+  border-left:1px solid var(--border);
+  box-shadow:var(--shadow-lg,-4px 0 16px rgba(0,0,0,0.15));
+  z-index:20;
+  display:flex;
+  flex-direction:column;
+  transform:translateX(100%);
+  transition:transform var(--motion);
+  overflow:hidden;
+}
+.ppal-more-panel--open{transform:translateX(0);}
+@media (prefers-reduced-motion:reduce){.ppal-more-panel{transition:none;}}
+.ppal-more-header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.ppal-more-title{font-size:var(--text-sm);font-weight:700;color:var(--text-primary);flex:1;}
+.ppal-utility-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--surface-secondary);color:var(--text-secondary);font-size:10px;font-weight:500;cursor:pointer;font-family:inherit;flex-shrink:0;}
+.ppal-utility-chip--on{background:var(--accent-light);border-color:var(--accent-border);color:var(--accent);}
+.ppal-utility-chip:hover{background:var(--surface-tertiary);}
+.ppal-more-close{background:none;border:none;cursor:pointer;color:var(--text-tertiary);padding:4px;border-radius:4px;display:inline-flex;align-items:center;flex-shrink:0;margin-left:4px;}
+.ppal-more-close:hover{color:var(--text-primary);background:var(--surface-tertiary);}
+.ppal-more-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto;scrollbar-width:none;}
+.ppal-more-tabs::-webkit-scrollbar{display:none;}
+.ppal-more-tab{flex:1;min-width:52px;padding:8px 4px;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--text-secondary);font-size:11px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap;transition:color var(--motion-fast),border-color var(--motion-fast);}
+.ppal-more-tab:hover{color:var(--text-primary);}
+.ppal-more-tab--on{color:var(--accent);border-bottom-color:var(--accent);font-weight:700;}
+.ppal-more-content{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:16px;}
+
+/* ── Phone-only colour chip trigger (top of canvas) ─────────── */
+.ppal-phone-chip{
+  display:none;
+  position:absolute;
+  top:8px;
+  left:8px;
+  z-index:9;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  border-radius:var(--radius-pill);
+  border:1px solid var(--border);
+  background:var(--surface);
+  color:var(--text-primary);
+  font-size:var(--text-xs);
+  font-weight:600;
+  cursor:pointer;
+  box-shadow:var(--shadow-sm,0 1px 4px rgba(0,0,0,0.1));
+  min-height:36px;
+  font-family:inherit;
+}
+.ppal-phone-chip-sw{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--border);flex-shrink:0;display:inline-block;}
+.ppal-phone-chip--empty{color:var(--text-tertiary);}
+@media (max-width:899px){
+  .ppal-phone-chip{display:inline-flex;}
+  /* Shift mode strip down on phone so it doesn't overlap the chip */
+  .ppal-mode-strip{top:auto;bottom:50%;transform:translateY(50%);}
+}
+
+/* ── Desktop-only: always show palette panel ─────────────────── */
+@media (min-width:900px){
+  /* Ensure the lpanel rail and phone chip are hidden on desktop */
+  .lpanel--rail{display:none!important;}
+  .ppal-phone-chip{display:none!important;}
+}
+
+/* ── Reduced padding on canvas since toolbar-row is gone ──────── */
+.cs-page-content .canvas-area{padding-bottom:0;}
+@media (pointer:coarse){
+  .ppal-canvas-col .canvas-area{padding-bottom:0!important;}
 }

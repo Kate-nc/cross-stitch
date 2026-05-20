@@ -38,10 +38,10 @@ describe('Tracker left sidebar (toolbar-rework phase 1)', () => {
     expect(trackerSrc).toMatch(/UserPrefs.*set\("trackerLeftSidebarTab"/);
   });
 
-  test('toolbar pill exposes a hamburger button bound to the cycle helper', () => {
-    expect(trackerSrc).toMatch(/className="tracker-hamburger"/);
+  test('toolbar pill exposes a palette button bound to the cycle helper', () => {
+    expect(trackerSrc).toMatch(/ppal-mode-btn/);
     expect(trackerSrc).toMatch(/onClick=\{cycleLeftSidebar\}/);
-    expect(trackerSrc).toMatch(/Icons\.menu\(\)/);
+    expect(trackerSrc).toMatch(/Icons\.palette\(\)/);
   });
 
   test('lpanel renders for both rail and open modes', () => {
@@ -121,11 +121,10 @@ describe('Tracker left sidebar (toolbar-rework phase 1)', () => {
   });
 
   test('phase 3: info strip + session chip defer to the Session tab', () => {
-    // The info strip click handler used to open the per-project stats view
-    // on mobile. After phase 3 it opens the left sidebar Session tab.
-    expect(trackerSrc).toMatch(/setLeftSidebarTab\("session"\);\s*setLeftSidebarOpen\(true\);/);
+    // The info strip click handler opens the More panel to the Session tab.
+    expect(trackerSrc).toMatch(/setLeftSidebarTab\("session"\);\s*setMorePanelOpen\(true\);/);
     // The chip's pause-toggle behaviour is gone — the chip now only opens
-    // the sidebar Session tab.
+    // the More panel Session tab.
     expect(trackerSrc).not.toMatch(/title=\{manuallyPaused \? "Tap to resume tracking"/);
     // The legacy explicit-session start/stop button on the info strip is gone.
     expect(trackerSrc).not.toMatch(/title=\{explicitSession\?"End session":"Start session"\}/);
