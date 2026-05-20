@@ -192,7 +192,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     )
   );
 
-  var trackBtn = (typeof props.onTrackPattern === "function") ? h("button", {
+  var trackBtn = props.pat && (typeof props.onTrackPattern === "function") ? h("button", {
       type: "button",
       className: "creator-actionbar__mode-btn creator-actionbar__mode-btn--forward",
       onClick: props.onTrackPattern,

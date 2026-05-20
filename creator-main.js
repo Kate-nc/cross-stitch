@@ -934,7 +934,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         }}
       />}
       {window.CreatorActionBar&&<window.CreatorActionBar
-        ready={!!(state.pat&&state.pal)}
+        ready={true}
         sW={state.sW} sH={state.sH}
         fabricCt={state.fabricCt}
         colourCount={state.pal?state.pal.length:0}
@@ -947,7 +947,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         appMode={state.appMode}
         tab={state.tab}
         pat={!!(state.pat&&state.pal)}
-        onTabChange={state.setTab}
+        onTabChange={function(t){state.setTab(t);if(state.pat&&state.pal)state.setAppMode("edit");}}
         onRequestBackToConvert={handleRequestBackToConvert}
         onPrintPdf={()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},exportData)}
         onTrackPattern={io.handleOpenInTracker}
