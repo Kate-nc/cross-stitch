@@ -1,6 +1,6 @@
 # stitchx — Wiki Home
 
-Welcome to **stitchx**, a fully client-side web application suite for creating, managing, and tracking cross-stitch patterns. No backend, no installation, no login required — just open it in your browser and start stitching.
+Welcome to **stitchX**, a fully client-side web application suite for creating, managing, and tracking cross-stitch patterns. No backend, no installation, no login required — just open it in your browser and start stitching.
 
 ## What is stitchx?
 

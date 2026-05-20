@@ -605,6 +605,7 @@ window.useCreatorState = function useCreatorState() {
   var loadRef    = useRef(null);
   var prevSW     = useRef(sW);
   var prevSH     = useRef(sH);
+  var isProjectLoadRef = useRef(false);
   var projectIdRef = useRef(null);
   // fix-3.8 — when the active project changes, reset MaterialsHub sub-tab to
   // the default ('threads') so a freshly opened pattern lands on a sensible
@@ -1385,6 +1386,11 @@ window.useCreatorState = function useCreatorState() {
   useEffect(function() {
     if (!isScratchMode || !pat) return;
     if (sW === prevSW.current && sH === prevSH.current) return;
+    // If this dimension change was triggered by processLoadedProject, bail out —
+    // do NOT re-index the freshly-restored pattern or wipe the done array.
+    // We use an explicit flag rather than a length comparison so that a genuine
+    // scratch resize to the same area (e.g. 10×10 → 20×5) is still processed.
+    if (isProjectLoadRef.current) { isProjectLoadRef.current = false; prevSW.current = sW; prevSH.current = sH; return; }
     var oldW = prevSW.current, oldH = prevSH.current;
     prevSW.current = sW; prevSH.current = sH;
     var newPat = Array.from({ length: sW * sH }, function(_, i) {
@@ -1481,7 +1487,7 @@ window.useCreatorState = function useCreatorState() {
     cleanupAutoRunning, setCleanupAutoRunning,
     cleanupAutoError, setCleanupAutoError,
     pcRef, fRef, scrollRef, expRef, loadRef,
-    prevSW, prevSH, projectIdRef, createdAtRef, trackerFieldsRef, userActedRef, stripRef,
+    prevSW, prevSH, isProjectLoadRef, projectIdRef, createdAtRef, trackerFieldsRef, userActedRef, stripRef,
     cleanupHandlersRef,
     G, EDIT_HISTORY_MAX,
     // Derived

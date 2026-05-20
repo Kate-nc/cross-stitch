@@ -4347,6 +4347,7 @@ window.useCreatorState = function useCreatorState() {
   var loadRef    = useRef(null);
   var prevSW     = useRef(sW);
   var prevSH     = useRef(sH);
+  var isProjectLoadRef = useRef(false);
   var projectIdRef = useRef(null);
   // fix-3.8 — when the active project changes, reset MaterialsHub sub-tab to
   // the default ('threads') so a freshly opened pattern lands on a sensible
@@ -5127,6 +5128,11 @@ window.useCreatorState = function useCreatorState() {
   useEffect(function() {
     if (!isScratchMode || !pat) return;
     if (sW === prevSW.current && sH === prevSH.current) return;
+    // If this dimension change was triggered by processLoadedProject, bail out —
+    // do NOT re-index the freshly-restored pattern or wipe the done array.
+    // We use an explicit flag rather than a length comparison so that a genuine
+    // scratch resize to the same area (e.g. 10×10 → 20×5) is still processed.
+    if (isProjectLoadRef.current) { isProjectLoadRef.current = false; prevSW.current = sW; prevSH.current = sH; return; }
     var oldW = prevSW.current, oldH = prevSH.current;
     prevSW.current = sW; prevSH.current = sH;
     var newPat = Array.from({ length: sW * sH }, function(_, i) {
@@ -5223,7 +5229,7 @@ window.useCreatorState = function useCreatorState() {
     cleanupAutoRunning, setCleanupAutoRunning,
     cleanupAutoError, setCleanupAutoError,
     pcRef, fRef, scrollRef, expRef, loadRef,
-    prevSW, prevSH, projectIdRef, createdAtRef, trackerFieldsRef, userActedRef, stripRef,
+    prevSW, prevSH, isProjectLoadRef, projectIdRef, createdAtRef, trackerFieldsRef, userActedRef, stripRef,
     cleanupHandlersRef,
     G, EDIT_HISTORY_MAX,
     // Derived
@@ -7558,6 +7564,9 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   // ─── processLoadedProject ────────────────────────────────────────────────────
   function processLoadedProject(project) {
     var s = project.settings;
+    // Signal the scratch-resize effect that the upcoming dimension changes are
+    // from a project load, not a user-initiated resize.
+    if (state.isProjectLoadRef) state.isProjectLoadRef.current = true;
     state.setSW(s.sW); state.setSH(s.sH); state.setMaxC(s.maxC);
     state.setBri(s.bri || 0); state.setCon(s.con || 0); state.setSat(s.sat || 0);
     state.setDith(!!s.dith); state.setSkipBg(!!s.skipBg); state.setBgTh(s.bgTh || 15);
@@ -8501,7 +8510,7 @@ window.PatternCanvas = function PatternCanvas() {
   // Must be the MERGED snapshot across all 4 contexts because drawPatternBaseOnCanvas
   // and drawPatternOverlayOnCanvas expect the pre-refactor merged state shape.
   var ctxRef = React.useRef({});
-  ctxRef.current = Object.assign({}, ctx, cv, gen, hov, { G: G, pcRef: app.pcRef, tab: app.tab });
+  ctxRef.current = Object.assign({}, ctx, cv, gen, hov, { G: G, pcRef: app.pcRef, tab: app.tab, fabricColour: app.fabricColour, canvasTexture: app.canvasTexture });
 
   // ── Effect: Animated marching ants for highlight outline mode
   var hlAntsRef = React.useRef(null);
@@ -8590,7 +8599,7 @@ window.PatternCanvas = function PatternCanvas() {
     gen.showCleanupDiff, gen.cleanupDiff,
     cv.dimFraction, cv.dimHiId, cv.bgDimOpacity, cv.bgDimDesaturation,
     cv.highlightMode, cv.tintColor, cv.tintOpacity, cv.spotDimOpacity,
-    ctx.fabricColour, ctx.canvasTexture
+    app.fabricColour, app.canvasTexture
   ]);
 
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).

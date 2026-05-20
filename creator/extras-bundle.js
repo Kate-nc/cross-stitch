@@ -2353,10 +2353,10 @@ window.CreatorLegendTab = function CreatorLegendTab() {
   var fabricCt        = ctx.fabricCt || 14;
   var effectiveFabric = overTwo ? fabricCt / 2 : fabricCt;
 
-  // color-2 (B3): fabric background colour preview. Reads from ctx; setter is
-  // also on ctx (wired via creator-main → useCreatorState).
-  var fabricColour = (typeof ctx.fabricColour === "string") ? ctx.fabricColour : "#FFFFFF";
-  function setFabricColour(v) { if (typeof ctx.setFabricColour === "function") ctx.setFabricColour(v); }
+  // color-2 (B3): fabric background colour preview. Reads from app (AppContext);
+  // setter is also on app (wired via creator-main → useCreatorState).
+  var fabricColour = (typeof app.fabricColour === "string") ? app.fabricColour : "#FFFFFF";
+  function setFabricColour(v) { if (typeof app.setFabricColour === "function") app.setFabricColour(v); }
   // Curated fabric presets — labels and hex values match the popover wireframes.
   var FABRIC_PRESETS = [
     { id: "white",     label: "White Aida",       hex: "#FFFFFF" },

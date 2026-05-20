@@ -216,6 +216,9 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   // ─── processLoadedProject ────────────────────────────────────────────────────
   function processLoadedProject(project) {
     var s = project.settings;
+    // Signal the scratch-resize effect that the upcoming dimension changes are
+    // from a project load, not a user-initiated resize.
+    if (state.isProjectLoadRef) state.isProjectLoadRef.current = true;
     state.setSW(s.sW); state.setSH(s.sH); state.setMaxC(s.maxC);
     state.setBri(s.bri || 0); state.setCon(s.con || 0); state.setSat(s.sat || 0);
     state.setDith(!!s.dith); state.setSkipBg(!!s.skipBg); state.setBgTh(s.bgTh || 15);
