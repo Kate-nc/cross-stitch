@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Track Mode Redesign — Option 1: Essential Bar</title>
+<style>
+/* ═══════════════════════════════════════════════════
+   WORKSHOP DESIGN TOKENS (mirrored from styles.css)
+═══════════════════════════════════════════════════ */
+:root {
+  --accent:          #5b6af0;
+  --accent-2:        #9b59b6;
+  --surface:         #ffffff;
+  --surface-2:       #f5f5f5;
+  --surface-3:       #ebebeb;
+  --text-primary:    #1a1a1a;
+  --text-secondary:  #6b6b6b;
+  --line:            #e0e0e0;
+  --success:         #2e7d32;
+  --shadow-sm:       0 1px 3px rgba(0,0,0,.12);
+  --shadow-md:       0 4px 12px rgba(0,0,0,.16);
+  --radius-sm:       6px;
+  --radius-md:       10px;
+  --radius-lg:       16px;
+  --motion:          200ms ease;
+  --danger:          #c62828;
+}
+
+/* ═══════════════════════════════════════════════════
+   PAGE CHROME (outside the simulated device)
+═══════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #1a1a2e; color: var(--text-primary); }
+
+.page-meta {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  background: #12122a; border-bottom: 1px solid #2a2a4a;
+  display: flex; align-items: center; gap: 12px; padding: 8px 16px; flex-wrap: wrap;
+}
+.page-meta h1 { font-size: 13px; font-weight: 600; color: #e0e0ff; white-space: nowrap; }
+.page-meta .badge { font-size: 11px; background: var(--accent); color: #fff; padding: 2px 8px; border-radius: 10px; }
+
+.bp-btns { display: flex; gap: 6px; }
+.bp-btn {
+  font-size: 11px; padding: 4px 10px; border-radius: 4px; border: 1px solid #3a3a6a;
+  background: transparent; color: #a0a0d0; cursor: pointer; transition: background var(--motion);
+}
+.bp-btn:hover, .bp-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.meta-sep { width: 1px; height: 20px; background: #2a2a4a; }
+
+.ann-toggle {
+  font-size: 11px; padding: 4px 10px; border-radius: 4px; border: 1px solid #3a3a6a;
+  background: transparent; color: #a0a0d0; cursor: pointer; margin-left: auto;
+}
+.ann-toggle.on { background: #f59e0b; color: #000; border-color: #f59e0b; }
+
+/* ═══════════════════════════════════════════════════
+   DEVICE FRAME
+═══════════════════════════════════════════════════ */
+.page-outer {
+  padding-top: 54px;
+  display: flex; align-items: flex-start; justify-content: center; gap: 32px;
+  min-height: 100vh; padding-bottom: 32px; padding-left: 16px; padding-right: 16px;
+}
+
+#frame {
+  position: relative;
+  background: var(--surface);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0,0,0,.5);
+  transition: width var(--motion), height var(--motion);
+  flex-shrink: 0;
+}
+
+#frame.bp-phone          { width: 390px; height: 844px; }
+#frame.bp-tablet-p       { width: 768px; height: 1024px; }
+#frame.bp-tablet-l       { width: 1024px; height: 768px; }
+#frame.bp-desktop        { width: 1280px; height: 800px; }
+
+/* ═══════════════════════════════════════════════════
+   CALLOUT LEGEND (side panel)
+═══════════════════════════════════════════════════ */
+#callout-legend {
+  background: #12122a; border: 1px solid #2a2a4a; border-radius: 12px;
+  padding: 16px; width: 260px; flex-shrink: 0;
+  align-self: flex-start; margin-top: 12px;
+  transition: opacity var(--motion);
+}
+#callout-legend.hidden { opacity: 0; pointer-events: none; }
+#callout-legend h3 { font-size: 12px; font-weight: 600; color: #e0e0ff; margin-bottom: 12px; letter-spacing: .05em; text-transform: uppercase; }
+#callout-legend ol { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+#callout-legend li { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: #b0b0d0; line-height: 1.4; }
+.legend-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 20px; border-radius: 50%;
+  background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; flex-shrink: 0;
+}
+#callout-legend .section-head { font-size: 11px; font-weight: 600; color: #6060a0; text-transform: uppercase; letter-spacing: .06em; margin-top: 4px; }
+
+/* ═══════════════════════════════════════════════════
+   CALLOUT PINS (positioned on the frame)
+═══════════════════════════════════════════════════ */
+.callout-pin {
+  position: absolute; z-index: 900;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 0 2px #fff, 0 2px 6px rgba(0,0,0,.4);
+  pointer-events: none;
+  transition: opacity var(--motion);
+}
+body:not(.annotations) .callout-pin { opacity: 0; }
+
+/* ═══════════════════════════════════════════════════
+   APP LAYOUT (inside #frame)
+   Uses data-bp attribute on #frame to drive layout
+═══════════════════════════════════════════════════ */
+.app-root {
+  display: flex; flex-direction: column; height: 100%; width: 100%;
+  overflow: hidden; position: relative;
+  background: var(--surface);
+}
+
+/* --- Top bar --- */
+.topbar {
+  display: flex; align-items: center; gap: 8px; padding: 0 12px;
+  height: 44px; background: var(--surface); border-bottom: 1px solid var(--line);
+  flex-shrink: 0; position: relative; z-index: 10;
+}
+.topbar-title { font-size: 14px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar-progress { font-size: 12px; color: var(--text-secondary); background: var(--surface-2); padding: 3px 8px; border-radius: 10px; white-space: nowrap; }
+.topbar-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border: none; background: transparent; cursor: pointer; border-radius: var(--radius-sm); color: var(--text-secondary); }
+.topbar-btn:hover { background: var(--surface-2); }
+.topbar-btn svg { width: 18px; height: 18px; }
+
+/* Desktop: keep topbar but also add desktop toolbar */
+#frame.bp-desktop .topbar, #frame.bp-tablet-l .topbar { height: 52px; }
+#frame.bp-desktop .topbar-title, #frame.bp-tablet-l .topbar-title { font-size: 15px; }
+
+/* --- Desktop toolbar --- */
+.desktop-toolbar {
+  display: none;
+  height: 48px; background: var(--surface-2); border-bottom: 1px solid var(--line);
+  align-items: center; gap: 6px; padding: 0 12px; flex-shrink: 0;
+}
+#frame.bp-desktop .desktop-toolbar,
+#frame.bp-tablet-l .desktop-toolbar { display: flex; }
+
+.tb-pill {
+  display: flex; align-items: center; gap: 2px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: 3px; height: 36px;
+}
+.tb-btn {
+  height: 30px; padding: 0 10px; border: none; background: transparent; cursor: pointer;
+  font-size: 12px; border-radius: 5px; color: var(--text-secondary);
+  display: flex; align-items: center; gap: 5px; white-space: nowrap;
+  transition: background var(--motion), color var(--motion);
+}
+.tb-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+.tb-btn:hover { background: var(--surface-3); color: var(--text-primary); }
+.tb-btn.active { background: var(--accent); color: #fff; }
+.tb-btn.danger { color: var(--danger); }
+.tb-divider { width: 1px; height: 24px; background: var(--line); margin: 0 4px; }
+.tb-spacer { flex: 1; }
+.session-chip {
+  display: flex; align-items: center; gap: 5px; padding: 4px 10px;
+  border: 1px solid var(--line); border-radius: 12px; cursor: pointer;
+  font-size: 12px; background: var(--surface);
+}
+.session-chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); animation: pulse-dot 2s infinite; }
+@keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+
+/* --- Canvas area --- */
+.canvas-area {
+  flex: 1; overflow: auto; position: relative; background: #f8f5f0;
+  display: flex; align-items: flex-start; justify-content: center; padding: 8px;
+}
+.canvas-area.dragging { cursor: crosshair; }
+
+/* --- Pattern grid --- */
+.pattern-grid {
+  display: grid;
+  grid-template-columns: repeat(16, 1fr);
+  gap: 1px; background: rgba(0,0,0,.15);
+  border: 1px solid rgba(0,0,0,.2);
+  user-select: none;
+}
+.stitch {
+  aspect-ratio: 1; background: var(--cell-bg, #f0ebe3);
+  cursor: pointer; position: relative;
+  transition: filter .1s;
+  min-width: 0; min-height: 0;
+}
+.stitch:hover { filter: brightness(1.15); }
+.stitch.blank { background: #f0ebe3 !important; cursor: default; }
+.stitch.blank:hover { filter: none; }
+.stitch.done::after {
+  content: ""; position: absolute; inset: 2px;
+  background: rgba(0,0,0,.55); border-radius: 1px;
+  mask-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 10 10' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 5 L4 8 L9 2' stroke='white' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  mask-repeat: no-repeat; mask-position: center; mask-size: 80%;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 10 10' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 5 L4 8 L9 2' stroke='white' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  -webkit-mask-repeat: no-repeat; -webkit-mask-position: center; -webkit-mask-size: 80%;
+}
+.stitch.done { opacity: .65; }
+.stitch.drag-over { outline: 2px solid #fff; outline-offset: -2px; filter: brightness(1.3); }
+
+/* --- Right panel (desktop) --- */
+.right-panel {
+  display: none; width: 240px; flex-shrink: 0;
+  border-left: 1px solid var(--line); overflow-y: auto;
+  background: var(--surface);
+}
+#frame.bp-desktop .right-panel,
+#frame.bp-tablet-l .right-panel { display: flex; flex-direction: column; }
+
+.rpanel-header {
+  padding: 10px 12px 6px; border-bottom: 1px solid var(--line);
+  font-size: 11px; font-weight: 600; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: .05em;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.colour-row {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  border-bottom: 1px solid var(--line); cursor: pointer;
+  transition: background var(--motion);
+}
+.colour-row:hover { background: var(--surface-2); }
+.colour-row.focused { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.colour-swatch { width: 28px; height: 28px; border-radius: 4px; flex-shrink: 0; border: 1px solid rgba(0,0,0,.1); }
+.colour-info { flex: 1; min-width: 0; }
+.colour-name { font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.colour-id { font-size: 10px; color: var(--text-secondary); }
+.colour-count { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+.colour-progress { height: 3px; background: var(--surface-3); border-radius: 2px; margin-top: 3px; }
+.colour-progress-fill { height: 100%; border-radius: 2px; background: var(--accent); }
+.colour-row.complete .colour-progress-fill { background: var(--success); }
+
+/* --- Essential Bar (phone/tablet-p, fixed bottom) --- */
+.essential-bar {
+  display: none;
+  flex-shrink: 0; height: 72px;
+  background: var(--surface); border-top: 1px solid var(--line);
+  box-shadow: 0 -4px 12px rgba(0,0,0,.08);
+  position: relative;
+}
+#frame.bp-phone .essential-bar,
+#frame.bp-tablet-p .essential-bar { display: flex; flex-direction: column; }
+
+.ebar-collapse-tab {
+  position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+  width: 48px; height: 10px; background: var(--surface);
+  border: 1px solid var(--line); border-bottom: none;
+  border-radius: 6px 6px 0 0; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.ebar-collapse-tab::after {
+  content: ""; display: block; width: 24px; height: 2px; background: var(--line); border-radius: 1px;
+}
+
+.ebar-btns {
+  display: flex; align-items: center; flex: 1; padding: 0 4px;
+  gap: 2px;
+}
+.ebar-btn {
+  flex: 1; height: 56px; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 3px;
+  border: none; background: transparent; cursor: pointer; border-radius: var(--radius-sm);
+  padding: 4px 2px; min-width: 48px;
+  transition: background var(--motion);
+}
+.ebar-btn:hover, .ebar-btn:active { background: var(--surface-2); }
+.ebar-btn svg { width: 22px; height: 22px; color: var(--text-secondary); }
+.ebar-btn.active svg { color: var(--accent); }
+.ebar-btn.danger svg { color: var(--danger); }
+.ebar-label { font-size: 9px; color: var(--text-secondary); font-weight: 500; letter-spacing: .02em; }
+.ebar-btn.active .ebar-label { color: var(--accent); }
+
+.ebar-colour-preview {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 2.5px solid var(--accent); flex-shrink: 0;
+}
+.ebar-progress { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.ebar-progress-pct { font-size: 13px; font-weight: 700; color: var(--text-primary); line-height: 1; }
+.ebar-progress-mini { width: 32px; height: 3px; background: var(--surface-3); border-radius: 2px; overflow: hidden; }
+.ebar-progress-fill { height: 100%; background: var(--accent); border-radius: 2px; width: 47%; }
+
+/* --- More drawer --- */
+.more-drawer {
+  position: absolute; bottom: 0; left: 0; right: 0; z-index: 50;
+  background: var(--surface); border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--shadow-md);
+  transform: translateY(100%); transition: transform .3s cubic-bezier(.4,0,.2,1);
+  display: flex; flex-direction: column; max-height: 80%;
+}
+.more-drawer.open { transform: translateY(0); }
+.drawer-handle {
+  height: 28px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0;
+}
+.drawer-handle::after { content: ""; width: 40px; height: 4px; background: var(--line); border-radius: 2px; }
+.drawer-title { padding: 0 16px 8px; font-size: 15px; font-weight: 600; flex-shrink: 0; }
+.drawer-body { overflow-y: auto; flex: 1; padding: 0 16px 16px; }
+
+.drawer-section { margin-bottom: 20px; }
+.drawer-section-title { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+.drawer-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.drawer-row:last-child { border-bottom: none; }
+.drawer-row-icon { width: 36px; height: 36px; border-radius: var(--radius-sm); background: var(--surface-2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.drawer-row-icon svg { width: 18px; height: 18px; color: var(--accent); }
+.drawer-row-label { flex: 1; font-size: 14px; font-weight: 500; }
+.drawer-row-sub { font-size: 12px; color: var(--text-secondary); }
+.drawer-seg { display: flex; gap: 4px; }
+.drawer-seg-btn { flex: 1; height: 36px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: transparent; cursor: pointer; font-size: 12px; font-weight: 500; transition: background var(--motion); }
+.drawer-seg-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* Drawer backdrop */
+.drawer-backdrop {
+  position: absolute; inset: 0; background: rgba(0,0,0,.3); z-index: 40;
+  display: none;
+}
+.drawer-backdrop.open { display: block; }
+
+/* --- Desktop content area (canvas + right panel side by side) --- */
+.main-area { flex: 1; display: flex; overflow: hidden; }
+
+/* --- Desktop bottom bar (not a floating dock — a proper action bar) --- */
+.desktop-ebar {
+  display: none;
+  height: 56px; background: var(--surface); border-top: 1px solid var(--line);
+  align-items: center; gap: 4px; padding: 0 12px;
+  flex-shrink: 0;
+}
+#frame.bp-desktop .desktop-ebar,
+#frame.bp-tablet-l .desktop-ebar { display: flex; }
+
+.debar-btn {
+  height: 40px; padding: 0 12px; border: none; border-radius: var(--radius-sm);
+  background: transparent; cursor: pointer; font-size: 13px;
+  display: flex; align-items: center; gap: 6px; color: var(--text-secondary);
+  font-weight: 500; transition: background var(--motion), color var(--motion);
+  white-space: nowrap;
+}
+.debar-btn svg { width: 16px; height: 16px; }
+.debar-btn:hover { background: var(--surface-2); color: var(--text-primary); }
+.debar-btn.active { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
+.debar-btn.primary { background: var(--accent); color: #fff; }
+.debar-btn.primary:hover { filter: brightness(1.1); }
+.debar-sep { width: 1px; height: 28px; background: var(--line); margin: 0 4px; }
+.debar-colour-dot { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid rgba(0,0,0,.15); flex-shrink: 0; }
+.debar-progress { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.debar-pct { font-size: 13px; font-weight: 700; }
+.debar-bar { width: 80px; height: 6px; background: var(--surface-3); border-radius: 3px; overflow: hidden; }
+.debar-bar-fill { height: 100%; width: 47%; background: var(--accent); border-radius: 3px; }
+
+/* --- Focus mode: hide bar --- */
+.essential-bar.collapsed { height: 12px; overflow: hidden; }
+.essential-bar.collapsed .ebar-btns { display: none; }
+.essential-bar.collapsed .ebar-collapse-tab { top: -10px; }
+</style>
+</head>
+<body>
+
+<!-- ═══ META BAR ═══ -->
+<div class="page-meta">
+  <h1>Option 1 — Essential Bar</h1>
+  <span class="badge">Draft mockup</span>
+  <div class="meta-sep"></div>
+  <div class="bp-btns">
+    <button class="bp-btn active" onclick="setBP('phone')">Phone 390</button>
+    <button class="bp-btn" onclick="setBP('tablet-p')">Tablet Portrait 768</button>
+    <button class="bp-btn" onclick="setBP('tablet-l')">Tablet Landscape 1024</button>
+    <button class="bp-btn" onclick="setBP('desktop')">Desktop 1280</button>
+  </div>
+  <div class="meta-sep"></div>
+  <button class="ann-toggle on" id="ann-btn" onclick="toggleAnnotations()">Annotations ON</button>
+</div>
+
+<!-- ═══ DEVICE FRAME + LEGEND ═══ -->
+<div class="page-outer">
+
+  <!-- DEVICE FRAME -->
+  <div id="frame" class="bp-phone">
+
+    <!-- Callout pins (positioned with inline style, shown when annotations active) -->
+    <span class="callout-pin" style="top:82px; left:8px">1</span>
+    <span class="callout-pin" style="top:760px; left:8px">2</span>
+    <span class="callout-pin" style="top:760px; left:52px">3</span>
+    <span class="callout-pin" style="top:760px; left:102px">4</span>
+    <span class="callout-pin" style="top:760px; left:150px">5</span>
+    <span class="callout-pin" style="top:760px; left:198px">6</span>
+    <span class="callout-pin" style="top:760px; left:246px">7</span>
+    <span class="callout-pin" style="top:760px; right:8px">8</span>
+    <span class="callout-pin" style="top:400px; left:50%; transform:translateX(-50%)">9</span>
+    <span class="callout-pin" style="top:22px; right:48px">10</span>
+
+    <div class="app-root">
+
+      <!-- TOP BAR -->
+      <div class="topbar">
+        <span class="topbar-title">Spring Garden</span>
+        <span class="topbar-progress" id="progress-chip">47%</span>
+        <button class="topbar-btn" title="More options" onclick="toggleMoreDrawer()">
+          <!-- kebab icon -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg>
+        </button>
+      </div>
+
+      <!-- DESKTOP TOOLBAR (hidden on phone) -->
+      <div class="desktop-toolbar">
+        <div class="tb-pill">
+          <button class="tb-btn active" id="tb-mark" onclick="setMode('mark')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 12 L9 17 L20 6"/></svg>
+            Mark
+          </button>
+          <button class="tb-btn" id="tb-nav" onclick="setMode('nav')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3 L12 21 M3 12 L21 12"/></svg>
+            Nav
+          </button>
+        </div>
+        <div class="tb-divider"></div>
+        <div class="tb-pill">
+          <button class="tb-btn" onclick="fitPattern()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3 L9 9 L3 9"/><path d="M15 3 L15 9 L21 9"/><path d="M9 21 L9 15 L3 15"/><path d="M15 21 L15 15 L21 15"/></svg>
+            Fit
+          </button>
+          <button class="tb-btn" onclick="zoom(-1)">−</button>
+          <span style="padding:0 6px; font-size:12px; color:var(--text-secondary)" id="zoom-label">100%</span>
+          <button class="tb-btn" onclick="zoom(1)">+</button>
+        </div>
+        <div class="tb-divider"></div>
+        <div class="session-chip" onclick="toggleMoreDrawer()">
+          <span class="dot"></span>
+          <span>0:32 · 24 st</span>
+        </div>
+        <div class="tb-spacer"></div>
+        <button class="tb-btn" onclick="toggleMoreDrawer()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>
+          More
+        </button>
+      </div>
+
+      <!-- MAIN AREA (canvas + optional right panel) -->
+      <div class="main-area">
+        <div class="canvas-area" id="canvas-area">
+          <div class="pattern-grid" id="pattern-grid"></div>
+        </div>
+        <!-- RIGHT PANEL (desktop only) -->
+        <div class="right-panel">
+          <div class="rpanel-header">
+            Palette
+            <span style="font-size:11px; color:var(--text-secondary); font-weight:400">% done</span>
+          </div>
+          <div id="rpanel-colours"></div>
+        </div>
+      </div>
+
+      <!-- DESKTOP BOTTOM BAR -->
+      <div class="desktop-ebar">
+        <div class="debar-colour-dot" style="background:#2c2c2c" id="debar-col"></div>
+        <button class="debar-btn" id="debar-mark-btn" onclick="setMode('mark')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 12 L9 17 L20 6"/></svg>
+          DMC 310 · Black
+        </button>
+        <div class="debar-sep"></div>
+        <button class="debar-btn" onclick="findNext()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20 L15.5 15.5"/><path d="M11 8 L11 14 M8 11 L14 11"/></svg>
+          Find next
+        </button>
+        <button class="debar-btn" onclick="undoLast()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 10 L9 4 L9 8 C16 8 20 13 20 20 C18 15 14 12 9 12 L9 16 Z"/></svg>
+          Undo
+        </button>
+        <button class="debar-btn" id="debar-pause-btn" onclick="togglePause()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+          Pause
+        </button>
+        <div class="debar-progress">
+          <span class="debar-pct" id="debar-pct">47%</span>
+          <div class="debar-bar"><div class="debar-bar-fill" id="debar-fill"></div></div>
+        </div>
+        <div class="debar-sep"></div>
+        <button class="debar-btn" onclick="toggleMoreDrawer()">More</button>
+      </div>
+
+      <!-- ESSENTIAL BAR (phone / tablet-portrait) -->
+      <div class="essential-bar" id="essential-bar">
+        <div class="ebar-collapse-tab" onclick="toggleBarCollapse()" title="Collapse / expand essential bar"></div>
+        <div class="ebar-btns">
+          <!-- 1 Colour -->
+          <button class="ebar-btn" onclick="openColourPicker()" title="Pick colour">
+            <div class="ebar-colour-preview" id="ebar-col" style="background:#2c2c2c"></div>
+            <span class="ebar-label">Colour</span>
+          </button>
+          <!-- 2 Find next -->
+          <button class="ebar-btn" onclick="findNext()" title="Jump to next stitch of focus colour">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20 L15.5 15.5"/><path d="M11 8 L11 14 M8 11 L14 11"/></svg>
+            <span class="ebar-label">Find next</span>
+          </button>
+          <!-- 3 Fit -->
+          <button class="ebar-btn" onclick="fitPattern()" title="Zoom to fit">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3 L9 9 L3 9 M15 3 L15 9 L21 9 M9 21 L9 15 L3 15 M15 21 L15 15 L21 15"/></svg>
+            <span class="ebar-label">Fit</span>
+          </button>
+          <!-- 4 Mode -->
+          <button class="ebar-btn" id="ebar-mode-btn" onclick="toggleMode()" title="Toggle Mark / Navigate mode">
+            <svg id="ebar-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 12 L9 17 L20 6"/></svg>
+            <span class="ebar-label" id="ebar-mode-label">Mark</span>
+          </button>
+          <!-- 5 Pause -->
+          <button class="ebar-btn" id="ebar-pause-btn" onclick="togglePause()" title="Pause / resume session">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+            <span class="ebar-label">Pause</span>
+          </button>
+          <!-- 6 Progress -->
+          <button class="ebar-btn" onclick="showProgressPopover()" title="Progress breakdown">
+            <div class="ebar-progress">
+              <span class="ebar-progress-pct" id="ebar-pct">47%</span>
+              <div class="ebar-progress-mini"><div class="ebar-progress-fill" id="ebar-fill"></div></div>
+            </div>
+            <span class="ebar-label">Progress</span>
+          </button>
+          <!-- 7 Undo -->
+          <button class="ebar-btn" onclick="undoLast()" title="Undo last mark">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 10 L9 4 L9 8 C16 8 20 13 20 20 C18 15 14 12 9 12 L9 16 Z"/></svg>
+            <span class="ebar-label">Undo</span>
+          </button>
+          <!-- 8 More -->
+          <button class="ebar-btn" onclick="toggleMoreDrawer()" title="All controls">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="3" y1="7" x2="21" y2="7"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="17" x2="21" y2="17"/></svg>
+            <span class="ebar-label">More</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- MORE DRAWER BACKDROP -->
+      <div class="drawer-backdrop" id="drawer-backdrop" onclick="toggleMoreDrawer()"></div>
+
+      <!-- MORE DRAWER -->
+      <div class="more-drawer" id="more-drawer">
+        <div class="drawer-handle" onclick="toggleMoreDrawer()"></div>
+        <div class="drawer-title">All Controls</div>
+        <div class="drawer-body">
+
+          <div class="drawer-section">
+            <div class="drawer-section-title">Session</div>
+            <div class="drawer-row">
+              <div class="drawer-row-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7 L12 12 L15 15"/></svg>
+              </div>
+              <div>
+                <div class="drawer-row-label">Session timer</div>
+                <div class="drawer-row-sub">0:32 elapsed · 24 stitches</div>
+              </div>
+              <button class="tb-btn" style="height:36px;padding:0 12px;border:1px solid var(--line);border-radius:var(--radius-sm)">End</button>
+            </div>
+          </div>
+
+          <div class="drawer-section">
+            <div class="drawer-section-title">View</div>
+            <div class="drawer-row">
+              <div class="drawer-row-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 12 C5 5 19 5 23 12 C19 19 5 19 1 12"/><circle cx="12" cy="12" r="3"/></svg>
+              </div>
+              <div style="flex:1">
+                <div class="drawer-row-label">Canvas view</div>
+              </div>
+            </div>
+            <div style="padding:4px 0 12px">
+              <div class="drawer-seg">
+                <button class="drawer-seg-btn active" onclick="setView('symbol')">Symbol</button>
+                <button class="drawer-seg-btn" onclick="setView('colour')">Colour</button>
+                <button class="drawer-seg-btn" onclick="setView('highlight')">Highlight</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="drawer-section">
+            <div class="drawer-section-title">Highlight</div>
+            <div style="padding:4px 0 12px">
+              <div class="drawer-seg">
+                <button class="drawer-seg-btn active">Isolate</button>
+                <button class="drawer-seg-btn">Outline</button>
+                <button class="drawer-seg-btn">Tint</button>
+                <button class="drawer-seg-btn">Spotlight</button>
+              </div>
+            </div>
+            <div class="drawer-row">
+              <div style="flex:1;font-size:14px;font-weight:500">Counting aids</div>
+              <input type="checkbox" style="width:20px;height:20px;cursor:pointer">
+            </div>
+          </div>
+
+          <div class="drawer-section">
+            <div class="drawer-section-title">Layers</div>
+            <div class="drawer-row">
+              <div style="flex:1;font-size:14px;font-weight:500">Full stitch</div>
+              <input type="checkbox" checked style="width:20px;height:20px;cursor:pointer">
+            </div>
+            <div class="drawer-row">
+              <div style="flex:1;font-size:14px;font-weight:500">Half stitch</div>
+              <input type="checkbox" checked style="width:20px;height:20px;cursor:pointer">
+            </div>
+            <div class="drawer-row">
+              <div style="flex:1;font-size:14px;font-weight:500">Backstitch</div>
+              <input type="checkbox" checked style="width:20px;height:20px;cursor:pointer">
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div><!-- .app-root -->
+  </div><!-- #frame -->
+
+  <!-- CALLOUT LEGEND -->
+  <aside id="callout-legend">
+    <h3>Option 1 — Essential Bar</h3>
+    <ol>
+      <li><span class="legend-num">1</span> <div><strong>Colour button</strong> — 48px circle showing focus colour. Tap to open colour picker sheet.</div></li>
+      <li><span class="legend-num">2</span> <div><strong>Find next</strong> — jumps crosshair to next remaining stitch of focus colour.</div></li>
+      <li><span class="legend-num">3</span> <div><strong>Zoom Fit</strong> — one-tap fit-to-canvas. Replaces separate +/−/fit buttons on phone.</div></li>
+      <li><span class="legend-num">4</span> <div><strong>Mode toggle</strong> — switches between Mark mode and Navigate mode.</div></li>
+      <li><span class="legend-num">5</span> <div><strong>Pause</strong> — pauses / resumes the session timer.</div></li>
+      <li><span class="legend-num">6</span> <div><strong>Progress chip</strong> — shows % and mini-bar. Tap for full breakdown.</div></li>
+      <li><span class="legend-num">7</span> <div><strong>Undo</strong> — always-visible undo. Reverses last mark or drag-mark group.</div></li>
+      <li><span class="legend-num">8</span> <div><strong>More button</strong> — opens "All Controls" drawer: session, view, highlight, layers, tools, notes.</div></li>
+      <li><span class="legend-num">9</span> <div><strong>Pattern canvas</strong> — tap to mark/unmark. Long-press 300ms → drag mode activates.</div></li>
+      <li><span class="legend-num">10</span> <div><strong>Collapse tab</strong> — tap the notch above the bar to retract it to a 12px handle; swipe up to restore.</div></li>
+    </ol>
+    <div style="margin-top:16px; font-size:11px; color:#6060a0; line-height:1.5">
+      <strong style="color:#9090c0">Key changes from current UI:</strong><br>
+      Floating dock retired. Toolbar pill simplified. <code>···</code> overflow replaced by single "More" drawer. 30+ overflow items reorganised into 4 sections. Drag-mark now requires 300ms hold (no accidental drags while panning).
+    </div>
+  </aside>
+
+</div><!-- .page-outer -->
+
+<script>
+// ═══════════════════════════════════════════════════
+// PATTERN DATA — 16×12 grid, 5 colours
+// ═══════════════════════════════════════════════════
+const W = 16, H = 12;
+const _ = -1;
+const PALETTE = [
+  { id: '310', name: 'Black',        rgb: '#2c2c2c' },
+  { id: '321', name: 'Christmas Red', rgb: '#b5222e' },
+  { id: '3765', name: 'Peacock Blue', rgb: '#2a7d8e' },
+  { id: '743', name: 'Yellow',        rgb: '#f8c84e' },
+  { id: '3816', name: 'Celadon',      rgb: '#6bab7c' },
+];
+const GRID = [
+  _,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,
+  _,_,_,4,4,_,_,_,_,_,_,4,4,_,_,_,
+  _,_,4,4,4,4,_,_,_,_,4,4,4,4,_,_,
+  _,4,4,2,2,4,4,_,_,4,4,2,2,4,4,_,
+  _,4,2,2,2,2,4,_,_,4,2,2,2,2,4,_,
+  _,4,2,2,3,2,4,0,0,4,2,3,2,2,4,_,
+  _,4,4,2,2,4,4,0,0,4,4,2,2,4,4,_,
+  _,_,4,4,4,4,1,0,0,1,4,4,4,4,_,_,
+  _,_,_,4,4,1,1,1,1,1,1,4,4,_,_,_,
+  _,_,_,_,1,1,1,1,1,1,1,1,_,_,_,_,
+  _,_,_,_,_,1,1,1,1,1,1,_,_,_,_,_,
+  _,_,_,_,_,_,1,1,1,1,_,_,_,_,_,_,
+];
+// Pre-mark top rows (simulate 47% progress)
+const DONE = GRID.map((v, i) => {
+  const row = Math.floor(i / W);
+  return (row <= 4 && v >= 0) ? 1 : 0;
+});
+
+// Runtime state
+let done = [...DONE];
+let focusColour = 0; // palette index
+let mode = 'mark'; // 'mark' | 'nav'
+let zoomLevel = 100;
+let paused = false;
+let undoStack = [];
+
+// ═══════════════════════════════════════════════════
+// RENDER PATTERN GRID
+// ═══════════════════════════════════════════════════
+function renderGrid() {
+  const grid = document.getElementById('pattern-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  GRID.forEach((ci, idx) => {
+    const cell = document.createElement('div');
+    cell.className = 'stitch' + (ci < 0 ? ' blank' : '') + (done[idx] ? ' done' : '');
+    if (ci >= 0) {
+      cell.style.setProperty('--cell-bg', PALETTE[ci].rgb);
+      cell.style.background = PALETTE[ci].rgb;
+    }
+    cell.dataset.idx = idx;
+    cell.addEventListener('click', () => toggleCell(idx));
+    grid.appendChild(cell);
+  });
+  adjustCellSize();
+}
+
+function adjustCellSize() {
+  const grid = document.getElementById('pattern-grid');
+  if (!grid) return;
+  const area = document.getElementById('canvas-area');
+  if (!area) return;
+  const availW = area.clientWidth - 16;
+  const cellSize = Math.floor(availW / W);
+  grid.style.gridTemplateColumns = `repeat(${W}, ${cellSize}px)`;
+}
+
+// ═══════════════════════════════════════════════════
+// INTERACTIONS
+// ═══════════════════════════════════════════════════
+let longPressTimer = null;
+let dragActive = false;
+let dragIntent = null;
+let lastDragIdx = -1;
+
+function toggleCell(idx) {
+  if (GRID[idx] < 0) return;
+  undoStack.push({idx, prev: done[idx]});
+  if (undoStack.length > 50) undoStack.shift();
+  done[idx] = done[idx] ? 0 : 1;
+  updateCell(idx);
+  updateProgress();
+}
+
+function updateCell(idx) {
+  const grid = document.getElementById('pattern-grid');
+  if (!grid) return;
+  const cell = grid.children[idx];
+  if (!cell) return;
+  cell.classList.toggle('done', !!done[idx]);
+}
+
+function updateProgress() {
+  const total = GRID.filter(v => v >= 0).length;
+  const doneCount = done.filter((v, i) => GRID[i] >= 0 && v).length;
+  const pct = Math.round(doneCount / total * 100);
+  const pctStr = pct + '%';
+  const els = ['ebar-pct', 'debar-pct', 'progress-chip'];
+  els.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = pctStr; });
+  const fillPct = pct + '%';
+  ['ebar-fill', 'debar-fill'].forEach(id => { const el = document.getElementById(id); if (el) el.style.width = fillPct; });
+  renderRPanel();
+}
+
+function undoLast() {
+  if (!undoStack.length) return;
+  const {idx, prev} = undoStack.pop();
+  done[idx] = prev;
+  updateCell(idx);
+  updateProgress();
+  flashFeedback('Undone');
+}
+
+function flashFeedback(msg) {
+  let fb = document.getElementById('feedback-toast');
+  if (!fb) {
+    fb = document.createElement('div');
+    fb.id = 'feedback-toast';
+    Object.assign(fb.style, {
+      position:'absolute', bottom:'90px', left:'50%', transform:'translateX(-50%)',
+      background:'rgba(0,0,0,.7)', color:'#fff', padding:'6px 14px',
+      borderRadius:'20px', fontSize:'13px', zIndex:'200', whiteSpace:'nowrap',
+      pointerEvents:'none', transition:'opacity .3s'
+    });
+    document.getElementById('frame').appendChild(fb);
+  }
+  fb.textContent = msg;
+  fb.style.opacity = '1';
+  clearTimeout(fb._t);
+  fb._t = setTimeout(() => { fb.style.opacity = '0'; }, 1200);
+}
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('tb-mark')?.classList.toggle('active', m === 'mark');
+  document.getElementById('tb-nav')?.classList.toggle('active', m === 'nav');
+  const icon = document.getElementById('ebar-mode-icon');
+  const lbl = document.getElementById('ebar-mode-label');
+  if (m === 'mark') {
+    if (icon) icon.innerHTML = '<path d="M4 12 L9 17 L20 6"/>';
+    if (lbl) lbl.textContent = 'Mark';
+  } else {
+    if (icon) icon.innerHTML = '<path d="M12 3 L12 21 M3 12 L21 12"/>';
+    if (lbl) lbl.textContent = 'Nav';
+  }
+  flashFeedback(m === 'mark' ? 'Mark mode' : 'Navigate mode');
+}
+
+function toggleMode() {
+  setMode(mode === 'mark' ? 'nav' : 'mark');
+}
+
+function findNext() {
+  // Simulate: flash a cell of the focus colour
+  const candidates = GRID.map((v,i) => ({v,i})).filter(({v,i}) => v === focusColour && !done[i]);
+  if (!candidates.length) { flashFeedback('No more stitches for DMC ' + PALETTE[focusColour].id); return; }
+  const c = candidates[0];
+  const cell = document.getElementById('pattern-grid')?.children[c.i];
+  if (cell) {
+    cell.style.outline = '3px solid yellow';
+    cell.style.outlineOffset = '-3px';
+    setTimeout(() => { cell.style.outline = ''; cell.style.outlineOffset = ''; }, 1200);
+    cell.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+  flashFeedback('Next stitch found');
+}
+
+function fitPattern() {
+  adjustCellSize();
+  flashFeedback('Fit to canvas');
+}
+
+function zoom(dir) {
+  zoomLevel = Math.max(50, Math.min(200, zoomLevel + dir * 10));
+  document.getElementById('zoom-label').textContent = zoomLevel + '%';
+}
+
+function togglePause() {
+  paused = !paused;
+  flashFeedback(paused ? 'Session paused' : 'Session resumed');
+}
+
+function openColourPicker() {
+  // Show a simple colour picker overlay
+  let picker = document.getElementById('colour-picker-overlay');
+  if (!picker) {
+    picker = document.createElement('div');
+    picker.id = 'colour-picker-overlay';
+    Object.assign(picker.style, {
+      position:'absolute', bottom:'80px', left:'8px', right:'8px',
+      background:'var(--surface)', border:'1px solid var(--line)',
+      borderRadius:'var(--radius-lg)', padding:'16px', zIndex:'100',
+      boxShadow:'var(--shadow-md)'
+    });
+    document.querySelector('.app-root').appendChild(picker);
+  }
+  picker.innerHTML = '<div style="font-size:13px;font-weight:600;margin-bottom:12px">Choose colour</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px">' +
+    PALETTE.map((p, i) =>
+      `<button onclick="selectColour(${i})" style="display:flex;flex-direction:column;align-items:center;gap:4px;border:${i===focusColour?'2px solid var(--accent)':'2px solid transparent'};border-radius:8px;padding:6px;background:transparent;cursor:pointer">
+        <div style="width:40px;height:40px;border-radius:50%;background:${p.rgb};border:1px solid rgba(0,0,0,.15)"></div>
+        <div style="font-size:10px;font-weight:500">${p.id}</div>
+      </button>`
+    ).join('') + '</div>' +
+    '<button onclick="document.getElementById(\'colour-picker-overlay\').remove()" style="margin-top:12px;width:100%;height:40px;border:1px solid var(--line);border-radius:var(--radius-sm);background:transparent;cursor:pointer;font-size:13px">Cancel</button>';
+  picker.style.display = 'block';
+}
+
+function selectColour(idx) {
+  focusColour = idx;
+  const col = PALETTE[idx].rgb;
+  const ebar = document.getElementById('ebar-col');
+  const debar = document.getElementById('debar-col');
+  if (ebar) ebar.style.background = col;
+  if (debar) debar.style.background = col;
+  document.getElementById('colour-picker-overlay')?.remove();
+  flashFeedback('DMC ' + PALETTE[idx].id + ' · ' + PALETTE[idx].name);
+}
+
+function showProgressPopover() {
+  const total = GRID.filter(v => v >= 0).length;
+  const doneCount = done.filter((v, i) => GRID[i] >= 0 && v).length;
+  flashFeedback(`${doneCount} of ${total} stitches done`);
+}
+
+function setView(v) { flashFeedback('View: ' + v); }
+
+// ═══════════════════════════════════════════════════
+// MORE DRAWER
+// ═══════════════════════════════════════════════════
+function toggleMoreDrawer() {
+  const drawer = document.getElementById('more-drawer');
+  const backdrop = document.getElementById('drawer-backdrop');
+  const open = drawer.classList.toggle('open');
+  backdrop.classList.toggle('open', open);
+}
+
+// ═══════════════════════════════════════════════════
+// ESSENTIAL BAR COLLAPSE
+// ═══════════════════════════════════════════════════
+function toggleBarCollapse() {
+  const bar = document.getElementById('essential-bar');
+  bar.classList.toggle('collapsed');
+}
+
+// ═══════════════════════════════════════════════════
+// RIGHT PANEL (desktop)
+// ═══════════════════════════════════════════════════
+function renderRPanel() {
+  const container = document.getElementById('rpanel-colours');
+  if (!container) return;
+  const stats = PALETTE.map((p, pi) => {
+    const total = GRID.filter(v => v === pi).length;
+    const dc = done.filter((v, i) => GRID[i] === pi && v).length;
+    return {...p, pi, total, dc, pct: total ? Math.round(dc/total*100) : 0};
+  }).sort((a,b) => b.pct - a.pct);
+  container.innerHTML = stats.map(s => `
+    <div class="colour-row ${s.pi===focusColour?'focused':''} ${s.dc===s.total&&s.total>0?'complete':''}"
+         onclick="selectColour(${s.pi})">
+      <div class="colour-swatch" style="background:${s.rgb}"></div>
+      <div class="colour-info">
+        <div class="colour-name">${s.name}</div>
+        <div class="colour-id">DMC ${s.id}</div>
+        <div class="colour-progress"><div class="colour-progress-fill" style="width:${s.pct}%"></div></div>
+      </div>
+      <div class="colour-count">${s.dc}/${s.total}</div>
+    </div>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════════
+// BREAKPOINT TOGGLE
+// ═══════════════════════════════════════════════════
+function setBP(bp) {
+  const frame = document.getElementById('frame');
+  frame.className = 'bp-' + bp;
+  document.querySelectorAll('.bp-btn').forEach(b => b.classList.toggle('active', b.onclick.toString().includes(`'${bp}'`)));
+  setTimeout(adjustCellSize, 50);
+}
+
+// ═══════════════════════════════════════════════════
+// ANNOTATIONS
+// ═══════════════════════════════════════════════════
+function toggleAnnotations() {
+  document.body.classList.toggle('annotations');
+  const btn = document.getElementById('ann-btn');
+  const on = document.body.classList.contains('annotations');
+  btn.textContent = 'Annotations ' + (on ? 'ON' : 'OFF');
+  btn.classList.toggle('on', on);
+  document.getElementById('callout-legend').classList.toggle('hidden', !on);
+}
+
+// ═══════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════
+document.body.classList.add('annotations');
+renderGrid();
+renderRPanel();
+window.addEventListener('resize', adjustCellSize);
+</script>
+</body>
+</html>

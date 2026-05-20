@@ -230,6 +230,8 @@ window.useCreatorState = function useCreatorState() {
 
   // App mode: 'create' | 'edit' (track is handled by TrackerApp separately)
   var _appMode = useState("create"); var appMode = _appMode[0], setAppMode = _appMode[1];
+  // Confirmation flag: show warning modal when switching from Edit → Convert with unsaved manual edits
+  var _confirmBack = useState(false); var confirmBackToConvert = _confirmBack[0], setConfirmBackToConvert = _confirmBack[1];
 
   // ── Cleanup mode state ──────────────────────────────────────────────────────
   // cleanupTargetColorId: id of the palette colour being cleaned up
@@ -1413,7 +1415,7 @@ window.useCreatorState = function useCreatorState() {
     pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, progressMessage, setProgressMessage,
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
-    appMode, setAppMode, sidebarTab, setSidebarTab,
+    appMode, setAppMode, confirmBackToConvert, setConfirmBackToConvert, sidebarTab, setSidebarTab,
     lastGenSnapshot, setLastGenSnapshot,
     tab, setTab, materialsTab, setMaterialsTab, sidebarOpen, setSidebarOpen, loadError, setLoadError,
     copied, setCopied, modal, setModal,

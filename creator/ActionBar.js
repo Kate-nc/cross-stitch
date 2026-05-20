@@ -116,18 +116,80 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     };
   }
 
-  // Phase label (Polish 13 step 3 — was a Setup chip + label + Track
-  // chip. The Setup back-button is gone now that the sidebar tab strip
-  // is unified across appModes: clicking Image / Dimensions / Project
-  // takes the user back to setup automatically. The phase label remains
-  // as a quiet stage indicator; Track stays as the primary forward
-  // action.)
+  // ── Tab bar: Convert | Edit | Materials ────────────────────────────────────
+  // Convert: active when appMode === "create". Always clickable; fires the
+  //          request-back-to-convert handler (which may show a warning modal
+  //          if the user has manual edits in the edit history).
+  // Edit:    active when appMode === "edit". Disabled when no pattern exists.
+  // Materials: active when tab === "materials". Always available once pattern exists.
   var appMode = props.appMode || "edit";
-  var phaseLabel = h("span", {
-      className: "creator-actionbar__mode-phase",
-      "aria-live": "polite"
+  var currentTab = props.tab || "pattern";
+  var hasPat = !!props.pat;
+
+  function tabStyle(active, disabled) {
+    return {
+      display: "inline-flex", alignItems: "center", gap: 5,
+      padding: "5px 12px", borderRadius: "var(--radius-sm)",
+      border: "none", cursor: disabled ? "not-allowed" : "pointer",
+      fontFamily: "inherit", fontSize: "var(--text-sm)", fontWeight: active ? 600 : 400,
+      background: active ? "var(--accent)" : "transparent",
+      color: active ? "var(--surface)" : disabled ? "var(--text-secondary)" : "var(--text-primary)",
+      opacity: disabled ? 0.45 : 1,
+      transition: "background var(--motion), color var(--motion)"
+    };
+  }
+
+  var tabBar = h("div", {
+      role: "tablist",
+      "aria-label": "Creator phase",
+      style: {
+        display: "flex", alignItems: "center",
+        background: "var(--surface-tertiary)",
+        borderRadius: "var(--radius-sm)",
+        padding: 3, gap: 2
+      }
     },
-    appMode === "create" ? "Setting up" : "Editing pattern"
+    h("button", {
+        type: "button",
+        role: "tab",
+        "aria-selected": appMode === "create" ? "true" : "false",
+        style: tabStyle(appMode === "create", false),
+        onClick: typeof props.onRequestBackToConvert === "function"
+          ? props.onRequestBackToConvert
+          : undefined,
+        title: "Convert settings — adjust palette, dimensions and generate"
+      },
+      Icons.sliders ? Icons.sliders() : null,
+      h("span", null, "Convert")
+    ),
+    h("button", {
+        type: "button",
+        role: "tab",
+        "aria-selected": (appMode === "edit" && currentTab === "pattern") ? "true" : "false",
+        disabled: !hasPat,
+        style: tabStyle(appMode === "edit" && currentTab === "pattern", !hasPat),
+        onClick: !hasPat ? undefined : function() {
+          if (typeof props.onTabChange === "function") props.onTabChange("pattern");
+        },
+        title: hasPat ? "Edit the generated pattern" : "Generate a pattern first"
+      },
+      Icons.pencil ? Icons.pencil() : null,
+      h("span", null, "Edit")
+    ),
+    h("button", {
+        type: "button",
+        role: "tab",
+        "aria-selected": currentTab === "materials" ? "true" : "false",
+        disabled: !hasPat,
+        style: tabStyle(currentTab === "materials", !hasPat),
+        onClick: !hasPat ? undefined : function() {
+          if (typeof props.onTabChange === "function") props.onTabChange("materials");
+        },
+        title: hasPat ? "Materials — thread count, export options" : "Generate a pattern first"
+      },
+      Icons.layers ? Icons.layers() : null,
+      h("span", null, "Materials")
+    )
   );
 
   var trackBtn = (typeof props.onTrackPattern === "function") ? h("button", {
@@ -140,15 +202,6 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     h("span", null, "Open in Tracker"),
     Icons.chevronRight ? Icons.chevronRight() : h("span", { "aria-hidden": "true" }, "\u203A")
   ) : null;
-
-  var modeSwitch = h("div", {
-      className: "creator-actionbar__mode-switch",
-      role: "group",
-      "aria-label": "Pattern phase"
-    },
-    phaseLabel,
-    trackBtn
-  );
 
   // Difficulty badge — always-visible tier chip, e.g. "Intermediate".
   // Full breakdown is inside the Pattern info popover.
@@ -199,6 +252,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
       role: "toolbar",
       "aria-label": "Pattern actions"
     },
+    tabBar,
     h("div", { className: "creator-actionbar__primary" },
       h("button", {
           type: "button",
@@ -250,6 +304,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
         )
       )
     ),
+    trackBtn,
     infoChip
   );
 };

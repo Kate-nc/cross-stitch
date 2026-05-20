@@ -1449,71 +1449,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
       )
     );
-    // ── Image tab — file picker, source thumbnail (with Crop / Change),
-    //   plus the canonical Source-overlay toggle + opacity slider. The
-    //   toolbar overlay button still works as a quick toggle.
-    var overlayRow = h("div", {style:{padding:"12px",borderTop:ctx.pat&&gen.img?"1px solid var(--border)":"none"}},
-      h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}, "Source overlay"),
-      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',color:"var(--text-secondary)",marginBottom:'var(--s-2)',cursor:gen.img?"pointer":"not-allowed",opacity:gen.img?1:0.5}},
-        h("input", {type:"checkbox", disabled:!gen.img, checked:!!cv.showOverlay,
-          onChange:function(){cv.setShowOverlay(function(v){return !v;});}}),
-        h("span", null, "Show source image over chart")
-      ),
-      h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',opacity:(gen.img&&cv.showOverlay)?1:0.4}},
-        h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flexShrink:0}}, "Opacity"),
-        h("input", {type:"range",min:0,max:1,step:0.05,
-          value:cv.overlayOpacity!=null?cv.overlayOpacity:0.3,
-          disabled:!gen.img||!cv.showOverlay,
-          onChange:function(e){cv.setOverlayOpacity(Number(e.target.value));},
-          style:{flex:1}}),
-        h("span", {style:{fontSize:10,color:"var(--text-tertiary)",minWidth:32,textAlign:"right",fontVariantNumeric:"tabular-nums"}},
-          Math.round((cv.overlayOpacity!=null?cv.overlayOpacity:0.3)*100)+"%")
-      ),
-      !gen.img && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:6}},
-        "Load an image to enable the overlay.")
-    );
-    var imageContent = h(React.Fragment, null,
-      h("div", {style:{padding:"12px",display:"flex",flexDirection:"column",gap:'var(--s-2)'}},
-        h("button", {
-          onClick:function(){ if(gen.fRef && gen.fRef.current) gen.fRef.current.click(); },
-          style:{padding:"8px 14px",fontSize:'var(--text-sm)',fontWeight:600,border:"1px solid var(--border)",borderRadius:'var(--radius-md)',background:"var(--surface-tertiary)",color:"var(--text-primary)",cursor:"pointer",fontFamily:"inherit"}
-        }, gen.img ? "Change image\u2026" : "Choose image\u2026"),
-        !gen.img && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}},
-          "Pick a photo or drawing to convert into a cross-stitch chart.")
-      ),
-      imageCard,
-      overlayRow
-    );
-
-    // ── Dimensions tab — size controls + Source adjustments + background + fabric.
-    //   Source (was Adjustments) and background removal both act on the source image
-    //   so they sit together here, one tab away from the image upload.
-    var dimensionsContent = h(React.Fragment, null,
-      regenCta("dimensions"),
-      dimSection,
-      adjSection,
-      bgSection,
-      fabSection
-    );
-
-    // ── Palette tab (Colours + Tidy up) — colour matching, then all result-quality
-    //   controls consolidated in one place: min stitches, orphan removal, stitch
-    //   cleanup. Palette swap presets follow as before.
-    var paletteContent = h(React.Fragment, null,
-      regenCta("palette"),
-      palSection,
-      tidySection,
-      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
-      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
-      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.revertSection
-    );
-
-    // ── Preview tab — chart-mode and comparison controls only.
-    var previewContent = h(React.Fragment, null,
-      previewPanel
-    );
-
-    // ── Project tab — name/designer/notes plus a live cost/size summary.
+    // Project info summary (compact) — kept for create mode as a collapsible.
     var projectSummary = (function() {
       var palLen = ctx.pat && ctx.pal ? (ctx.displayPal || ctx.pal || []).length : 0;
       var stitchable = ctx.totalStitchable || (ctx.pat ? (ctx.sW * ctx.sH) : 0);
@@ -1530,7 +1466,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           h("span", {style:{textAlign:"right",fontVariantNumeric:"tabular-nums"}}, value)
         );
       }
-      return h(Section, {title:"Live summary", defaultOpen:true},
+      return h(Section, {title:"Live summary", defaultOpen:false},
         h("div", {style:{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)',padding:"4px 0"}},
           row("Size", ctx.sW + " \u00D7 " + ctx.sH + " stitches"),
           row("Finished", finishedW + " \u00D7 " + finishedH + " in (" + fabricCt + "ct)"),
@@ -1545,25 +1481,31 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
       );
     })();
-    var projectContent = h(React.Fragment, null,
-      projectInfoSection,
-      projectSummary
-    );
 
-    var tabContentMap = {
-      image: imageContent,
-      dimensions: dimensionsContent,
-      palette: paletteContent,
-      preview: previewContent,
-      project: projectContent
-    };
-    var activeContent = tabContentMap[sTab] || imageContent;
+    // Regen CTA — shown once at top of panel when any setting is stale.
+    var anyStale = dimensionsStale || paletteStale;
+    var globalRegenCta = (function() {
+      if (!ctx.pat || !regenSnap || !anyStale) return null;
+      var editCount = (cv.editHistory && cv.editHistory.length) || 0;
+      var label = editCount > 0
+        ? "Regenerate (replaces " + editCount + " edit" + (editCount === 1 ? "" : "s") + ")"
+        : "Regenerate (values changed)";
+      return h("div", {style:{margin:"10px 12px 0",padding:"10px 12px",background:"var(--accent-soft,var(--surface-tertiary))",border:"1px solid var(--accent)",borderRadius:"var(--radius-md)",display:"flex",flexDirection:"column",gap:6}},
+        h("div", {style:{fontSize:"var(--text-xs)",color:"var(--text-secondary)",lineHeight:1.4}},
+          "Settings have changed since the last generation."),
+        h("button", {
+          onClick:function(){ if(typeof gen.generate==="function") gen.generate(); },
+          disabled:!!gen.busy,
+          style:{padding:"7px 10px",fontSize:"var(--text-sm)",fontWeight:600,border:"none",borderRadius:"var(--radius-sm)",background:"var(--accent)",color:"var(--surface)",cursor:gen.busy?"wait":"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:6}
+        }, label)
+      );
+    })();
+
     // ── Create mode bottom action bar ─────────────────────────────────────
     var createActions = h("div", {style:{
       flexShrink:0, borderTop:"1px solid var(--border)", padding:"12px",
       background:"var(--surface)", display:"flex", flexDirection:"column", gap:'var(--s-2)'
     }},
-      // Generate / Regenerate button
       gen.img && h("button", {
         onClick:function(){ gen.generate(); },
         disabled:gen.busy,
@@ -1573,21 +1515,35 @@ window.CreatorSidebar = function CreatorSidebar() {
           background:gen.busy?"var(--text-tertiary)":gen.hasGenerated?"var(--surface-tertiary)":"var(--accent)",
           color:gen.hasGenerated?"var(--text-primary)":"var(--surface)"}
       }, gen.busy ? (gen.progressMessage || "Generating\u2026") : (gen.hasGenerated ? h(React.Fragment, null, window.Icons.refresh(), " Regenerate") : h(React.Fragment, null, window.Icons.refresh(), " Generate Pattern"))),
-      // Every generation (first or re-generate) auto-switches to Edit mode
-      // (see useCreatorState applyResultRef). The Setup tab strip (Image /
-      // Dimensions / Palette tabs) takes the user back to create mode.
-      // Hint text
       !gen.img && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textAlign:"center",padding:"4px 0"}},
         "Upload an image to get started")
     );
+
+    // ── Single scrollable settings panel (Palette → Size & Fabric → Detail → Source) ──
+    var createPanel = h("div", {
+      style:{overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}
+    },
+      globalRegenCta,
+      // 1. Palette (first — most-used during conversion)
+      palSection,
+      tidySection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.revertSection,
+      // 2. Size & Fabric
+      dimSection,
+      fabSection,
+      // 3. Detail / Background
+      bgSection,
+      // 4. Source adjustments (collapsible, less-frequently touched)
+      adjSection,
+      // 5. Project info (collapsible)
+      projectInfoSection,
+      projectSummary
+    );
+
     return h(React.Fragment, null,
-      tabBar,
-      h("div", {
-        id:"sidebar-panel-"+sTab,
-        role:"tabpanel",
-        "aria-label":"Create mode "+sTab+" panel",
-        style:{overflowY:"auto",flex:1}
-      }, activeContent),
+      createPanel,
       createActions
     );
   }
@@ -1760,26 +1716,6 @@ window.CreatorSidebar = function CreatorSidebar() {
   );
 
   var moreContent = h(React.Fragment, null,
-    h(Section, {title:"Generation Settings",defaultOpen:false},
-      imageCard,
-      dimSection,
-      palSection,
-      tidySection,
-      fabSection,
-      adjSection,
-      bgSection,
-      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
-      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
-      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.revertSection,
-      h("button", {
-        onClick:function(){
-          if(cv.editHistory.length > 0 && !confirm("Regenerating will replace your current edits. Continue?")) return;
-          gen.generate();
-        },
-        disabled:gen.busy,
-        style:{width:"100%",padding:"8px",fontSize:'var(--text-sm)',fontWeight:600,cursor:"pointer",border:"none",borderRadius:'var(--radius-md)',background:"var(--accent)",color:"var(--surface)",marginTop:'var(--s-2)'}
-      }, window.Icons.refresh(), " Regenerate")
-    ),
     h(Section, {title:"Project Info",defaultOpen:false},
       h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"4px 0"}},
         ctx.sW + " \xD7 " + ctx.sH + " stitches \u00B7 " + (ctx.displayPal||ctx.pal||[]).length + " colours"
@@ -1821,6 +1757,30 @@ window.CreatorSidebar = function CreatorSidebar() {
   }
 
   return h(React.Fragment, null,
+    // "Back to Convert" link — shown in edit mode when a source image exists.
+    // Fires the back-to-convert request (may show warning modal if edits exist).
+    gen.img && h("div", {style:{
+      flexShrink:0, padding:"6px 12px",
+      borderBottom:"1px solid var(--line)",
+      background:"var(--surface-secondary)"
+    }},
+      h("button", {
+        type:"button",
+        onClick:function(){
+          if(app.requestBackToConvert) app.requestBackToConvert();
+          else if(app.setAppMode) app.setAppMode("create");
+        },
+        style:{
+          display:"inline-flex",alignItems:"center",gap:4,
+          background:"none",border:"none",cursor:"pointer",
+          padding:"3px 0",fontSize:"var(--text-xs)",
+          color:"var(--text-secondary)",fontFamily:"inherit"
+        }
+      },
+        window.Icons && window.Icons.chevronLeft ? window.Icons.chevronLeft() : null,
+        "Back to Convert"
+      )
+    ),
     tabBar,
     h("div", {style:{overflowY:"auto",flex:1}},
       sTab === "palette" && h(React.Fragment, null,

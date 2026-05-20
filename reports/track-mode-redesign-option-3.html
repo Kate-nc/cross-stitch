@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Track Mode Redesign — Option 3: Split Palette</title>
+<style>
+/* ═══════════════════════════════════════════════════
+   WORKSHOP DESIGN TOKENS
+═══════════════════════════════════════════════════ */
+:root {
+  --accent:          #5b6af0;
+  --accent-2:        #9b59b6;
+  --surface:         #ffffff;
+  --surface-2:       #f5f5f5;
+  --surface-3:       #ebebeb;
+  --text-primary:    #1a1a1a;
+  --text-secondary:  #6b6b6b;
+  --line:            #e0e0e0;
+  --success:         #2e7d32;
+  --shadow-sm:       0 1px 3px rgba(0,0,0,.12);
+  --shadow-md:       0 4px 12px rgba(0,0,0,.16);
+  --radius-sm:       6px;
+  --radius-md:       10px;
+  --radius-lg:       16px;
+  --motion:          200ms ease;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #1a1a2e; color: var(--text-primary); }
+
+/* ═══════════════════════════════════════════════════
+   PAGE CHROME
+═══════════════════════════════════════════════════ */
+.page-meta {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  background: #12122a; border-bottom: 1px solid #2a2a4a;
+  display: flex; align-items: center; gap: 12px; padding: 8px 16px; flex-wrap: wrap;
+}
+.page-meta h1 { font-size: 13px; font-weight: 600; color: #e0e0ff; white-space: nowrap; }
+.page-meta .badge { font-size: 11px; background: #2e7d32; color: #fff; padding: 2px 8px; border-radius: 10px; }
+.bp-btns { display: flex; gap: 6px; }
+.bp-btn {
+  font-size: 11px; padding: 4px 10px; border-radius: 4px; border: 1px solid #3a3a6a;
+  background: transparent; color: #a0a0d0; cursor: pointer; transition: background var(--motion);
+}
+.bp-btn:hover, .bp-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.meta-sep { width: 1px; height: 20px; background: #2a2a4a; }
+.ann-toggle {
+  font-size: 11px; padding: 4px 10px; border-radius: 4px; border: 1px solid #3a3a6a;
+  background: transparent; color: #a0a0d0; cursor: pointer; margin-left: auto;
+}
+.ann-toggle.on { background: #f59e0b; color: #000; border-color: #f59e0b; }
+
+.page-outer {
+  padding-top: 54px;
+  display: flex; align-items: flex-start; justify-content: center; gap: 32px;
+  min-height: 100vh; padding-bottom: 32px; padding-left: 16px; padding-right: 16px;
+}
+
+#frame {
+  position: relative; background: var(--surface); border-radius: 20px; overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0,0,0,.5); transition: width var(--motion), height var(--motion);
+  flex-shrink: 0;
+}
+#frame.bp-phone          { width: 390px; height: 844px; }
+#frame.bp-tablet-p       { width: 768px; height: 1024px; }
+#frame.bp-tablet-l       { width: 1024px; height: 768px; }
+#frame.bp-desktop        { width: 1280px; height: 800px; }
+
+/* ═══════════════════════════════════════════════════
+   CALLOUT LEGEND
+═══════════════════════════════════════════════════ */
+#callout-legend {
+  background: #12122a; border: 1px solid #2a2a4a; border-radius: 12px;
+  padding: 16px; width: 260px; flex-shrink: 0; align-self: flex-start; margin-top: 12px;
+  transition: opacity var(--motion);
+}
+#callout-legend.hidden { opacity: 0; pointer-events: none; }
+#callout-legend h3 { font-size: 12px; font-weight: 600; color: #e0e0ff; margin-bottom: 12px; letter-spacing: .05em; text-transform: uppercase; }
+#callout-legend ol { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+#callout-legend li { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: #b0b0d0; line-height: 1.4; }
+.legend-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 20px; border-radius: 50%;
+  background: #2e7d32; color: #fff; font-size: 10px; font-weight: 700; flex-shrink: 0;
+}
+.callout-pin {
+  position: absolute; z-index: 900; width: 22px; height: 22px; border-radius: 50%;
+  background: #2e7d32; color: #fff; font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 0 2px #fff, 0 2px 6px rgba(0,0,0,.4); pointer-events: none;
+  transition: opacity var(--motion);
+}
+body:not(.annotations) .callout-pin { opacity: 0; }
+
+/* ═══════════════════════════════════════════════════
+   APP LAYOUT
+═══════════════════════════════════════════════════ */
+.app-root {
+  display: flex; flex-direction: column; height: 100%; width: 100%;
+  overflow: hidden; position: relative; background: var(--surface);
+}
+
+/* ═══════════════════════════════════════════════════
+   PALETTE PANEL (left, desktop / tablet-l / tablet-p)
+═══════════════════════════════════════════════════ */
+.palette-panel {
+  display: flex; flex-direction: column;
+  background: var(--surface); border-right: 1px solid var(--line);
+  flex-shrink: 0; overflow: hidden;
+  transition: transform .3s cubic-bezier(.4,0,.2,1);
+}
+
+/* Panel width per breakpoint */
+#frame.bp-phone .palette-panel,
+#frame.bp-tablet-p .palette-panel { width: 100%; position: absolute; top: 0; bottom: 0; left: 0; z-index: 30; transform: translateX(-100%); }
+#frame.bp-phone .palette-panel.open,
+#frame.bp-tablet-p .palette-panel.open { transform: translateX(0); }
+#frame.bp-tablet-l .palette-panel { width: 300px; }
+#frame.bp-desktop .palette-panel { width: 320px; }
+
+/* Panel header */
+.panel-header {
+  padding: 14px 16px 10px; border-bottom: 1px solid var(--line); flex-shrink: 0;
+}
+.panel-title { font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+.panel-progress-row {
+  display: flex; align-items: center; gap: 8px; margin-top: 8px;
+}
+.panel-pct { font-size: 13px; font-weight: 700; }
+.panel-bar { flex: 1; height: 6px; background: var(--surface-3); border-radius: 3px; overflow: hidden; }
+.panel-bar-fill { height: 100%; background: var(--accent); border-radius: 3px; width: 47%; }
+.panel-session-row {
+  display: flex; align-items: center; gap: 8px; margin-top: 8px;
+}
+.session-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); animation: pulse-dot 2s infinite; }
+@keyframes pulse-dot { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+.panel-session-time { font-size: 13px; font-weight: 600; }
+.panel-session-meta { font-size: 12px; color: var(--text-secondary); }
+.panel-pause-btn {
+  margin-left: auto; height: 32px; padding: 0 10px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: transparent; cursor: pointer; font-size: 12px; font-weight: 500;
+}
+
+/* Sort control */
+.panel-sort-row {
+  display: flex; align-items: center; gap: 6px; padding: 8px 16px;
+  border-bottom: 1px solid var(--line); flex-shrink: 0;
+}
+.panel-sort-label { font-size: 11px; color: var(--text-secondary); }
+.sort-btn {
+  height: 28px; padding: 0 10px; border: 1px solid var(--line); border-radius: 14px;
+  background: transparent; cursor: pointer; font-size: 11px; font-weight: 500;
+  transition: background var(--motion);
+}
+.sort-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* Active colour pinned tile */
+.active-colour-tile {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px 12px; border-bottom: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  flex-shrink: 0; cursor: pointer; position: relative;
+}
+.act-ring-wrap { position: relative; flex-shrink: 0; }
+.act-ring-svg { width: 64px; height: 64px; }
+.act-ring-swatch {
+  position: absolute; width: 46px; height: 46px; border-radius: 50%;
+  top: 9px; left: 9px; border: 2px solid rgba(0,0,0,.08);
+}
+.act-colour-info { flex: 1; min-width: 0; }
+.act-dmc { font-size: 11px; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; }
+.act-name { font-size: 16px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act-count { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.act-find-btn {
+  height: 40px; padding: 0 14px;
+  background: var(--accent); color: #fff; border: none;
+  border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; font-weight: 600;
+  display: flex; align-items: center; gap: 6px; white-space: nowrap;
+  flex-shrink: 0;
+}
+.act-find-btn svg { width: 16px; height: 16px; }
+
+/* Colour tile list */
+.colour-list { flex: 1; overflow-y: auto; }
+.colour-tile {
+  display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+  border-bottom: 1px solid var(--line); cursor: pointer;
+  transition: background var(--motion); position: relative;
+}
+.colour-tile:hover { background: var(--surface-2); }
+.colour-tile.focused {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-left: 3px solid var(--accent);
+}
+.colour-tile.focused .ct-swatch-wrap { margin-left: -3px; }
+.ct-swatch-wrap { position: relative; flex-shrink: 0; }
+.ct-swatch { width: 48px; height: 48px; border-radius: 8px; border: 1.5px solid rgba(0,0,0,.1); }
+.ct-info { flex: 1; min-width: 0; }
+.ct-dmc { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+.ct-name { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-progress-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.ct-bar { flex: 1; height: 4px; background: var(--surface-3); border-radius: 2px; overflow: hidden; }
+.ct-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; }
+.colour-tile.done-colour .ct-bar-fill { background: var(--success); }
+.ct-count { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+.ct-done-badge {
+  font-size: 10px; font-weight: 700; color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  padding: 2px 6px; border-radius: 8px;
+}
+
+/* ═══════════════════════════════════════════════════
+   CANVAS AREA
+═══════════════════════════════════════════════════ */
+.canvas-col { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+
+.canvas-topbar {
+  height: 44px; background: var(--surface); border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 8px; padding: 0 10px; flex-shrink: 0;
+}
+.canvas-topbar-btn {
+  height: 36px; width: 36px; display: flex; align-items: center; justify-content: center;
+  border: none; background: transparent; cursor: pointer; border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+}
+.canvas-topbar-btn:hover { background: var(--surface-2); }
+.canvas-topbar-btn svg { width: 18px; height: 18px; }
+.canvas-title { flex: 1; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Mode strip (right edge of canvas, floating) */
+.mode-strip {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: 4px; z-index: 10;
+}
+.mode-btn {
+  width: 52px; height: 52px; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-md); cursor: pointer; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 3px;
+  box-shadow: var(--shadow-sm); transition: background var(--motion), border-color var(--motion);
+  font-size: 10px; font-weight: 600; color: var(--text-secondary);
+}
+.mode-btn svg { width: 20px; height: 20px; }
+.mode-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.mode-btn.active svg { color: #fff; }
+.mode-btn:hover:not(.active) { background: var(--surface-2); }
+
+/* Canvas scroll area */
+.canvas-scroll { flex: 1; overflow: auto; background: #f0ebe3; padding: 8px; display: flex; align-items: flex-start; justify-content: center; }
+
+/* Pattern grid */
+.pattern-grid {
+  display: grid; grid-template-columns: repeat(16, 1fr);
+  gap: 1px; background: rgba(0,0,0,.15); border: 1px solid rgba(0,0,0,.2);
+  user-select: none;
+}
+.stitch {
+  aspect-ratio: 1; background: var(--cell-bg, #f0ebe3); cursor: pointer;
+  position: relative; transition: filter .1s; min-width: 0;
+}
+.stitch:hover { filter: brightness(1.12); }
+.stitch.blank { background: #f0ebe3 !important; cursor: default; }
+.stitch.blank:hover { filter: none; }
+.stitch.done { opacity: .6; }
+.stitch.done::after {
+  content: ""; position: absolute; inset: 2px; background: rgba(0,0,0,.55); border-radius: 1px;
+  mask-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 10 10' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 5 L4 8 L9 2' stroke='white' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  mask-repeat: no-repeat; mask-position: center; mask-size: 80%;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 10 10' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 5 L4 8 L9 2' stroke='white' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  -webkit-mask-repeat: no-repeat; -webkit-mask-position: center; -webkit-mask-size: 80%;
+}
+.stitch.highlighted { outline: 2px solid var(--accent); outline-offset: -1px; filter: brightness(1.08); }
+
+/* ═══════════════════════════════════════════════════
+   PHONE: COLOUR TRIGGER CHIP (always visible on canvas)
+═══════════════════════════════════════════════════ */
+.canvas-colour-chip {
+  position: absolute; top: 8px; left: 8px; z-index: 10;
+  display: none; align-items: center; gap: 8px; padding: 6px 10px;
+  background: var(--surface); border: 1.5px solid var(--accent); border-radius: 20px;
+  cursor: pointer; box-shadow: var(--shadow-sm); font-size: 12px; font-weight: 600;
+}
+#frame.bp-phone .canvas-colour-chip,
+#frame.bp-tablet-p .canvas-colour-chip { display: flex; }
+.chip-dot { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid rgba(0,0,0,.1); }
+
+/* Phone: show panel trigger for open button on top-bar */
+.palette-open-btn { display: none; }
+#frame.bp-phone .palette-open-btn,
+#frame.bp-tablet-p .palette-open-btn { display: flex; }
+#frame.bp-tablet-l .palette-open-btn,
+#frame.bp-desktop .palette-open-btn { display: none; }
+
+/* Phone: hide canvas topbar title */
+#frame.bp-phone .canvas-title,
+#frame.bp-tablet-p .canvas-title { display: none; }
+
+/* Main layout: palette + canvas side-by-side */
+.main-row { flex: 1; display: flex; overflow: hidden; }
+
+/* Palette backdrop for phone */
+.palette-backdrop {
+  position: absolute; inset: 0; background: rgba(0,0,0,.3); z-index: 20; display: none;
+}
+.palette-backdrop.open { display: block; }
+
+/* ═══════════════════════════════════════════════════
+   "MORE" SLIDE-OVER PANEL (from mode-strip More button)
+═══════════════════════════════════════════════════ */
+.more-panel {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 260px; z-index: 15;
+  background: var(--surface); border-left: 1px solid var(--line);
+  transform: translateX(100%); transition: transform .3s cubic-bezier(.4,0,.2,1);
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: -4px 0 16px rgba(0,0,0,.1);
+}
+.more-panel.open { transform: translateX(0); }
+.more-panel-header {
+  height: 48px; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px; border-bottom: 1px solid var(--line); flex-shrink: 0;
+}
+.more-panel-header h3 { font-size: 14px; font-weight: 600; }
+.more-panel-close {
+  width: 32px; height: 32px; border: none; background: transparent; cursor: pointer;
+  border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center;
+  color: var(--text-secondary);
+}
+.more-panel-body { flex: 1; overflow-y: auto; padding: 12px 16px 20px; }
+.more-section { margin-bottom: 20px; }
+.more-section-title { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+.more-row { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); gap: 10px; }
+.more-row:last-child { border-bottom: none; }
+.more-row-label { flex: 1; font-size: 14px; font-weight: 500; }
+.more-seg { display: flex; gap: 4px; }
+.more-seg-btn { flex: 1; height: 36px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: transparent; cursor: pointer; font-size: 11px; font-weight: 500; transition: background var(--motion); }
+.more-seg-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- ═══ META BAR ═══ -->
+<div class="page-meta">
+  <h1>Option 3 — Split Palette</h1>
+  <span class="badge">Draft mockup</span>
+  <div class="meta-sep"></div>
+  <div class="bp-btns">
+    <button class="bp-btn active" onclick="setBP('phone')">Phone 390</button>
+    <button class="bp-btn" onclick="setBP('tablet-p')">Tablet Portrait 768</button>
+    <button class="bp-btn" onclick="setBP('tablet-l')">Tablet Landscape 1024</button>
+    <button class="bp-btn" onclick="setBP('desktop')">Desktop 1280</button>
+  </div>
+  <div class="meta-sep"></div>
+  <button class="ann-toggle on" id="ann-btn" onclick="toggleAnnotations()">Annotations ON</button>
+</div>
+
+<div class="page-outer">
+  <div id="frame" class="bp-phone">
+
+    <!-- CALLOUT PINS -->
+    <span class="callout-pin" style="top:100px; left:8px">1</span>
+    <span class="callout-pin" style="top:200px; left:8px">2</span>
+    <span class="callout-pin" style="top:400px; left:50%; transform:translateX(-50%)">3</span>
+    <span class="callout-pin" style="top:400px; right:12px">4</span>
+    <span class="callout-pin" style="top:22px; left:8px">5</span>
+    <span class="callout-pin" style="top:22px; right:48px">6</span>
+
+    <div class="app-root">
+
+      <!-- MAIN ROW (palette + canvas) -->
+      <div class="main-row">
+
+        <!-- PALETTE BACKDROP (phone/tablet-p) -->
+        <div class="palette-backdrop" id="palette-backdrop" onclick="closePalette()"></div>
+
+        <!-- PALETTE PANEL -->
+        <div class="palette-panel" id="palette-panel">
+
+          <!-- Panel header -->
+          <div class="panel-header">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div class="panel-title">Spring Garden</div>
+              <!-- Close on phone -->
+              <button onclick="closePalette()" style="margin-left:auto;width:32px;height:32px;border:none;background:transparent;cursor:pointer;border-radius:var(--radius-sm);color:var(--text-secondary);display:flex;align-items:center;justify-content:center">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="width:18px;height:18px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div class="panel-progress-row">
+              <span class="panel-pct" id="panel-pct">47%</span>
+              <div class="panel-bar"><div class="panel-bar-fill" id="panel-bar-fill"></div></div>
+            </div>
+            <div class="panel-session-row">
+              <div class="session-dot"></div>
+              <span class="panel-session-time">0:32</span>
+              <span class="panel-session-meta">· 24 stitches</span>
+              <button class="panel-pause-btn" onclick="flashMsg('Session paused')">Pause</button>
+            </div>
+          </div>
+
+          <!-- Sort control -->
+          <div class="panel-sort-row">
+            <span class="panel-sort-label">Sort:</span>
+            <button class="sort-btn active" onclick="setSort('remaining')">Remaining</button>
+            <button class="sort-btn" onclick="setSort('pct')">% done</button>
+            <button class="sort-btn" onclick="setSort('dmc')">DMC ID</button>
+          </div>
+
+          <!-- Active colour pinned tile -->
+          <div class="active-colour-tile" id="active-colour-tile">
+            <div class="act-ring-wrap">
+              <svg class="act-ring-svg" viewBox="0 0 64 64">
+                <circle cx="32" cy="32" r="26" fill="none" stroke="#ebebeb" stroke-width="6"/>
+                <circle id="act-ring-arc" cx="32" cy="32" r="26" fill="none" stroke="#5b6af0" stroke-width="6"
+                  stroke-dasharray="163.4 163.4" stroke-dashoffset="106" stroke-linecap="round"
+                  transform="rotate(-90 32 32)"/>
+              </svg>
+              <div class="act-ring-swatch" id="act-swatch" style="background:#2c2c2c"></div>
+            </div>
+            <div class="act-colour-info">
+              <div class="act-dmc" id="act-dmc">DMC 310 · Active</div>
+              <div class="act-name" id="act-name">Black</div>
+              <div class="act-count" id="act-count">34 of 96 stitches · 35%</div>
+            </div>
+            <button class="act-find-btn" onclick="findNext()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20 L15.5 15.5"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+              Find
+            </button>
+          </div>
+
+          <!-- Colour tile list -->
+          <div class="colour-list" id="colour-list"></div>
+
+        </div><!-- .palette-panel -->
+
+        <!-- CANVAS COLUMN -->
+        <div class="canvas-col">
+
+          <!-- Canvas top bar -->
+          <div class="canvas-topbar">
+            <!-- Open palette button (phone/tablet-p) -->
+            <button class="canvas-topbar-btn palette-open-btn" onclick="openPalette()" title="Open colour palette">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="6" cy="12" r="2.5" fill="currentColor"/><circle cx="12" cy="6" r="2.5" fill="currentColor"/><circle cx="18" cy="12" r="2.5" fill="currentColor"/><circle cx="12" cy="18" r="2.5" fill="currentColor"/></svg>
+            </button>
+            <span class="canvas-title">Spring Garden · 47%</span>
+            <button class="canvas-topbar-btn" onclick="undoLast()" title="Undo">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 10 L9 4 L9 8 C16 8 20 13 20 20 C18 15 14 12 9 12 L9 16 Z"/></svg>
+            </button>
+            <button class="canvas-topbar-btn" onclick="toggleMore()" title="More">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>
+            </button>
+          </div>
+
+          <!-- Canvas colour chip (phone only, always visible over canvas) -->
+          <div class="canvas-colour-chip" id="canvas-colour-chip" onclick="openPalette()">
+            <div class="chip-dot" id="chip-dot" style="background:#2c2c2c"></div>
+            <span id="chip-label">DMC 310</span>
+          </div>
+
+          <!-- Canvas scroll area -->
+          <div class="canvas-scroll" id="canvas-scroll">
+            <div class="pattern-grid" id="pattern-grid" onclick="handleCanvasClick(event)"></div>
+          </div>
+
+          <!-- Floating mode strip -->
+          <div class="mode-strip">
+            <button class="mode-btn active" id="ms-mark" onclick="setMode('mark')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 12 L9 17 L20 6"/></svg>
+              Mark
+            </button>
+            <button class="mode-btn" id="ms-nav" onclick="setMode('nav')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3 L12 21 M3 12 L21 12"/></svg>
+              Nav
+            </button>
+            <button class="mode-btn" onclick="fitPattern()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3 L9 9 L3 9 M15 3 L15 9 L21 9 M9 21 L9 15 L3 15 M15 21 L15 15 L21 15"/></svg>
+              Fit
+            </button>
+            <button class="mode-btn" onclick="undoLast()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 10 L9 4 L9 8 C16 8 20 13 20 20 C18 15 14 12 9 12 L9 16 Z"/></svg>
+              Undo
+            </button>
+            <button class="mode-btn" onclick="toggleMore()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="3" y1="7" x2="21" y2="7"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="17" x2="21" y2="17"/></svg>
+              More
+            </button>
+          </div>
+
+          <!-- MORE SLIDE-OVER PANEL -->
+          <div class="more-panel" id="more-panel">
+            <div class="more-panel-header">
+              <h3>More Controls</h3>
+              <button class="more-panel-close" onclick="toggleMore()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="width:18px;height:18px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div class="more-panel-body">
+              <div class="more-section">
+                <div class="more-section-title">Highlight View</div>
+                <div class="more-seg" style="margin-bottom:8px">
+                  <button class="more-seg-btn active">Isolate</button>
+                  <button class="more-seg-btn">Outline</button>
+                </div>
+                <div class="more-seg">
+                  <button class="more-seg-btn">Tint</button>
+                  <button class="more-seg-btn">Spotlight</button>
+                </div>
+              </div>
+              <div class="more-section">
+                <div class="more-section-title">Session</div>
+                <div class="more-row">
+                  <div class="more-row-label">Timer: 0:32</div>
+                  <button onclick="flashMsg('Paused')" style="height:36px;padding:0 12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:transparent;cursor:pointer;font-size:12px">Pause</button>
+                </div>
+                <div class="more-row">
+                  <div class="more-row-label">24 stitches today</div>
+                  <button onclick="flashMsg('Session ended')" style="height:36px;padding:0 12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:transparent;cursor:pointer;font-size:12px;color:#c62828">End</button>
+                </div>
+              </div>
+              <div class="more-section">
+                <div class="more-section-title">Tools</div>
+                <div class="more-row">
+                  <div class="more-row-label">Counting aids</div>
+                  <input type="checkbox" style="width:20px;height:20px;cursor:pointer">
+                </div>
+                <div class="more-row">
+                  <div class="more-row-label">Row mode</div>
+                  <input type="checkbox" style="width:20px;height:20px;cursor:pointer">
+                </div>
+                <div class="more-row">
+                  <div class="more-row-label">Breadcrumbs</div>
+                  <input type="checkbox" style="width:20px;height:20px;cursor:pointer">
+                </div>
+              </div>
+              <div class="more-section">
+                <div class="more-section-title">Layers</div>
+                <div class="more-row">
+                  <div class="more-row-label">Full stitch</div>
+                  <input type="checkbox" checked style="width:20px;height:20px;cursor:pointer">
+                </div>
+                <div class="more-row">
+                  <div class="more-row-label">Half stitch</div>
+                  <input type="checkbox" checked style="width:20px;height:20px;cursor:pointer">
+                </div>
+                <div class="more-row">
+                  <div class="more-row-label">Backstitch</div>
+                  <input type="checkbox" checked style="width:20px;height:20px;cursor:pointer">
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- .canvas-col -->
+
+      </div><!-- .main-row -->
+
+    </div><!-- .app-root -->
+  </div><!-- #frame -->
+
+  <!-- CALLOUT LEGEND -->
+  <aside id="callout-legend">
+    <h3>Option 3 — Split Palette</h3>
+    <ol>
+      <li><span class="legend-num">1</span> <div><strong>Active colour tile</strong> — pinned at top of palette. Shows progress arc, DMC name, stitch count, and "Find next" button. Always visible on tablet/desktop.</div></li>
+      <li><span class="legend-num">2</span> <div><strong>Colour tile list</strong> — large 48px tiles (swatch + name + progress bar + count). Tap to switch focus colour. Sorted by remaining stitches by default.</div></li>
+      <li><span class="legend-num">3</span> <div><strong>Pattern canvas</strong> — tap to toggle (same as current). Long-press 300ms → drag mode. Canvas gets maximum space since all colour info is in the palette panel.</div></li>
+      <li><span class="legend-num">4</span> <div><strong>Floating mode strip</strong> — 5 buttons (Mark, Nav, Fit, Undo, More), each 52×52px. Right-edge anchored. Does not obscure stitches — placed in the margin.</div></li>
+      <li><span class="legend-num">5</span> <div><strong>Colour chip trigger (phone)</strong> — always visible at top of canvas. Tap to open palette panel slide-in. Shows active colour + DMC ID.</div></li>
+      <li><span class="legend-num">6</span> <div><strong>Undo + More (canvas topbar, phone)</strong> — always reachable without opening palette panel.</div></li>
+    </ol>
+    <div style="margin-top:16px; font-size:11px; color:#6060a0; line-height:1.5">
+      <strong style="color:#9090c0">Key changes from current UI:</strong><br>
+      Right panel legend replaced by large interactive palette tiles. No toolbar pill. No floating dock. No sidebar tabs. Colour switching is the primary action — the palette panel IS the sidebar. Mode strip replaces toolbar for active controls.
+    </div>
+  </aside>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════
+   PATTERN DATA
+═══════════════════════════════════════════════════ */
+const W = 16, H = 12;
+const _ = -1;
+const PALETTE = [
+  { id: '310', name: 'Black',         rgb: '#2c2c2c' },
+  { id: '321', name: 'Christmas Red', rgb: '#b5222e' },
+  { id: '3765', name: 'Peacock Blue', rgb: '#2a7d8e' },
+  { id: '743', name: 'Yellow',        rgb: '#f8c84e' },
+  { id: '3816', name: 'Celadon',      rgb: '#6bab7c' },
+];
+const GRID = [
+  _,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,
+  _,_,_,4,4,_,_,_,_,_,_,4,4,_,_,_,
+  _,_,4,4,4,4,_,_,_,_,4,4,4,4,_,_,
+  _,4,4,2,2,4,4,_,_,4,4,2,2,4,4,_,
+  _,4,2,2,2,2,4,_,_,4,2,2,2,2,4,_,
+  _,4,2,2,3,2,4,0,0,4,2,3,2,2,4,_,
+  _,4,4,2,2,4,4,0,0,4,4,2,2,4,4,_,
+  _,_,4,4,4,4,1,0,0,1,4,4,4,4,_,_,
+  _,_,_,4,4,1,1,1,1,1,1,4,4,_,_,_,
+  _,_,_,_,1,1,1,1,1,1,1,1,_,_,_,_,
+  _,_,_,_,_,1,1,1,1,1,1,_,_,_,_,_,
+  _,_,_,_,_,_,1,1,1,1,_,_,_,_,_,_,
+];
+let done = GRID.map((v, i) => (Math.floor(i/W) <= 4 && v >= 0) ? 1 : 0);
+let focusColour = 0;
+let undoStack = [];
+let currentMode = 'mark';
+let sortMode = 'remaining';
+
+/* ═══════════════════════════════════════════════════
+   RENDER PATTERN
+═══════════════════════════════════════════════════ */
+function renderGrid() {
+  const grid = document.getElementById('pattern-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  GRID.forEach((ci, idx) => {
+    const cell = document.createElement('div');
+    cell.className = 'stitch' + (ci < 0 ? ' blank' : '') + (done[idx] ? ' done' : '');
+    if (ci >= 0) cell.style.background = PALETTE[ci].rgb;
+    cell.dataset.idx = idx;
+    grid.appendChild(cell);
+  });
+  adjustCellSize();
+}
+
+function adjustCellSize() {
+  const grid = document.getElementById('pattern-grid');
+  const area = document.getElementById('canvas-scroll');
+  if (!grid || !area) return;
+  const availW = area.clientWidth - 16;
+  const cellSize = Math.max(10, Math.floor(availW / W));
+  grid.style.gridTemplateColumns = `repeat(${W}, ${cellSize}px)`;
+}
+
+function updateCell(idx) {
+  const g = document.getElementById('pattern-grid');
+  if (!g) return;
+  const c = g.children[idx];
+  if (c) c.classList.toggle('done', !!done[idx]);
+}
+
+/* ═══════════════════════════════════════════════════
+   RENDER PALETTE PANEL
+═══════════════════════════════════════════════════ */
+function computeStats() {
+  return PALETTE.map((p, pi) => {
+    const total = GRID.filter(v => v === pi).length;
+    const dc = done.filter((v, i) => GRID[i] === pi && v).length;
+    const remaining = total - dc;
+    const pct = total ? Math.round(dc/total*100) : 0;
+    return {...p, pi, total, dc, remaining, pct};
+  });
+}
+
+function sortStats(stats) {
+  if (sortMode === 'remaining') return [...stats].sort((a,b) => b.remaining - a.remaining);
+  if (sortMode === 'pct') return [...stats].sort((a,b) => b.pct - a.pct);
+  return [...stats].sort((a,b) => a.id.localeCompare(b.id));
+}
+
+function renderPalettePanel() {
+  const stats = computeStats();
+  const current = stats[focusColour];
+
+  // Update active tile
+  const arcEl = document.getElementById('act-ring-arc');
+  if (arcEl) {
+    const circ = 2 * Math.PI * 26; // ≈163.4
+    const filled = circ * current.pct / 100;
+    arcEl.setAttribute('stroke-dasharray', `${filled} ${circ-filled}`);
+    arcEl.setAttribute('stroke', current.rgb);
+  }
+  const swatch = document.getElementById('act-swatch');
+  if (swatch) swatch.style.background = current.rgb;
+  const dmc = document.getElementById('act-dmc');
+  if (dmc) dmc.textContent = `DMC ${current.id} · Active`;
+  const name = document.getElementById('act-name');
+  if (name) name.textContent = current.name;
+  const count = document.getElementById('act-count');
+  if (count) count.textContent = `${current.dc} of ${current.total} stitches · ${current.pct}%`;
+
+  // Update chip
+  const chipDot = document.getElementById('chip-dot');
+  const chipLabel = document.getElementById('chip-label');
+  if (chipDot) chipDot.style.background = current.rgb;
+  if (chipLabel) chipLabel.textContent = 'DMC ' + current.id;
+
+  // Update progress bar
+  const total = stats.reduce((a,s)=>a+s.total, 0);
+  const totalDone = stats.reduce((a,s)=>a+s.dc, 0);
+  const overallPct = total ? Math.round(totalDone/total*100) : 0;
+  const pctEl = document.getElementById('panel-pct');
+  if (pctEl) pctEl.textContent = overallPct + '%';
+  const fill = document.getElementById('panel-bar-fill');
+  if (fill) fill.style.width = overallPct + '%';
+
+  // Render colour list (exclude active)
+  const list = document.getElementById('colour-list');
+  if (!list) return;
+  const sorted = sortStats(stats).filter(s => s.pi !== focusColour);
+  list.innerHTML = sorted.map(s => `
+    <div class="colour-tile ${s.pi===focusColour?'focused':''} ${s.dc===s.total&&s.total>0?'done-colour':''}"
+         onclick="selectColour(${s.pi})">
+      <div class="ct-swatch-wrap">
+        <div class="ct-swatch" style="background:${s.rgb}"></div>
+      </div>
+      <div class="ct-info">
+        <div class="ct-dmc">DMC ${s.id}</div>
+        <div class="ct-name">${s.name}</div>
+        <div class="ct-progress-row">
+          <div class="ct-bar"><div class="ct-bar-fill" style="width:${s.pct}%"></div></div>
+          <div class="ct-count">${s.dc}/${s.total}</div>
+        </div>
+      </div>
+      ${s.dc===s.total&&s.total>0?'<div class="ct-done-badge">Done</div>':''}
+    </div>
+  `).join('');
+}
+
+function highlightFocusColour() {
+  const g = document.getElementById('pattern-grid');
+  if (!g) return;
+  GRID.forEach((v, i) => {
+    const cell = g.children[i];
+    if (!cell) return;
+    cell.classList.toggle('highlighted', v === focusColour && !done[i]);
+  });
+}
+
+/* ═══════════════════════════════════════════════════
+   INTERACTIONS
+═══════════════════════════════════════════════════ */
+function handleCanvasClick(e) {
+  const cell = e.target.closest('.stitch');
+  if (!cell || cell.classList.contains('blank')) return;
+  const idx = +cell.dataset.idx;
+  if (GRID[idx] < 0) return;
+  undoStack.push({idx, prev: done[idx]});
+  if (undoStack.length > 50) undoStack.shift();
+  done[idx] = done[idx] ? 0 : 1;
+  updateCell(idx);
+  renderPalettePanel();
+  highlightFocusColour();
+}
+
+function undoLast() {
+  if (!undoStack.length) { flashMsg('Nothing to undo'); return; }
+  const {idx, prev} = undoStack.pop();
+  done[idx] = prev;
+  updateCell(idx);
+  renderPalettePanel();
+  highlightFocusColour();
+  flashMsg('Undone');
+}
+
+function selectColour(idx) {
+  focusColour = idx;
+  renderPalettePanel();
+  highlightFocusColour();
+  flashMsg('DMC ' + PALETTE[idx].id + ' · ' + PALETTE[idx].name);
+  // Close palette on phone after selection
+  const frame = document.getElementById('frame');
+  if (frame.classList.contains('bp-phone') || frame.classList.contains('bp-tablet-p')) {
+    setTimeout(() => closePalette(), 200);
+  }
+}
+
+function findNext() {
+  const candidates = GRID.map((v,i) => ({v,i})).filter(({v,i}) => v === focusColour && !done[i]);
+  if (!candidates.length) { flashMsg('No more stitches for DMC ' + PALETTE[focusColour].id); return; }
+  const c = candidates[0];
+  const cell = document.getElementById('pattern-grid')?.children[c.i];
+  if (cell) {
+    cell.style.outline = '3px solid yellow';
+    cell.style.outlineOffset = '-3px';
+    cell.scrollIntoView({behavior:'smooth', block:'nearest'});
+    setTimeout(() => { cell.style.outline=''; cell.style.outlineOffset=''; }, 1400);
+  }
+  flashMsg('Next stitch found');
+}
+
+function setMode(m) {
+  currentMode = m;
+  document.getElementById('ms-mark')?.classList.toggle('active', m === 'mark');
+  document.getElementById('ms-nav')?.classList.toggle('active', m === 'nav');
+  flashMsg(m === 'mark' ? 'Mark mode' : 'Navigate mode');
+}
+
+function fitPattern() { adjustCellSize(); flashMsg('Fit to canvas'); }
+
+function setSort(s) {
+  sortMode = s;
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.sort-btn').forEach(b => {
+    if (b.onclick.toString().includes(`'${s}'`)) b.classList.add('active');
+  });
+  renderPalettePanel();
+}
+
+function openPalette() {
+  document.getElementById('palette-panel').classList.add('open');
+  document.getElementById('palette-backdrop').classList.add('open');
+}
+function closePalette() {
+  document.getElementById('palette-panel').classList.remove('open');
+  document.getElementById('palette-backdrop').classList.remove('open');
+}
+
+function toggleMore() {
+  document.getElementById('more-panel').classList.toggle('open');
+}
+
+function flashMsg(msg) {
+  let fb = document.getElementById('fb-toast');
+  if (!fb) {
+    fb = document.createElement('div');
+    fb.id = 'fb-toast';
+    Object.assign(fb.style, {
+      position:'absolute', bottom:'20px', left:'50%', transform:'translateX(-50%)',
+      background:'rgba(0,0,0,.7)', color:'#fff', padding:'6px 14px',
+      borderRadius:'20px', fontSize:'13px', zIndex:'200', whiteSpace:'nowrap',
+      pointerEvents:'none', transition:'opacity .3s'
+    });
+    document.getElementById('frame').appendChild(fb);
+  }
+  fb.textContent = msg; fb.style.opacity = '1';
+  clearTimeout(fb._t);
+  fb._t = setTimeout(() => { fb.style.opacity = '0'; }, 1400);
+}
+
+/* ═══════════════════════════════════════════════════
+   BREAKPOINT + ANNOTATIONS
+═══════════════════════════════════════════════════ */
+function setBP(bp) {
+  document.getElementById('frame').className = 'bp-' + bp;
+  document.querySelectorAll('.bp-btn').forEach(b => b.classList.toggle('active', b.onclick.toString().includes(`'${bp}'`)));
+  // On wider viewports, palette auto-shows
+  const wideLayouts = ['tablet-l', 'desktop'];
+  if (wideLayouts.includes(bp)) {
+    closePalette(); // reset open state (panel is persistent on these)
+  }
+  setTimeout(adjustCellSize, 50);
+}
+
+function toggleAnnotations() {
+  document.body.classList.toggle('annotations');
+  const on = document.body.classList.contains('annotations');
+  const btn = document.getElementById('ann-btn');
+  btn.textContent = 'Annotations ' + (on ? 'ON' : 'OFF');
+  btn.classList.toggle('on', on);
+  document.getElementById('callout-legend').classList.toggle('hidden', !on);
+}
+
+/* INIT */
+document.body.classList.add('annotations');
+renderGrid();
+renderPalettePanel();
+highlightFocusColour();
+window.addEventListener('resize', adjustCellSize);
+</script>
+</body>
+</html>

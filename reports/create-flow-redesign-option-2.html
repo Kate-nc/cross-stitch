@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Option 2 — Intent Profiles · stitchx redesign mockup</title>
+<style>
+:root{
+  --accent:#B85C38;--accent-hover:#944526;--accent-light:#F4DDCF;
+  --accent-border:#E8B89A;--text-primary:#1B1814;--text-secondary:#5C5448;
+  --surface:#ffffff;--surface-secondary:#FBF8F3;--surface-tertiary:#EFE7D6;
+  --radius-sm:6px;--radius-md:8px;--radius-lg:10px;
+  --shadow-sm:0 1px 3px rgba(0,0,0,0.06);--shadow-md:0 4px 12px rgba(0,0,0,0.12);
+  --line:#E5DCCB;--line-2:#D8CDB6;
+  --success:#4F7D3F;--success-soft:#DEE7D2;
+  --warning:#C0883A;--warning-soft:#F2E2BE;
+  --motion:160ms ease-out;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',system-ui,sans-serif;background:#F0EBE3;color:var(--text-primary);font-size:13px;}
+
+.toolbar{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap;}
+.toolbar a{font-size:12px;color:var(--accent);text-decoration:none;}
+.toolbar-title{font-weight:600;font-size:13px;flex:1;min-width:180px;}
+.toolbar-subtitle{font-size:11px;color:var(--text-secondary);}
+.bp-bar{display:flex;gap:4px;}
+.bp-btn{padding:4px 10px;border:1px solid var(--line-2);border-radius:var(--radius-sm);background:var(--surface-secondary);color:var(--text-secondary);cursor:pointer;font-size:11px;font-family:inherit;transition:all var(--motion);}
+.bp-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+.mockup-outer{padding:16px;display:flex;justify-content:flex-start;gap:16px;align-items:flex-start;}
+.mockup-frame{background:var(--surface-secondary);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-md);transition:width var(--motion);flex-shrink:0;position:relative;height:640px;}
+
+.app-header{display:flex;align-items:center;gap:8px;padding:0 14px;height:40px;background:var(--surface);border-bottom:1px solid var(--line);}
+.app-logo{font-weight:800;font-size:14px;letter-spacing:-0.3px;}
+.app-header-spacer{flex:1;}
+.header-btn{padding:4px 10px;font-size:11px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-secondary);cursor:pointer;font-family:inherit;}
+
+/* Profile picker overlay */
+.profile-overlay{position:absolute;inset:0;z-index:20;background:rgba(26,22,18,0.55);display:flex;align-items:center;justify-content:center;padding:24px;}
+.profile-modal{background:var(--surface);border-radius:var(--radius-lg);padding:24px;max-width:560px;width:100%;box-shadow:var(--shadow-md);}
+.profile-modal-title{font-size:16px;font-weight:700;margin-bottom:4px;}
+.profile-modal-sub{font-size:12px;color:var(--text-secondary);margin-bottom:18px;}
+.profile-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
+.profile-card{border:2px solid var(--line);border-radius:var(--radius-md);padding:14px 12px;cursor:pointer;transition:border-color var(--motion),background var(--motion);position:relative;}
+.profile-card:hover{border-color:var(--accent-border);background:var(--surface-secondary);}
+.profile-card.selected{border-color:var(--accent);background:var(--accent-light);}
+.profile-card-icon{width:32px;height:32px;border-radius:var(--radius-sm);margin-bottom:8px;display:flex;align-items:center;justify-content:center;}
+.profile-card-name{font-size:13px;font-weight:700;margin-bottom:3px;}
+.profile-card-time{font-size:10px;font-weight:600;color:var(--accent);margin-bottom:6px;}
+.profile-card-desc{font-size:11px;color:var(--text-secondary);line-height:1.5;}
+.profile-card-badge{position:absolute;top:8px;right:8px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:2px 6px;border-radius:10px;}
+.badge-popular{background:var(--success-soft);color:var(--success);}
+.badge-you{background:var(--warning-soft);color:var(--warning);}
+.profile-modal-footer{display:flex;align-items:center;justify-content:space-between;}
+.profile-skip{font-size:11px;color:var(--text-secondary);background:none;border:none;cursor:pointer;font-family:inherit;text-decoration:underline;}
+.btn-primary{padding:9px 20px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-md);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+.btn-primary:disabled{background:var(--line-2);cursor:not-allowed;}
+
+/* Main app layout */
+.app-layout{display:flex;height:calc(100% - 40px);}
+
+/* Preview area */
+.preview-area{flex:1;background:#1a1714;display:flex;flex-direction:column;}
+.preview-area-top{flex:1;display:flex;position:relative;}
+canvas.pattern-canvas{width:100%;height:100%;image-rendering:pixelated;display:block;}
+
+/* Settings panel */
+.settings-panel{width:240px;flex-shrink:0;display:flex;flex-direction:column;background:var(--surface);overflow-y:auto;border-left:1px solid var(--line);}
+.profile-switcher{padding:10px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px;}
+.profile-pill{flex:1;display:flex;align-items:center;gap:4px;padding:4px 8px;background:var(--surface-tertiary);border-radius:var(--radius-sm);border:1px solid var(--line);font-size:11px;font-weight:600;color:var(--text-primary);}
+.profile-switch-btn{font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;font-family:inherit;}
+.settings-body{flex:1;padding:12px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;}
+.section-title{font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:6px;}
+.field-row{display:flex;align-items:center;gap:6px;margin-bottom:6px;}
+.field-label{font-size:11px;color:var(--text-secondary);min-width:72px;}
+.field-input{flex:1;padding:4px 6px;border:1px solid var(--line);border-radius:var(--radius-sm);font-size:11px;background:var(--surface);font-family:inherit;}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.toggle-label{font-size:11px;}
+.toggle{position:relative;width:28px;height:16px;}
+.toggle input{opacity:0;width:0;height:0;}
+.toggle-track{position:absolute;inset:0;background:var(--line-2);border-radius:8px;cursor:pointer;}
+.toggle input:checked~.toggle-track{background:var(--accent);}
+.toggle-thumb{position:absolute;top:2px;left:2px;width:12px;height:12px;background:#fff;border-radius:50%;transition:left var(--motion);pointer-events:none;}
+.toggle input:checked~.toggle-track .toggle-thumb{left:14px;}
+.stash-badge{font-size:10px;background:var(--success-soft);color:var(--success);border-radius:var(--radius-sm);padding:1px 6px;font-weight:600;}
+.hidden-field{opacity:0.35;pointer-events:none;}
+.customise-link{font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;font-family:inherit;text-decoration:underline;padding:0;}
+.divider{border:none;border-top:1px solid var(--line);margin:4px 0;}
+.estimate-box{background:var(--surface-tertiary);border-radius:var(--radius-sm);padding:8px 10px;font-size:11px;color:var(--text-secondary);line-height:1.6;}
+.settings-footer{padding:12px;border-top:1px solid var(--line);background:var(--surface);}
+.btn-generate{width:100%;padding:9px 16px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-md);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+
+/* Annotation dots */
+.ann-dot{position:absolute;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);pointer-events:none;z-index:50;}
+.ann-dot-inline{width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);flex-shrink:0;}
+
+.annotations{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:14px 16px;width:280px;flex-shrink:0;}
+.ann-title{font-size:12px;font-weight:700;margin-bottom:10px;}
+.ann-item{display:flex;gap:8px;margin-bottom:8px;align-items:flex-start;}
+.ann-num{width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+.ann-text{font-size:11px;color:var(--text-secondary);line-height:1.5;}
+.ann-text strong{color:var(--text-primary);}
+
+/* Responsive */
+[data-bp="768"] .profile-cards,[data-bp="390"] .profile-cards{grid-template-columns:1fr;}
+[data-bp="390"] .settings-panel{display:none;}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <a href="create-flow-redesign-proposals.md">← Proposals</a>
+  <span class="toolbar-title">Option 2 — Intent Profiles</span>
+  <span class="toolbar-subtitle">Pick a work mode on upload; each profile pre-configures defaults and shows only relevant controls</span>
+  <div class="bp-bar">
+    <button class="bp-btn active" data-bp="1280" onclick="setBreakpoint(1280)">Desktop 1280</button>
+    <button class="bp-btn" data-bp="1024" onclick="setBreakpoint(1024)">Tablet L 1024</button>
+    <button class="bp-btn" data-bp="768" onclick="setBreakpoint(768)">Tablet P 768</button>
+    <button class="bp-btn" data-bp="390" onclick="setBreakpoint(390)">Phone 390</button>
+  </div>
+</div>
+
+<div class="mockup-outer">
+<div class="mockup-frame" id="mockup" data-bp="1280" style="width:1248px;">
+
+  <div class="app-header">
+    <span class="app-logo">stitchx</span>
+    <span style="font-size:11px;color:var(--text-secondary);margin-left:4px;">Pattern Creator</span>
+    <span class="app-header-spacer"></span>
+    <button class="header-btn">Save</button>
+  </div>
+
+  <div class="app-layout">
+    <div class="preview-area">
+      <div class="preview-area-top">
+        <canvas class="pattern-canvas" id="preview-canvas"></canvas>
+        <!-- ann dots on canvas area -->
+        <div class="ann-dot" style="top:12px;left:12px;">2</div>
+      </div>
+      <div style="padding:8px 10px;background:rgba(0,0,0,0.4);color:rgba(255,255,255,0.55);font-size:10px;">
+        Live preview · 120 × 80 stitches · 28 colours · ~6.5 hours
+      </div>
+    </div>
+
+    <div class="settings-panel">
+      <!-- Profile switcher row -->
+      <div class="profile-switcher">
+        <div class="profile-pill" id="active-profile-pill">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          Lineart / Stash
+        </div>
+        <button class="profile-switch-btn" onclick="showProfilePicker()">Change</button>
+        <div class="ann-dot-inline" style="margin-left:4px;">3</div>
+      </div>
+
+      <div class="settings-body" id="settings-body">
+        <!-- dynamically filled -->
+      </div>
+
+      <div class="settings-footer">
+        <button class="btn-generate">Generate Pattern</button>
+        <div class="ann-dot-inline" style="margin-top:8px;display:block;">5</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile picker overlay (shown on upload, interactive) -->
+  <div class="profile-overlay" id="profile-overlay">
+    <div class="profile-modal">
+      <div class="profile-modal-title">How do you want to work?</div>
+      <div class="profile-modal-sub">Choose a starting point — you can change this later.</div>
+
+      <div class="profile-cards">
+        <div class="profile-card" id="card-quick" onclick="selectProfile('quick')">
+          <div class="profile-card-icon" style="background:var(--surface-tertiary);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </div>
+          <div class="profile-card-badge badge-popular">Popular</div>
+          <div class="profile-card-name">Quick Photo</div>
+          <div class="profile-card-time">Under 5 min</div>
+          <div class="profile-card-desc">Good defaults, minimal decisions. See a result fast.</div>
+        </div>
+
+        <div class="profile-card selected" id="card-lineart" onclick="selectProfile('lineart')">
+          <div class="profile-card-icon" style="background:var(--accent-light);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z"/><path d="M12 8v8M8 12h8"/></svg>
+          </div>
+          <div class="profile-card-badge badge-you">For you</div>
+          <div class="profile-card-name">Lineart / Stash</div>
+          <div class="profile-card-time">10–15 min</div>
+          <div class="profile-card-desc">Limited palette, from your stash. Precise colour control.</div>
+        </div>
+
+        <div class="profile-card" id="card-detailed" onclick="selectProfile('detailed')">
+          <div class="profile-card-icon" style="background:var(--surface-tertiary);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 4.93 19.07M4.93 4.93A10 10 0 0 0 19.07 19.07"/></svg>
+          </div>
+          <div class="profile-card-name">Detailed Photo</div>
+          <div class="profile-card-time">Advanced</div>
+          <div class="profile-card-desc">All controls exposed. Fine-tune dithering and colour matching.</div>
+        </div>
+      </div>
+
+      <!-- Ann dot 1 on overlay -->
+      <div style="position:absolute;top:16px;right:16px;">
+        <div class="ann-dot-inline">1</div>
+      </div>
+
+      <div class="profile-modal-footer">
+        <button class="profile-skip" onclick="dismissProfile()">Skip — use defaults</button>
+        <button class="btn-primary" id="profile-confirm-btn" onclick="confirmProfile()">Use Lineart / Stash</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /mockup-frame -->
+
+<div class="annotations">
+  <div class="ann-title">Design decisions</div>
+  <div class="ann-item"><div class="ann-num">1</div><div class="ann-text"><strong>Profile picker shown once per upload</strong> — appears as an overlay so the user can see their image behind it. The most relevant profile for this user is pre-highlighted based on last-used preference.</div></div>
+  <div class="ann-item"><div class="ann-num">2</div><div class="ann-text"><strong>Live preview is always visible</strong> — the pattern canvas updates as settings change, even before Generate is clicked. The profile's defaults produce an immediate draft.</div></div>
+  <div class="ann-item"><div class="ann-num">3</div><div class="ann-text"><strong>Profile pill in settings header</strong> — always shows the active profile. "Change" re-opens the picker. Users never lose track of which mode they are in.</div></div>
+  <div class="ann-item"><div class="ann-num">4</div><div class="ann-text"><strong>Profile-filtered controls</strong> — Lineart/Stash hides dithering and bri/con/sat sliders (irrelevant for linework). "Customise" link reveals the full set if needed.</div></div>
+  <div class="ann-item"><div class="ann-num">5</div><div class="ann-text"><strong>Single Generate button</strong> — generates the final pattern and enters edit mode. The live preview above is lower quality (fast path); Generate runs the full pipeline.</div></div>
+  <div class="ann-item"><div class="ann-num">6</div><div class="ann-text"><strong>Hidden-but-accessible advanced controls</strong> — power users click "Customise" to reveal dithering, bri/con/sat, and seed. The "Detailed Photo" profile shows them by default.</div></div>
+</div>
+</div>
+
+<script>
+const PROFILES = {
+  quick: {
+    name: 'Quick Photo',
+    defaults: { w: 120, h: 80, maxC: 25, stash: false, blends: false, bgRemove: false, smooth: 2, cleanup: 1 },
+    showAdvanced: false,
+    showBgRemove: false,
+  },
+  lineart: {
+    name: 'Lineart / Stash',
+    defaults: { w: 120, h: 80, maxC: 12, stash: true, blends: false, bgRemove: true, smooth: 0, cleanup: 3 },
+    showAdvanced: false,
+    showBgRemove: true,
+  },
+  detailed: {
+    name: 'Detailed Photo',
+    defaults: { w: 120, h: 80, maxC: 40, stash: false, blends: true, bgRemove: false, smooth: 1, cleanup: 1 },
+    showAdvanced: true,
+    showBgRemove: true,
+  },
+};
+
+let activeProfile = 'lineart';
+
+function setBreakpoint(bp) {
+  const f = document.getElementById('mockup');
+  f.style.width = (bp - 32) + 'px';
+  f.setAttribute('data-bp', bp);
+  document.querySelectorAll('.bp-btn').forEach(b => b.classList.toggle('active', +b.dataset.bp === bp));
+}
+
+function selectProfile(id) {
+  activeProfile = id;
+  document.querySelectorAll('.profile-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('card-' + id).classList.add('selected');
+  const btn = document.getElementById('profile-confirm-btn');
+  btn.textContent = 'Use ' + PROFILES[id].name;
+}
+
+function confirmProfile() {
+  dismissProfile();
+  renderSettingsPanel();
+}
+
+function dismissProfile() {
+  document.getElementById('profile-overlay').style.display = 'none';
+  renderSettingsPanel();
+}
+
+function showProfilePicker() {
+  document.getElementById('profile-overlay').style.display = 'flex';
+}
+
+function renderSettingsPanel() {
+  const p = PROFILES[activeProfile];
+  document.getElementById('active-profile-pill').innerHTML = `
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+    ${p.name}
+  `;
+
+  const body = document.getElementById('settings-body');
+  body.innerHTML = `
+    <div>
+      <div class="section-title">Dimensions</div>
+      <div class="field-row">
+        <label class="field-label">Width</label>
+        <input class="field-input" type="number" value="${p.defaults.w}" style="width:52px;flex:none;"> sts
+      </div>
+      <div class="field-row">
+        <label class="field-label">Height</label>
+        <input class="field-input" type="number" value="${p.defaults.h}" style="width:52px;flex:none;"> sts
+      </div>
+      <div class="field-row">
+        <label class="field-label">Fabric</label>
+        <input class="field-input" type="number" value="14" style="width:52px;flex:none;"> <span style="font-size:10px;color:var(--text-secondary);">ct · 21.8×14.5 cm</span>
+      </div>
+    </div>
+    <hr class="divider">
+    <div>
+      <div class="section-title">Palette</div>
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">From stash <span class="stash-badge">147 owned</span></div>
+        </div>
+        <label class="toggle"><input type="checkbox" ${p.defaults.stash?'checked':''}><div class="toggle-track"><div class="toggle-thumb"></div></div></label>
+      </div>
+      <div class="field-row">
+        <label class="field-label">Max colours</label>
+        <input class="field-input" type="number" value="${p.defaults.maxC}" style="width:52px;flex:none;">
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-label">Blended threads</div>
+        <label class="toggle"><input type="checkbox" ${p.defaults.blends?'checked':''}><div class="toggle-track"><div class="toggle-thumb"></div></div></label>
+      </div>
+    </div>
+    <hr class="divider">
+    <div>
+      <div class="section-title">Detail &amp; cleanup</div>
+      ${p.showBgRemove ? `
+      <div class="toggle-row">
+        <div class="toggle-label">Remove background</div>
+        <label class="toggle"><input type="checkbox" ${p.defaults.bgRemove?'checked':''}><div class="toggle-track"><div class="toggle-thumb"></div></div></label>
+      </div>` : ''}
+      <div class="field-row" style="margin-top:4px;">
+        <label class="field-label" style="min-width:60px;">Cleanup</label>
+        <input type="range" min="0" max="3" value="${p.defaults.cleanup}" style="flex:1;accent-color:var(--accent);">
+        <span style="font-size:10px;color:var(--text-secondary);width:60px;text-align:right;">${['Off','Gentle','Balanced','Thorough'][p.defaults.cleanup]}</span>
+      </div>
+      ${p.showAdvanced ? `
+      <hr class="divider">
+      <div class="section-title">Advanced</div>
+      <div class="field-row">
+        <label class="field-label">Dithering</label>
+        <select class="field-input"><option>Off</option><option selected>Floyd-Steinberg</option></select>
+      </div>
+      <div class="field-row">
+        <label class="field-label">Contrast</label>
+        <input type="range" min="-100" max="100" value="0" style="flex:1;accent-color:var(--accent);">
+        <span style="font-size:10px;color:var(--text-secondary);width:24px;text-align:right;">0</span>
+      </div>` : `
+      <button class="customise-link" onclick="switchProfile('detailed')" style="margin-top:4px;">
+        + Customise (show advanced controls)
+      </button>
+      <div style="position:relative;display:inline-block;"><div class="ann-dot-inline" style="margin-left:4px;vertical-align:middle;display:inline-flex;">6</div></div>
+      `}
+    </div>
+    <div class="estimate-box">9,600 stitches · ~6.5 hours · ~14 skeins est.</div>
+  `;
+}
+
+function switchProfile(id) {
+  activeProfile = id;
+  renderSettingsPanel();
+  const pill = document.getElementById('active-profile-pill');
+  pill.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> ${PROFILES[id].name}`;
+}
+
+// Pattern canvas
+const PALETTE_COLORS = ['#1A1A1A','#C41E3A','#5B8FA8','#4CAF50','#F9C74F','#E07A2E','#8B0000','#A07BC8','#E8748A','#89A7B1','#C8A882','#D4B483','#A52A2A','#FAFAFA','#C0C0C0','#6E6E6E','#1F3D6B','#0047AB','#7B3E0A','#8B5E1A','#D4875D','#F4A77B','#8B6914','#C4956A','#E5C4A1','#6B4226','#3D8B6E','#7B9B6A'];
+
+function drawPattern(canvas) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width = canvas.offsetWidth || 800;
+  const H = canvas.height = canvas.offsetHeight || 560;
+  const CELL = 4;
+  for (let y = 0; y < H; y += CELL) {
+    for (let x = 0; x < W; x += CELL) {
+      const n = Math.sin(x*0.08+y*0.06)*0.5+Math.sin(x*0.04-y*0.09)*0.3+Math.cos(x*0.02+y*0.03)*0.2;
+      const idx = ((Math.floor((n+1)*14))%PALETTE_COLORS.length+PALETTE_COLORS.length)%PALETTE_COLORS.length;
+      ctx.fillStyle = PALETTE_COLORS[idx];
+      ctx.fillRect(x,y,CELL,CELL);
+    }
+  }
+  ctx.strokeStyle='rgba(255,255,255,0.08)';ctx.lineWidth=0.5;
+  for(let x=0;x<=W;x+=CELL){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<=H;y+=CELL){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+}
+
+window.addEventListener('load', () => {
+  const pc = document.getElementById('preview-canvas');
+  drawPattern(pc);
+  renderSettingsPanel();
+});
+</script>
+</body>
+</html>

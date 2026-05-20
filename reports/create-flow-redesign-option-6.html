@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Option 6 — Settings Drawer · stitchx redesign mockup</title>
+<style>
+:root{
+  --accent:#B85C38;--accent-hover:#944526;--accent-light:#F4DDCF;
+  --accent-border:#E8B89A;--text-primary:#1B1814;--text-secondary:#5C5448;
+  --surface:#ffffff;--surface-secondary:#FBF8F3;--surface-tertiary:#EFE7D6;
+  --radius-sm:6px;--radius-md:8px;--radius-lg:10px;
+  --shadow-sm:0 1px 3px rgba(0,0,0,0.06);--shadow-md:0 4px 12px rgba(0,0,0,0.12);
+  --line:#E5DCCB;--line-2:#D8CDB6;
+  --success:#4F7D3F;--success-soft:#DEE7D2;
+  --warning:#C0883A;--warning-soft:#F2E2BE;
+  --motion:160ms ease-out;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',system-ui,sans-serif;background:#F0EBE3;color:var(--text-primary);font-size:13px;}
+
+.toolbar{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap;}
+.toolbar a{font-size:12px;color:var(--accent);text-decoration:none;}
+.toolbar-title{font-weight:600;font-size:13px;flex:1;min-width:180px;}
+.toolbar-subtitle{font-size:11px;color:var(--text-secondary);}
+.bp-bar{display:flex;gap:4px;}
+.bp-btn{padding:4px 10px;border:1px solid var(--line-2);border-radius:var(--radius-sm);background:var(--surface-secondary);color:var(--text-secondary);cursor:pointer;font-size:11px;font-family:inherit;}
+.bp-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+.mockup-outer{padding:16px;display:flex;justify-content:flex-start;gap:16px;align-items:flex-start;}
+.mockup-frame{background:var(--surface-secondary);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-md);flex-shrink:0;position:relative;height:640px;}
+
+.app-header{display:flex;align-items:center;gap:8px;padding:0 14px;height:40px;background:var(--surface);border-bottom:1px solid var(--line);}
+.app-logo{font-weight:800;font-size:14px;letter-spacing:-0.3px;}
+.app-header-spacer{flex:1;}
+.header-btn{padding:4px 10px;font-size:11px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-secondary);cursor:pointer;font-family:inherit;}
+
+/* ── App layout ── */
+.app-body{display:flex;flex-direction:column;height:calc(100% - 40px);position:relative;}
+
+/* ── Drawer handle strip (always visible, sticky top of canvas area) ── */
+.drawer-handle{display:flex;align-items:center;gap:8px;padding:0 14px;height:36px;background:var(--surface);border-bottom:1px solid var(--line);cursor:pointer;user-select:none;flex-shrink:0;position:relative;transition:background var(--motion);}
+.drawer-handle:hover{background:var(--surface-secondary);}
+.drawer-chevron{display:flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--surface-tertiary);transition:transform var(--motion);}
+.drawer-chevron svg{width:10px;height:10px;}
+.drawer-handle-title{font-size:12px;font-weight:600;color:var(--text-secondary);}
+.drawer-settings-summary{flex:1;font-size:11px;color:var(--text-secondary);}
+.drawer-settings-badge{display:inline-flex;align-items:center;gap:3px;background:var(--surface-tertiary);border:1px solid var(--line);border-radius:var(--radius-sm);padding:2px 8px;font-size:10px;color:var(--text-secondary);margin-left:6px;}
+.drawer-unsaved-dot{width:6px;height:6px;border-radius:50%;background:var(--warning);flex-shrink:0;display:none;}
+
+/* ── Drawer panel ── */
+.drawer-panel{background:var(--surface);border-bottom:2px solid var(--accent);overflow:hidden;flex-shrink:0;transition:max-height 260ms ease-in-out;max-height:0;}
+.drawer-panel.open{max-height:340px;}
+.drawer-inner{display:flex;gap:0;}
+
+/* Drawer sub-tabs */
+.drawer-subtabs{display:flex;border-bottom:1px solid var(--line);background:var(--surface-secondary);}
+.drawer-subtab{padding:7px 14px;font-size:11px;font-weight:600;color:var(--text-secondary);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color var(--motion),border-color var(--motion);}
+.drawer-subtab.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--surface);}
+.drawer-subtab:hover{color:var(--text-primary);}
+
+/* Drawer content area */
+.drawer-content{display:flex;flex-direction:column;}
+.drawer-subtab-body{padding:12px 16px;flex:1;display:none;}
+.drawer-subtab-body.active{display:flex;gap:16px;}
+.drawer-preview-split{display:flex;gap:10px;flex:1;}
+.drawer-orig{flex:1;background:#2a2420;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;min-height:120px;position:relative;}
+.drawer-prev{flex:1;border-radius:var(--radius-sm);overflow:hidden;min-height:120px;}
+canvas.drawer-canvas{display:block;width:100%;height:100%;image-rendering:pixelated;}
+.settings-col{flex:1;min-width:140px;}
+.section-title{font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:6px;}
+.field-row{display:flex;align-items:center;gap:6px;margin-bottom:5px;}
+.field-label{font-size:11px;color:var(--text-secondary);min-width:72px;}
+.field-input{flex:1;padding:4px 6px;border:1px solid var(--line);border-radius:var(--radius-sm);font-size:11px;background:var(--surface);font-family:inherit;}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;}
+.toggle-label{font-size:11px;}
+.toggle{position:relative;width:28px;height:16px;}
+.toggle input{opacity:0;width:0;height:0;}
+.toggle-track{position:absolute;inset:0;background:var(--line-2);border-radius:8px;cursor:pointer;}
+.toggle input:checked~.toggle-track{background:var(--accent);}
+.toggle-thumb{position:absolute;top:2px;left:2px;width:12px;height:12px;background:#fff;border-radius:50%;transition:left 120ms;pointer-events:none;}
+.toggle input:checked~.toggle-track .toggle-thumb{left:14px;}
+.stash-badge{font-size:10px;background:var(--success-soft);color:var(--success);border-radius:var(--radius-sm);padding:1px 6px;font-weight:600;}
+.slider-row{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
+.slider-label{font-size:10px;color:var(--text-secondary);min-width:70px;}
+input[type=range]{flex:1;accent-color:var(--accent);height:3px;}
+.slider-val{font-size:10px;color:var(--text-secondary);width:24px;text-align:right;}
+.divider{border:none;border-top:1px solid var(--line);margin:6px 0;}
+
+/* Drawer footer actions */
+.drawer-footer{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-top:1px solid var(--line);background:var(--surface-secondary);}
+.btn-discard{padding:6px 14px;font-size:12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:transparent;cursor:pointer;font-family:inherit;color:var(--text-secondary);}
+.btn-apply{padding:7px 18px;font-size:12px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-md);cursor:pointer;font-family:inherit;}
+.btn-apply:hover{background:var(--accent-hover);}
+
+/* ── Main edit area (below drawer) ── */
+.main-edit{flex:1;display:flex;min-height:0;}
+.tool-strip{width:36px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 4px;background:var(--surface);border-right:1px solid var(--line);}
+.tool-btn{width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;border-radius:var(--radius-sm);cursor:pointer;color:var(--text-secondary);}
+.tool-btn.active{background:var(--accent-light);color:var(--accent);}
+.tool-btn svg{width:14px;height:14px;}
+.canvas-area{flex:1;background:#1a1714;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;}
+canvas.main-canvas{image-rendering:pixelated;}
+.canvas-status{position:absolute;bottom:0;left:0;right:0;padding:6px 10px;background:rgba(0,0,0,0.4);color:rgba(255,255,255,0.5);font-size:10px;display:flex;align-items:center;gap:6px;}
+.edit-sidebar{width:180px;flex-shrink:0;background:var(--surface);border-left:1px solid var(--line);overflow-y:auto;padding:10px;}
+.palette-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;}
+.palette-chip{width:100%;aspect-ratio:1;border-radius:3px;cursor:pointer;position:relative;}
+.palette-chip.has-stash::after{content:'';position:absolute;bottom:1px;right:1px;width:5px;height:5px;border-radius:50%;background:var(--success);border:1px solid var(--surface);}
+
+/* Warning modal */
+.modal-overlay{position:absolute;inset:0;background:rgba(0,0,0,0.45);display:none;align-items:center;justify-content:center;z-index:100;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border-radius:var(--radius-lg);padding:20px;max-width:280px;box-shadow:var(--shadow-md);}
+.modal-title{font-size:14px;font-weight:700;margin-bottom:8px;}
+.modal-body{font-size:12px;color:var(--text-secondary);margin-bottom:8px;line-height:1.5;}
+.modal-warning{background:var(--warning-soft);border:1px solid var(--warning);border-radius:var(--radius-sm);padding:7px 10px;font-size:11px;color:var(--warning);margin-bottom:12px;}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;}
+.modal-cancel{padding:6px 14px;font-size:12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:transparent;cursor:pointer;font-family:inherit;}
+.modal-confirm{padding:6px 14px;font-size:12px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;font-family:inherit;}
+
+/* Annotation dots */
+.ann-dot{position:absolute;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);pointer-events:none;z-index:50;}
+.ann-dot-inline{width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);flex-shrink:0;vertical-align:middle;}
+
+.annotations{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:14px 16px;width:280px;flex-shrink:0;}
+.ann-title{font-size:12px;font-weight:700;margin-bottom:10px;}
+.ann-item{display:flex;gap:8px;margin-bottom:8px;align-items:flex-start;}
+.ann-num{width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+.ann-text{font-size:11px;color:var(--text-secondary);line-height:1.5;}
+.ann-text strong{color:var(--text-primary);}
+
+[data-bp="390"] .edit-sidebar{display:none;}
+[data-bp="390"] .drawer-subtab:nth-child(n+4){display:none;}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <a href="create-flow-redesign-proposals.md">← Proposals</a>
+  <span class="toolbar-title">Option 6 — Settings Drawer</span>
+  <span class="toolbar-subtitle">Edit canvas is the primary view; conversion settings in a collapsible drawer; Apply commits them</span>
+  <div class="bp-bar">
+    <button class="bp-btn active" data-bp="1280" onclick="setBreakpoint(1280)">Desktop 1280</button>
+    <button class="bp-btn" data-bp="1024" onclick="setBreakpoint(1024)">Tablet L 1024</button>
+    <button class="bp-btn" data-bp="768" onclick="setBreakpoint(768)">Tablet P 768</button>
+    <button class="bp-btn" data-bp="390" onclick="setBreakpoint(390)">Phone 390</button>
+  </div>
+</div>
+
+<div class="mockup-outer">
+<div class="mockup-frame" id="mockup" data-bp="1280" style="width:1248px;">
+
+  <div class="app-header">
+    <span class="app-logo">stitchx</span>
+    <span style="font-size:11px;color:var(--text-secondary);margin-left:4px;">Pattern Creator</span>
+    <span class="app-header-spacer"></span>
+    <button class="header-btn">Save</button>
+    <button class="header-btn">Export</button>
+    <button class="header-btn">Open in Tracker</button>
+  </div>
+
+  <div class="app-body">
+
+    <!-- ── Drawer handle (always visible) ── -->
+    <div class="drawer-handle" onclick="toggleDrawer()" id="drawer-handle">
+      <div class="drawer-chevron" id="handle-chevron">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+      <span class="drawer-handle-title">Conversion settings</span>
+      <span class="drawer-settings-summary">
+        <span class="drawer-settings-badge" id="settings-badge">120×80 · 28 colours · Stash · 14 ct</span>
+      </span>
+      <span id="unsaved-dot" class="drawer-unsaved-dot"></span>
+      <!-- Ann dot 1 -->
+      <div class="ann-dot" style="top:9px;right:50px;">1</div>
+    </div>
+
+    <!-- ── Drawer panel ── -->
+    <div class="drawer-panel" id="drawer-panel">
+      <!-- Sub-tabs -->
+      <div class="drawer-subtabs">
+        <div class="drawer-subtab active" onclick="showSubtab('dims')">Dimensions</div>
+        <div class="drawer-subtab" onclick="showSubtab('palette')">Palette</div>
+        <div class="drawer-subtab" onclick="showSubtab('detail')">Detail</div>
+        <div class="drawer-subtab" onclick="showSubtab('adv')">Advanced</div>
+        <!-- Ann dot 2 -->
+        <div style="display:flex;align-items:center;padding:0 8px;">
+          <div class="ann-dot-inline">2</div>
+        </div>
+      </div>
+
+      <div class="drawer-content">
+
+        <!-- Dims sub-tab -->
+        <div class="drawer-subtab-body active" id="subtab-dims">
+          <div class="settings-col">
+            <div class="section-title">Dimensions</div>
+            <div class="field-row">
+              <label class="field-label">Width</label>
+              <input class="field-input" type="number" value="120" style="width:52px;flex:none;" oninput="markUnsaved()"> sts
+            </div>
+            <div class="field-row">
+              <label class="field-label">Height</label>
+              <input class="field-input" type="number" value="80" style="width:52px;flex:none;" oninput="markUnsaved()"> sts
+            </div>
+            <div class="field-row">
+              <label class="field-label">Fabric</label>
+              <input class="field-input" type="number" value="14" style="width:52px;flex:none;" oninput="markUnsaved()">
+              <span style="font-size:10px;color:var(--text-secondary);">ct</span>
+            </div>
+            <div style="font-size:10px;color:var(--text-secondary);margin-top:2px;">21.8 × 14.5 cm at 14 ct</div>
+          </div>
+          <div class="drawer-preview-split">
+            <div class="drawer-orig">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+              <div style="position:absolute;bottom:4px;left:4px;font-size:9px;color:rgba(255,255,255,0.4);">Original</div>
+            </div>
+            <div class="drawer-prev">
+              <canvas class="drawer-canvas" id="drawer-canvas"></canvas>
+              <div style="position:absolute;bottom:4px;left:4px;font-size:9px;color:rgba(255,255,255,0.8);background:rgba(0,0,0,0.4);padding:1px 4px;border-radius:2px;">Preview</div>
+            </div>
+          </div>
+          <!-- Ann dot 3 on preview split -->
+          <div class="ann-dot" style="top:8px;right:60px;">3</div>
+        </div>
+
+        <!-- Palette sub-tab -->
+        <div class="drawer-subtab-body" id="subtab-palette" style="flex-direction:column;gap:8px;">
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-label">From stash <span class="stash-badge">147 owned</span></div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" checked onchange="markUnsaved()">
+              <div class="toggle-track"><div class="toggle-thumb"></div></div>
+            </label>
+          </div>
+          <div class="field-row">
+            <label class="field-label">Max colours</label>
+            <input class="field-input" type="number" value="28" style="width:60px;flex:none;" oninput="markUnsaved()">
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-label">Blended threads</div>
+            <label class="toggle">
+              <input type="checkbox" onchange="markUnsaved()">
+              <div class="toggle-track"><div class="toggle-thumb"></div></div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Detail sub-tab -->
+        <div class="drawer-subtab-body" id="subtab-detail" style="flex-direction:column;gap:6px;">
+          <div class="toggle-row">
+            <div class="toggle-label">Remove background (white)</div>
+            <label class="toggle">
+              <input type="checkbox" checked onchange="markUnsaved()">
+              <div class="toggle-track"><div class="toggle-thumb"></div></div>
+            </label>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Smoothing</span>
+            <input type="range" min="0" max="5" value="2" oninput="this.nextElementSibling.textContent=this.value;markUnsaved()">
+            <span class="slider-val">2</span>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Cleanup</span>
+            <input type="range" min="0" max="3" value="1" oninput="this.nextElementSibling.textContent=this.value;markUnsaved()">
+            <span class="slider-val">1</span>
+          </div>
+        </div>
+
+        <!-- Advanced sub-tab -->
+        <div class="drawer-subtab-body" id="subtab-adv" style="flex-direction:column;gap:6px;">
+          <div class="field-row">
+            <label class="field-label">Dithering</label>
+            <select class="field-input" onchange="markUnsaved()"><option>Off</option><option selected>Floyd-Steinberg</option></select>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Contrast</span>
+            <input type="range" min="-100" max="100" value="0" oninput="this.nextElementSibling.textContent=this.value;markUnsaved()">
+            <span class="slider-val">0</span>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Saturation</span>
+            <input type="range" min="-100" max="100" value="0" oninput="this.nextElementSibling.textContent=this.value;markUnsaved()">
+            <span class="slider-val">0</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Drawer footer -->
+      <div class="drawer-footer">
+        <button class="btn-discard" onclick="discardDrawer()">Discard changes</button>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:11px;color:var(--text-secondary);">9,600 stitches · ~6.5 hours</span>
+          <button class="btn-apply" onclick="applyDrawer()">Apply conversion</button>
+          <!-- Ann dot 4 -->
+          <div class="ann-dot-inline">4</div>
+        </div>
+      </div>
+    </div><!-- /drawer-panel -->
+
+    <!-- ── Main edit area ── -->
+    <div class="main-edit">
+
+      <div class="tool-strip">
+        <button class="tool-btn active" title="Paint">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/></svg>
+        </button>
+        <button class="tool-btn" title="Fill">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16.56 8.94 7.62 0 6.21 1.41l2.38 2.38-5.15 5.15a1.49 1.49 0 0 0 0 2.12l5.5 5.5c.29.29.68.44 1.06.44s.77-.15 1.06-.44l5.5-5.5c.59-.58.59-1.53 0-2.12z"/></svg>
+        </button>
+        <button class="tool-btn" title="Erase">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 20H7L3 16l9-9 8 8-3.5 3.5"/><path d="m6.5 17.5 3-3"/></svg>
+        </button>
+        <hr style="width:20px;border:none;border-top:1px solid var(--line);margin:2px 0;">
+        <button class="tool-btn" title="Undo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+        </button>
+        <button class="tool-btn" title="Redo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>
+        </button>
+        <!-- Ann dot 5 -->
+        <div class="ann-dot" style="position:static;margin-top:6px;display:flex;">5</div>
+      </div>
+
+      <div class="canvas-area">
+        <canvas class="main-canvas" id="main-canvas" width="640" height="440"></canvas>
+        <div class="canvas-status">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+          120 × 80 stitches · 28 colours · ~6.5 hours
+          <span id="canvas-status-text" style="color:rgba(255,255,255,0.4);">Committed</span>
+        </div>
+      </div>
+
+      <div class="edit-sidebar">
+        <div class="section-title" style="margin-bottom:8px;">Palette · 28 colours</div>
+        <div class="palette-grid" id="palette-grid"></div>
+        <div style="font-size:10px;color:var(--text-secondary);margin-top:6px;line-height:1.4;">Click to select · dots = in stash</div>
+        <!-- Ann dot 6 -->
+        <div class="ann-dot-inline" style="margin-top:8px;display:block;">6</div>
+      </div>
+
+    </div><!-- /main-edit -->
+
+  </div><!-- /app-body -->
+
+  <!-- Warning modal (apply with existing edits) -->
+  <div class="modal-overlay" id="apply-modal">
+    <div class="modal">
+      <div class="modal-title">Apply new conversion?</div>
+      <div class="modal-body">This will re-generate the pattern using your updated settings.</div>
+      <div class="modal-warning">24 manual edits will be replaced by the new pattern.</div>
+      <div class="modal-actions">
+        <button class="modal-cancel" onclick="closeApplyModal()">Cancel</button>
+        <button class="modal-confirm" onclick="confirmApply()">Apply conversion</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /mockup-frame -->
+
+<div class="annotations">
+  <div class="ann-title">Design decisions</div>
+  <div class="ann-item"><div class="ann-num">1</div><div class="ann-text"><strong>Drawer handle always visible</strong> — the one-line strip shows the current committed settings as a badge (120×80 · 28 colours · Stash) so users always know what settings produced the current canvas.</div></div>
+  <div class="ann-item"><div class="ann-num">2</div><div class="ann-text"><strong>Four sub-tabs inside the drawer</strong> — Dimensions / Palette / Detail / Advanced. Groups controls by mental model, works at 240 px wide without scrolling.</div></div>
+  <div class="ann-item"><div class="ann-num">3</div><div class="ann-text"><strong>Original vs. preview side-by-side in the Dimensions tab</strong> — gives visual feedback on size without leaving the drawer or the edit mode.</div></div>
+  <div class="ann-item"><div class="ann-num">4</div><div class="ann-text"><strong>"Apply conversion" is the only way settings affect the canvas</strong> — dragging sliders shows an orange unsaved dot on the handle, but the canvas does NOT update until Apply. No accidental generation.</div></div>
+  <div class="ann-item"><div class="ann-num">5</div><div class="ann-text"><strong>Edit tools are always accessible</strong> — even with the drawer open, users can close it without applying (Discard) and return to editing. Canvas is never taken over by settings.</div></div>
+  <div class="ann-item"><div class="ann-num">6</div><div class="ann-text"><strong>Edit sidebar unchanged from current design</strong> — palette chips, stash dots, colour replace. Familiar for existing users. No conversion sliders in the sidebar at all.</div></div>
+</div>
+</div>
+
+<script>
+const PALETTE_COLORS=['#1A1A1A','#C41E3A','#5B8FA8','#4CAF50','#F9C74F','#E07A2E','#8B0000','#A07BC8','#E8748A','#89A7B1','#C8A882','#D4B483','#A52A2A','#FAFAFA','#C0C0C0','#6E6E6E','#1F3D6B','#0047AB','#7B3E0A','#8B5E1A','#D4875D','#F4A77B','#8B6914','#C4956A','#E5C4A1','#6B4226','#3D8B6E','#7B9B6A'];
+let drawerOpen = true;
+let hasUnsaved = false;
+let hasEdits = 24;
+
+function setBreakpoint(bp) {
+  document.getElementById('mockup').style.width = (bp-32)+'px';
+  document.getElementById('mockup').setAttribute('data-bp', bp);
+  document.querySelectorAll('.bp-btn').forEach(b => b.classList.toggle('active', +b.dataset.bp===bp));
+}
+
+function drawPattern(canvas, seed) {
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height,CELL=4;
+  for(let y=0;y<H;y+=CELL)for(let x=0;x<W;x+=CELL){
+    const n=Math.sin(x*.08+y*.06+(seed||0))*.5+Math.sin(x*.04-y*.09+(seed||0)*.7)*.3+Math.cos(x*.02+y*.03+(seed||0)*.4)*.2;
+    const idx=((Math.floor((n+1)*14))%PALETTE_COLORS.length+PALETTE_COLORS.length)%PALETTE_COLORS.length;
+    ctx.fillStyle=PALETTE_COLORS[idx];ctx.fillRect(x,y,CELL,CELL);
+  }
+  ctx.strokeStyle='rgba(255,255,255,0.07)';ctx.lineWidth=0.5;
+  for(let x=0;x<=W;x+=CELL){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<=H;y+=CELL){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+}
+
+function toggleDrawer() {
+  drawerOpen = !drawerOpen;
+  document.getElementById('drawer-panel').classList.toggle('open', drawerOpen);
+  document.getElementById('handle-chevron').style.transform = drawerOpen ? 'rotate(180deg)' : '';
+}
+
+function showSubtab(id) {
+  document.querySelectorAll('.drawer-subtab').forEach((t,i) => {
+    const ids = ['dims','palette','detail','adv'];
+    t.classList.toggle('active', ids[i] === id);
+  });
+  document.querySelectorAll('.drawer-subtab-body').forEach(b => {
+    b.classList.toggle('active', b.id === 'subtab-'+id);
+    if (b.id === 'subtab-'+id) b.style.display = 'flex'; else b.style.display = 'none';
+  });
+  // Draw drawer canvas when dims tab shown
+  if (id === 'dims') {
+    setTimeout(() => {
+      const c = document.getElementById('drawer-canvas');
+      if (c) { c.width=c.offsetWidth||200;c.height=c.offsetHeight||140; drawPattern(c, 0.8); }
+    }, 10);
+  }
+}
+
+function markUnsaved() {
+  hasUnsaved = true;
+  document.getElementById('unsaved-dot').style.display = 'block';
+  document.getElementById('canvas-status-text').textContent = 'Unsaved changes in drawer';
+  document.getElementById('canvas-status-text').style.color = 'rgba(192,136,58,0.8)';
+}
+
+function discardDrawer() {
+  hasUnsaved = false;
+  document.getElementById('unsaved-dot').style.display = 'none';
+  document.getElementById('canvas-status-text').textContent = 'Committed';
+  document.getElementById('canvas-status-text').style.color = 'rgba(255,255,255,0.4)';
+  toggleDrawer();
+}
+
+function applyDrawer() {
+  if (hasEdits > 0) {
+    document.getElementById('apply-modal').classList.add('open');
+  } else {
+    confirmApply();
+  }
+}
+
+function closeApplyModal() {
+  document.getElementById('apply-modal').classList.remove('open');
+}
+
+function confirmApply() {
+  closeApplyModal();
+  hasUnsaved = false;
+  hasEdits = 0;
+  document.getElementById('unsaved-dot').style.display = 'none';
+  document.getElementById('canvas-status-text').textContent = 'Committed';
+  document.getElementById('canvas-status-text').style.color = 'rgba(255,255,255,0.4)';
+  const c = document.getElementById('main-canvas');
+  drawPattern(c, Math.random()*0.6);
+  toggleDrawer();
+}
+
+function buildPalette() {
+  const g = document.getElementById('palette-grid');
+  PALETTE_COLORS.forEach((hex, i) => {
+    const d = document.createElement('div');
+    d.className = 'palette-chip' + (i < 12 ? ' has-stash' : '');
+    d.style.background = hex;
+    if (hex==='#FAFAFA') d.style.border='1px solid #ddd';
+    g.appendChild(d);
+  });
+}
+
+window.addEventListener('load', () => {
+  // Open drawer by default (initial state on first upload)
+  document.getElementById('drawer-panel').classList.add('open');
+  document.getElementById('handle-chevron').style.transform = 'rotate(180deg)';
+
+  // Draw main canvas
+  const mc = document.getElementById('main-canvas');
+  mc.width = mc.offsetWidth || 800;
+  mc.height = mc.offsetHeight || 440;
+  drawPattern(mc, 0);
+
+  // Draw drawer canvas
+  const dc = document.getElementById('drawer-canvas');
+  if (dc) { dc.width=200;dc.height=140; drawPattern(dc, 0.8); }
+
+  buildPalette();
+});
+</script>
+</body>
+</html>

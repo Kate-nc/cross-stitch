@@ -39,21 +39,27 @@ describe('Create-mode sidebar — five task tabs', () => {
     expect(stateSrc).toMatch(/UserPrefs\.set\("creator\.sidebarTab"/);
   });
 
-  it('puts the Background section in the Dimensions tab content, not the Palette or Preview tab', () => {
-    // Dimensions content must include bgSection
-    expect(sidebarSrc).toMatch(/var dimensionsContent\s*=\s*h\(React\.Fragment[\s\S]*?bgSection[\s\S]*?fabSection/);
-    // Preview tab content must NOT mention bgSection
-    const pv = sidebarSrc.match(/var previewContent\s*=\s*h\(React\.Fragment[\s\S]*?\);/);
-    expect(pv).toBeTruthy();
-    expect(pv[0]).not.toMatch(/bgSection/);
-    // Palette tab content must NOT mention bgSection
-    const m = sidebarSrc.match(/var paletteContent\s*=\s*h\(React\.Fragment[\s\S]*?\);/);
-    expect(m).toBeTruthy();
-    expect(m[0]).not.toMatch(/bgSection/);
+  it('puts all conversion sections (background, fabric, palette, dimensions) in the single create-mode panel', () => {
+    // Hybrid 1+5+3: create mode renders one scrollable createPanel with all
+    // sections stacked vertically (no tabContentMap or separate tab-content vars).
+    const cpIdx = sidebarSrc.indexOf('var createPanel');
+    expect(cpIdx).toBeGreaterThan(0);
+    // bgSection, fabSection, palSection and dimSection must all appear inside
+    // the createPanel definition (within 2000 chars of it).
+    const cpBlock = sidebarSrc.slice(cpIdx, cpIdx + 2000);
+    expect(cpBlock).toMatch(/bgSection/);
+    expect(cpBlock).toMatch(/fabSection/);
+    expect(cpBlock).toMatch(/palSection/);
+    expect(cpBlock).toMatch(/dimSection/);
+    // The old separate tab-content vars are gone from create mode.
+    expect(sidebarSrc).not.toMatch(/var dimensionsContent\s*=\s*h\(React\.Fragment,[\s\S]*?bgSection/);
   });
 
-  it('routes the active tab through a tabContentMap with all five panels', () => {
-    expect(sidebarSrc).toMatch(/tabContentMap\s*=\s*\{[\s\S]*?image:[\s\S]*?dimensions:[\s\S]*?palette:[\s\S]*?preview:[\s\S]*?project:/);
+  it('uses a single scrollable createPanel (not a tabContentMap) in create mode', () => {
+    // Hybrid 1+5+3: create mode renders one scrollable panel with all sections
+    // stacked vertically. The old tabContentMap routing is gone.
+    expect(sidebarSrc).toMatch(/var createPanel\s*=/);
+    expect(sidebarSrc).not.toMatch(/tabContentMap\s*=\s*\{/);
   });
 
   it('switches the Edit→Create button back to the Image tab (legacy "settings" id removed)', () => {

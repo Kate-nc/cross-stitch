@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Option 5 — Convert / Edit Tabs · stitchx redesign mockup</title>
+<style>
+:root{
+  --accent:#B85C38;--accent-hover:#944526;--accent-light:#F4DDCF;
+  --accent-border:#E8B89A;--text-primary:#1B1814;--text-secondary:#5C5448;
+  --surface:#ffffff;--surface-secondary:#FBF8F3;--surface-tertiary:#EFE7D6;
+  --radius-sm:6px;--radius-md:8px;--radius-lg:10px;
+  --shadow-sm:0 1px 3px rgba(0,0,0,0.06);--shadow-md:0 4px 12px rgba(0,0,0,0.12);
+  --line:#E5DCCB;--line-2:#D8CDB6;
+  --success:#4F7D3F;--success-soft:#DEE7D2;
+  --warning:#C0883A;--warning-soft:#F2E2BE;
+  --motion:160ms ease-out;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',system-ui,sans-serif;background:#F0EBE3;color:var(--text-primary);font-size:13px;}
+
+.toolbar{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap;}
+.toolbar a{font-size:12px;color:var(--accent);text-decoration:none;}
+.toolbar-title{font-weight:600;font-size:13px;flex:1;min-width:180px;}
+.toolbar-subtitle{font-size:11px;color:var(--text-secondary);}
+.bp-bar{display:flex;gap:4px;}
+.bp-btn{padding:4px 10px;border:1px solid var(--line-2);border-radius:var(--radius-sm);background:var(--surface-secondary);color:var(--text-secondary);cursor:pointer;font-size:11px;font-family:inherit;}
+.bp-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+.mockup-outer{padding:16px;display:flex;justify-content:flex-start;gap:16px;align-items:flex-start;}
+.mockup-frame{background:var(--surface-secondary);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-md);flex-shrink:0;position:relative;height:640px;}
+
+/* App header */
+.app-header{display:flex;align-items:center;gap:8px;padding:0 14px;height:40px;background:var(--surface);border-bottom:1px solid var(--line);}
+.app-logo{font-weight:800;font-size:14px;letter-spacing:-0.3px;}
+.app-header-spacer{flex:1;}
+.header-btn{padding:4px 10px;font-size:11px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-secondary);cursor:pointer;font-family:inherit;}
+
+/* ── TAB BAR ── The key UI element of this proposal */
+.tab-bar{display:flex;align-items:stretch;background:var(--surface);border-bottom:2px solid var(--line);flex-shrink:0;}
+.tab{display:flex;align-items:center;gap:6px;padding:0 20px;height:40px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;transition:color var(--motion),border-color var(--motion);user-select:none;}
+.tab svg{width:14px;height:14px;}
+.tab:hover{color:var(--text-primary);}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.tab.disabled{opacity:0.4;cursor:not-allowed;}
+.tab-spacer{flex:1;}
+.tab-action-group{display:flex;align-items:center;gap:4px;padding:0 10px;}
+.tab-act-btn{padding:4px 10px;font-size:11px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-secondary);cursor:pointer;font-family:inherit;}
+
+/* ── CONVERT TAB ── */
+.convert-view{display:flex;height:calc(100% - 80px);}
+.preview-pane{flex:1;background:#1a1714;display:flex;flex-direction:column;position:relative;}
+.preview-pane-inner{flex:1;display:flex;}
+.orig-side{flex:1;border-right:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column;}
+.prev-side{flex:1;display:flex;flex-direction:column;}
+.pane-lbl{font-size:9px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:rgba(255,255,255,0.45);padding:5px 8px;}
+canvas.pcanvas{flex:1;display:block;width:100%;image-rendering:pixelated;}
+.preview-pane-foot{padding:6px 10px;background:rgba(0,0,0,0.4);color:rgba(255,255,255,0.5);font-size:10px;display:flex;align-items:center;gap:6px;}
+
+/* Convert settings sidebar */
+.conv-settings{width:240px;flex-shrink:0;background:var(--surface);display:flex;flex-direction:column;}
+.conv-settings-body{flex:1;padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;}
+.section-title{font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:6px;}
+.field-row{display:flex;align-items:center;gap:6px;margin-bottom:5px;}
+.field-label{font-size:11px;color:var(--text-secondary);min-width:72px;}
+.field-input{flex:1;padding:4px 6px;border:1px solid var(--line);border-radius:var(--radius-sm);font-size:11px;background:var(--surface);font-family:inherit;}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;}
+.toggle-label{font-size:11px;}
+.toggle{position:relative;width:28px;height:16px;}
+.toggle input{opacity:0;width:0;height:0;}
+.toggle-track{position:absolute;inset:0;background:var(--line-2);border-radius:8px;cursor:pointer;}
+.toggle input:checked~.toggle-track{background:var(--accent);}
+.toggle-thumb{position:absolute;top:2px;left:2px;width:12px;height:12px;background:#fff;border-radius:50%;transition:left 120ms ease-out;pointer-events:none;}
+.toggle input:checked~.toggle-track .toggle-thumb{left:14px;}
+.stash-badge{font-size:10px;background:var(--success-soft);color:var(--success);border-radius:var(--radius-sm);padding:1px 6px;font-weight:600;}
+.divider{border:none;border-top:1px solid var(--line);margin:4px 0;}
+.slider-row{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
+.slider-label{font-size:10px;color:var(--text-secondary);min-width:60px;}
+input[type=range]{flex:1;accent-color:var(--accent);height:3px;}
+.slider-val{font-size:10px;color:var(--text-secondary);width:24px;text-align:right;}
+.collapsible-hdr{display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-size:11px;font-weight:600;color:var(--text-secondary);}
+.collapsible-bdy{padding-top:8px;}
+.estimate-box{background:var(--surface-tertiary);border-radius:var(--radius-sm);padding:8px 10px;font-size:11px;color:var(--text-secondary);line-height:1.6;}
+.conv-footer{padding:12px;border-top:1px solid var(--line);}
+.btn-generate{width:100%;padding:9px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-md);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+.btn-generate:hover{background:var(--accent-hover);}
+
+/* ── EDIT TAB ── */
+.edit-view{display:none;height:calc(100% - 80px);}
+.edit-layout{display:flex;height:100%;}
+.tool-strip{width:36px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 4px;background:var(--surface);border-right:1px solid var(--line);}
+.tool-btn{width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;border-radius:var(--radius-sm);cursor:pointer;color:var(--text-secondary);}
+.tool-btn.active{background:var(--accent-light);color:var(--accent);}
+.tool-btn svg{width:14px;height:14px;}
+.edit-canvas-area{flex:1;background:#1a1714;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;}
+canvas.edit-canvas{image-rendering:pixelated;}
+.edit-sidebar{width:180px;flex-shrink:0;background:var(--surface);border-left:1px solid var(--line);overflow-y:auto;padding:10px;}
+.palette-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;}
+.palette-chip{width:100%;aspect-ratio:1;border-radius:3px;cursor:pointer;position:relative;}
+.palette-chip.has-stash::after{content:'';position:absolute;bottom:1px;right:1px;width:5px;height:5px;border-radius:50%;background:var(--success);border:1px solid var(--surface);}
+.back-to-convert{padding:8px 10px;border-top:1px solid var(--line);margin-top:auto;}
+.btn-back-conv{width:100%;padding:6px;font-size:11px;color:var(--text-secondary);background:transparent;border:1px solid var(--line);border-radius:var(--radius-sm);cursor:pointer;font-family:inherit;text-align:center;}
+.btn-back-conv:hover{border-color:var(--accent-border);color:var(--accent);}
+
+/* Warning modal */
+.modal-overlay{position:absolute;inset:0;background:rgba(0,0,0,0.45);display:none;align-items:center;justify-content:center;z-index:100;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border-radius:var(--radius-lg);padding:20px;max-width:280px;box-shadow:var(--shadow-md);}
+.modal-title{font-size:14px;font-weight:700;margin-bottom:8px;}
+.modal-body{font-size:12px;color:var(--text-secondary);margin-bottom:8px;line-height:1.5;}
+.modal-warning{background:var(--warning-soft);border:1px solid var(--warning);border-radius:var(--radius-sm);padding:7px 10px;font-size:11px;color:var(--warning);margin-bottom:12px;}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;}
+.modal-cancel{padding:6px 14px;font-size:12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:transparent;cursor:pointer;font-family:inherit;}
+.modal-confirm{padding:6px 14px;font-size:12px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;font-family:inherit;}
+
+/* Annotation dots */
+.ann-dot{position:absolute;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);pointer-events:none;z-index:50;}
+.ann-dot-inline{width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);flex-shrink:0;vertical-align:middle;}
+
+.annotations{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:14px 16px;width:280px;flex-shrink:0;}
+.ann-title{font-size:12px;font-weight:700;margin-bottom:10px;}
+.ann-item{display:flex;gap:8px;margin-bottom:8px;align-items:flex-start;}
+.ann-num{width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+.ann-text{font-size:11px;color:var(--text-secondary);line-height:1.5;}
+.ann-text strong{color:var(--text-primary);}
+
+[data-bp="390"] .orig-side{display:none;}
+[data-bp="768"] .conv-settings,[data-bp="390"] .conv-settings{width:200px;}
+[data-bp="390"] .edit-sidebar{display:none;}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <a href="create-flow-redesign-proposals.md">← Proposals</a>
+  <span class="toolbar-title">Option 5 — Convert / Edit Tabs <strong style="color:var(--accent);font-weight:700;">(Recommended)</strong></span>
+  <span class="toolbar-subtitle">Two permanent tabs at page top; Convert tab owns all settings; Edit tab owns canvas and tools</span>
+  <div class="bp-bar">
+    <button class="bp-btn active" data-bp="1280" onclick="setBreakpoint(1280)">Desktop 1280</button>
+    <button class="bp-btn" data-bp="1024" onclick="setBreakpoint(1024)">Tablet L 1024</button>
+    <button class="bp-btn" data-bp="768" onclick="setBreakpoint(768)">Tablet P 768</button>
+    <button class="bp-btn" data-bp="390" onclick="setBreakpoint(390)">Phone 390</button>
+  </div>
+</div>
+
+<div class="mockup-outer">
+<div class="mockup-frame" id="mockup" data-bp="1280" style="width:1248px;">
+
+  <!-- App header -->
+  <div class="app-header">
+    <span class="app-logo">stitchx</span>
+    <span style="font-size:11px;color:var(--text-secondary);margin-left:4px;">Pattern Creator</span>
+    <span class="app-header-spacer"></span>
+    <button class="header-btn">Save</button>
+    <button class="header-btn">Open in Tracker</button>
+  </div>
+
+  <!-- ── TAB BAR ── -->
+  <div class="tab-bar">
+    <div class="tab active" id="tab-convert" onclick="switchTab('convert')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 16s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="20" x2="4" y2="16"/></svg>
+      Convert
+    </div>
+    <div class="tab" id="tab-edit" onclick="switchTab('edit')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      Edit
+    </div>
+    <!-- Ann dot 1 on the tab bar -->
+    <div style="position:relative;display:flex;align-items:center;margin-left:8px;">
+      <div class="ann-dot-inline">1</div>
+    </div>
+    <div class="tab-spacer"></div>
+    <div class="tab-action-group">
+      <button class="tab-act-btn">PDF</button>
+      <button class="tab-act-btn">Export</button>
+    </div>
+  </div>
+
+  <!-- ── CONVERT VIEW ── -->
+  <div class="convert-view" id="convert-view">
+
+    <!-- Preview pane -->
+    <div class="preview-pane">
+      <div class="preview-pane-inner">
+        <div class="orig-side">
+          <div class="pane-lbl">Original</div>
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;background:#2a2420;">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+          </div>
+        </div>
+        <div class="prev-side">
+          <div class="pane-lbl">Preview</div>
+          <canvas class="pcanvas" id="preview-canvas"></canvas>
+        </div>
+      </div>
+      <div class="preview-pane-foot">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        Live preview · 120 × 80 stitches · 28 colours
+        <div class="ann-dot" style="position:static;display:inline-flex;margin-left:4px;">2</div>
+      </div>
+      <!-- Ann dot on preview pane -->
+    </div>
+
+    <!-- Settings sidebar -->
+    <div class="conv-settings">
+      <div class="conv-settings-body">
+
+        <div>
+          <div class="section-title">Dimensions</div>
+          <div class="field-row">
+            <label class="field-label">Width</label>
+            <input class="field-input" type="number" value="120" style="width:52px;flex:none;"> sts
+          </div>
+          <div class="field-row">
+            <label class="field-label">Height</label>
+            <input class="field-input" type="number" value="80" style="width:52px;flex:none;"> sts
+          </div>
+          <div class="field-row">
+            <label class="field-label">Fabric</label>
+            <input class="field-input" type="number" value="14" style="width:52px;flex:none;">
+            <span style="font-size:10px;color:var(--text-secondary);">ct · 21.8×14.5 cm</span>
+          </div>
+          <!-- Ann dot 3 -->
+          <div style="position:relative;float:right;margin-top:-16px;">
+            <div class="ann-dot" style="position:static;display:flex;">3</div>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <div>
+          <div class="section-title">Palette</div>
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-label">From stash <span class="stash-badge">147 owned</span></div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" checked>
+              <div class="toggle-track"><div class="toggle-thumb"></div></div>
+            </label>
+          </div>
+          <div class="field-row">
+            <label class="field-label">Max colours</label>
+            <input class="field-input" type="number" value="28" style="width:52px;flex:none;">
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-label">Blended threads</div>
+            <label class="toggle">
+              <input type="checkbox">
+              <div class="toggle-track"><div class="toggle-thumb"></div></div>
+            </label>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <div style="background:var(--surface-secondary);border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px 10px;">
+          <div class="collapsible-hdr" onclick="toggleSec('det')">
+            <span>Detail &amp; cleanup</span>
+            <svg id="det-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+          <div id="det-bdy" class="collapsible-bdy">
+            <div class="toggle-row" style="margin-bottom:4px;">
+              <div class="toggle-label">Remove background</div>
+              <label class="toggle"><input type="checkbox" checked><div class="toggle-track"><div class="toggle-thumb"></div></div></label>
+            </div>
+            <div class="slider-row">
+              <span class="slider-label">Smoothing</span>
+              <input type="range" min="0" max="5" value="2" oninput="this.nextElementSibling.textContent=this.value">
+              <span class="slider-val">2</span>
+            </div>
+            <div class="slider-row">
+              <span class="slider-label">Cleanup</span>
+              <input type="range" min="0" max="3" value="1" oninput="this.nextElementSibling.textContent=this.value">
+              <span class="slider-val">1</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:var(--surface-secondary);border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px 10px;">
+          <div class="collapsible-hdr" onclick="toggleSec('adv')">
+            <span>Advanced</span>
+            <svg id="adv-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+          <div id="adv-bdy" style="display:none;" class="collapsible-bdy">
+            <div class="field-row">
+              <label class="field-label">Dithering</label>
+              <select class="field-input"><option>Off</option><option selected>Floyd-Steinberg</option></select>
+            </div>
+            <div class="slider-row">
+              <span class="slider-label">Contrast</span>
+              <input type="range" min="-100" max="100" value="0" oninput="this.nextElementSibling.textContent=this.value">
+              <span class="slider-val">0</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="estimate-box">9,600 stitches · ~6.5 hours · ~14 skeins est.</div>
+
+      </div>
+      <div class="conv-footer">
+        <button class="btn-generate" onclick="generateAndSwitchToEdit()">
+          Generate Pattern
+        </button>
+        <!-- Ann dot 4 -->
+        <div style="position:relative;display:flex;justify-content:flex-end;margin-top:4px;">
+          <div class="ann-dot-inline">4</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /convert-view -->
+
+  <!-- ── EDIT VIEW ── -->
+  <div class="edit-view" id="edit-view">
+    <div class="edit-layout">
+
+      <div class="tool-strip">
+        <button class="tool-btn active" title="Paint">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/></svg>
+        </button>
+        <button class="tool-btn" title="Fill">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16.56 8.94 7.62 0 6.21 1.41l2.38 2.38-5.15 5.15a1.49 1.49 0 0 0 0 2.12l5.5 5.5c.29.29.68.44 1.06.44s.77-.15 1.06-.44l5.5-5.5c.59-.58.59-1.53 0-2.12z"/></svg>
+        </button>
+        <button class="tool-btn" title="Erase">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 20H7L3 16l9-9 8 8-3.5 3.5"/><path d="m6.5 17.5 3-3"/></svg>
+        </button>
+        <button class="tool-btn" title="Eyedropper">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m2 22 1-1h3l9-9"/><path d="M3 21v-3l9-9"/><path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8"/></svg>
+        </button>
+        <hr style="width:20px;border:none;border-top:1px solid var(--line);margin:2px 0;">
+        <button class="tool-btn" title="Undo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+        </button>
+        <button class="tool-btn" title="Redo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>
+        </button>
+        <!-- Ann dot 6 -->
+        <div class="ann-dot" style="position:static;margin-top:6px;display:flex;">6</div>
+      </div>
+
+      <div class="edit-canvas-area">
+        <canvas class="edit-canvas" id="edit-canvas" width="640" height="480"></canvas>
+      </div>
+
+      <div class="edit-sidebar">
+        <div class="section-title" style="padding:10px 0 6px;">Palette · 28 colours</div>
+        <div class="palette-grid" id="palette-grid"></div>
+        <div style="font-size:10px;color:var(--text-secondary);margin-top:6px;line-height:1.4;">Click to select · dots = in stash</div>
+        <!-- Ann dot 7 -->
+        <div class="ann-dot-inline" style="margin-top:8px;display:block;">7</div>
+        <div class="back-to-convert" style="margin-top:auto;padding-top:8px;">
+          <button class="btn-back-conv" onclick="backToConvert()">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+            Back to Convert
+          </button>
+          <div style="font-size:10px;color:var(--text-secondary);margin-top:4px;text-align:center;">Settings preserved</div>
+        </div>
+      </div>
+
+    </div>
+  </div><!-- /edit-view -->
+
+  <!-- Warning modal (back-to-convert with edits) -->
+  <div class="modal-overlay" id="warn-modal">
+    <div class="modal">
+      <div class="modal-title">Go back to Convert?</div>
+      <div class="modal-body">Your conversion settings are preserved. You can regenerate with different settings.</div>
+      <div class="modal-warning">24 manual edits will be lost if you generate a new pattern.</div>
+      <div class="modal-actions">
+        <button class="modal-cancel" onclick="closeWarn()">Stay in Edit</button>
+        <button class="modal-confirm" onclick="doBackToConvert()">Go to Convert</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Empty-state on Edit tab (before first generate) -->
+  <div id="edit-empty-state" style="display:none;position:absolute;inset:80px 0 0 0;background:var(--surface-secondary);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--line-2)" stroke-width="1"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    <div style="font-size:14px;font-weight:600;color:var(--text-secondary);">No pattern yet</div>
+    <div style="font-size:12px;color:var(--text-secondary);">Generate a pattern in the Convert tab first</div>
+    <button onclick="switchTab('convert')" style="padding:7px 16px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-md);font-size:12px;cursor:pointer;font-family:inherit;">
+      Go to Convert
+    </button>
+  </div>
+
+</div><!-- /mockup-frame -->
+
+<div class="annotations">
+  <div class="ann-title">Design decisions</div>
+  <div class="ann-item"><div class="ann-num">1</div><div class="ann-text"><strong>Tab bar is always visible</strong> — it is part of the permanent page chrome, not a modal or overlay. Users always know which phase they are in and can switch explicitly.</div></div>
+  <div class="ann-item"><div class="ann-num">2</div><div class="ann-text"><strong>Live preview in Convert tab</strong> — the comparison pane (original vs. pattern) updates on every setting change. No need to click Generate to see a rough result.</div></div>
+  <div class="ann-item"><div class="ann-num">3</div><div class="ann-text"><strong>All essential controls in Convert sidebar</strong> — dimensions, palette, stash, blends, background, smoothing, cleanup. No accordion needed; the tab separation gives enough space.</div></div>
+  <div class="ann-item"><div class="ann-num">4</div><div class="ann-text"><strong>"Generate Pattern" is the only CTA that crosses modes</strong> — after clicking, the Edit tab activates automatically and the canvas shows the result. The tab switch is announced (brief toast: "Pattern generated — now editing").</div></div>
+  <div class="ann-item"><div class="ann-num">5</div><div class="ann-text"><strong>Switching back to Convert shows a warning only if edits exist</strong> — the modal explains that settings are preserved but new generation will replace the current pattern.</div></div>
+  <div class="ann-item"><div class="ann-num">6</div><div class="ann-text"><strong>Edit tab has no conversion controls</strong> — toolstrip and palette only. Zero bleed from Convert. The "Back to Convert" link is small and in the sidebar footer, never accidentally clicked.</div></div>
+  <div class="ann-item"><div class="ann-num">7</div><div class="ann-text"><strong>Palette sidebar in Edit</strong> — stash dots show which threads you own. Colour replace and swap tools are accessible from the palette context menu.</div></div>
+</div>
+</div>
+
+<script>
+const PALETTE_COLORS=['#1A1A1A','#C41E3A','#5B8FA8','#4CAF50','#F9C74F','#E07A2E','#8B0000','#A07BC8','#E8748A','#89A7B1','#C8A882','#D4B483','#A52A2A','#FAFAFA','#C0C0C0','#6E6E6E','#1F3D6B','#0047AB','#7B3E0A','#8B5E1A','#D4875D','#F4A77B','#8B6914','#C4956A','#E5C4A1','#6B4226','#3D8B6E','#7B9B6A'];
+let hasGenerated = false;
+let hasEdits = false;
+
+function setBreakpoint(bp) {
+  document.getElementById('mockup').style.width = (bp-32)+'px';
+  document.getElementById('mockup').setAttribute('data-bp', bp);
+  document.querySelectorAll('.bp-btn').forEach(b => b.classList.toggle('active', +b.dataset.bp===bp));
+}
+
+function drawPattern(canvas, seed) {
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height,CELL=4;
+  for(let y=0;y<H;y+=CELL)for(let x=0;x<W;x+=CELL){
+    const n=Math.sin(x*.08+y*.06+(seed||0))*.5+Math.sin(x*.04-y*.09+(seed||0)*.7)*.3+Math.cos(x*.02+y*.03+(seed||0)*.4)*.2;
+    const idx=((Math.floor((n+1)*14))%PALETTE_COLORS.length+PALETTE_COLORS.length)%PALETTE_COLORS.length;
+    ctx.fillStyle=PALETTE_COLORS[idx];ctx.fillRect(x,y,CELL,CELL);
+  }
+  ctx.strokeStyle='rgba(255,255,255,0.07)';ctx.lineWidth=0.5;
+  for(let x=0;x<=W;x+=CELL){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<=H;y+=CELL){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+}
+
+function switchTab(tab) {
+  if (tab === 'edit' && !hasGenerated) {
+    document.getElementById('convert-view').style.display = 'none';
+    document.getElementById('edit-view').style.display = 'block';
+    document.getElementById('edit-empty-state').style.display = 'flex';
+    document.getElementById('tab-convert').classList.remove('active');
+    document.getElementById('tab-edit').classList.add('active');
+    return;
+  }
+  document.getElementById('edit-empty-state').style.display = 'none';
+  document.getElementById('convert-view').style.display = tab === 'convert' ? 'flex' : 'none';
+  document.getElementById('edit-view').style.display = tab === 'edit' ? 'block' : 'none';
+  document.getElementById('tab-convert').classList.toggle('active', tab === 'convert');
+  document.getElementById('tab-edit').classList.toggle('active', tab === 'edit');
+}
+
+function generateAndSwitchToEdit() {
+  hasGenerated = true;
+  hasEdits = false;
+  const c = document.getElementById('edit-canvas');
+  c.width = c.offsetWidth || 640;
+  c.height = c.offsetHeight || 480;
+  drawPattern(c, 0.3);
+  switchTab('edit');
+}
+
+function backToConvert() {
+  if (hasEdits) {
+    document.getElementById('warn-modal').classList.add('open');
+  } else {
+    switchTab('convert');
+  }
+}
+
+function closeWarn() {
+  document.getElementById('warn-modal').classList.remove('open');
+}
+
+function doBackToConvert() {
+  closeWarn();
+  switchTab('convert');
+}
+
+function toggleSec(id) {
+  const b = document.getElementById(id+'-bdy');
+  const c = document.getElementById(id+'-chev');
+  const h = b.style.display === 'none';
+  b.style.display = h ? 'block' : 'none';
+  c.style.transform = h ? 'rotate(180deg)' : '';
+}
+
+function buildPalette() {
+  const g = document.getElementById('palette-grid');
+  PALETTE_COLORS.forEach((hex, i) => {
+    const d = document.createElement('div');
+    d.className = 'palette-chip' + (i < 12 ? ' has-stash' : '');
+    d.style.background = hex;
+    if (hex === '#FAFAFA') d.style.border = '1px solid #ddd';
+    d.onclick = () => { hasEdits = true; };
+    g.appendChild(d);
+  });
+}
+
+window.addEventListener('load', () => {
+  // Draw the convert tab preview
+  const pc = document.getElementById('preview-canvas');
+  pc.width = pc.offsetWidth || 600;
+  pc.height = pc.offsetHeight || 500;
+  drawPattern(pc, 0);
+  buildPalette();
+});
+</script>
+</body>
+</html>
