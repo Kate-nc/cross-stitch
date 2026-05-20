@@ -27,6 +27,12 @@ if ('serviceWorker' in navigator) {
         try {
           if (sessionStorage.getItem('cs_pending_image_dataurl')) return;
         } catch (_) {}
+        // Also skip the reload if a new-blank (scratch) or other creator
+        // action is in-flight: processPendingAction() strips the ?action=
+        // query param before React mounts, so a reload here would land on
+        // create.html with no action and no active project, causing the
+        // defensive redirect to bounce the user back to /home.
+        if (window.__pendingCreatorAction) return;
         window.location.reload();
       }
     });
