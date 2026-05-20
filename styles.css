@@ -7360,7 +7360,7 @@ body.cs-focus .lpanel-backdrop { display: none !important; }
   inset:0;
   z-index:19;
   background:rgba(0,0,0,0.2);
-  animation:ppal-fade-in var(--motion-fast) ease-out;
+  animation:ppal-fade-in var(--motion-fast);
 }
 @keyframes ppal-fade-in{from{opacity:0;}to{opacity:1;}}
 @media (prefers-reduced-motion:reduce){.ppal-more-backdrop{animation:none;}}
@@ -7378,7 +7378,7 @@ body.cs-focus .lpanel-backdrop { display: none !important; }
   display:flex;
   flex-direction:column;
   transform:translateX(100%);
-  transition:transform var(--motion) ease-out;
+  transition:transform var(--motion);
   overflow:hidden;
 }
 .ppal-more-panel--open{transform:translateX(0);}

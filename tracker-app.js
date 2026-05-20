@@ -1,4 +1,4 @@
-﻿const{useState,useRef,useCallback,useEffect,useMemo}=React;
+const{useState,useRef,useCallback,useEffect,useMemo}=React;
 // Central shortcut registry hooks (loaded by shortcuts.js before tracker-app.js).
 // Fall back to no-op stubs in case the script failed to load — tracker still
 // renders, just without keyboard shortcuts.
@@ -1121,7 +1121,7 @@ const setLeftSidebarOpen = useCallback((next)=>{
   });
 },[]);
 const cycleLeftSidebar = useCallback(()=>{
-  setLeftSidebarMode(prev=>prev==="open"?"hidden":"open");
+  setLeftSidebarMode(prev=>prev==="hidden"?"rail":(prev==="rail"?"open":"hidden"));
 },[]);
 // Tracks whether the screen is currently ≥1024px (docked lpanel mode).
 // Updated by the orientation-change effect; used by the persist effect
@@ -5486,6 +5486,7 @@ return(
       onClose: () => setProgressInfoOpen(false),
       triggerRef: progressChipRef,
       heading: 'Progress',
+      ariaLabel: 'Progress details',
       children: [
         React.createElement(window.AppInfoSection, { title: 'Progress' },
           React.createElement(window.AppInfoGrid, { rows: progressRows })),
@@ -5707,9 +5708,11 @@ return(
           return rows.map(({p,dc,pct,complete})=>{
             const isFocused=focusColour===p.id;
             const swRgb="rgb("+p.rgb+")";
-            return <div key={p.id} role="listitem"
+            return <div key={p.id} role="button" tabIndex={0}
               className={"ppal-tile"+(isFocused?" ppal-tile--on":"")+(complete?" ppal-tile--done":"")}
               onClick={()=>{if(isEditMode){setEditModalColor(p);return;}setStitchView("highlight");setFocusColour(p.id);if(typeof window!=="undefined"&&window.matchMedia&&window.matchMedia("(max-width:899px)").matches)setLeftSidebarOpen(false);}}
+              onKeyDown={e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();if(isEditMode){setEditModalColor(p);return;}setStitchView("highlight");setFocusColour(p.id);if(typeof window!=="undefined"&&window.matchMedia&&window.matchMedia("(max-width:899px)").matches)setLeftSidebarOpen(false);}}}
+              aria-label={"Select DMC "+p.id}
               title={"DMC "+p.id+(complete?" (done)":"")}>
               <div className="ppal-tile-swatch" style={{background:swRgb}}
                 role="button" tabIndex={0} aria-label={"View DMC "+p.id+" detail"}
@@ -5966,9 +5969,9 @@ return(
         </button>
         <button className="ppal-more-close" onClick={()=>setMorePanelOpen(false)} aria-label="Close controls">{Icons.x()}</button>
       </div>
-      <div className="ppal-more-tabs" role="tablist">
+      <div className="ppal-more-tabs">
         {[["highlight","Highlight"],["view","View"],["session","Session"],["layers","Layers"],["tools","Tools"]].map(([k,l])=>
-          <button key={k} role="tab" aria-selected={leftSidebarTab===k} className={"ppal-more-tab"+(leftSidebarTab===k?" ppal-more-tab--on":"")} onClick={()=>setLeftSidebarTab(k)}>{l}</button>
+          <button key={k} aria-pressed={leftSidebarTab===k} className={"ppal-more-tab"+(leftSidebarTab===k?" ppal-more-tab--on":"")} onClick={()=>setLeftSidebarTab(k)}>{l}</button>
         )}
       </div>
       <div className="ppal-more-content">
@@ -6810,6 +6813,4 @@ return(
 window.TrackerApp=TrackerApp;
 if(!window.__UNIFIED__)ReactDOM.createRoot(document.getElementById("root")).render(<TrackerApp/>);
 if (typeof SyncEngine !== 'undefined') SyncEngine.registerBeforeUnloadSnapshot();
-
-
 

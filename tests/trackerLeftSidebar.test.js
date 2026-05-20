@@ -41,7 +41,7 @@ describe('Tracker left sidebar (toolbar-rework phase 1)', () => {
   test('toolbar pill exposes a palette button bound to the cycle helper', () => {
     expect(trackerSrc).toMatch(/ppal-mode-btn/);
     expect(trackerSrc).toMatch(/onClick=\{cycleLeftSidebar\}/);
-    expect(trackerSrc).toMatch(/Icons\.menu\(\)/);
+    expect(trackerSrc).toMatch(/Icons\.palette\(\)/);
   });
 
   test('lpanel renders for both rail and open modes', () => {
