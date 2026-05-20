@@ -2096,6 +2096,19 @@ function _stepFocusBlock(dx,dy){
   if(bx===cur.bx&&by===cur.by&&focusBlock)return;
   setFocusBlock({bx,by});
 }
+// Compute the next sequential focus block without requiring the current block
+// to be complete. Used by the "Next section" button.
+// Returns {bx,by} for the next block, or null if already at the last block.
+function _computeNextFocusBlock(){
+  if(!focusBlock||stitchingStyle==="crosscountry")return null;
+  if(stitchingStyle==="royal")return _getRoyalRowsNext(focusBlock.bx,focusBlock.by);
+  if(recommendations&&recommendations.top&&recommendations.top.length>0&&analysisResult){
+    const RC=analysisResult.regionCols||1;
+    const top=recommendations.top.find(r=>{const rC=r.idx%RC,rR=Math.floor(r.idx/RC);return!(rC===focusBlock.bx&&rR===focusBlock.by);});
+    if(top){const rC=top.idx%RC,rR=Math.floor(top.idx/RC);return{bx:rC,by:rR};}
+  }
+  return _getRoyalRowsNext(focusBlock.bx,focusBlock.by);
+}
 
 // ── Block auto-advance effect ──
 useEffect(()=>{
@@ -5495,8 +5508,15 @@ return(
   </div>
 )}
 {focusEnabled&&focusBlock&&stitchingStyle!=="crosscountry"&&(
-  <div style={{display:"flex",alignItems:"center",gap:6,padding:"3px 10px 3px 8px",background:"var(--accent-light)",border:"1px solid var(--accent-border)",borderRadius:20,fontSize:'var(--text-xs)',fontWeight:600,color:"var(--accent)",cursor:"pointer",userSelect:"none",width:"fit-content",marginBottom:'var(--s-1)'}} onClick={()=>setStyleOnboardingOpen(true)} title="Tap to change stitching style">
-    {({block:"Block",royal:"Royal Rows",freestyle:"Freestyle"})[stitchingStyle]||stitchingStyle} · {focusBlock.by+1},{focusBlock.bx+1}
+  <div className="focus-block-nav">
+    <div className="focus-block-chip" onClick={()=>setStyleOnboardingOpen(true)} title="Tap to change stitching style">
+      {({block:"Block",royal:"Royal Rows",freestyle:"Freestyle"})[stitchingStyle]||stitchingStyle} · {focusBlock.by+1},{focusBlock.bx+1}
+    </div>
+    {(()=>{const nb=_computeNextFocusBlock();return nb?(
+      <button className="focus-block-next-btn" onClick={()=>setFocusBlock(nb)} title="Advance to next section">
+        Next section{Icons.chevronRight?<span style={{marginLeft:2,display:'inline-flex',verticalAlign:'-2px'}}>{Icons.chevronRight()}</span>:null}
+      </button>
+    ):null;})()}
   </div>
 )}
 {sessionSavedToast&&(
@@ -6097,6 +6117,24 @@ return(
               )}
             </div>
           </div>
+          {stitchingStyle!=="crosscountry"&&<div>
+            <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Section spotlight</div>
+            <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,cursor:"pointer",userSelect:"none",marginBottom:focusEnabled&&focusBlock?8:0}}>
+              <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Highlight active section</span>
+              <input type="checkbox" checked={!!focusEnabled} onChange={e=>{
+                const on=e.target.checked;
+                setFocusEnabled(on);
+                try{localStorage.setItem("cs_focusEnabled",on?"1":"0");}catch(_){}
+                if(on&&!focusBlock)setFocusBlock(_getStartBlock());
+              }} style={{width:16,height:16,cursor:"pointer"}}/>
+            </label>
+            {focusEnabled&&focusBlock&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
+              <span style={{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>Section {focusBlock.by+1},{focusBlock.bx+1}</span>
+              <div style={{display:"flex",gap:6}}>                <button onClick={()=>setFocusBlock(_getStartBlock())} style={{fontSize:'var(--text-xs)',padding:"3px 8px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",cursor:"pointer"}}>Restart</button>
+                <button onClick={()=>setStyleOnboardingOpen(true)} style={{fontSize:'var(--text-xs)',padding:"3px 8px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",cursor:"pointer"}}>Change style</button>
+              </div>
+            </div>}
+          </div>}
           <button
             onClick={()=>setSessionConfigOpen(true)}
             style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",textAlign:"left",display:"flex",alignItems:"center",gap:8}}
