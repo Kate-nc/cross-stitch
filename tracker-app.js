@@ -5514,7 +5514,7 @@ return(
     </div>
     {(()=>{const nb=_computeNextFocusBlock();return nb?(
       <button className="focus-block-next-btn" onClick={()=>setFocusBlock(nb)} title="Advance to next section">
-        Next section{Icons.chevronRight?<span style={{marginLeft:2,display:'inline-flex',verticalAlign:'-2px'}}>{Icons.chevronRight()}</span>:null}
+        Next section{Icons.chevronRight?Icons.chevronRight():null}
       </button>
     ):null;})()}
   </div>
@@ -5925,7 +5925,10 @@ return(
 
     {/* ─ Mode strip ─ */}
     <div className={"toolbar-row"+(isEditMode?" toolbar-row--edit":"")+" ppal-mode-strip"} role="toolbar" aria-label="Canvas controls">
-      <button className="tracker-hamburger" onClick={cycleLeftSidebar} aria-label="Open colour palette" title="Open colour palette (P)">{Icons.palette?Icons.palette():null}</button>
+      <button className="ppal-mode-btn" onClick={cycleLeftSidebar} aria-label="Open colour palette" title="Open colour palette (P)">
+        <span className="ppal-mode-btn-icon">{Icons.palette?Icons.palette():null}</span>
+        <span className="ppal-mode-btn-label">Colours</span>
+      </button>
       <button className={"ppal-mode-btn"+(stitchMode==="track"?" ppal-mode-btn--on":"")+(isEditMode?" tb-btn--red":" tb-btn--green")} onClick={()=>setStitchMode("track")} title={isEditMode?"Modify pattern (M)":"Mark stitches (T)"} aria-pressed={stitchMode==="track"}>
         <span className="ppal-mode-btn-icon">{Icons.check()}</span>
         <span className="ppal-mode-btn-label">{isEditMode?"Modify":"Mark"}</span>
@@ -6119,7 +6122,7 @@ return(
           </div>
           {stitchingStyle!=="crosscountry"&&<div>
             <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Section spotlight</div>
-            <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,cursor:"pointer",userSelect:"none",marginBottom:focusEnabled&&focusBlock?8:0}}>
+            <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,cursor:"pointer",userSelect:"none",marginBottom:4}}>
               <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Highlight active section</span>
               <input type="checkbox" checked={!!focusEnabled} onChange={e=>{
                 const on=e.target.checked;
@@ -6128,11 +6131,9 @@ return(
                 if(on&&!focusBlock)setFocusBlock(_getStartBlock());
               }} style={{width:16,height:16,cursor:"pointer"}}/>
             </label>
-            {focusEnabled&&focusBlock&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
-              <span style={{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>Section {focusBlock.by+1},{focusBlock.bx+1}</span>
-              <div style={{display:"flex",gap:6}}>                <button onClick={()=>setFocusBlock(_getStartBlock())} style={{fontSize:'var(--text-xs)',padding:"3px 8px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",cursor:"pointer"}}>Restart</button>
-                <button onClick={()=>setStyleOnboardingOpen(true)} style={{fontSize:'var(--text-xs)',padding:"3px 8px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",cursor:"pointer"}}>Change style</button>
-              </div>
+            {focusEnabled&&focusBlock&&<div style={{display:"flex",gap:12}}>
+              <button onClick={()=>setFocusBlock(_getStartBlock())} style={{fontSize:'var(--text-xs)',padding:0,background:"none",border:"none",color:"var(--accent)",cursor:"pointer",fontFamily:"inherit"}}>Restart sections</button>
+              <button onClick={()=>setStyleOnboardingOpen(true)} style={{fontSize:'var(--text-xs)',padding:0,background:"none",border:"none",color:"var(--accent)",cursor:"pointer",fontFamily:"inherit"}}>Change style</button>
             </div>}
           </div>}
           <button

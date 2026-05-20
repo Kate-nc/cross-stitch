@@ -38,8 +38,8 @@ describe('Tracker left sidebar (toolbar-rework phase 1)', () => {
     expect(trackerSrc).toMatch(/UserPrefs.*set\("trackerLeftSidebarTab"/);
   });
 
-  test('toolbar pill exposes a hamburger button bound to the cycle helper', () => {
-    expect(trackerSrc).toMatch(/className="tracker-hamburger"/);
+  test('toolbar pill exposes a palette button bound to the cycle helper', () => {
+    expect(trackerSrc).toMatch(/ppal-mode-btn/);
     expect(trackerSrc).toMatch(/onClick=\{cycleLeftSidebar\}/);
     expect(trackerSrc).toMatch(/Icons\.menu\(\)/);
   });
