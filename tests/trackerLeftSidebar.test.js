@@ -121,11 +121,10 @@ describe('Tracker left sidebar (toolbar-rework phase 1)', () => {
   });
 
   test('phase 3: info strip + session chip defer to the Session tab', () => {
-    // The info strip click handler used to open the per-project stats view
-    // on mobile. After phase 3 it opens the left sidebar Session tab.
-    expect(trackerSrc).toMatch(/setLeftSidebarTab\("session"\);\s*setLeftSidebarOpen\(true\);/);
+    // The info strip click handler opens the More panel to the Session tab.
+    expect(trackerSrc).toMatch(/setLeftSidebarTab\("session"\);\s*setMorePanelOpen\(true\);/);
     // The chip's pause-toggle behaviour is gone — the chip now only opens
-    // the sidebar Session tab.
+    // the More panel Session tab.
     expect(trackerSrc).not.toMatch(/title=\{manuallyPaused \? "Tap to resume tracking"/);
     // The legacy explicit-session start/stop button on the info strip is gone.
     expect(trackerSrc).not.toMatch(/title=\{explicitSession\?"End session":"Start session"\}/);

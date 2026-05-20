@@ -1,4 +1,4 @@
-const{useState,useRef,useCallback,useEffect,useMemo}=React;
+﻿const{useState,useRef,useCallback,useEffect,useMemo}=React;
 // Central shortcut registry hooks (loaded by shortcuts.js before tracker-app.js).
 // Fall back to no-op stubs in case the script failed to load — tracker still
 // renders, just without keyboard shortcuts.
@@ -434,7 +434,7 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
 // the right. Both surfaces are CSS-gated to >=600px viewports; phone
 // keeps its existing chrome (action bar + dock + mode pill).
 // ═══════════════════════════════════════════════════════════════
-function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setFocusColour,stitchView,setStitchView,todayStitchesForBar,liveAutoElapsed,liveAutoStitches,onPickProject,skeinData,globalStash,onToggleOwned,wastePrefs,setWastePrefs,rtConsumption,fabricCt}){
+function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setFocusColour,stitchView,setStitchView,todayStitchesForBar,liveAutoElapsed,liveAutoStitches,onPickProject}){
   const[recent,setRecent]=React.useState([]);
   const[collapsed,setCollapsed]=React.useState(function(){
     try{return !!(window.UserPrefs&&window.UserPrefs.get("trackerProjectRailCollapsed"));}catch(_){return false;}
@@ -473,14 +473,10 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
     try{window.ProjectStorage.setActiveProject(id);}catch(_){}
     try{window.location.reload();}catch(_){}
   }
-  function updateWastePref(key,val){
-    if(typeof setWastePrefs!=='function')return;
-    setWastePrefs(function(prev){return Object.assign({},prev,{[key]:val});});
   }
   var sec=liveAutoElapsed||0;
   var hh=Math.floor(sec/3600),mm=Math.floor((sec%3600)/60);
   var timer=(hh>0?hh+"h ":"")+mm+"m";
-  var rt=wastePrefs&&wastePrefs.enabled;
   return React.createElement('aside',{className:'tracker-project-rail'+(collapsed?' tracker-project-rail--collapsed':''),role:'complementary','aria-label':'Recent projects'},
     React.createElement('div',{className:'tpr-header'},
       collapsed?null:React.createElement('h3',{className:'tpr-h'},'Projects'),
@@ -529,211 +525,7 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
         }catch(_){}
       }
     },'More projects…'),
-    React.createElement('div',{className:'tracker-side-panel',role:'complementary','aria-label':'Today and palette',style:collapsed?{display:'none'}:undefined},
-      React.createElement('section',{className:'tsp-card'},
-        React.createElement('h3',{className:'tsp-h'},'Today'),
-        React.createElement('div',{className:'tsp-stat'},React.createElement('span',null,'Stitches'),React.createElement('strong',null,(todayStitchesForBar||0).toLocaleString('en-GB'))),
-        React.createElement('div',{className:'tsp-stat'},React.createElement('span',null,'Session'),React.createElement('strong',null,timer)),
-        React.createElement('div',{className:'tsp-stat'},React.createElement('span',null,'Active'),React.createElement('strong',null,(liveAutoStitches||0).toLocaleString('en-GB')+' st'))
-      ),
-      React.createElement('section',{className:'tsp-card'},
-        (function(){
-          const rows=(skeinData||[]).map(function(d){
-            const gs=(globalStash&&(globalStash['dmc:'+d.id]||globalStash[d.id]))||null;
-            const owned=gs&&typeof gs.owned==='number'?gs.owned:0;
-            const have=owned>=d.skeins&&d.skeins>0;
-            // RT consumption data (undefined when disabled)
-            const rtData=rt&&rtConsumption?rtConsumption[d.id]:null;
-            let focusId=null;
-            if(pal){
-              const solid=pal.find(function(pp){return pp.type==='solid'&&pp.id===d.id;});
-              if(solid)focusId=solid.id;
-              else{
-                const blend=pal.find(function(pp){return pp.type==='blend'&&pp.threads&&pp.threads.some(function(t){return t.id===d.id;});});
-                if(blend)focusId=blend.id;
-              }
-            }
-            return{d,owned,have,focusId,rtData};
-          });
-
-          // Grouping: RT mode uses skeinsRemaining; normal mode uses owned vs needed.
-          var needRows,ownedRows;
-          if(rt){
-            needRows=rows.filter(function(r){return r.rtData&&r.rtData.skeinsRemaining!=null&&r.rtData.skeinsRemaining<0;});
-            ownedRows=rows.filter(function(r){return !r.rtData||r.rtData.skeinsRemaining==null||r.rtData.skeinsRemaining>=0;});
-            // Sort: low remaining first within each group
-            ownedRows.sort(function(a,b){
-              var ra=a.rtData&&a.rtData.skeinsRemaining!=null?a.rtData.skeinsRemaining:Infinity;
-              var rb=b.rtData&&b.rtData.skeinsRemaining!=null?b.rtData.skeinsRemaining:Infinity;
-              return ra-rb;
-            });
-          }else{
-            function _sortBySkeins(a,b){
-              if(b.d.skeins!==a.d.skeins)return b.d.skeins-a.d.skeins;
-              var an=parseInt(a.d.id,10),bn=parseInt(b.d.id,10);
-              if(isFinite(an)&&isFinite(bn))return an-bn;
-              return String(a.d.id).localeCompare(String(b.d.id));
-            }
-            ownedRows=rows.filter(function(r){return r.have;});
-            needRows=rows.filter(function(r){return !r.have;});
-            ownedRows.sort(_sortBySkeins);
-            needRows.sort(_sortBySkeins);
-          }
-
-          function renderRow(r){
-            var d=r.d;
-            var isOn=focusColour&&r.focusId===focusColour;
-            var rtD=r.rtData;
-            var isLow=rt&&rtD&&rtD.skeinsRemaining!=null&&rtD.skeinsRemaining>=0&&rtD.skeinsRemaining<0.25;
-            var isNeg=rt&&rtD&&rtD.skeinsRemaining!=null&&rtD.skeinsRemaining<0;
-            // Progress bar: fraction within the current skein (repeating 0→1 each skein)
-            var barPct=rt&&rtD?((rtD.skeinsConsumed%1.0)*100):0;
-            var barColor=isNeg?'var(--danger)':isLow?'var(--warning)':'var(--accent)';
-
-            return React.createElement('div',{key:d.id,className:'tsp-row tsp-row--thread'+(isOn?' tsp-row--on':'')},
-              React.createElement('div',{className:'tsp-thread-col'},
-                React.createElement('button',{
-                  type:'button',className:'tsp-thread-main',
-                  onClick:function(){if(!r.focusId)return;if(stitchView!=='highlight')setStitchView('highlight');setFocusColour(r.focusId);},
-                  title:'DMC '+d.id+(d.name?(' \u2014 '+d.name):'')+' \u00B7 '+d.skeins+' skein'+(d.skeins===1?'':'s')+' needed'
-                },
-                  React.createElement('span',{className:'tsp-sw',style:{background:'rgb('+(d.rgb||[128,128,128]).join(',')+')'}}),
-                  React.createElement('span',{className:'tsp-id'},d.id),
-                  React.createElement('span',{className:'tsp-name'},
-                    d.name||'',
-                    isLow&&React.createElement('span',{className:'tsp-rt-low-badge'},'Low')
-                  ),
-                  // RT mode: show consumed/owned fraction instead of skeins-needed pip
-                  rt&&rtD
-                    ? React.createElement('span',{className:'tsp-rem tsp-rt-frac'+(isNeg?' tsp-rt-frac--neg':isLow?' tsp-rt-frac--low':''),
-                        title:isNeg?'Need '+(Math.abs(rtD.skeinsRemaining).toFixed(2))+' more skeins':
-                              rtD.ownedSkeins!=null?(rtD.skeinsRemaining.toFixed(2)+' skeins remaining'):
-                              rtD.skeinsConsumed.toFixed(2)+' skeins used'},
-                        rtD.ownedSkeins!=null
-                          ?React.createElement('span',null,rtD.skeinsConsumed.toFixed(2)+'/'+rtD.ownedSkeins.toFixed(1))
-                          :React.createElement('span',null,rtD.skeinsConsumed.toFixed(2)+' used')
-                      )
-                    : React.createElement(React.Fragment,null,
-                        React.createElement('span',{className:'tsp-rem',title:d.skeins+' skeins needed','aria-label':d.skeins+' skeins needed'},d.skeins+'\u00D7'),
-                        r.have
-                          ? React.createElement('span',{className:'tsp-own-pip tsp-own-pip--have',title:'You have '+r.owned+' skein'+(r.owned===1?'':'s')+' of DMC '+d.id+' in your stash','aria-label':'In stash'},window.Icons.check())
-                          : React.createElement('span',{className:'tsp-own-pip tsp-own-pip--need',title:'You have '+r.owned+' skein'+(r.owned===1?'':'s')+' \u2014 need '+(d.skeins-r.owned)+' more','aria-label':'Need to buy'},(d.skeins-r.owned)+'\u00D7')
-                      )
-                ),
-                // RT skein meter (inline 4px bar below the main row button)
-                rt&&rtD&&React.createElement('div',{className:'tsp-rt-meter'},
-                  React.createElement('div',{className:'tsp-rt-meter-bar'},
-                    React.createElement('div',{className:'tsp-rt-meter-fill',
-                      style:{width:Math.min(100,barPct)+'%',background:barColor}})
-                  )
-                )
-              ),
-              typeof onToggleOwned==='function' && React.createElement('button',{
-                type:'button',className:'tsp-stash-btn',
-                onClick:function(e){e.stopPropagation();onToggleOwned(d.id,r.have?Math.max(0,r.owned-d.skeins):d.skeins);},
-                title:r.have?('Remove '+d.skeins+' skein'+(d.skeins===1?'':'s')+' of DMC '+d.id+' from your stash'):('Mark '+d.skeins+' skein'+(d.skeins===1?'':'s')+' of DMC '+d.id+' as owned'),
-                'aria-label':r.have?'Remove from stash':'Add to stash'
-              },r.have?window.Icons.minus():window.Icons.plus())
-            );
-          }
-
-          // Panel header: title + Live toggle + gear icon
-          var headerEl=React.createElement('div',{className:'tsp-rt-header'},
-            React.createElement('span',{className:'tsp-h',style:{margin:0}},'Threads needed \u00B7 '+rows.length),
-            React.createElement('div',{className:'tsp-rt-controls'},
-              React.createElement('span',{className:'tsp-rt-toggle-lbl'},rt?'Live':'Off'),
-              React.createElement('label',{className:'tsp-rt-toggle',title:'Enable live stash tracking'},
-                React.createElement('input',{type:'checkbox',checked:!!rt,
-                  onChange:function(e){
-                    if(!e.target.checked&&typeof setWastePrefs==='function'){
-                      // Turning off: dispatch to TrackerApp via a custom event
-                      // so the disable modal (which needs StashBridge) can be shown.
-                      window.dispatchEvent(new CustomEvent('cs:rtDisableRequest'));
-                    }else if(e.target.checked&&typeof setWastePrefs==='function'){
-                      // Turning on: snapshot stash if (and only if) we don't already
-                      // have a snapshot for this project session. Capturing on every
-                      // toggle-on would move the baseline forward across keep-then-
-                      // re-enable cycles and silently break Restore (DEFECT-001).
-                      if(typeof StashBridge!=='undefined'){
-                        StashBridge.getGlobalStash().then(function(snap){
-                          if(window.__ensureRtStashSnapshot)window.__ensureRtStashSnapshot(snap);
-                          else if(window.__setRtStashSnapshot)window.__setRtStashSnapshot(snap);
-                        }).catch(function(){});
-                      }
-                      setWastePrefs(function(prev){return Object.assign({},prev,{enabled:true});});
-                    }
-                  }
-                }),
-                React.createElement('div',{className:'tsp-rt-track'}),
-                React.createElement('div',{className:'tsp-rt-thumb'})
-              ),
-              // Gear icon: opens waste settings flyout
-              React.createElement('div',{className:'tsp-rt-gear-wrap',ref:gearRef},
-                React.createElement('button',{
-                  type:'button',className:'tsp-rt-gear-btn',
-                  onClick:function(){setGearOpen(function(o){return !o;});},
-                  title:'Waste settings','aria-label':'Waste settings','aria-expanded':gearOpen
-                },
-                  window.Icons&&window.Icons.gear?window.Icons.gear():
-                    React.createElement('svg',{width:14,height:14,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.8,strokeLinecap:'round'},
-                      React.createElement('circle',{cx:12,cy:12,r:3}),
-                      React.createElement('path',{d:'M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42'})
-                    )
-                ),
-                gearOpen&&React.createElement('div',{className:'tsp-rt-gear-flyout'},
-                  React.createElement('div',{className:'tsp-rt-gear-title'},'Waste settings'),
-                  React.createElement('label',{className:'tsp-rt-gear-row'},
-                    React.createElement('span',{className:'tsp-rt-gear-lbl'},'Tail allowance (in)'),
-                    React.createElement('input',{type:'number',className:'tsp-rt-gear-input',value:wastePrefs?wastePrefs.tailAllowanceIn:1.5,min:0.5,max:4,step:0.5,
-                      onChange:function(e){updateWastePref('tailAllowanceIn',parseFloat(e.target.value)||1.5);}})
-                  ),
-                  React.createElement('label',{className:'tsp-rt-gear-row',title:'How many stitches you stitch with the same piece of thread before cutting. Fewer cuts = less tail waste per stitch.'},
-                    React.createElement('span',{className:'tsp-rt-gear-lbl'},'Run length (stitches)'),
-                    React.createElement('input',{type:'number',className:'tsp-rt-gear-input',value:wastePrefs?wastePrefs.threadRunLength:30,min:10,max:100,step:5,
-                      onChange:function(e){updateWastePref('threadRunLength',parseInt(e.target.value)||30);}})
-                  ),
-                  React.createElement('label',{className:'tsp-rt-gear-row'},
-                    React.createElement('span',{className:'tsp-rt-gear-lbl'},'General waste (%)'),
-                    React.createElement('input',{type:'number',className:'tsp-rt-gear-input',value:wastePrefs?Math.round((wastePrefs.generalWasteMultiplier-1)*100):10,min:0,max:30,step:1,
-                      onChange:function(e){updateWastePref('generalWasteMultiplier',1+(parseInt(e.target.value)||0)/100);}})
-                  ),
-                  React.createElement('label',{className:'tsp-rt-gear-row'},
-                    React.createElement('span',{className:'tsp-rt-gear-lbl'},'Strands'),
-                    React.createElement('input',{type:'number',className:'tsp-rt-gear-input',value:wastePrefs&&wastePrefs.strandCountOverride!=null?wastePrefs.strandCountOverride:2,min:1,max:6,step:1,
-                      onChange:function(e){updateWastePref('strandCountOverride',parseInt(e.target.value)||2);}})
-                  ),
-                  wastePrefs&&React.createElement('div',{className:'tsp-rt-gear-hint'},
-                    (function(){
-                      var fc=fabricCt||14;
-                      var sc=wastePrefs.strandCountOverride||2;
-                      var base=(4.8*sc)/fc;
-                      var tail=(wastePrefs.tailAllowanceIn*2)/Math.max(1,wastePrefs.threadRunLength);
-                      var cost=((base+tail)*wastePrefs.generalWasteMultiplier).toFixed(3);
-                      return cost+' in/stitch (estimated)';
-                    })()
-                  )
-                )
-              )
-            )
-          );
-
-          return React.createElement(React.Fragment,null,
-            headerEl,
-            needRows.length>0&&React.createElement('div',{className:'tsp-group'},
-              React.createElement('div',{className:'tsp-group-h'+(rt?' tsp-group-h--danger':'')},
-                rt?('Need more \u00B7 '+needRows.length):('To buy \u00B7 '+needRows.length)
-              ),
-              React.createElement('div',{className:'tsp-pal'},needRows.map(renderRow))
-            ),
-            ownedRows.length>0&&React.createElement('div',{className:'tsp-group'},
-              React.createElement('div',{className:'tsp-group-h'},'In stash \u00B7 '+ownedRows.length),
-              React.createElement('div',{className:'tsp-pal'},ownedRows.map(renderRow))
-            ),
-            rows.length===0&&React.createElement('div',{className:'tsp-empty'},'No threads in this pattern')
-          );
-        })()
-      )
-    )
+    React.createElement('div',{className:'tracker-side-panel',role:'complementary','aria-label':'Today',style:collapsed?{display:'none'}:undefined},
   );
 }
 
@@ -1331,7 +1123,7 @@ const setLeftSidebarOpen = useCallback((next)=>{
   });
 },[]);
 const cycleLeftSidebar = useCallback(()=>{
-  setLeftSidebarMode(prev=>prev==="hidden"?"rail":prev==="rail"?"open":"hidden");
+  setLeftSidebarMode(prev=>prev==="open"?"hidden":"open");
 },[]);
 // Tracks whether the screen is currently ≥1024px (docked lpanel mode).
 // Updated by the orientation-change effect; used by the persist effect
@@ -1375,6 +1167,13 @@ useEffect(()=>{
   try{window.UserPrefs&&window.UserPrefs.set("trackerLegendCollapsed",!!legendCollapsed);}catch(_){}
   try{const pid=projectIdRef.current;if(pid)localStorage.setItem('cs_legendCollapsed_'+pid,legendCollapsed?'1':'0');}catch(_){}
 },[legendCollapsed]);
+
+// Option 3 Split Palette: More panel state
+// morePanelOpen controls the slide-up panel; leftSidebarTab (declared above)
+// is re-used for the More panel's tab selection so it persists via UserPrefs.
+const[morePanelOpen,setMorePanelOpen]=useState(false);
+// Close the More panel when palette panel is opened on phone (avoid two overlays)
+useEffect(()=>{if(leftSidebarMode==="open")setMorePanelOpen(false);},[leftSidebarMode]);
 
 // Phase 5: ESC closes the mobile lpanel drawer. Desktop ignores it
 // (the panel is sticky / persistent and ESC could clobber other modal
@@ -5626,163 +5425,11 @@ return(
     }}
   >Exit edit mode</button>
 </div>}
-{/* ═══ TRACKER PILL TOOLBAR ═══ */}
-<div className={"toolbar-row"+(isEditMode?" toolbar-row--edit":"")}><div className="pill-row" style={{display:'flex',alignItems:'center',justifyContent:'center'}}>
-  <button
-    type="button"
-    className="tracker-hamburger"
-    onClick={cycleLeftSidebar}
-    aria-label={leftSidebarMode==="hidden"?"Show sidebar rail":leftSidebarMode==="rail"?"Expand sidebar":"Hide sidebar"}
-    aria-expanded={leftSidebarOpen}
-    title="Sidebar — tap to cycle hidden / rail / open"
-  >{Icons.menu()}</button>
-  {/* Phase 4 (UX-12) — wake-lock chip. Tap to toggle screen-stays-on. */}
-  <button
-    type="button"
-    className={"tracker-wake-chip"+(wakeLockActive?" tracker-wake-chip--on":"")}
-    onClick={toggleWakeLock}
-    aria-pressed={wakeLockActive}
-    aria-label={wakeLockActive?"Screen wake-lock on, tap to release":"Screen wake-lock off, tap to keep screen awake"}
-    title={wakeLockActive?"Screen will stay awake — tap to release":"Tap to keep the screen awake while stitching"}
-  ><span className="twc-dot" aria-hidden="true">{Icons.dot()}</span><span className="twc-label">{wakeLockActive?"Awake":"Sleep"}</span></button>
-  {/* Touch-1 H-2: Focus mode toggle. */}
-  <button
-    type="button"
-    className={"tracker-wake-chip"+(focusMode?" tracker-wake-chip--on":"")}
-    onClick={()=>setFocusMode(v=>!v)}
-    aria-pressed={focusMode}
-    aria-label={focusMode?"Exit focus mode (F)":"Enter focus mode (F)"}
-    title={focusMode?"Exit focus mode (F)":"Hide chrome — focus on the chart (F)"}
-  >{(focusMode?(Icons.focusExit&&Icons.focusExit()):(Icons.focus&&Icons.focus()))}<span className="twc-label">Focus</span></button>
-  <div ref={tStripRef} className={"pill"+(isEditMode?" pill--edit":"")}>
-  <div className={"tb-grp"+(tStripCollapsed.stitch?" tb-hidden":"")}>
-    <button className={"tb-btn"+(stitchMode==="track"?(isEditMode?" tb-btn--red":" tb-btn--green"):"")} onClick={()=>{setStitchMode("track");}} title={isEditMode?"Modify stitches (T)":"Mark stitch (T)"}>
-      <svg width="11" height="11" viewBox="0 0 12 12"><line x1="1" y1="11" x2="11" y2="1" stroke="currentColor" strokeWidth="1.8"/><line x1="1" y1="1" x2="11" y2="11" stroke="currentColor" strokeWidth="1.8"/></svg>{isEditMode?"Modify":"Mark"}
-    </button>
-    <button className={"tb-btn"+(stitchMode==="navigate"?" tb-btn--on":"")} onClick={()=>{setStitchMode("navigate");}} title="Navigate (N)">Nav</button>
-    {/* R11: Row mode toggle */}
-    {!isEditMode&&<button className={"tb-btn"+(rowModeActive?" tb-btn--on":"")} onClick={()=>{setRowModeActive(v=>!v);setCurrentRow(0);}} aria-label="Toggle row mode" aria-pressed={rowModeActive} title="Row mode — work row by row (R)">{Icons.rowMode()}</button>}
-    {/* R11: Row mode prev/next controls */}
-    {!isEditMode&&rowModeActive&&<>
-      <button className="tb-btn" disabled={currentRow<=0} onClick={()=>setCurrentRow(r=>Math.max(0,r-1))} title="Previous row">Prev</button>
-      <span className="tb-zoom-lbl" style={{minWidth:56,textAlign:'center',fontVariantNumeric:'tabular-nums'}}>Row {currentRow+1}/{sH||1}</span>
-      <button className="tb-btn" disabled={currentRow>=(sH||1)-1} onClick={()=>setCurrentRow(r=>Math.min((sH||1)-1,r+1))} title="Next row">Next</button>
-    </>}
-    {/* C3: range-mode toolbar button removed; long-press + shift+click own range via useDragMark. */}
-  </div>
-  <div className="tb-sdiv"/>
-  {/* Phase 2/5: View mode pill, highlight cycle, counting aids and Focus
-      area button removed — now live in the left sidebar's View / Highlight
-      / Tools tabs. The Sidebar opens via the hamburger button to the left. */}
-  <div className="tb-flex"/>
-  <div className="tb-zoom-grp tb-desktop-only">
-    <span className="tb-zoom-lbl">Zoom</span>
-    <button onClick={()=>setStitchZoom(z=>Math.max(0.3,+(z-0.25).toFixed(2)))} title="Zoom out" style={{padding:"0 5px",fontSize:15,border:"0.5px solid var(--border)",borderRadius:4,background:"var(--surface-secondary)",cursor:"pointer",lineHeight:"22px",fontWeight:600}}>−</button>
-    <input type="range" min={0.1} max={3} step={0.05} value={stitchZoom} onChange={e=>setStitchZoom(Number(e.target.value))} style={{width:55}}/>
-    <button onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} title="Zoom in" style={{padding:"0 5px",fontSize:15,border:"0.5px solid var(--border)",borderRadius:4,background:"var(--surface-secondary)",cursor:"pointer",lineHeight:"22px",fontWeight:600}}>+</button>
-    <span className="tb-zoom-pct">{Math.round(stitchZoom*100)}%</span>
-    <button className="tb-fit-btn" onClick={fitSZ}>Fit</button>
-  </div>
-  <div className="tb-overflow-wrap" ref={tOverflowRef}>
-    <button className="tb-overflow-btn" onClick={()=>setTOverflowOpen(o=>!o)} title="More options">···</button>
-    {tOverflowOpen&&<div className="tb-overflow-menu">
-      {!isEditMode&&pat&&pal&&<><button className="tb-ovf-item" onClick={()=>{setTOverflowOpen(false);setEditDetailsOpen(true);}}>{Icons.pencil()} Edit project details…</button><div className="tb-ovf-sep"/></>}
-      {!isEditMode&&<>
-        {tStripCollapsed.stitch&&<><span className="tb-ovf-lbl">Stitch</span>
-          <button className={"tb-ovf-item"+(stitchMode==="track"?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("track");setTOverflowOpen(false);}} style={{display:'inline-flex',alignItems:'center',gap:6}}>Mark{stitchMode==="track"&&Icons.check?<span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.check()}</span>:null}</button>
-          <button className={"tb-ovf-item"+(stitchMode==="navigate"?" tb-ovf-item--on":"")} onClick={()=>{setStitchMode("navigate");setTOverflowOpen(false);}} style={{display:'inline-flex',alignItems:'center',gap:6}}>Navigate{stitchMode==="navigate"&&Icons.check?<span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.check()}</span>:null}</button>
-          {/* R11: Row mode in overflow menu */}
-          <button className={"tb-ovf-item"+(rowModeActive?" tb-ovf-item--on":"")} onClick={()=>{setRowModeActive(v=>!v);setCurrentRow(0);setTOverflowOpen(false);}} style={{display:'inline-flex',alignItems:'center',gap:6}}>{Icons.rowMode()} Row mode{rowModeActive&&Icons.check?<span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.check()}</span>:null}</button>
-          <div className="tb-ovf-sep"/>
-        </>}
-        {tStripCollapsed.view&&<><span className="tb-ovf-lbl">View</span>
-          {[['symbol','Symbol'],['colour','Col+Symbol'],['highlight','Highlight']].map(([k,l])=><button key={k} className={"tb-ovf-item"+(stitchView===k?" tb-ovf-item--on":"")} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}setTOverflowOpen(false);}} style={{display:'inline-flex',alignItems:'center',gap:6}}>{l}{stitchView===k&&Icons.check?<span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.check()}</span>:null}</button>)}
-          <div className="tb-ovf-sep"/>
-        </>}
-        {stitchMode==="navigate"&&<><span className="tb-ovf-lbl">Parking</span>
-          <div style={{padding:"4px 14px 6px"}}><select value={selectedColorId||""} onChange={e=>setSelectedColorId(e.target.value||null)} style={{fontSize:'var(--text-xs)',padding:"4px 8px",borderRadius:'var(--radius-sm)',border:"0.5px solid var(--border)",width:"100%"}}>
-            <option value="">No parking colour</option>{pal.map(p=><option key={p.id} value={p.id}>DMC {p.id} — {p.name.slice(0,20)}</option>)}
-          </select></div>
-          {parkMarkers.length>0&&<button className="tb-ovf-item" onClick={()=>{setParkMarkers([]);setParkLayers({});setTOverflowOpen(false);}}>Clear park markers</button>}
-          {totalParkedColours>0&&<button className="tb-ovf-item" onClick={()=>{setAllParkLayersVisible(allParkLayersHidden);setTOverflowOpen(false);}}>{allParkLayersHidden?"Show":"Hide"} all parked colours</button>}
-          <div className="tb-ovf-sep"/>
-        </>}
-        {stitchMode==="track"&&trackHistory.length>0&&<button className="tb-ovf-item" onClick={()=>{undoTrack();setTOverflowOpen(false);}} style={{display:'inline-flex',alignItems:'center',gap:6}}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.undo?Icons.undo():null}</span>Undo ({trackHistory.length})</button>}
-        {stitchMode==="track"&&redoStack.length>0&&<button className="tb-ovf-item" onClick={()=>{redoTrack();setTOverflowOpen(false);}}>↪ Redo ({redoStack.length})</button>}
-        {done&&doneCount>0&&<button className="tb-ovf-item" style={{color:"var(--danger)"}} onClick={()=>{if(confirm("Clear all progress?")){var nd=new Uint8Array(pat.length);setDone(nd);recomputeAllCounts(pat,nd,halfStitches,halfDone);setTrackHistory([]);setRedoStack([]);}setTOverflowOpen(false);}}>Reset progress</button>}
-        {pat&&pal&&<button className="tb-ovf-item" onClick={()=>{copyProgressSummary();setTOverflowOpen(false);}}>{Icons.clipboard()} Copy Progress Summary</button>}}
-        <div className="tb-ovf-sep"/>
-      </>}
-      {isEditMode&&<>
-        {undoSnapshot&&<button className="tb-ovf-item" style={{color:"var(--warning)"}} onClick={()=>{applyUndo();setTOverflowOpen(false);}}>{Icons.undo?Icons.undo():null} Undo Edit</button>}
-        <button className="tb-ovf-item" style={{color:"var(--danger)"}} onClick={()=>{handleRevertToOriginal();setTOverflowOpen(false);}}>Revert to Original</button>
-        <button className="tb-ovf-item" onClick={()=>{if(undoSnapshot!==null){setShowExitEditModal(true);}else{setIsEditMode(false);setUndoSnapshot(null);setSessionStartSnapshot(null);}setTOverflowOpen(false);}}><span aria-hidden="true" style={{display:'inline-flex',verticalAlign:'-3px',marginRight:4}}>{Icons.chevronLeft?Icons.chevronLeft():null}</span>Exit correction mode</button>
-        <div className="tb-ovf-sep"/>
-      </>}
-      {!isEditMode&&<><button className="tb-ovf-item" style={{color:"var(--text-secondary)"}} onClick={()=>{
-        setSessionStartSnapshot({pat:[...pat],pal:deepClone(pal),threadOwned:deepClone(threadOwned),singleStitchEdits:new Map(singleStitchEdits)}); // PERF (perf-6 #5)
-        setStitchMode("navigate");setFocusColour(null);setHoverInfo(null);setIsEditMode(true);setDrawer(true);setTOverflowOpen(false);
-      }} title="Correct individual stitch colours — for imported patterns">Correct pattern colours…</button><div className="tb-ovf-sep"/></>
-      }
-      <button className="tb-ovf-item" onClick={()=>{setShowNavHelp(h=>!h);setTOverflowOpen(false);}}>{showNavHelp?"Hide":"Show"} controls help</button>
-      <div className="tb-ovf-sep"/>
-      <span className="tb-ovf-lbl">Tools</span>
-      <button className={"tb-ovf-item"+(trackerPreviewOpen?" tb-ovf-item--on":"")} onClick={()=>{setTrackerPreviewOpen(v=>!v);setTOverflowOpen(false);}}>{Icons.eye()} Realistic preview{trackerPreviewOpen?" ":""}{trackerPreviewOpen?Icons.check():null}</button>
-      <button className={"tb-ovf-item"+(threadUsageMode?" tb-ovf-item--on":"")} onClick={()=>{setThreadUsageMode(m=>m?null:"cluster");setTOverflowOpen(false);}}>Thread usage{threadUsageMode?" ":""}{threadUsageMode?Icons.check():null}</button>
-      <button className={"tb-ovf-item"+(countingAidsEnabled?" tb-ovf-item--on":"")} onClick={()=>{setCountingAidsEnabled(v=>!v);setTOverflowOpen(false);}}>{Icons.barChart()} Counting aids{countingAidsEnabled?" ":""}{countingAidsEnabled?Icons.check():null}</button>
-      <button className={"tb-ovf-item"} onClick={()=>{setLeftSidebarTab("view");setLeftSidebarOpen(true);setTOverflowOpen(false);}}>Layers{!Object.values(layerVis).every(Boolean)?" (filtered)":""}</button>
-      <button className={"tb-ovf-item"+(statsView?" tb-ovf-item--on":"")} onClick={()=>{setStatsTab(projectIdRef.current||'all');setStatsView(v=>!v);setTOverflowOpen(false);}}>{Icons.barChart()} Stats{statsView?" ":""}{statsView?Icons.check():null}</button>
-      <div className="tb-ovf-sep"/>
-      <span className="tb-ovf-lbl">Focus Area</span>
-      <button className={"tb-ovf-item"+(focusEnabled?" tb-ovf-item--on":"")} onClick={()=>{const next=!focusEnabled;setFocusEnabled(next);if(next&&!focusBlock)setFocusBlock(_getStartBlock());setTOverflowOpen(false);}}>{Icons.eye()} Spotlight{focusEnabled?" ":""}{focusEnabled?Icons.check():null}</button>
-      {focusEnabled&&!focusBlock&&<button className="tb-ovf-item" onClick={()=>{setFocusBlock(_getStartBlock());setTOverflowOpen(false);}}>Set focus to start block</button>}
-      {focusEnabled&&focusBlock&&<button className="tb-ovf-item" onClick={()=>{setFocusBlock(null);setTOverflowOpen(false);}}>Clear focus block</button>}
-      <button className={"tb-ovf-item"+(breadcrumbVisible?" tb-ovf-item--on":"")} onClick={()=>{setBreadcrumbVisible(v=>!v);setTOverflowOpen(false);}}>Breadcrumbs{breadcrumbVisible?" ":""}{breadcrumbVisible?Icons.check():null}</button>
-      <button className="tb-ovf-item" onClick={()=>{setStyleOnboardingOpen(true);setTOverflowOpen(false);}}>Stitching style: {({block:"Block",royal:"Royal Rows",crosscountry:"Cross Country",freestyle:"Freestyle"})[stitchingStyle]||stitchingStyle}</button>
-      {stitchingStyle!=="crosscountry"&&stitchingStyle!=="freestyle"&&<div style={{padding:"4px 14px 6px",fontSize:'var(--text-xs)',color:"var(--text-secondary)"}}>Block size: {blockW}×{blockH}
-        <div style={{display:"flex",gap:'var(--s-1)',marginTop:'var(--s-1)',flexWrap:"wrap"}}>
-          {[[10,10,"10×10"],[20,20,"20×20"]].map(([w,h,l])=><button key={l} onClick={()=>{setBlockW(w);setBlockH(h);}} style={{padding:"2px 7px",borderRadius:5,border:"1px solid "+(blockW===w&&blockH===h?"var(--accent)":"var(--border)"),background:blockW===w&&blockH===h?"var(--accent-light)":"var(--surface)",fontSize:10,cursor:"pointer"}}>{l}</button>)}
-          <input type="number" inputMode="numeric" title="Custom width" placeholder="W" value={blockW} onChange={e=>setBlockW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:36,padding:"2px 4px",borderRadius:4,border:"1px solid var(--border)",fontSize:10}} min={5} max={100}/>
-          <span style={{fontSize:10,lineHeight:"22px"}}>×</span>
-          <input type="number" inputMode="numeric" title="Custom height" placeholder="H" value={blockH} onChange={e=>setBlockH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:36,padding:"2px 4px",borderRadius:4,border:"1px solid var(--border)",fontSize:10}} min={5} max={100}/>
-        </div>
-        {(blockW%10!==0||blockH%10!==0)&&<div style={{fontSize:10,color:"var(--accent-ink)",marginTop:3}}>May not align with 10-stitch grid lines.</div>}
-      </div>}
-      {(liveAutoStitches>0||totalTime>0)&&<>
-        <div className="tb-ovf-sep"/>
-        <span className="tb-ovf-lbl">Time Tracked</span>
-        <div style={{padding:"4px 14px 2px",fontSize:'var(--text-xs)',color:"var(--text-secondary)"}}>
-          {liveAutoStitches>0?<><span style={{color:"var(--success)"}}>● </span>{fmtTime(liveAutoElapsed)} · {liveAutoStitches} stitches active</>:<>Total: {fmtTime(totalTime)}</>}
-          {estCompletion&&<div style={{fontSize:10,color:"var(--text-tertiary)",marginTop:2}}>~{fmtTime(estCompletion)} remaining</div>}
-        </div>
-      </>}
-    </div>}
-  </div>
-</div>
-  {liveAutoStitches > 0 && (
-    <button className={"session-chip" + (liveAutoIsPaused||manuallyPaused ? " session-chip--paused" : "") + (inactivityPausedRef.current&&!manuallyPaused ? " session-chip--idle" : "")}
-      title="Open session controls"
-      onClick={() => {
-        // Phase 3/5: chip is now glanceable only; click opens the
-        // Session tab in the left sidebar where pause / resume / end
-        // session live alongside the goal + thread-usage controls.
-        setLeftSidebarTab("session");
-        setLeftSidebarOpen(true);
-      }}>
-      <span className="dot"/>
-      <span className="session-chip-icon" aria-hidden="true">{(manuallyPaused||inactivityPausedRef.current||liveAutoIsPaused)?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}</span>
-      {manuallyPaused ? `Paused · ${liveAutoStitches} st` : inactivityPausedRef.current ? `Idle · ${liveAutoStitches} st` : liveAutoIsPaused ? 'Paused' : `${fmtTime(liveAutoElapsed)} · ${liveAutoStitches} st`}
-    </button>
-  )}
-</div></div>
 {!isEditMode&&<div className="info-strip-wrap">
 <div className="info-strip" aria-live="polite" role="button" tabIndex={0} title="Open session controls" onClick={()=>{
-  // Phase 3/5: tapping the live progress strip opens the left
-  // sidebar Session tab so all start/stop/configure actions live in
-  // one place. The strip itself remains glanceable.
   setLeftSidebarTab("session");
-  setLeftSidebarOpen(true);
-}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setLeftSidebarTab("session");setLeftSidebarOpen(true);}}}>
+  setMorePanelOpen(true);
+}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setLeftSidebarTab("session");setMorePanelOpen(true);}}}>
   <div className="info-strip-bar">
     {progressPct>=100&&<div className="info-strip-fill info-strip-fill--done" style={{width:"100%"}}/>}
     {progressPct<100&&prevBarPct>0&&<div className="info-strip-fill" style={{width:prevBarPct+"%"}}/>}
@@ -5791,11 +5438,6 @@ return(
   <div className="info-strip-row">
     <span className="info-strip-pct">{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</span>
     {liveAutoStitches>0&&<span className="info-strip-timer"><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused?(Icons.pause?Icons.pause():null):(Icons.clock?Icons.clock():null)}</span> {fmtTime(liveAutoElapsed)}</span>}
-    {/* Plan B Phase 1: inline "Today: X" text removed — see Progress
-        info chip beside the strip. todayStitchesForBar is now in the
-        popover, the bar's accent segment still visualises today. */}
-    {/* Phase 3/5: explicit-session start/stop button removed; lives in
-        the left sidebar Session tab. Tap the strip itself to open it. */}
   </div>
 </div>
 <div className="app-info-chip-wrap info-strip-chip-wrap">
@@ -5832,14 +5474,15 @@ return(
       open: true,
       onClose: () => setProgressInfoOpen(false),
       triggerRef: progressChipRef,
-      ariaLabel: 'Progress details'
-    },
-      React.createElement(window.AppInfoSection, { title: 'Pattern progress' },
-        React.createElement(window.AppInfoGrid, { rows: progressRows })),
-      React.createElement(window.AppInfoDivider),
-      React.createElement(window.AppInfoSection, { title: 'Time' },
-        React.createElement(window.AppInfoGrid, { rows: timeRows }))
-    );
+      heading: 'Progress',
+      children: [
+        React.createElement(window.AppInfoSection, { title: 'Progress' },
+          React.createElement(window.AppInfoGrid, { rows: progressRows })),
+        React.createElement(window.AppInfoDivider),
+        React.createElement(window.AppInfoSection, { title: 'Time' },
+          React.createElement(window.AppInfoGrid, { rows: timeRows }))
+      ]
+    });
   })()}
 </div>
 </div>}
@@ -5982,408 +5625,113 @@ return(
         and the rpanel "More" tab can be trimmed in later phases. The
         old controls remain wired during phase 1 to avoid disrupting
         in-flight sessions during the migration. */}
-    {leftSidebarMode==="open"&&<div className={"lpanel lpanel--open"} role="complementary" aria-label="Tracker sidebar">
-      {(()=>{
-        const leftSidebarTabs=[["highlight","Highlight"],["view","View"],["session","Session"],["tools","Tools"],["notes","Notes"],["legend","Legend"]];
-        const handleLeftSidebarTabKeyDown=(e,currentKey)=>{
-          let nextKey=null;
-          const currentIndex=leftSidebarTabs.findIndex(([k])=>k===currentKey);
-          if(e.key==="ArrowLeft"){
-            e.preventDefault();
-            nextKey=leftSidebarTabs[(currentIndex<=0?leftSidebarTabs.length:currentIndex)-1][0];
-          }else if(e.key==="ArrowRight"){
-            e.preventDefault();
-            nextKey=leftSidebarTabs[(currentIndex+1)%leftSidebarTabs.length][0];
-          }else if(e.key==="Home"){
-            e.preventDefault();
-            nextKey=leftSidebarTabs[0][0];
-          }else if(e.key==="End"){
-            e.preventDefault();
-            nextKey=leftSidebarTabs[leftSidebarTabs.length-1][0];
-          }
-          if(!nextKey||nextKey===currentKey)return;
-          setLeftSidebarTab(nextKey);
-          const tablist=e.currentTarget.closest('[role="tablist"]');
-          if(!tablist)return;
-          const nextTab=tablist.querySelector('[role="tab"][data-lp-tab="'+(typeof CSS!=="undefined"&&CSS.escape?CSS.escape(nextKey):nextKey)+'"]');
-          if(nextTab&&typeof nextTab.focus==="function")nextTab.focus();
-        };
-        return <div className="lp-tabs" role="tablist" aria-label="Tracker sidebar sections">
-          {leftSidebarTabs.map(([k,l])=>
-            <button
-              key={k}
-              type="button"
-              role="tab"
-              data-lp-tab={k}
-              aria-selected={leftSidebarTab===k}
-              tabIndex={leftSidebarTab===k?0:-1}
-              className={"lp-tab"+(leftSidebarTab===k?" lp-tab--on":"")+(k==="legend"?" lp-tab--mobile-only":"")}
-              onClick={()=>setLeftSidebarTab(k)}
-              onKeyDown={(e)=>handleLeftSidebarTabKeyDown(e,k)}
-            >{l}</button>
-          )}
-          <button type="button" className="lp-close" onClick={()=>setLeftSidebarOpen(false)} aria-label="Close sidebar" title="Close sidebar">{Icons.x?Icons.x():null}</button>
+    {leftSidebarMode==="open"&&<div className={"lpanel lpanel--open"} role="complementary" aria-label="Colour palette">
+    <div className="ppal-wrap">
+      {/* ─ Header ─ */}
+      <div className="ppal-header">
+        <div className="ppal-header-top">
+          <span className="ppal-title" title={projectName||"Pattern"}>{projectName||"Pattern"}</span>
+          <button className="ppal-close" onClick={()=>setLeftSidebarOpen(false)} aria-label="Close palette panel">{Icons.x()}</button>
+        </div>
+        <div className="ppal-progress-bar"><div className="ppal-progress-fill" style={{width:progressPct+"%"}}/></div>
+        <div className="ppal-header-stats">
+          <span className="ppal-pct">{progressPct>=100?"Complete!":progressPct.toFixed(1)+"%"}</span>
+          {liveAutoStitches>0&&<span className="ppal-session-chip" role="button" tabIndex={0} title="Open Session controls" onClick={()=>{setLeftSidebarTab("session");setMorePanelOpen(true);}} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();setLeftSidebarTab("session");setMorePanelOpen(true);}}}>
+            {liveAutoIsPaused||manuallyPaused?(Icons.pause?Icons.pause():null):(Icons.clock?Icons.clock():null)}{" "}{fmtTime(liveAutoElapsed)}{" · "}{liveAutoStitches}{" st"}
+          </span>}
+        </div>
+      </div>
+      {/* ─ Sort row ─ */}
+      <div className="ppal-sort-row" role="group" aria-label="Sort colour list">
+        {[["count","Remaining"],["done","% done"],["id","DMC ID"]].map(([k,l])=>
+          <button key={k} className={"ppal-sort-btn"+(legendSort===k?" ppal-sort-btn--on":"")} onClick={()=>setLegendSort(k)} aria-pressed={legendSort===k}>{l}</button>
+        )}
+      </div>
+      {/* ─ Active colour tile ─ */}
+      {focusColour&&cmap&&cmap[focusColour]?(()=>{
+        const fc=cmap[focusColour];
+        const dc=colourDoneCounts[focusColour]||{total:0,done:0,halfTotal:0,halfDone:0};
+        const totalWH=dc.total+dc.halfTotal*0.5;
+        const doneWH=dc.done+dc.halfDone*0.5;
+        const pct=totalWH>0?Math.round(doneWH/totalWH*100):0;
+        const complete=doneWH>=totalWH&&totalWH>0;
+        const swRgb="rgb("+fc.rgb+")";
+        return <div className={"ppal-active-tile"+(complete?" ppal-active-tile--done":"")}>
+          <div className="ppal-active-swatch-wrap">
+            {window.ProgressRing
+              ?React.createElement(window.ProgressRing,{pct:pct,size:56,strokeWidth:5,colour:swRgb,trackColour:"var(--border)"})
+              :<span className="ppal-active-swatch" style={{background:swRgb}}/>}
+          </div>
+          <div className="ppal-active-info">
+            <span className="ppal-active-id">DMC {focusColour}</span>
+            <span className="ppal-active-name">{fc.type==="blend"?fc.threads[0].name+"+"+fc.threads[1].name:fc.name}</span>
+            <span className="ppal-active-count">{dc.done}/{dc.total} · {pct}%</span>
+          </div>
+          <button className="ppal-find-btn" onClick={jumpToNextStitch} title="Jump to next remaining stitch" aria-label={"Find next unfinished stitch of DMC "+focusColour}>{Icons.magnify()}</button>
         </div>;
-      })()}
-      <div className="lp-tab-content">
-
-      {/* ── Tab: Highlight ── */}
-      {leftSidebarTab==="highlight"&&<div className="lp-section">
-        <div className="lp-heading">Colour focus</div>
-        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
-          <button className="lp-btn" onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const prev=focusableColors[(idx<=0?focusableColors.length:idx)-1];if(stitchView!=="highlight")setStitchView("highlight");setFocusColour(prev.id);}} title="Previous colour ([)" aria-label="Previous colour">{Icons.chevronLeft?Icons.chevronLeft():"<"}</button>
-          <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:6}}>
-            {focusColour&&cmap&&cmap[focusColour]?(()=>{const cp=cmap[focusColour];return(
-              <>
-                <span style={{width:14,height:14,borderRadius:3,background:`rgb(${cp.rgb})`,border:"1px solid var(--border)",flexShrink:0}}/>
-                <span style={{fontSize:'var(--text-sm)',fontWeight:700}}>DMC {focusColour}</span>
-                <span style={{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cp.name||""}</span>
-              </>
-            );})():<span style={{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>No focus</span>}
-          </div>
-          <button className="lp-btn" onClick={()=>{if(!focusableColors.length)return;const idx=focusableColors.findIndex(p=>p.id===focusColour);const next=focusableColors[(idx+1)%focusableColors.length];if(stitchView!=="highlight")setStitchView("highlight");setFocusColour(next.id);}} title="Next colour (])" aria-label="Next colour">{Icons.chevronRight?Icons.chevronRight():">"}</button>
-          {focusColour&&<button className="lp-btn lp-btn--ghost" onClick={()=>setFocusColour(null)} title="Clear focus" aria-label="Clear focus">{Icons.x?Icons.x():null}</button>}
-        </div>
-
-        <div className="lp-heading">Mode</div>
-        <div className="lp-segmented" style={{marginBottom:10}}>
-          {[["isolate","Isolate"],["outline","Outline"],["tint","Tint"],["spotlight","Spotlight"]].map(([m,l])=>
-            <button key={m} className={"lp-seg"+(highlightMode===m?" lp-seg--on":"")} onClick={()=>{ensureFocusColour();setHighlightMode(m);}}>{l}</button>
-          )}
-        </div>
-
-        {highlightMode==="isolate"&&<div style={{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:'var(--s-2)',fontSize:'var(--text-xs)'}}>
-          <span style={{color:"var(--text-secondary)",flexShrink:0,minWidth:60}}>Visibility</span>
-          <input type="range" min={0} max={60} value={Math.round(trackerDimLevel*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setTrackerDimLevel(v);try{localStorage.setItem("cs_trDimLv",v);}catch(_){}}} style={{flex:1,accentColor:"var(--accent)"}}/>
-          <span style={{width:34,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{Math.round(trackerDimLevel*100)}%</span>
-        </div>}
-        {highlightMode==="tint"&&<div style={{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:'var(--s-2)',fontSize:'var(--text-xs)'}}>
-          <input type="color" value={tintColor} onChange={e=>{setTintColor(e.target.value);try{localStorage.setItem("cs_tintColor",e.target.value);}catch(_){}}} style={{width:28,height:22,padding:0,border:"1px solid var(--border)",borderRadius:4,cursor:"pointer"}} aria-label="Tint colour"/>
-          <input type="range" min={10} max={80} value={Math.round(tintOpacity*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setTintOpacity(v);try{localStorage.setItem("cs_tintOp",v);}catch(_){}}} style={{flex:1,accentColor:"var(--accent)"}} aria-label="Tint opacity"/>
-          <span style={{width:34,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{Math.round(tintOpacity*100)}%</span>
-        </div>}
-        {highlightMode==="spotlight"&&<div style={{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:'var(--s-2)',fontSize:'var(--text-xs)'}}>
-          <span style={{color:"var(--text-secondary)",flexShrink:0,minWidth:60}}>Dim</span>
-          <input type="range" min={5} max={50} value={Math.round(spotDimOpacity*100)} onChange={e=>{const v=parseInt(e.target.value)/100;setSpotDimOpacity(v);try{localStorage.setItem("cs_spotDimOp",v);}catch(_){}}} style={{flex:1,accentColor:"var(--accent)"}}/>
-          <span style={{width:34,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{Math.round(spotDimOpacity*100)}%</span>
-        </div>}
-
-        <div className="lp-heading" style={{marginTop:10}}>Counting aids</div>
-        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:'var(--s-2)',fontSize:'var(--text-xs)',cursor:"pointer"}}>
-          <input type="checkbox" checked={countingAidsEnabled} onChange={e=>setCountingAidsEnabled(e.target.checked)} style={{cursor:"pointer",accentColor:"var(--accent)"}}/>
-          <span>Show counting aids</span>
-        </label>
-        {countingAidsEnabled&&<>
-          <div style={{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:6,fontSize:'var(--text-xs)'}}>
-            <span style={{color:"var(--text-secondary)",flexShrink:0,minWidth:60}}>Runs</span>
-            <div className="lp-segmented" style={{flex:1}}>
-              {[[0,"Off"],[1,"All"],[3,"3+"],[5,"5+"],[10,"10+"]].map(([v,l])=>
-                <button key={v} className={"lp-seg"+(countRunMin===v?" lp-seg--on":"")} onClick={()=>setCountRunMin(v)}>{l}</button>
-              )}
-            </div>
-          </div>
-          {countRunMin>0&&<div style={{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:6,fontSize:'var(--text-xs)'}}>
-            <span style={{color:"var(--text-secondary)",flexShrink:0,minWidth:60}}>Direction</span>
-            <div className="lp-segmented" style={{flex:1}}>
-              {[["h","Horizontal"],["v","Vertical"],["both","Both"]].map(([v,l])=>
-                <button key={v} className={"lp-seg"+(countRunDir===v?" lp-seg--on":"")} onClick={()=>setCountRunDir(v)}>{l}</button>
-              )}
-            </div>
-          </div>}
-          <label style={{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-xs)',cursor:"pointer"}}>
-            <input type="checkbox" checked={countNinjaEnabled} onChange={e=>setCountNinjaEnabled(e.target.checked)} style={{cursor:"pointer",accentColor:"var(--accent-hover)"}}/>
-            <span>Highlight ninja stitches</span>
-          </label>
-        </>}
-
-        <div className="lp-heading" style={{marginTop:10}}>Skip</div>
-        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:'var(--s-1)',fontSize:'var(--text-xs)',cursor:"pointer"}}>
-          <input type="checkbox" checked={highlightSkipDone} onChange={e=>setHighlightSkipDone(e.target.checked)} style={{cursor:"pointer",accentColor:"var(--accent)"}}/>
-          <span>Skip completed colours when cycling</span>
-        </label>
-        <label style={{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-xs)',cursor:"pointer"}}>
-          <input type="checkbox" checked={onlyStarted} onChange={e=>setOnlyStarted(e.target.checked)} style={{cursor:"pointer",accentColor:"var(--accent)"}}/>
-          <span>Only colours already started</span>
-        </label>
+      })()
+      :<div className="ppal-active-none">{Icons.pointing?Icons.pointing():null}{" Tap a colour below to select it"}</div>}
+      {/* ─ Colour tile list ─ */}
+      {pal&&<div className="ppal-tile-list" role="list">
+        {(()=>{
+          const rows=pal.map(p=>{
+            const dc=colourDoneCounts[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
+            const totalWH=dc.total+dc.halfTotal*0.5;
+            const doneWH=dc.done+dc.halfDone*0.5;
+            const pct=totalWH>0?Math.round(doneWH/totalWH*100):0;
+            const remaining=Math.max(0,totalWH-doneWH);
+            const complete=doneWH>=totalWH&&totalWH>0;
+            return {p,dc,pct,remaining,complete};
+          });
+          if(legendSort==="done")rows.sort((a,b)=>b.pct-a.pct);
+          else if(legendSort==="count")rows.sort((a,b)=>b.remaining-a.remaining);
+          else rows.sort((a,b)=>{const ai=String(a.p.id),bi=String(b.p.id);const an=parseInt(ai,10),bn=parseInt(bi,10);if(isFinite(an)&&isFinite(bn)&&String(an)===ai&&String(bn)===bi)return an-bn;return ai.localeCompare(bi);});
+          return rows.map(({p,dc,pct,complete})=>{
+            const isFocused=focusColour===p.id;
+            const swRgb="rgb("+p.rgb+")";
+            return <div key={p.id} role="listitem"
+              className={"ppal-tile"+(isFocused?" ppal-tile--on":"")+(complete?" ppal-tile--done":"")}
+              onClick={()=>{if(isEditMode){setEditModalColor(p);return;}setStitchView("highlight");setFocusColour(p.id);if(typeof window!=="undefined"&&window.matchMedia&&window.matchMedia("(max-width:899px)").matches)setLeftSidebarOpen(false);}}
+              title={"DMC "+p.id+(complete?" (done)":"")}>
+              <div className="ppal-tile-swatch" style={{background:swRgb}}
+                role="button" tabIndex={0} aria-label={"View DMC "+p.id+" detail"}
+                onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,name:p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name,rgb:p.rgb,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});}}
+                onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,name:p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name,rgb:p.rgb,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});}}}
+              />
+              <div className="ppal-tile-body">
+                <div className="ppal-tile-id-row">
+                  <span className="ppal-tile-id">{p.id}</span>
+                  <span className="ppal-tile-name">{p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name}</span>
+                  <span className="ppal-tile-pct">{pct}%</span>
+                </div>
+                <div className="ppal-tile-bar"><div className="ppal-tile-bar-fill" style={{width:pct+"%"}}/></div>
+                <div className="ppal-tile-count-row">
+                  <span className="ppal-tile-count">{dc.done}/{dc.total}{dc.halfTotal>0?" · "+dc.halfDone+"/"+dc.halfTotal+" half":""}</span>
+                  <div className="ppal-tile-actions">
+                    {parkCountsByColour[p.id]>0&&<button
+                      className="ppal-tile-park-btn"
+                      onClick={e=>{e.stopPropagation();toggleParkLayer(p.id);}}
+                      aria-pressed={isParkLayerVisible(p.id)}
+                      title={(isParkLayerVisible(p.id)?"Hide":"Show")+" parked markers for DMC "+p.id}
+                      style={{background:isParkLayerVisible(p.id)?swRgb:undefined,borderColor:isParkLayerVisible(p.id)?swRgb:"var(--border)",color:isParkLayerVisible(p.id)?(luminance(p.rgb)>140?"#000":"#fff"):"var(--text-tertiary)"}}
+                    >P{parkCountsByColour[p.id]>1?"\u00D7"+parkCountsByColour[p.id]:""}</button>}
+                    <button
+                      className="ppal-tile-done-btn"
+                      onClick={e=>{e.stopPropagation();if(!complete){const u=dc.total-dc.done;if(u>50&&!confirm("Mark all "+u+" stitches of DMC "+p.id+" as done?"))return;}markColourDone(p.id,!complete);}}
+                      style={{borderColor:complete?"var(--danger-soft)":"var(--success-soft)",background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)"}}
+                      title={complete?"Mark as not done":"Mark all as done"}
+                    >{complete?<>{Icons.undo?Icons.undo():null}{" Undo"}</>:<>{Icons.check?Icons.check():null}{" Done"}</>}</button>
+                  </div>
+                </div>
+              </div>
+            </div>;
+          });
+        })()}
       </div>}
-
-      {/* ── Tab: View ── */}
-      {leftSidebarTab==="view"&&<div className="lp-section">
-        <div className="lp-heading">Mode</div>
-        <div className="lp-segmented" style={{marginBottom:10}}>
-          {[['symbol','Symbol'],['colour','Colour'],['highlight','Highlight']].map(([k,l])=>
-            <button key={k} className={"lp-seg"+(stitchView===k?" lp-seg--on":"")} onClick={()=>{setStitchView(k);if(k!=="highlight"){setFocusColour(null);}else if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}}}>{l}</button>
-          )}
-        </div>
-
-        <div className="lp-heading">Zoom</div>
-        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
-          <button className="lp-btn" onClick={()=>setStitchZoom(z=>Math.max(0.1,+(z-0.25).toFixed(2)))} aria-label="Zoom out">−</button>
-          <input type="range" min={0.1} max={3} step={0.05} value={stitchZoom} onChange={e=>setStitchZoom(Number(e.target.value))} style={{flex:1,accentColor:"var(--accent)"}} aria-label="Zoom level"/>
-          <button className="lp-btn" onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} aria-label="Zoom in">+</button>
-          <span style={{minWidth:40,textAlign:"right",fontSize:'var(--text-xs)',fontVariantNumeric:"tabular-nums"}}>{Math.round(stitchZoom*100)}%</span>
-          <button className="lp-btn lp-btn--ghost" onClick={fitSZ}>Fit</button>
-        </div>
-
-        <div className="lp-heading">Rendering</div>
-        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:'var(--text-xs)',cursor:"pointer"}}>
-          <input type="checkbox" checked={lockDetailLevel} onChange={e=>setLockDetailLevel(e.target.checked)} style={{cursor:"pointer",accentColor:"var(--accent)"}}/>
-          <span>Lock detail tier</span>
-        </label>
-        <div style={{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:10,fontSize:'var(--text-xs)'}}>
-          <span style={{color:"var(--text-secondary)",flexShrink:0,minWidth:80}}>Zoomed-out fade</span>
-          <select value={String(lowZoomFade)} disabled={lockDetailLevel} onChange={e=>setLowZoomFade(parseFloat(e.target.value))} style={{flex:1,padding:"3px 6px",borderRadius:4,border:"1px solid var(--border)",background:lockDetailLevel?"var(--surface-tertiary)":"var(--surface)"}}>
-            <option value="0">Off</option>
-            <option value="0.15">Subtle</option>
-            <option value="0.55">Strong</option>
-          </select>
-        </div>
-
-        {/* color-2 (B3): tracker fabric background colour */}
-        <div className="lp-heading">Fabric</div>
-        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
-          <span style={{fontSize:'var(--text-xs)',color:"var(--text-secondary)"}}>Preview against fabric</span>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            {[
-              {id:"white",label:"White Aida",hex:"#FFFFFF"},
-              {id:"antique",label:"Antique White",hex:"#FAEBD7"},
-              {id:"cream",label:"Cream Evenweave",hex:"#FFF8E7"},
-              {id:"linen",label:"Natural Linen",hex:"#D2B48C"},
-              {id:"blackaida",label:"Black Aida",hex:"#1A1A1A"}
-            ].map(f=>{
-              const on=(trackerFabricColour||"#FFFFFF").toUpperCase()===f.hex.toUpperCase();
-              return <button key={f.id} type="button" onClick={()=>setTrackerFabricColour(f.hex)} title={f.label} aria-label={"Preview against "+f.label} aria-pressed={on} style={{width:26,height:26,borderRadius:'var(--radius-sm)',cursor:"pointer",background:f.hex,border:"1.5px solid "+(on?"var(--accent)":"var(--border)"),boxShadow:on?"0 0 0 2px var(--accent-light, rgba(160,103,52,0.18))":"none",padding:0}}/>;
-            })}
-            <input type="color" value={trackerFabricColour||"#FFFFFF"} onChange={e=>{const v=e.target.value;if(/^#[0-9a-fA-F]{6}$/.test(v))setTrackerFabricColour(v);}} title="Custom fabric colour" aria-label="Custom fabric colour" style={{width:26,height:26,padding:0,border:"1.5px solid var(--border)",borderRadius:'var(--radius-sm)',cursor:"pointer",background:"transparent"}}/>
-          </div>
-          {/* color-11: thread sheen toggle */}
-          <label style={{display:"flex",alignItems:"center",gap:6,marginTop:4,fontSize:'var(--text-xs)',cursor:"pointer"}}>
-            <input type="checkbox" checked={trackerCanvasTexture} onChange={e=>{const v=e.target.checked;setTrackerCanvasTexture(v);try{if(window.UserPrefs)window.UserPrefs.set("trackerCanvasTexture",v);document.dispatchEvent(new CustomEvent("cs:prefsChanged",{detail:{key:"trackerCanvasTexture",value:v}}));}catch(_){}}} style={{cursor:"pointer",accentColor:"var(--accent)"}}/>
-            <span>Thread sheen</span>
-          </label>
-        </div>
-
-        <div className="lp-heading">Layers</div>
-        {STITCH_LAYERS.map(layer=>{
-          const count=layerCounts[layer.id];
-          const vis=layerVis[layer.id];
-          return <label key={layer.id} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 0",fontSize:'var(--text-xs)',cursor:"pointer",opacity:count>0?1:0.4}}>
-            <input type="checkbox" checked={vis} onChange={()=>{setSoloPreState(null);setLayerVis(v=>({...v,[layer.id]:!v[layer.id]}));}} style={{cursor:"pointer",accentColor:"var(--accent)"}}/>
-            <span style={{flex:1}}>{layer.label}</span>
-            <span style={{fontSize:10,color:"var(--text-tertiary)"}}>{count.toLocaleString('en-GB')}</span>
-          </label>;
-        })}
-      </div>}
-
-      {/* ── Tab: Session ── */}
-      {leftSidebarTab==="session"&&<div className="lp-section">
-        <div className="lp-heading">Session {liveAutoStitches>0&&<span className="badge">Live</span>}</div>
-        {explicitSession?(()=>{
-          const elapsed=Math.floor((Date.now()-explicitSession.startTime)/1000);
-          const stitchesDone=liveAutoStitches;
-          const timeRemaining=explicitSession.timeAvail?Math.max(0,explicitSession.timeAvail-elapsed):null;
-          const goalReached=(explicitSession.stitchGoal&&stitchesDone>=explicitSession.stitchGoal)||(explicitSession.timeAvail&&elapsed>=explicitSession.timeAvail);
-          return(<>
-            <div className="sess-card" style={{borderColor:"var(--accent-border)",background:"var(--accent-light)"}}>
-              <div className="row"><span className="lbl">{timeRemaining!==null?"Remaining":"Elapsed"}</span><span className="val" style={{fontWeight:700,color:"var(--accent)"}}>{fmtTime(timeRemaining!==null?timeRemaining:elapsed)}</span></div>
-              <div className="row"><span className="lbl">Stitches</span><span className="val">{stitchesDone}{explicitSession.stitchGoal?` / ${explicitSession.stitchGoal}`:""}</span></div>
-              {stitchesDone>0&&elapsed>0&&<div className="row"><span className="lbl">Speed</span><span className="val">{(stitchesDone/(elapsed/3600)).toFixed(0)} st/hr</span></div>}
-            </div>
-            {goalReached&&<div style={{fontSize:'var(--text-sm)',color:"var(--success)",background:"var(--success-soft)",padding:"6px 10px",borderRadius:'var(--radius-sm)',marginTop:6,textAlign:"center",fontWeight:600}}>Goal reached!</div>}
-            <button className="lp-btn lp-btn--danger" style={{marginTop:'var(--s-2)',width:"100%"}} onClick={()=>{
-              const dur=liveAutoElapsed>0?liveAutoElapsed:Math.floor((Date.now()-explicitSession.startTime)/1000);
-              const bks=breadcrumbs.filter(b=>b.sessionIdx===(statsSessions?statsSessions.length:0)).length;
-              const netSessionDelta=liveAutoStitches;
-              setSessionSummaryData({durationSeconds:dur,stitchesCompleted:liveAutoStitches,blocksCompleted:bks,coloursCompleted:[],progressPctBefore:totalStitchable>0?Math.round((doneCount-netSessionDelta)/totalStitchable*100):null,progressPctAfter:totalStitchable>0?Math.round(doneCount/totalStitchable*100):null});
-              setExplicitSession(null);
-            }}>End session</button>
-          </>);
-        })():<>
-          <div className="sess-card">
-            <div className="row"><span className="lbl">Time</span><span className="val">{fmtTime(liveAutoElapsed)}</span></div>
-            <div className="row"><span className="lbl">Stitches</span><span className="val">{liveAutoStitches}</span></div>
-            {liveAutoStitches>0&&liveAutoElapsed>0&&<div className="row"><span className="lbl">Speed</span><span className="val">{(liveAutoStitches/(liveAutoElapsed/60)).toFixed(1)} st/min</span></div>}
-            <div className="row"><span className="lbl">Total time</span><span className="val">{fmtTime(totalTime+liveAutoElapsed)}</span></div>
-          </div>
-          <button className="lp-btn lp-btn--primary" style={{marginTop:'var(--s-2)',width:"100%"}} onClick={()=>setSessionConfigOpen(true)}>Start session</button>
-        </>}
-        <button className="lp-btn lp-btn--ghost" style={{marginTop:'var(--s-2)',width:'100%'}} onClick={()=>{if(!statsView){setStatsTab(projectIdRef.current||'all');}setStatsView(v=>!v);}}>{statsView?"Hide":"View"} full stats</button>
-      </div>}
-
-      {/* ── Tab: Tools (phase 4) ──
-          Houses the heavy "look at the canvas differently" controls:
-          realistic preview, thread-usage analysis, focus-area / spotlight
-          and the optional suggestions feed. These were previously
-          scattered across the toolbar overflow and the rpanel "More"
-          tab. */}
-      {leftSidebarTab==="tools"&&<div className="lp-section">
-        <div className="lp-heading">Realistic preview</div>
-        <button className={"lp-btn"+(trackerPreviewOpen?" lp-btn--primary":"")} style={{width:"100%",marginBottom:10}} onClick={()=>setTrackerPreviewOpen(v=>!v)}>
-          {Icons.eye?Icons.eye():null}{" "}{trackerPreviewOpen?"Close preview":"Open realistic preview"}
-        </button>
-
-        <div className="lp-heading" style={{marginTop:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span>Thread usage</span>
-          {threadUsageMode&&<button className="lp-btn lp-btn--ghost" style={{padding:"2px 8px",minHeight:0,fontSize:10}} onClick={()=>setThreadUsageMode(null)} title="Hide thread usage overlay">{Icons.x?Icons.x():null}</button>}
-        </div>
-        <div className="lp-segmented" style={{marginBottom:'var(--s-2)',width:"100%"}}>
-          {[["cluster","Cluster"],["distance","Isolation"]].map(([m,l])=>
-            <button key={m} className={"lp-seg"+(threadUsageMode===m?" lp-seg--on":"")} onClick={()=>setThreadUsageMode(m)}>{l}</button>
-          )}
-        </div>
-        {threadUsageSummary&&<div style={{padding:"8px 10px",borderRadius:'var(--radius-md)',background:"var(--surface-secondary)",border:"1px solid var(--border)",fontSize:'var(--text-xs)',marginBottom:10}}>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"var(--text-secondary)"}}>Confetti</span><span style={{fontWeight:700,color:"var(--danger)"}}>{threadUsageSummary.isolated.toLocaleString('en-GB')} ({threadUsageSummary.total>0?((threadUsageSummary.isolated/threadUsageSummary.total)*100).toFixed(1):0}%)</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"var(--text-secondary)"}}>Small (2–4)</span><span style={{fontWeight:600,color:"var(--accent-ink)"}}>{threadUsageSummary.small.toLocaleString('en-GB')}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"var(--text-secondary)"}}>Medium (5–19)</span><span style={{fontWeight:600,color:"var(--text-secondary)"}}>{threadUsageSummary.medium.toLocaleString('en-GB')}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{color:"var(--text-secondary)"}}>Large (20+)</span><span style={{fontWeight:600,color:"var(--success)"}}>{threadUsageSummary.large.toLocaleString('en-GB')}</span></div>
-          {threadUsageSummary.estChanges>0&&<div style={{display:"flex",justifyContent:"space-between",paddingTop:5,borderTop:"0.5px solid var(--border)"}}><span style={{color:"var(--text-secondary)"}}>Est. thread changes</span><span style={{fontWeight:700}}>~{threadUsageSummary.estChanges.toLocaleString('en-GB')}</span></div>}
-        </div>}
-
-        <div className="lp-heading" style={{marginTop:6}}>Focus area</div>
-        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:'var(--text-xs)',cursor:"pointer"}}>
-          <input type="checkbox" checked={focusEnabled} onChange={e=>{const next=e.target.checked;setFocusEnabled(next);if(next&&!focusBlock)setFocusBlock(_getStartBlock());}} style={{cursor:"pointer",accentColor:"var(--accent)"}}/>
-          <span>Spotlight focus block</span>
-        </label>
-        {stitchingStyle!=="crosscountry"&&stitchingStyle!=="freestyle"&&<>
-          <div style={{fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginBottom:'var(--s-1)'}}>Block size: {blockW}×{blockH}</div>
-          <div style={{display:"flex",gap:'var(--s-1)',marginBottom:'var(--s-2)',flexWrap:"wrap"}}>
-            {[[10,10,"10×10"],[20,20,"20×20"]].map(([w,h,l])=>
-              <button key={l} className={"lp-btn"+(blockW===w&&blockH===h?" lp-btn--primary":"")} style={{padding:"3px 8px",minHeight:0,fontSize:10}} onClick={()=>{setBlockW(w);setBlockH(h);}}>{l}</button>
-            )}
-            <input type="number" inputMode="numeric" aria-label="Custom block width" placeholder="W" value={blockW} onChange={e=>setBlockW(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:42,padding:"3px 5px",borderRadius:4,border:"1px solid var(--border)",fontSize:'var(--text-xs)'}} min={5} max={100}/>
-            <span style={{fontSize:'var(--text-xs)',lineHeight:"24px",color:"var(--text-tertiary)"}}>×</span>
-            <input type="number" inputMode="numeric" aria-label="Custom block height" placeholder="H" value={blockH} onChange={e=>setBlockH(Math.max(5,Math.min(100,parseInt(e.target.value)||10)))} style={{width:42,padding:"3px 5px",borderRadius:4,border:"1px solid var(--border)",fontSize:'var(--text-xs)'}} min={5} max={100}/>
-          </div>
-        </>}
-        <div style={{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:6,fontSize:'var(--text-xs)'}}>
-          <span style={{color:"var(--text-secondary)",flexShrink:0,minWidth:60}}>Style</span>
-          <button className="lp-btn lp-btn--ghost" style={{flex:1,justifyContent:"flex-start"}} onClick={()=>setStyleOnboardingOpen(true)} title="Change stitching style">
-            {({block:"Block",royal:"Royal Rows",crosscountry:"Cross Country",freestyle:"Freestyle"})[stitchingStyle]||stitchingStyle}
-          </button>
-        </div>
-        <label style={{display:"flex",alignItems:"center",gap:6,marginBottom:10,fontSize:'var(--text-xs)',cursor:"pointer"}}>
-          <input type="checkbox" checked={breadcrumbVisible} onChange={e=>setBreadcrumbVisible(e.target.checked)} style={{cursor:"pointer",accentColor:"var(--accent)"}}/>
-          <span>Show breadcrumbs</span>
-        </label>
-
-        <div className="lp-heading" style={{marginTop:6}}>Suggestions</div>
-        <label style={{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-xs)',cursor:"pointer"}}>
-          <input type="checkbox" checked={recEnabled} onChange={e=>{const v=e.target.checked;setRecEnabled(v);try{localStorage.setItem("cs_recEnabled",v?"1":"0");}catch(_){}}} style={{cursor:"pointer",accentColor:"var(--accent)"}}/>
-          <span>Surface next-block suggestions</span>
-        </label>
-        {recEnabled&&recommendations&&recommendations.top.length>0&&<div style={{marginTop:'var(--s-2)',fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>
-          {recommendations.top.length} block{recommendations.top.length===1?"":"s"} suggested · top: row {Math.floor(recommendations.top[0].idx/(analysisResult.regionCols||1))*(analysisResult.regionSize||10)+1}, col {(recommendations.top[0].idx%(analysisResult.regionCols||1))*(analysisResult.regionSize||10)+1}
-        </div>}
-      </div>}
-
-      {/* ── Tab: Notes (phase 4) ──
-          Project metadata + at-a-glance time totals. Designer and
-          description are inline-editable; saves debounce through the
-          existing project-storage path. */}
-      {leftSidebarTab==="notes"&&<div className="lp-section">
-        <div className="lp-heading">Designer</div>
-        <input type="text" value={projectDesigner} onChange={e=>setProjectDesigner(e.target.value)} placeholder="e.g. Satsuma Street" maxLength={120} style={{width:"100%",padding:"6px 8px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",fontSize:'var(--text-sm)',fontFamily:"inherit",marginBottom:10}}/>
-
-        <div className="lp-heading">Description</div>
-        <textarea value={projectDescription} onChange={e=>setProjectDescription(e.target.value)} placeholder="Notes about this project…" maxLength={2000} rows={4} style={{width:"100%",padding:"6px 8px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",fontSize:'var(--text-sm)',fontFamily:"inherit",marginBottom:10,resize:"vertical"}}/>
-
-        <div className="lp-heading">Project info</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 16px",fontSize:'var(--text-xs)',marginBottom:10}}>
-          <div>
-            <div style={{color:"var(--text-tertiary)",fontWeight:600,marginBottom:1}}>Started</div>
-            <div style={{fontWeight:600,color:"var(--text-primary)"}}>{createdAtRef.current?new Date(createdAtRef.current).toLocaleDateString('en-GB'):"—"}</div>
-          </div>
-          <div>
-            <div style={{color:"var(--text-tertiary)",fontWeight:600,marginBottom:1}}>Pattern size</div>
-            <div style={{fontWeight:600,color:"var(--text-primary)"}}>{sW} × {sH}</div>
-          </div>
-          <div>
-            <div style={{color:"var(--text-tertiary)",fontWeight:600,marginBottom:1}}>Stitchable</div>
-            <div style={{fontWeight:600,color:"var(--text-primary)"}}>{totalStitchable.toLocaleString('en-GB')}</div>
-          </div>
-          <div>
-            <div style={{color:"var(--text-tertiary)",fontWeight:600,marginBottom:1}}>Colours</div>
-            <div style={{fontWeight:600,color:"var(--text-primary)"}}>{pal.length}</div>
-          </div>
-        </div>
-
-        <div className="lp-heading">Time</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 16px",fontSize:'var(--text-xs)',marginBottom:10}}>
-          <div>
-            <div style={{color:"var(--text-tertiary)",fontWeight:600,marginBottom:1}}>Total logged</div>
-            <div style={{fontWeight:600,color:"var(--text-primary)"}}>{fmtTime(totalTime+liveAutoElapsed)}</div>
-          </div>
-          <div>
-            <div style={{color:"var(--text-tertiary)",fontWeight:600,marginBottom:1}}>Est. remaining</div>
-            <div style={{fontWeight:600,color:"var(--text-primary)"}}>{estCompletion?fmtTime(estCompletion):"—"}</div>
-          </div>
-        </div>
-
-        <div style={{display:"flex",gap:6,marginTop:6}}>
-          <button className="lp-btn" style={{flex:1}} onClick={()=>copyProgressSummary()}>{Icons.clipboard?Icons.clipboard():null}{" "}Copy summary</button>
-          <button className="lp-btn" style={{flex:1}} onClick={handleEditInCreator}>{Icons.pencil?Icons.pencil():null}{" "}Edit in Creator</button>
-        </div>
-      </div>}
-
-      {/* ── Tab: Legend (phase 5, mobile only) ──
-          On <=899px the rpanel is hidden (CSS) and the palette legend
-          folds into the left drawer as its own tab. The tab button is
-          also CSS-hidden on desktop, so the tab is unreachable in the
-          desktop layout where the rpanel is already showing the same
-          list. */}
-      {leftSidebarTab==="legend"&&<div className="lp-section lp-section--mobile-only" style={{display:"flex",flexDirection:"column",flex:1,minHeight:0}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:'var(--s-2)'}}>
-          <span className="lp-heading" style={{margin:0}}>Palette legend <span className="badge">{pal.length}</span></span>
-          <label style={{display:"inline-flex",alignItems:"center",gap:'var(--s-1)',fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>
-            <span>Sort</span>
-            <select value={legendSort} onChange={e=>setLegendSort(e.target.value)} style={{fontSize:'var(--text-xs)',padding:"2px 4px",borderRadius:4,border:"1px solid var(--border)",background:"var(--surface)",cursor:"pointer",fontFamily:"inherit"}} aria-label="Sort palette legend">
-              <option value="id">DMC ID</option>
-              <option value="done">% done</option>
-              <option value="count">Stitch count</option>
-            </select>
-          </label>
-        </div>
-        <div className="col-list" style={{maxHeight:"none",flex:1,overflowY:"auto"}}>
-          {(()=>{
-            const rows=pal.map(p=>{
-              const dc=colourDoneCounts[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
-              const totalWithHalf=dc.total+dc.halfTotal*0.5;
-              const doneWithHalf=dc.done+dc.halfDone*0.5;
-              const pct=totalWithHalf>0?Math.round(doneWithHalf/totalWithHalf*100):0;
-              return {p,dc,pct,total:dc.total,complete:doneWithHalf>=totalWithHalf&&totalWithHalf>0};
-            });
-            if(legendSort==="done"){rows.sort((a,b)=>b.pct-a.pct);}
-            else if(legendSort==="count"){rows.sort((a,b)=>b.total-a.total);}
-            else{rows.sort((a,b)=>{const ai=String(a.p.id),bi=String(b.p.id);const an=parseInt(ai,10),bn=parseInt(bi,10);if(isFinite(an)&&isFinite(bn)&&String(an)===ai&&String(bn)===bi)return an-bn;return ai.localeCompare(bi);});}
-            return rows.map(({p,dc,pct,complete})=>{
-              const isFocused=focusColour===p.id;
-              return <div key={p.id} className={"col-row"+(isFocused?" focus":"")} style={{opacity:complete&&!isFocused?0.55:1}} onClick={()=>{
-                if(isEditMode){setEditModalColor(p);return;}
-                setStitchView("highlight");
-                setFocusColour(p.id);
-                setLeftSidebarTab("highlight");
-              }} title={"Focus DMC "+p.id+" and open Highlight tab"}>
-                <div className="sw" style={{background:`rgb(${p.rgb})`,cursor:"pointer"}} role="button" tabIndex={0} aria-label={"Show details for DMC "+p.id} title={"Click for details on DMC "+p.id} onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,name:p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name,rgb:p.rgb,similarThread:window.findNearestSimilarThread?window.findNearestSimilarThread(p,pal,8):null,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});}} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,name:p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name,rgb:p.rgb,similarThread:window.findNearestSimilarThread?window.findNearestSimilarThread(p,pal,8):null,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});}}}/>
-                <span className="sym">{p.symbol}</span>
-                <span className="cid" style={{color:isFocused?"var(--accent)":complete?"var(--success)":"inherit"}}>{p.id}</span>
-                <span className="nm">{p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name}</span>
-                {!isEditMode&&<>
-                  <div className="prog"><div className="pf" style={{width:pct+"%"}}/></div>
-                  <span className="ct">{dc.done}/{dc.total}</span>
-                  {/* Multi-colour parking — per-colour visibility toggle.
-                      Pip is hidden when this colour has no parked markers. */}
-                  {parkCountsByColour[p.id]>0&&<button onClick={e2=>{e2.stopPropagation();toggleParkLayer(p.id);}} title={(isParkLayerVisible(p.id)?"Hide":"Show")+" "+parkCountsByColour[p.id]+" parked marker"+(parkCountsByColour[p.id]===1?"":"s")+" for this colour"} aria-label={(isParkLayerVisible(p.id)?"Hide":"Show")+" parked markers for DMC "+p.id} aria-pressed={isParkLayerVisible(p.id)} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:9,padding:"1px 5px",borderRadius:4,border:"1px solid var(--border)",background:isParkLayerVisible(p.id)?`rgb(${p.rgb[0]},${p.rgb[1]},${p.rgb[2]})`:"var(--surface)",color:isParkLayerVisible(p.id)?(luminance(p.rgb)>140?"#000":"#fff"):"var(--text-tertiary)",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,fontWeight:600,opacity:isParkLayerVisible(p.id)?1:0.55}}>P{parkCountsByColour[p.id]>1?("\u00D7"+parkCountsByColour[p.id]):""}</button>}
-                  <button onClick={e2=>{e2.stopPropagation();if(!complete){const unmarked=dc.total-dc.done;if(unmarked>50&&!confirm("Mark all "+unmarked+" stitches of DMC "+p.id+" as done?"))return;}markColourDone(p.id,!complete);}} style={{fontSize:9,padding:"1px 6px",borderRadius:4,border:"1px solid "+(complete?"var(--danger-soft)":"var(--success-soft)"),background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}} title={complete?"Mark colour as not done":"Mark colour as done"} aria-label={complete?"Mark colour as not done":"Mark colour as done"}>{complete?"Undo":(Icons.check?Icons.check():"\u2713")}</button>
-                </>}
-              </div>;
-            });
-          })()}
-        </div>
-      </div>}
-
-      </div>{/* end lp-tab-content */}
+    </div>
     </div>}
 
+    <div className="ppal-canvas-col">
     <div className="canvas-area" style={{padding:"12px 16px"}}>
     {showNavHelp&&!isEditMode&&(()=>{const isTouch=hasTouchRef.current;return(
     <div style={{marginBottom:'var(--s-2)',padding:"14px 16px",background:"var(--surface)",border:"1px solid var(--accent-light)",borderRadius:'var(--radius-lg)',fontSize:'var(--text-sm)'}}>
@@ -6545,86 +5893,245 @@ return(
 
     {doneCount===0&&totalStitchable>0&&stitchMode==="track"&&<div style={{fontSize:'var(--text-xs)',color:"var(--accent-ink)",background:"var(--accent-soft)",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-sm)',padding:"6px 10px",marginBottom:'var(--s-2)',textAlign:"center"}}>Tap any stitch on the canvas to mark it as done</div>}
 
-    {/* Floating undo — mobile only (shown via CSS) */}
-    {!isEditMode&&stitchMode==="track"&&trackHistory.length>0&&<button className="fab-undo" onClick={undoTrack} onContextMenu={e=>{e.preventDefault();if(redoStack.length)redoTrack();}} aria-label="Undo last stitch" title="Tap to undo · Long-press for redo">{Icons.undo?Icons.undo():null}</button>}
-
     </div>{/* end canvas-area */}
-
-    {/* ═══ RIGHT PANEL — PALETTE LEGEND (phase 4) ═══
-        Replaces the old Colours / Session / More tabs. Session lives in
-        the lpanel Session tab; the Layers / Project Info / Quick
-        Actions content from the old "More" tab has been folded into
-        the lpanel Notes and View tabs. The right panel is now a
-        single sortable legend; tapping a row sets the focus colour
-        AND opens the Highlight tab on the left. */}
-    <div className={"rpanel"+(mobileDrawerOpen?" rpanel--drawer-open":"")+(legendCollapsed?" rpanel--collapsed":"")}>
-      <div className="rp-tabs" style={{paddingLeft:10,paddingRight:6,gap:6,alignItems:"center"}}>
-        <button
-          type="button"
-          onClick={()=>setLegendCollapsed(c=>!c)}
-          className="rpanel-collapse-btn"
-          aria-expanded={!legendCollapsed}
-          aria-label={legendCollapsed?"Expand palette legend":"Collapse palette legend"}
-          title={legendCollapsed?"Expand palette legend":"Collapse palette legend"}
-        >
-          {window.Icons && (legendCollapsed?window.Icons.chevronLeft():window.Icons.chevronRight())}
+    {/* ─ Phone chip ─ */}
+    {pal&&focusColour&&cmap&&cmap[focusColour]
+      ?<button className="ppal-phone-chip" onClick={cycleLeftSidebar} aria-label="Open colour palette panel">
+          <span className="ppal-phone-chip-sw" style={{background:"rgb("+cmap[focusColour].rgb+")"}}/>
+          <span>DMC {focusColour}</span>
         </button>
-        <span style={{flex:1,fontSize:'var(--text-xs)',fontWeight:700,letterSpacing:"0.05em",textTransform:"uppercase",color:"var(--text-tertiary)"}}>Palette legend <span className="badge">{pal.length}</span></span>
-        {!legendCollapsed && <label style={{display:"inline-flex",alignItems:"center",gap:'var(--s-1)',fontSize:10,color:"var(--text-tertiary)"}}>
-          <span>Sort</span>
-          <select value={legendSort} onChange={e=>setLegendSort(e.target.value)} style={{fontSize:10,padding:"2px 4px",borderRadius:4,border:"1px solid var(--border)",background:"var(--surface)",cursor:"pointer",fontFamily:"inherit"}} aria-label="Sort palette legend">
-            <option value="id">DMC ID</option>
-            <option value="done">% done</option>
-            <option value="count">Stitch count</option>
-          </select>
-        </label>}
+      :<button className="ppal-phone-chip ppal-phone-chip--empty" onClick={cycleLeftSidebar} aria-label="Open colour palette panel">
+          {Icons.menu?Icons.menu():null}{" Palette"}
+        </button>
+    }
+
+    {/* ─ Mode strip ─ */}
+    <div className={"toolbar-row"+(isEditMode?" toolbar-row--edit":"")+" ppal-mode-strip"} role="toolbar" aria-label="Canvas controls">
+      <button className="tracker-hamburger" onClick={cycleLeftSidebar} aria-label="Open colour palette" title="Open colour palette (P)">{Icons.palette?Icons.palette():null}</button>
+      <button className={"ppal-mode-btn"+(stitchMode==="track"?" ppal-mode-btn--on":"")+(isEditMode?" tb-btn--red":" tb-btn--green")} onClick={()=>setStitchMode("track")} title={isEditMode?"Modify pattern (M)":"Mark stitches (T)"} aria-pressed={stitchMode==="track"}>
+        <span className="ppal-mode-btn-icon">{Icons.check()}</span>
+        <span className="ppal-mode-btn-label">{isEditMode?"Modify":"Mark"}</span>
+      </button>
+      <button className={"ppal-mode-btn"+(stitchMode==="navigate"?" ppal-mode-btn--on":"")} onClick={()=>setStitchMode("navigate")} title="Navigate / park (N)" aria-pressed={stitchMode==="navigate"}>
+        <span className="ppal-mode-btn-icon">{Icons.parkFlag()}</span>
+        <span className="ppal-mode-btn-label">Nav</span>
+      </button>
+      <button className="ppal-mode-btn" onClick={fitSZ} title="Fit to screen (0)">
+        <span className="ppal-mode-btn-icon">{Icons.focus()}</span>
+        <span className="ppal-mode-btn-label">Fit</span>
+      </button>
+      <button className="ppal-mode-btn" onClick={undoTrack} disabled={!trackHistory.length} title="Undo (Ctrl+Z)" aria-label={trackHistory.length>0?"Undo "+trackHistory.length+" steps":"Nothing to undo"}>
+        <span className="ppal-mode-btn-icon">{Icons.undo()}</span>
+        <span className="ppal-mode-btn-label">Undo</span>
+      </button>
+      <button className={"ppal-mode-btn"+(morePanelOpen?" ppal-mode-btn--on":"")} onClick={()=>setMorePanelOpen(v=>!v)} title="More controls" aria-expanded={morePanelOpen} aria-controls="ppal-more-panel">
+        <span className="ppal-mode-btn-icon">{Icons.menu()}</span>
+        <span className="ppal-mode-btn-label">More</span>
+      </button>
+    </div>
+
+    {/* ─ More panel backdrop ─ */}
+    {morePanelOpen&&<div className="ppal-more-backdrop" onClick={()=>setMorePanelOpen(false)} aria-hidden="true"/>}
+
+    {/* ─ More panel ─ */}
+    <div id="ppal-more-panel" className={"ppal-more-panel"+(morePanelOpen?" ppal-more-panel--open":"")} role="dialog" aria-label="Tracker controls" aria-hidden={!morePanelOpen}>
+      <div className="ppal-more-header">
+        <span className="ppal-more-title">Controls</span>
+        <button className={"ppal-utility-chip"+(wakeLockActive?" ppal-utility-chip--on":"")} onClick={toggleWakeLock} aria-pressed={wakeLockActive} title={wakeLockActive?"Screen stays awake — tap to release":"Keep screen awake"}>
+          {Icons.dot?Icons.dot():null}{" "}{wakeLockActive?"Awake":"Sleep"}
+        </button>
+        <button className={"ppal-utility-chip"+(focusMode?" ppal-utility-chip--on":"")} onClick={()=>setFocusMode(v=>!v)} aria-pressed={focusMode} title={focusMode?"Exit focus mode (F)":"Enter focus mode (F)"}>
+          {focusMode?(Icons.focusExit?Icons.focusExit():null):(Icons.focus?Icons.focus():null)}{" Focus"}
+        </button>
+        <button className="ppal-more-close" onClick={()=>setMorePanelOpen(false)} aria-label="Close controls">{Icons.x()}</button>
       </div>
-      {!legendCollapsed && <div className="rp-tab-content">
-      {/* Palette legend (sortable). Single list — focus + highlight in one tap. */}
-      <div className="rp-section" style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <div className="col-list" style={{maxHeight:"none",flex:1,minHeight:0,overflowY:"auto"}}>
-          {(()=>{
-            const rows=pal.map(p=>{
-              const dc=colourDoneCounts[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
-              const totalWithHalf=dc.total+dc.halfTotal*0.5;
-              const doneWithHalf=dc.done+dc.halfDone*0.5;
-              const pct=totalWithHalf>0?Math.round(doneWithHalf/totalWithHalf*100):0;
-              return {p,dc,pct,total:dc.total,doneWithHalf,totalWithHalf,complete:doneWithHalf>=totalWithHalf&&totalWithHalf>0};
-            });
-            if(legendSort==="done"){rows.sort((a,b)=>b.pct-a.pct);}
-            else if(legendSort==="count"){rows.sort((a,b)=>b.total-a.total);}
-            else{rows.sort((a,b)=>{const ai=String(a.p.id),bi=String(b.p.id);const an=parseInt(ai,10),bn=parseInt(bi,10);if(isFinite(an)&&isFinite(bn)&&String(an)===ai&&String(bn)===bi)return an-bn;return ai.localeCompare(bi);});}
-            return rows.map(({p,dc,pct,complete})=>{
-              const isFocused=focusColour===p.id;
-              return <div key={p.id} className={"col-row"+(isFocused?" focus":"")} style={{opacity:complete&&!isFocused?0.55:1}} onClick={()=>{
-                if(isEditMode){setEditModalColor(p);return;}
-                // Single tap: set focus AND open the Highlight tab in the
-                // left sidebar. This is the primary "show me this colour"
-                // affordance now that the toolbar pill is trimmed.
-                setStitchView("highlight");
-                setFocusColour(p.id);
-                setLeftSidebarTab("highlight");
-                setLeftSidebarOpen(true);
-              }} title={"Focus DMC "+p.id+" and open Highlight tab"}>
-                <div className="sw" style={{background:`rgb(${p.rgb})`,cursor:"pointer"}} role="button" tabIndex={0} aria-label={"Show details for DMC "+p.id} title={"Click for details on DMC "+p.id} onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,name:p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name,rgb:p.rgb,similarThread:window.findNearestSimilarThread?window.findNearestSimilarThread(p,pal,8):null,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});}} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,name:p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name,rgb:p.rgb,similarThread:window.findNearestSimilarThread?window.findNearestSimilarThread(p,pal,8):null,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});}}}/>
-                <span className="sym">{p.symbol}</span>
-                <span className="cid" style={{color:isFocused?"var(--accent)":complete?"var(--success)":"inherit"}}>{p.id}</span>
-                <span className="nm">{p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name}</span>
-                {!isEditMode&&<>
-                  <div className="prog"><div className="pf" style={{width:pct+"%"}}/></div>
-                  <span className="ct">{dc.done}/{dc.total}</span>
-                  {/* Multi-colour parking — per-colour visibility toggle. */}
-                  {parkCountsByColour[p.id]>0&&<button onClick={e2=>{e2.stopPropagation();toggleParkLayer(p.id);}} title={(isParkLayerVisible(p.id)?"Hide":"Show")+" "+parkCountsByColour[p.id]+" parked marker"+(parkCountsByColour[p.id]===1?"":"s")+" for this colour"} aria-label={(isParkLayerVisible(p.id)?"Hide":"Show")+" parked markers for DMC "+p.id} aria-pressed={isParkLayerVisible(p.id)} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:9,padding:"1px 5px",borderRadius:4,border:"1px solid var(--border)",background:isParkLayerVisible(p.id)?`rgb(${p.rgb[0]},${p.rgb[1]},${p.rgb[2]})`:"var(--surface)",color:isParkLayerVisible(p.id)?(luminance(p.rgb)>140?"#000":"#fff"):"var(--text-tertiary)",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,fontWeight:600,opacity:isParkLayerVisible(p.id)?1:0.55}}>P{parkCountsByColour[p.id]>1?("\u00D7"+parkCountsByColour[p.id]):""}</button>}
-                  <button onClick={e2=>{e2.stopPropagation();if(!complete){const unmarked=dc.total-dc.done;if(unmarked>50&&!confirm("Mark all "+unmarked+" stitches of DMC "+p.id+" as done?"))return;}markColourDone(p.id,!complete);}} style={{fontSize:9,padding:"1px 6px",borderRadius:4,border:"1px solid "+(complete?"var(--danger-soft)":"var(--success-soft)"),background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}} title={complete?"Mark colour as not done":"Mark colour as done"} aria-label={complete?"Mark colour as not done":"Mark colour as done"}>{complete?"Undo":(Icons.check?Icons.check():"\u2713")}</button>
-                </>}
-                {isEditMode&&Icons.pencil&&<span style={{fontSize:10,color:"var(--warning)",fontWeight:600}} aria-label="Edit colour">{Icons.pencil()}</span>}
-              </div>;
-            });
-          })()}
-        </div>
+      <div className="ppal-more-tabs" role="tablist">
+        {[["highlight","Highlight"],["view","View"],["session","Session"],["layers","Layers"],["tools","Tools"]].map(([k,l])=>
+          <button key={k} role="tab" aria-selected={leftSidebarTab===k} className={"ppal-more-tab"+(leftSidebarTab===k?" ppal-more-tab--on":"")} onClick={()=>setLeftSidebarTab(k)}>{l}</button>
+        )}
       </div>
-      </div>}{/* end rp-tab-content (collapsed when legendCollapsed) */}
-    </div>{/* end rpanel */}
+      <div className="ppal-more-content">
+
+        {/* -- Highlight tab -- */}
+        {leftSidebarTab==="highlight"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div>
+            <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Highlight style</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {[["isolate","Isolate"],["outline","Outline"],["tint","Tint"],["spotlight","Spotlight"]].map(([v,l])=>
+                <button key={v}
+                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(highlightMode===v&&stitchView==="highlight"?"var(--accent)":"var(--border)"),background:highlightMode===v&&stitchView==="highlight"?"var(--accent)":"var(--surface)",color:highlightMode===v&&stitchView==="highlight"?"var(--accent-ink)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:highlightMode===v&&stitchView==="highlight"?600:400}}
+                  onClick={()=>{setStitchView("highlight");setHighlightMode(v);}} aria-pressed={highlightMode===v&&stitchView==="highlight"}
+                >{l}</button>
+              )}
+            </div>
+          </div>
+          <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
+            <input type="checkbox" checked={countingAidsEnabled} onChange={e=>setCountingAidsEnabled(e.target.checked)} style={{width:16,height:16,cursor:"pointer"}}/>
+            <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Counting aids</span>
+          </label>
+          <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
+            <input type="checkbox" checked={!!highlightSkipDone} onChange={e=>setHighlightSkipDone(e.target.checked)} style={{width:16,height:16,cursor:"pointer"}}/>
+            <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Skip done stitches</span>
+          </label>
+          {focusColour&&<button onClick={()=>setFocusColour(null)} style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",alignSelf:"flex-start"}}>Clear focus</button>}
+        </div>}
+
+        {/* -- View tab -- */}
+        {leftSidebarTab==="view"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div>
+            <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Stitch view</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {[["symbol","Symbol"],["highlight","Highlight"],["realistic","Realistic"]].map(([v,l])=>
+                <button key={v}
+                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(stitchView===v?"var(--accent)":"var(--border)"),background:stitchView===v?"var(--accent)":"var(--surface)",color:stitchView===v?"var(--accent-ink)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:stitchView===v?600:400}}
+                  onClick={()=>setStitchView(v)} aria-pressed={stitchView===v}
+                >{l}</button>
+              )}
+            </div>
+          </div>
+          <div>
+            <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Zoom</div>
+            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+              <button onClick={()=>setStitchZoom(z=>Math.max(0.3,+(z-0.25).toFixed(2)))} style={{padding:"5px 10px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:16,cursor:"pointer",color:"var(--text-secondary)"}} aria-label="Zoom out">&#8722;</button>
+              <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)",minWidth:40,textAlign:"center"}}>{Math.round((stitchZoom||1)*100)}%</span>
+              <button onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} style={{padding:"5px 10px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:16,cursor:"pointer",color:"var(--text-secondary)"}} aria-label="Zoom in">&#43;</button>
+              <button onClick={fitSZ} style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)"}}>Fit</button>
+            </div>
+          </div>
+          <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
+            <input type="checkbox" checked={!!lockDetailLevel} onChange={e=>setLockDetailLevel(e.target.checked)} style={{width:16,height:16,cursor:"pointer"}}/>
+            <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Lock detail level</span>
+          </label>
+        </div>}
+
+        {/* -- Session tab -- */}
+        {leftSidebarTab==="session"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
+          {currentAutoSessionRef.current?<>
+            <div style={{background:"var(--surface-secondary)",borderRadius:"var(--radius-md)",padding:"12px 14px",display:"flex",flexDirection:"column",gap:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <span style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)"}}>Active session</span>
+                {liveAutoIsPaused||manuallyPaused
+                  ?<span style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--warning-soft)",color:"var(--warning)",fontWeight:600}}>Paused</span>
+                  :<span style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--success-soft)",color:"var(--success)",fontWeight:600}}>Active</span>
+                }
+              </div>
+              <div style={{display:"flex",gap:24}}>
+                <div><div style={{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>Time</div><div style={{fontSize:'var(--text-lg)',fontWeight:700,color:"var(--text-primary)",fontVariantNumeric:"tabular-nums"}}>{fmtTime(liveAutoElapsed)}</div></div>
+                <div><div style={{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>Stitches</div><div style={{fontSize:'var(--text-lg)',fontWeight:700,color:"var(--text-primary)"}}>{liveAutoStitches.toLocaleString('en-GB')}</div></div>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button
+                onClick={()=>{
+                  if(manuallyPausedRef.current){
+                    const pausedMs=Date.now()-manualPauseTimeRef.current;
+                    currentAutoSessionRef.current.totalPausedMs=(currentAutoSessionRef.current.totalPausedMs||0)+pausedMs;
+                    manualPauseTimeRef.current=null;
+                    setManuallyPaused(false);
+                    setLiveAutoIsPaused(document.hidden||inactivityPausedRef.current);
+                  }else{
+                    clearTimeout(inactivityTimerRef.current);
+                    manualPauseTimeRef.current=Date.now();
+                    setManuallyPaused(true);
+                    setLiveAutoIsPaused(true);
+                  }
+                }}
+                style={{flex:1,padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}
+                aria-label={manuallyPaused?"Resume session":"Pause session"}
+              >
+                {manuallyPaused?(Icons.play?Icons.play():null):(Icons.pause?Icons.pause():null)}
+                {" "}{manuallyPaused?"Resume":"Pause"}
+              </button>
+              <button
+                onClick={()=>{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();setMorePanelOpen(false);}}
+                style={{flex:1,padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--danger-soft)",background:"var(--danger-soft)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--danger)",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}
+                aria-label="End session"
+              >
+                {Icons.x?Icons.x():null}{" End session"}
+              </button>
+            </div>
+          </>:<>
+            <p style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",margin:0}}>No active session. Stitching automatically starts a session.</p>
+            <button
+              onClick={()=>{setSessionConfigOpen(true);setMorePanelOpen(false);}}
+              style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--accent)",background:"var(--accent)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--accent-ink)",fontWeight:600}}
+            >Session settings</button>
+            {explicitSession&&<button onClick={()=>setExplicitSession(null)} style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)"}}>End explicit session</button>}
+          </>}
+        </div>}
+
+        {/* -- Layers tab -- */}
+        {leftSidebarTab==="layers"&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {STITCH_LAYERS.map(layer=>
+            <label key={layer.id} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
+              <input type="checkbox" checked={layerVis[layer.id]!==false} onChange={e=>setLayerVis(v=>({...v,[layer.id]:e.target.checked}))} style={{width:16,height:16,cursor:"pointer"}}/>
+              <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>{layer.label}</span>
+            </label>
+          )}
+          <hr style={{border:"none",borderTop:"1px solid var(--border)",margin:"4px 0"}}/>
+          <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
+            <input type="checkbox" checked={rowModeActive} onChange={e=>{setRowModeActive(e.target.checked);setCurrentRow(0);}} style={{width:16,height:16,cursor:"pointer"}}/>
+            <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Row mode</span>
+          </label>
+          {pal&&pal.some(p=>parkCountsByColour[p.id])&&<>
+            <hr style={{border:"none",borderTop:"1px solid var(--border)",margin:"4px 0"}}/>
+            <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Park markers</div>
+            {pal.filter(p=>parkCountsByColour[p.id]).map(p=>
+              <label key={p.id} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
+                <input type="checkbox" checked={parkLayers[p.id]!==false} onChange={()=>toggleParkLayer(p.id)} style={{width:16,height:16,cursor:"pointer"}}/>
+                <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>{p.id} ({parkCountsByColour[p.id]})</span>
+              </label>
+            )}
+            <button onClick={()=>{setParkMarkers([]);setParkLayers({});}} style={{marginTop:4,padding:"5px 10px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",alignSelf:"flex-start"}}>Clear all</button>
+          </>}
+        </div>}
+
+        {/* -- Tools tab -- */}
+        {leftSidebarTab==="tools"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div>
+            <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Stitch mode</div>
+            <div style={{display:"flex",gap:6}}>
+              {[["track","Mark"],["navigate","Navigate"]].map(([v,l])=>
+                <button key={v}
+                  style={{flex:1,padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(stitchMode===v?"var(--accent)":"var(--border)"),background:stitchMode===v?"var(--accent)":"var(--surface)",color:stitchMode===v?"var(--accent-ink)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:stitchMode===v?600:400}}
+                  onClick={()=>setStitchMode(v)} aria-pressed={stitchMode===v}
+                >{l}</button>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={()=>setSessionConfigOpen(true)}
+            style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",textAlign:"left",display:"flex",alignItems:"center",gap:8}}
+          >{Icons.gear?Icons.gear():null}{" Session settings"}</button>
+          {/* RT live tracking toggle */}
+          <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,cursor:"pointer",userSelect:"none"}}>
+            <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Live tracking (RT)</span>
+            <input type="checkbox" checked={!!wastePrefs.enabled} onChange={e=>{
+              if(!e.target.checked&&typeof setWastePrefs==='function'){
+                // Turning off: dispatch to TrackerApp via a custom event
+                // so the disable modal (which needs StashBridge) can be shown.
+                window.dispatchEvent(new CustomEvent('cs:rtDisableRequest'));
+              }else if(e.target.checked&&typeof setWastePrefs==='function'){
+                // Turning on: snapshot stash if (and only if) we don't already
+                // have a snapshot for this project session. Capturing on every
+                // toggle-on would move the baseline forward across keep-then-
+                // re-enable cycles and silently break Restore (DEFECT-001).
+                if(typeof StashBridge!=='undefined'){
+                  StashBridge.getGlobalStash().then(function(snap){
+                    if(window.__ensureRtStashSnapshot)window.__ensureRtStashSnapshot(snap);
+                    else if(window.__setRtStashSnapshot)window.__setRtStashSnapshot(snap);
+                  }).catch(function(){});
+                }
+                setWastePrefs(function(prev){return Object.assign({},prev,{enabled:true});});
+              }
+            }} style={{width:16,height:16,cursor:"pointer"}}/>
+          </label>
+        </div>}
+
+      </div>
+    </div>{/* end ppal-more-panel */}
+
+    </div>{/* end ppal-canvas-col */}
   </div>{/* end cs-main */}
   {/* Phase 4 (UX-12) — tablet/desktop project rail (left) and side panel (right).
       Hidden via CSS on phone. Reads from ProjectStorage and existing palette state. */}
@@ -6640,22 +6147,6 @@ return(
     todayStitchesForBar={todayStitchesForBar}
     liveAutoElapsed={liveAutoElapsed}
     liveAutoStitches={liveAutoStitches}
-    skeinData={skeinData}
-    globalStash={globalStash}
-    onToggleOwned={(id,newOwned)=>{
-      // Persist ownership change to the global stash and refresh the
-      // local mirror so the rail re-renders with the updated counts.
-      // Same code path used by the project-completion deduct prompt.
-      (async()=>{
-        try{
-          if(typeof StashBridge!=='undefined'&&StashBridge.updateThreadOwned){
-            await StashBridge.updateThreadOwned(id,newOwned);
-            const fresh=await StashBridge.getGlobalStash();
-            setGlobalStash(fresh);
-          }
-        }catch(err){console.warn('updateThreadOwned failed:',err);}
-      })();
-    }}
     onPickProject={(id)=>{
       if(!id||id===projectIdRef.current)return;      ProjectStorage.get(id).then(p=>{
         if(p&&p.pattern&&p.settings){
@@ -6665,237 +6156,7 @@ return(
         }
       }).catch(err=>console.error('Rail project switch failed:',err));
     }}
-    wastePrefs={wastePrefs}
-    setWastePrefs={setWastePrefs}
-    rtConsumption={rtConsumption}
-    fabricCt={fabricCt}
   />}
-  {/* ═══════════════════════════════════════════════════════════════
-      Phase 4 (UX-12) — Workshop tracker chrome
-      Floating tool dock (phone), bottom mode pill (phone), top
-      sticky current-colour chip (phone). Wake-lock chip lives in
-      the existing toolbar. Tablet/desktop project rail + side panel
-      are scoped via CSS media queries.
-      All position:fixed; layout untouched on >=1024px where existing
-      toolbar already exposes every action.
-      ═══════════════════════════════════════════════════════════════ */}
-  {!statsView&&pat&&pal&&(()=>{
-    const focusInfo=focusColour&&cmap?cmap[focusColour]:null;
-    const focusDC=focusColour&&colourDoneCounts?colourDoneCounts[focusColour]:null;
-    const focusRem=focusDC?Math.max(0,(focusDC.total||0)-(focusDC.done||0)):0;
-    const focusTotal=focusDC?(focusDC.total||0):0;
-    // Compute current "mode" for the bottom mode pill from existing state.
-    // Stitch = track + non-highlight, Find = highlight view, Edit = isEditMode.
-    const currentMode=isEditMode?"edit":(stitchView==="highlight"?"find":"stitch");
-    function setMode(next){
-      if(next===currentMode)return;
-      if(next==="stitch"){
-        if(isEditMode){if(undoSnapshot!==null){setShowExitEditModal(true);return;}setIsEditMode(false);}
-        setStitchMode("track");setStitchView("symbol");setFocusColour(null);
-      }else if(next==="find"){
-        if(isEditMode){if(undoSnapshot!==null){setShowExitEditModal(true);return;}setIsEditMode(false);}
-        setStitchView("highlight");
-        if(!focusColour){const first=pal.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||pal[0];if(first)setFocusColour(first.id);}
-      }else if(next==="edit"){
-        setSessionStartSnapshot({pat:[...pat],pal:deepClone(pal),threadOwned:deepClone(threadOwned),singleStitchEdits:new Map(singleStitchEdits)});
-        setStitchMode("navigate");setFocusColour(null);setHoverInfo(null);setIsEditMode(true);
-      }
-    }
-    function findNext(){
-      // Cycle to the next incomplete colour.
-      if(!pal||!pal.length)return;
-      const order=pal.filter(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;});
-      if(!order.length)return;
-      if(!focusColour){setFocusColour(order[0].id);return;}
-      const idx=order.findIndex(p=>p.id===focusColour);
-      const next=order[(idx+1)%order.length];
-      if(next)setFocusColour(next.id);
-    }
-    return <>
-      {/* ── Top sticky current-colour chip (phone) ──
-          Pinned at the top of the viewport so the active colour and
-          remaining count are always visible while scrolling the canvas. */}
-      <div className="tracker-colour-chip" role="status" aria-live="polite">
-        <button
-          type="button"
-          className="tcc-btn"
-          onClick={()=>{if(stitchView!=="highlight")setStitchView("highlight");setQuickColourOpen(o=>!o);}}
-          aria-label="Choose focus colour"
-        >
-          {focusInfo?<>
-            <span className="tcc-sw" style={{background:`rgb(${focusInfo.rgb})`}}/>
-            <span className="tcc-id">DMC {focusInfo.id}</span>
-            <span className="tcc-name">{focusInfo.name||""}</span>
-            {focusTotal>0&&<span className="tcc-rem">{focusRem.toLocaleString('en-GB')} / {focusTotal.toLocaleString('en-GB')} left</span>}
-          </>:<>
-            <span className="tcc-sw tcc-sw--empty" aria-hidden="true"/>
-            <span className="tcc-name">Tap to pick a colour</span>
-          </>}
-        </button>
-      </div>
-      {/* ── Floating tool dock (phone right edge, draggable Y) ── */}
-      <div className="tracker-tool-dock" role="toolbar" aria-label="Tracker tools" style={{top:dockY+"%"}}
-        onPointerDown={(e)=>{
-          if(!e.currentTarget.classList.contains("tracker-tool-dock--drag"))return;
-        }}>
-        <button className="ttd-btn ttd-handle" aria-label="Drag dock"
-          onPointerDown={(e)=>{
-            const dock=e.currentTarget.parentNode;
-            const startClientY=e.clientY;
-            const startTop=dock.getBoundingClientRect().top;
-            const vh=window.innerHeight||1;
-            // Suppress the .tracker-tool-dock 0.2s top transition during
-            // active drag — otherwise pointermove updates lag visibly.
-            dock.setAttribute('data-dragging','1');
-            function onMove(ev){
-              const delta=ev.clientY-startClientY;
-              const newTop=Math.min(vh-200,Math.max(60,startTop+delta));
-              setDockY(Math.round(newTop/vh*100));
-            }
-            function onUp(){
-              dock.removeAttribute('data-dragging');
-              window.removeEventListener('pointermove',onMove);
-              window.removeEventListener('pointerup',onUp);
-            }
-            window.addEventListener('pointermove',onMove);
-            window.addEventListener('pointerup',onUp);
-            e.preventDefault();
-          }}
-          title="Drag to reposition dock"
-        >{Icons.menu()}</button>
-        <button className="ttd-btn" onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} aria-label="Zoom in" title="Zoom in">{Icons.magnifyPlus()}</button>
-        <button className="ttd-btn" onClick={()=>setStitchZoom(z=>Math.max(0.1,+(z-0.25).toFixed(2)))} aria-label="Zoom out" title="Zoom out">{Icons.magnifyMinus()}</button>
-        <button className="ttd-btn" onClick={undoTrack} disabled={!trackHistory.length} aria-label="Undo" title="Undo">{Icons.undo()}</button>
-        <button className="ttd-btn" onClick={redoTrack} disabled={!redoStack.length} aria-label="Redo" title="Redo">{Icons.replay()}</button>
-        <button className="ttd-btn" onClick={findNext} aria-label="Find next colour" title="Cycle focus colour">{Icons.magnify()}</button>
-        <button className={"ttd-btn"+(stitchView==="highlight"?" ttd-btn--on":"")} onClick={()=>{setStitchView(v=>v==="highlight"?"symbol":"highlight");}} aria-label="Toggle highlight" title="Highlight mode (half-stitch placement)">{Icons.halfStitch()}</button>
-        <button className={"ttd-btn"+(stitchMode==="navigate"?" ttd-btn--on":"")} onClick={()=>{setStitchMode(m=>m==="navigate"?"track":"navigate");}} aria-label="Toggle parking" title="Navigate / parking mode — tap to place parking markers on the canvas showing where your needle is parked between sessions. Parked colour markers are always visible while you work.">{Icons.parkFlag()}</button>
-        {/* R11: Row mode toggle on mobile dock */}
-        <button className={"ttd-btn"+(rowModeActive?" ttd-btn--on":"")} onClick={()=>{setRowModeActive(v=>!v);setCurrentRow(0);}} aria-label="Toggle row mode" title="Row mode — work one row at a time">{Icons.rowMode()}</button>
-        <button className="ttd-btn" onClick={()=>{if(stitchView!=="highlight")setStitchView("highlight");setQuickColourOpen(o=>!o);}} aria-label="Pick colour" title="Pick a colour">{Icons.palette()}</button>
-      </div>
-      {/* ── Bottom mode-pill (phone, above safe area) ── */}
-      <div className="tracker-mode-pill" role="tablist" aria-label="Tracker mode" aria-live="polite">
-        {[["stitch","Stitch"],["find","Find"],["edit","Edit"]].map(([k,l])=>
-          <button key={k} type="button" role="tab"
-            aria-selected={currentMode===k}
-            className={"tmp-seg"+(currentMode===k?" tmp-seg--on":"")}
-            onClick={()=>setMode(k)}
-          >{l}</button>
-        )}
-      </div>
-    </>;
-  })()}
-
-  {!isEditMode&&!statsView&&stitchMode==="track"&&(()=>{
-    const focusInfo=focusColour&&cmap?cmap[focusColour]:null;
-    const undoDisabled=!trackHistory.length;
-    return <>
-      <div className="tracker-action-bar" role="toolbar" aria-label="Stitch tracker actions">
-        <button
-          className={"colour-indicator"+(focusInfo?"":" colour-indicator--empty")}
-          onClick={()=>{
-            // If no focus colour yet, ensure highlight view is on so a pick is meaningful.
-            if(stitchView!=="highlight")setStitchView("highlight");
-            setQuickColourOpen(o=>!o);
-          }}
-          aria-label="Choose focus colour"
-          aria-expanded={quickColourOpen}
-        >
-          {focusInfo?<>
-            <span className="ci-sw" style={{background:`rgb(${focusInfo.rgb})`}}/>
-            <span className="ci-text">
-              <span className="ci-id">DMC {focusInfo.id}</span>
-              <span className="ci-name">{focusInfo.name||""}</span>
-            </span>
-            <span className="ci-chev">{quickColourOpen?window.Icons.chevronDown():window.Icons.chevronUp()}</span>
-          </>:<>
-            <span style={{display:"inline-flex",alignItems:"center",gap:'var(--s-2)'}}>
-              {window.Icons.palette()} Pick a colour
-              <span className="ci-chev">{quickColourOpen?window.Icons.chevronDown():window.Icons.chevronUp()}</span>
-            </span>
-          </>}
-        </button>
-        <button
-          className="action-btn action-btn--undo"
-          onClick={undoTrack}
-          onContextMenu={e=>{e.preventDefault();if(redoStack.length)redoTrack();}}
-          disabled={undoDisabled}
-          aria-label="Undo last stitch"
-          title={undoDisabled?"Nothing to undo":"Tap to undo · Long-press for redo"}
-        >{window.Icons.undo()}</button>
-        <button
-          className="action-btn action-btn--mark"
-          onClick={()=>{
-            // Mark/unmark the cell currently under the navigation crosshair if
-            // it's available. Otherwise, just centre the canvas hint.
-            if(done&&hlRow!=null&&hlCol!=null&&hlRow>=0&&hlRow<sH&&hlCol>=0&&hlCol<sW){
-              const idx=hlRow*sW+hlCol;
-              const cell=pat[idx];
-              if(cell&&cell.id!=="__skip__"&&cell.id!=="__empty__"){
-                if(isColourLocked&&isColourLocked()&&!fullStitchMatchesFocus(idx))return;
-                const nv=done[idx]?0:1;
-                const nd=new Uint8Array(done);
-                nd[idx]=nv;
-                pushTrackHistory([{idx,oldVal:done[idx]}]);
-                applyDoneCountsDelta([{idx,oldVal:done[idx]}],pat,nd);
-                setDone(nd);
-                drawCellDirectly(idx,nv);
-                return;
-              }
-            }
-            // No crosshair target → toast hint to use canvas tap.
-            try{if(window.Toast&&window.Toast.show)window.Toast.show({message:"Tap a stitch on the canvas, or use Navigate mode to place a crosshair.",type:"info"});}catch(_){}
-          }}
-          aria-label="Mark stitch at crosshair"
-          title="Mark/unmark the stitch under the crosshair (Navigate mode)"
-        >{window.Icons.check()}</button>
-      </div>
-      {/* Colour quick-switcher backdrop + drawer */}
-      {quickColourOpen&&<div className="colour-quick-backdrop" onClick={()=>setQuickColourOpen(false)} aria-hidden="true"/>}
-      <div className={"colour-quick-drawer"+(quickColourOpen?" colour-quick-drawer--open":"")} role="dialog" aria-label="Choose focus colour" aria-hidden={!quickColourOpen}>
-        <div className="cqd-handle" onClick={()=>setQuickColourOpen(false)}>
-          <div className="rpanel-handle-bar"/>
-        </div>
-        <div className="cqd-grid">
-          {(()=>{
-            // Sort: incomplete first by stitches remaining (desc), completed last.
-            const sorted=[...pal].map(p=>{
-              const dc=colourDoneCounts[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
-              const totalWithHalf=dc.total+dc.halfTotal*0.5;
-              const doneWithHalf=dc.done+dc.halfDone*0.5;
-              const remaining=Math.max(0,totalWithHalf-doneWithHalf);
-              const pct=totalWithHalf>0?Math.round(doneWithHalf/totalWithHalf*100):0;
-              const complete=remaining<=0&&totalWithHalf>0;
-              return{p,remaining,pct,complete};
-            });
-            sorted.sort((a,b)=>{
-              if(a.complete!==b.complete)return a.complete?1:-1;
-              return b.remaining-a.remaining;
-            });
-            return sorted.map(({p,pct,complete})=>{
-              const isFocused=focusColour===p.id;
-              return <button
-                key={p.id}
-                className={"cqd-tile"+(isFocused?" cqd-tile--on":"")+(complete?" cqd-tile--done":"")}
-                onClick={()=>{
-                  if(stitchView!=="highlight")setStitchView("highlight");
-                  setFocusColour(p.id);
-                  setQuickColourOpen(false);
-                }}
-                aria-label={"DMC "+p.id+(p.name?(" "+p.name):"")+", "+pct+" percent complete"}
-                aria-pressed={isFocused}
-              >
-                <span className="cqd-sw" style={{background:`rgb(${p.rgb})`}}/>
-                <span className="cqd-id">{p.id}</span>
-                <span className="cqd-pct">{pct}%</span>
-              </button>;
-            });
-          })()}
-        </div>
-      </div>
-    </>;
-  })()}
   </>}
 
   {importDialog==="image"&&importImage&&(()=>{
@@ -7512,3 +6773,6 @@ return(
 window.TrackerApp=TrackerApp;
 if(!window.__UNIFIED__)ReactDOM.createRoot(document.getElementById("root")).render(<TrackerApp/>);
 if (typeof SyncEngine !== 'undefined') SyncEngine.registerBeforeUnloadSnapshot();
+
+
+
