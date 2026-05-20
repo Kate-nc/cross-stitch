@@ -473,7 +473,6 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
     try{window.ProjectStorage.setActiveProject(id);}catch(_){}
     try{window.location.reload();}catch(_){}
   }
-  }
   var sec=liveAutoElapsed||0;
   var hh=Math.floor(sec/3600),mm=Math.floor((sec%3600)/60);
   var timer=(hh>0?hh+"h ":"")+mm+"m";
@@ -524,8 +523,7 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
           if(btn)btn.click();
         }catch(_){}
       }
-    },'More projects…'),
-    React.createElement('div',{className:'tracker-side-panel',role:'complementary','aria-label':'Today',style:collapsed?{display:'none'}:undefined},
+    },'More projects…')
   );
 }
 
