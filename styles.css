@@ -728,9 +728,15 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   .tb-topbar-inner{padding:0 8px;gap:2px;}
   .tb-logo{font-size:13px;}
   .tb-hgap{display:none;}
-  .tb-proj-badge{max-width:120px;padding:2px 6px;}
+  /* Badge is completely off-screen at mobile — hide it to prevent horizontal overflow */
+  .tb-proj-badge{display:none;}
   .tb-page-btn{font-size:11px;padding:4px 8px;}
   .tb-sep{margin:0 2px;}
+  /* Clip the topbar's overflow so the header doesn't cause page-level horizontal scroll.
+     Dropdowns that need to escape the clip use position:fixed below. */
+  .tb-topbar{overflow:hidden;}
+  .tb-proj-switcher__menu{position:fixed;left:8px;right:8px;top:54px;max-width:none;width:auto;}
+  .tb-page-dropdown{position:fixed;top:54px;}
   /* Allow pill to scroll horizontally as fallback rather than clip */
   .pill{overflow-x:auto;scrollbar-width:none;}
   .pill::-webkit-scrollbar{display:none;}
@@ -4898,19 +4904,25 @@ html.pref-dark a { color: var(--accent); }
 .creator-actionbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   padding: 8px 14px;
   background: var(--surface-raised, #FFFDF8);
   border-bottom: 1px solid var(--line, #E5DCCB);
-  flex-wrap: wrap;
 }
 
 .creator-actionbar__primary {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+}
+
+.creator-actionbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .creator-actionbar__btn {
@@ -5063,7 +5075,6 @@ html.pref-dark a { color: var(--accent); }
 
 .creator-actionbar__info-wrap {
   position: relative;
-  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -5575,10 +5586,24 @@ details[open] .creator-popover-difficulty__summary::before {
 }
 
 
+@media (max-width: 899px) {
+  .creator-actionbar {
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    gap: 8px;
+  }
+  .creator-actionbar__actions {
+    width: 100%;
+    margin-left: 0;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+}
+
 @media (max-width: 599px) {
   .creator-actionbar {
     padding: 8px 10px;
-    gap: 8px;
+    gap: 6px;
   }
   .creator-actionbar__primary {
     width: 100%;

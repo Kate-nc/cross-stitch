@@ -297,6 +297,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
       "aria-label": "Pattern actions"
     },
     tabBar,
+    h("div", { className: "creator-actionbar__actions" },
     hasPat ? h("div", { className: "creator-actionbar__primary" },
       h("button", {
           type: "button",
@@ -350,5 +351,6 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     ) : h("div", { className: "creator-actionbar__primary" }),
     hasPat ? trackBtn : null,
     hasPat ? infoChip : null
+  )
   );
 };
