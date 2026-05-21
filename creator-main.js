@@ -934,7 +934,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         }}
       />}
       {window.CreatorActionBar&&<window.CreatorActionBar
-        ready={true}
+        ready={!!(state.pat&&state.pal)}
         sW={state.sW} sH={state.sH}
         fabricCt={state.fabricCt}
         colourCount={state.pal?state.pal.length:0}

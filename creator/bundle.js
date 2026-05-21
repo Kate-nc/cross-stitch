@@ -13645,12 +13645,13 @@ window.ColourReplaceModal = function ColourReplaceModal(props) {
  *   solidPct         — stitchability percentage (popover only)
  *   stitchSpeed      — stitches/hr (popover only)
  *   doneCount        — stitches completed (popover only)
- *   ready            — boolean; render nothing when no pattern is loaded
+ *   ready            — boolean; true when a generated pattern is available
  */
 
 window.CreatorActionBar = function CreatorActionBar(props) {
   var h = React.createElement;
   var Icons = window.Icons || {};
+  props = props || {};
 
   var menuOpenState = React.useState(false);
   var menuOpen = menuOpenState[0];
@@ -13662,6 +13663,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
   var infoOpen = infoOpenState[0];
   var setInfoOpen = infoOpenState[1];
   var infoBtnRef = React.useRef(null);
+  var tablistRef = React.useRef(null);
 
   // Click-outside / Escape to close the Export menu.
   React.useEffect(function() {
@@ -13711,17 +13713,6 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     };
   }, [menuOpen]);
 
-  // When no pattern is loaded yet, show an empty bar to hold space.
-  if (!props || !props.ready) {
-    return h("div", {
-        className: "creator-actionbar",
-        role: "toolbar",
-        "aria-label": "Pattern actions"
-      },
-      h("div", { className: "creator-actionbar__primary" })
-    );
-  }
-
   function safeCall(fn) {
     return function() {
       setMenuOpen(false);
@@ -13730,14 +13721,13 @@ window.CreatorActionBar = function CreatorActionBar(props) {
   }
 
   // ── Tab bar: Convert | Edit | Materials ────────────────────────────────────
-  // Convert: active when appMode === "create". Always clickable; fires the
-  //          request-back-to-convert handler (which may show a warning modal
-  //          if the user has manual edits in the edit history).
+  // Convert: active when appMode === "create". Clickable only when another
+  //          tab is active; prevents reopening the confirm modal from create.
   // Edit:    active when appMode === "edit". Disabled when no pattern exists.
   // Materials: active when tab === "materials". Always available once pattern exists.
-  var appMode = props.appMode || "edit";
-  var currentTab = props.tab || "pattern";
-  var hasPat = !!props.pat;
+  var appMode = (props && props.appMode) || "edit";
+  var currentTab = (props && props.tab) || "pattern";
+  var hasPat = !!(props && props.ready);
 
   function tabStyle(active, disabled) {
     return {
@@ -13752,9 +13742,66 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     };
   }
 
+  function focusTabByIndex(idx) {
+    if (!tablistRef.current) return;
+    var tabs = tablistRef.current.querySelectorAll('button[role="tab"]');
+    if (tabs && tabs[idx] && tabs[idx].focus) tabs[idx].focus();
+  }
+
+  var tabs = [
+    {
+      active: appMode === "create",
+      disabled: false,
+      onClick: (appMode === "create" || typeof props.onRequestBackToConvert !== "function")
+        ? undefined
+        : props.onRequestBackToConvert
+    },
+    {
+      active: appMode === "edit" && currentTab === "pattern",
+      disabled: !hasPat,
+      onClick: !hasPat ? undefined : function() {
+        if (typeof props.onTabChange === "function") props.onTabChange("pattern");
+      }
+    },
+    {
+      active: currentTab === "materials",
+      disabled: !hasPat,
+      onClick: !hasPat ? undefined : function() {
+        if (typeof props.onTabChange === "function") props.onTabChange("materials");
+      }
+    }
+  ];
+  var activeTabIndex = 0;
+  for (var i = 0; i < tabs.length; i++) {
+    if (tabs[i].active) { activeTabIndex = i; break; }
+  }
+
+  function onTablistKeyDown(e) {
+    var key = e.key;
+    if (key !== "ArrowRight" && key !== "ArrowLeft" && key !== "Home" && key !== "End") return;
+    e.preventDefault();
+    var n = tabs.length;
+    var next = activeTabIndex;
+    if (key === "ArrowRight" || key === "ArrowLeft") {
+      var step = key === "ArrowRight" ? 1 : -1;
+      for (var tries = 0; tries < n; tries++) {
+        next = (next + step + n) % n;
+        if (!tabs[next].disabled) break;
+      }
+    } else if (key === "Home") {
+      for (var hIdx = 0; hIdx < n; hIdx++) { if (!tabs[hIdx].disabled) { next = hIdx; break; } }
+    } else if (key === "End") {
+      for (var eIdx = n - 1; eIdx >= 0; eIdx--) { if (!tabs[eIdx].disabled) { next = eIdx; break; } }
+    }
+    if (typeof tabs[next].onClick === "function") tabs[next].onClick();
+    setTimeout(function() { focusTabByIndex(next); }, 0);
+  }
+
   var tabBar = h("div", {
       role: "tablist",
       "aria-label": "Creator phase",
+      ref: tablistRef,
+      onKeyDown: onTablistKeyDown,
       style: {
         display: "flex", alignItems: "center",
         background: "var(--surface-tertiary)",
@@ -13765,11 +13812,10 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     h("button", {
         type: "button",
         role: "tab",
-        "aria-selected": appMode === "create" ? "true" : "false",
+        "aria-selected": tabs[0].active,
+        tabIndex: tabs[0].active ? 0 : -1,
         style: tabStyle(appMode === "create", false),
-        onClick: typeof props.onRequestBackToConvert === "function"
-          ? props.onRequestBackToConvert
-          : undefined,
+        onClick: tabs[0].onClick,
         title: "Convert settings — adjust palette, dimensions and generate"
       },
       Icons.sliders ? Icons.sliders() : null,
@@ -13778,12 +13824,11 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     h("button", {
         type: "button",
         role: "tab",
-        "aria-selected": (appMode === "edit" && currentTab === "pattern") ? "true" : "false",
+        "aria-selected": tabs[1].active,
+        tabIndex: tabs[1].active ? 0 : -1,
         disabled: !hasPat,
         style: tabStyle(appMode === "edit" && currentTab === "pattern", !hasPat),
-        onClick: !hasPat ? undefined : function() {
-          if (typeof props.onTabChange === "function") props.onTabChange("pattern");
-        },
+        onClick: tabs[1].onClick,
         title: hasPat ? "Edit the generated pattern" : "Generate a pattern first"
       },
       Icons.pencil ? Icons.pencil() : null,
@@ -13792,12 +13837,11 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     h("button", {
         type: "button",
         role: "tab",
-        "aria-selected": currentTab === "materials" ? "true" : "false",
+        "aria-selected": tabs[2].active,
+        tabIndex: tabs[2].active ? 0 : -1,
         disabled: !hasPat,
         style: tabStyle(currentTab === "materials", !hasPat),
-        onClick: !hasPat ? undefined : function() {
-          if (typeof props.onTabChange === "function") props.onTabChange("materials");
-        },
+        onClick: tabs[2].onClick,
         title: hasPat ? "Materials — thread count, export options" : "Generate a pattern first"
       },
       Icons.layers ? Icons.layers() : null,
@@ -13805,7 +13849,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     )
   );
 
-  var trackBtn = props.pat && (typeof props.onTrackPattern === "function") ? h("button", {
+  var trackBtn = hasPat && (typeof props.onTrackPattern === "function") ? h("button", {
       type: "button",
       className: "creator-actionbar__mode-btn creator-actionbar__mode-btn--forward",
       onClick: props.onTrackPattern,
@@ -13866,7 +13910,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
       "aria-label": "Pattern actions"
     },
     tabBar,
-    h("div", { className: "creator-actionbar__primary" },
+    hasPat ? h("div", { className: "creator-actionbar__primary" },
       h("button", {
           type: "button",
           className: "creator-actionbar__btn creator-actionbar__btn--primary",
@@ -13916,8 +13960,8 @@ window.CreatorActionBar = function CreatorActionBar(props) {
           )
         )
       )
-    ),
-    trackBtn,
-    infoChip
+    ) : h("div", { className: "creator-actionbar__primary" }),
+    hasPat ? trackBtn : null,
+    hasPat ? infoChip : null
   );
 };

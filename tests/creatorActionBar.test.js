@@ -111,9 +111,9 @@ describe('Creator outcome action bar (UX-12 Phase 5 + Option 2)', () => {
     expect(ACTION_BAR_SRC).not.toMatch(/creator-actionbar__mode-btn--back/);
     // The new tab bar drives phase navigation (aria-selected wires it).
     expect(ACTION_BAR_SRC).toMatch(/role:\s*"tablist"/);
-    // No roving tabindex on the old mode-switch style.
-    const oldRovingPattern = /tabIndex:\s*active\s*\?\s*0\s*:\s*-1/;
-    expect(oldRovingPattern.test(ACTION_BAR_SRC)).toBe(false);
+    // Roving tabindex is wired on tabs.
+    expect(ACTION_BAR_SRC).toMatch(/tabIndex:\s*tabs\[\d+\]\.active\s*\?\s*0\s*:\s*-1/);
+    expect(ACTION_BAR_SRC).toMatch(/onKeyDown:\s*onTablistKeyDown/);
   });
 
   test('uses Icons.* helpers (no emoji glyphs)', () => {
@@ -124,8 +124,9 @@ describe('Creator outcome action bar (UX-12 Phase 5 + Option 2)', () => {
     expect(emojiRe.test(ACTION_BAR_SRC)).toBe(false);
   });
 
-  test('renders nothing when props.ready is false', () => {
-    expect(ACTION_BAR_SRC).toMatch(/!props\.ready/);
+  test('still renders the tab bar when props.ready is false', () => {
+    expect(ACTION_BAR_SRC).toMatch(/var hasPat = !!\(props && props\.ready\)/);
+    expect(ACTION_BAR_SRC).toMatch(/hasPat \? h\("div", \{ className: "creator-actionbar__primary" \}/);
   });
 
   test('Export menu closes on Escape and outside click', () => {
