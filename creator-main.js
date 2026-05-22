@@ -1505,6 +1505,10 @@ function UnifiedApp(){
         for (var bi = 0; bi < byteStr.length; bi++) ia[bi] = byteStr.charCodeAt(bi);
         var blob = new Blob([ab], { type: pendingType });
         window.__pendingCreatorFile = new File([blob], pendingName, { type: pendingType });
+        // Persist for the whole session so sw-register.js's controllerchange
+        // guard can still suppress a reload even after useProjectIO.js has
+        // consumed __pendingCreatorFile and cleared the sessionStorage keys.
+        window.__creatorImageHandoffActive = true;
       }
     } else if (act === 'new-from-image') {
       // Legacy fallback: a navigation hit create.html?action=new-from-image.
