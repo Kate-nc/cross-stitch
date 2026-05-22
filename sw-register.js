@@ -33,6 +33,13 @@ if ('serviceWorker' in navigator) {
         // create.html with no action and no active project, causing the
         // defensive redirect to bounce the user back to /home.
         if (window.__pendingCreatorAction) return;
+        // processPendingAction() set this when it reconstructed a
+        // home-image-pending file. It is intentionally never cleared so the
+        // guard holds even after useProjectIO.js has consumed
+        // __pendingCreatorFile and removed the sessionStorage keys — the
+        // race that caused a first-visit SW-activation reload to bounce the
+        // user back to /home.
+        if (window.__creatorImageHandoffActive) return;
         window.location.reload();
       }
     });

@@ -61,13 +61,16 @@ describe('Creator outcome action bar (UX-12 Phase 5 + Option 2)', () => {
     expect(ACTION_BAR_SRC).toMatch(/Export(\u2026|\\u2026)/);
     expect(ACTION_BAR_SRC).toMatch(/Save project \(\.json\)/);
     expect(ACTION_BAR_SRC).toMatch(/More export options/);
-    // Mode switch (Polish 13 step 3 — phase label + Track button only;
-    // the Setup back-button was removed when the sidebar tab strip
-    // unified across appModes).
+    // Hybrid 1+5+3 tab bar — Convert / Edit / Materials replaces the old
+    // phase-label + mode-switch approach.
     expect(ACTION_BAR_SRC).not.toMatch(/"Setup"/);
     expect(ACTION_BAR_SRC).toMatch(/"Open in Tracker"/);
-    expect(ACTION_BAR_SRC).toMatch(/"Editing pattern"/);
-    expect(ACTION_BAR_SRC).toMatch(/"Setting up"/);
+    expect(ACTION_BAR_SRC).toMatch(/"Convert"/);
+    expect(ACTION_BAR_SRC).toMatch(/"Edit"/);
+    expect(ACTION_BAR_SRC).toMatch(/"Materials"/);
+    // Old phase-label strings are gone.
+    expect(ACTION_BAR_SRC).not.toMatch(/"Editing pattern"/);
+    expect(ACTION_BAR_SRC).not.toMatch(/"Setting up"/);
     // Pattern info chip.
     expect(ACTION_BAR_SRC).toMatch(/"Pattern info"/);
   });
@@ -86,25 +89,31 @@ describe('Creator outcome action bar (UX-12 Phase 5 + Option 2)', () => {
 
   test('declares ARIA structure (toolbar + menu + labels)', () => {
     expect(ACTION_BAR_SRC).toMatch(/role:\s*"toolbar"/);
-    expect(ACTION_BAR_SRC).toMatch(/role:\s*"group"/);
+    // Hybrid 1+5+3: Convert/Edit/Materials tab bar uses tablist, not group.
+    expect(ACTION_BAR_SRC).toMatch(/role:\s*"tablist"/);
+    expect(ACTION_BAR_SRC).toMatch(/role:\s*"tab"/);
     expect(ACTION_BAR_SRC).toMatch(/role:\s*"menu"/);
     expect(ACTION_BAR_SRC).toMatch(/role:\s*"menuitem"/);
     expect(ACTION_BAR_SRC).toMatch(/"aria-haspopup":\s*"menu"/);
     expect(ACTION_BAR_SRC).toMatch(/"aria-haspopup":\s*"dialog"/);
     expect(ACTION_BAR_SRC).toMatch(/"aria-expanded"/);
     expect(ACTION_BAR_SRC).toMatch(/"aria-label":\s*"Pattern actions"/);
-    expect(ACTION_BAR_SRC).toMatch(/"aria-label":\s*"Pattern phase"/);
-    expect(ACTION_BAR_SRC).toMatch(/"aria-live":\s*"polite"/);
+    expect(ACTION_BAR_SRC).toMatch(/"aria-label":\s*"Creator phase"/);
+    expect(ACTION_BAR_SRC).toMatch(/"aria-selected"/);
   });
 
-  test('Polish 13 step 3 — only Track button + phase label remain (Setup removed)', () => {
-    expect(ACTION_BAR_SRC).toMatch(/creator-actionbar__mode-phase/);
+  test('Hybrid 1+5+3 — Convert/Edit/Materials tab bar replaces mode-phase label', () => {
+    // The old phase-label element is gone.
+    expect(ACTION_BAR_SRC).not.toMatch(/creator-actionbar__mode-phase/);
+    // The Track button is still present with its forward arrow class.
     expect(ACTION_BAR_SRC).toMatch(/creator-actionbar__mode-btn--forward/);
     // The Setup back-button is gone.
     expect(ACTION_BAR_SRC).not.toMatch(/creator-actionbar__mode-btn--back/);
-    // No more aria-selected / roving tabindex on the mode-switch buttons.
-    const oldRovingPattern = /tabIndex:\s*active\s*\?\s*0\s*:\s*-1/;
-    expect(oldRovingPattern.test(ACTION_BAR_SRC)).toBe(false);
+    // The new tab bar drives phase navigation (aria-selected wires it).
+    expect(ACTION_BAR_SRC).toMatch(/role:\s*"tablist"/);
+    // Roving tabindex is wired on tabs.
+    expect(ACTION_BAR_SRC).toMatch(/tabIndex:\s*tabs\[\d+\]\.active\s*\?\s*0\s*:\s*-1/);
+    expect(ACTION_BAR_SRC).toMatch(/onKeyDown:\s*onTablistKeyDown/);
   });
 
   test('uses Icons.* helpers (no emoji glyphs)', () => {
@@ -115,8 +124,9 @@ describe('Creator outcome action bar (UX-12 Phase 5 + Option 2)', () => {
     expect(emojiRe.test(ACTION_BAR_SRC)).toBe(false);
   });
 
-  test('renders nothing when props.ready is false', () => {
-    expect(ACTION_BAR_SRC).toMatch(/!props\.ready/);
+  test('still renders the tab bar when props.ready is false', () => {
+    expect(ACTION_BAR_SRC).toMatch(/var hasPat = !!\(props && props\.ready\)/);
+    expect(ACTION_BAR_SRC).toMatch(/hasPat \? h\("div", \{ className: "creator-actionbar__primary" \}/);
   });
 
   test('Export menu closes on Escape and outside click', () => {

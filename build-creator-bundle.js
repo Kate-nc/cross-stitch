@@ -66,6 +66,7 @@ const ORDER = [
   'ToolStrip.js',
   'MagicWandPanel.js',
   'BulkAddModal.js',
+  'CropModal.js',
   'Sidebar.js',
   'Toast.js',
   'ContextMenu.js',

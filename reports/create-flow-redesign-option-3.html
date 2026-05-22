@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Option 3 — Wizard Complete · stitchx redesign mockup</title>
+<style>
+:root{
+  --accent:#B85C38;--accent-hover:#944526;--accent-light:#F4DDCF;
+  --accent-border:#E8B89A;--text-primary:#1B1814;--text-secondary:#5C5448;
+  --surface:#ffffff;--surface-secondary:#FBF8F3;--surface-tertiary:#EFE7D6;
+  --radius-sm:6px;--radius-md:8px;--radius-lg:10px;
+  --shadow-sm:0 1px 3px rgba(0,0,0,0.06);--shadow-md:0 4px 16px rgba(0,0,0,0.14);
+  --line:#E5DCCB;--line-2:#D8CDB6;
+  --success:#4F7D3F;--success-soft:#DEE7D2;
+  --warning:#C0883A;--warning-soft:#F2E2BE;
+  --motion:160ms ease-out;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',system-ui,sans-serif;background:#F0EBE3;color:var(--text-primary);font-size:13px;}
+
+.toolbar{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap;}
+.toolbar a{font-size:12px;color:var(--accent);text-decoration:none;}
+.toolbar-title{font-weight:600;font-size:13px;flex:1;min-width:180px;}
+.toolbar-subtitle{font-size:11px;color:var(--text-secondary);}
+.bp-bar{display:flex;gap:4px;}
+.bp-btn{padding:4px 10px;border:1px solid var(--line-2);border-radius:var(--radius-sm);background:var(--surface-secondary);color:var(--text-secondary);cursor:pointer;font-size:11px;font-family:inherit;}
+.bp-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+.mockup-outer{padding:16px;display:flex;justify-content:flex-start;gap:16px;align-items:flex-start;}
+.mockup-frame{background:var(--surface-secondary);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-md);flex-shrink:0;position:relative;height:640px;}
+
+.app-header{display:flex;align-items:center;gap:8px;padding:0 14px;height:40px;background:var(--surface);border-bottom:1px solid var(--line);}
+.app-logo{font-weight:800;font-size:14px;letter-spacing:-0.3px;}
+.app-header-spacer{flex:1;}
+.header-btn{padding:4px 10px;font-size:11px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-secondary);cursor:pointer;font-family:inherit;}
+
+/* Canvas behind wizard */
+.canvas-bg{position:absolute;inset:40px 0 0 0;overflow:hidden;}
+canvas.bg-canvas{width:100%;height:100%;image-rendering:pixelated;display:block;filter:blur(1px)brightness(0.6);}
+
+/* Wizard overlay */
+.wizard-overlay{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:16px;}
+
+.wizard-shell{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);width:100%;max-width:680px;display:flex;flex-direction:column;max-height:560px;overflow:hidden;}
+
+/* Step progress strip */
+.step-strip{display:flex;align-items:stretch;padding:0 16px;border-bottom:1px solid var(--line);flex-shrink:0;}
+.step-item{display:flex;flex-direction:column;align-items:center;padding:10px 8px;cursor:pointer;position:relative;flex:1;}
+.step-item::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:transparent;}
+.step-item.active::after{background:var(--accent);}
+.step-item.done::after{background:var(--success);}
+.step-num{width:20px;height:20px;border-radius:50%;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-bottom:3px;border:1.5px solid var(--line-2);color:var(--text-secondary);background:var(--surface-secondary);}
+.step-item.active .step-num{background:var(--accent);color:#fff;border-color:var(--accent);}
+.step-item.done .step-num{background:var(--success-soft);color:var(--success);border-color:var(--success);}
+.step-label{font-size:9px;font-weight:600;color:var(--text-secondary);letter-spacing:0.03em;text-transform:uppercase;white-space:nowrap;}
+.step-item.active .step-label{color:var(--accent);}
+.step-connector{width:1px;background:var(--line);align-self:center;flex-shrink:0;display:none;}
+
+/* Wizard body */
+.wizard-body{flex:1;overflow-y:auto;padding:20px 24px;}
+.step-title{font-size:16px;font-weight:700;margin-bottom:4px;}
+.step-sub{font-size:12px;color:var(--text-secondary);margin-bottom:18px;}
+
+/* Step content layouts */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+.field-group{margin-bottom:14px;}
+.field-group-title{font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:8px;}
+.field-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.field-label{font-size:12px;color:var(--text-secondary);min-width:80px;}
+.field-input{flex:1;padding:5px 8px;border:1px solid var(--line);border-radius:var(--radius-sm);font-size:12px;background:var(--surface);font-family:inherit;}
+.field-input:focus{outline:2px solid var(--accent-border);outline-offset:2px;}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:6px 10px;background:var(--surface-secondary);border-radius:var(--radius-sm);}
+.toggle-label{font-size:12px;}
+.toggle-sublabel{font-size:11px;color:var(--text-secondary);}
+.toggle{position:relative;width:32px;height:18px;}
+.toggle input{opacity:0;width:0;height:0;}
+.toggle-track{position:absolute;inset:0;background:var(--line-2);border-radius:9px;cursor:pointer;}
+.toggle input:checked~.toggle-track{background:var(--accent);}
+.toggle-thumb{position:absolute;top:3px;left:3px;width:12px;height:12px;background:#fff;border-radius:50%;transition:left 120ms ease-out;pointer-events:none;}
+.toggle input:checked~.toggle-track .toggle-thumb{left:17px;}
+.stash-badge{font-size:10px;background:var(--success-soft);color:var(--success);border-radius:var(--radius-sm);padding:1px 6px;font-weight:600;}
+.palette-option-row{display:flex;gap:8px;margin-bottom:12px;}
+.palette-option{flex:1;border:2px solid var(--line);border-radius:var(--radius-sm);padding:10px 8px;cursor:pointer;text-align:center;transition:border-color 120ms ease-out;}
+.palette-option.selected{border-color:var(--accent);background:var(--accent-light);}
+.palette-option-name{font-size:11px;font-weight:700;margin-bottom:2px;}
+.palette-option-desc{font-size:10px;color:var(--text-secondary);}
+
+/* Preview step */
+.preview-split{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
+.preview-box{border-radius:var(--radius-sm);overflow:hidden;position:relative;}
+.preview-box-label{position:absolute;top:6px;left:6px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;background:rgba(0,0,0,0.5);color:rgba(255,255,255,0.85);padding:2px 6px;border-radius:3px;}
+canvas.wiz-preview{display:block;width:100%;image-rendering:pixelated;}
+.preview-controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.slider-group{background:var(--surface-secondary);border-radius:var(--radius-sm);padding:8px 10px;}
+.slider-title{font-size:10px;font-weight:700;color:var(--text-secondary);margin-bottom:6px;}
+.slider-row{display:flex;align-items:center;gap:6px;margin-bottom:3px;}
+.slider-label{font-size:10px;color:var(--text-secondary);min-width:70px;}
+input[type=range]{flex:1;accent-color:var(--accent);height:3px;}
+.slider-val{font-size:10px;color:var(--text-secondary);width:20px;text-align:right;}
+
+/* Summary step */
+.summary-card{background:var(--surface-secondary);border:1px solid var(--line);border-radius:var(--radius-md);padding:16px;margin-bottom:16px;}
+.summary-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--line);font-size:12px;}
+.summary-row:last-child{border-bottom:none;}
+.summary-key{color:var(--text-secondary);}
+.summary-val{font-weight:600;}
+
+/* Footer */
+.wizard-footer{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-top:1px solid var(--line);flex-shrink:0;}
+.btn-back{padding:7px 16px;background:transparent;color:var(--text-secondary);border:1px solid var(--line);border-radius:var(--radius-md);font-size:12px;cursor:pointer;font-family:inherit;}
+.btn-next{padding:7px 18px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-md);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+.btn-next:hover{background:var(--accent-hover);}
+.step-counter{font-size:11px;color:var(--text-secondary);}
+
+/* Annotation dots */
+.ann-dot{position:absolute;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);pointer-events:none;z-index:100;}
+.ann-dot-inline{width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);flex-shrink:0;vertical-align:middle;}
+
+.annotations{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:14px 16px;width:280px;flex-shrink:0;}
+.ann-title{font-size:12px;font-weight:700;margin-bottom:10px;}
+.ann-item{display:flex;gap:8px;margin-bottom:8px;align-items:flex-start;}
+.ann-num{width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+.ann-text{font-size:11px;color:var(--text-secondary);line-height:1.5;}
+.ann-text strong{color:var(--text-primary);}
+
+[data-bp="768"] .two-col,[data-bp="390"] .two-col{grid-template-columns:1fr;}
+[data-bp="390"] .palette-option-row{flex-direction:column;}
+[data-bp="390"] .preview-split,[data-bp="390"] .preview-controls{grid-template-columns:1fr;}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <a href="create-flow-redesign-proposals.md">← Proposals</a>
+  <span class="toolbar-title">Option 3 — Wizard Complete</span>
+  <span class="toolbar-subtitle">5-step Import Wizard as primary path, with live preview actually wired in step 4</span>
+  <div class="bp-bar">
+    <button class="bp-btn active" data-bp="1280" onclick="setBreakpoint(1280)">Desktop 1280</button>
+    <button class="bp-btn" data-bp="1024" onclick="setBreakpoint(1024)">Tablet L 1024</button>
+    <button class="bp-btn" data-bp="768" onclick="setBreakpoint(768)">Tablet P 768</button>
+    <button class="bp-btn" data-bp="390" onclick="setBreakpoint(390)">Phone 390</button>
+  </div>
+</div>
+
+<div class="mockup-outer">
+<div class="mockup-frame" id="mockup" data-bp="1280" style="width:1248px;">
+
+  <div class="app-header">
+    <span class="app-logo">stitchx</span>
+    <span style="font-size:11px;color:var(--text-secondary);margin-left:4px;">Pattern Creator</span>
+    <span class="app-header-spacer"></span>
+  </div>
+
+  <!-- Canvas background (blurred) -->
+  <div class="canvas-bg">
+    <canvas class="bg-canvas" id="bg-canvas"></canvas>
+  </div>
+
+  <!-- Wizard -->
+  <div class="wizard-overlay">
+    <div class="wizard-shell">
+
+      <!-- Step strip -->
+      <div class="step-strip" id="step-strip">
+        <div class="step-item done" data-step="1" onclick="goStep(1)">
+          <div class="step-num">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+          </div>
+          <div class="step-label">Crop</div>
+        </div>
+        <div class="step-item done" data-step="2" onclick="goStep(2)">
+          <div class="step-num">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+          </div>
+          <div class="step-label">Palette</div>
+        </div>
+        <div class="step-item done" data-step="3" onclick="goStep(3)">
+          <div class="step-num">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+          </div>
+          <div class="step-label">Size</div>
+        </div>
+        <div class="step-item active" data-step="4" onclick="goStep(4)">
+          <div class="step-num">4</div>
+          <div class="step-label">Preview</div>
+        </div>
+        <div class="step-item" data-step="5" onclick="goStep(5)">
+          <div class="step-num">5</div>
+          <div class="step-label">Generate</div>
+        </div>
+      </div>
+
+      <!-- Step bodies -->
+      <div class="wizard-body" id="wizard-body">
+        <!-- Filled by JS -->
+      </div>
+
+      <!-- Wizard footer -->
+      <div class="wizard-footer">
+        <button class="btn-back" onclick="prevStep()" id="btn-back">Back</button>
+        <span class="step-counter" id="step-counter">Step 4 of 5</span>
+        <button class="btn-next" onclick="nextStep()" id="btn-next">Next</button>
+      </div>
+
+    </div>
+    <!-- Annotation dots relative to wizard -->
+    <div class="ann-dot" style="top:16px;right:8px;">1</div>
+  </div>
+
+</div><!-- /mockup-frame -->
+
+<div class="annotations">
+  <div class="ann-title">Design decisions</div>
+  <div class="ann-item"><div class="ann-num">1</div><div class="ann-text"><strong>Always-visible step strip</strong> — users can see all 5 steps and click back to any completed step. Not a blocking modal that traps them in a linear sequence.</div></div>
+  <div class="ann-item"><div class="ann-num">2</div><div class="ann-text"><strong>Palette step first-class</strong> — step 2 groups palette source, stash, max colours, and blends together. The user answers "what threads?" before "how big?"</div></div>
+  <div class="ann-item"><div class="ann-num">3</div><div class="ann-text"><strong>Step 4 live preview is actually wired</strong> — this is the key fix over the current experimental wizard. The preview updates within 300 ms of any slider change in step 4.</div></div>
+  <div class="ann-item"><div class="ann-num">4</div><div class="ann-text"><strong>Controls labelled for users, not engineers</strong> — "Remove noise" instead of "cleanup threshold", "Smooth edges" instead of "dithering toggle".</div></div>
+  <div class="ann-item"><div class="ann-num">5</div><div class="ann-text"><strong>Step 5 summary confirms all choices</strong> — before Generate, the user sees a compact summary card showing every setting they chose. Last chance to go back and adjust.</div></div>
+  <div class="ann-item"><div class="ann-num">6</div><div class="ann-text"><strong>Clean edit mode after generate</strong> — completing the wizard closes it and opens the canvas with edit tools only. No conversion sliders bleed into the edit sidebar.</div></div>
+  <div class="ann-item"><div class="ann-num">7</div><div class="ann-text"><strong>Canvas visible behind wizard</strong> — the cross-stitchable canvas is always present in the background; the wizard doesn't feel like it hides your work.</div></div>
+</div>
+</div>
+
+<script>
+let currentStep = 4;
+
+const PALETTE_COLORS = ['#1A1A1A','#C41E3A','#5B8FA8','#4CAF50','#F9C74F','#E07A2E','#8B0000','#A07BC8','#E8748A','#89A7B1','#C8A882','#D4B483','#A52A2A','#FAFAFA','#C0C0C0','#6E6E6E','#1F3D6B','#0047AB','#7B3E0A','#8B5E1A','#D4875D','#F4A77B','#8B6914','#C4956A','#E5C4A1','#6B4226','#3D8B6E','#7B9B6A'];
+
+function setBreakpoint(bp) {
+  document.getElementById('mockup').style.width = (bp-32)+'px';
+  document.getElementById('mockup').setAttribute('data-bp', bp);
+  document.querySelectorAll('.bp-btn').forEach(b => b.classList.toggle('active', +b.dataset.bp===bp));
+}
+
+function drawPattern(canvas, seed) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height, CELL = 4;
+  const s = seed || 0;
+  for (let y=0;y<H;y+=CELL) for (let x=0;x<W;x+=CELL) {
+    const n=Math.sin(x*.08+y*.06+s)*.5+Math.sin(x*.04-y*.09+s*.7)*.3+Math.cos(x*.02+y*.03+s*.4)*.2;
+    const idx=((Math.floor((n+1)*14))%PALETTE_COLORS.length+PALETTE_COLORS.length)%PALETTE_COLORS.length;
+    ctx.fillStyle=PALETTE_COLORS[idx]; ctx.fillRect(x,y,CELL,CELL);
+  }
+  ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.lineWidth=0.5;
+  for(let x=0;x<=W;x+=CELL){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<=H;y+=CELL){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+}
+
+const STEP_CONTENT = {
+  1: () => `
+    <div class="step-title">Crop &amp; Orient</div>
+    <div class="step-sub">Drag the handles to crop your image. Rotate or flip if needed.</div>
+    <div class="two-col">
+      <div style="background:#2a2420;border-radius:var(--radius-md);aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;position:relative;">
+        <div style="position:absolute;inset:20px;border:2px dashed rgba(255,255,255,0.5);border-radius:4px;"></div>
+        <div style="position:absolute;top:20px;left:20px;width:10px;height:10px;background:white;border-radius:50%;cursor:nw-resize;"></div>
+        <div style="position:absolute;top:20px;right:20px;width:10px;height:10px;background:white;border-radius:50%;cursor:ne-resize;"></div>
+        <div style="position:absolute;bottom:20px;left:20px;width:10px;height:10px;background:white;border-radius:50%;cursor:sw-resize;"></div>
+        <div style="position:absolute;bottom:20px;right:20px;width:10px;height:10px;background:white;border-radius:50%;cursor:se-resize;"></div>
+        <canvas id="step1-canvas" width="240" height="160" style="width:100%;height:100%;image-rendering:pixelated;border-radius:var(--radius-md);opacity:0.7;"></canvas>
+      </div>
+      <div>
+        <div class="field-group">
+          <div class="field-group-title">Orientation</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button style="padding:6px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-secondary);font-size:11px;cursor:pointer;font-family:inherit;">Rotate 90°</button>
+            <button style="padding:6px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-secondary);font-size:11px;cursor:pointer;font-family:inherit;">Flip H</button>
+            <button style="padding:6px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-secondary);font-size:11px;cursor:pointer;font-family:inherit;">Flip V</button>
+          </div>
+        </div>
+        <div class="field-group">
+          <div class="field-group-title">Aspect ratio guide</div>
+          <select class="field-input" style="max-width:160px;">
+            <option>Free</option><option>4:3</option><option>16:9</option><option>1:1</option>
+          </select>
+        </div>
+      </div>
+    </div>`,
+  2: () => `
+    <div class="step-title">Palette</div>
+    <div class="step-sub">Choose your thread palette. This determines which DMC colours are used.</div>
+    <div class="field-group">
+      <div class="field-group-title">Palette source</div>
+      <div class="palette-option-row">
+        <div class="palette-option" onclick="selectPaletteOpt(this,'full')">
+          <div class="palette-option-name">Full DMC</div>
+          <div class="palette-option-desc">All 454 colours</div>
+        </div>
+        <div class="palette-option selected" onclick="selectPaletteOpt(this,'stash')">
+          <div class="palette-option-name">From stash <span class="stash-badge">147</span></div>
+          <div class="palette-option-desc">Only threads you own</div>
+        </div>
+        <div class="palette-option" onclick="selectPaletteOpt(this,'limited')">
+          <div class="palette-option-name">Limited</div>
+          <div class="palette-option-desc">Choose manually</div>
+        </div>
+      </div>
+    </div>
+    <div class="two-col">
+      <div class="field-group">
+        <div class="field-group-title">Colours</div>
+        <div class="field-row">
+          <label class="field-label">Max colours</label>
+          <input class="field-input" type="number" value="12" style="width:60px;flex:none;">
+        </div>
+        <div class="toggle-row" style="margin-top:6px;">
+          <div>
+            <div class="toggle-label">Blended threads</div>
+            <div style="font-size:10px;color:var(--text-secondary);">Two strands, one square</div>
+          </div>
+          <label class="toggle"><input type="checkbox"><div class="toggle-track"><div class="toggle-thumb"></div></div></label>
+        </div>
+      </div>
+    </div>`,
+  3: () => `
+    <div class="step-title">Size &amp; Fabric</div>
+    <div class="step-sub">Set the finished size. Stitches × fabric count = physical dimensions.</div>
+    <div class="two-col">
+      <div>
+        <div class="field-group">
+          <div class="field-group-title">Dimensions</div>
+          <div class="field-row">
+            <label class="field-label">Width</label>
+            <input class="field-input" type="number" value="120" style="width:60px;flex:none;"> sts
+          </div>
+          <div class="field-row">
+            <label class="field-label">Height</label>
+            <input class="field-input" type="number" value="80" style="width:60px;flex:none;"> sts
+          </div>
+          <div class="field-row" style="margin-top:4px;">
+            <label class="toggle" style="margin-right:6px;"><input type="checkbox" checked><div class="toggle-track"><div class="toggle-thumb"></div></div></label>
+            <span style="font-size:11px;color:var(--text-secondary);">Lock aspect ratio</span>
+          </div>
+        </div>
+        <div class="field-group">
+          <div class="field-group-title">Fabric</div>
+          <div class="field-row">
+            <label class="field-label">Count</label>
+            <select class="field-input" style="max-width:100px;"><option>14 ct</option><option>18 ct</option><option>28 ct</option></select>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="field-group">
+          <div class="field-group-title">Estimates</div>
+          <div style="background:var(--surface-secondary);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px;">
+            <div style="font-size:20px;font-weight:700;margin-bottom:2px;">21.8 × 14.5 cm</div>
+            <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">8.6 × 5.7 inches</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div style="text-align:center;background:var(--surface);border-radius:var(--radius-sm);padding:8px;">
+                <div style="font-size:16px;font-weight:700;">9,600</div>
+                <div style="font-size:10px;color:var(--text-secondary);">stitches</div>
+              </div>
+              <div style="text-align:center;background:var(--surface);border-radius:var(--radius-sm);padding:8px;">
+                <div style="font-size:16px;font-weight:700;">~6.5h</div>
+                <div style="font-size:10px;color:var(--text-secondary);">estimate</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`,
+  4: () => `
+    <div class="step-title">Preview &amp; Tune</div>
+    <div class="step-sub" style="display:flex;align-items:center;gap:8px;">
+      Adjust until the preview looks right.
+      <span style="background:var(--success-soft);color:var(--success);font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;">Live preview</span>
+      <div class="ann-dot-inline">3</div>
+    </div>
+    <div class="preview-split" style="margin-bottom:12px;">
+      <div class="preview-box">
+        <canvas class="wiz-preview" id="wiz-orig" width="300" height="180" style="height:140px;background:#2a2420;"></canvas>
+        <div class="preview-box-label">Original</div>
+      </div>
+      <div class="preview-box">
+        <canvas class="wiz-preview" id="wiz-prev" width="300" height="180" style="height:140px;"></canvas>
+        <div class="preview-box-label">Pattern preview</div>
+      </div>
+    </div>
+    <div class="preview-controls">
+      <div class="slider-group">
+        <div class="slider-title">Image adjustment <div class="ann-dot-inline" style="margin-left:4px;">4</div></div>
+        <div class="slider-row"><span class="slider-label">Contrast</span><input type="range" min="-100" max="100" value="0"><span class="slider-val">0</span></div>
+        <div class="slider-row"><span class="slider-label">Saturation</span><input type="range" min="-100" max="100" value="0"><span class="slider-val">0</span></div>
+      </div>
+      <div class="slider-group">
+        <div class="slider-title">Pattern quality</div>
+        <div class="toggle-row" style="margin-bottom:4px;padding:4px 6px;background:var(--surface);border:1px solid var(--line);">
+          <span style="font-size:11px;">Remove background</span>
+          <label class="toggle"><input type="checkbox" checked><div class="toggle-track"><div class="toggle-thumb"></div></div></label>
+        </div>
+        <div class="slider-row"><span class="slider-label">Remove noise</span><input type="range" min="0" max="3" value="2"><span class="slider-val">2</span></div>
+        <div class="slider-row"><span class="slider-label">Smooth edges</span><input type="range" min="0" max="1" value="0"><span class="slider-val">Off</span></div>
+      </div>
+    </div>`,
+  5: () => `
+    <div class="step-title">Ready to generate</div>
+    <div class="step-sub">Review your settings, then click Generate. <div class="ann-dot-inline" style="margin-left:4px;">5</div></div>
+    <div class="summary-card">
+      <div class="summary-row"><span class="summary-key">Size</span><span class="summary-val">120 × 80 stitches</span></div>
+      <div class="summary-row"><span class="summary-key">Fabric</span><span class="summary-val">14 count · 21.8 × 14.5 cm</span></div>
+      <div class="summary-row"><span class="summary-key">Palette</span><span class="summary-val">From stash · max 12 colours</span></div>
+      <div class="summary-row"><span class="summary-key">Blended threads</span><span class="summary-val">Off</span></div>
+      <div class="summary-row"><span class="summary-key">Background removal</span><span class="summary-val">On (white)</span></div>
+      <div class="summary-row"><span class="summary-key">Noise removal</span><span class="summary-val">2 / Balanced</span></div>
+      <div class="summary-row"><span class="summary-key">Estimated stitches</span><span class="summary-val">9,600 · ~6.5 hours</span></div>
+    </div>
+    <div style="background:var(--success-soft);border:1px solid var(--success);border-radius:var(--radius-sm);padding:10px 12px;font-size:12px;color:var(--success);margin-bottom:4px;">
+      <strong>147 of your stash threads</strong> are available for this palette. All 12 colours will match threads you own.
+    </div>`
+};
+
+function goStep(n) {
+  if (n > 5 || n < 1) return;
+  currentStep = n;
+  renderStep();
+}
+function prevStep() { goStep(currentStep - 1); }
+function nextStep() {
+  if (currentStep === 5) { alert('Generate would run the full pipeline and open the canvas editor.'); return; }
+  goStep(currentStep + 1);
+}
+
+function renderStep() {
+  const body = document.getElementById('wizard-body');
+  body.innerHTML = STEP_CONTENT[currentStep]();
+  document.getElementById('step-counter').textContent = `Step ${currentStep} of 5`;
+  document.getElementById('btn-next').textContent = currentStep === 5 ? 'Generate Pattern' : 'Next';
+  document.getElementById('btn-back').style.visibility = currentStep === 1 ? 'hidden' : 'visible';
+
+  // Update step strip
+  document.querySelectorAll('.step-item').forEach(el => {
+    const s = +el.dataset.step;
+    el.classList.remove('active','done');
+    if (s === currentStep) el.classList.add('active');
+    else if (s < currentStep) el.classList.add('done');
+  });
+
+  // Draw canvases if on step 4
+  if (currentStep === 4) {
+    setTimeout(() => {
+      const orig = document.getElementById('wiz-orig');
+      const prev = document.getElementById('wiz-prev');
+      if (orig) { orig.width=300;orig.height=180; const c=orig.getContext('2d');c.fillStyle='#2a2420';c.fillRect(0,0,300,180);c.fillStyle='rgba(255,255,255,0.1)';c.fillRect(40,30,220,120); }
+      if (prev) { prev.width=300;prev.height=180; drawPattern(prev, 1.2); }
+    }, 10);
+  }
+  if (currentStep === 1) {
+    setTimeout(() => {
+      const c = document.getElementById('step1-canvas');
+      if (c) drawPattern(c, 0);
+    }, 10);
+  }
+
+  // Wire range sliders in step 4
+  if (currentStep === 4) {
+    setTimeout(() => {
+      document.querySelectorAll('.slider-row input[type=range]').forEach(r => {
+        r.addEventListener('input', () => {
+          r.nextElementSibling.textContent = r.value;
+          const prev = document.getElementById('wiz-prev');
+          if (prev) { const s = Math.random() * 0.5; for(let i=0;i<200;i++){const c=prev.getContext('2d');c.fillStyle=PALETTE_COLORS[Math.floor(Math.random()*PALETTE_COLORS.length)];const rx=Math.floor(Math.random()*prev.width/4)*4,ry=Math.floor(Math.random()*prev.height/4)*4;c.fillRect(rx,ry,4,4);} }
+        });
+      });
+    }, 20);
+  }
+}
+
+function selectPaletteOpt(el, type) {
+  document.querySelectorAll('.palette-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+// Background canvas
+window.addEventListener('load', () => {
+  const bg = document.getElementById('bg-canvas');
+  bg.width = bg.offsetWidth || 1200;
+  bg.height = bg.offsetHeight || 560;
+  drawPattern(bg, 0);
+  renderStep();
+});
+</script>
+</body>
+</html>

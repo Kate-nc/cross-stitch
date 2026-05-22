@@ -42,6 +42,8 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
   const [zoomPos, setZoomPos] = useState(null);
   const altHeld = useRef(false);
   const [altDown, setAltDown] = useState(false);
+  // magnifier toggle — stays active without holding Alt
+  const [zoomLocked, setZoomLocked] = useState(false);
   // diff overlay
   const [showDiff, setShowDiff] = useState(false);
   const [diffUrl, setDiffUrl] = useState(null);
@@ -132,7 +134,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
   }, [diffUrl]);
 
   function handlePointerMove(e) {
-    if (altHeld.current && containerRef.current) {
+    if ((altHeld.current || zoomLocked) && containerRef.current) {
       var rect = containerRef.current.getBoundingClientRect();
       if (rect.width > 0) setZoomPos({cx: e.clientX - rect.left, cy: e.clientY - rect.top, W: rect.width, H: rect.height});
     } else if (zoomPos) { setZoomPos(null); }
@@ -146,7 +148,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
   return (
     <div>
       <div ref={containerRef}
-        style={{position:"relative",width:"100%",aspectRatio:`${width}/${height}`,overflow:"hidden",cursor:altDown?"zoom-in":"ew-resize",borderRadius:8,border:"0.5px solid #E5DCCB",userSelect:"none",touchAction:"none"}}
+        style={{position:"relative",width:"100%",aspectRatio:`${width}/${height}`,overflow:"hidden",cursor:altDown?"zoom-in":(zoomLocked?"crosshair":"ew-resize"),borderRadius:8,border:"0.5px solid #E5DCCB",userSelect:"none",touchAction:"none"}}
         onPointerDown={function(e){
           if(altHeld.current)return;
           dragging.current=true; setSweeping(false);
@@ -232,6 +234,11 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:sweeping?"#B85C38":"#FBF8F3",color:sweeping?"#fff":"#5C5448",fontWeight:500}}>
           {sweeping?<>{Icons.pause()} Pause</>:<>{Icons.play()} Auto-sweep</>}
         </button>
+        <button type="button" onClick={function(){setZoomLocked(function(z){return !z;});}}
+          title={zoomLocked?"Turn off magnifier":"Turn on magnifier (or hold Alt)"}
+          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(zoomLocked?"#A04E11":"#E5DCCB"),borderRadius:6,background:zoomLocked?"#F8EFD8":"#FBF8F3",color:zoomLocked?"#A04E11":"#5C5448",fontWeight:500,display:"inline-flex",alignItems:"center",gap:4}}>
+          {Icons.magnify()} Magnifier
+        </button>
         {diffUrl&&<button type="button" onClick={function(){setShowDiff(function(d){return !d;});}}
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showDiff?"#A04E11":"#E5DCCB"),borderRadius:6,background:showDiff?"#F8EFD8":"#FBF8F3",color:showDiff?"#A04E11":"#5C5448",fontWeight:500}}>
           {showDiff?"Hide changes":"Show changes"}
@@ -240,7 +247,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showHeatmap?"#A53D3D":"#E5DCCB"),borderRadius:6,background:showHeatmap?"#FCEFEF":"#FBF8F3",color:showHeatmap?"#A53D3D":"#5C5448",fontWeight:500}}>
           {showHeatmap?"Hide heatmap":<>{Icons.fire()} Heatmap</>}
         </button>}
-        <span style={{fontSize:10,color:"#A89E89"}}>Hold Alt to zoom</span>
+        {!zoomLocked&&<span style={{fontSize:10,color:"#A89E89"}}>Hold Alt to zoom</span>}
       </div>
     </div>
   );
@@ -382,6 +389,17 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const stableUndoEdit = React.useCallback(function(){_histRef.current.undoEdit();}, []);
   const stableRedoEdit = React.useCallback(function(){_histRef.current.redoEdit();}, []);
 
+  // Request to switch from Edit → Convert tab.  Fires the confirmation
+  // modal when manual edits exist; otherwise switches immediately.
+  const handleRequestBackToConvert = React.useCallback(function() {
+    if (state.editHistory && state.editHistory.length > 0) {
+      state.setConfirmBackToConvert(true);
+    } else {
+      state.setAppMode("create");
+      state.setTab("pattern");
+    }
+  }, [state.editHistory, state.setConfirmBackToConvert, state.setAppMode, state.setTab]);
+
   // ── GenerationContext value (image-to-pattern generation params & callbacks) ──
   const genCtx = useMemo(function() { return {
     img: state.img, setImg: state.setImg,
@@ -458,6 +476,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   // ── AppContext value (UI housekeeping: tabs, modals, panels, toasts, refs, export, preview) ──
   const appCtx = useMemo(function() { return {
     appMode: state.appMode, setAppMode: state.setAppMode,
+    confirmBackToConvert: state.confirmBackToConvert, setConfirmBackToConvert: state.setConfirmBackToConvert,
+    requestBackToConvert: handleRequestBackToConvert,
     sidebarTab: state.sidebarTab, setSidebarTab: state.setSidebarTab,
     lastGenSnapshot: state.lastGenSnapshot,
     tab: state.tab, setTab: state.setTab,
@@ -520,7 +540,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     handleOpenInTracker: stableHandleOpenInTracker,
     isActive: isActive,
   }; }, [
-    state.appMode, state.sidebarTab,
+    state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab,
     state.lastGenSnapshot,
     state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError,
     state.copied, state.dimOpen, state.palOpen, state.fabOpen,
@@ -932,6 +952,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         stitchSpeed={state.stitchSpeed}
         doneCount={state.doneCount}
         appMode={state.appMode}
+        tab={state.tab}
+        pat={!!(state.pat&&state.pal)}
+        onTabChange={function(t){state.setTab(t);if(state.pat&&state.pal)state.setAppMode("edit");}}
+        onRequestBackToConvert={handleRequestBackToConvert}
         onPrintPdf={()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},exportData)}
         onTrackPattern={io.handleOpenInTracker}
         onSaveJson={io.saveProject}
@@ -1000,139 +1024,150 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                   before the deferred script finishes parsing. */}
               {typeof window.CreatorMaterialsHub!=="undefined"&&<window.CreatorMaterialsHub/>}
             </div>}
-            {!state.pat&&state.img&&<div style={{display:"flex",flexDirection:"column",gap:16,padding:"20px 16px"}}>
-              {!state.previewUrl&&<div className="card" style={{overflow:"hidden"}}>
-                <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#5C5448"}}>Original Image</div>
-                <img src={state.img.src} style={{width:"100%",display:"block"}} alt="Original"/>
-              </div>}
-              {state.previewUrl&&<div className="card">
-                {state.conversionSettings&&state.conversionSettings.stashConstrained&&state.conversionSettings.stashCount===0&&(
-                  <div role="status" style={{margin:"8px 14px 0",padding:"6px 10px",fontSize:11,fontWeight:500,color:"#A04E11",background:"#F8EFD8",border:"0.5px solid #E5DCCB",borderRadius:6,display:"flex",alignItems:"center",gap:6}}>
-                    <span style={{display:"inline-flex",width:14,height:14}} aria-hidden="true">{Icons.warning()}</span>
-                    No threads marked as owned — preview is unconstrained. Add DMC or Anchor threads in the Stash Manager to see a stash-only preview.
-                  </div>
-                )}
-                <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#5C5448",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                  <span style={{display:"inline-flex",alignItems:"center",gap:6}}>
-                    Preview
-                    {state.previewLoading&&<span role="status" aria-label="Updating preview" title="Updating preview" className="preview-spinner" style={{display:"inline-flex",width:12,height:12,color:"#A89E89"}}>{Icons.spinner()}</span>}
-                  </span>
-                  {state.previewDims&&<span style={{fontSize:10,fontWeight:500,color:"#A89E89"}}>{state.previewDims.pw}×{state.previewDims.ph} px{state.previewDims.pw===state.sW?" — full res":" — "+Math.round(state.previewDims.pw/state.sW*100)+"%"}</span>}
-                              {state.stitchCleanup&&state.stitchCleanup.enabled&&state.previewUrl&&<div style={{padding:"4px 14px 4px",display:"flex",alignItems:"center",gap:6}}>
-                                <button
-                                  onClick={()=>state.setShowCleanupDiff(d=>!d)}
-                                  style={{fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",
-                                    border:state.showCleanupDiff?"1px solid #B85C38":"0.5px solid #E5DCCB",
-                                    background:state.showCleanupDiff?"#F4DDCF":"#fff",
-                                    color:state.showCleanupDiff?"#B85C38":"#5C5448",
-                                    fontWeight:state.showCleanupDiff?600:400,
-                                    display:"flex",alignItems:"center",gap:4,lineHeight:1.4}}
-                                >{Icons.eye()} {state.showCleanupDiff?"Hide changes":"Show changes"}</button>
-                              </div>}
-                </div>
-                <div style={{padding:"0 14px 10px"}}>
-                  <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} width={state.sW} height={state.sH} previewPw={state.previewDims&&state.previewDims.pw} previewPh={state.previewDims&&state.previewDims.ph}/>
-                </div>
-              </div>}
-              {state.previewUrl&&state.previewStats&&<div className="card" style={{padding:"12px 14px"}}>
-                <div style={{fontSize:11,fontWeight:600,color:"#5C5448",textTransform:"uppercase",marginBottom:8}}>Preview Estimates</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px"}}>
-                  <div><div style={{fontSize:10,color:"#A89E89"}}>Stitchable</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.stitchable.toLocaleString('en-GB')}</div></div>
-                  {state.skipBg&&<div><div style={{fontSize:10,color:"#A89E89"}}>Skipped</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.skipped.toLocaleString('en-GB')}</div></div>}
-                  <div><div style={{fontSize:10,color:"#A89E89"}}>Colours</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.uniqueColors}</div></div>
-                  {state.previewStats.stashUsage&&<div><div style={{fontSize:10,color:"#A89E89"}}>Stash usage</div><div style={{fontSize:13,fontWeight:600,color:"#B85C38"}}>{state.previewStats.stashUsage.used} of {state.previewStats.stashUsage.available}</div></div>}
-                  <div><div style={{fontSize:10,color:"#A89E89"}}>Skeins ({state.fabricCt}ct)</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.estSkeins}</div></div>
-                  <div><div style={{fontSize:10,color:"#A89E89"}}>Time</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{fmtTimeL(Math.round(state.previewStats.stitchable/state.stitchSpeed*3600))}</div></div>
-                  <div><div style={{fontSize:10,color:"#A89E89"}}>Thread Cost</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>£{(state.previewStats.estSkeins*state.skeinPrice).toFixed(2)}</div></div>
-                </div>
-                {state.previewStats.confettiPct!=null&&(()=>{
-                  const t=confettiTier(state.previewStats.confettiPct);
-                  const tips={"Excellent":"Great stitch flow","Good":"Low confetti — pleasant to stitch","Moderate":"Some isolated stitches — try the Remove Orphans slider","Challenging":"High confetti — reduce colours or use Remove Orphans","High confetti":"Very tedious — strongly consider removing orphans"};
-                  return(
-                    <div style={{marginTop:10,paddingTop:10,borderTop:"0.5px solid #E5DCCB"}}>
-                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
-                        <span style={{fontSize:10,color:"#A89E89",textTransform:"uppercase",fontWeight:600}}>Confetti stitches</span>
-                        <span style={{fontSize:11,fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:10,background:t.color+"18"}}>{t.label}</span>
-                      </div>
-                      <div style={{display:"flex",alignItems:"center",gap:6}}>
-                        <div style={{flex:1,height:5,background:"#E5DCCB",borderRadius:3,overflow:"hidden"}}>
-                          <div style={{height:"100%",width:Math.min(100,state.previewStats.confettiPct*4)+"%",background:t.color,borderRadius:3}}/>
-                        </div>
-                        <span style={{fontSize:12,fontWeight:700,color:t.color,flexShrink:0}}>{state.previewStats.confettiSingles.toLocaleString('en-GB')} ({state.previewStats.confettiPct.toFixed(1)}%)</span>
-                      </div>
-                      <div style={{fontSize:10,color:"#A89E89",marginTop:4}}>{tips[t.label]||""}{state.previewStats.confettiCleanSingles!=null&&state.previewStats.confettiCleanSingles<state.previewStats.confettiSingles?` · ${state.previewStats.confettiCleanSingles.toLocaleString('en-GB')} after cleanup`:""}</div>
+            {!state.pat&&state.img&&<div style={{display:"flex",gap:20,padding:"12px 16px 16px 0",flex:1,minHeight:0}}>
+              {/* Left: source image with crop / change controls */}
+              <div style={{flex:"0 0 auto",width:"min(30%,220px)",display:"flex",flexDirection:"column",gap:8}}>
+                <div className="card" style={{overflow:"hidden"}}>
+                  <div style={{padding:"7px 12px 4px",fontSize:11,fontWeight:600,color:"#5C5448"}}>Original Image</div>
+                  {state.pickBg&&<div style={{padding:"8px 12px",fontSize:11,color:"#9a3412",fontWeight:600,background:"#F8EFD8",borderTop:"1px solid #E5C99A",borderBottom:"1px solid #E5C99A",display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{flex:1}}>Click anywhere on the image to set the background colour.</span>
+                    <button onClick={()=>state.setPickBg(false)} title="Cancel pick (Esc)" style={{fontSize:10,padding:"2px 7px",border:"1px solid #D4A570",borderRadius:6,background:"#fff",color:"#9a3412",cursor:"pointer",fontWeight:600}}>Cancel</button>
+                  </div>}
+                  <img src={state.img.src} alt="Original" style={{width:"100%",display:"block",cursor:state.pickBg?"crosshair":"default"}} onClick={canvas.srcClick}/>
+                  <div style={{padding:"5px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #EFE7D6"}}>
+                    <span style={{fontSize:10,color:"#A89E89"}}>{state.origW}×{state.origH}px</span>
+                    <div style={{display:"flex",gap:6}}>
+                      <button onClick={()=>{state.setIsCropping(true);state.setCropRect(null);}} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#FBF8F3"}}>Crop</button>
+                      <button onClick={()=>state.fRef.current.click()} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#FBF8F3"}}>Change</button>
                     </div>
-                  );
-                })()}
-                {state.previewColors&&state.previewColors.length>0&&<div style={{marginTop:12,paddingTop:12,borderTop:"0.5px solid #E5DCCB"}}>
-                  <div style={{fontSize:10,fontWeight:600,color:"#A89E89",textTransform:"uppercase",marginBottom:6}}>Colour Breakdown <span style={{fontWeight:400,textTransform:"none"}}>(hover to highlight)</span></div>
-                  <div style={{maxHeight:200,overflowY:"auto",display:"flex",flexDirection:"column",gap:1}}>
-                    {state.previewColors.map(function(pcol){
-                      var sf=state.previewDims?(state.sW*state.sH)/(state.previewDims.pw*state.previewDims.ph):1;
-                      var n=findThreadInCatalog('dmc',pcol.id);
-                      return(
-                        <div key={pcol.id}
-                          style={{display:"flex",alignItems:"center",gap:6,padding:"3px 4px",borderRadius:4,cursor:"default"}}
-                          onMouseEnter={function(){
-                            if(!state.previewMapped||!state.previewDims)return;
-                            var pw=state.previewDims.pw,ph=state.previewDims.ph;
-                            var hc=document.createElement('canvas');hc.width=pw;hc.height=ph;
-                            var hcx=hc.getContext('2d');
-                            var hi=hcx.createImageData(pw,ph);var hd=hi.data;
-                            var tid=pcol.id;
-                            for(var k=0;k<state.previewMapped.length;k++){var kidx=k*4;var km=state.previewMapped[k];
-                              if(km.id===tid){hd[kidx]=255;hd[kidx+1]=255;hd[kidx+2]=255;hd[kidx+3]=180;}
-                              else if(km.id!=='__skip__'&&km.id!=='__empty__'){hd[kidx]=0;hd[kidx+1]=0;hd[kidx+2]=0;hd[kidx+3]=130;}
-                            }
-                            hcx.putImageData(hi,0,0);state.setPreviewHighlight(hc.toDataURL());
-                          }}
-                          onMouseLeave={function(){state.setPreviewHighlight(null);}}>
-                          <div style={{width:12,height:12,borderRadius:2,flexShrink:0,background:'rgb('+pcol.rgb[0]+','+pcol.rgb[1]+','+pcol.rgb[2]+')',border:"0.5px solid rgba(0,0,0,0.12)"}}/>
-                          <span style={{fontSize:10,fontWeight:600,color:"#5C5448",flexShrink:0,minWidth:28}}>{pcol.id}</span>
-                          <span style={{fontSize:10,color:"#A89E89",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n?n.name:''}</span>
-                          <span style={{fontSize:10,fontWeight:600,color:"#1B1814",flexShrink:0}}>{Math.round(pcol.count*sf).toLocaleString('en-GB')}</span>
-                        </div>
-                      );
-                    })}
+                  </div>
+                </div>
+              </div>
+              {/* Right: preview comparison or placeholder */}
+              <div style={{flex:1,display:"flex",flexDirection:"column",gap:16,overflowY:"auto"}}>
+                {!state.previewUrl&&<div className="card" style={{padding:"24px 16px",textAlign:"center",color:"#A89E89",fontSize:12}}>
+                  Adjust settings and generate a pattern to see a preview here.
+                </div>}
+                {state.previewUrl&&<div className="card">
+                  {state.conversionSettings&&state.conversionSettings.stashConstrained&&state.conversionSettings.stashCount===0&&(
+                    <div role="status" style={{margin:"8px 14px 0",padding:"6px 10px",fontSize:11,fontWeight:500,color:"#A04E11",background:"#F8EFD8",border:"0.5px solid #E5DCCB",borderRadius:6,display:"flex",alignItems:"center",gap:6}}>
+                      <span style={{display:"inline-flex",width:14,height:14}} aria-hidden="true">{Icons.warning()}</span>
+                      No threads marked as owned — preview is unconstrained. Add DMC or Anchor threads in the Stash Manager to see a stash-only preview.
+                    </div>
+                  )}
+                  <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#5C5448",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <span style={{display:"inline-flex",alignItems:"center",gap:6}}>
+                      Preview
+                      {state.previewLoading&&<span role="status" aria-label="Updating preview" title="Updating preview" className="preview-spinner" style={{display:"inline-flex",width:12,height:12,color:"#A89E89"}}>{Icons.spinner()}</span>}
+                    </span>
+                    {state.previewDims&&<span style={{fontSize:10,fontWeight:500,color:"#A89E89"}}>{state.previewDims.pw}×{state.previewDims.ph} px{state.previewDims.pw===state.sW?" — full res":" — "+Math.round(state.previewDims.pw/state.sW*100)+"%"}</span>}
+                                {state.stitchCleanup&&state.stitchCleanup.enabled&&state.previewUrl&&<div style={{padding:"4px 14px 4px",display:"flex",alignItems:"center",gap:6}}>
+                                  <button
+                                    onClick={()=>state.setShowCleanupDiff(d=>!d)}
+                                    style={{fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",
+                                      border:state.showCleanupDiff?"1px solid #B85C38":"0.5px solid #E5DCCB",
+                                      background:state.showCleanupDiff?"#F4DDCF":"#fff",
+                                      color:state.showCleanupDiff?"#B85C38":"#5C5448",
+                                      fontWeight:state.showCleanupDiff?600:400,
+                                      display:"flex",alignItems:"center",gap:4,lineHeight:1.4}}
+                                  >{Icons.eye()} {state.showCleanupDiff?"Hide changes":"Show changes"}</button>
+                                </div>}
+                  </div>
+                  <div style={{padding:"0 14px 10px"}}>
+                    <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} width={state.sW} height={state.sH} previewPw={state.previewDims&&state.previewDims.pw} previewPh={state.previewDims&&state.previewDims.ph}/>
                   </div>
                 </div>}
-              </div>}
+                {state.previewUrl&&state.previewStats&&<div className="card" style={{padding:"12px 14px"}}>
+                  <div style={{fontSize:11,fontWeight:600,color:"#5C5448",textTransform:"uppercase",marginBottom:8}}>Preview Estimates</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px"}}>
+                    <div><div style={{fontSize:10,color:"#A89E89"}}>Stitchable</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.stitchable.toLocaleString('en-GB')}</div></div>
+                    {state.skipBg&&<div><div style={{fontSize:10,color:"#A89E89"}}>Skipped</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.skipped.toLocaleString('en-GB')}</div></div>}
+                    <div><div style={{fontSize:10,color:"#A89E89"}}>Colours</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.uniqueColors}</div></div>
+                    {state.previewStats.stashUsage&&<div><div style={{fontSize:10,color:"#A89E89"}}>Stash usage</div><div style={{fontSize:13,fontWeight:600,color:"#B85C38"}}>{state.previewStats.stashUsage.used} of {state.previewStats.stashUsage.available}</div></div>}
+                    <div><div style={{fontSize:10,color:"#A89E89"}}>Skeins ({state.fabricCt}ct)</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.estSkeins}</div></div>
+                    <div><div style={{fontSize:10,color:"#A89E89"}}>Time</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{fmtTimeL(Math.round(state.previewStats.stitchable/state.stitchSpeed*3600))}</div></div>
+                    <div><div style={{fontSize:10,color:"#A89E89"}}>Thread Cost</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>£{(state.previewStats.estSkeins*state.skeinPrice).toFixed(2)}</div></div>
+                  </div>
+                  {state.previewStats.confettiPct!=null&&(()=>{
+                    const t=confettiTier(state.previewStats.confettiPct);
+                    const tips={"Excellent":"Great stitch flow","Good":"Low confetti — pleasant to stitch","Moderate":"Some isolated stitches — try the Remove Orphans slider","Challenging":"High confetti — reduce colours or use Remove Orphans","High confetti":"Very tedious — strongly consider removing orphans"};
+                    return(
+                      <div style={{marginTop:10,paddingTop:10,borderTop:"0.5px solid #E5DCCB"}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
+                          <span style={{fontSize:10,color:"#A89E89",textTransform:"uppercase",fontWeight:600}}>Confetti stitches</span>
+                          <span style={{fontSize:11,fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:10,background:t.color+"18"}}>{t.label}</span>
+                        </div>
+                        <div style={{display:"flex",alignItems:"center",gap:6}}>
+                          <div style={{flex:1,height:5,background:"#E5DCCB",borderRadius:3,overflow:"hidden"}}>
+                            <div style={{height:"100%",width:Math.min(100,state.previewStats.confettiPct*4)+"%",background:t.color,borderRadius:3}}/>
+                          </div>
+                          <span style={{fontSize:12,fontWeight:700,color:t.color,flexShrink:0}}>{state.previewStats.confettiSingles.toLocaleString('en-GB')} ({state.previewStats.confettiPct.toFixed(1)}%)</span>
+                        </div>
+                        <div style={{fontSize:10,color:"#A89E89",marginTop:4}}>{tips[t.label]||""}{state.previewStats.confettiCleanSingles!=null&&state.previewStats.confettiCleanSingles<state.previewStats.confettiSingles?` · ${state.previewStats.confettiCleanSingles.toLocaleString('en-GB')} after cleanup`:""}</div>
+                      </div>
+                    );
+                  })()}
+                  {state.previewColors&&state.previewColors.length>0&&<div style={{marginTop:12,paddingTop:12,borderTop:"0.5px solid #E5DCCB"}}>
+                    <div style={{fontSize:10,fontWeight:600,color:"#A89E89",textTransform:"uppercase",marginBottom:6}}>Colour Breakdown <span style={{fontWeight:400,textTransform:"none"}}>(hover to highlight)</span></div>
+                    <div style={{maxHeight:200,overflowY:"auto",display:"flex",flexDirection:"column",gap:1}}>
+                      {state.previewColors.map(function(pcol){
+                        var sf=state.previewDims?(state.sW*state.sH)/(state.previewDims.pw*state.previewDims.ph):1;
+                        var n=findThreadInCatalog('dmc',pcol.id);
+                        return(
+                          <div key={pcol.id}
+                            style={{display:"flex",alignItems:"center",gap:6,padding:"3px 4px",borderRadius:4,cursor:"default"}}
+                            onMouseEnter={function(){
+                              if(!state.previewMapped||!state.previewDims)return;
+                              var pw=state.previewDims.pw,ph=state.previewDims.ph;
+                              var hc=document.createElement('canvas');hc.width=pw;hc.height=ph;
+                              var hcx=hc.getContext('2d');
+                              var hi=hcx.createImageData(pw,ph);var hd=hi.data;
+                              var tid=pcol.id;
+                              for(var k=0;k<state.previewMapped.length;k++){var kidx=k*4;var km=state.previewMapped[k];
+                                if(km.id===tid){hd[kidx]=255;hd[kidx+1]=255;hd[kidx+2]=255;hd[kidx+3]=180;}
+                                else if(km.id!=='__skip__'&&km.id!=='__empty__'){hd[kidx]=0;hd[kidx+1]=0;hd[kidx+2]=0;hd[kidx+3]=130;}
+                              }
+                              hcx.putImageData(hi,0,0);state.setPreviewHighlight(hc.toDataURL());
+                            }}
+                            onMouseLeave={function(){state.setPreviewHighlight(null);}}>
+                            <div style={{width:12,height:12,borderRadius:2,flexShrink:0,background:'rgb('+pcol.rgb[0]+','+pcol.rgb[1]+','+pcol.rgb[2]+')',border:"0.5px solid rgba(0,0,0,0.12)"}}/>
+                            <span style={{fontSize:10,fontWeight:600,color:"#5C5448",flexShrink:0,minWidth:28}}>{pcol.id}</span>
+                            <span style={{fontSize:10,color:"#A89E89",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n?n.name:''}</span>
+                            <span style={{fontSize:10,fontWeight:600,color:"#1B1814",flexShrink:0}}>{Math.round(pcol.count*sf).toLocaleString('en-GB')}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>}
+                </div>}
+              </div>
             </div>}
           </div>
           {state.tab==="pattern"&&<>
             {state.panelOpen&&<div className="rpanel-backdrop" onClick={()=>state.setPanelOpen(false)}/>}
             <div className={"rpanel"+(state.panelOpen?" rpanel--open":"")}>
             <window.CreatorSidebar/>
-            {!state.pat&&state.img&&<div id="bg-pick-target" className={"card"+(state.pickBg?" card--pickBg":"")} style={{overflow:"hidden"}}>
-              <div style={{padding:"7px 12px 4px",fontSize:11,fontWeight:600,color:"#5C5448"}}>Original Image</div>
-              {state.pickBg&&<div style={{padding:"8px 12px",fontSize:11,color:"#9a3412",fontWeight:600,background:"#F8EFD8",borderTop:"1px solid #E5C99A",borderBottom:"1px solid #E5C99A",display:"flex",alignItems:"center",gap:8}}>
-                <span style={{flex:1}}>Click anywhere on the image to set the background colour.</span>
-                <button onClick={()=>state.setPickBg(false)} title="Cancel pick (Esc)" style={{fontSize:10,padding:"2px 7px",border:"1px solid #D4A570",borderRadius:6,background:"#fff",color:"#9a3412",cursor:"pointer",fontWeight:600}}>Cancel</button>
-              </div>}
-              <div style={{position:"relative",touchAction:state.isCropping?"none":"auto"}} ref={state.cropRef} onPointerDown={canvas.handleCropPointerDown} onPointerMove={canvas.handleCropPointerMove} onPointerUp={canvas.handleCropPointerUp} onPointerCancel={canvas.handleCropPointerCancel}>
-                <img src={state.img.src} alt="Original" style={{width:"100%",display:"block",cursor:state.isCropping?"crosshair":(state.pickBg?"crosshair":"default"),opacity:state.isCropping?0.7:1}} onClick={canvas.srcClick}/>
-                {state.isCropping&&state.cropRect&&<div style={{position:"absolute",left:state.cropRect.x,top:state.cropRect.y,width:state.cropRect.w,height:state.cropRect.h,border:"2px dashed #B85C38",background:"rgba(184, 92, 56,0.2)",boxSizing:"border-box",pointerEvents:"none"}}/>}
-              </div>
-              {state.isCropping?<div style={{padding:"5px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #EFE7D6"}}>
-                <span style={{fontSize:10,color:"#A89E89"}}>Draw a rectangle</span>
-                <div style={{display:"flex",gap:6}}>
-                  <button onClick={()=>{state.setIsCropping(false);state.setCropRect(null);}} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#FBF8F3"}}>Cancel</button>
-                  <button onClick={canvas.applyCrop} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"none",borderRadius:6,background:"#B85C38",color:"#fff"}}>Apply</button>
-                </div>
-              </div>:<div style={{padding:"5px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #EFE7D6"}}>
-                <span style={{fontSize:10,color:"#A89E89"}}>{state.origW}×{state.origH}px</span>
-                <div style={{display:"flex",gap:6}}>
-                  <button onClick={()=>{state.setIsCropping(true);state.setCropRect(null);}} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#FBF8F3"}}>Crop</button>
-                  <button onClick={()=>state.fRef.current.click()} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#FBF8F3"}}>Change</button>
-                </div>
-              </div>}
             </div>}
-          </div>}
           </>}
         </div>}
         {state.modal==="help"&&<SharedModals.Help defaultTab="creator" onClose={()=>state.setModal(null)} />}
         {state.modal==="about"&&<SharedModals.About onClose={()=>state.setModal(null)} />}
         {state.modal==="shortcuts"&&<SharedModals.Help defaultTab="shortcuts" onClose={()=>state.setModal(null)} />}
+        {/* ── Edit → Convert warning modal ── */}
+        {state.confirmBackToConvert&&<div role="dialog" aria-modal="true" aria-label="Switch to Convert?" style={{position:"fixed",inset:0,zIndex:1900,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div style={{background:"var(--surface)",borderRadius:"var(--radius-md)",padding:24,maxWidth:400,width:"100%",boxShadow:"0 8px 32px rgba(0,0,0,0.18)"}}>
+            <div style={{fontSize:"var(--text-md,14px)",fontWeight:700,color:"var(--text-primary)",marginBottom:8}}>Switch to Convert?</div>
+            <div style={{fontSize:"var(--text-sm,13px)",color:"var(--text-secondary)",marginBottom:20,lineHeight:1.5}}>
+              {"You have "+(state.editHistory?state.editHistory.length:0)+" manual "+(state.editHistory&&state.editHistory.length===1?"edit":"edits")+". Generating a new pattern will replace your current work."}
+            </div>
+            <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+              <button onClick={()=>state.setConfirmBackToConvert(false)} style={{padding:"7px 14px",fontSize:13,fontWeight:500,border:"1px solid var(--line)",borderRadius:"var(--radius-sm)",background:"var(--surface)",color:"var(--text-secondary)",cursor:"pointer",fontFamily:"inherit"}}>Stay in Edit</button>
+              <button onClick={()=>{state.setConfirmBackToConvert(false);state.setAppMode("create");state.setTab("pattern");}} style={{padding:"7px 14px",fontSize:13,fontWeight:600,border:"none",borderRadius:"var(--radius-sm)",background:"var(--accent)",color:"var(--surface)",cursor:"pointer",fontFamily:"inherit"}}>Go to Convert</button>
+            </div>
+          </div>
+        </div>}
+        {/* ── Full-screen crop modal ── */}
+        {typeof window.CropModal!=="undefined"&&<window.CropModal/>}
       </div>
       {state.busy&&<div style={{
         position:"fixed",top:0,left:0,right:0,bottom:0,
@@ -1470,6 +1505,10 @@ function UnifiedApp(){
         for (var bi = 0; bi < byteStr.length; bi++) ia[bi] = byteStr.charCodeAt(bi);
         var blob = new Blob([ab], { type: pendingType });
         window.__pendingCreatorFile = new File([blob], pendingName, { type: pendingType });
+        // Persist for the whole session so sw-register.js's controllerchange
+        // guard can still suppress a reload even after useProjectIO.js has
+        // consumed __pendingCreatorFile and cleared the sessionStorage keys.
+        window.__creatorImageHandoffActive = true;
       }
     } else if (act === 'new-from-image') {
       // Legacy fallback: a navigation hit create.html?action=new-from-image.

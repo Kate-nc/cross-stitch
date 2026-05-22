@@ -32,12 +32,13 @@
  *   solidPct         — stitchability percentage (popover only)
  *   stitchSpeed      — stitches/hr (popover only)
  *   doneCount        — stitches completed (popover only)
- *   ready            — boolean; render nothing when no pattern is loaded
+ *   ready            — boolean; true when a generated pattern is available
  */
 
 window.CreatorActionBar = function CreatorActionBar(props) {
   var h = React.createElement;
   var Icons = window.Icons || {};
+  props = props || {};
 
   var menuOpenState = React.useState(false);
   var menuOpen = menuOpenState[0];
@@ -49,6 +50,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
   var infoOpen = infoOpenState[0];
   var setInfoOpen = infoOpenState[1];
   var infoBtnRef = React.useRef(null);
+  var tablistRef = React.useRef(null);
 
   // Click-outside / Escape to close the Export menu.
   React.useEffect(function() {
@@ -98,17 +100,6 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     };
   }, [menuOpen]);
 
-  // When no pattern is loaded yet, show an empty bar to hold space.
-  if (!props || !props.ready) {
-    return h("div", {
-        className: "creator-actionbar",
-        role: "toolbar",
-        "aria-label": "Pattern actions"
-      },
-      h("div", { className: "creator-actionbar__primary" })
-    );
-  }
-
   function safeCall(fn) {
     return function() {
       setMenuOpen(false);
@@ -116,21 +107,136 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     };
   }
 
-  // Phase label (Polish 13 step 3 — was a Setup chip + label + Track
-  // chip. The Setup back-button is gone now that the sidebar tab strip
-  // is unified across appModes: clicking Image / Dimensions / Project
-  // takes the user back to setup automatically. The phase label remains
-  // as a quiet stage indicator; Track stays as the primary forward
-  // action.)
-  var appMode = props.appMode || "edit";
-  var phaseLabel = h("span", {
-      className: "creator-actionbar__mode-phase",
-      "aria-live": "polite"
+  // ── Tab bar: Convert | Edit | Materials ────────────────────────────────────
+  // Convert: active when appMode === "create". Clickable only when another
+  //          tab is active; prevents reopening the confirm modal from create.
+  // Edit:    active when appMode === "edit". Disabled when no pattern exists.
+  // Materials: active when tab === "materials". Always available once pattern exists.
+  var appMode = (props && props.appMode) || "edit";
+  var currentTab = (props && props.tab) || "pattern";
+  var hasPat = !!(props && props.ready);
+
+  function tabStyle(active, disabled) {
+    return {
+      display: "inline-flex", alignItems: "center", gap: 5,
+      padding: "5px 12px", borderRadius: "var(--radius-sm)",
+      border: "none", cursor: disabled ? "not-allowed" : "pointer",
+      fontFamily: "inherit", fontSize: "var(--text-sm)", fontWeight: active ? 600 : 400,
+      background: active ? "var(--accent)" : "transparent",
+      color: active ? "var(--surface)" : disabled ? "var(--text-secondary)" : "var(--text-primary)",
+      opacity: disabled ? 0.45 : 1,
+      transition: "background var(--motion), color var(--motion)"
+    };
+  }
+
+  function focusTabByIndex(idx) {
+    if (!tablistRef.current) return;
+    var tabs = tablistRef.current.querySelectorAll('button[role="tab"]');
+    if (tabs && tabs[idx] && tabs[idx].focus) tabs[idx].focus();
+  }
+
+  var tabs = [
+    {
+      active: appMode === "create",
+      disabled: false,
+      onClick: (appMode === "create" || typeof props.onRequestBackToConvert !== "function")
+        ? undefined
+        : props.onRequestBackToConvert
     },
-    appMode === "create" ? "Setting up" : "Editing pattern"
+    {
+      active: appMode === "edit" && currentTab === "pattern",
+      disabled: !hasPat,
+      onClick: !hasPat ? undefined : function() {
+        if (typeof props.onTabChange === "function") props.onTabChange("pattern");
+      }
+    },
+    {
+      active: currentTab === "materials",
+      disabled: !hasPat,
+      onClick: !hasPat ? undefined : function() {
+        if (typeof props.onTabChange === "function") props.onTabChange("materials");
+      }
+    }
+  ];
+  var activeTabIndex = 0;
+  for (var i = 0; i < tabs.length; i++) {
+    if (tabs[i].active) { activeTabIndex = i; break; }
+  }
+
+  function onTablistKeyDown(e) {
+    var key = e.key;
+    if (key !== "ArrowRight" && key !== "ArrowLeft" && key !== "Home" && key !== "End") return;
+    e.preventDefault();
+    var n = tabs.length;
+    var next = activeTabIndex;
+    if (key === "ArrowRight" || key === "ArrowLeft") {
+      var step = key === "ArrowRight" ? 1 : -1;
+      for (var tries = 0; tries < n; tries++) {
+        next = (next + step + n) % n;
+        if (!tabs[next].disabled) break;
+      }
+    } else if (key === "Home") {
+      for (var hIdx = 0; hIdx < n; hIdx++) { if (!tabs[hIdx].disabled) { next = hIdx; break; } }
+    } else if (key === "End") {
+      for (var eIdx = n - 1; eIdx >= 0; eIdx--) { if (!tabs[eIdx].disabled) { next = eIdx; break; } }
+    }
+    if (typeof tabs[next].onClick === "function") tabs[next].onClick();
+    setTimeout(function() { focusTabByIndex(next); }, 0);
+  }
+
+  var tabBar = h("div", {
+      role: "tablist",
+      "aria-label": "Creator phase",
+      ref: tablistRef,
+      onKeyDown: onTablistKeyDown,
+      style: {
+        display: "flex", alignItems: "center",
+        background: "var(--surface-tertiary)",
+        borderRadius: "var(--radius-sm)",
+        padding: 3, gap: 2
+      }
+    },
+    h("button", {
+        type: "button",
+        role: "tab",
+        "aria-selected": tabs[0].active,
+        tabIndex: tabs[0].active ? 0 : -1,
+        style: tabStyle(appMode === "create", false),
+        onClick: tabs[0].onClick,
+        title: "Convert settings — adjust palette, dimensions and generate"
+      },
+      Icons.sliders ? Icons.sliders() : null,
+      h("span", null, "Convert")
+    ),
+    h("button", {
+        type: "button",
+        role: "tab",
+        "aria-selected": tabs[1].active,
+        tabIndex: tabs[1].active ? 0 : -1,
+        disabled: !hasPat,
+        style: tabStyle(appMode === "edit" && currentTab === "pattern", !hasPat),
+        onClick: tabs[1].onClick,
+        title: hasPat ? "Edit the generated pattern" : "Generate a pattern first"
+      },
+      Icons.pencil ? Icons.pencil() : null,
+      h("span", null, "Edit")
+    ),
+    h("button", {
+        type: "button",
+        role: "tab",
+        "aria-selected": tabs[2].active,
+        tabIndex: tabs[2].active ? 0 : -1,
+        disabled: !hasPat,
+        style: tabStyle(currentTab === "materials", !hasPat),
+        onClick: tabs[2].onClick,
+        title: hasPat ? "Materials — thread count, export options" : "Generate a pattern first"
+      },
+      Icons.layers ? Icons.layers() : null,
+      h("span", null, "Materials")
+    )
   );
 
-  var trackBtn = (typeof props.onTrackPattern === "function") ? h("button", {
+  var trackBtn = hasPat && (typeof props.onTrackPattern === "function") ? h("button", {
       type: "button",
       className: "creator-actionbar__mode-btn creator-actionbar__mode-btn--forward",
       onClick: props.onTrackPattern,
@@ -140,15 +246,6 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     h("span", null, "Open in Tracker"),
     Icons.chevronRight ? Icons.chevronRight() : h("span", { "aria-hidden": "true" }, "\u203A")
   ) : null;
-
-  var modeSwitch = h("div", {
-      className: "creator-actionbar__mode-switch",
-      role: "group",
-      "aria-label": "Pattern phase"
-    },
-    phaseLabel,
-    trackBtn
-  );
 
   // Difficulty badge — always-visible tier chip, e.g. "Intermediate".
   // Full breakdown is inside the Pattern info popover.
@@ -199,7 +296,9 @@ window.CreatorActionBar = function CreatorActionBar(props) {
       role: "toolbar",
       "aria-label": "Pattern actions"
     },
-    h("div", { className: "creator-actionbar__primary" },
+    tabBar,
+    h("div", { className: "creator-actionbar__actions" },
+    hasPat ? h("div", { className: "creator-actionbar__primary" },
       h("button", {
           type: "button",
           className: "creator-actionbar__btn creator-actionbar__btn--primary",
@@ -249,7 +348,9 @@ window.CreatorActionBar = function CreatorActionBar(props) {
           )
         )
       )
-    ),
-    infoChip
+    ) : h("div", { className: "creator-actionbar__primary" }),
+    hasPat ? trackBtn : null,
+    hasPat ? infoChip : null
+  )
   );
 };

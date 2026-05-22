@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Option 4 — Live Draft · stitchx redesign mockup</title>
+<style>
+:root{
+  --accent:#B85C38;--accent-hover:#944526;--accent-light:#F4DDCF;
+  --accent-border:#E8B89A;--text-primary:#1B1814;--text-secondary:#5C5448;
+  --surface:#ffffff;--surface-secondary:#FBF8F3;--surface-tertiary:#EFE7D6;
+  --radius-sm:6px;--radius-md:8px;--radius-lg:10px;
+  --shadow-sm:0 1px 3px rgba(0,0,0,0.06);--shadow-md:0 4px 12px rgba(0,0,0,0.12);
+  --line:#E5DCCB;--line-2:#D8CDB6;
+  --success:#4F7D3F;--success-soft:#DEE7D2;
+  --warning:#C0883A;--warning-soft:#F2E2BE;
+  --motion:160ms ease-out;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',system-ui,sans-serif;background:#F0EBE3;color:var(--text-primary);font-size:13px;}
+
+.toolbar{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap;}
+.toolbar a{font-size:12px;color:var(--accent);text-decoration:none;}
+.toolbar-title{font-weight:600;font-size:13px;flex:1;min-width:180px;}
+.toolbar-subtitle{font-size:11px;color:var(--text-secondary);}
+.bp-bar{display:flex;gap:4px;}
+.bp-btn{padding:4px 10px;border:1px solid var(--line-2);border-radius:var(--radius-sm);background:var(--surface-secondary);color:var(--text-secondary);cursor:pointer;font-size:11px;font-family:inherit;}
+.bp-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+.mockup-outer{padding:16px;display:flex;justify-content:flex-start;gap:16px;align-items:flex-start;}
+.mockup-frame{background:var(--surface-secondary);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-md);flex-shrink:0;position:relative;height:640px;}
+
+.app-header{display:flex;align-items:center;gap:8px;padding:0 14px;height:40px;background:var(--surface);border-bottom:1px solid var(--line);}
+.app-logo{font-weight:800;font-size:14px;letter-spacing:-0.3px;}
+.app-header-spacer{flex:1;}
+.header-btn{padding:4px 10px;font-size:11px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-secondary);cursor:pointer;font-family:inherit;}
+
+/* App layout */
+.app-layout{display:flex;height:calc(100% - 40px);}
+
+/* Canvas area */
+.canvas-area{flex:1;background:#1a1714;display:flex;flex-direction:column;position:relative;}
+.canvas-inner{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;}
+canvas.main-canvas{image-rendering:pixelated;}
+.canvas-status{padding:6px 10px;background:rgba(0,0,0,0.4);color:rgba(255,255,255,0.6);font-size:10px;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.updating-badge{display:inline-flex;align-items:center;gap:4px;background:var(--warning-soft);color:var(--warning);border-radius:10px;padding:2px 8px;font-size:10px;font-weight:600;}
+.updating-dot{width:6px;height:6px;border-radius:50%;background:var(--warning);animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
+
+/* Draft mode banner */
+.draft-banner{position:absolute;top:0;left:0;right:0;background:linear-gradient(to bottom,rgba(0,0,0,0.6),transparent);padding:10px 14px;display:flex;align-items:center;gap:8px;z-index:5;}
+.draft-label{font-size:11px;font-weight:700;color:rgba(255,255,255,0.9);letter-spacing:0.03em;text-transform:uppercase;}
+.draft-sub{font-size:10px;color:rgba(255,255,255,0.6);}
+
+/* Lock button overlay (prominent) */
+.lock-btn-area{position:absolute;bottom:16px;right:16px;z-index:10;}
+.lock-btn{display:flex;align-items:center;gap:6px;padding:10px 18px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-md);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 12px rgba(0,0,0,0.3);transition:background var(--motion);}
+.lock-btn:hover{background:var(--accent-hover);}
+.lock-btn svg{width:14px;height:14px;}
+
+/* Settings sidebar — DRAFT mode */
+.settings-sidebar{width:240px;flex-shrink:0;display:flex;flex-direction:column;background:var(--surface);border-left:1px solid var(--line);overflow-y:auto;}
+.sidebar-header{padding:10px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px;}
+.sidebar-header-title{font-size:12px;font-weight:700;flex:1;}
+.sidebar-mode-tag{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;background:var(--warning-soft);color:var(--warning);border-radius:10px;padding:2px 7px;}
+.sidebar-body{flex:1;padding:12px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;}
+.section-title{font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:6px;}
+.field-row{display:flex;align-items:center;gap:6px;margin-bottom:5px;}
+.field-label{font-size:11px;color:var(--text-secondary);min-width:72px;}
+.field-input{flex:1;padding:4px 6px;border:1px solid var(--line);border-radius:var(--radius-sm);font-size:11px;background:var(--surface);font-family:inherit;}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;}
+.toggle-label{font-size:11px;}
+.toggle{position:relative;width:28px;height:16px;}
+.toggle input{opacity:0;width:0;height:0;}
+.toggle-track{position:absolute;inset:0;background:var(--line-2);border-radius:8px;cursor:pointer;}
+.toggle input:checked~.toggle-track{background:var(--accent);}
+.toggle-thumb{position:absolute;top:2px;left:2px;width:12px;height:12px;background:#fff;border-radius:50%;transition:left 120ms ease-out;pointer-events:none;}
+.toggle input:checked~.toggle-track .toggle-thumb{left:14px;}
+.slider-row{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
+.slider-label{font-size:10px;color:var(--text-secondary);min-width:64px;}
+input[type=range]{flex:1;accent-color:var(--accent);height:3px;}
+.slider-val{font-size:10px;color:var(--text-secondary);width:24px;text-align:right;}
+.stash-badge{font-size:10px;background:var(--success-soft);color:var(--success);border-radius:var(--radius-sm);padding:1px 6px;font-weight:600;}
+.divider{border:none;border-top:1px solid var(--line);margin:4px 0;}
+.collapsible-header{display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-size:11px;font-weight:600;color:var(--text-secondary);}
+.collapsible-body{padding-top:8px;}
+.estimate-box{background:var(--surface-tertiary);border-radius:var(--radius-sm);padding:8px 10px;font-size:11px;color:var(--text-secondary);line-height:1.6;}
+
+/* Edit sidebar (hidden until locked) */
+.edit-sidebar{width:180px;flex-shrink:0;display:flex;flex-direction:column;background:var(--surface);border-left:1px solid var(--line);}
+.edit-sidebar-header{padding:10px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px;}
+.edit-sidebar-title{font-size:12px;font-weight:700;flex:1;}
+.edit-mode-tag{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;background:var(--success-soft);color:var(--success);border-radius:10px;padding:2px 7px;}
+.palette-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;padding:10px;}
+.palette-chip{width:100%;aspect-ratio:1;border-radius:3px;cursor:pointer;position:relative;}
+.palette-chip.has-stash::after{content:'';position:absolute;bottom:1px;right:1px;width:5px;height:5px;border-radius:50%;background:var(--success);border:1px solid var(--surface);}
+.unlock-row{padding:8px 10px;border-top:1px solid var(--line);margin-top:auto;}
+.unlock-btn{width:100%;padding:6px;font-size:11px;color:var(--text-secondary);background:transparent;border:1px dashed var(--line-2);border-radius:var(--radius-sm);cursor:pointer;font-family:inherit;}
+
+/* Toolstrip */
+.tool-strip{width:36px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 4px;background:var(--surface);border-left:1px solid var(--line);opacity:0.35;pointer-events:none;}
+.tool-strip.enabled{opacity:1;pointer-events:auto;}
+.tool-btn{width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;border-radius:var(--radius-sm);cursor:pointer;color:var(--text-secondary);}
+.tool-btn.active{background:var(--accent-light);color:var(--accent);}
+.tool-btn svg{width:14px;height:14px;}
+
+/* Warning modal */
+.modal-overlay{position:absolute;inset:0;background:rgba(0,0,0,0.45);display:none;align-items:center;justify-content:center;z-index:100;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border-radius:var(--radius-lg);padding:20px;max-width:280px;box-shadow:var(--shadow-md);}
+.modal-title{font-size:14px;font-weight:700;margin-bottom:8px;}
+.modal-body{font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.5;}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;}
+.modal-cancel{padding:6px 14px;font-size:12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:transparent;cursor:pointer;font-family:inherit;}
+.modal-confirm{padding:6px 14px;font-size:12px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;font-family:inherit;}
+
+/* Annotation dots */
+.ann-dot{position:absolute;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);pointer-events:none;z-index:50;}
+.ann-dot-inline{width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);flex-shrink:0;}
+
+.annotations{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:14px 16px;width:280px;flex-shrink:0;}
+.ann-title{font-size:12px;font-weight:700;margin-bottom:10px;}
+.ann-item{display:flex;gap:8px;margin-bottom:8px;align-items:flex-start;}
+.ann-num{width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+.ann-text{font-size:11px;color:var(--text-secondary);line-height:1.5;}
+.ann-text strong{color:var(--text-primary);}
+
+[data-bp="390"] .settings-sidebar{display:none;}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <a href="create-flow-redesign-proposals.md">← Proposals</a>
+  <span class="toolbar-title">Option 4 — Live Draft</span>
+  <span class="toolbar-subtitle">Pattern on canvas immediately; settings sidebar updates live; "Lock &amp; Edit" commits</span>
+  <div class="bp-bar">
+    <button class="bp-btn active" data-bp="1280" onclick="setBreakpoint(1280)">Desktop 1280</button>
+    <button class="bp-btn" data-bp="1024" onclick="setBreakpoint(1024)">Tablet L 1024</button>
+    <button class="bp-btn" data-bp="768" onclick="setBreakpoint(768)">Tablet P 768</button>
+    <button class="bp-btn" data-bp="390" onclick="setBreakpoint(390)">Phone 390</button>
+  </div>
+</div>
+
+<div class="mockup-outer">
+<div class="mockup-frame" id="mockup" data-bp="1280" style="width:1248px;">
+
+  <div class="app-header">
+    <span class="app-logo">stitchx</span>
+    <span style="font-size:11px;color:var(--text-secondary);margin-left:4px;">Pattern Creator</span>
+    <span class="app-header-spacer"></span>
+    <button class="header-btn">Save</button>
+    <button class="header-btn" style="opacity:0.4;cursor:not-allowed;" title="Export available after locking">Export</button>
+  </div>
+
+  <div class="app-layout">
+
+    <!-- Settings sidebar (draft mode) -->
+    <div class="settings-sidebar" id="settings-sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-header-title">Conversion settings</span>
+        <span class="sidebar-mode-tag" id="mode-tag">Draft</span>
+        <!-- Ann dot 3 -->
+        <div class="ann-dot-inline" style="margin-left:4px;">3</div>
+      </div>
+      <div class="sidebar-body">
+
+        <!-- Dimensions -->
+        <div>
+          <div class="section-title">Dimensions</div>
+          <div class="field-row">
+            <label class="field-label">Width</label>
+            <input class="field-input" id="w-input" type="number" value="120" style="width:52px;flex:none;" oninput="scheduleUpdate()">
+            <span style="font-size:11px;color:var(--text-secondary);">sts</span>
+          </div>
+          <div class="field-row">
+            <label class="field-label">Height</label>
+            <input class="field-input" id="h-input" type="number" value="80" style="width:52px;flex:none;" oninput="scheduleUpdate()">
+            <span style="font-size:11px;color:var(--text-secondary);">sts</span>
+          </div>
+          <!-- Ann dot 2 -->
+          <div class="ann-dot" style="top:54px;right:8px;position:relative;display:inline-flex;float:right;margin-top:-16px;">2</div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- Palette -->
+        <div>
+          <div class="section-title">Palette</div>
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-label">From stash <span class="stash-badge">147 owned</span></div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="stash-t" checked onchange="scheduleUpdate()">
+              <div class="toggle-track"><div class="toggle-thumb"></div></div>
+            </label>
+          </div>
+          <div class="field-row">
+            <label class="field-label">Max colours</label>
+            <input class="field-input" id="maxc-input" type="number" value="28" style="width:52px;flex:none;" oninput="scheduleUpdate()">
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-label">Blended threads</div>
+            <label class="toggle">
+              <input type="checkbox" onchange="scheduleUpdate()">
+              <div class="toggle-track"><div class="toggle-thumb"></div></div>
+            </label>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- Detail -->
+        <div>
+          <div class="section-title">Detail &amp; cleanup</div>
+          <div class="toggle-row">
+            <div class="toggle-label">Remove background</div>
+            <label class="toggle">
+              <input type="checkbox" checked onchange="scheduleUpdate()">
+              <div class="toggle-track"><div class="toggle-thumb"></div></div>
+            </label>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Smoothing</span>
+            <input type="range" min="0" max="5" value="2" oninput="this.nextElementSibling.textContent=this.value;scheduleUpdate()">
+            <span class="slider-val">2</span>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Cleanup</span>
+            <input type="range" min="0" max="3" value="1" oninput="this.nextElementSibling.textContent=this.value;scheduleUpdate()">
+            <span class="slider-val">1</span>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- Advanced (collapsed) -->
+        <div>
+          <div class="collapsible-header" onclick="toggleAdv()">
+            <span>Advanced</span>
+            <svg id="adv-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+          <div id="adv-body" style="display:none;" class="collapsible-body">
+            <div class="field-row">
+              <label class="field-label">Dithering</label>
+              <select class="field-input" onchange="scheduleUpdate()"><option>Off</option><option selected>Floyd-Steinberg</option></select>
+            </div>
+          </div>
+        </div>
+
+        <div class="estimate-box" id="estimate">9,600 stitches · ~6.5 hours · ~14 skeins est.</div>
+
+      </div>
+    </div><!-- /settings-sidebar -->
+
+    <!-- Canvas -->
+    <div class="canvas-area">
+      <div class="canvas-inner">
+        <canvas class="main-canvas" id="main-canvas" width="640" height="480"></canvas>
+        <!-- Ann dots on canvas -->
+        <div class="ann-dot" style="top:10px;left:10px;">1</div>
+        <div class="ann-dot" style="top:10px;right:10px;">4</div>
+      </div>
+
+      <!-- Draft mode banner -->
+      <div class="draft-banner" id="draft-banner">
+        <span class="draft-label">Draft</span>
+        <span class="draft-sub">Changes update automatically · Adjust settings, then lock to start editing</span>
+      </div>
+
+      <!-- Updating indicator -->
+      <div id="updating-indicator" style="position:absolute;top:38px;left:50%;transform:translateX(-50%);opacity:0;transition:opacity 200ms;">
+        <div class="updating-badge">
+          <div class="updating-dot"></div>
+          Updating preview...
+        </div>
+      </div>
+
+      <!-- Lock button -->
+      <div class="lock-btn-area" id="lock-area">
+        <button class="lock-btn" onclick="lockAndEdit()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Lock &amp; Edit
+        </button>
+        <!-- Ann dot 5 -->
+        <div style="position:absolute;top:-8px;right:-8px;">
+          <div class="ann-dot" style="position:static;display:flex;">5</div>
+        </div>
+      </div>
+
+      <div class="canvas-status">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        120 × 80 stitches · 28 colours · ~6.5 hours
+        <span id="live-status" style="color:rgba(255,255,255,0.4);">Live draft</span>
+      </div>
+    </div><!-- /canvas-area -->
+
+    <!-- Toolstrip (disabled in draft mode) -->
+    <div class="tool-strip" id="tool-strip">
+      <button class="tool-btn" title="Paint (locked)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/></svg>
+      </button>
+      <button class="tool-btn" title="Fill (locked)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16.56 8.94 7.62 0 6.21 1.41l2.38 2.38-5.15 5.15a1.49 1.49 0 0 0 0 2.12l5.5 5.5c.29.29.68.44 1.06.44s.77-.15 1.06-.44l5.5-5.5c.59-.58.59-1.53 0-2.12z"/></svg>
+      </button>
+      <!-- Ann dot 6 -->
+      <div class="ann-dot" style="position:static;margin-top:4px;display:flex;">6</div>
+    </div>
+
+    <!-- Edit sidebar (palette only, disabled in draft mode) -->
+    <div class="edit-sidebar" id="edit-sidebar">
+      <div class="edit-sidebar-header">
+        <span class="edit-sidebar-title">Palette</span>
+        <span class="edit-mode-tag" id="edit-tag">Locked</span>
+      </div>
+      <div class="palette-grid" id="palette-grid" style="opacity:0.35;"></div>
+      <div class="unlock-row" id="unlock-row" style="display:none;">
+        <button class="unlock-btn" onclick="unlockSettings()">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 4.9-5"/></svg>
+          Unlock conversion settings
+        </button>
+      </div>
+    </div>
+
+  </div><!-- /app-layout -->
+
+  <!-- Warning modal (for unlock) -->
+  <div class="modal-overlay" id="unlock-modal">
+    <div class="modal">
+      <div class="modal-title">Unlock conversion settings?</div>
+      <div class="modal-body">Changing conversion settings will replace your current pattern. Your 24 manual edits will be lost.</div>
+      <div class="modal-actions">
+        <button class="modal-cancel" onclick="closeModal()">Keep edits</button>
+        <button class="modal-confirm" onclick="confirmUnlock()">Unlock</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /mockup-frame -->
+
+<div class="annotations">
+  <div class="ann-title">Design decisions</div>
+  <div class="ann-item"><div class="ann-num">1</div><div class="ann-text"><strong>Pattern appears immediately on upload</strong> — pipeline runs at defaults within ~500 ms. No Generate button to click. Users see a result before they've touched any settings.</div></div>
+  <div class="ann-item"><div class="ann-num">2</div><div class="ann-text"><strong>Dimensions first in sidebar</strong> — most impactful setting placed at the top where it will be changed most often.</div></div>
+  <div class="ann-item"><div class="ann-num">3</div><div class="ann-text"><strong>"Draft" mode tag</strong> — the sidebar header always shows the current state. While settings are editable, users know they are in the pre-commit phase.</div></div>
+  <div class="ann-item"><div class="ann-num">4</div><div class="ann-text"><strong>"Updating preview..." indicator</strong> — appears within 100 ms of any setting change, disappears when the update completes. Tells the user the canvas reflects the new setting.</div></div>
+  <div class="ann-item"><div class="ann-num">5</div><div class="ann-text"><strong>"Lock &amp; Edit" is the only commit action</strong> — after clicking, the settings sidebar is hidden (or locked), the toolstrip becomes active, and edit tools become available. No ambiguity.</div></div>
+  <div class="ann-item"><div class="ann-num">6</div><div class="ann-text"><strong>Edit tools greyed out in draft mode</strong> — the toolstrip is visually disabled (0.35 opacity) until the pattern is locked. Users understand they cannot paint on a draft.</div></div>
+</div>
+</div>
+
+<script>
+const PALETTE_COLORS=['#1A1A1A','#C41E3A','#5B8FA8','#4CAF50','#F9C74F','#E07A2E','#8B0000','#A07BC8','#E8748A','#89A7B1','#C8A882','#D4B483','#A52A2A','#FAFAFA','#C0C0C0','#6E6E6E','#1F3D6B','#0047AB','#7B3E0A','#8B5E1A','#D4875D','#F4A77B','#8B6914','#C4956A','#E5C4A1','#6B4226','#3D8B6E','#7B9B6A'];
+let updateTimer = null;
+let locked = false;
+
+function setBreakpoint(bp) {
+  document.getElementById('mockup').style.width = (bp-32)+'px';
+  document.getElementById('mockup').setAttribute('data-bp', bp);
+  document.querySelectorAll('.bp-btn').forEach(b => b.classList.toggle('active', +b.dataset.bp===bp));
+}
+
+function drawPattern(canvas, seed) {
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height,CELL=4;
+  for(let y=0;y<H;y+=CELL)for(let x=0;x<W;x+=CELL){
+    const n=Math.sin(x*.08+y*.06+(seed||0))*.5+Math.sin(x*.04-y*.09+(seed||0)*.7)*.3+Math.cos(x*.02+y*.03+(seed||0)*.4)*.2;
+    const idx=((Math.floor((n+1)*14))%PALETTE_COLORS.length+PALETTE_COLORS.length)%PALETTE_COLORS.length;
+    ctx.fillStyle=PALETTE_COLORS[idx];ctx.fillRect(x,y,CELL,CELL);
+  }
+  ctx.strokeStyle='rgba(255,255,255,0.07)';ctx.lineWidth=0.5;
+  for(let x=0;x<=W;x+=CELL){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<=H;y+=CELL){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+}
+
+function scheduleUpdate() {
+  if (locked) return;
+  // Show updating indicator
+  document.getElementById('updating-indicator').style.opacity = '1';
+  document.getElementById('live-status').textContent = 'Updating...';
+  clearTimeout(updateTimer);
+  updateTimer = setTimeout(() => {
+    const c = document.getElementById('main-canvas');
+    drawPattern(c, Math.random() * 0.5);
+    document.getElementById('updating-indicator').style.opacity = '0';
+    document.getElementById('live-status').textContent = 'Live draft';
+  }, 400);
+}
+
+function lockAndEdit() {
+  locked = true;
+  // Hide settings sidebar, replace with edit sidebar state
+  document.getElementById('settings-sidebar').style.display = 'none';
+  document.getElementById('lock-area').style.display = 'none';
+  document.getElementById('draft-banner').style.display = 'none';
+  document.getElementById('live-status').textContent = 'Locked · editing';
+  // Enable toolstrip
+  document.getElementById('tool-strip').classList.add('enabled');
+  // Enable palette
+  document.getElementById('palette-grid').style.opacity = '1';
+  document.getElementById('edit-tag').textContent = 'Edit';
+  document.getElementById('edit-tag').style.background = 'var(--success-soft)';
+  document.getElementById('edit-tag').style.color = 'var(--success)';
+  document.getElementById('unlock-row').style.display = 'block';
+  // Show canvas at full width
+  document.querySelector('.canvas-area').style.flex = '1';
+}
+
+function unlockSettings() {
+  document.getElementById('unlock-modal').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('unlock-modal').classList.remove('open');
+}
+function confirmUnlock() {
+  closeModal();
+  locked = false;
+  document.getElementById('settings-sidebar').style.display = 'flex';
+  document.getElementById('lock-area').style.display = 'block';
+  document.getElementById('draft-banner').style.display = 'flex';
+  document.getElementById('live-status').textContent = 'Live draft';
+  document.getElementById('tool-strip').classList.remove('enabled');
+  document.getElementById('palette-grid').style.opacity = '0.35';
+  document.getElementById('edit-tag').textContent = 'Locked';
+  document.getElementById('edit-tag').style.background = '';
+  document.getElementById('edit-tag').style.color = '';
+  document.getElementById('unlock-row').style.display = 'none';
+}
+
+function toggleAdv() {
+  const b = document.getElementById('adv-body');
+  const c = document.getElementById('adv-chev');
+  const h = b.style.display === 'none';
+  b.style.display = h ? 'block' : 'none';
+  c.style.transform = h ? 'rotate(180deg)' : '';
+}
+
+function buildPalette() {
+  const g = document.getElementById('palette-grid');
+  PALETTE_COLORS.forEach((hex, i) => {
+    const d = document.createElement('div');
+    d.className = 'palette-chip' + (i < 12 ? ' has-stash' : '');
+    d.style.background = hex;
+    if (hex === '#FAFAFA') d.style.border = '1px solid #ddd';
+    g.appendChild(d);
+  });
+}
+
+window.addEventListener('load', () => {
+  const c = document.getElementById('main-canvas');
+  c.width = c.offsetWidth || 640;
+  c.height = c.offsetHeight || 480;
+  drawPattern(c, 0);
+  buildPalette();
+});
+</script>
+</body>
+</html>

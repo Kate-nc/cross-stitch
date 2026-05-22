@@ -3972,6 +3972,8 @@ window.useCreatorState = function useCreatorState() {
 
   // App mode: 'create' | 'edit' (track is handled by TrackerApp separately)
   var _appMode = useState("create"); var appMode = _appMode[0], setAppMode = _appMode[1];
+  // Confirmation flag: show warning modal when switching from Edit → Convert with unsaved manual edits
+  var _confirmBack = useState(false); var confirmBackToConvert = _confirmBack[0], setConfirmBackToConvert = _confirmBack[1];
 
   // ── Cleanup mode state ──────────────────────────────────────────────────────
   // cleanupTargetColorId: id of the palette colour being cleaned up
@@ -5155,7 +5157,7 @@ window.useCreatorState = function useCreatorState() {
     pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, progressMessage, setProgressMessage,
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
-    appMode, setAppMode, sidebarTab, setSidebarTab,
+    appMode, setAppMode, confirmBackToConvert, setConfirmBackToConvert, sidebarTab, setSidebarTab,
     lastGenSnapshot, setLastGenSnapshot,
     tab, setTab, materialsTab, setMaterialsTab, sidebarOpen, setSidebarOpen, loadError, setLoadError,
     copied, setCopied, modal, setModal,
@@ -10461,6 +10463,169 @@ window.BulkAddModal = (function () {
 })();
 
 
+/* ─── CropModal.js ─── */
+/* creator/CropModal.js — Full-screen crop modal for the Convert tab.
+   Mounts when GenerationContext.isCropping === true.
+   Reuses the existing cropRef, handleCropPointer*, and applyCrop
+   machinery from useCanvasInteraction (accessed via GenerationContext).
+   Exposes window.CropModal. */
+
+window.CropModal = function CropModal() {
+  var gen = window.useGeneration();
+  var h = React.createElement;
+
+  if (!gen.isCropping || !gen.img) return null;
+
+  var cropReady = !!(gen.cropRect && gen.cropRect.w >= 10 && gen.cropRect.h >= 10);
+
+  var backdropStyle = {
+    position: "fixed", inset: 0, zIndex: 2000,
+    background: "rgba(0,0,0,0.82)",
+    display: "flex", flexDirection: "column",
+    alignItems: "center", justifyContent: "center",
+    padding: 16
+  };
+
+  var wrapStyle = {
+    width: "100%", maxWidth: 860,
+    display: "flex", flexDirection: "column",
+    background: "var(--surface)",
+    borderRadius: "var(--radius-md)",
+    overflow: "hidden",
+    maxHeight: "calc(100vh - 40px)"
+  };
+
+  var headerStyle = {
+    display: "flex", alignItems: "center",
+    justifyContent: "space-between",
+    padding: "10px 14px",
+    borderBottom: "1px solid var(--line)",
+    flexShrink: 0
+  };
+
+  var footerStyle = {
+    display: "flex", alignItems: "center",
+    justifyContent: "space-between",
+    padding: "10px 14px",
+    borderTop: "1px solid var(--line)",
+    background: "var(--surface)", flexShrink: 0
+  };
+
+  // Image container — must be inline-block (tight to displayed image) so
+  // that cropRect pixel coords (relative to getBoundingClientRect) map
+  // correctly to the crop overlay's position:absolute children.
+  var imageAreaStyle = {
+    flex: 1, overflow: "auto",
+    display: "flex", justifyContent: "center", alignItems: "flex-start",
+    background: "var(--surface-secondary)",
+    cursor: "crosshair"
+  };
+
+  var containerStyle = {
+    position: "relative",
+    display: "inline-block",
+    touchAction: "none",
+    userSelect: "none"
+  };
+
+  var imgStyle = {
+    display: "block",
+    maxWidth: "100%",
+    maxHeight: "calc(100vh - 180px)",
+    width: "auto", height: "auto",
+    opacity: 0.8
+  };
+
+  return h("div", {
+    style: backdropStyle,
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-label": "Crop image"
+  },
+    h("div", { style: wrapStyle },
+      // ── Header ────────────────────────────────────────────────────────
+      h("div", { style: headerStyle },
+        h("span", {
+          style: { fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--text-primary)" }
+        }, "Crop image"),
+        h("button", {
+          type: "button",
+          onClick: function() { gen.setIsCropping(false); gen.setCropRect(null); },
+          style: {
+            background: "none", border: "none", cursor: "pointer",
+            color: "var(--text-secondary)", padding: 4,
+            display: "inline-flex", alignItems: "center"
+          },
+          "aria-label": "Cancel crop"
+        }, window.Icons && window.Icons.x ? window.Icons.x() : "\u00D7")
+      ),
+
+      // ── Image area with draggable crop rectangle ───────────────────────
+      h("div", { style: imageAreaStyle },
+        h("div", {
+          ref: gen.cropRef,
+          style: containerStyle,
+          onPointerDown: gen.handleCropPointerDown,
+          onPointerMove: gen.handleCropPointerMove,
+          onPointerUp: gen.handleCropPointerUp,
+          onPointerCancel: gen.handleCropPointerCancel
+        },
+          h("img", {
+            src: gen.img.src,
+            alt: "Source image for cropping",
+            draggable: false,
+            onDragStart: function(e) { e.preventDefault(); },
+            style: imgStyle
+          }),
+          gen.cropRect && h("div", {
+            style: {
+              position: "absolute",
+              left: gen.cropRect.x, top: gen.cropRect.y,
+              width: gen.cropRect.w, height: gen.cropRect.h,
+              border: "2px dashed var(--accent)",
+              background: "rgba(184,92,56,0.15)",
+              boxSizing: "border-box", pointerEvents: "none"
+            }
+          })
+        )
+      ),
+
+      // ── Footer ────────────────────────────────────────────────────────
+      h("div", { style: footerStyle },
+        h("span", {
+          style: { fontSize: "var(--text-xs)", color: "var(--text-secondary)" }
+        }, "Drag to select the area to keep"),
+        h("div", { style: { display: "flex", gap: 8 } },
+          h("button", {
+            type: "button",
+            onClick: function() { gen.setIsCropping(false); gen.setCropRect(null); },
+            style: {
+              padding: "7px 14px", fontSize: "var(--text-sm)", fontWeight: 500,
+              border: "1px solid var(--line)", borderRadius: "var(--radius-sm)",
+              background: "var(--surface)", color: "var(--text-secondary)",
+              cursor: "pointer", fontFamily: "inherit"
+            }
+          }, "Cancel"),
+          h("button", {
+            type: "button",
+            disabled: !cropReady,
+            onClick: function() { if (cropReady) gen.applyCrop(); },
+            style: {
+              padding: "7px 14px", fontSize: "var(--text-sm)", fontWeight: 600,
+              border: "none", borderRadius: "var(--radius-sm)",
+              background: cropReady ? "var(--accent)" : "var(--line-2)",
+              color: cropReady ? "var(--surface)" : "var(--text-tertiary)",
+              cursor: cropReady ? "pointer" : "not-allowed",
+              fontFamily: "inherit"
+            }
+          }, "Apply crop")
+        )
+      )
+    )
+  );
+};
+
+
 /* ─── Sidebar.js ─── */
 /* creator/Sidebar.js — Settings sidebar for the Creator app.
    Reads from CreatorContext and GenerationContext.
@@ -11913,71 +12078,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
       )
     );
-    // ── Image tab — file picker, source thumbnail (with Crop / Change),
-    //   plus the canonical Source-overlay toggle + opacity slider. The
-    //   toolbar overlay button still works as a quick toggle.
-    var overlayRow = h("div", {style:{padding:"12px",borderTop:ctx.pat&&gen.img?"1px solid var(--border)":"none"}},
-      h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}, "Source overlay"),
-      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',color:"var(--text-secondary)",marginBottom:'var(--s-2)',cursor:gen.img?"pointer":"not-allowed",opacity:gen.img?1:0.5}},
-        h("input", {type:"checkbox", disabled:!gen.img, checked:!!cv.showOverlay,
-          onChange:function(){cv.setShowOverlay(function(v){return !v;});}}),
-        h("span", null, "Show source image over chart")
-      ),
-      h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',opacity:(gen.img&&cv.showOverlay)?1:0.4}},
-        h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flexShrink:0}}, "Opacity"),
-        h("input", {type:"range",min:0,max:1,step:0.05,
-          value:cv.overlayOpacity!=null?cv.overlayOpacity:0.3,
-          disabled:!gen.img||!cv.showOverlay,
-          onChange:function(e){cv.setOverlayOpacity(Number(e.target.value));},
-          style:{flex:1}}),
-        h("span", {style:{fontSize:10,color:"var(--text-tertiary)",minWidth:32,textAlign:"right",fontVariantNumeric:"tabular-nums"}},
-          Math.round((cv.overlayOpacity!=null?cv.overlayOpacity:0.3)*100)+"%")
-      ),
-      !gen.img && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:6}},
-        "Load an image to enable the overlay.")
-    );
-    var imageContent = h(React.Fragment, null,
-      h("div", {style:{padding:"12px",display:"flex",flexDirection:"column",gap:'var(--s-2)'}},
-        h("button", {
-          onClick:function(){ if(gen.fRef && gen.fRef.current) gen.fRef.current.click(); },
-          style:{padding:"8px 14px",fontSize:'var(--text-sm)',fontWeight:600,border:"1px solid var(--border)",borderRadius:'var(--radius-md)',background:"var(--surface-tertiary)",color:"var(--text-primary)",cursor:"pointer",fontFamily:"inherit"}
-        }, gen.img ? "Change image\u2026" : "Choose image\u2026"),
-        !gen.img && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}},
-          "Pick a photo or drawing to convert into a cross-stitch chart.")
-      ),
-      imageCard,
-      overlayRow
-    );
-
-    // ── Dimensions tab — size controls + Source adjustments + background + fabric.
-    //   Source (was Adjustments) and background removal both act on the source image
-    //   so they sit together here, one tab away from the image upload.
-    var dimensionsContent = h(React.Fragment, null,
-      regenCta("dimensions"),
-      dimSection,
-      adjSection,
-      bgSection,
-      fabSection
-    );
-
-    // ── Palette tab (Colours + Tidy up) — colour matching, then all result-quality
-    //   controls consolidated in one place: min stitches, orphan removal, stitch
-    //   cleanup. Palette swap presets follow as before.
-    var paletteContent = h(React.Fragment, null,
-      regenCta("palette"),
-      palSection,
-      tidySection,
-      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
-      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
-      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.revertSection
-    );
-
-    // ── Preview tab — chart-mode and comparison controls only.
-    var previewContent = h(React.Fragment, null,
-      previewPanel
-    );
-
-    // ── Project tab — name/designer/notes plus a live cost/size summary.
+    // Project info summary (compact) — kept for create mode as a collapsible.
     var projectSummary = (function() {
       var palLen = ctx.pat && ctx.pal ? (ctx.displayPal || ctx.pal || []).length : 0;
       var stitchable = ctx.totalStitchable || (ctx.pat ? (ctx.sW * ctx.sH) : 0);
@@ -11994,7 +12095,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           h("span", {style:{textAlign:"right",fontVariantNumeric:"tabular-nums"}}, value)
         );
       }
-      return h(Section, {title:"Live summary", defaultOpen:true},
+      return h(Section, {title:"Live summary", defaultOpen:false},
         h("div", {style:{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)',padding:"4px 0"}},
           row("Size", ctx.sW + " \u00D7 " + ctx.sH + " stitches"),
           row("Finished", finishedW + " \u00D7 " + finishedH + " in (" + fabricCt + "ct)"),
@@ -12009,25 +12110,31 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
       );
     })();
-    var projectContent = h(React.Fragment, null,
-      projectInfoSection,
-      projectSummary
-    );
 
-    var tabContentMap = {
-      image: imageContent,
-      dimensions: dimensionsContent,
-      palette: paletteContent,
-      preview: previewContent,
-      project: projectContent
-    };
-    var activeContent = tabContentMap[sTab] || imageContent;
+    // Regen CTA — shown once at top of panel when any setting is stale.
+    var anyStale = dimensionsStale || paletteStale;
+    var globalRegenCta = (function() {
+      if (!ctx.pat || !regenSnap || !anyStale) return null;
+      var editCount = (cv.editHistory && cv.editHistory.length) || 0;
+      var label = editCount > 0
+        ? "Regenerate (replaces " + editCount + " edit" + (editCount === 1 ? "" : "s") + ")"
+        : "Regenerate (values changed)";
+      return h("div", {style:{margin:"10px 12px 0",padding:"10px 12px",background:"var(--accent-soft,var(--surface-tertiary))",border:"1px solid var(--accent)",borderRadius:"var(--radius-md)",display:"flex",flexDirection:"column",gap:6}},
+        h("div", {style:{fontSize:"var(--text-xs)",color:"var(--text-secondary)",lineHeight:1.4}},
+          "Settings have changed since the last generation."),
+        h("button", {
+          onClick:function(){ if(typeof gen.generate==="function") gen.generate(); },
+          disabled:!!gen.busy,
+          style:{padding:"7px 10px",fontSize:"var(--text-sm)",fontWeight:600,border:"none",borderRadius:"var(--radius-sm)",background:"var(--accent)",color:"var(--surface)",cursor:gen.busy?"wait":"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:6}
+        }, label)
+      );
+    })();
+
     // ── Create mode bottom action bar ─────────────────────────────────────
     var createActions = h("div", {style:{
       flexShrink:0, borderTop:"1px solid var(--border)", padding:"12px",
       background:"var(--surface)", display:"flex", flexDirection:"column", gap:'var(--s-2)'
     }},
-      // Generate / Regenerate button
       gen.img && h("button", {
         onClick:function(){ gen.generate(); },
         disabled:gen.busy,
@@ -12037,21 +12144,35 @@ window.CreatorSidebar = function CreatorSidebar() {
           background:gen.busy?"var(--text-tertiary)":gen.hasGenerated?"var(--surface-tertiary)":"var(--accent)",
           color:gen.hasGenerated?"var(--text-primary)":"var(--surface)"}
       }, gen.busy ? (gen.progressMessage || "Generating\u2026") : (gen.hasGenerated ? h(React.Fragment, null, window.Icons.refresh(), " Regenerate") : h(React.Fragment, null, window.Icons.refresh(), " Generate Pattern"))),
-      // Every generation (first or re-generate) auto-switches to Edit mode
-      // (see useCreatorState applyResultRef). The Setup tab strip (Image /
-      // Dimensions / Palette tabs) takes the user back to create mode.
-      // Hint text
       !gen.img && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textAlign:"center",padding:"4px 0"}},
         "Upload an image to get started")
     );
+
+    // ── Single scrollable settings panel (Palette → Size & Fabric → Detail → Source) ──
+    var createPanel = h("div", {
+      style:{overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}
+    },
+      globalRegenCta,
+      // 1. Palette (first — most-used during conversion)
+      palSection,
+      tidySection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
+      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.revertSection,
+      // 2. Size & Fabric
+      dimSection,
+      fabSection,
+      // 3. Detail / Background
+      bgSection,
+      // 4. Source adjustments (collapsible, less-frequently touched)
+      adjSection,
+      // 5. Project info (collapsible)
+      projectInfoSection,
+      projectSummary
+    );
+
     return h(React.Fragment, null,
-      tabBar,
-      h("div", {
-        id:"sidebar-panel-"+sTab,
-        role:"tabpanel",
-        "aria-label":"Create mode "+sTab+" panel",
-        style:{overflowY:"auto",flex:1}
-      }, activeContent),
+      createPanel,
       createActions
     );
   }
@@ -12224,26 +12345,6 @@ window.CreatorSidebar = function CreatorSidebar() {
   );
 
   var moreContent = h(React.Fragment, null,
-    h(Section, {title:"Generation Settings",defaultOpen:false},
-      imageCard,
-      dimSection,
-      palSection,
-      tidySection,
-      fabSection,
-      adjSection,
-      bgSection,
-      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
-      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
-      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.revertSection,
-      h("button", {
-        onClick:function(){
-          if(cv.editHistory.length > 0 && !confirm("Regenerating will replace your current edits. Continue?")) return;
-          gen.generate();
-        },
-        disabled:gen.busy,
-        style:{width:"100%",padding:"8px",fontSize:'var(--text-sm)',fontWeight:600,cursor:"pointer",border:"none",borderRadius:'var(--radius-md)',background:"var(--accent)",color:"var(--surface)",marginTop:'var(--s-2)'}
-      }, window.Icons.refresh(), " Regenerate")
-    ),
     h(Section, {title:"Project Info",defaultOpen:false},
       h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"4px 0"}},
         ctx.sW + " \xD7 " + ctx.sH + " stitches \u00B7 " + (ctx.displayPal||ctx.pal||[]).length + " colours"
@@ -12285,6 +12386,30 @@ window.CreatorSidebar = function CreatorSidebar() {
   }
 
   return h(React.Fragment, null,
+    // "Back to Convert" link — shown in edit mode when a source image exists.
+    // Fires the back-to-convert request (may show warning modal if edits exist).
+    gen.img && h("div", {style:{
+      flexShrink:0, padding:"6px 12px",
+      borderBottom:"1px solid var(--line)",
+      background:"var(--surface-secondary)"
+    }},
+      h("button", {
+        type:"button",
+        onClick:function(){
+          if(app.requestBackToConvert) app.requestBackToConvert();
+          else if(app.setAppMode) app.setAppMode("create");
+        },
+        style:{
+          display:"inline-flex",alignItems:"center",gap:4,
+          background:"none",border:"none",cursor:"pointer",
+          padding:"3px 0",fontSize:"var(--text-xs)",
+          color:"var(--text-secondary)",fontFamily:"inherit"
+        }
+      },
+        window.Icons && window.Icons.chevronLeft ? window.Icons.chevronLeft() : null,
+        "Back to Convert"
+      )
+    ),
     tabBar,
     h("div", {style:{overflowY:"auto",flex:1}},
       sTab === "palette" && h(React.Fragment, null,
@@ -13520,12 +13645,13 @@ window.ColourReplaceModal = function ColourReplaceModal(props) {
  *   solidPct         — stitchability percentage (popover only)
  *   stitchSpeed      — stitches/hr (popover only)
  *   doneCount        — stitches completed (popover only)
- *   ready            — boolean; render nothing when no pattern is loaded
+ *   ready            — boolean; true when a generated pattern is available
  */
 
 window.CreatorActionBar = function CreatorActionBar(props) {
   var h = React.createElement;
   var Icons = window.Icons || {};
+  props = props || {};
 
   var menuOpenState = React.useState(false);
   var menuOpen = menuOpenState[0];
@@ -13537,6 +13663,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
   var infoOpen = infoOpenState[0];
   var setInfoOpen = infoOpenState[1];
   var infoBtnRef = React.useRef(null);
+  var tablistRef = React.useRef(null);
 
   // Click-outside / Escape to close the Export menu.
   React.useEffect(function() {
@@ -13586,17 +13713,6 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     };
   }, [menuOpen]);
 
-  // When no pattern is loaded yet, show an empty bar to hold space.
-  if (!props || !props.ready) {
-    return h("div", {
-        className: "creator-actionbar",
-        role: "toolbar",
-        "aria-label": "Pattern actions"
-      },
-      h("div", { className: "creator-actionbar__primary" })
-    );
-  }
-
   function safeCall(fn) {
     return function() {
       setMenuOpen(false);
@@ -13604,21 +13720,136 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     };
   }
 
-  // Phase label (Polish 13 step 3 — was a Setup chip + label + Track
-  // chip. The Setup back-button is gone now that the sidebar tab strip
-  // is unified across appModes: clicking Image / Dimensions / Project
-  // takes the user back to setup automatically. The phase label remains
-  // as a quiet stage indicator; Track stays as the primary forward
-  // action.)
-  var appMode = props.appMode || "edit";
-  var phaseLabel = h("span", {
-      className: "creator-actionbar__mode-phase",
-      "aria-live": "polite"
+  // ── Tab bar: Convert | Edit | Materials ────────────────────────────────────
+  // Convert: active when appMode === "create". Clickable only when another
+  //          tab is active; prevents reopening the confirm modal from create.
+  // Edit:    active when appMode === "edit". Disabled when no pattern exists.
+  // Materials: active when tab === "materials". Always available once pattern exists.
+  var appMode = (props && props.appMode) || "edit";
+  var currentTab = (props && props.tab) || "pattern";
+  var hasPat = !!(props && props.ready);
+
+  function tabStyle(active, disabled) {
+    return {
+      display: "inline-flex", alignItems: "center", gap: 5,
+      padding: "5px 12px", borderRadius: "var(--radius-sm)",
+      border: "none", cursor: disabled ? "not-allowed" : "pointer",
+      fontFamily: "inherit", fontSize: "var(--text-sm)", fontWeight: active ? 600 : 400,
+      background: active ? "var(--accent)" : "transparent",
+      color: active ? "var(--surface)" : disabled ? "var(--text-secondary)" : "var(--text-primary)",
+      opacity: disabled ? 0.45 : 1,
+      transition: "background var(--motion), color var(--motion)"
+    };
+  }
+
+  function focusTabByIndex(idx) {
+    if (!tablistRef.current) return;
+    var tabs = tablistRef.current.querySelectorAll('button[role="tab"]');
+    if (tabs && tabs[idx] && tabs[idx].focus) tabs[idx].focus();
+  }
+
+  var tabs = [
+    {
+      active: appMode === "create",
+      disabled: false,
+      onClick: (appMode === "create" || typeof props.onRequestBackToConvert !== "function")
+        ? undefined
+        : props.onRequestBackToConvert
     },
-    appMode === "create" ? "Setting up" : "Editing pattern"
+    {
+      active: appMode === "edit" && currentTab === "pattern",
+      disabled: !hasPat,
+      onClick: !hasPat ? undefined : function() {
+        if (typeof props.onTabChange === "function") props.onTabChange("pattern");
+      }
+    },
+    {
+      active: currentTab === "materials",
+      disabled: !hasPat,
+      onClick: !hasPat ? undefined : function() {
+        if (typeof props.onTabChange === "function") props.onTabChange("materials");
+      }
+    }
+  ];
+  var activeTabIndex = 0;
+  for (var i = 0; i < tabs.length; i++) {
+    if (tabs[i].active) { activeTabIndex = i; break; }
+  }
+
+  function onTablistKeyDown(e) {
+    var key = e.key;
+    if (key !== "ArrowRight" && key !== "ArrowLeft" && key !== "Home" && key !== "End") return;
+    e.preventDefault();
+    var n = tabs.length;
+    var next = activeTabIndex;
+    if (key === "ArrowRight" || key === "ArrowLeft") {
+      var step = key === "ArrowRight" ? 1 : -1;
+      for (var tries = 0; tries < n; tries++) {
+        next = (next + step + n) % n;
+        if (!tabs[next].disabled) break;
+      }
+    } else if (key === "Home") {
+      for (var hIdx = 0; hIdx < n; hIdx++) { if (!tabs[hIdx].disabled) { next = hIdx; break; } }
+    } else if (key === "End") {
+      for (var eIdx = n - 1; eIdx >= 0; eIdx--) { if (!tabs[eIdx].disabled) { next = eIdx; break; } }
+    }
+    if (typeof tabs[next].onClick === "function") tabs[next].onClick();
+    setTimeout(function() { focusTabByIndex(next); }, 0);
+  }
+
+  var tabBar = h("div", {
+      role: "tablist",
+      "aria-label": "Creator phase",
+      ref: tablistRef,
+      onKeyDown: onTablistKeyDown,
+      style: {
+        display: "flex", alignItems: "center",
+        background: "var(--surface-tertiary)",
+        borderRadius: "var(--radius-sm)",
+        padding: 3, gap: 2
+      }
+    },
+    h("button", {
+        type: "button",
+        role: "tab",
+        "aria-selected": tabs[0].active,
+        tabIndex: tabs[0].active ? 0 : -1,
+        style: tabStyle(appMode === "create", false),
+        onClick: tabs[0].onClick,
+        title: "Convert settings — adjust palette, dimensions and generate"
+      },
+      Icons.sliders ? Icons.sliders() : null,
+      h("span", null, "Convert")
+    ),
+    h("button", {
+        type: "button",
+        role: "tab",
+        "aria-selected": tabs[1].active,
+        tabIndex: tabs[1].active ? 0 : -1,
+        disabled: !hasPat,
+        style: tabStyle(appMode === "edit" && currentTab === "pattern", !hasPat),
+        onClick: tabs[1].onClick,
+        title: hasPat ? "Edit the generated pattern" : "Generate a pattern first"
+      },
+      Icons.pencil ? Icons.pencil() : null,
+      h("span", null, "Edit")
+    ),
+    h("button", {
+        type: "button",
+        role: "tab",
+        "aria-selected": tabs[2].active,
+        tabIndex: tabs[2].active ? 0 : -1,
+        disabled: !hasPat,
+        style: tabStyle(currentTab === "materials", !hasPat),
+        onClick: tabs[2].onClick,
+        title: hasPat ? "Materials — thread count, export options" : "Generate a pattern first"
+      },
+      Icons.layers ? Icons.layers() : null,
+      h("span", null, "Materials")
+    )
   );
 
-  var trackBtn = (typeof props.onTrackPattern === "function") ? h("button", {
+  var trackBtn = hasPat && (typeof props.onTrackPattern === "function") ? h("button", {
       type: "button",
       className: "creator-actionbar__mode-btn creator-actionbar__mode-btn--forward",
       onClick: props.onTrackPattern,
@@ -13628,15 +13859,6 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     h("span", null, "Open in Tracker"),
     Icons.chevronRight ? Icons.chevronRight() : h("span", { "aria-hidden": "true" }, "\u203A")
   ) : null;
-
-  var modeSwitch = h("div", {
-      className: "creator-actionbar__mode-switch",
-      role: "group",
-      "aria-label": "Pattern phase"
-    },
-    phaseLabel,
-    trackBtn
-  );
 
   // Difficulty badge — always-visible tier chip, e.g. "Intermediate".
   // Full breakdown is inside the Pattern info popover.
@@ -13687,7 +13909,9 @@ window.CreatorActionBar = function CreatorActionBar(props) {
       role: "toolbar",
       "aria-label": "Pattern actions"
     },
-    h("div", { className: "creator-actionbar__primary" },
+    tabBar,
+    h("div", { className: "creator-actionbar__actions" },
+    hasPat ? h("div", { className: "creator-actionbar__primary" },
       h("button", {
           type: "button",
           className: "creator-actionbar__btn creator-actionbar__btn--primary",
@@ -13737,7 +13961,9 @@ window.CreatorActionBar = function CreatorActionBar(props) {
           )
         )
       )
-    ),
-    infoChip
+    ) : h("div", { className: "creator-actionbar__primary" }),
+    hasPat ? trackBtn : null,
+    hasPat ? infoChip : null
+  )
   );
 };

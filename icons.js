@@ -486,6 +486,13 @@ window.Icons = (function() {
     chevronLeft: function() {
       return svg(pl('15 6 9 12 15 18'));
     },
+    // Sliders — three horizontal adjustment bars with circular handles.
+    // Used in ActionBar Convert tab to indicate conversion settings.
+    sliders: function() {
+      return svg(
+        l(4, 6, 20, 6), c(7, 6, 2), l(4, 12, 20, 12), c(13, 12, 2), l(4, 18, 20, 18), c(17, 18, 2)
+      );
+    },
     // Help — question-mark in a circle. Used by the Header help affordance.
     help: function() {
       return svg(
