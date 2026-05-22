@@ -1369,6 +1369,9 @@ const colourDoneCounts=countsVer>=0?colourDoneCountsRef.current:{};
 const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total,backstitch:bsLines.length,quarter:0,petite:0,french_knot:0,long_stitch:0}),[totalStitchable,halfStitchCounts.total,bsLines.length]);
 // Full recompute only on structural changes (pattern load, half-stitch structure edits)
 useEffect(()=>{recomputeAllCounts(pat,done,halfStitches,halfDone);},[pat,halfStitches]);
+// After recomputeAllCounts has run post-load, snap prevAutoCountRef to the real
+// counts so the auto-detect effect below never sees a spurious delta.
+useEffect(()=>{if(justLoadedRef.current){prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||0};justLoadedRef.current=false;}},[countsVer]);
 useEffect(()=>{const pid=projectIdRef.current;if(!pid)return;try{localStorage.setItem('cs_layerVis_'+pid,JSON.stringify(layerVis));}catch(_){}},[layerVis]);
 useEffect(()=>{const pid=projectIdRef.current;if(!pid)return;try{localStorage.setItem('cs_parkLayers_'+pid,JSON.stringify(parkLayers));}catch(_){}},[parkLayers]);
 useEffect(()=>{try{localStorage.setItem('cs_bsThickness',String(bsThickness));}catch(_){}},[bsThickness]);
@@ -1805,6 +1808,10 @@ function finaliseAutoSession(){
       pendingMilestonesRef.current=[];
     }
     setStatsSessions(prev=>[...(prev||[]),finalised]);
+    // Synchronous localStorage backup so the session survives if the tab is closed
+    // before the 5-second auto-save timer fires (beforeunload IDB writes are async
+    // and may not complete in time). Cleared once the auto-save timer succeeds.
+    try{if(projectIdRef.current)localStorage.setItem('cs_pending_session_'+projectIdRef.current,JSON.stringify(finalised));}catch(_){}
     // Update lastTouchedAt and finishStatus in v3FieldsRef.
     // stitchLog is now derived from statsSessions in buildSnapshot() — no direct mutation needed.
     if(projectIdRef.current){
@@ -1877,12 +1884,11 @@ useEffect(()=>{
     const prevHalf=prev.halfDone;
     // Skip initial load or project load — justLoadedRef stays true until
     // both doneCount and halfStitchCounts.done have settled post-load.
-    if(justLoadedRef.current||prevDone<0||prevHalf<0){
+    // justLoadedRef is now cleared by the countsVer useEffect above, which fires
+    // after recomputeAllCounts and snaps prevAutoCountRef to the real loaded counts.
+    // The prevDone<0 sentinel guards the first auto-detect fire before that effect runs.
+    if(prevDone<0||prevHalf<0){
       prevAutoCountRef.current={done:curDone,halfDone:curHalf};
-      if(justLoadedRef.current){
-        justLoadedSettlePassRef.current=(justLoadedSettlePassRef.current||0)+1;
-        if(justLoadedSettlePassRef.current>=2&&prevDone>=0&&prevHalf>=0)justLoadedRef.current=false;
-      }
       return;
     }
     const doneDiff=curDone-prevDone;
@@ -3219,6 +3225,14 @@ function processLoadedProject(project){
     var running=0;
     sorted.forEach(function(s){running+=(s.netStitches||0);if(s.totalAtEnd==null)s.totalAtEnd=Math.min(Math.max(0,running),totalStitchCount);});
   }
+  // Recover any session that was finalised but not yet flushed to IDB (e.g. tab was
+  // closed before the 5-second auto-save timer fired). The localStorage backup is
+  // written by finaliseAutoSession and cleared by the auto-save timer on success.
+  try{
+    var _pk='cs_pending_session_'+(project.id||'');
+    var _pj=localStorage.getItem(_pk);
+    if(_pj){var _ps=JSON.parse(_pj);if(_ps&&_ps.id&&!rawStatsSessions.some(function(s){return s.id===_ps.id;})){rawStatsSessions.push(_ps);}localStorage.removeItem(_pk);}
+  }catch(_){}
   setStatsSessions(rawStatsSessions);
   // A3: fire the resume recap modal once per project load when there is at
   // least one prior session. Skipped on a fresh project (sessions empty) and
@@ -3262,6 +3276,7 @@ function processLoadedProject(project){
   // protecting against the sentinel being consumed by a halfStitchCounts change
   // before doneCount has been recomputed.
   justLoadedRef.current=true;
+  // justLoadedSettlePassRef no longer drives the settling logic (replaced by countsVer effect)
   justLoadedSettlePassRef.current=0;
   prevAutoCountRef.current={done:-1,halfDone:-1};
   if(project.hlRow>=0)setHlRow(project.hlRow);
@@ -3538,7 +3553,7 @@ useEffect(() => {
     const project = buildSnapshot();
     if (!project) return;
     lastSnapshotRef.current = project;
-    ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("Tracker auto-save failed:", err));
+    ProjectStorage.save(project).then(id => {ProjectStorage.setActiveProject(id);try{if(projectIdRef.current)localStorage.removeItem('cs_pending_session_'+projectIdRef.current);}catch(_){}}).catch(err => console.error("Tracker auto-save failed:", err));
     saveProjectToDB(project).catch(err => console.error("Tracker DB auto-save failed:", err));
     // Keep the Creator's tracker-field preservation container in sync so that if
     // the user switches to Creator mode, the next Creator auto-save won't overwrite
@@ -3627,8 +3642,13 @@ useEffect(() => {
     flushRtStashWriteRef.current();
     } catch(e) {}
   };
+  // pagehide covers iOS Safari and bfcache navigation where beforeunload may not fire.
+  // persisted=true means the page is entering the bfcache (not being destroyed), but
+  // we still finalise and back up — the session will be deduplicated on recovery if
+  // the page is restored and used again.
   window.addEventListener("beforeunload", handleBeforeUnload);
-  return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  window.addEventListener("pagehide", handleBeforeUnload);
+  return () => { window.removeEventListener("beforeunload", handleBeforeUnload); window.removeEventListener("pagehide", handleBeforeUnload); };
 }, []); // empty: handler reads only from refs (always fresh)
 
 // Expose __openTrackerStats so the header Stats link can open per-project stats
