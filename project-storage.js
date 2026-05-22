@@ -109,11 +109,14 @@ const ProjectStorage = (() => {
     const lastSession = sessions.length > 0 ? sessions[sessions.length - 1] : null;
     // Compute stitches this week and this month for dashboard stats
     const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10);
+    // Use local date (not UTC) so comparisons match session dates which are
+    // also stored in local time via getStitchingDateLocal.
+    const _ymd = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const todayStr = _ymd(now);
     const monthStr = todayStr.slice(0, 7);
     const dow = now.getDay() === 0 ? 6 : now.getDay() - 1; // Mon=0
     const weekStart = new Date(now); weekStart.setDate(now.getDate() - dow);
-    const weekStartStr = weekStart.toISOString().slice(0, 10);
+    const weekStartStr = _ymd(weekStart);
     let stitchesThisWeek = 0, stitchesThisMonth = 0;
     // Per-day breakdown for the most recent 7 days (oldest → newest, ending
     // today). Drives the sparkline rendered on Manager pattern cards.
@@ -124,7 +127,7 @@ const ProjectStorage = (() => {
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(now.getDate() - i);
-      const k = d.toISOString().slice(0, 10);
+      const k = _ymd(d);
       dayKeys.push(k);
       dayKeyToIdx[k] = 6 - i;
     }
