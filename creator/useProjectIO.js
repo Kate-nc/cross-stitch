@@ -526,8 +526,28 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var handoff = localStorage.getItem("crossstitch_handoff_to_creator");
     if (handoff) {
       try {
-        var projectData = JSON.parse(handoff);
+        // T-3 / INT-4: parse the envelope first. Legacy writes were the
+        // bare project object (no ts wrapper); the unwrap below tolerates
+        // both shapes for one release. New writes carry {ts, project} and
+        // are rejected if older than HANDOFF_TTL_MS so an aborted nav
+        // (back / Esc on beforeunload) doesn't surface a misleading
+        // "tracking progress may be lost" alert at the next Creator open.
+        var HANDOFF_TTL_MS = 30 * 1000; // 30 seconds
+        var _raw = JSON.parse(handoff);
         localStorage.removeItem("crossstitch_handoff_to_creator");
+        var projectData = null;
+        if (_raw && typeof _raw === 'object' && _raw.project && typeof _raw.ts === 'number') {
+          if ((Date.now() - _raw.ts) > HANDOFF_TTL_MS) {
+            // Stale handoff — drop it silently. The next Creator load will
+            // fall through to ProjectStorage.getActiveProject() as usual.
+            try { console.info('[creator] dropped stale tracker handoff (age', (Date.now()-_raw.ts), 'ms)'); } catch(_) {}
+            return;
+          }
+          projectData = _raw.project;
+        } else {
+          // Legacy: bare project object. Accept it for backwards-compat.
+          projectData = _raw;
+        }
         processLoadedProject(projectData);
         if (projectData.done && projectData.done.some(function(v) { return v === 1; })) {
           alert("This pattern has tracking progress. Editing the pattern here will reset your stitching progress. Continue with caution.");

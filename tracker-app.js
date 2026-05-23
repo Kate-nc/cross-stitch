@@ -534,6 +534,14 @@ const[pat,setPat]=useState(null);
 const[pal,setPal]=useState(null);
 const[cmap,setCmap]=useState(null);
 const incomingProjectRef=useRef(incomingProject);
+// T-4: set to true after any successful processLoadedProject. The mount
+// effect's fallback chain (handoff -> URL hash -> active project) checks
+// this so a late-arriving `incomingProject` prop doesn't get overridden
+// by a fallback load that ran in the same tick. The prop effect always
+// wins because it sets the ref after it processes; the mount effect's
+// ProjectStorage.getActiveProject() fallback is also deferred to the
+// next microtask so the prop effect has a chance to run first.
+const hasLoadedOnceRef=useRef(false);
 const[fabricCt,setFabricCt]=useState(14);
 const[skeinPrice,setSkeinPrice]=useState(DEFAULT_SKEIN_PRICE);
 const[stitchSpeed,setStitchSpeed]=useState(40);
@@ -2979,7 +2987,12 @@ function handleEditInCreator(){
   const hdArrH=[...halfDone.entries()];
   let project={version:9,id:projectIdRef.current||undefined,page:"tracker",name:projectName,createdAt:createdAtRef.current||new Date().toISOString(),updatedAt:new Date().toISOString(),settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"var(--surface)",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice,stitchSpeed,smooth:0,smoothType:"median",orphans:0,wastePrefs},pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,hlRow,hlCol,threadOwned,imgData:null,originalPaletteState,singleStitchEdits:sseArrH,halfStitches:hsArrH,halfDone:hdArrH,statsSessions,statsSettings,achievedMilestones,doneSnapshots,breadcrumbs,stitchingStyle,blockW,blockH,focusBlock,startCorner,colourSequence};
   try{
-    localStorage.setItem("crossstitch_handoff_to_creator", JSON.stringify(project));
+    // T-3 / INT-4: wrap the handoff in an envelope with a wall-clock
+    // timestamp. The Creator drops envelopes older than HANDOFF_TTL_MS so a
+    // back/cancel aborted nav doesn't leave a stale alert lying in wait for
+    // the user's next Creator visit (potentially hours later).
+    var _env = { ts: Date.now(), project: project };
+    localStorage.setItem("crossstitch_handoff_to_creator", JSON.stringify(_env));
     window.location.href = "create.html?source=tracker";
   }catch(e){
     try{
@@ -3480,9 +3493,10 @@ useEffect(()=>{
   incomingProjectRef.current=incomingProject;
   if(incomingProject.project){
     processLoadedProject(incomingProject.project);
+    hasLoadedOnceRef.current=true; // T-4
   }else if(incomingProject.id){
     // Called with {id} only (e.g. stats "Navigate to project") — load from storage.
-    ProjectStorage.get(incomingProject.id).then(p=>{if(p)processLoadedProject(p);}).catch(err=>console.error("Failed to load project by id:",err));
+    ProjectStorage.get(incomingProject.id).then(p=>{if(p){processLoadedProject(p);hasLoadedOnceRef.current=true;}}).catch(err=>console.error("Failed to load project by id:",err));
   }
 },[incomingProject]);
 
@@ -3499,8 +3513,8 @@ useEffect(() => {
   // If a project was passed directly on first mount, use it (no DB read needed).
   if(incomingProjectRef.current){
     const ip=incomingProjectRef.current;
-    if(ip.project){processLoadedProject(ip.project);}
-    else if(ip.id){ProjectStorage.get(ip.id).then(p=>{if(p)processLoadedProject(p);}).catch(err=>console.error("Failed to load project by id:",err));}
+    if(ip.project){processLoadedProject(ip.project);hasLoadedOnceRef.current=true;}
+    else if(ip.id){ProjectStorage.get(ip.id).then(p=>{if(p){processLoadedProject(p);hasLoadedOnceRef.current=true;}}).catch(err=>console.error("Failed to load project by id:",err));}
     return;
   }
   const handoff = localStorage.getItem('crossstitch_handoff');
@@ -3513,6 +3527,7 @@ useEffect(() => {
         ProjectStorage.save(projectData).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("ProjectStorage save failed:", err));
       }
       processLoadedProject(projectData);
+      hasLoadedOnceRef.current=true; // T-4
       return;
     } catch (e) {
       console.error("Failed to load handoff:", e);
@@ -3533,6 +3548,7 @@ useEffect(() => {
             const decompressed = pako.inflate(binaryData, { to: 'string' });
             const project = JSON.parse(decompressed);
             processLoadedProject(project);
+            hasLoadedOnceRef.current=true; // T-4
             window.location.hash = ''; // Clear hash after loading
             return;
         } catch (err) {
@@ -3540,12 +3556,21 @@ useEffect(() => {
             setLoadError("Failed to load pattern from link.");
         }
     }
-  // No handoff and no URL — restore last active project from ProjectStorage
-  ProjectStorage.getActiveProject().then(project => {
-    if (project && project.pattern && project.settings) {
-      processLoadedProject(project);
-    }
-  }).catch(err => console.error("Failed to load active project:", err));
+  // No handoff and no URL — restore last active project from ProjectStorage.
+  // T-4: defer to a microtask so the [incomingProject] effect has a chance
+  // to fire first if the prop arrives in the same render. The guard then
+  // skips the fallback rather than racing with the prop and causing a
+  // brief flicker of the wrong project.
+  Promise.resolve().then(function(){
+    if (hasLoadedOnceRef.current) return;
+    ProjectStorage.getActiveProject().then(project => {
+      if (hasLoadedOnceRef.current) return;
+      if (project && project.pattern && project.settings) {
+        processLoadedProject(project);
+        hasLoadedOnceRef.current=true;
+      }
+    }).catch(err => console.error("Failed to load active project:", err));
+  });
 }, []);
 
 // ═══ Tracker auto-save ═══
