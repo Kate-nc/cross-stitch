@@ -2431,7 +2431,7 @@ function doSaveProject(finalName){
   }]);
   const hdArr = [...halfDone.entries()];
   let project={
-    version:9,
+    version:11,
     id:projectIdRef.current||undefined,
     page:"tracker",
     name:finalName,
@@ -3545,7 +3545,7 @@ const buildSnapshot = () => {
     .sort((a, b) => a.date < b.date ? -1 : 1);
   if (v3FieldsRef.current) v3FieldsRef.current.stitchLog = _derivedLog;
   return {
-    version: 9, id: projectIdRef.current, page: "tracker", name: projectName,
+    version: 11, id: projectIdRef.current, page: "tracker", name: projectName,
     designer: projectDesigner, description: projectDescription,
     createdAt: createdAtRef.current, updatedAt: new Date().toISOString(),
     settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs },
@@ -3702,7 +3702,7 @@ useEffect(() => {
     const hdArr = [...halfDone.entries()];
     const project = {
       ...(lastSnapshotRef.current || {}),
-      version: 9, id: projectIdRef.current, page: "tracker", name: projectName,
+      version: 11, id: projectIdRef.current, page: "tracker", name: projectName,
       createdAt: createdAtRef.current,
       updatedAt: new Date().toISOString(),
       settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs },

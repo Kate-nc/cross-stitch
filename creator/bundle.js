@@ -4750,6 +4750,10 @@ window.useCreatorState = function useCreatorState() {
     setDone(new Uint8Array(result.mapped.length));
     setParkMarkers([]); setTab("pattern"); setThreadOwned({});
     setEditHistory([]); setRedoHistory([]);
+    // E-1: clear any leftover wand/lasso selection — its grid indices
+    // are about to be meaningless against the new pattern.
+    if (wandClearRef.current) wandClearRef.current();
+    if (lassoCancelRef.current) lassoCancelRef.current();
     // Polish 13 step 4a — snapshot the source values that produced this
     // pattern so the Dimensions / Palette tabs can detect drift and
     // surface a "Re-generate (values changed)" CTA. Stored fields must
