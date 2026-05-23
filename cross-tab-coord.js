@@ -39,10 +39,21 @@
 //
 // ── Public surface (window.CrossTabCoord) ────────────────────────────────────
 //   • tabId                 — per-tab UUID, useful for logging and lock IDs.
-//   • broadcastProjectSaved — used by ProjectStorage.save() after IDB commit.
+//   • broadcastProjectSaved(projectId, updatedAt, lastWriteAt, lastWriteTabId)
+//                           — used by ProjectStorage.save() after IDB commit.
+//                             Trailing args are optional; the Phase B fields
+//                             default to Date.now() and TAB_ID.
 //   • onProjectChanged(cb)  — returns an unsubscribe function. Supports
 //                             multiple concurrent subscribers. Callback
-//                             receives the parsed message payload.
+//                             receives the parsed message payload, which
+//                             includes {lastWriteAt, lastWriteTabId} as of
+//                             Phase B-1.
+//   • noteSeen(projectId, lastWriteAt, lastWriteTabId)
+//                           — record what version this tab last loaded or
+//                             saved. Called from processLoadedProject and
+//                             ProjectStorage.save.
+//   • getSeen(projectId)    — returns {lastWriteAt, lastWriteTabId} or null.
+//                             Used by Phase B-2 stale-read detection.
 
 (function () {
   if (typeof window === 'undefined') return;
@@ -89,6 +100,30 @@
         try { console.error('[cross-tab] subscriber threw:', err); } catch (_) {}
       }
     }
+  }
+
+  // ── Last-seen cache (Phase B groundwork) ───────────────────────────────────
+  // Tracks the {lastWriteAt, lastWriteTabId} of each project as observed by
+  // THIS tab — either via a fresh load (processLoadedProject) or its own
+  // most recent save. Phase B-2 uses this for stale-read conflict detection:
+  // before writing, ProjectStorage compares the in-IDB value to what this
+  // tab last saw; a divergence with a different tab id signals a
+  // conflicting concurrent write. The cache is in-memory only — a fresh
+  // page load starts empty, which is correct: until we've actually loaded
+  // the project we have no baseline to compare against.
+  var _seen = Object.create(null);
+
+  function noteSeen(projectId, lastWriteAt, lastWriteTabId) {
+    if (!projectId) return;
+    _seen[projectId] = {
+      lastWriteAt: typeof lastWriteAt === 'number' ? lastWriteAt : null,
+      lastWriteTabId: typeof lastWriteTabId === 'string' ? lastWriteTabId : null
+    };
+  }
+
+  function getSeen(projectId) {
+    if (!projectId) return null;
+    return _seen[projectId] || null;
   }
 
   // ── Channel ────────────────────────────────────────────────────────────────
@@ -141,14 +176,22 @@
     };
   }
 
-  function broadcastProjectSaved(projectId, updatedAt) {
+  // broadcastProjectSaved(projectId, updatedAt, lastWriteAt, lastWriteTabId)
+  //
+  // Trailing args are optional and backward-compatible. `updatedAt` is the
+  // existing ISO-string timestamp; `lastWriteAt` is the Phase B numeric
+  // (epoch ms) stamp used for conflict comparison; `lastWriteTabId` is the
+  // tab that authored the write (defaults to this tab when omitted).
+  function broadcastProjectSaved(projectId, updatedAt, lastWriteAt, lastWriteTabId) {
     if (!channel || !projectId) return;
     try {
       channel.postMessage({
         type: MSG_TYPE_PROJECT_SAVED,
         projectId: projectId,
         sourceTabId: TAB_ID,
-        updatedAt: updatedAt || Date.now()
+        updatedAt: updatedAt || Date.now(),
+        lastWriteAt: typeof lastWriteAt === 'number' ? lastWriteAt : Date.now(),
+        lastWriteTabId: typeof lastWriteTabId === 'string' && lastWriteTabId ? lastWriteTabId : TAB_ID
       });
     } catch (_) {}
   }
@@ -156,6 +199,8 @@
   window.CrossTabCoord = {
     tabId: TAB_ID,
     broadcastProjectSaved: broadcastProjectSaved,
-    onProjectChanged: onProjectChanged
+    onProjectChanged: onProjectChanged,
+    noteSeen: noteSeen,
+    getSeen: getSeen
   };
 })();

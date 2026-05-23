@@ -242,3 +242,134 @@ describe('INT-7 Phase A: cross-tab-coord.js runtime behaviour (jsdom)', () => {
     expect(fired).toBe(0);
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// Phase B-1 — version stamping + last-seen cache + extended broadcast payload.
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('INT-7 Phase B-1: cross-tab-coord.js seen-cache surface', () => {
+  test('public surface exposes noteSeen + getSeen', () => {
+    expect(coord).toMatch(/noteSeen:\s*noteSeen/);
+    expect(coord).toMatch(/getSeen:\s*getSeen/);
+  });
+  test('broadcastProjectSaved signature accepts lastWriteAt + lastWriteTabId', () => {
+    expect(coord).toMatch(/function broadcastProjectSaved\(projectId,\s*updatedAt,\s*lastWriteAt,\s*lastWriteTabId\)/);
+  });
+  test('broadcast payload carries lastWriteAt + lastWriteTabId fields', () => {
+    expect(coord).toMatch(/lastWriteAt:\s*typeof lastWriteAt === 'number' \? lastWriteAt : Date\.now\(\)/);
+    expect(coord).toMatch(/lastWriteTabId:\s*typeof lastWriteTabId === 'string'/);
+  });
+});
+
+describe('INT-7 Phase B-1: project-storage.js stamps + caches + broadcasts the new fields', () => {
+  test('save() stamps project.lastWriteAt (epoch ms) and project.lastWriteTabId', () => {
+    expect(storage).toMatch(/project\.lastWriteAt\s*=\s*Date\.now\(\)/);
+    expect(storage).toMatch(/project\.lastWriteTabId\s*=[\s\S]{0,200}window\.CrossTabCoord[\s\S]{0,80}tabId/);
+  });
+  test('save() calls CrossTabCoord.noteSeen with the just-stamped fields', () => {
+    expect(storage).toMatch(/CrossTabCoord\.noteSeen\(\s*project\.id,\s*project\.lastWriteAt,\s*project\.lastWriteTabId\s*\)/);
+  });
+  test('save() passes the new fields through to broadcastProjectSaved', () => {
+    expect(storage).toMatch(/broadcastProjectSaved\(\s*project\.id,\s*project\.updatedAt[\s\S]{0,80}project\.lastWriteAt,\s*project\.lastWriteTabId\s*\)/);
+  });
+});
+
+describe('INT-7 Phase B-1: processLoadedProject seeds the seen-cache', () => {
+  test('creator/useProjectIO.js processLoadedProject calls CrossTabCoord.noteSeen', () => {
+    var src = read('creator/useProjectIO.js');
+    var fn = src.match(/function processLoadedProject\(project\) \{[\s\S]{0,800}/);
+    expect(fn).not.toBeNull();
+    expect(fn[0]).toMatch(/CrossTabCoord\.noteSeen\(\s*project\.id,\s*project\.lastWriteAt,\s*project\.lastWriteTabId\s*\)/);
+  });
+  test('tracker-app.js processLoadedProject calls CrossTabCoord.noteSeen', () => {
+    var src = read('tracker-app.js');
+    var fn = src.match(/function processLoadedProject\(project\)\{[\s\S]{0,1000}/);
+    expect(fn).not.toBeNull();
+    expect(fn[0]).toMatch(/CrossTabCoord\.noteSeen\(\s*project\.id,\s*project\.lastWriteAt,\s*project\.lastWriteTabId\s*\)/);
+  });
+});
+
+describe('INT-7 Phase B-1: cross-tab-coord.js runtime behaviour (jsdom)', () => {
+  // Re-use the loadInto / mkChannelStub / mkGlobal helpers via a slim
+  // re-implementation so this describe block is self-contained when read.
+  function loadInto(globalObj) {
+    var fn = new Function('window', 'BroadcastChannel', 'localStorage', 'console', 'Date', 'Math',
+      'try { ' + coord + ' } catch (e) { throw e; }');
+    fn(globalObj, globalObj.BroadcastChannel, globalObj.localStorage, globalObj.console || console, Date, Math);
+    return globalObj.CrossTabCoord;
+  }
+  function mkChannelStub() {
+    var registry = {};
+    function BC(name) { this.name = name; this.onmessage = null; this._closed = false; registry[name] = registry[name] || []; registry[name].push(this); }
+    BC.prototype.postMessage = function (data) {
+      var peers = registry[this.name] || [], self = this;
+      peers.forEach(function (peer) {
+        if (peer === self || peer._closed) return;
+        if (typeof peer.onmessage === 'function') setTimeout(function () { peer.onmessage({ data: data }); }, 0);
+      });
+    };
+    BC.prototype.close = function () { this._closed = true; };
+    return BC;
+  }
+  function mkGlobal(BC) {
+    var store = {};
+    return {
+      BroadcastChannel: BC,
+      localStorage: {
+        getItem: function (k) { return Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null; },
+        setItem: function (k, v) { store[k] = String(v); },
+        removeItem: function (k) { delete store[k]; }
+      },
+      crypto: { randomUUID: function () { return 'tab-' + Math.random().toString(36).slice(2); } },
+      Toast: null,
+      CrossTabCoord: undefined
+    };
+  }
+  function waitTick() { return new Promise(function (r) { setTimeout(r, 5); }); }
+
+  test('noteSeen / getSeen round-trip and ignore bad input', () => {
+    var c = loadInto(mkGlobal(mkChannelStub()));
+    expect(c.getSeen('proj_a')).toBeNull();
+    c.noteSeen('proj_a', 1000, 'tab-X');
+    expect(c.getSeen('proj_a')).toEqual({ lastWriteAt: 1000, lastWriteTabId: 'tab-X' });
+    // Missing id is a no-op.
+    expect(function () { c.noteSeen('', 1, 't'); }).not.toThrow();
+    expect(c.getSeen('')).toBeNull();
+    // Non-numeric lastWriteAt → cached as null (still a valid entry).
+    c.noteSeen('proj_b', 'oops', 'tab-Y');
+    expect(c.getSeen('proj_b')).toEqual({ lastWriteAt: null, lastWriteTabId: 'tab-Y' });
+    // Non-string tab id → null.
+    c.noteSeen('proj_c', 42, 99);
+    expect(c.getSeen('proj_c')).toEqual({ lastWriteAt: 42, lastWriteTabId: null });
+  });
+
+  test('broadcast payload now includes lastWriteAt + lastWriteTabId', async () => {
+    var BC = mkChannelStub();
+    var coordA = loadInto(mkGlobal(BC));
+    var coordB = loadInto(mkGlobal(BC));
+    var got = null;
+    coordB.onProjectChanged(function (p) { got = p; });
+    coordA.broadcastProjectSaved('proj_z', '2026-01-01T00:00:00Z', 1234567890, 'tab-AUTHOR');
+    await waitTick();
+    expect(got).not.toBeNull();
+    expect(got.projectId).toBe('proj_z');
+    expect(got.updatedAt).toBe('2026-01-01T00:00:00Z');
+    expect(got.lastWriteAt).toBe(1234567890);
+    expect(got.lastWriteTabId).toBe('tab-AUTHOR');
+  });
+
+  test('broadcast defaults lastWriteAt to Date.now() and lastWriteTabId to TAB_ID when omitted', async () => {
+    var BC = mkChannelStub();
+    var coordA = loadInto(mkGlobal(BC));
+    var coordB = loadInto(mkGlobal(BC));
+    var got = null;
+    coordB.onProjectChanged(function (p) { got = p; });
+    var before = Date.now();
+    coordA.broadcastProjectSaved('proj_def');
+    await waitTick();
+    expect(got).not.toBeNull();
+    expect(typeof got.lastWriteAt).toBe('number');
+    expect(got.lastWriteAt).toBeGreaterThanOrEqual(before);
+    expect(got.lastWriteTabId).toBe(coordA.tabId);
+  });
+});

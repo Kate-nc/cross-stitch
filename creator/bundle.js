@@ -7724,8 +7724,17 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   }
 
   // ─── processLoadedProject ────────────────────────────────────────────────────
-  function processLoadedProject(project) {
-    var s = project.settings;
+  function processLoadedProject(project) {    // INT-7 Phase B-1: seed the last-seen cache so the next save() from this
+    // tab has a baseline to compare against for stale-read detection.
+    // No-op when CrossTabCoord isn't loaded or the project has no Phase B
+    // fields yet (legacy save) — the next save here will stamp them.
+    try {
+      if (project && project.id && typeof window !== 'undefined'
+          && window.CrossTabCoord && typeof window.CrossTabCoord.noteSeen === 'function') {
+        window.CrossTabCoord.noteSeen(
+          project.id, project.lastWriteAt, project.lastWriteTabId);
+      }
+    } catch (_) {}    var s = project.settings;
     // Signal the scratch-resize effect that the upcoming dimension changes are
     // from a project load, not a user-initiated resize.
     if (state.isProjectLoadRef) state.isProjectLoadRef.current = true;

@@ -316,6 +316,19 @@ const ProjectStorage = (() => {
         return project.id;
       }
       project.updatedAt = new Date().toISOString();
+      // INT-7 Phase B: stamp a numeric (epoch ms) write timestamp and the
+      // authoring tab id alongside the existing ISO `updatedAt` string.
+      // These power the stale-read conflict detection in Phase B-2:
+      // before writing, a future `saveChecked` will compare the in-IDB
+      // `lastWriteAt` against what this tab last saw, and a divergence
+      // with a different `lastWriteTabId` is a concurrent-write conflict.
+      // Stored separately from `updatedAt` so existing serializers,
+      // sync-engine fingerprints, and PDF-export bit-stable paths that
+      // depend on the ISO string aren't disturbed.
+      project.lastWriteAt = Date.now();
+      project.lastWriteTabId =
+        (typeof window !== 'undefined' && window.CrossTabCoord && window.CrossTabCoord.tabId)
+          || null;
       // Invalidate the bulk-hydration cache (action plan H4 = 2C.1) so the
       // next stats render sees this save's data even before metas signature
       // changes propagate.
@@ -385,12 +398,23 @@ const ProjectStorage = (() => {
             } catch (e) {}
             // INT-7 (visibility tier): broadcast to other tabs so they can
             // surface a "changed elsewhere" toast. Only meaningful for named
-            // projects; ignore the auto_save legacy key.
+            // projects; ignore the auto_save legacy key. Phase B-1: also
+            // pass through lastWriteAt + lastWriteTabId so subscribers can
+            // compare versions without re-reading IDB. Phase B-1: note our
+            // own write into the last-seen cache so the next save() from
+            // this tab has an accurate baseline.
             try {
               if (typeof window !== "undefined" && window.CrossTabCoord
                   && project.id && project.id.indexOf("proj_") === 0) {
+                if (typeof window.CrossTabCoord.noteSeen === 'function') {
+                  window.CrossTabCoord.noteSeen(
+                    project.id, project.lastWriteAt, project.lastWriteTabId);
+                }
                 window.CrossTabCoord.broadcastProjectSaved(
-                  project.id, project.updatedAt || Date.now());
+                  project.id,
+                  project.updatedAt || Date.now(),
+                  project.lastWriteAt,
+                  project.lastWriteTabId);
               }
             } catch (_) {}
             resolve(project.id);
