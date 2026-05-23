@@ -5727,6 +5727,12 @@ window.useCleanupMode = function useCleanupMode(state, history) {
   // Reference to the active cleanup Web Worker instance.
   var workerRef = useRef(null);
   var lastAutoToleranceRef = useRef(null);
+  // CL-4: cache the slim {id, lab} array built for the auto-detect worker.
+  // The slim-pat only depends on `pat` and `cmap`; the tolerance slider
+  // alone does not invalidate it. Keying on object identity is safe
+  // because useCreatorState rebuilds these references whenever a cell or
+  // palette entry changes (regen, paint, palette swap, cleanup apply).
+  var slimPatCacheRef = useRef({ pat: null, cmap: null, slim: null });
 
   // ── Derived: tolerance in ΔE ──────────────────────────────────────────────
   function toleranceDe(sliderVal) {
@@ -5930,11 +5936,20 @@ window.useCleanupMode = function useCleanupMode(state, history) {
     // Serialise only the data the worker needs — avoid transferring the full
     // React element objects. We send {id, lab} per cell.
     // Pat cells are {id, type, rgb} — lab lives in cmap, so look it up.
-    var slimPat = new Array(sW * sH);
-    for (var i = 0; i < pat.length; i++) {
-      var c = pat[i];
-      var cmapEntry = cmap && cmap[c.id];
-      slimPat[i] = { id: c.id, lab: cmapEntry ? cmapEntry.lab : c.lab };
+    // CL-4: reuse the cached slim-pat across tolerance changes so moving
+    // the slider doesn't reallocate sW×sH plain objects on every run.
+    var slimPat;
+    var cache = slimPatCacheRef.current;
+    if (cache.pat === pat && cache.cmap === cmap && cache.slim && cache.slim.length === pat.length) {
+      slimPat = cache.slim;
+    } else {
+      slimPat = new Array(sW * sH);
+      for (var i = 0; i < pat.length; i++) {
+        var c = pat[i];
+        var cmapEntry = cmap && cmap[c.id];
+        slimPat[i] = { id: c.id, lab: cmapEntry ? cmapEntry.lab : c.lab };
+      }
+      slimPatCacheRef.current = { pat: pat, cmap: cmap, slim: slimPat };
     }
 
     worker.onmessage = function(e) {
