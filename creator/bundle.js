@@ -4863,6 +4863,34 @@ window.useCreatorState = function useCreatorState() {
 
   var generate = useCallback(function(overrides) {
     if (!img) return;
+    // INT-3 / C-3: a fresh Generate replaces pat/pal and resets `done`
+    // and `parkMarkers` to empty. If the user has any stitched progress
+    // we must confirm before throwing it away — there is no undo.
+    var _hasProgress = false;
+    if (done && done.length) {
+      for (var _di = 0; _di < done.length; _di++) {
+        if (done[_di] === 1) { _hasProgress = true; break; }
+      }
+    }
+    if (!_hasProgress && parkMarkers && parkMarkers.length > 0) _hasProgress = true;
+    if (_hasProgress && !(overrides && overrides.__confirmed)) {
+      if (window.ConfirmDialog && window.ConfirmDialog.show) {
+        var _ovr = overrides;
+        window.ConfirmDialog.show({
+          title: "Regenerate will clear your progress",
+          message: "This project has stitched progress and/or park markers. Generating a new pattern will reset all stitches to unstitched and remove every park marker. Consider exporting a backup (Project \u203a Backup) before continuing.\n\nContinue anyway?",
+          confirmLabel: "Regenerate (clear progress)",
+          danger: true
+        }).then(function(ok) {
+          if (!ok) return;
+          var nextOverrides = Object.assign({}, _ovr || {}, { __confirmed: true });
+          generate(nextOverrides);
+        });
+        return;
+      }
+      // No ConfirmDialog available (e.g. early boot) — fall through and
+      // proceed; the legacy behaviour is at least no-worse than before.
+    }
     setBusy(true); setProgressMessage(""); setHiId(null); setExportPage(0);
     var reqId = ++genReqIdRef.current;
 
