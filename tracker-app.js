@@ -434,7 +434,7 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
 // the right. Both surfaces are CSS-gated to >=600px viewports; phone
 // keeps its existing chrome (action bar + dock + mode pill).
 // ═══════════════════════════════════════════════════════════════
-function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setFocusColour,stitchView,setStitchView,todayStitchesForBar,liveAutoElapsed,liveAutoStitches,onPickProject}){
+function TrackerProjectRail({activeId,activeDoneCount,activeTotalStitchable,pal,cmap,colourDoneCounts,focusColour,setFocusColour,stitchView,setStitchView,todayStitchesForBar,liveAutoElapsed,liveAutoStitches,onPickProject}){
   const[recent,setRecent]=React.useState([]);
   const[collapsed,setCollapsed]=React.useState(function(){
     try{return !!(window.UserPrefs&&window.UserPrefs.get("trackerProjectRailCollapsed"));}catch(_){return false;}
@@ -493,7 +493,8 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
         : recent.map(function(p){
             var isActiveProj=p.id===activeId;
             var pct=0;
-            if(p.totalStitchable&&p.doneCount!=null)pct=Math.round(p.doneCount/p.totalStitchable*100);
+            if(isActiveProj&&activeTotalStitchable>0)pct=Math.round(activeDoneCount/activeTotalStitchable*100);
+            else if(p.totalStitches&&p.completedStitches!=null)pct=Math.round(p.completedStitches/p.totalStitches*100);
             else if(p.progressPct!=null)pct=Math.round(p.progressPct);
             var thumb=p.thumbDataUrl;
             var initial=(p.name||'?').trim().charAt(0).toUpperCase()||'?';
@@ -6271,6 +6272,8 @@ return(
       Hidden via CSS on phone. Reads from ProjectStorage and existing palette state. */}
   {!statsView&&pat&&pal&&<TrackerProjectRail
     activeId={projectIdRef.current}
+    activeDoneCount={doneCount}
+    activeTotalStitchable={totalStitchable}
     pal={pal}
     cmap={cmap}
     colourDoneCounts={colourDoneCounts}
