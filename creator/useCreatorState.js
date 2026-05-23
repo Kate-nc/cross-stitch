@@ -965,6 +965,14 @@ window.useCreatorState = function useCreatorState() {
     setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); delete n[id]; return n; });
     // E-3: drop park markers that point at the removed colour.
     setParkMarkers(function(prev) { return prev.filter(function(m) { return m.colorId !== id; }); });
+    // E-7: drop the Materials/legend row's ownership entry too — otherwise
+    // re-adding the same DMC id later inherits stale owned/tobuy state.
+    setThreadOwned(function(prev) {
+      if (!prev || !(id in prev)) return prev;
+      var n = Object.assign({}, prev);
+      delete n[id];
+      return n;
+    });
   }
 
   function removeUnusedColours() {
@@ -984,6 +992,21 @@ window.useCreatorState = function useCreatorState() {
     setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); unusedIds.forEach(function(id) { delete n[id]; }); return n; });
     // E-3: drop park markers that point at any of the removed colours.
     setParkMarkers(function(prev) { return prev.filter(function(m) { return !unusedIds.has(m.colorId); }); });
+    // E-7: drop Materials/legend rows that point at the removed colours
+    // (threadOwned is the per-id ownership map driving the legend's
+    // owned/tobuy state). Otherwise a re-added id later inherits stale
+    // ownership state, and the row is implicitly still tracked even
+    // though the colour is gone.
+    setThreadOwned(function(prev) {
+      if (!prev) return prev;
+      var changed = false;
+      var n = {};
+      Object.keys(prev).forEach(function(k) {
+        if (unusedIds.has(k)) { changed = true; }
+        else { n[k] = prev[k]; }
+      });
+      return changed ? n : prev;
+    });
     addToast("Removed " + unused.length + " unused colour" + (unused.length !== 1 ? "s" : "") + " from palette", { type: "info", duration: 2000 });
   }
 
