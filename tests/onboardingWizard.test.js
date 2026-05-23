@@ -87,4 +87,18 @@ describe('WelcomeWizard', () => {
       expect(step.title).not.toMatch(/^\d/);
     });
   });
+
+  test('shouldShow fails open when localStorage.getItem throws (private browsing)', () => {
+    const original = global.window.localStorage.getItem;
+    global.window.localStorage.getItem = () => { throw new Error('SecurityError'); };
+    try {
+      // S-3: known page must return true (i.e. show wizard) when storage
+      // access is blocked, not silently hide it.
+      expect(window.WelcomeWizard.shouldShow('creator')).toBe(true);
+      // Unknown page still returns false (guard runs before the try).
+      expect(window.WelcomeWizard.shouldShow('bogus')).toBe(false);
+    } finally {
+      global.window.localStorage.getItem = original;
+    }
+  });
 });

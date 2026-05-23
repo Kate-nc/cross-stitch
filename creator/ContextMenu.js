@@ -90,8 +90,15 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     }, "Empty cell (" + (menu.gx + 1) + ", " + (menu.gy + 1) + ")"),
 
     // Pick this colour
+    // E-2: switch to Paint so the user can immediately start drawing with
+    // the picked colour — matches the canvas eyedropper's gesture and the
+    // Photoshop convention. Saves an extra click.
     item([Icons.eyedropper(), " Pick this colour"], function() {
-      if (cellInfo) cv.setSelectedColorId(cellInfo.id);
+      if (cellInfo) {
+        cv.setSelectedColorId(cellInfo.id);
+        cv.selectStitchType("cross");
+        cv.setBrushAndActivate("paint");
+      }
     }, {disabled: !hasCellColour, k: 'pick'}),
 
     // Fill from here — switch to fill tool so user can click the area

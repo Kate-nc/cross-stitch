@@ -59,6 +59,12 @@ window.useCleanupMode = function useCleanupMode(state, history) {
   // Reference to the active cleanup Web Worker instance.
   var workerRef = useRef(null);
   var lastAutoToleranceRef = useRef(null);
+  // CL-4: cache the slim {id, lab} array built for the auto-detect worker.
+  // The slim-pat only depends on `pat` and `cmap`; the tolerance slider
+  // alone does not invalidate it. Keying on object identity is safe
+  // because useCreatorState rebuilds these references whenever a cell or
+  // palette entry changes (regen, paint, palette swap, cleanup apply).
+  var slimPatCacheRef = useRef({ pat: null, cmap: null, slim: null });
 
   // ── Derived: tolerance in ΔE ──────────────────────────────────────────────
   function toleranceDe(sliderVal) {
@@ -154,6 +160,12 @@ window.useCleanupMode = function useCleanupMode(state, history) {
   // Drag-paint refs (not React state — updated at 60 fps during drag)
   var brushDragActiveRef = useRef(false);
   var brushMaskRef       = useRef(null);
+  // CL-3: coalesce setCleanupPendingMask updates into rAF batches.
+  // Without this every pointermove event allocates a fresh w*h Uint8Array
+  // via mask.slice() + a React re-render. On a 200×200 grid that is ~40 KB
+  // × pointermove rate (60+ Hz), which produces visible GC stutter on
+  // mid-range Android devices during long strokes.
+  var brushRafPendingRef = useRef(false);
 
   var handleCleanupPointerDown = useCallback(function(gx, gy) {
     if (state.cleanupSelTool !== 'brush') return;
@@ -202,8 +214,23 @@ window.useCleanupMode = function useCleanupMode(state, history) {
         mask[idx] = 1;
       }
     }
-    // Update React state on each move for live overlay
-    state.setCleanupPendingMask(mask.slice());
+    // CL-3: schedule one slice + setState per animation frame regardless
+    // of how many pointermove events arrived. The mask itself was already
+    // updated synchronously above, so subsequent moves within the same
+    // frame keep accumulating into the same buffer; the React state
+    // catches up at 60 fps.
+    if (!brushRafPendingRef.current) {
+      brushRafPendingRef.current = true;
+      var _raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
+        ? window.requestAnimationFrame
+        : function (fn) { return setTimeout(fn, 16); };
+      _raf(function () {
+        brushRafPendingRef.current = false;
+        if (brushMaskRef.current) {
+          state.setCleanupPendingMask(brushMaskRef.current.slice());
+        }
+      });
+    }
   }
 
   // ── Auto-detect (Web Worker) ──────────────────────────────────────────────
@@ -241,11 +268,20 @@ window.useCleanupMode = function useCleanupMode(state, history) {
     // Serialise only the data the worker needs — avoid transferring the full
     // React element objects. We send {id, lab} per cell.
     // Pat cells are {id, type, rgb} — lab lives in cmap, so look it up.
-    var slimPat = new Array(sW * sH);
-    for (var i = 0; i < pat.length; i++) {
-      var c = pat[i];
-      var cmapEntry = cmap && cmap[c.id];
-      slimPat[i] = { id: c.id, lab: cmapEntry ? cmapEntry.lab : c.lab };
+    // CL-4: reuse the cached slim-pat across tolerance changes so moving
+    // the slider doesn't reallocate sW×sH plain objects on every run.
+    var slimPat;
+    var cache = slimPatCacheRef.current;
+    if (cache.pat === pat && cache.cmap === cmap && cache.slim && cache.slim.length === pat.length) {
+      slimPat = cache.slim;
+    } else {
+      slimPat = new Array(sW * sH);
+      for (var i = 0; i < pat.length; i++) {
+        var c = pat[i];
+        var cmapEntry = cmap && cmap[c.id];
+        slimPat[i] = { id: c.id, lab: cmapEntry ? cmapEntry.lab : c.lab };
+      }
+      slimPatCacheRef.current = { pat: pat, cmap: cmap, slim: slimPat };
     }
 
     worker.onmessage = function(e) {
@@ -308,6 +344,31 @@ window.useCleanupMode = function useCleanupMode(state, history) {
     if (state.cleanupAutoRunning) return;
     runAutoDetect();
   }, [state.cleanupSelTool, state.activeTool]);
+
+  // CL-5: If the user leaves Auto sub-tool (or leaves cleanup mode entirely)
+  // while a worker run is in flight, terminate the worker so its late result
+  // can't overwrite a fresh click/brush selection mask. enterCleanup,
+  // exitCleanup and cancelCleanup already terminate on those code paths;
+  // this covers the sub-tool-switch case the others miss.
+  useEffect(function() {
+    if (state.activeTool === 'cleanup' && state.cleanupSelTool === 'auto') return;
+    if (workerRef.current) {
+      workerRef.current.terminate();
+      workerRef.current = null;
+      if (state.cleanupAutoRunning) state.setCleanupAutoRunning(false);
+    }
+  }, [state.cleanupSelTool, state.activeTool]);
+
+  // CL-1: Terminate the cleanup worker on unmount so a navigation away from
+  // the creator (or a hot-reload) doesn't leave an orphan worker process.
+  useEffect(function() {
+    return function() {
+      if (workerRef.current) {
+        try { workerRef.current.terminate(); } catch (_) {}
+        workerRef.current = null;
+      }
+    };
+  }, []);
 
   // ── Neighbour vote ────────────────────────────────────────────────────────
   // Determines the replacement colour for a single selected cell based on

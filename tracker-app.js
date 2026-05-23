@@ -434,7 +434,7 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
 // the right. Both surfaces are CSS-gated to >=600px viewports; phone
 // keeps its existing chrome (action bar + dock + mode pill).
 // ═══════════════════════════════════════════════════════════════
-function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setFocusColour,stitchView,setStitchView,todayStitchesForBar,liveAutoElapsed,liveAutoStitches,onPickProject}){
+function TrackerProjectRail({activeId,activeDoneCount,activeTotalStitchable,pal,cmap,colourDoneCounts,focusColour,setFocusColour,stitchView,setStitchView,todayStitchesForBar,liveAutoElapsed,liveAutoStitches,onPickProject}){
   const[recent,setRecent]=React.useState([]);
   const[collapsed,setCollapsed]=React.useState(function(){
     try{return !!(window.UserPrefs&&window.UserPrefs.get("trackerProjectRailCollapsed"));}catch(_){return false;}
@@ -493,7 +493,8 @@ function TrackerProjectRail({activeId,pal,cmap,colourDoneCounts,focusColour,setF
         : recent.map(function(p){
             var isActiveProj=p.id===activeId;
             var pct=0;
-            if(p.totalStitchable&&p.doneCount!=null)pct=Math.round(p.doneCount/p.totalStitchable*100);
+            if(isActiveProj&&activeTotalStitchable>0)pct=Math.round(activeDoneCount/activeTotalStitchable*100);
+            else if(p.totalStitches&&p.completedStitches!=null)pct=Math.round(p.completedStitches/p.totalStitches*100);
             else if(p.progressPct!=null)pct=Math.round(p.progressPct);
             var thumb=p.thumbDataUrl;
             var initial=(p.name||'?').trim().charAt(0).toUpperCase()||'?';
@@ -534,6 +535,14 @@ const[pat,setPat]=useState(null);
 const[pal,setPal]=useState(null);
 const[cmap,setCmap]=useState(null);
 const incomingProjectRef=useRef(incomingProject);
+// T-4: set to true after any successful processLoadedProject. The mount
+// effect's fallback chain (handoff -> URL hash -> active project) checks
+// this so a late-arriving `incomingProject` prop doesn't get overridden
+// by a fallback load that ran in the same tick. The prop effect always
+// wins because it sets the ref after it processes; the mount effect's
+// ProjectStorage.getActiveProject() fallback is also deferred to the
+// next microtask so the prop effect has a chance to run first.
+const hasLoadedOnceRef=useRef(false);
 const[fabricCt,setFabricCt]=useState(14);
 const[skeinPrice,setSkeinPrice]=useState(DEFAULT_SKEIN_PRICE);
 const[stitchSpeed,setStitchSpeed]=useState(40);
@@ -715,6 +724,19 @@ const[redoStack,setRedoStack]=useState([]);
 const TRACK_HISTORY_MAX=50;
 
 // ── Incremental stitch counters ──
+// T-5 invariant: `doneCountRef.current` and `colourDoneCountsRef.current`
+// MUST be derivable from (pat, done, halfStitches, halfDone) at all times.
+// There are exactly two valid ways to keep them in sync:
+//   1. Full rebuild — `recomputeAllCounts(pat, done, halfStitches, halfDone)`
+//      after any change that is not a single-cell flip (load, undo, paste,
+//      regenerate, palette swap, halfStitches mutation, etc.).
+//   2. Incremental — `applyDoneCountsDelta(changes, pat, newDone)` after a
+//      stitch flip where you know exactly which indices changed. Halves
+//      always go through path 1.
+// If you mutate `done` and forget both, the counter (`Stitches done` chip,
+// rail progress bars, milestone celebrations, autosave snapshot) silently
+// drifts. Add a recomputeAllCounts call when in doubt — it's O(w·h) but
+// still <2 ms on 300×300 grids.
 const doneCountRef=useRef(0);
 const colourDoneCountsRef=useRef({});
 const[countsVer,setCountsVer]=useState(0);
@@ -908,12 +930,17 @@ const[parkLayers,setParkLayers]=useState({});
 function isParkLayerVisible(cid){return parkLayers[cid]!==false;}
 // ── Stitching Style & Spatial Focus Area ──
 const[stitchingStyle,setStitchingStyle]=useState(()=>{try{var ls=localStorage.getItem("cs_stitchStyle");if(ls)return ls;var p=window.UserPrefs&&window.UserPrefs.get("trackerStitchingStyle");return p||"block";}catch(_){return"block";}});
-const[blockW,setBlockW]=useState(()=>{try{var ls=localStorage.getItem("cs_blockW");if(ls)return Math.max(5,Math.min(100,parseInt(ls)));var bs=(window.UserPrefs&&window.UserPrefs.get("trackerBlockShape"))||"10x10";var w=parseInt(String(bs).split("x")[0],10);return isFinite(w)?Math.max(5,Math.min(100,w)):10;}catch(_){return 10;}});
-const[blockH,setBlockH]=useState(()=>{try{var ls=localStorage.getItem("cs_blockH");if(ls)return Math.max(5,Math.min(100,parseInt(ls)));var bs=(window.UserPrefs&&window.UserPrefs.get("trackerBlockShape"))||"10x10";var hh=parseInt(String(bs).split("x")[1],10);return isFinite(hh)?Math.max(5,Math.min(100,hh)):10;}catch(_){return 10;}});
+// T-2: default to 10/10/TL on mount and let processLoadedProject
+// pick the project value (or fall back to localStorage when the
+// project doesn't specify one). Reading localStorage here caused
+// the previous project's block size to flash on the first render
+// when switching projects.
+const[blockW,setBlockW]=useState(10);
+const[blockH,setBlockH]=useState(10);
 const[focusBlock,setFocusBlock]=useState(null); // {bx,by} | null
 const[focusEnabled,setFocusEnabled]=useState(()=>{try{return localStorage.getItem("cs_focusEnabled")==="1";}catch(_){return false;}});
 const[colourSequence,setColourSequence]=useState(()=>{try{return localStorage.getItem("cs_colourSeq")||"fewest";}catch(_){return"fewest";}});
-const[startCorner,setStartCorner]=useState(()=>{try{var ls=localStorage.getItem("cs_startCorner");if(ls)return ls;var p=window.UserPrefs&&window.UserPrefs.get("trackerStartCorner");return p||"TL";}catch(_){return"TL";}});
+const[startCorner,setStartCorner]=useState("TL");
 // Gate the style picker on the generic Welcome wizard so they appear
 // sequentially: Welcome first, style picker after dismissal. If the user has
 // already seen the Welcome wizard (or never needed it on this build), the
@@ -1369,6 +1396,9 @@ const colourDoneCounts=countsVer>=0?colourDoneCountsRef.current:{};
 const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total,backstitch:bsLines.length,quarter:0,petite:0,french_knot:0,long_stitch:0}),[totalStitchable,halfStitchCounts.total,bsLines.length]);
 // Full recompute only on structural changes (pattern load, half-stitch structure edits)
 useEffect(()=>{recomputeAllCounts(pat,done,halfStitches,halfDone);},[pat,halfStitches]);
+// After recomputeAllCounts has run post-load, snap prevAutoCountRef to the real
+// counts so the auto-detect effect below never sees a spurious delta.
+useEffect(()=>{if(justLoadedRef.current){prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||0};justLoadedRef.current=false;}},[countsVer]);
 useEffect(()=>{const pid=projectIdRef.current;if(!pid)return;try{localStorage.setItem('cs_layerVis_'+pid,JSON.stringify(layerVis));}catch(_){}},[layerVis]);
 useEffect(()=>{const pid=projectIdRef.current;if(!pid)return;try{localStorage.setItem('cs_parkLayers_'+pid,JSON.stringify(parkLayers));}catch(_){}},[parkLayers]);
 useEffect(()=>{try{localStorage.setItem('cs_bsThickness',String(bsThickness));}catch(_){}},[bsThickness]);
@@ -1805,6 +1835,10 @@ function finaliseAutoSession(){
       pendingMilestonesRef.current=[];
     }
     setStatsSessions(prev=>[...(prev||[]),finalised]);
+    // Synchronous localStorage backup so the session survives if the tab is closed
+    // before the 5-second auto-save timer fires (beforeunload IDB writes are async
+    // and may not complete in time). Cleared once the auto-save timer succeeds.
+    try{if(projectIdRef.current)localStorage.setItem('cs_pending_session_'+projectIdRef.current,JSON.stringify(finalised));}catch(_){}
     // Update lastTouchedAt and finishStatus in v3FieldsRef.
     // stitchLog is now derived from statsSessions in buildSnapshot() — no direct mutation needed.
     if(projectIdRef.current){
@@ -1877,12 +1911,11 @@ useEffect(()=>{
     const prevHalf=prev.halfDone;
     // Skip initial load or project load — justLoadedRef stays true until
     // both doneCount and halfStitchCounts.done have settled post-load.
-    if(justLoadedRef.current||prevDone<0||prevHalf<0){
+    // justLoadedRef is now cleared by the countsVer useEffect above, which fires
+    // after recomputeAllCounts and snaps prevAutoCountRef to the real loaded counts.
+    // The prevDone<0 sentinel guards the first auto-detect fire before that effect runs.
+    if(prevDone<0||prevHalf<0){
       prevAutoCountRef.current={done:curDone,halfDone:curHalf};
-      if(justLoadedRef.current){
-        justLoadedSettlePassRef.current=(justLoadedSettlePassRef.current||0)+1;
-        if(justLoadedSettlePassRef.current>=2&&prevDone>=0&&prevHalf>=0)justLoadedRef.current=false;
-      }
       return;
     }
     const doneDiff=curDone-prevDone;
@@ -2425,7 +2458,7 @@ function doSaveProject(finalName){
   }]);
   const hdArr = [...halfDone.entries()];
   let project={
-    version:9,
+    version:11,
     id:projectIdRef.current||undefined,
     page:"tracker",
     name:finalName,
@@ -2953,9 +2986,14 @@ function handleEditInCreator(){
   const sseArrH=[...singleStitchEdits.entries()];
   const hsArrH=[...halfStitches.entries()].map(([idx,hs])=>[idx,{fwd:hs.fwd?{id:hs.fwd.id,rgb:hs.fwd.rgb}:undefined,bck:hs.bck?{id:hs.bck.id,rgb:hs.bck.rgb}:undefined}]);
   const hdArrH=[...halfDone.entries()];
-  let project={version:9,id:projectIdRef.current||undefined,page:"tracker",name:projectName,createdAt:createdAtRef.current||new Date().toISOString(),updatedAt:new Date().toISOString(),settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"var(--surface)",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice,stitchSpeed,smooth:0,smoothType:"median",orphans:0,wastePrefs},pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,hlRow,hlCol,threadOwned,imgData:null,originalPaletteState,singleStitchEdits:sseArrH,halfStitches:hsArrH,halfDone:hdArrH,statsSessions,statsSettings,achievedMilestones,doneSnapshots,breadcrumbs,stitchingStyle,blockW,blockH,focusBlock,startCorner,colourSequence};
+  let project={version:11,id:projectIdRef.current||undefined,page:"tracker",name:projectName,createdAt:createdAtRef.current||new Date().toISOString(),updatedAt:new Date().toISOString(),settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"var(--surface)",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice,stitchSpeed,smooth:0,smoothType:"median",orphans:0,wastePrefs},pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,hlRow,hlCol,threadOwned,imgData:null,originalPaletteState,singleStitchEdits:sseArrH,halfStitches:hsArrH,halfDone:hdArrH,statsSessions,statsSettings,achievedMilestones,doneSnapshots,breadcrumbs,stitchingStyle,blockW,blockH,focusBlock,startCorner,colourSequence};
   try{
-    localStorage.setItem("crossstitch_handoff_to_creator", JSON.stringify(project));
+    // T-3 / INT-4: wrap the handoff in an envelope with a wall-clock
+    // timestamp. The Creator drops envelopes older than HANDOFF_TTL_MS so a
+    // back/cancel aborted nav doesn't leave a stale alert lying in wait for
+    // the user's next Creator visit (potentially hours later).
+    var _env = { ts: Date.now(), project: project };
+    localStorage.setItem("crossstitch_handoff_to_creator", JSON.stringify(_env));
     window.location.href = "create.html?source=tracker";
   }catch(e){
     try{
@@ -3128,15 +3166,46 @@ function processLoadedProject(project){
   if(project.done&&project.done.length===restored.length)setDone(new Uint8Array(project.done));
   else setDone(new Uint8Array(restored.length));
 
-  setParkMarkers(project.parkMarkers||[]);
+  // T-1: drop park markers whose colour no longer exists in the palette
+  // (e.g. the colour was removed in the Creator between sessions). Notify
+  // the user once if any were dropped.
+  var rawParkMarkers = project.parkMarkers || [];
+  var liveParkMarkers = rawParkMarkers.filter(function(m) { return m && newCmap && newCmap[m.colorId]; });
+  if (rawParkMarkers.length && liveParkMarkers.length !== rawParkMarkers.length) {
+    var dropped = rawParkMarkers.length - liveParkMarkers.length;
+    try {
+      if (window.Toast && window.Toast.show) {
+        window.Toast.show({
+          message: "Removed " + dropped + " park marker" + (dropped !== 1 ? "s" : "") + " for colours no longer in the palette",
+          type: "info",
+          duration: 3500
+        });
+      }
+    } catch (_) {}
+  }
+  setParkMarkers(liveParkMarkers);
   setBreadcrumbs(project.breadcrumbs||[]);
   // Preserve v3 stats fields through auto-save round-trips
   v3FieldsRef.current={finishStatus:project.finishStatus,startedAt:project.startedAt,lastTouchedAt:project.lastTouchedAt,completedAt:project.completedAt,stitchLog:project.stitchLog};
   if(project.stitchingStyle)setStitchingStyle(project.stitchingStyle);
-  if(project.blockW)setBlockW(Math.max(5,Math.min(100,project.blockW)));
-  if(project.blockH)setBlockH(Math.max(5,Math.min(100,project.blockH)));
+  // T-2: prefer the per-project value; fall back to last-used (localStorage)
+  // or the user pref shape; final default 10/TL. Doing it here (not in
+  // useState) keeps the first render from showing the previous project's
+  // block size when switching between projects.
+  var _fallbackShape = (window.UserPrefs && window.UserPrefs.get("trackerBlockShape")) || "10x10";
+  var _fbW = parseInt(String(_fallbackShape).split("x")[0], 10);
+  var _fbH = parseInt(String(_fallbackShape).split("x")[1], 10);
+  var _lsW = null, _lsH = null, _lsCorner = null;
+  try { _lsW = localStorage.getItem("cs_blockW"); _lsH = localStorage.getItem("cs_blockH"); _lsCorner = localStorage.getItem("cs_startCorner"); } catch(_){}
+  var _resolveBlock = function(projVal, lsVal, fbVal) {
+    if (projVal) return Math.max(5, Math.min(100, projVal));
+    if (lsVal) { var n = parseInt(lsVal, 10); if (isFinite(n)) return Math.max(5, Math.min(100, n)); }
+    return isFinite(fbVal) ? Math.max(5, Math.min(100, fbVal)) : 10;
+  };
+  setBlockW(_resolveBlock(project.blockW, _lsW, _fbW));
+  setBlockH(_resolveBlock(project.blockH, _lsH, _fbH));
   if(project.focusBlock)setFocusBlock(project.focusBlock);else setFocusBlock(null);
-  if(project.startCorner)setStartCorner(project.startCorner);
+  setStartCorner(project.startCorner || _lsCorner || (window.UserPrefs && window.UserPrefs.get("trackerStartCorner")) || "TL");
   if(project.colourSequence)setColourSequence(project.colourSequence);
   // Legacy migration: if no statsSessions but totalTime exists, create a synthetic session
   var rawStatsSessions=(project.statsSessions||[]).filter(function(s){
@@ -3219,6 +3288,14 @@ function processLoadedProject(project){
     var running=0;
     sorted.forEach(function(s){running+=(s.netStitches||0);if(s.totalAtEnd==null)s.totalAtEnd=Math.min(Math.max(0,running),totalStitchCount);});
   }
+  // Recover any session that was finalised but not yet flushed to IDB (e.g. tab was
+  // closed before the 5-second auto-save timer fired). The localStorage backup is
+  // written by finaliseAutoSession and cleared by the auto-save timer on success.
+  try{
+    var _pk='cs_pending_session_'+(project.id||'');
+    var _pj=localStorage.getItem(_pk);
+    if(_pj){var _ps=JSON.parse(_pj);if(_ps&&_ps.id&&!rawStatsSessions.some(function(s){return s.id===_ps.id;})){rawStatsSessions.push(_ps);}localStorage.removeItem(_pk);}
+  }catch(_){}
   setStatsSessions(rawStatsSessions);
   // A3: fire the resume recap modal once per project load when there is at
   // least one prior session. Skipped on a fresh project (sessions empty) and
@@ -3262,6 +3339,7 @@ function processLoadedProject(project){
   // protecting against the sentinel being consumed by a halfStitchCounts change
   // before doneCount has been recomputed.
   justLoadedRef.current=true;
+  // justLoadedSettlePassRef no longer drives the settling logic (replaced by countsVer effect)
   justLoadedSettlePassRef.current=0;
   prevAutoCountRef.current={done:-1,halfDone:-1};
   if(project.hlRow>=0)setHlRow(project.hlRow);
@@ -3416,9 +3494,10 @@ useEffect(()=>{
   incomingProjectRef.current=incomingProject;
   if(incomingProject.project){
     processLoadedProject(incomingProject.project);
+    hasLoadedOnceRef.current=true; // T-4
   }else if(incomingProject.id){
     // Called with {id} only (e.g. stats "Navigate to project") — load from storage.
-    ProjectStorage.get(incomingProject.id).then(p=>{if(p)processLoadedProject(p);}).catch(err=>console.error("Failed to load project by id:",err));
+    ProjectStorage.get(incomingProject.id).then(p=>{if(p){processLoadedProject(p);hasLoadedOnceRef.current=true;}}).catch(err=>console.error("Failed to load project by id:",err));
   }
 },[incomingProject]);
 
@@ -3435,8 +3514,8 @@ useEffect(() => {
   // If a project was passed directly on first mount, use it (no DB read needed).
   if(incomingProjectRef.current){
     const ip=incomingProjectRef.current;
-    if(ip.project){processLoadedProject(ip.project);}
-    else if(ip.id){ProjectStorage.get(ip.id).then(p=>{if(p)processLoadedProject(p);}).catch(err=>console.error("Failed to load project by id:",err));}
+    if(ip.project){processLoadedProject(ip.project);hasLoadedOnceRef.current=true;}
+    else if(ip.id){ProjectStorage.get(ip.id).then(p=>{if(p){processLoadedProject(p);hasLoadedOnceRef.current=true;}}).catch(err=>console.error("Failed to load project by id:",err));}
     return;
   }
   const handoff = localStorage.getItem('crossstitch_handoff');
@@ -3449,6 +3528,7 @@ useEffect(() => {
         ProjectStorage.save(projectData).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("ProjectStorage save failed:", err));
       }
       processLoadedProject(projectData);
+      hasLoadedOnceRef.current=true; // T-4
       return;
     } catch (e) {
       console.error("Failed to load handoff:", e);
@@ -3469,6 +3549,7 @@ useEffect(() => {
             const decompressed = pako.inflate(binaryData, { to: 'string' });
             const project = JSON.parse(decompressed);
             processLoadedProject(project);
+            hasLoadedOnceRef.current=true; // T-4
             window.location.hash = ''; // Clear hash after loading
             return;
         } catch (err) {
@@ -3476,12 +3557,21 @@ useEffect(() => {
             setLoadError("Failed to load pattern from link.");
         }
     }
-  // No handoff and no URL — restore last active project from ProjectStorage
-  ProjectStorage.getActiveProject().then(project => {
-    if (project && project.pattern && project.settings) {
-      processLoadedProject(project);
-    }
-  }).catch(err => console.error("Failed to load active project:", err));
+  // No handoff and no URL — restore last active project from ProjectStorage.
+  // T-4: defer to a microtask so the [incomingProject] effect has a chance
+  // to fire first if the prop arrives in the same render. The guard then
+  // skips the fallback rather than racing with the prop and causing a
+  // brief flicker of the wrong project.
+  Promise.resolve().then(function(){
+    if (hasLoadedOnceRef.current) return;
+    ProjectStorage.getActiveProject().then(project => {
+      if (hasLoadedOnceRef.current) return;
+      if (project && project.pattern && project.settings) {
+        processLoadedProject(project);
+        hasLoadedOnceRef.current=true;
+      }
+    }).catch(err => console.error("Failed to load active project:", err));
+  });
 }, []);
 
 // ═══ Tracker auto-save ═══
@@ -3513,7 +3603,7 @@ const buildSnapshot = () => {
     .sort((a, b) => a.date < b.date ? -1 : 1);
   if (v3FieldsRef.current) v3FieldsRef.current.stitchLog = _derivedLog;
   return {
-    version: 9, id: projectIdRef.current, page: "tracker", name: projectName,
+    version: 11, id: projectIdRef.current, page: "tracker", name: projectName,
     designer: projectDesigner, description: projectDescription,
     createdAt: createdAtRef.current, updatedAt: new Date().toISOString(),
     settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs },
@@ -3538,7 +3628,7 @@ useEffect(() => {
     const project = buildSnapshot();
     if (!project) return;
     lastSnapshotRef.current = project;
-    ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("Tracker auto-save failed:", err));
+    ProjectStorage.save(project).then(id => {ProjectStorage.setActiveProject(id);try{if(projectIdRef.current)localStorage.removeItem('cs_pending_session_'+projectIdRef.current);}catch(_){}}).catch(err => console.error("Tracker auto-save failed:", err));
     saveProjectToDB(project).catch(err => console.error("Tracker DB auto-save failed:", err));
     // Keep the Creator's tracker-field preservation container in sync so that if
     // the user switches to Creator mode, the next Creator auto-save won't overwrite
@@ -3627,8 +3717,13 @@ useEffect(() => {
     flushRtStashWriteRef.current();
     } catch(e) {}
   };
+  // pagehide covers iOS Safari and bfcache navigation where beforeunload may not fire.
+  // persisted=true means the page is entering the bfcache (not being destroyed), but
+  // we still finalise and back up — the session will be deduplicated on recovery if
+  // the page is restored and used again.
   window.addEventListener("beforeunload", handleBeforeUnload);
-  return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  window.addEventListener("pagehide", handleBeforeUnload);
+  return () => { window.removeEventListener("beforeunload", handleBeforeUnload); window.removeEventListener("pagehide", handleBeforeUnload); };
 }, []); // empty: handler reads only from refs (always fresh)
 
 // Expose __openTrackerStats so the header Stats link can open per-project stats
@@ -3665,7 +3760,7 @@ useEffect(() => {
     const hdArr = [...halfDone.entries()];
     const project = {
       ...(lastSnapshotRef.current || {}),
-      version: 9, id: projectIdRef.current, page: "tracker", name: projectName,
+      version: 11, id: projectIdRef.current, page: "tracker", name: projectName,
       createdAt: createdAtRef.current,
       updatedAt: new Date().toISOString(),
       settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs },
@@ -6177,6 +6272,8 @@ return(
       Hidden via CSS on phone. Reads from ProjectStorage and existing palette state. */}
   {!statsView&&pat&&pal&&<TrackerProjectRail
     activeId={projectIdRef.current}
+    activeDoneCount={doneCount}
+    activeTotalStitchable={totalStitchable}
     pal={pal}
     cmap={cmap}
     colourDoneCounts={colourDoneCounts}
@@ -6813,4 +6910,3 @@ return(
 window.TrackerApp=TrackerApp;
 if(!window.__UNIFIED__)ReactDOM.createRoot(document.getElementById("root")).render(<TrackerApp/>);
 if (typeof SyncEngine !== 'undefined') SyncEngine.registerBeforeUnloadSnapshot();
-

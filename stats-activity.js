@@ -18,12 +18,17 @@ function todayStr() {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
+// Use local date (not UTC) so comparisons match session dates stored via getStitchingDateLocal.
+function ymd(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
 function getPeriodStart(period) {
   const today = new Date();
-  if (period === '6m') { const d = new Date(today); d.setMonth(d.getMonth() - 6); return d.toISOString().slice(0, 10); }
+  if (period === '6m') { const d = new Date(today); d.setMonth(d.getMonth() - 6); return ymd(d); }
   if (period === 'year') return today.getFullYear() + '-01-01';
   if (period === 'all') return '2000-01-01';
-  const d = new Date(today); d.setFullYear(d.getFullYear() - 1); return d.toISOString().slice(0, 10);
+  const d = new Date(today); d.setFullYear(d.getFullYear() - 1); return ymd(d);
 }
 
 // fmtNum is a shared global from helpers.js
@@ -93,7 +98,7 @@ function buildGrid(byDay, periodStart, today, trackingStart) {
   const days = [];
   const cursor = new Date(gridStart);
   while (cursor <= gridEnd) {
-    const ds = cursor.toISOString().slice(0, 10);
+    const ds = ymd(cursor);
     const inPeriod = ds >= periodStart && ds <= today;
     const preTracking = trackingStart && ds < trackingStart;
     const entry = byDay[ds];
@@ -173,7 +178,7 @@ function computeBusiestPeriods(grid, groupBy) {
       const d = new Date(day.date + 'T00:00:00');
       const sunday = new Date(d);
       sunday.setDate(d.getDate() - d.getDay());
-      key = sunday.toISOString().slice(0, 10);
+      key = ymd(sunday);
     }
     if (!map[key]) map[key] = { key, total: 0, days: {} };
     map[key].total += day.count;

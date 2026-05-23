@@ -1,6 +1,20 @@
 // stash-bridge.js
 // Reads the global stash from stitch_manager_db without depending on manager-app.js state.
 // Shared read layer used by Creator, Tracker, and Stash Manager pages.
+//
+// INT-5 lifetime invariant: StashBridge is a *module-level singleton* created
+// at script load. It owns no persistent IndexedDB connection — every
+// public call opens, reads, and closes a fresh connection via
+// `_openManagerDB()`. This means:
+//   • There is nothing to "init" or "tear down" — the bridge is safe to
+//     reference at any point after stash-bridge.js has loaded.
+//   • Callers may invoke `StashBridge.*` from React effects, event
+//     handlers, or module top-level without coordinating ordering.
+//   • Cross-tab consistency is not provided. If two tabs mutate the stash
+//     concurrently, last-writer-wins on `stitch_manager_db.manager_state`.
+//     INT-7 (cross-tab coordination) is the planned follow-up.
+//   • The cached owned-counts (if any) live inside callers, not the
+//     bridge — do not assume the bridge memoises reads.
 
 const StashBridge = (() => {
   // Normalise a bare DMC id like '310' to the composite key 'dmc:310'.

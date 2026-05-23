@@ -97,7 +97,11 @@
 
   function shouldShow(page) {
     if (!STEPS[page]) return false;
-    try { return !localStorage.getItem(flagKey(page)); } catch (_) { return false; }
+    // Fail-open: if localStorage is unavailable (private browsing, blocked
+    // cookies, quota exceeded), we can't tell whether the user has seen
+    // the wizard before. Showing it is the friendlier default — at worst
+    // a returning private-browsing user sees a brief tour twice.
+    try { return !localStorage.getItem(flagKey(page)); } catch (_) { return true; }
   }
 
   function markDone(page) {

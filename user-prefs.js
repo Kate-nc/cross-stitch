@@ -63,6 +63,7 @@
     creatorMinStitchesPerColour:  6,
     creatorProtectDetails:        true,
     creatorStitchCleanup:         true,
+    creatorStitchCleanupStrength: "balanced",   // gentle | balanced | thorough
     creatorDefaultViewMode:       "colour",     // colour | symbol | both
     creatorReferenceOpacity:      35,           // 0..100
     // ─── Colour-accuracy UX (color-2 Approach B3) ──────────────────────

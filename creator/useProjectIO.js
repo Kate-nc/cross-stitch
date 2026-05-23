@@ -385,6 +385,13 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         var project = JSON.parse(ev.target.result);
         if (!project.pattern || !Array.isArray(project.pattern)) throw new Error("Invalid pattern file: 'pattern' field missing or not an array");
         if (!project.settings) throw new Error("Invalid");
+        // C-6: pattern length must match the declared grid size, otherwise
+        // every downstream renderer reads out-of-bounds.
+        var _expW = project.settings.sW || project.w;
+        var _expH = project.settings.sH || project.h;
+        if (_expW && _expH && project.pattern.length !== _expW * _expH) {
+          throw new Error("Invalid pattern file: pattern length " + project.pattern.length + " does not match grid " + _expW + "\u00d7" + _expH + " (" + (_expW * _expH) + " cells expected)");
+        }
         processLoadedProject(project);
       } catch (err) {
         console.error(err);
@@ -414,6 +421,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       var i = new Image();
       i.onerror = function() {
         console.warn("useProjectIO: could not decode uploaded image.");
+        if (state.addToast) state.addToast("Couldn\u2019t read that image. Try a different file (PNG, JPEG, or WebP).", {type:"error", duration:4000});
         state.setIsUploading(false);
       };
       var proceed = function() {
@@ -460,7 +468,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         i.onload = proceed; i.src = ev.target.result;
       }
     };
-    rd.onerror = function() { state.setIsUploading(false); };
+    rd.onerror = function() {
+      if (state.addToast) state.addToast("Couldn\u2019t read that file. It may be corrupt or too large to read.", {type:"error", duration:4000});
+      state.setIsUploading(false);
+    };
     rd.readAsDataURL(f);
   }
 
@@ -483,6 +494,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         sessionStorage.removeItem('cs_pending_image_dataurl');
         sessionStorage.removeItem('cs_pending_image_name');
         sessionStorage.removeItem('cs_pending_image_type');
+        sessionStorage.removeItem('cs_pending_image_ts'); // INT-6
       } catch (_) {}
       handleFile(file);
       return;
@@ -496,6 +508,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           var project2 = JSON.parse(ev2.target.result);
           if (!project2.pattern || !Array.isArray(project2.pattern)) throw new Error("Invalid pattern file: 'pattern' field missing or not an array");
           if (!project2.settings) throw new Error("Invalid");
+          var _expW2 = project2.settings.sW || project2.w;
+          var _expH2 = project2.settings.sH || project2.h;
+          if (_expW2 && _expH2 && project2.pattern.length !== _expW2 * _expH2) {
+            throw new Error("Invalid pattern file: pattern length " + project2.pattern.length + " does not match grid " + _expW2 + "\u00d7" + _expH2 + " (" + (_expW2 * _expH2) + " cells expected)");
+          }
           processLoadedProject(project2);
         } catch (err2) {
           console.error(err2);
@@ -509,14 +526,35 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var handoff = localStorage.getItem("crossstitch_handoff_to_creator");
     if (handoff) {
       try {
-        var projectData = JSON.parse(handoff);
+        // T-3 / INT-4: parse the envelope first. Legacy writes were the
+        // bare project object (no ts wrapper); the unwrap below tolerates
+        // both shapes for one release. New writes carry {ts, project} and
+        // are rejected if older than HANDOFF_TTL_MS so an aborted nav
+        // (back / Esc on beforeunload) doesn't surface a misleading
+        // "tracking progress may be lost" alert at the next Creator open.
+        var HANDOFF_TTL_MS = 30 * 1000; // 30 seconds
+        var _raw = JSON.parse(handoff);
         localStorage.removeItem("crossstitch_handoff_to_creator");
-        processLoadedProject(projectData);
-        if (projectData.done && projectData.done.some(function(v) { return v === 1; })) {
-          alert("This pattern has tracking progress. Editing the pattern here will reset your stitching progress. Continue with caution.");
+        var projectData = null;
+        if (_raw && typeof _raw === 'object' && _raw.project && typeof _raw.ts === 'number') {
+          if ((Date.now() - _raw.ts) > HANDOFF_TTL_MS) {
+            // Stale handoff — drop it silently and continue normal fallbacks.
+            try { console.info('[creator] dropped stale tracker handoff (age', (Date.now()-_raw.ts), 'ms)'); } catch(_) {}
+          } else {
+            projectData = _raw.project;
+          }
+        } else {
+          // Legacy: bare project object. Accept it for backwards-compat.
+          projectData = _raw;
+        }
+        if (projectData) {
+          processLoadedProject(projectData);
+          if (projectData.done && projectData.done.some(function(v) { return v === 1; })) {
+            alert("This pattern has tracking progress. Editing the pattern here will reset your stitching progress. Continue with caution.");
+          }
+          return;
         }
       } catch (e) { console.error("Failed to load handoff to creator:", e); }
-      return;
     }
     if (typeof ProjectStorage !== "undefined") {
       var activeId = ProjectStorage.getActiveProjectId();

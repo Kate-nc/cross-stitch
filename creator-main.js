@@ -1158,7 +1158,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
           <div style={{background:"var(--surface)",borderRadius:"var(--radius-md)",padding:24,maxWidth:400,width:"100%",boxShadow:"0 8px 32px rgba(0,0,0,0.18)"}}>
             <div style={{fontSize:"var(--text-md,14px)",fontWeight:700,color:"var(--text-primary)",marginBottom:8}}>Switch to Convert?</div>
             <div style={{fontSize:"var(--text-sm,13px)",color:"var(--text-secondary)",marginBottom:20,lineHeight:1.5}}>
-              {"You have "+(state.editHistory?state.editHistory.length:0)+" manual "+(state.editHistory&&state.editHistory.length===1?"edit":"edits")+". Generating a new pattern will replace your current work."}
+              {"Your "+(state.editHistory?state.editHistory.length:0)+" manual "+(state.editHistory&&state.editHistory.length===1?"edit is":"edits are")+" already saved to this project. Going to Convert clears the undo history, and running Generate again will replace the current pattern."}
             </div>
             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
               <button onClick={()=>state.setConfirmBackToConvert(false)} style={{padding:"7px 14px",fontSize:13,fontWeight:500,border:"1px solid var(--line)",borderRadius:"var(--radius-sm)",background:"var(--surface)",color:"var(--text-secondary)",cursor:"pointer",fontFamily:"inherit"}}>Stay in Edit</button>
@@ -1492,6 +1492,22 @@ function UnifiedApp(){
       var pendingDataUrl = sessionStorage.getItem('cs_pending_image_dataurl');
       var pendingName    = sessionStorage.getItem('cs_pending_image_name') || 'image.jpg';
       var pendingType    = sessionStorage.getItem('cs_pending_image_type') || 'image/jpeg';
+      // INT-6: enforce a TTL on the handoff. If the dataURL was stashed
+      // more than PENDING_IMAGE_TTL_MS ago (user abandoned the nav and
+      // returned to /create through a different path), drop it so we don't
+      // silently re-consume a stale image.
+      var PENDING_IMAGE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+      try {
+        var _tsRaw = sessionStorage.getItem('cs_pending_image_ts');
+        var _ts = _tsRaw ? parseInt(_tsRaw, 10) : 0;
+        if (pendingDataUrl && _ts && (Date.now() - _ts) > PENDING_IMAGE_TTL_MS) {
+          sessionStorage.removeItem('cs_pending_image_dataurl');
+          sessionStorage.removeItem('cs_pending_image_name');
+          sessionStorage.removeItem('cs_pending_image_type');
+          sessionStorage.removeItem('cs_pending_image_ts');
+          pendingDataUrl = null;
+        }
+      } catch (_) {}
       // Intentionally NOT removing sessionStorage items yet. They serve as a
       // reload-safety backup: if a SW controllerchange fires between now and
       // when useProjectIO.js picks up window.__pendingCreatorFile, a reload can

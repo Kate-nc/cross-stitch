@@ -77,7 +77,7 @@ describe('Persistence field coverage', () => {
 
   test('handleEditInCreator cross-page handoff includes id and createdAt', () => {
     // Find the cross-page handoff object
-    const handoffMatch = trackerSrc.match(/let project=\{version:9,id:projectIdRef\.current/);
+    const handoffMatch = trackerSrc.match(/let project=\{version:11,id:projectIdRef\.current/);
     expect(handoffMatch).not.toBeNull();
 
     // Extract the full line for that project object
@@ -92,7 +92,7 @@ describe('Persistence field coverage', () => {
   });
 
   test('handleEditInCreator cross-page uses actual skeinPrice, not hardcoded', () => {
-    const handoffMatch = trackerSrc.match(/let project=\{version:9,id:projectIdRef\.current/);
+    const handoffMatch = trackerSrc.match(/let project=\{version:11,id:projectIdRef\.current/);
     expect(handoffMatch).not.toBeNull();
     const lineStart = trackerSrc.lastIndexOf('\n', handoffMatch.index) + 1;
     const lineEnd = trackerSrc.indexOf(';\n', handoffMatch.index);

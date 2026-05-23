@@ -371,14 +371,30 @@ window.useCreatorState = function useCreatorState() {
   var _palAdv   = useState(false);   var palAdvanced = _palAdv[0], setPalAdvanced = _palAdv[1];
   var _clOpen   = useState(false);   var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
   var _sc       = useState(function () {
+    var savedStrength = loadUserPref("creatorStitchCleanupStrength", "balanced");
+    if (savedStrength !== "gentle" && savedStrength !== "balanced" && savedStrength !== "thorough") {
+      savedStrength = "balanced";
+    }
     return {
       enabled:        loadUserPref("creatorStitchCleanup", true) !== false,
-      strength:       "balanced",
+      strength:       savedStrength,
       protectDetails: loadUserPref("creatorProtectDetails", true) !== false,
       smoothDithering:loadUserPref("creatorSmoothDithering", true) !== false
     };
   });
   var stitchCleanup = _sc[0], setStitchCleanup = _sc[1];
+  // Persist the stitch-cleanup strength across sessions so the user's
+  // last chosen aggressiveness sticks (matches `creatorStitchCleanup`
+  // enabled / protectDetails / smoothDithering, which are already
+  // persisted via the preferences modal). Only the local strength
+  // picker writes here; the prefs modal owns the other three flags.
+  useEffect(function () {
+    try {
+      if (typeof UserPrefs !== "undefined" && stitchCleanup && stitchCleanup.strength) {
+        UserPrefs.set("creatorStitchCleanupStrength", stitchCleanup.strength);
+      }
+    } catch (_) {}
+  }, [stitchCleanup && stitchCleanup.strength]);
   var _hasGen   = useState(false);   var hasGenerated = _hasGen[0], setHasGenerated = _hasGen[1];
 
   // Crop state
@@ -930,6 +946,12 @@ window.useCreatorState = function useCreatorState() {
   }
 
   function removeScratchColour(id) {
+    // E-5: don't let the user orphan stitches by removing an in-use scratch colour.
+    var entry = pal ? pal.find(function(p) { return p.id === id; }) : null;
+    if (entry && entry.count > 0) {
+      addToast("Can't remove a scratch colour that's in use — paint over it first", { type: "warning", duration: 3500 });
+      return;
+    }
     var removedFromPal = pal ? pal.filter(function(p) { return p.id === id; }) : [];
     var removedFromScratch = scratchPalette ? scratchPalette.filter(function(p) { return p.id === id; }) : [];
     setEditHistory(function(prev) {
@@ -941,6 +963,16 @@ window.useCreatorState = function useCreatorState() {
     setScratchPalette(function(prev) { return prev.filter(function(p) { return p.id !== id; }); });
     setPal(function(prev) { return prev ? prev.filter(function(p) { return p.id !== id; }) : prev; });
     setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); delete n[id]; return n; });
+    // E-3: drop park markers that point at the removed colour.
+    setParkMarkers(function(prev) { return prev.filter(function(m) { return m.colorId !== id; }); });
+    // E-7: drop the Materials/legend row's ownership entry too — otherwise
+    // re-adding the same DMC id later inherits stale owned/tobuy state.
+    setThreadOwned(function(prev) {
+      if (!prev || !(id in prev)) return prev;
+      var n = Object.assign({}, prev);
+      delete n[id];
+      return n;
+    });
   }
 
   function removeUnusedColours() {
@@ -958,6 +990,23 @@ window.useCreatorState = function useCreatorState() {
     setPal(function(prev) { return prev ? prev.filter(function(p) { return !unusedIds.has(p.id); }) : prev; });
     setScratchPalette(function(prev) { return prev.filter(function(p) { return !unusedIds.has(p.id); }); });
     setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); unusedIds.forEach(function(id) { delete n[id]; }); return n; });
+    // E-3: drop park markers that point at any of the removed colours.
+    setParkMarkers(function(prev) { return prev.filter(function(m) { return !unusedIds.has(m.colorId); }); });
+    // E-7: drop Materials/legend rows that point at the removed colours
+    // (threadOwned is the per-id ownership map driving the legend's
+    // owned/tobuy state). Otherwise a re-added id later inherits stale
+    // ownership state, and the row is implicitly still tracked even
+    // though the colour is gone.
+    setThreadOwned(function(prev) {
+      if (!prev) return prev;
+      var changed = false;
+      var n = {};
+      Object.keys(prev).forEach(function(k) {
+        if (unusedIds.has(k)) { changed = true; }
+        else { n[k] = prev[k]; }
+      });
+      return changed ? n : prev;
+    });
     addToast("Removed " + unused.length + " unused colour" + (unused.length !== 1 ? "s" : "") + " from palette", { type: "info", duration: 2000 });
   }
 
@@ -981,7 +1030,15 @@ window.useCreatorState = function useCreatorState() {
     setPal(result.pal); setCmap(result.cmap); setPat(result.mapped);
     setDone(new Uint8Array(result.mapped.length));
     setParkMarkers([]); setTab("pattern"); setThreadOwned({});
+    // C-9: a regeneration changes the colour map, so any user-drawn
+    // back-stitches now reference colour ids that may not exist or
+    // would render against the wrong palette entry. Clear them.
+    setBsLines([]); setBsStart(null);
     setEditHistory([]); setRedoHistory([]);
+    // E-1: clear any leftover wand/lasso selection — its grid indices
+    // are about to be meaningless against the new pattern.
+    if (wandClearRef.current) wandClearRef.current();
+    if (lassoCancelRef.current) lassoCancelRef.current();
     // Polish 13 step 4a — snapshot the source values that produced this
     // pattern so the Dimensions / Palette tabs can detect drift and
     // surface a "Re-generate (values changed)" CTA. Stored fields must
@@ -1051,9 +1108,14 @@ window.useCreatorState = function useCreatorState() {
             return;
           }
           if (msg.type === 'error') {
-            // Ignore errors from superseded requests (stale worker responses)
+            // Ignore errors from superseded requests (stale worker responses).
+            // C-1: must null workerRef.current so the next getOrCreateWorker
+            // doesn't try to re-use a terminated Worker handle (which would
+            // silently never respond and leave the UI stuck in busy state).
             if (msg.reqId !== undefined && msg.reqId !== genReqIdRef.current) {
-              w.terminate(); return;
+              w.terminate();
+              if (workerRef.current === w) workerRef.current = null;
+              return;
             }
             console.error('Worker generation error:', msg.message, msg.stack || '');
             w.terminate();
@@ -1086,7 +1148,44 @@ window.useCreatorState = function useCreatorState() {
 
   var generate = useCallback(function(overrides) {
     if (!img) return;
+    // INT-3 / C-3: a fresh Generate replaces pat/pal and resets `done`
+    // and `parkMarkers` to empty. If the user has any stitched progress
+    // we must confirm before throwing it away — there is no undo.
+    var _hasProgress = false;
+    if (done && done.length) {
+      for (var _di = 0; _di < done.length; _di++) {
+        if (done[_di] === 1) { _hasProgress = true; break; }
+      }
+    }
+    if (!_hasProgress && parkMarkers && parkMarkers.length > 0) _hasProgress = true;
+    if (_hasProgress && !(overrides && overrides.__confirmed)) {
+      if (window.ConfirmDialog && window.ConfirmDialog.show) {
+        var _ovr = overrides;
+        window.ConfirmDialog.show({
+          title: "Regenerate will clear your progress",
+          message: "This project has stitched progress and/or park markers. Generating a new pattern will reset all stitches to unstitched and remove every park marker. Consider exporting a backup (Project \u203a Backup) before continuing.\n\nContinue anyway?",
+          confirmLabel: "Regenerate (clear progress)",
+          danger: true
+        }).then(function(ok) {
+          if (!ok) return;
+          var nextOverrides = Object.assign({}, _ovr || {}, { __confirmed: true });
+          generate(nextOverrides);
+        });
+        return;
+      }
+      // No ConfirmDialog available (e.g. early boot) — fall through and
+      // proceed; the legacy behaviour is at least no-worse than before.
+    }
     setBusy(true); setProgressMessage(""); setHiId(null); setExportPage(0);
+    // C-8: if a previous generation is still running, terminate it. The
+    // reqId guard already discards its result, but the worker would keep
+    // burning CPU until done. Killing it frees the device and the next
+    // getOrCreateWorker() rebuilds (worker startup is ~5 ms vs seconds
+    // of wasted pipeline work).
+    if (workerRef.current && workerRef.current !== 'unavailable') {
+      try { workerRef.current.terminate(); } catch (_) {}
+      workerRef.current = null;
+    }
     var reqId = ++genReqIdRef.current;
 
     var _seed   = (overrides && overrides.seed   != null)      ? overrides.seed   : variationSeed;
