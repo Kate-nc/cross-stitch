@@ -371,14 +371,30 @@ window.useCreatorState = function useCreatorState() {
   var _palAdv   = useState(false);   var palAdvanced = _palAdv[0], setPalAdvanced = _palAdv[1];
   var _clOpen   = useState(false);   var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
   var _sc       = useState(function () {
+    var savedStrength = loadUserPref("creatorStitchCleanupStrength", "balanced");
+    if (savedStrength !== "gentle" && savedStrength !== "balanced" && savedStrength !== "thorough") {
+      savedStrength = "balanced";
+    }
     return {
       enabled:        loadUserPref("creatorStitchCleanup", true) !== false,
-      strength:       "balanced",
+      strength:       savedStrength,
       protectDetails: loadUserPref("creatorProtectDetails", true) !== false,
       smoothDithering:loadUserPref("creatorSmoothDithering", true) !== false
     };
   });
   var stitchCleanup = _sc[0], setStitchCleanup = _sc[1];
+  // Persist the stitch-cleanup strength across sessions so the user's
+  // last chosen aggressiveness sticks (matches `creatorStitchCleanup`
+  // enabled / protectDetails / smoothDithering, which are already
+  // persisted via the preferences modal). Only the local strength
+  // picker writes here; the prefs modal owns the other three flags.
+  useEffect(function () {
+    try {
+      if (typeof UserPrefs !== "undefined" && stitchCleanup && stitchCleanup.strength) {
+        UserPrefs.set("creatorStitchCleanupStrength", stitchCleanup.strength);
+      }
+    } catch (_) {}
+  }, [stitchCleanup && stitchCleanup.strength]);
   var _hasGen   = useState(false);   var hasGenerated = _hasGen[0], setHasGenerated = _hasGen[1];
 
   // Crop state

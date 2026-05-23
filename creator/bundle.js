@@ -4113,14 +4113,30 @@ window.useCreatorState = function useCreatorState() {
   var _palAdv   = useState(false);   var palAdvanced = _palAdv[0], setPalAdvanced = _palAdv[1];
   var _clOpen   = useState(false);   var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
   var _sc       = useState(function () {
+    var savedStrength = loadUserPref("creatorStitchCleanupStrength", "balanced");
+    if (savedStrength !== "gentle" && savedStrength !== "balanced" && savedStrength !== "thorough") {
+      savedStrength = "balanced";
+    }
     return {
       enabled:        loadUserPref("creatorStitchCleanup", true) !== false,
-      strength:       "balanced",
+      strength:       savedStrength,
       protectDetails: loadUserPref("creatorProtectDetails", true) !== false,
       smoothDithering:loadUserPref("creatorSmoothDithering", true) !== false
     };
   });
   var stitchCleanup = _sc[0], setStitchCleanup = _sc[1];
+  // Persist the stitch-cleanup strength across sessions so the user's
+  // last chosen aggressiveness sticks (matches `creatorStitchCleanup`
+  // enabled / protectDetails / smoothDithering, which are already
+  // persisted via the preferences modal). Only the local strength
+  // picker writes here; the prefs modal owns the other three flags.
+  useEffect(function () {
+    try {
+      if (typeof UserPrefs !== "undefined" && stitchCleanup && stitchCleanup.strength) {
+        UserPrefs.set("creatorStitchCleanupStrength", stitchCleanup.strength);
+      }
+    } catch (_) {}
+  }, [stitchCleanup && stitchCleanup.strength]);
   var _hasGen   = useState(false);   var hasGenerated = _hasGen[0], setHasGenerated = _hasGen[1];
 
   // Crop state
@@ -7764,6 +7780,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       var i = new Image();
       i.onerror = function() {
         console.warn("useProjectIO: could not decode uploaded image.");
+        if (state.addToast) state.addToast("Couldn\u2019t read that image. Try a different file (PNG, JPEG, or WebP).", {type:"error", duration:4000});
         state.setIsUploading(false);
       };
       var proceed = function() {
@@ -7810,7 +7827,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         i.onload = proceed; i.src = ev.target.result;
       }
     };
-    rd.onerror = function() { state.setIsUploading(false); };
+    rd.onerror = function() {
+      if (state.addToast) state.addToast("Couldn\u2019t read that file. It may be corrupt or too large to read.", {type:"error", duration:4000});
+      state.setIsUploading(false);
+    };
     rd.readAsDataURL(f);
   }
 

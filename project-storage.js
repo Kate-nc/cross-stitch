@@ -366,7 +366,12 @@ const ProjectStorage = (() => {
                 });
                 StashBridge.syncProjectToLibrary(
                   project.id, project.name || "Untitled pattern", skeinData, "inprogress", fc
-                ).catch(() => {});
+                ).catch(function(err) {
+                  // Don't block save on sync errors, but do surface them in
+                  // the console so a broken bridge doesn't silently desync
+                  // the Stash Manager from the active project list.
+                  try { console.warn("ProjectStorage: stash sync failed for", project.id, err); } catch (_) {}
+                });
               } catch (e) { /* never block save on sync errors */ }
             }
             // Notify listeners (Home dashboard, Manager pattern library, etc.) that

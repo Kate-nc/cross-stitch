@@ -414,6 +414,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       var i = new Image();
       i.onerror = function() {
         console.warn("useProjectIO: could not decode uploaded image.");
+        if (state.addToast) state.addToast("Couldn\u2019t read that image. Try a different file (PNG, JPEG, or WebP).", {type:"error", duration:4000});
         state.setIsUploading(false);
       };
       var proceed = function() {
@@ -460,7 +461,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         i.onload = proceed; i.src = ev.target.result;
       }
     };
-    rd.onerror = function() { state.setIsUploading(false); };
+    rd.onerror = function() {
+      if (state.addToast) state.addToast("Couldn\u2019t read that file. It may be corrupt or too large to read.", {type:"error", duration:4000});
+      state.setIsUploading(false);
+    };
     rd.readAsDataURL(f);
   }
 
