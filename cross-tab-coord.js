@@ -21,9 +21,9 @@
 //   • Safari <15.4 storage-event fallback (BroadcastChannel undefined there).
 //
 // Public surface: this file is fire-and-forget. It exposes
-// `window.CrossTabCoord.tabId` for debugging and the `onProjectChanged(cb)`
-// hook so the Tracker/Creator can suppress the toast right after their own
-// save round-trips (avoids self-noise).
+// `window.CrossTabCoord.tabId` for debugging and
+// `window.CrossTabCoord.broadcastProjectSaved(projectId, updatedAt)` for
+// ProjectStorage.save() wire-up.
 
 (function () {
   if (typeof window === 'undefined') return;
@@ -40,12 +40,6 @@
     return 't_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
   }
   var TAB_ID = _mkTabId();
-
-  // Listeners that want to suppress the next remote notification for a
-  // specific project id (set by ProjectStorage.save right before it
-  // broadcasts, so our own broadcast doesn't trip our own toast on a
-  // fast loopback).
-  var _suppressOnce = Object.create(null);
 
   var channel = null;
   if (typeof BroadcastChannel !== 'undefined') {
@@ -77,10 +71,6 @@
       if (!data || data.type !== 'project-saved') return;
       if (!data.projectId) return;
       if (data.sourceTabId === TAB_ID) return; // own broadcast
-      if (_suppressOnce[data.projectId]) {
-        delete _suppressOnce[data.projectId];
-        return;
-      }
       // Only nag if this tab is currently looking at the same project.
       var active = _activeProjectId();
       if (!active || active !== data.projectId) return;
@@ -100,13 +90,8 @@
     } catch (_) {}
   }
 
-  function suppressOnce(projectId) {
-    if (projectId) _suppressOnce[projectId] = true;
-  }
-
   window.CrossTabCoord = {
     tabId: TAB_ID,
-    broadcastProjectSaved: broadcastProjectSaved,
-    suppressOnce: suppressOnce
+    broadcastProjectSaved: broadcastProjectSaved
   };
 })();

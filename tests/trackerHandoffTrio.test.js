@@ -32,11 +32,10 @@ describe('T-3 / INT-4: Creator drops stale envelopes', () => {
       /_raw && typeof _raw === 'object' && _raw\.project && typeof _raw\.ts === 'number'/);
     expect(m).not.toBeNull();
   });
-  test('stale envelope returns early without processing', () => {
+  test('stale envelope is dropped and logged', () => {
     const m = useProjectIO.match(
-      /\(Date\.now\(\) - _raw\.ts\) > HANDOFF_TTL_MS[\s\S]{0,400}?return;/);
+      /\(Date\.now\(\) - _raw\.ts\) > HANDOFF_TTL_MS[\s\S]{0,400}?dropped stale tracker handoff/);
     expect(m).not.toBeNull();
-    expect(m[0]).toMatch(/dropped stale tracker handoff/);
   });
 });
 

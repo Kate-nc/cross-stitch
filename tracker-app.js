@@ -2986,7 +2986,7 @@ function handleEditInCreator(){
   const sseArrH=[...singleStitchEdits.entries()];
   const hsArrH=[...halfStitches.entries()].map(([idx,hs])=>[idx,{fwd:hs.fwd?{id:hs.fwd.id,rgb:hs.fwd.rgb}:undefined,bck:hs.bck?{id:hs.bck.id,rgb:hs.bck.rgb}:undefined}]);
   const hdArrH=[...halfDone.entries()];
-  let project={version:9,id:projectIdRef.current||undefined,page:"tracker",name:projectName,createdAt:createdAtRef.current||new Date().toISOString(),updatedAt:new Date().toISOString(),settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"var(--surface)",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice,stitchSpeed,smooth:0,smoothType:"median",orphans:0,wastePrefs},pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,hlRow,hlCol,threadOwned,imgData:null,originalPaletteState,singleStitchEdits:sseArrH,halfStitches:hsArrH,halfDone:hdArrH,statsSessions,statsSettings,achievedMilestones,doneSnapshots,breadcrumbs,stitchingStyle,blockW,blockH,focusBlock,startCorner,colourSequence};
+  let project={version:11,id:projectIdRef.current||undefined,page:"tracker",name:projectName,createdAt:createdAtRef.current||new Date().toISOString(),updatedAt:new Date().toISOString(),settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"var(--surface)",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice,stitchSpeed,smooth:0,smoothType:"median",orphans:0,wastePrefs},pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,hlRow,hlCol,threadOwned,imgData:null,originalPaletteState,singleStitchEdits:sseArrH,halfStitches:hsArrH,halfDone:hdArrH,statsSessions,statsSettings,achievedMilestones,doneSnapshots,breadcrumbs,stitchingStyle,blockW,blockH,focusBlock,startCorner,colourSequence};
   try{
     // T-3 / INT-4: wrap the handoff in an envelope with a wall-clock
     // timestamp. The Creator drops envelopes older than HANDOFF_TTL_MS so a
@@ -6910,4 +6910,3 @@ return(
 window.TrackerApp=TrackerApp;
 if(!window.__UNIFIED__)ReactDOM.createRoot(document.getElementById("root")).render(<TrackerApp/>);
 if (typeof SyncEngine !== 'undefined') SyncEngine.registerBeforeUnloadSnapshot();
-

@@ -538,22 +538,23 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         var projectData = null;
         if (_raw && typeof _raw === 'object' && _raw.project && typeof _raw.ts === 'number') {
           if ((Date.now() - _raw.ts) > HANDOFF_TTL_MS) {
-            // Stale handoff — drop it silently. The next Creator load will
-            // fall through to ProjectStorage.getActiveProject() as usual.
+            // Stale handoff — drop it silently and continue normal fallbacks.
             try { console.info('[creator] dropped stale tracker handoff (age', (Date.now()-_raw.ts), 'ms)'); } catch(_) {}
-            return;
+          } else {
+            projectData = _raw.project;
           }
-          projectData = _raw.project;
         } else {
           // Legacy: bare project object. Accept it for backwards-compat.
           projectData = _raw;
         }
-        processLoadedProject(projectData);
-        if (projectData.done && projectData.done.some(function(v) { return v === 1; })) {
-          alert("This pattern has tracking progress. Editing the pattern here will reset your stitching progress. Continue with caution.");
+        if (projectData) {
+          processLoadedProject(projectData);
+          if (projectData.done && projectData.done.some(function(v) { return v === 1; })) {
+            alert("This pattern has tracking progress. Editing the pattern here will reset your stitching progress. Continue with caution.");
+          }
+          return;
         }
       } catch (e) { console.error("Failed to load handoff to creator:", e); }
-      return;
     }
     if (typeof ProjectStorage !== "undefined") {
       var activeId = ProjectStorage.getActiveProjectId();
