@@ -519,6 +519,12 @@
           sessionStorage.setItem('cs_pending_image_dataurl', dataUrl);
           sessionStorage.setItem('cs_pending_image_name', file.name);
           sessionStorage.setItem('cs_pending_image_type', file.type || 'image/jpeg');
+          // INT-6: timestamp the handoff so the Creator can reject
+          // a stale dataURL that was abandoned in sessionStorage by an
+          // earlier navigation the user aborted. Without this, opening
+          // create.html via a different entry point hours later would
+          // silently consume the old image as if just chosen.
+          sessionStorage.setItem('cs_pending_image_ts', String(Date.now()));
           setPending(true);
           navigateAfterPaint('create.html?action=home-image-pending&from=home');
         } catch (_) {

@@ -1492,6 +1492,22 @@ function UnifiedApp(){
       var pendingDataUrl = sessionStorage.getItem('cs_pending_image_dataurl');
       var pendingName    = sessionStorage.getItem('cs_pending_image_name') || 'image.jpg';
       var pendingType    = sessionStorage.getItem('cs_pending_image_type') || 'image/jpeg';
+      // INT-6: enforce a TTL on the handoff. If the dataURL was stashed
+      // more than PENDING_IMAGE_TTL_MS ago (user abandoned the nav and
+      // returned to /create through a different path), drop it so we don't
+      // silently re-consume a stale image.
+      var PENDING_IMAGE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+      try {
+        var _tsRaw = sessionStorage.getItem('cs_pending_image_ts');
+        var _ts = _tsRaw ? parseInt(_tsRaw, 10) : 0;
+        if (pendingDataUrl && _ts && (Date.now() - _ts) > PENDING_IMAGE_TTL_MS) {
+          sessionStorage.removeItem('cs_pending_image_dataurl');
+          sessionStorage.removeItem('cs_pending_image_name');
+          sessionStorage.removeItem('cs_pending_image_type');
+          sessionStorage.removeItem('cs_pending_image_ts');
+          pendingDataUrl = null;
+        }
+      } catch (_) {}
       // Intentionally NOT removing sessionStorage items yet. They serve as a
       // reload-safety backup: if a SW controllerchange fires between now and
       // when useProjectIO.js picks up window.__pendingCreatorFile, a reload can

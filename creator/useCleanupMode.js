@@ -154,6 +154,12 @@ window.useCleanupMode = function useCleanupMode(state, history) {
   // Drag-paint refs (not React state — updated at 60 fps during drag)
   var brushDragActiveRef = useRef(false);
   var brushMaskRef       = useRef(null);
+  // CL-3: coalesce setCleanupPendingMask updates into rAF batches.
+  // Without this every pointermove event allocates a fresh w*h Uint8Array
+  // via mask.slice() + a React re-render. On a 200×200 grid that is ~40 KB
+  // × pointermove rate (60+ Hz), which produces visible GC stutter on
+  // mid-range Android devices during long strokes.
+  var brushRafPendingRef = useRef(false);
 
   var handleCleanupPointerDown = useCallback(function(gx, gy) {
     if (state.cleanupSelTool !== 'brush') return;
@@ -202,8 +208,23 @@ window.useCleanupMode = function useCleanupMode(state, history) {
         mask[idx] = 1;
       }
     }
-    // Update React state on each move for live overlay
-    state.setCleanupPendingMask(mask.slice());
+    // CL-3: schedule one slice + setState per animation frame regardless
+    // of how many pointermove events arrived. The mask itself was already
+    // updated synchronously above, so subsequent moves within the same
+    // frame keep accumulating into the same buffer; the React state
+    // catches up at 60 fps.
+    if (!brushRafPendingRef.current) {
+      brushRafPendingRef.current = true;
+      var _raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
+        ? window.requestAnimationFrame
+        : function (fn) { return setTimeout(fn, 16); };
+      _raf(function () {
+        brushRafPendingRef.current = false;
+        if (brushMaskRef.current) {
+          state.setCleanupPendingMask(brushMaskRef.current.slice());
+        }
+      });
+    }
   }
 
   // ── Auto-detect (Web Worker) ──────────────────────────────────────────────

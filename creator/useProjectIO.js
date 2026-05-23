@@ -494,6 +494,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         sessionStorage.removeItem('cs_pending_image_dataurl');
         sessionStorage.removeItem('cs_pending_image_name');
         sessionStorage.removeItem('cs_pending_image_type');
+        sessionStorage.removeItem('cs_pending_image_ts'); // INT-6
       } catch (_) {}
       handleFile(file);
       return;

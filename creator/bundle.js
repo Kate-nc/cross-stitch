@@ -4749,6 +4749,10 @@ window.useCreatorState = function useCreatorState() {
     setPal(result.pal); setCmap(result.cmap); setPat(result.mapped);
     setDone(new Uint8Array(result.mapped.length));
     setParkMarkers([]); setTab("pattern"); setThreadOwned({});
+    // C-9: a regeneration changes the colour map, so any user-drawn
+    // back-stitches now reference colour ids that may not exist or
+    // would render against the wrong palette entry. Clear them.
+    setBsLines([]); setBsStart(null);
     setEditHistory([]); setRedoHistory([]);
     // E-1: clear any leftover wand/lasso selection — its grid indices
     // are about to be meaningless against the new pattern.
@@ -4892,6 +4896,15 @@ window.useCreatorState = function useCreatorState() {
       // proceed; the legacy behaviour is at least no-worse than before.
     }
     setBusy(true); setProgressMessage(""); setHiId(null); setExportPage(0);
+    // C-8: if a previous generation is still running, terminate it. The
+    // reqId guard already discards its result, but the worker would keep
+    // burning CPU until done. Killing it frees the device and the next
+    // getOrCreateWorker() rebuilds (worker startup is ~5 ms vs seconds
+    // of wasted pipeline work).
+    if (workerRef.current && workerRef.current !== 'unavailable') {
+      try { workerRef.current.terminate(); } catch (_) {}
+      workerRef.current = null;
+    }
     var reqId = ++genReqIdRef.current;
 
     var _seed   = (overrides && overrides.seed   != null)      ? overrides.seed   : variationSeed;
@@ -5809,6 +5822,12 @@ window.useCleanupMode = function useCleanupMode(state, history) {
   // Drag-paint refs (not React state — updated at 60 fps during drag)
   var brushDragActiveRef = useRef(false);
   var brushMaskRef       = useRef(null);
+  // CL-3: coalesce setCleanupPendingMask updates into rAF batches.
+  // Without this every pointermove event allocates a fresh w*h Uint8Array
+  // via mask.slice() + a React re-render. On a 200×200 grid that is ~40 KB
+  // × pointermove rate (60+ Hz), which produces visible GC stutter on
+  // mid-range Android devices during long strokes.
+  var brushRafPendingRef = useRef(false);
 
   var handleCleanupPointerDown = useCallback(function(gx, gy) {
     if (state.cleanupSelTool !== 'brush') return;
@@ -5857,8 +5876,23 @@ window.useCleanupMode = function useCleanupMode(state, history) {
         mask[idx] = 1;
       }
     }
-    // Update React state on each move for live overlay
-    state.setCleanupPendingMask(mask.slice());
+    // CL-3: schedule one slice + setState per animation frame regardless
+    // of how many pointermove events arrived. The mask itself was already
+    // updated synchronously above, so subsequent moves within the same
+    // frame keep accumulating into the same buffer; the React state
+    // catches up at 60 fps.
+    if (!brushRafPendingRef.current) {
+      brushRafPendingRef.current = true;
+      var _raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
+        ? window.requestAnimationFrame
+        : function (fn) { return setTimeout(fn, 16); };
+      _raf(function () {
+        brushRafPendingRef.current = false;
+        if (brushMaskRef.current) {
+          state.setCleanupPendingMask(brushMaskRef.current.slice());
+        }
+      });
+    }
   }
 
   // ── Auto-detect (Web Worker) ──────────────────────────────────────────────
@@ -7932,6 +7966,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         sessionStorage.removeItem('cs_pending_image_dataurl');
         sessionStorage.removeItem('cs_pending_image_name');
         sessionStorage.removeItem('cs_pending_image_type');
+        sessionStorage.removeItem('cs_pending_image_ts'); // INT-6
       } catch (_) {}
       handleFile(file);
       return;

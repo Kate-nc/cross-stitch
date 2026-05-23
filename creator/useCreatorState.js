@@ -1007,6 +1007,10 @@ window.useCreatorState = function useCreatorState() {
     setPal(result.pal); setCmap(result.cmap); setPat(result.mapped);
     setDone(new Uint8Array(result.mapped.length));
     setParkMarkers([]); setTab("pattern"); setThreadOwned({});
+    // C-9: a regeneration changes the colour map, so any user-drawn
+    // back-stitches now reference colour ids that may not exist or
+    // would render against the wrong palette entry. Clear them.
+    setBsLines([]); setBsStart(null);
     setEditHistory([]); setRedoHistory([]);
     // E-1: clear any leftover wand/lasso selection — its grid indices
     // are about to be meaningless against the new pattern.
@@ -1150,6 +1154,15 @@ window.useCreatorState = function useCreatorState() {
       // proceed; the legacy behaviour is at least no-worse than before.
     }
     setBusy(true); setProgressMessage(""); setHiId(null); setExportPage(0);
+    // C-8: if a previous generation is still running, terminate it. The
+    // reqId guard already discards its result, but the worker would keep
+    // burning CPU until done. Killing it frees the device and the next
+    // getOrCreateWorker() rebuilds (worker startup is ~5 ms vs seconds
+    // of wasted pipeline work).
+    if (workerRef.current && workerRef.current !== 'unavailable') {
+      try { workerRef.current.terminate(); } catch (_) {}
+      workerRef.current = null;
+    }
     var reqId = ++genReqIdRef.current;
 
     var _seed   = (overrides && overrides.seed   != null)      ? overrides.seed   : variationSeed;

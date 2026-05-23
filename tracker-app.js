@@ -715,6 +715,19 @@ const[redoStack,setRedoStack]=useState([]);
 const TRACK_HISTORY_MAX=50;
 
 // ── Incremental stitch counters ──
+// T-5 invariant: `doneCountRef.current` and `colourDoneCountsRef.current`
+// MUST be derivable from (pat, done, halfStitches, halfDone) at all times.
+// There are exactly two valid ways to keep them in sync:
+//   1. Full rebuild — `recomputeAllCounts(pat, done, halfStitches, halfDone)`
+//      after any change that is not a single-cell flip (load, undo, paste,
+//      regenerate, palette swap, halfStitches mutation, etc.).
+//   2. Incremental — `applyDoneCountsDelta(changes, pat, newDone)` after a
+//      stitch flip where you know exactly which indices changed. Halves
+//      always go through path 1.
+// If you mutate `done` and forget both, the counter (`Stitches done` chip,
+// rail progress bars, milestone celebrations, autosave snapshot) silently
+// drifts. Add a recomputeAllCounts call when in doubt — it's O(w·h) but
+// still <2 ms on 300×300 grids.
 const doneCountRef=useRef(0);
 const colourDoneCountsRef=useRef({});
 const[countsVer,setCountsVer]=useState(0);
