@@ -1067,9 +1067,14 @@ window.useCreatorState = function useCreatorState() {
             return;
           }
           if (msg.type === 'error') {
-            // Ignore errors from superseded requests (stale worker responses)
+            // Ignore errors from superseded requests (stale worker responses).
+            // C-1: must null workerRef.current so the next getOrCreateWorker
+            // doesn't try to re-use a terminated Worker handle (which would
+            // silently never respond and leave the UI stuck in busy state).
             if (msg.reqId !== undefined && msg.reqId !== genReqIdRef.current) {
-              w.terminate(); return;
+              w.terminate();
+              if (workerRef.current === w) workerRef.current = null;
+              return;
             }
             console.error('Worker generation error:', msg.message, msg.stack || '');
             w.terminate();

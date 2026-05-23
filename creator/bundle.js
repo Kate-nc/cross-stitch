@@ -4809,9 +4809,14 @@ window.useCreatorState = function useCreatorState() {
             return;
           }
           if (msg.type === 'error') {
-            // Ignore errors from superseded requests (stale worker responses)
+            // Ignore errors from superseded requests (stale worker responses).
+            // C-1: must null workerRef.current so the next getOrCreateWorker
+            // doesn't try to re-use a terminated Worker handle (which would
+            // silently never respond and leave the UI stuck in busy state).
             if (msg.reqId !== undefined && msg.reqId !== genReqIdRef.current) {
-              w.terminate(); return;
+              w.terminate();
+              if (workerRef.current === w) workerRef.current = null;
+              return;
             }
             console.error('Worker generation error:', msg.message, msg.stack || '');
             w.terminate();
@@ -5916,6 +5921,31 @@ window.useCleanupMode = function useCleanupMode(state, history) {
     if (state.cleanupAutoRunning) return;
     runAutoDetect();
   }, [state.cleanupSelTool, state.activeTool]);
+
+  // CL-5: If the user leaves Auto sub-tool (or leaves cleanup mode entirely)
+  // while a worker run is in flight, terminate the worker so its late result
+  // can't overwrite a fresh click/brush selection mask. enterCleanup,
+  // exitCleanup and cancelCleanup already terminate on those code paths;
+  // this covers the sub-tool-switch case the others miss.
+  useEffect(function() {
+    if (state.activeTool === 'cleanup' && state.cleanupSelTool === 'auto') return;
+    if (workerRef.current) {
+      workerRef.current.terminate();
+      workerRef.current = null;
+      if (state.cleanupAutoRunning) state.setCleanupAutoRunning(false);
+    }
+  }, [state.cleanupSelTool, state.activeTool]);
+
+  // CL-1: Terminate the cleanup worker on unmount so a navigation away from
+  // the creator (or a hot-reload) doesn't leave an orphan worker process.
+  useEffect(function() {
+    return function() {
+      if (workerRef.current) {
+        try { workerRef.current.terminate(); } catch (_) {}
+        workerRef.current = null;
+      }
+    };
+  }, []);
 
   // ── Neighbour vote ────────────────────────────────────────────────────────
   // Determines the replacement colour for a single selected cell based on
