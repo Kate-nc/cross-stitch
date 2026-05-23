@@ -241,6 +241,28 @@ const BackupRestore = (() => {
       if (backup._version !== 1) {
         return { valid: false, error: "Unsupported backup version: " + backup._version };
       }
+      // S-2: cross-field structural checks. Without these, validate() will
+      // happily accept a backup whose top-level keys exist but whose nested
+      // databases shape is wrong, and the restore loop then explodes
+      // halfway through with a less helpful error.
+      if (!backup.databases || typeof backup.databases !== "object") {
+        return { valid: false, error: "Backup is missing the databases section." };
+      }
+      const expectedDbs = ["CrossStitchDB", "stitch_manager_db"];
+      for (let i = 0; i < expectedDbs.length; i++) {
+        const dbKey = expectedDbs[i];
+        const db = backup.databases[dbKey];
+        if (db === undefined) continue; // partial backups are allowed
+        if (!db || typeof db !== "object") {
+          return { valid: false, error: "Backup field databases." + dbKey + " is malformed." };
+        }
+        const stores = Object.keys(db);
+        for (let s = 0; s < stores.length; s++) {
+          if (!Array.isArray(db[stores[s]])) {
+            return { valid: false, error: "Backup field databases." + dbKey + "." + stores[s] + " must be an array of records." };
+          }
+        }
+      }
       const summary = {
         createdAt: backup._createdAt || "unknown",
         projectCount: 0,

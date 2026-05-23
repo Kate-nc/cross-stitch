@@ -7795,6 +7795,13 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         var project = JSON.parse(ev.target.result);
         if (!project.pattern || !Array.isArray(project.pattern)) throw new Error("Invalid pattern file: 'pattern' field missing or not an array");
         if (!project.settings) throw new Error("Invalid");
+        // C-6: pattern length must match the declared grid size, otherwise
+        // every downstream renderer reads out-of-bounds.
+        var _expW = project.settings.sW || project.w;
+        var _expH = project.settings.sH || project.h;
+        if (_expW && _expH && project.pattern.length !== _expW * _expH) {
+          throw new Error("Invalid pattern file: pattern length " + project.pattern.length + " does not match grid " + _expW + "\u00d7" + _expH + " (" + (_expW * _expH) + " cells expected)");
+        }
         processLoadedProject(project);
       } catch (err) {
         console.error(err);
@@ -7910,6 +7917,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           var project2 = JSON.parse(ev2.target.result);
           if (!project2.pattern || !Array.isArray(project2.pattern)) throw new Error("Invalid pattern file: 'pattern' field missing or not an array");
           if (!project2.settings) throw new Error("Invalid");
+          var _expW2 = project2.settings.sW || project2.w;
+          var _expH2 = project2.settings.sH || project2.h;
+          if (_expW2 && _expH2 && project2.pattern.length !== _expW2 * _expH2) {
+            throw new Error("Invalid pattern file: pattern length " + project2.pattern.length + " does not match grid " + _expW2 + "\u00d7" + _expH2 + " (" + (_expW2 * _expH2) + " cells expected)");
+          }
           processLoadedProject(project2);
         } catch (err2) {
           console.error(err2);
