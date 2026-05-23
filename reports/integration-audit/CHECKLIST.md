@@ -93,3 +93,5 @@ Legend:
 - Pure colour-maths (already covered).
 - Sync engine internals (already audited under [reports/sync/](../sync/)).
 - UX density (already covered in `reports/edit-mode-ui-audit.md`, `reports/track-mode-ui-audit.md`, `reports/create-flow-audit.md`).
+
+arbitary change
