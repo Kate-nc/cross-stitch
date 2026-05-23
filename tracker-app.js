@@ -908,12 +908,17 @@ const[parkLayers,setParkLayers]=useState({});
 function isParkLayerVisible(cid){return parkLayers[cid]!==false;}
 // ── Stitching Style & Spatial Focus Area ──
 const[stitchingStyle,setStitchingStyle]=useState(()=>{try{var ls=localStorage.getItem("cs_stitchStyle");if(ls)return ls;var p=window.UserPrefs&&window.UserPrefs.get("trackerStitchingStyle");return p||"block";}catch(_){return"block";}});
-const[blockW,setBlockW]=useState(()=>{try{var ls=localStorage.getItem("cs_blockW");if(ls)return Math.max(5,Math.min(100,parseInt(ls)));var bs=(window.UserPrefs&&window.UserPrefs.get("trackerBlockShape"))||"10x10";var w=parseInt(String(bs).split("x")[0],10);return isFinite(w)?Math.max(5,Math.min(100,w)):10;}catch(_){return 10;}});
-const[blockH,setBlockH]=useState(()=>{try{var ls=localStorage.getItem("cs_blockH");if(ls)return Math.max(5,Math.min(100,parseInt(ls)));var bs=(window.UserPrefs&&window.UserPrefs.get("trackerBlockShape"))||"10x10";var hh=parseInt(String(bs).split("x")[1],10);return isFinite(hh)?Math.max(5,Math.min(100,hh)):10;}catch(_){return 10;}});
+// T-2: default to 10/10/TL on mount and let processLoadedProject
+// pick the project value (or fall back to localStorage when the
+// project doesn't specify one). Reading localStorage here caused
+// the previous project's block size to flash on the first render
+// when switching projects.
+const[blockW,setBlockW]=useState(10);
+const[blockH,setBlockH]=useState(10);
 const[focusBlock,setFocusBlock]=useState(null); // {bx,by} | null
 const[focusEnabled,setFocusEnabled]=useState(()=>{try{return localStorage.getItem("cs_focusEnabled")==="1";}catch(_){return false;}});
 const[colourSequence,setColourSequence]=useState(()=>{try{return localStorage.getItem("cs_colourSeq")||"fewest";}catch(_){return"fewest";}});
-const[startCorner,setStartCorner]=useState(()=>{try{var ls=localStorage.getItem("cs_startCorner");if(ls)return ls;var p=window.UserPrefs&&window.UserPrefs.get("trackerStartCorner");return p||"TL";}catch(_){return"TL";}});
+const[startCorner,setStartCorner]=useState("TL");
 // Gate the style picker on the generic Welcome wizard so they appear
 // sequentially: Welcome first, style picker after dismissal. If the user has
 // already seen the Welcome wizard (or never needed it on this build), the
@@ -3156,10 +3161,24 @@ function processLoadedProject(project){
   // Preserve v3 stats fields through auto-save round-trips
   v3FieldsRef.current={finishStatus:project.finishStatus,startedAt:project.startedAt,lastTouchedAt:project.lastTouchedAt,completedAt:project.completedAt,stitchLog:project.stitchLog};
   if(project.stitchingStyle)setStitchingStyle(project.stitchingStyle);
-  if(project.blockW)setBlockW(Math.max(5,Math.min(100,project.blockW)));
-  if(project.blockH)setBlockH(Math.max(5,Math.min(100,project.blockH)));
+  // T-2: prefer the per-project value; fall back to last-used (localStorage)
+  // or the user pref shape; final default 10/TL. Doing it here (not in
+  // useState) keeps the first render from showing the previous project's
+  // block size when switching between projects.
+  var _fallbackShape = (window.UserPrefs && window.UserPrefs.get("trackerBlockShape")) || "10x10";
+  var _fbW = parseInt(String(_fallbackShape).split("x")[0], 10);
+  var _fbH = parseInt(String(_fallbackShape).split("x")[1], 10);
+  var _lsW = null, _lsH = null, _lsCorner = null;
+  try { _lsW = localStorage.getItem("cs_blockW"); _lsH = localStorage.getItem("cs_blockH"); _lsCorner = localStorage.getItem("cs_startCorner"); } catch(_){}
+  var _resolveBlock = function(projVal, lsVal, fbVal) {
+    if (projVal) return Math.max(5, Math.min(100, projVal));
+    if (lsVal) { var n = parseInt(lsVal, 10); if (isFinite(n)) return Math.max(5, Math.min(100, n)); }
+    return isFinite(fbVal) ? Math.max(5, Math.min(100, fbVal)) : 10;
+  };
+  setBlockW(_resolveBlock(project.blockW, _lsW, _fbW));
+  setBlockH(_resolveBlock(project.blockH, _lsH, _fbH));
   if(project.focusBlock)setFocusBlock(project.focusBlock);else setFocusBlock(null);
-  if(project.startCorner)setStartCorner(project.startCorner);
+  setStartCorner(project.startCorner || _lsCorner || (window.UserPrefs && window.UserPrefs.get("trackerStartCorner")) || "TL");
   if(project.colourSequence)setColourSequence(project.colourSequence);
   // Legacy migration: if no statsSessions but totalTime exists, create a synthetic session
   var rawStatsSessions=(project.statsSessions||[]).filter(function(s){
