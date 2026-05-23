@@ -383,6 +383,16 @@ const ProjectStorage = (() => {
                 }));
               }
             } catch (e) {}
+            // INT-7 (visibility tier): broadcast to other tabs so they can
+            // surface a "changed elsewhere" toast. Only meaningful for named
+            // projects; ignore the auto_save legacy key.
+            try {
+              if (typeof window !== "undefined" && window.CrossTabCoord
+                  && project.id && project.id.indexOf("proj_") === 0) {
+                window.CrossTabCoord.broadcastProjectSaved(
+                  project.id, project.updatedAt || Date.now());
+              }
+            } catch (_) {}
             resolve(project.id);
           };
           tx.onerror = () => reject(tx.error);
