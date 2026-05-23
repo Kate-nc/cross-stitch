@@ -4688,6 +4688,12 @@ window.useCreatorState = function useCreatorState() {
   }
 
   function removeScratchColour(id) {
+    // E-5: don't let the user orphan stitches by removing an in-use scratch colour.
+    var entry = pal ? pal.find(function(p) { return p.id === id; }) : null;
+    if (entry && entry.count > 0) {
+      addToast("Can't remove a scratch colour that's in use — paint over it first", { type: "warning", duration: 3500 });
+      return;
+    }
     var removedFromPal = pal ? pal.filter(function(p) { return p.id === id; }) : [];
     var removedFromScratch = scratchPalette ? scratchPalette.filter(function(p) { return p.id === id; }) : [];
     setEditHistory(function(prev) {
@@ -4699,6 +4705,8 @@ window.useCreatorState = function useCreatorState() {
     setScratchPalette(function(prev) { return prev.filter(function(p) { return p.id !== id; }); });
     setPal(function(prev) { return prev ? prev.filter(function(p) { return p.id !== id; }) : prev; });
     setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); delete n[id]; return n; });
+    // E-3: drop park markers that point at the removed colour.
+    setParkMarkers(function(prev) { return prev.filter(function(m) { return m.colorId !== id; }); });
   }
 
   function removeUnusedColours() {
@@ -4716,6 +4724,8 @@ window.useCreatorState = function useCreatorState() {
     setPal(function(prev) { return prev ? prev.filter(function(p) { return !unusedIds.has(p.id); }) : prev; });
     setScratchPalette(function(prev) { return prev.filter(function(p) { return !unusedIds.has(p.id); }); });
     setCmap(function(prev) { if (!prev) return prev; var n = Object.assign({}, prev); unusedIds.forEach(function(id) { delete n[id]; }); return n; });
+    // E-3: drop park markers that point at any of the removed colours.
+    setParkMarkers(function(prev) { return prev.filter(function(m) { return !unusedIds.has(m.colorId); }); });
     addToast("Removed " + unused.length + " unused colour" + (unused.length !== 1 ? "s" : "") + " from palette", { type: "info", duration: 2000 });
   }
 

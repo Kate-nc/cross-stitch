@@ -3134,7 +3134,24 @@ function processLoadedProject(project){
   if(project.done&&project.done.length===restored.length)setDone(new Uint8Array(project.done));
   else setDone(new Uint8Array(restored.length));
 
-  setParkMarkers(project.parkMarkers||[]);
+  // T-1: drop park markers whose colour no longer exists in the palette
+  // (e.g. the colour was removed in the Creator between sessions). Notify
+  // the user once if any were dropped.
+  var rawParkMarkers = project.parkMarkers || [];
+  var liveParkMarkers = rawParkMarkers.filter(function(m) { return m && newCmap && newCmap[m.colorId]; });
+  if (rawParkMarkers.length && liveParkMarkers.length !== rawParkMarkers.length) {
+    var dropped = rawParkMarkers.length - liveParkMarkers.length;
+    try {
+      if (window.Toast && window.Toast.show) {
+        window.Toast.show({
+          message: "Removed " + dropped + " park marker" + (dropped !== 1 ? "s" : "") + " for colours no longer in the palette",
+          type: "info",
+          duration: 3500
+        });
+      }
+    } catch (_) {}
+  }
+  setParkMarkers(liveParkMarkers);
   setBreadcrumbs(project.breadcrumbs||[]);
   // Preserve v3 stats fields through auto-save round-trips
   v3FieldsRef.current={finishStatus:project.finishStatus,startedAt:project.startedAt,lastTouchedAt:project.lastTouchedAt,completedAt:project.completedAt,stitchLog:project.stitchLog};
