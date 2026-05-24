@@ -241,16 +241,29 @@ function calcDifficulty(palLen,blendCount,totalSt,opts){
 const DB_NAME = "CrossStitchDB";
 const STORE_NAME = "projects";
 
+// Session-level flags so navigator.storage.persist() is only requested once
+// per page load. Multiple callers (getDB, project-storage, stash-bridge) all
+// reach this function; without the flag every IndexedDB open attempt would
+// call persist() and log "Storage persistence denied." 7-9 times per load.
+var _persistenceRequested = false;
+var _persistenceResult = false;
+
 async function ensurePersistence() {
   try {
     if (navigator.storage && navigator.storage.persist) {
       const isPersisted = await navigator.storage.persisted();
-      if (!isPersisted) {
-        const granted = await navigator.storage.persist();
-        console.log(`Storage persistence ${granted ? "granted" : "denied"}.`);
-        return granted;
+      if (isPersisted) {
+        _persistenceRequested = true;
+        _persistenceResult = true;
+        return true;
       }
-      return true;
+      // Only request (and log) once per page session.
+      if (_persistenceRequested) return _persistenceResult;
+      _persistenceRequested = true;
+      const granted = await navigator.storage.persist();
+      _persistenceResult = granted;
+      console.log(`Storage persistence ${granted ? "granted" : "denied"}.`);
+      return granted;
     }
   } catch (error) {
     console.warn("Storage persistence unavailable.", error);
