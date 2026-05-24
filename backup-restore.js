@@ -305,6 +305,46 @@ const BackupRestore = (() => {
       const check = this.validate(backup);
       if (!check.valid) throw new Error(check.error);
 
+      // INT-7 Phase C — ask peer tabs if any of them has a project open
+      // before we wipe both databases. A whole-DB restore uses the
+      // wildcard '*' so any active peer objects. On objection we prompt
+      // the user through ConfirmDialog (when available) and abort with a
+      // clear cancellation error on refusal. Missing module / channel /
+      // dialog all fall through to today's behaviour.
+      try {
+        if (typeof window !== 'undefined' && window.CrossTabLock &&
+            typeof window.CrossTabLock.requestLock === 'function') {
+          const lockResult = await window.CrossTabLock.requestLock('*', 'restore-backup');
+          if (lockResult && !lockResult.ok && lockResult.denials && lockResult.denials.length > 0) {
+            let proceed = false;
+            if (window.ConfirmDialog && typeof window.ConfirmDialog.show === 'function') {
+              const peerCount = lockResult.denials.length;
+              const peerWord = peerCount === 1 ? 'another tab' : (peerCount + ' other tabs');
+              try {
+                proceed = await window.ConfirmDialog.show({
+                  title: 'Other tabs have projects open',
+                  message: 'Restoring a backup will overwrite all projects, including any that ' + peerWord + ' may be editing. Unsaved work in those tabs will be lost. Continue?',
+                  confirmLabel: 'Restore anyway',
+                  cancelLabel: 'Cancel',
+                  danger: true
+                });
+              } catch (_) { proceed = false; }
+            } else {
+              // No dialog available — fail closed (refuse) rather than
+              // silently destroy peer state. Caller surfaces the error.
+              proceed = false;
+            }
+            if (!proceed) {
+              throw new Error('Restore cancelled — another tab has a project open.');
+            }
+          }
+        }
+      } catch (e) {
+        // Re-throw the cancellation; swallow only internal lock failures.
+        if (e && typeof e.message === 'string' && e.message.indexOf('Restore cancelled') === 0) throw e;
+        // Lock check itself errored — proceed (best-effort).
+      }
+
       // 1. CrossStitchDB
       if (backup.databases.CrossStitchDB) {
         const db = await openDB("CrossStitchDB", 4, ["projects", "project_meta", "stats_summaries", "sync_snapshots"]);
