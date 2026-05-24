@@ -443,6 +443,62 @@ const ProjectStorage = (() => {
       }
     },
 
+    // INT-7 Phase B-2: save with stale-read conflict detection.
+    //
+    // Returns a discriminated result object:
+    //   { ok: true,  id }
+    //   { ok: false, reason: 'conflict', id, remoteWriteAt, remoteWriteTabId }
+    //
+    // A conflict is reported when ALL of the following hold for `project.id`:
+    //   • CrossTabCoord.getSeen(id) returned a baseline (we've loaded or
+    //     saved this project at least once in this tab).
+    //   • The current in-IDB record has a numeric `lastWriteAt` strictly
+    //     greater than the baseline (something newer is on disk).
+    //   • The on-disk `lastWriteTabId` is a non-empty string and differs
+    //     from the baseline's `lastWriteTabId` (a different tab authored
+    //     the newer write).
+    //
+    // If any condition fails we fall through to a regular save() — that
+    // covers brand-new projects (no id yet), projects this tab has never
+    // loaded (no baseline), legacy records without Phase B fields, and
+    // the trivial "we wrote it ourselves between calls" case.
+    //
+    // The existing save() remains unchanged for back-compat; callers
+    // wanting conflict detection must opt in via saveChecked().
+    async saveChecked(project) {
+      if (!project || !project.id || this._deletedIds.has(project.id)) {
+        const id = await this.save(project);
+        return { ok: true, id: id };
+      }
+      let seen = null;
+      try {
+        if (typeof window !== 'undefined' && window.CrossTabCoord
+            && typeof window.CrossTabCoord.getSeen === 'function') {
+          seen = window.CrossTabCoord.getSeen(project.id);
+        }
+      } catch (_) {}
+      if (seen && typeof seen.lastWriteAt === 'number') {
+        let current = null;
+        try { current = await this.get(project.id); } catch (_) {}
+        if (current
+            && typeof current.lastWriteAt === 'number'
+            && current.lastWriteAt > seen.lastWriteAt
+            && typeof current.lastWriteTabId === 'string'
+            && current.lastWriteTabId
+            && current.lastWriteTabId !== seen.lastWriteTabId) {
+          return {
+            ok: false,
+            reason: 'conflict',
+            id: project.id,
+            remoteWriteAt: current.lastWriteAt,
+            remoteWriteTabId: current.lastWriteTabId
+          };
+        }
+      }
+      const id = await this.save(project);
+      return { ok: true, id: id };
+    },
+
     // Load a single project by ID. Returns null if not found.
     async get(id) {
       try {
