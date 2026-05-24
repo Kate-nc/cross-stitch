@@ -34,7 +34,7 @@ describe('sw.js precache (UX-12 Phase 7 PR #13)', () => {
   // are runtime-cached on first use so the SW install stays light.
   // Bumped to v46 when cross-tab-coord.js was added (INT-7 visibility tier).
   test('CACHE_NAME bumped to v46', () => {
-    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v46['"]/);
+    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v47['"]/);
   });
 
   test('PRECACHE_URLS does NOT include heavy lazy vendor blobs', () => {

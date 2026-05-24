@@ -170,6 +170,11 @@
 
       // Default toast UX preserved: only nag if this tab is currently
       // looking at the same project. Subscribers cannot cancel the toast.
+      // INT-7 Phase B-3: if cross-tab-resolution.js (or another component)
+      // is taking ownership of the active-project notification — typically
+      // because it shows a richer modal — it can set this flag to silence
+      // the default warning toast and avoid double-notifying the user.
+      if (window.CrossTabCoord && window.CrossTabCoord._suppressActiveToast) return;
       var active = _activeProjectId();
       if (!active || active !== data.projectId) return;
       _showToast(data.projectId);
