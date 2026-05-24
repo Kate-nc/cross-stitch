@@ -203,6 +203,14 @@
     "onboarding.coached.undo":     false,
     "onboarding.coached.progress": false,
     "onboarding.coached.save":     false,
+
+    // ─── INT-7 cross-tab conflict resolution (Phase B-3) ───────────────
+    // What to do when another browser tab/window saves the project that
+    // *this* tab currently has open. Values:
+    //   "prompt" — show a modal: Reload or Keep my edits (default).
+    //   "reload" — silently reload the page to pick up the remote save.
+    //   "keep"   — do nothing; this tab's next save will overwrite.
+    crossTabConflictPolicy: "prompt",
   };
 
   var PVIEW_DEFAULTS = {

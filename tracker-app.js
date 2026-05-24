@@ -3073,6 +3073,17 @@ function handleSymbolReassignment(oldColorId, newThread) {
 
 function processLoadedProject(project){
   if(!project){console.error("processLoadedProject called with null/undefined");return;}
+  // INT-7 Phase B-1: seed the last-seen cache so a future save() from this
+  // tab can detect concurrent writes from other tabs. No-op when
+  // CrossTabCoord isn't loaded or the project lacks Phase B fields (legacy
+  // payloads) — the next save from this tab will stamp them.
+  try {
+    if (project.id && typeof window !== 'undefined'
+        && window.CrossTabCoord && typeof window.CrossTabCoord.noteSeen === 'function') {
+      window.CrossTabCoord.noteSeen(
+        project.id, project.lastWriteAt, project.lastWriteTabId);
+    }
+  } catch (_) {}
   let s=project.settings||{};
   setSW(project.w||s.sW||project.settings?.w||80);
   setSH(project.h||s.sH||project.settings?.h||80);

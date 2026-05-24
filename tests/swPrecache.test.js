@@ -33,8 +33,11 @@ describe('sw.js precache (UX-12 Phase 7 PR #13)', () => {
   // were dropped from PRECACHE_URLS (action plan headline H2 = 2A.3); both
   // are runtime-cached on first use so the SW install stays light.
   // Bumped to v46 when cross-tab-coord.js was added (INT-7 visibility tier).
-  test('CACHE_NAME bumped to v46', () => {
-    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v46['"]/);
+  // Bumped to v47 when cross-tab-resolution.js was added (INT-7 Phase B-3).
+  // Bumped to v48 when cross-tab-lock.js was added (INT-7 Phase C).
+  // Bumped to v49 for the sw.js navigation-fallback bug fix.
+  test('CACHE_NAME bumped to v49', () => {
+    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v49['"]/);
   });
 
   test('PRECACHE_URLS does NOT include heavy lazy vendor blobs', () => {

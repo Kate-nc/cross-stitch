@@ -316,6 +316,19 @@ const ProjectStorage = (() => {
         return project.id;
       }
       project.updatedAt = new Date().toISOString();
+      // INT-7 Phase B: stamp a numeric (epoch ms) write timestamp and the
+      // authoring tab id alongside the existing ISO `updatedAt` string.
+      // These power the stale-read conflict detection in Phase B-2:
+      // before writing, a future `saveChecked` will compare the in-IDB
+      // `lastWriteAt` against what this tab last saw, and a divergence
+      // with a different `lastWriteTabId` is a concurrent-write conflict.
+      // Stored separately from `updatedAt` so existing serializers,
+      // sync-engine fingerprints, and PDF-export bit-stable paths that
+      // depend on the ISO string aren't disturbed.
+      project.lastWriteAt = Date.now();
+      project.lastWriteTabId =
+        (typeof window !== 'undefined' && window.CrossTabCoord && window.CrossTabCoord.tabId)
+          || null;
       // Invalidate the bulk-hydration cache (action plan H4 = 2C.1) so the
       // next stats render sees this save's data even before metas signature
       // changes propagate.
@@ -385,12 +398,23 @@ const ProjectStorage = (() => {
             } catch (e) {}
             // INT-7 (visibility tier): broadcast to other tabs so they can
             // surface a "changed elsewhere" toast. Only meaningful for named
-            // projects; ignore the auto_save legacy key.
+            // projects; ignore the auto_save legacy key. Phase B-1: also
+            // pass through lastWriteAt + lastWriteTabId so subscribers can
+            // compare versions without re-reading IDB. Phase B-1: note our
+            // own write into the last-seen cache so the next save() from
+            // this tab has an accurate baseline.
             try {
               if (typeof window !== "undefined" && window.CrossTabCoord
                   && project.id && project.id.indexOf("proj_") === 0) {
+                if (typeof window.CrossTabCoord.noteSeen === 'function') {
+                  window.CrossTabCoord.noteSeen(
+                    project.id, project.lastWriteAt, project.lastWriteTabId);
+                }
                 window.CrossTabCoord.broadcastProjectSaved(
-                  project.id, project.updatedAt || Date.now());
+                  project.id,
+                  project.updatedAt || Date.now(),
+                  project.lastWriteAt,
+                  project.lastWriteTabId);
               }
             } catch (_) {}
             resolve(project.id);
@@ -417,6 +441,65 @@ const ProjectStorage = (() => {
         } catch (_) {}
         throw err;
       }
+    },
+
+    // INT-7 Phase B-2: save with stale-read conflict detection.
+    //
+    // Returns a discriminated result object:
+    //   { ok: true,  id }
+    //   { ok: false, reason: 'conflict', id, remoteWriteAt, remoteWriteTabId }
+    //
+    // A conflict is reported when ALL of the following hold for `project.id`:
+    //   • CrossTabCoord.getSeen(id) returned a baseline (we've loaded or
+    //     saved this project at least once in this tab).
+    //   • The current in-IDB record has a numeric `lastWriteAt` strictly
+    //     greater than the baseline (something newer is on disk).
+    //   • The on-disk `lastWriteTabId` is a non-empty string and differs
+    //     from the baseline's `lastWriteTabId` (a different tab authored
+    //     the newer write).
+    //
+    // If any condition fails we fall through to a regular save() — that
+    // covers brand-new projects (no id yet), projects this tab has never
+    // loaded (no baseline), legacy records without Phase B fields, and
+    // the trivial "we wrote it ourselves between calls" case.
+    //
+    // The existing save() remains unchanged for back-compat; callers
+    // wanting conflict detection must opt in via saveChecked().
+    async saveChecked(project) {
+      if (!project) {
+        throw new TypeError("ProjectStorage.saveChecked: project is required");
+      }
+      if (!project.id || this._deletedIds.has(project.id)) {
+        const id = await this.save(project);
+        return { ok: true, id: id };
+      }
+      let seen = null;
+      try {
+        if (typeof window !== 'undefined' && window.CrossTabCoord
+            && typeof window.CrossTabCoord.getSeen === 'function') {
+          seen = window.CrossTabCoord.getSeen(project.id);
+        }
+      } catch (_) {}
+      if (seen && typeof seen.lastWriteAt === 'number') {
+        let current = null;
+        try { current = await this.get(project.id); } catch (_) {}
+        if (current
+            && typeof current.lastWriteAt === 'number'
+            && current.lastWriteAt > seen.lastWriteAt
+            && typeof current.lastWriteTabId === 'string'
+            && current.lastWriteTabId
+            && current.lastWriteTabId !== seen.lastWriteTabId) {
+          return {
+            ok: false,
+            reason: 'conflict',
+            id: project.id,
+            remoteWriteAt: current.lastWriteAt,
+            remoteWriteTabId: current.lastWriteTabId
+          };
+        }
+      }
+      const id = await this.save(project);
+      return { ok: true, id: id };
     },
 
     // Load a single project by ID. Returns null if not found.

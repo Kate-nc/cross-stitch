@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v46';
+var CACHE_NAME = 'cross-stitch-cache-v49';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -32,6 +32,8 @@ var PRECACHE_URLS = [
   './modals.js',
   './threadCalc.js',
   './cross-tab-coord.js',
+  './cross-tab-resolution.js',
+  './cross-tab-lock.js',
   './project-storage.js',
   './stash-bridge.js',
 
@@ -132,7 +134,17 @@ self.addEventListener('fetch', function (event) {
         return response;
       }).catch(function () {
         return caches.match(event.request).then(function (cached) {
-          return cached || caches.match('./home.html') || caches.match('./index.html');
+          if (cached) return cached;
+          // Chain the fallbacks properly so the result is always a Response.
+          // Bare `||` between Promise objects is truthy even when the Promise
+          // resolves to undefined, which makes event.respondWith throw
+          // "Failed to convert value to 'Response'" when nothing is cached.
+          return caches.match('./home.html').then(function (homeR) {
+            if (homeR) return homeR;
+            return caches.match('./index.html').then(function (indexR) {
+              return indexR || new Response('', { status: 503, statusText: 'Offline' });
+            });
+          });
         });
       })
     );

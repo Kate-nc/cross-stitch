@@ -82,6 +82,8 @@ window.loadPdfStack = function() {
 <script src="onboarding-wizard.js" defer></script>
 <script src="threadCalc.js"></script>
 <script src="cross-tab-coord.js"></script>
+<script src="cross-tab-resolution.js"></script>
+<script src="cross-tab-lock.js"></script>
 <script src="project-storage.js"></script>
 <!-- Lazy import engine: the full bundle (~126 KB) loads on first picker / DnD use. See reports/perf-opt-2-spec.md. -->
 <script src="import-engine/lazy-shim.js"></script>
@@ -133,7 +135,7 @@ window.loadPdfStack = function() {
    build-creator-bundle.js when tracker-app.js content changes. */
 (function () {
   if (typeof window === 'undefined') return;
-  var TRACKER_CACHE_KEY = 'babel_tracker_cfdee300a6';
+  var TRACKER_CACHE_KEY = 'babel_tracker_26e961c287';
   var cached = null;
   try { cached = localStorage.getItem(TRACKER_CACHE_KEY); } catch (e) {}
   if (cached) {
