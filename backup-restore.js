@@ -333,7 +333,7 @@ const BackupRestore = (() => {
             } else {
               // No dialog available — fail closed (refuse) rather than
               // silently destroy peer state; the cancellation throw happens
-              // in the shared `if (!proceed)` block below.
+              // in the `if (!proceed)` check below.
               proceed = false;
             }
             if (!proceed) {
