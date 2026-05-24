@@ -466,7 +466,10 @@ const ProjectStorage = (() => {
     // The existing save() remains unchanged for back-compat; callers
     // wanting conflict detection must opt in via saveChecked().
     async saveChecked(project) {
-      if (!project || !project.id || this._deletedIds.has(project.id)) {
+      if (!project) {
+        throw new TypeError("ProjectStorage.saveChecked: project is required");
+      }
+      if (!project.id || this._deletedIds.has(project.id)) {
         const id = await this.save(project);
         return { ok: true, id: id };
       }

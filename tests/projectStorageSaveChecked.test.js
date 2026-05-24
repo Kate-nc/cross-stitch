@@ -100,6 +100,13 @@ describe('INT-7 Phase B-2: saveChecked() runtime decisions', () => {
     expect(res).toEqual({ ok: true, id: 'proj_new' });
   });
 
+  test('null project → throws explicit TypeError and does not call save()', async () => {
+    const ctx = mkThis();
+    await expect(run(ctx, null, { CrossTabCoord: { getSeen: () => null } }))
+      .rejects.toThrow('ProjectStorage.saveChecked: project is required');
+    expect(ctx.save).not.toHaveBeenCalled();
+  });
+
   test('deleted-in-session id → delegates to save (which itself short-circuits)', async () => {
     const ctx = mkThis({
       _deletedIds: new Set(['proj_x']),

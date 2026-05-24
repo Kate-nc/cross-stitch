@@ -309,8 +309,9 @@ const BackupRestore = (() => {
       // before we wipe both databases. A whole-DB restore uses the
       // wildcard '*' so any active peer objects. On objection we prompt
       // the user through ConfirmDialog (when available) and abort with a
-      // clear cancellation error on refusal. Missing module / channel /
-      // dialog all fall through to today's behaviour.
+      // clear cancellation error on refusal. Missing lock module/channel
+      // falls through to today's behaviour; if peers object and dialog is
+      // unavailable we fail closed (cancel restore).
       try {
         if (typeof window !== 'undefined' && window.CrossTabLock &&
             typeof window.CrossTabLock.requestLock === 'function') {

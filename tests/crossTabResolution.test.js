@@ -207,6 +207,25 @@ describe('INT-7 Phase B-3: handle() policy decisions', () => {
     expect(dec).toBe('keep');
     expect(g._reloadCalls()).toBe(0);
   });
+  test('policy="prompt" + ConfirmDialog.show throws sync → resolves "keep" and next call can prompt again', async () => {
+    var calls = 0;
+    var g = mkGlobal({
+      prefValue: 'prompt',
+      confirmDialog: {
+        show: function () {
+          calls++;
+          if (calls === 1) throw new Error('boom');
+          return Promise.resolve(false);
+        }
+      }
+    });
+    var R = loadResolutionInto(g);
+    var dec1 = await R.handle({ projectId: 'proj_x' });
+    var dec2 = await R.handle({ projectId: 'proj_x' });
+    expect(dec1).toBe('keep');
+    expect(dec2).toBe('keep');
+    expect(calls).toBe(2);
+  });
   test('invalid pref value falls back to "prompt" default', async () => {
     var calls = 0;
     var g = mkGlobal({

@@ -71,16 +71,23 @@
       return Promise.resolve("keep");
     }
     _modalOpen = true;
-    return window.ConfirmDialog.show({
-      title: "Project changed in another tab",
-      message:
-        "This project was just saved in another browser tab or window. " +
-        "Reload to pick up the latest version, or keep your current edits " +
-        "(your next save will overwrite the remote version).",
-      confirmLabel: "Reload",
-      cancelLabel: "Keep my edits",
-      danger: false
-    }).then(function (ok) {
+    var shown;
+    try {
+      shown = window.ConfirmDialog.show({
+        title: "Project changed in another tab",
+        message:
+          "This project was just saved in another browser tab or window. " +
+          "Reload to pick up the latest version, or keep your current edits " +
+          "(your next save will overwrite the remote version).",
+        confirmLabel: "Reload",
+        cancelLabel: "Keep my edits",
+        danger: false
+      });
+    } catch (_) {
+      _modalOpen = false;
+      return Promise.resolve("keep");
+    }
+    return Promise.resolve(shown).then(function (ok) {
       _modalOpen = false;
       return ok ? "reload" : "keep";
     }, function () {
