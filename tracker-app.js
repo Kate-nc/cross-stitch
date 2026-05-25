@@ -3534,13 +3534,21 @@ useEffect(() => {
     try {
       const projectData = JSON.parse(handoff);
       localStorage.removeItem('crossstitch_handoff');
-      // Persist the incoming project so it survives beyond this one-shot key
-      if (projectData.id) {
-        ProjectStorage.save(projectData).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("ProjectStorage save failed:", err));
+      if (!projectData.pattern && !projectData.p) {
+        // Handoff contains no pattern cell data (e.g. a manager library metadata
+        // entry was mistakenly placed here). Fall through to the getActiveProject()
+        // fallback below rather than showing an empty tracker with no recovery path.
+        console.warn('[TrackerApp] Handoff has no pattern data — falling through to getActiveProject()');
+        // (do not set hasLoadedOnceRef, do not return)
+      } else {
+        // Persist the incoming project so it survives beyond this one-shot key
+        if (projectData.id) {
+          ProjectStorage.save(projectData).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("ProjectStorage save failed:", err));
+        }
+        processLoadedProject(projectData);
+        hasLoadedOnceRef.current=true; // T-4
+        return;
       }
-      processLoadedProject(projectData);
-      hasLoadedOnceRef.current=true; // T-4
-      return;
     } catch (e) {
       console.error("Failed to load handoff:", e);
     }
@@ -3577,9 +3585,20 @@ useEffect(() => {
     if (hasLoadedOnceRef.current) return;
     ProjectStorage.getActiveProject().then(project => {
       if (hasLoadedOnceRef.current) return;
-      if (project && project.pattern && project.settings) {
+      if (project && project.pattern) {
         processLoadedProject(project);
         hasLoadedOnceRef.current=true;
+      } else {
+        // No loadable project found — log and surface a toast so the
+        // user knows what happened rather than seeing a silent empty state.
+        const activeId = ProjectStorage.getActiveProjectId ? ProjectStorage.getActiveProjectId() : null;
+        if (activeId) {
+          console.warn('[TrackerApp] Active project "' + activeId + '" could not be loaded (missing or has no pattern data). Clearing stale pointer.');
+          try { ProjectStorage.clearActiveProject && ProjectStorage.clearActiveProject(); } catch(_) {}
+        }
+        if (window.Toast && window.Toast.show) {
+          window.Toast.show({ message: 'No pattern found. Please select a project from your library.', type: 'warning', duration: 6000 });
+        }
       }
     }).catch(err => console.error("Failed to load active project:", err));
   });
@@ -5702,6 +5721,9 @@ return(
       <div style={{marginTop:30, paddingTop:20, borderTop:"0.5px solid var(--border)"}}>
         <p style={{fontSize:'var(--text-lg)', color:"var(--text-secondary)", marginBottom:10}}>Need a pattern?</p>
         <a href="home.html?tab=create" style={{color:"var(--accent)", fontWeight:600, textDecoration:"none", display:'inline-flex', alignItems:'center', gap:4}}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronRight?Icons.chevronRight():null}</span>Pattern Creator</a>
+      </div>
+      <div style={{marginTop:12}}>
+        <a href="home.html" style={{color:"var(--text-secondary)", fontWeight:500, textDecoration:"none", display:'inline-flex', alignItems:'center', gap:4, fontSize:'var(--text-md)'}}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronLeft?Icons.chevronLeft():null}</span>Back to my projects</a>
       </div>
     </div>
   </div>}

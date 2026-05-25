@@ -1712,8 +1712,18 @@ function ManagerApp() {
 
 function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile }) {
   function handleTrack() {
-    localStorage.setItem("crossstitch_handoff", JSON.stringify(pattern));
-    window.location.href = "stitch.html?from=home&source=manager";
+    if (pattern.linkedProjectId) {
+      // Pattern is linked to a CrossStitchDB project — activate it directly so
+      // the tracker can load the full project via ProjectStorage.getActiveProject().
+      // Never use the crossstitch_handoff for library entries: they are metadata-
+      // only objects (no pattern cell array) and will fail to load silently.
+      ProjectStorage.setActiveProject(pattern.linkedProjectId);
+      window.location.href = "stitch.html?from=home&source=manager";
+    } else {
+      // Standalone library entry — no cross-stitch project data to track.
+      // Redirect to the project hub so the user can select or import a project.
+      window.location.href = "home.html";
+    }
   }
   const [edited, setEdited] = useState({ ...pattern, threads: pattern.threads || [], fabric: pattern.fabric || "", project_overrides: pattern.project_overrides || null });
   const [threadInput, setThreadInput] = useState("");
