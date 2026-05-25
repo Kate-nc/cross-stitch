@@ -1478,12 +1478,12 @@ function ManagerApp() {
                         </div>
                         <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 12 }}>
                           <button
-                            onClick={() => { ProjectStorage.setActiveProject(p.id); window.location.href = "create.html?from=home&source=manager"; }}
+                            onClick={() => { ProjectStorage.setActiveProject(p.id); window.__navigatingAway = true; window.location.href = "create.html?from=home&source=manager&id=" + encodeURIComponent(p.id); }}
                             title="Open in Pattern Creator"
                             style={{ padding: "5px 10px", fontSize: 12, fontWeight: 600, background: "var(--surface)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 6, cursor: "pointer" }}
                           >Edit</button>
                           <button
-                            onClick={() => { ProjectStorage.setActiveProject(p.id); window.location.href = "stitch.html?from=home&source=manager"; }}
+                            onClick={() => { ProjectStorage.setActiveProject(p.id); window.__navigatingAway = true; window.location.href = "stitch.html?from=home&source=manager&id=" + encodeURIComponent(p.id); }}
                             style={{ padding: "5px 10px", fontSize: 12, fontWeight: 600, background: "var(--accent-ink)", color: "var(--surface)", border: "none", borderRadius: 6, cursor: "pointer" }}
                           >Track</button>
                           <button
@@ -1718,7 +1718,8 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
       // Never use the crossstitch_handoff for library entries: they are metadata-
       // only objects (no pattern cell array) and will fail to load silently.
       ProjectStorage.setActiveProject(pattern.linkedProjectId);
-      window.location.href = "stitch.html?from=home&source=manager";
+      window.__navigatingAway = true;
+      window.location.href = "stitch.html?from=home&source=manager&id=" + encodeURIComponent(pattern.linkedProjectId);
     } else {
       // Standalone library entry — no cross-stitch project data to track.
       // Redirect to the project hub so the user can select or import a project.

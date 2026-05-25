@@ -19,13 +19,27 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <!-- UX-12 Phase 7 PR #13: redirect to /home when no project is active.
-     Direct URLs and PWA shortcuts continue to work when a project IS active. -->
+     Direct URLs and PWA shortcuts continue to work when a project IS active.
+     If a ?id=<projectId> URL param is present (added by home/stash Track
+     buttons as a belt-and-suspenders fallback), write it as the active
+     pointer before the redirect check so stale-pointer races are healed. -->
 <script>
 (function(){
   try {
+    var qs = location.search || '';
+    // If ?id=<projectId> is in the URL, write it as the active pointer now
+    // (synchronously, before any IDB reads) so the tracker always has the
+    // right project ID even if the localStorage pointer was cleared by a
+    // race during navigation.
+    var idMatch = qs.match(/(?:\?|&)id=([^&]+)/);
+    if (idMatch) {
+      var urlId = decodeURIComponent(idMatch[1]);
+      if (urlId && /^proj_/.test(urlId)) {
+        try { localStorage.setItem('crossstitch_active_project', urlId); } catch (_) {}
+      }
+    }
     var active = localStorage.getItem('crossstitch_active_project');
     if (!active) {
-      var qs = location.search || '';
       var skip = /(\?|&)(from=home|action=)/.test(qs);
       if (!skip) { location.replace('home.html'); return; }
     }
@@ -135,7 +149,7 @@ window.loadPdfStack = function() {
    build-creator-bundle.js when tracker-app.js content changes. */
 (function () {
   if (typeof window === 'undefined') return;
-  var TRACKER_CACHE_KEY = 'babel_tracker_help_hint_fix';
+  var TRACKER_CACHE_KEY = 'babel_tracker_78f3e207ba';
   var cached = null;
   try { cached = localStorage.getItem(TRACKER_CACHE_KEY); } catch (e) {}
   if (cached) {

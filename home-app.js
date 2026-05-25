@@ -87,8 +87,13 @@
     // navigation, so the !cancelled guard alone is not sufficient).
     window.__navigatingAway = true;
     // ?from=home tells the per-tool page's redirect-to-home guard to stand down.
+    // ?id=<projectId> is passed as a belt-and-suspenders fallback so the
+    // destination page can recover the correct project even if the
+    // localStorage active-project pointer is cleared during the async
+    // navigation (race between the cs:projectsChanged IDB callback and the
+    // page unload).
     var sep = href.indexOf('?') === -1 ? '?' : '&';
-    window.location.href = href + sep + 'from=home';
+    window.location.href = href + sep + 'from=home&id=' + encodeURIComponent(id);
   }
 
   // fmtNum and threadKm are shared globals from helpers.js
