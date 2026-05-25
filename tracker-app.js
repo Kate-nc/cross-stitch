@@ -1873,11 +1873,27 @@ useEffect(() => {
     if(!manuallyPausedRef.current&&!inactivityPausedRef.current) setLiveAutoIsPaused(isHidden);
 
     if (isHidden) {
-      if(!manuallyPausedRef.current) lastPauseTimeRef.current = Date.now();
+      // Only record a visibility-pause start when the session is actually running.
+      // If inactivity (or manual) pause is already active the timer is already
+      // stopped, so recording a separate visibility-pause start would cause the
+      // hide duration to be counted twice when the tab becomes visible again.
+      if(currentAutoSessionRef.current && !manuallyPausedRef.current && !inactivityPausedRef.current) {
+        lastPauseTimeRef.current = Date.now();
+      }
     } else {
       if (lastPauseTimeRef.current && currentAutoSessionRef.current && !manuallyPausedRef.current) {
-        const pausedMs = Date.now() - lastPauseTimeRef.current;
-        currentAutoSessionRef.current.totalPausedMs = (currentAutoSessionRef.current.totalPausedMs || 0) + pausedMs;
+        // If inactivity fired while the tab was hidden, only count the gap from
+        // when the tab hid to when inactivity started; inactivity's own accounting
+        // covers the rest. Without this cap the two ranges overlap and
+        // totalPausedMs grows larger than the real paused window, causing
+        // liveAutoElapsed to jump backwards once the inactivity pause is resumed.
+        const pauseEnd = (inactivityPausedRef.current && inactivityPauseTimeRef.current)
+          ? inactivityPauseTimeRef.current
+          : Date.now();
+        const pausedMs = Math.max(0, pauseEnd - lastPauseTimeRef.current);
+        if (pausedMs > 0) {
+          currentAutoSessionRef.current.totalPausedMs = (currentAutoSessionRef.current.totalPausedMs || 0) + pausedMs;
+        }
       }
       lastPauseTimeRef.current = null;
     }
