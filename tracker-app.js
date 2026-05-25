@@ -1873,11 +1873,27 @@ useEffect(() => {
     if(!manuallyPausedRef.current&&!inactivityPausedRef.current) setLiveAutoIsPaused(isHidden);
 
     if (isHidden) {
-      if(!manuallyPausedRef.current) lastPauseTimeRef.current = Date.now();
+      // Only record a visibility-pause start when the session is actually running.
+      // If inactivity (or manual) pause is already active the timer is already
+      // stopped, so recording a separate visibility-pause start would cause the
+      // hide duration to be counted twice when the tab becomes visible again.
+      if(currentAutoSessionRef.current && !manuallyPausedRef.current && !inactivityPausedRef.current) {
+        lastPauseTimeRef.current = Date.now();
+      }
     } else {
       if (lastPauseTimeRef.current && currentAutoSessionRef.current && !manuallyPausedRef.current) {
-        const pausedMs = Date.now() - lastPauseTimeRef.current;
-        currentAutoSessionRef.current.totalPausedMs = (currentAutoSessionRef.current.totalPausedMs || 0) + pausedMs;
+        // If inactivity fired while the tab was hidden, only count the gap from
+        // when the tab hid to when inactivity started; inactivity's own accounting
+        // covers the rest. Without this cap the two ranges overlap and
+        // totalPausedMs grows larger than the real paused window, causing
+        // liveAutoElapsed to jump backwards once the inactivity pause is resumed.
+        const pauseEnd = (inactivityPausedRef.current && inactivityPauseTimeRef.current)
+          ? inactivityPauseTimeRef.current
+          : Date.now();
+        const pausedMs = Math.max(0, pauseEnd - lastPauseTimeRef.current);
+        if (pausedMs > 0) {
+          currentAutoSessionRef.current.totalPausedMs = (currentAutoSessionRef.current.totalPausedMs || 0) + pausedMs;
+        }
       }
       lastPauseTimeRef.current = null;
     }
@@ -3534,13 +3550,21 @@ useEffect(() => {
     try {
       const projectData = JSON.parse(handoff);
       localStorage.removeItem('crossstitch_handoff');
-      // Persist the incoming project so it survives beyond this one-shot key
-      if (projectData.id) {
-        ProjectStorage.save(projectData).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("ProjectStorage save failed:", err));
+      if (!projectData.pattern && !projectData.p) {
+        // Handoff contains no pattern cell data (e.g. a manager library metadata
+        // entry was mistakenly placed here). Fall through to the getActiveProject()
+        // fallback below rather than showing an empty tracker with no recovery path.
+        console.warn('[TrackerApp] Handoff has no pattern data — falling through to getActiveProject()');
+        // (do not set hasLoadedOnceRef, do not return)
+      } else {
+        // Persist the incoming project so it survives beyond this one-shot key
+        if (projectData.id) {
+          ProjectStorage.save(projectData).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("ProjectStorage save failed:", err));
+        }
+        processLoadedProject(projectData);
+        hasLoadedOnceRef.current=true; // T-4
+        return;
       }
-      processLoadedProject(projectData);
-      hasLoadedOnceRef.current=true; // T-4
-      return;
     } catch (e) {
       console.error("Failed to load handoff:", e);
     }
@@ -3577,9 +3601,20 @@ useEffect(() => {
     if (hasLoadedOnceRef.current) return;
     ProjectStorage.getActiveProject().then(project => {
       if (hasLoadedOnceRef.current) return;
-      if (project && project.pattern && project.settings) {
+      if (project && project.pattern) {
         processLoadedProject(project);
         hasLoadedOnceRef.current=true;
+      } else {
+        // No loadable project found — log and surface a toast so the
+        // user knows what happened rather than seeing a silent empty state.
+        const activeId = ProjectStorage.getActiveProjectId ? ProjectStorage.getActiveProjectId() : null;
+        if (activeId) {
+          console.warn('[TrackerApp] Active project "' + activeId + '" could not be loaded (missing or has no pattern data). Clearing stale pointer.');
+          try { ProjectStorage.clearActiveProject && ProjectStorage.clearActiveProject(); } catch(_) {}
+        }
+        if (window.Toast && window.Toast.show) {
+          window.Toast.show({ message: 'No pattern found. Please select a project from your library.', type: 'warning', duration: 6000 });
+        }
       }
     }).catch(err => console.error("Failed to load active project:", err));
   });
@@ -5703,6 +5738,9 @@ return(
         <p style={{fontSize:'var(--text-lg)', color:"var(--text-secondary)", marginBottom:10}}>Need a pattern?</p>
         <a href="home.html?tab=create" style={{color:"var(--accent)", fontWeight:600, textDecoration:"none", display:'inline-flex', alignItems:'center', gap:4}}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronRight?Icons.chevronRight():null}</span>Pattern Creator</a>
       </div>
+      <div style={{marginTop:12}}>
+        <a href="home.html" style={{color:"var(--text-secondary)", fontWeight:500, textDecoration:"none", display:'inline-flex', alignItems:'center', gap:4, fontSize:'var(--text-md)'}}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronLeft?Icons.chevronLeft():null}</span>Back to my projects</a>
+      </div>
     </div>
   </div>}
 
@@ -6470,7 +6508,9 @@ return(
       if(result.style!=="crosscountry")setFocusEnabled(true);
     }
   }}/>}
-  {window.HelpHintBanner&&React.createElement(window.HelpHintBanner)}
+  {/* Only render HelpHintBanner when TrackerApp is the top-level page (stitch.html).
+     When embedded inside UnifiedApp (create.html), the parent already mounts it. */}
+  {!onSwitchToDesign&&window.HelpHintBanner&&React.createElement(window.HelpHintBanner)}
   {_showTrFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {
     id: 'firstStitch_tracker',
     title: 'Mark your first stitch',
