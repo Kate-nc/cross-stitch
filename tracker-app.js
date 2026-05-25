@@ -6492,7 +6492,9 @@ return(
       if(result.style!=="crosscountry")setFocusEnabled(true);
     }
   }}/>}
-  {window.HelpHintBanner&&React.createElement(window.HelpHintBanner)}
+  {/* Only render HelpHintBanner when TrackerApp is the top-level page (stitch.html).
+     When embedded inside UnifiedApp (create.html), the parent already mounts it. */}
+  {!onSwitchToDesign&&window.HelpHintBanner&&React.createElement(window.HelpHintBanner)}
   {_showTrFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {
     id: 'firstStitch_tracker',
     title: 'Mark your first stitch',

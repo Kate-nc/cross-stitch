@@ -196,7 +196,7 @@
         title: "Open the Help Centre",
         style: { background: "transparent", color: "#fff", border: "none", padding: 0, cursor: "pointer", fontSize: 12, fontWeight: 600 }
       },
-        "Press ", React.createElement("kbd", { style: { background: "#1B1814", padding: "1px 6px", borderRadius: 4, fontFamily: "monospace", fontWeight: 700 } }, "?"), " for help"
+        "Press ", React.createElement("kbd", { style: { background: "#1B1814", color: "#fff", padding: "1px 6px", borderRadius: 4, fontFamily: "monospace", fontWeight: 700 } }, "?"), " for help"
       ),
       React.createElement("button", {
         onClick: dismiss, "aria-label": "Dismiss help hint",
