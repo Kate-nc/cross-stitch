@@ -3542,7 +3542,16 @@ useEffect(() => {
   if(incomingProjectRef.current){
     const ip=incomingProjectRef.current;
     if(ip.project){processLoadedProject(ip.project);hasLoadedOnceRef.current=true;}
-    else if(ip.id){ProjectStorage.get(ip.id).then(p=>{if(p){processLoadedProject(p);hasLoadedOnceRef.current=true;}}).catch(err=>console.error("Failed to load project by id:",err));}
+    else if(ip.id){ProjectStorage.get(ip.id).then(p=>{
+      if(p && p.pattern){processLoadedProject(p);hasLoadedOnceRef.current=true;}
+      else if(p){
+        // Project exists in IDB but has no pattern array — treat it as
+        // unloadable so the user gets a clear signal rather than a silent
+        // empty canvas.
+        console.warn('[TrackerApp] incomingProject "'+ip.id+'" found in IDB but has no pattern data.');
+        if(window.Toast&&window.Toast.show)window.Toast.show({message:'No pattern found. Please select a project from your library.',type:'warning',duration:6000});
+      }
+    }).catch(err=>console.error("Failed to load project by id:",err));}
     return;
   }
   const handoff = localStorage.getItem('crossstitch_handoff');
@@ -3597,6 +3606,23 @@ useEffect(() => {
   // to fire first if the prop arrives in the same render. The guard then
   // skips the fallback rather than racing with the prop and causing a
   // brief flicker of the wrong project.
+  //
+  // Belt-and-suspenders: if the URL contains ?id=<projectId> (added by
+  // home/stash Track navigation as a race-safe fallback), ensure the
+  // active-project pointer is set before the IDB read. The stitch.html
+  // inline guard already does this synchronously; this second write
+  // handles edge cases where the guard script ran before ProjectStorage
+  // was available (e.g., rare service-worker timing).
+  try {
+    var _urlParams = new URLSearchParams(window.location.search);
+    var _urlId = _urlParams.get('id');
+    if (_urlId && /^proj_/.test(_urlId) && ProjectStorage && ProjectStorage.getActiveProjectId) {
+      var _curId = ProjectStorage.getActiveProjectId ? ProjectStorage.getActiveProjectId() : null;
+      if (!_curId || _curId !== _urlId) {
+        try { ProjectStorage.setActiveProject && ProjectStorage.setActiveProject(_urlId); } catch (_) {}
+      }
+    }
+  } catch (_) {}
   Promise.resolve().then(function(){
     if (hasLoadedOnceRef.current) return;
     ProjectStorage.getActiveProject().then(project => {
