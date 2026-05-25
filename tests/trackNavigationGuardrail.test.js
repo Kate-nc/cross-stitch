@@ -139,14 +139,15 @@ describe('TrackerApp loading useEffect — URL id param fallback', () => {
 
 // ── incomingProject path — consistent error surface ──────────────────────────
 describe('TrackerApp incomingProject path — consistent error handling', () => {
-  test('incomingProject id path checks p.pattern before calling processLoadedProject', () => {
-    // Must check p && p.pattern (not just p) so a patternless project shows
-    // a toast rather than silently rendering an empty canvas.
+  test('incomingProject id path checks p.pattern||p.p before calling processLoadedProject', () => {
+    // Must check p && (p.pattern || p.p) — not just p — so projects in legacy
+    // compressed format (URL-shared or old saves) are also accepted, while truly
+    // patternless entries show a toast rather than silently rendering an empty canvas.
     const block = trackerApp.match(
       /else if\(ip\.id\)\{ProjectStorage\.get[\s\S]*?processLoadedProject/
     );
     expect(block).not.toBeNull();
-    expect(block[0]).toMatch(/p\.pattern/);
+    expect(block[0]).toMatch(/p\.pattern.*p\.p|p\.p.*p\.pattern/);
     expect(block[0]).not.toMatch(/if\(p\)\{processLoadedProject/);
   });
 
@@ -157,5 +158,16 @@ describe('TrackerApp incomingProject path — consistent error handling', () => 
       /incomingProject.*found in IDB but has no pattern|No pattern found.*library/s
     );
     expect(block).not.toBeNull();
+  });
+
+  test('getActiveProject fallback path also accepts legacy p.p field', () => {
+    // Projects saved from URL-shared patterns use project.p (compressed format)
+    // instead of project.pattern. The getActiveProject path must accept both so
+    // those projects load instead of showing "No pattern found".
+    const block = trackerApp.match(
+      /getActiveProject\(\)\.then[\s\S]*?processLoadedProject[\s\S]*?clearActiveProject/
+    );
+    expect(block).not.toBeNull();
+    expect(block[0]).toMatch(/project\.pattern.*project\.p|project\.p.*project\.pattern/);
   });
 });

@@ -3524,7 +3524,19 @@ useEffect(()=>{
     hasLoadedOnceRef.current=true; // T-4
   }else if(incomingProject.id){
     // Called with {id} only (e.g. stats "Navigate to project") — load from storage.
-    ProjectStorage.get(incomingProject.id).then(p=>{if(p){processLoadedProject(p);hasLoadedOnceRef.current=true;}}).catch(err=>console.error("Failed to load project by id:",err));
+    ProjectStorage.get(incomingProject.id).then(p=>{
+      if(p&&(p.pattern||p.p)){
+        processLoadedProject(p);
+        hasLoadedOnceRef.current=true;
+      }else if(p){
+        // Project exists in IDB but has no pattern cell data in either the
+        // current `pattern` field or the legacy/compressed `p` field — treat
+        // it as unloadable so the user gets a clear signal rather than a
+        // silent failure that leaves the previous project visible.
+        console.warn('[TrackerApp] incomingProject "'+incomingProject.id+'" found in IDB but has no pattern data.');
+        if(window.Toast&&window.Toast.show)window.Toast.show({message:'No pattern data found. Please select a project from your library.',type:'warning',duration:6000});
+      }
+    }).catch(err=>console.error("Failed to load project by id:",err));
   }
 },[incomingProject]);
 
@@ -3628,7 +3640,7 @@ useEffect(() => {
     if (hasLoadedOnceRef.current) return;
     ProjectStorage.getActiveProject().then(project => {
       if (hasLoadedOnceRef.current) return;
-      if (project && project.pattern) {
+      if (project && (project.pattern || project.p)) {
         processLoadedProject(project);
         hasLoadedOnceRef.current=true;
       } else {
