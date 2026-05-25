@@ -3524,7 +3524,7 @@ useEffect(()=>{
     hasLoadedOnceRef.current=true; // T-4
   }else if(incomingProject.id){
     // Called with {id} only (e.g. stats "Navigate to project") — load from storage.
-    ProjectStorage.get(incomingProject.id).then(p=>{if(p){processLoadedProject(p);hasLoadedOnceRef.current=true;}}).catch(err=>console.error("Failed to load project by id:",err));
+    ProjectStorage.get(incomingProject.id).then(p=>{if(p&&(p.pattern||p.p)){processLoadedProject(p);hasLoadedOnceRef.current=true;}}).catch(err=>console.error("Failed to load project by id:",err));
   }
 },[incomingProject]);
 
@@ -3628,7 +3628,7 @@ useEffect(() => {
     if (hasLoadedOnceRef.current) return;
     ProjectStorage.getActiveProject().then(project => {
       if (hasLoadedOnceRef.current) return;
-      if (project && project.pattern) {
+      if (project && (project.pattern || project.p)) {
         processLoadedProject(project);
         hasLoadedOnceRef.current=true;
       } else {
