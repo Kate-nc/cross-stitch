@@ -1151,7 +1151,9 @@ window.useCreatorState = function useCreatorState() {
   }
 
   var generate = useCallback(function(overrides) {
-    if (!img) return;
+    // img is a plain-object sentinel { src: null, w, h } in scratch mode —
+    // it is truthy but not a drawable.  Bail before any canvas operation.
+    if (!img || img.src === null) return;
     // INT-3 / C-3: a fresh Generate replaces pat/pal and resets `done`
     // and `parkMarkers` to empty. If the user has any stitched progress
     // we must confirm before throwing it away — there is no undo.

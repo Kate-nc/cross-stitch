@@ -4893,7 +4893,9 @@ window.useCreatorState = function useCreatorState() {
   }
 
   var generate = useCallback(function(overrides) {
-    if (!img) return;
+    // img is a plain-object sentinel { src: null, w, h } in scratch mode —
+    // it is truthy but not a drawable.  Bail before any canvas operation.
+    if (!img || img.src === null) return;
     // INT-3 / C-3: a fresh Generate replaces pat/pal and resets `done`
     // and `parkMarkers` to empty. If the user has any stitched progress
     // we must confirm before throwing it away — there is no undo.
@@ -12348,7 +12350,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       flexShrink:0, borderTop:"1px solid var(--border)", padding:"12px",
       background:"var(--surface)", display:"flex", flexDirection:"column", gap:'var(--s-2)'
     }},
-      gen.img && h("button", {
+      (gen.img && gen.img.src !== null) && h("button", {
         onClick:function(){ gen.generate(); },
         disabled:gen.busy,
         "aria-label":gen.hasGenerated?"Regenerate pattern":"Generate pattern",
@@ -12357,7 +12359,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           background:gen.busy?"var(--text-tertiary)":gen.hasGenerated?"var(--surface-tertiary)":"var(--accent)",
           color:gen.hasGenerated?"var(--text-primary)":"var(--surface)"}
       }, gen.busy ? (gen.progressMessage || "Generating\u2026") : (gen.hasGenerated ? h(React.Fragment, null, window.Icons.refresh(), " Regenerate") : h(React.Fragment, null, window.Icons.refresh(), " Generate Pattern"))),
-      !gen.img && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textAlign:"center",padding:"4px 0"}},
+      !(gen.img && gen.img.src !== null) && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textAlign:"center",padding:"4px 0"}},
         "Upload an image to get started")
     );
 
