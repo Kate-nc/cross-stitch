@@ -4582,6 +4582,10 @@ window.useCreatorState = function useCreatorState() {
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch("");
     setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
     setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
+    // Ensure the canvas tab is active so the rpanel (settings + generate) is
+    // visible when the user uploads a new image. Without this, a saved
+    // "materials" or "project" tab from a previous session hides the rpanel.
+    setTab("pattern");
     if (wandClearRef.current) wandClearRef.current();
     if (lassoCancelRef.current) lassoCancelRef.current();
   }
