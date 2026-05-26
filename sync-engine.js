@@ -123,15 +123,18 @@ const SyncEngine = (() => {
   }
 
   function computeFingerprint(project) {
-    if (!project || !project.pattern) return "empty";
+    if (!project) return "empty";
+    const pat = project.pattern || project.p;
+    if (!pat) return "empty";
     try {
       // Build a compact string of pattern cell IDs — this captures the chart
       // structure without tracking state (done array, sessions, etc.)
       const parts = [];
-      const pat = project.pattern;
       for (let i = 0; i < pat.length; i++) {
         const c = pat[i];
-        parts.push(c && c.id ? c.id : "_");
+        // Accept normal `{id}` cells and compact `.p` array cells ["id",...].
+        var cid = c && (Array.isArray(c) ? c[0] : c.id);
+        parts.push(cid ? cid : "_");
       }
       // Include dimensions so a resize is detected even if some IDs match
       const w = (project.settings && project.settings.sW) || project.w || 0;
