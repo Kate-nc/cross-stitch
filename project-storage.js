@@ -18,16 +18,27 @@ const ProjectStorage = (() => {
   // buildStatsSummary). Cache invalidates when pattern reference or length changes.
   const _totalStitchCache = new WeakMap();
   function countTotalStitches(p) {
-    if (!p || !p.pattern) return p && p.totalStitches || 0;
-    const cached = _totalStitchCache.get(p.pattern);
+    if (!p) return 0;
+    // Accept either the normal `.pattern` array or the compact `.p` array
+    // (used by v8/URL-shared projects). Cache against whichever was picked
+    // so repeated calls for the same project stay O(1).
+    const pat = p.pattern || p.p;
+    if (!pat || !pat.length) return p.totalStitches || 0;
+    const cached = _totalStitchCache.get(pat);
     if (cached !== undefined) return cached;
     let n = 0;
-    const pat = p.pattern;
     for (let i = 0; i < pat.length; i++) {
       const c = pat[i];
-      if (c && c.id !== "__skip__" && c.id !== "__empty__") n++;
+      if (!c) continue;
+      // `.p` cells are short arrays like ["310"] or ["310","k"]; cells
+      // marked `k` are skipped background.
+      if (Array.isArray(c)) {
+        if (c[1] !== "k" && c[0] !== "__skip__" && c[0] !== "__empty__") n++;
+      } else if (c.id !== "__skip__" && c.id !== "__empty__") {
+        n++;
+      }
     }
-    _totalStitchCache.set(p.pattern, n);
+    _totalStitchCache.set(pat, n);
     return n;
   }
   // PERF (perf-4 #6): cache completedStitches per `done` reference (typed array
@@ -73,11 +84,29 @@ const ProjectStorage = (() => {
         if (p.palette && p.palette.length > 0) {
           return p.palette.map(function(c) { return { id: c.id, name: c.name, rgb: c.rgb }; });
         }
-        if (!p.pattern || p.pattern.length === 0) return [];
+        var patArr = p.pattern || p.p;
+        if (!patArr || patArr.length === 0) return [];
         var seen = Object.create(null);
         var out = [];
-        for (var i = 0; i < p.pattern.length; i++) {
-          var cell = p.pattern[i];
+        for (var i = 0; i < patArr.length; i++) {
+          var cell = patArr[i];
+          // `.p` entries are short arrays like ["310"] / ["310","b"]; the
+          // `k` marker is skipped background.
+          if (Array.isArray(cell)) {
+            if (!cell[0] || cell[1] === 'k' || cell[0] === '__skip__' || cell[0] === '__empty__') continue;
+            var aid = cell[0];
+            if (typeof aid === 'string' && aid.indexOf('+') !== -1) {
+              var aparts = aid.split('+');
+              for (var ai = 0; ai < aparts.length; ai++) {
+                var apid = aparts[ai].trim();
+                if (apid && !seen[apid]) { seen[apid] = true; out.push({ id: apid, name: apid, rgb: [128,128,128] }); }
+              }
+            } else if (!seen[aid]) {
+              seen[aid] = true;
+              out.push({ id: aid, name: aid, rgb: [128,128,128] });
+            }
+            continue;
+          }
           if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
           if (typeof cell.id === 'string' && cell.id.indexOf('+') !== -1) {
             var parts = cell.id.split('+');

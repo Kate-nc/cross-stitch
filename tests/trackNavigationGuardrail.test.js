@@ -134,11 +134,32 @@ describe('TrackerApp loading useEffect — URL id param fallback', () => {
   });
 
   test('tracker-app validates the URL id param against proj_ prefix', () => {
-    expect(trackerApp).toMatch(/\/\^proj_\/\.test\(_urlId\)/);
+    expect(trackerApp).toMatch(/\/\^proj_\/\.test\(_urlId2?\)/);
   });
 
-  test('tracker-app calls setActiveProject with the URL id when pointer is missing or wrong', () => {
-    expect(trackerApp).toMatch(/ProjectStorage\.setActiveProject.*_urlId/);
+  test('tracker-app tries direct IDB load by URL id before falling back to active pointer', () => {
+    // Two-step strategy: ?id= → ProjectStorage.get() FIRST, then
+    // ProjectStorage.getActiveProject() ONLY if step 1 found nothing.
+    // This eliminates active-pointer races entirely.
+    const idxGet    = trackerApp.indexOf('ProjectStorage.get(_urlId2)');
+    const idxActive = trackerApp.indexOf('ProjectStorage.getActiveProject().then(function (project)');
+    expect(idxGet).toBeGreaterThanOrEqual(0);
+    expect(idxActive).toBeGreaterThanOrEqual(0);
+    expect(idxGet).toBeLessThan(idxActive);
+  });
+
+  test('tracker-app mirrors the loaded project id back to the active pointer', () => {
+    // After successful hydration via URL id, the active pointer should be
+    // re-set so subsequent reloads have a stable target.
+    expect(trackerApp).toMatch(/_hydrate[\s\S]{0,400}setActiveProject\(project\.id\)/);
+  });
+
+  test('tracker-app diagnostic log fires when no project can be loaded', () => {
+    // The failure path must surface a structured diagnostic so future
+    // "No pattern found" reports can be traced (active id, url id,
+    // project fields, library count).
+    expect(trackerApp).toMatch(/Could not load a project on mount/);
+    expect(trackerApp).toMatch(/libraryCount/);
   });
 });
 
@@ -267,15 +288,11 @@ describe('help-drawer.js sample project navigation', () => {
 // ── getActiveProject fallback path — legacy project.p field ──────────────────
 describe('TrackerApp getActiveProject fallback path — legacy p field', () => {
   test('getActiveProject fallback accepts project.p as well as project.pattern', () => {
-    // Projects saved from URL-shared (#p=...) patterns are stored with a
-    // compressed `p` field instead of `pattern`. The fallback load path must
-    // check both so those projects don't silently show "No pattern found".
-    const block = trackerApp.match(
-      /ProjectStorage\.getActiveProject\(\)\.then[\s\S]*?processLoadedProject/
-    );
-    expect(block).not.toBeNull();
-    // Must accept both fields
-    expect(block[0]).toMatch(/project\.pattern\s*\|\|\s*project\.p/);
+    // Projects loaded by either path (?id= direct IDB get OR active pointer
+    // fallback) flow through the shared _hasPattern helper which accepts
+    // both fields. Without this, URL-shared projects (.p only) silently
+    // trigger the "No pattern found" toast.
+    expect(trackerApp).toMatch(/function _hasPattern\(proj\)[\s\S]{0,200}proj\.pattern\s*\|\|\s*proj\.p/);
   });
 
   test('project picker onPick accepts project.p as well as project.pattern', () => {
@@ -292,6 +309,56 @@ describe('TrackerApp getActiveProject fallback path — legacy p field', () => {
       /onPickProject[\s\S]*?p\.pattern\s*\|\|\s*p\.p/
     );
     expect(block).not.toBeNull();
+  });
+
+  test('StatsContainer onOpenProject accepts project.p as well as project.pattern', () => {
+    // Opening a project from the global stats view must accept the legacy
+    // .p field (URL-shared / v8) so URL-shared projects don't silently
+    // fail to load when picked from the project list.
+    const sigil = '<StatsContainer ';
+    const idx = trackerApp.indexOf(sigil);
+    expect(idx).toBeGreaterThanOrEqual(0);
+    // Take a generous window after the StatsContainer JSX tag and assert
+    // the onOpenProject handler accepts both .pattern and .p.
+    const slice = trackerApp.slice(idx, idx + 2000);
+    expect(slice).toMatch(/onOpenProject=/);
+    expect(slice).toMatch(/project\.pattern\s*\|\|\s*project\.p/);
+  });
+});
+
+// ── processLoadedProject — compact-format detection ──────────────────────────
+describe('TrackerApp processLoadedProject — compact format detection', () => {
+  test('compact-array detection uses Array.isArray(first cell), not just project.v', () => {
+    // A v8 project re-saved with a normalised .pattern field would still trip
+    // the old `project.v === 8` branch and corrupt every cell. Detection must
+    // inspect the cell shape so it works regardless of the version stamp.
+    expect(trackerApp).toMatch(/_isCompactArray\s*=\s*p\.length\s*>\s*0\s*&&\s*Array\.isArray\(p\[0\]\)/);
+    expect(trackerApp).toMatch(/if\s*\(\s*_isCompactArray\s*\)\s*\{/);
+  });
+});
+
+// ── project-storage.js — countTotalStitches / palette derivation ────────────
+describe('project-storage — .p field support in metadata derivation', () => {
+  const projectStorage = fs.readFileSync(path.join(__dirname, '..', 'project-storage.js'), 'utf8');
+
+  test('countTotalStitches accepts the compact .p field', () => {
+    expect(projectStorage).toMatch(/countTotalStitches[\s\S]{0,300}p\.pattern\s*\|\|\s*p\.p/);
+  });
+
+  test('buildStatsSummary palette derivation accepts the compact .p field', () => {
+    expect(projectStorage).toMatch(/patArr\s*=\s*p\.pattern\s*\|\|\s*p\.p/);
+  });
+});
+
+// ── sync-engine.js fingerprint — .p field support ───────────────────────────
+describe('sync-engine — .p field support in fingerprint', () => {
+  const syncEngine = fs.readFileSync(path.join(__dirname, '..', 'sync-engine.js'), 'utf8');
+
+  test('computeFingerprint accepts the compact .p field', () => {
+    // URL-shared / v8 projects (no .pattern, only .p) must not fingerprint
+    // as "empty" — that would make every save look like a no-op and break
+    // cross-tab sync detection.
+    expect(syncEngine).toMatch(/project\.pattern\s*\|\|\s*project\.p/);
   });
 });
 

@@ -3140,7 +3140,12 @@ function processLoadedProject(project){
   setSessionStartSnapshot(null);
   setEditModalColor(null);
 
-  if (project.v === 8 || project.p) {
+  // Detect the compact array-of-arrays format ([["310"], ["311","b"], ["", "k"]])
+  // by inspecting the first cell rather than relying on project.v alone. This
+  // protects against legacy v8 projects whose `.pattern` field was rewritten
+  // post-decompression but whose v stamp never advanced.
+  var _isCompactArray = p.length > 0 && Array.isArray(p[0]);
+  if (_isCompactArray) {
     // Compressed URL format
      restored = p.map(m => {
         if(m[1] === 'k') return restoreStitch({id:"__skip__"});
@@ -3602,48 +3607,99 @@ useEffect(() => {
             setLoadError("Failed to load pattern from link.");
         }
     }
-  // No handoff and no URL — restore last active project from ProjectStorage.
-  // T-4: defer to a microtask so the [incomingProject] effect has a chance
-  // to fire first if the prop arrives in the same render. The guard then
-  // skips the fallback rather than racing with the prop and causing a
-  // brief flicker of the wrong project.
+  // No handoff and no URL hash — restore from the URL ?id= param first
+  // (if present) and fall back to the active-project pointer otherwise.
   //
-  // Belt-and-suspenders: if the URL contains ?id=<projectId> (added by
-  // home/stash Track navigation as a race-safe fallback), ensure the
-  // active-project pointer is set before the IDB read. The stitch.html
-  // inline guard already does this synchronously; this second write
-  // handles edge cases where the guard script ran before ProjectStorage
-  // was available (e.g., rare service-worker timing).
-  try {
-    var _urlParams = new URLSearchParams(window.location.search);
-    var _urlId = _urlParams.get('id');
-    if (_urlId && /^proj_/.test(_urlId) && ProjectStorage && ProjectStorage.getActiveProjectId) {
-      var _curId = ProjectStorage.getActiveProjectId ? ProjectStorage.getActiveProjectId() : null;
-      if (!_curId || _curId !== _urlId) {
-        try { ProjectStorage.setActiveProject && ProjectStorage.setActiveProject(_urlId); } catch (_) {}
-      }
-    }
-  } catch (_) {}
-  Promise.resolve().then(function(){
+  // Two-step strategy to eliminate active-pointer races entirely:
+  //   1. If ?id=<projectId> is in the URL (added by home/stash Track
+  //      navigation), load directly from IDB by that id. This bypasses
+  //      the localStorage pointer altogether, so it works even when the
+  //      pointer was cleared by self-heal racing with navigation.
+  //   2. Only if (1) yields no project (no id in URL, or id not in IDB),
+  //      fall back to ProjectStorage.getActiveProject().
+  //
+  // Both paths funnel through the same `hydrate()` helper so the toast +
+  // diagnostic logging fire in exactly one place.
+  var _urlParams2;
+  try { _urlParams2 = new URLSearchParams(window.location.search); }
+  catch (_) { _urlParams2 = null; }
+  var _urlId2 = _urlParams2 ? _urlParams2.get('id') : null;
+
+  function _hasPattern(proj) {
+    return !!(proj && (proj.pattern || proj.p));
+  }
+  function _hydrate(project, source) {
     if (hasLoadedOnceRef.current) return;
-    ProjectStorage.getActiveProject().then(project => {
-      if (hasLoadedOnceRef.current) return;
-      if (project && (project.pattern || project.p)) {
-        processLoadedProject(project);
-        hasLoadedOnceRef.current=true;
+    if (_hasPattern(project)) {
+      processLoadedProject(project);
+      hasLoadedOnceRef.current = true;
+      // Mirror the pointer so subsequent reloads have a stable target.
+      try { if (project.id && ProjectStorage.setActiveProject) ProjectStorage.setActiveProject(project.id); } catch (_) {}
+      return true;
+    }
+    return false;
+  }
+  function _failLoad(activeId, projectIfAny) {
+    // Diagnostic: log what we did/didn't find so future "No pattern" reports
+    // can be traced. ProjectStorage.listProjects is a metadata-only read so
+    // this is cheap even for large libraries.
+    var diag = {
+      activeId: activeId,
+      urlId: _urlId2,
+      projectFound: !!projectIfAny,
+      hasPattern: !!(projectIfAny && projectIfAny.pattern),
+      hasP: !!(projectIfAny && projectIfAny.p),
+      hasSettings: !!(projectIfAny && projectIfAny.settings),
+      keys: projectIfAny ? Object.keys(projectIfAny).slice(0, 20) : null
+    };
+    try {
+      if (ProjectStorage && ProjectStorage.listProjects) {
+        ProjectStorage.listProjects().then(function (l) {
+          diag.libraryCount = (l || []).length;
+          diag.libraryIds = (l || []).slice(0, 5).map(function (m) { return m && m.id; });
+          console.warn('[TrackerApp] Could not load a project on mount:', diag);
+        }).catch(function () {
+          console.warn('[TrackerApp] Could not load a project on mount:', diag);
+        });
       } else {
-        // No loadable project found — log and surface a toast so the
-        // user knows what happened rather than seeing a silent empty state.
-        const activeId = ProjectStorage.getActiveProjectId ? ProjectStorage.getActiveProjectId() : null;
-        if (activeId) {
-          console.warn('[TrackerApp] Active project "' + activeId + '" could not be loaded (missing or has no pattern data). Clearing stale pointer.');
-          try { ProjectStorage.clearActiveProject && ProjectStorage.clearActiveProject(); } catch(_) {}
-        }
-        if (window.Toast && window.Toast.show) {
-          window.Toast.show({ message: 'No pattern found. Please select a project from your library.', type: 'warning', duration: 6000 });
-        }
+        console.warn('[TrackerApp] Could not load a project on mount:', diag);
       }
-    }).catch(err => console.error("Failed to load active project:", err));
+    } catch (_) {
+      console.warn('[TrackerApp] Could not load a project on mount:', diag);
+    }
+    // Only clear the pointer when the URL didn't ask for a specific id —
+    // if it did, we want to keep the pointer for the next reload attempt.
+    if (activeId && !_urlId2) {
+      try { ProjectStorage.clearActiveProject && ProjectStorage.clearActiveProject(); } catch (_) {}
+    }
+    if (window.Toast && window.Toast.show) {
+      window.Toast.show({ message: 'No pattern found. Please select a project from your library.', type: 'warning', duration: 6000 });
+    }
+  }
+
+  Promise.resolve().then(function () {
+    if (hasLoadedOnceRef.current) return;
+    // Step 1: ?id= → direct IDB load
+    var step1;
+    if (_urlId2 && /^proj_/.test(_urlId2) && ProjectStorage && ProjectStorage.get) {
+      step1 = ProjectStorage.get(_urlId2).catch(function () { return null; });
+    } else {
+      step1 = Promise.resolve(null);
+    }
+    step1.then(function (urlProject) {
+      if (hasLoadedOnceRef.current) return;
+      if (_hydrate(urlProject, 'url-id')) return;
+      // Step 2: fall back to active-project pointer
+      ProjectStorage.getActiveProject().then(function (project) {
+        if (hasLoadedOnceRef.current) return;
+        if (_hydrate(project, 'active-pointer')) return;
+        var activeId = ProjectStorage.getActiveProjectId ? ProjectStorage.getActiveProjectId() : null;
+        _failLoad(activeId, project || urlProject);
+      }).catch(function (err) {
+        console.error('Failed to load active project:', err);
+        _failLoad(null, urlProject);
+      });
+    });
   });
 }, []);
 
@@ -5724,7 +5780,7 @@ return(
     </div>
   )}
 
-  {statsView&&pat&&<StatsContainer statsTab={statsTab} setStatsTab={setStatsTab} statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={doneCount} totalStitches={totalStitchable} halfStitchCounts={halfStitchCounts} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={setDoneSnapshots} sections={sections} currentProjectId={projectIdRef.current} onOpenProject={(meta)=>{ProjectStorage.get(meta.id).then(project=>{if(project&&project.pattern&&project.settings){processLoadedProject(project);try{ProjectStorage.setActiveProject(project.id);}catch(_){};setStatsView(false);}}).catch(()=>{});}}/>}
+  {statsView&&pat&&<StatsContainer statsTab={statsTab} setStatsTab={setStatsTab} statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={doneCount} totalStitches={totalStitchable} halfStitchCounts={halfStitchCounts} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={setDoneSnapshots} sections={sections} currentProjectId={projectIdRef.current} onOpenProject={(meta)=>{ProjectStorage.get(meta.id).then(project=>{if(project&&(project.pattern||project.p)&&project.settings){processLoadedProject(project);try{ProjectStorage.setActiveProject(project.id);}catch(_){};setStatsView(false);}}).catch(()=>{});}}/>}
 
   {trackerPreviewOpen&&pat&&<TrackerPreviewModal pat={pat} cmap={cmap} sW={sW} sH={sH} fabricCt={fabricCt} level={trackerPreviewLevel} onLevelChange={setTrackerPreviewLevel} onClose={()=>setTrackerPreviewOpen(false)}/>}
 

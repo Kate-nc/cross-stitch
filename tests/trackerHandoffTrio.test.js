@@ -80,7 +80,7 @@ describe('T-4: mount effect uses hasLoadedOnceRef guard', () => {
   });
   test('ProjectStorage.getActiveProject fallback is deferred via Promise.resolve().then', () => {
     const m = tracker.match(
-      /Promise\.resolve\(\)\.then\(function\(\)\{[\s\S]{0,400}?ProjectStorage\.getActiveProject\(\)/);
+      /Promise\.resolve\(\)\.then\(function\s*\(\)\s*\{[\s\S]{0,1200}?ProjectStorage\.getActiveProject\(\)/);
     expect(m).not.toBeNull();
     expect(m[0]).toMatch(/if \(hasLoadedOnceRef\.current\) return/);
   });
