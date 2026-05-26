@@ -78,7 +78,10 @@ describe('Bulk action bar', () => {
     // delete (one preselected id) and bulk delete share the same modal.
     expect(home).toMatch(/function handleBulkDelete\(\)[\s\S]{0,300}setConfirmDelete\(ids\)/);
     expect(home).toMatch(/function BulkDeleteModal/);
-    expect(home).toMatch(/cannot be undone/);
+    // DEL-BUG-003 fix: modal no longer says "cannot be undone" — it now reflects
+    // the undo window available via the Toast button (fixed in DEL-BUG-002).
+    expect(home).not.toMatch(/cannot be undone/);
+    expect(home).toMatch(/undo/i);
   });
   test('bulk export only shows a "coming in B4" toast (no real export)', () => {
     expect(home).toMatch(/handleBulkExport[\s\S]{0,300}coming in B4/);

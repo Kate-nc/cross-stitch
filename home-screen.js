@@ -563,7 +563,7 @@ function BulkDeleteModal({ projectIds, projectsById, onConfirm, onCancel }) {
       style: { background: 'var(--surface)', borderRadius:'var(--radius-xl)', padding: 20, maxWidth: 440, width: '100%', boxShadow: '0 20px 60px rgba(15, 23, 42, 0.3)' },
     },
       h('h3', { id: 'mpd-bulk-delete-title' }, 'Delete ' + n + ' project' + (n === 1 ? '' : 's') + '?'),
-      h('p', null, 'This permanently removes the selected project' + (n === 1 ? '' : 's') + ' and ' + (n === 1 ? 'its' : 'their') + ' progress, palettes, and stitch history. This cannot be undone.'),
+      h('p', null, 'This permanently removes the selected project' + (n === 1 ? '' : 's') + ' and ' + (n === 1 ? 'its' : 'their') + ' progress, palettes, and stitch history. You will have a few seconds to undo after confirming.'),
       h('ul', null,
         visible.map(function (id) {
           var name = (projectsById && projectsById[id]) || id;
@@ -855,6 +855,12 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
               undoLabel: 'Undo',
               undoAction: function () {
                 Promise.all(restorable.map(function (p) {
+                  // DEL-BUG-002 fix: clear the deletion guard so ProjectStorage.save()
+                  // does not silently swallow the restore. Without this, save() returns
+                  // early because the ID is still in _deletedIds from the delete call above.
+                  if (ProjectStorage._deletedIds && typeof ProjectStorage._deletedIds.delete === 'function') {
+                    ProjectStorage._deletedIds.delete(p.id);
+                  }
                   return ProjectStorage.save(p).catch(function (err) {
                     console.error('Project restore failed:', err);
                     return null;
