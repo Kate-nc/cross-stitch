@@ -349,6 +349,18 @@ window.CreatorActionBar = function CreatorActionBar(props) {
         )
       )
     ) : h("div", { className: "creator-actionbar__primary" }),
+    hasPat ? h("button", {
+      type: "button",
+      className: "creator-actionbar__btn creator-actionbar__btn--ghost",
+      onClick: function() {
+        if (typeof props.onResizeCanvas === "function") props.onResizeCanvas();
+      },
+      title: "Resize canvas \u2014 crop or expand the pattern bounds",
+      "aria-label": "Resize canvas"
+    },
+      Icons.canvasResize ? Icons.canvasResize() : null,
+      h("span", null, "Resize canvas")
+    ) : null,
     hasPat ? trackBtn : null,
     hasPat ? infoChip : null
   )

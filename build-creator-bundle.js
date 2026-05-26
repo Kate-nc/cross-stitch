@@ -77,6 +77,8 @@ const ORDER = [
   // it) so window.CreatorPatternInfoPopover is defined at mount time.
   'PatternInfoPopover.js',
   'ColourReplaceModal.js',
+  'canvasResize.js',
+  'ResizeCanvasModal.js',
   'ActionBar.js',
 ];
 
