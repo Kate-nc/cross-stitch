@@ -646,6 +646,18 @@ window.Icons = (function() {
         l(20, 4, 18, 6)
       );
     },
+    // Canvas resize — inner rectangle (current canvas) with outward corner
+    // brackets indicating the bounds can be dragged to resize.
+    // Used by the Resize Canvas feature in the pattern editor.
+    canvasResize: function() {
+      return svg(
+        rc(6, 6, 12, 12, 1),
+        p('M3 9V3h6'),
+        p('M15 3h6v6'),
+        p('M21 15v6h-6'),
+        p('M9 21H3v-6')
+      );
+    },
     // Settings — alias for gear (used by spec EL-SCR-062-* references)
     settings: function() {
       return svg(

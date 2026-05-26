@@ -482,6 +482,10 @@ window.useCreatorState = function useCreatorState() {
   });
   var stashConstrained = _stashOnly[0];
   function setStashConstrained(v) { _stashOnly[1](v); try { localStorage.setItem("cs_stashConstrained", v ? "true" : "false"); } catch(_) {} }
+  // Canvas resize modal open flag (distinct from the image-crop isCropping
+  // which lives in GenerationContext and applies to the source image).
+  var _rszOpen = useState(false); var resizeCanvasOpen = _rszOpen[0], setResizeCanvasOpen = _rszOpen[1];
+
   // Stash-Adapt: modal open/mode state. Replaces the legacy SubstituteFromStash
   // and ConvertPalette modals with a single non-destructive duplication flow.
   var _adOpen = useState(false);         var adaptModalOpen = _adOpen[0], setAdaptModalOpen = _adOpen[1];
@@ -1560,6 +1564,7 @@ window.useCreatorState = function useCreatorState() {
     partialStitchTool, setPartialStitchTool, partialStitchToolRef, threadOwned, setThreadOwned,
     globalStash, setGlobalStash, kittingResult, setKittingResult,
     altOpen, setAltOpen,
+    resizeCanvasOpen, setResizeCanvasOpen,
     adaptModalOpen, setAdaptModalOpen,
     adaptModalMode, setAdaptModalMode,
     adaptMaxDeltaE, setAdaptMaxDeltaE,
