@@ -94,7 +94,6 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       var cutH = Math.ceil((hIn + 2 * margin) * 4) / 4;
       if (units === 'cm') {
         return {
-          design: wIn.toFixed(1) + ' cm / ' + (wIn * 2.54).toFixed(1) + ' cm',
           designW: (wIn * 2.54).toFixed(1) + ' cm',
           designH: (hIn * 2.54).toFixed(1) + ' cm',
           cut: (cutW * 2.54).toFixed(1) + ' cm \u00D7 ' + (cutH * 2.54).toFixed(1) + ' cm'
@@ -132,7 +131,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             onChange:function(e){setFsMargin(Math.max(0, Number(e.target.value)||0));},
             style:{width:55,padding:"3px 8px",fontSize:'var(--text-sm)',borderRadius:'var(--radius-sm)',border:"0.5px solid var(--border)"}
           }),
-          h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)"}}, "\" each side"),
+          h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)"}}, units === 'cm' ? "\" each side (always inches)" : "\" each side"),
           h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)"}}, "|"),
           ["in","cm"].map(function(u) {
             return h("button", {key:u, onClick:function(){setFsUnits(u);}, style:{
@@ -179,7 +178,9 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           )
         ),
         h("p", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:8}},
-          ctx.sW + "\u00D7" + ctx.sH + " stitches. Margin: " + margin + "\u2033 each side (" + (2*margin) + "\u2033 total per dimension)."
+          ctx.sW + "\u00D7" + ctx.sH + " stitches. "
+          + (units === 'cm' ? "Margin is always in inches. " : "")
+          + "Margin: " + margin + "\u2033 each side (" + (2*margin) + "\u2033 total per dimension)."
           + " Cut size is rounded up to the nearest \u00BC\u2033 (shopping target)."
           + " Thread estimate: see the Materials tab."
         )

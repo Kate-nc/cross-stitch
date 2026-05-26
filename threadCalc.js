@@ -15,8 +15,9 @@ const BASE_THREAD_PER_STITCH_IN = 1.4;  // inches, 14-ct, 2 strands, no waste
 const BASE_FABRIC_COUNT         = 14;   // reference fabric count (count)
 const BASE_STRANDS              = 2;    // reference strand count
 
-// Unit conversion — exact, do not approximate.
-const INCHES_PER_METRE  = 39.3701;   // 1 m = 39.3701 in  (1 in = 2.54 cm)
+// Unit conversion — exact, derived from 1 in = 2.54 cm.
+const INCHES_PER_METRE  = 100 / 2.54; // 1 m = 100 cm
+const FLOSS_STRANDS_PER_SKEIN = 6;    // standard stranded cotton skein
 
 // Default waste factor — 15 %.  Applied as a MULTIPLIER: if you need X inches
 // of thread, buy X × (1 + wasteFactor) worth of skein capacity.
@@ -35,7 +36,7 @@ function stitchesToSkeins({
   fabricCount = 14,
   strandsUsed = 2,
   skeinLengthM = 8.0,
-  wasteFactor = 0.20,
+  wasteFactor = DEFAULT_WASTE_FACTOR,
   isBlended = false,
   blendRatio = null
 }) {
@@ -48,7 +49,9 @@ function stitchesToSkeins({
     throw new Error("stitchesToSkeins: fabricCount must be a positive finite number");
   }
   if (strandsUsed <= 0) strandsUsed = 2;
-  if (wasteFactor >= 1) wasteFactor = DEFAULT_WASTE_FACTOR;
+  if (!Number.isFinite(wasteFactor) || wasteFactor < 0 || wasteFactor >= 1) {
+    wasteFactor = DEFAULT_WASTE_FACTOR;
+  }
 
   // Canonical unit: INCHES.
   // threadPerStitch scales inversely with fabric count (smaller stitches use
@@ -58,7 +61,7 @@ function stitchesToSkeins({
                          * (strandsUsed / BASE_STRANDS);  // in/stitch
   const flossLengthIn  = stitchCount * threadCostIn;      // in, no waste
   const totalWithWasteIn = flossLengthIn * (1 + wasteFactor);
-  const skeinLengthIn  = skeinLengthM * INCHES_PER_METRE;
+  const skeinLengthIn  = skeinLengthM * INCHES_PER_METRE * FLOSS_STRANDS_PER_SKEIN;
 
   if (!isBlended) {
     let skeinsRaw = totalWithWasteIn / skeinLengthIn;
@@ -98,17 +101,19 @@ function skeinsToStitches({
   fabricCount = 14,
   strandsUsed = 2,
   skeinLengthM = 8.0,
-  wasteFactor = 0.20
+  wasteFactor = DEFAULT_WASTE_FACTOR
 }) {
   if (fabricCount <= 0) fabricCount = 14;
   if (strandsUsed <= 0) strandsUsed = 2;
-  if (wasteFactor >= 1) wasteFactor = DEFAULT_WASTE_FACTOR;
+  if (!Number.isFinite(wasteFactor) || wasteFactor < 0 || wasteFactor >= 1) {
+    wasteFactor = DEFAULT_WASTE_FACTOR;
+  }
 
   // Invert stitchesToSkeins: stitchCount = skeins × skeinLength / (threadCost × (1+waste))
   const threadCostIn      = BASE_THREAD_PER_STITCH_IN
                             * (BASE_FABRIC_COUNT / fabricCount)
                             * (strandsUsed / BASE_STRANDS);
-  const skeinLengthIn     = skeinLengthM * INCHES_PER_METRE;
+  const skeinLengthIn     = skeinLengthM * INCHES_PER_METRE * FLOSS_STRANDS_PER_SKEIN;
   const usablePerSkeinIn  = skeinLengthIn / (1 + wasteFactor);
   const totalUsableIn     = skeinCount * usablePerSkeinIn;
   const stitches          = Math.floor(totalUsableIn / threadCostIn);
@@ -159,6 +164,7 @@ if (typeof module !== 'undefined' && module.exports) {
         BASE_FABRIC_COUNT,
         BASE_STRANDS,
         INCHES_PER_METRE,
+        FLOSS_STRANDS_PER_SKEIN,
         DEFAULT_WASTE_FACTOR,
         BRAND_SKEIN_LENGTH,
         stitchesToSkeins,

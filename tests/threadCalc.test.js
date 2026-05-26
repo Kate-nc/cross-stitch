@@ -8,14 +8,14 @@ describe('stitchesToSkeins — non-blended', () => {
     describe('parameterized tests', () => {
         test.each([
             // stitchCount, fabricCount, strandsUsed, skeinLengthM, wasteFactor, expectedExact, expectedBuy
-            // New formula: skeinsRaw = stitchCount × 1.4 × (14/fc) × (s/2) × (1+waste) / (skeinM × 39.3701)
-            [5000, 14, 2, 8.0, 0.20, 26.67, 27],
-            [1000, 14, 2, 8.0, 0.20, 5.33,  6],
-            [1000, 18, 2, 8.0, 0.20, 4.15,  5],
-            [1000, 14, 3, 8.0, 0.20, 8.0,   9],  // skeinsRaw=8.001 → ceil=9
-            [5000, 14, 2, 10.0, 0.20, 21.34, 22], // Madeira length
-            [5000, 14, 2, 8.0, 0.10, 24.45, 25],  // Lower waste
-            [5000, 14, 2, 8.0, 0.30, 28.89, 29],  // Higher waste
+            // New formula: skeinsRaw = stitchCount × 1.4 × (14/fc) × (s/2) × (1+waste) / (skeinM × 39.3700787 × 6)
+            [5000, 14, 2, 8.0, 0.20, 4.45,  5],
+            [1000, 14, 2, 8.0, 0.20, 0.89,  1],
+            [1000, 18, 2, 8.0, 0.20, 0.69,  1],
+            [1000, 14, 3, 8.0, 0.20, 1.33,  2],
+            [5000, 14, 2, 10.0, 0.20, 3.56, 4], // Madeira length
+            [5000, 14, 2, 8.0, 0.10, 4.07,  5], // Lower waste
+            [5000, 14, 2, 8.0, 0.30, 4.82,  5], // Higher waste
             [0, 14, 2, 8.0, 0.20, 0, 0]           // Zero stitches
         ])(
             'given %p stitches, %pct, %p strands, %pm skein, %p waste → expects ~%p exact, %p to buy',
@@ -33,7 +33,7 @@ describe('stitchesToSkeins — non-blended', () => {
         );
     });
 
-    it('brief verification: 5000 stitches, 2 strands, 14ct, 8m skein, 20% waste → ~26.67 skeins', () => {
+    it('brief verification: 5000 stitches, 2 strands, 14ct, 8m skein, 20% waste → ~4.45 skeins', () => {
         const result = stitchesToSkeins({
             stitchCount: 5000,
             fabricCount: 14,
@@ -41,9 +41,9 @@ describe('stitchesToSkeins — non-blended', () => {
             skeinLengthM: 8.0,
             wasteFactor: 0.20
         });
-        // Expected = 5000 × 1.4 × 1.20 / (8.0 × 39.3701) ≈ 26.67
-        expect(result.skeinsExact).toBeCloseTo(26.67, 1);
-        expect(result.skeinsToBuy).toBe(27);
+        // Expected = 5000 × 1.4 × 1.20 / (8.0 × 39.3700787 × 6) ≈ 4.45
+        expect(result.skeinsExact).toBeCloseTo(4.45, 1);
+        expect(result.skeinsToBuy).toBe(5);
     });
 
     it('returns exact and rounded skein counts', () => {
@@ -112,10 +112,10 @@ describe('stitchesToSkeins — blended', () => {
         test.each([
             // stitchCount, fabricCount, strandsUsed, blendRatio, expectedASkeinsExact, expectedBSkeinsExact
             // New formula: each colour split by strand proportion; waste applied per colour.
-            [5000, 14, 2, [1, 1], 13.34, 13.34],
-            [5000, 14, 3, [2, 1], 26.67, 13.34],
-            [5000, 14, 3, [1, 2], 13.34, 26.67],
-            [10000, 18, 4, [2, 2], 41.49, 41.49],
+            [5000, 14, 2, [1, 1], 2.13, 2.13],
+            [5000, 14, 3, [2, 1], 4.26, 2.13],
+            [5000, 14, 3, [1, 2], 2.13, 4.26],
+            [10000, 18, 4, [2, 2], 6.63, 6.63],
             [0, 14, 2, [1, 1], 0, 0]
         ])(
             'given %p stitches, %pct, %p strands, ratio %p → expects colorA ~%p, colorB ~%p',
@@ -189,12 +189,12 @@ describe('skeinsToStitches', () => {
         test.each([
             // skeinCount, fabricCount, strandsUsed, skeinLengthM, wasteFactor, expectedApprox
             // New formula: stitches = floor(skeinCount × skeinLen / (threadCostIn × (1+waste)))
-            [1, 14, 2, 8.0, 0.20, 187],
-            [2, 14, 2, 8.0, 0.20, 374],
-            [1, 18, 2, 8.0, 0.20, 241], // Finer fabric, more stitches
-            [1, 14, 3, 8.0, 0.20, 124], // More strands, fewer stitches
-            [1, 14, 2, 10.0, 0.20, 234], // Longer skein, more stitches
-            [1, 14, 2, 8.0, 0.10, 204], // Less waste, more stitches
+            [1, 14, 2, 8.0, 0.20, 1124],
+            [2, 14, 2, 8.0, 0.20, 2249],
+            [1, 18, 2, 8.0, 0.20, 1446], // Finer fabric, more stitches
+            [1, 14, 3, 8.0, 0.20, 749],  // More strands, fewer stitches
+            [1, 14, 2, 10.0, 0.20, 1406], // Longer skein, more stitches
+            [1, 14, 2, 8.0, 0.10, 1227], // Less waste, more stitches
             [0, 14, 2, 8.0, 0.20, 0]    // Zero skeins
         ])(
             'given %p skeins, %pct, %p strands, %pm skein, %p waste → expects ~%p stitches',
@@ -306,9 +306,9 @@ describe('skeinEst (proxy behaviour)', () => {
         expect(s2).toBeGreaterThanOrEqual(s1);
     });
 
-    it('5000 stitches 14ct returns a realistic skein count (20–35 range at 20% waste)', () => {
+    it('5000 stitches 14ct returns a realistic skein count (4–6 range at 20% waste)', () => {
         const result = skeinEst(5000, 14);
-        expect(result).toBeGreaterThanOrEqual(20);
-        expect(result).toBeLessThanOrEqual(35); // calibrated: ~27 at 20% waste
+        expect(result).toBeGreaterThanOrEqual(4);
+        expect(result).toBeLessThanOrEqual(6); // calibrated: ~5 at 20% waste
     });
 });

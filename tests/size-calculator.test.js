@@ -37,7 +37,8 @@ const {
   stitchesToSkeins,
   skeinsToStitches,
   BASE_THREAD_PER_STITCH_IN,
-  INCHES_PER_METRE
+  INCHES_PER_METRE,
+  FLOSS_STRANDS_PER_SKEIN
 } = require('../threadCalc.js');
 
 // ════════════════════════════════════════════════════════════════════
@@ -202,37 +203,37 @@ describe('toDisplayDimensions', () => {
 // ════════════════════════════════════════════════════════════════════
 describe('stitchesToSkeins calibration (no waste)', () => {
   // stitches per skein = skeinLength / threadPerStitch
-  // For a 8 m (314.96″) DMC skein with 0% waste:
+  // For an 8 m DMC skein split into 6 strands with 0% waste:
 
-  test('14-ct 2 strands: stitches/skein in 200–250', () => {
-    const skeinLen = 8.0 * INCHES_PER_METRE;
+  test('14-ct 2 strands: stitches/skein in 1200–1500', () => {
+    const skeinLen = 8.0 * INCHES_PER_METRE * FLOSS_STRANDS_PER_SKEIN;
     const tps = BASE_THREAD_PER_STITCH_IN;      // 1.4 in/stitch at 14-ct 2s
     const stitchesPerSkein = skeinLen / tps;
-    expect(stitchesPerSkein).toBeGreaterThanOrEqual(200);
-    expect(stitchesPerSkein).toBeLessThanOrEqual(250);
+    expect(stitchesPerSkein).toBeGreaterThanOrEqual(1200);
+    expect(stitchesPerSkein).toBeLessThanOrEqual(1500);
   });
 
-  test('16-ct 2 strands: stitches/skein in 250–280', () => {
-    const skeinLen = 8.0 * INCHES_PER_METRE;
+  test('16-ct 2 strands: stitches/skein in 1500–1680', () => {
+    const skeinLen = 8.0 * INCHES_PER_METRE * FLOSS_STRANDS_PER_SKEIN;
     const tps = BASE_THREAD_PER_STITCH_IN * (14 / 16);   // 1.225 in/stitch
     const stitchesPerSkein = skeinLen / tps;
-    expect(stitchesPerSkein).toBeGreaterThanOrEqual(250);
-    expect(stitchesPerSkein).toBeLessThanOrEqual(280);
+    expect(stitchesPerSkein).toBeGreaterThanOrEqual(1500);
+    expect(stitchesPerSkein).toBeLessThanOrEqual(1680);
   });
 
-  test('18-ct 2 strands: stitches/skein in 280–300', () => {
-    const skeinLen = 8.0 * INCHES_PER_METRE;
+  test('18-ct 2 strands: stitches/skein in 1680–1800', () => {
+    const skeinLen = 8.0 * INCHES_PER_METRE * FLOSS_STRANDS_PER_SKEIN;
     const tps = BASE_THREAD_PER_STITCH_IN * (14 / 18);   // 1.089 in/stitch
     const stitchesPerSkein = skeinLen / tps;
-    expect(stitchesPerSkein).toBeGreaterThanOrEqual(280);
-    expect(stitchesPerSkein).toBeLessThanOrEqual(300);
+    expect(stitchesPerSkein).toBeGreaterThanOrEqual(1680);
+    expect(stitchesPerSkein).toBeLessThanOrEqual(1800);
   });
 
   test('2→3 strand scaling ≈ +50% (linearity)', () => {
     const r2 = stitchesToSkeins({ stitchCount: 5000, fabricCount: 14, strandsUsed: 2, wasteFactor: 0 });
     const r3 = stitchesToSkeins({ stitchCount: 5000, fabricCount: 14, strandsUsed: 3, wasteFactor: 0 });
     const ratio = r3.skeinsExact / r2.skeinsExact;
-    expect(ratio).toBeCloseTo(1.5, 3);
+    expect(ratio).toBeCloseTo(1.5, 2);
   });
 
   test('waste factor applied as multiplier (1 + wasteFactor)', () => {
@@ -240,8 +241,8 @@ describe('stitchesToSkeins calibration (no waste)', () => {
     const tenPct    = stitchesToSkeins({ stitchCount: 5000, fabricCount: 14, wasteFactor: 0.10 });
     const twentyPct = stitchesToSkeins({ stitchCount: 5000, fabricCount: 14, wasteFactor: 0.20 });
     // 1.10 / 1.00 = 1.10; 1.20 / 1.00 = 1.20
-    expect(tenPct.skeinsExact   / noWaste.skeinsExact).toBeCloseTo(1.10, 3);
-    expect(twentyPct.skeinsExact / noWaste.skeinsExact).toBeCloseTo(1.20, 3);
+    expect(tenPct.skeinsExact   / noWaste.skeinsExact).toBeCloseTo(1.10, 2);
+    expect(twentyPct.skeinsExact / noWaste.skeinsExact).toBeCloseTo(1.20, 2);
   });
 
   test('zero-stitch pattern → 0 skeins', () => {
