@@ -9,6 +9,12 @@ window.CreatorProjectTab = function CreatorProjectTab() {
   var app = window.useApp();
   var cv  = window.useCanvas();
   var h = React.createElement;
+  var useState = React.useState;
+
+  // ── Finished-size controls (hooks must be at component root, before early returns)
+  var _so = useState(0); var stitchOverride = _so[0]; var setStitchOverride = _so[1];
+  var _mg = useState(3); var fsMargin = _mg[0]; var setFsMargin = _mg[1];
+  var _un = useState('in'); var fsUnits = _un[0]; var setFsUnits = _un[1];
 
   if (!(ctx.pat && ctx.pal)) return null;
   if (app.tab !== "project") return null;
@@ -51,45 +57,132 @@ window.CreatorProjectTab = function CreatorProjectTab() {
 
   // ── Finished Size ───────────────────────────────────────────────────────────
   function renderFinishedSize() {
+    // stitchOverride: 0 = auto per-row default; 1 = force over 1 (Aida);
+    //                 2 = force over 2 (evenweave/linen).
+    // fsMargin: inches each side (default 3 — recommended for framing).
+    //   Cut size = design size + 2 × margin. Margin adds to BOTH sides.
+    // These state vars are declared at the component root above the early returns.
+    var margin       = fsMargin;
+    var units        = fsUnits;
+
+    // Fabric list with per-row default stitch-over (1 = Aida, 2 = evenweave/linen).
+    // 25/28/32-count are evenweave (over 2 by default); all others are Aida (over 1).
     var fabrics = [
-      {ct:14,label:"14 count Aida"},{ct:16,label:"16 count Aida"},{ct:18,label:"18 count Aida"},
-      {ct:20,label:"20 count Aida"},{ct:22,label:"22 count Aida"},
-      {ct:25,label:"25 count Evenweave"},{ct:28,label:"28 count Evenweave (over 2)"}
+      {ct:11,label:"11 count Aida",      defaultSO:1},
+      {ct:14,label:"14 count Aida",      defaultSO:1},
+      {ct:16,label:"16 count Aida",      defaultSO:1},
+      {ct:18,label:"18 count Aida",      defaultSO:1},
+      {ct:20,label:"20 count Aida",      defaultSO:1},
+      {ct:22,label:"22 count Aida",      defaultSO:1},
+      {ct:25,label:"25 count Evenweave", defaultSO:2},
+      {ct:28,label:"28 count Linen",     defaultSO:2},
+      {ct:32,label:"32 count Linen",     defaultSO:2}
     ];
+
+    // stitchOverride 0 = use per-row default; 1 or 2 = global override.
+    function effectiveSO(f) {
+      return stitchOverride > 0 ? stitchOverride : f.defaultSO;
+    }
+
+    function calcRow(f) {
+      var so  = effectiveSO(f);
+      var spi = f.ct / so;                          // effective stitches per inch
+      var wIn = ctx.sW / spi;
+      var hIn = ctx.sH / spi;
+      // Cut size: design + margin each side (both sides → ×2); round up ¼″.
+      var cutW = Math.ceil((wIn + 2 * margin) * 4) / 4;
+      var cutH = Math.ceil((hIn + 2 * margin) * 4) / 4;
+      if (units === 'cm') {
+        return {
+          designW: (wIn * 2.54).toFixed(1) + ' cm',
+          designH: (hIn * 2.54).toFixed(1) + ' cm',
+          cut: (cutW * 2.54).toFixed(1) + ' cm \u00D7 ' + (cutH * 2.54).toFixed(1) + ' cm'
+        };
+      }
+      return {
+        designW: wIn.toFixed(1) + '\u2033',
+        designH: hIn.toFixed(1) + '\u2033',
+        cut: cutW.toFixed(2).replace(/\.?0+$/, '') + '\u2033 \u00D7 ' + cutH.toFixed(2).replace(/\.?0+$/, '') + '\u2033'
+      };
+    }
+
+    var soOptions = [
+      {val:0, label:'Auto (by fabric type)'},
+      {val:1, label:'Over 1 (Aida)'},
+      {val:2, label:'Over 2 (evenweave/linen)'}
+    ];
+
     return h(Section, {title:"Finished Size"},
-      h("div", {style:{marginTop:'var(--s-2)',overflow:"auto"}},
-        h("table", {style:{width:"100%",borderCollapse:"collapse",fontSize:'var(--text-sm)'}},
-          h("thead", null,
-            h("tr", {style:{background:"var(--surface-secondary)"}},
-              ["Fabric","Width","Height","With margin"].map(function(hd, i) {
-                return h("th", {key:i, style:{padding:"7px 10px",textAlign:"left",borderBottom:"2px solid var(--border)",color:"var(--text-secondary)",fontWeight:600,fontSize:'var(--text-xs)',textTransform:"uppercase"}}, hd);
+      h("div", {style:{marginTop:'var(--s-2)'}},
+        // Controls
+        h("div", {style:{display:"flex",alignItems:"center",gap:10,marginBottom:12,flexWrap:"wrap"}},
+          h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}, "Stitch over:"),
+          h("select", {
+            value: stitchOverride,
+            onChange: function(e) { setStitchOverride(Number(e.target.value)); },
+            style:{fontSize:'var(--text-xs)',padding:"3px 8px",borderRadius:'var(--radius-sm)',border:"0.5px solid var(--border)",background:"var(--surface)"}
+          }, soOptions.map(function(o) {
+            return h("option", {key:o.val, value:o.val}, o.label);
+          })),
+          h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)"}}, "|"),
+          h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}, "Margin:"),
+          h("input", {
+            type:"number", min:0, max:10, step:0.5, value:margin,
+            onChange:function(e){setFsMargin(Math.max(0, Number(e.target.value)||0));},
+            style:{width:55,padding:"3px 8px",fontSize:'var(--text-sm)',borderRadius:'var(--radius-sm)',border:"0.5px solid var(--border)"}
+          }),
+          h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)"}}, units === 'cm' ? "\" each side (always inches)" : "\" each side"),
+          h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)"}}, "|"),
+          ["in","cm"].map(function(u) {
+            return h("button", {key:u, onClick:function(){setFsUnits(u);}, style:{
+              fontSize:'var(--text-xs)',padding:"3px 10px",borderRadius:'var(--radius-sm)',cursor:"pointer",
+              border:"0.5px solid "+(units===u?"var(--accent)":"var(--border)"),
+              background:units===u?"var(--accent-light)":"var(--surface)",
+              color:units===u?"var(--accent)":"var(--text-secondary)",fontWeight:units===u?600:400
+            }}, u === "in" ? "Inches" : "Centimetres");
+          })
+        ),
+        // Table
+        h("div", {style:{overflow:"auto"}},
+          h("table", {style:{width:"100%",borderCollapse:"collapse",fontSize:'var(--text-sm)'}},
+            h("thead", null,
+              h("tr", {style:{background:"var(--surface-secondary)"}},
+                ["Fabric","Width","Height","Cut size (with margin)"].map(function(hd, i) {
+                  return h("th", {key:i, style:{padding:"7px 10px",textAlign:"left",borderBottom:"2px solid var(--border)",color:"var(--text-secondary)",fontWeight:600,fontSize:'var(--text-xs)',textTransform:"uppercase"}}, hd);
+                })
+              )
+            ),
+            h("tbody", null,
+              fabrics.map(function(f) {
+                var dims = calcRow(f);
+                var isCurrent = f.ct === ctx.fabricCt;
+                var soLabel = effectiveSO(f) === 2 ? " (over 2)" : "";
+                return h("tr", {
+                  key:f.ct,
+                  style:{borderBottom:"0.5px solid var(--surface-tertiary)",background:isCurrent?"var(--accent-light)":"transparent"}
+                },
+                  h("td", {style:{padding:"6px 10px",fontWeight:isCurrent?700:400}},
+                    isCurrent
+                      ? h("span", {style:{display:"inline-flex",alignItems:"center",gap:4}},
+                          f.label + soLabel,
+                          window.Icons && window.Icons.check ? h("span", {"aria-hidden":"true",style:{display:"inline-flex"}}, window.Icons.check()) : null
+                        )
+                      : f.label + soLabel
+                  ),
+                  h("td", {style:{padding:"6px 10px"}}, dims.designW),
+                  h("td", {style:{padding:"6px 10px"}}, dims.designH),
+                  h("td", {style:{padding:"6px 10px",fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, dims.cut)
+                );
               })
             )
-          ),
-          h("tbody", null,
-            fabrics.map(function(f) {
-              var div = f.ct === 28 ? 14 : f.ct;
-              var wIn = ctx.sW / div, hIn = ctx.sH / div;
-              var wCm = wIn * 2.54, hCm = hIn * 2.54;
-              var isCurrent = f.ct === ctx.fabricCt;
-              return h("tr", {
-                key:f.ct,
-                style:{borderBottom:"0.5px solid var(--surface-tertiary)",background:isCurrent?"var(--accent-light)":"transparent"}
-              },
-                h("td", {style:{padding:"6px 10px",fontWeight:isCurrent?700:400}},
-                  isCurrent
-                    ? h("span", {style:{display:"inline-flex",alignItems:"center",gap:4}},
-                        f.label,
-                        window.Icons && window.Icons.check ? h("span", {"aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.check()) : null
-                      )
-                    : f.label
-                ),
-                h("td", {style:{padding:"6px 10px"}}, wIn.toFixed(1)+"\u2033 / "+wCm.toFixed(1)+" cm"),
-                h("td", {style:{padding:"6px 10px"}}, hIn.toFixed(1)+"\u2033 / "+hCm.toFixed(1)+" cm"),
-                h("td", {style:{padding:"6px 10px",fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, (wIn+2).toFixed(0)+"\u2033 \xD7 "+(hIn+2).toFixed(0)+"\u2033")
-              );
-            })
           )
+        ),
+        h("p", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:8}},
+          ctx.sW + "\u00D7" + ctx.sH + " stitches. "
+          + (units === 'cm' ? "Margin is always in inches. " : "")
+          + "Margin: " + margin + "\u2033 each side (" + (2*margin) + "\u2033 total per dimension)."
+          + " Cut size is rounded up to the nearest \u00BC\u2033 (shopping target)."
+          + " Thread estimate: see the Materials tab."
         )
       )
     );
