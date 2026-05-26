@@ -19,17 +19,27 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <!-- UX-12 Phase 7 PR #13: redirect to /home when no project is active.
-     Direct URLs and PWA shortcuts continue to work when a project IS active. -->
+     Direct URLs and PWA shortcuts continue to work when a project IS active.
+     If a ?id=<projectId> URL param is present (added by home/stash Edit
+     navigation as a belt-and-suspenders fallback), write it as the active
+     pointer before the redirect check so stale-pointer races are healed. -->
 <script>
 (function(){
   try {
+    var qs = location.search || '';
+    var idMatch = qs.match(/(?:\?|&)id=([^&]+)/);
+    if (idMatch) {
+      var urlId = decodeURIComponent(idMatch[1]);
+      if (urlId && /^proj_/.test(urlId)) {
+        try { localStorage.setItem('crossstitch_active_project', urlId); } catch (_) {}
+      }
+    }
     var active = localStorage.getItem('crossstitch_active_project');
     if (!active) {
-      var qs = location.search || '';
       var skip = /(\?|&)(from=home|action=)/.test(qs);
       if (!skip) { location.replace('home.html'); return; }
     }
-  } catch (_) { /* localStorage blocked â†’ load tool normally */ }
+  } catch (_) { /* localStorage blocked → load tool normally */ }
 })();
 </script>
 <!-- Preconnect so CDN requests start immediately -->

@@ -82,6 +82,6 @@ describe('A5 — EmptyState wiring', () => {
     expect(HOME_SCREEN_SRC).toMatch(/buildSampleProject\(\)/);
     expect(HOME_SCREEN_SRC).toMatch(/ProjectStorage\.save\(sample\)/);
     expect(HOME_SCREEN_SRC).toMatch(/setActiveProject\(id\)/);
-    expect(HOME_SCREEN_SRC).toMatch(/window\.location\.href\s*=\s*'stitch\.html'/);
+    expect(HOME_SCREEN_SRC).toMatch(/window\.location\.href\s*=\s*'stitch\.html\?id=/);
   });
 });
