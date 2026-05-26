@@ -55,6 +55,24 @@
 <link rel="prefetch" href="creator-main.js">
 <link rel="prefetch" href="stats-page.js">
 <link rel="prefetch" href="stats-activity.js">
+<!-- If ?id=<projectId> is in the URL (added by home/stash Edit navigation as a
+     belt-and-suspenders fallback), write it as the active-project pointer before
+     any other script so a race-cleared localStorage pointer is always healed.
+     Mirrors the same guard in stitch.html. -->
+<script>
+(function(){
+  try {
+    var qs = location.search || '';
+    var idMatch = qs.match(/(?:\?|&)id=([^&]+)/);
+    if (idMatch) {
+      var urlId = decodeURIComponent(idMatch[1]);
+      if (urlId && /^proj_/.test(urlId)) {
+        try { localStorage.setItem('crossstitch_active_project', urlId); } catch (_) {}
+      }
+    }
+  } catch (_) {}
+})();
+</script>
 <!-- Flag set before any Babel scripts so TrackerApp's guard fires correctly -->
 <script>
 window.__UNIFIED__=true;
