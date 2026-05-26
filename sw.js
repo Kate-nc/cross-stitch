@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v52';
+var CACHE_NAME = 'cross-stitch-cache-v51';
 
 var PRECACHE_URLS = [
   // HTML pages
