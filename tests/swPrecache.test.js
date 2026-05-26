@@ -35,9 +35,9 @@ describe('sw.js precache (UX-12 Phase 7 PR #13)', () => {
   // Bumped to v46 when cross-tab-coord.js was added (INT-7 visibility tier).
   // Bumped to v47 when cross-tab-resolution.js was added (INT-7 Phase B-3).
   // Bumped to v48 when cross-tab-lock.js was added (INT-7 Phase C).
-  // Bumped to v50 for the tracker load-path .p-handling fixes.
-  test('CACHE_NAME bumped to v50', () => {
-    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v50['"]/);
+  // Bumped to v51 for Creator tab reset fix (image-upload resets tab to "pattern").
+  test('CACHE_NAME bumped to v51', () => {
+    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v51['"]/);
   });
 
   test('PRECACHE_URLS does NOT include heavy lazy vendor blobs', () => {
