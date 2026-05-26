@@ -264,6 +264,37 @@ describe('help-drawer.js sample project navigation', () => {
   });
 });
 
+// ── getActiveProject fallback path — legacy project.p field ──────────────────
+describe('TrackerApp getActiveProject fallback path — legacy p field', () => {
+  test('getActiveProject fallback accepts project.p as well as project.pattern', () => {
+    // Projects saved from URL-shared (#p=...) patterns are stored with a
+    // compressed `p` field instead of `pattern`. The fallback load path must
+    // check both so those projects don't silently show "No pattern found".
+    const block = trackerApp.match(
+      /ProjectStorage\.getActiveProject\(\)\.then[\s\S]*?processLoadedProject/
+    );
+    expect(block).not.toBeNull();
+    // Must accept both fields
+    expect(block[0]).toMatch(/project\.pattern\s*\|\|\s*project\.p/);
+  });
+
+  test('project picker onPick accepts project.p as well as project.pattern', () => {
+    // Inline project picker (opened from within the tracker) must also
+    // accept the legacy p field when switching to a URL-shared project.
+    const block = trackerApp.match(
+      /onPick[\s\S]*?p\.pattern\s*\|\|\s*p\.p/
+    );
+    expect(block).not.toBeNull();
+  });
+
+  test('project rail onPickProject accepts project.p as well as project.pattern', () => {
+    const block = trackerApp.match(
+      /onPickProject[\s\S]*?p\.pattern\s*\|\|\s*p\.p/
+    );
+    expect(block).not.toBeNull();
+  });
+});
+
 // ── home-screen.js sample project navigation ─────────────────────────────────
 describe('home-screen.js sample project navigation', () => {
   test('sample project navigation sets window.__navigatingAway before location.href', () => {

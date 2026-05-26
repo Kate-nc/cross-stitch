@@ -3297,7 +3297,7 @@ function processLoadedProject(project){
   // Backfill totalAtEnd for pre-v9 sessions that were saved without it.
   // Reconstruct as a running cumulative sum of netStitches sorted chronologically.
   if(rawStatsSessions.some(function(s){return s.totalAtEnd==null;})){
-    var totalStitchCount=(project.pattern||[]).filter(function(c){return c&&c.id!=='__skip__'&&c.id!=='__empty__';}).length;
+    var totalStitchCount=restored.filter(function(c){return c&&c.id!=='__skip__'&&c.id!=='__empty__';}).length;
     var sorted=rawStatsSessions.slice().sort(function(a,b){
       var aKey=a.startTime||a.date||'';
       var bKey=b.startTime||b.date||'';
@@ -3334,7 +3334,7 @@ function processLoadedProject(project){
       var _summary=(typeof lastSessionSummary==='function')?lastSessionSummary({statsSessions:rawStatsSessions}):null;
       if(_summary){
         var _last=rawStatsSessions[rawStatsSessions.length-1];
-        var _totalSt=(project.pattern||[]).filter(function(c){return c&&c.id!=='__skip__'&&c.id!=='__empty__';}).length;
+        var _totalSt=restored.filter(function(c){return c&&c.id!=='__skip__'&&c.id!=='__empty__';}).length;
         var _doneSt=project.done?Array.from(project.done).filter(function(v){return v===1;}).length:0;
         setResumeRecap({
           projectName:project.name||'Untitled',
@@ -3524,7 +3524,7 @@ useEffect(()=>{
     hasLoadedOnceRef.current=true; // T-4
   }else if(incomingProject.id){
     // Called with {id} only (e.g. stats "Navigate to project") — load from storage.
-    ProjectStorage.get(incomingProject.id).then(p=>{if(p){processLoadedProject(p);hasLoadedOnceRef.current=true;}}).catch(err=>console.error("Failed to load project by id:",err));
+    ProjectStorage.get(incomingProject.id).then(p=>{if(p&&(p.pattern||p.p)){processLoadedProject(p);hasLoadedOnceRef.current=true;}}).catch(err=>console.error("Failed to load project by id:",err));
   }
 },[incomingProject]);
 
@@ -3628,7 +3628,7 @@ useEffect(() => {
     if (hasLoadedOnceRef.current) return;
     ProjectStorage.getActiveProject().then(project => {
       if (hasLoadedOnceRef.current) return;
-      if (project && project.pattern) {
+      if (project && (project.pattern || project.p)) {
         processLoadedProject(project);
         hasLoadedOnceRef.current=true;
       } else {
@@ -5554,7 +5554,7 @@ return(
     // Close the modal immediately so the loading state doesn't appear stuck.
     setProjectPickerOpen(false);
     ProjectStorage.get(meta.id).then(p=>{
-      if(p&&p.pattern&&p.settings){
+      if(p&&(p.pattern||p.p)&&p.settings){
         processLoadedProject(p);
         // Note: setActiveProject is synchronous (writes localStorage); do NOT chain .catch().
         try { ProjectStorage.setActiveProject(p.id); } catch(_) {}
@@ -6362,7 +6362,7 @@ return(
     liveAutoStitches={liveAutoStitches}
     onPickProject={(id)=>{
       if(!id||id===projectIdRef.current)return;      ProjectStorage.get(id).then(p=>{
-        if(p&&p.pattern&&p.settings){
+        if(p&&(p.pattern||p.p)&&p.settings){
           processLoadedProject(p);
           try{ProjectStorage.setActiveProject(p.id);}catch(_){}
           try{window.dispatchEvent(new Event('cs:projectsChanged'));}catch(_){}
