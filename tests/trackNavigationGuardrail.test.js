@@ -292,7 +292,7 @@ describe('TrackerApp getActiveProject fallback path — legacy p field', () => {
     // fallback) flow through the shared _hasPattern helper which accepts
     // both fields. Without this, URL-shared projects (.p only) silently
     // trigger the "No pattern found" toast.
-    expect(trackerApp).toMatch(/function _hasPattern\(proj\)[\s\S]{0,200}proj\.pattern\s*\|\|\s*proj\.p/);
+    expect(trackerApp).toMatch(/function _hasPattern\(proj\)[\s\S]{0,600}proj\.pattern\s*\|\|\s*proj\.p/);
   });
 
   test('project picker onPick accepts project.p as well as project.pattern', () => {

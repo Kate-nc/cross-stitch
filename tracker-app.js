@@ -3626,7 +3626,12 @@ useEffect(() => {
   var _urlId2 = _urlParams2 ? _urlParams2.get('id') : null;
 
   function _hasPattern(proj) {
-    return !!(proj && (proj.pattern || proj.p));
+    // Mirror the explicit checks elsewhere (StatsContainer.onOpenProject,
+    // creator-boot): require both a pattern array (in either field shape)
+    // AND settings. Without settings, processLoadedProject would render a
+    // broken canvas, so treat a settings-less project as un-loadable here
+    // and let the toast fire with the diagnostic log.
+    return !!(proj && (proj.pattern || proj.p) && proj.settings);
   }
   function _hydrate(project, source) {
     if (hasLoadedOnceRef.current) return;
