@@ -33,6 +33,13 @@
 (function(){
   try {
     var qs = location.search || '';
+    var idMatch = qs.match(/(?:\?|&)id=([^&]+)/);
+    if (idMatch) {
+      var urlId = decodeURIComponent(idMatch[1]);
+      if (urlId && /^proj_/.test(urlId)) {
+        try { localStorage.setItem('crossstitch_active_project', urlId); } catch (_) {}
+      }
+    }
     var hasAction = /(\?|&)(from=home|action=)/.test(qs);
     if (hasAction) return;    // Safety net: a SW-triggered reload may have stripped the action= param
     // from the URL (via history.replaceState in processPendingAction) while a

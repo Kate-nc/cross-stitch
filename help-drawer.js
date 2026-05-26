@@ -761,7 +761,8 @@
             var p = window.buildSampleProject();
             window.ProjectStorage.save(p).then(function () {
               try { window.ProjectStorage.setActiveProject && window.ProjectStorage.setActiveProject(p.id); } catch (_) {}
-              window.location.href = "stitch.html";
+              window.__navigatingAway = true;
+              window.location.href = "stitch.html?id=" + encodeURIComponent(p.id);
             });
             close();
             return;

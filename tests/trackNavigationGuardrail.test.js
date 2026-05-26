@@ -36,6 +36,11 @@ const homeApp     = fs.readFileSync(path.join(__dirname, '..', 'home-app.js'),  
 const managerApp  = fs.readFileSync(path.join(__dirname, '..', 'manager-app.js'),   'utf8');
 const stitchHtml  = fs.readFileSync(path.join(__dirname, '..', 'stitch.html'),      'utf8');
 const trackerApp  = fs.readFileSync(path.join(__dirname, '..', 'tracker-app.js'),   'utf8');
+const createHtml  = fs.readFileSync(path.join(__dirname, '..', 'create.html'),      'utf8');
+const indexHtml   = fs.readFileSync(path.join(__dirname, '..', 'index.html'),       'utf8');
+const headerJs    = fs.readFileSync(path.join(__dirname, '..', 'header.js'),        'utf8');
+const helpDrawer  = fs.readFileSync(path.join(__dirname, '..', 'help-drawer.js'),   'utf8');
+const homeScreen  = fs.readFileSync(path.join(__dirname, '..', 'home-screen.js'),   'utf8');
 
 // ── home-app.js ─────────────────────────────────────────────────────────────
 describe('home-app activateAndGo (Track / Edit navigation)', () => {
@@ -169,5 +174,150 @@ describe('TrackerApp incomingProject path — consistent error handling', () => 
     );
     expect(block).not.toBeNull();
     expect(block[0]).toMatch(/project\.pattern.*project\.p|project\.p.*project\.pattern/);
+  });
+});
+
+// ── manager-app.js ProjectLibrary card navigation ────────────────────────────
+describe('manager-app ProjectLibrary onOpenProject card navigation', () => {
+  test('onOpenProject sets window.__navigatingAway before navigating', () => {
+    // The "Your Projects" panel uses ProjectLibrary > MultiProjectDashboard.
+    // Without __navigatingAway the auto-save listener can clear the pointer.
+    const fnStart = managerApp.indexOf('onOpenProject: (proj, target) =>');
+    expect(fnStart).toBeGreaterThanOrEqual(0);
+    const fnEnd   = managerApp.indexOf('},', fnStart + 10);
+    const fnBody  = managerApp.slice(fnStart, fnEnd + 2);
+    expect(fnBody).toMatch(/window\.__navigatingAway\s*=\s*true/);
+  });
+
+  test('onOpenProject appends &id=encodeURIComponent(proj.id) to the URL', () => {
+    const fnStart = managerApp.indexOf('onOpenProject: (proj, target) =>');
+    expect(fnStart).toBeGreaterThanOrEqual(0);
+    const fnEnd   = managerApp.indexOf('},', fnStart + 10);
+    const fnBody  = managerApp.slice(fnStart, fnEnd + 2);
+    expect(fnBody).toMatch(/&id=.*encodeURIComponent\(proj\.id\)/);
+  });
+
+  test('onOpenProject sets __navigatingAway BEFORE assigning window.location.href', () => {
+    const fnStart = managerApp.indexOf('onOpenProject: (proj, target) =>');
+    const fnEnd   = managerApp.indexOf('},', fnStart + 10);
+    const fnBody  = managerApp.slice(fnStart, fnEnd + 2);
+    const guardIdx = fnBody.indexOf('window.__navigatingAway = true');
+    const navIdx   = fnBody.indexOf('window.location.href');
+    expect(guardIdx).toBeGreaterThanOrEqual(0);
+    expect(navIdx).toBeGreaterThanOrEqual(0);
+    expect(guardIdx).toBeLessThan(navIdx);
+  });
+});
+
+// ── create.html startup guard ────────────────────────────────────────────────
+describe('create.html startup — URL id param healing', () => {
+  test('create.html reads ?id= param and writes it as the active-project pointer', () => {
+    // Mirrors the same belt-and-suspenders guard in stitch.html.
+    // Must run before any Babel script so the Creator always loads the right project.
+    expect(createHtml).toMatch(/idMatch.*=.*qs\.match.*id=/);
+    expect(createHtml).toMatch(/localStorage\.setItem\('crossstitch_active_project',\s*urlId\)/);
+  });
+
+  test('create.html validates the id param against the proj_ prefix before writing', () => {
+    // Prevent arbitrary strings from being stored as the active pointer.
+    expect(createHtml).toMatch(/\/\^proj_\/\.test\(urlId\)/);
+  });
+});
+
+// ── index.html startup guard ─────────────────────────────────────────────────
+describe('index.html startup — URL id param healing (legacy creator URL)', () => {
+  test('index.html reads ?id= param before the redirect-to-home check', () => {
+    // index.html is the legacy creator URL; it must heal the pointer from the
+    // URL before deciding whether to redirect to home.html.
+    expect(indexHtml).toMatch(/idMatch.*=.*qs\.match.*id=/);
+    expect(indexHtml).toMatch(/localStorage\.setItem\('crossstitch_active_project',\s*urlId\)/);
+  });
+
+  test('index.html validates the id param against the proj_ prefix before writing', () => {
+    expect(indexHtml).toMatch(/\/\^proj_\/\.test\(urlId\)/);
+  });
+});
+
+// ── header.js project switcher ────────────────────────────────────────────────
+describe('header.js pickProject — project switcher navigation', () => {
+  test('pickProject appends ?id=encodeURIComponent(id) to stitch.html URL', () => {
+    // The header project-switcher dropdown calls setActiveProject then navigates.
+    // The same cs:projectsChanged race applies, so ?id= is required.
+    expect(headerJs).toMatch(/stitch\.html\?id=.*encodeURIComponent\(id\)/);
+  });
+
+  test('pickProject sets window.__navigatingAway before assigning location.href', () => {
+    const block = headerJs.match(
+      /function pickProject\(id\)[\s\S]*?window\.location\.href/
+    );
+    expect(block).not.toBeNull();
+    expect(block[0]).toMatch(/window\.__navigatingAway\s*=\s*true/);
+    const guardIdx = block[0].indexOf('window.__navigatingAway = true');
+    const navIdx   = block[0].indexOf('window.location.href');
+    expect(guardIdx).toBeLessThan(navIdx);
+  });
+});
+
+// ── help-drawer.js sample project navigation ─────────────────────────────────
+describe('help-drawer.js sample project navigation', () => {
+  test('sample project navigation sets window.__navigatingAway before location.href', () => {
+    // After saving the sample, the handler navigates to stitch.html.
+    // __navigatingAway prevents any cs:projectsChanged listener from clearing
+    // the just-set active-project pointer before the new page loads.
+    const block = helpDrawer.match(
+      /ProjectStorage\.save\(p\)\.then[\s\S]*?window\.location\.href/
+    );
+    expect(block).not.toBeNull();
+    expect(block[0]).toMatch(/window\.__navigatingAway\s*=\s*true/);
+  });
+
+  test('sample project navigation appends ?id= to the stitch.html URL', () => {
+    expect(helpDrawer).toMatch(/stitch\.html\?id=.*encodeURIComponent\(p\.id\)/);
+  });
+});
+
+// ── getActiveProject fallback path — legacy project.p field ──────────────────
+describe('TrackerApp getActiveProject fallback path — legacy p field', () => {
+  test('getActiveProject fallback accepts project.p as well as project.pattern', () => {
+    // Projects saved from URL-shared (#p=...) patterns are stored with a
+    // compressed `p` field instead of `pattern`. The fallback load path must
+    // check both so those projects don't silently show "No pattern found".
+    const block = trackerApp.match(
+      /ProjectStorage\.getActiveProject\(\)\.then[\s\S]*?processLoadedProject/
+    );
+    expect(block).not.toBeNull();
+    // Must accept both fields
+    expect(block[0]).toMatch(/project\.pattern\s*\|\|\s*project\.p/);
+  });
+
+  test('project picker onPick accepts project.p as well as project.pattern', () => {
+    // Inline project picker (opened from within the tracker) must also
+    // accept the legacy p field when switching to a URL-shared project.
+    const block = trackerApp.match(
+      /onPick[\s\S]*?p\.pattern\s*\|\|\s*p\.p/
+    );
+    expect(block).not.toBeNull();
+  });
+
+  test('project rail onPickProject accepts project.p as well as project.pattern', () => {
+    const block = trackerApp.match(
+      /onPickProject[\s\S]*?p\.pattern\s*\|\|\s*p\.p/
+    );
+    expect(block).not.toBeNull();
+  });
+});
+
+// ── home-screen.js sample project navigation ─────────────────────────────────
+describe('home-screen.js sample project navigation', () => {
+  test('sample project navigation sets window.__navigatingAway before location.href', () => {
+    const block = homeScreen.match(
+      /ProjectStorage\.save\(sample\)\.then[\s\S]*?window\.location\.href/
+    );
+    expect(block).not.toBeNull();
+    expect(block[0]).toMatch(/window\.__navigatingAway\s*=\s*true/);
+  });
+
+  test('sample project navigation appends ?id= to the stitch.html URL', () => {
+    expect(homeScreen).toMatch(/stitch\.html\?id=.*encodeURIComponent\(/);
   });
 });
