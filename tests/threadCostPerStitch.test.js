@@ -4,13 +4,13 @@
 const { threadCostPerStitch } = require('../threadCalc.js');
 
 describe('threadCostPerStitch — defaults', () => {
-  // baseCostIn = (4.8 * 2) / 14 = 0.685714…
-  // tailWaste  = (1.5 * 2) / 30 = 0.10
+  // baseCostIn = 1.4 × (14/14) × (2/2) = 1.4  (new calibrated anchor)
+  // tailWaste  = (1.5 × 2) / 30 = 0.10
   // genWaste   = 1.10
-  // total      = (0.685714 + 0.10) * 1.10 = 0.864286 in/stitch
-  test('14ct, 2 strands, all defaults → ~0.864 in/stitch', () => {
+  // total      = (1.4 + 0.10) × 1.10 = 1.65 in/stitch
+  test('14ct, 2 strands, all defaults → ~1.65 in/stitch', () => {
     const v = threadCostPerStitch(14, 2, {});
-    expect(v).toBeCloseTo(0.8643, 3);
+    expect(v).toBeCloseTo(1.65, 2);
   });
 
   test('null wastePrefs treated like {}', () => {
