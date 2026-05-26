@@ -1352,7 +1352,8 @@ function ManagerApp() {
                   onOpenProject: (proj, target) => {
                     if (!proj || !proj.id || proj.managerOnly) return;
                     try { ProjectStorage.setActiveProject(proj.id); } catch (e) {}
-                    window.location.href = (target === "creator" ? "create.html" : "stitch.html") + "?from=home&source=manager";
+                    window.__navigatingAway = true;
+                    window.location.href = (target === "creator" ? "create.html" : "stitch.html") + "?from=home&source=manager&id=" + encodeURIComponent(proj.id);
                   },
                   onAddNew: () => { window.location.href = "home.html?tab=create"; },
                   onOpenGlobalStats: () => { window.location.href = "index.html?mode=stats&from=home"; },

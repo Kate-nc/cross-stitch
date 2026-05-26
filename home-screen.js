@@ -2068,7 +2068,8 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
               if (id && typeof window.ProjectStorage.setActiveProject === 'function') {
                 window.ProjectStorage.setActiveProject(id);
               }
-              window.location.href = 'stitch.html';
+              window.__navigatingAway = true;
+              window.location.href = 'stitch.html?id=' + encodeURIComponent(id || '');
             }).catch(function(err) {
               console.error('Failed to save sample project', err);
               if (window.Toast) window.Toast.show({ message: 'Could not load sample pattern', type: 'error' });

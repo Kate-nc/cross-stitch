@@ -251,7 +251,9 @@ function HeaderProjectSwitcher({ activeProject, projectName, onOpenAll }) {
       try { window.ProjectStorage.setActiveProject(id); } catch (_) {}
     }
     // Match command-palette.js: clicking a project means "go track it".
-    window.location.href = 'stitch.html';
+    // ?id= is a belt-and-suspenders fallback so stitch.html can heal the
+    // active-project pointer if cs:projectsChanged clears it mid-flight.
+    window.location.href = 'stitch.html?id=' + encodeURIComponent(id);
   }
 
   return h('div', { className: 'tb-proj-switcher', ref: wrapRef },
