@@ -1147,7 +1147,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             {state.panelOpen&&<div className="rpanel-backdrop" onClick={()=>state.setPanelOpen(false)}/>}
             <div className={"rpanel"+(state.panelOpen?" rpanel--open":"")}>
             <window.CreatorSidebar/>
-            </div>}
+            </div>
           </>}
         </div>}
         {state.modal==="help"&&<SharedModals.Help defaultTab="creator" onClose={()=>state.setModal(null)} />}
