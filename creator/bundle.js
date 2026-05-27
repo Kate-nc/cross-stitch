@@ -12961,39 +12961,6 @@ window.CreatorSidebar = function CreatorSidebar() {
       );
     }
 
-    // Project info — name, designer, description. Always-visible at top so
-    // users can name a pattern before generating it.
-    var projectInfoSection = h(Section, {title:"Project info", defaultOpen:true},
-      h("div", {style:{display:"flex",flexDirection:"column",gap:'var(--s-2)',padding:"4px 0 2px"}},
-        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
-          "Pattern name",
-          h("input", {
-            type:"text", value: app.projectName || "", maxLength:60,
-            placeholder: ctx.pat ? (ctx.sW + "\xD7" + ctx.sH + " pattern") : "e.g. Sunflower sampler",
-            onChange: function(e) { var v = e.target.value.slice(0,60); if (typeof app.setProjectName === "function") app.setProjectName(v); },
-            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
-          })
-        ),
-        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
-          "Designer (optional)",
-          h("input", {
-            type:"text", value: app.projectDesigner || "", maxLength:80,
-            placeholder: "Your name or studio",
-            onChange: function(e) { var v = e.target.value.slice(0,80); if (typeof app.setProjectDesigner === "function") app.setProjectDesigner(v); },
-            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
-          })
-        ),
-        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
-          "Description / notes (optional)",
-          h("textarea", {
-            value: app.projectDescription || "", maxLength:500, rows:3,
-            placeholder: "Source, copyright, stitching notes\u2026",
-            onChange: function(e) { var v = e.target.value.slice(0,500); if (typeof app.setProjectDescription === "function") app.setProjectDescription(v); },
-            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
-          })
-        )
-      )
-    );
     // Project info summary (compact) — kept for create mode as a collapsible.
     var projectSummary = (function() {
       var palLen = ctx.pat && ctx.pal ? (ctx.displayPal || ctx.pal || []).length : 0;
@@ -13092,6 +13059,40 @@ window.CreatorSidebar = function CreatorSidebar() {
       createActions
     );
   }
+
+  // ─── Project Info Section (shared between Create and Edit modes) ──────────
+  // Name, designer, and description fields. Always-editable in both modes.
+  var projectInfoSection = h(Section, {title:"Project info", defaultOpen:true},
+    h("div", {style:{display:"flex",flexDirection:"column",gap:'var(--s-2)',padding:"4px 0 2px"}},
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
+        "Pattern name",
+        h("input", {
+          type:"text", value: app.projectName || "", maxLength:60,
+          placeholder: ctx.pat ? (ctx.sW + "\xD7" + ctx.sH + " pattern") : "e.g. Sunflower sampler",
+          onChange: function(e) { var v = e.target.value.slice(0,60); if (typeof app.setProjectName === "function") app.setProjectName(v); },
+          style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
+        })
+      ),
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
+        "Designer (optional)",
+        h("input", {
+          type:"text", value: app.projectDesigner || "", maxLength:80,
+          placeholder: "Your name or studio",
+          onChange: function(e) { var v = e.target.value.slice(0,80); if (typeof app.setProjectDesigner === "function") app.setProjectDesigner(v); },
+          style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
+        })
+      ),
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
+        "Description / notes (optional)",
+        h("textarea", {
+          value: app.projectDescription || "", maxLength:500, rows:3,
+          placeholder: "Source, copyright, stitching notes\u2026",
+          onChange: function(e) { var v = e.target.value.slice(0,500); if (typeof app.setProjectDescription === "function") app.setProjectDescription(v); },
+          style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
+        })
+      )
+    )
+  );
 
   // ─── Edit Mode Sidebar ────────────────────────────────────────────────────
 
