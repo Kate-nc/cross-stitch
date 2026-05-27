@@ -1662,7 +1662,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   var stashEntries = stash ? Object.keys(stash) : [];
   // Only count threads the user actually owns (owned > 0); the stash is pre-populated
   // with all DMC/Anchor threads at owned:0, so counting all entries is misleading.
-  var skeinCount = stashEntries.filter(function(k) { return stash[k].owned > 0; }).length;
+  var skeinCount = stashEntries.filter(function(k) { return isColorOwned(stash[k]); }).length;
   var hasStash = skeinCount > 0;
 
   // Average progress across all projects
@@ -1712,7 +1712,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       ids.forEach(function(id) {
         total++;
         var k = normaliseStashKey(id);
-        if (stash[k] && stash[k].owned > 0) owned++;
+        if (isColorOwned(stash[k])) owned++;
       });
     });
     if (total === 0) return null;
@@ -1741,7 +1741,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       // otherwise fall back to 1 (warn when only 1 skein remains).
       var threshold = (thread.min_stock != null && thread.min_stock > 0) ? thread.min_stock : 1;
       // Only warn if the thread is actually needed by an active project
-      if (thread.owned > 0 && thread.owned <= threshold && activeIds.has(id)) lowCount++;
+      if (isColorOwned(thread) && stashEffectiveQty(thread) <= threshold && activeIds.has(id)) lowCount++;
     });
     // Projects needing thread — check patterns that have thread requirements unmet by stash
     var projectsNeedThread = 0;
@@ -1757,7 +1757,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
           var neededSkeins = (t.unit === 'stitches' && typeof skeinEst === 'function')
             ? skeinEst(t.qty, patFabricCt)
             : (t.qty || 1);
-          return s.owned < neededSkeins;
+          return stashEffectiveQty(s) < neededSkeins;
         });
         if (needsThread) projectsNeedThread++;
       });
@@ -2111,13 +2111,13 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
             Object.keys(stash).forEach(function(k) {
               var v = stash[k];
               if (!v || typeof v !== 'object') return;
-              if ((v.owned || 0) > 0) {
+              if (isColorOwned(v)) {
                 owned++;
                 var brand = (k.indexOf(':') > -1 ? k.split(':')[0] : 'dmc');
                 brands[brand] = true;
               }
               // Wishlist = threads marked tobuy that the user does not yet own.
-              if (v.tobuy && !((v.owned || 0) > 0)) wishlist++;
+              if (v.tobuy && !isColorOwned(v)) wishlist++;
             });
           }
           var brandCount = Object.keys(brands).length;

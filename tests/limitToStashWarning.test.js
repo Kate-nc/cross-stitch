@@ -8,6 +8,12 @@ const path = require('path');
 
 const raw = fs.readFileSync(path.join(__dirname, '..', 'stash-bridge.js'), 'utf8');
 
+// Extract the module-level preamble (before the StashBridge IIFE) so the
+// helpers defined there (stashEffectiveQty, isColorOwned …) are available
+// as locals when the extracted method body is evaluated.
+const _iifeBoundary = raw.indexOf('const StashBridge = (() => {');
+const _preamble = raw.slice(0, _iifeBoundary);
+
 function extractMethod(src, name) {
   const sig = `${name}(displayPal, globalStash, options) {`;
   const start = src.indexOf(sig);
@@ -22,8 +28,9 @@ function extractMethod(src, name) {
       depth--;
       if (depth === 0) {
         const body = src.slice(src.indexOf('{', start) + 1, i);
+        // Prepend the preamble so stashEffectiveQty etc. are in scope.
         // eslint-disable-next-line no-new-func
-        return new Function('displayPal', 'globalStash', 'options', body);
+        return new Function('displayPal', 'globalStash', 'options', _preamble + '\n' + body);
       }
     }
   }

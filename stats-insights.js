@@ -251,7 +251,7 @@
       const ids = String(id).indexOf('+') !== -1
         ? splitBlendId(id)
         : [id];
-      return ids.length > 0 && ids.every(sub => stash['dmc:' + sub] && (stash['dmc:' + sub].owned || 0) > 0);
+      return ids.length > 0 && ids.every(sub => isColorOwned(stash['dmc:' + sub]));
     }
     return h('div', null,
       h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },

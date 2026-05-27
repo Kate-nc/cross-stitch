@@ -106,8 +106,8 @@ window.CreatorSidebar = function CreatorSidebar() {
         var brand = p.brand || resolveBrand(id);
         var key = brand + ':' + id;
         var entry = stash[key];
-        var owned = entry && entry.owned ? entry.owned : 0;
-        var needed = (typeof skeinEst === 'function' && p.count) ? skeinEst(p.count, fabricCtForStash) : 1;
+        var owned = stashEffectiveQty(entry);
+        var needed = (typeof skeinEst === 'function' && p.count) ? skeinEst(p.count, fabricCtForStash) : LOW_STASH_SKEIN_THRESHOLD;
         var s = owned >= needed ? 'owned' : owned > 0 ? 'partial' : 'needed';
         if (s === 'needed') return 'needed';
         if (s === 'partial' && worst === 'owned') worst = 'partial';
@@ -132,8 +132,8 @@ window.CreatorSidebar = function CreatorSidebar() {
         var key = brand + ':' + id;
         if (unownedSeen[key]) continue;
         var entry = stash[key];
-        var owned = entry && entry.owned ? entry.owned : 0;
-        var needed = (typeof skeinEst === 'function' && p.count != null) ? skeinEst(p.count, fabricCtForStash) : 1;
+        var owned = stashEffectiveQty(entry);
+        var needed = (typeof skeinEst === 'function' && p.count != null) ? skeinEst(p.count, fabricCtForStash) : LOW_STASH_SKEIN_THRESHOLD;
         if (owned < needed) { unownedSeen[key] = true; unownedKeys.push(key); }
       }
     }
@@ -188,7 +188,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         }, "\xD7"),
         // Brief D — stash status dot (top-right corner). Hidden when stash empty.
         stashStatus && h("span", {
-          title: stashStatus === 'owned' ? 'In your stash' : stashStatus === 'partial' ? 'May need more' : 'Not in stash',
+          title: stashStatus === 'owned' ? 'In your stash' : stashStatus === 'partial' ? 'You own this colour but quantity may be low' : 'Not in stash',
           "aria-label": "Stash status: " + stashStatus,
           style: {
             position:"absolute", top:-2, right:-2, width:6, height:6, borderRadius:"50%",
@@ -425,7 +425,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     if (ctx.creatorStashFilter && ctx.globalStash && Object.keys(ctx.globalStash).length > 0) {
       base = DMC.filter(function(d) {
         var entry = ctx.globalStash['dmc:' + d.id];
-        return entry && (entry.owned || 0) > 0;
+        return isColorOwned(entry);
       });
     }
     if (!blendSearch.trim()) return base;

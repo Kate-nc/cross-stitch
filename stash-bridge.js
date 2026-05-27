@@ -16,6 +16,42 @@
 //   • The cached owned-counts (if any) live inside callers, not the
 //     bridge — do not assume the bridge memoises reads.
 
+// ─── Stash ownership helpers ─────────────────────────────────────────────────
+// Module-level globals so every page loaded after stash-bridge.js uses a single
+// canonical definition.  Exposed both as bare globals (for scripts in the page)
+// and on the StashBridge return object (for explicit namespacing and tests).
+//
+// partialStatus enum → fractional skein remaining
+var PARTIAL_STATUS_FRACTIONS = Object.freeze({
+  'mostly-full': 0.75,
+  'about-half':  0.50,
+  'remnant':     0.25,
+});
+
+// Default fallback threshold (skeins) for the low-quantity advisory warning
+// when the per-pattern skein estimator is unavailable.
+var LOW_STASH_SKEIN_THRESHOLD = 1;
+
+// Returns the effective skein quantity for a stash entry:
+//   • integer full skeins (entry.owned) when positive and finite
+//   • plus the fractional contribution of any partial (entry.partialStatus)
+// Negative values and NaN in entry.owned are treated as 0.
+// partialStatus "used-up" contributes 0 (skein is exhausted).
+function stashEffectiveQty(entry) {
+  if (!entry || typeof entry !== 'object') return 0;
+  var full = typeof entry.owned === 'number' && !isNaN(entry.owned) && entry.owned > 0
+    ? entry.owned : 0;
+  return full + (PARTIAL_STATUS_FRACTIONS[entry.partialStatus] || 0);
+}
+
+// Returns true when the user owns any amount of this thread colour.
+// Partial skeins (mostly-full / about-half / remnant) count as owned.
+// null/undefined entries, negative owned, NaN, and "used-up" partials are not owned.
+function isColorOwned(entry) {
+  return stashEffectiveQty(entry) > 0;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const StashBridge = (() => {
   // Normalise a bare DMC id like '310' to the composite key 'dmc:310'.
   // Composite keys already containing ':' are returned unchanged.
@@ -25,11 +61,9 @@ const StashBridge = (() => {
   }
 
   function _getOwnedCount(threadsData, key, fallbackId) {
-    var entry = threadsData[key];
-    var byKey = (entry && typeof entry === 'object' && typeof entry.owned === 'number') ? entry.owned : 0;
+    var byKey = stashEffectiveQty(threadsData[key]);
     if (byKey > 0) return byKey;
-    var fallback = threadsData[fallbackId];
-    return (fallback && typeof fallback === 'object' && typeof fallback.owned === 'number') ? fallback.owned : 0;
+    return stashEffectiveQty(threadsData[fallbackId]);
   }
 
   function _parseThreadKey(key) {
@@ -1077,7 +1111,7 @@ const StashBridge = (() => {
       for (const key of order) {
         const fallbackId = key.indexOf(':') >= 0 ? key.split(':').slice(1).join(':') : key;
         const entry = stash[key] || stash[fallbackId];
-        const owned = entry && entry.owned ? entry.owned : 0;
+        const owned = stashEffectiveQty(entry);
         if (owned < requiredByKey[key]) unowned.push(key);
       }
       return unowned;
@@ -1091,7 +1125,7 @@ const StashBridge = (() => {
       const DAY = 86400000;
       const result = { bucketUnder1Yr: 0, bucket1to3Yr: 0, bucket3to5Yr: 0, bucketOver5Yr: 0, legacy: 0, oldest: null };
       for (const [key, entry] of Object.entries(stash)) {
-        if (!entry.owned || entry.owned <= 0) continue;
+        if (!isColorOwned(entry)) continue;
         if (!entry.addedAt || entry.acquisitionSource === 'legacy') {
           result.legacy++;
           continue;
@@ -1178,6 +1212,12 @@ const StashBridge = (() => {
       points.forEach(p => { p.used = Math.round(p.used * 10) / 10; });
       return points;
     },
+
+    // Expose ownership helpers for external callers and tests
+    isColorOwned: isColorOwned,
+    stashEffectiveQty: stashEffectiveQty,
+    PARTIAL_STATUS_FRACTIONS: PARTIAL_STATUS_FRACTIONS,
+    LOW_STASH_SKEIN_THRESHOLD: LOW_STASH_SKEIN_THRESHOLD,
 
     // Returns the legacy epoch constant for external use
     get LEGACY_EPOCH() { return LEGACY_EPOCH; },

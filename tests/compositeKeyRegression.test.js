@@ -60,8 +60,8 @@ describe('C1 — useCreatorState composite-key extraction', () => {
 describe('C1b — Create-from-stash is DMC-only (pipeline id-safety)', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'creator', 'useCreatorState.js'), 'utf8');
 
-  // Extract the central helper. It depends on findThreadInCatalog, which we
-  // stub in the eval context with a tiny in-memory catalogue.
+  // Extract the central helper. It depends on findThreadInCatalog and isColorOwned,
+  // which we stub / source in the eval context.
   const helperMatch = src.match(/function _splitStashKey\(key\)[\s\S]*?\n\}/);
   const builderMatch = src.match(/function _buildAllowedPaletteFromStash\(globalStash, subset\)[\s\S]*?\n\}/);
 
@@ -78,11 +78,20 @@ describe('C1b — Create-from-stash is DMC-only (pipeline id-safety)', () => {
     if (brand === 'anchor' && id === '403') return fakeAnch;
     return null;
   }
+
+  // isColorOwned from stash-bridge.js preamble
+  const sbSrc = fs.readFileSync(path.join(__dirname, '..', 'stash-bridge.js'), 'utf8');
+  const _iifeBoundary = sbSrc.indexOf('const StashBridge = (() => {');
+  const _preamble = sbSrc.slice(0, _iifeBoundary);
+  // eslint-disable-next-line no-new-func
+  const { isColorOwned } = new Function(_preamble + '\nreturn { isColorOwned };')();
+
   // eslint-disable-next-line no-new-func
   const _build = new Function(
     'findThreadInCatalog',
+    'isColorOwned',
     helperMatch[0] + '\n' + builderMatch[0] + '\nreturn _buildAllowedPaletteFromStash;'
-  )(findThreadInCatalog);
+  )(findThreadInCatalog, isColorOwned);
 
   it('returns null palette when stash is empty', () => {
     expect(_build({}, null).palette).toBeNull();
@@ -113,8 +122,22 @@ describe('C1b — Create-from-stash is DMC-only (pipeline id-safety)', () => {
     expect(got.palette[0].brand).toBe('dmc');
   });
 
-  it('skips DMC entries with owned <= 0', () => {
+  it('skips DMC entries with owned <= 0 and no partial', () => {
     const got = _build({ 'dmc:310': { owned: 0 } }, null);
+    expect(got.count).toBe(0);
+    expect(got.palette).toBeNull();
+  });
+
+  it('includes DMC entries with owned 0 but a partial skein (partial-skein fix)', () => {
+    // A user who has opened a skein (partialStatus) owns that colour even if
+    // their full-skein count is zero.
+    const got = _build({ 'dmc:310': { owned: 0, partialStatus: 'about-half' } }, null);
+    expect(got.count).toBe(1);
+    expect(got.palette[0].id).toBe('310');
+  });
+
+  it('excludes DMC entries whose partial is used-up (owns nothing)', () => {
+    const got = _build({ 'dmc:310': { owned: 0, partialStatus: 'used-up' } }, null);
     expect(got.count).toBe(0);
     expect(got.palette).toBeNull();
   });

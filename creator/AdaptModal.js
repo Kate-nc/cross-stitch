@@ -144,7 +144,7 @@
       for (var i = 0; i < arr.length; i++) {
         var t = arr[i];
         var key = brand + ':' + t.id;
-        var owned = !!(stash[key] && stash[key].owned > 0);
+        var owned = isColorOwned(stash[key]);
         if (tab === 'inStash' && !owned) continue;
         if (q && t.id.toLowerCase().indexOf(q) === -1 && (t.name||'').toLowerCase().indexOf(q) === -1) continue;
         out.push({ key: key, brand: brand, id: t.id, name: t.name, rgb: t.rgb, owned: owned });

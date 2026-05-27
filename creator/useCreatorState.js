@@ -114,7 +114,7 @@ function _buildAllowedPaletteFromStash(globalStash, subset) {
   var palette = [];
   var seen = Object.create(null);
   Object.keys(globalStash).forEach(function(key) {
-    if ((globalStash[key].owned || 0) <= 0) return;
+    if (!isColorOwned(globalStash[key])) return;
     var parts = _splitStashKey(key);
     if (!parts || parts.brand !== 'dmc') return; // DMC-only: pipeline uses bare ids
     if (seen[parts.id]) return;

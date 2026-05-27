@@ -117,7 +117,7 @@ window.usePreview = function usePreview(state) {
       var stashUsage = null;
       if (stashConstrained && globalStash) {
         var availableCount = 0;
-        Object.keys(globalStash).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) availableCount++; });
+        Object.keys(globalStash).forEach(function(id) { if (isColorOwned(globalStash[id])) availableCount++; });
         stashUsage = { used: uniqueColors, available: availableCount };
       }
 
