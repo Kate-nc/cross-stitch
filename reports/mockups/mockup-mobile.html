@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mockup — Mobile / narrow viewport (proposed)</title>
+<style>
+:root{
+  --accent:#A0522D; --accent-soft:#F4DDCF; --accent-light:#FAF0E8;
+  --surface:#FFFDF8; --surface-secondary:#FBF8F3;
+  --text-primary:#2C1810; --text-secondary:#5C5448; --text-tertiary:#8C7B6E;
+  --line:#E5DCCB; --border:#D9CFC0;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.08); --shadow-md:0 4px 12px rgba(0,0,0,.10);
+  --radius-sm:4px; --radius-md:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:#EDE8E0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-height:100vh;padding:24px 0 40px;gap:24px}
+.legend{background:#fff;border:1px solid #D9CFC0;border-radius:8px;padding:12px 18px;width:800px;font-size:12px;color:#5C5448}
+.legend h2{font-size:13px;font-weight:700;color:#2C1810;margin-bottom:6px}
+.legend ul{padding-left:14px;display:flex;flex-wrap:wrap;gap:2px 24px}
+.legend li{list-style:disc;line-height:1.7}
+.new-tag{display:inline-block;background:#3B7A3B;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:99px;margin-left:4px;vertical-align:middle;text-transform:uppercase}
+
+/* Row of two phones side by side */
+.phone-row{display:flex;gap:32px;align-items:flex-start;justify-content:center}
+.phone-label{font-size:12px;font-weight:600;color:#5C5448;text-align:center;margin-bottom:8px}
+
+/* Phone frame */
+.phone{width:375px;background:var(--surface-secondary);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.14)}
+
+/* Header */
+.header{height:44px;background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 12px;gap:10px}
+.logo{font-size:14px;font-weight:700;color:var(--accent);letter-spacing:-.02em}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:6px}
+.save-chip{font-size:10px;color:var(--text-tertiary);background:var(--surface-secondary);border:1px solid var(--line);border-radius:99px;padding:2px 8px}
+
+/* ActionBar — mobile: no right labels, icon-only export group */
+.actionbar{height:40px;background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 10px;gap:6px}
+.tab-list{display:flex;gap:2px}
+.tab{height:28px;padding:0 12px;border:none;background:transparent;font:500 11px/1 system-ui;color:var(--text-tertiary);border-radius:6px;cursor:pointer}
+.tab.active{background:var(--accent);color:#fff}
+.actionbar-right{margin-left:auto;display:flex;align-items:center;gap:4px}
+.icon-btn{width:28px;height:28px;border:1px solid var(--line);background:var(--surface-secondary);border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.icon-btn svg{width:14px;height:14px;stroke:var(--text-secondary);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.difficulty-chip{height:22px;padding:0 8px;border:1.5px solid #C97A00;border-radius:99px;font:600 10px/1 system-ui;color:#C97A00;display:flex;align-items:center}
+
+/* ToolStrip — pill scrolls horizontally on mobile */
+.toolbar-row{background:var(--surface-secondary);border-bottom:1px solid var(--border);padding:6px 0;display:flex;flex-direction:column;align-items:center;flex-shrink:0;position:relative}
+.pill-wrap{max-width:calc(375px - 16px);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.pill-wrap::-webkit-scrollbar{display:none}
+.pill{display:inline-flex;align-items:center;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:3px;box-shadow:var(--shadow-sm)}
+.tb-btn{height:32px;padding:0 9px;border:none;background:transparent;border-radius:8px;font:500 11px/1 system-ui;color:var(--text-primary);cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap}
+.tb-btn.active{background:var(--accent);color:#fff}
+.tb-btn.erase{background:#FEE2E2;color:#B91C1C}
+.tb-sdiv{width:1px;height:20px;background:var(--border);flex-shrink:0;margin:0 2px}
+.tb-zoom-lbl{font-size:11px;color:var(--text-secondary);padding:0 4px;white-space:nowrap}
+.more-panel{position:absolute;top:calc(100% + 4px);right:4px;min-width:220px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-md);z-index:300;padding:4px 0;display:none}
+.more-panel.open{display:block}
+.more-section{padding:6px 12px 8px}
+.more-section+.more-section{border-top:1px solid var(--border)}
+.more-section-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-tertiary);margin-bottom:5px}
+.more-btn{width:100%;padding:6px 8px;border:none;background:transparent;border-radius:6px;font:500 11px/1 system-ui;color:var(--text-primary);cursor:pointer;display:flex;align-items:center;gap:8px;text-align:left}
+.more-btn:hover{background:var(--accent-soft)}
+.more-btn svg{width:14px;height:14px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;color:var(--text-secondary)}
+.inline-new{display:inline-block;background:#3B7A3B;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:99px;margin-left:auto;vertical-align:middle;text-transform:uppercase}
+
+/* Swatch row mobile */
+.swatch-row{height:38px;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;gap:4px;padding:0 10px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.swatch-row::-webkit-scrollbar{display:none}
+.sw{width:22px;height:22px;border-radius:4px;border:1.5px solid rgba(0,0,0,.08);cursor:pointer;flex-shrink:0}
+.sw.sel{outline:2px solid var(--accent);outline-offset:1px}
+
+/* Main — no sidebar on mobile, canvas full width */
+.main{display:flex;flex-direction:column;min-height:320px}
+.canvas-area{flex:1;background:#E5E0D5;display:flex;align-items:flex-start;justify-content:center;padding:14px;overflow:auto}
+
+/* Materials tab view */
+.materials-body{padding:12px;overflow-y:auto}
+.mat-section{margin-bottom:12px}
+.mat-section-title{font-size:11px;font-weight:700;color:var(--text-primary);margin-bottom:6px}
+.mat-row{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--line)}
+.mat-swatch{width:16px;height:16px;border-radius:3px;border:1px solid rgba(0,0,0,.08);flex-shrink:0}
+.mat-name{font-size:11px;color:var(--text-primary);flex:1}
+.mat-count{font-size:11px;color:var(--text-secondary)}
+.export-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.exp-btn{flex:1;min-width:90px;padding:8px 8px;border:1px solid var(--line);background:var(--surface-secondary);border-radius:var(--radius-md);font:600 11px/1 system-ui;color:var(--text-primary);cursor:pointer;text-align:center}
+.exp-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+svg.icon{width:14px;height:14px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;display:inline-block;vertical-align:middle}
+</style>
+</head>
+<body>
+
+<div class="legend">
+  <h2>Mockup 3 — Mobile / narrow viewport (375 px)</h2>
+  <ul>
+    <li>ActionBar collapses to icon-only export buttons — no text labels on Print/Export/Tracker<span class="new-tag">change</span></li>
+    <li>ToolStrip pill <strong>scrolls horizontally</strong> when it doesn't fit — Zoom and Undo/Redo always reachable</li>
+    <li>Sidebar is hidden on mobile — Materials tab shows the thread list &amp; export actions instead</li>
+    <li>Both views: Convert tab absent, More menu has Resize canvas &amp; Re-generate from image</li>
+  </ul>
+</div>
+
+<div class="phone-row">
+
+  <!-- Phone 1: Edit tab (canvas) -->
+  <div>
+    <div class="phone-label">Edit tab — canvas view</div>
+    <div class="phone" id="phone1">
+
+      <div class="header">
+        <span class="logo">stitchx</span>
+        <div class="header-right">
+          <span class="save-chip">Saved</span>
+        </div>
+      </div>
+
+      <div class="actionbar">
+        <div class="tab-list">
+          <button class="tab active">Edit</button>
+          <button class="tab">Materials</button>
+        </div>
+        <div class="actionbar-right">
+          <!-- Icon-only on mobile -->
+          <div class="icon-btn" title="Print PDF">
+            <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          </div>
+          <div class="icon-btn" title="Export">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <div class="icon-btn" title="Open in Tracker">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 8 16 12 12 16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          </div>
+          <span class="difficulty-chip">Med</span>
+        </div>
+      </div>
+
+      <div class="toolbar-row" id="toolbar1">
+        <div class="pill-wrap">
+          <div class="pill">
+            <button class="tb-btn active">Paint</button>
+            <button class="tb-btn">Fill</button>
+            <button class="tb-btn erase">
+              <svg class="icon" style="color:#B91C1C" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Erase
+            </button>
+            <div class="tb-sdiv"></div>
+            <span class="tb-zoom-lbl">100%</span>
+            <div class="tb-sdiv"></div>
+            <button class="tb-btn" style="padding:0 7px" title="Undo">
+              <svg class="icon" viewBox="0 0 24 24"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+            </button>
+            <button class="tb-btn" style="padding:0 7px" title="Redo">
+              <svg class="icon" viewBox="0 0 24 24"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>
+            </button>
+            <div class="tb-sdiv"></div>
+            <button class="tb-btn" onclick="toggleMore(1)" style="padding:0 9px">
+              More <svg class="icon" style="width:10px;height:10px" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Swatch row (horizontal scroll on mobile) -->
+        <div class="swatch-row">
+          <div class="sw sel" style="background:#1a1a1a"></div>
+          <div class="sw" style="background:#8B4513"></div>
+          <div class="sw" style="background:#B5651D"></div>
+          <div class="sw" style="background:#D4A56A"></div>
+          <div class="sw" style="background:#E8D5B7"></div>
+          <div class="sw" style="background:#6B8E23"></div>
+          <div class="sw" style="background:#8FBC8F"></div>
+          <div class="sw" style="background:#4682B4"></div>
+          <div class="sw" style="background:#87CEEB"></div>
+          <div class="sw" style="background:#DEB887"></div>
+          <div class="sw" style="background:#CD853F"></div>
+          <div class="sw" style="background:#F4A460"></div>
+        </div>
+
+        <div class="more-panel" id="more1">
+          <div class="more-section">
+            <div class="more-section-label">Canvas</div>
+            <button class="more-btn">
+              <svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1"/><path d="M3 9V3h6"/><path d="M15 3h6v6"/><path d="M21 15v6h-6"/><path d="M9 21H3v-6"/></svg>
+              Resize canvas&hellip;
+              <span class="inline-new">new</span>
+            </button>
+            <button class="more-btn">
+              <svg viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+              Re-generate from image&hellip;
+              <span class="inline-new">new</span>
+            </button>
+          </div>
+          <div class="more-section">
+            <div class="more-section-label">Tools</div>
+            <button class="more-btn">Rectangle fill</button>
+            <button class="more-btn">Backstitch</button>
+            <button class="more-btn">Cleanup mode</button>
+          </div>
+          <div class="more-section">
+            <div class="more-section-label">Display</div>
+            <button class="more-btn">Toggle grid</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="main">
+        <div class="canvas-area">
+          <div id="grid1"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Phone 2: Materials tab -->
+  <div>
+    <div class="phone-label">Materials tab — thread &amp; export</div>
+    <div class="phone" id="phone2">
+
+      <div class="header">
+        <span class="logo">stitchx</span>
+        <div class="header-right">
+          <span class="save-chip">Saved</span>
+        </div>
+      </div>
+
+      <div class="actionbar">
+        <div class="tab-list">
+          <button class="tab">Edit</button>
+          <button class="tab active">Materials</button>
+        </div>
+        <div class="actionbar-right">
+          <div class="icon-btn" title="Print PDF">
+            <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          </div>
+          <div class="icon-btn" title="Export">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <span class="difficulty-chip">Med</span>
+        </div>
+      </div>
+
+      <!-- No toolbar in Materials tab -->
+
+      <div class="main">
+        <div class="materials-body" style="overflow-y:auto;max-height:340px;padding:12px">
+
+          <div class="mat-section">
+            <div class="mat-section-title">Thread requirements</div>
+            <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px">80×60 stitches &middot; 14-count aida &middot; 2 strands</div>
+            <div class="mat-row">
+              <div class="mat-swatch" style="background:#1a1a1a"></div>
+              <span class="mat-name">310 Black</span>
+              <span class="mat-count">2 skeins</span>
+            </div>
+            <div class="mat-row">
+              <div class="mat-swatch" style="background:#8B4513"></div>
+              <span class="mat-name">433 Saddle Brown</span>
+              <span class="mat-count">1 skein</span>
+            </div>
+            <div class="mat-row">
+              <div class="mat-swatch" style="background:#B5651D"></div>
+              <span class="mat-name">434 Coffee Brown</span>
+              <span class="mat-count">1 skein</span>
+            </div>
+            <div class="mat-row">
+              <div class="mat-swatch" style="background:#D4A56A"></div>
+              <span class="mat-name">437 Tan</span>
+              <span class="mat-count">1 skein</span>
+            </div>
+            <div class="mat-row">
+              <div class="mat-swatch" style="background:#E8D5B7"></div>
+              <span class="mat-name">712 Off White</span>
+              <span class="mat-count">1 skein</span>
+            </div>
+            <div class="mat-row">
+              <div class="mat-swatch" style="background:#6B8E23"></div>
+              <span class="mat-name">3012 Moss Green</span>
+              <span class="mat-count">1 skein</span>
+            </div>
+          </div>
+
+          <div class="mat-section">
+            <div class="mat-section-title">Fabric</div>
+            <div style="font-size:11px;color:var(--text-secondary)">5.7 &times; 4.3 in &nbsp;&middot;&nbsp; 14.5 &times; 10.9 cm</div>
+          </div>
+
+          <div class="export-btns">
+            <button class="exp-btn primary">Print PDF</button>
+            <button class="exp-btn">Export JSON</button>
+            <button class="exp-btn">Export OXS</button>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+function seededColour(r,c){
+  var p=['#1a1a1a','#8B4513','#B5651D','#D4A56A','#E8D5B7','#6B8E23','#8FBC8F','#4682B4'];
+  var v=Math.abs(Math.sin(r*12.9898+c*78.233+42.7)*43758.5453);
+  return p[Math.floor((v-Math.floor(v))*p.length)];
+}
+var g=document.getElementById('grid1');
+g.style.display='grid';
+g.style.gridTemplateColumns='repeat(22,13px)';
+for(var r=0;r<18;r++){for(var c=0;c<22;c++){
+  var cell=document.createElement('div');
+  cell.style.cssText='width:13px;height:13px;border-right:.5px solid rgba(0,0,0,.08);border-bottom:.5px solid rgba(0,0,0,.08);background:'+seededColour(r,c);
+  g.appendChild(cell);
+}}
+
+function toggleMore(id){document.getElementById('more'+id).classList.toggle('open');}
+document.addEventListener('click',function(e){
+  if(!e.target.closest('#toolbar1')) document.getElementById('more1').classList.remove('open');
+});
+</script>
+</body>
+</html>

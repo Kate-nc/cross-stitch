@@ -538,6 +538,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     saveProject: stableSaveProject, doSaveProject: stableDoSaveProject,
     handleFile: stableHandleFile, loadProject: stableLoadProject,
     handleOpenInTracker: stableHandleOpenInTracker,
+    openResizeCanvas: () => state.setResizeCanvasOpen(true),
+    isScratchMode: state.isScratchMode,
     isActive: isActive,
   }; }, [
     state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab,
@@ -560,6 +562,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.previewUrl, state.previewStats, state.confettiData,
     state.previewHeatmap, state.previewMapped, state.previewColors,
     state.previewDims, state.previewHighlight,
+    state.isScratchMode,
     isActive,
   ]);
 
@@ -995,13 +998,12 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         appMode={state.appMode}
         tab={state.tab}
         pat={!!(state.pat&&state.pal)}
-        onTabChange={function(t){state.setTab(t);if(state.pat&&state.pal)state.setAppMode("edit");}}
+        onTabChange={function(t){state.setTab(t);}}
         onRequestBackToConvert={handleRequestBackToConvert}
         onPrintPdf={()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},exportData)}
         onTrackPattern={io.handleOpenInTracker}
         onSaveJson={io.saveProject}
         onMoreExports={()=>{state.setTab("materials");if(state.setMaterialsTab)state.setMaterialsTab("output");}}
-        onResizeCanvas={()=>state.setResizeCanvasOpen(true)}
       />}
       <window.CreatorToolStrip/>
       <div className="cs-page-content">

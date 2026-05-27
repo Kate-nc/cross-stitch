@@ -516,6 +516,24 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     role:"dialog",
     "aria-label":"More tools"
   },
+    // ── Canvas management ──
+    h("div", {className:"tb-more-panel__section"},
+      h("span", {className:"tb-ovf-lbl"}, "Canvas"),
+      h("button", {
+        className:"tb-btn",
+        onClick:function(){ if(app&&app.openResizeCanvas)app.openResizeCanvas(); setMorePanelOpen(false); },
+        title:"Resize canvas \u2014 crop or expand the pattern bounds",
+        "aria-label":"Resize canvas",
+        style:{width:"100%",justifyContent:"flex-start"}
+      }, window.Icons&&window.Icons.canvasResize?window.Icons.canvasResize():null, " Resize canvas\u2026"),
+      (gen.img && gen.img.src) && h("button", {
+        className:"tb-btn",
+        onClick:function(){ if(app&&app.requestBackToConvert)app.requestBackToConvert(); setMorePanelOpen(false); },
+        title:"Return to image settings and re-generate the pattern",
+        "aria-label":"Re-generate from image",
+        style:{width:"100%",justifyContent:"flex-start"}
+      }, window.Icons&&window.Icons.sliders?window.Icons.sliders():null, " Re-generate from image\u2026")
+    ),
     // ── Tools ──
     h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Tools"),

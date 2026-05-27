@@ -137,13 +137,6 @@ window.CreatorActionBar = function CreatorActionBar(props) {
 
   var tabs = [
     {
-      active: appMode === "create",
-      disabled: false,
-      onClick: (appMode === "create" || typeof props.onRequestBackToConvert !== "function")
-        ? undefined
-        : props.onRequestBackToConvert
-    },
-    {
       active: appMode === "edit" && currentTab === "pattern",
       disabled: !hasPat,
       onClick: !hasPat ? undefined : function() {
@@ -201,21 +194,9 @@ window.CreatorActionBar = function CreatorActionBar(props) {
         role: "tab",
         "aria-selected": tabs[0].active,
         tabIndex: tabs[0].active ? 0 : -1,
-        style: tabStyle(appMode === "create", false),
-        onClick: tabs[0].onClick,
-        title: "Convert settings — adjust palette, dimensions and generate"
-      },
-      Icons.sliders ? Icons.sliders() : null,
-      h("span", null, "Convert")
-    ),
-    h("button", {
-        type: "button",
-        role: "tab",
-        "aria-selected": tabs[1].active,
-        tabIndex: tabs[1].active ? 0 : -1,
         disabled: !hasPat,
         style: tabStyle(appMode === "edit" && currentTab === "pattern", !hasPat),
-        onClick: tabs[1].onClick,
+        onClick: tabs[0].onClick,
         title: hasPat ? "Edit the generated pattern" : "Generate a pattern first"
       },
       Icons.pencil ? Icons.pencil() : null,
@@ -224,11 +205,11 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     h("button", {
         type: "button",
         role: "tab",
-        "aria-selected": tabs[2].active,
-        tabIndex: tabs[2].active ? 0 : -1,
+        "aria-selected": tabs[1].active,
+        tabIndex: tabs[1].active ? 0 : -1,
         disabled: !hasPat,
         style: tabStyle(currentTab === "materials", !hasPat),
-        onClick: tabs[2].onClick,
+        onClick: tabs[1].onClick,
         title: hasPat ? "Materials — thread count, export options" : "Generate a pattern first"
       },
       Icons.layers ? Icons.layers() : null,
@@ -349,18 +330,6 @@ window.CreatorActionBar = function CreatorActionBar(props) {
         )
       )
     ) : h("div", { className: "creator-actionbar__primary" }),
-    hasPat ? h("button", {
-      type: "button",
-      className: "creator-actionbar__btn creator-actionbar__btn--ghost",
-      onClick: function() {
-        if (typeof props.onResizeCanvas === "function") props.onResizeCanvas();
-      },
-      title: "Resize canvas \u2014 crop or expand the pattern bounds",
-      "aria-label": "Resize canvas"
-    },
-      Icons.canvasResize ? Icons.canvasResize() : null,
-      h("span", null, "Resize canvas")
-    ) : null,
     hasPat ? trackBtn : null,
     hasPat ? infoChip : null
   )
