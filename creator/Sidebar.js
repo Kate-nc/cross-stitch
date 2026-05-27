@@ -106,8 +106,8 @@ window.CreatorSidebar = function CreatorSidebar() {
         var brand = p.brand || resolveBrand(id);
         var key = brand + ':' + id;
         var entry = stash[key];
-        var owned = entry && entry.owned ? entry.owned : 0;
-        var needed = (typeof skeinEst === 'function' && p.count) ? skeinEst(p.count, fabricCtForStash) : 1;
+        var owned = stashEffectiveQty(entry);
+        var needed = (typeof skeinEst === 'function' && p.count) ? skeinEst(p.count, fabricCtForStash) : LOW_STASH_SKEIN_THRESHOLD;
         var s = owned >= needed ? 'owned' : owned > 0 ? 'partial' : 'needed';
         if (s === 'needed') return 'needed';
         if (s === 'partial' && worst === 'owned') worst = 'partial';
@@ -132,8 +132,8 @@ window.CreatorSidebar = function CreatorSidebar() {
         var key = brand + ':' + id;
         if (unownedSeen[key]) continue;
         var entry = stash[key];
-        var owned = entry && entry.owned ? entry.owned : 0;
-        var needed = (typeof skeinEst === 'function' && p.count != null) ? skeinEst(p.count, fabricCtForStash) : 1;
+        var owned = stashEffectiveQty(entry);
+        var needed = (typeof skeinEst === 'function' && p.count != null) ? skeinEst(p.count, fabricCtForStash) : LOW_STASH_SKEIN_THRESHOLD;
         if (owned < needed) { unownedSeen[key] = true; unownedKeys.push(key); }
       }
     }
@@ -188,7 +188,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         }, "\xD7"),
         // Brief D — stash status dot (top-right corner). Hidden when stash empty.
         stashStatus && h("span", {
-          title: stashStatus === 'owned' ? 'In your stash' : stashStatus === 'partial' ? 'May need more' : 'Not in stash',
+          title: stashStatus === 'owned' ? 'In your stash' : stashStatus === 'partial' ? 'You own this colour but quantity may be low' : 'Not in stash',
           "aria-label": "Stash status: " + stashStatus,
           style: {
             position:"absolute", top:-2, right:-2, width:6, height:6, borderRadius:"50%",
@@ -425,7 +425,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     if (ctx.creatorStashFilter && ctx.globalStash && Object.keys(ctx.globalStash).length > 0) {
       base = DMC.filter(function(d) {
         var entry = ctx.globalStash['dmc:' + d.id];
-        return entry && (entry.owned || 0) > 0;
+        return isColorOwned(entry);
       });
     }
     if (!blendSearch.trim()) return base;
@@ -798,26 +798,60 @@ window.CreatorSidebar = function CreatorSidebar() {
     var strengthLabels=["Gentle","Balanced","Thorough"];
     var strengthDescs=["Keeps 2-stitch clusters. Best for detail-heavy designs.","Removes 3-stitch clusters. Balanced stitchability & detail.","Removes up to 5-stitch clusters. Smoothest, easiest to sew."];
     var strengthIdx=strengthKeys.indexOf(sc2.strength);
-    var dithOpts = [
-      {id:"off",   label:"Off",      tip:"Direct colour mapping — each pixel mapped to its closest DMC colour. Cleanest, easiest to sew."},
-      {id:"weak",  label:"Weak",     tip:"Subtle dithering (50% strength) — slight colour blending with minimal confetti."},
-      {id:"balanced", label:"Balanced", tip:"Standard Floyd-Steinberg dithering — smooth gradients with moderate scatter."},
-      {id:"strong",label:"Strong",   tip:"Amplified dithering (150% strength) — richest gradients, most scattered stitches."}
-    ];
     var dithCur = gen.dithMode || (gen.dith ? "balanced" : "off");
+    var dithAlgo = dithCur === "off" ? "off" : dithCur.startsWith("bayer") ? "bayer" : "atkinson";
+    var algoOpts = [
+      {id:"off",      label:"Off",      tip:"Direct colour mapping — each pixel mapped to its closest DMC colour. Cleanest, easiest to sew."},
+      {id:"atkinson", label:"Atkinson", tip:"Atkinson dithering — clusters similar colours into coherent zones instead of scattering confetti. Works well for photographic and blended designs."},
+      {id:"bayer",    label:"Bayer",    tip:"Ordered (Bayer) dithering — uses a regular threshold matrix. Produces perfectly geometric, repeating patterns at colour transitions. Ideal for geometric or pixel-art designs."},
+    ];
+    var atkinsonLevels = [
+      {id:"weak",     label:"Subtle",   tip:"50% strength — gentle blending, very few isolated stitches."},
+      {id:"balanced", label:"Balanced", tip:"Standard Atkinson — smooth gradients in clean colour zones."},
+      {id:"strong",   label:"Strong",   tip:"150% strength — richest gradients, more scattered stitches."},
+    ];
+    var bayerSizes = [
+      {id:"bayer2", label:"2\xD72", tip:"Coarse 2\xD72 Bayer matrix — bold, checkerboard-style pattern with 4 threshold levels."},
+      {id:"bayer4", label:"4\xD74", tip:"Standard 4\xD74 Bayer matrix — balanced geometric transitions with 16 threshold levels."},
+      {id:"bayer8", label:"8\xD78", tip:"Fine 8\xD78 Bayer matrix — smooth, detailed transitions with 64 threshold levels."},
+    ];
+    function setAlgoClick(algo) {
+      if (algo === "off") { gen.setDith("off"); return; }
+      if (algo === "atkinson" && dithAlgo !== "atkinson") { gen.setDith("balanced"); return; }
+      if (algo === "bayer"    && dithAlgo !== "bayer")    { gen.setDith("bayer4");   return; }
+    }
+    // Sub-option buttons shared helper
+    function subRow(opts, activeFn) {
+      return h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2,marginTop:'var(--s-1)'}},
+        opts.map(function(o) {
+          var active = activeFn(o.id);
+          return h(Tooltip, {key:o.id, text:o.tip, width:220},
+            h("button", {
+              onClick:function(){gen.setDith(o.id);},
+              style:{flex:1,padding:"5px 6px",fontSize:'var(--text-xs)',fontWeight:active?600:400,
+                background:active?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',
+                color:active?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",
+                boxShadow:active?"0 1px 2px rgba(0,0,0,0.04)":"none",whiteSpace:"nowrap"}
+            }, o.label)
+          );
+        })
+      );
+    }
+    var smoothDithActive = gen.dith && dithAlgo === "atkinson";
     return h(Section, {title:"Smoothing & cleanup", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:tidyBadge},
       // ── Dithering subsection ─────────────────────────────────────────────
       h("div", {style:{marginTop:'var(--s-2)'}},
         h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
           h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:600}}, "Dithering"),
-          h(InfoIcon, {text:"Blends colours by mixing stitches using error diffusion. Higher strengths create smoother gradients but more scattered stitches.", width:220})
+          h(InfoIcon, {text:"Blends colours across neighbouring stitches. Atkinson clusters colours into clean zones; Bayer creates regular geometric patterns at transitions.", width:240})
         ),
+        // Algorithm row: Off | Atkinson | Bayer
         h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
-          dithOpts.map(function(o) {
-            var active = dithCur === o.id;
-            return h(Tooltip, {key:o.id, text:o.tip, width:220},
+          algoOpts.map(function(o) {
+            var active = dithAlgo === o.id;
+            return h(Tooltip, {key:o.id, text:o.tip, width:240},
               h("button", {
-                onClick:function(){gen.setDith(o.id);},
+                onClick:function(){setAlgoClick(o.id);},
                 style:{flex:1,padding:"5px 6px",fontSize:'var(--text-xs)',fontWeight:active?600:400,
                   background:active?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',
                   color:active?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",
@@ -826,17 +860,19 @@ window.CreatorSidebar = function CreatorSidebar() {
             );
           })
         ),
-        // Smooth-dithering toggle lives WITH dithering because it's a dither
-        // modifier (it lowers the dither error-threshold), not a cleanup step.
-        h("div", {style:{marginTop:'var(--s-2)',opacity:gen.dith?1:0.5,pointerEvents:gen.dith?"auto":"none"}, "aria-disabled":!gen.dith},
+        // Sub-option row (contextual)
+        dithAlgo === "atkinson" && subRow(atkinsonLevels, function(id){ return dithCur === id; }),
+        dithAlgo === "bayer"    && subRow(bayerSizes,     function(id){ return dithCur === id; }),
+        // Smooth-dithering toggle: only meaningful for Atkinson (error-diffusion only)
+        h("div", {style:{marginTop:'var(--s-2)',opacity:smoothDithActive?1:0.5,pointerEvents:smoothDithActive?"auto":"none"}, "aria-disabled":!smoothDithActive},
           h(Toggle, {
             checked:sc2.smoothDithering,
-            onChange:function(v){ if (gen.dith) gen.setStitchCleanup(function(s){return Object.assign({},s,{smoothDithering:v});}); },
+            onChange:function(v){ if (smoothDithActive) gen.setStitchCleanup(function(s){return Object.assign({},s,{smoothDithering:v});}); },
             label:"Smooth dithering",
-            help:"Reduces confetti during dithering itself by lowering the error-diffusion threshold. Cleaner gradients, but may slightly shift colours."
+            help:"Reduces confetti during Atkinson dithering by lowering the error-diffusion threshold. Cleaner gradients, but may slightly shift colours."
           }),
-          !gen.dith && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2,marginLeft:2}},
-            "Only active when dithering is on."
+          !smoothDithActive && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2,marginLeft:2}},
+            dithAlgo === "bayer" ? "Not used with Bayer dithering." : "Only active when Atkinson dithering is on."
           )
         )
       ),
@@ -1107,16 +1143,15 @@ window.CreatorSidebar = function CreatorSidebar() {
       disabled: !hasPattern,
       disabledHint:"Generate a pattern to unlock symbols, gridlines, and zoom presets."},
     {id:"preview",    label:"Preview",    icon:"layers"},
-    {id:"project",    label:"Project",    icon:"folder",  requires:"create"}
+    {id:"project",    label:"Project",    icon:"folder"}
   ];
 
-  // Legacy aliases retained for tests / external callers; the bottom
-  // render branches still use these names. createTabs is the canonical
-  // 7-tab list; editTabs is a filtered subset for the edit-mode render
-  // path that hasn't been merged yet.
+  // createTabs = full 7-tab list for the create/prepare phase.
+  // editTabs = filtered subset: Image and Dimensions (requires:"create") are
+  // hidden in edit mode; Project has no requires so it stays in both.
   var createTabs = unifiedTabs;
   var editTabs = unifiedTabs.filter(function(t) { return t.requires !== "create"; });
-  var tabs = unifiedTabs;
+  var tabs = mode === "edit" ? editTabs : createTabs;
 
   // Ensure sidebarTab is valid AND matches the current appMode's render
   // branch. The bottom render path still has two arms (create vs edit);
@@ -1416,39 +1451,6 @@ window.CreatorSidebar = function CreatorSidebar() {
       );
     }
 
-    // Project info — name, designer, description. Always-visible at top so
-    // users can name a pattern before generating it.
-    var projectInfoSection = h(Section, {title:"Project info", defaultOpen:true},
-      h("div", {style:{display:"flex",flexDirection:"column",gap:'var(--s-2)',padding:"4px 0 2px"}},
-        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
-          "Pattern name",
-          h("input", {
-            type:"text", value: app.projectName || "", maxLength:60,
-            placeholder: ctx.pat ? (ctx.sW + "\xD7" + ctx.sH + " pattern") : "e.g. Sunflower sampler",
-            onChange: function(e) { var v = e.target.value.slice(0,60); if (typeof app.setProjectName === "function") app.setProjectName(v); },
-            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
-          })
-        ),
-        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
-          "Designer (optional)",
-          h("input", {
-            type:"text", value: app.projectDesigner || "", maxLength:80,
-            placeholder: "Your name or studio",
-            onChange: function(e) { var v = e.target.value.slice(0,80); if (typeof app.setProjectDesigner === "function") app.setProjectDesigner(v); },
-            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
-          })
-        ),
-        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
-          "Description / notes (optional)",
-          h("textarea", {
-            value: app.projectDescription || "", maxLength:500, rows:3,
-            placeholder: "Source, copyright, stitching notes\u2026",
-            onChange: function(e) { var v = e.target.value.slice(0,500); if (typeof app.setProjectDescription === "function") app.setProjectDescription(v); },
-            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
-          })
-        )
-      )
-    );
     // Project info summary (compact) — kept for create mode as a collapsible.
     var projectSummary = (function() {
       var palLen = ctx.pat && ctx.pal ? (ctx.displayPal || ctx.pal || []).length : 0;
@@ -1548,6 +1550,40 @@ window.CreatorSidebar = function CreatorSidebar() {
     );
   }
 
+  // ─── Project Info Section (shared between Create and Edit modes) ──────────
+  // Name, designer, and description fields. Always-editable in both modes.
+  var projectInfoSection = h(Section, {title:"Project info", defaultOpen:true},
+    h("div", {style:{display:"flex",flexDirection:"column",gap:'var(--s-2)',padding:"4px 0 2px"}},
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
+        "Pattern name",
+        h("input", {
+          type:"text", value: app.projectName || "", maxLength:60,
+          placeholder: ctx.pat ? (ctx.sW + "\xD7" + ctx.sH + " pattern") : "e.g. Sunflower sampler",
+          onChange: function(e) { var v = e.target.value.slice(0,60); if (typeof app.setProjectName === "function") app.setProjectName(v); },
+          style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
+        })
+      ),
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
+        "Designer (optional)",
+        h("input", {
+          type:"text", value: app.projectDesigner || "", maxLength:80,
+          placeholder: "Your name or studio",
+          onChange: function(e) { var v = e.target.value.slice(0,80); if (typeof app.setProjectDesigner === "function") app.setProjectDesigner(v); },
+          style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
+        })
+      ),
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
+        "Description / notes (optional)",
+        h("textarea", {
+          value: app.projectDescription || "", maxLength:500, rows:3,
+          placeholder: "Source, copyright, stitching notes\u2026",
+          onChange: function(e) { var v = e.target.value.slice(0,500); if (typeof app.setProjectDescription === "function") app.setProjectDescription(v); },
+          style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
+        })
+      )
+    )
+  );
+
   // ─── Edit Mode Sidebar ────────────────────────────────────────────────────
 
   // Tools tab — absorbs the stitch-type, brush-size, lasso-mode and
@@ -1631,7 +1667,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       "Applies to Cross and Half stitches, and the Erase tool.")
   );
 
-  var lassoModes = [["freehand","Freehand"],["polygon","Polygon"],["magnetic","Magnetic"]];
+  var lassoModes = [["freehand","Lasso"],["polygon","Polygon"],["magnetic","Magnetic"]];
   var curLasso = cv.lassoMode || "freehand";
   var selectionSection = h("div", {style:{padding:"0 12px 12px",borderTop:"1px solid var(--border)",paddingTop:12}},
     h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-2)'}},
@@ -1793,6 +1829,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         highlightControls
       ),
       sTab === "preview" && previewPanel,
+      sTab === "project" && projectInfoSection,
       sTab === "more" && moreContent
     ),
     editActions

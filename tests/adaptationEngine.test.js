@@ -68,6 +68,15 @@ function getThreadByKey(key) {
 function skeinEst(stitches) { return Math.max(1, Math.ceil(stitches / 200)); }
 
 global.window = {};
+// Stash ownership helpers (globals provided by stash-bridge.js in the browser)
+global.PARTIAL_STATUS_FRACTIONS = Object.freeze({ 'mostly-full': 0.75, 'about-half': 0.50, 'remnant': 0.25 });
+global.stashEffectiveQty = function(entry) {
+  if (!entry || typeof entry !== 'object') return 0;
+  var full = typeof entry.owned === 'number' && !isNaN(entry.owned) && entry.owned > 0 ? entry.owned : 0;
+  return full + (global.PARTIAL_STATUS_FRACTIONS[entry.partialStatus] || 0);
+};
+global.isColorOwned = function(entry) { return global.stashEffectiveQty(entry) > 0; };
+global.LOW_STASH_SKEIN_THRESHOLD = 1;
 global.DMC = DMC_MINI;
 global.ANCHOR = ANCHOR_MINI;
 global.CONVERSIONS = CONVERSIONS;

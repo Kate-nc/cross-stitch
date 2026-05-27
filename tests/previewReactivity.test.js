@@ -192,6 +192,68 @@ describe('runCleanupPipeline — settings reach the engine', () => {
     expect(differs).toBeGreaterThan(0);
   });
 
+  test('different dithering algorithms produce different mapped output', () => {
+    const w = 32, h = 32;
+    const raw = gradientImage(w, h);
+    const base = {
+      maxC: 6, allowBlends: false,
+      skipBg: false, bgCol: [255,255,255], bgTh: 15,
+      stitchCleanup: null, orphans: 0, allowedPalette: null,
+    };
+    const off = runCleanupPipeline(raw, w, h, Object.assign({}, base, {
+      dith: false,
+    }));
+    const atkinson = runCleanupPipeline(raw, w, h, Object.assign({}, base, {
+      dith: true, dithAlgo: 'atkinson', dithStrength: 1.0,
+    }));
+    const bayer4 = runCleanupPipeline(raw, w, h, Object.assign({}, base, {
+      dith: true, dithAlgo: 'bayer', dithBayerSize: 4,
+    }));
+    expect(off).not.toBeNull();
+    expect(atkinson).not.toBeNull();
+    expect(bayer4).not.toBeNull();
+
+    let offVsAtkinson = 0;
+    let offVsBayer = 0;
+    let atkinsonVsBayer = 0;
+    for (let i = 0; i < off.mapped.length; i++) {
+      if (off.mapped[i].id !== atkinson.mapped[i].id) offVsAtkinson++;
+      if (off.mapped[i].id !== bayer4.mapped[i].id) offVsBayer++;
+      if (atkinson.mapped[i].id !== bayer4.mapped[i].id) atkinsonVsBayer++;
+    }
+    expect(offVsAtkinson).toBeGreaterThan(0);
+    expect(offVsBayer).toBeGreaterThan(0);
+    expect(atkinsonVsBayer).toBeGreaterThan(0);
+  });
+
+  test('Bayer matrix size changes the mapped output', () => {
+    const w = 32, h = 32;
+    const raw = gradientImage(w, h);
+    const base = {
+      maxC: 6, dith: true, dithAlgo: 'bayer', allowBlends: false,
+      skipBg: false, bgCol: [255,255,255], bgTh: 15,
+      stitchCleanup: null, orphans: 0, allowedPalette: null,
+    };
+    const b2 = runCleanupPipeline(raw, w, h, Object.assign({}, base, { dithBayerSize: 2 }));
+    const b4 = runCleanupPipeline(raw, w, h, Object.assign({}, base, { dithBayerSize: 4 }));
+    const b8 = runCleanupPipeline(raw, w, h, Object.assign({}, base, { dithBayerSize: 8 }));
+    expect(b2).not.toBeNull();
+    expect(b4).not.toBeNull();
+    expect(b8).not.toBeNull();
+
+    let d24 = 0;
+    let d48 = 0;
+    let d28 = 0;
+    for (let i = 0; i < b2.mapped.length; i++) {
+      if (b2.mapped[i].id !== b4.mapped[i].id) d24++;
+      if (b4.mapped[i].id !== b8.mapped[i].id) d48++;
+      if (b2.mapped[i].id !== b8.mapped[i].id) d28++;
+    }
+    expect(d24).toBeGreaterThan(0);
+    expect(d48).toBeGreaterThan(0);
+    expect(d28).toBeGreaterThan(0);
+  });
+
   test('respects minSt by collapsing rare colours (engine implements C5)', () => {
     // EXPECTED FAIL on main: runCleanupPipeline does not implement minSt;
     // the rebucket loop currently lives only in runGenerationPipeline.
@@ -327,5 +389,10 @@ describe('preview pipeline — coverage manifest', () => {
     // After the fix, the preview's call site must include dithStrength.
     // Today it does not — this test documents the wiring gap.
     expect(usePrevSrc).toMatch(/dithStrength/);
+  });
+
+  test('usePreview.js forwards dithAlgo and dithBayerSize to runCleanupPipeline', () => {
+    expect(usePrevSrc).toMatch(/dithAlgo/);
+    expect(usePrevSrc).toMatch(/dithBayerSize/);
   });
 });

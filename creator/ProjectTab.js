@@ -232,7 +232,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       var _stashKeys = Object.keys(ctx.globalStash);
       for (var _i = 0; _i < _stashKeys.length; _i++) {
         var _e = ctx.globalStash[_stashKeys[_i]];
-        if (_e && _e.owned > 0) { hasOwnedStash = true; break; }
+        if (isColorOwned(_e)) { hasOwnedStash = true; break; }
       }
     }
     return h(Section, {title:"Thread Organiser"},
@@ -265,7 +265,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           var st = ctx.threadOwned[d.id] || "";
           var isOwned = st === "owned";
           var gs = ctx.globalStash[d.id] || {};
-          var owned = gs.owned || 0;
+          var owned = stashEffectiveQty(gs);
           var enough = owned >= d.skeins;
           return h(React.Fragment, {key:d.id},
             h("div", {

@@ -288,7 +288,7 @@ const BackupRestore = (() => {
           const threadsEntry = msMap.get("threads");
           if (threadsEntry && threadsEntry.value) {
             summary.threadCount = Object.keys(threadsEntry.value).filter(
-              id => threadsEntry.value[id].owned > 0
+              id => isColorOwned(threadsEntry.value[id])
             ).length;
           }
           const patternsEntry = msMap.get("patterns");

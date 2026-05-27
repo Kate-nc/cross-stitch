@@ -58,7 +58,7 @@ describe('Edit-mode toolbar consolidation — Tools sidebar tab', () => {
   test('Tools tab content includes the lasso-mode picker', () => {
     expect(SIDEBAR_SRC).toMatch(/"Lasso mode"/);
     expect(SIDEBAR_SRC).toMatch(
-      /lassoModes\s*=\s*\[\["freehand","Freehand"\],\["polygon","Polygon"\],\["magnetic","Magnetic"\]\]/
+      /lassoModes\s*=\s*\[\["freehand","Lasso"\],\["polygon","Polygon"\],\["magnetic","Magnetic"\]\]/
     );
   });
 

@@ -29,16 +29,23 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
   var stitchCleanup = opts.stitchCleanup;
   var dithStrength = (typeof opts.dithStrength === "number") ? opts.dithStrength : 1.0;
+  var dithAlgo = opts.dithAlgo || (dith ? "atkinson" : "off");
+  var dithBayerSize = opts.dithBayerSize || 4;
   var minSt = (typeof opts.minSt === "number" && opts.minSt > 0) ? opts.minSt : 0;
 
   var p = quantize(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed});
   if (!p.length) return null;
 
   var saliencyMap = generateSaliencyMap(raw, width, height);
-  var cdt = dith && stitchCleanup && stitchCleanup.smoothDithering ? 4.0 : 0.0;
-  var mapped = dith
-    ? doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt, ditherStrength: dithStrength })
-    : doMap(raw, width, height, p, allowBlends);
+  var cdt = dith && dithAlgo === "atkinson" && stitchCleanup && stitchCleanup.smoothDithering ? 4.0 : 0.0;
+  var mapped;
+  if (!dith) {
+    mapped = doMap(raw, width, height, p, allowBlends);
+  } else if (dithAlgo === "bayer") {
+    mapped = doBayerDither(raw, width, height, p, allowBlends, dithBayerSize);
+  } else {
+    mapped = doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt, ditherStrength: dithStrength });
+  }
 
   if (skipBg) {
     var bl = rgbToLab(bgCol[0], bgCol[1], bgCol[2]);
@@ -189,6 +196,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
 
   var pipelineResult = runCleanupPipeline(raw, sW, sH, {
     maxC: maxC, dith: dith, dithStrength: opts.dithStrength,
+    dithAlgo: opts.dithAlgo, dithBayerSize: opts.dithBayerSize,
     allowBlends: allowBlends, allowedPalette: opts.allowedPalette || null,
     skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
     stitchCleanup: stitchCleanup, orphans: opts.orphans,

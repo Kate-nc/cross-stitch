@@ -285,7 +285,7 @@
     for (var k = 0; k < stashKeys.length; k++) {
       var key = stashKeys[k];
       var entry = stash[key];
-      if (!entry || !(entry.owned > 0)) continue;
+      if (!isColorOwned(entry)) continue;
       var parsed = (typeof parseThreadKey === 'function')
         ? parseThreadKey(key)
         : (key.indexOf(':') >= 0 ? { brand: key.split(':')[0], id: key.split(':')[1] } : { brand: 'dmc', id: key });
@@ -479,7 +479,7 @@
   function _isOwned(stash, key) {
     if (!stash) return false;
     var e = stash[key];
-    return !!(e && e.owned > 0);
+    return isColorOwned(e);
   }
 
   function _baseSub(src) {
@@ -1752,7 +1752,7 @@
       for (var i = 0; i < arr.length; i++) {
         var t = arr[i];
         var key = brand + ':' + t.id;
-        var owned = !!(stash[key] && stash[key].owned > 0);
+        var owned = isColorOwned(stash[key]);
         if (tab === 'inStash' && !owned) continue;
         if (q && t.id.toLowerCase().indexOf(q) === -1 && (t.name||'').toLowerCase().indexOf(q) === -1) continue;
         out.push({ key: key, brand: brand, id: t.id, name: t.name, rgb: t.rgb, owned: owned });

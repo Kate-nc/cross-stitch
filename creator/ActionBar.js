@@ -108,10 +108,13 @@ window.CreatorActionBar = function CreatorActionBar(props) {
   }
 
   // ── Tab bar: Convert | Edit | Materials ────────────────────────────────────
-  // Convert: active when appMode === "create". Clickable only when another
-  //          tab is active; prevents reopening the confirm modal from create.
-  // Edit:    active when appMode === "edit". Disabled when no pattern exists.
-  // Materials: active when tab === "materials". Always available once pattern exists.
+  // Convert: active when appMode === "create". Disabled in create mode to
+  //          prevent re-triggering; fires onRequestBackToConvert (which shows a
+  //          confirm dialog when manual edits exist) when clicked from edit mode.
+  // Edit:    active when appMode === "edit" && tab === "pattern".
+  //          Disabled until a pattern has been generated.
+  // Materials: active when tab === "materials".
+  //          Disabled until a pattern has been generated.
   var appMode = (props && props.appMode) || "edit";
   var currentTab = (props && props.tab) || "pattern";
   var hasPat = !!(props && props.ready);
@@ -138,10 +141,8 @@ window.CreatorActionBar = function CreatorActionBar(props) {
   var tabs = [
     {
       active: appMode === "create",
-      disabled: false,
-      onClick: (appMode === "create" || typeof props.onRequestBackToConvert !== "function")
-        ? undefined
-        : props.onRequestBackToConvert
+      disabled: appMode === "create",
+      onClick: appMode === "create" ? undefined : props.onRequestBackToConvert
     },
     {
       active: appMode === "edit" && currentTab === "pattern",
@@ -201,11 +202,12 @@ window.CreatorActionBar = function CreatorActionBar(props) {
         role: "tab",
         "aria-selected": tabs[0].active,
         tabIndex: tabs[0].active ? 0 : -1,
-        style: tabStyle(appMode === "create", false),
+        disabled: tabs[0].disabled,
+        style: tabStyle(appMode === "create", appMode === "create"),
         onClick: tabs[0].onClick,
-        title: "Convert settings — adjust palette, dimensions and generate"
+        title: appMode === "create" ? "Set up image and pattern settings" : "Return to Convert mode — adjust settings and re-generate"
       },
-      Icons.sliders ? Icons.sliders() : null,
+      Icons.image ? Icons.image() : null,
       h("span", null, "Convert")
     ),
     h("button", {

@@ -773,16 +773,23 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
   var stitchCleanup = opts.stitchCleanup;
   var dithStrength = (typeof opts.dithStrength === "number") ? opts.dithStrength : 1.0;
+  var dithAlgo = opts.dithAlgo || (dith ? "atkinson" : "off");
+  var dithBayerSize = opts.dithBayerSize || 4;
   var minSt = (typeof opts.minSt === "number" && opts.minSt > 0) ? opts.minSt : 0;
 
   var p = quantize(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed});
   if (!p.length) return null;
 
   var saliencyMap = generateSaliencyMap(raw, width, height);
-  var cdt = dith && stitchCleanup && stitchCleanup.smoothDithering ? 4.0 : 0.0;
-  var mapped = dith
-    ? doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt, ditherStrength: dithStrength })
-    : doMap(raw, width, height, p, allowBlends);
+  var cdt = dith && dithAlgo === "atkinson" && stitchCleanup && stitchCleanup.smoothDithering ? 4.0 : 0.0;
+  var mapped;
+  if (!dith) {
+    mapped = doMap(raw, width, height, p, allowBlends);
+  } else if (dithAlgo === "bayer") {
+    mapped = doBayerDither(raw, width, height, p, allowBlends, dithBayerSize);
+  } else {
+    mapped = doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt, ditherStrength: dithStrength });
+  }
 
   if (skipBg) {
     var bl = rgbToLab(bgCol[0], bgCol[1], bgCol[2]);
@@ -933,6 +940,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
 
   var pipelineResult = runCleanupPipeline(raw, sW, sH, {
     maxC: maxC, dith: dith, dithStrength: opts.dithStrength,
+    dithAlgo: opts.dithAlgo, dithBayerSize: opts.dithBayerSize,
     allowBlends: allowBlends, allowedPalette: opts.allowedPalette || null,
     skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
     stitchCleanup: stitchCleanup, orphans: opts.orphans,
@@ -1940,6 +1948,21 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
         if (lfx < 0 || lfx >= dW || lfy < 0 || lfy >= dH) continue;
         ctx2d.fillRect(gut + lfx * cSz, gut + lfy * cSz, cSz, cSz);
       }
+      // Dashed closing-line hint from the last traced point back to the first.
+      // This signals to the user that releasing the mouse will auto-close the
+      // shape and fill the interior (true-lasso behaviour).
+      if (lassoPoints && lassoPoints.length >= 3) {
+        var lfp = lassoPoints[0];
+        var llp = lassoPoints[lassoPoints.length - 1];
+        ctx2d.strokeStyle = "rgba(16,185,129,0.6)";
+        ctx2d.lineWidth = Math.max(1.5, cSz * 0.12);
+        ctx2d.setLineDash([Math.max(3, cSz * 0.3), Math.max(3, cSz * 0.3)]);
+        ctx2d.beginPath();
+        ctx2d.moveTo(gut + (llp.x - offX) * cSz + cSz / 2, gut + (llp.y - offY) * cSz + cSz / 2);
+        ctx2d.lineTo(gut + (lfp.x - offX) * cSz + cSz / 2, gut + (lfp.y - offY) * cSz + cSz / 2);
+        ctx2d.stroke();
+        ctx2d.setLineDash([]);
+      }
     }
 
     if ((lassoMode === "polygon" || lassoMode === "magnetic") && lassoPoints && lassoPoints.length > 0) {
@@ -2040,6 +2063,75 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
       }
     }
     ctx2d.restore();
+  }
+
+  // ─── Move-selection ghost overlay ────────────────────────────────────────────
+  // Drawn last so it sits above the selection tint and cleanup overlays.
+  // While a move drag is in progress:
+  //   • Source cells (in the snapshot selection) are rendered as empty/dimmed.
+  //   • Ghost cells (snapshot values shifted by moveDelta) are rendered at 70%
+  //     opacity at the destination position.
+  //   • A dashed marching-ants border traces the ghost bounding box.
+  var moveActive = state.moveActive;
+  var moveDelta  = state.moveDelta;
+  var moveSnapshotRef = state.moveSnapshotRef;
+  if (moveActive && moveDelta && moveSnapshotRef && moveSnapshotRef.current) {
+    var snap = moveSnapshotRef.current;
+    var snapMask = snap.selectionMask;
+    var snapPat  = snap.pat;
+    var mdx = moveDelta.dx, mdy = moveDelta.dy;
+    var msW = state.sW;
+
+    if (snapMask && snapPat) {
+      ctx2d.save();
+
+      // 1. Dim source cells to signal they are "lifted".
+      ctx2d.fillStyle = 'rgba(255,255,255,0.6)';
+      for (var msi = 0; msi < snapMask.length; msi++) {
+        if (!snapMask[msi]) continue;
+        var msx2 = (msi % msW) - offX, msy2 = Math.floor(msi / msW) - offY;
+        if (msx2 < 0 || msx2 >= dW || msy2 < 0 || msy2 >= dH) continue;
+        ctx2d.fillRect(gut + msx2 * cSz, gut + msy2 * cSz, cSz, cSz);
+      }
+
+      // 2. Draw ghost cells at destination position (70% opacity).
+      ctx2d.globalAlpha = 0.70;
+      var ghostMinX = Infinity, ghostMinY = Infinity, ghostMaxX = -Infinity, ghostMaxY = -Infinity;
+      for (var mgi = 0; mgi < snapMask.length; mgi++) {
+        if (!snapMask[mgi]) continue;
+        var mgsx = mgi % msW, mgsy = Math.floor(mgi / msW);
+        var mgdx2 = mgsx + mdx, mgdy2 = mgsy + mdy;
+        if (mgdx2 < 0 || mgdx2 >= msW || mgdy2 < 0 || mgdy2 >= state.sH) continue;
+        var mgcx = mgdx2 - offX, mgcy = mgdy2 - offY;
+        if (mgcx < 0 || mgcx >= dW || mgcy < 0 || mgcy >= dH) continue;
+        var mgCell = snapPat[mgi];
+        if (!mgCell || mgCell.id === '__skip__' || mgCell.id === '__empty__') continue;
+        ctx2d.fillStyle = 'rgb(' + mgCell.rgb + ')';
+        ctx2d.fillRect(gut + mgcx * cSz, gut + mgcy * cSz, cSz, cSz);
+        if (mgdx2 < ghostMinX) ghostMinX = mgdx2;
+        if (mgdy2 < ghostMinY) ghostMinY = mgdy2;
+        if (mgdx2 > ghostMaxX) ghostMaxX = mgdx2;
+        if (mgdy2 > ghostMaxY) ghostMaxY = mgdy2;
+      }
+      ctx2d.globalAlpha = 1.0;
+
+      // 3. Dashed border around the ghost bounding box.
+      if (ghostMaxX >= ghostMinX) {
+        ctx2d.strokeStyle = 'rgba(37,99,235,0.9)';
+        ctx2d.lineWidth = Math.max(1, cSz * 0.1);
+        var mAntsDash = Math.max(2, cSz * 0.3), mAntsGap = Math.max(2, cSz * 0.2);
+        ctx2d.setLineDash([mAntsDash, mAntsGap]);
+        ctx2d.lineDashOffset = -(state.antsOffset || 0);
+        var gBx = gut + (ghostMinX - offX) * cSz;
+        var gBy = gut + (ghostMinY - offY) * cSz;
+        var gBw = (ghostMaxX - ghostMinX + 1) * cSz;
+        var gBh = (ghostMaxY - ghostMinY + 1) * cSz;
+        ctx2d.strokeRect(gBx, gBy, gBw, gBh);
+        ctx2d.setLineDash([]);
+      }
+
+      ctx2d.restore();
+    }
   }
 };
 
@@ -3612,13 +3704,20 @@ window.useLassoSelect = function useLassoSelect(state) {
   function buildMaskFromPoints(pts, mode, pat, cmap, sW, sH) {
     if (!pts || pts.length < 2) return new Uint8Array(sW * sH);
     if (mode === "freehand") {
-      // For freehand, pts contains every cell touched — mark them all selected
-      var fm = new Uint8Array(sW * sH);
-      for (var f = 0; f < pts.length; f++) {
-        var fx = pts[f].x, fy = pts[f].y;
-        if (fx >= 0 && fx < sW && fy >= 0 && fy < sH) fm[fy * sW + fx] = 1;
+      // For freehand, pts is the traced boundary path (every cell touched).
+      // Auto-close the path with a straight segment from the last point back to
+      // the first, then use point-in-polygon to fill the interior.  This is
+      // "true lasso" behaviour — the enclosed area is selected, not just the
+      // stroke the cursor traced.
+      var closedBoundary = pts.slice();
+      var closeSegment = bresenham(
+        pts[pts.length - 1].x, pts[pts.length - 1].y,
+        pts[0].x, pts[0].y
+      );
+      for (var cs = 1; cs < closeSegment.length; cs++) {
+        closedBoundary.push(closeSegment[cs]);
       }
-      return fm;
+      return cellsInPolygon(closedBoundary, sW, sH);
     }
     // For polygon and magnetic: expand segments into dense boundary, then fill
     var boundary = buildBoundaryPath(pts, mode, pat, cmap, sW, sH, true);
@@ -3677,7 +3776,7 @@ window.useLassoSelect = function useLassoSelect(state) {
   }
 
   // Finalise the current lasso gesture and commit to the selection mask.
-  // For freehand: commits the painted cells.
+  // For freehand: auto-closes the traced path and fills the interior.
   // For polygon/magnetic: performs point-in-polygon fill and commits.
   function finalizeLasso(overrideOpMode) {
     var mode = lassoMode;
@@ -3735,6 +3834,462 @@ window.useLassoSelect = function useLassoSelect(state) {
     bresenham: bresenham,
     magneticPath: magneticPath,
     buildBoundaryPath: buildBoundaryPath,
+  };
+};
+
+
+/* ─── useMoveSelection.js ─── */
+/* creator/useMoveSelection.js — Move-selection tool for the pattern editor.
+   Provides:
+     window.getSelectionBBox           — pure fn, exported for unit tests
+     window.computeMovedPattern        — pure fn, exported for unit tests
+     window.computeMovedPartialStitches— pure fn, exported for unit tests
+     window.computeMovedBsLines        — pure fn, exported for unit tests
+     window.computeMovedMask           — pure fn, exported for unit tests
+     window.useMoveSelection           — React hook consumed by useCreatorState
+
+   Behaviour contract (matches the implementation plan):
+     • Overlap: overwrite — moved stitches replace destination cells.
+     • Out-of-bounds: clip — cells that would leave the canvas are discarded.
+     • Backstitches: move lines where BOTH endpoints are inside the selection
+       bounding box (integer cell coords).  Clipped to canvas after shift.
+     • Undo/redo: a single history entry of type "move" stores the delta
+       changes array (compatible with the generic fallthrough in useEditHistory)
+       plus prevMask/nextMask for selection-mask restoration.
+*/
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── Pure logic helpers ────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Returns {minX, minY, maxX, maxY} covering all selected cells, or null if
+// no cell is selected.
+window.getSelectionBBox = function getSelectionBBox(selectionMask, sW, sH) {
+  if (!selectionMask) return null;
+  var minX = sW, minY = sH, maxX = -1, maxY = -1;
+  for (var i = 0; i < selectionMask.length; i++) {
+    if (!selectionMask[i]) continue;
+    var x = i % sW, y = Math.floor(i / sW);
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+  }
+  if (maxX === -1) return null;
+  return { minX: minX, minY: minY, maxX: maxX, maxY: maxY };
+};
+
+// Computes the result of shifting all selected cells by (dx, dy).
+// Returns { newPat, changes } where:
+//   newPat  — copy of pat with sources cleared to __empty__ and destinations
+//             overwritten with the moved cell values (OOB destinations dropped).
+//   changes — [{idx, old}] for every cell that changed (used for undo).
+// When dx === 0 && dy === 0, changes will be empty (no-op guard for callers).
+window.computeMovedPattern = function computeMovedPattern(pat, selectionMask, dx, dy, sW, sH) {
+  // Short-circuit: zero delta is a guaranteed no-op.
+  if (dx === 0 && dy === 0) return { newPat: pat.slice(), changes: [] };
+  var EMPTY = { id: '__empty__', rgb: [255, 255, 255] };
+  var newPat = pat.slice();
+  var changes = [];
+  // Track which indices have already been recorded in changes so we never
+  // store the same index twice (prevents stale old-value on overlap).
+  var recorded = {};
+
+  // Collect selected indices and snapshot source values BEFORE any mutation.
+  var selected = [];
+  var sourceValues = [];
+  for (var i = 0; i < selectionMask.length; i++) {
+    if (!selectionMask[i]) continue;
+    selected.push(i);
+    sourceValues.push(Object.assign({}, pat[i]));
+  }
+
+  // Phase 1: clear source cells (record old value for undo).
+  for (var s = 0; s < selected.length; s++) {
+    var srcIdx = selected[s];
+    if (!recorded[srcIdx]) {
+      changes.push({ idx: srcIdx, old: Object.assign({}, pat[srcIdx]) });
+      recorded[srcIdx] = true;
+    }
+    newPat[srcIdx] = Object.assign({}, EMPTY);
+  }
+
+  // Phase 2: write moved values to destination cells.
+  for (var d = 0; d < selected.length; d++) {
+    var sx = selected[d] % sW, sy = Math.floor(selected[d] / sW);
+    var nx = sx + dx, ny = sy + dy;
+    if (nx < 0 || nx >= sW || ny < 0 || ny >= sH) continue; // clip OOB
+    var dstIdx = ny * sW + nx;
+    if (!recorded[dstIdx]) {
+      // Capture the pre-move value at the destination for undo.
+      changes.push({ idx: dstIdx, old: Object.assign({}, pat[dstIdx]) });
+      recorded[dstIdx] = true;
+    }
+    newPat[dstIdx] = Object.assign({}, sourceValues[d]);
+  }
+
+  return { newPat: newPat, changes: changes };
+};
+
+// Computes the result of shifting partial stitches in selected cells by (dx, dy).
+// Returns { newPs, psChanges } where:
+//   newPs     — updated Map (same reference as ps if nothing selected).
+//   psChanges — [{idx, old}] compatible with the useEditHistory generic loop.
+window.computeMovedPartialStitches = function computeMovedPartialStitches(ps, selectionMask, dx, dy, sW, sH) {
+  if (!ps || ps.size === 0) return { newPs: ps, psChanges: [] };
+  var toMove = [];
+  ps.forEach(function(val, idx) {
+    if (selectionMask[idx]) toMove.push({ idx: idx, val: val });
+  });
+  if (!toMove.length) return { newPs: ps, psChanges: [] };
+
+  var newPs = new Map(ps);
+  var psChanges = [];
+
+  // Snapshot source values and clear source entries.
+  for (var i = 0; i < toMove.length; i++) {
+    psChanges.push({ idx: toMove[i].idx, old: Object.assign({}, toMove[i].val) });
+    newPs.delete(toMove[i].idx);
+  }
+
+  // Write to destination entries.
+  for (var j = 0; j < toMove.length; j++) {
+    var sx = toMove[j].idx % sW, sy = Math.floor(toMove[j].idx / sW);
+    var nx = sx + dx, ny = sy + dy;
+    if (nx < 0 || nx >= sW || ny < 0 || ny >= sH) continue; // clip OOB
+    var dstIdx = ny * sW + nx;
+    if (newPs.has(dstIdx) && !selectionMask[dstIdx]) {
+      // Overwriting an unselected destination — record its old value for undo.
+      psChanges.push({ idx: dstIdx, old: Object.assign({}, newPs.get(dstIdx)) });
+    }
+    newPs.set(dstIdx, Object.assign({}, toMove[j].val));
+  }
+
+  return { newPs: newPs, psChanges: psChanges };
+};
+
+// Moves backstitch lines whose BOTH endpoints lie within the selection bbox.
+// Moved endpoints are clamped to canvas boundaries after shifting.
+// Returns { newBsLines, didChange }.
+window.computeMovedBsLines = function computeMovedBsLines(bsLines, bbox, dx, dy, sW, sH) {
+  if (!bsLines || !bsLines.length || !bbox) return { newBsLines: bsLines, didChange: false };
+  var didChange = false;
+  var newBsLines = bsLines.map(function(ln) {
+    // Backstitch coords are in grid units (can be fractional at half-cell edges).
+    // We check using the integer bbox (maxX+1 / maxY+1 to include the right/bottom
+    // edges of cells on the boundary row/col).
+    var x1In = ln.x1 >= bbox.minX && ln.x1 <= bbox.maxX + 1;
+    var y1In = ln.y1 >= bbox.minY && ln.y1 <= bbox.maxY + 1;
+    var x2In = ln.x2 >= bbox.minX && ln.x2 <= bbox.maxX + 1;
+    var y2In = ln.y2 >= bbox.minY && ln.y2 <= bbox.maxY + 1;
+    if (!(x1In && y1In && x2In && y2In)) return ln;
+    didChange = true;
+    return Object.assign({}, ln, {
+      x1: Math.max(0, Math.min(sW, ln.x1 + dx)),
+      y1: Math.max(0, Math.min(sH, ln.y1 + dy)),
+      x2: Math.max(0, Math.min(sW, ln.x2 + dx)),
+      y2: Math.max(0, Math.min(sH, ln.y2 + dy)),
+    });
+  });
+  return { newBsLines: newBsLines, didChange: didChange };
+};
+
+// Shifts the selection mask by (dx, dy). Bits that move OOB are dropped.
+// Returns a new Uint8Array of the same length.
+window.computeMovedMask = function computeMovedMask(selectionMask, dx, dy, sW, sH) {
+  var newMask = new Uint8Array(selectionMask.length);
+  for (var i = 0; i < selectionMask.length; i++) {
+    if (!selectionMask[i]) continue;
+    var sx = i % sW, sy = Math.floor(i / sW);
+    var nx = sx + dx, ny = sy + dy;
+    if (nx < 0 || nx >= sW || ny < 0 || ny >= sH) continue;
+    newMask[ny * sW + nx] = 1;
+  }
+  return newMask;
+};
+
+// ─── Float-preview helpers ────────────────────────────────────────────────────
+// These write the destination cells on top of the base pattern/ps WITHOUT
+// clearing the source — used for the live "float" preview while the move tool
+// is active.  The source is only cleared when the float is finalized
+// (i.e. when the user deactivates the move tool).
+
+// Copies selected cells to their (dx, dy) displaced position without erasing
+// the originals.  Returns a modified copy of basePat.
+window.computeFloatPattern = function computeFloatPattern(basePat, floatMask, dx, dy, sW, sH) {
+  if (dx === 0 && dy === 0) return basePat.slice();
+  var newPat = basePat.slice();
+  for (var i = 0; i < floatMask.length; i++) {
+    if (!floatMask[i]) continue;
+    var sx = i % sW, sy = Math.floor(i / sW);
+    var nx = sx + dx, ny = sy + dy;
+    if (nx < 0 || nx >= sW || ny < 0 || ny >= sH) continue; // clip OOB
+    newPat[ny * sW + nx] = Object.assign({}, basePat[i]);
+  }
+  return newPat;
+};
+
+// Copies selected partial-stitch entries to their displaced position without
+// removing the originals.  Returns a new Map (or the original if nothing to do).
+window.computeFloatPartialStitches = function computeFloatPartialStitches(basePs, floatMask, dx, dy, sW, sH) {
+  if (!basePs || basePs.size === 0) return basePs;
+  if (dx === 0 && dy === 0) return basePs;
+  var moved = false;
+  basePs.forEach(function(_, idx) { if (floatMask[idx]) moved = true; });
+  if (!moved) return basePs;
+  var newPs = new Map(basePs);
+  basePs.forEach(function(val, idx) {
+    if (!floatMask[idx]) return;
+    var sx = idx % sW, sy = Math.floor(idx / sW);
+    var nx = sx + dx, ny = sy + dy;
+    if (nx < 0 || nx >= sW || ny < 0 || ny >= sH) return; // clip OOB
+    newPs.set(ny * sW + nx, Object.assign({}, val));
+  });
+  return newPs;
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── React hook ────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+window.useMoveSelection = function useMoveSelection(state) {
+  var useState = React.useState;
+  var useRef = React.useRef;
+  var useEffect = React.useEffect;
+
+  var _ma = useState(false);
+  var moveActive = _ma[0], setMoveActive = _ma[1];
+
+  var _md = useState(null); // {dx, dy} | null
+  var moveDelta = _md[0], setMoveDelta = _md[1];
+
+  // floatActive — true while a float session is in progress.  A float session
+  // begins on the first _applyMove call and ends when the tool is deactivated,
+  // revertFloat() is called, or an undo discards the session.
+  var _fa = useState(false);
+  var floatActive = _fa[0], setFloatActive = _fa[1];
+
+  // Refs — always hold the latest values; avoids stale-closure issues.
+  var moveSnapshotRef  = useRef(null); // float-origin snapshot used by the ghost overlay
+  var moveOriginRef    = useRef(null); // pointer position where the current drag started
+  var floatSnapshotRef = useRef(null); // {pat,ps,bsLines,selectionMask} at session start
+  var floatDeltaRef    = useRef(null); // {dx,dy} total displacement from float origin
+
+  // ── Finalize on tool deactivation ──────────────────────────────────────────
+  // When the user switches away from the move tool (including clicking the Move
+  // button off) we commit the whole float session as a single history entry.
+  useEffect(function() {
+    if (state.activeTool !== 'move') {
+      _finalizeFloat();
+      setMoveActive(false);
+      setMoveDelta(null);
+      moveSnapshotRef.current = null;
+      moveOriginRef.current = null;
+    }
+  }, [state.activeTool]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── _finalizeFloat ──────────────────────────────────────────────────────────
+  // Commit the float session: clear source cells, write destination, push undo.
+  // No-op if no float session is active.
+  function _finalizeFloat() {
+    if (!floatSnapshotRef.current || !floatDeltaRef.current) {
+      floatSnapshotRef.current = null;
+      floatDeltaRef.current = null;
+      setFloatActive(false);
+      return;
+    }
+    var snap = floatSnapshotRef.current;
+    var dx = floatDeltaRef.current.dx, dy = floatDeltaRef.current.dy;
+    floatSnapshotRef.current = null;
+    floatDeltaRef.current = null;
+    setFloatActive(false);
+
+    if (dx === 0 && dy === 0) return; // nothing actually moved
+
+    var sW = state.sW, sH = state.sH;
+    var mask = snap.selectionMask;
+    var bbox = window.getSelectionBBox(mask, sW, sH);
+
+    var patResult = window.computeMovedPattern(snap.pat, mask, dx, dy, sW, sH);
+    var psResult  = window.computeMovedPartialStitches(snap.ps, mask, dx, dy, sW, sH);
+    var bsResult  = window.computeMovedBsLines(snap.bsLines, bbox, dx, dy, sW, sH);
+    var nextMask  = window.computeMovedMask(mask, dx, dy, sW, sH);
+
+    state.setPat(patResult.newPat);
+    if (psResult.psChanges.length) state.setPartialStitches(psResult.newPs);
+    if (bsResult.didChange) state.setBsLines(bsResult.newBsLines);
+    state.setSelectionMask(nextMask);
+
+    if (patResult.changes.length && state.buildPaletteWithScratch) {
+      var r = state.buildPaletteWithScratch(patResult.newPat);
+      state.setPal(r.pal);
+      state.setCmap(r.cmap);
+    }
+
+    var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    state.setEditHistory(function(prev) {
+      var entry = {
+        type: 'move',
+        changes: patResult.changes,
+        psChanges: psResult.psChanges.length ? psResult.psChanges : undefined,
+        bsLines: bsResult.didChange ? snap.bsLines : undefined,
+        prevMask: mask,
+        nextMask: nextMask,
+      };
+      var n = prev.concat([entry]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    state.setRedoHistory([]);
+  }
+
+  // ── revertFloat ─────────────────────────────────────────────────────────────
+  // Discard the float session and restore the pattern to its pre-move state.
+  // Triggered by ESC when not mid-drag.
+  function revertFloat() {
+    if (!floatSnapshotRef.current) return;
+    var snap = floatSnapshotRef.current;
+    floatSnapshotRef.current = null;
+    floatDeltaRef.current = null;
+    setFloatActive(false);
+    setMoveActive(false);
+    setMoveDelta(null);
+    moveSnapshotRef.current = null;
+    moveOriginRef.current = null;
+
+    state.setPat(snap.pat);
+    state.setPartialStitches(snap.ps);
+    state.setBsLines(snap.bsLines);
+    state.setSelectionMask(snap.selectionMask);
+    if (state.buildPaletteWithScratch) {
+      var rv = state.buildPaletteWithScratch(snap.pat);
+      state.setPal(rv.pal);
+      state.setCmap(rv.cmap);
+    }
+  }
+
+  // ── startMove ───────────────────────────────────────────────────────────────
+  // Begin a pointer drag.  The ghost overlay uses float-origin cells so it
+  // correctly shows the original cells dimmed and the destination as a ghost.
+  function startMove(gx, gy) {
+    moveSnapshotRef.current = floatSnapshotRef.current || {
+      pat: state.pat,
+      ps: state.partialStitches,
+      bsLines: state.bsLines,
+      selectionMask: state.selectionMask,
+    };
+    moveOriginRef.current = { gx: gx, gy: gy };
+    setMoveActive(true);
+    // Start moveDelta at the current accumulated float delta so the ghost
+    // appears at the current position immediately on drag start.
+    var base = floatDeltaRef.current;
+    setMoveDelta(base ? { dx: base.dx, dy: base.dy } : { dx: 0, dy: 0 });
+  }
+
+  // ── updateMove ──────────────────────────────────────────────────────────────
+  // Called on every pointer move during a drag.  Computes the TOTAL delta from
+  // the float origin (accumulated float delta + current drag displacement).
+  function updateMove(gx, gy) {
+    if (!moveOriginRef.current) return;
+    var base = floatDeltaRef.current || { dx: 0, dy: 0 };
+    setMoveDelta({
+      dx: gx - moveOriginRef.current.gx + base.dx,
+      dy: gy - moveOriginRef.current.gy + base.dy,
+    });
+  }
+
+  // ── _applyFloat ─────────────────────────────────────────────────────────────
+  // Live-update the pattern to show the float preview (source stays, dest is
+  // a copy).  totalDx/totalDy are measured from the float-origin position.
+  // History is NOT pushed — that happens in _finalizeFloat.
+  function _applyFloat(totalDx, totalDy) {
+    // First call in this tool activation — create the float snapshot.
+    if (!floatSnapshotRef.current) {
+      floatSnapshotRef.current = {
+        pat: state.pat,
+        ps: state.partialStitches,
+        bsLines: state.bsLines,
+        selectionMask: state.selectionMask,
+      };
+      setFloatActive(true);
+    }
+
+    var snap = floatSnapshotRef.current;
+    var mask = snap.selectionMask;
+    if (!mask) { _clearDragState(); return; }
+
+    if (totalDx === 0 && totalDy === 0) { _clearDragState(); return; }
+
+    var sW = state.sW, sH = state.sH;
+    var bbox = window.getSelectionBBox(mask, sW, sH);
+
+    // Float: write destination cells WITHOUT clearing source.
+    var newPat = window.computeFloatPattern(snap.pat, mask, totalDx, totalDy, sW, sH);
+    var newPs  = window.computeFloatPartialStitches(snap.ps, mask, totalDx, totalDy, sW, sH);
+    // Backstitches are moved (keeping source would create confusing duplicate lines).
+    var bsResult = window.computeMovedBsLines(snap.bsLines, bbox, totalDx, totalDy, sW, sH);
+    var nextMask = window.computeMovedMask(mask, totalDx, totalDy, sW, sH);
+
+    state.setPat(newPat);
+    if (newPs !== snap.ps) state.setPartialStitches(newPs);
+    if (bsResult.didChange) state.setBsLines(bsResult.newBsLines);
+    state.setSelectionMask(nextMask);
+
+    if (state.buildPaletteWithScratch) {
+      var r = state.buildPaletteWithScratch(newPat);
+      state.setPal(r.pal);
+      state.setCmap(r.cmap);
+    }
+
+    floatDeltaRef.current = { dx: totalDx, dy: totalDy };
+    _clearDragState();
+    // History deferred to _finalizeFloat.
+  }
+
+  function _clearDragState() {
+    setMoveActive(false);
+    setMoveDelta(null);
+    moveSnapshotRef.current = null;
+    moveOriginRef.current = null;
+  }
+
+  // ── commitMove ──────────────────────────────────────────────────────────────
+  // Called on pointer-up: commit the current drag to the float preview.
+  // Source cells remain; history is NOT pushed yet.
+  function commitMove() {
+    if (!moveActive || !moveDelta) return;
+    _applyFloat(moveDelta.dx, moveDelta.dy);
+  }
+
+  // ── cancelMove ──────────────────────────────────────────────────────────────
+  // Cancel the current drag only (does NOT revert the float session).
+  // Call revertFloat() to undo all moves in the current session.
+  function cancelMove() {
+    setMoveActive(false);
+    setMoveDelta(null);
+    moveSnapshotRef.current = null;
+    moveOriginRef.current = null;
+  }
+
+  // ── nudgeMove ───────────────────────────────────────────────────────────────
+  // Arrow-key nudge: accumulates onto the float delta, no history yet.
+  function nudgeMove(dx, dy) {
+    if (!state.selectionMask) return;
+    var base = floatDeltaRef.current || { dx: 0, dy: 0 };
+    _applyFloat(base.dx + dx, base.dy + dy);
+  }
+
+  return {
+    moveActive: moveActive,
+    moveDelta: moveDelta,
+    floatActive: floatActive,
+    moveSnapshotRef: moveSnapshotRef,
+    startMove: startMove,
+    updateMove: updateMove,
+    commitMove: commitMove,
+    cancelMove: cancelMove,
+    nudgeMove: nudgeMove,
+    revertFloat: revertFloat,
   };
 };
 
@@ -3856,7 +4411,7 @@ function _buildAllowedPaletteFromStash(globalStash, subset) {
   var palette = [];
   var seen = Object.create(null);
   Object.keys(globalStash).forEach(function(key) {
-    if ((globalStash[key].owned || 0) <= 0) return;
+    if (!isColorOwned(globalStash[key])) return;
     var parts = _splitStashKey(key);
     if (!parts || parts.brand !== 'dmc') return; // DMC-only: pipeline uses bare ids
     if (seen[parts.id]) return;
@@ -3911,14 +4466,18 @@ window.useCreatorState = function useCreatorState() {
   var _bri    = useState(0);          var bri    = _bri[0],    setBri    = _bri[1];
   var _con    = useState(0);          var con    = _con[0],    setCon    = _con[1];
   var _sat    = useState(0);          var sat    = _sat[0],    setSat    = _sat[1];
-  var _dith   = useState(function () { var v = loadUserPref("creatorDefaultDithering", "off"); var valid = ["weak","balanced","strong"]; return (valid.indexOf(v) !== -1) ? v : (v && v !== "off" ? "balanced" : "off"); });
+  var _dith   = useState(function () { var v = loadUserPref("creatorDefaultDithering", "off"); var valid = ["weak","balanced","strong","bayer2","bayer4","bayer8"]; return (valid.indexOf(v) !== -1) ? v : (v && v !== "off" ? "balanced" : "off"); });
   var dithMode = _dith[0]; var setDithMode = _dith[1];
   // Derived boolean kept for all legacy consumers (generate call, Sidebar badge, etc.)
   var dith = dithMode !== "off";
-  // Numeric strength multiplier: weak=0.5, balanced=1.0, strong=1.5
+  // Numeric strength multiplier: weak=0.5, balanced=1.0, strong=1.5 (Atkinson only)
   var DITH_STRENGTH_MAP = {weak:0.5, balanced:1.0, strong:1.5};
   var dithStrength = DITH_STRENGTH_MAP[dithMode] || 1.0;
-  // Back-compat setter: accepts boolean (legacy callers) or "off"/"weak"/"balanced"/"strong"
+  // Algorithm: "off" | "atkinson" | "bayer"
+  var dithAlgo = dithMode === "off" ? "off" : dithMode.startsWith("bayer") ? "bayer" : "atkinson";
+  // Bayer matrix size: 2, 4, or 8 (only meaningful when dithAlgo==="bayer")
+  var dithBayerSize = dithMode === "bayer2" ? 2 : dithMode === "bayer8" ? 8 : 4;
+  // Back-compat setter: accepts boolean (legacy callers) or any valid mode string
   var setDith = function(v) {
     if (typeof v === "boolean") { setDithMode(v ? "balanced" : "off"); return; }
     setDithMode(v);
@@ -4224,6 +4783,10 @@ window.useCreatorState = function useCreatorState() {
   });
   var stashConstrained = _stashOnly[0];
   function setStashConstrained(v) { _stashOnly[1](v); try { localStorage.setItem("cs_stashConstrained", v ? "true" : "false"); } catch(_) {} }
+  // Canvas resize modal open flag (distinct from the image-crop isCropping
+  // which lives in GenerationContext and applies to the source image).
+  var _rszOpen = useState(false); var resizeCanvasOpen = _rszOpen[0], setResizeCanvasOpen = _rszOpen[1];
+
   // Stash-Adapt: modal open/mode state. Replaces the legacy SubstituteFromStash
   // and ConvertPalette modals with a single non-destructive duplication flow.
   var _adOpen = useState(false);         var adaptModalOpen = _adOpen[0], setAdaptModalOpen = _adOpen[1];
@@ -5015,7 +5578,7 @@ window.useCreatorState = function useCreatorState() {
         width: sW,
         height: sH,
         settings: {
-          maxC: effMaxC, dith: dith, dithStrength: dithStrength, allowBlends: effAllowBlends,
+          maxC: effMaxC, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: effAllowBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
           minSt: minSt, smooth: smooth, smoothType: smoothType,
           stitchCleanup: stitchCleanup, orphans: orphans,
@@ -5118,7 +5681,7 @@ window.useCreatorState = function useCreatorState() {
         var rawPx = _gcxImgData.data;
         if (smooth > 0) { if (smoothType === "gaussian") applyGaussianBlur(rawPx, gw, gh, smooth); else applyMedianFilter(rawPx, gw, gh, smooth); }
         var res = runCleanupPipeline(rawPx, gw, gh, {
-          maxC: effN, dith: dith, dithStrength: dithStrength, allowBlends: allowBlends && slotSubset.length >= 6,
+          maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 6,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans,
           allowedPalette: slotSubset, seed: slotSeed,
         });
@@ -5210,6 +5773,25 @@ window.useCreatorState = function useCreatorState() {
   });
   lassoCancelRef.current = lasso.cancelLasso;
 
+  // ─── Move selection integration ─────────────────────────────────────────────
+  // We call useMoveSelection with a ref-like proxy so the hook always sees
+  // fresh state values at call time, while avoiding a circular dependency on
+  // the full return object (which doesn't exist yet at this point).
+  var _moveStateProxy = {
+    activeTool: activeTool,
+    pat: pat, setPat: setPat,
+    partialStitches: partialStitches, setPartialStitches: setPartialStitches,
+    bsLines: bsLines, setBsLines: setBsLines,
+    selectionMask: wand.selectionMask, setSelectionMask: wand.setSelectionMask,
+    sW: sW, sH: sH,
+    buildPaletteWithScratch: buildPaletteWithScratch,
+    setPal: setPal, setCmap: setCmap,
+    editHistory: editHistory, setEditHistory: setEditHistory,
+    setRedoHistory: setRedoHistory,
+    EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
+  };
+  var move = useMoveSelection(_moveStateProxy);
+
   // Syncs op mode across both selection tools
   function setSelectionOpMode(mode) {
     wand.setWandOpMode(mode);
@@ -5256,7 +5838,7 @@ window.useCreatorState = function useCreatorState() {
     img, setImg, isUploading, setIsUploading, isDragging, setIsDragging,
     sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
-    dith, dithMode, dithStrength, setDith, setDithMode, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
+    dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     orphans, setOrphans, allowBlends, setAllowBlends,
     pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, progressMessage, setProgressMessage,
@@ -5302,6 +5884,7 @@ window.useCreatorState = function useCreatorState() {
     partialStitchTool, setPartialStitchTool, partialStitchToolRef, threadOwned, setThreadOwned,
     globalStash, setGlobalStash, kittingResult, setKittingResult,
     altOpen, setAltOpen,
+    resizeCanvasOpen, setResizeCanvasOpen,
     adaptModalOpen, setAdaptModalOpen,
     adaptModalMode, setAdaptModalMode,
     adaptMaxDeltaE, setAdaptMaxDeltaE,
@@ -5410,7 +5993,7 @@ window.useCreatorState = function useCreatorState() {
         smooth: smooth, smoothType: smoothType,
         // Quantisation
         maxC: effMaxC,
-        dith: dith, dithMode: dithMode, dithStrength: dithStrength,
+        dith: dith, dithMode: dithMode, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize,
         allowBlends: effAllowBlends,
         allowedPalette: stashInfo.palette,
         // Background
@@ -5492,6 +6075,17 @@ window.useCreatorState = function useCreatorState() {
     lassoLinePath: lasso.bresenham,
     lassoMagneticPath: lasso.magneticPath,
     lassoBoundaryPath: lasso.buildBoundaryPath,
+    // Move selection
+    moveActive: move.moveActive,
+    moveDelta: move.moveDelta,
+    floatActive: move.floatActive,
+    moveSnapshotRef: move.moveSnapshotRef,
+    startMove: move.startMove,
+    updateMove: move.updateMove,
+    commitMove: move.commitMove,
+    cancelMove: move.cancelMove,
+    nudgeMove: move.nudgeMove,
+    revertFloat: move.revertFloat,
   };
 };
 
@@ -5585,6 +6179,27 @@ window.useEditHistory = function useEditHistory(state) {
       return;
     }
 
+    // Handle canvasResize undo: restore all previous dimensions + data from snapshot
+    if (last.type === "canvasResize") {
+      var prev = last.prev;
+      state.setSW(prev.sW); state.setSH(prev.sH);
+      state.setPat(prev.pat);
+      state.setBsLines(prev.bsLines);
+      state.setDone(prev.done ? new Uint8Array(prev.done) : null);
+      state.setPartialStitches(new Map(prev.ps));
+      state.setParkMarkers(prev.parkMarkers);
+      var prevResult = buildPaletteWithScratch(prev.pat);
+      state.setPal(prevResult.pal); state.setCmap(prevResult.cmap);
+      state.setEditHistory(function(h) { return h.slice(0, -1); });
+      state.setRedoHistory(function(h) {
+        var n = h.concat([last]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      if (state.addToast) state.addToast("Undo: canvas resize", {type:"info", duration:1500});
+      return;
+    }
+
     var np = pat.slice();
     var redoChanges = last.changes.map(function(c) { return { idx: c.idx, old: Object.assign({}, np[c.idx]) }; });
     last.changes.forEach(function(c) { np[c.idx] = Object.assign({}, c.old); });
@@ -5606,12 +6221,18 @@ window.useEditHistory = function useEditHistory(state) {
 
     state.setEditHistory(function(prev) { return prev.slice(0, -1); });
     state.setRedoHistory(function(prev) {
-      var n = prev.concat([{ type: last.type, changes: redoChanges, psChanges: redoPsChanges, bsLines: redoBsLines }]);
+      var entry = { type: last.type, changes: redoChanges, psChanges: redoPsChanges, bsLines: redoBsLines };
+      if (last.prevMask !== undefined) { entry.prevMask = last.prevMask; entry.nextMask = last.nextMask; }
+      var n = prev.concat([entry]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
       return n;
     });
     var result = buildPaletteWithScratch(np);
     state.setPal(result.pal); state.setCmap(result.cmap);
+    // Restore selection mask for move operations.
+    if (last.type === 'move' && last.prevMask !== undefined) {
+      state.setSelectionMask(last.prevMask ? last.prevMask.slice() : null);
+    }
     if (state.addToast) state.addToast("Undo: reverted " + last.changes.length + " cell" + (last.changes.length !== 1 ? "s" : ""), {type:"info", duration:1500});
   }
 
@@ -5660,6 +6281,27 @@ window.useEditHistory = function useEditHistory(state) {
       return;
     }
 
+    // Handle canvasResize redo: re-apply from snapshot of post-resize state
+    if (last.type === "canvasResize") {
+      var next = last.next;
+      state.setSW(next.sW); state.setSH(next.sH);
+      state.setPat(next.pat);
+      state.setBsLines(next.bsLines);
+      state.setDone(next.done ? new Uint8Array(next.done) : null);
+      state.setPartialStitches(new Map(next.ps));
+      state.setParkMarkers(next.parkMarkers);
+      var nextResult = buildPaletteWithScratch(next.pat);
+      state.setPal(nextResult.pal); state.setCmap(nextResult.cmap);
+      state.setRedoHistory(function(h) { return h.slice(0, -1); });
+      state.setEditHistory(function(h) {
+        var n = h.concat([last]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      if (state.addToast) state.addToast("Redo: canvas resize", {type:"info", duration:1500});
+      return;
+    }
+
     var np = pat.slice();
     var undoChanges = last.changes.map(function(c) { return { idx: c.idx, old: Object.assign({}, np[c.idx]) }; });
     last.changes.forEach(function(c) { np[c.idx] = Object.assign({}, c.old); });
@@ -5681,12 +6323,18 @@ window.useEditHistory = function useEditHistory(state) {
 
     state.setRedoHistory(function(prev) { return prev.slice(0, -1); });
     state.setEditHistory(function(prev) {
-      var n = prev.concat([{ type: last.type, changes: undoChanges, psChanges: undoPsChanges, bsLines: undoBsLines }]);
+      var entry = { type: last.type, changes: undoChanges, psChanges: undoPsChanges, bsLines: undoBsLines };
+      if (last.prevMask !== undefined) { entry.prevMask = last.prevMask; entry.nextMask = last.nextMask; }
+      var n = prev.concat([entry]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
       return n;
     });
     var result = buildPaletteWithScratch(np);
     state.setPal(result.pal); state.setCmap(result.cmap);
+    // Restore selection mask for move operations.
+    if (last.type === 'move' && last.nextMask !== undefined) {
+      state.setSelectionMask(last.nextMask ? last.nextMask.slice() : null);
+    }
     if (state.addToast) state.addToast("Redo: restored " + last.changes.length + " cell" + (last.changes.length !== 1 ? "s" : ""), {type:"info", duration:1500});
   }
 
@@ -6816,6 +7464,13 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    if (activeTool === "move") {
+      if (gx < 0 || gx >= state.sW || gy < 0 || gy >= state.sH) return;
+      var selMaskM = state.selectionMask;
+      if (selMaskM && selMaskM[gy * state.sW + gx]) state.startMove(gx, gy);
+      return;
+    }
+
     if (activeTool === "lasso") {
       if (gx < 0 || gx >= state.sW || gy < 0 || gy >= state.sH) return;
       var opModeL = (e.shiftKey && e.altKey) ? "intersect"
@@ -6877,6 +7532,11 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    if (activeTool === "move") {
+      if (state.moveActive) state.updateMove(gc.gx, gc.gy);
+      return;
+    }
+
     if (activeTool === "lasso") {
       if (gc.gx >= 0 && gc.gx < state.sW && gc.gy >= 0 && gc.gy < state.sH) {
         state.setLassoCursor({ x: gc.gx, y: gc.gy });
@@ -6892,6 +7552,10 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (getActiveTool() === "cleanup" && state.cleanupSelTool === "brush") {
       var _chup = state.cleanupHandlersRef && state.cleanupHandlersRef.current;
       if (_chup) _chup.handleCleanupPointerUp();
+      return;
+    }
+    if (getActiveTool() === "move") {
+      if (state.moveActive) state.commitMove();
       return;
     }
     if (getActiveTool() === "lasso") {
@@ -7349,6 +8013,8 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         if (state.morePanelOpen) { state.setMorePanelOpen(false); return; }
         // Background-pick mode: ESC backs out without sampling.
         if (state.pickBg) { state.setPickBg(false); return; }
+        if (state.moveActive) { state.cancelMove(); return; }
+        if (state.floatActive && state.activeTool === 'move') { state.revertFloat(); return; }
         if (state.lassoInProgress) { state.cancelLasso(); return; }
         if (state.hasSelection) { state.clearSelection(); return; }
         if (state.activeTool === "backstitch" && state.bsStart) { state.setBsStart(null); return; }
@@ -7469,7 +8135,19 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         if (state.activeTool === "hand") { state.setActiveTool(null); }
         else { state.setActiveTool("hand"); state.setBsStart(null); state.setPartialStitchTool(null); }
       } },
-
+    // Move-selection arrow nudge (one cell per press, each nudge is undoable).
+    { id: "creator.move.up",    keys: "arrowup",    scope: "creator.design", hidden: true,
+      when: function () { return state.activeTool === "move" && !!state.hasSelection && !state.moveActive; },
+      run: function () { state.nudgeMove(0, -1); } },
+    { id: "creator.move.down",  keys: "arrowdown",  scope: "creator.design", hidden: true,
+      when: function () { return state.activeTool === "move" && !!state.hasSelection && !state.moveActive; },
+      run: function () { state.nudgeMove(0, 1); } },
+    { id: "creator.move.left",  keys: "arrowleft",  scope: "creator.design", hidden: true,
+      when: function () { return state.activeTool === "move" && !!state.hasSelection && !state.moveActive; },
+      run: function () { state.nudgeMove(-1, 0); } },
+    { id: "creator.move.right", keys: "arrowright", scope: "creator.design", hidden: true,
+      when: function () { return state.activeTool === "move" && !!state.hasSelection && !state.moveActive; },
+      run: function () { state.nudgeMove(1, 0); } },
     // View / canvas
     { id: "creator.view.cycle", keys: "v", scope: "creator.design",
       description: "Cycle view: colour → symbol → both",
@@ -7507,6 +8185,8 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       state.selectedColorId, state.partialStitchTool, state.hiId,
       state.hasSelection, state.lassoInProgress, state.highlightMode,
       state.splitPaneEnabled, state.stitchType,
+      state.moveActive, state.nudgeMove, state.cancelMove,
+      state.floatActive, state.revertFloat,
       history.undoEdit, history.redoEdit, io.saveProject,
     ]);
   }
@@ -8542,6 +9222,7 @@ window.usePreview = function usePreview(state) {
     function pipelineOpts(overrides) {
       var o = {
         maxC: settings.maxC, dith: settings.dith, dithStrength: settings.dithStrength,
+        dithAlgo: settings.dithAlgo, dithBayerSize: settings.dithBayerSize,
         allowBlends: settings.allowBlends, allowedPalette: settings.allowedPalette,
         skipBg: settings.skipBg, bgCol: settings.bgCol, bgTh: settings.bgTh,
         stitchCleanup: settings.stitchCleanup, orphans: settings.orphans,
@@ -8602,7 +9283,7 @@ window.usePreview = function usePreview(state) {
       var stashUsage = null;
       if (stashConstrained && globalStash) {
         var availableCount = 0;
-        Object.keys(globalStash).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) availableCount++; });
+        Object.keys(globalStash).forEach(function(id) { if (isColorOwned(globalStash[id])) availableCount++; });
         stashUsage = { used: uniqueColors, available: availableCount };
       }
 
@@ -9705,6 +10386,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   } else if (cv.brushMode === "paint") {
     var szTxt = cv.brushSize > 1 ? " " + cv.brushSize + "\xD7" + cv.brushSize : "";
     badgeLabel = "Paint" + szTxt; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "#5C8E4A";
+  } else if (cv.activeTool === "move") {
+    badgeLabel = "Move"; badgeBg = "var(--surface-secondary)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
   } else if (cv.activeTool === "colourReplace") {
     badgeLabel = "Replace"; badgeBg = "#ede9fe"; badgeColor = "#7c3aed"; badgeDot = "#7c3aed";
   } else if (cv.activeTool === "cleanup") {
@@ -9763,7 +10446,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   // "More" panel — secondary tools + settings flyout (dropdown on desktop, bottom sheet on touch)
   var morePanelHasActiveTool = cv.activeTool === "eyedropper" || cv.activeTool === "hand" ||
     cv.activeTool === "magicWand" || cv.activeTool === "lasso" ||
-    cv.activeTool === "colourReplace" || cv.activeTool === "cleanup";
+    cv.activeTool === "colourReplace" || cv.activeTool === "cleanup" ||
+    cv.activeTool === "move";
 
   var stitchTypeOptions = [
     { id:"cross", label:"Cross" },
@@ -9780,6 +10464,24 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     role:"dialog",
     "aria-label":"More tools"
   },
+    // ── Canvas management ──
+    h("div", {className:"tb-more-panel__section"},
+      h("span", {className:"tb-ovf-lbl"}, "Canvas"),
+      h("button", {
+        className:"tb-btn",
+        onClick:function(){ if(app&&app.openResizeCanvas)app.openResizeCanvas(); setMorePanelOpen(false); },
+        title:"Resize canvas \u2014 crop or expand the pattern bounds",
+        "aria-label":"Resize canvas",
+        style:{width:"100%",justifyContent:"flex-start"}
+      }, window.Icons&&window.Icons.canvasResize?window.Icons.canvasResize():null, " Resize canvas\u2026"),
+      (gen.img && gen.img.src) && h("button", {
+        className:"tb-btn",
+        onClick:function(){ if(app&&app.requestBackToConvert)app.requestBackToConvert(); setMorePanelOpen(false); },
+        title:"Return to image settings and re-generate the pattern",
+        "aria-label":"Re-generate from image",
+        style:{width:"100%",justifyContent:"flex-start"}
+      }, window.Icons&&window.Icons.sliders?window.Icons.sliders():null, " Re-generate from image\u2026")
+    ),
     // ── Tools ──
     h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Tools"),
@@ -9822,6 +10524,19 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           title:"Lasso \u2014 mode in Tools tab", "aria-label":"Lasso",
           "aria-pressed": cv.activeTool==="lasso"?"true":"false"
         }, cv.lassoMode==="polygon"?svgPolygon:cv.lassoMode==="magnetic"?svgMagnetic:svgFreehand, " Lasso"),
+        h("button", {
+          className:"tb-btn"+(cv.activeTool==="move"?" tb-btn--on":""),
+          onClick:function(){
+            if (cv.activeTool==="move") { if (cv.cancelMove) cv.cancelMove(); cv.setActiveTool(null); }
+            else { cv.setActiveTool("move"); ctx.setPartialStitchTool(null); cv.setBsStart(null); if (cv.cancelLasso) cv.cancelLasso(); }
+            setMorePanelOpen(false);
+          },
+          disabled: !cv.hasSelection,
+          title:"Move selection \u2014 drag selected cells to a new position",
+          "aria-label":"Move selection",
+          "aria-pressed": cv.activeTool==="move"?"true":"false",
+          "aria-disabled": !cv.hasSelection
+        }, window.Icons&&window.Icons.move?window.Icons.move():null, " Move"),
         h("button", {
           className:"tb-btn"+(cv.activeTool==="colourReplace"?" tb-btn--on":""),
           onClick:function(){
@@ -10950,8 +11665,8 @@ window.CreatorSidebar = function CreatorSidebar() {
         var brand = p.brand || resolveBrand(id);
         var key = brand + ':' + id;
         var entry = stash[key];
-        var owned = entry && entry.owned ? entry.owned : 0;
-        var needed = (typeof skeinEst === 'function' && p.count) ? skeinEst(p.count, fabricCtForStash) : 1;
+        var owned = stashEffectiveQty(entry);
+        var needed = (typeof skeinEst === 'function' && p.count) ? skeinEst(p.count, fabricCtForStash) : LOW_STASH_SKEIN_THRESHOLD;
         var s = owned >= needed ? 'owned' : owned > 0 ? 'partial' : 'needed';
         if (s === 'needed') return 'needed';
         if (s === 'partial' && worst === 'owned') worst = 'partial';
@@ -10976,8 +11691,8 @@ window.CreatorSidebar = function CreatorSidebar() {
         var key = brand + ':' + id;
         if (unownedSeen[key]) continue;
         var entry = stash[key];
-        var owned = entry && entry.owned ? entry.owned : 0;
-        var needed = (typeof skeinEst === 'function' && p.count != null) ? skeinEst(p.count, fabricCtForStash) : 1;
+        var owned = stashEffectiveQty(entry);
+        var needed = (typeof skeinEst === 'function' && p.count != null) ? skeinEst(p.count, fabricCtForStash) : LOW_STASH_SKEIN_THRESHOLD;
         if (owned < needed) { unownedSeen[key] = true; unownedKeys.push(key); }
       }
     }
@@ -11032,7 +11747,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         }, "\xD7"),
         // Brief D — stash status dot (top-right corner). Hidden when stash empty.
         stashStatus && h("span", {
-          title: stashStatus === 'owned' ? 'In your stash' : stashStatus === 'partial' ? 'May need more' : 'Not in stash',
+          title: stashStatus === 'owned' ? 'In your stash' : stashStatus === 'partial' ? 'You own this colour but quantity may be low' : 'Not in stash',
           "aria-label": "Stash status: " + stashStatus,
           style: {
             position:"absolute", top:-2, right:-2, width:6, height:6, borderRadius:"50%",
@@ -11269,7 +11984,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     if (ctx.creatorStashFilter && ctx.globalStash && Object.keys(ctx.globalStash).length > 0) {
       base = DMC.filter(function(d) {
         var entry = ctx.globalStash['dmc:' + d.id];
-        return entry && (entry.owned || 0) > 0;
+        return isColorOwned(entry);
       });
     }
     if (!blendSearch.trim()) return base;
@@ -11642,26 +12357,60 @@ window.CreatorSidebar = function CreatorSidebar() {
     var strengthLabels=["Gentle","Balanced","Thorough"];
     var strengthDescs=["Keeps 2-stitch clusters. Best for detail-heavy designs.","Removes 3-stitch clusters. Balanced stitchability & detail.","Removes up to 5-stitch clusters. Smoothest, easiest to sew."];
     var strengthIdx=strengthKeys.indexOf(sc2.strength);
-    var dithOpts = [
-      {id:"off",   label:"Off",      tip:"Direct colour mapping — each pixel mapped to its closest DMC colour. Cleanest, easiest to sew."},
-      {id:"weak",  label:"Weak",     tip:"Subtle dithering (50% strength) — slight colour blending with minimal confetti."},
-      {id:"balanced", label:"Balanced", tip:"Standard Floyd-Steinberg dithering — smooth gradients with moderate scatter."},
-      {id:"strong",label:"Strong",   tip:"Amplified dithering (150% strength) — richest gradients, most scattered stitches."}
-    ];
     var dithCur = gen.dithMode || (gen.dith ? "balanced" : "off");
+    var dithAlgo = dithCur === "off" ? "off" : dithCur.startsWith("bayer") ? "bayer" : "atkinson";
+    var algoOpts = [
+      {id:"off",      label:"Off",      tip:"Direct colour mapping — each pixel mapped to its closest DMC colour. Cleanest, easiest to sew."},
+      {id:"atkinson", label:"Atkinson", tip:"Atkinson dithering — clusters similar colours into coherent zones instead of scattering confetti. Works well for photographic and blended designs."},
+      {id:"bayer",    label:"Bayer",    tip:"Ordered (Bayer) dithering — uses a regular threshold matrix. Produces perfectly geometric, repeating patterns at colour transitions. Ideal for geometric or pixel-art designs."},
+    ];
+    var atkinsonLevels = [
+      {id:"weak",     label:"Subtle",   tip:"50% strength — gentle blending, very few isolated stitches."},
+      {id:"balanced", label:"Balanced", tip:"Standard Atkinson — smooth gradients in clean colour zones."},
+      {id:"strong",   label:"Strong",   tip:"150% strength — richest gradients, more scattered stitches."},
+    ];
+    var bayerSizes = [
+      {id:"bayer2", label:"2\xD72", tip:"Coarse 2\xD72 Bayer matrix — bold, checkerboard-style pattern with 4 threshold levels."},
+      {id:"bayer4", label:"4\xD74", tip:"Standard 4\xD74 Bayer matrix — balanced geometric transitions with 16 threshold levels."},
+      {id:"bayer8", label:"8\xD78", tip:"Fine 8\xD78 Bayer matrix — smooth, detailed transitions with 64 threshold levels."},
+    ];
+    function setAlgoClick(algo) {
+      if (algo === "off") { gen.setDith("off"); return; }
+      if (algo === "atkinson" && dithAlgo !== "atkinson") { gen.setDith("balanced"); return; }
+      if (algo === "bayer"    && dithAlgo !== "bayer")    { gen.setDith("bayer4");   return; }
+    }
+    // Sub-option buttons shared helper
+    function subRow(opts, activeFn) {
+      return h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2,marginTop:'var(--s-1)'}},
+        opts.map(function(o) {
+          var active = activeFn(o.id);
+          return h(Tooltip, {key:o.id, text:o.tip, width:220},
+            h("button", {
+              onClick:function(){gen.setDith(o.id);},
+              style:{flex:1,padding:"5px 6px",fontSize:'var(--text-xs)',fontWeight:active?600:400,
+                background:active?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',
+                color:active?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",
+                boxShadow:active?"0 1px 2px rgba(0,0,0,0.04)":"none",whiteSpace:"nowrap"}
+            }, o.label)
+          );
+        })
+      );
+    }
+    var smoothDithActive = gen.dith && dithAlgo === "atkinson";
     return h(Section, {title:"Smoothing & cleanup", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:tidyBadge},
       // ── Dithering subsection ─────────────────────────────────────────────
       h("div", {style:{marginTop:'var(--s-2)'}},
         h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
           h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:600}}, "Dithering"),
-          h(InfoIcon, {text:"Blends colours by mixing stitches using error diffusion. Higher strengths create smoother gradients but more scattered stitches.", width:220})
+          h(InfoIcon, {text:"Blends colours across neighbouring stitches. Atkinson clusters colours into clean zones; Bayer creates regular geometric patterns at transitions.", width:240})
         ),
+        // Algorithm row: Off | Atkinson | Bayer
         h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
-          dithOpts.map(function(o) {
-            var active = dithCur === o.id;
-            return h(Tooltip, {key:o.id, text:o.tip, width:220},
+          algoOpts.map(function(o) {
+            var active = dithAlgo === o.id;
+            return h(Tooltip, {key:o.id, text:o.tip, width:240},
               h("button", {
-                onClick:function(){gen.setDith(o.id);},
+                onClick:function(){setAlgoClick(o.id);},
                 style:{flex:1,padding:"5px 6px",fontSize:'var(--text-xs)',fontWeight:active?600:400,
                   background:active?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',
                   color:active?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",
@@ -11670,17 +12419,19 @@ window.CreatorSidebar = function CreatorSidebar() {
             );
           })
         ),
-        // Smooth-dithering toggle lives WITH dithering because it's a dither
-        // modifier (it lowers the dither error-threshold), not a cleanup step.
-        h("div", {style:{marginTop:'var(--s-2)',opacity:gen.dith?1:0.5,pointerEvents:gen.dith?"auto":"none"}, "aria-disabled":!gen.dith},
+        // Sub-option row (contextual)
+        dithAlgo === "atkinson" && subRow(atkinsonLevels, function(id){ return dithCur === id; }),
+        dithAlgo === "bayer"    && subRow(bayerSizes,     function(id){ return dithCur === id; }),
+        // Smooth-dithering toggle: only meaningful for Atkinson (error-diffusion only)
+        h("div", {style:{marginTop:'var(--s-2)',opacity:smoothDithActive?1:0.5,pointerEvents:smoothDithActive?"auto":"none"}, "aria-disabled":!smoothDithActive},
           h(Toggle, {
             checked:sc2.smoothDithering,
-            onChange:function(v){ if (gen.dith) gen.setStitchCleanup(function(s){return Object.assign({},s,{smoothDithering:v});}); },
+            onChange:function(v){ if (smoothDithActive) gen.setStitchCleanup(function(s){return Object.assign({},s,{smoothDithering:v});}); },
             label:"Smooth dithering",
-            help:"Reduces confetti during dithering itself by lowering the error-diffusion threshold. Cleaner gradients, but may slightly shift colours."
+            help:"Reduces confetti during Atkinson dithering by lowering the error-diffusion threshold. Cleaner gradients, but may slightly shift colours."
           }),
-          !gen.dith && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2,marginLeft:2}},
-            "Only active when dithering is on."
+          !smoothDithActive && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2,marginLeft:2}},
+            dithAlgo === "bayer" ? "Not used with Bayer dithering." : "Only active when Atkinson dithering is on."
           )
         )
       ),
@@ -11951,16 +12702,15 @@ window.CreatorSidebar = function CreatorSidebar() {
       disabled: !hasPattern,
       disabledHint:"Generate a pattern to unlock symbols, gridlines, and zoom presets."},
     {id:"preview",    label:"Preview",    icon:"layers"},
-    {id:"project",    label:"Project",    icon:"folder",  requires:"create"}
+    {id:"project",    label:"Project",    icon:"folder"}
   ];
 
-  // Legacy aliases retained for tests / external callers; the bottom
-  // render branches still use these names. createTabs is the canonical
-  // 7-tab list; editTabs is a filtered subset for the edit-mode render
-  // path that hasn't been merged yet.
+  // createTabs = full 7-tab list for the create/prepare phase.
+  // editTabs = filtered subset: Image and Dimensions (requires:"create") are
+  // hidden in edit mode; Project has no requires so it stays in both.
   var createTabs = unifiedTabs;
   var editTabs = unifiedTabs.filter(function(t) { return t.requires !== "create"; });
-  var tabs = unifiedTabs;
+  var tabs = mode === "edit" ? editTabs : createTabs;
 
   // Ensure sidebarTab is valid AND matches the current appMode's render
   // branch. The bottom render path still has two arms (create vs edit);
@@ -12260,39 +13010,6 @@ window.CreatorSidebar = function CreatorSidebar() {
       );
     }
 
-    // Project info — name, designer, description. Always-visible at top so
-    // users can name a pattern before generating it.
-    var projectInfoSection = h(Section, {title:"Project info", defaultOpen:true},
-      h("div", {style:{display:"flex",flexDirection:"column",gap:'var(--s-2)',padding:"4px 0 2px"}},
-        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
-          "Pattern name",
-          h("input", {
-            type:"text", value: app.projectName || "", maxLength:60,
-            placeholder: ctx.pat ? (ctx.sW + "\xD7" + ctx.sH + " pattern") : "e.g. Sunflower sampler",
-            onChange: function(e) { var v = e.target.value.slice(0,60); if (typeof app.setProjectName === "function") app.setProjectName(v); },
-            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
-          })
-        ),
-        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
-          "Designer (optional)",
-          h("input", {
-            type:"text", value: app.projectDesigner || "", maxLength:80,
-            placeholder: "Your name or studio",
-            onChange: function(e) { var v = e.target.value.slice(0,80); if (typeof app.setProjectDesigner === "function") app.setProjectDesigner(v); },
-            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
-          })
-        ),
-        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
-          "Description / notes (optional)",
-          h("textarea", {
-            value: app.projectDescription || "", maxLength:500, rows:3,
-            placeholder: "Source, copyright, stitching notes\u2026",
-            onChange: function(e) { var v = e.target.value.slice(0,500); if (typeof app.setProjectDescription === "function") app.setProjectDescription(v); },
-            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
-          })
-        )
-      )
-    );
     // Project info summary (compact) — kept for create mode as a collapsible.
     var projectSummary = (function() {
       var palLen = ctx.pat && ctx.pal ? (ctx.displayPal || ctx.pal || []).length : 0;
@@ -12392,6 +13109,40 @@ window.CreatorSidebar = function CreatorSidebar() {
     );
   }
 
+  // ─── Project Info Section (shared between Create and Edit modes) ──────────
+  // Name, designer, and description fields. Always-editable in both modes.
+  var projectInfoSection = h(Section, {title:"Project info", defaultOpen:true},
+    h("div", {style:{display:"flex",flexDirection:"column",gap:'var(--s-2)',padding:"4px 0 2px"}},
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
+        "Pattern name",
+        h("input", {
+          type:"text", value: app.projectName || "", maxLength:60,
+          placeholder: ctx.pat ? (ctx.sW + "\xD7" + ctx.sH + " pattern") : "e.g. Sunflower sampler",
+          onChange: function(e) { var v = e.target.value.slice(0,60); if (typeof app.setProjectName === "function") app.setProjectName(v); },
+          style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
+        })
+      ),
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
+        "Designer (optional)",
+        h("input", {
+          type:"text", value: app.projectDesigner || "", maxLength:80,
+          placeholder: "Your name or studio",
+          onChange: function(e) { var v = e.target.value.slice(0,80); if (typeof app.setProjectDesigner === "function") app.setProjectDesigner(v); },
+          style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
+        })
+      ),
+      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
+        "Description / notes (optional)",
+        h("textarea", {
+          value: app.projectDescription || "", maxLength:500, rows:3,
+          placeholder: "Source, copyright, stitching notes\u2026",
+          onChange: function(e) { var v = e.target.value.slice(0,500); if (typeof app.setProjectDescription === "function") app.setProjectDescription(v); },
+          style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
+        })
+      )
+    )
+  );
+
   // ─── Edit Mode Sidebar ────────────────────────────────────────────────────
 
   // Tools tab — absorbs the stitch-type, brush-size, lasso-mode and
@@ -12475,7 +13226,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       "Applies to Cross and Half stitches, and the Erase tool.")
   );
 
-  var lassoModes = [["freehand","Freehand"],["polygon","Polygon"],["magnetic","Magnetic"]];
+  var lassoModes = [["freehand","Lasso"],["polygon","Polygon"],["magnetic","Magnetic"]];
   var curLasso = cv.lassoMode || "freehand";
   var selectionSection = h("div", {style:{padding:"0 12px 12px",borderTop:"1px solid var(--border)",paddingTop:12}},
     h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-2)'}},
@@ -12637,6 +13388,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         highlightControls
       ),
       sTab === "preview" && previewPanel,
+      sTab === "project" && projectInfoSection,
       sTab === "more" && moreContent
     ),
     editActions
@@ -13335,7 +14087,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       var _stashKeys = Object.keys(ctx.globalStash);
       for (var _i = 0; _i < _stashKeys.length; _i++) {
         var _e = ctx.globalStash[_stashKeys[_i]];
-        if (_e && _e.owned > 0) { hasOwnedStash = true; break; }
+        if (isColorOwned(_e)) { hasOwnedStash = true; break; }
       }
     }
     return h(Section, {title:"Thread Organiser"},
@@ -13368,7 +14120,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           var st = ctx.threadOwned[d.id] || "";
           var isOwned = st === "owned";
           var gs = ctx.globalStash[d.id] || {};
-          var owned = gs.owned || 0;
+          var owned = stashEffectiveQty(gs);
           var enough = owned >= d.skeins;
           return h(React.Fragment, {key:d.id},
             h("div", {
@@ -13925,6 +14677,606 @@ window.ColourReplaceModal = function ColourReplaceModal(props) {
 };
 
 
+/* ─── canvasResize.js ─── */
+/* creator/canvasResize.js ─────────────────────────────────────────────────
+   Pure canvas-resize / crop transform for cross-stitch patterns.
+   No DOM, no React, no side effects.
+
+   Exposed as window.applyCanvasResize for use by ResizeCanvasModal.
+
+   Spec:
+     { newW, newH, offsetX, offsetY }
+
+   offsetX / offsetY define where the OLD grid origin (0,0) appears in the
+   NEW grid.  Positive values shift the old content right/down (expand or pad
+   on top/left); negative values crop from the top/left.
+
+   Examples:
+     Crop 5 cols from the left:     offsetX = -5
+     Add 10 blank rows above:       offsetY = +10
+     Centre old 80×80 in new 100×100:  offsetX = 10, offsetY = 10
+
+   Returns null when validation fails, otherwise:
+     {
+       newPat, newBsLines, newDone, newPartialStitches, newParkMarkers,
+       deletedStitchCount, deletedBsCount, progressAffected
+     }
+   ────────────────────────────────────────────────────────────────────────── */
+
+window.applyCanvasResize = function applyCanvasResize(
+  pat, bsLines, done, partialStitches, parkMarkers, sW, sH, spec
+) {
+  // ── Validation ─────────────────────────────────────────────────────────────
+  if (!spec) return null;
+  var newW = spec.newW, newH = spec.newH;
+  var offsetX = spec.offsetX || 0, offsetY = spec.offsetY || 0;
+
+  if (
+    !Number.isInteger(newW) || newW < 1 ||
+    !Number.isInteger(newH) || newH < 1 ||
+    !Number.isInteger(offsetX) ||
+    !Number.isInteger(offsetY)
+  ) return null;
+
+  if (!pat || !Array.isArray(pat)) return null;
+
+  // ── Pattern transform ───────────────────────────────────────────────────────
+  var newPat = new Array(newW * newH);
+  // Fill all cells with __empty__ first
+  for (var fi = 0; fi < newPat.length; fi++) {
+    newPat[fi] = { id: "__empty__" };
+  }
+
+  var deletedStitchCount = 0;
+  var newDone = null;
+  var progressAffected = false;
+
+  var hasDone = done !== null && done !== undefined;
+  if (hasDone) {
+    newDone = new Uint8Array(newW * newH); // initialises to 0
+  }
+
+  var newPartialStitches = new Map();
+  var hasParts = partialStitches instanceof Map && partialStitches.size > 0;
+
+  for (var oldRow = 0; oldRow < sH; oldRow++) {
+    for (var oldCol = 0; oldCol < sW; oldCol++) {
+      var newCol = oldCol + offsetX;
+      var newRow = oldRow + offsetY;
+
+      var oldIdx = oldRow * sW + oldCol;
+      var cell = pat[oldIdx];
+
+      var withinBounds =
+        newCol >= 0 && newCol < newW &&
+        newRow >= 0 && newRow < newH;
+
+      if (withinBounds) {
+        var newIdx = newRow * newW + newCol;
+        newPat[newIdx] = cell;
+
+        if (hasDone) {
+          newDone[newIdx] = done[oldIdx] ? 1 : 0;
+        }
+
+        if (hasParts && partialStitches.has(oldIdx)) {
+          newPartialStitches.set(newIdx, partialStitches.get(oldIdx));
+        }
+      } else {
+        // Cell is being cropped out
+        if (cell && cell.id !== "__skip__" && cell.id !== "__empty__") {
+          deletedStitchCount++;
+          if (hasDone && done[oldIdx]) {
+            progressAffected = true;
+          }
+        }
+      }
+    }
+  }
+
+  // ── Backstitch transform ────────────────────────────────────────────────────
+  var newBsLines = [];
+  var deletedBsCount = 0;
+
+  for (var bi = 0; bi < bsLines.length; bi++) {
+    var ln = bsLines[bi];
+    var nx1 = ln.x1 + offsetX;
+    var ny1 = ln.y1 + offsetY;
+    var nx2 = ln.x2 + offsetX;
+    var ny2 = ln.y2 + offsetY;
+
+    // Lattice space: x in [0, newW], y in [0, newH] (inclusive upper bound)
+    var kept =
+      nx1 >= 0 && nx1 <= newW &&
+      ny1 >= 0 && ny1 <= newH &&
+      nx2 >= 0 && nx2 <= newW &&
+      ny2 >= 0 && ny2 <= newH;
+
+    if (kept) {
+      // Rebuild entry with remapped coordinates; preserve any extra fields
+      var newLn = { x1: nx1, y1: ny1, x2: nx2, y2: ny2 };
+      if (ln.colorId !== undefined) newLn.colorId = ln.colorId;
+      if (ln.color !== undefined)   newLn.color   = ln.color;
+      newBsLines.push(newLn);
+    } else {
+      deletedBsCount++;
+    }
+  }
+
+  // ── Park markers transform ──────────────────────────────────────────────────
+  var newParkMarkers = [];
+  for (var pi = 0; pi < parkMarkers.length; pi++) {
+    var pm = parkMarkers[pi];
+    var pmX = pm.x + offsetX;
+    var pmY = pm.y + offsetY;
+    if (pmX >= 0 && pmX < newW && pmY >= 0 && pmY < newH) {
+      newParkMarkers.push({ x: pmX, y: pmY, colorId: pm.colorId });
+    }
+  }
+
+  return {
+    newPat: newPat,
+    newBsLines: newBsLines,
+    newDone: newDone,
+    newPartialStitches: newPartialStitches,
+    newParkMarkers: newParkMarkers,
+    deletedStitchCount: deletedStitchCount,
+    deletedBsCount: deletedBsCount,
+    progressAffected: progressAffected
+  };
+};
+
+
+/* ─── ResizeCanvasModal.js ─── */
+/* creator/ResizeCanvasModal.js — Modal for resizing (crop / expand) the
+   cross-stitch pattern canvas.
+
+   This is DISTINCT from CropModal.js, which crops the SOURCE IMAGE before
+   pattern generation. This modal operates on the already-generated pattern
+   grid: it lets users grow or shrink the canvas in any direction and
+   reposition the existing stitches within the new bounds.
+
+   Props:
+     sW, sH        — current canvas dimensions
+     done          — current done array (null | Uint8Array) — used only to
+                     show the progress warning
+     onApply(spec) — called with { newW, newH, offsetX, offsetY }
+     onClose()     — called when the user cancels or closes
+
+   Exposed as window.ResizeCanvasModal. */
+
+window.ResizeCanvasModal = function ResizeCanvasModal(props) {
+  var h = React.createElement;
+  var Icons = window.Icons || {};
+  var sW = props.sW || 80;
+  var sH = props.sH || 80;
+  var hasDone = !!(props.done);
+
+  // ── State ────────────────────────────────────────────────────────────────
+  // Padding inputs: how many rows/columns to add (positive) or remove
+  // (negative) on each side.
+  //   newW = sW + padLeft + padRight
+  //   newH = sH + padTop  + padBottom
+  //   offsetX = padLeft   (old (0,0) appears padLeft cells from left edge)
+  //   offsetY = padTop
+  var _padTop    = React.useState(0); var padTop    = _padTop[0],    setPadTop    = _padTop[1];
+  var _padBottom = React.useState(0); var padBottom = _padBottom[0], setPadBottom = _padBottom[1];
+  var _padLeft   = React.useState(0); var padLeft   = _padLeft[0],   setPadLeft   = _padLeft[1];
+  var _padRight  = React.useState(0); var padRight  = _padRight[0],  setPadRight  = _padRight[1];
+
+  // ── Computed values ──────────────────────────────────────────────────────
+  var newW = Math.max(1, sW + padLeft + padRight);
+  var newH = Math.max(1, sH + padTop  + padBottom);
+  var offsetX = padLeft;
+  var offsetY = padTop;
+
+  var isIdentity = (newW === sW && newH === sH && offsetX === 0 && offsetY === 0);
+
+  // Preview: what will be kept vs. cropped, at a glance.
+  // Compute the intersection of old canvas (in new space) and new canvas.
+  var keepLeft   = Math.max(0, offsetX);
+  var keepTop    = Math.max(0, offsetY);
+  var keepRight  = Math.min(newW, offsetX + sW);
+  var keepBottom = Math.min(newH, offsetY + sH);
+  var keptCols   = Math.max(0, keepRight - keepLeft);
+  var keptRows   = Math.max(0, keepBottom - keepTop);
+
+  var totalOldCells = sW * sH;
+  var keptCells    = keptCols * keptRows;
+  var droppedCells = totalOldCells - keptCells;
+  var isDestructive = droppedCells > 0;
+  var progressAffected = isDestructive && hasDone;
+
+  // ── Anchor preset helper ─────────────────────────────────────────────────
+  // Anchor sets all four pads so the content is aligned to the given corner.
+  // 'c' = content anchor (e.g. 'TL' keeps top-left fixed)
+  function setAnchor(hAnchor, vAnchor) {
+    // After resize, where should old (0,0) be?
+    // left-aligned: offsetX = 0 → padLeft = 0
+    // centred:      offsetX = Math.round((newW - sW) / 2)
+    // right-aligned: offsetX = newW - sW → padLeft = newW - sW
+    // We keep current newW and newH, just redistribute the padding.
+    var curNewW = Math.max(1, sW + padLeft + padRight);
+    var curNewH = Math.max(1, sH + padTop  + padBottom);
+    var totalHPad = curNewW - sW;
+    var totalVPad = curNewH - sH;
+
+    var newPadLeft, newPadRight, newPadTop, newPadBottom;
+
+    if (hAnchor === 'L') {
+      newPadLeft  = 0;
+      newPadRight = totalHPad;
+    } else if (hAnchor === 'R') {
+      newPadRight = 0;
+      newPadLeft  = totalHPad;
+    } else { // C
+      var half = Math.round(totalHPad / 2);
+      newPadLeft  = half;
+      newPadRight = totalHPad - half;
+    }
+
+    if (vAnchor === 'T') {
+      newPadTop    = 0;
+      newPadBottom = totalVPad;
+    } else if (vAnchor === 'B') {
+      newPadBottom = 0;
+      newPadTop    = totalVPad;
+    } else { // C
+      var halfV = Math.round(totalVPad / 2);
+      newPadTop    = halfV;
+      newPadBottom = totalVPad - halfV;
+    }
+
+    setPadLeft(newPadLeft);
+    setPadRight(newPadRight);
+    setPadTop(newPadTop);
+    setPadBottom(newPadBottom);
+  }
+
+  // ── Input helpers ────────────────────────────────────────────────────────
+  function intOrZero(v) {
+    var n = parseInt(v, 10);
+    return isNaN(n) ? 0 : n;
+  }
+
+  function inputStyle(hasError) {
+    return {
+      width: 68,
+      padding: "4px 6px",
+      border: "1px solid " + (hasError ? "var(--accent)" : "var(--line)"),
+      borderRadius: "var(--radius-sm)",
+      background: "var(--surface)",
+      color: "var(--text-primary)",
+      fontSize: "var(--text-sm)",
+      fontFamily: "inherit",
+      textAlign: "center"
+    };
+  }
+
+  function labelStyle() {
+    return { fontSize: "var(--text-xs)", color: "var(--text-secondary)", marginBottom: 3 };
+  }
+
+  function numField(label, value, setter) {
+    return h("label", {
+        style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }
+      },
+      h("span", { style: labelStyle() }, label),
+      h("input", {
+        type: "number",
+        value: value,
+        onChange: function(e) { setter(intOrZero(e.target.value)); },
+        style: inputStyle(false)
+      })
+    );
+  }
+
+  // ── Visual preview ───────────────────────────────────────────────────────
+  // A simple SVG diagram: outer rect = new canvas, inner shaded rect = old
+  // pattern content region.  Intersection is shown as a solid tint, overflow
+  // as dimmed, new-empty area as white.
+  var PV_W = 200, PV_H = 160;
+  var PV_PAD = 12;
+
+  var scaleX = (PV_W - PV_PAD * 2) / Math.max(newW, sW, 1);
+  var scaleY = (PV_H - PV_PAD * 2) / Math.max(newH, sH, 1);
+  var scale  = Math.min(scaleX, scaleY);
+
+  // Old canvas position in preview space (offset = where old origin is in new grid)
+  var pOldX = PV_PAD + Math.max(0, offsetX) * scale;
+  var pOldY = PV_PAD + Math.max(0, offsetY) * scale;
+  var pOldW = sW * scale;
+  var pOldH = sH * scale;
+
+  // New canvas in preview space (always starts at PV_PAD)
+  var pNewX = PV_PAD + Math.max(0, -offsetX) * scale;
+  var pNewY = PV_PAD + Math.max(0, -offsetY) * scale;
+  var pNewW = newW * scale;
+  var pNewH = newH * scale;
+
+  // Intersection rect
+  var pIsectX = Math.max(pOldX, pNewX);
+  var pIsectY = Math.max(pOldY, pNewY);
+  var pIsectW = Math.max(0, Math.min(pOldX + pOldW, pNewX + pNewW) - pIsectX);
+  var pIsectH = Math.max(0, Math.min(pOldY + pOldH, pNewY + pNewH) - pIsectY);
+
+  var preview = h("svg", {
+      width: PV_W, height: PV_H,
+      viewBox: "0 0 " + PV_W + " " + PV_H,
+      style: { border: "1px solid var(--line)", borderRadius: "var(--radius-sm)", background: "var(--surface-secondary)", display: "block", flexShrink: 0, overflow: "hidden" }
+    },
+    // Old canvas region (the bit being cropped) — dimmed
+    h("rect", { x: pOldX, y: pOldY, width: pOldW, height: pOldH, fill: "var(--accent)", opacity: 0.18 }),
+    // New canvas outline
+    h("rect", { x: pNewX, y: pNewY, width: pNewW, height: pNewH, fill: "none", stroke: "var(--accent)", strokeWidth: 1.5 }),
+    // Intersection (what survives) — solid tint
+    pIsectW > 0 && pIsectH > 0 && h("rect", { x: pIsectX, y: pIsectY, width: pIsectW, height: pIsectH, fill: "var(--accent)", opacity: 0.35 }),
+    // Labels
+    h("text", { x: pNewX + 3, y: pNewY + 11, fontSize: 8, fill: "var(--accent)", fontWeight: 600 }, newW + "\xD7" + newH),
+    pIsectW > 0 && pIsectH > 0 && h("text", { x: pIsectX + pIsectW / 2, y: pIsectY + pIsectH / 2 + 4, fontSize: 8, fill: "var(--text-primary)", textAnchor: "middle" }, keptCols + "\xD7" + keptRows + " kept")
+  );
+
+  // ── Anchor grid ──────────────────────────────────────────────────────────
+  var ANCHORS = [
+    { h: 'L', v: 'T', label: 'Top left' },
+    { h: 'C', v: 'T', label: 'Top centre' },
+    { h: 'R', v: 'T', label: 'Top right' },
+    { h: 'L', v: 'C', label: 'Middle left' },
+    { h: 'C', v: 'C', label: 'Centre' },
+    { h: 'R', v: 'C', label: 'Middle right' },
+    { h: 'L', v: 'B', label: 'Bottom left' },
+    { h: 'C', v: 'B', label: 'Bottom centre' },
+    { h: 'R', v: 'B', label: 'Bottom right' },
+  ];
+
+  function isActiveAnchor(hA, vA) {
+    var expectedL, expectedT;
+    var curNewW = Math.max(1, sW + padLeft + padRight);
+    var curNewH = Math.max(1, sH + padTop  + padBottom);
+    var totalH = curNewW - sW;
+    var totalV = curNewH - sH;
+    if (hA === 'L') expectedL = 0;
+    else if (hA === 'R') expectedL = totalH;
+    else expectedL = Math.round(totalH / 2);
+    if (vA === 'T') expectedT = 0;
+    else if (vA === 'B') expectedT = totalV;
+    else expectedT = Math.round(totalV / 2);
+    return padLeft === expectedL && padTop === expectedT;
+  }
+
+  var anchorGrid = h("div", {
+      style: {
+        display: "grid",
+        gridTemplateColumns: "repeat(3, 24px)",
+        gridTemplateRows: "repeat(3, 24px)",
+        gap: 3
+      }
+    },
+    ANCHORS.map(function(a) {
+      var active = isActiveAnchor(a.h, a.v);
+      return h("button", {
+          key: a.h + a.v,
+          type: "button",
+          title: a.label,
+          "aria-label": a.label,
+          onClick: function() { setAnchor(a.h, a.v); },
+          style: {
+            width: 24, height: 24,
+            border: "1.5px solid " + (active ? "var(--accent)" : "var(--line)"),
+            borderRadius: 4,
+            background: active ? "var(--accent)" : "var(--surface)",
+            cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center"
+          }
+        },
+        h("span", {
+          style: {
+            width: 8, height: 8,
+            border: "1.5px solid " + (active ? "var(--surface)" : "var(--text-secondary)"),
+            borderRadius: 1,
+            display: "block"
+          }
+        })
+      );
+    })
+  );
+
+  // ── Layout styles ────────────────────────────────────────────────────────
+  var backdropStyle = {
+    position: "fixed", inset: 0, zIndex: 2100,
+    background: "rgba(0,0,0,0.72)",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    padding: 16
+  };
+
+  var wrapStyle = {
+    width: "100%", maxWidth: 560,
+    background: "var(--surface)",
+    borderRadius: "var(--radius-md)",
+    overflow: "hidden",
+    boxShadow: "0 8px 32px rgba(0,0,0,0.24)"
+  };
+
+  var headerStyle = {
+    display: "flex", alignItems: "center", justifyContent: "space-between",
+    padding: "10px 14px",
+    borderBottom: "1px solid var(--line)",
+    flexShrink: 0
+  };
+
+  var bodyStyle = {
+    padding: "16px 16px 0",
+    display: "flex", flexDirection: "column", gap: 16
+  };
+
+  var footerStyle = {
+    display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8,
+    padding: "12px 16px",
+    borderTop: "1px solid var(--line)",
+    marginTop: 16
+  };
+
+  var sectionLabelStyle = {
+    fontSize: "var(--text-xs)", fontWeight: 600,
+    color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em",
+    marginBottom: 8
+  };
+
+  var smallBtnStyle = {
+    background: "none", border: "none", cursor: "pointer",
+    color: "var(--text-secondary)", padding: 4,
+    display: "inline-flex", alignItems: "center"
+  };
+
+  // ── Warning section ──────────────────────────────────────────────────────
+  var warning = null;
+  if (isDestructive || progressAffected) {
+    var msgs = [];
+    if (droppedCells > 0) {
+      msgs.push(droppedCells + " stitch cell" + (droppedCells !== 1 ? "s" : "") + " will be permanently removed.");
+    }
+    if (progressAffected) {
+      msgs.push("Progress tracking will lose data for removed stitches.");
+    }
+    warning = h("div", {
+        style: {
+          display: "flex", gap: 8, alignItems: "flex-start",
+          background: "var(--surface-secondary)",
+          border: "1px solid var(--line)",
+          borderRadius: "var(--radius-sm)",
+          padding: "8px 10px",
+          fontSize: "var(--text-sm)",
+          color: "var(--text-primary)"
+        }
+      },
+      h("span", { style: { color: "var(--accent)", flexShrink: 0, lineHeight: 1 } },
+        Icons.warning ? Icons.warning() : null
+      ),
+      h("div", { style: { display: "flex", flexDirection: "column", gap: 3 } },
+        msgs.map(function(m, i) { return h("span", { key: i }, m); })
+      )
+    );
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────
+  return h("div", {
+      style: backdropStyle,
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-label": "Resize canvas"
+    },
+    h("div", { style: wrapStyle },
+
+      // ── Header ────────────────────────────────────────────────────────────
+      h("div", { style: headerStyle },
+        h("span", {
+          style: { fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--text-primary)" }
+        }, "Resize canvas"),
+        h("button", {
+          type: "button",
+          onClick: props.onClose,
+          style: smallBtnStyle,
+          "aria-label": "Cancel"
+        }, Icons.x ? Icons.x() : "\u00D7")
+      ),
+
+      // ── Body ──────────────────────────────────────────────────────────────
+      h("div", { style: bodyStyle },
+
+        // Current dimensions reminder
+        h("div", { style: { fontSize: "var(--text-sm)", color: "var(--text-secondary)" } },
+          "Current size: ", h("strong", { style: { color: "var(--text-primary)" } }, sW + "\xD7" + sH),
+          " \u2014 New size: ", h("strong", { style: { color: "var(--text-primary)" } }, newW + "\xD7" + newH)
+        ),
+
+        // Controls row: padding inputs + anchor grid + preview
+        h("div", { style: { display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" } },
+
+          // Left: padding controls
+          h("div", { style: { display: "flex", flexDirection: "column", gap: 10, flex: "1 1 180px" } },
+
+            h("div", null,
+              h("div", { style: sectionLabelStyle }, "Add / remove rows and columns"),
+              h("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 6 } },
+                // Top padding
+                h("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 2 } },
+                  numField("Top", padTop, setPadTop)
+                ),
+                // Middle row: Left | Anchor | Right
+                h("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
+                  numField("Left", padLeft, setPadLeft),
+                  h("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 4 } },
+                    h("div", { style: sectionLabelStyle }, "Anchor"),
+                    anchorGrid
+                  ),
+                  numField("Right", padRight, setPadRight)
+                ),
+                // Bottom padding
+                numField("Bottom", padBottom, setPadBottom)
+              )
+            )
+          ),
+
+          // Right: preview diagram
+          h("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flex: "0 0 auto" } },
+            h("div", { style: sectionLabelStyle }, "Preview"),
+            preview,
+            h("div", { style: { fontSize: "var(--text-xs)", color: "var(--text-secondary)" } },
+              h("span", { style: { display: "inline-block", width: 10, height: 10, background: "var(--accent)", opacity: 0.35, marginRight: 4, verticalAlign: "middle" } }),
+              "Kept",
+              h("span", { style: { display: "inline-block", width: 10, height: 10, background: "var(--accent)", opacity: 0.18, marginRight: 4, marginLeft: 10, verticalAlign: "middle" } }),
+              "Removed"
+            )
+          )
+        ),
+
+        // Warning
+        warning
+      ),
+
+      // ── Footer ────────────────────────────────────────────────────────────
+      h("div", { style: footerStyle },
+        h("button", {
+          type: "button",
+          onClick: props.onClose,
+          style: {
+            padding: "6px 14px",
+            border: "1px solid var(--line)",
+            borderRadius: "var(--radius-sm)",
+            background: "var(--surface)",
+            color: "var(--text-primary)",
+            fontSize: "var(--text-sm)",
+            cursor: "pointer",
+            fontFamily: "inherit"
+          }
+        }, "Cancel"),
+        h("button", {
+          type: "button",
+          disabled: isIdentity,
+          onClick: function() {
+            if (typeof props.onApply === "function") {
+              props.onApply({ newW: newW, newH: newH, offsetX: offsetX, offsetY: offsetY });
+            }
+          },
+          style: {
+            padding: "6px 16px",
+            border: "none",
+            borderRadius: "var(--radius-sm)",
+            background: isDestructive ? "var(--error, #c0392b)" : "var(--accent)",
+            color: "#fff",
+            fontSize: "var(--text-sm)",
+            cursor: isIdentity ? "not-allowed" : "pointer",
+            opacity: isIdentity ? 0.5 : 1,
+            fontFamily: "inherit",
+            fontWeight: 600
+          }
+        }, isDestructive ? "Apply resize (removes stitches)" : "Apply resize")
+      )
+    )
+  );
+};
+
+
 /* ─── ActionBar.js ─── */
 /* creator/ActionBar.js — UX-12 Phase 5 + Option 2: Creator outcome action bar.
  *
@@ -14036,10 +15388,13 @@ window.CreatorActionBar = function CreatorActionBar(props) {
   }
 
   // ── Tab bar: Convert | Edit | Materials ────────────────────────────────────
-  // Convert: active when appMode === "create". Clickable only when another
-  //          tab is active; prevents reopening the confirm modal from create.
-  // Edit:    active when appMode === "edit". Disabled when no pattern exists.
-  // Materials: active when tab === "materials". Always available once pattern exists.
+  // Convert: active when appMode === "create". Disabled in create mode to
+  //          prevent re-triggering; fires onRequestBackToConvert (which shows a
+  //          confirm dialog when manual edits exist) when clicked from edit mode.
+  // Edit:    active when appMode === "edit" && tab === "pattern".
+  //          Disabled until a pattern has been generated.
+  // Materials: active when tab === "materials".
+  //          Disabled until a pattern has been generated.
   var appMode = (props && props.appMode) || "edit";
   var currentTab = (props && props.tab) || "pattern";
   var hasPat = !!(props && props.ready);
@@ -14066,10 +15421,8 @@ window.CreatorActionBar = function CreatorActionBar(props) {
   var tabs = [
     {
       active: appMode === "create",
-      disabled: false,
-      onClick: (appMode === "create" || typeof props.onRequestBackToConvert !== "function")
-        ? undefined
-        : props.onRequestBackToConvert
+      disabled: appMode === "create",
+      onClick: appMode === "create" ? undefined : props.onRequestBackToConvert
     },
     {
       active: appMode === "edit" && currentTab === "pattern",
@@ -14129,11 +15482,12 @@ window.CreatorActionBar = function CreatorActionBar(props) {
         role: "tab",
         "aria-selected": tabs[0].active,
         tabIndex: tabs[0].active ? 0 : -1,
-        style: tabStyle(appMode === "create", false),
+        disabled: tabs[0].disabled,
+        style: tabStyle(appMode === "create", appMode === "create"),
         onClick: tabs[0].onClick,
-        title: "Convert settings — adjust palette, dimensions and generate"
+        title: appMode === "create" ? "Set up image and pattern settings" : "Return to Convert mode — adjust settings and re-generate"
       },
-      Icons.sliders ? Icons.sliders() : null,
+      Icons.image ? Icons.image() : null,
       h("span", null, "Convert")
     ),
     h("button", {

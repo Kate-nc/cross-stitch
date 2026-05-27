@@ -47,9 +47,10 @@ describe('Creator outcome action bar (UX-12 Phase 5 + Option 2)', () => {
   test('accepts the wired-up handler props', () => {
     expect(ACTION_BAR_SRC).toMatch(/props\.onPrintPdf/);
     expect(ACTION_BAR_SRC).toMatch(/props\.onTrackPattern/);
-    // Polish 13 step 3 — onSwitchToCreate is gone; the unified sidebar
-    // tab strip handles "back to setup" by clicking Image/Dim/Project.
+    // onSwitchToCreate is gone; the Convert tab uses onRequestBackToConvert
+    // (which shows a confirm dialog if the user has made manual edits).
     expect(ACTION_BAR_SRC).not.toMatch(/props\.onSwitchToCreate/);
+    expect(ACTION_BAR_SRC).toMatch(/props\.onRequestBackToConvert/);
     expect(ACTION_BAR_SRC).toMatch(/props\.onSaveJson/);
     expect(ACTION_BAR_SRC).toMatch(/props\.onMoreExports/);
     expect(ACTION_BAR_SRC).toMatch(/props\.appMode/);
@@ -61,10 +62,10 @@ describe('Creator outcome action bar (UX-12 Phase 5 + Option 2)', () => {
     expect(ACTION_BAR_SRC).toMatch(/Export(\u2026|\\u2026)/);
     expect(ACTION_BAR_SRC).toMatch(/Save project \(\.json\)/);
     expect(ACTION_BAR_SRC).toMatch(/More export options/);
-    // Hybrid 1+5+3 tab bar — Convert / Edit / Materials replaces the old
-    // phase-label + mode-switch approach.
     expect(ACTION_BAR_SRC).not.toMatch(/"Setup"/);
     expect(ACTION_BAR_SRC).toMatch(/"Open in Tracker"/);
+    // Three-tab bar: Convert / Edit / Materials. Convert restored as the
+    // intentional confirm-dialog-gated path back to the prepare phase.
     expect(ACTION_BAR_SRC).toMatch(/"Convert"/);
     expect(ACTION_BAR_SRC).toMatch(/"Edit"/);
     expect(ACTION_BAR_SRC).toMatch(/"Materials"/);

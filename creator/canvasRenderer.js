@@ -968,6 +968,21 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
         if (lfx < 0 || lfx >= dW || lfy < 0 || lfy >= dH) continue;
         ctx2d.fillRect(gut + lfx * cSz, gut + lfy * cSz, cSz, cSz);
       }
+      // Dashed closing-line hint from the last traced point back to the first.
+      // This signals to the user that releasing the mouse will auto-close the
+      // shape and fill the interior (true-lasso behaviour).
+      if (lassoPoints && lassoPoints.length >= 3) {
+        var lfp = lassoPoints[0];
+        var llp = lassoPoints[lassoPoints.length - 1];
+        ctx2d.strokeStyle = "rgba(16,185,129,0.6)";
+        ctx2d.lineWidth = Math.max(1.5, cSz * 0.12);
+        ctx2d.setLineDash([Math.max(3, cSz * 0.3), Math.max(3, cSz * 0.3)]);
+        ctx2d.beginPath();
+        ctx2d.moveTo(gut + (llp.x - offX) * cSz + cSz / 2, gut + (llp.y - offY) * cSz + cSz / 2);
+        ctx2d.lineTo(gut + (lfp.x - offX) * cSz + cSz / 2, gut + (lfp.y - offY) * cSz + cSz / 2);
+        ctx2d.stroke();
+        ctx2d.setLineDash([]);
+      }
     }
 
     if ((lassoMode === "polygon" || lassoMode === "magnetic") && lassoPoints && lassoPoints.length > 0) {
@@ -1068,5 +1083,74 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
       }
     }
     ctx2d.restore();
+  }
+
+  // ─── Move-selection ghost overlay ────────────────────────────────────────────
+  // Drawn last so it sits above the selection tint and cleanup overlays.
+  // While a move drag is in progress:
+  //   • Source cells (in the snapshot selection) are rendered as empty/dimmed.
+  //   • Ghost cells (snapshot values shifted by moveDelta) are rendered at 70%
+  //     opacity at the destination position.
+  //   • A dashed marching-ants border traces the ghost bounding box.
+  var moveActive = state.moveActive;
+  var moveDelta  = state.moveDelta;
+  var moveSnapshotRef = state.moveSnapshotRef;
+  if (moveActive && moveDelta && moveSnapshotRef && moveSnapshotRef.current) {
+    var snap = moveSnapshotRef.current;
+    var snapMask = snap.selectionMask;
+    var snapPat  = snap.pat;
+    var mdx = moveDelta.dx, mdy = moveDelta.dy;
+    var msW = state.sW;
+
+    if (snapMask && snapPat) {
+      ctx2d.save();
+
+      // 1. Dim source cells to signal they are "lifted".
+      ctx2d.fillStyle = 'rgba(255,255,255,0.6)';
+      for (var msi = 0; msi < snapMask.length; msi++) {
+        if (!snapMask[msi]) continue;
+        var msx2 = (msi % msW) - offX, msy2 = Math.floor(msi / msW) - offY;
+        if (msx2 < 0 || msx2 >= dW || msy2 < 0 || msy2 >= dH) continue;
+        ctx2d.fillRect(gut + msx2 * cSz, gut + msy2 * cSz, cSz, cSz);
+      }
+
+      // 2. Draw ghost cells at destination position (70% opacity).
+      ctx2d.globalAlpha = 0.70;
+      var ghostMinX = Infinity, ghostMinY = Infinity, ghostMaxX = -Infinity, ghostMaxY = -Infinity;
+      for (var mgi = 0; mgi < snapMask.length; mgi++) {
+        if (!snapMask[mgi]) continue;
+        var mgsx = mgi % msW, mgsy = Math.floor(mgi / msW);
+        var mgdx2 = mgsx + mdx, mgdy2 = mgsy + mdy;
+        if (mgdx2 < 0 || mgdx2 >= msW || mgdy2 < 0 || mgdy2 >= state.sH) continue;
+        var mgcx = mgdx2 - offX, mgcy = mgdy2 - offY;
+        if (mgcx < 0 || mgcx >= dW || mgcy < 0 || mgcy >= dH) continue;
+        var mgCell = snapPat[mgi];
+        if (!mgCell || mgCell.id === '__skip__' || mgCell.id === '__empty__') continue;
+        ctx2d.fillStyle = 'rgb(' + mgCell.rgb + ')';
+        ctx2d.fillRect(gut + mgcx * cSz, gut + mgcy * cSz, cSz, cSz);
+        if (mgdx2 < ghostMinX) ghostMinX = mgdx2;
+        if (mgdy2 < ghostMinY) ghostMinY = mgdy2;
+        if (mgdx2 > ghostMaxX) ghostMaxX = mgdx2;
+        if (mgdy2 > ghostMaxY) ghostMaxY = mgdy2;
+      }
+      ctx2d.globalAlpha = 1.0;
+
+      // 3. Dashed border around the ghost bounding box.
+      if (ghostMaxX >= ghostMinX) {
+        ctx2d.strokeStyle = 'rgba(37,99,235,0.9)';
+        ctx2d.lineWidth = Math.max(1, cSz * 0.1);
+        var mAntsDash = Math.max(2, cSz * 0.3), mAntsGap = Math.max(2, cSz * 0.2);
+        ctx2d.setLineDash([mAntsDash, mAntsGap]);
+        ctx2d.lineDashOffset = -(state.antsOffset || 0);
+        var gBx = gut + (ghostMinX - offX) * cSz;
+        var gBy = gut + (ghostMinY - offY) * cSz;
+        var gBw = (ghostMaxX - ghostMinX + 1) * cSz;
+        var gBh = (ghostMaxY - ghostMinY + 1) * cSz;
+        ctx2d.strokeRect(gBx, gBy, gBw, gBh);
+        ctx2d.setLineDash([]);
+      }
+
+      ctx2d.restore();
+    }
   }
 };

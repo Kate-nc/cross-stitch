@@ -86,6 +86,27 @@ window.useEditHistory = function useEditHistory(state) {
       return;
     }
 
+    // Handle canvasResize undo: restore all previous dimensions + data from snapshot
+    if (last.type === "canvasResize") {
+      var prev = last.prev;
+      state.setSW(prev.sW); state.setSH(prev.sH);
+      state.setPat(prev.pat);
+      state.setBsLines(prev.bsLines);
+      state.setDone(prev.done ? new Uint8Array(prev.done) : null);
+      state.setPartialStitches(new Map(prev.ps));
+      state.setParkMarkers(prev.parkMarkers);
+      var prevResult = buildPaletteWithScratch(prev.pat);
+      state.setPal(prevResult.pal); state.setCmap(prevResult.cmap);
+      state.setEditHistory(function(h) { return h.slice(0, -1); });
+      state.setRedoHistory(function(h) {
+        var n = h.concat([last]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      if (state.addToast) state.addToast("Undo: canvas resize", {type:"info", duration:1500});
+      return;
+    }
+
     var np = pat.slice();
     var redoChanges = last.changes.map(function(c) { return { idx: c.idx, old: Object.assign({}, np[c.idx]) }; });
     last.changes.forEach(function(c) { np[c.idx] = Object.assign({}, c.old); });
@@ -107,12 +128,18 @@ window.useEditHistory = function useEditHistory(state) {
 
     state.setEditHistory(function(prev) { return prev.slice(0, -1); });
     state.setRedoHistory(function(prev) {
-      var n = prev.concat([{ type: last.type, changes: redoChanges, psChanges: redoPsChanges, bsLines: redoBsLines }]);
+      var entry = { type: last.type, changes: redoChanges, psChanges: redoPsChanges, bsLines: redoBsLines };
+      if (last.prevMask !== undefined) { entry.prevMask = last.prevMask; entry.nextMask = last.nextMask; }
+      var n = prev.concat([entry]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
       return n;
     });
     var result = buildPaletteWithScratch(np);
     state.setPal(result.pal); state.setCmap(result.cmap);
+    // Restore selection mask for move operations.
+    if (last.type === 'move' && last.prevMask !== undefined) {
+      state.setSelectionMask(last.prevMask ? last.prevMask.slice() : null);
+    }
     if (state.addToast) state.addToast("Undo: reverted " + last.changes.length + " cell" + (last.changes.length !== 1 ? "s" : ""), {type:"info", duration:1500});
   }
 
@@ -161,6 +188,27 @@ window.useEditHistory = function useEditHistory(state) {
       return;
     }
 
+    // Handle canvasResize redo: re-apply from snapshot of post-resize state
+    if (last.type === "canvasResize") {
+      var next = last.next;
+      state.setSW(next.sW); state.setSH(next.sH);
+      state.setPat(next.pat);
+      state.setBsLines(next.bsLines);
+      state.setDone(next.done ? new Uint8Array(next.done) : null);
+      state.setPartialStitches(new Map(next.ps));
+      state.setParkMarkers(next.parkMarkers);
+      var nextResult = buildPaletteWithScratch(next.pat);
+      state.setPal(nextResult.pal); state.setCmap(nextResult.cmap);
+      state.setRedoHistory(function(h) { return h.slice(0, -1); });
+      state.setEditHistory(function(h) {
+        var n = h.concat([last]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      if (state.addToast) state.addToast("Redo: canvas resize", {type:"info", duration:1500});
+      return;
+    }
+
     var np = pat.slice();
     var undoChanges = last.changes.map(function(c) { return { idx: c.idx, old: Object.assign({}, np[c.idx]) }; });
     last.changes.forEach(function(c) { np[c.idx] = Object.assign({}, c.old); });
@@ -182,12 +230,18 @@ window.useEditHistory = function useEditHistory(state) {
 
     state.setRedoHistory(function(prev) { return prev.slice(0, -1); });
     state.setEditHistory(function(prev) {
-      var n = prev.concat([{ type: last.type, changes: undoChanges, psChanges: undoPsChanges, bsLines: undoBsLines }]);
+      var entry = { type: last.type, changes: undoChanges, psChanges: undoPsChanges, bsLines: undoBsLines };
+      if (last.prevMask !== undefined) { entry.prevMask = last.prevMask; entry.nextMask = last.nextMask; }
+      var n = prev.concat([entry]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
       return n;
     });
     var result = buildPaletteWithScratch(np);
     state.setPal(result.pal); state.setCmap(result.cmap);
+    // Restore selection mask for move operations.
+    if (last.type === 'move' && last.nextMask !== undefined) {
+      state.setSelectionMask(last.nextMask ? last.nextMask.slice() : null);
+    }
     if (state.addToast) state.addToast("Redo: restored " + last.changes.length + " cell" + (last.changes.length !== 1 ? "s" : ""), {type:"info", duration:1500});
   }
 

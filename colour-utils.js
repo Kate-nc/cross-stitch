@@ -127,7 +127,17 @@ function quantize(data,w,h,n,allowedPalette,options){
 }
 function quantizeConstrained(data,w,h,n,allowedPalette,options){return quantize(data,w,h,n,allowedPalette,options);}
 /**
- * Floyd-Steinberg dithering with Stage 2 confetti-aware color selection.
+ * Atkinson dithering with Stage 2 confetti-aware color selection.
+ *
+ * Uses the Atkinson kernel which propagates only 6/8 of the quantisation
+ * error (the remaining 1/4 is discarded). This produces naturally clustered
+ * colour regions rather than scattered confetti, which is preferable for
+ * cross-stitch where each cell is a visible stitch.
+ *
+ * Kernel (each weight 1/8, sum = 6/8):
+ *   . X 1 1
+ *   1 1 1
+ *     1
  *
  * When selecting the closest palette color for a pixel, if none of the four
  * already-processed neighbors share that color, the algorithm checks whether
@@ -146,9 +156,9 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){return quantize(
  * @param {object}            [opts]
  * @param {number}            [opts.confettiDitherThreshold=4.0]  base Delta-E² penalty
  *                                           the algorithm accepts to avoid an isolate
- * @param {number}            [opts.ditherStrength=1.0]  multiplier for Floyd-Steinberg
+ * @param {number}            [opts.ditherStrength=1.0]  multiplier for Atkinson
  *                                           error weights. 0.5 = weak/subtle,
- *                                           1.0 = standard, 1.5 = strong/aggressive.
+ *                                           1.0 = standard Atkinson, 1.5 = strong/aggressive.
  */
 function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { confettiDitherThreshold = 4.0, ditherStrength = 1.0 } = {}) {
   const N = w * h;
@@ -267,39 +277,120 @@ function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { con
 
       r[idx] = chosen;
 
-      // Floyd-Steinberg error diffusion (scaled by ditherStrength)
+      // Atkinson error diffusion (scaled by ditherStrength).
+      // 6 neighbours × 1/8 each = 6/8 total — the remaining 1/4 is
+      // intentionally discarded, which clusters colours into coherent
+      // zones and dramatically reduces isolated confetti stitches.
       const eR = (cr - chosen.rgb[0]) * ditherStrength;
       const eG = (cg - chosen.rgb[1]) * ditherStrength;
       const eB = (cb - chosen.rgb[2]) * ditherStrength;
 
+      // Row 0: right +1, right +2
       if (x + 1 < w) {
         const ni = (idx + 1) * 3;
-        d[ni]     += eR * 7 / 16;
-        d[ni + 1] += eG * 7 / 16;
-        d[ni + 2] += eB * 7 / 16;
+        d[ni]     += eR / 8;
+        d[ni + 1] += eG / 8;
+        d[ni + 2] += eB / 8;
       }
+      if (x + 2 < w) {
+        const ni2 = (idx + 2) * 3;
+        d[ni2]     += eR / 8;
+        d[ni2 + 1] += eG / 8;
+        d[ni2 + 2] += eB / 8;
+      }
+      // Row 1: below-left, below, below-right
       if (y + 1 < h) {
         if (x > 0) {
-          const ni2 = (idx + w - 1) * 3;
-          d[ni2]     += eR * 3 / 16;
-          d[ni2 + 1] += eG * 3 / 16;
-          d[ni2 + 2] += eB * 3 / 16;
+          const ni3 = (idx + w - 1) * 3;
+          d[ni3]     += eR / 8;
+          d[ni3 + 1] += eG / 8;
+          d[ni3 + 2] += eB / 8;
         }
-        const ni3 = (idx + w) * 3;
-        d[ni3]     += eR * 5 / 16;
-        d[ni3 + 1] += eG * 5 / 16;
-        d[ni3 + 2] += eB * 5 / 16;
+        const ni4 = (idx + w) * 3;
+        d[ni4]     += eR / 8;
+        d[ni4 + 1] += eG / 8;
+        d[ni4 + 2] += eB / 8;
         if (x + 1 < w) {
-          const ni4 = (idx + w + 1) * 3;
-          d[ni4]     += eR * 1 / 16;
-          d[ni4 + 1] += eG * 1 / 16;
-          d[ni4 + 2] += eB * 1 / 16;
+          const ni5 = (idx + w + 1) * 3;
+          d[ni5]     += eR / 8;
+          d[ni5 + 1] += eG / 8;
+          d[ni5 + 2] += eB / 8;
         }
+      }
+      // Row 2: two rows below
+      if (y + 2 < h) {
+        const ni6 = (idx + w * 2) * 3;
+        d[ni6]     += eR / 8;
+        d[ni6 + 1] += eG / 8;
+        d[ni6 + 2] += eB / 8;
       }
     }
   }
   return r;
 }
+/**
+ * Ordered (Bayer) dithering — threshold-based, no error propagation.
+ *
+ * For each pixel, a threshold value from the Bayer matrix is added to the
+ * pixel's RGB channels before palette lookup. Because the threshold pattern
+ * is perfectly regular, colour transitions produce clean geometric patterns
+ * rather than scattered confetti — ideal for geometric and pixel-art designs.
+ *
+ * Available matrix sizes:
+ *   2 → 2×2 (4 levels,  spread 32) — bold, coarse pattern
+ *   4 → 4×4 (16 levels, spread 48) — standard Bayer  [default]
+ *   8 → 8×8 (64 levels, spread 64) — fine, smooth transitions
+ *
+ * @param {Uint8ClampedArray} data        RGBA source pixels
+ * @param {number}            w
+ * @param {number}            h
+ * @param {Array}             pal         palette entries (each has .id, .rgb, .lab)
+ * @param {boolean}           [allowBlends]
+ * @param {2|4|8}             [bayerSize=4]  matrix size
+ */
+function doBayerDither(data, w, h, pal, allowBlends = true, bayerSize = 4) {
+  // Standard Bayer threshold matrices (integer values 0..n²-1).
+  const B2 = [[0,2],[3,1]];
+  const B4 = [[ 0, 8, 2,10],[12, 4,14, 6],[ 3,11, 1, 9],[15, 7,13, 5]];
+  const B8 = [
+    [ 0,32, 8,40, 2,34,10,42],[48,16,56,24,50,18,58,26],
+    [12,44, 4,36,14,46, 6,38],[60,28,52,20,62,30,54,22],
+    [ 3,35,11,43, 1,33, 9,41],[51,19,59,27,49,17,57,25],
+    [15,47, 7,39,13,45, 5,37],[63,31,55,23,61,29,53,21],
+  ];
+
+  let matrix, n, spread;
+  if      (bayerSize === 2) { matrix = B2; n = 2; spread = 32; }
+  else if (bayerSize === 8) { matrix = B8; n = 8; spread = 64; }
+  else                      { matrix = B4; n = 4; spread = 48; } // default 4×4
+
+  // Pre-compute blend table once (same as Atkinson path).
+  if (allowBlends && typeof findBest.precomputeBlends === 'function') findBest.precomputeBlends(pal);
+
+  const N = w * h;
+  const r = new Array(N);
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = y * w + x;
+      const base = idx * 4;
+
+      // Normalised threshold: t ∈ (-0.5, 0.5).
+      // Adding 0.5 before dividing centres each quantisation level.
+      const t = (matrix[y % n][x % n] + 0.5) / (n * n) - 0.5;
+
+      // Apply threshold offset to RGB channels, then clamp.
+      const adj_r = Math.max(0, Math.min(255, data[base]     + t * spread));
+      const adj_g = Math.max(0, Math.min(255, data[base + 1] + t * spread));
+      const adj_b = Math.max(0, Math.min(255, data[base + 2] + t * spread));
+
+      r[idx] = findBest(rgbToLab(adj_r, adj_g, adj_b), pal, allowBlends);
+    }
+  }
+
+  return r;
+}
+
 function doMap(data, w, h, pal, allowBlends = true) {
   let r = new Array(w * h);
   let cache = new Map();
@@ -1464,4 +1555,4 @@ _colourUtilsGlobal.dE2000 = dE2000;
 const UNIQUE_THRESHOLD_DE = 5;
 _colourUtilsGlobal.UNIQUE_THRESHOLD_DE = UNIQUE_THRESHOLD_DE;
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, doDither, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, doDither, doBayerDither, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE }; }

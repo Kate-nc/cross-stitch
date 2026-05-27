@@ -114,7 +114,7 @@ function _buildAllowedPaletteFromStash(globalStash, subset) {
   var palette = [];
   var seen = Object.create(null);
   Object.keys(globalStash).forEach(function(key) {
-    if ((globalStash[key].owned || 0) <= 0) return;
+    if (!isColorOwned(globalStash[key])) return;
     var parts = _splitStashKey(key);
     if (!parts || parts.brand !== 'dmc') return; // DMC-only: pipeline uses bare ids
     if (seen[parts.id]) return;
@@ -169,14 +169,18 @@ window.useCreatorState = function useCreatorState() {
   var _bri    = useState(0);          var bri    = _bri[0],    setBri    = _bri[1];
   var _con    = useState(0);          var con    = _con[0],    setCon    = _con[1];
   var _sat    = useState(0);          var sat    = _sat[0],    setSat    = _sat[1];
-  var _dith   = useState(function () { var v = loadUserPref("creatorDefaultDithering", "off"); var valid = ["weak","balanced","strong"]; return (valid.indexOf(v) !== -1) ? v : (v && v !== "off" ? "balanced" : "off"); });
+  var _dith   = useState(function () { var v = loadUserPref("creatorDefaultDithering", "off"); var valid = ["weak","balanced","strong","bayer2","bayer4","bayer8"]; return (valid.indexOf(v) !== -1) ? v : (v && v !== "off" ? "balanced" : "off"); });
   var dithMode = _dith[0]; var setDithMode = _dith[1];
   // Derived boolean kept for all legacy consumers (generate call, Sidebar badge, etc.)
   var dith = dithMode !== "off";
-  // Numeric strength multiplier: weak=0.5, balanced=1.0, strong=1.5
+  // Numeric strength multiplier: weak=0.5, balanced=1.0, strong=1.5 (Atkinson only)
   var DITH_STRENGTH_MAP = {weak:0.5, balanced:1.0, strong:1.5};
   var dithStrength = DITH_STRENGTH_MAP[dithMode] || 1.0;
-  // Back-compat setter: accepts boolean (legacy callers) or "off"/"weak"/"balanced"/"strong"
+  // Algorithm: "off" | "atkinson" | "bayer"
+  var dithAlgo = dithMode === "off" ? "off" : dithMode.startsWith("bayer") ? "bayer" : "atkinson";
+  // Bayer matrix size: 2, 4, or 8 (only meaningful when dithAlgo==="bayer")
+  var dithBayerSize = dithMode === "bayer2" ? 2 : dithMode === "bayer8" ? 8 : 4;
+  // Back-compat setter: accepts boolean (legacy callers) or any valid mode string
   var setDith = function(v) {
     if (typeof v === "boolean") { setDithMode(v ? "balanced" : "off"); return; }
     setDithMode(v);
@@ -482,6 +486,10 @@ window.useCreatorState = function useCreatorState() {
   });
   var stashConstrained = _stashOnly[0];
   function setStashConstrained(v) { _stashOnly[1](v); try { localStorage.setItem("cs_stashConstrained", v ? "true" : "false"); } catch(_) {} }
+  // Canvas resize modal open flag (distinct from the image-crop isCropping
+  // which lives in GenerationContext and applies to the source image).
+  var _rszOpen = useState(false); var resizeCanvasOpen = _rszOpen[0], setResizeCanvasOpen = _rszOpen[1];
+
   // Stash-Adapt: modal open/mode state. Replaces the legacy SubstituteFromStash
   // and ConvertPalette modals with a single non-destructive duplication flow.
   var _adOpen = useState(false);         var adaptModalOpen = _adOpen[0], setAdaptModalOpen = _adOpen[1];
@@ -1273,7 +1281,7 @@ window.useCreatorState = function useCreatorState() {
         width: sW,
         height: sH,
         settings: {
-          maxC: effMaxC, dith: dith, dithStrength: dithStrength, allowBlends: effAllowBlends,
+          maxC: effMaxC, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: effAllowBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
           minSt: minSt, smooth: smooth, smoothType: smoothType,
           stitchCleanup: stitchCleanup, orphans: orphans,
@@ -1376,7 +1384,7 @@ window.useCreatorState = function useCreatorState() {
         var rawPx = _gcxImgData.data;
         if (smooth > 0) { if (smoothType === "gaussian") applyGaussianBlur(rawPx, gw, gh, smooth); else applyMedianFilter(rawPx, gw, gh, smooth); }
         var res = runCleanupPipeline(rawPx, gw, gh, {
-          maxC: effN, dith: dith, dithStrength: dithStrength, allowBlends: allowBlends && slotSubset.length >= 6,
+          maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 6,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans,
           allowedPalette: slotSubset, seed: slotSeed,
         });
@@ -1468,6 +1476,25 @@ window.useCreatorState = function useCreatorState() {
   });
   lassoCancelRef.current = lasso.cancelLasso;
 
+  // ─── Move selection integration ─────────────────────────────────────────────
+  // We call useMoveSelection with a ref-like proxy so the hook always sees
+  // fresh state values at call time, while avoiding a circular dependency on
+  // the full return object (which doesn't exist yet at this point).
+  var _moveStateProxy = {
+    activeTool: activeTool,
+    pat: pat, setPat: setPat,
+    partialStitches: partialStitches, setPartialStitches: setPartialStitches,
+    bsLines: bsLines, setBsLines: setBsLines,
+    selectionMask: wand.selectionMask, setSelectionMask: wand.setSelectionMask,
+    sW: sW, sH: sH,
+    buildPaletteWithScratch: buildPaletteWithScratch,
+    setPal: setPal, setCmap: setCmap,
+    editHistory: editHistory, setEditHistory: setEditHistory,
+    setRedoHistory: setRedoHistory,
+    EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
+  };
+  var move = useMoveSelection(_moveStateProxy);
+
   // Syncs op mode across both selection tools
   function setSelectionOpMode(mode) {
     wand.setWandOpMode(mode);
@@ -1514,7 +1541,7 @@ window.useCreatorState = function useCreatorState() {
     img, setImg, isUploading, setIsUploading, isDragging, setIsDragging,
     sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
-    dith, dithMode, dithStrength, setDith, setDithMode, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
+    dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     orphans, setOrphans, allowBlends, setAllowBlends,
     pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, progressMessage, setProgressMessage,
@@ -1560,6 +1587,7 @@ window.useCreatorState = function useCreatorState() {
     partialStitchTool, setPartialStitchTool, partialStitchToolRef, threadOwned, setThreadOwned,
     globalStash, setGlobalStash, kittingResult, setKittingResult,
     altOpen, setAltOpen,
+    resizeCanvasOpen, setResizeCanvasOpen,
     adaptModalOpen, setAdaptModalOpen,
     adaptModalMode, setAdaptModalMode,
     adaptMaxDeltaE, setAdaptMaxDeltaE,
@@ -1668,7 +1696,7 @@ window.useCreatorState = function useCreatorState() {
         smooth: smooth, smoothType: smoothType,
         // Quantisation
         maxC: effMaxC,
-        dith: dith, dithMode: dithMode, dithStrength: dithStrength,
+        dith: dith, dithMode: dithMode, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize,
         allowBlends: effAllowBlends,
         allowedPalette: stashInfo.palette,
         // Background
@@ -1750,5 +1778,16 @@ window.useCreatorState = function useCreatorState() {
     lassoLinePath: lasso.bresenham,
     lassoMagneticPath: lasso.magneticPath,
     lassoBoundaryPath: lasso.buildBoundaryPath,
+    // Move selection
+    moveActive: move.moveActive,
+    moveDelta: move.moveDelta,
+    floatActive: move.floatActive,
+    moveSnapshotRef: move.moveSnapshotRef,
+    startMove: move.startMove,
+    updateMove: move.updateMove,
+    commitMove: move.commitMove,
+    cancelMove: move.cancelMove,
+    nudgeMove: move.nudgeMove,
+    revertFloat: move.revertFloat,
   };
 };

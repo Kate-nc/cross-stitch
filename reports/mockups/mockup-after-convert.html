@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mockup — After image convert, Edit tab (proposed)</title>
+<style>
+:root{
+  --accent:#A0522D; --accent-soft:#F4DDCF; --accent-light:#FAF0E8;
+  --surface:#FFFDF8; --surface-secondary:#FBF8F3; --surface-raised:#FFFDF8;
+  --text-primary:#2C1810; --text-secondary:#5C5448; --text-tertiary:#8C7B6E;
+  --line:#E5DCCB; --border:#D9CFC0;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.08); --shadow-md:0 4px 12px rgba(0,0,0,.10);
+  --radius-sm:4px; --radius-md:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:#EDE8E0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-height:100vh;padding:24px 0 40px}
+.legend{background:#fff;border:1px solid #D9CFC0;border-radius:8px;padding:12px 18px;margin-bottom:18px;width:860px;font-size:12px;color:#5C5448}
+.legend h2{font-size:13px;font-weight:700;color:#2C1810;margin-bottom:6px}
+.legend ul{padding-left:14px;display:flex;flex-wrap:wrap;gap:2px 24px}
+.legend li{list-style:disc;line-height:1.7}
+.new-tag{display:inline-block;background:#3B7A3B;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:99px;margin-left:4px;vertical-align:middle;text-transform:uppercase}
+.removed-tag{display:inline-block;background:#8B1A1A;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:99px;margin-left:4px;vertical-align:middle;text-transform:uppercase}
+.app{width:860px;background:var(--surface-secondary);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.header{height:48px;background:var(--surface-raised);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 16px;gap:16px}
+.logo{font-size:15px;font-weight:700;color:var(--accent);letter-spacing:-.02em}
+.header-nav{display:flex;gap:4px;margin-left:8px}
+.header-nav a{font-size:12px;color:var(--text-tertiary);padding:4px 10px;border-radius:6px;text-decoration:none}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.save-chip{font-size:11px;color:var(--text-tertiary);background:var(--surface-secondary);border:1px solid var(--line);border-radius:99px;padding:3px 10px}
+.actionbar{height:44px;background:var(--surface-raised);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 14px;gap:12px}
+.tab-list{display:flex;gap:2px}
+.tab{height:32px;padding:0 14px;border:none;background:transparent;font:500 12px/1 system-ui;color:var(--text-tertiary);border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px}
+.tab:hover{background:var(--accent-soft)}
+.tab.active{background:var(--accent);color:#fff}
+.tab svg{width:13px;height:13px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.actionbar-right{margin-left:auto;display:flex;align-items:center;gap:6px}
+.btn-primary{height:30px;padding:0 12px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-md);font:600 12px/1 system-ui;cursor:pointer;display:flex;align-items:center;gap:5px}
+.btn-ghost{height:30px;padding:0 11px;background:transparent;color:var(--text-primary);border:1px solid var(--line);border-radius:var(--radius-md);font:500 12px/1 system-ui;cursor:pointer;display:flex;align-items:center;gap:5px}
+.btn-pill{height:30px;padding:0 12px;background:transparent;color:var(--text-secondary);border:1px solid var(--line);border-radius:99px;font:500 12px/1 system-ui;cursor:pointer;display:flex;align-items:center;gap:5px}
+.difficulty-chip{height:24px;padding:0 10px;border:1.5px solid #C97A00;border-radius:99px;font:600 11px/1 system-ui;color:#C97A00;display:flex;align-items:center}
+.toolbar-row{background:var(--surface-secondary);border-bottom:1px solid var(--border);padding:8px 0;display:flex;flex-direction:column;align-items:center;flex-shrink:0;position:relative}
+.pill{display:inline-flex;align-items:center;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:4px;box-shadow:var(--shadow-md)}
+.tb-btn{height:36px;padding:0 11px;border:none;background:transparent;border-radius:9px;font:500 12px/1 system-ui;color:var(--text-primary);cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap}
+.tb-btn:hover{background:var(--accent-soft)}
+.tb-btn.active{background:var(--accent);color:#fff}
+.tb-btn.erase{background:#FEE2E2;color:#B91C1C}
+.tb-sdiv{width:1px;height:22px;background:var(--border);flex-shrink:0;margin:0 3px}
+.tb-zoom{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-secondary);padding:0 4px}
+.tb-zoom input[type=range]{width:60px;accent-color:var(--accent)}
+.tb-more{height:36px;padding:0 11px;border:none;background:transparent;border-radius:9px;font:500 12px/1 system-ui;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:4px}
+.swatch-row{height:44px;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;gap:4px;padding:0 14px;overflow:visible}
+.swatch-row-label{font-size:11px;color:var(--text-secondary);margin-right:4px}
+.sw{width:24px;height:24px;border-radius:4px;border:1.5px solid rgba(0,0,0,.08);cursor:pointer;flex-shrink:0}
+.sw.sel{outline:2px solid var(--accent);outline-offset:1px}
+.more-panel{position:absolute;top:calc(100% + 4px);right:20px;min-width:230px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-md);z-index:300;padding:4px 0;display:none}
+.more-panel.open{display:block}
+.more-section{padding:6px 12px 8px}
+.more-section+.more-section{border-top:1px solid var(--border)}
+.more-section-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-tertiary);margin-bottom:5px}
+.more-btn{width:100%;padding:6px 8px;border:none;background:transparent;border-radius:6px;font:500 12px/1 system-ui;color:var(--text-primary);cursor:pointer;display:flex;align-items:center;gap:8px;text-align:left}
+.more-btn:hover{background:var(--accent-soft)}
+.more-btn svg{width:15px;height:15px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;color:var(--text-secondary)}
+.inline-new{display:inline-block;background:#3B7A3B;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:99px;margin-left:4px;vertical-align:middle;text-transform:uppercase}
+.main{display:flex;flex:1;min-height:440px}
+.sidebar{width:220px;background:var(--surface);border-right:1px solid var(--line);flex-shrink:0;display:flex;flex-direction:column}
+.sidebar-tabs{display:flex;border-bottom:1px solid var(--line);flex-shrink:0}
+.stab{flex:1;height:34px;border:none;background:transparent;font:500 11px/1 system-ui;color:var(--text-tertiary);cursor:pointer;border-bottom:2px solid transparent}
+.stab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.sidebar-body{flex:1;padding:12px;overflow-y:auto}
+.palette-header{font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:8px}
+.swatch-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;margin-bottom:10px}
+.swatch{width:100%;aspect-ratio:1;border-radius:3px;cursor:pointer;border:1px solid rgba(0,0,0,.08)}
+.swatch.selected{outline:2px solid var(--accent);outline-offset:1px}
+.palette-row{display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;border-radius:4px}
+.palette-row:hover{background:var(--accent-soft)}
+.palette-swatch{width:16px;height:16px;border-radius:3px;flex-shrink:0;border:1px solid rgba(0,0,0,.08)}
+.palette-name{font-size:11px;color:var(--text-primary);flex:1}
+.palette-id{font-size:10px;color:var(--text-tertiary)}
+.section-divider{height:1px;background:var(--line);margin:10px 0}
+.regen-btn{width:100%;padding:8px 10px;border:1px solid var(--border);background:var(--surface-secondary);border-radius:var(--radius-md);font:500 12px/1 system-ui;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:7px;text-align:left;margin-bottom:4px}
+.regen-btn:hover{background:var(--accent-soft);border-color:var(--accent);color:var(--text-primary)}
+.regen-btn svg{width:14px;height:14px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;color:var(--text-tertiary)}
+.canvas-area{flex:1;background:#E5E0D5;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto}
+svg.icon{width:14px;height:14px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;display:inline-block;vertical-align:middle}
+</style>
+</head>
+<body>
+
+<div class="legend">
+  <h2>Mockup 2 — After image convert, Edit tab active</h2>
+  <ul>
+    <li><strong>Convert tab removed</strong><span class="removed-tag">removed</span> — replaced by "Re-generate from image" in ToolStrip More menu</li>
+    <li><strong>Re-generate from image</strong> now lives in ToolStrip More menu<span class="new-tag">new</span> — visible &amp; enabled when a source image exists; calls the same back-to-convert confirm flow</li>
+    <li><strong>Resize canvas</strong> also in ToolStrip More menu<span class="new-tag">moved</span> — alongside Re-generate under a "Canvas" section heading</li>
+    <li>Clicking "Materials" tab switches content only — no mode change, no confirm dialog</li>
+    <li>Action bar right side is clean: Print PDF / Export / Open in Tracker / Difficulty / Pattern info</li>
+  </ul>
+</div>
+
+<div class="app">
+
+  <div class="header">
+    <span class="logo">stitchx</span>
+    <nav class="header-nav">
+      <a>Home</a><a>Tracker</a><a>Stash</a>
+    </nav>
+    <div class="header-right">
+      <span class="save-chip">Saved just now</span>
+    </div>
+  </div>
+
+  <div class="actionbar">
+    <div class="tab-list">
+      <!-- Convert tab removed — no 'Convert' entry -->
+      <button class="tab active">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Edit
+      </button>
+      <button class="tab">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2z"/><path d="M7 7h.01"/></svg>
+        Materials
+      </button>
+    </div>
+    <div class="actionbar-right">
+      <button class="btn-primary">
+        <svg class="icon" style="stroke:#fff" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Print PDF
+      </button>
+      <button class="btn-ghost">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Export&hellip;
+      </button>
+      <button class="btn-ghost">Open in Tracker <svg class="icon" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+      <span class="difficulty-chip">Medium</span>
+      <button class="btn-pill">Pattern info <svg class="icon" style="width:12px;height:12px" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button>
+    </div>
+  </div>
+
+  <!-- ToolStrip with swatch row visible (painting mode) -->
+  <div class="toolbar-row" id="toolbar">
+    <div class="pill">
+      <button class="tb-btn active">Paint</button>
+      <button class="tb-btn">Fill</button>
+      <button class="tb-btn erase">
+        <svg class="icon" style="color:#B91C1C" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        Erase
+      </button>
+      <div class="tb-sdiv"></div>
+      <span style="font-size:11px;color:var(--text-secondary);padding:0 4px;display:flex;align-items:center;gap:5px">
+        <span style="width:12px;height:12px;background:#8B4513;border-radius:2px;display:inline-block"></span>
+        Paint &middot; DMC 433
+      </span>
+      <div class="tb-sdiv"></div>
+      <div class="tb-zoom">
+        <input type="range" min="5" max="300" value="120">
+        <span>120%</span>
+        <button class="tb-btn" style="padding:0 8px;height:28px;font-size:11px">Fit</button>
+      </div>
+      <div class="tb-sdiv"></div>
+      <button class="tb-btn" style="padding:0 8px" title="Undo">
+        <svg class="icon" viewBox="0 0 24 24"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+      </button>
+      <button class="tb-btn" style="padding:0 8px" title="Redo">
+        <svg class="icon" viewBox="0 0 24 24"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>
+      </button>
+      <div class="tb-sdiv"></div>
+      <button class="tb-more" onclick="toggleMore()">More <svg class="icon" style="width:11px;height:11px" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button>
+    </div>
+
+    <!-- Swatch row (paint mode) -->
+    <div class="swatch-row">
+      <span class="swatch-row-label">Colour:</span>
+      <div class="sw sel" style="background:#1a1a1a" title="DMC 310 Black"></div>
+      <div class="sw" style="background:#8B4513" title="DMC 433"></div>
+      <div class="sw" style="background:#B5651D" title="DMC 434"></div>
+      <div class="sw" style="background:#D4A56A" title="DMC 437"></div>
+      <div class="sw" style="background:#E8D5B7" title="DMC 712"></div>
+      <div class="sw" style="background:#6B8E23" title="DMC 3012"></div>
+      <div class="sw" style="background:#8FBC8F" title="DMC 320"></div>
+      <div class="sw" style="background:#4682B4" title="DMC 336"></div>
+      <div class="sw" style="background:#87CEEB" title="DMC 775"></div>
+      <div class="sw" style="background:#DEB887" title="DMC 738"></div>
+      <div class="sw" style="background:#CD853F" title="DMC 976"></div>
+      <div class="sw" style="background:#F4A460" title="DMC 977"></div>
+    </div>
+
+    <!-- More panel -->
+    <div class="more-panel" id="morePanel">
+      <!-- Canvas management — NEW section -->
+      <div class="more-section">
+        <div class="more-section-label">Canvas</div>
+        <button class="more-btn">
+          <svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1"/><path d="M3 9V3h6"/><path d="M15 3h6v6"/><path d="M21 15v6h-6"/><path d="M9 21H3v-6"/></svg>
+          Resize canvas&hellip;
+          <span class="inline-new">moved here</span>
+        </button>
+        <!-- Re-generate FROM IMAGE — enabled here (image exists) -->
+        <button class="more-btn">
+          <svg viewBox="0 0 24 24">
+            <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/>
+            <line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/>
+            <line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/>
+            <line x1="17" y1="16" x2="23" y2="16"/>
+          </svg>
+          Re-generate from image&hellip;
+          <span class="inline-new">new</span>
+        </button>
+      </div>
+      <div class="more-section">
+        <div class="more-section-label">Tools</div>
+        <button class="more-btn">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          Rectangle fill
+        </button>
+        <button class="more-btn">
+          <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          Backstitch
+        </button>
+        <button class="more-btn">Cleanup mode</button>
+      </div>
+      <div class="more-section">
+        <div class="more-section-label">Display</div>
+        <button class="more-btn">Toggle grid overlay</button>
+        <button class="more-btn">Toggle stitch markers</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- Sidebar: Palette + note about Re-generate access -->
+    <div class="sidebar">
+      <div class="sidebar-tabs">
+        <button class="stab active">Palette</button>
+        <button class="stab">Project</button>
+      </div>
+      <div class="sidebar-body">
+        <div class="palette-header">12 colours</div>
+        <div class="swatch-grid">
+          <div class="swatch selected" style="background:#1a1a1a"></div>
+          <div class="swatch" style="background:#8B4513"></div>
+          <div class="swatch" style="background:#B5651D"></div>
+          <div class="swatch" style="background:#D4A56A"></div>
+          <div class="swatch" style="background:#E8D5B7"></div>
+          <div class="swatch" style="background:#6B8E23"></div>
+          <div class="swatch" style="background:#8FBC8F"></div>
+          <div class="swatch" style="background:#4682B4"></div>
+          <div class="swatch" style="background:#87CEEB"></div>
+          <div class="swatch" style="background:#DEB887"></div>
+          <div class="swatch" style="background:#CD853F"></div>
+          <div class="swatch" style="background:#F4A460"></div>
+        </div>
+
+        <div class="palette-row">
+          <div class="palette-swatch" style="background:#1a1a1a"></div>
+          <span class="palette-name">Black</span>
+          <span class="palette-id">310</span>
+        </div>
+        <div class="palette-row">
+          <div class="palette-swatch" style="background:#8B4513"></div>
+          <span class="palette-name">Saddle Brown</span>
+          <span class="palette-id">433</span>
+        </div>
+        <div class="palette-row">
+          <div class="palette-swatch" style="background:#B5651D"></div>
+          <span class="palette-name">Coffee Brown</span>
+          <span class="palette-id">434</span>
+        </div>
+        <div class="palette-row">
+          <div class="palette-swatch" style="background:#D4A56A"></div>
+          <span class="palette-name">Tan</span>
+          <span class="palette-id">437</span>
+        </div>
+        <div class="palette-row">
+          <div class="palette-swatch" style="background:#E8D5B7"></div>
+          <span class="palette-name">Off White</span>
+          <span class="palette-id">712</span>
+        </div>
+        <div class="palette-row">
+          <div class="palette-swatch" style="background:#6B8E23"></div>
+          <span class="palette-name">Moss Green</span>
+          <span class="palette-id">3012</span>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <!-- NOTE: Re-generate access is intentionally in the ToolStrip More menu -->
+        <!-- This section is a visual reference note only, shown here as a callout -->
+        <div style="background:var(--accent-light);border:1px solid var(--accent-soft);border-radius:6px;padding:8px 10px;font-size:11px;color:var(--text-secondary)">
+          <div style="font-weight:600;color:var(--text-primary);margin-bottom:3px;display:flex;align-items:center;gap:5px">
+            <svg style="width:12px;height:12px;stroke:var(--accent);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Re-generate from image
+          </div>
+          Find it in the toolbar More menu to change image settings and re-run the conversion.
+        </div>
+      </div>
+    </div>
+
+    <!-- Canvas with a colourful pattern simulation -->
+    <div class="canvas-area">
+      <div id="grid"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// Build a pattern-like grid (30x24, random colours from the palette)
+var palette = ['#1a1a1a','#8B4513','#B5651D','#D4A56A','#E8D5B7','#6B8E23','#8FBC8F','#4682B4','#87CEEB','#DEB887','#CD853F','#F4A460'];
+// Simple pseudo-pattern: use deterministic "noise"
+function seededColour(r,c){
+  var v = Math.abs(Math.sin(r*12.9898 + c*78.233 + 42.7) * 43758.5453);
+  v = v - Math.floor(v);
+  return palette[Math.floor(v * palette.length)];
+}
+var grid = document.getElementById('grid');
+var cols = 30, rows = 24;
+grid.style.display = 'grid';
+grid.style.gridTemplateColumns = 'repeat('+cols+', 14px)';
+for(var r=0;r<rows;r++){
+  for(var c=0;c<cols;c++){
+    var cell = document.createElement('div');
+    cell.style.width='14px'; cell.style.height='14px';
+    cell.style.borderRight='0.5px solid rgba(0,0,0,.08)';
+    cell.style.borderBottom='0.5px solid rgba(0,0,0,.08)';
+    cell.style.background = seededColour(r,c);
+    grid.appendChild(cell);
+  }
+}
+
+function toggleMore(){
+  document.getElementById('morePanel').classList.toggle('open');
+}
+document.addEventListener('click',function(e){
+  if(!e.target.closest('#toolbar')) document.getElementById('morePanel').classList.remove('open');
+});
+</script>
+</body>
+</html>

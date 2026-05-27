@@ -66,6 +66,8 @@ self.onmessage = function(e) {
     var maxC         = settings.maxC;
     var dith         = settings.dith;
     var dithStrength = (typeof settings.dithStrength === "number") ? settings.dithStrength : 1.0;
+    var dithAlgo     = settings.dithAlgo || (dith ? "atkinson" : "off");
+    var dithBayerSize = settings.dithBayerSize || 4;
     var allowBlends  = settings.allowBlends;
     var skipBg       = settings.skipBg;
     var bgCol        = settings.bgCol;
@@ -82,11 +84,16 @@ self.onmessage = function(e) {
     }
 
     var saliencyMap = generateSaliencyMap(raw, width, height);
-    var cdt = dith && stitchCleanup && stitchCleanup.smoothDithering ? 4.0 : 0.0;
+    var cdt = dith && dithAlgo === "atkinson" && stitchCleanup && stitchCleanup.smoothDithering ? 4.0 : 0.0;
     postProgress(dith ? 'dithering' : 'mapping', dith ? 'Dithering colours…' : 'Mapping colours…');
-    var mapped = dith
-      ? doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt, ditherStrength: dithStrength })
-      : doMap(raw, width, height, p, allowBlends);
+    var mapped;
+    if (!dith) {
+      mapped = doMap(raw, width, height, p, allowBlends);
+    } else if (dithAlgo === "bayer") {
+      mapped = doBayerDither(raw, width, height, p, allowBlends, dithBayerSize);
+    } else {
+      mapped = doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt, ditherStrength: dithStrength });
+    }
 
     if (skipBg) {
       var bl = rgbToLab(bgCol[0], bgCol[1], bgCol[2]);

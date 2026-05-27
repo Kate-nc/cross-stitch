@@ -30,6 +30,14 @@ function loadBackupRestore(opts) {
     const btoa = (s) => Buffer.from(s, 'binary').toString('base64');
     const atob = (s) => Buffer.from(s, 'base64').toString('binary');
     const indexedDB = opts.idb || undefined; // shadowed into eval scope — backup-restore.js reads this as a global
+    // Provide the stash-bridge module-level global that backup-restore.js calls
+    // to count owned threads in the backup summary.
+    const isColorOwned = (entry) => {
+      if (!entry || typeof entry !== 'object') return false;
+      const full = typeof entry.owned === 'number' && !isNaN(entry.owned) && entry.owned > 0 ? entry.owned : 0;
+      const fracs = { 'mostly-full': 0.75, 'about-half': 0.5, 'remnant': 0.25 };
+      return full + (fracs[entry.partialStatus] || 0) > 0;
+    };
     // Re-bind the IIFE result into a non-const so the outer scope can reach it.
     const patched = backupSrc.replace('const BackupRestore =', 'BackupRestore =');
     var BackupRestore;

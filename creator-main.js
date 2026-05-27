@@ -538,6 +538,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     saveProject: stableSaveProject, doSaveProject: stableDoSaveProject,
     handleFile: stableHandleFile, loadProject: stableLoadProject,
     handleOpenInTracker: stableHandleOpenInTracker,
+    openResizeCanvas: () => state.setResizeCanvasOpen(true),
+    isScratchMode: state.isScratchMode,
     isActive: isActive,
   }; }, [
     state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab,
@@ -560,6 +562,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.previewUrl, state.previewStats, state.confettiData,
     state.previewHeatmap, state.previewMapped, state.previewColors,
     state.previewDims, state.previewHighlight,
+    state.isScratchMode,
     isActive,
   ]);
 
@@ -889,6 +892,47 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onClose:()=>state.setColourReplaceModal(null),
         onApply:function(dstThread){state.applyGlobalColourReplacement(state.colourReplaceModal.srcId,dstThread.id);state.setColourReplaceModal(null);}
       })}
+      {state.resizeCanvasOpen&&typeof window.ResizeCanvasModal!=='undefined'&&React.createElement(window.ResizeCanvasModal,{
+        sW:state.sW, sH:state.sH,
+        done:state.done,
+        onClose:()=>state.setResizeCanvasOpen(false),
+        onApply:function(spec){
+          var result=window.applyCanvasResize(
+            state.pat,state.bsLines,state.done,state.partialStitches,
+            state.parkMarkers,state.sW,state.sH,spec
+          );
+          if(!result)return;
+          var prevSnap={
+            sW:state.sW, sH:state.sH,
+            pat:state.pat.slice(), bsLines:state.bsLines.slice(),
+            done:state.done?Array.from(state.done):null,
+            ps:[...state.partialStitches.entries()],
+            parkMarkers:state.parkMarkers.slice()
+          };
+          var nextSnap={
+            sW:spec.newW, sH:spec.newH,
+            pat:result.newPat, bsLines:result.newBsLines,
+            done:result.newDone?Array.from(result.newDone):null,
+            ps:[...result.newPartialStitches.entries()],
+            parkMarkers:result.newParkMarkers
+          };
+          var builtPal=state.buildPaletteWithScratch(result.newPat);
+          state.setSW(spec.newW); state.setSH(spec.newH);
+          state.setPat(result.newPat); state.setBsLines(result.newBsLines);
+          state.setDone(result.newDone);
+          state.setPartialStitches(result.newPartialStitches);
+          state.setParkMarkers(result.newParkMarkers);
+          state.setPal(builtPal.pal); state.setCmap(builtPal.cmap);
+          state.setRedoHistory([]);
+          state.setEditHistory(function(prev){
+            var n=prev.concat([{type:"canvasResize",prev:prevSnap,next:nextSnap}]);
+            if(n.length>state.EDIT_HISTORY_MAX)n=n.slice(n.length-state.EDIT_HISTORY_MAX);
+            return n;
+          });
+          state.setResizeCanvasOpen(false);
+          if(state.addToast)state.addToast("Canvas resized to "+spec.newW+"\u00D7"+spec.newH,{type:"success",duration:2500});
+        }
+      })}
       {state.colourReplaceModal&&typeof window.ColourReplaceModal==='undefined'&&(function(){
         // DEFECT-003: the modal was requested but the component global is
         // missing (script load order broken or modal file removed). Without
@@ -954,7 +998,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         appMode={state.appMode}
         tab={state.tab}
         pat={!!(state.pat&&state.pal)}
-        onTabChange={function(t){state.setTab(t);if(state.pat&&state.pal)state.setAppMode("edit");}}
+        onTabChange={function(t){state.setTab(t);}}
         onRequestBackToConvert={handleRequestBackToConvert}
         onPrintPdf={()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},exportData)}
         onTrackPattern={io.handleOpenInTracker}

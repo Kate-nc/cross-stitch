@@ -57,6 +57,7 @@ window.usePreview = function usePreview(state) {
     function pipelineOpts(overrides) {
       var o = {
         maxC: settings.maxC, dith: settings.dith, dithStrength: settings.dithStrength,
+        dithAlgo: settings.dithAlgo, dithBayerSize: settings.dithBayerSize,
         allowBlends: settings.allowBlends, allowedPalette: settings.allowedPalette,
         skipBg: settings.skipBg, bgCol: settings.bgCol, bgTh: settings.bgTh,
         stitchCleanup: settings.stitchCleanup, orphans: settings.orphans,
@@ -117,7 +118,7 @@ window.usePreview = function usePreview(state) {
       var stashUsage = null;
       if (stashConstrained && globalStash) {
         var availableCount = 0;
-        Object.keys(globalStash).forEach(function(id) { if ((globalStash[id].owned || 0) > 0) availableCount++; });
+        Object.keys(globalStash).forEach(function(id) { if (isColorOwned(globalStash[id])) availableCount++; });
         stashUsage = { used: uniqueColors, available: availableCount };
       }
 
