@@ -57,6 +57,7 @@ window.usePreview = function usePreview(state) {
     function pipelineOpts(overrides) {
       var o = {
         maxC: settings.maxC, dith: settings.dith, dithStrength: settings.dithStrength,
+        dithAlgo: settings.dithAlgo, dithBayerSize: settings.dithBayerSize,
         allowBlends: settings.allowBlends, allowedPalette: settings.allowedPalette,
         skipBg: settings.skipBg, bgCol: settings.bgCol, bgTh: settings.bgTh,
         stitchCleanup: settings.stitchCleanup, orphans: settings.orphans,
