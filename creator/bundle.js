@@ -12016,16 +12016,15 @@ window.CreatorSidebar = function CreatorSidebar() {
       disabled: !hasPattern,
       disabledHint:"Generate a pattern to unlock symbols, gridlines, and zoom presets."},
     {id:"preview",    label:"Preview",    icon:"layers"},
-    {id:"project",    label:"Project",    icon:"folder",  requires:"create"}
+    {id:"project",    label:"Project",    icon:"folder"}
   ];
 
-  // Legacy aliases retained for tests / external callers; the bottom
-  // render branches still use these names. createTabs is the canonical
-  // 7-tab list; editTabs is a filtered subset for the edit-mode render
-  // path that hasn't been merged yet.
+  // createTabs = full 7-tab list for the create/prepare phase.
+  // editTabs = filtered subset: Image and Dimensions (requires:"create") are
+  // hidden in edit mode; Project has no requires so it stays in both.
   var createTabs = unifiedTabs;
   var editTabs = unifiedTabs.filter(function(t) { return t.requires !== "create"; });
-  var tabs = unifiedTabs;
+  var tabs = mode === "edit" ? editTabs : createTabs;
 
   // Ensure sidebarTab is valid AND matches the current appMode's render
   // branch. The bottom render path still has two arms (create vs edit);
@@ -12702,6 +12701,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         highlightControls
       ),
       sTab === "preview" && previewPanel,
+      sTab === "project" && projectInfoSection,
       sTab === "more" && moreContent
     ),
     editActions
@@ -14701,10 +14701,13 @@ window.CreatorActionBar = function CreatorActionBar(props) {
   }
 
   // ── Tab bar: Convert | Edit | Materials ────────────────────────────────────
-  // Convert: active when appMode === "create". Clickable only when another
-  //          tab is active; prevents reopening the confirm modal from create.
-  // Edit:    active when appMode === "edit". Disabled when no pattern exists.
-  // Materials: active when tab === "materials". Always available once pattern exists.
+  // Convert: active when appMode === "create". Disabled in create mode to
+  //          prevent re-triggering; fires onRequestBackToConvert (which shows a
+  //          confirm dialog when manual edits exist) when clicked from edit mode.
+  // Edit:    active when appMode === "edit" && tab === "pattern".
+  //          Disabled until a pattern has been generated.
+  // Materials: active when tab === "materials".
+  //          Disabled until a pattern has been generated.
   var appMode = (props && props.appMode) || "edit";
   var currentTab = (props && props.tab) || "pattern";
   var hasPat = !!(props && props.ready);
@@ -14729,6 +14732,11 @@ window.CreatorActionBar = function CreatorActionBar(props) {
   }
 
   var tabs = [
+    {
+      active: appMode === "create",
+      disabled: appMode === "create",
+      onClick: appMode === "create" ? undefined : props.onRequestBackToConvert
+    },
     {
       active: appMode === "edit" && currentTab === "pattern",
       disabled: !hasPat,
@@ -14787,9 +14795,22 @@ window.CreatorActionBar = function CreatorActionBar(props) {
         role: "tab",
         "aria-selected": tabs[0].active,
         tabIndex: tabs[0].active ? 0 : -1,
+        disabled: tabs[0].disabled,
+        style: tabStyle(appMode === "create", appMode === "create"),
+        onClick: tabs[0].onClick,
+        title: appMode === "create" ? "Set up image and pattern settings" : "Return to Convert mode — adjust settings and re-generate"
+      },
+      Icons.image ? Icons.image() : null,
+      h("span", null, "Convert")
+    ),
+    h("button", {
+        type: "button",
+        role: "tab",
+        "aria-selected": tabs[1].active,
+        tabIndex: tabs[1].active ? 0 : -1,
         disabled: !hasPat,
         style: tabStyle(appMode === "edit" && currentTab === "pattern", !hasPat),
-        onClick: tabs[0].onClick,
+        onClick: tabs[1].onClick,
         title: hasPat ? "Edit the generated pattern" : "Generate a pattern first"
       },
       Icons.pencil ? Icons.pencil() : null,
@@ -14798,11 +14819,11 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     h("button", {
         type: "button",
         role: "tab",
-        "aria-selected": tabs[1].active,
-        tabIndex: tabs[1].active ? 0 : -1,
+        "aria-selected": tabs[2].active,
+        tabIndex: tabs[2].active ? 0 : -1,
         disabled: !hasPat,
         style: tabStyle(currentTab === "materials", !hasPat),
-        onClick: tabs[1].onClick,
+        onClick: tabs[2].onClick,
         title: hasPat ? "Materials — thread count, export options" : "Generate a pattern first"
       },
       Icons.layers ? Icons.layers() : null,

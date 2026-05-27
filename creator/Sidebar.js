@@ -1107,16 +1107,15 @@ window.CreatorSidebar = function CreatorSidebar() {
       disabled: !hasPattern,
       disabledHint:"Generate a pattern to unlock symbols, gridlines, and zoom presets."},
     {id:"preview",    label:"Preview",    icon:"layers"},
-    {id:"project",    label:"Project",    icon:"folder",  requires:"create"}
+    {id:"project",    label:"Project",    icon:"folder"}
   ];
 
-  // Legacy aliases retained for tests / external callers; the bottom
-  // render branches still use these names. createTabs is the canonical
-  // 7-tab list; editTabs is a filtered subset for the edit-mode render
-  // path that hasn't been merged yet.
+  // createTabs = full 7-tab list for the create/prepare phase.
+  // editTabs = filtered subset: Image and Dimensions (requires:"create") are
+  // hidden in edit mode; Project has no requires so it stays in both.
   var createTabs = unifiedTabs;
   var editTabs = unifiedTabs.filter(function(t) { return t.requires !== "create"; });
-  var tabs = unifiedTabs;
+  var tabs = mode === "edit" ? editTabs : createTabs;
 
   // Ensure sidebarTab is valid AND matches the current appMode's render
   // branch. The bottom render path still has two arms (create vs edit);
@@ -1793,6 +1792,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         highlightControls
       ),
       sTab === "preview" && previewPanel,
+      sTab === "project" && projectInfoSection,
       sTab === "more" && moreContent
     ),
     editActions
