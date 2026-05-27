@@ -773,16 +773,23 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
   var stitchCleanup = opts.stitchCleanup;
   var dithStrength = (typeof opts.dithStrength === "number") ? opts.dithStrength : 1.0;
+  var dithAlgo = opts.dithAlgo || (dith ? "atkinson" : "off");
+  var dithBayerSize = opts.dithBayerSize || 4;
   var minSt = (typeof opts.minSt === "number" && opts.minSt > 0) ? opts.minSt : 0;
 
   var p = quantize(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed});
   if (!p.length) return null;
 
   var saliencyMap = generateSaliencyMap(raw, width, height);
-  var cdt = dith && stitchCleanup && stitchCleanup.smoothDithering ? 4.0 : 0.0;
-  var mapped = dith
-    ? doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt, ditherStrength: dithStrength })
-    : doMap(raw, width, height, p, allowBlends);
+  var cdt = dith && dithAlgo === "atkinson" && stitchCleanup && stitchCleanup.smoothDithering ? 4.0 : 0.0;
+  var mapped;
+  if (!dith) {
+    mapped = doMap(raw, width, height, p, allowBlends);
+  } else if (dithAlgo === "bayer") {
+    mapped = doBayerDither(raw, width, height, p, allowBlends, dithBayerSize);
+  } else {
+    mapped = doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt, ditherStrength: dithStrength });
+  }
 
   if (skipBg) {
     var bl = rgbToLab(bgCol[0], bgCol[1], bgCol[2]);
@@ -933,6 +940,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
 
   var pipelineResult = runCleanupPipeline(raw, sW, sH, {
     maxC: maxC, dith: dith, dithStrength: opts.dithStrength,
+    dithAlgo: opts.dithAlgo, dithBayerSize: opts.dithBayerSize,
     allowBlends: allowBlends, allowedPalette: opts.allowedPalette || null,
     skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
     stitchCleanup: stitchCleanup, orphans: opts.orphans,
@@ -4458,14 +4466,18 @@ window.useCreatorState = function useCreatorState() {
   var _bri    = useState(0);          var bri    = _bri[0],    setBri    = _bri[1];
   var _con    = useState(0);          var con    = _con[0],    setCon    = _con[1];
   var _sat    = useState(0);          var sat    = _sat[0],    setSat    = _sat[1];
-  var _dith   = useState(function () { var v = loadUserPref("creatorDefaultDithering", "off"); var valid = ["weak","balanced","strong"]; return (valid.indexOf(v) !== -1) ? v : (v && v !== "off" ? "balanced" : "off"); });
+  var _dith   = useState(function () { var v = loadUserPref("creatorDefaultDithering", "off"); var valid = ["weak","balanced","strong","bayer2","bayer4","bayer8"]; return (valid.indexOf(v) !== -1) ? v : (v && v !== "off" ? "balanced" : "off"); });
   var dithMode = _dith[0]; var setDithMode = _dith[1];
   // Derived boolean kept for all legacy consumers (generate call, Sidebar badge, etc.)
   var dith = dithMode !== "off";
-  // Numeric strength multiplier: weak=0.5, balanced=1.0, strong=1.5
+  // Numeric strength multiplier: weak=0.5, balanced=1.0, strong=1.5 (Atkinson only)
   var DITH_STRENGTH_MAP = {weak:0.5, balanced:1.0, strong:1.5};
   var dithStrength = DITH_STRENGTH_MAP[dithMode] || 1.0;
-  // Back-compat setter: accepts boolean (legacy callers) or "off"/"weak"/"balanced"/"strong"
+  // Algorithm: "off" | "atkinson" | "bayer"
+  var dithAlgo = dithMode === "off" ? "off" : dithMode.startsWith("bayer") ? "bayer" : "atkinson";
+  // Bayer matrix size: 2, 4, or 8 (only meaningful when dithAlgo==="bayer")
+  var dithBayerSize = dithMode === "bayer2" ? 2 : dithMode === "bayer8" ? 8 : 4;
+  // Back-compat setter: accepts boolean (legacy callers) or any valid mode string
   var setDith = function(v) {
     if (typeof v === "boolean") { setDithMode(v ? "balanced" : "off"); return; }
     setDithMode(v);
@@ -5566,7 +5578,7 @@ window.useCreatorState = function useCreatorState() {
         width: sW,
         height: sH,
         settings: {
-          maxC: effMaxC, dith: dith, dithStrength: dithStrength, allowBlends: effAllowBlends,
+          maxC: effMaxC, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: effAllowBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
           minSt: minSt, smooth: smooth, smoothType: smoothType,
           stitchCleanup: stitchCleanup, orphans: orphans,
@@ -5669,7 +5681,7 @@ window.useCreatorState = function useCreatorState() {
         var rawPx = _gcxImgData.data;
         if (smooth > 0) { if (smoothType === "gaussian") applyGaussianBlur(rawPx, gw, gh, smooth); else applyMedianFilter(rawPx, gw, gh, smooth); }
         var res = runCleanupPipeline(rawPx, gw, gh, {
-          maxC: effN, dith: dith, dithStrength: dithStrength, allowBlends: allowBlends && slotSubset.length >= 6,
+          maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 6,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans,
           allowedPalette: slotSubset, seed: slotSeed,
         });
@@ -5826,7 +5838,7 @@ window.useCreatorState = function useCreatorState() {
     img, setImg, isUploading, setIsUploading, isDragging, setIsDragging,
     sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
-    dith, dithMode, dithStrength, setDith, setDithMode, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
+    dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     orphans, setOrphans, allowBlends, setAllowBlends,
     pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, progressMessage, setProgressMessage,
@@ -5981,7 +5993,7 @@ window.useCreatorState = function useCreatorState() {
         smooth: smooth, smoothType: smoothType,
         // Quantisation
         maxC: effMaxC,
-        dith: dith, dithMode: dithMode, dithStrength: dithStrength,
+        dith: dith, dithMode: dithMode, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize,
         allowBlends: effAllowBlends,
         allowedPalette: stashInfo.palette,
         // Background
@@ -12344,26 +12356,60 @@ window.CreatorSidebar = function CreatorSidebar() {
     var strengthLabels=["Gentle","Balanced","Thorough"];
     var strengthDescs=["Keeps 2-stitch clusters. Best for detail-heavy designs.","Removes 3-stitch clusters. Balanced stitchability & detail.","Removes up to 5-stitch clusters. Smoothest, easiest to sew."];
     var strengthIdx=strengthKeys.indexOf(sc2.strength);
-    var dithOpts = [
-      {id:"off",   label:"Off",      tip:"Direct colour mapping — each pixel mapped to its closest DMC colour. Cleanest, easiest to sew."},
-      {id:"weak",  label:"Weak",     tip:"Subtle Atkinson dithering (50% strength) — gentle colour blending, very few isolated stitches."},
-      {id:"balanced", label:"Balanced", tip:"Standard Atkinson dithering — smooth gradients that cluster into clean colour zones with minimal confetti."},
-      {id:"strong",label:"Strong",   tip:"Amplified Atkinson dithering (150% strength) — richest gradients, more scattered stitches."}
-    ];
     var dithCur = gen.dithMode || (gen.dith ? "balanced" : "off");
+    var dithAlgo = dithCur === "off" ? "off" : dithCur.startsWith("bayer") ? "bayer" : "atkinson";
+    var algoOpts = [
+      {id:"off",      label:"Off",      tip:"Direct colour mapping — each pixel mapped to its closest DMC colour. Cleanest, easiest to sew."},
+      {id:"atkinson", label:"Atkinson", tip:"Atkinson dithering — clusters similar colours into coherent zones instead of scattering confetti. Works well for photographic and blended designs."},
+      {id:"bayer",    label:"Bayer",    tip:"Ordered (Bayer) dithering — uses a regular threshold matrix. Produces perfectly geometric, repeating patterns at colour transitions. Ideal for geometric or pixel-art designs."},
+    ];
+    var atkinsonLevels = [
+      {id:"weak",     label:"Subtle",   tip:"50% strength — gentle blending, very few isolated stitches."},
+      {id:"balanced", label:"Balanced", tip:"Standard Atkinson — smooth gradients in clean colour zones."},
+      {id:"strong",   label:"Strong",   tip:"150% strength — richest gradients, more scattered stitches."},
+    ];
+    var bayerSizes = [
+      {id:"bayer2", label:"2\xD72", tip:"Coarse 2\xD72 Bayer matrix — bold, checkerboard-style pattern with 4 threshold levels."},
+      {id:"bayer4", label:"4\xD74", tip:"Standard 4\xD74 Bayer matrix — balanced geometric transitions with 16 threshold levels."},
+      {id:"bayer8", label:"8\xD78", tip:"Fine 8\xD78 Bayer matrix — smooth, detailed transitions with 64 threshold levels."},
+    ];
+    function setAlgoClick(algo) {
+      if (algo === "off") { gen.setDith("off"); return; }
+      if (algo === "atkinson" && dithAlgo !== "atkinson") { gen.setDith("balanced"); return; }
+      if (algo === "bayer"    && dithAlgo !== "bayer")    { gen.setDith("bayer4");   return; }
+    }
+    // Sub-option buttons shared helper
+    function subRow(opts, activeFn) {
+      return h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2,marginTop:'var(--s-1)'}},
+        opts.map(function(o) {
+          var active = activeFn(o.id);
+          return h(Tooltip, {key:o.id, text:o.tip, width:220},
+            h("button", {
+              onClick:function(){gen.setDith(o.id);},
+              style:{flex:1,padding:"5px 6px",fontSize:'var(--text-xs)',fontWeight:active?600:400,
+                background:active?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',
+                color:active?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",
+                boxShadow:active?"0 1px 2px rgba(0,0,0,0.04)":"none",whiteSpace:"nowrap"}
+            }, o.label)
+          );
+        })
+      );
+    }
+    var smoothDithActive = gen.dith && dithAlgo === "atkinson";
     return h(Section, {title:"Smoothing & cleanup", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:tidyBadge},
       // ── Dithering subsection ─────────────────────────────────────────────
       h("div", {style:{marginTop:'var(--s-2)'}},
         h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
           h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:600}}, "Dithering"),
-          h(InfoIcon, {text:"Blends colours by mixing stitches using Atkinson dithering. Clusters similar colours into clean zones instead of scattering confetti. Higher strengths spread gradients more.", width:220})
+          h(InfoIcon, {text:"Blends colours across neighbouring stitches. Atkinson clusters colours into clean zones; Bayer creates regular geometric patterns at transitions.", width:240})
         ),
+        // Algorithm row: Off | Atkinson | Bayer
         h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
-          dithOpts.map(function(o) {
-            var active = dithCur === o.id;
-            return h(Tooltip, {key:o.id, text:o.tip, width:220},
+          algoOpts.map(function(o) {
+            var active = dithAlgo === o.id;
+            return h(Tooltip, {key:o.id, text:o.tip, width:240},
               h("button", {
-                onClick:function(){gen.setDith(o.id);},
+                onClick:function(){setAlgoClick(o.id);},
                 style:{flex:1,padding:"5px 6px",fontSize:'var(--text-xs)',fontWeight:active?600:400,
                   background:active?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',
                   color:active?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",
@@ -12372,17 +12418,19 @@ window.CreatorSidebar = function CreatorSidebar() {
             );
           })
         ),
-        // Smooth-dithering toggle lives WITH dithering because it's a dither
-        // modifier (it lowers the dither error-threshold), not a cleanup step.
-        h("div", {style:{marginTop:'var(--s-2)',opacity:gen.dith?1:0.5,pointerEvents:gen.dith?"auto":"none"}, "aria-disabled":!gen.dith},
+        // Sub-option row (contextual)
+        dithAlgo === "atkinson" && subRow(atkinsonLevels, function(id){ return dithCur === id; }),
+        dithAlgo === "bayer"    && subRow(bayerSizes,     function(id){ return dithCur === id; }),
+        // Smooth-dithering toggle: only meaningful for Atkinson (error-diffusion only)
+        h("div", {style:{marginTop:'var(--s-2)',opacity:smoothDithActive?1:0.5,pointerEvents:smoothDithActive?"auto":"none"}, "aria-disabled":!smoothDithActive},
           h(Toggle, {
             checked:sc2.smoothDithering,
-            onChange:function(v){ if (gen.dith) gen.setStitchCleanup(function(s){return Object.assign({},s,{smoothDithering:v});}); },
+            onChange:function(v){ if (smoothDithActive) gen.setStitchCleanup(function(s){return Object.assign({},s,{smoothDithering:v});}); },
             label:"Smooth dithering",
-            help:"Reduces confetti during dithering itself by lowering the error-diffusion threshold. Cleaner gradients, but may slightly shift colours."
+            help:"Reduces confetti during Atkinson dithering by lowering the error-diffusion threshold. Cleaner gradients, but may slightly shift colours."
           }),
-          !gen.dith && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2,marginLeft:2}},
-            "Only active when dithering is on."
+          !smoothDithActive && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2,marginLeft:2}},
+            dithAlgo === "bayer" ? "Not used with Bayer dithering." : "Only active when Atkinson dithering is on."
           )
         )
       ),

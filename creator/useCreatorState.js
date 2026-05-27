@@ -169,14 +169,18 @@ window.useCreatorState = function useCreatorState() {
   var _bri    = useState(0);          var bri    = _bri[0],    setBri    = _bri[1];
   var _con    = useState(0);          var con    = _con[0],    setCon    = _con[1];
   var _sat    = useState(0);          var sat    = _sat[0],    setSat    = _sat[1];
-  var _dith   = useState(function () { var v = loadUserPref("creatorDefaultDithering", "off"); var valid = ["weak","balanced","strong"]; return (valid.indexOf(v) !== -1) ? v : (v && v !== "off" ? "balanced" : "off"); });
+  var _dith   = useState(function () { var v = loadUserPref("creatorDefaultDithering", "off"); var valid = ["weak","balanced","strong","bayer2","bayer4","bayer8"]; return (valid.indexOf(v) !== -1) ? v : (v && v !== "off" ? "balanced" : "off"); });
   var dithMode = _dith[0]; var setDithMode = _dith[1];
   // Derived boolean kept for all legacy consumers (generate call, Sidebar badge, etc.)
   var dith = dithMode !== "off";
-  // Numeric strength multiplier: weak=0.5, balanced=1.0, strong=1.5
+  // Numeric strength multiplier: weak=0.5, balanced=1.0, strong=1.5 (Atkinson only)
   var DITH_STRENGTH_MAP = {weak:0.5, balanced:1.0, strong:1.5};
   var dithStrength = DITH_STRENGTH_MAP[dithMode] || 1.0;
-  // Back-compat setter: accepts boolean (legacy callers) or "off"/"weak"/"balanced"/"strong"
+  // Algorithm: "off" | "atkinson" | "bayer"
+  var dithAlgo = dithMode === "off" ? "off" : dithMode.startsWith("bayer") ? "bayer" : "atkinson";
+  // Bayer matrix size: 2, 4, or 8 (only meaningful when dithAlgo==="bayer")
+  var dithBayerSize = dithMode === "bayer2" ? 2 : dithMode === "bayer8" ? 8 : 4;
+  // Back-compat setter: accepts boolean (legacy callers) or any valid mode string
   var setDith = function(v) {
     if (typeof v === "boolean") { setDithMode(v ? "balanced" : "off"); return; }
     setDithMode(v);
@@ -1277,7 +1281,7 @@ window.useCreatorState = function useCreatorState() {
         width: sW,
         height: sH,
         settings: {
-          maxC: effMaxC, dith: dith, dithStrength: dithStrength, allowBlends: effAllowBlends,
+          maxC: effMaxC, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: effAllowBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
           minSt: minSt, smooth: smooth, smoothType: smoothType,
           stitchCleanup: stitchCleanup, orphans: orphans,
@@ -1380,7 +1384,7 @@ window.useCreatorState = function useCreatorState() {
         var rawPx = _gcxImgData.data;
         if (smooth > 0) { if (smoothType === "gaussian") applyGaussianBlur(rawPx, gw, gh, smooth); else applyMedianFilter(rawPx, gw, gh, smooth); }
         var res = runCleanupPipeline(rawPx, gw, gh, {
-          maxC: effN, dith: dith, dithStrength: dithStrength, allowBlends: allowBlends && slotSubset.length >= 6,
+          maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 6,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans,
           allowedPalette: slotSubset, seed: slotSeed,
         });
@@ -1537,7 +1541,7 @@ window.useCreatorState = function useCreatorState() {
     img, setImg, isUploading, setIsUploading, isDragging, setIsDragging,
     sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
-    dith, dithMode, dithStrength, setDith, setDithMode, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
+    dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     orphans, setOrphans, allowBlends, setAllowBlends,
     pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, progressMessage, setProgressMessage,
@@ -1692,7 +1696,7 @@ window.useCreatorState = function useCreatorState() {
         smooth: smooth, smoothType: smoothType,
         // Quantisation
         maxC: effMaxC,
-        dith: dith, dithMode: dithMode, dithStrength: dithStrength,
+        dith: dith, dithMode: dithMode, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize,
         allowBlends: effAllowBlends,
         allowedPalette: stashInfo.palette,
         // Background

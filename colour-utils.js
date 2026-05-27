@@ -328,6 +328,69 @@ function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { con
   }
   return r;
 }
+/**
+ * Ordered (Bayer) dithering — threshold-based, no error propagation.
+ *
+ * For each pixel, a threshold value from the Bayer matrix is added to the
+ * pixel's RGB channels before palette lookup. Because the threshold pattern
+ * is perfectly regular, colour transitions produce clean geometric patterns
+ * rather than scattered confetti — ideal for geometric and pixel-art designs.
+ *
+ * Available matrix sizes:
+ *   2 → 2×2 (4 levels,  spread 32) — bold, coarse pattern
+ *   4 → 4×4 (16 levels, spread 48) — standard Bayer  [default]
+ *   8 → 8×8 (64 levels, spread 64) — fine, smooth transitions
+ *
+ * @param {Uint8ClampedArray} data        RGBA source pixels
+ * @param {number}            w
+ * @param {number}            h
+ * @param {Array}             pal         palette entries (each has .id, .rgb, .lab)
+ * @param {boolean}           [allowBlends]
+ * @param {2|4|8}             [bayerSize=4]  matrix size
+ */
+function doBayerDither(data, w, h, pal, allowBlends = true, bayerSize = 4) {
+  // Standard Bayer threshold matrices (integer values 0..n²-1).
+  const B2 = [[0,2],[3,1]];
+  const B4 = [[ 0, 8, 2,10],[12, 4,14, 6],[ 3,11, 1, 9],[15, 7,13, 5]];
+  const B8 = [
+    [ 0,32, 8,40, 2,34,10,42],[48,16,56,24,50,18,58,26],
+    [12,44, 4,36,14,46, 6,38],[60,28,52,20,62,30,54,22],
+    [ 3,35,11,43, 1,33, 9,41],[51,19,59,27,49,17,57,25],
+    [15,47, 7,39,13,45, 5,37],[63,31,55,23,61,29,53,21],
+  ];
+
+  let matrix, n, spread;
+  if      (bayerSize === 2) { matrix = B2; n = 2; spread = 32; }
+  else if (bayerSize === 8) { matrix = B8; n = 8; spread = 64; }
+  else                      { matrix = B4; n = 4; spread = 48; } // default 4×4
+
+  // Pre-compute blend table once (same as Atkinson path).
+  if (allowBlends && typeof findBest.precomputeBlends === 'function') findBest.precomputeBlends(pal);
+
+  const N = w * h;
+  const r = new Array(N);
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = y * w + x;
+      const base = idx * 4;
+
+      // Normalised threshold: t ∈ (-0.5, 0.5).
+      // Adding 0.5 before dividing centres each quantisation level.
+      const t = (matrix[y % n][x % n] + 0.5) / (n * n) - 0.5;
+
+      // Apply threshold offset to RGB channels, then clamp.
+      const adj_r = Math.max(0, Math.min(255, data[base]     + t * spread));
+      const adj_g = Math.max(0, Math.min(255, data[base + 1] + t * spread));
+      const adj_b = Math.max(0, Math.min(255, data[base + 2] + t * spread));
+
+      r[idx] = findBest(rgbToLab(adj_r, adj_g, adj_b), pal, allowBlends);
+    }
+  }
+
+  return r;
+}
+
 function doMap(data, w, h, pal, allowBlends = true) {
   let r = new Array(w * h);
   let cache = new Map();
