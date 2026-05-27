@@ -441,6 +441,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   } else if (cv.brushMode === "paint") {
     var szTxt = cv.brushSize > 1 ? " " + cv.brushSize + "\xD7" + cv.brushSize : "";
     badgeLabel = "Paint" + szTxt; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "#5C8E4A";
+  } else if (cv.activeTool === "move") {
+    badgeLabel = "Move"; badgeBg = "var(--surface-secondary)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
   } else if (cv.activeTool === "colourReplace") {
     badgeLabel = "Replace"; badgeBg = "#ede9fe"; badgeColor = "#7c3aed"; badgeDot = "#7c3aed";
   } else if (cv.activeTool === "cleanup") {
@@ -499,7 +501,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   // "More" panel — secondary tools + settings flyout (dropdown on desktop, bottom sheet on touch)
   var morePanelHasActiveTool = cv.activeTool === "eyedropper" || cv.activeTool === "hand" ||
     cv.activeTool === "magicWand" || cv.activeTool === "lasso" ||
-    cv.activeTool === "colourReplace" || cv.activeTool === "cleanup";
+    cv.activeTool === "colourReplace" || cv.activeTool === "cleanup" ||
+    cv.activeTool === "move";
 
   var stitchTypeOptions = [
     { id:"cross", label:"Cross" },
@@ -576,6 +579,19 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           title:"Lasso \u2014 mode in Tools tab", "aria-label":"Lasso",
           "aria-pressed": cv.activeTool==="lasso"?"true":"false"
         }, cv.lassoMode==="polygon"?svgPolygon:cv.lassoMode==="magnetic"?svgMagnetic:svgFreehand, " Lasso"),
+        h("button", {
+          className:"tb-btn"+(cv.activeTool==="move"?" tb-btn--on":""),
+          onClick:function(){
+            if (cv.activeTool==="move") { if (cv.cancelMove) cv.cancelMove(); cv.setActiveTool(null); }
+            else { cv.setActiveTool("move"); ctx.setPartialStitchTool(null); cv.setBsStart(null); if (cv.cancelLasso) cv.cancelLasso(); }
+            setMorePanelOpen(false);
+          },
+          disabled: !cv.hasSelection,
+          title:"Move selection \u2014 drag selected cells to a new position",
+          "aria-label":"Move selection",
+          "aria-pressed": cv.activeTool==="move"?"true":"false",
+          "aria-disabled": !cv.hasSelection
+        }, window.Icons&&window.Icons.move?window.Icons.move():null, " Move"),
         h("button", {
           className:"tb-btn"+(cv.activeTool==="colourReplace"?" tb-btn--on":""),
           onClick:function(){

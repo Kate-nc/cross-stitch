@@ -658,6 +658,17 @@ window.Icons = (function() {
         p('M9 21H3v-6')
       );
     },
+    // Move selection — 4-directional arrow cross. Used by the Move tool.
+    move: function() {
+      return svg(
+        p('M5 9l-3 3 3 3'),
+        p('M19 9l3 3-3 3'),
+        p('M9 5l3-3 3 3'),
+        p('M9 19l3 3 3-3'),
+        l(2, 12, 22, 12),
+        l(12, 2, 12, 22)
+      );
+    },
     // Settings — alias for gear (used by spec EL-SCR-062-* references)
     settings: function() {
       return svg(

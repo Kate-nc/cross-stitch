@@ -29,6 +29,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         if (state.morePanelOpen) { state.setMorePanelOpen(false); return; }
         // Background-pick mode: ESC backs out without sampling.
         if (state.pickBg) { state.setPickBg(false); return; }
+        if (state.moveActive) { state.cancelMove(); return; }
         if (state.lassoInProgress) { state.cancelLasso(); return; }
         if (state.hasSelection) { state.clearSelection(); return; }
         if (state.activeTool === "backstitch" && state.bsStart) { state.setBsStart(null); return; }
@@ -149,7 +150,19 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         if (state.activeTool === "hand") { state.setActiveTool(null); }
         else { state.setActiveTool("hand"); state.setBsStart(null); state.setPartialStitchTool(null); }
       } },
-
+    // Move-selection arrow nudge (one cell per press, each nudge is undoable).
+    { id: "creator.move.up",    keys: "arrowup",    scope: "creator.design", hidden: true,
+      when: function () { return state.activeTool === "move" && !!state.hasSelection && !state.moveActive; },
+      run: function () { state.nudgeMove(0, -1); } },
+    { id: "creator.move.down",  keys: "arrowdown",  scope: "creator.design", hidden: true,
+      when: function () { return state.activeTool === "move" && !!state.hasSelection && !state.moveActive; },
+      run: function () { state.nudgeMove(0, 1); } },
+    { id: "creator.move.left",  keys: "arrowleft",  scope: "creator.design", hidden: true,
+      when: function () { return state.activeTool === "move" && !!state.hasSelection && !state.moveActive; },
+      run: function () { state.nudgeMove(-1, 0); } },
+    { id: "creator.move.right", keys: "arrowright", scope: "creator.design", hidden: true,
+      when: function () { return state.activeTool === "move" && !!state.hasSelection && !state.moveActive; },
+      run: function () { state.nudgeMove(1, 0); } },
     // View / canvas
     { id: "creator.view.cycle", keys: "v", scope: "creator.design",
       description: "Cycle view: colour → symbol → both",
@@ -187,6 +200,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       state.selectedColorId, state.partialStitchTool, state.hiId,
       state.hasSelection, state.lassoInProgress, state.highlightMode,
       state.splitPaneEnabled, state.stitchType,
+      state.moveActive, state.nudgeMove, state.cancelMove,
       history.undoEdit, history.redoEdit, io.saveProject,
     ]);
   }

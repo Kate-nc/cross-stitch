@@ -50,6 +50,7 @@ const ORDER = [
   'RealisticCanvas.js',
   'useMagicWand.js',
   'useLassoSelect.js',
+  'useMoveSelection.js',
   'useCreatorState.js',
   // useImportWizard.js + ImportWizard.js intentionally REMOVED from this
   // list — they are bundled into creator/import-wizard-bundle.js below and

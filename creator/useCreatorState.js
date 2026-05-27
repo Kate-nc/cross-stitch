@@ -1472,6 +1472,25 @@ window.useCreatorState = function useCreatorState() {
   });
   lassoCancelRef.current = lasso.cancelLasso;
 
+  // ─── Move selection integration ─────────────────────────────────────────────
+  // We call useMoveSelection with a ref-like proxy so the hook always sees
+  // fresh state values at call time, while avoiding a circular dependency on
+  // the full return object (which doesn't exist yet at this point).
+  var _moveStateProxy = {
+    activeTool: activeTool,
+    pat: pat, setPat: setPat,
+    partialStitches: partialStitches, setPartialStitches: setPartialStitches,
+    bsLines: bsLines, setBsLines: setBsLines,
+    selectionMask: wand.selectionMask, setSelectionMask: wand.setSelectionMask,
+    sW: sW, sH: sH,
+    buildPaletteWithScratch: buildPaletteWithScratch,
+    setPal: setPal, setCmap: setCmap,
+    editHistory: editHistory, setEditHistory: setEditHistory,
+    setRedoHistory: setRedoHistory,
+    EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
+  };
+  var move = useMoveSelection(_moveStateProxy);
+
   // Syncs op mode across both selection tools
   function setSelectionOpMode(mode) {
     wand.setWandOpMode(mode);
@@ -1755,5 +1774,14 @@ window.useCreatorState = function useCreatorState() {
     lassoLinePath: lasso.bresenham,
     lassoMagneticPath: lasso.magneticPath,
     lassoBoundaryPath: lasso.buildBoundaryPath,
+    // Move selection
+    moveActive: move.moveActive,
+    moveDelta: move.moveDelta,
+    moveSnapshotRef: move.moveSnapshotRef,
+    startMove: move.startMove,
+    updateMove: move.updateMove,
+    commitMove: move.commitMove,
+    cancelMove: move.cancelMove,
+    nudgeMove: move.nudgeMove,
   };
 };

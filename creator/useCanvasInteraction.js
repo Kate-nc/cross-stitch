@@ -510,6 +510,13 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    if (activeTool === "move") {
+      if (gx < 0 || gx >= state.sW || gy < 0 || gy >= state.sH) return;
+      var selMaskM = state.selectionMask;
+      if (selMaskM && selMaskM[gy * state.sW + gx]) state.startMove(gx, gy);
+      return;
+    }
+
     if (activeTool === "lasso") {
       if (gx < 0 || gx >= state.sW || gy < 0 || gy >= state.sH) return;
       var opModeL = (e.shiftKey && e.altKey) ? "intersect"
@@ -571,6 +578,11 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    if (activeTool === "move") {
+      if (state.moveActive) state.updateMove(gc.gx, gc.gy);
+      return;
+    }
+
     if (activeTool === "lasso") {
       if (gc.gx >= 0 && gc.gx < state.sW && gc.gy >= 0 && gc.gy < state.sH) {
         state.setLassoCursor({ x: gc.gx, y: gc.gy });
@@ -586,6 +598,10 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (getActiveTool() === "cleanup" && state.cleanupSelTool === "brush") {
       var _chup = state.cleanupHandlersRef && state.cleanupHandlersRef.current;
       if (_chup) _chup.handleCleanupPointerUp();
+      return;
+    }
+    if (getActiveTool() === "move") {
+      if (state.moveActive) state.commitMove();
       return;
     }
     if (getActiveTool() === "lasso") {
