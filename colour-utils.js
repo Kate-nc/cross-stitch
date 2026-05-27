@@ -127,7 +127,17 @@ function quantize(data,w,h,n,allowedPalette,options){
 }
 function quantizeConstrained(data,w,h,n,allowedPalette,options){return quantize(data,w,h,n,allowedPalette,options);}
 /**
- * Floyd-Steinberg dithering with Stage 2 confetti-aware color selection.
+ * Atkinson dithering with Stage 2 confetti-aware color selection.
+ *
+ * Uses the Atkinson kernel which propagates only 6/8 of the quantisation
+ * error (the remaining 1/4 is discarded). This produces naturally clustered
+ * colour regions rather than scattered confetti, which is preferable for
+ * cross-stitch where each cell is a visible stitch.
+ *
+ * Kernel (each weight 1/8, sum = 6/8):
+ *   . X 1 1
+ *   1 1 1
+ *     1
  *
  * When selecting the closest palette color for a pixel, if none of the four
  * already-processed neighbors share that color, the algorithm checks whether
@@ -146,9 +156,9 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){return quantize(
  * @param {object}            [opts]
  * @param {number}            [opts.confettiDitherThreshold=4.0]  base Delta-E² penalty
  *                                           the algorithm accepts to avoid an isolate
- * @param {number}            [opts.ditherStrength=1.0]  multiplier for Floyd-Steinberg
+ * @param {number}            [opts.ditherStrength=1.0]  multiplier for Atkinson
  *                                           error weights. 0.5 = weak/subtle,
- *                                           1.0 = standard, 1.5 = strong/aggressive.
+ *                                           1.0 = standard Atkinson, 1.5 = strong/aggressive.
  */
 function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { confettiDitherThreshold = 4.0, ditherStrength = 1.0 } = {}) {
   const N = w * h;
@@ -267,34 +277,52 @@ function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { con
 
       r[idx] = chosen;
 
-      // Floyd-Steinberg error diffusion (scaled by ditherStrength)
+      // Atkinson error diffusion (scaled by ditherStrength).
+      // 6 neighbours × 1/8 each = 6/8 total — the remaining 1/4 is
+      // intentionally discarded, which clusters colours into coherent
+      // zones and dramatically reduces isolated confetti stitches.
       const eR = (cr - chosen.rgb[0]) * ditherStrength;
       const eG = (cg - chosen.rgb[1]) * ditherStrength;
       const eB = (cb - chosen.rgb[2]) * ditherStrength;
 
+      // Row 0: right +1, right +2
       if (x + 1 < w) {
         const ni = (idx + 1) * 3;
-        d[ni]     += eR * 7 / 16;
-        d[ni + 1] += eG * 7 / 16;
-        d[ni + 2] += eB * 7 / 16;
+        d[ni]     += eR / 8;
+        d[ni + 1] += eG / 8;
+        d[ni + 2] += eB / 8;
       }
+      if (x + 2 < w) {
+        const ni2 = (idx + 2) * 3;
+        d[ni2]     += eR / 8;
+        d[ni2 + 1] += eG / 8;
+        d[ni2 + 2] += eB / 8;
+      }
+      // Row 1: below-left, below, below-right
       if (y + 1 < h) {
         if (x > 0) {
-          const ni2 = (idx + w - 1) * 3;
-          d[ni2]     += eR * 3 / 16;
-          d[ni2 + 1] += eG * 3 / 16;
-          d[ni2 + 2] += eB * 3 / 16;
+          const ni3 = (idx + w - 1) * 3;
+          d[ni3]     += eR / 8;
+          d[ni3 + 1] += eG / 8;
+          d[ni3 + 2] += eB / 8;
         }
-        const ni3 = (idx + w) * 3;
-        d[ni3]     += eR * 5 / 16;
-        d[ni3 + 1] += eG * 5 / 16;
-        d[ni3 + 2] += eB * 5 / 16;
+        const ni4 = (idx + w) * 3;
+        d[ni4]     += eR / 8;
+        d[ni4 + 1] += eG / 8;
+        d[ni4 + 2] += eB / 8;
         if (x + 1 < w) {
-          const ni4 = (idx + w + 1) * 3;
-          d[ni4]     += eR * 1 / 16;
-          d[ni4 + 1] += eG * 1 / 16;
-          d[ni4 + 2] += eB * 1 / 16;
+          const ni5 = (idx + w + 1) * 3;
+          d[ni5]     += eR / 8;
+          d[ni5 + 1] += eG / 8;
+          d[ni5 + 2] += eB / 8;
         }
+      }
+      // Row 2: two rows below
+      if (y + 2 < h) {
+        const ni6 = (idx + w * 2) * 3;
+        d[ni6]     += eR / 8;
+        d[ni6 + 1] += eG / 8;
+        d[ni6 + 2] += eB / 8;
       }
     }
   }

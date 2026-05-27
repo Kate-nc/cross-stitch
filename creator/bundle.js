@@ -12346,9 +12346,9 @@ window.CreatorSidebar = function CreatorSidebar() {
     var strengthIdx=strengthKeys.indexOf(sc2.strength);
     var dithOpts = [
       {id:"off",   label:"Off",      tip:"Direct colour mapping — each pixel mapped to its closest DMC colour. Cleanest, easiest to sew."},
-      {id:"weak",  label:"Weak",     tip:"Subtle dithering (50% strength) — slight colour blending with minimal confetti."},
-      {id:"balanced", label:"Balanced", tip:"Standard Floyd-Steinberg dithering — smooth gradients with moderate scatter."},
-      {id:"strong",label:"Strong",   tip:"Amplified dithering (150% strength) — richest gradients, most scattered stitches."}
+      {id:"weak",  label:"Weak",     tip:"Subtle Atkinson dithering (50% strength) — gentle colour blending, very few isolated stitches."},
+      {id:"balanced", label:"Balanced", tip:"Standard Atkinson dithering — smooth gradients that cluster into clean colour zones with minimal confetti."},
+      {id:"strong",label:"Strong",   tip:"Amplified Atkinson dithering (150% strength) — richest gradients, more scattered stitches."}
     ];
     var dithCur = gen.dithMode || (gen.dith ? "balanced" : "off");
     return h(Section, {title:"Smoothing & cleanup", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:tidyBadge},
@@ -12356,7 +12356,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("div", {style:{marginTop:'var(--s-2)'}},
         h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
           h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:600}}, "Dithering"),
-          h(InfoIcon, {text:"Blends colours by mixing stitches using error diffusion. Higher strengths create smoother gradients but more scattered stitches.", width:220})
+          h(InfoIcon, {text:"Blends colours by mixing stitches using Atkinson dithering. Clusters similar colours into clean zones instead of scattering confetti. Higher strengths spread gradients more.", width:220})
         ),
         h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
           dithOpts.map(function(o) {
