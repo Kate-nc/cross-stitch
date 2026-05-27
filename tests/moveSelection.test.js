@@ -30,6 +30,8 @@ const {
   computeMovedPartialStitches,
   computeMovedBsLines,
   computeMovedMask,
+  computeFloatPattern,
+  computeFloatPartialStitches,
 } = window;
 
 // ---------------------------------------------------------------------------
@@ -217,5 +219,76 @@ describe('computeMovedPartialStitches', () => {
     expect(newPs.has(3 * sW + 3)).toBe(false);
     // Old source key (0,0) should be gone.
     expect(newPs.has(0 * sW + 0)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeFloatPattern — source cells must remain; destination gets a copy
+// ---------------------------------------------------------------------------
+describe('computeFloatPattern', () => {
+  it('source cell remains AND destination gets a copy', () => {
+    const sW = 4, sH = 4;
+    const cell = makeCell('310', [0, 0, 0]);
+    const pat = makePattern(sW, sH, [{ x: 1, y: 1, cell }]);
+    const mask = makeMask(sW, sH, [{ x: 1, y: 1 }]);
+
+    const newPat = computeFloatPattern(pat, mask, 1, 0, sW, sH);
+
+    // Source (1,1) MUST still be there.
+    expect(newPat[1 * sW + 1].id).toBe('310');
+    // Destination (2,1) MUST have the copy.
+    expect(newPat[1 * sW + 2].id).toBe('310');
+  });
+
+  it('zero delta returns an unchanged copy', () => {
+    const sW = 3, sH = 3;
+    const cell = makeCell('666');
+    const pat = makePattern(sW, sH, [{ x: 1, y: 1, cell }]);
+    const mask = makeMask(sW, sH, [{ x: 1, y: 1 }]);
+    const newPat = computeFloatPattern(pat, mask, 0, 0, sW, sH);
+    expect(newPat[1 * sW + 1].id).toBe('666');
+    expect(newPat).not.toBe(pat); // should return a copy, not the same reference
+  });
+
+  it('OOB destination is silently dropped; source still present', () => {
+    const sW = 3, sH = 3;
+    const cell = makeCell('321', [255, 0, 0]);
+    const pat = makePattern(sW, sH, [{ x: 2, y: 1, cell }]);
+    const mask = makeMask(sW, sH, [{ x: 2, y: 1 }]);
+
+    // Moving right by 1: x=2+1=3, out of bounds.
+    const newPat = computeFloatPattern(pat, mask, 1, 0, sW, sH);
+
+    // Source at (2,1) must remain.
+    expect(newPat[1 * sW + 2].id).toBe('321');
+    // Nothing extra should be written (length unchanged, no surprises).
+    expect(newPat.length).toBe(sW * sH);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeFloatPartialStitches — source entries must remain
+// ---------------------------------------------------------------------------
+describe('computeFloatPartialStitches', () => {
+  it('source partial stitch remains AND destination gets a copy', () => {
+    const sW = 4, sH = 4;
+    const mask = makeMask(sW, sH, [{ x: 0, y: 0 }]);
+    const ps = new Map();
+    ps.set(0, { type: 'half' }); // (0,0)
+
+    const newPs = computeFloatPartialStitches(ps, mask, 1, 1, sW, sH);
+
+    // Source (0,0) must still be there.
+    expect(newPs.has(0)).toBe(true);
+    // Destination (1,1) must have a copy.
+    expect(newPs.get(1 * sW + 1)).toEqual({ type: 'half' });
+  });
+
+  it('returns the same map reference when nothing is selected', () => {
+    const sW = 3, sH = 3;
+    const mask = new Uint8Array(9); // all zeros
+    const ps = new Map([[0, { type: 'quarter' }]]);
+    const result = computeFloatPartialStitches(ps, mask, 1, 0, sW, sH);
+    expect(result).toBe(ps); // no-op returns same reference
   });
 });

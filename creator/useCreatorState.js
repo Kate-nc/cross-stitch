@@ -1777,11 +1777,13 @@ window.useCreatorState = function useCreatorState() {
     // Move selection
     moveActive: move.moveActive,
     moveDelta: move.moveDelta,
+    floatActive: move.floatActive,
     moveSnapshotRef: move.moveSnapshotRef,
     startMove: move.startMove,
     updateMove: move.updateMove,
     commitMove: move.commitMove,
     cancelMove: move.cancelMove,
     nudgeMove: move.nudgeMove,
+    revertFloat: move.revertFloat,
   };
 };

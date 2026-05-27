@@ -30,6 +30,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         // Background-pick mode: ESC backs out without sampling.
         if (state.pickBg) { state.setPickBg(false); return; }
         if (state.moveActive) { state.cancelMove(); return; }
+        if (state.floatActive && state.activeTool === 'move') { state.revertFloat(); return; }
         if (state.lassoInProgress) { state.cancelLasso(); return; }
         if (state.hasSelection) { state.clearSelection(); return; }
         if (state.activeTool === "backstitch" && state.bsStart) { state.setBsStart(null); return; }
@@ -201,6 +202,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       state.hasSelection, state.lassoInProgress, state.highlightMode,
       state.splitPaneEnabled, state.stitchType,
       state.moveActive, state.nudgeMove, state.cancelMove,
+      state.floatActive, state.revertFloat,
       history.undoEdit, history.redoEdit, io.saveProject,
     ]);
   }

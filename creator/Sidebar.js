@@ -1630,7 +1630,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       "Applies to Cross and Half stitches, and the Erase tool.")
   );
 
-  var lassoModes = [["freehand","Freehand"],["polygon","Polygon"],["magnetic","Magnetic"]];
+  var lassoModes = [["freehand","Lasso"],["polygon","Polygon"],["magnetic","Magnetic"]];
   var curLasso = cv.lassoMode || "freehand";
   var selectionSection = h("div", {style:{padding:"0 12px 12px",borderTop:"1px solid var(--border)",paddingTop:12}},
     h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-2)'}},

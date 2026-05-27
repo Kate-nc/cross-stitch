@@ -1940,6 +1940,21 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
         if (lfx < 0 || lfx >= dW || lfy < 0 || lfy >= dH) continue;
         ctx2d.fillRect(gut + lfx * cSz, gut + lfy * cSz, cSz, cSz);
       }
+      // Dashed closing-line hint from the last traced point back to the first.
+      // This signals to the user that releasing the mouse will auto-close the
+      // shape and fill the interior (true-lasso behaviour).
+      if (lassoPoints && lassoPoints.length >= 3) {
+        var lfp = lassoPoints[0];
+        var llp = lassoPoints[lassoPoints.length - 1];
+        ctx2d.strokeStyle = "rgba(16,185,129,0.6)";
+        ctx2d.lineWidth = Math.max(1.5, cSz * 0.12);
+        ctx2d.setLineDash([Math.max(3, cSz * 0.3), Math.max(3, cSz * 0.3)]);
+        ctx2d.beginPath();
+        ctx2d.moveTo(gut + (llp.x - offX) * cSz + cSz / 2, gut + (llp.y - offY) * cSz + cSz / 2);
+        ctx2d.lineTo(gut + (lfp.x - offX) * cSz + cSz / 2, gut + (lfp.y - offY) * cSz + cSz / 2);
+        ctx2d.stroke();
+        ctx2d.setLineDash([]);
+      }
     }
 
     if ((lassoMode === "polygon" || lassoMode === "magnetic") && lassoPoints && lassoPoints.length > 0) {
@@ -3681,13 +3696,20 @@ window.useLassoSelect = function useLassoSelect(state) {
   function buildMaskFromPoints(pts, mode, pat, cmap, sW, sH) {
     if (!pts || pts.length < 2) return new Uint8Array(sW * sH);
     if (mode === "freehand") {
-      // For freehand, pts contains every cell touched — mark them all selected
-      var fm = new Uint8Array(sW * sH);
-      for (var f = 0; f < pts.length; f++) {
-        var fx = pts[f].x, fy = pts[f].y;
-        if (fx >= 0 && fx < sW && fy >= 0 && fy < sH) fm[fy * sW + fx] = 1;
+      // For freehand, pts is the traced boundary path (every cell touched).
+      // Auto-close the path with a straight segment from the last point back to
+      // the first, then use point-in-polygon to fill the interior.  This is
+      // "true lasso" behaviour — the enclosed area is selected, not just the
+      // stroke the cursor traced.
+      var closedBoundary = pts.slice();
+      var closeSegment = bresenham(
+        pts[pts.length - 1].x, pts[pts.length - 1].y,
+        pts[0].x, pts[0].y
+      );
+      for (var cs = 1; cs < closeSegment.length; cs++) {
+        closedBoundary.push(closeSegment[cs]);
       }
-      return fm;
+      return cellsInPolygon(closedBoundary, sW, sH);
     }
     // For polygon and magnetic: expand segments into dense boundary, then fill
     var boundary = buildBoundaryPath(pts, mode, pat, cmap, sW, sH, true);
@@ -3746,7 +3768,7 @@ window.useLassoSelect = function useLassoSelect(state) {
   }
 
   // Finalise the current lasso gesture and commit to the selection mask.
-  // For freehand: commits the painted cells.
+  // For freehand: auto-closes the traced path and fills the interior.
   // For polygon/magnetic: performs point-in-polygon fill and commits.
   function finalizeLasso(overrideOpMode) {
     var mode = lassoMode;
@@ -3978,6 +4000,46 @@ window.computeMovedMask = function computeMovedMask(selectionMask, dx, dy, sW, s
   return newMask;
 };
 
+// ─── Float-preview helpers ────────────────────────────────────────────────────
+// These write the destination cells on top of the base pattern/ps WITHOUT
+// clearing the source — used for the live "float" preview while the move tool
+// is active.  The source is only cleared when the float is finalized
+// (i.e. when the user deactivates the move tool).
+
+// Copies selected cells to their (dx, dy) displaced position without erasing
+// the originals.  Returns a modified copy of basePat.
+window.computeFloatPattern = function computeFloatPattern(basePat, floatMask, dx, dy, sW, sH) {
+  if (dx === 0 && dy === 0) return basePat.slice();
+  var newPat = basePat.slice();
+  for (var i = 0; i < floatMask.length; i++) {
+    if (!floatMask[i]) continue;
+    var sx = i % sW, sy = Math.floor(i / sW);
+    var nx = sx + dx, ny = sy + dy;
+    if (nx < 0 || nx >= sW || ny < 0 || ny >= sH) continue; // clip OOB
+    newPat[ny * sW + nx] = Object.assign({}, basePat[i]);
+  }
+  return newPat;
+};
+
+// Copies selected partial-stitch entries to their displaced position without
+// removing the originals.  Returns a new Map (or the original if nothing to do).
+window.computeFloatPartialStitches = function computeFloatPartialStitches(basePs, floatMask, dx, dy, sW, sH) {
+  if (!basePs || basePs.size === 0) return basePs;
+  if (dx === 0 && dy === 0) return basePs;
+  var moved = false;
+  basePs.forEach(function(_, idx) { if (floatMask[idx]) moved = true; });
+  if (!moved) return basePs;
+  var newPs = new Map(basePs);
+  basePs.forEach(function(val, idx) {
+    if (!floatMask[idx]) return;
+    var sx = idx % sW, sy = Math.floor(idx / sW);
+    var nx = sx + dx, ny = sy + dy;
+    if (nx < 0 || nx >= sW || ny < 0 || ny >= sH) return; // clip OOB
+    newPs.set(ny * sW + nx, Object.assign({}, val));
+  });
+  return newPs;
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ── React hook ────────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3993,13 +4055,24 @@ window.useMoveSelection = function useMoveSelection(state) {
   var _md = useState(null); // {dx, dy} | null
   var moveDelta = _md[0], setMoveDelta = _md[1];
 
-  // Refs so event handlers always see fresh values without stale closures.
-  var moveSnapshotRef = useRef(null); // {pat, ps, bsLines, selectionMask}
-  var moveOriginRef = useRef(null);   // {gx, gy}
+  // floatActive — true while a float session is in progress.  A float session
+  // begins on the first _applyMove call and ends when the tool is deactivated,
+  // revertFloat() is called, or an undo discards the session.
+  var _fa = useState(false);
+  var floatActive = _fa[0], setFloatActive = _fa[1];
 
-  // Cancel any in-flight move if the user switches away from the move tool.
+  // Refs — always hold the latest values; avoids stale-closure issues.
+  var moveSnapshotRef  = useRef(null); // float-origin snapshot used by the ghost overlay
+  var moveOriginRef    = useRef(null); // pointer position where the current drag started
+  var floatSnapshotRef = useRef(null); // {pat,ps,bsLines,selectionMask} at session start
+  var floatDeltaRef    = useRef(null); // {dx,dy} total displacement from float origin
+
+  // ── Finalize on tool deactivation ──────────────────────────────────────────
+  // When the user switches away from the move tool (including clicking the Move
+  // button off) we commit the whole float session as a single history entry.
   useEffect(function() {
-    if (state.activeTool !== 'move' && moveActive) {
+    if (state.activeTool !== 'move') {
+      _finalizeFloat();
       setMoveActive(false);
       setMoveDelta(null);
       moveSnapshotRef.current = null;
@@ -4007,46 +4080,26 @@ window.useMoveSelection = function useMoveSelection(state) {
     }
   }, [state.activeTool]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Start a drag. Snapshots current state so the ghost overlay can be drawn
-  // against the pre-move values during the drag.
-  function startMove(gx, gy) {
-    moveSnapshotRef.current = {
-      pat: state.pat,
-      ps: state.partialStitches,
-      bsLines: state.bsLines,
-      selectionMask: state.selectionMask,
-    };
-    moveOriginRef.current = { gx: gx, gy: gy };
-    setMoveActive(true);
-    setMoveDelta({ dx: 0, dy: 0 });
-  }
-
-  // Update the live delta during drag.
-  function updateMove(gx, gy) {
-    if (!moveOriginRef.current) return;
-    setMoveDelta({
-      dx: gx - moveOriginRef.current.gx,
-      dy: gy - moveOriginRef.current.gy,
-    });
-  }
-
-  // Core apply logic — shared by commitMove and nudgeMove.
-  function _applyMove(dx, dy) {
-    var snap = moveSnapshotRef.current;
-    if (!snap) return;
-    var mask = snap.selectionMask;
-    if (!mask) return;
-
-    // No-op guard: nothing to commit.
-    if (dx === 0 && dy === 0) {
-      setMoveActive(false);
-      setMoveDelta(null);
-      moveSnapshotRef.current = null;
-      moveOriginRef.current = null;
+  // ── _finalizeFloat ──────────────────────────────────────────────────────────
+  // Commit the float session: clear source cells, write destination, push undo.
+  // No-op if no float session is active.
+  function _finalizeFloat() {
+    if (!floatSnapshotRef.current || !floatDeltaRef.current) {
+      floatSnapshotRef.current = null;
+      floatDeltaRef.current = null;
+      setFloatActive(false);
       return;
     }
+    var snap = floatSnapshotRef.current;
+    var dx = floatDeltaRef.current.dx, dy = floatDeltaRef.current.dy;
+    floatSnapshotRef.current = null;
+    floatDeltaRef.current = null;
+    setFloatActive(false);
+
+    if (dx === 0 && dy === 0) return; // nothing actually moved
 
     var sW = state.sW, sH = state.sH;
+    var mask = snap.selectionMask;
     var bbox = window.getSelectionBBox(mask, sW, sH);
 
     var patResult = window.computeMovedPattern(snap.pat, mask, dx, dy, sW, sH);
@@ -4054,21 +4107,17 @@ window.useMoveSelection = function useMoveSelection(state) {
     var bsResult  = window.computeMovedBsLines(snap.bsLines, bbox, dx, dy, sW, sH);
     var nextMask  = window.computeMovedMask(mask, dx, dy, sW, sH);
 
-    // Apply state updates.
     state.setPat(patResult.newPat);
     if (psResult.psChanges.length) state.setPartialStitches(psResult.newPs);
     if (bsResult.didChange) state.setBsLines(bsResult.newBsLines);
     state.setSelectionMask(nextMask);
 
-    // Rebuild palette if any cell values changed.
     if (patResult.changes.length && state.buildPaletteWithScratch) {
       var r = state.buildPaletteWithScratch(patResult.newPat);
       state.setPal(r.pal);
       state.setCmap(r.cmap);
     }
 
-    // Push history entry.  The "move" type carries prevMask/nextMask so that
-    // useEditHistory can restore the selection mask on undo/redo.
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     state.setEditHistory(function(prev) {
       var entry = {
@@ -4084,21 +4133,129 @@ window.useMoveSelection = function useMoveSelection(state) {
       return n;
     });
     state.setRedoHistory([]);
+  }
 
-    // Clear move state.
+  // ── revertFloat ─────────────────────────────────────────────────────────────
+  // Discard the float session and restore the pattern to its pre-move state.
+  // Triggered by ESC when not mid-drag.
+  function revertFloat() {
+    if (!floatSnapshotRef.current) return;
+    var snap = floatSnapshotRef.current;
+    floatSnapshotRef.current = null;
+    floatDeltaRef.current = null;
+    setFloatActive(false);
+    setMoveActive(false);
+    setMoveDelta(null);
+    moveSnapshotRef.current = null;
+    moveOriginRef.current = null;
+
+    state.setPat(snap.pat);
+    state.setPartialStitches(snap.ps);
+    state.setBsLines(snap.bsLines);
+    state.setSelectionMask(snap.selectionMask);
+    if (state.buildPaletteWithScratch) {
+      var rv = state.buildPaletteWithScratch(snap.pat);
+      state.setPal(rv.pal);
+      state.setCmap(rv.cmap);
+    }
+  }
+
+  // ── startMove ───────────────────────────────────────────────────────────────
+  // Begin a pointer drag.  The ghost overlay uses float-origin cells so it
+  // correctly shows the original cells dimmed and the destination as a ghost.
+  function startMove(gx, gy) {
+    moveSnapshotRef.current = floatSnapshotRef.current || {
+      pat: state.pat,
+      ps: state.partialStitches,
+      bsLines: state.bsLines,
+      selectionMask: state.selectionMask,
+    };
+    moveOriginRef.current = { gx: gx, gy: gy };
+    setMoveActive(true);
+    // Start moveDelta at the current accumulated float delta so the ghost
+    // appears at the current position immediately on drag start.
+    var base = floatDeltaRef.current;
+    setMoveDelta(base ? { dx: base.dx, dy: base.dy } : { dx: 0, dy: 0 });
+  }
+
+  // ── updateMove ──────────────────────────────────────────────────────────────
+  // Called on every pointer move during a drag.  Computes the TOTAL delta from
+  // the float origin (accumulated float delta + current drag displacement).
+  function updateMove(gx, gy) {
+    if (!moveOriginRef.current) return;
+    var base = floatDeltaRef.current || { dx: 0, dy: 0 };
+    setMoveDelta({
+      dx: gx - moveOriginRef.current.gx + base.dx,
+      dy: gy - moveOriginRef.current.gy + base.dy,
+    });
+  }
+
+  // ── _applyFloat ─────────────────────────────────────────────────────────────
+  // Live-update the pattern to show the float preview (source stays, dest is
+  // a copy).  totalDx/totalDy are measured from the float-origin position.
+  // History is NOT pushed — that happens in _finalizeFloat.
+  function _applyFloat(totalDx, totalDy) {
+    // First call in this tool activation — create the float snapshot.
+    if (!floatSnapshotRef.current) {
+      floatSnapshotRef.current = {
+        pat: state.pat,
+        ps: state.partialStitches,
+        bsLines: state.bsLines,
+        selectionMask: state.selectionMask,
+      };
+      setFloatActive(true);
+    }
+
+    var snap = floatSnapshotRef.current;
+    var mask = snap.selectionMask;
+    if (!mask) { _clearDragState(); return; }
+
+    if (totalDx === 0 && totalDy === 0) { _clearDragState(); return; }
+
+    var sW = state.sW, sH = state.sH;
+    var bbox = window.getSelectionBBox(mask, sW, sH);
+
+    // Float: write destination cells WITHOUT clearing source.
+    var newPat = window.computeFloatPattern(snap.pat, mask, totalDx, totalDy, sW, sH);
+    var newPs  = window.computeFloatPartialStitches(snap.ps, mask, totalDx, totalDy, sW, sH);
+    // Backstitches are moved (keeping source would create confusing duplicate lines).
+    var bsResult = window.computeMovedBsLines(snap.bsLines, bbox, totalDx, totalDy, sW, sH);
+    var nextMask = window.computeMovedMask(mask, totalDx, totalDy, sW, sH);
+
+    state.setPat(newPat);
+    if (newPs !== snap.ps) state.setPartialStitches(newPs);
+    if (bsResult.didChange) state.setBsLines(bsResult.newBsLines);
+    state.setSelectionMask(nextMask);
+
+    if (state.buildPaletteWithScratch) {
+      var r = state.buildPaletteWithScratch(newPat);
+      state.setPal(r.pal);
+      state.setCmap(r.cmap);
+    }
+
+    floatDeltaRef.current = { dx: totalDx, dy: totalDy };
+    _clearDragState();
+    // History deferred to _finalizeFloat.
+  }
+
+  function _clearDragState() {
     setMoveActive(false);
     setMoveDelta(null);
     moveSnapshotRef.current = null;
     moveOriginRef.current = null;
   }
 
-  // Commit the current drag delta as a history entry.
+  // ── commitMove ──────────────────────────────────────────────────────────────
+  // Called on pointer-up: commit the current drag to the float preview.
+  // Source cells remain; history is NOT pushed yet.
   function commitMove() {
     if (!moveActive || !moveDelta) return;
-    _applyMove(moveDelta.dx, moveDelta.dy);
+    _applyFloat(moveDelta.dx, moveDelta.dy);
   }
 
-  // Cancel the current drag without committing (e.g. Escape key).
+  // ── cancelMove ──────────────────────────────────────────────────────────────
+  // Cancel the current drag only (does NOT revert the float session).
+  // Call revertFloat() to undo all moves in the current session.
   function cancelMove() {
     setMoveActive(false);
     setMoveDelta(null);
@@ -4106,29 +4263,25 @@ window.useMoveSelection = function useMoveSelection(state) {
     moveOriginRef.current = null;
   }
 
-  // Atomic one-cell move — used by arrow-key nudging.  Each nudge is its own
-  // undoable step; uses the current live state as the snapshot.
+  // ── nudgeMove ───────────────────────────────────────────────────────────────
+  // Arrow-key nudge: accumulates onto the float delta, no history yet.
   function nudgeMove(dx, dy) {
     if (!state.selectionMask) return;
-    moveSnapshotRef.current = {
-      pat: state.pat,
-      ps: state.partialStitches,
-      bsLines: state.bsLines,
-      selectionMask: state.selectionMask,
-    };
-    moveOriginRef.current = { gx: 0, gy: 0 };
-    _applyMove(dx, dy);
+    var base = floatDeltaRef.current || { dx: 0, dy: 0 };
+    _applyFloat(base.dx + dx, base.dy + dy);
   }
 
   return {
     moveActive: moveActive,
     moveDelta: moveDelta,
+    floatActive: floatActive,
     moveSnapshotRef: moveSnapshotRef,
     startMove: startMove,
     updateMove: updateMove,
     commitMove: commitMove,
     cancelMove: cancelMove,
     nudgeMove: nudgeMove,
+    revertFloat: revertFloat,
   };
 };
 
@@ -5913,12 +6066,14 @@ window.useCreatorState = function useCreatorState() {
     // Move selection
     moveActive: move.moveActive,
     moveDelta: move.moveDelta,
+    floatActive: move.floatActive,
     moveSnapshotRef: move.moveSnapshotRef,
     startMove: move.startMove,
     updateMove: move.updateMove,
     commitMove: move.commitMove,
     cancelMove: move.cancelMove,
     nudgeMove: move.nudgeMove,
+    revertFloat: move.revertFloat,
   };
 };
 
@@ -7847,6 +8002,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         // Background-pick mode: ESC backs out without sampling.
         if (state.pickBg) { state.setPickBg(false); return; }
         if (state.moveActive) { state.cancelMove(); return; }
+        if (state.floatActive && state.activeTool === 'move') { state.revertFloat(); return; }
         if (state.lassoInProgress) { state.cancelLasso(); return; }
         if (state.hasSelection) { state.clearSelection(); return; }
         if (state.activeTool === "backstitch" && state.bsStart) { state.setBsStart(null); return; }
@@ -8018,6 +8174,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       state.hasSelection, state.lassoInProgress, state.highlightMode,
       state.splitPaneEnabled, state.stitchType,
       state.moveActive, state.nudgeMove, state.cancelMove,
+      state.floatActive, state.revertFloat,
       history.undoEdit, history.redoEdit, io.saveProject,
     ]);
   }
@@ -13019,7 +13176,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       "Applies to Cross and Half stitches, and the Erase tool.")
   );
 
-  var lassoModes = [["freehand","Freehand"],["polygon","Polygon"],["magnetic","Magnetic"]];
+  var lassoModes = [["freehand","Lasso"],["polygon","Polygon"],["magnetic","Magnetic"]];
   var curLasso = cv.lassoMode || "freehand";
   var selectionSection = h("div", {style:{padding:"0 12px 12px",borderTop:"1px solid var(--border)",paddingTop:12}},
     h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-2)'}},

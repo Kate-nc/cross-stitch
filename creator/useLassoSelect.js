@@ -268,13 +268,20 @@ window.useLassoSelect = function useLassoSelect(state) {
   function buildMaskFromPoints(pts, mode, pat, cmap, sW, sH) {
     if (!pts || pts.length < 2) return new Uint8Array(sW * sH);
     if (mode === "freehand") {
-      // For freehand, pts contains every cell touched — mark them all selected
-      var fm = new Uint8Array(sW * sH);
-      for (var f = 0; f < pts.length; f++) {
-        var fx = pts[f].x, fy = pts[f].y;
-        if (fx >= 0 && fx < sW && fy >= 0 && fy < sH) fm[fy * sW + fx] = 1;
+      // For freehand, pts is the traced boundary path (every cell touched).
+      // Auto-close the path with a straight segment from the last point back to
+      // the first, then use point-in-polygon to fill the interior.  This is
+      // "true lasso" behaviour — the enclosed area is selected, not just the
+      // stroke the cursor traced.
+      var closedBoundary = pts.slice();
+      var closeSegment = bresenham(
+        pts[pts.length - 1].x, pts[pts.length - 1].y,
+        pts[0].x, pts[0].y
+      );
+      for (var cs = 1; cs < closeSegment.length; cs++) {
+        closedBoundary.push(closeSegment[cs]);
       }
-      return fm;
+      return cellsInPolygon(closedBoundary, sW, sH);
     }
     // For polygon and magnetic: expand segments into dense boundary, then fill
     var boundary = buildBoundaryPath(pts, mode, pat, cmap, sW, sH, true);
@@ -333,7 +340,7 @@ window.useLassoSelect = function useLassoSelect(state) {
   }
 
   // Finalise the current lasso gesture and commit to the selection mask.
-  // For freehand: commits the painted cells.
+  // For freehand: auto-closes the traced path and fills the interior.
   // For polygon/magnetic: performs point-in-polygon fill and commits.
   function finalizeLasso(overrideOpMode) {
     var mode = lassoMode;

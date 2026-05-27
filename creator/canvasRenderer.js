@@ -968,6 +968,21 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
         if (lfx < 0 || lfx >= dW || lfy < 0 || lfy >= dH) continue;
         ctx2d.fillRect(gut + lfx * cSz, gut + lfy * cSz, cSz, cSz);
       }
+      // Dashed closing-line hint from the last traced point back to the first.
+      // This signals to the user that releasing the mouse will auto-close the
+      // shape and fill the interior (true-lasso behaviour).
+      if (lassoPoints && lassoPoints.length >= 3) {
+        var lfp = lassoPoints[0];
+        var llp = lassoPoints[lassoPoints.length - 1];
+        ctx2d.strokeStyle = "rgba(16,185,129,0.6)";
+        ctx2d.lineWidth = Math.max(1.5, cSz * 0.12);
+        ctx2d.setLineDash([Math.max(3, cSz * 0.3), Math.max(3, cSz * 0.3)]);
+        ctx2d.beginPath();
+        ctx2d.moveTo(gut + (llp.x - offX) * cSz + cSz / 2, gut + (llp.y - offY) * cSz + cSz / 2);
+        ctx2d.lineTo(gut + (lfp.x - offX) * cSz + cSz / 2, gut + (lfp.y - offY) * cSz + cSz / 2);
+        ctx2d.stroke();
+        ctx2d.setLineDash([]);
+      }
     }
 
     if ((lassoMode === "polygon" || lassoMode === "magnetic") && lassoPoints && lassoPoints.length > 0) {
