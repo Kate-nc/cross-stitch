@@ -350,6 +350,7 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
     var report = state.denoisePreviewReport;
 
     var mergeMap = report && report.mergeMap ? report.mergeMap : {};
+    var fringeReplacementMap = report && report.fringeReplacementMap ? report.fringeReplacementMap : {};
 
     // Determine if there is anything to do.
     var mergeIds = Object.keys(mergeMap);
@@ -425,7 +426,21 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
         // pendingSet for this round = cells not yet resolved
         var resolvedThisRound = [];
         stillPending.forEach(function(idx) {
-          var result = window.cleanupNeighbourVote(idx, voteSnap, stillPending, sW, sH, DENOISE_WIDE_NEIGHBOURHOOD_RADIUS);
+          var forcedFringeRepId = fringeReplacementMap[idx];
+          var result = null;
+          if (forcedFringeRepId) {
+            var forcedEntry = cmap && cmap[forcedFringeRepId];
+            var fallbackCell = voteSnap[idx];
+            result = {
+              id: forcedFringeRepId,
+              type: (fallbackCell && fallbackCell.type) ? fallbackCell.type : 'solid',
+              rgb: forcedEntry ? forcedEntry.rgb : (fallbackCell ? fallbackCell.rgb : null)
+            };
+          } else {
+            result = window.cleanupNeighbourVote(
+              idx, voteSnap, stillPending, sW, sH, DENOISE_WIDE_NEIGHBOURHOOD_RADIUS, { ignoreBlend: true }
+            );
+          }
           if (result !== null) {
             resolvedThisRound.push({ idx: idx, replacement: result });
           }

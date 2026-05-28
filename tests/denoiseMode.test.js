@@ -418,6 +418,26 @@ describe('_fringeSmooth() — basic detection', () => {
     expect(result.size).toBe(0);
   });
 
+  test('records deterministic fringe replacement id for each flagged cell', () => {
+    const sW = 5, sH = 5;
+    const pat = makePat(sW, sH, 'A', [20, 0, 0]);
+    for (let y = 0; y < sH; y++) {
+      setCell(pat, sW, 3, y, 'B', [80, 0, 0]);
+      setCell(pat, sW, 2, y, 'C', [45, 0, 0]); // closer to A (Δ=25) than B (Δ=35)
+    }
+    const labById = makeLabById([
+      { id: 'A', lab: [20, 0, 0] },
+      { id: 'B', lab: [80, 0, 0] },
+      { id: 'C', lab: [45, 0, 0] },
+    ]);
+    const replacementMap = {};
+
+    const result = _fringeSmooth(pat, sW, sH, 6, 4, labById, replacementMap);
+
+    expect(result.has(2 * sW + 2)).toBe(true);
+    expect(replacementMap[2 * sW + 2]).toBe('A');
+  });
+
   test('flanking regions below minRegionSize → NOT flagged as fringe', () => {
     // 5×5 grid. Cell C (x=2,y=2) at midpoint of A and B.
     // But each flanking component has only 2 cells (< minRegionSize=4).

@@ -179,6 +179,29 @@ describe('cleanupNeighbourVote() — tie-break via wider neighbourhood', () => {
   });
 });
 
+describe('cleanupNeighbourVote() — optional blend filtering', () => {
+  test('ignoreBlend option excludes blend neighbours from denoise voting', () => {
+    const sW = 3, sH = 3;
+    const pat = makePat(sW, sH, 'red', [80, 20, 5]);
+    pat[4] = { id: 'target', lab: [10, 0, 0] };
+    // Blend neighbours dominate count but should be ignored when ignoreBlend=true.
+    pat[0] = { id: 'blendA', lab: [20, 0, 0], type: 'blend' };
+    pat[1] = { id: 'blendA', lab: [20, 0, 0], type: 'blend' };
+    pat[2] = { id: 'blendA', lab: [20, 0, 0], type: 'blend' };
+    pat[3] = { id: 'blendA', lab: [20, 0, 0], type: 'blend' };
+    pat[5] = { id: 'blendA', lab: [20, 0, 0], type: 'blend' };
+    const selectedSet = new Set([4]);
+
+    const withoutFilter = window.cleanupNeighbourVote(4, pat, selectedSet, sW, sH);
+    expect(withoutFilter).not.toBeNull();
+    expect(withoutFilter.id).toBe('blendA');
+
+    const withFilter = window.cleanupNeighbourVote(4, pat, selectedSet, sW, sH, 2, { ignoreBlend: true });
+    expect(withFilter).not.toBeNull();
+    expect(withFilter.id).toBe('red');
+  });
+});
+
 // ─── 6. Consistency: shared helper vs original _neighbourVote ────────────────
 
 describe('cleanupNeighbourVote() — consistency with _neighbourVote', () => {

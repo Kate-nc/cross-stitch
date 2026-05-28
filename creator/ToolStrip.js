@@ -252,6 +252,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     ];
     var dnOps = cv.denoiseOps || { palette: true, speckle: false, fringe: true };
     var dnReport = cv.denoisePreviewReport;
+    var dnHasMergePending = !!(dnReport && dnReport.mergeMap && Object.keys(dnReport.mergeMap).length > 0);
+    var dnCanApply = dnHasPending || dnHasMergePending;
     denoiseRow = h('div', {
       className: 'swatch-strip-row',
       role: 'group',
@@ -386,15 +388,15 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       h('button', {
         className:'tb-btn tb-btn--primary',
         onClick: function(){ if (cv.applyDenoise) cv.applyDenoise(); },
-        disabled: !dnHasPending,
-        title: dnHasPending ? 'Apply denoise (' + dnPendingCt.toLocaleString('en-GB') + ' cells)' : 'No cells selected',
+        disabled: !dnCanApply,
+        title: dnCanApply ? 'Apply denoise (' + dnPendingCt.toLocaleString('en-GB') + ' cells)' : 'No cells selected',
         'aria-label': 'Apply denoise',
-        'aria-disabled': !dnHasPending,
+        'aria-disabled': !dnCanApply,
         style:{
-          marginLeft:8, opacity: dnHasPending ? 1 : 0.4,
-          background: dnHasPending ? 'var(--accent)' : undefined,
-          color: dnHasPending ? '#fff' : undefined,
-          border: dnHasPending ? 'none' : undefined
+          marginLeft:8, opacity: dnCanApply ? 1 : 0.4,
+          background: dnCanApply ? 'var(--accent)' : undefined,
+          color: dnCanApply ? '#fff' : undefined,
+          border: dnCanApply ? 'none' : undefined
         }
       }, 'Apply'),
       h('button', {

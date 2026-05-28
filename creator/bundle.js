@@ -4577,7 +4577,7 @@ window.useCreatorState = function useCreatorState() {
   // denoiseBrushSize: brush footprint for manual mask painting
   // denoiseThreshold: slider 0-100 (17 ≈ 5 ΔE for palette consolidation)
   // denoiseOps: { palette, speckle, fringe } — which ops are enabled
-  // denoisePreviewReport: { paletteCount, speckleCount, fringeCount, mergeMap, isolationRatio }
+  // denoisePreviewReport: { paletteCount, speckleCount, fringeCount, mergeMap, fringeReplacementMap, isolationRatio }
   // denoiseDitherWarning: true if isolationRatio > DENOISE_DITHER_WARN_RATIO
   var _dnmsk = useState(null);   var denoisePendingMask = _dnmsk[0], setDenoisePendingMask = _dnmsk[1];
   var _dnrun = useState(false);  var denoiseAutoRunning = _dnrun[0], setDenoiseAutoRunning = _dnrun[1];
@@ -6400,8 +6400,8 @@ window.useEditHistory = function useEditHistory(state) {
    and useDenoiseMode.js. No React, no DOM. Depends on dE2000 (colour-utils.js).
 
    Exposed on window:
-     window.cleanupFindEntry(prePat, id)
-     window.cleanupNeighbourVote(idx, prePat, selectedSet, sW, sH, wideRadius)
+     window.cleanupFindEntry(prePat, id, opts?)
+     window.cleanupNeighbourVote(idx, prePat, selectedSet, sW, sH, wideRadius, opts?)
 */
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -6417,9 +6417,13 @@ var CLEANUP_SHARED_WIDE_NEIGHBOURHOOD_RADIUS = 2;
 // Find the first cell in prePat whose id matches and return it, or null.
 // Used by cleanupNeighbourVote to avoid needing a live cmap reference during
 // the apply step (cmap may be stale while cells are being rewritten).
-window.cleanupFindEntry = function cleanupFindEntry(prePat, id) {
+window.cleanupFindEntry = function cleanupFindEntry(prePat, id, opts) {
+  var options = opts || {};
+  var ignoreBlend = !!options.ignoreBlend;
   for (var i = 0; i < prePat.length; i++) {
-    if (prePat[i] && prePat[i].id === id) return prePat[i];
+    if (!prePat[i]) continue;
+    if (ignoreBlend && prePat[i].type === 'blend') continue;
+    if (prePat[i].id === id) return prePat[i];
   }
   return null;
 };
@@ -6443,7 +6447,9 @@ window.cleanupFindEntry = function cleanupFindEntry(prePat, id) {
 //   1. Most frequent colour in 8-connected neighbourhood (excluding selectedSet)
 //   2. Tie-break 1: most frequent in wider (2r+1)×(2r+1) neighbourhood
 //   3. Tie-break 2: Lab distance to the average Lab of all 8 valid neighbours
-window.cleanupNeighbourVote = function cleanupNeighbourVote(idx, prePat, selectedSet, sW, sH, wideRadius) {
+window.cleanupNeighbourVote = function cleanupNeighbourVote(idx, prePat, selectedSet, sW, sH, wideRadius, opts) {
+  var options = opts || {};
+  var ignoreBlend = !!options.ignoreBlend;
   var r = (wideRadius !== undefined && wideRadius !== null) ? wideRadius : CLEANUP_SHARED_WIDE_NEIGHBOURHOOD_RADIUS;
   var x = idx % sW;
   var y = (idx / sW) | 0;
@@ -6461,6 +6467,7 @@ window.cleanupNeighbourVote = function cleanupNeighbourVote(idx, prePat, selecte
       if (selectedSet.has(ni)) continue;
       var cell = prePat[ni];
       if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
+      if (ignoreBlend && cell.type === 'blend') continue;
       freq[cell.id] = (freq[cell.id] || 0) + 1;
       validNeighbours.push(cell);
     }
@@ -6478,7 +6485,7 @@ window.cleanupNeighbourVote = function cleanupNeighbourVote(idx, prePat, selecte
   for (var id2 in freq) { if (freq[id2] === maxFreq) candidates.push(id2); }
 
   if (candidates.length === 1) {
-    return window.cleanupFindEntry(prePat, candidates[0]);
+    return window.cleanupFindEntry(prePat, candidates[0], options);
   }
 
   // ── Tie-break 1: wider neighbourhood frequency ────────────────────────
@@ -6492,6 +6499,7 @@ window.cleanupNeighbourVote = function cleanupNeighbourVote(idx, prePat, selecte
       if (selectedSet.has(wni)) continue;
       var wc = prePat[wni];
       if (!wc || wc.id === '__skip__' || wc.id === '__empty__') continue;
+      if (ignoreBlend && wc.type === 'blend') continue;
       if (candidates.indexOf(wc.id) === -1) continue; // only compare tied candidates
       wideFreq[wc.id] = (wideFreq[wc.id] || 0) + 1;
     }
@@ -6499,7 +6507,7 @@ window.cleanupNeighbourVote = function cleanupNeighbourVote(idx, prePat, selecte
   var maxWide = 0;
   for (var wid in wideFreq) { if (wideFreq[wid] > maxWide) maxWide = wideFreq[wid]; }
   var wideCandidates = candidates.filter(function(cid) { return (wideFreq[cid] || 0) >= maxWide; });
-  if (wideCandidates.length === 1) return window.cleanupFindEntry(prePat, wideCandidates[0]);
+  if (wideCandidates.length === 1) return window.cleanupFindEntry(prePat, wideCandidates[0], options);
 
   // ── Tie-break 2: Lab distance to average of 8-neighbours ──────────────
   var avgL = 0, avgA = 0, avgB = 0, n = validNeighbours.length;
@@ -6514,12 +6522,12 @@ window.cleanupNeighbourVote = function cleanupNeighbourVote(idx, prePat, selecte
   var bestId = wideCandidates[0];
   var bestDE = Infinity;
   for (var ci = 0; ci < wideCandidates.length; ci++) {
-    var entry = window.cleanupFindEntry(prePat, wideCandidates[ci]);
+    var entry = window.cleanupFindEntry(prePat, wideCandidates[ci], options);
     if (!entry || !entry.lab) continue;
     var de = dE2000(avgLab, entry.lab);
     if (de < bestDE) { bestDE = de; bestId = wideCandidates[ci]; }
   }
-  return window.cleanupFindEntry(prePat, bestId);
+  return window.cleanupFindEntry(prePat, bestId, options);
 };
 
 
@@ -7402,6 +7410,7 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
     var report = state.denoisePreviewReport;
 
     var mergeMap = report && report.mergeMap ? report.mergeMap : {};
+    var fringeReplacementMap = report && report.fringeReplacementMap ? report.fringeReplacementMap : {};
 
     // Determine if there is anything to do.
     var mergeIds = Object.keys(mergeMap);
@@ -7477,7 +7486,21 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
         // pendingSet for this round = cells not yet resolved
         var resolvedThisRound = [];
         stillPending.forEach(function(idx) {
-          var result = window.cleanupNeighbourVote(idx, voteSnap, stillPending, sW, sH, DENOISE_WIDE_NEIGHBOURHOOD_RADIUS);
+          var forcedFringeRepId = fringeReplacementMap[idx];
+          var result = null;
+          if (forcedFringeRepId) {
+            var forcedEntry = cmap && cmap[forcedFringeRepId];
+            var fallbackCell = voteSnap[idx];
+            result = {
+              id: forcedFringeRepId,
+              type: (fallbackCell && fallbackCell.type) ? fallbackCell.type : 'solid',
+              rgb: forcedEntry ? forcedEntry.rgb : (fallbackCell ? fallbackCell.rgb : null)
+            };
+          } else {
+            result = window.cleanupNeighbourVote(
+              idx, voteSnap, stillPending, sW, sH, DENOISE_WIDE_NEIGHBOURHOOD_RADIUS, { ignoreBlend: true }
+            );
+          }
           if (result !== null) {
             resolvedThisRound.push({ idx: idx, replacement: result });
           }
@@ -10885,6 +10908,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     ];
     var dnOps = cv.denoiseOps || { palette: true, speckle: false, fringe: true };
     var dnReport = cv.denoisePreviewReport;
+    var dnHasMergePending = !!(dnReport && dnReport.mergeMap && Object.keys(dnReport.mergeMap).length > 0);
+    var dnCanApply = dnHasPending || dnHasMergePending;
     denoiseRow = h('div', {
       className: 'swatch-strip-row',
       role: 'group',
@@ -11019,15 +11044,15 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       h('button', {
         className:'tb-btn tb-btn--primary',
         onClick: function(){ if (cv.applyDenoise) cv.applyDenoise(); },
-        disabled: !dnHasPending,
-        title: dnHasPending ? 'Apply denoise (' + dnPendingCt.toLocaleString('en-GB') + ' cells)' : 'No cells selected',
+        disabled: !dnCanApply,
+        title: dnCanApply ? 'Apply denoise (' + dnPendingCt.toLocaleString('en-GB') + ' cells)' : 'No cells selected',
         'aria-label': 'Apply denoise',
-        'aria-disabled': !dnHasPending,
+        'aria-disabled': !dnCanApply,
         style:{
-          marginLeft:8, opacity: dnHasPending ? 1 : 0.4,
-          background: dnHasPending ? 'var(--accent)' : undefined,
-          color: dnHasPending ? '#fff' : undefined,
-          border: dnHasPending ? 'none' : undefined
+          marginLeft:8, opacity: dnCanApply ? 1 : 0.4,
+          background: dnCanApply ? 'var(--accent)' : undefined,
+          color: dnCanApply ? '#fff' : undefined,
+          border: dnCanApply ? 'none' : undefined
         }
       }, 'Apply'),
       h('button', {

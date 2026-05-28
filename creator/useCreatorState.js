@@ -261,7 +261,7 @@ window.useCreatorState = function useCreatorState() {
   // denoiseBrushSize: brush footprint for manual mask painting
   // denoiseThreshold: slider 0-100 (17 ≈ 5 ΔE for palette consolidation)
   // denoiseOps: { palette, speckle, fringe } — which ops are enabled
-  // denoisePreviewReport: { paletteCount, speckleCount, fringeCount, mergeMap, isolationRatio }
+  // denoisePreviewReport: { paletteCount, speckleCount, fringeCount, mergeMap, fringeReplacementMap, isolationRatio }
   // denoiseDitherWarning: true if isolationRatio > DENOISE_DITHER_WARN_RATIO
   var _dnmsk = useState(null);   var denoisePendingMask = _dnmsk[0], setDenoisePendingMask = _dnmsk[1];
   var _dnrun = useState(false);  var denoiseAutoRunning = _dnrun[0], setDenoiseAutoRunning = _dnrun[1];

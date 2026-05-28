@@ -20,7 +20,7 @@
      { type: 'result',
        mask: Array<0|1>,             // cells to replace (speckle + fringe)
        report: { paletteCount, speckleCount, fringeCount,
-                 mergeMap, isolationRatio } }
+                 mergeMap, fringeReplacementMap, isolationRatio } }
    | { type: 'error', message: string }
 
    mergeMap: { [removedId]: representativeId } — used by applyDenoise to
@@ -117,8 +117,9 @@ onmessage = function(e) {
 
     // ── Op 3: Edge Fringe Smoothing ───────────────────────────────────────────
     var fringeSet = new Set();
+    var fringeReplacementMap = {};
     if (enableFringe) {
-      fringeSet = _fringeSmooth(workingPat, sW, sH, fringeTransitionDe, fringeMinRegionSize, labById);
+      fringeSet = _fringeSmooth(workingPat, sW, sH, fringeTransitionDe, fringeMinRegionSize, labById, fringeReplacementMap);
     }
 
     // ── Combine masks → plain Array for safe postMessage ──────────────────────
@@ -135,6 +136,7 @@ onmessage = function(e) {
         speckleCount:   speckleSet.size,
         fringeCount:    fringeSet.size,
         mergeMap:       mergeMap,
+        fringeReplacementMap: fringeReplacementMap,
         isolationRatio: isolationRatio,
       }
     });
@@ -326,7 +328,7 @@ function _speckleRemove(pat, sW, sH, maxSize, dominanceRatio) {
 // Op 3 — Edge Fringe Smoothing
 // ═══════════════════════════════════════════════════════════════════════════════
 // Returns Set<number> of flat indices to replace.
-function _fringeSmooth(pat, sW, sH, transitionDe, minRegionSize, labById) {
+function _fringeSmooth(pat, sW, sH, transitionDe, minRegionSize, labById, fringeReplacementMapOut) {
   var total = sW * sH;
 
   // Pre-compute connected component sizes (solid colors only, 8-connected)
@@ -443,7 +445,12 @@ function _fringeSmooth(pat, sW, sH, transitionDe, minRegionSize, labById) {
     if ((compSize[adjLblA] || 0) < minRegionSize) continue;
     if ((compSize[adjLblB] || 0) < minRegionSize) continue;
 
+    var distA = dE2000(labC, labA);
+    var distB = dE2000(labC, labB);
+    var replacementId = distA <= distB ? topA : topB;
+
     toReplace.add(idx);
+    if (fringeReplacementMapOut) fringeReplacementMapOut[idx] = replacementId;
   }
 
   return toReplace;
