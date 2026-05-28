@@ -301,6 +301,16 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     return()=>{delete window.__setCreatorAppMode;delete window.__setCreatorProjectName;delete window.__updateCreatorTrackerFields;};
   },[state.setAppMode,state.setProjectName]);
 
+  // Register NavigationAPI handoff for Creator → Tracker so the top-bar Track
+  // tab and command palette can trigger the full save+handoff path rather than
+  // a raw href. Uses the existing _ioRef (declared below with the stable wrappers)
+  // which is always updated before effects run.
+  React.useEffect(()=>{
+    if(!state.pat||!state.pal){delete window.__navigateToTracker;return;}
+    window.__navigateToTracker=function(){if(_ioRef.current&&_ioRef.current.handleOpenInTracker)_ioRef.current.handleOpenInTracker();};
+    return()=>{delete window.__navigateToTracker;};
+  },[!!state.pat,!!state.pal]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Bridge global "?" → open Help Centre while in Creator design mode.
   React.useEffect(()=>{
     const h=()=>{ state.setModal('help'); };

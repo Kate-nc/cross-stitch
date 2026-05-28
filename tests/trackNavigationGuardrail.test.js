@@ -376,3 +376,141 @@ describe('home-screen.js sample project navigation', () => {
     expect(homeScreen).toMatch(/stitch\.html\?id=.*encodeURIComponent\(/);
   });
 });
+
+// ── NavigationAPI adoption contract ──────────────────────────────────────────
+describe('NavigationAPI adoption contract', () => {
+  const navigationJs  = fs.readFileSync(path.join(__dirname, '..', 'navigation.js'),      'utf8');
+  const commandPalJs  = fs.readFileSync(path.join(__dirname, '..', 'command-palette.js'), 'utf8');
+  const creatorMainJs = fs.readFileSync(path.join(__dirname, '..', 'creator-main.js'),    'utf8');
+  // headerJs and trackerApp already loaded above.
+
+  // ── navigation.js ────────────────────────────────────────────────────────
+  test('navigation.js exports window.NavigationAPI', () => {
+    expect(navigationJs).toMatch(/window\.NavigationAPI\s*=/);
+  });
+
+  test('navigation.js has __navigateToTracker as a handoff key', () => {
+    expect(navigationJs).toMatch(/__navigateToTracker/);
+  });
+
+  test('navigation.js has __navigateToEditor as a handoff key', () => {
+    expect(navigationJs).toMatch(/__navigateToEditor/);
+  });
+
+  test('navigation.js does not use create.html?action=open as any cross-page URL', () => {
+    // action=open clears the active project pointer — it must never appear as
+    // a URL value in the _CROSS_PAGE_URL table.
+    const urlTableBlock = navigationJs.match(/var _CROSS_PAGE_URL\s*=\s*\{[\s\S]*?\};/);
+    expect(urlTableBlock).not.toBeNull();
+    expect(urlTableBlock[0]).not.toMatch(/action=open/);
+  });
+
+  test('navigation.js cross-page editor URL is create.html?from=home', () => {
+    expect(navigationJs).toMatch(/editor.*create\.html\?from=home/);
+  });
+
+  test('navigation.js cross-page tracker URL is stitch.html?from=home', () => {
+    expect(navigationJs).toMatch(/tracker.*stitch\.html\?from=home/);
+  });
+
+  test('navigation.js appends ?id= when navigating to tracker or editor cross-page', () => {
+    // The id param is the belt-and-suspenders pointer heal used by the boot
+    // guards in stitch.html and create.html.
+    expect(navigationJs).toMatch(/'id='\s*\+\s*encodeURIComponent\(projectId\)/);
+  });
+
+  test('navigation.js sets window.__navigatingAway before cross-page navigation', () => {
+    // Must be set before location.href to prevent home-app.js stale-pointer
+    // self-heal from running after the outbound navigation starts.
+    const block = navigationJs.match(
+      /window\.__navigatingAway\s*=\s*true[\s\S]*?window\.location\.href\s*=/
+    );
+    expect(block).not.toBeNull();
+  });
+
+  test('navigation.js has an idempotency guard (double-load safe)', () => {
+    expect(navigationJs).toMatch(/if\s*\(\s*window\.NavigationAPI\s*\)\s*return/);
+  });
+
+  // ── header.js ────────────────────────────────────────────────────────────
+  test('header.js app-section tab click calls window.NavigationAPI.navigateTo', () => {
+    // The click handler must delegate to NavigationAPI so every navigation
+    // surface shares the same project-aware dispatch logic.
+    expect(headerJs).toMatch(/window\.NavigationAPI.*\.navigateTo/);
+  });
+
+  test('header.js editor tab href is create.html?from=home (not action=open)', () => {
+    // The href attribute is the right-click / accessibility fallback.
+    // action=open clears the active project so it must never appear here.
+    expect(headerJs).toMatch(/editor.*create\.html\?from=home/s);
+    expect(headerJs).not.toMatch(/editor.*create\.html\?action=open/s);
+  });
+
+  test('header.js appSections does not contain create.html?action=open', () => {
+    // Belt-and-suspenders: search the entire header source for the broken URL.
+    const appSectionsBlock = headerJs.match(/const appSections\s*=\s*\[[\s\S]*?\];/);
+    expect(appSectionsBlock).not.toBeNull();
+    expect(appSectionsBlock[0]).not.toMatch(/action=open/);
+  });
+
+  // ── command-palette.js ───────────────────────────────────────────────────
+  test('command-palette nav_editor action calls window.NavigationAPI', () => {
+    const block = commandPalJs.match(
+      /id:\s*'nav_editor'[\s\S]*?action:\s*function[\s\S]*?\}/
+    );
+    expect(block).not.toBeNull();
+    expect(block[0]).toMatch(/window\.NavigationAPI/);
+  });
+
+  test('command-palette nav_editor action does not fall back to create.html?action=open', () => {
+    const block = commandPalJs.match(
+      /id:\s*'nav_editor'[\s\S]*?action:\s*function[\s\S]*?\}/
+    );
+    expect(block).not.toBeNull();
+    expect(block[0]).not.toMatch(/action=open/);
+  });
+
+  test('command-palette nav_tracker action calls window.NavigationAPI', () => {
+    const block = commandPalJs.match(
+      /id:\s*'nav_tracker'[\s\S]*?action:\s*function[\s\S]*?\}/
+    );
+    expect(block).not.toBeNull();
+    expect(block[0]).toMatch(/window\.NavigationAPI/);
+  });
+
+  test("command-palette nav_tracker action does not fall back to bare 'stitch.html'", () => {
+    // Without ?from=home the boot guard can bounce the user to home.html when
+    // there is no active project, instead of showing the unloaded tracker.
+    const block = commandPalJs.match(
+      /id:\s*'nav_tracker'[\s\S]*?action:\s*function[\s\S]*?\}/
+    );
+    expect(block).not.toBeNull();
+    // A bare stitch.html without any query string must not appear.
+    expect(block[0]).not.toMatch(/'stitch\.html'/);
+  });
+
+  test('command-palette recentProjectActions appends ?id= to stitch.html URL', () => {
+    // Recent-project entries already set __navigatingAway + setActiveProject;
+    // the id param provides the belt-and-suspenders pointer heal.
+    expect(commandPalJs).toMatch(/stitch\.html\?from=home&id='/);
+    expect(commandPalJs).toMatch(/encodeURIComponent\(id\)/);
+  });
+
+  // ── creator-main.js ──────────────────────────────────────────────────────
+  test('creator-main.js registers window.__navigateToTracker when project is loaded', () => {
+    expect(creatorMainJs).toMatch(/window\.__navigateToTracker\s*=/);
+  });
+
+  test('creator-main.js cleans up window.__navigateToTracker on unmount', () => {
+    expect(creatorMainJs).toMatch(/delete window\.__navigateToTracker/);
+  });
+
+  // ── tracker-app.js ───────────────────────────────────────────────────────
+  test('tracker-app.js registers window.__navigateToEditor when project is loaded', () => {
+    expect(trackerApp).toMatch(/window\.__navigateToEditor\s*=/);
+  });
+
+  test('tracker-app.js cleans up window.__navigateToEditor on unmount', () => {
+    expect(trackerApp).toMatch(/delete window\.__navigateToEditor/);
+  });
+});
