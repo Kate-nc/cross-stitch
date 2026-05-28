@@ -41,6 +41,14 @@ global.rgbToLab = function(r, g, b) {
 const fs = require('fs');
 const vm = require('vm');
 
+// ── From creator/cleanupSharedHelpers.js (must load before useCleanupMode.js) ──
+// The shared helpers assign to window.cleanupFindEntry / window.cleanupNeighbourVote.
+// In Node.js, window doesn't exist, so we point window at global so those
+// assignments land as global.cleanupFindEntry / global.cleanupNeighbourVote.
+if (typeof global.window === 'undefined') global.window = global;
+const sharedHelpersSrc = fs.readFileSync('./creator/cleanupSharedHelpers.js', 'utf8');
+eval(sharedHelpersSrc); // eslint-disable-line no-eval
+
 // ── From creator/useCleanupMode.js ──
 
 const hookSrc = fs.readFileSync('./creator/useCleanupMode.js', 'utf8');
