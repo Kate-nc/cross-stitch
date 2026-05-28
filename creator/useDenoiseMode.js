@@ -243,6 +243,15 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
     runDenoiseAutoDetect();
   }, [state.denoiseOps]);
 
+  // Re-run when palette threshold changes while auto sub-tool is active with a result visible.
+  useEffect(function() {
+    if (state.activeTool !== 'denoise') return;
+    if (state.denoiseSelTool !== 'auto') return;
+    if (state.denoiseAutoRunning) return;
+    if (!state.denoisePendingMask && !state.denoisePreviewReport) return;
+    runDenoiseAutoDetect();
+  }, [state.denoiseThreshold]);
+
   // Cleanup worker on unmount.
   useEffect(function() {
     return function() {

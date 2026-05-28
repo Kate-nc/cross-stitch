@@ -7295,6 +7295,15 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
     runDenoiseAutoDetect();
   }, [state.denoiseOps]);
 
+  // Re-run when palette threshold changes while auto sub-tool is active with a result visible.
+  useEffect(function() {
+    if (state.activeTool !== 'denoise') return;
+    if (state.denoiseSelTool !== 'auto') return;
+    if (state.denoiseAutoRunning) return;
+    if (!state.denoisePendingMask && !state.denoisePreviewReport) return;
+    runDenoiseAutoDetect();
+  }, [state.denoiseThreshold]);
+
   // Cleanup worker on unmount.
   useEffect(function() {
     return function() {
@@ -10149,7 +10158,7 @@ window.PatternCanvas = function PatternCanvas() {
     cv.activeTool, cv.brushSize, cv.stitchType, ctx.partialStitchTool, cv.bsLines,
     cv.lassoMode, cv.lassoPoints, cv.lassoPreviewMask, cv.lassoCursor, cv.lassoInProgress,
     cv.selectionMask, cv.confettiPreview,
-    cv.cleanupPendingMask
+    cv.cleanupPendingMask, cv.denoisePendingMask
   ]);
 
   return h("canvas", {

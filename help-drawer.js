@@ -86,6 +86,29 @@
           ]
         },
         {
+          heading: "Lineart Cleanup mode",
+          body: "Lineart Cleanup removes dark border lines left over from a lineart illustration conversion. Access it from the More panel in the editor toolbar.",
+          bullets: [
+            ["How to use", "Open More tools and click Cleanup mode. The tool automatically detects the main dark lineart colour. Adjust the tolerance slider to widen or narrow the selection, then press Apply."],
+            ["Auto mode", "Detects and highlights likely lineart pixels. The orange overlay shows what will be replaced."],
+            ["Brush mode", "Paint the cells you want to remove manually using a brush. Useful when only a small section needs cleaning up."],
+            ["Undo", "The entire Cleanup apply is a single undo step."]
+          ]
+        },
+        {
+          heading: "Denoise mode",
+          body: "Conversion from an image always introduces some noise. Denoise mode finds and fixes three specific artefacts without you needing to repaint manually. Access it from the More panel in the editor toolbar, or from the toolbar in Create mode once a pattern has been generated.",
+          bullets: [
+            ["Palette (checkbox)", "Merges near-duplicate thread colours that the colour-matching step accidentally created. For example, two almost-identical yellows that differ by only a few stitches. The slider sets how close two colours need to be before they are merged. The more-used colour wins and absorbs the rarer one."],
+            ["Speckle (checkbox, off by default)", "Removes isolated stray stitches of up to 3 cells that are completely surrounded by a single dominant colour. Off by default because dithered patterns look identical to speckle — the tool shows a warning if your pattern appears heavily dithered."],
+            ["Fringe (checkbox)", "Smooths the thin band of in-between colours that forms at the edges of solid regions when converting an anti-aliased image. A fringe cell sits between two large solid areas and its colour is perceptually between them."],
+            ["Palette threshold slider", "Controls how aggressively Palette consolidation merges colours (0 to 30 colour-distance units). The default of about 5 units catches accidental near-duplicates without touching intentional thread choices."],
+            ["Auto mode", "Runs all enabled operations automatically and shows a teal overlay of every cell that would be changed. The report below the controls shows how many palette merges, speckle cells, and fringe cells were found. Press Re-run after adjusting settings to refresh the preview."],
+            ["Brush mode", "Paint specific cells into the selection mask manually. The same neighbour-vote replacement is applied when you press Apply."],
+            ["Apply / Cancel", "Nothing changes in your pattern until you press Apply. The entire operation is one undo step."]
+          ]
+        },
+        {
           heading: "Stash Adapt and thread substitution",
           body: "The Adapt feature re-maps your palette to threads you already own. Access it from the Project tab after generating.",
           bullets: [
