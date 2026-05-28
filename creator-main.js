@@ -303,9 +303,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
 
   // Register NavigationAPI handoff for Creator → Tracker so the top-bar Track
   // tab and command palette can trigger the full save+handoff path rather than
-  // a raw href. A ref is used because io is redefined on every render.
-  const _ioRef=React.useRef(io);
-  _ioRef.current=io;
+  // a raw href. Uses the existing _ioRef (declared below with the stable wrappers)
+  // which is always updated before effects run.
   React.useEffect(()=>{
     if(!state.pat||!state.pal){delete window.__navigateToTracker;return;}
     window.__navigateToTracker=function(){if(_ioRef.current&&_ioRef.current.handleOpenInTracker)_ioRef.current.handleOpenInTracker();};
