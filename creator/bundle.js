@@ -2065,6 +2065,25 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
     ctx2d.restore();
   }
 
+  // ─── Denoise mode pending-mask overlay ───────────────────────────────────────
+  // Solid teal fill over every cell flagged for denoise replacement.
+  // Rendered after the cleanup overlay so both can theoretically coexist.
+  if (activeTool === 'denoise' && state.denoisePendingMask) {
+    var dMask = state.denoisePendingMask;
+    var dSW   = state.sW;
+    ctx2d.save();
+    ctx2d.fillStyle = (typeof DENOISE_OVERLAY_COLOR !== 'undefined') ? DENOISE_OVERLAY_COLOR : 'rgba(0,160,200,0.50)';
+    for (var doy = 0; doy < dH; doy++) {
+      for (var dox = 0; dox < dW; dox++) {
+        var doi = (offY + doy) * dSW + (offX + dox);
+        if (dMask[doi]) {
+          ctx2d.fillRect(gut + dox * cSz, gut + doy * cSz, cSz, cSz);
+        }
+      }
+    }
+    ctx2d.restore();
+  }
+
   // ─── Move-selection ghost overlay ────────────────────────────────────────────
   // Drawn last so it sits above the selection tint and cleanup overlays.
   // While a move drag is in progress:
@@ -4550,6 +4569,30 @@ window.useCreatorState = function useCreatorState() {
   var _clrun = useState(false); var cleanupAutoRunning = _clrun[0], setCleanupAutoRunning = _clrun[1];
   var _clerr = useState(null); var cleanupAutoError = _clerr[0], setCleanupAutoError = _clerr[1];
 
+  // ── Denoise mode state ───────────────────────────────────────────────────────
+  // denoisePendingMask: Array<0|1> (sW*sH) from worker, null until first run
+  // denoiseAutoRunning: true while noise-cleanup-worker is running
+  // denoiseAutoError: last error string from worker, or null
+  // denoiseSelTool: 'auto' | 'brush'
+  // denoiseBrushSize: brush footprint for manual mask painting
+  // denoiseThreshold: slider 0-100 (17 ≈ 5 ΔE for palette consolidation)
+  // denoiseOps: { palette, speckle, fringe } — which ops are enabled
+  // denoisePreviewReport: { paletteCount, speckleCount, fringeCount, mergeMap, isolationRatio }
+  // denoiseDitherWarning: true if isolationRatio > DENOISE_DITHER_WARN_RATIO
+  var _dnmsk = useState(null);   var denoisePendingMask = _dnmsk[0], setDenoisePendingMask = _dnmsk[1];
+  var _dnrun = useState(false);  var denoiseAutoRunning = _dnrun[0], setDenoiseAutoRunning = _dnrun[1];
+  var _dnerr = useState(null);   var denoiseAutoError = _dnerr[0], setDenoiseAutoError = _dnerr[1];
+  var _dnsel = useState('auto'); var denoiseSelTool = _dnsel[0], setDenoiseSelTool = _dnsel[1];
+  var _dnbsz = useState(1);      var denoiseBrushSize = _dnbsz[0], setDenoiseBrushSize = _dnbsz[1];
+  var _dnthr = useState(17);     var denoiseThreshold = _dnthr[0], setDenoiseThreshold = _dnthr[1];  // 17/100*30≈5ΔE
+  var _dnops = useState({ palette: true, speckle: false, fringe: true });
+  var denoiseOps = _dnops[0], setDenoiseOps = _dnops[1];
+  var _dnrpt = useState(null);   var denoisePreviewReport = _dnrpt[0], setDenoisePreviewReport = _dnrpt[1];
+  var _dndtw = useState(false);  var denoiseDitherWarning = _dndtw[0], setDenoiseDitherWarning = _dndtw[1];
+  // Handlers ref — set by useDenoiseMode so useCanvasInteraction can dispatch
+  // pointer events without a circular hook dependency.
+  var denoiseHandlersRef = useRef(null);
+
   // Sidebar tab within current mode (mode-specific).
   // Create mode tabs: "image" | "dimensions" | "palette" | "preview" | "project".
   // Legacy "settings" (pre-2026-04 toolbar rework) is remapped to "image".
@@ -5921,6 +5964,16 @@ window.useCreatorState = function useCreatorState() {
     pcRef, fRef, scrollRef, expRef, loadRef,
     prevSW, prevSH, isProjectLoadRef, projectIdRef, createdAtRef, trackerFieldsRef, userActedRef, stripRef,
     cleanupHandlersRef,
+    denoisePendingMask, setDenoisePendingMask,
+    denoiseAutoRunning, setDenoiseAutoRunning,
+    denoiseAutoError, setDenoiseAutoError,
+    denoiseSelTool, setDenoiseSelTool,
+    denoiseBrushSize, setDenoiseBrushSize,
+    denoiseThreshold, setDenoiseThreshold,
+    denoiseOps, setDenoiseOps,
+    denoisePreviewReport, setDenoisePreviewReport,
+    denoiseDitherWarning, setDenoiseDitherWarning,
+    denoiseHandlersRef,
     G, EDIT_HISTORY_MAX,
     // Derived
     totalStitchable, cs, fitZ, pxX, pxY, totPg,
@@ -6996,6 +7049,514 @@ window.AUTODETECT_MIN_FOREIGN_RATIO = AUTODETECT_MIN_FOREIGN_RATIO;
 window.AUTODETECT_MIN_RUN_LENGTH = AUTODETECT_MIN_RUN_LENGTH;
 
 
+/* ─── useDenoiseMode.js ─── */
+/* creator/useDenoiseMode.js — Denoise Mode hook.
+   Handles mask detection (palette consolidation, speckle, fringe), manual brush
+   selection, overlay mask, apply logic (mergeMap + atomic neighbour vote), and
+   undo entry creation.
+
+   Exposed on window so it can be called from creator-main.js:
+     window.useDenoiseMode(state, history)
+     → { enterDenoise, exitDenoise, cancelDenoise, applyDenoise,
+         runDenoiseAutoDetect, handleDenoisePointerDown/Move/Up, OVERLAY_COLOR }
+
+   Depends on globals:
+     React (useRef/useCallback/useEffect from CDN)
+     dE2000 (colour-utils.js)
+     gridCoord (helpers.js)
+     window.cleanupNeighbourVote, window.cleanupFindEntry (cleanupSharedHelpers.js)
+*/
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Module-root constants
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Palette-threshold slider (0–100) maps linearly to this ΔE range.
+var DENOISE_THRESHOLD_MAX_DE = 30;
+
+// Fraction of non-skip cells that must be fully surrounded by a different
+// colour before the dither warning banner is shown.
+var DENOISE_DITHER_WARN_RATIO = 0.15;
+
+// Radius for the wide neighbourhood tie-break during apply (identical to cleanup).
+var DENOISE_WIDE_NEIGHBOURHOOD_RADIUS = 2;
+
+// Brush size limits.
+var DENOISE_BRUSH_MIN = 1;
+var DENOISE_BRUSH_MAX = 10;
+
+// Overlay colour: teal, distinct from cleanup orange.
+var DENOISE_OVERLAY_COLOR = 'rgba(0,160,200,0.50)';
+
+// localStorage key prefix for per-project dither-warning dismissal.
+var DENOISE_DITHER_WARN_KEY_PREFIX = 'denoise_ditherWarnDismissed_';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Exported hook
+// ═══════════════════════════════════════════════════════════════════════════════
+
+window.useDenoiseMode = function useDenoiseMode(state, history) {
+  var useRef      = React.useRef;
+  var useCallback = React.useCallback;
+  var useEffect   = React.useEffect;
+
+  // Reference to the active noise-cleanup Web Worker instance.
+  var workerRef = useRef(null);
+
+  // Cache for the slim {id, lab, type} array sent to the worker.
+  // Only rebuilt when pat or cmap reference changes.
+  var slimPatCacheRef = useRef({ pat: null, cmap: null, slim: null });
+
+  // ── Threshold in ΔE ───────────────────────────────────────────────────────
+  function thresholdDe(sliderVal) {
+    return (sliderVal / 100) * DENOISE_THRESHOLD_MAX_DE;
+  }
+
+  // ── Dither warning helpers ─────────────────────────────────────────────────
+  function _ditherWarnKey() {
+    var pid = state.projectIdRef && state.projectIdRef.current;
+    return pid ? DENOISE_DITHER_WARN_KEY_PREFIX + pid : null;
+  }
+  function _isDitherWarnDismissed() {
+    var key = _ditherWarnKey();
+    if (!key) return false;
+    try { return !!localStorage.getItem(key); } catch (_) { return false; }
+  }
+  function dismissDitherWarning() {
+    var key = _ditherWarnKey();
+    if (key) { try { localStorage.setItem(key, '1'); } catch (_) {} }
+    state.setDenoiseDitherWarning(false);
+  }
+
+  // ── Enter / exit denoise ──────────────────────────────────────────────────
+  var enterDenoise = useCallback(function() {
+    state.setActiveTool('denoise');
+    // Cancel any in-flight worker
+    if (workerRef.current) { workerRef.current.terminate(); workerRef.current = null; }
+    state.setDenoiseAutoRunning(false);
+    state.setDenoiseAutoError(null);
+    state.setDenoiseDitherWarning(false);
+  }, [state]);
+
+  var exitDenoise = useCallback(function() {
+    state.setActiveTool(null);
+    state.setDenoisePendingMask(null);
+    state.setDenoiseAutoRunning(false);
+    state.setDenoiseAutoError(null);
+    state.setDenoisePreviewReport(null);
+    state.setDenoiseDitherWarning(false);
+    if (workerRef.current) { workerRef.current.terminate(); workerRef.current = null; }
+  }, [state]);
+
+  var cancelDenoise = useCallback(function() {
+    state.setDenoisePendingMask(null);
+    state.setDenoiseAutoRunning(false);
+    state.setDenoiseAutoError(null);
+    state.setDenoisePreviewReport(null);
+    if (workerRef.current) { workerRef.current.terminate(); workerRef.current = null; }
+  }, [state]);
+
+  // ── Build slim pal for worker ─────────────────────────────────────────────
+  function _buildSlimPal(pal, cmap) {
+    if (!pal) return [];
+    var out = [];
+    for (var i = 0; i < pal.length; i++) {
+      var p = pal[i];
+      if (!p || p.id === '__skip__' || p.id === '__empty__') continue;
+      var e = cmap && cmap[p.id];
+      out.push({ id: p.id, lab: e ? e.lab : null, count: p.count || 0 });
+    }
+    return out;
+  }
+
+  // ── Auto-detect (Web Worker) ──────────────────────────────────────────────
+  var runDenoiseAutoDetect = useCallback(function() {
+    var pat  = state.pat;
+    var sW   = state.sW;
+    var sH   = state.sH;
+    var cmap = state.cmap;
+    var pal  = state.pal;
+    if (!pat) return;
+
+    // Terminate any previous run
+    if (workerRef.current) { workerRef.current.terminate(); workerRef.current = null; }
+    state.setDenoiseAutoRunning(true);
+    state.setDenoiseAutoError(null);
+
+    var worker;
+    try {
+      worker = new Worker('noise-cleanup-worker.js');
+    } catch (e) {
+      state.setDenoiseAutoRunning(false);
+      state.setDenoiseAutoError('Could not start denoise worker: ' + (e && e.message || String(e)));
+      return;
+    }
+    workerRef.current = worker;
+
+    function releaseWorker(doneWorker) {
+      if (doneWorker && typeof doneWorker.terminate === 'function') doneWorker.terminate();
+      if (workerRef.current === doneWorker) workerRef.current = null;
+    }
+
+    // Build slim pat (cache by pat + cmap reference identity)
+    var slimPat;
+    var cache = slimPatCacheRef.current;
+    if (cache.pat === pat && cache.cmap === cmap && cache.slim && cache.slim.length === pat.length) {
+      slimPat = cache.slim;
+    } else {
+      slimPat = new Array(sW * sH);
+      for (var i = 0; i < pat.length; i++) {
+        var c = pat[i];
+        var cmapEntry = cmap && cmap[c.id];
+        slimPat[i] = { id: c.id, lab: cmapEntry ? cmapEntry.lab : null, type: c.type };
+      }
+      slimPatCacheRef.current = { pat: pat, cmap: cmap, slim: slimPat };
+    }
+
+    var slimPal = _buildSlimPal(pal, cmap);
+    var ops = state.denoiseOps || { palette: true, speckle: false, fringe: true };
+
+    worker.onmessage = function(e) {
+      var msg = e.data;
+      if (msg.type === 'result') {
+        releaseWorker(worker);
+        state.setDenoiseAutoRunning(false);
+        state.setDenoisePendingMask(msg.mask);
+        state.setDenoisePreviewReport(msg.report || null);
+        // Dither warning: check isolation ratio (only show if not dismissed)
+        var report = msg.report;
+        if (report && typeof report.isolationRatio === 'number'
+            && report.isolationRatio > DENOISE_DITHER_WARN_RATIO
+            && !_isDitherWarnDismissed()) {
+          state.setDenoiseDitherWarning(true);
+        } else {
+          state.setDenoiseDitherWarning(false);
+        }
+      } else if (msg.type === 'error') {
+        releaseWorker(worker);
+        state.setDenoiseAutoRunning(false);
+        state.setDenoiseAutoError(msg.message || 'Denoise detection failed');
+      }
+    };
+    worker.onerror = function(ev) {
+      releaseWorker(worker);
+      state.setDenoiseAutoRunning(false);
+      state.setDenoiseAutoError('Worker error: ' + (ev.message || 'unknown'));
+    };
+
+    try {
+      worker.postMessage({
+        type: 'detect',
+        pat: slimPat,
+        pal: slimPal,
+        sW: sW,
+        sH: sH,
+        paletteThresholdDe:   thresholdDe(state.denoiseThreshold),
+        speckleMaxSize:        3,
+        speckleDominanceRatio: 0.6,
+        fringeTransitionDe:    6.0,
+        fringeMinRegionSize:   4,
+        enablePalette: !!ops.palette,
+        enableSpeckle: !!ops.speckle,
+        enableFringe:  !!ops.fringe,
+      });
+    } catch (postErr) {
+      releaseWorker(worker);
+      state.setDenoiseAutoRunning(false);
+      state.setDenoiseAutoError('Could not run denoise worker: ' + (postErr && postErr.message || String(postErr)));
+    }
+  }, [state]);
+
+  // Auto-trigger when entering denoise with auto sub-tool, or switching to it.
+  useEffect(function() {
+    if (state.activeTool !== 'denoise') return;
+    if (state.denoiseSelTool !== 'auto') return;
+    if (state.denoiseAutoRunning) return;
+    runDenoiseAutoDetect();
+  }, [state.denoiseSelTool, state.activeTool]);
+
+  // Terminate worker when leaving auto sub-tool so a stale result can't overwrite
+  // a manually painted brush mask.
+  useEffect(function() {
+    if (state.activeTool === 'denoise' && state.denoiseSelTool === 'auto') return;
+    if (workerRef.current) {
+      workerRef.current.terminate();
+      workerRef.current = null;
+      if (state.denoiseAutoRunning) state.setDenoiseAutoRunning(false);
+    }
+  }, [state.denoiseSelTool, state.activeTool]);
+
+  // Re-run when ops toggle while auto sub-tool is active with a result visible.
+  useEffect(function() {
+    if (state.activeTool !== 'denoise') return;
+    if (state.denoiseSelTool !== 'auto') return;
+    if (state.denoiseAutoRunning) return;
+    if (!state.denoisePendingMask && !state.denoisePreviewReport) return;
+    runDenoiseAutoDetect();
+  }, [state.denoiseOps]);
+
+  // Cleanup worker on unmount.
+  useEffect(function() {
+    return function() {
+      if (workerRef.current) {
+        try { workerRef.current.terminate(); } catch (_) {}
+        workerRef.current = null;
+      }
+    };
+  }, []);
+
+  // ── Brush drag selection ──────────────────────────────────────────────────
+  // Denoise brush: marks any non-skip, non-empty cell (no tolerance filter).
+  var brushDragActiveRef = useRef(false);
+  var brushMaskRef       = useRef(null);
+  var brushRafPendingRef = useRef(false);
+
+  var handleDenoisePointerDown = useCallback(function(gx, gy) {
+    if (state.denoiseSelTool !== 'brush') return;
+    var sW = state.sW, sH = state.sH;
+    brushDragActiveRef.current = true;
+    // Start from the existing mask (Array<0|1>) or a fresh one
+    var existing = state.denoisePendingMask;
+    var size = sW * sH;
+    var base;
+    if (existing && existing.length === size) {
+      base = existing.slice();
+    } else {
+      base = new Array(size);
+      for (var k = 0; k < size; k++) base[k] = 0;
+    }
+    brushMaskRef.current = base;
+    _brushPaint(gx, gy, sW, sH);
+  }, [state]);
+
+  var handleDenoisePointerMove = useCallback(function(gx, gy) {
+    if (!brushDragActiveRef.current || state.denoiseSelTool !== 'brush') return;
+    _brushPaint(gx, gy, state.sW, state.sH);
+  }, [state]);
+
+  var handleDenoisePointerUp = useCallback(function() {
+    if (!brushDragActiveRef.current) return;
+    brushDragActiveRef.current = false;
+    if (brushMaskRef.current) {
+      state.setDenoisePendingMask(brushMaskRef.current);
+      brushMaskRef.current = null;
+    }
+  }, [state]);
+
+  function _brushPaint(gx, gy, sW, sH) {
+    var pat = state.pat;
+    var brushSize = state.denoiseBrushSize || 1;
+    var mask = brushMaskRef.current;
+    if (!pat || !mask) return;
+
+    for (var dy = 0; dy < brushSize; dy++) {
+      for (var dx = 0; dx < brushSize; dx++) {
+        var x = gx + dx, y = gy + dy;
+        if (x < 0 || x >= sW || y < 0 || y >= sH) continue;
+        var idx = y * sW + x;
+        var cell = pat[idx];
+        if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
+        mask[idx] = 1;
+      }
+    }
+    // Batch React state update to one rAF per frame (mirrors CL-3 in cleanup mode).
+    if (!brushRafPendingRef.current) {
+      brushRafPendingRef.current = true;
+      var _raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
+        ? window.requestAnimationFrame
+        : function (fn) { return setTimeout(fn, 16); };
+      _raf(function() {
+        brushRafPendingRef.current = false;
+        if (brushMaskRef.current) {
+          state.setDenoisePendingMask(brushMaskRef.current.slice());
+        }
+      });
+    }
+  }
+
+  // ── Apply denoise ─────────────────────────────────────────────────────────
+  // Two-pass apply (atomically computed):
+  //   Pass 1 — palette consolidation: remap cell IDs using mergeMap.
+  //   Pass 2 — speckle/fringe replacement: neighbourVote for masked cells.
+  //   One combined undo entry (one step to undo both passes).
+  var applyDenoise = useCallback(function() {
+    var pat  = state.pat;
+    var sW   = state.sW;
+    var sH   = state.sH;
+    var cmap = state.cmap;
+    var mask = state.denoisePendingMask;
+    var report = state.denoisePreviewReport;
+
+    var mergeMap = report && report.mergeMap ? report.mergeMap : {};
+
+    // Determine if there is anything to do.
+    var mergeIds = Object.keys(mergeMap);
+    var hasMask = mask && mask.length > 0 && (function() {
+      for (var i = 0; i < mask.length; i++) { if (mask[i]) return true; }
+      return false;
+    }());
+    var hasMerge = mergeIds.length > 0;
+
+    if (!pat || (!hasMask && !hasMerge)) return;
+
+    // Immutable original snapshot for "old" values in the undo entry.
+    var origPat = pat.slice();
+
+    // Working copy: will be modified by Pass 1 so Pass 2 votes see merged IDs.
+    var workingPat = pat.slice();
+
+    var changes = []; // { idx, old }
+
+    // ── Pass 1: palette remap ──────────────────────────────────────────────
+    if (hasMerge) {
+      // Build a fast lookup: id → representative cmap entry
+      var repEntryCache = {};
+      for (var mi = 0; mi < mergeIds.length; mi++) {
+        var removedId = mergeIds[mi];
+        var repId = mergeMap[removedId];
+        if (!repEntryCache[repId]) repEntryCache[repId] = cmap ? cmap[repId] : null;
+      }
+
+      for (var pi = 0; pi < workingPat.length; pi++) {
+        var cell = workingPat[pi];
+        if (!cell || cell.id === '__skip__' || cell.id === '__empty__' || cell.type === 'blend') continue;
+        var rep = mergeMap[cell.id];
+        if (!rep) continue;
+        var repEntry = repEntryCache[rep] || (cmap ? cmap[rep] : null);
+        var newCell = { id: rep, type: cell.type, rgb: repEntry ? repEntry.rgb : cell.rgb };
+        changes.push({ idx: pi, old: Object.assign({}, origPat[pi]) });
+        workingPat[pi] = newCell;
+      }
+    }
+
+    // ── Pass 2: speckle/fringe mask replacement ────────────────────────────
+    if (hasMask) {
+      // Build the set of indices to replace (mask cells not already changed
+      // by palette remap only — both types use the same neighbourhood vote).
+      var alreadyChanged = new Set();
+      for (var ci = 0; ci < changes.length; ci++) alreadyChanged.add(changes[ci].idx);
+
+      var maskSet = new Set();
+      for (var si = 0; si < mask.length; si++) { if (mask[si]) maskSet.add(si); }
+
+      // Compute ALL replacements atomically from workingPat BEFORE writing any.
+      var replacements = [];
+      maskSet.forEach(function(idx) {
+        var result = window.cleanupNeighbourVote(idx, workingPat, maskSet, sW, sH, DENOISE_WIDE_NEIGHBOURHOOD_RADIUS);
+        var replacement = result !== null ? result : workingPat[idx];
+        replacements.push({ idx: idx, replacement: replacement });
+      });
+
+      // Apply and record changes
+      for (var ri = 0; ri < replacements.length; ri++) {
+        var r = replacements[ri];
+        if (!r.replacement) continue;
+        if (!alreadyChanged.has(r.idx)) {
+          changes.push({ idx: r.idx, old: Object.assign({}, origPat[r.idx]) });
+        }
+        workingPat[r.idx] = r.replacement;
+      }
+    }
+
+    if (changes.length === 0) return;
+
+    // ── Commit ────────────────────────────────────────────────────────────
+    state.setPat(workingPat);
+
+    // Rebuild palette
+    var built = state.buildPaletteWithScratch(workingPat);
+    var existingPal = state.pal || [];
+    var changedIds = new Set(changes.map(function(ch) { return ch.old && ch.old.id; }));
+    var inResult = new Set(built.pal.map(function(p) { return p.id; }));
+    var zeroed = existingPal
+      .filter(function(p) { return changedIds.has(p.id) && !inResult.has(p.id); })
+      .map(function(p) { return Object.assign({}, p, { count: 0 }); });
+    if (zeroed.length) {
+      var cmap2 = Object.assign({}, built.cmap);
+      zeroed.forEach(function(p) { cmap2[p.id] = p; });
+      state.setPal(built.pal.concat(zeroed));
+      state.setCmap(cmap2);
+    } else {
+      state.setPal(built.pal);
+      state.setCmap(built.cmap);
+    }
+
+    // Push single undo entry (one step for both passes — per Q2 decision).
+    state.setEditHistory(function(prev) {
+      var n = prev.concat([{ type: 'denoise', changes: changes }]);
+      if (n.length > state.EDIT_HISTORY_MAX) n = n.slice(n.length - state.EDIT_HISTORY_MAX);
+      return n;
+    });
+    state.setRedoHistory([]);
+
+    // Mark pattern as edited
+    if (state.setHasEdited) state.setHasEdited(true);
+
+    // Clear pending mask and preview report
+    state.setDenoisePendingMask(null);
+    state.setDenoisePreviewReport(null);
+
+    // Unused-colour notice (mirrors cleanup mode behaviour)
+    if (zeroed.length && state.addToast) {
+      zeroed.forEach(function(p) {
+        var label = 'DMC ' + p.id + (p.name ? ' \xb7 ' + p.name : '');
+        state.addToast(label + ' is no longer used \u2014 remove from palette?', {
+          type: 'info',
+          duration: 8000,
+          action: {
+            label: 'Remove',
+            onClick: function() {
+              var pid = p.id;
+              state.setPal(function(prev) { return prev ? prev.filter(function(e) { return e.id !== pid; }) : prev; });
+              state.setCmap(function(prev) { if (!prev) return prev; var n2 = Object.assign({}, prev); delete n2[pid]; return n2; });
+              state.setEditHistory(function(prev2) {
+                var n3 = prev2.concat([{ type: 'remove_unused_colours', removedFromPal: [p], removedFromScratch: [] }]);
+                if (n3.length > state.EDIT_HISTORY_MAX) n3 = n3.slice(n3.length - state.EDIT_HISTORY_MAX);
+                return n3;
+              });
+              state.setRedoHistory([]);
+            }
+          }
+        });
+      });
+    }
+  }, [state, history]);
+
+  // ── Keep denoiseHandlersRef up to date ────────────────────────────────────
+  if (state.denoiseHandlersRef) {
+    state.denoiseHandlersRef.current = {
+      handleDenoisePointerDown: handleDenoisePointerDown,
+      handleDenoisePointerMove: handleDenoisePointerMove,
+      handleDenoisePointerUp: handleDenoisePointerUp,
+    };
+  }
+
+  // ── Exported overlay colour ────────────────────────────────────────────────
+  var OVERLAY_COLOR = DENOISE_OVERLAY_COLOR;
+
+  return {
+    enterDenoise: enterDenoise,
+    exitDenoise: exitDenoise,
+    cancelDenoise: cancelDenoise,
+    applyDenoise: applyDenoise,
+    runDenoiseAutoDetect: runDenoiseAutoDetect,
+    dismissDitherWarning: dismissDitherWarning,
+    handleDenoisePointerDown: handleDenoisePointerDown,
+    handleDenoisePointerMove: handleDenoisePointerMove,
+    handleDenoisePointerUp: handleDenoisePointerUp,
+    OVERLAY_COLOR: OVERLAY_COLOR,
+    DENOISE_THRESHOLD_MAX_DE: DENOISE_THRESHOLD_MAX_DE,
+    DENOISE_BRUSH_MIN: DENOISE_BRUSH_MIN,
+    DENOISE_BRUSH_MAX: DENOISE_BRUSH_MAX,
+  };
+};
+
+// Export constants for use in canvasRenderer.js and tests.
+window.DENOISE_OVERLAY_COLOR = DENOISE_OVERLAY_COLOR;
+window.DENOISE_THRESHOLD_MAX_DE = DENOISE_THRESHOLD_MAX_DE;
+window.DENOISE_DITHER_WARN_RATIO = DENOISE_DITHER_WARN_RATIO;
+
+
 /* ─── useCanvasInteraction.js ─── */
 /* creator/useCanvasInteraction.js — All canvas mouse handlers, brush application,
    and crop handlers. Extracted from CreatorApp.
@@ -7309,6 +7870,9 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    // Denoise tool: click selects nothing directly (auto sub-tool has no per-cell click action).
+    if (activeTool === "denoise") return;
+
     // Temporary eyedropper: Alt+click samples colour without switching tool
     if (e.altKey && activeTool !== "magicWand" && activeTool !== "lasso") {
       doEyedropSample(pat, cmap, sW, sH, partialStitches, gx, gy);
@@ -7509,6 +8073,13 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    // Denoise brush drag — pointer down
+    if (activeTool === "denoise" && state.denoiseSelTool === "brush") {
+      var _dndp = state.denoiseHandlersRef && state.denoiseHandlersRef.current;
+      if (_dndp) { _dndp.handleDenoisePointerDown(gx, gy); }
+      return;
+    }
+
     if (activeTool === "move") {
       if (gx < 0 || gx >= state.sW || gy < 0 || gy >= state.sH) return;
       var selMaskM = state.selectionMask;
@@ -7577,6 +8148,13 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    // Denoise brush drag move
+    if (activeTool === "denoise" && state.denoiseSelTool === "brush") {
+      var _dndm = state.denoiseHandlersRef && state.denoiseHandlersRef.current;
+      if (_dndm) _dndm.handleDenoisePointerMove(gc.gx, gc.gy);
+      return;
+    }
+
     if (activeTool === "move") {
       if (state.moveActive) state.updateMove(gc.gx, gc.gy);
       return;
@@ -7597,6 +8175,12 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (getActiveTool() === "cleanup" && state.cleanupSelTool === "brush") {
       var _chup = state.cleanupHandlersRef && state.cleanupHandlersRef.current;
       if (_chup) _chup.handleCleanupPointerUp();
+      return;
+    }
+    // Denoise brush drag end
+    if (getActiveTool() === "denoise" && state.denoiseSelTool === "brush") {
+      var _dnup = state.denoiseHandlersRef && state.denoiseHandlersRef.current;
+      if (_dnup) _dnup.handleDenoisePointerUp();
       return;
     }
     if (getActiveTool() === "move") {
@@ -10229,6 +10813,160 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     );
   }
 
+  // ─── Denoise Mode control row ─────────────────────────────────────────────
+  // Mirrors cleanupRow above; shown instead of cleanupRow when activeTool === 'denoise'.
+  var denoiseRow = null;
+  if (cv.activeTool === 'denoise') {
+    var dnPendingCt = 0;
+    if (cv.denoisePendingMask) { for (var dpci = 0; dpci < cv.denoisePendingMask.length; dpci++) { if (cv.denoisePendingMask[dpci]) dnPendingCt++; } }
+    var dnHasPending = dnPendingCt > 0;
+    var dnSubTools = [
+      { id: 'auto',  label: 'Auto' },
+      { id: 'brush', label: 'Brush' }
+    ];
+    var dnOps = cv.denoiseOps || { palette: true, speckle: false, fringe: true };
+    var dnReport = cv.denoisePreviewReport;
+    denoiseRow = h('div', {
+      className: 'swatch-strip-row',
+      role: 'group',
+      'aria-label': 'Denoise mode controls',
+      style: { gap: 'var(--s-2)', paddingTop: 'var(--s-1)', alignItems: 'center', flexWrap: 'wrap' }
+    },
+      // ── Dither warning banner ────────────────────────────────────────────
+      cv.denoiseDitherWarning && h('div', {
+        role: 'alert',
+        style: { display:'flex', alignItems:'center', gap:6, padding:'3px 8px',
+                 background:'var(--accent-2,#fffbe6)', border:'1px solid var(--line)',
+                 borderRadius:'var(--radius-sm)', fontSize:11, color:'var(--text-primary)', flexShrink:0 }
+      },
+        h('span', null, 'Pattern may be heavily dithered — results may be approximate.'),
+        h('button', {
+          className: 'tb-btn',
+          onClick: function() { if (cv.dismissDitherWarning) cv.dismissDitherWarning(); },
+          style: { padding:'1px 6px', fontSize:10 },
+          'aria-label': 'Dismiss dither warning'
+        }, 'Dismiss')
+      ),
+      // ── Operations checkboxes ────────────────────────────────────────────
+      h('span', { style:{fontSize:10,color:'var(--text-tertiary)',fontWeight:600,textTransform:'uppercase',flexShrink:0,letterSpacing:0.5} }, 'Ops'),
+      h('label', { style:{display:'flex',alignItems:'center',gap:3,fontSize:11,cursor:'pointer',userSelect:'none'} },
+        h('input', { type:'checkbox', checked: !!dnOps.palette,
+          onChange: function(e){ cv.setDenoiseOps && cv.setDenoiseOps(Object.assign({}, dnOps, { palette: e.target.checked })); },
+          'aria-label': 'Enable palette consolidation' }),
+        'Palette'
+      ),
+      h('label', { style:{display:'flex',alignItems:'center',gap:3,fontSize:11,cursor:'pointer',userSelect:'none'} },
+        h('input', { type:'checkbox', checked: !!dnOps.speckle,
+          onChange: function(e){ cv.setDenoiseOps && cv.setDenoiseOps(Object.assign({}, dnOps, { speckle: e.target.checked })); },
+          'aria-label': 'Enable speckle removal' }),
+        'Speckle'
+      ),
+      h('label', { style:{display:'flex',alignItems:'center',gap:3,fontSize:11,cursor:'pointer',userSelect:'none'} },
+        h('input', { type:'checkbox', checked: !!dnOps.fringe,
+          onChange: function(e){ cv.setDenoiseOps && cv.setDenoiseOps(Object.assign({}, dnOps, { fringe: e.target.checked })); },
+          'aria-label': 'Enable edge fringe smoothing' }),
+        'Fringe'
+      ),
+      // ── Palette threshold slider (when Palette op is on) ─────────────────
+      dnOps.palette && h(React.Fragment, null,
+        h('span', {
+          style:{fontSize:10,color:'var(--text-tertiary)',fontWeight:600,textTransform:'uppercase',flexShrink:0,letterSpacing:0.5,marginLeft:4}
+        }, 'Thr'),
+        h('input', {
+          type:'range', min:0, max:100, step:1, value: cv.denoiseThreshold || 17,
+          onChange: function(e){ cv.setDenoiseThreshold && cv.setDenoiseThreshold(Number(e.target.value)); },
+          style:{width:60},
+          title:'Palette threshold: \u0394E \u2248' + Math.round((cv.denoiseThreshold||17) / 100 * 30),
+          'aria-label': 'Palette consolidation threshold'
+        }),
+        h('span', {style:{fontSize:10,color:'var(--text-tertiary)',minWidth:20,textAlign:'right'}},
+          '\u0394E' + Math.round((cv.denoiseThreshold||17) / 100 * 30))
+      ),
+      // ── Mode radios ──────────────────────────────────────────────────────
+      h('span', {
+        style:{fontSize:10,color:'var(--text-tertiary)',fontWeight:600,textTransform:'uppercase',flexShrink:0,letterSpacing:0.5,marginLeft:4}
+      }, 'Mode'),
+      dnSubTools.map(function(st) {
+        var isActive = (cv.denoiseSelTool || 'auto') === st.id;
+        return h('button', {
+          key: st.id,
+          className: 'tb-btn' + (isActive ? ' tb-btn--on' : ''),
+          onClick: function(){ cv.setDenoiseSelTool && cv.setDenoiseSelTool(st.id); },
+          title: st.label + ' mode',
+          'aria-label': st.label + ' denoise mode',
+          'aria-pressed': isActive,
+          style:{padding:'1px 8px',fontSize:11}
+        }, st.label);
+      }),
+      // ── Brush size (Brush sub-tool only) ─────────────────────────────────
+      (cv.denoiseSelTool === 'brush') && h(React.Fragment, null,
+        h('span', {
+          style:{fontSize:10,color:'var(--text-tertiary)',fontWeight:600,textTransform:'uppercase',flexShrink:0,letterSpacing:0.5,marginLeft:4}
+        }, 'Size'),
+        h('button', {
+          className:'tb-btn', style:{padding:'1px 7px',fontSize:12},
+          onClick:function(){ cv.setDenoiseBrushSize && cv.setDenoiseBrushSize(Math.max(1, (cv.denoiseBrushSize||1)-1)); },
+          'aria-label':'Decrease brush size',
+          disabled:(cv.denoiseBrushSize||1) <= 1
+        }, window.Icons && window.Icons.minus ? window.Icons.minus() : null),
+        h('span', {style:{fontSize:11,minWidth:16,textAlign:'center',color:'var(--text-secondary)'}}, cv.denoiseBrushSize||1),
+        h('button', {
+          className:'tb-btn', style:{padding:'1px 7px',fontSize:12},
+          onClick:function(){ cv.setDenoiseBrushSize && cv.setDenoiseBrushSize(Math.min(10, (cv.denoiseBrushSize||1)+1)); },
+          'aria-label':'Increase brush size',
+          disabled:(cv.denoiseBrushSize||1) >= 10
+        }, '+')
+      ),
+      // ── Re-run (Auto sub-tool only) ──────────────────────────────────────
+      (cv.denoiseSelTool === 'auto' || !cv.denoiseSelTool) && h('button', {
+        className:'tb-btn',
+        onClick: function(){ if (cv.runDenoiseAutoDetect) cv.runDenoiseAutoDetect(); },
+        disabled: cv.denoiseAutoRunning,
+        title: cv.denoiseAutoRunning ? 'Detecting\u2026' : 'Re-run denoise detection',
+        'aria-label': 'Re-run denoise detection',
+        style:{marginLeft:4}
+      }, cv.denoiseAutoRunning ? 'Detecting\u2026' : 'Re-run'),
+      // ── Preview report counts ────────────────────────────────────────────
+      dnReport && h('span', {
+        style:{fontSize:10,color:'var(--text-tertiary)',marginLeft:4}
+      },
+        (dnReport.paletteCount > 0 ? 'Palette: ' + dnReport.paletteCount + '  ' : '') +
+        (dnReport.speckleCount > 0 ? 'Speckle: ' + dnReport.speckleCount + '  ' : '') +
+        (dnReport.fringeCount  > 0 ? 'Fringe: '  + dnReport.fringeCount        : '')
+      ),
+      // ── Auto-error notice ────────────────────────────────────────────────
+      cv.denoiseAutoError && h('span', {
+        role:'alert',
+        style:{fontSize:10,color:'var(--danger)',marginLeft:4,flexShrink:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:160}
+      }, cv.denoiseAutoError),
+      // ── Apply / Cancel ───────────────────────────────────────────────────
+      h('button', {
+        className:'tb-btn tb-btn--primary',
+        onClick: function(){ if (cv.applyDenoise) cv.applyDenoise(); },
+        disabled: !dnHasPending,
+        title: dnHasPending ? 'Apply denoise (' + dnPendingCt.toLocaleString('en-GB') + ' cells)' : 'No cells selected',
+        'aria-label': 'Apply denoise',
+        'aria-disabled': !dnHasPending,
+        style:{
+          marginLeft:8, opacity: dnHasPending ? 1 : 0.4,
+          background: dnHasPending ? 'var(--accent)' : undefined,
+          color: dnHasPending ? '#fff' : undefined,
+          border: dnHasPending ? 'none' : undefined
+        }
+      }, 'Apply'),
+      h('button', {
+        className:'tb-btn',
+        onClick: function(){
+          if (cv.cancelDenoise) cv.cancelDenoise();
+          if (cv.exitDenoise) cv.exitDenoise();
+        },
+        title:'Cancel denoise mode',
+        'aria-label':'Cancel denoise mode',
+        style:{marginLeft:4}
+      }, 'Cancel')
+    );
+  }
+
   // ─── Create Mode: minimal toolbar ────────────────────────────────────────────
   if (app.appMode === "create") {
     var createZoomGrp = [
@@ -10266,11 +11004,22 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             "aria-label":"Cleanup mode",
             "aria-pressed": cv.activeTool==="cleanup" ? "true" : "false"
           }, window.Icons && window.Icons.cleanup ? window.Icons.cleanup() : null, " Cleanup"),
+          // Denoise mode toggle — fix conversion artefacts (speckles, fringe, palette noise)
+          ctx.pat && h("button", {
+            className:"tb-btn"+(cv.activeTool==="denoise"?" tb-btn--on":""),
+            onClick:function(){
+              if (cv.activeTool==="denoise") { if (cv.exitDenoise) cv.exitDenoise(); }
+              else { if (cv.enterDenoise) cv.enterDenoise(); }
+            },
+            title:"Denoise Mode — remove conversion noise (speckle, fringe, palette duplicates)",
+            "aria-label":"Denoise mode",
+            "aria-pressed": cv.activeTool==="denoise" ? "true" : "false"
+          }, window.Icons && window.Icons.sparkles ? window.Icons.sparkles() : null, " Denoise"),
           // Zoom
           createZoomGrp
         )
       ),
-      cleanupRow
+      cv.activeTool === 'cleanup' ? cleanupRow : denoiseRow
     );
   }
 
@@ -10607,6 +11356,20 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         "aria-pressed": cv.activeTool==="cleanup"?"true":"false",
         style:{width:"100%",justifyContent:"flex-start"}
       }, window.Icons&&window.Icons.cleanup?window.Icons.cleanup():null, " Cleanup mode")
+    ),
+    // ── Denoise ──
+    h("div", {className:"tb-more-panel__section"},
+      h("button", {
+        className:"tb-btn"+(cv.activeTool==="denoise"?" tb-btn--on":""),
+        onClick:function(){
+          if (cv.activeTool==="denoise") { if (cv.exitDenoise) cv.exitDenoise(); }
+          else { cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); if (cv.enterDenoise) cv.enterDenoise(); }
+          setMorePanelOpen(false);
+        },
+        title:"Denoise Mode \u2014 fix conversion noise (speckle, fringe, palette)", "aria-label":"Denoise mode",
+        "aria-pressed": cv.activeTool==="denoise"?"true":"false",
+        style:{width:"100%",justifyContent:"flex-start"}
+      }, window.Icons&&window.Icons.sparkles?window.Icons.sparkles():null, " Denoise mode")
     ),
     // ── Stitch type ──
     h("div", {className:"tb-more-panel__section"},

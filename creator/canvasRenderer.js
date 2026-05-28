@@ -1085,6 +1085,25 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
     ctx2d.restore();
   }
 
+  // ─── Denoise mode pending-mask overlay ───────────────────────────────────────
+  // Solid teal fill over every cell flagged for denoise replacement.
+  // Rendered after the cleanup overlay so both can theoretically coexist.
+  if (activeTool === 'denoise' && state.denoisePendingMask) {
+    var dMask = state.denoisePendingMask;
+    var dSW   = state.sW;
+    ctx2d.save();
+    ctx2d.fillStyle = (typeof DENOISE_OVERLAY_COLOR !== 'undefined') ? DENOISE_OVERLAY_COLOR : 'rgba(0,160,200,0.50)';
+    for (var doy = 0; doy < dH; doy++) {
+      for (var dox = 0; dox < dW; dox++) {
+        var doi = (offY + doy) * dSW + (offX + dox);
+        if (dMask[doi]) {
+          ctx2d.fillRect(gut + dox * cSz, gut + doy * cSz, cSz, cSz);
+        }
+      }
+    }
+    ctx2d.restore();
+  }
+
   // ─── Move-selection ghost overlay ────────────────────────────────────────────
   // Drawn last so it sits above the selection tint and cleanup overlays.
   // While a move drag is in progress:

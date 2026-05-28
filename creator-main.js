@@ -273,6 +273,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const canvas = useCanvasInteractionHook(state, history);
   // Cleanup mode hook (optional — gracefully absent if bundle not rebuilt yet).
   const cleanupMode = (typeof window.useCleanupMode === 'function') ? window.useCleanupMode(state, history) : null;
+  // Denoise mode hook (optional — gracefully absent if bundle not rebuilt yet).
+  const denoiseMode = (typeof window.useDenoiseMode === 'function') ? window.useDenoiseMode(state, history) : null;
   // useProjectIO's auto-save, beforeunload flush, and active-project effect all
   // gate on state.isActive. useCreatorState does NOT set isActive (it's a prop
   // of CreatorApp tied to the design/track mode toggle in UnifiedApp), so we
@@ -677,6 +679,26 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     handleCleanupPointerDown: cleanupMode ? cleanupMode.handleCleanupPointerDown : null,
     handleCleanupPointerMove: cleanupMode ? cleanupMode.handleCleanupPointerMove : null,
     handleCleanupPointerUp: cleanupMode ? cleanupMode.handleCleanupPointerUp : null,
+    // Denoise mode state (from useCreatorState)
+    denoisePendingMask: state.denoisePendingMask,
+    denoiseAutoRunning: state.denoiseAutoRunning,
+    denoiseAutoError: state.denoiseAutoError,
+    denoiseSelTool: state.denoiseSelTool, setDenoiseSelTool: state.setDenoiseSelTool,
+    denoiseBrushSize: state.denoiseBrushSize, setDenoiseBrushSize: state.setDenoiseBrushSize,
+    denoiseThreshold: state.denoiseThreshold, setDenoiseThreshold: state.setDenoiseThreshold,
+    denoiseOps: state.denoiseOps, setDenoiseOps: state.setDenoiseOps,
+    denoisePreviewReport: state.denoisePreviewReport,
+    denoiseDitherWarning: state.denoiseDitherWarning,
+    // Denoise mode actions (from useDenoiseMode hook)
+    enterDenoise: denoiseMode ? denoiseMode.enterDenoise : null,
+    exitDenoise: denoiseMode ? denoiseMode.exitDenoise : null,
+    cancelDenoise: denoiseMode ? denoiseMode.cancelDenoise : null,
+    applyDenoise: denoiseMode ? denoiseMode.applyDenoise : null,
+    runDenoiseAutoDetect: denoiseMode ? denoiseMode.runDenoiseAutoDetect : null,
+    dismissDitherWarning: denoiseMode ? denoiseMode.dismissDitherWarning : null,
+    handleDenoisePointerDown: denoiseMode ? denoiseMode.handleDenoisePointerDown : null,
+    handleDenoisePointerMove: denoiseMode ? denoiseMode.handleDenoisePointerMove : null,
+    handleDenoisePointerUp: denoiseMode ? denoiseMode.handleDenoisePointerUp : null,
   }; }, [
     state.activeTool, state.brushMode, state.brushSize,
     state.selectedColorId, state.view, state.zoom,
@@ -702,6 +724,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.cleanupTargetColorId, state.cleanupTolerance, state.cleanupSelTool,
     state.cleanupBrushSize, state.cleanupPendingMask, state.cleanupAutoRunning,
     state.cleanupAutoError, cleanupMode,
+    state.denoisePendingMask, state.denoiseAutoRunning, state.denoiseAutoError,
+    state.denoiseSelTool, state.denoiseBrushSize, state.denoiseThreshold,
+    state.denoiseOps, state.denoisePreviewReport, state.denoiseDitherWarning, denoiseMode,
   ]);
 
   // ── HoverContext value (pointer hover coords only) ──
