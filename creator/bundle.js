@@ -7453,22 +7453,67 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
       var maskSet = new Set();
       for (var si = 0; si < mask.length; si++) { if (mask[si]) maskSet.add(si); }
 
-      // Compute ALL replacements atomically from workingPat BEFORE writing any.
-      var replacements = [];
-      maskSet.forEach(function(idx) {
-        var result = window.cleanupNeighbourVote(idx, workingPat, maskSet, sW, sH, DENOISE_WIDE_NEIGHBOURHOOD_RADIUS);
-        var replacement = result !== null ? result : workingPat[idx];
-        replacements.push({ idx: idx, replacement: replacement });
+      // Multi-pass flood fill so interior cells of a large selected area are
+      // replaced from the inside-out, not just at the border.
+      //
+      // Pass 1: vote for each masked cell using only unmasked neighbours.
+      //   → Border cells resolve immediately; interior cells whose 8
+      //     neighbours are all masked return null (unresolved).
+      // Pass N+1: resolved cells from previous passes are removed from
+      //   "stillPending" and treated as valid voters in the next round.
+      //   The vote runs on a snapshot of workingPat updated with previous
+      //   round results, so the replacement colour floods inward.
+      //
+      // The loop terminates when either no cells remain pending or no new
+      // cells are resolved in a round (shouldn't happen with a fully
+      // enclosed selection, but is a safety guard).
+
+      var resolvedMap = {}; // idx → replacement cell
+      var stillPending = new Set(maskSet);
+      var voteSnap = workingPat.slice(); // snapshot updated each round
+
+      var MAX_PASSES = sW + sH; // generous upper bound
+      for (var pass = 0; pass < MAX_PASSES && stillPending.size > 0; pass++) {
+        // pendingSet for this round = cells not yet resolved
+        var resolvedThisRound = [];
+        stillPending.forEach(function(idx) {
+          var result = window.cleanupNeighbourVote(idx, voteSnap, stillPending, sW, sH, DENOISE_WIDE_NEIGHBOURHOOD_RADIUS);
+          if (result !== null) {
+            resolvedThisRound.push({ idx: idx, replacement: result });
+          }
+        });
+
+        if (resolvedThisRound.length === 0) {
+          // No progress — fully surrounded interior cells keep their colour.
+          stillPending.forEach(function(idx) {
+            resolvedMap[idx] = voteSnap[idx]; // keep original
+          });
+          break;
+        }
+
+        for (var rp = 0; rp < resolvedThisRound.length; rp++) {
+          var item = resolvedThisRound[rp];
+          resolvedMap[item.idx] = item.replacement;
+          voteSnap[item.idx] = item.replacement; // make available as voter next pass
+          stillPending.delete(item.idx);
+        }
+      }
+
+      // Flush any remaining unresolved (keep original)
+      stillPending.forEach(function(idx) {
+        if (!resolvedMap.hasOwnProperty(idx)) resolvedMap[idx] = voteSnap[idx];
       });
 
-      // Apply and record changes
-      for (var ri = 0; ri < replacements.length; ri++) {
-        var r = replacements[ri];
-        if (!r.replacement) continue;
-        if (!alreadyChanged.has(r.idx)) {
-          changes.push({ idx: r.idx, old: Object.assign({}, origPat[r.idx]) });
+      // Apply all resolved replacements and record changes
+      var idxKeys = Object.keys(resolvedMap);
+      for (var ri = 0; ri < idxKeys.length; ri++) {
+        var ridx = Number(idxKeys[ri]);
+        var rep = resolvedMap[ridx];
+        if (!rep) continue;
+        if (!alreadyChanged.has(ridx)) {
+          changes.push({ idx: ridx, old: Object.assign({}, origPat[ridx]) });
         }
-        workingPat[r.idx] = r.replacement;
+        workingPat[ridx] = rep;
       }
     }
 
