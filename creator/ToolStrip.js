@@ -667,7 +667,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var morePanelHasActiveTool = cv.activeTool === "eyedropper" || cv.activeTool === "hand" ||
     cv.activeTool === "magicWand" || cv.activeTool === "lasso" ||
     cv.activeTool === "colourReplace" || cv.activeTool === "cleanup" ||
-    cv.activeTool === "move";
+    cv.activeTool === "denoise" || cv.activeTool === "move";
 
   var stitchTypeOptions = [
     { id:"cross", label:"Cross" },
@@ -855,8 +855,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     morePanelContent
   );
 
-  // cleanupRow is computed before the create-mode early return above,
-  // so it is available here for both modes without duplication.
+  // cleanupRow and denoiseRow are computed before the create-mode early return
+  // above, so they are available here for both modes without duplication.
 
   return h(React.Fragment, null,
     h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Edit mode tools"},
@@ -873,7 +873,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         )
       ),
       swatchRow,
-      cleanupRow
+      cleanupRow,
+      denoiseRow
     )
   );
 };
