@@ -56,8 +56,9 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
   var slimPatCacheRef = useRef({ pat: null, cmap: null, slim: null });
 
   // ── Threshold in ΔE ───────────────────────────────────────────────────────
-  function thresholdDe(sliderVal) {
-    return (sliderVal / 100) * DENOISE_THRESHOLD_MAX_DE;
+  // State now stores the ΔE value directly (integer 1–30).
+  function thresholdDe(val) {
+    return val || 5;
   }
 
   // ── Dither warning helpers ─────────────────────────────────────────────────

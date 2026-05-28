@@ -268,7 +268,7 @@ window.useCreatorState = function useCreatorState() {
   var _dnerr = useState(null);   var denoiseAutoError = _dnerr[0], setDenoiseAutoError = _dnerr[1];
   var _dnsel = useState('auto'); var denoiseSelTool = _dnsel[0], setDenoiseSelTool = _dnsel[1];
   var _dnbsz = useState(1);      var denoiseBrushSize = _dnbsz[0], setDenoiseBrushSize = _dnbsz[1];
-  var _dnthr = useState(17);     var denoiseThreshold = _dnthr[0], setDenoiseThreshold = _dnthr[1];  // 17/100*30≈5ΔE
+  var _dnthr = useState(5);      var denoiseThreshold = _dnthr[0], setDenoiseThreshold = _dnthr[1];  // ΔE directly (1–30); default 5
   var _dnops = useState({ palette: true, speckle: false, fringe: true });
   var denoiseOps = _dnops[0], setDenoiseOps = _dnops[1];
   var _dnrpt = useState(null);   var denoisePreviewReport = _dnrpt[0], setDenoisePreviewReport = _dnrpt[1];

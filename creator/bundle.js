@@ -4584,7 +4584,7 @@ window.useCreatorState = function useCreatorState() {
   var _dnerr = useState(null);   var denoiseAutoError = _dnerr[0], setDenoiseAutoError = _dnerr[1];
   var _dnsel = useState('auto'); var denoiseSelTool = _dnsel[0], setDenoiseSelTool = _dnsel[1];
   var _dnbsz = useState(1);      var denoiseBrushSize = _dnbsz[0], setDenoiseBrushSize = _dnbsz[1];
-  var _dnthr = useState(17);     var denoiseThreshold = _dnthr[0], setDenoiseThreshold = _dnthr[1];  // 17/100*30≈5ΔE
+  var _dnthr = useState(5);      var denoiseThreshold = _dnthr[0], setDenoiseThreshold = _dnthr[1];  // ΔE directly (1–30); default 5
   var _dnops = useState({ palette: true, speckle: false, fringe: true });
   var denoiseOps = _dnops[0], setDenoiseOps = _dnops[1];
   var _dnrpt = useState(null);   var denoisePreviewReport = _dnrpt[0], setDenoisePreviewReport = _dnrpt[1];
@@ -7108,8 +7108,9 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
   var slimPatCacheRef = useRef({ pat: null, cmap: null, slim: null });
 
   // ── Threshold in ΔE ───────────────────────────────────────────────────────
-  function thresholdDe(sliderVal) {
-    return (sliderVal / 100) * DENOISE_THRESHOLD_MAX_DE;
+  // State now stores the ΔE value directly (integer 1–30).
+  function thresholdDe(val) {
+    return val || 5;
   }
 
   // ── Dither warning helpers ─────────────────────────────────────────────────
@@ -10880,7 +10881,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           'aria-label': 'Enable edge fringe smoothing' }),
         'Fringe'
       ),
-      // ── Palette threshold slider (when Palette op is on) ─────────────────
+      // ── Palette threshold stepper (when Palette op is on) ──────────────
+      // +/− buttons instead of a range input to avoid toolbar layout jitter.
       dnOps.palette && h(React.Fragment, null,
         h('span', {
           style:{fontSize:10,color:'var(--text-tertiary)',fontWeight:600,textTransform:'uppercase',flexShrink:0,letterSpacing:0.5,marginLeft:4}
@@ -10892,15 +10894,24 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           onClick: function() { if (window.HelpDrawer) window.HelpDrawer.open({ tab: 'help', query: 'denoise mode' }); },
           'aria-label': 'Help: palette consolidation threshold'
         }, window.Icons.info()),
-        h('input', {
-          type:'range', min:0, max:100, step:1, value: cv.denoiseThreshold || 17,
-          onChange: function(e){ cv.setDenoiseThreshold && cv.setDenoiseThreshold(Number(e.target.value)); },
-          style:{width:60},
-          title:'Palette threshold: \u0394E \u2248' + Math.round((cv.denoiseThreshold||17) / 100 * 30) + '\nHigher = merges more colours. Lower = more conservative.',
-          'aria-label': 'Palette consolidation threshold'
-        }),
-        h('span', {style:{fontSize:10,color:'var(--text-tertiary)',minWidth:24,textAlign:'right'}},
-          '\u0394E' + Math.round((cv.denoiseThreshold||17) / 100 * 30))
+        h('button', {
+          className:'tb-btn', style:{padding:'1px 7px',fontSize:12},
+          onClick:function(){ cv.setDenoiseThreshold && cv.setDenoiseThreshold(Math.max(1, (cv.denoiseThreshold||5)-1)); },
+          'aria-label':'Decrease palette threshold',
+          title:'Decrease threshold',
+          disabled:(cv.denoiseThreshold||5) <= 1
+        }, window.Icons && window.Icons.minus ? window.Icons.minus() : '\u2212'),
+        h('span', {
+          style:{fontSize:11,minWidth:32,textAlign:'center',color:'var(--text-secondary)',userSelect:'none'},
+          title:'Palette threshold: \u0394E ' + (cv.denoiseThreshold||5) + '\nHigher = merges more colours. Lower = more conservative.'
+        }, '\u0394E\u2009' + (cv.denoiseThreshold||5)),
+        h('button', {
+          className:'tb-btn', style:{padding:'1px 7px',fontSize:12},
+          onClick:function(){ cv.setDenoiseThreshold && cv.setDenoiseThreshold(Math.min(30, (cv.denoiseThreshold||5)+1)); },
+          'aria-label':'Increase palette threshold',
+          title:'Increase threshold',
+          disabled:(cv.denoiseThreshold||5) >= 30
+        }, window.Icons && window.Icons.plus ? window.Icons.plus() : '+')
       ),
       // ── Mode radios ──────────────────────────────────────────────────────
       h('span', {
