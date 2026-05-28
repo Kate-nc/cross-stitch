@@ -310,6 +310,9 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    // Denoise tool: click selects nothing directly (auto sub-tool has no per-cell click action).
+    if (activeTool === "denoise") return;
+
     // Temporary eyedropper: Alt+click samples colour without switching tool
     if (e.altKey && activeTool !== "magicWand" && activeTool !== "lasso") {
       doEyedropSample(pat, cmap, sW, sH, partialStitches, gx, gy);
@@ -510,6 +513,13 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    // Denoise brush drag — pointer down
+    if (activeTool === "denoise" && state.denoiseSelTool === "brush") {
+      var _dndp = state.denoiseHandlersRef && state.denoiseHandlersRef.current;
+      if (_dndp) { _dndp.handleDenoisePointerDown(gx, gy); }
+      return;
+    }
+
     if (activeTool === "move") {
       if (gx < 0 || gx >= state.sW || gy < 0 || gy >= state.sH) return;
       var selMaskM = state.selectionMask;
@@ -578,6 +588,13 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    // Denoise brush drag move
+    if (activeTool === "denoise" && state.denoiseSelTool === "brush") {
+      var _dndm = state.denoiseHandlersRef && state.denoiseHandlersRef.current;
+      if (_dndm) _dndm.handleDenoisePointerMove(gc.gx, gc.gy);
+      return;
+    }
+
     if (activeTool === "move") {
       if (state.moveActive) state.updateMove(gc.gx, gc.gy);
       return;
@@ -598,6 +615,12 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (getActiveTool() === "cleanup" && state.cleanupSelTool === "brush") {
       var _chup = state.cleanupHandlersRef && state.cleanupHandlersRef.current;
       if (_chup) _chup.handleCleanupPointerUp();
+      return;
+    }
+    // Denoise brush drag end
+    if (getActiveTool() === "denoise" && state.denoiseSelTool === "brush") {
+      var _dnup = state.denoiseHandlersRef && state.denoiseHandlersRef.current;
+      if (_dnup) _dnup.handleDenoisePointerUp();
       return;
     }
     if (getActiveTool() === "move") {

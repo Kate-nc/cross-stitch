@@ -273,6 +273,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const canvas = useCanvasInteractionHook(state, history);
   // Cleanup mode hook (optional — gracefully absent if bundle not rebuilt yet).
   const cleanupMode = (typeof window.useCleanupMode === 'function') ? window.useCleanupMode(state, history) : null;
+  // Denoise mode hook (optional — gracefully absent if bundle not rebuilt yet).
+  const denoiseMode = (typeof window.useDenoiseMode === 'function') ? window.useDenoiseMode(state, history) : null;
   // useProjectIO's auto-save, beforeunload flush, and active-project effect all
   // gate on state.isActive. useCreatorState does NOT set isActive (it's a prop
   // of CreatorApp tied to the design/track mode toggle in UnifiedApp), so we
@@ -677,6 +679,26 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     handleCleanupPointerDown: cleanupMode ? cleanupMode.handleCleanupPointerDown : null,
     handleCleanupPointerMove: cleanupMode ? cleanupMode.handleCleanupPointerMove : null,
     handleCleanupPointerUp: cleanupMode ? cleanupMode.handleCleanupPointerUp : null,
+    // Denoise mode state (from useCreatorState)
+    denoisePendingMask: state.denoisePendingMask,
+    denoiseAutoRunning: state.denoiseAutoRunning,
+    denoiseAutoError: state.denoiseAutoError,
+    denoiseSelTool: state.denoiseSelTool, setDenoiseSelTool: state.setDenoiseSelTool,
+    denoiseBrushSize: state.denoiseBrushSize, setDenoiseBrushSize: state.setDenoiseBrushSize,
+    denoiseThreshold: state.denoiseThreshold, setDenoiseThreshold: state.setDenoiseThreshold,
+    denoiseOps: state.denoiseOps, setDenoiseOps: state.setDenoiseOps,
+    denoisePreviewReport: state.denoisePreviewReport,
+    denoiseDitherWarning: state.denoiseDitherWarning,
+    // Denoise mode actions (from useDenoiseMode hook)
+    enterDenoise: denoiseMode ? denoiseMode.enterDenoise : null,
+    exitDenoise: denoiseMode ? denoiseMode.exitDenoise : null,
+    cancelDenoise: denoiseMode ? denoiseMode.cancelDenoise : null,
+    applyDenoise: denoiseMode ? denoiseMode.applyDenoise : null,
+    runDenoiseAutoDetect: denoiseMode ? denoiseMode.runDenoiseAutoDetect : null,
+    dismissDitherWarning: denoiseMode ? denoiseMode.dismissDitherWarning : null,
+    handleDenoisePointerDown: denoiseMode ? denoiseMode.handleDenoisePointerDown : null,
+    handleDenoisePointerMove: denoiseMode ? denoiseMode.handleDenoisePointerMove : null,
+    handleDenoisePointerUp: denoiseMode ? denoiseMode.handleDenoisePointerUp : null,
   }; }, [
     state.activeTool, state.brushMode, state.brushSize,
     state.selectedColorId, state.view, state.zoom,
@@ -702,6 +724,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.cleanupTargetColorId, state.cleanupTolerance, state.cleanupSelTool,
     state.cleanupBrushSize, state.cleanupPendingMask, state.cleanupAutoRunning,
     state.cleanupAutoError, cleanupMode,
+    state.denoisePendingMask, state.denoiseAutoRunning, state.denoiseAutoError,
+    state.denoiseSelTool, state.denoiseBrushSize, state.denoiseThreshold,
+    state.denoiseOps, state.denoisePreviewReport, state.denoiseDitherWarning, denoiseMode,
   ]);
 
   // ── HoverContext value (pointer hover coords only) ──
@@ -1014,6 +1039,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onTrackPattern={io.handleOpenInTracker}
         onSaveJson={io.saveProject}
         onMoreExports={()=>{state.setTab("materials");if(state.setMaterialsTab)state.setMaterialsTab("output");}}
+        hasImage={!!(state.img&&state.img.src)}
+        generatingPattern={!!state.busy}
+        onGenerate={state.generate}
       />}
       <window.CreatorToolStrip/>
       <div className="cs-page-content">
@@ -1543,6 +1571,11 @@ function UnifiedApp(){
       // URL, the redirect guard would find no action= AND no active project and
       // bounce the user back to /home. Clearing it was doubly wrong for
       // home-image-pending anyway (the upload creates a fresh project later).
+      //
+      // Set the handoff guard immediately — before reading sessionStorage —
+      // so the sw-register.js controllerchange handler suppresses any reload
+      // regardless of whether the data URL is still present (e.g. TTL expired).
+      window.__creatorImageHandoffActive = true;
       var pendingDataUrl = sessionStorage.getItem('cs_pending_image_dataurl');
       var pendingName    = sessionStorage.getItem('cs_pending_image_name') || 'image.jpg';
       var pendingType    = sessionStorage.getItem('cs_pending_image_type') || 'image/jpeg';
@@ -1575,10 +1608,6 @@ function UnifiedApp(){
         for (var bi = 0; bi < byteStr.length; bi++) ia[bi] = byteStr.charCodeAt(bi);
         var blob = new Blob([ab], { type: pendingType });
         window.__pendingCreatorFile = new File([blob], pendingName, { type: pendingType });
-        // Persist for the whole session so sw-register.js's controllerchange
-        // guard can still suppress a reload even after useProjectIO.js has
-        // consumed __pendingCreatorFile and cleared the sessionStorage keys.
-        window.__creatorImageHandoffActive = true;
       }
     } else if (act === 'new-from-image') {
       // Legacy fallback: a navigation hit create.html?action=new-from-image.

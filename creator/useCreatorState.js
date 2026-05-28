@@ -253,6 +253,30 @@ window.useCreatorState = function useCreatorState() {
   var _clrun = useState(false); var cleanupAutoRunning = _clrun[0], setCleanupAutoRunning = _clrun[1];
   var _clerr = useState(null); var cleanupAutoError = _clerr[0], setCleanupAutoError = _clerr[1];
 
+  // ── Denoise mode state ───────────────────────────────────────────────────────
+  // denoisePendingMask: Array<0|1> (sW*sH) from worker, null until first run
+  // denoiseAutoRunning: true while noise-cleanup-worker is running
+  // denoiseAutoError: last error string from worker, or null
+  // denoiseSelTool: 'auto' | 'brush'
+  // denoiseBrushSize: brush footprint for manual mask painting
+  // denoiseThreshold: slider 0-100 (17 ≈ 5 ΔE for palette consolidation)
+  // denoiseOps: { palette, speckle, fringe } — which ops are enabled
+  // denoisePreviewReport: { paletteCount, speckleCount, fringeCount, mergeMap, fringeReplacementMap, isolationRatio }
+  // denoiseDitherWarning: true if isolationRatio > DENOISE_DITHER_WARN_RATIO
+  var _dnmsk = useState(null);   var denoisePendingMask = _dnmsk[0], setDenoisePendingMask = _dnmsk[1];
+  var _dnrun = useState(false);  var denoiseAutoRunning = _dnrun[0], setDenoiseAutoRunning = _dnrun[1];
+  var _dnerr = useState(null);   var denoiseAutoError = _dnerr[0], setDenoiseAutoError = _dnerr[1];
+  var _dnsel = useState('auto'); var denoiseSelTool = _dnsel[0], setDenoiseSelTool = _dnsel[1];
+  var _dnbsz = useState(1);      var denoiseBrushSize = _dnbsz[0], setDenoiseBrushSize = _dnbsz[1];
+  var _dnthr = useState(5);      var denoiseThreshold = _dnthr[0], setDenoiseThreshold = _dnthr[1];  // ΔE directly (1–30); default 5
+  var _dnops = useState({ palette: true, speckle: false, fringe: true });
+  var denoiseOps = _dnops[0], setDenoiseOps = _dnops[1];
+  var _dnrpt = useState(null);   var denoisePreviewReport = _dnrpt[0], setDenoisePreviewReport = _dnrpt[1];
+  var _dndtw = useState(false);  var denoiseDitherWarning = _dndtw[0], setDenoiseDitherWarning = _dndtw[1];
+  // Handlers ref — set by useDenoiseMode so useCanvasInteraction can dispatch
+  // pointer events without a circular hook dependency.
+  var denoiseHandlersRef = useRef(null);
+
   // Sidebar tab within current mode (mode-specific).
   // Create mode tabs: "image" | "dimensions" | "palette" | "preview" | "project".
   // Legacy "settings" (pre-2026-04 toolbar rework) is remapped to "image".
@@ -1624,6 +1648,16 @@ window.useCreatorState = function useCreatorState() {
     pcRef, fRef, scrollRef, expRef, loadRef,
     prevSW, prevSH, isProjectLoadRef, projectIdRef, createdAtRef, trackerFieldsRef, userActedRef, stripRef,
     cleanupHandlersRef,
+    denoisePendingMask, setDenoisePendingMask,
+    denoiseAutoRunning, setDenoiseAutoRunning,
+    denoiseAutoError, setDenoiseAutoError,
+    denoiseSelTool, setDenoiseSelTool,
+    denoiseBrushSize, setDenoiseBrushSize,
+    denoiseThreshold, setDenoiseThreshold,
+    denoiseOps, setDenoiseOps,
+    denoisePreviewReport, setDenoisePreviewReport,
+    denoiseDitherWarning, setDenoiseDitherWarning,
+    denoiseHandlersRef,
     G, EDIT_HISTORY_MAX,
     // Derived
     totalStitchable, cs, fitZ, pxX, pxY, totPg,

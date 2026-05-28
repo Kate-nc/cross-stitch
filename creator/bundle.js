@@ -2065,6 +2065,25 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
     ctx2d.restore();
   }
 
+  // ─── Denoise mode pending-mask overlay ───────────────────────────────────────
+  // Solid teal fill over every cell flagged for denoise replacement.
+  // Rendered after the cleanup overlay so both can theoretically coexist.
+  if (activeTool === 'denoise' && state.denoisePendingMask) {
+    var dMask = state.denoisePendingMask;
+    var dSW   = state.sW;
+    ctx2d.save();
+    ctx2d.fillStyle = (typeof DENOISE_OVERLAY_COLOR !== 'undefined') ? DENOISE_OVERLAY_COLOR : 'rgba(0,160,200,0.50)';
+    for (var doy = 0; doy < dH; doy++) {
+      for (var dox = 0; dox < dW; dox++) {
+        var doi = (offY + doy) * dSW + (offX + dox);
+        if (dMask[doi]) {
+          ctx2d.fillRect(gut + dox * cSz, gut + doy * cSz, cSz, cSz);
+        }
+      }
+    }
+    ctx2d.restore();
+  }
+
   // ─── Move-selection ghost overlay ────────────────────────────────────────────
   // Drawn last so it sits above the selection tint and cleanup overlays.
   // While a move drag is in progress:
@@ -4550,6 +4569,30 @@ window.useCreatorState = function useCreatorState() {
   var _clrun = useState(false); var cleanupAutoRunning = _clrun[0], setCleanupAutoRunning = _clrun[1];
   var _clerr = useState(null); var cleanupAutoError = _clerr[0], setCleanupAutoError = _clerr[1];
 
+  // ── Denoise mode state ───────────────────────────────────────────────────────
+  // denoisePendingMask: Array<0|1> (sW*sH) from worker, null until first run
+  // denoiseAutoRunning: true while noise-cleanup-worker is running
+  // denoiseAutoError: last error string from worker, or null
+  // denoiseSelTool: 'auto' | 'brush'
+  // denoiseBrushSize: brush footprint for manual mask painting
+  // denoiseThreshold: slider 0-100 (17 ≈ 5 ΔE for palette consolidation)
+  // denoiseOps: { palette, speckle, fringe } — which ops are enabled
+  // denoisePreviewReport: { paletteCount, speckleCount, fringeCount, mergeMap, fringeReplacementMap, isolationRatio }
+  // denoiseDitherWarning: true if isolationRatio > DENOISE_DITHER_WARN_RATIO
+  var _dnmsk = useState(null);   var denoisePendingMask = _dnmsk[0], setDenoisePendingMask = _dnmsk[1];
+  var _dnrun = useState(false);  var denoiseAutoRunning = _dnrun[0], setDenoiseAutoRunning = _dnrun[1];
+  var _dnerr = useState(null);   var denoiseAutoError = _dnerr[0], setDenoiseAutoError = _dnerr[1];
+  var _dnsel = useState('auto'); var denoiseSelTool = _dnsel[0], setDenoiseSelTool = _dnsel[1];
+  var _dnbsz = useState(1);      var denoiseBrushSize = _dnbsz[0], setDenoiseBrushSize = _dnbsz[1];
+  var _dnthr = useState(5);      var denoiseThreshold = _dnthr[0], setDenoiseThreshold = _dnthr[1];  // ΔE directly (1–30); default 5
+  var _dnops = useState({ palette: true, speckle: false, fringe: true });
+  var denoiseOps = _dnops[0], setDenoiseOps = _dnops[1];
+  var _dnrpt = useState(null);   var denoisePreviewReport = _dnrpt[0], setDenoisePreviewReport = _dnrpt[1];
+  var _dndtw = useState(false);  var denoiseDitherWarning = _dndtw[0], setDenoiseDitherWarning = _dndtw[1];
+  // Handlers ref — set by useDenoiseMode so useCanvasInteraction can dispatch
+  // pointer events without a circular hook dependency.
+  var denoiseHandlersRef = useRef(null);
+
   // Sidebar tab within current mode (mode-specific).
   // Create mode tabs: "image" | "dimensions" | "palette" | "preview" | "project".
   // Legacy "settings" (pre-2026-04 toolbar rework) is remapped to "image".
@@ -5921,6 +5964,16 @@ window.useCreatorState = function useCreatorState() {
     pcRef, fRef, scrollRef, expRef, loadRef,
     prevSW, prevSH, isProjectLoadRef, projectIdRef, createdAtRef, trackerFieldsRef, userActedRef, stripRef,
     cleanupHandlersRef,
+    denoisePendingMask, setDenoisePendingMask,
+    denoiseAutoRunning, setDenoiseAutoRunning,
+    denoiseAutoError, setDenoiseAutoError,
+    denoiseSelTool, setDenoiseSelTool,
+    denoiseBrushSize, setDenoiseBrushSize,
+    denoiseThreshold, setDenoiseThreshold,
+    denoiseOps, setDenoiseOps,
+    denoisePreviewReport, setDenoisePreviewReport,
+    denoiseDitherWarning, setDenoiseDitherWarning,
+    denoiseHandlersRef,
     G, EDIT_HISTORY_MAX,
     // Derived
     totalStitchable, cs, fitZ, pxX, pxY, totPg,
@@ -6342,6 +6395,142 @@ window.useEditHistory = function useEditHistory(state) {
 };
 
 
+/* ─── cleanupSharedHelpers.js ─── */
+/* creator/cleanupSharedHelpers.js — Pure helpers shared by useCleanupMode.js
+   and useDenoiseMode.js. No React, no DOM. Depends on dE2000 (colour-utils.js).
+
+   Exposed on window:
+     window.cleanupFindEntry(prePat, id, opts?)
+     window.cleanupNeighbourVote(idx, prePat, selectedSet, sW, sH, wideRadius, opts?)
+*/
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Shared constants
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Default radius for the wider neighbourhood used in tie-break 1.
+// Both cleanup and denoise modes pass their own constant; this value is the
+// fallback when wideRadius is not supplied.
+var CLEANUP_SHARED_WIDE_NEIGHBOURHOOD_RADIUS = 2;
+
+// ─── cleanupFindEntry ────────────────────────────────────────────────────────
+// Find the first cell in prePat whose id matches and return it, or null.
+// Used by cleanupNeighbourVote to avoid needing a live cmap reference during
+// the apply step (cmap may be stale while cells are being rewritten).
+window.cleanupFindEntry = function cleanupFindEntry(prePat, id, opts) {
+  var options = opts || {};
+  var ignoreBlend = !!options.ignoreBlend;
+  for (var i = 0; i < prePat.length; i++) {
+    if (!prePat[i]) continue;
+    if (ignoreBlend && prePat[i].type === 'blend') continue;
+    if (prePat[i].id === id) return prePat[i];
+  }
+  return null;
+};
+
+// ─── cleanupNeighbourVote ────────────────────────────────────────────────────
+// Determines the replacement colour for a single cell at `idx` using an
+// 8-connected majority vote with two tie-break passes.
+//
+// Parameters
+//   idx         — flat index of the cell being replaced
+//   prePat      — pre-apply pattern snapshot (read-only)
+//   selectedSet — Set<number> of flat indices that are also pending replacement
+//                 (excluded from the vote so they don't vote for each other)
+//   sW, sH      — pattern dimensions
+//   wideRadius  — radius for tie-break 1 neighbourhood (default 2 → 5×5 region)
+//
+// Returns the matching cell object from prePat, or null when no valid
+// neighbours exist (caller should skip / keep the original cell).
+//
+// Tie-break rules (identical to the original _neighbourVote in useCleanupMode.js):
+//   1. Most frequent colour in 8-connected neighbourhood (excluding selectedSet)
+//   2. Tie-break 1: most frequent in wider (2r+1)×(2r+1) neighbourhood
+//   3. Tie-break 2: Lab distance to the average Lab of all 8 valid neighbours
+window.cleanupNeighbourVote = function cleanupNeighbourVote(idx, prePat, selectedSet, sW, sH, wideRadius, opts) {
+  var options = opts || {};
+  var ignoreBlend = !!options.ignoreBlend;
+  var r = (wideRadius !== undefined && wideRadius !== null) ? wideRadius : CLEANUP_SHARED_WIDE_NEIGHBOURHOOD_RADIUS;
+  var x = idx % sW;
+  var y = (idx / sW) | 0;
+
+  // ── Step 1: 8-connected neighbour vote ──────────────────────────────────
+  var freq = {};
+  var validNeighbours = [];
+
+  for (var dy = -1; dy <= 1; dy++) {
+    for (var dx = -1; dx <= 1; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      var nx = x + dx, ny = y + dy;
+      if (nx < 0 || nx >= sW || ny < 0 || ny >= sH) continue;
+      var ni = ny * sW + nx;
+      if (selectedSet.has(ni)) continue;
+      var cell = prePat[ni];
+      if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
+      if (ignoreBlend && cell.type === 'blend') continue;
+      freq[cell.id] = (freq[cell.id] || 0) + 1;
+      validNeighbours.push(cell);
+    }
+  }
+
+  // Edge case: all 8 neighbours are also selected → keep current colour.
+  if (validNeighbours.length === 0) return null;
+
+  // Find maximum frequency
+  var maxFreq = 0;
+  for (var id in freq) { if (freq[id] > maxFreq) maxFreq = freq[id]; }
+
+  // Candidates at max frequency
+  var candidates = [];
+  for (var id2 in freq) { if (freq[id2] === maxFreq) candidates.push(id2); }
+
+  if (candidates.length === 1) {
+    return window.cleanupFindEntry(prePat, candidates[0], options);
+  }
+
+  // ── Tie-break 1: wider neighbourhood frequency ────────────────────────
+  var wideFreq = {};
+  for (var wy = -r; wy <= r; wy++) {
+    for (var wx = -r; wx <= r; wx++) {
+      if (wx === 0 && wy === 0) continue;
+      var wnx = x + wx, wny = y + wy;
+      if (wnx < 0 || wnx >= sW || wny < 0 || wny >= sH) continue;
+      var wni = wny * sW + wnx;
+      if (selectedSet.has(wni)) continue;
+      var wc = prePat[wni];
+      if (!wc || wc.id === '__skip__' || wc.id === '__empty__') continue;
+      if (ignoreBlend && wc.type === 'blend') continue;
+      if (candidates.indexOf(wc.id) === -1) continue; // only compare tied candidates
+      wideFreq[wc.id] = (wideFreq[wc.id] || 0) + 1;
+    }
+  }
+  var maxWide = 0;
+  for (var wid in wideFreq) { if (wideFreq[wid] > maxWide) maxWide = wideFreq[wid]; }
+  var wideCandidates = candidates.filter(function(cid) { return (wideFreq[cid] || 0) >= maxWide; });
+  if (wideCandidates.length === 1) return window.cleanupFindEntry(prePat, wideCandidates[0], options);
+
+  // ── Tie-break 2: Lab distance to average of 8-neighbours ──────────────
+  var avgL = 0, avgA = 0, avgB = 0, n = validNeighbours.length;
+  for (var vi = 0; vi < n; vi++) {
+    var vlab = validNeighbours[vi].lab;
+    if (!vlab) continue;
+    avgL += vlab[0]; avgA += vlab[1]; avgB += vlab[2];
+  }
+  avgL /= n; avgA /= n; avgB /= n;
+  var avgLab = [avgL, avgA, avgB];
+
+  var bestId = wideCandidates[0];
+  var bestDE = Infinity;
+  for (var ci = 0; ci < wideCandidates.length; ci++) {
+    var entry = window.cleanupFindEntry(prePat, wideCandidates[ci], options);
+    if (!entry || !entry.lab) continue;
+    var de = dE2000(avgLab, entry.lab);
+    if (de < bestDE) { bestDE = de; bestId = wideCandidates[ci]; }
+  }
+  return window.cleanupFindEntry(prePat, bestId, options);
+};
+
+
 /* ─── useCleanupMode.js ─── */
 /* creator/useCleanupMode.js — Cleanup Mode hook.
    Handles target-colour selection, tolerance, brush/click/auto-detect
@@ -6716,100 +6905,17 @@ window.useCleanupMode = function useCleanupMode(state, history) {
   }, []);
 
   // ── Neighbour vote ────────────────────────────────────────────────────────
-  // Determines the replacement colour for a single selected cell based on
-  // the pre-apply snapshot. Cells in selectedSet are excluded from the vote.
-  //
-  // Spec §4.6 tie-break rules:
-  //   1. Most frequent colour in 8-connected neighbourhood (excluding selected)
-  //   2. Tie-break 1: most frequent in wider CLEANUP_WIDE_NEIGHBOURHOOD_RADIUS region
-  //   3. Tie-break 2: Lab distance to average Lab of all valid 8-neighbours
+  // Delegates to the shared window.cleanupNeighbourVote (cleanupSharedHelpers.js).
+  // Identical algorithm; extracted so useDenoiseMode.js can reuse it.
   function _neighbourVote(idx, prePat, selectedSet, sW, sH) {
-    var x = idx % sW;
-    var y = (idx / sW) | 0;
-
-    // ── Step 1: 8-connected neighbour vote ──────────────────────────────────
-    var freq = {};
-    var validNeighbours = [];
-
-    for (var dy = -1; dy <= 1; dy++) {
-      for (var dx = -1; dx <= 1; dx++) {
-        if (dx === 0 && dy === 0) continue;
-        var nx = x + dx, ny = y + dy;
-        if (nx < 0 || nx >= sW || ny < 0 || ny >= sH) continue;
-        var ni = ny * sW + nx;
-        if (selectedSet.has(ni)) continue;
-        var cell = prePat[ni];
-        if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
-        freq[cell.id] = (freq[cell.id] || 0) + 1;
-        validNeighbours.push(cell);
-      }
-    }
-
-    // Edge case: all 8 neighbours are also selected → keep current colour.
-    if (validNeighbours.length === 0) return prePat[idx];
-
-    // Find maximum frequency
-    var maxFreq = 0;
-    for (var id in freq) { if (freq[id] > maxFreq) maxFreq = freq[id]; }
-
-    // Candidates at max frequency
-    var candidates = [];
-    for (var id2 in freq) { if (freq[id2] === maxFreq) candidates.push(id2); }
-
-    if (candidates.length === 1) {
-      // Unambiguous winner — find and return the matching palette entry
-      return _findEntry(prePat, candidates[0]);
-    }
-
-    // ── Tie-break 1: wider neighbourhood frequency ───────────────────────────
-    var wideFreq = {};
-    var r = CLEANUP_WIDE_NEIGHBOURHOOD_RADIUS;
-    for (var wy = -r; wy <= r; wy++) {
-      for (var wx = -r; wx <= r; wx++) {
-        if (wx === 0 && wy === 0) continue;
-        var wnx = x + wx, wny = y + wy;
-        if (wnx < 0 || wnx >= sW || wny < 0 || wny >= sH) continue;
-        var wni = wny * sW + wnx;
-        if (selectedSet.has(wni)) continue;
-        var wc = prePat[wni];
-        if (!wc || wc.id === '__skip__' || wc.id === '__empty__') continue;
-        if (candidates.indexOf(wc.id) === -1) continue; // only compare among tied candidates
-        wideFreq[wc.id] = (wideFreq[wc.id] || 0) + 1;
-      }
-    }
-    var maxWide = 0;
-    for (var wid in wideFreq) { if (wideFreq[wid] > maxWide) maxWide = wideFreq[wid]; }
-    var wideCandidates = candidates.filter(function(cid) { return (wideFreq[cid] || 0) >= maxWide; });
-    if (wideCandidates.length === 1) return _findEntry(prePat, wideCandidates[0]);
-
-    // ── Tie-break 2: Lab distance to average of 8-neighbours ────────────────
-    var avgL = 0, avgA = 0, avgB = 0, n = validNeighbours.length;
-    for (var vi = 0; vi < n; vi++) {
-      var vlab = validNeighbours[vi].lab;
-      if (!vlab) continue;
-      avgL += vlab[0]; avgA += vlab[1]; avgB += vlab[2];
-    }
-    avgL /= n; avgA /= n; avgB /= n;
-    var avgLab = [avgL, avgA, avgB];
-
-    var bestId = wideCandidates[0];
-    var bestDE = Infinity;
-    for (var ci = 0; ci < wideCandidates.length; ci++) {
-      var entry = _findEntry(prePat, wideCandidates[ci]);
-      if (!entry || !entry.lab) continue;
-      var de = dE2000(avgLab, entry.lab);
-      if (de < bestDE) { bestDE = de; bestId = wideCandidates[ci]; }
-    }
-    return _findEntry(prePat, bestId);
+    var result = window.cleanupNeighbourVote(idx, prePat, selectedSet, sW, sH, CLEANUP_WIDE_NEIGHBOURHOOD_RADIUS);
+    // Original: returned prePat[idx] when no valid neighbours. Keep that behaviour.
+    return result !== null ? result : prePat[idx];
   }
 
-  // Finds a palette entry by id by scanning prePat (avoids needing cmap in
-  // the vote function since cmap may be stale during apply).
+  // Thin wrapper retained so internal callers (applyCleanup, tie-break) keep working.
   function _findEntry(prePat, id) {
-    for (var i = 0; i < prePat.length; i++) {
-      if (prePat[i].id === id) return prePat[i];
-    }
-    return null;
+    return window.cleanupFindEntry(prePat, id);
   }
 
   // ── Apply cleanup ─────────────────────────────────────────────────────────
@@ -6949,6 +7055,588 @@ window.CLEANUP_TOLERANCE_MAX_DE = CLEANUP_TOLERANCE_MAX_DE;
 window.AUTODETECT_INTERIOR_CARDINAL_THRESHOLD = AUTODETECT_INTERIOR_CARDINAL_THRESHOLD;
 window.AUTODETECT_MIN_FOREIGN_RATIO = AUTODETECT_MIN_FOREIGN_RATIO;
 window.AUTODETECT_MIN_RUN_LENGTH = AUTODETECT_MIN_RUN_LENGTH;
+
+
+/* ─── useDenoiseMode.js ─── */
+/* creator/useDenoiseMode.js — Denoise Mode hook.
+   Handles mask detection (palette consolidation, speckle, fringe), manual brush
+   selection, overlay mask, apply logic (mergeMap + atomic neighbour vote), and
+   undo entry creation.
+
+   Exposed on window so it can be called from creator-main.js:
+     window.useDenoiseMode(state, history)
+     → { enterDenoise, exitDenoise, cancelDenoise, applyDenoise,
+         runDenoiseAutoDetect, handleDenoisePointerDown/Move/Up, OVERLAY_COLOR }
+
+   Depends on globals:
+     React (useRef/useCallback/useEffect from CDN)
+     dE2000 (colour-utils.js)
+     gridCoord (helpers.js)
+     window.cleanupNeighbourVote, window.cleanupFindEntry (cleanupSharedHelpers.js)
+*/
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Module-root constants
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Palette-threshold slider (0–100) maps linearly to this ΔE range.
+var DENOISE_THRESHOLD_MAX_DE = 30;
+
+// Fraction of non-skip cells that must be fully surrounded by a different
+// colour before the dither warning banner is shown.
+var DENOISE_DITHER_WARN_RATIO = 0.15;
+
+// Radius for the wide neighbourhood tie-break during apply (identical to cleanup).
+var DENOISE_WIDE_NEIGHBOURHOOD_RADIUS = 2;
+
+// Brush size limits.
+var DENOISE_BRUSH_MIN = 1;
+var DENOISE_BRUSH_MAX = 10;
+
+// Overlay colour: teal, distinct from cleanup orange.
+var DENOISE_OVERLAY_COLOR = 'rgba(0,160,200,0.50)';
+
+// localStorage key prefix for per-project dither-warning dismissal.
+var DENOISE_DITHER_WARN_KEY_PREFIX = 'denoise_ditherWarnDismissed_';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Exported hook
+// ═══════════════════════════════════════════════════════════════════════════════
+
+window.useDenoiseMode = function useDenoiseMode(state, history) {
+  var useRef      = React.useRef;
+  var useCallback = React.useCallback;
+  var useEffect   = React.useEffect;
+
+  // Reference to the active noise-cleanup Web Worker instance.
+  var workerRef = useRef(null);
+
+  // Cache for the slim {id, lab, type} array sent to the worker.
+  // Only rebuilt when pat or cmap reference changes.
+  var slimPatCacheRef = useRef({ pat: null, cmap: null, slim: null });
+
+  // ── Threshold in ΔE ───────────────────────────────────────────────────────
+  // State now stores the ΔE value directly (integer 1–30).
+  function thresholdDe(val) {
+    return val || 5;
+  }
+
+  // ── Dither warning helpers ─────────────────────────────────────────────────
+  function _ditherWarnKey() {
+    var pid = state.projectIdRef && state.projectIdRef.current;
+    return pid ? DENOISE_DITHER_WARN_KEY_PREFIX + pid : null;
+  }
+  function _isDitherWarnDismissed() {
+    var key = _ditherWarnKey();
+    if (!key) return false;
+    try { return !!localStorage.getItem(key); } catch (_) { return false; }
+  }
+  function dismissDitherWarning() {
+    var key = _ditherWarnKey();
+    if (key) { try { localStorage.setItem(key, '1'); } catch (_) {} }
+    state.setDenoiseDitherWarning(false);
+  }
+
+  // ── Enter / exit denoise ──────────────────────────────────────────────────
+  var enterDenoise = useCallback(function() {
+    state.setActiveTool('denoise');
+    // Cancel any in-flight worker
+    if (workerRef.current) { workerRef.current.terminate(); workerRef.current = null; }
+    state.setDenoiseAutoRunning(false);
+    state.setDenoiseAutoError(null);
+    state.setDenoiseDitherWarning(false);
+  }, [state]);
+
+  var exitDenoise = useCallback(function() {
+    state.setActiveTool(null);
+    state.setDenoisePendingMask(null);
+    state.setDenoiseAutoRunning(false);
+    state.setDenoiseAutoError(null);
+    state.setDenoisePreviewReport(null);
+    state.setDenoiseDitherWarning(false);
+    if (workerRef.current) { workerRef.current.terminate(); workerRef.current = null; }
+  }, [state]);
+
+  var cancelDenoise = useCallback(function() {
+    state.setDenoisePendingMask(null);
+    state.setDenoiseAutoRunning(false);
+    state.setDenoiseAutoError(null);
+    state.setDenoisePreviewReport(null);
+    if (workerRef.current) { workerRef.current.terminate(); workerRef.current = null; }
+  }, [state]);
+
+  // ── Build slim pal for worker ─────────────────────────────────────────────
+  function _buildSlimPal(pal, cmap) {
+    if (!pal) return [];
+    var out = [];
+    for (var i = 0; i < pal.length; i++) {
+      var p = pal[i];
+      if (!p || p.id === '__skip__' || p.id === '__empty__') continue;
+      var e = cmap && cmap[p.id];
+      out.push({ id: p.id, lab: e ? e.lab : null, count: p.count || 0 });
+    }
+    return out;
+  }
+
+  // ── Auto-detect (Web Worker) ──────────────────────────────────────────────
+  var runDenoiseAutoDetect = useCallback(function() {
+    var pat  = state.pat;
+    var sW   = state.sW;
+    var sH   = state.sH;
+    var cmap = state.cmap;
+    var pal  = state.pal;
+    if (!pat) return;
+
+    // Terminate any previous run
+    if (workerRef.current) { workerRef.current.terminate(); workerRef.current = null; }
+    state.setDenoiseAutoRunning(true);
+    state.setDenoiseAutoError(null);
+
+    var worker;
+    try {
+      worker = new Worker('noise-cleanup-worker.js');
+    } catch (e) {
+      state.setDenoiseAutoRunning(false);
+      state.setDenoiseAutoError('Could not start denoise worker: ' + (e && e.message || String(e)));
+      return;
+    }
+    workerRef.current = worker;
+
+    function releaseWorker(doneWorker) {
+      if (doneWorker && typeof doneWorker.terminate === 'function') doneWorker.terminate();
+      if (workerRef.current === doneWorker) workerRef.current = null;
+    }
+
+    // Build slim pat (cache by pat + cmap reference identity)
+    var slimPat;
+    var cache = slimPatCacheRef.current;
+    if (cache.pat === pat && cache.cmap === cmap && cache.slim && cache.slim.length === pat.length) {
+      slimPat = cache.slim;
+    } else {
+      slimPat = new Array(sW * sH);
+      for (var i = 0; i < pat.length; i++) {
+        var c = pat[i];
+        var cmapEntry = cmap && cmap[c.id];
+        slimPat[i] = { id: c.id, lab: cmapEntry ? cmapEntry.lab : null, type: c.type };
+      }
+      slimPatCacheRef.current = { pat: pat, cmap: cmap, slim: slimPat };
+    }
+
+    var slimPal = _buildSlimPal(pal, cmap);
+    var ops = state.denoiseOps || { palette: true, speckle: false, fringe: true };
+
+    worker.onmessage = function(e) {
+      var msg = e.data;
+      if (msg.type === 'result') {
+        releaseWorker(worker);
+        state.setDenoiseAutoRunning(false);
+        state.setDenoisePendingMask(msg.mask);
+        state.setDenoisePreviewReport(msg.report || null);
+        // Dither warning: check isolation ratio (only show if not dismissed)
+        var report = msg.report;
+        if (report && typeof report.isolationRatio === 'number'
+            && report.isolationRatio > DENOISE_DITHER_WARN_RATIO
+            && !_isDitherWarnDismissed()) {
+          state.setDenoiseDitherWarning(true);
+        } else {
+          state.setDenoiseDitherWarning(false);
+        }
+      } else if (msg.type === 'error') {
+        releaseWorker(worker);
+        state.setDenoiseAutoRunning(false);
+        state.setDenoiseAutoError(msg.message || 'Denoise detection failed');
+      }
+    };
+    worker.onerror = function(ev) {
+      releaseWorker(worker);
+      state.setDenoiseAutoRunning(false);
+      state.setDenoiseAutoError('Worker error: ' + (ev.message || 'unknown'));
+    };
+
+    try {
+      worker.postMessage({
+        type: 'detect',
+        pat: slimPat,
+        pal: slimPal,
+        sW: sW,
+        sH: sH,
+        paletteThresholdDe:   thresholdDe(state.denoiseThreshold),
+        speckleMaxSize:        3,
+        speckleDominanceRatio: 0.6,
+        fringeTransitionDe:    6.0,
+        fringeMinRegionSize:   4,
+        enablePalette: !!ops.palette,
+        enableSpeckle: !!ops.speckle,
+        enableFringe:  !!ops.fringe,
+      });
+    } catch (postErr) {
+      releaseWorker(worker);
+      state.setDenoiseAutoRunning(false);
+      state.setDenoiseAutoError('Could not run denoise worker: ' + (postErr && postErr.message || String(postErr)));
+    }
+  }, [state]);
+
+  // Auto-trigger when entering denoise with auto sub-tool, or switching to it.
+  useEffect(function() {
+    if (state.activeTool !== 'denoise') return;
+    if (state.denoiseSelTool !== 'auto') return;
+    if (state.denoiseAutoRunning) return;
+    runDenoiseAutoDetect();
+  }, [state.denoiseSelTool, state.activeTool]);
+
+  // Terminate worker when leaving auto sub-tool so a stale result can't overwrite
+  // a manually painted brush mask.
+  useEffect(function() {
+    if (state.activeTool === 'denoise' && state.denoiseSelTool === 'auto') return;
+    if (workerRef.current) {
+      workerRef.current.terminate();
+      workerRef.current = null;
+      if (state.denoiseAutoRunning) state.setDenoiseAutoRunning(false);
+    }
+  }, [state.denoiseSelTool, state.activeTool]);
+
+  // Re-run when ops toggle while auto sub-tool is active with a result visible.
+  useEffect(function() {
+    if (state.activeTool !== 'denoise') return;
+    if (state.denoiseSelTool !== 'auto') return;
+    if (state.denoiseAutoRunning) return;
+    if (!state.denoisePendingMask && !state.denoisePreviewReport) return;
+    runDenoiseAutoDetect();
+  }, [state.denoiseOps]);
+
+  // Re-run when palette threshold changes while auto sub-tool is active with a result visible.
+  // Debounced 350ms — the slider fires on every drag tick; only re-run once the
+  // user pauses so the layout stays stable and workers are not thrashed.
+  useEffect(function() {
+    if (state.activeTool !== 'denoise') return;
+    if (state.denoiseSelTool !== 'auto') return;
+    if (!state.denoisePendingMask && !state.denoisePreviewReport) return;
+    var t = setTimeout(function() {
+      runDenoiseAutoDetect();
+    }, 350);
+    return function() { clearTimeout(t); };
+  }, [state.denoiseThreshold]);
+
+  // Cleanup worker on unmount.
+  useEffect(function() {
+    return function() {
+      if (workerRef.current) {
+        try { workerRef.current.terminate(); } catch (_) {}
+        workerRef.current = null;
+      }
+    };
+  }, []);
+
+  // ── Brush drag selection ──────────────────────────────────────────────────
+  // Denoise brush: marks any non-skip, non-empty cell (no tolerance filter).
+  var brushDragActiveRef = useRef(false);
+  var brushMaskRef       = useRef(null);
+  var brushRafPendingRef = useRef(false);
+
+  var handleDenoisePointerDown = useCallback(function(gx, gy) {
+    if (state.denoiseSelTool !== 'brush') return;
+    var sW = state.sW, sH = state.sH;
+    brushDragActiveRef.current = true;
+    // Start from the existing mask (Array<0|1>) or a fresh one
+    var existing = state.denoisePendingMask;
+    var size = sW * sH;
+    var base;
+    if (existing && existing.length === size) {
+      base = existing.slice();
+    } else {
+      base = new Array(size);
+      for (var k = 0; k < size; k++) base[k] = 0;
+    }
+    brushMaskRef.current = base;
+    _brushPaint(gx, gy, sW, sH);
+  }, [state]);
+
+  var handleDenoisePointerMove = useCallback(function(gx, gy) {
+    if (!brushDragActiveRef.current || state.denoiseSelTool !== 'brush') return;
+    _brushPaint(gx, gy, state.sW, state.sH);
+  }, [state]);
+
+  var handleDenoisePointerUp = useCallback(function() {
+    if (!brushDragActiveRef.current) return;
+    brushDragActiveRef.current = false;
+    if (brushMaskRef.current) {
+      state.setDenoisePendingMask(brushMaskRef.current);
+      brushMaskRef.current = null;
+    }
+  }, [state]);
+
+  function _brushPaint(gx, gy, sW, sH) {
+    var pat = state.pat;
+    var brushSize = state.denoiseBrushSize || 1;
+    var mask = brushMaskRef.current;
+    if (!pat || !mask) return;
+
+    for (var dy = 0; dy < brushSize; dy++) {
+      for (var dx = 0; dx < brushSize; dx++) {
+        var x = gx + dx, y = gy + dy;
+        if (x < 0 || x >= sW || y < 0 || y >= sH) continue;
+        var idx = y * sW + x;
+        var cell = pat[idx];
+        if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
+        mask[idx] = 1;
+      }
+    }
+    // Batch React state update to one rAF per frame (mirrors CL-3 in cleanup mode).
+    if (!brushRafPendingRef.current) {
+      brushRafPendingRef.current = true;
+      var _raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
+        ? window.requestAnimationFrame
+        : function (fn) { return setTimeout(fn, 16); };
+      _raf(function() {
+        brushRafPendingRef.current = false;
+        if (brushMaskRef.current) {
+          state.setDenoisePendingMask(brushMaskRef.current.slice());
+        }
+      });
+    }
+  }
+
+  // ── Apply denoise ─────────────────────────────────────────────────────────
+  // Two-pass apply (atomically computed):
+  //   Pass 1 — palette consolidation: remap cell IDs using mergeMap.
+  //   Pass 2 — speckle/fringe replacement: neighbourVote for masked cells.
+  //   One combined undo entry (one step to undo both passes).
+  var applyDenoise = useCallback(function() {
+    var pat  = state.pat;
+    var sW   = state.sW;
+    var sH   = state.sH;
+    var cmap = state.cmap;
+    var mask = state.denoisePendingMask;
+    var report = state.denoisePreviewReport;
+
+    var mergeMap = report && report.mergeMap ? report.mergeMap : {};
+    var fringeReplacementMap = report && report.fringeReplacementMap ? report.fringeReplacementMap : {};
+
+    // Determine if there is anything to do.
+    var mergeIds = Object.keys(mergeMap);
+    var hasMask = mask && mask.length > 0 && (function() {
+      for (var i = 0; i < mask.length; i++) { if (mask[i]) return true; }
+      return false;
+    }());
+    var hasMerge = mergeIds.length > 0;
+
+    if (!pat || (!hasMask && !hasMerge)) return;
+
+    // Immutable original snapshot for "old" values in the undo entry.
+    var origPat = pat.slice();
+
+    // Working copy: will be modified by Pass 1 so Pass 2 votes see merged IDs.
+    var workingPat = pat.slice();
+
+    var changes = []; // { idx, old }
+
+    // ── Pass 1: palette remap ──────────────────────────────────────────────
+    if (hasMerge) {
+      // Build a fast lookup: id → representative cmap entry
+      var repEntryCache = {};
+      for (var mi = 0; mi < mergeIds.length; mi++) {
+        var removedId = mergeIds[mi];
+        var repId = mergeMap[removedId];
+        if (!repEntryCache[repId]) repEntryCache[repId] = cmap ? cmap[repId] : null;
+      }
+
+      for (var pi = 0; pi < workingPat.length; pi++) {
+        var cell = workingPat[pi];
+        if (!cell || cell.id === '__skip__' || cell.id === '__empty__' || cell.type === 'blend') continue;
+        var rep = mergeMap[cell.id];
+        if (!rep) continue;
+        var repEntry = repEntryCache[rep] || (cmap ? cmap[rep] : null);
+        var newCell = { id: rep, type: cell.type, rgb: repEntry ? repEntry.rgb : cell.rgb };
+        changes.push({ idx: pi, old: Object.assign({}, origPat[pi]) });
+        workingPat[pi] = newCell;
+      }
+    }
+
+    // ── Pass 2: speckle/fringe mask replacement ────────────────────────────
+    if (hasMask) {
+      // Build the set of indices to replace (mask cells not already changed
+      // by palette remap only — both types use the same neighbourhood vote).
+      var alreadyChanged = new Set();
+      for (var ci = 0; ci < changes.length; ci++) alreadyChanged.add(changes[ci].idx);
+
+      var maskSet = new Set();
+      for (var si = 0; si < mask.length; si++) { if (mask[si]) maskSet.add(si); }
+
+      // Multi-pass flood fill so interior cells of a large selected area are
+      // replaced from the inside-out, not just at the border.
+      //
+      // Pass 1: vote for each masked cell using only unmasked neighbours.
+      //   → Border cells resolve immediately; interior cells whose 8
+      //     neighbours are all masked return null (unresolved).
+      // Pass N+1: resolved cells from previous passes are removed from
+      //   "stillPending" and treated as valid voters in the next round.
+      //   The vote runs on a snapshot of workingPat updated with previous
+      //   round results, so the replacement colour floods inward.
+      //
+      // The loop terminates when either no cells remain pending or no new
+      // cells are resolved in a round (shouldn't happen with a fully
+      // enclosed selection, but is a safety guard).
+
+      var resolvedMap = {}; // idx → replacement cell
+      var stillPending = new Set(maskSet);
+      var voteSnap = workingPat.slice(); // snapshot updated each round
+
+      var MAX_PASSES = sW + sH; // generous upper bound
+      for (var pass = 0; pass < MAX_PASSES && stillPending.size > 0; pass++) {
+        // pendingSet for this round = cells not yet resolved
+        var resolvedThisRound = [];
+        stillPending.forEach(function(idx) {
+          var forcedFringeRepId = fringeReplacementMap[idx];
+          var result = null;
+          if (forcedFringeRepId) {
+            var forcedEntry = cmap && cmap[forcedFringeRepId];
+            var fallbackCell = voteSnap[idx];
+            result = {
+              id: forcedFringeRepId,
+              type: (fallbackCell && fallbackCell.type) ? fallbackCell.type : 'solid',
+              rgb: forcedEntry ? forcedEntry.rgb : (fallbackCell ? fallbackCell.rgb : null)
+            };
+          } else {
+            result = window.cleanupNeighbourVote(
+              idx, voteSnap, stillPending, sW, sH, DENOISE_WIDE_NEIGHBOURHOOD_RADIUS, { ignoreBlend: true }
+            );
+          }
+          if (result !== null) {
+            resolvedThisRound.push({ idx: idx, replacement: result });
+          }
+        });
+
+        if (resolvedThisRound.length === 0) {
+          // No progress — fully surrounded interior cells keep their colour.
+          stillPending.forEach(function(idx) {
+            resolvedMap[idx] = voteSnap[idx]; // keep original
+          });
+          break;
+        }
+
+        for (var rp = 0; rp < resolvedThisRound.length; rp++) {
+          var item = resolvedThisRound[rp];
+          resolvedMap[item.idx] = item.replacement;
+          voteSnap[item.idx] = item.replacement; // make available as voter next pass
+          stillPending.delete(item.idx);
+        }
+      }
+
+      // Flush any remaining unresolved (keep original)
+      stillPending.forEach(function(idx) {
+        if (!resolvedMap.hasOwnProperty(idx)) resolvedMap[idx] = voteSnap[idx];
+      });
+
+      // Apply all resolved replacements and record changes
+      var idxKeys = Object.keys(resolvedMap);
+      for (var ri = 0; ri < idxKeys.length; ri++) {
+        var ridx = Number(idxKeys[ri]);
+        var rep = resolvedMap[ridx];
+        if (!rep) continue;
+        if (!alreadyChanged.has(ridx)) {
+          changes.push({ idx: ridx, old: Object.assign({}, origPat[ridx]) });
+        }
+        workingPat[ridx] = rep;
+      }
+    }
+
+    if (changes.length === 0) return;
+
+    // ── Commit ────────────────────────────────────────────────────────────
+    state.setPat(workingPat);
+
+    // Rebuild palette
+    var built = state.buildPaletteWithScratch(workingPat);
+    var existingPal = state.pal || [];
+    var changedIds = new Set(changes.map(function(ch) { return ch.old && ch.old.id; }));
+    var inResult = new Set(built.pal.map(function(p) { return p.id; }));
+    var zeroed = existingPal
+      .filter(function(p) { return changedIds.has(p.id) && !inResult.has(p.id); })
+      .map(function(p) { return Object.assign({}, p, { count: 0 }); });
+    if (zeroed.length) {
+      var cmap2 = Object.assign({}, built.cmap);
+      zeroed.forEach(function(p) { cmap2[p.id] = p; });
+      state.setPal(built.pal.concat(zeroed));
+      state.setCmap(cmap2);
+    } else {
+      state.setPal(built.pal);
+      state.setCmap(built.cmap);
+    }
+
+    // Push single undo entry (one step for both passes — per Q2 decision).
+    state.setEditHistory(function(prev) {
+      var n = prev.concat([{ type: 'denoise', changes: changes }]);
+      if (n.length > state.EDIT_HISTORY_MAX) n = n.slice(n.length - state.EDIT_HISTORY_MAX);
+      return n;
+    });
+    state.setRedoHistory([]);
+
+    // Mark pattern as edited
+    if (state.setHasEdited) state.setHasEdited(true);
+
+    // Clear pending mask and preview report
+    state.setDenoisePendingMask(null);
+    state.setDenoisePreviewReport(null);
+
+    // Unused-colour notice (mirrors cleanup mode behaviour)
+    if (zeroed.length && state.addToast) {
+      zeroed.forEach(function(p) {
+        var label = 'DMC ' + p.id + (p.name ? ' \xb7 ' + p.name : '');
+        state.addToast(label + ' is no longer used \u2014 remove from palette?', {
+          type: 'info',
+          duration: 8000,
+          action: {
+            label: 'Remove',
+            onClick: function() {
+              var pid = p.id;
+              state.setPal(function(prev) { return prev ? prev.filter(function(e) { return e.id !== pid; }) : prev; });
+              state.setCmap(function(prev) { if (!prev) return prev; var n2 = Object.assign({}, prev); delete n2[pid]; return n2; });
+              state.setEditHistory(function(prev2) {
+                var n3 = prev2.concat([{ type: 'remove_unused_colours', removedFromPal: [p], removedFromScratch: [] }]);
+                if (n3.length > state.EDIT_HISTORY_MAX) n3 = n3.slice(n3.length - state.EDIT_HISTORY_MAX);
+                return n3;
+              });
+              state.setRedoHistory([]);
+            }
+          }
+        });
+      });
+    }
+  }, [state, history]);
+
+  // ── Keep denoiseHandlersRef up to date ────────────────────────────────────
+  if (state.denoiseHandlersRef) {
+    state.denoiseHandlersRef.current = {
+      handleDenoisePointerDown: handleDenoisePointerDown,
+      handleDenoisePointerMove: handleDenoisePointerMove,
+      handleDenoisePointerUp: handleDenoisePointerUp,
+    };
+  }
+
+  // ── Exported overlay colour ────────────────────────────────────────────────
+  var OVERLAY_COLOR = DENOISE_OVERLAY_COLOR;
+
+  return {
+    enterDenoise: enterDenoise,
+    exitDenoise: exitDenoise,
+    cancelDenoise: cancelDenoise,
+    applyDenoise: applyDenoise,
+    runDenoiseAutoDetect: runDenoiseAutoDetect,
+    dismissDitherWarning: dismissDitherWarning,
+    handleDenoisePointerDown: handleDenoisePointerDown,
+    handleDenoisePointerMove: handleDenoisePointerMove,
+    handleDenoisePointerUp: handleDenoisePointerUp,
+    OVERLAY_COLOR: OVERLAY_COLOR,
+    DENOISE_THRESHOLD_MAX_DE: DENOISE_THRESHOLD_MAX_DE,
+    DENOISE_BRUSH_MIN: DENOISE_BRUSH_MIN,
+    DENOISE_BRUSH_MAX: DENOISE_BRUSH_MAX,
+  };
+};
+
+// Export constants for use in canvasRenderer.js and tests.
+window.DENOISE_OVERLAY_COLOR = DENOISE_OVERLAY_COLOR;
+window.DENOISE_THRESHOLD_MAX_DE = DENOISE_THRESHOLD_MAX_DE;
+window.DENOISE_DITHER_WARN_RATIO = DENOISE_DITHER_WARN_RATIO;
 
 
 /* ─── useCanvasInteraction.js ─── */
@@ -7264,6 +7952,9 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    // Denoise tool: click selects nothing directly (auto sub-tool has no per-cell click action).
+    if (activeTool === "denoise") return;
+
     // Temporary eyedropper: Alt+click samples colour without switching tool
     if (e.altKey && activeTool !== "magicWand" && activeTool !== "lasso") {
       doEyedropSample(pat, cmap, sW, sH, partialStitches, gx, gy);
@@ -7464,6 +8155,13 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    // Denoise brush drag — pointer down
+    if (activeTool === "denoise" && state.denoiseSelTool === "brush") {
+      var _dndp = state.denoiseHandlersRef && state.denoiseHandlersRef.current;
+      if (_dndp) { _dndp.handleDenoisePointerDown(gx, gy); }
+      return;
+    }
+
     if (activeTool === "move") {
       if (gx < 0 || gx >= state.sW || gy < 0 || gy >= state.sH) return;
       var selMaskM = state.selectionMask;
@@ -7532,6 +8230,13 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    // Denoise brush drag move
+    if (activeTool === "denoise" && state.denoiseSelTool === "brush") {
+      var _dndm = state.denoiseHandlersRef && state.denoiseHandlersRef.current;
+      if (_dndm) _dndm.handleDenoisePointerMove(gc.gx, gc.gy);
+      return;
+    }
+
     if (activeTool === "move") {
       if (state.moveActive) state.updateMove(gc.gx, gc.gy);
       return;
@@ -7552,6 +8257,12 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (getActiveTool() === "cleanup" && state.cleanupSelTool === "brush") {
       var _chup = state.cleanupHandlersRef && state.cleanupHandlersRef.current;
       if (_chup) _chup.handleCleanupPointerUp();
+      return;
+    }
+    // Denoise brush drag end
+    if (getActiveTool() === "denoise" && state.denoiseSelTool === "brush") {
+      var _dnup = state.denoiseHandlersRef && state.denoiseHandlersRef.current;
+      if (_dnup) _dnup.handleDenoisePointerUp();
       return;
     }
     if (getActiveTool() === "move") {
@@ -9520,7 +10231,7 @@ window.PatternCanvas = function PatternCanvas() {
     cv.activeTool, cv.brushSize, cv.stitchType, ctx.partialStitchTool, cv.bsLines,
     cv.lassoMode, cv.lassoPoints, cv.lassoPreviewMask, cv.lassoCursor, cv.lassoInProgress,
     cv.selectionMask, cv.confettiPreview,
-    cv.cleanupPendingMask
+    cv.cleanupPendingMask, cv.denoisePendingMask
   ]);
 
   return h("canvas", {
@@ -10184,6 +10895,179 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     );
   }
 
+  // ─── Denoise Mode control row ─────────────────────────────────────────────
+  // Mirrors cleanupRow above; shown instead of cleanupRow when activeTool === 'denoise'.
+  var denoiseRow = null;
+  if (cv.activeTool === 'denoise') {
+    var dnPendingCt = 0;
+    if (cv.denoisePendingMask) { for (var dpci = 0; dpci < cv.denoisePendingMask.length; dpci++) { if (cv.denoisePendingMask[dpci]) dnPendingCt++; } }
+    var dnHasPending = dnPendingCt > 0;
+    var dnSubTools = [
+      { id: 'auto',  label: 'Auto' },
+      { id: 'brush', label: 'Brush' }
+    ];
+    var dnOps = cv.denoiseOps || { palette: true, speckle: false, fringe: true };
+    var dnReport = cv.denoisePreviewReport;
+    var dnHasMergePending = !!(dnReport && dnReport.mergeMap && Object.keys(dnReport.mergeMap).length > 0);
+    var dnCanApply = dnHasPending || dnHasMergePending;
+    denoiseRow = h('div', {
+      className: 'swatch-strip-row',
+      role: 'group',
+      'aria-label': 'Denoise mode controls',
+      style: { gap: 'var(--s-2)', paddingTop: 'var(--s-1)', alignItems: 'center', flexWrap: 'wrap' }
+    },
+      // ── Dither warning banner ────────────────────────────────────────────
+      cv.denoiseDitherWarning && h('div', {
+        role: 'alert',
+        style: { display:'flex', alignItems:'center', gap:6, padding:'3px 8px',
+                 background:'var(--accent-2,#fffbe6)', border:'1px solid var(--line)',
+                 borderRadius:'var(--radius-sm)', fontSize:11, color:'var(--text-primary)', flexShrink:0 }
+      },
+        h('span', null, 'Pattern may be heavily dithered — results may be approximate.'),
+        h('button', {
+          className: 'tb-btn',
+          onClick: function() { if (cv.dismissDitherWarning) cv.dismissDitherWarning(); },
+          style: { padding:'1px 6px', fontSize:10 },
+          'aria-label': 'Dismiss dither warning'
+        }, 'Dismiss')
+      ),
+      // ── Operations checkboxes ────────────────────────────────────────────
+      h('span', { style:{fontSize:10,color:'var(--text-tertiary)',fontWeight:600,textTransform:'uppercase',flexShrink:0,letterSpacing:0.5} }, 'Ops'),
+      h('label', { style:{display:'flex',alignItems:'center',gap:3,fontSize:11,cursor:'pointer',userSelect:'none'} },
+        h('input', { type:'checkbox', checked: !!dnOps.palette,
+          onChange: function(e){ cv.setDenoiseOps && cv.setDenoiseOps(Object.assign({}, dnOps, { palette: e.target.checked })); },
+          'aria-label': 'Enable palette consolidation' }),
+        'Palette'
+      ),
+      h('label', { style:{display:'flex',alignItems:'center',gap:3,fontSize:11,cursor:'pointer',userSelect:'none'} },
+        h('input', { type:'checkbox', checked: !!dnOps.speckle,
+          onChange: function(e){ cv.setDenoiseOps && cv.setDenoiseOps(Object.assign({}, dnOps, { speckle: e.target.checked })); },
+          'aria-label': 'Enable speckle removal' }),
+        'Speckle'
+      ),
+      h('label', { style:{display:'flex',alignItems:'center',gap:3,fontSize:11,cursor:'pointer',userSelect:'none'} },
+        h('input', { type:'checkbox', checked: !!dnOps.fringe,
+          onChange: function(e){ cv.setDenoiseOps && cv.setDenoiseOps(Object.assign({}, dnOps, { fringe: e.target.checked })); },
+          'aria-label': 'Enable edge fringe smoothing' }),
+        'Fringe'
+      ),
+      // ── Palette threshold stepper (when Palette op is on) ──────────────
+      // +/− buttons instead of a range input to avoid toolbar layout jitter.
+      dnOps.palette && h(React.Fragment, null,
+        h('span', {
+          style:{fontSize:10,color:'var(--text-tertiary)',fontWeight:600,textTransform:'uppercase',flexShrink:0,letterSpacing:0.5,marginLeft:4}
+        }, 'Thr'),
+        window.Icons && window.Icons.info && h('button', {
+          className: 'tb-btn',
+          style: { padding:'1px 4px', lineHeight:1, opacity:0.65, flexShrink:0 },
+          title: 'Higher \u0394E = merges more similar colours (more aggressive). Lower \u0394E = only merges near-identical colours (conservative). Default \u22485\u0394E.',
+          onClick: function() { if (window.HelpDrawer) window.HelpDrawer.open({ tab: 'help', query: 'denoise mode' }); },
+          'aria-label': 'Help: palette consolidation threshold'
+        }, window.Icons.info()),
+        h('button', {
+          className:'tb-btn', style:{padding:'1px 7px',fontSize:12},
+          onClick:function(){ cv.setDenoiseThreshold && cv.setDenoiseThreshold(Math.max(1, (cv.denoiseThreshold||5)-1)); },
+          'aria-label':'Decrease palette threshold',
+          title:'Decrease threshold',
+          disabled:(cv.denoiseThreshold||5) <= 1
+        }, window.Icons && window.Icons.minus ? window.Icons.minus() : '\u2212'),
+        h('span', {
+          style:{fontSize:11,minWidth:32,textAlign:'center',color:'var(--text-secondary)',userSelect:'none'},
+          title:'Palette threshold: \u0394E ' + (cv.denoiseThreshold||5) + '\nHigher = merges more colours. Lower = more conservative.'
+        }, '\u0394E\u2009' + (cv.denoiseThreshold||5)),
+        h('button', {
+          className:'tb-btn', style:{padding:'1px 7px',fontSize:12},
+          onClick:function(){ cv.setDenoiseThreshold && cv.setDenoiseThreshold(Math.min(30, (cv.denoiseThreshold||5)+1)); },
+          'aria-label':'Increase palette threshold',
+          title:'Increase threshold',
+          disabled:(cv.denoiseThreshold||5) >= 30
+        }, window.Icons && window.Icons.plus ? window.Icons.plus() : '+')
+      ),
+      // ── Mode radios ──────────────────────────────────────────────────────
+      h('span', {
+        style:{fontSize:10,color:'var(--text-tertiary)',fontWeight:600,textTransform:'uppercase',flexShrink:0,letterSpacing:0.5,marginLeft:4}
+      }, 'Mode'),
+      dnSubTools.map(function(st) {
+        var isActive = (cv.denoiseSelTool || 'auto') === st.id;
+        return h('button', {
+          key: st.id,
+          className: 'tb-btn' + (isActive ? ' tb-btn--on' : ''),
+          onClick: function(){ cv.setDenoiseSelTool && cv.setDenoiseSelTool(st.id); },
+          title: st.label + ' mode',
+          'aria-label': st.label + ' denoise mode',
+          'aria-pressed': isActive,
+          style:{padding:'1px 8px',fontSize:11}
+        }, st.label);
+      }),
+      // ── Brush size (Brush sub-tool only) ─────────────────────────────────
+      (cv.denoiseSelTool === 'brush') && h(React.Fragment, null,
+        h('span', {
+          style:{fontSize:10,color:'var(--text-tertiary)',fontWeight:600,textTransform:'uppercase',flexShrink:0,letterSpacing:0.5,marginLeft:4}
+        }, 'Size'),
+        h('button', {
+          className:'tb-btn', style:{padding:'1px 7px',fontSize:12},
+          onClick:function(){ cv.setDenoiseBrushSize && cv.setDenoiseBrushSize(Math.max(1, (cv.denoiseBrushSize||1)-1)); },
+          'aria-label':'Decrease brush size',
+          disabled:(cv.denoiseBrushSize||1) <= 1
+        }, window.Icons && window.Icons.minus ? window.Icons.minus() : null),
+        h('span', {style:{fontSize:11,minWidth:16,textAlign:'center',color:'var(--text-secondary)'}}, cv.denoiseBrushSize||1),
+        h('button', {
+          className:'tb-btn', style:{padding:'1px 7px',fontSize:12},
+          onClick:function(){ cv.setDenoiseBrushSize && cv.setDenoiseBrushSize(Math.min(10, (cv.denoiseBrushSize||1)+1)); },
+          'aria-label':'Increase brush size',
+          disabled:(cv.denoiseBrushSize||1) >= 10
+        }, '+')
+      ),
+      // ── Re-run (Auto sub-tool only) ──────────────────────────────────────
+      (cv.denoiseSelTool === 'auto' || !cv.denoiseSelTool) && h('button', {
+        className:'tb-btn',
+        onClick: function(){ if (cv.runDenoiseAutoDetect) cv.runDenoiseAutoDetect(); },
+        disabled: cv.denoiseAutoRunning,
+        title: cv.denoiseAutoRunning ? 'Detecting\u2026' : 'Re-run denoise detection',
+        'aria-label': 'Re-run denoise detection',
+        style:{marginLeft:4}
+      }, cv.denoiseAutoRunning ? 'Detecting\u2026' : 'Re-run'),
+      // ── Preview report counts ────────────────────────────────────────────
+      dnReport && h('span', {
+        style:{fontSize:10,color:'var(--text-tertiary)',marginLeft:4}
+      },
+        (dnReport.paletteCount > 0 ? 'Palette: ' + dnReport.paletteCount + '  ' : '') +
+        (dnReport.speckleCount > 0 ? 'Speckle: ' + dnReport.speckleCount + '  ' : '') +
+        (dnReport.fringeCount  > 0 ? 'Fringe: '  + dnReport.fringeCount        : '')
+      ),
+      // ── Auto-error notice ────────────────────────────────────────────────
+      cv.denoiseAutoError && h('span', {
+        role:'alert',
+        style:{fontSize:10,color:'var(--danger)',marginLeft:4,flexShrink:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:160}
+      }, cv.denoiseAutoError),
+      // ── Apply / Cancel ───────────────────────────────────────────────────
+      h('button', {
+        className:'tb-btn tb-btn--primary',
+        onClick: function(){ if (cv.applyDenoise) cv.applyDenoise(); },
+        disabled: !dnCanApply,
+        title: dnCanApply ? 'Apply denoise (' + dnPendingCt.toLocaleString('en-GB') + ' cells)' : 'No cells selected',
+        'aria-label': 'Apply denoise',
+        'aria-disabled': !dnCanApply,
+        style:{
+          marginLeft:8, opacity: dnCanApply ? 1 : 0.4,
+          background: dnCanApply ? 'var(--accent)' : undefined,
+          color: dnCanApply ? '#fff' : undefined,
+          border: dnCanApply ? 'none' : undefined
+        }
+      }, 'Apply'),
+      h('button', {
+        className:'tb-btn',
+        onClick: function(){
+          if (cv.cancelDenoise) cv.cancelDenoise();
+          if (cv.exitDenoise) cv.exitDenoise();
+        },
+        title:'Cancel denoise mode',
+        'aria-label':'Cancel denoise mode',
+        style:{marginLeft:4}
+      }, 'Cancel')
+    );
+  }
+
   // ─── Create Mode: minimal toolbar ────────────────────────────────────────────
   if (app.appMode === "create") {
     var createZoomGrp = [
@@ -10221,11 +11105,22 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             "aria-label":"Cleanup mode",
             "aria-pressed": cv.activeTool==="cleanup" ? "true" : "false"
           }, window.Icons && window.Icons.cleanup ? window.Icons.cleanup() : null, " Cleanup"),
+          // Denoise mode toggle — fix conversion artefacts (speckles, fringe, palette noise)
+          ctx.pat && h("button", {
+            className:"tb-btn"+(cv.activeTool==="denoise"?" tb-btn--on":""),
+            onClick:function(){
+              if (cv.activeTool==="denoise") { if (cv.exitDenoise) cv.exitDenoise(); }
+              else { if (cv.enterDenoise) cv.enterDenoise(); }
+            },
+            title:"Denoise Mode — remove conversion noise (speckle, fringe, palette duplicates)",
+            "aria-label":"Denoise mode",
+            "aria-pressed": cv.activeTool==="denoise" ? "true" : "false"
+          }, window.Icons && window.Icons.sparkles ? window.Icons.sparkles() : null, " Denoise"),
           // Zoom
           createZoomGrp
         )
       ),
-      cleanupRow
+      cv.activeTool === 'cleanup' ? cleanupRow : denoiseRow
     );
   }
 
@@ -10447,7 +11342,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var morePanelHasActiveTool = cv.activeTool === "eyedropper" || cv.activeTool === "hand" ||
     cv.activeTool === "magicWand" || cv.activeTool === "lasso" ||
     cv.activeTool === "colourReplace" || cv.activeTool === "cleanup" ||
-    cv.activeTool === "move";
+    cv.activeTool === "denoise" || cv.activeTool === "move";
 
   var stitchTypeOptions = [
     { id:"cross", label:"Cross" },
@@ -10563,6 +11458,20 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         style:{width:"100%",justifyContent:"flex-start"}
       }, window.Icons&&window.Icons.cleanup?window.Icons.cleanup():null, " Cleanup mode")
     ),
+    // ── Denoise ──
+    h("div", {className:"tb-more-panel__section"},
+      h("button", {
+        className:"tb-btn"+(cv.activeTool==="denoise"?" tb-btn--on":""),
+        onClick:function(){
+          if (cv.activeTool==="denoise") { if (cv.exitDenoise) cv.exitDenoise(); }
+          else { cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); if (cv.enterDenoise) cv.enterDenoise(); }
+          setMorePanelOpen(false);
+        },
+        title:"Denoise Mode \u2014 fix conversion noise (speckle, fringe, palette)", "aria-label":"Denoise mode",
+        "aria-pressed": cv.activeTool==="denoise"?"true":"false",
+        style:{width:"100%",justifyContent:"flex-start"}
+      }, window.Icons&&window.Icons.sparkles?window.Icons.sparkles():null, " Denoise mode")
+    ),
     // ── Stitch type ──
     h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Stitch type"),
@@ -10621,8 +11530,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     morePanelContent
   );
 
-  // cleanupRow is computed before the create-mode early return above,
-  // so it is available here for both modes without duplication.
+  // cleanupRow and denoiseRow are computed before the create-mode early return
+  // above, so they are available here for both modes without duplication.
 
   return h(React.Fragment, null,
     h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Edit mode tools"},
@@ -10639,7 +11548,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         )
       ),
       swatchRow,
-      cleanupRow
+      cleanupRow,
+      denoiseRow
     )
   );
 };
@@ -15313,6 +16223,9 @@ window.ResizeCanvasModal = function ResizeCanvasModal(props) {
  *   stitchSpeed      — stitches/hr (popover only)
  *   doneCount        — stitches completed (popover only)
  *   ready            — boolean; true when a generated pattern is available
+ *   hasImage          — boolean; true when an image is loaded (shows Generate button)
+ *   generatingPattern — boolean; true while generation is running
+ *   onGenerate        — optional; "Generate Pattern" / "Regenerate" click handler
  */
 
 window.CreatorActionBar = function CreatorActionBar(props) {
@@ -15573,6 +16486,27 @@ window.CreatorActionBar = function CreatorActionBar(props) {
       : null
   );
 
+  // Generate button — visible in Create mode when an image is loaded.
+  // Sits on the right side of the bar so it's always reachable without
+  // scrolling the sidebar.
+  var hasImage = !!(props && props.hasImage);
+  var generating = !!(props && props.generatingPattern);
+  var generateBtn = (appMode === "create" && hasImage)
+    ? h("button", {
+        type: "button",
+        className: "creator-actionbar__btn creator-actionbar__btn--primary",
+        onClick: generating ? undefined : (typeof props.onGenerate === "function" ? props.onGenerate : undefined),
+        disabled: generating,
+        title: generating ? "Generating\u2026" : hasPat ? "Regenerate pattern" : "Generate pattern",
+        "aria-label": generating ? "Generating\u2026" : hasPat ? "Regenerate pattern" : "Generate pattern"
+      },
+      generating
+        ? (Icons.spinner ? Icons.spinner() : null)
+        : (Icons.refresh ? Icons.refresh() : null),
+      h("span", null, generating ? "Generating\u2026" : hasPat ? "Regenerate" : "Generate Pattern")
+    )
+    : null;
+
   return h("div", {
       className: "creator-actionbar",
       role: "toolbar",
@@ -15580,6 +16514,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     },
     tabBar,
     h("div", { className: "creator-actionbar__actions" },
+    generateBtn,
     hasPat ? h("div", { className: "creator-actionbar__primary" },
       h("button", {
           type: "button",

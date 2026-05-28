@@ -57,7 +57,9 @@ const ORDER = [
   // loaded conditionally (only when experimental.importWizard pref is on).
   // Saves ~30 KB on every Creator page load for the default user.
   'useEditHistory.js',
+  'cleanupSharedHelpers.js',
   'useCleanupMode.js',
+  'useDenoiseMode.js',
   'useCanvasInteraction.js',
   'useKeyboardShortcuts.js',
   'useProjectIO.js',

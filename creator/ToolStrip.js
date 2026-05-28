@@ -239,6 +239,179 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     );
   }
 
+  // ─── Denoise Mode control row ─────────────────────────────────────────────
+  // Mirrors cleanupRow above; shown instead of cleanupRow when activeTool === 'denoise'.
+  var denoiseRow = null;
+  if (cv.activeTool === 'denoise') {
+    var dnPendingCt = 0;
+    if (cv.denoisePendingMask) { for (var dpci = 0; dpci < cv.denoisePendingMask.length; dpci++) { if (cv.denoisePendingMask[dpci]) dnPendingCt++; } }
+    var dnHasPending = dnPendingCt > 0;
+    var dnSubTools = [
+      { id: 'auto',  label: 'Auto' },
+      { id: 'brush', label: 'Brush' }
+    ];
+    var dnOps = cv.denoiseOps || { palette: true, speckle: false, fringe: true };
+    var dnReport = cv.denoisePreviewReport;
+    var dnHasMergePending = !!(dnReport && dnReport.mergeMap && Object.keys(dnReport.mergeMap).length > 0);
+    var dnCanApply = dnHasPending || dnHasMergePending;
+    denoiseRow = h('div', {
+      className: 'swatch-strip-row',
+      role: 'group',
+      'aria-label': 'Denoise mode controls',
+      style: { gap: 'var(--s-2)', paddingTop: 'var(--s-1)', alignItems: 'center', flexWrap: 'wrap' }
+    },
+      // ── Dither warning banner ────────────────────────────────────────────
+      cv.denoiseDitherWarning && h('div', {
+        role: 'alert',
+        style: { display:'flex', alignItems:'center', gap:6, padding:'3px 8px',
+                 background:'var(--accent-2,#fffbe6)', border:'1px solid var(--line)',
+                 borderRadius:'var(--radius-sm)', fontSize:11, color:'var(--text-primary)', flexShrink:0 }
+      },
+        h('span', null, 'Pattern may be heavily dithered — results may be approximate.'),
+        h('button', {
+          className: 'tb-btn',
+          onClick: function() { if (cv.dismissDitherWarning) cv.dismissDitherWarning(); },
+          style: { padding:'1px 6px', fontSize:10 },
+          'aria-label': 'Dismiss dither warning'
+        }, 'Dismiss')
+      ),
+      // ── Operations checkboxes ────────────────────────────────────────────
+      h('span', { style:{fontSize:10,color:'var(--text-tertiary)',fontWeight:600,textTransform:'uppercase',flexShrink:0,letterSpacing:0.5} }, 'Ops'),
+      h('label', { style:{display:'flex',alignItems:'center',gap:3,fontSize:11,cursor:'pointer',userSelect:'none'} },
+        h('input', { type:'checkbox', checked: !!dnOps.palette,
+          onChange: function(e){ cv.setDenoiseOps && cv.setDenoiseOps(Object.assign({}, dnOps, { palette: e.target.checked })); },
+          'aria-label': 'Enable palette consolidation' }),
+        'Palette'
+      ),
+      h('label', { style:{display:'flex',alignItems:'center',gap:3,fontSize:11,cursor:'pointer',userSelect:'none'} },
+        h('input', { type:'checkbox', checked: !!dnOps.speckle,
+          onChange: function(e){ cv.setDenoiseOps && cv.setDenoiseOps(Object.assign({}, dnOps, { speckle: e.target.checked })); },
+          'aria-label': 'Enable speckle removal' }),
+        'Speckle'
+      ),
+      h('label', { style:{display:'flex',alignItems:'center',gap:3,fontSize:11,cursor:'pointer',userSelect:'none'} },
+        h('input', { type:'checkbox', checked: !!dnOps.fringe,
+          onChange: function(e){ cv.setDenoiseOps && cv.setDenoiseOps(Object.assign({}, dnOps, { fringe: e.target.checked })); },
+          'aria-label': 'Enable edge fringe smoothing' }),
+        'Fringe'
+      ),
+      // ── Palette threshold stepper (when Palette op is on) ──────────────
+      // +/− buttons instead of a range input to avoid toolbar layout jitter.
+      dnOps.palette && h(React.Fragment, null,
+        h('span', {
+          style:{fontSize:10,color:'var(--text-tertiary)',fontWeight:600,textTransform:'uppercase',flexShrink:0,letterSpacing:0.5,marginLeft:4}
+        }, 'Thr'),
+        window.Icons && window.Icons.info && h('button', {
+          className: 'tb-btn',
+          style: { padding:'1px 4px', lineHeight:1, opacity:0.65, flexShrink:0 },
+          title: 'Higher \u0394E = merges more similar colours (more aggressive). Lower \u0394E = only merges near-identical colours (conservative). Default \u22485\u0394E.',
+          onClick: function() { if (window.HelpDrawer) window.HelpDrawer.open({ tab: 'help', query: 'denoise mode' }); },
+          'aria-label': 'Help: palette consolidation threshold'
+        }, window.Icons.info()),
+        h('button', {
+          className:'tb-btn', style:{padding:'1px 7px',fontSize:12},
+          onClick:function(){ cv.setDenoiseThreshold && cv.setDenoiseThreshold(Math.max(1, (cv.denoiseThreshold||5)-1)); },
+          'aria-label':'Decrease palette threshold',
+          title:'Decrease threshold',
+          disabled:(cv.denoiseThreshold||5) <= 1
+        }, window.Icons && window.Icons.minus ? window.Icons.minus() : '\u2212'),
+        h('span', {
+          style:{fontSize:11,minWidth:32,textAlign:'center',color:'var(--text-secondary)',userSelect:'none'},
+          title:'Palette threshold: \u0394E ' + (cv.denoiseThreshold||5) + '\nHigher = merges more colours. Lower = more conservative.'
+        }, '\u0394E\u2009' + (cv.denoiseThreshold||5)),
+        h('button', {
+          className:'tb-btn', style:{padding:'1px 7px',fontSize:12},
+          onClick:function(){ cv.setDenoiseThreshold && cv.setDenoiseThreshold(Math.min(30, (cv.denoiseThreshold||5)+1)); },
+          'aria-label':'Increase palette threshold',
+          title:'Increase threshold',
+          disabled:(cv.denoiseThreshold||5) >= 30
+        }, window.Icons && window.Icons.plus ? window.Icons.plus() : '+')
+      ),
+      // ── Mode radios ──────────────────────────────────────────────────────
+      h('span', {
+        style:{fontSize:10,color:'var(--text-tertiary)',fontWeight:600,textTransform:'uppercase',flexShrink:0,letterSpacing:0.5,marginLeft:4}
+      }, 'Mode'),
+      dnSubTools.map(function(st) {
+        var isActive = (cv.denoiseSelTool || 'auto') === st.id;
+        return h('button', {
+          key: st.id,
+          className: 'tb-btn' + (isActive ? ' tb-btn--on' : ''),
+          onClick: function(){ cv.setDenoiseSelTool && cv.setDenoiseSelTool(st.id); },
+          title: st.label + ' mode',
+          'aria-label': st.label + ' denoise mode',
+          'aria-pressed': isActive,
+          style:{padding:'1px 8px',fontSize:11}
+        }, st.label);
+      }),
+      // ── Brush size (Brush sub-tool only) ─────────────────────────────────
+      (cv.denoiseSelTool === 'brush') && h(React.Fragment, null,
+        h('span', {
+          style:{fontSize:10,color:'var(--text-tertiary)',fontWeight:600,textTransform:'uppercase',flexShrink:0,letterSpacing:0.5,marginLeft:4}
+        }, 'Size'),
+        h('button', {
+          className:'tb-btn', style:{padding:'1px 7px',fontSize:12},
+          onClick:function(){ cv.setDenoiseBrushSize && cv.setDenoiseBrushSize(Math.max(1, (cv.denoiseBrushSize||1)-1)); },
+          'aria-label':'Decrease brush size',
+          disabled:(cv.denoiseBrushSize||1) <= 1
+        }, window.Icons && window.Icons.minus ? window.Icons.minus() : null),
+        h('span', {style:{fontSize:11,minWidth:16,textAlign:'center',color:'var(--text-secondary)'}}, cv.denoiseBrushSize||1),
+        h('button', {
+          className:'tb-btn', style:{padding:'1px 7px',fontSize:12},
+          onClick:function(){ cv.setDenoiseBrushSize && cv.setDenoiseBrushSize(Math.min(10, (cv.denoiseBrushSize||1)+1)); },
+          'aria-label':'Increase brush size',
+          disabled:(cv.denoiseBrushSize||1) >= 10
+        }, '+')
+      ),
+      // ── Re-run (Auto sub-tool only) ──────────────────────────────────────
+      (cv.denoiseSelTool === 'auto' || !cv.denoiseSelTool) && h('button', {
+        className:'tb-btn',
+        onClick: function(){ if (cv.runDenoiseAutoDetect) cv.runDenoiseAutoDetect(); },
+        disabled: cv.denoiseAutoRunning,
+        title: cv.denoiseAutoRunning ? 'Detecting\u2026' : 'Re-run denoise detection',
+        'aria-label': 'Re-run denoise detection',
+        style:{marginLeft:4}
+      }, cv.denoiseAutoRunning ? 'Detecting\u2026' : 'Re-run'),
+      // ── Preview report counts ────────────────────────────────────────────
+      dnReport && h('span', {
+        style:{fontSize:10,color:'var(--text-tertiary)',marginLeft:4}
+      },
+        (dnReport.paletteCount > 0 ? 'Palette: ' + dnReport.paletteCount + '  ' : '') +
+        (dnReport.speckleCount > 0 ? 'Speckle: ' + dnReport.speckleCount + '  ' : '') +
+        (dnReport.fringeCount  > 0 ? 'Fringe: '  + dnReport.fringeCount        : '')
+      ),
+      // ── Auto-error notice ────────────────────────────────────────────────
+      cv.denoiseAutoError && h('span', {
+        role:'alert',
+        style:{fontSize:10,color:'var(--danger)',marginLeft:4,flexShrink:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:160}
+      }, cv.denoiseAutoError),
+      // ── Apply / Cancel ───────────────────────────────────────────────────
+      h('button', {
+        className:'tb-btn tb-btn--primary',
+        onClick: function(){ if (cv.applyDenoise) cv.applyDenoise(); },
+        disabled: !dnCanApply,
+        title: dnCanApply ? 'Apply denoise (' + dnPendingCt.toLocaleString('en-GB') + ' cells)' : 'No cells selected',
+        'aria-label': 'Apply denoise',
+        'aria-disabled': !dnCanApply,
+        style:{
+          marginLeft:8, opacity: dnCanApply ? 1 : 0.4,
+          background: dnCanApply ? 'var(--accent)' : undefined,
+          color: dnCanApply ? '#fff' : undefined,
+          border: dnCanApply ? 'none' : undefined
+        }
+      }, 'Apply'),
+      h('button', {
+        className:'tb-btn',
+        onClick: function(){
+          if (cv.cancelDenoise) cv.cancelDenoise();
+          if (cv.exitDenoise) cv.exitDenoise();
+        },
+        title:'Cancel denoise mode',
+        'aria-label':'Cancel denoise mode',
+        style:{marginLeft:4}
+      }, 'Cancel')
+    );
+  }
+
   // ─── Create Mode: minimal toolbar ────────────────────────────────────────────
   if (app.appMode === "create") {
     var createZoomGrp = [
@@ -276,11 +449,22 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             "aria-label":"Cleanup mode",
             "aria-pressed": cv.activeTool==="cleanup" ? "true" : "false"
           }, window.Icons && window.Icons.cleanup ? window.Icons.cleanup() : null, " Cleanup"),
+          // Denoise mode toggle — fix conversion artefacts (speckles, fringe, palette noise)
+          ctx.pat && h("button", {
+            className:"tb-btn"+(cv.activeTool==="denoise"?" tb-btn--on":""),
+            onClick:function(){
+              if (cv.activeTool==="denoise") { if (cv.exitDenoise) cv.exitDenoise(); }
+              else { if (cv.enterDenoise) cv.enterDenoise(); }
+            },
+            title:"Denoise Mode — remove conversion noise (speckle, fringe, palette duplicates)",
+            "aria-label":"Denoise mode",
+            "aria-pressed": cv.activeTool==="denoise" ? "true" : "false"
+          }, window.Icons && window.Icons.sparkles ? window.Icons.sparkles() : null, " Denoise"),
           // Zoom
           createZoomGrp
         )
       ),
-      cleanupRow
+      cv.activeTool === 'cleanup' ? cleanupRow : denoiseRow
     );
   }
 
@@ -502,7 +686,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var morePanelHasActiveTool = cv.activeTool === "eyedropper" || cv.activeTool === "hand" ||
     cv.activeTool === "magicWand" || cv.activeTool === "lasso" ||
     cv.activeTool === "colourReplace" || cv.activeTool === "cleanup" ||
-    cv.activeTool === "move";
+    cv.activeTool === "denoise" || cv.activeTool === "move";
 
   var stitchTypeOptions = [
     { id:"cross", label:"Cross" },
@@ -618,6 +802,20 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         style:{width:"100%",justifyContent:"flex-start"}
       }, window.Icons&&window.Icons.cleanup?window.Icons.cleanup():null, " Cleanup mode")
     ),
+    // ── Denoise ──
+    h("div", {className:"tb-more-panel__section"},
+      h("button", {
+        className:"tb-btn"+(cv.activeTool==="denoise"?" tb-btn--on":""),
+        onClick:function(){
+          if (cv.activeTool==="denoise") { if (cv.exitDenoise) cv.exitDenoise(); }
+          else { cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); if (cv.enterDenoise) cv.enterDenoise(); }
+          setMorePanelOpen(false);
+        },
+        title:"Denoise Mode \u2014 fix conversion noise (speckle, fringe, palette)", "aria-label":"Denoise mode",
+        "aria-pressed": cv.activeTool==="denoise"?"true":"false",
+        style:{width:"100%",justifyContent:"flex-start"}
+      }, window.Icons&&window.Icons.sparkles?window.Icons.sparkles():null, " Denoise mode")
+    ),
     // ── Stitch type ──
     h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Stitch type"),
@@ -676,8 +874,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     morePanelContent
   );
 
-  // cleanupRow is computed before the create-mode early return above,
-  // so it is available here for both modes without duplication.
+  // cleanupRow and denoiseRow are computed before the create-mode early return
+  // above, so they are available here for both modes without duplication.
 
   return h(React.Fragment, null,
     h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Edit mode tools"},
@@ -694,7 +892,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         )
       ),
       swatchRow,
-      cleanupRow
+      cleanupRow,
+      denoiseRow
     )
   );
 };

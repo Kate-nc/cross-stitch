@@ -14,16 +14,27 @@ if ('serviceWorker' in navigator) {
     // to get the freshly-deployed files. The `refreshing` guard prevents a
     // reload loop if the event fires more than once (e.g., rapid deployments).
     //
-    // Exception: if an image-to-Creator handoff is in progress (sessionStorage
+    // Exception 1 (first install): if there was no previous SW controller,
+    // the page assets were just fetched fresh from the network — there is
+    // nothing stale to reload away. Reloading here would dismiss any open
+    // file-picker dialogs (e.g. the home.html "New from pattern file" input),
+    // causing the "interface flashes back to homepage" bug on a brand-new
+    // first visit. On subsequent SW updates hadController will be true and
+    // the normal reload path applies.
+    //
+    // Exception 2: if an image-to-Creator handoff is in progress (sessionStorage
     // contains the pending data URL), reloading right now would either bounce
     // the user back to /home (if we're still on home.html) or strip the URL
     // params and lose the image (if we're mid-load on create.html). In that
     // case we set `refreshing = true` to silence future fires but skip the
     // reload — the updated SW assets take effect on the next navigation.
+    const hadController = !!navigator.serviceWorker.controller;
     let refreshing = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!refreshing) {
         refreshing = true;
+        // First-install: assets are already fresh — no reload needed.
+        if (!hadController) return;
         try {
           if (sessionStorage.getItem('cs_pending_image_dataurl')) return;
         } catch (_) {}

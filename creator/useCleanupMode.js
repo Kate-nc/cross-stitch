@@ -371,100 +371,17 @@ window.useCleanupMode = function useCleanupMode(state, history) {
   }, []);
 
   // ── Neighbour vote ────────────────────────────────────────────────────────
-  // Determines the replacement colour for a single selected cell based on
-  // the pre-apply snapshot. Cells in selectedSet are excluded from the vote.
-  //
-  // Spec §4.6 tie-break rules:
-  //   1. Most frequent colour in 8-connected neighbourhood (excluding selected)
-  //   2. Tie-break 1: most frequent in wider CLEANUP_WIDE_NEIGHBOURHOOD_RADIUS region
-  //   3. Tie-break 2: Lab distance to average Lab of all valid 8-neighbours
+  // Delegates to the shared window.cleanupNeighbourVote (cleanupSharedHelpers.js).
+  // Identical algorithm; extracted so useDenoiseMode.js can reuse it.
   function _neighbourVote(idx, prePat, selectedSet, sW, sH) {
-    var x = idx % sW;
-    var y = (idx / sW) | 0;
-
-    // ── Step 1: 8-connected neighbour vote ──────────────────────────────────
-    var freq = {};
-    var validNeighbours = [];
-
-    for (var dy = -1; dy <= 1; dy++) {
-      for (var dx = -1; dx <= 1; dx++) {
-        if (dx === 0 && dy === 0) continue;
-        var nx = x + dx, ny = y + dy;
-        if (nx < 0 || nx >= sW || ny < 0 || ny >= sH) continue;
-        var ni = ny * sW + nx;
-        if (selectedSet.has(ni)) continue;
-        var cell = prePat[ni];
-        if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
-        freq[cell.id] = (freq[cell.id] || 0) + 1;
-        validNeighbours.push(cell);
-      }
-    }
-
-    // Edge case: all 8 neighbours are also selected → keep current colour.
-    if (validNeighbours.length === 0) return prePat[idx];
-
-    // Find maximum frequency
-    var maxFreq = 0;
-    for (var id in freq) { if (freq[id] > maxFreq) maxFreq = freq[id]; }
-
-    // Candidates at max frequency
-    var candidates = [];
-    for (var id2 in freq) { if (freq[id2] === maxFreq) candidates.push(id2); }
-
-    if (candidates.length === 1) {
-      // Unambiguous winner — find and return the matching palette entry
-      return _findEntry(prePat, candidates[0]);
-    }
-
-    // ── Tie-break 1: wider neighbourhood frequency ───────────────────────────
-    var wideFreq = {};
-    var r = CLEANUP_WIDE_NEIGHBOURHOOD_RADIUS;
-    for (var wy = -r; wy <= r; wy++) {
-      for (var wx = -r; wx <= r; wx++) {
-        if (wx === 0 && wy === 0) continue;
-        var wnx = x + wx, wny = y + wy;
-        if (wnx < 0 || wnx >= sW || wny < 0 || wny >= sH) continue;
-        var wni = wny * sW + wnx;
-        if (selectedSet.has(wni)) continue;
-        var wc = prePat[wni];
-        if (!wc || wc.id === '__skip__' || wc.id === '__empty__') continue;
-        if (candidates.indexOf(wc.id) === -1) continue; // only compare among tied candidates
-        wideFreq[wc.id] = (wideFreq[wc.id] || 0) + 1;
-      }
-    }
-    var maxWide = 0;
-    for (var wid in wideFreq) { if (wideFreq[wid] > maxWide) maxWide = wideFreq[wid]; }
-    var wideCandidates = candidates.filter(function(cid) { return (wideFreq[cid] || 0) >= maxWide; });
-    if (wideCandidates.length === 1) return _findEntry(prePat, wideCandidates[0]);
-
-    // ── Tie-break 2: Lab distance to average of 8-neighbours ────────────────
-    var avgL = 0, avgA = 0, avgB = 0, n = validNeighbours.length;
-    for (var vi = 0; vi < n; vi++) {
-      var vlab = validNeighbours[vi].lab;
-      if (!vlab) continue;
-      avgL += vlab[0]; avgA += vlab[1]; avgB += vlab[2];
-    }
-    avgL /= n; avgA /= n; avgB /= n;
-    var avgLab = [avgL, avgA, avgB];
-
-    var bestId = wideCandidates[0];
-    var bestDE = Infinity;
-    for (var ci = 0; ci < wideCandidates.length; ci++) {
-      var entry = _findEntry(prePat, wideCandidates[ci]);
-      if (!entry || !entry.lab) continue;
-      var de = dE2000(avgLab, entry.lab);
-      if (de < bestDE) { bestDE = de; bestId = wideCandidates[ci]; }
-    }
-    return _findEntry(prePat, bestId);
+    var result = window.cleanupNeighbourVote(idx, prePat, selectedSet, sW, sH, CLEANUP_WIDE_NEIGHBOURHOOD_RADIUS);
+    // Original: returned prePat[idx] when no valid neighbours. Keep that behaviour.
+    return result !== null ? result : prePat[idx];
   }
 
-  // Finds a palette entry by id by scanning prePat (avoids needing cmap in
-  // the vote function since cmap may be stale during apply).
+  // Thin wrapper retained so internal callers (applyCleanup, tie-break) keep working.
   function _findEntry(prePat, id) {
-    for (var i = 0; i < prePat.length; i++) {
-      if (prePat[i].id === id) return prePat[i];
-    }
-    return null;
+    return window.cleanupFindEntry(prePat, id);
   }
 
   // ── Apply cleanup ─────────────────────────────────────────────────────────
