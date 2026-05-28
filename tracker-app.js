@@ -543,6 +543,9 @@ const incomingProjectRef=useRef(incomingProject);
 // ProjectStorage.getActiveProject() fallback is also deferred to the
 // next microtask so the prop effect has a chance to run first.
 const hasLoadedOnceRef=useRef(false);
+// Ref kept current every render so the window.__navigateToEditor wrapper always
+// calls the latest handleEditInCreator closure (which captures current state).
+const _editInCreatorRef=useRef(null);
 const[fabricCt,setFabricCt]=useState(14);
 const[skeinPrice,setSkeinPrice]=useState(DEFAULT_SKEIN_PRICE);
 const[stitchSpeed,setStitchSpeed]=useState(40);
@@ -5602,6 +5605,17 @@ const _showTrFirstStitchCoach = _trCoachReady
   && !styleOnboardingOpen
   && !welcomeOpen
   && doneCount === 0;
+
+// Keep ref current on every render (function declarations are hoisted so this
+// is always defined; the ref lets the registered handler call the latest closure).
+_editInCreatorRef.current=handleEditInCreator;
+// Register NavigationAPI handoff for Tracker → Editor so the top-bar Edit tab
+// and command palette trigger the full snapshot+handoff path.
+useEffect(()=>{
+  if(!pat||!pal){delete window.__navigateToEditor;return;}
+  window.__navigateToEditor=function(){if(_editInCreatorRef.current)_editInCreatorRef.current();};
+  return()=>{delete window.__navigateToEditor;};
+},[!!pat,!!pal]); // eslint-disable-line react-hooks/exhaustive-deps
 
 return(
 <>

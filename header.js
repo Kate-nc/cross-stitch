@@ -608,13 +608,12 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
   const activeLabel = (creatorPages.find(p => p[0] === tab) || (tab === 'prepare' || tab === 'legend' || tab === 'export' ? ['materials','Materials & Output'] : null) || ['pattern', 'Pattern'])[1];
 
   // App-section nav tabs — include Edit between Create and Track.
-  // Hrefs use `?action=…` / `?from=home` so the per-tool no-project redirect
-  // in index.html / stitch.html / manager.html doesn't bounce users back to
-  // /home — Create opens the image picker, Edit opens the project file
-  // picker, Track and Stash drop straight into their empty states.
+  // Hrefs are project-safe fallbacks (right-click / JS-disabled). The click
+  // handler always delegates to NavigationAPI first so the active project is
+  // saved / handed off correctly before any cross-page navigation fires.
   const appSections = [
     { id: 'creator', label: 'Create', href: 'home.html?tab=create' },
-    { id: 'editor', label: 'Edit', href: 'create.html?action=open' },
+    { id: 'editor', label: 'Edit', href: 'create.html?from=home' },
     { id: 'tracker', label: 'Track',  href: 'stitch.html?from=home' },
     { id: 'manager', label: 'Stash',  href: 'manager.html?from=home' },
     { id: 'stats', label: 'Stats', href: 'index.html?mode=stats&from=home' },
@@ -693,13 +692,15 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         // covering the same destinations. Shown on all other pages as before.
         page !== 'home' && React.createElement('nav', { className: 'tb-app-nav', 'aria-label': 'App sections' },
           appSections.map(({ id, label, href }) => {
-            const switchMap = { tracker: '__switchToTrack', creator: '__switchToCreate', editor: '__switchToEdit', stats: '__switchToStats' };
-            const fn = window[switchMap[id]];
+            // Map section id to NavigationAPI target ('manager' has no in-page
+            // handler so it maps to 'stash' which falls through to cross-page).
+            const navTargetMap = { creator: 'creator', editor: 'editor', tracker: 'tracker', manager: 'stash', stats: 'stats' };
+            const navTarget = navTargetMap[id];
             return React.createElement('a', {
               key: id,
               href,
               className: 'tb-app-tab' + (page === id ? ' tb-app-tab--active' : ''),
-              onClick: fn ? (e) => { e.preventDefault(); fn(); } : undefined,
+              onClick: navTarget ? (e) => { e.preventDefault(); window.NavigationAPI && window.NavigationAPI.navigateTo(navTarget); } : undefined,
               ...(page === id ? { 'aria-current': 'page' } : {}),
             }, label);
           })

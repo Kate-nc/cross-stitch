@@ -28,6 +28,7 @@ var PRECACHE_URLS = [
   './import-formats.js',
   './components.js',
   './components-stats.js',
+  './navigation.js',
   './header.js',
   './modals.js',
   './threadCalc.js',

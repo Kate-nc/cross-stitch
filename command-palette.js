@@ -91,16 +91,18 @@
         id: 'nav_editor', label: 'Switch to Editor', section: 'navigate',
         keywords: ['editor', 'edit', 'modify', 'paint'],
         action: function () {
+          if (window.NavigationAPI) { window.NavigationAPI.navigateTo('editor'); return; }
           if (typeof window.__switchToEdit === 'function') return window.__switchToEdit();
-          location.href = 'create.html?action=open';
+          location.href = 'create.html?from=home';
         }
       },
       {
         id: 'nav_tracker', label: 'Switch to Tracker', section: 'navigate',
         keywords: ['tracker', 'track', 'stitch', 'mark'],
         action: function () {
+          if (window.NavigationAPI) { window.NavigationAPI.navigateTo('tracker'); return; }
           if (typeof window.__switchToTrack === 'function') return window.__switchToTrack();
-          location.href = 'stitch.html';
+          location.href = 'stitch.html?from=home';
         }
       },
       {
@@ -214,7 +216,7 @@
               if (typeof ProjectStorage !== 'undefined' && ProjectStorage.setActiveProject) {
                 ProjectStorage.setActiveProject(id);
               }
-              location.href = 'stitch.html';
+              location.href = 'stitch.html?from=home&id=' + encodeURIComponent(id);
             };
           })(p.id)
         };
