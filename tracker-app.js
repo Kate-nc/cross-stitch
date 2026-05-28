@@ -1801,20 +1801,35 @@ function finaliseAutoSession(){
       currentAutoSessionRef.current=null;
       return;
     }
-    // Close out any open pause before computing duration
-    const nowMs=Date.now();
+    // Bug 2 fix: flush any colour IDs that were added to pendingColoursRef between
+    // the last recordAutoActivity call and now (e.g. if the idle timer fires before
+    // the countsVer effect runs recordAutoActivity for the very last stitch).
+    if(pendingColoursRef.current.size>0&&session.coloursWorked){
+      pendingColoursRef.current.forEach(c=>session.coloursWorked.add(c));
+      pendingColoursRef.current.clear();
+    }
+    // Determine the end of active stitching before closing out open pauses.
+    // Using lastStitchActivityRef ensures idle time after the last stitch is
+    // excluded from the duration without any subtraction.
+    const endTime=lastStitchActivityRef.current||new Date();
+    const endTimeMs=endTime instanceof Date?endTime.getTime():new Date(endTime).getTime();
+    // Close out any open pause before computing duration.
+    // Bug 1 fix: cap each pause's effective duration at endTimeMs so that pauses
+    // which started *after* the last stitch (manual pause, inactivity, tab-hide) do
+    // not exceed the session window and produce a negative activeDurationMs.
     if(manuallyPausedRef.current&&manualPauseTimeRef.current){
-      session.totalPausedMs=(session.totalPausedMs||0)+(nowMs-manualPauseTimeRef.current);
+      const cap=Math.min(manualPauseTimeRef.current,endTimeMs);
+      session.totalPausedMs=(session.totalPausedMs||0)+Math.max(0,endTimeMs-cap);
       manualPauseTimeRef.current=null;
     }
     if(inactivityPausedRef.current&&inactivityPauseTimeRef.current){
-      session.totalPausedMs=(session.totalPausedMs||0)+(nowMs-inactivityPauseTimeRef.current);
+      const cap=Math.min(inactivityPauseTimeRef.current,endTimeMs);
+      session.totalPausedMs=(session.totalPausedMs||0)+Math.max(0,endTimeMs-cap);
       inactivityPausedRef.current=false;
       inactivityPauseTimeRef.current=null;
     }
-    const endTime=lastStitchActivityRef.current||new Date();
     const startTime=new Date(session.startTime);
-    let activeDurationMs=endTime-startTime-(session.totalPausedMs||0);
+    let activeDurationMs=endTimeMs-startTime.getTime()-(session.totalPausedMs||0);
     if(activeDurationMs<0) activeDurationMs=0;
     const ref=autoStatsRef.current||{doneCount:0,totalStitchable:0};
     const tc=ref.doneCount||0,ts=ref.totalStitchable||0;
@@ -1822,7 +1837,7 @@ function finaliseAutoSession(){
       id:session.id,
       date:session.date,
       startTime:session.startTime,
-      endTime:endTime.toISOString(),
+      endTime:endTime instanceof Date?endTime.toISOString():new Date(endTime).toISOString(),
       durationSeconds:Math.max(1,Math.round(activeDurationMs/1000)),
       durationMinutes:Math.max(1,Math.round(activeDurationMs/60000)),
       stitchesCompleted:session.stitchesCompleted,
@@ -1856,6 +1871,9 @@ function finaliseAutoSession(){
     currentAutoSessionRef.current=null;
     clearTimeout(autoIdleTimerRef.current);
     clearTimeout(inactivityTimerRef.current);
+    // Bug 3 fix: clear the ref synchronously so the 1-second display timer does
+    // not skip a tick for the next session while the React effect is pending.
+    manuallyPausedRef.current=false;
     setManuallyPaused(false);
     setLiveAutoIsPaused(false);
     setLiveAutoElapsed(0);
