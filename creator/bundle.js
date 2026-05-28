@@ -16142,6 +16142,9 @@ window.ResizeCanvasModal = function ResizeCanvasModal(props) {
  *   stitchSpeed      — stitches/hr (popover only)
  *   doneCount        — stitches completed (popover only)
  *   ready            — boolean; true when a generated pattern is available
+ *   hasImage          — boolean; true when an image is loaded (shows Generate button)
+ *   generatingPattern — boolean; true while generation is running
+ *   onGenerate        — optional; "Generate Pattern" / "Regenerate" click handler
  */
 
 window.CreatorActionBar = function CreatorActionBar(props) {
@@ -16402,6 +16405,27 @@ window.CreatorActionBar = function CreatorActionBar(props) {
       : null
   );
 
+  // Generate button — visible in Create mode when an image is loaded.
+  // Sits on the right side of the bar so it's always reachable without
+  // scrolling the sidebar.
+  var hasImage = !!(props && props.hasImage);
+  var generating = !!(props && props.generatingPattern);
+  var generateBtn = (appMode === "create" && hasImage)
+    ? h("button", {
+        type: "button",
+        className: "creator-actionbar__btn creator-actionbar__btn--primary",
+        onClick: generating ? undefined : (typeof props.onGenerate === "function" ? props.onGenerate : undefined),
+        disabled: generating,
+        title: generating ? "Generating\u2026" : hasPat ? "Regenerate pattern" : "Generate pattern",
+        "aria-label": generating ? "Generating\u2026" : hasPat ? "Regenerate pattern" : "Generate pattern"
+      },
+      generating
+        ? (Icons.spinner ? Icons.spinner() : null)
+        : (Icons.refresh ? Icons.refresh() : null),
+      h("span", null, generating ? "Generating\u2026" : hasPat ? "Regenerate" : "Generate Pattern")
+    )
+    : null;
+
   return h("div", {
       className: "creator-actionbar",
       role: "toolbar",
@@ -16409,6 +16433,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     },
     tabBar,
     h("div", { className: "creator-actionbar__actions" },
+    generateBtn,
     hasPat ? h("div", { className: "creator-actionbar__primary" },
       h("button", {
           type: "button",
