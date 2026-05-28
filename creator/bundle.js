@@ -7296,12 +7296,16 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
   }, [state.denoiseOps]);
 
   // Re-run when palette threshold changes while auto sub-tool is active with a result visible.
+  // Debounced 350ms — the slider fires on every drag tick; only re-run once the
+  // user pauses so the layout stays stable and workers are not thrashed.
   useEffect(function() {
     if (state.activeTool !== 'denoise') return;
     if (state.denoiseSelTool !== 'auto') return;
-    if (state.denoiseAutoRunning) return;
     if (!state.denoisePendingMask && !state.denoisePreviewReport) return;
-    runDenoiseAutoDetect();
+    var t = setTimeout(function() {
+      runDenoiseAutoDetect();
+    }, 350);
+    return function() { clearTimeout(t); };
   }, [state.denoiseThreshold]);
 
   // Cleanup worker on unmount.
@@ -10881,14 +10885,21 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         h('span', {
           style:{fontSize:10,color:'var(--text-tertiary)',fontWeight:600,textTransform:'uppercase',flexShrink:0,letterSpacing:0.5,marginLeft:4}
         }, 'Thr'),
+        window.Icons && window.Icons.info && h('button', {
+          className: 'tb-btn',
+          style: { padding:'1px 4px', lineHeight:1, opacity:0.65, flexShrink:0 },
+          title: 'Higher \u0394E = merges more similar colours (more aggressive). Lower \u0394E = only merges near-identical colours (conservative). Default \u22485\u0394E.',
+          onClick: function() { if (window.HelpDrawer) window.HelpDrawer.open({ tab: 'help', query: 'denoise mode' }); },
+          'aria-label': 'Help: palette consolidation threshold'
+        }, window.Icons.info()),
         h('input', {
           type:'range', min:0, max:100, step:1, value: cv.denoiseThreshold || 17,
           onChange: function(e){ cv.setDenoiseThreshold && cv.setDenoiseThreshold(Number(e.target.value)); },
           style:{width:60},
-          title:'Palette threshold: \u0394E \u2248' + Math.round((cv.denoiseThreshold||17) / 100 * 30),
+          title:'Palette threshold: \u0394E \u2248' + Math.round((cv.denoiseThreshold||17) / 100 * 30) + '\nHigher = merges more colours. Lower = more conservative.',
           'aria-label': 'Palette consolidation threshold'
         }),
-        h('span', {style:{fontSize:10,color:'var(--text-tertiary)',minWidth:20,textAlign:'right'}},
+        h('span', {style:{fontSize:10,color:'var(--text-tertiary)',minWidth:24,textAlign:'right'}},
           '\u0394E' + Math.round((cv.denoiseThreshold||17) / 100 * 30))
       ),
       // ── Mode radios ──────────────────────────────────────────────────────

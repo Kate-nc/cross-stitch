@@ -244,12 +244,16 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
   }, [state.denoiseOps]);
 
   // Re-run when palette threshold changes while auto sub-tool is active with a result visible.
+  // Debounced 350ms — the slider fires on every drag tick; only re-run once the
+  // user pauses so the layout stays stable and workers are not thrashed.
   useEffect(function() {
     if (state.activeTool !== 'denoise') return;
     if (state.denoiseSelTool !== 'auto') return;
-    if (state.denoiseAutoRunning) return;
     if (!state.denoisePendingMask && !state.denoisePreviewReport) return;
-    runDenoiseAutoDetect();
+    var t = setTimeout(function() {
+      runDenoiseAutoDetect();
+    }, 350);
+    return function() { clearTimeout(t); };
   }, [state.denoiseThreshold]);
 
   // Cleanup worker on unmount.

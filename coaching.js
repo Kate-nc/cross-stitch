@@ -175,7 +175,11 @@
     var skip = React.useCallback(function (stepId) {
       var id = stepId || active;
       if (!id) return;
-      sessionSkippedRef.current[id] = true;
+      // Session-skip ALL steps in the sequence so no further coaching cards
+      // appear this session after the user has clicked Skip once.
+      for (var k = 0; k < sequence.length; k++) {
+        sessionSkippedRef.current[sequence[k]] = true;
+      }
       // Force a re-render by bumping completed (no-op append).
       setCompleted(function (prev) { return prev.slice(); });
     }, [active]);
