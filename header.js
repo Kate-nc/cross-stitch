@@ -700,7 +700,12 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               key: id,
               href,
               className: 'tb-app-tab' + (page === id ? ' tb-app-tab--active' : ''),
-              onClick: navTarget ? (e) => { e.preventDefault(); window.NavigationAPI && window.NavigationAPI.navigateTo(navTarget); } : undefined,
+              onClick: navTarget ? (e) => {
+                if (window.NavigationAPI && typeof window.NavigationAPI.navigateTo === 'function') {
+                  e.preventDefault();
+                  window.NavigationAPI.navigateTo(navTarget);
+                }
+              } : undefined,
               ...(page === id ? { 'aria-current': 'page' } : {}),
             }, label);
           })
