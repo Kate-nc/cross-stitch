@@ -1,14 +1,11 @@
+/**
+ * @jest-environment jsdom
+ */
 // OXS round-trip test — generateOXS() → parseOXS() → verify fidelity
 // Uses the regex+eval extraction pattern from embroidery-image-processing.test.js
 // to pull pure functions out of import-formats.js without a module system.
 
 const fs = require('fs');
-const { JSDOM } = require('jsdom');
-
-// ─── DOM shims (parseOXS uses DOMParser / querySelectorAll) ───────────────
-const dom = new JSDOM('');
-global.DOMParser = dom.window.DOMParser;
-global.document = dom.window.document;
 
 // ─── Minimal DMC stub ─────────────────────────────────────────────────────
 // Just the threads used in the fixtures below.

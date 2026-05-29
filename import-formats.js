@@ -360,12 +360,12 @@ function generateOXS(project) {
     if (cell.type === 'blend') {
       // Export as primary thread only; record warning once per blend id.
       const primaryId = cell.id.split('+')[0];
+      if (blendWarnings.indexOf(cell.id) === -1) blendWarnings.push(cell.id);
       if (!palMap[primaryId]) {
         // Look up the primary DMC entry for accurate colour values.
         const dmc = _importDmcById(primaryId);
         const rgb = dmc ? dmc.rgb : (cell.rgb || [0, 0, 0]);
         registerThread(primaryId, rgb, dmc ? dmc.name : primaryId);
-        if (blendWarnings.indexOf(cell.id) === -1) blendWarnings.push(cell.id);
       }
       continue;
     }
@@ -377,6 +377,7 @@ function generateOXS(project) {
   // bsLines only carry coordinates; we resolve colour from the nearest non-skip cell.
   // For simplicity, we look at the cell at floor(x1), floor(y1) for the thread.
   function bsThreadId(line) {
+    if (line.colorId) return line.colorId;
     const cx = Math.max(0, Math.min(w - 1, Math.floor(line.x1)));
     const cy = Math.max(0, Math.min(h - 1, Math.floor(line.y1)));
     const cell = pattern[cy * w + cx];
@@ -434,9 +435,9 @@ function generateOXS(project) {
     for (const line of bsLines) {
       const tid = bsThreadId(line);
       const pe = tid ? palMap[tid] : null;
-      const pidx = pe != null ? pe.index : (palEntries.length > 0 ? palEntries[0].index : 0);
+      if (!pe) continue;
       lines.push('    <backstitch x1="' + line.x1 + '" y1="' + line.y1 +
-        '" x2="' + line.x2 + '" y2="' + line.y2 + '" palindex="' + pidx + '" />');
+        '" x2="' + line.x2 + '" y2="' + line.y2 + '" palindex="' + pe.index + '" />');
     }
     lines.push('  </backstitches>');
   }
