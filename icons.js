@@ -305,6 +305,14 @@ window.Icons = (function() {
         l(9,15,10,15)
       );
     },
+    // Download — arrow pointing down onto a tray line
+    download: function() {
+      return svg(
+        p('M12 3v12'),
+        p('m8 11 4 4 4-4'),
+        p('M5 20h14')
+      );
+    },
     // X / Close — replaces ❌ (error/delete)
     x: function() {
       return svg(p('M18 6L6 18M6 6l12 12'));

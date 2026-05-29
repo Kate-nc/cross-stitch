@@ -4059,6 +4059,40 @@ window.CreatorExportTab = function CreatorExportTab() {
       disabled: exportFormat[0] === "pdf" && modesArr.length === 0,
     }, exportFormat[0] === "png" ? "Export PNG" : "Export PDF"),
 
+    // OXS export — standalone button for Open X-Stitch interop.
+    h("div", { style: { borderTop: "1px solid var(--border)", marginTop:'var(--s-1)', paddingTop: 14, display: "flex", flexDirection: "column", gap:'var(--s-2)' } },
+      h("div", { style: { fontSize:'var(--text-md)', fontWeight: 600, color: "var(--text-primary)" } }, "Open X-Stitch (.oxs)"),
+      h("div", { style: { fontSize:'var(--text-xs)', color: "var(--text-tertiary)" } },
+        "Compatible with MacStitch, WinStitch, FlossCross, and other Open X-Stitch apps."),
+      h("button", {
+        onClick: function () {
+          if (typeof generateOXS !== 'function') { return; }
+          var project = {
+            w: ctx.sW, h: ctx.sH,
+            name: app.projectName || 'pattern',
+            pattern: ctx.pat,
+            bsLines: ctx.bsLines || []
+          };
+          var result = generateOXS(project);
+          if (result.warnings && result.warnings.length > 0) {
+            if (typeof Toast !== 'undefined' && Toast.show) {
+              Toast.show({ message: result.warnings[0], type: 'warning', duration: 6000 });
+            }
+          }
+          var blob = new Blob([result.xml], { type: 'application/xml' });
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = ((app.projectName || 'pattern').replace(/[^\w\-]+/g, '_') || 'pattern') + '.oxs';
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+        },
+        style: Object.assign({}, ctaStyle, { display: "inline-flex", alignItems: "center", gap:'var(--s-2)', alignSelf: "flex-start", background: "var(--surface)", color: "var(--accent)", border: "1.5px solid var(--accent)", boxShadow: "none" }),
+      },
+        window.Icons && Icons.download && Icons.download(),
+        h("span", null, "Export .oxs"))
+    ),
+
     // C6: Download bundle (zip with PDF + OXS + PNG + JSON + manifest).
     h("div", { style: { borderTop: "1px solid var(--border)", marginTop:'var(--s-1)', paddingTop: 14, display: "flex", flexDirection: "column", gap:'var(--s-2)' } },
       h("div", { style: { fontSize:'var(--text-md)', fontWeight: 600, color: "var(--text-primary)" } }, "Download as bundle"),
