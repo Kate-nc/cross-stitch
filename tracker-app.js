@@ -6405,6 +6405,10 @@ return(
             >Session settings</button>
             {explicitSession&&<button onClick={()=>setExplicitSession(null)} style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)"}}>End explicit session</button>}
           </>}
+          {statsSessions&&statsSessions.length>0&&<button
+            onClick={()=>{setMorePanelOpen(false);setStatsView(true);}}
+            style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",display:"flex",alignItems:"center",gap:6,marginTop:4}}
+          >{Icons.barChart?Icons.barChart():null} View Stats</button>}
         </div>}
 
         {/* -- Layers tab -- */}
