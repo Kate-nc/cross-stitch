@@ -698,6 +698,8 @@ useEffect(()=>{
       action:()=>{ try{ if(typeof saveProject==='function') saveProject(); }catch(_){} } },
     { id:'trk_export_pdf', label:'Export Pattern Keeper PDF', section:'action', keywords:['pdf','export','print','pattern','keeper'],
       action:()=>setModal('pdf_export') },
+    { id:'trk_export_oxs', label:'Export as Open X-Stitch (.oxs)', section:'action', keywords:['oxs','export','macstitch','winstitch','flosscross','open','x-stitch'],
+      action:()=>{ try{ if(typeof doExportOxs==='function') doExportOxs(); }catch(_){} } },
     { id:'trk_show_welcome', label:'Show Welcome Tour', section:'action', keywords:['welcome','tour','onboarding','intro'],
       action:()=>setWelcomeOpen(true) }
   ]);
@@ -2995,6 +2997,25 @@ function saveProject(){
     return;
   }
   doSaveProject(projectName);
+}
+
+function doExportOxs(){
+  if(!pat||!sW||!sH)return;
+  if(typeof generateOXS!=='function'){
+    window.Toast&&Toast.show({message:'OXS export is not available.',type:'error'});
+    return;
+  }
+  var result=generateOXS({w:sW,h:sH,pattern:pat,bsLines:bsLines||[],name:projectName||'pattern'});
+  if(result.warnings&&result.warnings.length>0){
+    window.Toast&&Toast.show({message:result.warnings[0],type:'warning',duration:6000});
+  }
+  var blob=new Blob([result.xml],{type:'application/xml'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url;
+  a.download=((projectName||'pattern').replace(/[^\w\-]+/g,'_')||'pattern')+'.oxs';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(url);},5000);
 }
 
 function handleEditInCreator(){
@@ -5649,7 +5670,7 @@ useEffect(()=>{
 return(
 <>
 <input ref={loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={loadProject} style={{display:"none"}}/>
-<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='home.html';}}}:null} onOpenProject={typeof ProjectStorage!=='undefined'?()=>{ProjectStorage.listProjects().then(list=>{setProjectPickerList(list||[]);setProjectPickerOpen(true);}).catch(()=>{setProjectPickerList([]);setProjectPickerOpen(true);});}:undefined} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} setModal={setModal} projectName={pat&&pal?(projectName || (sW + '×' + sH + ' pattern')):undefined} projectPct={pat&&pal&&totalStitchable>0?Math.round(doneCount/totalStitchable*100):undefined} onNameChange={pat&&pal?(n=>setProjectName(n)):undefined} showAutosaved={!!(pat&&pal)} />
+<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onExportOxs={pat?doExportOxs:null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='home.html';}}}:null} onOpenProject={typeof ProjectStorage!=='undefined'?()=>{ProjectStorage.listProjects().then(list=>{setProjectPickerList(list||[]);setProjectPickerOpen(true);}).catch(()=>{setProjectPickerList([]);setProjectPickerOpen(true);});}:undefined} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} setModal={setModal} projectName={pat&&pal?(projectName || (sW + '×' + sH + ' pattern')):undefined} projectPct={pat&&pal&&totalStitchable>0?Math.round(doneCount/totalStitchable*100):undefined} onNameChange={pat&&pal?(n=>setProjectName(n)):undefined} showAutosaved={!!(pat&&pal)} />
 {projectPickerOpen&&<TrackerProjectPicker
   list={projectPickerList}
   currentId={projectIdRef.current}
