@@ -385,7 +385,7 @@ function formatRelative(date) {
   catch (_) { return d.toISOString(); }
 }
 
-function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onNewProject, onOpenProject, onPreferences, onBulkAddThreads, setModal, activeProject, onBackupDownload, onRestoreFile, storageUsage, projectName: propProjectName, projectPct: propProjectPct, onNameChange, showAutosaved, saveStatus, savedAt, saveError, onRetrySave }) {
+function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onExportOxs, onNewProject, onOpenProject, onPreferences, onBulkAddThreads, setModal, activeProject, onBackupDownload, onRestoreFile, storageUsage, projectName: propProjectName, projectPct: propProjectPct, onNameChange, showAutosaved, saveStatus, savedAt, saveError, onRetrySave }) {
   const [pageDrop, setPageDrop] = React.useState(false);
   const dropRef = React.useRef(null);
   const [helpOpen, setHelpOpen] = React.useState(function() {
@@ -1041,10 +1041,15 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               className: 'tb-page-dropdown-item',
               onClick: () => { onExportPDF(); setFileMenuOpen(false); }
             }, 'Export PDF…'),
+            onExportOxs && React.createElement('button', {
+              className: 'tb-page-dropdown-item',
+              onClick: () => { onExportOxs(); setFileMenuOpen(false); },
+              title: 'Download an Open X-Stitch file compatible with MacStitch, WinStitch, and FlossCross'
+            }, Icons.download && Icons.download(), ' Export .oxs'),
             // Phase 4: Bulk Add Threads moved to the Home dashboard's STASH panel
             // and the Stash Manager — no longer surfaced in the File menu.
             // Separator before backup/restore
-            !!(onNewProject || onOpen || onSave || ((page === 'creator' || page === 'editor') && onTrack) || onExportPDF) &&
+            !!(onNewProject || onOpen || onSave || ((page === 'creator' || page === 'editor') && onTrack) || onExportPDF || onExportOxs) &&
               React.createElement('div', { style: { height: 1, background: 'var(--surface-tertiary)', margin: '4px 0' } }),
             // Backup — use prop handler if provided (e.g. manager shows status feedback), else inline
             React.createElement('button', {

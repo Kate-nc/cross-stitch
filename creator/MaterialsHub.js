@@ -24,7 +24,7 @@ window.CreatorMaterialsHub = function CreatorMaterialsHub() {
   var SUBTABS = [
     { id: 'threads',  label: 'Threads',  icon: window.Icons && Icons.thread     ? Icons.thread()     : null },
     { id: 'stash',    label: 'Stash status', icon: window.Icons && Icons.layers ? Icons.layers()     : null },
-    { id: 'output',   label: 'Output',   icon: window.Icons && Icons.download   ? Icons.download()   : null },
+    { id: 'output',   label: 'Export',   icon: window.Icons && Icons.download   ? Icons.download()   : null },
   ];
   var activeSub = app.materialsTab || 'threads';
   var activeIdx = 0;

@@ -113,6 +113,7 @@ window.loadPdfStack = function() {
 <script src="navigation.js"></script>
 <script src="command-palette.js" defer></script>
 <script src="preferences-modal.js" defer></script>
+<script src="insights-engine.js"></script>
 </head>
 <body>
 <a class="skip-to-content" href="#main-content">Skip to content</a>
@@ -150,7 +151,7 @@ window.loadPdfStack = function() {
    build-creator-bundle.js when tracker-app.js content changes. */
 (function () {
   if (typeof window === 'undefined') return;
-  var TRACKER_CACHE_KEY = 'babel_tracker_156a044feb';
+  var TRACKER_CACHE_KEY = 'babel_tracker_181f1ae3fc';
   var cached = null;
   try { cached = localStorage.getItem(TRACKER_CACHE_KEY); } catch (e) {}
   if (cached) {
