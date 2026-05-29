@@ -321,6 +321,136 @@ function parseOXS(xmlString) {
   };
 }
 
+// ── OXS Export ────────────────────────────────────────────────────────────────
+// Converts a stitchx project object into an Open X-Stitch (OXS) XML string.
+//
+// Input:
+//   project — { w, h, pattern[], bsLines[], name? }
+//             pattern cells: { id, type, rgb } | { id: '__skip__' } | { id: '__empty__' }
+//             blend cells (type === 'blend', id like '310+550') are exported as
+//             their primary thread; a warning is added for each distinct blend id.
+//
+// Returns:
+//   { xml: string, warnings: string[] }
+//   warnings is non-empty when blends were downgraded to their primary thread.
+function generateOXS(project) {
+  const w = project.w || 0;
+  const h = project.h || 0;
+  const pattern = Array.isArray(project.pattern) ? project.pattern : [];
+  const bsLines = Array.isArray(project.bsLines) ? project.bsLines : [];
+  const name = (project.name || '').replace(/[<>&"']/g, c => ({
+    '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'
+  }[c]));
+
+  // ── Pass 1: build palette ─────────────────────────────────────────────────
+  // palMap: dmcId (string) → { index, name, number, r, g, b }
+  const palMap = {};
+  const blendWarnings = [];   // blend ids that were downgraded
+  let palIndex = 0;
+
+  function registerThread(id, rgb, threadName) {
+    if (palMap[id]) return;
+    palMap[id] = { index: palIndex++, name: threadName || id, number: id, r: rgb[0], g: rgb[1], b: rgb[2] };
+  }
+
+  for (let i = 0; i < pattern.length; i++) {
+    const cell = pattern[i];
+    if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
+
+    if (cell.type === 'blend') {
+      // Export as primary thread only; record warning once per blend id.
+      const primaryId = cell.id.split('+')[0];
+      if (!palMap[primaryId]) {
+        // Look up the primary DMC entry for accurate colour values.
+        const dmc = _importDmcById(primaryId);
+        const rgb = dmc ? dmc.rgb : (cell.rgb || [0, 0, 0]);
+        registerThread(primaryId, rgb, dmc ? dmc.name : primaryId);
+        if (blendWarnings.indexOf(cell.id) === -1) blendWarnings.push(cell.id);
+      }
+      continue;
+    }
+
+    registerThread(cell.id, cell.rgb || [0, 0, 0], cell.name || cell.id);
+  }
+
+  // Also register threads used by backstitch lines (look up from adjacent cells).
+  // bsLines only carry coordinates; we resolve colour from the nearest non-skip cell.
+  // For simplicity, we look at the cell at floor(x1), floor(y1) for the thread.
+  function bsThreadId(line) {
+    const cx = Math.max(0, Math.min(w - 1, Math.floor(line.x1)));
+    const cy = Math.max(0, Math.min(h - 1, Math.floor(line.y1)));
+    const cell = pattern[cy * w + cx];
+    if (!cell || cell.id === '__skip__' || cell.id === '__empty__') return null;
+    if (cell.type === 'blend') return cell.id.split('+')[0];
+    return cell.id;
+  }
+
+  for (const line of bsLines) {
+    const tid = bsThreadId(line);
+    if (tid && !palMap[tid]) {
+      const dmc = _importDmcById(tid);
+      if (dmc) registerThread(dmc.id, dmc.rgb, dmc.name);
+    }
+  }
+
+  // ── Pass 2: build XML ─────────────────────────────────────────────────────
+  function esc(s) {
+    return String(s).replace(/[<>&"']/g, c => ({
+      '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'
+    }[c]));
+  }
+
+  const lines = ['<?xml version="1.0" encoding="UTF-8"?>'];
+  lines.push('<chart>');
+  if (name) lines.push('  <title>' + name + '</title>');
+  lines.push('  <properties chartwidth="' + w + '" chartheight="' + h + '" />');
+
+  // Palette
+  lines.push('  <palette>');
+  const palEntries = Object.values(palMap).sort((a, b) => a.index - b.index);
+  for (const e of palEntries) {
+    lines.push('    <color index="' + e.index + '" name="' + esc(e.name) + '" number="' + esc(e.number) +
+      '" red="' + e.r + '" green="' + e.g + '" blue="' + e.b + '" />');
+  }
+  lines.push('  </palette>');
+
+  // Full stitches
+  lines.push('  <fullstitches>');
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const cell = pattern[y * w + x];
+      if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
+      const tid = cell.type === 'blend' ? cell.id.split('+')[0] : cell.id;
+      const pe = palMap[tid];
+      if (!pe) continue;
+      lines.push('    <stitch x="' + x + '" y="' + y + '" palindex="' + pe.index + '" />');
+    }
+  }
+  lines.push('  </fullstitches>');
+
+  // Backstitch lines
+  if (bsLines.length > 0) {
+    lines.push('  <backstitches>');
+    for (const line of bsLines) {
+      const tid = bsThreadId(line);
+      const pe = tid ? palMap[tid] : null;
+      const pidx = pe != null ? pe.index : (palEntries.length > 0 ? palEntries[0].index : 0);
+      lines.push('    <backstitch x1="' + line.x1 + '" y1="' + line.y1 +
+        '" x2="' + line.x2 + '" y2="' + line.y2 + '" palindex="' + pidx + '" />');
+    }
+    lines.push('  </backstitches>');
+  }
+
+  lines.push('</chart>');
+
+  const warnings = blendWarnings.length > 0
+    ? ['Blend ' + blendWarnings.join(', ') + (blendWarnings.length === 1 ? ' was' : ' were') +
+       ' exported as primary thread — blend colours are not part of the OXS standard.']
+    : [];
+
+  return { xml: lines.join('\n'), warnings };
+}
+
 function parseImagePattern(img, options = {}) {
   const maxWidth = options.maxWidth || 200;
   const maxHeight = options.maxHeight || 200;
