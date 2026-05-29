@@ -1438,9 +1438,9 @@ function ManagerApp() {
                               window.location.href = "create.html?from=manager&source=stash&id=" + encodeURIComponent(pat.linkedProjectId);
                             }}
                             onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
-                            style={{ padding: "2px 8px", borderRadius: 12, background: "var(--surface)", border: "1px solid var(--border)", color: "var(--accent)", fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
+                            style={{ padding: "3px 10px", borderRadius: 6, background: "var(--accent)", color: "var(--accent-ink)", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, border: "none" }}
                             title="Open in Pattern Creator and go to Export"
-                          >{Icons.download ? Icons.download() : null} Export</span>
+                          >{Icons.download ? Icons.download() : null} Export pattern</span>
                         )}
                       </div>
                     );
@@ -1690,6 +1690,17 @@ function ManagerApp() {
                   <div className="rp-h">Actions</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     <button className="g-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => { setEditingPattern(p); }}>{Icons.pencil()} Edit Pattern</button>
+                    {p.linkedProjectId && (
+                      <button className="g-btn" style={{ width: "100%", justifyContent: "center", color: "var(--accent)", borderColor: "var(--accent)" }} onClick={() => {
+                        try { ProjectStorage.setActiveProject(p.linkedProjectId); } catch (_) {}
+                        try {
+                          localStorage.setItem('cs_pref_creator.lastPage', JSON.stringify('materials'));
+                          localStorage.setItem('cs_pref_creator.materialsTab', JSON.stringify('output'));
+                        } catch (_) {}
+                        window.__navigatingAway = true;
+                        window.location.href = 'create.html?from=manager&source=stash&id=' + encodeURIComponent(p.linkedProjectId);
+                      }}>{Icons.download ? Icons.download() : null} Export pattern</button>
+                    )}
                     <button className="g-btn" style={{ width: "100%", justifyContent: "center" }} onClick={() => { duplicatePattern(p.id); }}>{Icons.copy()} Duplicate</button>
                     <button className="g-btn" style={{ width: "100%", justifyContent: "center", color: "#B85555", borderColor: "var(--danger-soft)" }} onClick={() => { deletePattern(p.id); setViewingPattern(null); }}>{Icons.trash()} Delete</button>
                   </div>

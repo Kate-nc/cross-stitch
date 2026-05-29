@@ -96,6 +96,20 @@
     window.location.href = href + sep + 'from=home&id=' + encodeURIComponent(id);
   }
 
+  function activateAndGoExport(id) {
+    try {
+      if (window.ProjectStorage && window.ProjectStorage.setActiveProject) {
+        window.ProjectStorage.setActiveProject(id);
+      }
+    } catch (_) {}
+    try {
+      localStorage.setItem('cs_pref_creator.lastPage', JSON.stringify('materials'));
+      localStorage.setItem('cs_pref_creator.materialsTab', JSON.stringify('output'));
+    } catch (_) {}
+    window.__navigatingAway = true;
+    window.location.href = 'create.html?from=home&id=' + encodeURIComponent(id);
+  }
+
   // fmtNum and threadKm are shared globals from helpers.js
 
   // Build the points string for a 120×32 sparkline from a daily-stitch
@@ -286,7 +300,12 @@
             type: 'button',
             className: 'btn',
             onClick: function () { activateAndGo(p.id, 'create.html'); }
-          }, 'Edit pattern')
+          }, 'Edit pattern'),
+          h('button', {
+            type: 'button',
+            className: 'btn',
+            onClick: function () { activateAndGoExport(p.id); }
+          }, 'Export pattern')
         )
       )
     );
@@ -411,7 +430,12 @@
                 type: 'button',
                 className: 'btn btn-sm',
                 onClick: function () { activateAndGo(p.id, 'create.html'); }
-              }, 'Edit')
+              }, 'Edit'),
+              h('button', {
+                type: 'button',
+                className: 'btn btn-sm',
+                onClick: function () { activateAndGoExport(p.id); }
+              }, 'Export')
             )
           );
         })
