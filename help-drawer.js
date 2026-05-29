@@ -128,7 +128,7 @@
         },
         {
           heading: "Threads needed and skein estimates",
-          body: "The Materials & Output tab shows a breakdown of how much thread your pattern requires.",
+          body: "The Materials & Export tab shows a breakdown of how much thread your pattern requires.",
           bullets: [
             ["Skein count", "Estimated skeins needed per colour, based on stitch count, fabric count, strand count, and a waste factor. A standard skein is 315 inches."],
             ["Stash coverage", "Threads shown in green are fully covered by your owned skeins. Amber means you have some but not enough. Red means none owned."],

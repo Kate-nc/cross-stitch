@@ -1423,6 +1423,25 @@ function ManagerApp() {
                                 title={"Missing: " + missing.map(t => t.id).join(", ")}
                               >{missing.length} threads needed</span>
                         )}
+                        {pat.linkedProjectId && (
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            onClick={e => {
+                              e.stopPropagation();
+                              try { ProjectStorage.setActiveProject(pat.linkedProjectId); } catch (_) {}
+                              try {
+                                localStorage.setItem("cs_pref_creator.lastPage", JSON.stringify("materials"));
+                                localStorage.setItem("cs_pref_creator.materialsTab", JSON.stringify("output"));
+                              } catch (_) {}
+                              window.__navigatingAway = true;
+                              window.location.href = "create.html?from=manager&source=stash&id=" + encodeURIComponent(pat.linkedProjectId);
+                            }}
+                            onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
+                            style={{ padding: "2px 8px", borderRadius: 12, background: "var(--surface)", border: "1px solid var(--border)", color: "var(--accent)", fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
+                            title="Open in Pattern Creator and go to Export"
+                          >{Icons.download ? Icons.download() : null} Export</span>
+                        )}
                       </div>
                     );
                   }
