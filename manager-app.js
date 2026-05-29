@@ -1424,9 +1424,8 @@ function ManagerApp() {
                               >{missing.length} threads needed</span>
                         )}
                         {pat.linkedProjectId && (
-                          <span
-                            role="button"
-                            tabIndex={0}
+                          <button
+                            type="button"
                             onClick={e => {
                               e.stopPropagation();
                               try { ProjectStorage.setActiveProject(pat.linkedProjectId); } catch (_) {}
@@ -1437,10 +1436,9 @@ function ManagerApp() {
                               window.__navigatingAway = true;
                               window.location.href = "create.html?from=manager&source=stash&id=" + encodeURIComponent(pat.linkedProjectId);
                             }}
-                            onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
                             style={{ padding: "3px 10px", borderRadius: 6, background: "var(--accent)", color: "var(--accent-ink)", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, border: "none" }}
                             title="Open in Pattern Creator and go to Export"
-                          >{Icons.download ? Icons.download() : null} Export pattern</span>
+                          >{Icons.download ? Icons.download() : null} Export pattern</button>
                         )}
                       </div>
                     );

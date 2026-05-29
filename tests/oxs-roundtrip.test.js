@@ -21,7 +21,7 @@ global.DMC = [
 const raw = fs.readFileSync('./import-formats.js', 'utf8');
 
 function extractFn(src, name) {
-  // Handles both `function foo(` and `var foo = function(` / `var foo=function(`
+  // Handles `function foo(` and `function foo (` declarations
   let start = src.indexOf('\nfunction ' + name + '(');
   if (start === -1) start = src.indexOf('\nfunction ' + name + ' (');
   if (start === -1) return '';

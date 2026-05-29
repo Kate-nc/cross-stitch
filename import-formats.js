@@ -328,11 +328,12 @@ function parseOXS(xmlString) {
 //   project — { w, h, pattern[], bsLines[], name? }
 //             pattern cells: { id, type, rgb } | { id: '__skip__' } | { id: '__empty__' }
 //             blend cells (type === 'blend', id like '310+550') are exported as
-//             their primary thread; a warning is added for each distinct blend id.
+//             their primary thread; all downgraded blend ids are collected and
+//             reported in a single aggregated warning string.
 //
 // Returns:
 //   { xml: string, warnings: string[] }
-//   warnings is non-empty when blends were downgraded to their primary thread.
+//   warnings contains at most one entry listing all blend ids that were downgraded.
 function generateOXS(project) {
   const w = project.w || 0;
   const h = project.h || 0;

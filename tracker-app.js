@@ -3002,12 +3002,12 @@ function saveProject(){
 function doExportOxs(){
   if(!pat||!sW||!sH)return;
   if(typeof generateOXS!=='function'){
-    window.Toast&&Toast.show({message:'OXS export is not available.',type:'error'});
+    window.Toast&&window.Toast.show&&window.Toast.show({message:'OXS export is not available.',type:'error'});
     return;
   }
   var result=generateOXS({w:sW,h:sH,pattern:pat,bsLines:bsLines||[],name:projectName||'pattern'});
   if(result.warnings&&result.warnings.length>0){
-    window.Toast&&Toast.show({message:result.warnings[0],type:'warning',duration:6000});
+    window.Toast&&window.Toast.show&&window.Toast.show({message:result.warnings[0],type:'warning',duration:6000});
   }
   var blob=new Blob([result.xml],{type:'application/xml'});
   var url=URL.createObjectURL(blob);
