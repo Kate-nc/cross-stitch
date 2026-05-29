@@ -373,9 +373,9 @@ function generateOXS(project) {
     registerThread(cell.id, cell.rgb || [0, 0, 0], cell.name || cell.id);
   }
 
-  // Also register threads used by backstitch lines (look up from adjacent cells).
-  // bsLines only carry coordinates; we resolve colour from the nearest non-skip cell.
-  // For simplicity, we look at the cell at floor(x1), floor(y1) for the thread.
+  // Also register threads used by backstitch lines.
+  // Lines may carry an explicit colorId; otherwise we infer colour from the nearest
+  // non-skip cell at floor(x1), floor(y1).
   function bsThreadId(line) {
     if (line.colorId) return line.colorId;
     const cx = Math.max(0, Math.min(w - 1, Math.floor(line.x1)));
