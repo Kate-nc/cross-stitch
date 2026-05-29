@@ -5754,6 +5754,14 @@ return(
         timeRows.push(['Remaining', fmtL(Math.round(remainingStitches/speedPerHour*3600))]);
       }
     }
+    // Build sparkline data: stitches per active day, last 30 active days.
+    const sparkDays=(()=>{
+      if(!Array.isArray(statsSessions)||statsSessions.length===0)return[];
+      const byDay={};
+      for(const s of statsSessions){if(s.date&&(s.netStitches||0)>0)byDay[s.date]=(byDay[s.date]||0)+(s.netStitches||0);}
+      return Object.keys(byDay).sort().slice(-30).map(d=>({date:d,count:byDay[d]}));
+    })();
+    const sparkMax=sparkDays.length>0?Math.max(...sparkDays.map(d=>d.count)):0;
     return React.createElement(window.AppInfoPopover, {
       open: true,
       onClose: () => setProgressInfoOpen(false),
@@ -5765,7 +5773,19 @@ return(
           React.createElement(window.AppInfoGrid, { rows: progressRows })),
         React.createElement(window.AppInfoDivider),
         React.createElement(window.AppInfoSection, { title: 'Time' },
-          React.createElement(window.AppInfoGrid, { rows: timeRows }))
+          React.createElement(window.AppInfoGrid, { rows: timeRows })),
+        ...(sparkDays.length>=2?[
+          React.createElement(window.AppInfoDivider),
+          React.createElement(window.AppInfoSection, { title: 'Daily progress' },
+            React.createElement('div',{style:{display:'flex',alignItems:'flex-end',gap:2,height:40,paddingTop:4},'aria-label':'Daily stitches bar chart'},
+              sparkDays.map(({date,count})=>React.createElement('div',{
+                key:date,
+                title:date+': '+count.toLocaleString('en-GB')+' stitches',
+                style:{flex:'1 1 0',minWidth:3,height:Math.max(2,Math.round((count/sparkMax)*38))+'px',background:'var(--accent)',borderRadius:'1px 1px 0 0',opacity:0.75}
+              }))
+            )
+          )
+        ]:[])
       ]
     });
   })()}
