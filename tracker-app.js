@@ -1390,6 +1390,17 @@ function setAllParkLayersVisible(visible){
 }
 const weekStitchesForChip=useMemo(()=>{if(!statsSessions)return 0;const deh=(statsSettings&&statsSettings.dayEndHour)||0;return getStatsThisWeekStitches(statsSessions,deh)+liveAutoStitches;},[statsSessions,liveAutoStitches,statsSettings]);
 const todayBarPct=effectiveCombinedTotal>0?Math.min((todayStitchesForBar/effectiveCombinedTotal)*100,Math.min(progressPct,100)):0;
+// Completion projection — derived from InsightsEngine when available.
+const completionProjection=useMemo(()=>{
+  if(typeof InsightsEngine==='undefined')return null;
+  if(!totalStitchable||!Array.isArray(statsSessions)||statsSessions.length===0)return null;
+  const results=InsightsEngine.generateProjections([{
+    id:projectIdRef.current,name:projectName,
+    totalStitches:totalStitchable,completedStitches:doneCount,
+    statsSessions:statsSessions
+  }]);
+  return results&&results[0]?results[0]:null;
+},[totalStitchable,doneCount,statsSessions,projectName]);
 const prevBarPct=Math.max(0,Math.min(progressPct,100)-todayBarPct);
 // Plan B Phase 1: Progress info chip + AppInfoPopover state.
 const [progressInfoOpen,setProgressInfoOpen]=useState(false);
@@ -5709,6 +5720,7 @@ return(
   </div>
   <div className="info-strip-row">
     <span className="info-strip-pct">{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</span>
+    {progressPct<100&&totalStitchable>0&&<span className="info-strip-counts">{doneCount.toLocaleString('en-GB')} done &middot; {Math.max(0,totalStitchable-doneCount).toLocaleString('en-GB')} to go</span>}
     {liveAutoStitches>0&&<span className="info-strip-timer"><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused?(Icons.pause?Icons.pause():null):(Icons.clock?Icons.clock():null)}</span> {fmtTime(liveAutoElapsed)}</span>}
   </div>
 </div>
@@ -5759,6 +5771,12 @@ return(
   })()}
 </div>
 </div>}
+{!isEditMode&&completionProjection&&completionProjection.status==='projected'&&progressPct<100&&(
+  <div className="completion-projection-bar" aria-live="polite">
+    <span className="completion-projection-text">{completionProjection.projectedText}</span>
+    {completionProjection.stitchesPerHour>0&&<span className="completion-projection-speed">{completionProjection.stitchesPerHour.toLocaleString('en-GB')} st/hr recently</span>}
+  </div>
+)}
 {hlIntroBannerVisible&&!isEditMode&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--surface-secondary)",border:"1px solid var(--accent-light)",borderRadius:'var(--radius-sm)',padding:"6px 10px",fontSize:'var(--text-xs)',color:"var(--accent)",marginBottom:'var(--s-1)',gap:'var(--s-2)'}}>
   <span>Highlight mode — press <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>1</kbd>–<kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>4</kbd> to change style, <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>C</kbd> for counting aids, <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>[</kbd> <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>]</kbd> to cycle colours</span>
   <button onClick={()=>{setHlIntroBannerVisible(false);clearTimeout(hlIntroTimerRef.current);}} aria-label="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"var(--accent-light)",flexShrink:0,padding:0,lineHeight:1,display:'inline-flex'}}>{Icons.x?Icons.x():null}</button>

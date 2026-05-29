@@ -2773,7 +2773,13 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .info-strip-today{background:var(--success);border-radius:0 2px 2px 0;animation:todayGlow 2s ease-in-out infinite alternate;}
 .info-strip-row{display:flex;align-items:center;justify-content:space-between;padding:0 16px;height:24px;max-width:1300px;margin:0 auto;width:100%;gap:12px;}
 .info-strip-pct{font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap;display:flex;align-items:center;gap:4px;}
+.info-strip-counts{font-size:11px;font-weight:400;color:var(--text-secondary);white-space:nowrap;font-variant-numeric:tabular-nums;}
 .info-strip-timer{font-size:11px;font-weight:500;color:var(--text-secondary);white-space:nowrap;font-variant-numeric:tabular-nums;margin-left:auto;}
+/* Completion projection bar — shown below the info-strip when pace data is available */
+.completion-projection-bar{display:flex;align-items:center;gap:12px;padding:3px 16px 4px;background:var(--surface-secondary);border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums;}
+.completion-projection-text{font-size:11px;font-weight:500;color:var(--accent);}
+.completion-projection-speed{font-size:11px;color:var(--text-tertiary);}
+@media(max-width:480px){.completion-projection-speed{display:none;}}
 @keyframes todayGlow{0%{filter:brightness(1);}100%{filter:brightness(1.15);}}
 /* ═══ Mini-goal bar (unified daily/weekly/monthly) ═══ */
 @keyframes goalPulse{0%{filter:brightness(1.4);}100%{filter:brightness(1);}}
