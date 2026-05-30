@@ -754,8 +754,8 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
 // (Originally defined inline in index.html; moved here because generate uses it.)
 window.STRENGTH_MAP = {
   gentle:   { maxOrphanSize: 2, saliencyMultiplier: 1.0 },
-  balanced: { maxOrphanSize: 3, saliencyMultiplier: 2.0 },
-  thorough: { maxOrphanSize: 5, saliencyMultiplier: 3.0 },
+  balanced: { maxOrphanSize: 4, saliencyMultiplier: 2.0 },
+  thorough: { maxOrphanSize: 6, saliencyMultiplier: 3.0 },
 };
 
 /**

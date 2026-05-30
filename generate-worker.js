@@ -31,8 +31,8 @@ importScripts('constants.js', 'dmc-data.js', 'colour-utils.js');
 // calls document.createElement, making it unsuitable for worker import.
 var STRENGTH_MAP = {
   gentle:   { maxOrphanSize: 2, saliencyMultiplier: 1.0 },
-  balanced: { maxOrphanSize: 3, saliencyMultiplier: 2.0 },
-  thorough: { maxOrphanSize: 5, saliencyMultiplier: 3.0 },
+  balanced: { maxOrphanSize: 4, saliencyMultiplier: 2.0 },
+  thorough: { maxOrphanSize: 6, saliencyMultiplier: 3.0 },
 };
 
 self.onmessage = function(e) {
