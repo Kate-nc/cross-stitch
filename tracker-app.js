@@ -6543,10 +6543,14 @@ return(
         onClose:()=>{ setImportDialog(null); setImportImage(null); },
         onGenerate:(settings)=>{
           try{
+            var _ws=settings.settings||{};
             let result=parseImagePattern(importImage,{
               maxWidth:settings.maxWidth, maxHeight:settings.maxHeight,
               maxColours:settings.maxColours,
-              skipWhiteBg:settings.skipWhiteBg, bgThreshold:settings.bgThreshold
+              skipWhiteBg:settings.skipWhiteBg, bgThreshold:settings.bgThreshold,
+              preSmooth:!!_ws.preSmooth,
+              dither:!!_ws.dither,
+              dithAlgo:_ws.dithAlgo||undefined
             });
             const finalName=(settings.name||'').trim().slice(0,60);
             let project=importResultToProject(result,settings.fabricCt||14,finalName);
