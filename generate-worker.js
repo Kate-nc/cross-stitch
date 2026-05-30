@@ -177,6 +177,40 @@ self.onmessage = function(e) {
       }
     }
 
+    // ── Auto-coverage post-pass (mirrors runCleanupPipeline) ─────────────────
+    // Remove colours covering < 0.5% of non-skip cells (cap 15) to prevent
+    // 1–3 stitch stragglers from consuming palette slots.
+    {
+      var _atTotal = 0;
+      for (var _ati = 0; _ati < mapped.length; _ati++) { if (mapped[_ati].id !== '__skip__') _atTotal++; }
+      var _autoThresh = Math.max(2, Math.min(15, Math.floor(_atTotal * 0.005)));
+      if (_autoThresh > (minSt || 0)) {
+        postProgress('rarity', 'Removing rare colours…');
+        for (var _apass = 0; _apass < 3; _apass++) {
+          var _aep = buildPalette(mapped);
+          var _arare = _aep.pal.filter(function(e) { return e.count < _autoThresh; });
+          var _akeep = _aep.pal.filter(function(e) { return e.count >= _autoThresh; });
+          if (!_arare.length || !_akeep.length) break;
+          var _arm = {};
+          _arare.forEach(function(r) {
+            var _ab = null, _abd = 1e9;
+            _akeep.forEach(function(k) { var d = dE(r.lab, k.lab); if (d < _abd) { _abd = d; _ab = k.id; } });
+            if (_ab) _arm[r.id] = _ab;
+          });
+          var _akm = {};
+          _akeep.forEach(function(k) { _akm[k.id] = k; });
+          var _achanged = false;
+          for (var _aj = 0; _aj < mapped.length; _aj++) {
+            if (mapped[_aj].id !== '__skip__' && _arm[mapped[_aj].id]) {
+              mapped[_aj] = Object.assign({}, _akm[_arm[mapped[_aj].id]]);
+              _achanged = true;
+            }
+          }
+          if (!_achanged) break;
+        }
+      }
+    }
+
     var preLabels   = labelConnectedComponents(mapped, width, height);
     var confettiRaw = analyzeConfetti(mapped, width, height, preLabels);
     var confettiClean = null;
