@@ -1163,7 +1163,11 @@ const cycleLeftSidebar = useCallback(()=>{
 const isWideRef=useRef(null);
 if(isWideRef.current===null)isWideRef.current=!!(typeof window!=='undefined'&&window.matchMedia&&window.matchMedia('(min-width: 1024px)').matches);
 const[leftSidebarTab,setLeftSidebarTab]=useState(()=>{
-  try{var p=window.UserPrefs&&window.UserPrefs.get("trackerLeftSidebarTab");return p||"highlight";}catch(_){return"highlight";}
+  try{var p=window.UserPrefs&&window.UserPrefs.get("trackerLeftSidebarTab");
+    if(p==="highlight")p="visual";
+    if(p==="view")p="navigate";
+    if(p==="tools")p="canvas";
+    return p||"visual";}catch(_){return"visual";}
 });
 useEffect(()=>{
   try{
@@ -5941,7 +5945,7 @@ return(
             type="button"
             className="lpanel-rail-swatch"
             style={{background:"rgb("+selEntry.rgb.join(",")+")"}}
-            onClick={()=>{setLeftSidebarTab("highlight");setLeftSidebarMode("open");}}
+            onClick={()=>{setLeftSidebarTab("visual");setLeftSidebarMode("open");}}
             aria-label={"Highlighted colour: "+(selEntry.name||selEntry.id)}
             title={selEntry.name||selEntry.id}
           />;
@@ -6293,14 +6297,26 @@ return(
         <button className="ppal-more-close" onClick={()=>setMorePanelOpen(false)} aria-label="Close controls">{Icons.x()}</button>
       </div>
       <div className="ppal-more-tabs">
-        {[["highlight","Highlight"],["view","View"],["session","Session"],["layers","Layers"],["tools","Tools"]].map(([k,l])=>
+        {[["visual","Visual"],["navigate","Navigate"],["session","Session"],["layers","Layers"],["canvas","Canvas"]].map(([k,l])=>
           <button key={k} aria-pressed={leftSidebarTab===k} className={"ppal-more-tab"+(leftSidebarTab===k?" ppal-more-tab--on":"")} onClick={()=>setLeftSidebarTab(k)}>{l}</button>
         )}
       </div>
       <div className="ppal-more-content">
 
-        {/* -- Highlight tab -- */}
-        {leftSidebarTab==="highlight"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
+        {/* -- Visual tab (was Highlight + stitch view from Navigate) -- */}
+        {leftSidebarTab==="visual"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div>
+            <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Stitch view</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {[["symbol","Symbol"],["highlight","Highlight"],["realistic","Realistic"]].map(([v,l])=>
+                <button key={v}
+                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(stitchView===v?"var(--accent)":"var(--border)"),background:stitchView===v?"var(--accent)":"var(--surface)",color:stitchView===v?"var(--accent-ink)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:stitchView===v?600:400}}
+                  onClick={()=>setStitchView(v)} aria-pressed={stitchView===v}
+                >{l}</button>
+              )}
+            </div>
+          </div>
+          <hr style={{border:"none",borderTop:"1px solid var(--border)",margin:"0"}}/>
           <div>
             <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Highlight style</div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
@@ -6323,19 +6339,8 @@ return(
           {focusColour&&<button onClick={()=>setFocusColour(null)} style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",alignSelf:"flex-start"}}>Clear focus</button>}
         </div>}
 
-        {/* -- View tab -- */}
-        {leftSidebarTab==="view"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
-          <div>
-            <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Stitch view</div>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {[["symbol","Symbol"],["highlight","Highlight"],["realistic","Realistic"]].map(([v,l])=>
-                <button key={v}
-                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(stitchView===v?"var(--accent)":"var(--border)"),background:stitchView===v?"var(--accent)":"var(--surface)",color:stitchView===v?"var(--accent-ink)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:stitchView===v?600:400}}
-                  onClick={()=>setStitchView(v)} aria-pressed={stitchView===v}
-                >{l}</button>
-              )}
-            </div>
-          </div>
+        {/* -- Navigate tab (was View + row mode from Layers) -- */}
+        {leftSidebarTab==="navigate"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
           <div>
             <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Zoom</div>
             <div style={{display:"flex",gap:6,alignItems:"center"}}>
@@ -6348,6 +6353,11 @@ return(
           <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
             <input type="checkbox" checked={!!lockDetailLevel} onChange={e=>setLockDetailLevel(e.target.checked)} style={{width:16,height:16,cursor:"pointer"}}/>
             <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Lock detail level</span>
+          </label>
+          <hr style={{border:"none",borderTop:"1px solid var(--border)",margin:"0"}}/>
+          <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
+            <input type="checkbox" checked={rowModeActive} onChange={e=>{setRowModeActive(e.target.checked);setCurrentRow(0);}} style={{width:16,height:16,cursor:"pointer"}}/>
+            <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Row mode</span>
           </label>
         </div>}
 
@@ -6409,6 +6419,23 @@ return(
             onClick={()=>{setMorePanelOpen(false);setStatsView(true);}}
             style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",display:"flex",alignItems:"center",gap:6,marginTop:4}}
           >{Icons.barChart?Icons.barChart():null} View Stats</button>}
+          <hr style={{border:"none",borderTop:"1px solid var(--border)",margin:"0"}}/>
+          <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,cursor:"pointer",userSelect:"none"}}>
+            <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Live tracking (RT)</span>
+            <input type="checkbox" checked={!!wastePrefs.enabled} onChange={e=>{
+              if(!e.target.checked&&typeof setWastePrefs==='function'){
+                window.dispatchEvent(new CustomEvent('cs:rtDisableRequest'));
+              }else if(e.target.checked&&typeof setWastePrefs==='function'){
+                if(typeof StashBridge!=='undefined'){
+                  StashBridge.getGlobalStash().then(function(snap){
+                    if(window.__ensureRtStashSnapshot)window.__ensureRtStashSnapshot(snap);
+                    else if(window.__setRtStashSnapshot)window.__setRtStashSnapshot(snap);
+                  }).catch(function(){});
+                }
+                setWastePrefs(function(prev){return Object.assign({},prev,{enabled:true});});
+              }
+            }} style={{width:16,height:16,cursor:"pointer"}}/>
+          </label>
         </div>}
 
         {/* -- Layers tab -- */}
@@ -6419,11 +6446,6 @@ return(
               <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>{layer.label}</span>
             </label>
           )}
-          <hr style={{border:"none",borderTop:"1px solid var(--border)",margin:"4px 0"}}/>
-          <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
-            <input type="checkbox" checked={rowModeActive} onChange={e=>{setRowModeActive(e.target.checked);setCurrentRow(0);}} style={{width:16,height:16,cursor:"pointer"}}/>
-            <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Row mode</span>
-          </label>
           {pal&&pal.some(p=>parkCountsByColour[p.id])&&<>
             <hr style={{border:"none",borderTop:"1px solid var(--border)",margin:"4px 0"}}/>
             <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Park markers</div>
@@ -6437,8 +6459,8 @@ return(
           </>}
         </div>}
 
-        {/* -- Tools tab -- */}
-        {leftSidebarTab==="tools"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
+        {/* -- Canvas tab (was Tools, without session settings + live tracking) -- */}
+        {leftSidebarTab==="canvas"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
           <div>
             <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Stitch mode</div>
             <div style={{display:"flex",gap:6}}>
@@ -6466,33 +6488,6 @@ return(
               <button onClick={()=>setStyleOnboardingOpen(true)} style={{fontSize:'var(--text-xs)',padding:0,background:"none",border:"none",color:"var(--accent)",cursor:"pointer",fontFamily:"inherit"}}>Change style</button>
             </div>}
           </div>}
-          <button
-            onClick={()=>setSessionConfigOpen(true)}
-            style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",textAlign:"left",display:"flex",alignItems:"center",gap:8}}
-          >{Icons.gear?Icons.gear():null}{" Session settings"}</button>
-          {/* RT live tracking toggle */}
-          <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,cursor:"pointer",userSelect:"none"}}>
-            <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Live tracking (RT)</span>
-            <input type="checkbox" checked={!!wastePrefs.enabled} onChange={e=>{
-              if(!e.target.checked&&typeof setWastePrefs==='function'){
-                // Turning off: dispatch to TrackerApp via a custom event
-                // so the disable modal (which needs StashBridge) can be shown.
-                window.dispatchEvent(new CustomEvent('cs:rtDisableRequest'));
-              }else if(e.target.checked&&typeof setWastePrefs==='function'){
-                // Turning on: snapshot stash if (and only if) we don't already
-                // have a snapshot for this project session. Capturing on every
-                // toggle-on would move the baseline forward across keep-then-
-                // re-enable cycles and silently break Restore (DEFECT-001).
-                if(typeof StashBridge!=='undefined'){
-                  StashBridge.getGlobalStash().then(function(snap){
-                    if(window.__ensureRtStashSnapshot)window.__ensureRtStashSnapshot(snap);
-                    else if(window.__setRtStashSnapshot)window.__setRtStashSnapshot(snap);
-                  }).catch(function(){});
-                }
-                setWastePrefs(function(prev){return Object.assign({},prev,{enabled:true});});
-              }
-            }} style={{width:16,height:16,cursor:"pointer"}}/>
-          </label>
         </div>}
 
       </div>

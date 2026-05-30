@@ -1232,6 +1232,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   var rawTab = app.sidebarTab;
   // Back-compat: legacy "settings" (single-Settings-accordion) → first new tab.
   if (rawTab === "settings") rawTab = "image";
+  if (rawTab === "view" || rawTab === "preview") rawTab = "display";
   var hasPattern = !!(ctx.pat && ctx.pal);
   var sTab = rawTab || (mode === "create" ? "image" : "palette");
 
@@ -1245,10 +1246,9 @@ window.CreatorSidebar = function CreatorSidebar() {
     {id:"tools",      label:"Tools",      icon:"pencil",  requires:"edit",
       disabled: !hasPattern,
       disabledHint:"Generate a pattern to unlock brush, lasso, magic wand, half-stitches, and backstitch."},
-    {id:"view",       label:"View",       icon:"eye",     requires:"edit",
+    {id:"display",    label:"Display",    icon:"eye",     requires:"edit",
       disabled: !hasPattern,
-      disabledHint:"Generate a pattern to unlock symbols, gridlines, and zoom presets."},
-    {id:"preview",    label:"Preview",    icon:"layers"},
+      disabledHint:"Generate a pattern to unlock display options."},
     {id:"project",    label:"Project",    icon:"folder"}
   ];
 
@@ -1912,6 +1912,16 @@ window.CreatorSidebar = function CreatorSidebar() {
     selectionSection
   );
 
+  var subHeaderStyle = {padding:"10px 12px 2px",fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5};
+  var displayContent = h(React.Fragment, null,
+    h("div", {style:subHeaderStyle}, "View"),
+    viewToggle,
+    highlightControls,
+    h("div", {style:{borderTop:"0.5px solid var(--border)",margin:"8px 0 0"}}),
+    h("div", {style:subHeaderStyle}, "Preview"),
+    previewPanel
+  );
+
   var moreContent = h(React.Fragment, null,
     h(Section, {title:"Project Info",defaultOpen:false},
       h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"4px 0"}},
@@ -1985,11 +1995,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         coloursSection
       ),
       sTab === "tools" && toolsContent,
-      sTab === "view" && h(React.Fragment, null,
-        viewToggle,
-        highlightControls
-      ),
-      sTab === "preview" && previewPanel,
+      sTab === "display" && displayContent,
       sTab === "project" && projectInfoSection,
       sTab === "more" && moreContent
     ),
