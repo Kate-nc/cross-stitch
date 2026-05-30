@@ -182,7 +182,7 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
       let b=null,bd=1e9;
       for(let ti=0;ti<pool.length;ti++){
         if(usedIter.has(pool[ti].id))continue;
-        let d=dE2(centroid,pool[ti].lab);if(d<bd){bd=d;b=pool[ti];}
+        let d=dE2000(centroid,pool[ti].lab);if(d<bd){bd=d;b=pool[ti];}
       }
       if(!b){usedIter.add(cs[c].id);continue;}
       if(b.id!==cs[c].id)mv=true;
