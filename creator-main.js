@@ -637,6 +637,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     reduceTarget: state.reduceTarget, setReduceTarget: state.setReduceTarget,
     reduceThreshold: state.reduceThreshold, setReduceThreshold: state.setReduceThreshold,
     reducePreview: state.reducePreview, setReducePreview: state.setReducePreview,
+    reducePreviewStale: state.reducePreviewStale, setReducePreviewStale: state.setReducePreviewStale,
     replaceSource: state.replaceSource, setReplaceSource: state.setReplaceSource,
     replaceDest: state.replaceDest, setReplaceDest: state.setReplaceDest,
     replaceFuzzy: state.replaceFuzzy, setReplaceFuzzy: state.setReplaceFuzzy,

@@ -834,6 +834,42 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     }
   }
 
+  // ── Auto-coverage post-pass ──────────────────────────────────────────────
+  // Remove colours that cover less than 0.5% of non-skip cells (capped at 15
+  // stitches) regardless of whether minSt was set. This prevents one or two
+  // quantisation stragglers from consuming palette slots. Only runs when its
+  // threshold would exceed the user's explicit minSt setting, so the two
+  // passes are never redundant.
+  {
+    var _atTotal = 0;
+    for (var _ati = 0; _ati < mapped.length; _ati++) { if (mapped[_ati].id !== '__skip__') _atTotal++; }
+    var _autoThresh = Math.max(2, Math.min(15, Math.floor(_atTotal * 0.005)));
+    if (_autoThresh > minSt) {
+      for (var _apass = 0; _apass < 3; _apass++) {
+        var _aep = buildPalette(mapped);
+        var _arare = _aep.pal.filter(function(e) { return e.count < _autoThresh; });
+        var _akeep = _aep.pal.filter(function(e) { return e.count >= _autoThresh; });
+        if (!_arare.length || !_akeep.length) break;
+        var _arm = {};
+        _arare.forEach(function(r) {
+          var _ab = null, _abd = 1e9;
+          _akeep.forEach(function(k) { var d = dE(r.lab, k.lab); if (d < _abd) { _abd = d; _ab = k.id; } });
+          if (_ab) _arm[r.id] = _ab;
+        });
+        var _akm = {};
+        _akeep.forEach(function(k) { _akm[k.id] = k; });
+        var _achanged = false;
+        for (var _aj = 0; _aj < mapped.length; _aj++) {
+          if (mapped[_aj].id !== '__skip__' && _arm[mapped[_aj].id]) {
+            mapped[_aj] = Object.assign({}, _akm[_arm[mapped[_aj].id]]);
+            _achanged = true;
+          }
+        }
+        if (!_achanged) break;
+      }
+    }
+  }
+
   var preLabels = labelConnectedComponents(mapped, width, height);
   var confettiRaw = analyzeConfetti(mapped, width, height, preLabels);
   var confettiClean = null;
@@ -2912,6 +2948,13 @@ window.useMagicWand = function useMagicWand(state) {
   var reduceThreshold = _redThresh[0], setReduceThreshold = _redThresh[1];
   var _redPreview = React.useState(null);    // [{from, to, count, de}]
   var reducePreview = _redPreview[0], setReducePreview = _redPreview[1];
+  var _redStale   = React.useState(false);   // true when settings changed after preview ran
+  var reducePreviewStale = _redStale[0], setReducePreviewStale = _redStale[1];
+
+  // Mark preview stale whenever mode/target/threshold change after a preview has been generated.
+  React.useEffect(function() {
+    if (reducePreview !== null) setReducePreviewStale(true);
+  }, [reduceMode, reduceTarget, reduceThreshold]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // sub-state for colour replacement
   var _repSrc     = React.useState(null);    // color id
@@ -3273,6 +3316,7 @@ window.useMagicWand = function useMagicWand(state) {
       }
     }
     setReducePreview(merges);
+    setReducePreviewStale(false);
   }
 
   function applyColorReduction() {
@@ -3502,6 +3546,7 @@ window.useMagicWand = function useMagicWand(state) {
     reduceTarget, setReduceTarget,
     reduceThreshold, setReduceThreshold,
     reducePreview, setReducePreview,
+    reducePreviewStale, setReducePreviewStale,
     replaceSource, setReplaceSource,
     replaceDest, setReplaceDest,
     replaceFuzzy, setReplaceFuzzy,
@@ -11890,7 +11935,7 @@ window.MagicWandPanel = function MagicWandPanel() {
         "Target:",
         h("input", {
           type: "number", min: 1, max: selColors, value: cv.reduceTarget,
-          onChange: function(e) { cv.setReduceTarget(Math.max(1, parseInt(e.target.value) || 1)); cv.setReducePreview(null); },
+          onChange: function(e) { cv.setReduceTarget(Math.max(1, parseInt(e.target.value) || 1)); },
           style: { width: 50, padding: "1px 4px" }
         })
       ),
@@ -11899,7 +11944,7 @@ window.MagicWandPanel = function MagicWandPanel() {
         "\u0394E\u2264",
         h("input", {
           type: "range", min: 1, max: 20, step: 0.5, value: cv.reduceThreshold,
-          onChange: function(e) { cv.setReduceThreshold(Number(e.target.value)); cv.setReducePreview(null); },
+          onChange: function(e) { cv.setReduceThreshold(Number(e.target.value)); },
           style: { width: 70 }
         }),
         h("span", { style: { minWidth: 22, fontVariantNumeric: "tabular-nums" } }, cv.reduceThreshold),
@@ -11913,6 +11958,9 @@ window.MagicWandPanel = function MagicWandPanel() {
       }),
       btn("\u00D7", function() { cv.setWandPanel(null); cv.setReducePreview(null); }, { style: { fontSize: 10 } })
     ),
+    cv.reducePreviewStale && cv.reducePreview !== null && h("div", {
+      style: { fontSize: 9, color: "#B45309", padding: "2px 4px", marginBottom: 2 }
+    }, "Settings changed \u2014 run Preview merges to update"),
     cv.reducePreview && cv.reducePreview.length ? h("div", {
       style: { maxHeight: 120, overflowY: "auto", borderTop: "1px solid #C4DCB6", paddingTop: 6 }
     },

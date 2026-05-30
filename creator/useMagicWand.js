@@ -35,6 +35,13 @@ window.useMagicWand = function useMagicWand(state) {
   var reduceThreshold = _redThresh[0], setReduceThreshold = _redThresh[1];
   var _redPreview = React.useState(null);    // [{from, to, count, de}]
   var reducePreview = _redPreview[0], setReducePreview = _redPreview[1];
+  var _redStale   = React.useState(false);   // true when settings changed after preview ran
+  var reducePreviewStale = _redStale[0], setReducePreviewStale = _redStale[1];
+
+  // Mark preview stale whenever mode/target/threshold change after a preview has been generated.
+  React.useEffect(function() {
+    if (reducePreview !== null) setReducePreviewStale(true);
+  }, [reduceMode, reduceTarget, reduceThreshold]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // sub-state for colour replacement
   var _repSrc     = React.useState(null);    // color id
@@ -396,6 +403,7 @@ window.useMagicWand = function useMagicWand(state) {
       }
     }
     setReducePreview(merges);
+    setReducePreviewStale(false);
   }
 
   function applyColorReduction() {
@@ -625,6 +633,7 @@ window.useMagicWand = function useMagicWand(state) {
     reduceTarget, setReduceTarget,
     reduceThreshold, setReduceThreshold,
     reducePreview, setReducePreview,
+    reducePreviewStale, setReducePreviewStale,
     replaceSource, setReplaceSource,
     replaceDest, setReplaceDest,
     replaceFuzzy, setReplaceFuzzy,

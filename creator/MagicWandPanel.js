@@ -197,7 +197,7 @@ window.MagicWandPanel = function MagicWandPanel() {
         "Target:",
         h("input", {
           type: "number", min: 1, max: selColors, value: cv.reduceTarget,
-          onChange: function(e) { cv.setReduceTarget(Math.max(1, parseInt(e.target.value) || 1)); cv.setReducePreview(null); },
+          onChange: function(e) { cv.setReduceTarget(Math.max(1, parseInt(e.target.value) || 1)); },
           style: { width: 50, padding: "1px 4px" }
         })
       ),
@@ -206,7 +206,7 @@ window.MagicWandPanel = function MagicWandPanel() {
         "\u0394E\u2264",
         h("input", {
           type: "range", min: 1, max: 20, step: 0.5, value: cv.reduceThreshold,
-          onChange: function(e) { cv.setReduceThreshold(Number(e.target.value)); cv.setReducePreview(null); },
+          onChange: function(e) { cv.setReduceThreshold(Number(e.target.value)); },
           style: { width: 70 }
         }),
         h("span", { style: { minWidth: 22, fontVariantNumeric: "tabular-nums" } }, cv.reduceThreshold),
@@ -220,6 +220,9 @@ window.MagicWandPanel = function MagicWandPanel() {
       }),
       btn("\u00D7", function() { cv.setWandPanel(null); cv.setReducePreview(null); }, { style: { fontSize: 10 } })
     ),
+    cv.reducePreviewStale && cv.reducePreview !== null && h("div", {
+      style: { fontSize: 9, color: "#B45309", padding: "2px 4px", marginBottom: 2 }
+    }, "Settings changed \u2014 run Preview merges to update"),
     cv.reducePreview && cv.reducePreview.length ? h("div", {
       style: { maxHeight: 120, overflowY: "auto", borderTop: "1px solid #C4DCB6", paddingTop: 6 }
     },
