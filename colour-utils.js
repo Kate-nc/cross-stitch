@@ -687,6 +687,75 @@ function applyGaussianBlur(data, w, h, sigma) {
   return data;
 }
 
+/**
+ * Edge-preserving bilateral filter tuned for cross-stitch pre-quantisation.
+ * Merges intra-zone colour variation (fabric texture, lighting) while keeping
+ * hard colour-zone boundaries sharp, reducing confetti before quantise runs.
+ *
+ * Wider sigmaR (50) vs the wand tool's version (30) is intentional: we want
+ * aggressive within-region colour merging before palette selection.
+ *
+ * Mutates `data` in-place (same contract as applyGaussianBlur / applyMedianFilter).
+ *
+ * @param {Uint8ClampedArray} data   RGBA pixels
+ * @param {number}            w
+ * @param {number}            h
+ * @param {object}            [opts]
+ * @param {number}            [opts.sigmaS=8]   spatial Gaussian sigma (pixels)
+ * @param {number}            [opts.sigmaR=50]  range Gaussian sigma (0–255 scale)
+ * @param {number}            [opts.radius=5]   kernel half-width
+ */
+function applyBilateralFilter(data, w, h, opts) {
+  const sigmaS = (opts && opts.sigmaS != null) ? opts.sigmaS : 8.0;
+  const sigmaR = (opts && opts.sigmaR != null) ? opts.sigmaR : 50.0;
+  const R      = (opts && opts.radius  != null) ? opts.radius  : 5;
+  const sigS2  = 2 * sigmaS * sigmaS;
+  const sigR2  = 2 * sigmaR * sigmaR;
+  const kd     = 2 * R + 1;
+
+  // Pre-compute spatial weight table (constant per kernel offset)
+  const spatialW = new Float32Array(kd * kd);
+  for (let ky = -R; ky <= R; ky++) {
+    for (let kx = -R; kx <= R; kx++) {
+      spatialW[(ky + R) * kd + (kx + R)] = Math.exp(-(kx * kx + ky * ky) / sigS2);
+    }
+  }
+
+  // Range-weight LUT (indexed by quantised squared RGB distance)
+  // Max squared RGB dist = 3 × 255² = 195075 → map to 1024 buckets
+  const LUT_N  = 1024;
+  const LUT_SC = 195075 / (LUT_N - 1);
+  const rangeLUT = new Float32Array(LUT_N);
+  for (let i = 0; i < LUT_N; i++) rangeLUT[i] = Math.exp(-(i * LUT_SC) / sigR2);
+
+  const out = new Uint8ClampedArray(data.length);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const ci = (y * w + x) * 4;
+      const cr = data[ci], cg = data[ci + 1], cb = data[ci + 2];
+      let sr = 0, sg = 0, sb = 0, wSum = 0;
+      for (let ky = -R; ky <= R; ky++) {
+        const ny = Math.max(0, Math.min(h - 1, y + ky));
+        for (let kx = -R; kx <= R; kx++) {
+          const nx  = Math.max(0, Math.min(w - 1, x + kx));
+          const ni  = (ny * w + nx) * 4;
+          const dr  = data[ni] - cr, dg = data[ni + 1] - cg, db = data[ni + 2] - cb;
+          const rid = Math.min(LUT_N - 1, (dr * dr + dg * dg + db * db) / LUT_SC) | 0;
+          const wt  = spatialW[(ky + R) * kd + (kx + R)] * rangeLUT[rid];
+          sr += data[ni] * wt;  sg += data[ni + 1] * wt;  sb += data[ni + 2] * wt;
+          wSum += wt;
+        }
+      }
+      out[ci]     = sr / wSum;
+      out[ci + 1] = sg / wSum;
+      out[ci + 2] = sb / wSum;
+      out[ci + 3] = data[ci + 3];
+    }
+  }
+  data.set(out);
+  return data;
+}
+
 // ---------------------------------------------------------------------------
 // Image processing primitives (Gaussian blur, Sobel, Canny).
 // These are defined as function declarations in embroidery.js for embroidery
@@ -1630,4 +1699,4 @@ _colourUtilsGlobal.dE2000 = dE2000;
 const UNIQUE_THRESHOLD_DE = 5;
 _colourUtilsGlobal.UNIQUE_THRESHOLD_DE = UNIQUE_THRESHOLD_DE;
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE }; }

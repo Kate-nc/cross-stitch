@@ -3,7 +3,7 @@
    Uses globals: quantize, quantizeConstrained, doDither, doMap, buildPalette, rgbToLab, dE,
                  generateSaliencyMap, generateEdgeMap, labelConnectedComponents,
                  removeOrphanStitches, analyzeConfetti, findSolid,
-                 applyGaussianBlur, applyMedianFilter
+                 applyGaussianBlur, applyMedianFilter, applyBilateralFilter
    (all defined in colour-utils.js / constants.js). */
 
 // Strength → numeric pipeline parameters for the Stitch Cleanup pipeline.
@@ -32,6 +32,8 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var dithAlgo = opts.dithAlgo || (dith ? "atkinson" : "off");
   var dithBayerSize = opts.dithBayerSize || 4;
   var minSt = (typeof opts.minSt === "number" && opts.minSt > 0) ? opts.minSt : 0;
+
+  if (opts.preSmooth) applyBilateralFilter(raw, width, height);
 
   var p = quantizeConstrained(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed});
   if (!p.length) return null;
@@ -191,6 +193,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
 
   if (smooth > 0) {
     if (smoothType === "gaussian") applyGaussianBlur(raw, sW, sH, smooth);
+    else if (smoothType === "bilateral") applyBilateralFilter(raw, sW, sH);
     else applyMedianFilter(raw, sW, sH, smooth);
   }
 

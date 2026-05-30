@@ -101,7 +101,7 @@
       crop: d.crop || { rotate: 0, flipH: false, flipV: false, aspect: "free" },
       palette: d.palette || { mode: "dmc", maxColours: 30, allowBlends: true },
       size: d.size || { w: fitted.w, h: fitted.h, lock: true, fabricCt: 14 },
-      settings: d.settings || { dither: true, contrast: 0, saliency: false, skipBg: false, bgThreshold: 15 },
+      settings: d.settings || { dither: true, contrast: 0, saliency: false, skipBg: false, bgThreshold: 15, preSmooth: false },
       name: d.name || baseName || ""
     };
   }
@@ -506,6 +506,7 @@
     function renderStep4() {
       var s = wizard.settings;
       function setDither()    { wizard.setSettings(Object.assign({}, s, { dither: !s.dither })); }
+      function setPreSmooth() { wizard.setSettings(Object.assign({}, s, { preSmooth: !s.preSmooth })); }
       function setContrast(n) { wizard.setSettings(Object.assign({}, s, { contrast: Math.max(-50, Math.min(50, n | 0)) })); }
       function setSaliency()  { wizard.setSettings(Object.assign({}, s, { saliency: !s.saliency })); }
       function setSkipBg()    { wizard.setSettings(Object.assign({}, s, { skipBg: !s.skipBg })); }
@@ -519,6 +520,10 @@
         h("label", { className: "iw-checkbox" },
           h("input", { type: "checkbox", checked: !!s.dither, onChange: setDither }),
           h("span", null, "Use dithering (smoother gradients)")
+        ),
+        h("label", { className: "iw-checkbox" },
+          h("input", { type: "checkbox", checked: !!s.preSmooth, onChange: setPreSmooth }),
+          h("span", null, "Pre-smooth image (reduces confetti in flat colour areas)")
         ),
         h("div", { className: "iw-row" },
           h("label", { className: "iw-field-label", htmlFor: "iw-contrast" }, "Contrast"),

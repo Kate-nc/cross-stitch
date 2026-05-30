@@ -18,7 +18,7 @@
      constants.js  → FABRIC_COUNTS, A4W, A4H, etc.
      dmc-data.js   → DMC_RAW, rgbToLab, dE, dE2, DMC, SYMS
      colour-utils.js → findSolid, findBest, quantize, quantizeConstrained, doDither, doMap,
-                       buildPalette, applyGaussianBlur, applyMedianFilter,
+                       buildPalette, applyGaussianBlur, applyMedianFilter, applyBilateralFilter,
                        generateSaliencyMap, generateEdgeMap,
                        labelConnectedComponents, removeOrphanStitches,
                        analyzeConfetti
@@ -53,10 +53,16 @@ self.onmessage = function(e) {
     }
 
     // ── 1. Pre-processing: image smoothing ─────────────────────────────────
+    if (settings.preSmooth) {
+      postProgress('smoothing', 'Pre-smoothing image…');
+      applyBilateralFilter(raw, width, height);
+    }
     if (settings.smooth > 0) {
       postProgress('smoothing', 'Smoothing image…');
       if (settings.smoothType === 'gaussian') {
         applyGaussianBlur(raw, width, height, settings.smooth);
+      } else if (settings.smoothType === 'bilateral') {
+        applyBilateralFilter(raw, width, height);
       } else {
         applyMedianFilter(raw, width, height, settings.smooth);
       }
