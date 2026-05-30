@@ -10010,6 +10010,7 @@ window.usePreview = function usePreview(state) {
       raw = cx.getImageData(0, 0, pw, ph).data;
       if (smooth > 0) {
         if (smoothType === "gaussian") applyGaussianBlur(raw, pw, ph, smooth);
+        else if (smoothType === "bilateral" && typeof applyBilateralFilter === 'function') applyBilateralFilter(raw, pw, ph);
         else applyMedianFilter(raw, pw, ph, smooth);
       }
       rawCacheRef.current = { sig: geoSig, raw: new Uint8ClampedArray(raw), pw: pw, ph: ph };

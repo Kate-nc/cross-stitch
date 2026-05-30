@@ -82,7 +82,7 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <!-- pdf-lib (export), pdf.js (import) and pdf-importer are lazy-loaded on first use -->
 <link rel="stylesheet" href="styles.css">
 <script src="constants.js"></script>
-<script src="dmc-data.js"></script>
+<script src="dmc-data.js?v=20d4dd21"></script>
 <!-- defer: Anchor + thread-conversions are only consumed inside function bodies
      (typeof X === 'undefined' guards). Defer lets HTML parsing continue while
      these 110 KB download in parallel. They still execute before
@@ -90,7 +90,7 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="anchor-data.js" defer></script>
 <script src="thread-conversions.js" defer></script>
 <script src="starter-kits.js"></script>
-<script src="colour-utils.js"></script>
+<script src="colour-utils.js?v=1d5705c9"></script>
 <script src="helpers.js"></script>
 <script src="coaching.js"></script>
 <script src="keyboard-utils.js"></script>
@@ -204,7 +204,7 @@ window.loadTrackerApp = function() {
 };
 /* Loads creator-main.js via Babel, caching compiled output in localStorage.
    Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_012b5fc54d';
+var CREATOR_CACHE_KEY = 'babel_creator_304ad1b7a7';
 window.loadCreatorMain = function() {
   if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
   window.__creatorMainLoading = true;
