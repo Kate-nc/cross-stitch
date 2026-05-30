@@ -130,8 +130,8 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
   var maxN=Math.min(n,pool.length);
   let seed=(options&&options.seed!=null)?options.seed:1337;
   function random(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}
-  let len=w*h, px=new Array(len);
-  for(let i=0;i<len;i++){let j=i*4;px[i]=rgbToLab(data[j],data[j+1],data[j+2]);}
+  let len=w*h, px=new Array(len), pxOk=new Array(len);
+  for(let i=0;i<len;i++){let j=i*4;px[i]=rgbToLab(data[j],data[j+1],data[j+2]);pxOk[i]=rgbToOklab(data[j],data[j+1],data[j+2]);}
   // k-means++ initialisation: pick directly from pool (DMC entries), not free pixel LABs.
   // This keeps every centroid on an achievable DMC colour throughout all iterations.
   let cs=[], usedInit=new Set();
@@ -150,20 +150,24 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
   for(let i=0;i<len;i++)ds[i]=1e9;
   while(cs.length<Math.min(maxN,pool.length)){
     let lastCenter=cs[cs.length-1];
+    // Use OKLab for k-means++ distance weighting: better hue uniformity than
+    // CIE LAB, so the probabilistic sampling reflects perceptual spread more
+    // accurately. Pool entries use .oklab pre-computed in dmc-data.js.
+    let lastOk=lastCenter.oklab;
     let sum=0;
     for(let i=0;i<len;i++){
-      let d=dE2(px[i],lastCenter.lab);
+      let d=dE2ok(pxOk[i],lastOk);
       if(d<ds[i])ds[i]=d;
       sum+=ds[i];
     }
     if(!sum)break;
-    let r=random()*sum,acc=0,chosenPx=null;
-    for(let i=0;i<len;i++){acc+=ds[i];if(acc>=r){chosenPx=px[i];break;}}
-    if(!chosenPx)chosenPx=px[len-1];
+    let r=random()*sum,acc=0,chosenPxOk=null;
+    for(let i=0;i<len;i++){acc+=ds[i];if(acc>=r){chosenPxOk=pxOk[i];break;}}
+    if(!chosenPxOk)chosenPxOk=pxOk[len-1];
     let b=null,bd=1e9;
     for(let ti=0;ti<pool.length;ti++){
       if(usedInit.has(pool[ti].id))continue;
-      let d=dE2(chosenPx,pool[ti].lab);
+      let d=dE2ok(chosenPxOk,pool[ti].oklab);
       // Apply diversity discount for entries from families not yet selected.
       if(familyBonus<1&&pool[ti].fam>0&&!familiesInCs.has(pool[ti].fam))d*=familyBonus;
       if(d<bd){bd=d;b=pool[ti];}
@@ -175,25 +179,29 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
   // Constrained Lloyd's iterations: after each assignment, snap each centroid to
   // the nearest unused pool entry (greedy in cluster order) rather than a free
   // LAB point. This eliminates the double-error of unconstrained k-means → final snap.
+  // Per-pixel assignment uses OKLab (better hue linearity); centroid-to-pool
+  // snapping uses dE2000 (perceptually accurate for small palette decisions).
   let _sumL=new Float64Array(cs.length),_sumA=new Float64Array(cs.length),_sumB=new Float64Array(cs.length),_cnt=new Uint32Array(cs.length);
   for(let it=0;it<20;it++){
     _sumL.fill(0);_sumA.fill(0);_sumB.fill(0);_cnt.fill(0);
     for(let pi=0;pi<len;pi++){
       let md=1e9,mi=0;
-      for(let c=0;c<cs.length;c++){let d=dE2(px[pi],cs[c].lab);if(d<md){md=d;mi=c;}}
+      for(let c=0;c<cs.length;c++){let d=dE2ok(pxOk[pi],cs[c].oklab);if(d<md){md=d;mi=c;}}
       _sumL[mi]+=px[pi][0];_sumA[mi]+=px[pi][1];_sumB[mi]+=px[pi][2];_cnt[mi]++;
     }
     let mv=false;
     let usedIter=new Set();
     for(let c=0;c<cs.length;c++){
-      if(!_cnt[c]){usedIter.add(cs[c].id);continue;}
-      let centroid=[_sumL[c]/_cnt[c],_sumA[c]/_cnt[c],_sumB[c]/_cnt[c]];
+      // Empty cluster: anchor to current centre to keep it stable; it still
+      // competes for pool entries so a previously-claimed entry can't cause
+      // a duplicate in the output.
+      let centroid=_cnt[c]>0?[_sumL[c]/_cnt[c],_sumA[c]/_cnt[c],_sumB[c]/_cnt[c]]:cs[c].lab;
       let b=null,bd=1e9;
       for(let ti=0;ti<pool.length;ti++){
         if(usedIter.has(pool[ti].id))continue;
         let d=dE2000(centroid,pool[ti].lab);if(d<bd){bd=d;b=pool[ti];}
       }
-      if(!b){usedIter.add(cs[c].id);continue;}
+      if(!b)continue;
       if(b.id!==cs[c].id)mv=true;
       cs[c]=b;usedIter.add(b.id);
     }

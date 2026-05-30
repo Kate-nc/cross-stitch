@@ -5,7 +5,7 @@
  */
 
 const fs = require('fs');
-const { rgbToLab, dE2, DMC } = require('../dmc-data.js');
+const { rgbToLab, rgbToOklab, dE2, dE2ok, DMC } = require('../dmc-data.js');
 
 // ---------------------------------------------------------------------------
 // Extract functions from colour-utils.js using the same pattern as doDither.test.js

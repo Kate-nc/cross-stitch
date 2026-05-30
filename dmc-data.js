@@ -67,6 +67,14 @@ const _famById={};for(const[f,ids]of Object.entries(DMC_FAM))for(const id of ids
 
 const _labCache = new Map();
 function rgbToLab(r,g,b){let key=(r<<16)|(g<<8)|b;let c=_labCache.get(key);if(c)return c;let rr=r/255,gg=g/255,bb=b/255;rr=rr>0.04045?((rr+0.055)/1.055)**2.4:rr/12.92;gg=gg>0.04045?((gg+0.055)/1.055)**2.4:gg/12.92;bb=bb>0.04045?((bb+0.055)/1.055)**2.4:bb/12.92;let x=(rr*0.4124564+gg*0.3575761+bb*0.1804375)/0.95047,y=rr*0.2126729+gg*0.7151522+bb*0.0721750,z=(rr*0.0193339+gg*0.1191920+bb*0.9503041)/1.08883,f=t=>t>0.008856?t**(1/3):(7.787*t)+16/116;let res=[116*f(y)-16,500*(f(x)-f(y)),200*(f(y)-f(z))];_labCache.set(key,res);return res;}
+// OKLab colour space (Ottosson, 2020) — better perceptual hue uniformity than
+// CIE LAB. Used for per-pixel nearest-neighbour distance in quantisation loops
+// where Euclidean distance is needed and CIE LAB hue non-linearity would skew
+// cluster assignments in blue/purple hue regions.
+// L ∈ [0,1], a/b ∈ [-0.4, 0.4]. Scale is ~100× smaller than CIE LAB.
+const _oklabCache = new Map();
+function rgbToOklab(r,g,b){let key=(r<<16)|(g<<8)|b;let c=_oklabCache.get(key);if(c)return c;let rr=r/255,gg=g/255,bb=b/255;rr=rr>0.04045?((rr+0.055)/1.055)**2.4:rr/12.92;gg=gg>0.04045?((gg+0.055)/1.055)**2.4:gg/12.92;bb=bb>0.04045?((bb+0.055)/1.055)**2.4:bb/12.92;let l=0.4122214708*rr+0.5363325363*gg+0.0514459929*bb,m=0.2119034982*rr+0.6806995451*gg+0.1073969566*bb,s=0.0883024619*rr+0.2817188376*gg+0.6299787005*bb;l=Math.cbrt(l);m=Math.cbrt(m);s=Math.cbrt(s);let res=[0.2104542553*l+0.7936177850*m-0.0040720468*s,1.9779984951*l-2.4285922050*m+0.4505937099*s,0.0259040371*l+0.7827717662*m-0.8086757660*s];_oklabCache.set(key,res);return res;}
+function dE2ok(a,b){return (a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2;}
 function dE(a,b){return Math.sqrt((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2);}
 function dE2(a,b){return (a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2;}
 // CIEDE2000 (ISO 11664-6) — perceptually uniform colour distance.
@@ -81,9 +89,9 @@ function dE00(lab1,lab2){
   if(typeof dE2000==='function')return dE2000(lab1,lab2);
   const L1=lab1[0],a1=lab1[1],b1=lab1[2],L2=lab2[0],a2=lab2[1],b2=lab2[2];const C1=Math.sqrt(a1*a1+b1*b1),C2=Math.sqrt(a2*a2+b2*b2);const Cavg=(C1+C2)/2,Cavg7=Cavg**7,G=0.5*(1-Math.sqrt(Cavg7/(Cavg7+25**7)));const a1p=a1*(1+G),a2p=a2*(1+G);const C1p=Math.sqrt(a1p*a1p+b1*b1),C2p=Math.sqrt(a2p*a2p+b2*b2);const h1p=Math.atan2(b1,a1p)*180/Math.PI+(b1<0||(b1===0&&a1p<0)?360:0);const h2p=Math.atan2(b2,a2p)*180/Math.PI+(b2<0||(b2===0&&a2p<0)?360:0);const dLp=L2-L1,dCp=C2p-C1p;const dhp=C1p*C2p===0?0:(Math.abs(h2p-h1p)<=180?h2p-h1p:h2p-h1p>180?h2p-h1p-360:h2p-h1p+360);const dHp=2*Math.sqrt(C1p*C2p)*Math.sin(dhp*Math.PI/360);const Lpa=(L1+L2)/2,Cpa=(C1p+C2p)/2;const hpa=C1p*C2p===0?h1p+h2p:(Math.abs(h1p-h2p)<=180?(h1p+h2p)/2:h1p+h2p<360?(h1p+h2p+360)/2:(h1p+h2p-360)/2);const T=1-0.17*Math.cos((hpa-30)*Math.PI/180)+0.24*Math.cos(2*hpa*Math.PI/180)+0.32*Math.cos((3*hpa+6)*Math.PI/180)-0.20*Math.cos((4*hpa-63)*Math.PI/180);const SL=1+0.015*(Lpa-50)**2/Math.sqrt(20+(Lpa-50)**2),SC=1+0.045*Cpa,SH=1+0.015*Cpa*T;const Cpa7=Cpa**7,RC=2*Math.sqrt(Cpa7/(Cpa7+25**7)),dth=30*Math.exp(-(((hpa-275)/25)**2)),RT=-Math.sin(2*dth*Math.PI/180)*RC;return Math.sqrt(dLp*dLp/(SL*SL)+dCp*dCp/(SC*SC)+dHp*dHp/(SH*SH)+RT*(dCp/SC)*(dHp/SH));
 }
-const DMC=DMC_RAW.map(d=>({id:d[0],name:d[1],rgb:[d[2],d[3],d[4]],lab:rgbToLab(d[2],d[3],d[4]),fam:_famById[d[0]]??0}));
+const DMC=DMC_RAW.map(d=>({id:d[0],name:d[1],rgb:[d[2],d[3],d[4]],lab:rgbToLab(d[2],d[3],d[4]),oklab:rgbToOklab(d[2],d[3],d[4]),fam:_famById[d[0]]??0}));
 const SYMS="●◆■▲★♦♥♣♠◄►▼○◇□△☆♢♡♧♤◁▷▽⊕⊗⊞⊠⊡⊘⊙⊚⊛⊜⊝⬡⬢⬣⬥⬦⬧⬨⬩".split("");
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { rgbToLab, dE, dE2, dE00, DMC, DMC_FAM, SYMS };
+  module.exports = { rgbToLab, rgbToOklab, dE, dE2, dE2ok, dE00, DMC, DMC_FAM, SYMS };
 }
