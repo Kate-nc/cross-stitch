@@ -993,8 +993,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           // "Smooth dithering" toggle moved to the Dithering subsection above —
           // it modifies the dither pass, not the cleanup pass.
         )
-      )
-    ),
+      ),
     h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
     h("div", {style:{marginTop:'var(--s-1)'}},
       h(Toggle, {
