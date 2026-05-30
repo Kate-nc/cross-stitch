@@ -132,14 +132,22 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
   function random(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}
   let len=w*h, px=new Array(len), pxOk=new Array(len);
   for(let i=0;i<len;i++){let j=i*4;px[i]=rgbToLab(data[j],data[j+1],data[j+2]);pxOk[i]=rgbToOklab(data[j],data[j+1],data[j+2]);}
+  // Pre-compute OKLab for every pool entry once, computing on-the-fly for any
+  // entry that lacks .oklab (e.g. stash entries loaded from IndexedDB that were
+  // serialised before this field was added). Without this guard, pool[ti].oklab
+  // being undefined causes dE2ok → NaN, the k-means++ while loop breaks after
+  // the first centre, and every pixel collapses to a single grey average.
+  let poolOk=new Array(pool.length);
+  for(let ti=0;ti<pool.length;ti++)poolOk[ti]=pool[ti].oklab||rgbToOklab(pool[ti].rgb[0],pool[ti].rgb[1],pool[ti].rgb[2]);
   // k-means++ initialisation: pick directly from pool (DMC entries), not free pixel LABs.
   // This keeps every centroid on an achievable DMC colour throughout all iterations.
-  let cs=[], usedInit=new Set();
+  // csOk tracks the OKLab triplet for each selected centre in parallel with cs[].
+  let cs=[], csOk=[], usedInit=new Set();
   {
     let fp=px[Math.floor(random()*len)];
-    let b=null,bd=1e9;
-    for(let ti=0;ti<pool.length;ti++){let d=dE2(fp,pool[ti].lab);if(d<bd){bd=d;b=pool[ti];}}
-    if(b){cs.push(b);usedInit.add(b.id);}
+    let b=null,bd=1e9,bti=-1;
+    for(let ti=0;ti<pool.length;ti++){let d=dE2(fp,pool[ti].lab);if(d<bd){bd=d;b=pool[ti];bti=ti;}}
+    if(b){cs.push(b);csOk.push(poolOk[bti]);usedInit.add(b.id);}
   }
   // familyBonus < 1 discounts distance for pool entries from colour families
   // not yet in the selection, nudging initial centres to span the DMC colour
@@ -149,11 +157,9 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
   let ds=new Float32Array(len);
   for(let i=0;i<len;i++)ds[i]=1e9;
   while(cs.length<Math.min(maxN,pool.length)){
-    let lastCenter=cs[cs.length-1];
     // Use OKLab for k-means++ distance weighting: better hue uniformity than
-    // CIE LAB, so the probabilistic sampling reflects perceptual spread more
-    // accurately. Pool entries use .oklab pre-computed in dmc-data.js.
-    let lastOk=lastCenter.oklab;
+    // CIE LAB, so the probabilistic sampling reflects perceptual spread more accurately.
+    let lastOk=csOk[csOk.length-1];
     let sum=0;
     for(let i=0;i<len;i++){
       let d=dE2ok(pxOk[i],lastOk);
@@ -164,16 +170,16 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
     let r=random()*sum,acc=0,chosenPxOk=null;
     for(let i=0;i<len;i++){acc+=ds[i];if(acc>=r){chosenPxOk=pxOk[i];break;}}
     if(!chosenPxOk)chosenPxOk=pxOk[len-1];
-    let b=null,bd=1e9;
+    let b=null,bd=1e9,bti=-1;
     for(let ti=0;ti<pool.length;ti++){
       if(usedInit.has(pool[ti].id))continue;
-      let d=dE2ok(chosenPxOk,pool[ti].oklab);
+      let d=dE2ok(chosenPxOk,poolOk[ti]);
       // Apply diversity discount for entries from families not yet selected.
       if(familyBonus<1&&pool[ti].fam>0&&!familiesInCs.has(pool[ti].fam))d*=familyBonus;
-      if(d<bd){bd=d;b=pool[ti];}
+      if(d<bd){bd=d;b=pool[ti];bti=ti;}
     }
     if(!b)break;
-    cs.push(b);usedInit.add(b.id);
+    cs.push(b);csOk.push(poolOk[bti]);usedInit.add(b.id);
     if(b.fam>0)familiesInCs.add(b.fam);
   }
   // Constrained Lloyd's iterations: after each assignment, snap each centroid to
@@ -186,7 +192,7 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
     _sumL.fill(0);_sumA.fill(0);_sumB.fill(0);_cnt.fill(0);
     for(let pi=0;pi<len;pi++){
       let md=1e9,mi=0;
-      for(let c=0;c<cs.length;c++){let d=dE2ok(pxOk[pi],cs[c].oklab);if(d<md){md=d;mi=c;}}
+      for(let c=0;c<cs.length;c++){let d=dE2ok(pxOk[pi],csOk[c]);if(d<md){md=d;mi=c;}}
       _sumL[mi]+=px[pi][0];_sumA[mi]+=px[pi][1];_sumB[mi]+=px[pi][2];_cnt[mi]++;
     }
     let mv=false;
@@ -196,14 +202,14 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
       // competes for pool entries so a previously-claimed entry can't cause
       // a duplicate in the output.
       let centroid=_cnt[c]>0?[_sumL[c]/_cnt[c],_sumA[c]/_cnt[c],_sumB[c]/_cnt[c]]:cs[c].lab;
-      let b=null,bd=1e9;
+      let b=null,bd=1e9,bti=-1;
       for(let ti=0;ti<pool.length;ti++){
         if(usedIter.has(pool[ti].id))continue;
-        let d=dE2000(centroid,pool[ti].lab);if(d<bd){bd=d;b=pool[ti];}
+        let d=dE2000(centroid,pool[ti].lab);if(d<bd){bd=d;b=pool[ti];bti=ti;}
       }
       if(!b)continue;
       if(b.id!==cs[c].id)mv=true;
-      cs[c]=b;usedIter.add(b.id);
+      cs[c]=b;csOk[c]=poolOk[bti];usedIter.add(b.id);
     }
     if(!mv)break;
   }
