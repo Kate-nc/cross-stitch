@@ -185,13 +185,33 @@ window.MagicWandPanel = function MagicWandPanel() {
     h("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 } },
       h("strong", { style: { color: "#2E4824" } }, "Simplify Colours in Selection"),
       h("span", { style: { color: "#3F6432" } }, selColors + " colours in selection"),
-      h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
+      // Mode toggle: target count vs ΔE threshold
+      h("div", { className: "tb-grp" },
+        btn("Target count", function() { cv.setReduceMode("count"); cv.setReducePreview(null); },
+          { active: cv.reduceMode === "count", title: "Reduce to a specific number of colours", style: { fontSize: 10 } }),
+        btn("Near-duplicates (\u0394E)", function() { cv.setReduceMode("threshold"); cv.setReducePreview(null); },
+          { active: cv.reduceMode === "threshold", title: "Merge any pair of colours closer than a \u0394E threshold", style: { fontSize: 10 } })
+      ),
+      // Count mode: target number input
+      cv.reduceMode !== "threshold" && h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
         "Target:",
         h("input", {
           type: "number", min: 1, max: selColors, value: cv.reduceTarget,
           onChange: function(e) { cv.setReduceTarget(Math.max(1, parseInt(e.target.value) || 1)); cv.setReducePreview(null); },
           style: { width: 50, padding: "1px 4px" }
         })
+      ),
+      // Threshold mode: ΔE slider
+      cv.reduceMode === "threshold" && h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
+        "\u0394E\u2264",
+        h("input", {
+          type: "range", min: 1, max: 20, step: 0.5, value: cv.reduceThreshold,
+          onChange: function(e) { cv.setReduceThreshold(Number(e.target.value)); cv.setReducePreview(null); },
+          style: { width: 70 }
+        }),
+        h("span", { style: { minWidth: 22, fontVariantNumeric: "tabular-nums" } }, cv.reduceThreshold),
+        h("span", { style: { fontSize: 9, color: "var(--text-tertiary)", marginLeft: 1 } },
+          cv.reduceThreshold <= 3 ? "(near-identical)" : cv.reduceThreshold <= 6 ? "(very similar)" : cv.reduceThreshold <= 10 ? "(similar)" : "(broad)")
       ),
       btn("Preview merges", cv.previewColorReduction, { style: { fontSize: 10 } }),
       btn("Apply", cv.applyColorReduction, {
@@ -213,7 +233,10 @@ window.MagicWandPanel = function MagicWandPanel() {
           h("span", { style: { color: "#6b7280" } }, "(" + m.count + " stitches)")
         );
       })
-    ) : null
+    ) : cv.reducePreview && cv.reducePreview.length === 0 ? h("div", {
+      style: { paddingTop: 6, color: "#3F6432", fontStyle: "italic" }
+    }, cv.reduceMode === "threshold" ? "No colour pairs are within this \u0394E threshold." : "Already at target — no merges needed.")
+    : null
   ) : null;
 
   // ─── Replace colour panel ────────────────────────────────────────────────────
