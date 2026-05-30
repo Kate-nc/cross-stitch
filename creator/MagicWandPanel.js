@@ -215,7 +215,7 @@ window.MagicWandPanel = function MagicWandPanel() {
       ),
       btn("Preview merges", cv.previewColorReduction, { style: { fontSize: 10 } }),
       btn("Apply", cv.applyColorReduction, {
-        green: true, disabled: !cv.reducePreview || !cv.reducePreview.length,
+        green: true, disabled: !cv.reducePreview || !cv.reducePreview.length || !!cv.reducePreviewStale,
         style: { fontSize: 10 }
       }),
       btn("\u00D7", function() { cv.setWandPanel(null); cv.setReducePreview(null); }, { style: { fontSize: 10 } })
