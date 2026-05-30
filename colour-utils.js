@@ -141,6 +141,11 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
     for(let ti=0;ti<pool.length;ti++){let d=dE2(fp,pool[ti].lab);if(d<bd){bd=d;b=pool[ti];}}
     if(b){cs.push(b);usedInit.add(b.id);}
   }
+  // familyBonus < 1 discounts distance for pool entries from colour families
+  // not yet in the selection, nudging initial centres to span the DMC colour
+  // wheel rather than clustering in one family. 0.85 = 15% discount.
+  let familyBonus=(options&&options.familyBonus!=null)?options.familyBonus:0.85;
+  let familiesInCs=new Set(cs.filter(function(e){return e.fam>0;}).map(function(e){return e.fam;}));
   let ds=new Float32Array(len);
   for(let i=0;i<len;i++)ds[i]=1e9;
   while(cs.length<Math.min(maxN,pool.length)){
@@ -158,10 +163,14 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
     let b=null,bd=1e9;
     for(let ti=0;ti<pool.length;ti++){
       if(usedInit.has(pool[ti].id))continue;
-      let d=dE2(chosenPx,pool[ti].lab);if(d<bd){bd=d;b=pool[ti];}
+      let d=dE2(chosenPx,pool[ti].lab);
+      // Apply diversity discount for entries from families not yet selected.
+      if(familyBonus<1&&pool[ti].fam>0&&!familiesInCs.has(pool[ti].fam))d*=familyBonus;
+      if(d<bd){bd=d;b=pool[ti];}
     }
     if(!b)break;
     cs.push(b);usedInit.add(b.id);
+    if(b.fam>0)familiesInCs.add(b.fam);
   }
   // Constrained Lloyd's iterations: after each assignment, snap each centroid to
   // the nearest unused pool entry (greedy in cluster order) rather than a free
