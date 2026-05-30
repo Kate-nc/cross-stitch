@@ -6544,13 +6544,14 @@ return(
         onGenerate:(settings)=>{
           try{
             var _ws=settings.settings||{};
+            var _dithAlgo=_ws.dithAlgo||((_ws.dither===false)?'off':(_ws.dither?'atkinson':undefined));
             let result=parseImagePattern(importImage,{
               maxWidth:settings.maxWidth, maxHeight:settings.maxHeight,
               maxColours:settings.maxColours,
               skipWhiteBg:settings.skipWhiteBg, bgThreshold:settings.bgThreshold,
               preSmooth:!!_ws.preSmooth,
-              dither:!!_ws.dither,
-              dithAlgo:_ws.dithAlgo||undefined
+              dither:!!(_dithAlgo&&_dithAlgo!=='off'),
+              dithAlgo:_dithAlgo||undefined
             });
             const finalName=(settings.name||'').trim().slice(0,60);
             let project=importResultToProject(result,settings.fabricCt||14,finalName);

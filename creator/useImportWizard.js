@@ -96,7 +96,7 @@
       crop: d.crop || { rotate: 0, flipH: false, flipV: false, aspect: "free" },
       palette: d.palette || { mode: "dmc", maxColours: 30, allowBlends: true },
       size: d.size || { w: fitted.w, h: fitted.h, lock: true, fabricCt: 14 },
-      settings: d.settings || { dither: true, contrast: 0, saliency: false, skipBg: false, bgThreshold: 15, preSmooth: false },
+      settings: d.settings || { dithAlgo: 'atkinson', contrast: 0, saliency: false, skipBg: false, bgThreshold: 15, preSmooth: false },
       name: d.name || baseName || ""
     };
   }

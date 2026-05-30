@@ -287,21 +287,32 @@
 
     function renderStep4() {
       var s = wizard.settings;
-      function setDither()    { wizard.setSettings(Object.assign({}, s, { dither: !s.dither })); }
+      var DITH_OPTS = [
+        { value: 'off',       label: 'Off' },
+        { value: 'atkinson',  label: 'Atkinson (default)' },
+        { value: 'riemersma', label: 'Riemersma (fewer isolated stitches)' },
+        { value: 'bayer',     label: 'Bayer (geometric)' },
+      ];
+      function setDithAlgo(v) { wizard.setSettings(Object.assign({}, s, { dithAlgo: v })); }
       function setPreSmooth() { wizard.setSettings(Object.assign({}, s, { preSmooth: !s.preSmooth })); }
       function setContrast(n) { wizard.setSettings(Object.assign({}, s, { contrast: Math.max(-50, Math.min(50, n | 0)) })); }
       function setSaliency()  { wizard.setSettings(Object.assign({}, s, { saliency: !s.saliency })); }
       function setSkipBg()    { wizard.setSettings(Object.assign({}, s, { skipBg: !s.skipBg })); }
       function setBgT(n)      { wizard.setSettings(Object.assign({}, s, { bgThreshold: Math.max(3, Math.min(50, n | 0)) })); }
+      var curDithAlgo = s.dithAlgo || (s.dither ? 'atkinson' : 'off');
       return h("div", { className: "iw-step iw-step-preview" },
         h("h2", { id: "iw-step-heading", ref: headingRef, tabIndex: -1, className: "iw-step-title" }, "Step 4 of 5: Preview & tune"),
         h("p", { className: "iw-step-desc" }, "Live preview is coming in a follow-up. For now, choose how the pixels should be processed."),
         image ? h("div", { className: "iw-preview-thumb" },
           h("img", { src: image.src, alt: "Image preview", style: { imageRendering: "pixelated" } })
         ) : null,
-        h("label", { className: "iw-checkbox" },
-          h("input", { type: "checkbox", checked: !!s.dither, onChange: setDither }),
-          h("span", null, "Use dithering (smoother gradients)")
+        h("div", { className: "iw-row" },
+          h("label", { className: "iw-field-label", htmlFor: "iw-dith" }, "Dithering"),
+          h("select", {
+            id: "iw-dith", value: curDithAlgo,
+            onChange: function (e) { setDithAlgo(e.target.value); },
+            className: "iw-select"
+          }, DITH_OPTS.map(function (o) { return h("option", { key: o.value, value: o.value }, o.label); }))
         ),
         h("label", { className: "iw-checkbox" },
           h("input", { type: "checkbox", checked: !!s.preSmooth, onChange: setPreSmooth }),
@@ -363,7 +374,7 @@
             h("dt", null, "Fabric count"), h("dd", null, sz.fabricCt + " count"),
             h("dt", null, "Palette"), h("dd", null, paletteText),
             h("dt", null, "Blends"), h("dd", null, p.allowBlends ? "Allowed" : "Off"),
-            h("dt", null, "Dithering"), h("dd", null, st.dither ? "On" : "Off"),
+            h("dt", null, "Dithering"), h("dd", null, (function() { var a = st.dithAlgo || (st.dither ? 'atkinson' : 'off'); return a === 'off' ? 'Off' : a.charAt(0).toUpperCase() + a.slice(1); })()),
             h("dt", null, "Skip background"), h("dd", null, st.skipBg ? ("On (tolerance " + st.bgThreshold + ")") : "Off"),
             h("dt", null, "Estimate"), h("dd", null, skeinText)
           )
