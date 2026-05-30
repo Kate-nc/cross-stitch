@@ -224,7 +224,7 @@
     function renderStep2() {
       var p = wizard.palette;
       function setMode(m)   { wizard.setPalette(Object.assign({}, p, { mode: m })); }
-      function setMaxC(n)   { wizard.setPalette(Object.assign({}, p, { maxColours: Math.max(5, Math.min(80, n | 0)) })); }
+      function setMaxC(n)   { wizard.setPalette(Object.assign({}, p, { maxColours: Math.max(2, Math.min(100, n | 0)) })); }
       function toggleBlend(){ wizard.setPalette(Object.assign({}, p, { allowBlends: !p.allowBlends })); }
       var modes = [
         { v: "dmc",    label: "Full DMC palette",   desc: "Match against the entire DMC range." },
@@ -250,10 +250,10 @@
           h("label", { className: "iw-field-label", htmlFor: "iw-max-colours" }, "Maximum colours"),
           h("input", {
             id: "iw-max-colours",
-            type: "range", min: 5, max: 80, step: 1,
+            type: "range", min: 2, max: 100, step: 1,
             value: p.maxColours,
             onChange: function (e) { setMaxC(Number(e.target.value)); },
-            "aria-valuemin": 5, "aria-valuemax": 80, "aria-valuenow": p.maxColours
+            "aria-valuemin": 2, "aria-valuemax": 100, "aria-valuenow": p.maxColours
           }),
           h("output", { className: "iw-output" }, p.maxColours)
         ),

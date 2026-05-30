@@ -592,7 +592,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   // ── Palette section (non-scratch) ───────────────────────────────────────────
   var palSection = !ctx.isScratchMode ? h(Section, {title:"Colours", isOpen:app.palOpen, onToggle:app.setPalOpen},
     h("div", {style:{marginTop:'var(--s-2)'}},
-      h(SliderRow, {label:"Max colours", value:gen.maxC, min:10, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(10, gen.stashThreadCount) : 40, onChange:gen.setMaxC,
+      h(SliderRow, {label:"Max colours", value:gen.maxC, min:2, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(2, gen.stashThreadCount) : 100, onChange:gen.setMaxC,
         helpText:"One colour = one DMC thread skein",
         inlineHint:"Each colour = one skein of DMC thread. Fewer colours means less shopping and faster stitching — 10\u201315 is a good starting range for most photos.",
         helpTopic:"palette"}),
