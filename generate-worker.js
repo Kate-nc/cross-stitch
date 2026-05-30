@@ -17,7 +17,7 @@
    Dependencies (imported via importScripts — all pure, no DOM):
      constants.js  → FABRIC_COUNTS, A4W, A4H, etc.
      dmc-data.js   → DMC_RAW, rgbToLab, dE, dE2, DMC, SYMS
-     colour-utils.js → findSolid, findBest, quantize, doDither, doMap,
+     colour-utils.js → findSolid, findBest, quantize, quantizeConstrained, doDither, doMap,
                        buildPalette, applyGaussianBlur, applyMedianFilter,
                        generateSaliencyMap, generateEdgeMap,
                        labelConnectedComponents, removeOrphanStitches,
@@ -77,7 +77,7 @@ self.onmessage = function(e) {
 
     var allowedPalette = settings.allowedPalette || null;
     postProgress('quantizing', 'Choosing colours…');
-    var p = quantize(raw, width, height, maxC, allowedPalette, {seed: settings.seed});
+    var p = quantizeConstrained(raw, width, height, maxC, allowedPalette, {seed: settings.seed});
     if (!p.length) {
       self.postMessage({ type: 'error', reqId: reqId, message: 'Could not find enough distinct colours in your image. Try increasing the maximum colours, or use a clearer image.' });
       return;

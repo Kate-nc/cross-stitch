@@ -125,7 +125,82 @@ function quantize(data,w,h,n,allowedPalette,options){
   }
   return pl;
 }
-function quantizeConstrained(data,w,h,n,allowedPalette,options){return quantize(data,w,h,n,allowedPalette,options);}
+function quantizeConstrained(data,w,h,n,allowedPalette,options){
+  var pool=allowedPalette&&allowedPalette.length?allowedPalette:DMC;
+  var maxN=Math.min(n,pool.length);
+  let seed=(options&&options.seed!=null)?options.seed:1337;
+  function random(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}
+  let len=w*h, px=new Array(len);
+  for(let i=0;i<len;i++){let j=i*4;px[i]=rgbToLab(data[j],data[j+1],data[j+2]);}
+  // k-means++ initialisation: pick directly from pool (DMC entries), not free pixel LABs.
+  // This keeps every centroid on an achievable DMC colour throughout all iterations.
+  let cs=[], usedInit=new Set();
+  {
+    let fp=px[Math.floor(random()*len)];
+    let b=null,bd=1e9;
+    for(let ti=0;ti<pool.length;ti++){let d=dE2(fp,pool[ti].lab);if(d<bd){bd=d;b=pool[ti];}}
+    if(b){cs.push(b);usedInit.add(b.id);}
+  }
+  let ds=new Float32Array(len);
+  for(let i=0;i<len;i++)ds[i]=1e9;
+  while(cs.length<Math.min(maxN,pool.length)){
+    let lastCenter=cs[cs.length-1];
+    let sum=0;
+    for(let i=0;i<len;i++){
+      let d=dE2(px[i],lastCenter.lab);
+      if(d<ds[i])ds[i]=d;
+      sum+=ds[i];
+    }
+    if(!sum)break;
+    let r=random()*sum,acc=0,chosenPx=null;
+    for(let i=0;i<len;i++){acc+=ds[i];if(acc>=r){chosenPx=px[i];break;}}
+    if(!chosenPx)chosenPx=px[len-1];
+    let b=null,bd=1e9;
+    for(let ti=0;ti<pool.length;ti++){
+      if(usedInit.has(pool[ti].id))continue;
+      let d=dE2(chosenPx,pool[ti].lab);if(d<bd){bd=d;b=pool[ti];}
+    }
+    if(!b)break;
+    cs.push(b);usedInit.add(b.id);
+  }
+  // Constrained Lloyd's iterations: after each assignment, snap each centroid to
+  // the nearest unused pool entry (greedy in cluster order) rather than a free
+  // LAB point. This eliminates the double-error of unconstrained k-means → final snap.
+  let _sumL=new Float64Array(cs.length),_sumA=new Float64Array(cs.length),_sumB=new Float64Array(cs.length),_cnt=new Uint32Array(cs.length);
+  for(let it=0;it<20;it++){
+    _sumL.fill(0);_sumA.fill(0);_sumB.fill(0);_cnt.fill(0);
+    for(let pi=0;pi<len;pi++){
+      let md=1e9,mi=0;
+      for(let c=0;c<cs.length;c++){let d=dE2(px[pi],cs[c].lab);if(d<md){md=d;mi=c;}}
+      _sumL[mi]+=px[pi][0];_sumA[mi]+=px[pi][1];_sumB[mi]+=px[pi][2];_cnt[mi]++;
+    }
+    let mv=false;
+    let usedIter=new Set();
+    for(let c=0;c<cs.length;c++){
+      if(!_cnt[c]){usedIter.add(cs[c].id);continue;}
+      let centroid=[_sumL[c]/_cnt[c],_sumA[c]/_cnt[c],_sumB[c]/_cnt[c]];
+      let b=null,bd=1e9;
+      for(let ti=0;ti<pool.length;ti++){
+        if(usedIter.has(pool[ti].id))continue;
+        let d=dE2(centroid,pool[ti].lab);if(d<bd){bd=d;b=pool[ti];}
+      }
+      if(!b){usedIter.add(cs[c].id);continue;}
+      if(b.id!==cs[c].id)mv=true;
+      cs[c]=b;usedIter.add(b.id);
+    }
+    if(!mv)break;
+  }
+  // Empty-palette fallback: mirrors quantize behaviour
+  if(!cs.length){
+    if(len){
+      let mid=px[Math.floor(len/2)];
+      let b=null,bd=1e9;
+      for(let ti=0;ti<pool.length;ti++){let d=dE2(mid,pool[ti].lab);if(d<bd){bd=d;b=pool[ti];}}
+      if(b)cs.push(b);
+    }
+  }
+  return cs;
+}
 /**
  * Atkinson dithering with Stage 2 confetti-aware color selection.
  *
@@ -1555,4 +1630,4 @@ _colourUtilsGlobal.dE2000 = dE2000;
 const UNIQUE_THRESHOLD_DE = 5;
 _colourUtilsGlobal.UNIQUE_THRESHOLD_DE = UNIQUE_THRESHOLD_DE;
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, doDither, doBayerDither, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE }; }
