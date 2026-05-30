@@ -334,7 +334,7 @@ window.useMagicWand = function useMagicWand(state) {
       var bestDE = Infinity, bestI = -1, bestJ = -1;
       for (var a = 0; a < activeIds.length; a++) {
         for (var b = a + 1; b < activeIds.length; b++) {
-          var de = deltaE(labs[activeIds[a]], labs[activeIds[b]]);
+          var de = dE2000(labs[activeIds[a]], labs[activeIds[b]]);
           if (de < bestDE) { bestDE = de; bestI = a; bestJ = b; }
         }
       }
