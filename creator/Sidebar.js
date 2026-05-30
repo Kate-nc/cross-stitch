@@ -574,8 +574,8 @@ window.CreatorSidebar = function CreatorSidebar() {
   ) : null;
 
   // ── Dimensions section ──────────────────────────────────────────────────────
-  var dimBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--text-secondary)",background:"var(--surface-tertiary)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}}, ctx.sW+"×"+ctx.sH);
-  var dimSection = h(Section, {title:"Dimensions", isOpen:app.dimOpen, onToggle:app.setDimOpen, badge:dimBadge},
+  var dimBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--text-secondary)",background:"var(--surface-tertiary)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}}, ctx.sW+"×"+ctx.sH+" · "+(ctx.fabricCt||14)+"ct");
+  var dimSection = h(Section, {title:"Output", isOpen:app.dimOpen, onToggle:app.setDimOpen, badge:dimBadge},
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)'}},
       h("input", {type:"checkbox", checked:ctx.arLock, onChange:function(e){ctx.setArLock(e.target.checked);}}),
       h("span", null, "Lock aspect ratio"),
@@ -598,11 +598,27 @@ window.CreatorSidebar = function CreatorSidebar() {
               h("input", {type:"number", value:ctx.sH, onChange:function(e){ctx.chgH(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',fontSize:'var(--text-md)'}})
             )
           )
-        )
+        ),
+    h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
+    h("div", {style:{marginTop:'var(--s-1)'}},
+      h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
+        h("span", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5}}, "Fabric"),
+        h(InfoIcon, {text:"The thread count of your Aida or evenweave fabric — affects finished size and skein estimates", width:220})
+      ),
+      h("select", {
+        value:ctx.fabricCt, onChange:function(e){ctx.setFabricCt(Number(e.target.value));},
+        style:{width:"100%",padding:"6px 10px",borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",fontSize:'var(--text-md)',background:"var(--surface)"}
+      }, FABRIC_COUNTS.map(function(f) {
+        return h("option", {key:f.ct, value:f.ct}, f.label);
+      })),
+      h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:6}},
+        "\u2248 " + (ctx.sW / (ctx.fabricCt||14)).toFixed(1) + " \u00D7 " + (ctx.sH / (ctx.fabricCt||14)).toFixed(1) + " in finished"
+      )
+    )
   );
 
   // ── Palette section (non-scratch) ───────────────────────────────────────────
-  var palSection = !ctx.isScratchMode ? h(Section, {title:"Colours", isOpen:app.palOpen, onToggle:app.setPalOpen},
+  var palSection = !ctx.isScratchMode ? h(Section, {title:"Palette", isOpen:app.palOpen, onToggle:app.setPalOpen},
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Max colours", value:gen.maxC, min:2, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(2, gen.stashThreadCount) : 100, onChange:gen.setMaxC,
         helpText:"One colour = one DMC thread skein",
@@ -853,7 +869,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       );
     }
     var smoothDithActive = gen.dith && dithAlgo === "atkinson";
-    return h(Section, {title:"Smoothing & cleanup", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:tidyBadge},
+    return h(Section, {title:"Quality", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:tidyBadge},
       // ── Dithering subsection ─────────────────────────────────────────────
       h("div", {style:{marginTop:'var(--s-2)'}},
         h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
@@ -892,6 +908,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
       ),
       h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
+      h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-1)',marginTop:'var(--s-1)'}}, "Colour reduction"),
       h("div", {style:{marginTop:'var(--s-2)'}},
         h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:500, step:5, onChange:gen.setMinSt,
           format:function(v){return v===0?"Off":v;},
@@ -967,6 +984,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         );
       })(),
       h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
+      h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-1)',marginTop:'var(--s-1)'}}, "Cleanup"),
       h("div", {style:{marginTop:'var(--s-1)'}},
         h(Toggle, {
           checked:sc2.enabled,
@@ -1010,6 +1028,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
       ),
     h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
+    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-1)',marginTop:'var(--s-1)'}}, "Legibility"),
     h("div", {style:{marginTop:'var(--s-1)'}},
       h(Toggle, {
         checked:gen.disambig,
@@ -1067,9 +1086,9 @@ window.CreatorSidebar = function CreatorSidebar() {
     )
   );
 
-  // ── Adjustments section (non-scratch) ──────────────────────────────────────
-  var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
-  var adjSection = !ctx.isScratchMode ? h(Section, {title:"Source", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
+  // ── Image section (non-scratch) — source adjustments + background ──────────
+  var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth||gen.skipBg) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
+  var adjSection = !ctx.isScratchMode ? h(Section, {title:"Image", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Smooth", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
@@ -1089,7 +1108,42 @@ window.CreatorSidebar = function CreatorSidebar() {
       ),
       h(SliderRow, {label:"Brightness", value:gen.bri, min:-50, max:50, onChange:gen.setBri, format:function(v){return (v>0?"+":"")+v+"%";}}),
       h(SliderRow, {label:"Contrast", value:gen.con, min:-50, max:50, onChange:gen.setCon, format:function(v){return (v>0?"+":"")+v+"%";}}),
-      h(SliderRow, {label:"Saturation", value:gen.sat, min:-50, max:50, onChange:gen.setSat, format:function(v){return (v>0?"+":"")+v+"%";}})
+      h(SliderRow, {label:"Saturation", value:gen.sat, min:-50, max:50, onChange:gen.setSat, format:function(v){return (v>0?"+":"")+v+"%";}}),
+      h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
+      h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-1)'}}, "Background"),
+      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginTop:'var(--s-1)'}},
+        h("input", {type:"checkbox", checked:gen.skipBg, onChange:function(e){
+          var on = e.target.checked;
+          gen.setSkipBg(on);
+          var isDefaultWhite = gen.bgCol[0]===255 && gen.bgCol[1]===255 && gen.bgCol[2]===255;
+          if (on && isDefaultWhite) armBgPick();
+          else if (!on && gen.pickBg) gen.setPickBg(false);
+        }}),
+        h("span", null, "Skip background"),
+        h(InfoIcon, {text:"Exclude pixels matching a chosen colour, leaving them unstitched. Good for solid colour backgrounds", width:220})
+      ),
+      gen.skipBg && h("div", {style:{marginTop:10}},
+        h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:10}},
+          h("div", {
+            onClick:armBgPick,
+            title:"Pick background colour from the source image",
+            style:{width:24,height:24,borderRadius:'var(--radius-sm)',background:"rgb("+gen.bgCol+")",border:"2px solid var(--border)",cursor:"pointer"}
+          }),
+          h("button", {
+            onClick:armBgPick,
+            style:{fontSize:'var(--text-xs)',padding:"3px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',background:gen.pickBg?"#F8EFD8":"var(--surface-secondary)",color:gen.pickBg?"var(--accent-hover)":"var(--text-primary)",cursor:"pointer"}
+          }, gen.pickBg ? "Picking\u2026" : "Pick")
+        ),
+        h(SliderRow, {label:"Tolerance", value:gen.bgTh, min:3, max:50, onChange:gen.setBgTh,
+          helpText:"How closely a pixel must match the background colour to be skipped. Higher = more pixels removed"}),
+        ctx.pat && h("div", {style:{marginTop:10,padding:"8px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
+          h("div", {style:{marginBottom:6}}, "Want to shrink the pattern to fit only the stitches?"),
+          h("button", {
+            onClick:gen.autoCrop,
+            style:{width:"100%",padding:"6px",fontSize:'var(--text-sm)',fontWeight:500,background:"var(--surface)",border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',cursor:"pointer",color:"var(--text-primary)"}
+          }, "Auto-Crop to Stitches")
+        )
+      )
     )
   ) : null;
 
@@ -1573,27 +1627,82 @@ window.CreatorSidebar = function CreatorSidebar() {
         "Upload an image to get started")
     );
 
+    // ── Project section — name/designer/description + live stats ──────────
+    var createProjectSection = h(Section, {title:"Project", defaultOpen:false},
+      h("div", {style:{display:"flex",flexDirection:"column",gap:'var(--s-2)',padding:"4px 0 2px"}},
+        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
+          "Pattern name",
+          h("input", {
+            type:"text", value:app.projectName||"", maxLength:60,
+            placeholder:ctx.pat?(ctx.sW+"\xD7"+ctx.sH+" pattern"):"e.g. Sunflower sampler",
+            onChange:function(e){var v=e.target.value.slice(0,60);if(typeof app.setProjectName==="function")app.setProjectName(v);},
+            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
+          })
+        ),
+        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
+          "Designer (optional)",
+          h("input", {
+            type:"text", value:app.projectDesigner||"", maxLength:80,
+            placeholder:"Your name or studio",
+            onChange:function(e){var v=e.target.value.slice(0,80);if(typeof app.setProjectDesigner==="function")app.setProjectDesigner(v);},
+            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
+          })
+        ),
+        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
+          "Description / notes (optional)",
+          h("textarea", {
+            value:app.projectDescription||"", maxLength:500, rows:3,
+            placeholder:"Source, copyright, stitching notes\u2026",
+            onChange:function(e){var v=e.target.value.slice(0,500);if(typeof app.setProjectDescription==="function")app.setProjectDescription(v);},
+            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
+          })
+        )
+      ),
+      ctx.pat && (function() {
+        var palLen = ctx.pat&&ctx.pal?(ctx.displayPal||ctx.pal||[]).length:0;
+        var stitchable = ctx.totalStitchable||(ctx.pat?(ctx.sW*ctx.sH):0);
+        var fabricCt = ctx.fabricCt||14;
+        var finishedW = (ctx.sW/fabricCt).toFixed(1);
+        var finishedH = (ctx.sH/fabricCt).toFixed(1);
+        var skeins = (ctx.pat&&typeof skeinEst==="function"&&palLen>0)
+          ?(ctx.displayPal||ctx.pal||[]).reduce(function(t,p){return t+(p&&p.count?skeinEst(p.count,fabricCt):0);},0):0;
+        var cost = skeins*(ctx.skeinPrice||(typeof DEFAULT_SKEIN_PRICE!=="undefined"?DEFAULT_SKEIN_PRICE:0.95));
+        function statRow(label, value) {
+          return h(React.Fragment, null,
+            h("span", {style:{color:"var(--text-tertiary)"}}, label),
+            h("span", {style:{textAlign:"right",fontVariantNumeric:"tabular-nums"}}, value)
+          );
+        }
+        return h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-2)',paddingTop:'var(--s-2)',display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)'}},
+          statRow("Size", ctx.sW+" \u00D7 "+ctx.sH+" stitches"),
+          statRow("Finished", finishedW+" \u00D7 "+finishedH+" in ("+fabricCt+"ct)"),
+          statRow("Colours", palLen+" colour"+(palLen===1?"":"s")),
+          statRow("Stitches", stitchable.toLocaleString()),
+          statRow("Skeins", skeins>0?("\u2248 "+Math.ceil(skeins)):"\u2014"),
+          statRow("Est. cost", cost>0?("\u2248 "+(typeof window.AppPrefs!=="undefined"&&window.AppPrefs.formatCurrency?window.AppPrefs.formatCurrency(cost):("\u00A3"+cost.toFixed(2)))):"\u2014")
+        );
+      })()
+    );
+
     // ── Single scrollable settings panel (Palette → Size & Fabric → Detail → Source) ──
     var createPanel = h("div", {
       style:{overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}
     },
       globalRegenCta,
-      // 1. Palette (first — most-used during conversion)
+      // 1. Image (source adjustments + background)
+      adjSection,
+      // 2. Output (dimensions + fabric)
+      dimSection,
+      // 3. Palette
       palSection,
+      // 4. Quality (dithering + cleanup)
       tidySection,
+      // 5. Palette swap (conditional)
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.revertSection,
-      // 2. Size & Fabric
-      dimSection,
-      fabSection,
-      // 3. Detail / Background
-      bgSection,
-      // 4. Source adjustments (collapsible, less-frequently touched)
-      adjSection,
-      // 5. Project info (collapsible)
-      projectInfoSection,
-      projectSummary
+      // 6. Project (info + summary)
+      createProjectSection
     );
 
     return h(React.Fragment, null,
