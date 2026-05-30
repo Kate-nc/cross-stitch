@@ -3,7 +3,8 @@
    Uses globals: quantize, quantizeConstrained, doDither, doRiemersma, doMap, buildPalette, rgbToLab, dE,
                  generateSaliencyMap, generateEdgeMap, labelConnectedComponents,
                  removeOrphanStitches, analyzeConfetti, findSolid,
-                 applyGaussianBlur, applyMedianFilter, applyBilateralFilter
+                 applyGaussianBlur, applyMedianFilter, applyBilateralFilter,
+                 disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP
    (all defined in colour-utils.js / constants.js). */
 
 // Strength → numeric pipeline parameters for the Stitch Cleanup pipeline.
@@ -22,7 +23,7 @@ window.STRENGTH_MAP = {
  * @param {number}            width  Grid width in stitches
  * @param {number}            height Grid height in stitches
  * @param {object}            opts   Pipeline settings
- * @returns {{ mapped, palette, confettiRaw, confettiClean, saliencyMap }} or null
+ * @returns {{ mapped, palette, confettiRaw, confettiClean, saliencyMap, preCleanupIds, disambigData }} or null
  */
 window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts) {
   var maxC = opts.maxC, dith = opts.dith, allowBlends = opts.allowBlends;
@@ -117,7 +118,26 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     confettiClean = analyzeConfetti(mapped, width, height, postLabels);
   }
 
-  return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, saliencyMap: saliencyMap, preCleanupIds: preCleanupIds };
+  // ── Stage 9: Adjacent-cell colour disambiguation ────────────────────────────
+  // Prevents adjacent cells from being assigned perceptually indistinguishable
+  // thread colours (dE2000 < threshold). Off by default (opts.disambig falsy).
+  var disambigData = null;
+  if (opts.disambig && opts.disambigLevel && opts.disambigLevel !== 'off') {
+    var dlevel = (typeof DISAMBIG_LEVEL_MAP !== 'undefined' ? DISAMBIG_LEVEL_MAP : {})[opts.disambigLevel] || { threshold: 15, maxDegradation: 20 };
+    // Reuse edgeMap from Stage 8 cleanup if available; otherwise compute now.
+    // `edgeMap` is var-scoped so it's accessible here (undefined if cleanup didn't run).
+    var disambigEdgeMap = (typeof edgeMap !== 'undefined' ? edgeMap : null) || generateEdgeMap(raw, width, height);
+    // Solid palette entries only — blend entries don't have a single .lab value
+    var solidPalette = p.filter(function(e) { return e.type !== 'blend' && e.lab; });
+    var dr = disambiguateSimilarNeighbours(mapped, width, height, disambigEdgeMap, saliencyMap, solidPalette, {
+      threshold:      dlevel.threshold,
+      maxDegradation: dlevel.maxDegradation,
+      maxIterations:  5,
+    });
+    disambigData = { swaps: dr.totalSwaps, iterations: dr.iterations };
+  }
+
+  return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, saliencyMap: saliencyMap, preCleanupIds: preCleanupIds, disambigData: disambigData };
 };
 
 // Collect the unique set of thread ids referenced by a mapped pattern.
@@ -234,5 +254,6 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
     cmap: palResult.cmap,
     confettiData: { raw: rawConfetti, clean: cleanConfetti },
     preCleanupIds: pipelineResult.preCleanupIds,
+    disambigData: pipelineResult.disambigData,
   };
 };

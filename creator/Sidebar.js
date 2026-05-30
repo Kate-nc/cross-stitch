@@ -792,7 +792,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   // mental model: pick how colours mix → then clean up the result.
   var tidySection = !ctx.isScratchMode ? (function() {
     var sc2 = gen.stitchCleanup;
-    var tidyActive = gen.dith || gen.minSt > 0 || gen.orphans > 0 || sc2.enabled;
+    var tidyActive = gen.dith || gen.minSt > 0 || gen.orphans > 0 || sc2.enabled || gen.disambig;
     var tidyBadge = tidyActive ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
     var strengthKeys=["gentle","balanced","thorough"];
     var strengthLabels=["Gentle","Balanced","Thorough"];
@@ -994,7 +994,45 @@ window.CreatorSidebar = function CreatorSidebar() {
           // it modifies the dither pass, not the cleanup pass.
         )
       )
-    );
+    ),
+    h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
+    h("div", {style:{marginTop:'var(--s-1)'}},
+      h(Toggle, {
+        checked:gen.disambig,
+        onChange:gen.setDisambig,
+        label:"Separate similar neighbours",
+        help:"After generation, checks each pair of adjacent cells and replaces any that are too visually similar to tell apart. Useful for patterns with many near-identical colours like skies or skin tones."
+      }),
+      gen.disambig && h(React.Fragment, null,
+        h("div", {style:{marginTop:'var(--s-2)'}},
+          h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
+            h("span", {style:{fontSize:'var(--text-sm)',color:"#52525b",fontWeight:500}}, "Separation strength"),
+            h(InfoIcon, {text:"How different adjacent cell colours must be. Gentle: only fix very obvious clashes (\u0394E>8). Standard: fix colours hard to distinguish on a printed grid. Strong: maximise separation even at the cost of slight colour accuracy.", width:240})
+          ),
+          h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
+            [["gentle","Gentle"],["standard","Standard"],["strong","Strong"]].map(function(pair) {
+              var id = pair[0], label = pair[1];
+              var active = (gen.disambigLevel || 'standard') === id;
+              return h("button", {
+                key:id,
+                onClick:function(){gen.setDisambigLevel(id);},
+                style:{flex:1,padding:"5px 6px",fontSize:'var(--text-xs)',fontWeight:active?600:400,
+                  background:active?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',
+                  color:active?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",
+                  boxShadow:active?"0 1px 2px rgba(0,0,0,0.04)":"none",whiteSpace:"nowrap"}
+              }, label);
+            })
+          )
+        ),
+        gen.disambigData && gen.disambigData.swaps > 0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:'var(--s-1)',lineHeight:1.5}},
+          "Last run: ", h("strong", null, gen.disambigData.swaps.toLocaleString()), " cells swapped across ", gen.disambigData.iterations, " pass", gen.disambigData.iterations !== 1 ? "es" : ""
+        ),
+        gen.disambigData && gen.disambigData.swaps === 0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--success)",marginTop:'var(--s-1)'}},
+          "No adjacent cells needed correction."
+        )
+      )
+    )
+  );
   })() : null;
 
   // ── Fabric & Floss section ──────────────────────────────────────────────────

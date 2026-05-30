@@ -1831,4 +1831,183 @@ _colourUtilsGlobal.dE2000 = dE2000;
 const UNIQUE_THRESHOLD_DE = 5;
 _colourUtilsGlobal.UNIQUE_THRESHOLD_DE = UNIQUE_THRESHOLD_DE;
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE }; }
+// ─── Adjacent-Cell Colour Disambiguation ──────────────────────────────────────
+// Post-quantisation pass: ensures no two adjacent cells have thread colours so
+// perceptually similar that stitchers can't distinguish them on the grid.
+//
+// Improvements over simpler single-pass approaches:
+//  - dE2000 (CIEDE2000) throughout — perceptually accurate, especially blues/purples/reds
+//  - Processes worst (most-similar) conflicts first
+//  - Replacement must satisfy ΔE ≥ threshold with ALL 4 cardinal neighbours
+//  - Saliency-aware: threshold ×1.4 in flat areas (sal<0.3), ×0.6 in detail areas (sal>0.7)
+//  - Edge protection: Canny edgeMap cells are never reassigned
+//  - Quality cap: replacement must be within maxDegradation ΔE2000 of the current cell
+//  - Convergent iteration: repeats until stable or maxIterations passes
+//
+// Post-hoc mode (no image data): pass null for edgeMap and saliencyMap, and set
+// opts.deriveBoundaryEdges = true. A conservative boundary map is derived from the
+// pattern itself — any cell whose 4-neighbour has a different colour id is an edge.
+//
+// @param {Array}        mapped                Pattern array, mutated in-place
+// @param {number}       w                     Grid width
+// @param {number}       h                     Grid height
+// @param {Uint8Array}   edgeMap               From generateEdgeMap(); null = no protection
+// @param {Float32Array} saliencyMap           From generateSaliencyMap(); null = flat threshold
+// @param {Array}        palette               Active palette (solid entries with .lab and .id)
+// @param {object}       [opts]
+// @param {number}       [opts.threshold=15]   Base ΔE2000 below which neighbours are "too similar"
+// @param {number}       [opts.maxDegradation=20]  Max ΔE2000 a replacement may differ from current cell
+// @param {number}       [opts.maxIterations=5]
+// @param {boolean}      [opts.deriveBoundaryEdges]  Derive edge map from pattern (post-hoc mode)
+// @returns {{ totalSwaps: number, iterations: number }}
+function disambiguateSimilarNeighbours(mapped, w, h, edgeMap, saliencyMap, palette, opts) {
+  opts = opts || {};
+  var threshold      = typeof opts.threshold      === 'number' ? opts.threshold      : 15;
+  var maxDegradation = typeof opts.maxDegradation === 'number' ? opts.maxDegradation : 20;
+  var maxIterations  = typeof opts.maxIterations  === 'number' ? opts.maxIterations  : 5;
+  var n = w * h;
+
+  // Post-hoc mode: derive a conservative edge map from colour boundaries in the pattern.
+  // Every cell adjacent to a differently-coloured 4-neighbour is treated as an edge cell
+  // (more conservative than Canny — all colour boundaries are protected).
+  var effectiveEdgeMap = edgeMap;
+  if (!effectiveEdgeMap && opts.deriveBoundaryEdges) {
+    effectiveEdgeMap = new Uint8Array(n);
+    for (var ei = 0; ei < n; ei++) {
+      var em = mapped[ei];
+      if (!em || em.id === '__skip__' || em.id === '__empty__') continue;
+      var ex = ei % w, ey = (ei / w) | 0;
+      var nb0 = ex > 0     ? mapped[ei - 1] : null;
+      var nb1 = ex < w - 1 ? mapped[ei + 1] : null;
+      var nb2 = ey > 0     ? mapped[ei - w] : null;
+      var nb3 = ey < h - 1 ? mapped[ei + w] : null;
+      if ((nb0 && nb0.id !== em.id && nb0.id !== '__skip__' && nb0.id !== '__empty__') ||
+          (nb1 && nb1.id !== em.id && nb1.id !== '__skip__' && nb1.id !== '__empty__') ||
+          (nb2 && nb2.id !== em.id && nb2.id !== '__skip__' && nb2.id !== '__empty__') ||
+          (nb3 && nb3.id !== em.id && nb3.id !== '__skip__' && nb3.id !== '__empty__')) {
+        effectiveEdgeMap[ei] = 1;
+      }
+    }
+  }
+
+  // Per-cell candidate lists: palette entries within maxDegradation, sorted by
+  // dE2000 from the cell's current colour (closest substitute first).
+  // Keyed by cell id; invalidated when the cell is swapped.
+  var candidateCache = Object.create(null);
+  function getCandidates(cell) {
+    var key = cell.id;
+    if (candidateCache[key]) return candidateCache[key];
+    var list = [];
+    for (var ci = 0; ci < palette.length; ci++) {
+      var c = palette[ci];
+      if (!c.lab) continue;
+      if (c.id === cell.id) continue;
+      var d = dE2000(c.lab, cell.lab);
+      if (d <= maxDegradation) list.push({ entry: c, dist: d });
+    }
+    list.sort(function(a, b) { return a.dist - b.dist; });
+    candidateCache[key] = list;
+    return list;
+  }
+
+  var totalSwaps = 0;
+  var iter = 0;
+  for (; iter < maxIterations; iter++) {
+    // ── Collect conflicts ────────────────────────────────────────────────────
+    var conflicts = [];
+    for (var i = 0; i < n; i++) {
+      var cell = mapped[i];
+      if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
+      if (effectiveEdgeMap && effectiveEdgeMap[i]) continue;
+
+      var ix = i % w, iy = (i / w) | 0;
+
+      // Saliency-scaled effective threshold for this cell
+      var effThr = threshold;
+      if (saliencyMap) {
+        var sal = saliencyMap[i];
+        if (sal < 0.3)      effThr = threshold * 1.4;
+        else if (sal > 0.7) effThr = threshold * 0.6;
+      }
+
+      // Check 4-cardinal neighbours; flag cell on first conflict found
+      var pushed = false;
+      if (!pushed && ix > 0)     { var nb = mapped[i - 1]; if (nb && nb.id !== '__skip__' && nb.id !== '__empty__' && nb.id !== cell.id && dE2000(cell.lab, nb.lab) < effThr) { conflicts.push({ i: i, de: dE2000(cell.lab, nb.lab), effThr: effThr }); pushed = true; } }
+      if (!pushed && ix < w - 1) { var nb = mapped[i + 1]; if (nb && nb.id !== '__skip__' && nb.id !== '__empty__' && nb.id !== cell.id && dE2000(cell.lab, nb.lab) < effThr) { conflicts.push({ i: i, de: dE2000(cell.lab, nb.lab), effThr: effThr }); pushed = true; } }
+      if (!pushed && iy > 0)     { var nb = mapped[i - w]; if (nb && nb.id !== '__skip__' && nb.id !== '__empty__' && nb.id !== cell.id && dE2000(cell.lab, nb.lab) < effThr) { conflicts.push({ i: i, de: dE2000(cell.lab, nb.lab), effThr: effThr }); pushed = true; } }
+      if (!pushed && iy < h - 1) { var nb = mapped[i + w]; if (nb && nb.id !== '__skip__' && nb.id !== '__empty__' && nb.id !== cell.id && dE2000(cell.lab, nb.lab) < effThr) { conflicts.push({ i: i, de: dE2000(cell.lab, nb.lab), effThr: effThr }); } }
+    }
+
+    if (conflicts.length === 0) break; // converged
+
+    // Sort worst conflicts first (lowest ΔE = most similar = most urgent)
+    conflicts.sort(function(a, b) { return a.de - b.de; });
+
+    // ── Resolve conflicts ────────────────────────────────────────────────────
+    var swapped = new Uint8Array(n); // prevent double-swapping within one pass
+    var passSwaps = 0;
+
+    for (var ci2 = 0; ci2 < conflicts.length; ci2++) {
+      var cf = conflicts[ci2];
+      var idx = cf.i;
+      if (swapped[idx]) continue;
+
+      var cur = mapped[idx];
+      if (!cur || !cur.lab) continue;
+      var candidates = getCandidates(cur);
+      if (!candidates.length) continue;
+
+      var idx_x = idx % w, idx_y = (idx / w) | 0;
+
+      for (var ki = 0; ki < candidates.length; ki++) {
+        var cand = candidates[ki].entry;
+
+        // Verify candidate satisfies ΔE ≥ effThr with ALL 4 neighbours of idx
+        var ok = true;
+        if (idx_x > 0) {
+          var n2 = mapped[idx - 1];
+          if (n2 && n2.id !== '__skip__' && n2.id !== '__empty__' && dE2000(cand.lab, n2.lab) < cf.effThr) { ok = false; }
+        }
+        if (ok && idx_x < w - 1) {
+          var n2 = mapped[idx + 1];
+          if (n2 && n2.id !== '__skip__' && n2.id !== '__empty__' && dE2000(cand.lab, n2.lab) < cf.effThr) { ok = false; }
+        }
+        if (ok && idx_y > 0) {
+          var n2 = mapped[idx - w];
+          if (n2 && n2.id !== '__skip__' && n2.id !== '__empty__' && dE2000(cand.lab, n2.lab) < cf.effThr) { ok = false; }
+        }
+        if (ok && idx_y < h - 1) {
+          var n2 = mapped[idx + w];
+          if (n2 && n2.id !== '__skip__' && n2.id !== '__empty__' && dE2000(cand.lab, n2.lab) < cf.effThr) { ok = false; }
+        }
+
+        if (ok) {
+          mapped[idx] = cand;
+          swapped[idx] = 1;
+          passSwaps++;
+          totalSwaps++;
+          // Invalidate cache for the old id (its neighbours changed, so cached
+          // candidate lists for that id may now produce different conflict checks)
+          candidateCache[cur.id] = null;
+          break;
+        }
+      }
+    }
+
+    if (passSwaps === 0) break; // no progress — already converged
+  }
+
+  return { totalSwaps: totalSwaps, iterations: iter };
+}
+
+// Level presets — keyed by UI option value
+var DISAMBIG_LEVEL_MAP = {
+  gentle:   { threshold: 8,  maxDegradation: 12 },
+  standard: { threshold: 15, maxDegradation: 20 },
+  strong:   { threshold: 25, maxDegradation: 30 },
+};
+
+_colourUtilsGlobal.disambiguateSimilarNeighbours = disambiguateSimilarNeighbours;
+_colourUtilsGlobal.DISAMBIG_LEVEL_MAP = DISAMBIG_LEVEL_MAP;
+
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP }; }

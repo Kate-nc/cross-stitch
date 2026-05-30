@@ -7,10 +7,14 @@
        { type: 'generate', reqId: number, pixels: ArrayBuffer, width: number, height: number,
          settings: { maxC, dith, allowBlends, skipBg, bgCol, bgTh, minSt,
                      smooth, smoothType, stitchCleanup,
+                     disambig?: boolean, disambigLevel?: 'gentle'|'standard'|'strong',
                      allowedPalette? } }  // allowedPalette: array of DMC entries or null
+       { type: 'disambiguate', reqId: number, mapped: Array, palette: Array,
+         settings: { disambigLevel?: string, maxIterations?: number } }
 
      Worker → Main:
-       { type: 'result', reqId: number, mapped, pal, cmap, confettiData }
+       { type: 'result', reqId: number, mapped, pal, cmap, confettiData, disambigData }
+       { type: 'disambiguate-result', reqId: number, mapped: Array, disambigData: object }
        { type: 'progress', reqId: number, stage: string, message: string }
        { type: 'error',  reqId: number, message: string, stack?: string }
 
@@ -21,7 +25,7 @@
                        buildPalette, applyGaussianBlur, applyMedianFilter, applyBilateralFilter,
                        generateSaliencyMap, generateEdgeMap,
                        labelConnectedComponents, removeOrphanStitches,
-                       analyzeConfetti
+                       analyzeConfetti, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP
 */
 
 importScripts('constants.js', 'dmc-data.js', 'colour-utils.js');
@@ -37,6 +41,34 @@ var STRENGTH_MAP = {
 
 self.onmessage = function(e) {
   var msg = e.data;
+
+  // ── Post-hoc disambiguation (from PatternTab "Re-apply" button) ────────────
+  // Derives edge map from pattern boundaries (conservative: all colour-boundary
+  // cells are protected). No saliency scaling — flat threshold only.
+  if (msg.type === 'disambiguate') {
+    try {
+      var reqId2 = msg.reqId;
+      var mapped2 = msg.mapped;
+      var palette2 = msg.palette;
+      var s2 = msg.settings || {};
+      var dlvl2 = (typeof DISAMBIG_LEVEL_MAP !== 'undefined' ? DISAMBIG_LEVEL_MAP : {})[s2.disambigLevel] || { threshold: 15, maxDegradation: 20 };
+      var solidPalette2 = palette2.filter(function(e) { return e.type !== 'blend' && e.lab; });
+      var mapped2work = mapped2.slice();
+      var dr2 = disambiguateSimilarNeighbours(
+        mapped2work,
+        msg.width, msg.height,
+        null, null, solidPalette2,
+        { threshold: dlvl2.threshold, maxDegradation: dlvl2.maxDegradation,
+          maxIterations: typeof s2.maxIterations === 'number' ? s2.maxIterations : 5,
+          deriveBoundaryEdges: true }
+      );
+      self.postMessage({ type: 'disambiguate-result', reqId: reqId2, mapped: mapped2work, disambigData: { swaps: dr2.totalSwaps, iterations: dr2.iterations } });
+    } catch (err2) {
+      self.postMessage({ type: 'error', reqId: msg.reqId, message: err2.message, stack: err2.stack });
+    }
+    return;
+  }
+
   if (msg.type !== 'generate') return;
 
   var reqId    = msg.reqId;
@@ -183,7 +215,22 @@ self.onmessage = function(e) {
       confettiClean = analyzeConfetti(mapped, width, height, postLabels);
     }
 
-    // ── 4. maxC enforcement pass ──────────────────────────────────────────────
+    // ── Stage 9: Adjacent-cell colour disambiguation ────────────────────────
+    var disambigData = null;
+    if (settings.disambig && settings.disambigLevel && settings.disambigLevel !== 'off') {
+      postProgress('disambiguating', 'Separating similar neighbours…');
+      var dlvl = (typeof DISAMBIG_LEVEL_MAP !== 'undefined' ? DISAMBIG_LEVEL_MAP : {})[settings.disambigLevel] || { threshold: 15, maxDegradation: 20 };
+      var disambigEdgeMap = (typeof edgeMap !== 'undefined' ? edgeMap : null) || generateEdgeMap(raw, width, height);
+      var solidPalette = p.filter(function(e) { return e.type !== 'blend' && e.lab; });
+      var dr = disambiguateSimilarNeighbours(mapped, width, height, disambigEdgeMap, saliencyMap, solidPalette, {
+        threshold:      dlvl.threshold,
+        maxDegradation: dlvl.maxDegradation,
+        maxIterations:  5,
+      });
+      disambigData = { swaps: dr.totalSwaps, iterations: dr.iterations };
+    }
+
+    // ── maxC enforcement pass ──────────────────────────────────────────────────
     for (var safe = 0; safe < 5; safe++) {
       var ids = new Set();
       for (var k = 0; k < mapped.length; k++) {
@@ -235,6 +282,7 @@ self.onmessage = function(e) {
       cmap: palResult.cmap,
       confettiData: { raw: confettiRaw, clean: confettiClean || confettiRaw },
       preCleanupIds: preCleanupIds,
+      disambigData: disambigData,
     });
 
   } catch (err) {
