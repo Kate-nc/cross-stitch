@@ -257,6 +257,10 @@
           }),
           h("output", { className: "iw-output" }, p.maxColours)
         ),
+        h("p", { className: "iw-step-desc", style: { margin: "4px 0 10px" } },
+          "Each colour = one DMC thread spool.",
+          p.allowBlends && (" Blends pair two spools — up to " + Math.floor(p.maxColours * (p.maxColours - 1) / 2) + " combinations from this palette.")
+        ),
         h("label", { className: "iw-checkbox" },
           h("input", { type: "checkbox", checked: !!p.allowBlends, onChange: toggleBlend }),
           h("span", null, "Allow 2-thread blends")
