@@ -11919,11 +11919,19 @@ window.MagicWandPanel = function MagicWandPanel() {
       cv.reducePreview.map(function(m, i) {
         var fromE = ctx.cmap && ctx.cmap[m.from];
         var toE   = ctx.cmap && ctx.cmap[m.to];
+        // Colour-code ΔE badge: green ≤ 3, amber ≤ 8, red > 8
+        var de = m.de != null ? m.de : null;
+        var deBadgeColor = de == null ? "#6b7280" : de <= 3 ? "#16a34a" : de <= 8 ? "#d97706" : "#dc2626";
         return h("div", { key: i, style: { display: "flex", alignItems: "center", gap: 5, marginBottom: 2 } },
           swatch(fromE ? fromE.rgb : null), h("span", null, m.from + " " + m.fromName),
           h("span", { "aria-hidden":"true", style: { color: "#6b7280", display:"inline-flex" } }, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
           swatch(toE ? toE.rgb : null), h("span", null, m.to + " " + m.toName),
-          h("span", { style: { color: "#6b7280" } }, "(" + m.count + " stitches)")
+          h("span", { style: { color: "#6b7280" } }, "(" + m.count + " stitches)"),
+          de != null && h("span", {
+            title: "CIEDE2000 colour distance between these two threads",
+            style: { fontSize: 9, fontWeight: 600, color: deBadgeColor,
+              border: "1px solid " + deBadgeColor, borderRadius: 3, padding: "0 3px", lineHeight: "14px" }
+          }, "\u0394E\u00a0" + de)
         );
       })
     ) : cv.reducePreview && cv.reducePreview.length === 0 ? h("div", {
