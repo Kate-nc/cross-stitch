@@ -3208,11 +3208,16 @@ window.useMagicWand = function useMagicWand(state) {
     var merges = [];
 
     while (activeIds.length > target) {
-      var bestDE = Infinity, bestI = -1, bestJ = -1;
+      // Cost = ΔE × countFrom (number of stitches that will change × perceptual shift).
+      // This prefers merging near-duplicate low-count colours over forcing large
+      // colour regions together, giving the least-visible merge at each step.
+      var bestCost = Infinity, bestI = -1, bestJ = -1;
       for (var a = 0; a < activeIds.length; a++) {
         for (var b = a + 1; b < activeIds.length; b++) {
           var de = dE2000(labs[activeIds[a]], labs[activeIds[b]]);
-          if (de < bestDE) { bestDE = de; bestI = a; bestJ = b; }
+          var cntMin = Math.min(counts[activeIds[a]] || 0, counts[activeIds[b]] || 0);
+          var cost = de * (cntMin + 1); // +1 so zero-count entries can still be cleared
+          if (cost < bestCost) { bestCost = cost; bestI = a; bestJ = b; }
         }
       }
       if (bestI < 0) break;
