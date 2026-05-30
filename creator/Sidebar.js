@@ -610,6 +610,9 @@ window.CreatorSidebar = function CreatorSidebar() {
         helpTopic:"palette"}),
       gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && h("div", {style:{fontSize:10,color:"#A06F2D",marginTop:2}},
         "Clamped to " + gen.stashThreadCount + " (stash size)"
+      ),
+      ctx.pal && ctx.pal.length > 0 && ctx.pal.length < gen.effectiveMaxC && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:2}},
+        ctx.pal.length + " of " + gen.effectiveMaxC + " colours used"
       )
     ),
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:gen.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)',opacity:gen.blendsAutoDisabled?0.5:1}},
