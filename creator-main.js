@@ -42,8 +42,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
   const [zoomPos, setZoomPos] = useState(null);
   const altHeld = useRef(false);
   const [altDown, setAltDown] = useState(false);
-  // magnifier toggle — stays active without holding Alt
-  const [zoomLocked, setZoomLocked] = useState(false);
+  // magnifier toggle removed — use Alt key to zoom
   // diff overlay
   const [showDiff, setShowDiff] = useState(false);
   const [diffUrl, setDiffUrl] = useState(null);
@@ -134,7 +133,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
   }, [diffUrl]);
 
   function handlePointerMove(e) {
-    if ((altHeld.current || zoomLocked) && containerRef.current) {
+    if (altHeld.current && containerRef.current) {
       var rect = containerRef.current.getBoundingClientRect();
       if (rect.width > 0) setZoomPos({cx: e.clientX - rect.left, cy: e.clientY - rect.top, W: rect.width, H: rect.height});
     } else if (zoomPos) { setZoomPos(null); }
@@ -148,7 +147,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
   return (
     <div>
       <div ref={containerRef}
-        style={{position:"relative",width:"100%",aspectRatio:`${width}/${height}`,overflow:"hidden",cursor:altDown?"zoom-in":(zoomLocked?"crosshair":"ew-resize"),borderRadius:8,border:"0.5px solid #E5DCCB",userSelect:"none",touchAction:"none"}}
+        style={{position:"relative",width:"100%",aspectRatio:`${width}/${height}`,overflow:"hidden",cursor:altDown?"zoom-in":"ew-resize",borderRadius:8,border:"0.5px solid #E5DCCB",userSelect:"none",touchAction:"none"}}
         onPointerDown={function(e){
           if(altHeld.current)return;
           dragging.current=true; setSweeping(false);
@@ -234,11 +233,6 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:sweeping?"#B85C38":"#FBF8F3",color:sweeping?"#fff":"#5C5448",fontWeight:500}}>
           {sweeping?<>{Icons.pause()} Pause</>:<>{Icons.play()} Auto-sweep</>}
         </button>
-        <button type="button" onClick={function(){setZoomLocked(function(z){return !z;});}}
-          title={zoomLocked?"Turn off magnifier":"Turn on magnifier (or hold Alt)"}
-          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(zoomLocked?"#A04E11":"#E5DCCB"),borderRadius:6,background:zoomLocked?"#F8EFD8":"#FBF8F3",color:zoomLocked?"#A04E11":"#5C5448",fontWeight:500,display:"inline-flex",alignItems:"center",gap:4}}>
-          {Icons.magnify()} Magnifier
-        </button>
         {diffUrl&&<button type="button" onClick={function(){setShowDiff(function(d){return !d;});}}
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showDiff?"#A04E11":"#E5DCCB"),borderRadius:6,background:showDiff?"#F8EFD8":"#FBF8F3",color:showDiff?"#A04E11":"#5C5448",fontWeight:500}}>
           {showDiff?"Hide changes":"Show changes"}
@@ -247,7 +241,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showHeatmap?"#A53D3D":"#E5DCCB"),borderRadius:6,background:showHeatmap?"#FCEFEF":"#FBF8F3",color:showHeatmap?"#A53D3D":"#5C5448",fontWeight:500}}>
           {showHeatmap?"Hide heatmap":<>{Icons.fire()} Heatmap</>}
         </button>}
-        {!zoomLocked&&<span style={{fontSize:10,color:"#A89E89"}}>Hold Alt to zoom</span>}
+        {!altDown&&<span style={{fontSize:10,color:"#A89E89"}}>Hold Alt to zoom</span>}
       </div>
     </div>
   );

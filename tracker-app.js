@@ -307,7 +307,12 @@ function StitchingStyleStepBody({onComplete,onBack,onSkip,startCorner:initCorner
 function StitchingStyleOnboarding({onDone,startCorner:initCorner}){
   return(
     <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Stitching style">
-      <div className="modal-content" style={{maxWidth:380}} onClick={e=>e.stopPropagation()}>
+      <div className="modal-content" style={{maxWidth:380,position:"relative"}} onClick={e=>e.stopPropagation()}>
+        <button
+          onClick={()=>onDone(null)}
+          aria-label="Dismiss"
+          style={{position:"absolute",top:8,right:12,background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",fontSize:20,lineHeight:1,padding:0,zIndex:1}}
+        >&#215;</button>
         <StitchingStyleStepBody onComplete={onDone} startCorner={initCorner} />
       </div>
     </div>

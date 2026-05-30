@@ -168,7 +168,11 @@ window.CreatorPatternTab = function CreatorPatternTab() {
             gen.disambiguateNow();
           },
           style:{padding:"4px 10px",fontSize:'var(--text-xs)',fontWeight:500,background:canRun?"var(--accent)":"var(--surface-tertiary)",color:canRun?"var(--on-accent)":"var(--text-tertiary)",border:"none",borderRadius:'var(--radius-sm)',cursor:canRun?"pointer":"not-allowed",flexShrink:0,transition:"background 0.15s"}
-        }, hasResult ? "Re-apply" : "Apply now")
+        }, hasResult ? "Re-apply" : "Apply now"),
+        h("button", {
+          onClick: function() { gen.setDisambig(false); },
+          style:{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",fontSize:15,lineHeight:1,padding:0,flexShrink:0}
+        }, "\xD7")
       );
     })(),
 

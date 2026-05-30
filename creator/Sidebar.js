@@ -1628,7 +1628,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     );
 
     // ── Project section — name/designer/description + live stats ──────────
-    var createProjectSection = h(Section, {title:"Project", defaultOpen:false},
+    var createProjectSection = h(Section, {title:"Project", defaultOpen:true},
       h("div", {style:{display:"flex",flexDirection:"column",gap:'var(--s-2)',padding:"4px 0 2px"}},
         h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
           "Pattern name",
@@ -1905,11 +1905,58 @@ window.CreatorSidebar = function CreatorSidebar() {
     }, "Clear selection (" + (cv.selectionCount || 0).toLocaleString() + ")")
   );
 
+  var correctSection = h("div", {style:{padding:"0 12px 12px",borderTop:"1px solid var(--border)",paddingTop:12}},
+    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-2)'}},
+      "Correct"),
+    h("div", {style:{display:"flex",gap:6,marginBottom:8}},
+      h("button", {
+        onClick:function(){
+          if (cv.activeTool==="cleanup") { if (cv.exitCleanup) cv.exitCleanup(); }
+          else { cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); if (cv.enterCleanup) cv.enterCleanup(); }
+        },
+        "aria-pressed": cv.activeTool==="cleanup" ? "true" : "false",
+        style:{
+          flex:1,padding:"6px 8px",fontSize:'var(--text-sm)',
+          fontWeight:cv.activeTool==="cleanup"?600:400,
+          border:"1px solid "+(cv.activeTool==="cleanup"?"var(--accent)":"var(--border)"),
+          background:cv.activeTool==="cleanup"?"var(--accent-light)":"transparent",
+          color:cv.activeTool==="cleanup"?"var(--accent)":"var(--text-secondary)",
+          borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
+        }
+      }, "Cleanup"),
+      h("button", {
+        onClick:function(){
+          if (cv.activeTool==="denoise") { if (cv.exitDenoise) cv.exitDenoise(); }
+          else { cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); if (cv.enterDenoise) cv.enterDenoise(); }
+        },
+        "aria-pressed": cv.activeTool==="denoise" ? "true" : "false",
+        style:{
+          flex:1,padding:"6px 8px",fontSize:'var(--text-sm)',
+          fontWeight:cv.activeTool==="denoise"?600:400,
+          border:"1px solid "+(cv.activeTool==="denoise"?"var(--accent)":"var(--border)"),
+          background:cv.activeTool==="denoise"?"var(--accent-light)":"transparent",
+          color:cv.activeTool==="denoise"?"var(--accent)":"var(--text-secondary)",
+          borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
+        }
+      }, "Denoise")
+    ),
+    h("button", {
+      onClick:function(){ if (app&&app.openResizeCanvas) app.openResizeCanvas(); },
+      style:{
+        width:"100%",padding:"6px 8px",fontSize:'var(--text-sm)',
+        border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',
+        background:"transparent",color:"var(--text-secondary)",
+        cursor:"pointer",fontFamily:"inherit",textAlign:"left"
+      }
+    }, "Resize canvas\u2026")
+  );
+
   var toolsContent = h(React.Fragment, null,
     stitchTypeSection,
     bsContSection,
     brushSizeSection,
-    selectionSection
+    selectionSection,
+    correctSection
   );
 
   var subHeaderStyle = {padding:"10px 12px 2px",fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5};
