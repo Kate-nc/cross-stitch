@@ -561,10 +561,14 @@ function doRiemersma(data, w, h, pal, allowBlends, saliencyMap, opts) {
     var chosen = findBest(rgbToLab(cr, cg, cb), pal, allowBlends);
     result[idx] = chosen;
 
+    // Saliency-aware error decay: high-saliency (edge) pixels absorb their own
+    // quantisation error rather than propagating it to neighbours. This keeps
+    // detail-region colour boundaries sharp while still dithering flat areas.
+    var saliencyScale = (saliencyMap && idx < saliencyMap.length) ? (1.0 - saliencyMap[idx]) : 1.0;
     var slot2 = pos % QUEUE_LEN;
-    qR[slot2] = cr - chosen.rgb[0];
-    qG[slot2] = cg - chosen.rgb[1];
-    qB[slot2] = cb - chosen.rgb[2];
+    qR[slot2] = (cr - chosen.rgb[0]) * saliencyScale;
+    qG[slot2] = (cg - chosen.rgb[1]) * saliencyScale;
+    qB[slot2] = (cb - chosen.rgb[2]) * saliencyScale;
     pos++;
   }
 

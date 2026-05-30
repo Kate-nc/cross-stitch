@@ -126,4 +126,28 @@ describe('doRiemersma', () => {
     const data = solidRgba(w, h, 64, 128, 192);
     expect(() => doRiemersma(data, w, h, pal, false, null, {})).not.toThrow();
   });
+
+  it('saliency=1 (full edge suppression) vs saliency=0 (no suppression) differ on a gradient', () => {
+    // Use a gradient image so there is meaningful quantisation error to propagate.
+    const w = 16, h = 8;
+    const data = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        data[i]     = Math.round((x / (w - 1)) * 255);
+        data[i + 1] = 80;
+        data[i + 2] = 80;
+        data[i + 3] = 255;
+      }
+    }
+    const allZero = new Float32Array(w * h).fill(0);  // propagate all error
+    const allOne  = new Float32Array(w * h).fill(1);  // suppress all error
+    const r0 = doRiemersma(data.slice(), w, h, pal, false, allZero, {});
+    const r1 = doRiemersma(data.slice(), w, h, pal, false, allOne,  {});
+    // With full suppression every pixel quantises independently; with full
+    // propagation errors bleed across pixels. At least some IDs must differ.
+    const ids0 = r0.map(e => e.id).join(',');
+    const ids1 = r1.map(e => e.id).join(',');
+    expect(ids0).not.toBe(ids1);
+  });
 });
