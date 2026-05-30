@@ -274,6 +274,47 @@
     var ds = React.useState(false);
     var discardOpen = ds[0], setDiscardOpen = ds[1];
 
+    // Stitchability preview — runs parseImagePattern when the user reaches
+    // Step 5 so we can show confetti rate before they confirm.
+    var _stitchStats = React.useState(null);
+    var stitchStats = _stitchStats[0], setStitchStats = _stitchStats[1];
+    var _statsKey = React.useState(null);
+    var statsKey = _statsKey[0], setStatsKey = _statsKey[1];
+
+    React.useEffect(function () {
+      if (wizard.step !== 5) return;
+      // Build a key from the relevant inputs; skip if already computed for these.
+      var sz = wizard.size, s = wizard.settings, p = wizard.palette;
+      var key = sz.w + ',' + sz.h + ',' + p.maxColours + ',' + (s.dithAlgo || '') + ',' + !!s.preSmooth + ',' + !!s.skipBg;
+      if (key === statsKey) return;
+      setStatsKey(key);
+      setStitchStats(null);
+      try {
+        if (!image || typeof parseImagePattern !== 'function') return;
+        var dithAlgoVal = s.dithAlgo || (s.dither ? 'atkinson' : 'off');
+        var result = parseImagePattern(image, {
+          maxWidth: sz.w, maxHeight: sz.h,
+          maxColours: p.maxColours,
+          skipWhiteBg: !!s.skipBg, bgThreshold: s.bgThreshold || 15,
+          preSmooth: !!s.preSmooth,
+          dither: dithAlgoVal !== 'off',
+          dithAlgo: dithAlgoVal
+        });
+        var stats = null;
+        if (typeof analyzeConfetti === 'function' && result && result.pattern) {
+          var raw = analyzeConfetti(result.pattern, result.width, result.height);
+          var pct = raw && raw.pct != null ? raw.pct : null;
+          var label = pct == null ? null
+            : pct < 2   ? 'Excellent'
+            : pct < 5   ? 'Good'
+            : pct < 10  ? 'Fair'
+            : 'Needs cleanup';
+          stats = { pct: pct, label: label, singles: raw && raw.singles };
+        }
+        setStitchStats(stats);
+      } catch (_) { setStitchStats(null); }
+    }, [wizard.step, wizard.size, wizard.settings, wizard.palette, image, statsKey]);
+
     // Move focus to the active step heading on every step change.
     React.useEffect(function () {
       var node = headingRef.current;
@@ -594,7 +635,15 @@
             h("dt", null, "Blends"), h("dd", null, p.allowBlends ? "Allowed" : "Off"),
             h("dt", null, "Dithering"), h("dd", null, (function() { var a = st.dithAlgo || (st.dither ? 'atkinson' : 'off'); return a === 'off' ? 'Off' : a.charAt(0).toUpperCase() + a.slice(1); })()),
             h("dt", null, "Skip background"), h("dd", null, st.skipBg ? ("On (tolerance " + st.bgThreshold + ")") : "Off"),
-            h("dt", null, "Estimate"), h("dd", null, skeinText)
+            h("dt", null, "Estimate"), h("dd", null, skeinText),
+            stitchStats && stitchStats.label ? h(React.Fragment, null,
+              h("dt", null, "Stitchability"),
+              h("dd", { title: stitchStats.pct != null ? (stitchStats.pct.toFixed(1) + "% isolated stitches") : "" },
+                stitchStats.label + (stitchStats.pct != null ? " (" + stitchStats.pct.toFixed(1) + "% confetti)" : ""))
+            ) : (wizard.step === 5 && !stitchStats ? h(React.Fragment, null,
+              h("dt", null, "Stitchability"),
+              h("dd", null, "Calculating…")
+            ) : null)
           )
         )
       );
