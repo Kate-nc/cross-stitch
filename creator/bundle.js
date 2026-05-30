@@ -744,7 +744,7 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
 /* ─── generate.js ─── */
 /* creator/generate.js — Pure pattern-generation pipeline.
    All inputs passed explicitly; returns { pat, pal, cmap, confettiData } or null.
-   Uses globals: quantize, quantizeConstrained, doDither, doMap, buildPalette, rgbToLab, dE,
+   Uses globals: quantize, quantizeConstrained, doDither, doRiemersma, doMap, buildPalette, rgbToLab, dE,
                  generateSaliencyMap, generateEdgeMap, labelConnectedComponents,
                  removeOrphanStitches, analyzeConfetti, findSolid,
                  applyGaussianBlur, applyMedianFilter, applyBilateralFilter
@@ -789,6 +789,8 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     mapped = doMap(raw, width, height, p, allowBlends);
   } else if (dithAlgo === "bayer") {
     mapped = doBayerDither(raw, width, height, p, allowBlends, dithBayerSize);
+  } else if (dithAlgo === "riemersma") {
+    mapped = doRiemersma(raw, width, height, p, allowBlends, saliencyMap, {});
   } else {
     mapped = doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt, ditherStrength: dithStrength });
   }

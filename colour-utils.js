@@ -466,6 +466,111 @@ function doBayerDither(data, w, h, pal, allowBlends = true, bayerSize = 4) {
   return r;
 }
 
+/**
+ * Riemersma dithering: traverses pixels along a Hilbert space-filling curve
+ * and propagates quantisation error to the next ~16 pixels with exponential
+ * decay. Because the Hilbert curve visits spatially nearby pixels in close
+ * sequence, errors stay local and the result contains fewer isolated stitches
+ * (confetti) than raster-order diffusion algorithms like Atkinson.
+ *
+ * Reference: Riemersma, T. (1999). Dithering. CompuPhase.
+ *   https://www.compuphase.com/riemer.htm
+ *
+ * @param {Uint8ClampedArray} data
+ * @param {number}            w
+ * @param {number}            h
+ * @param {Array}             pal
+ * @param {boolean}           [allowBlends=true]
+ * @param {Float32Array|null} [saliencyMap]   accepted for API parity with doDither; unused
+ * @param {object}            [opts]
+ * @param {number}            [opts.queueLen=16]  error history length
+ */
+function doRiemersma(data, w, h, pal, allowBlends, saliencyMap, opts) {
+  if (allowBlends === undefined) allowBlends = true;
+  var QUEUE_LEN = (opts && opts.queueLen != null) ? opts.queueLen : 16;
+
+  // Pre-compute blend table once per palette
+  if (allowBlends && typeof findBest.precomputeBlends === 'function') findBest.precomputeBlends(pal);
+
+  // Exponential decay weights: weight[0] = most recent, weight[QUEUE_LEN-1] = oldest
+  // mult chosen so the oldest weight = 1/QUEUE_LEN of the newest.
+  var mult = Math.pow(1 / QUEUE_LEN, 1 / (QUEUE_LEN - 1));
+  var weights = new Float32Array(QUEUE_LEN);
+  var wSum = 0;
+  for (var wi = 0; wi < QUEUE_LEN; wi++) { weights[wi] = Math.pow(mult, wi); wSum += weights[wi]; }
+  for (var wi2 = 0; wi2 < QUEUE_LEN; wi2++) weights[wi2] /= wSum;
+
+  // Working float buffer (pixel values may need error correction beyond [0,255])
+  var N = w * h;
+  var buf = new Float32Array(N * 3);
+  for (var i = 0; i < N; i++) {
+    buf[i * 3]     = data[i * 4];
+    buf[i * 3 + 1] = data[i * 4 + 1];
+    buf[i * 3 + 2] = data[i * 4 + 2];
+  }
+
+  var result = new Array(N);
+
+  // Circular error queue
+  var qR = new Float32Array(QUEUE_LEN);
+  var qG = new Float32Array(QUEUE_LEN);
+  var qB = new Float32Array(QUEUE_LEN);
+  var pos = 0;  // global step counter along the curve
+
+  // Hilbert curve: convert 1D index d to (x,y) for a 2^order × 2^order grid.
+  // Standard rotate-and-reflect algorithm (Thompson & Cunniff, 1994).
+  function d2xy(order, d) {
+    var x = 0, y = 0;
+    for (var s = 1; s < (1 << order); s <<= 1) {
+      var rx = (d & 2) ? 1 : 0;
+      var ry = ((d & 1) ^ rx) ? 1 : 0;
+      if (ry === 0) {
+        if (rx === 1) { x = s - 1 - x; y = s - 1 - y; }
+        var tmp = x; x = y; y = tmp;
+      }
+      x += s * rx; y += s * ry;
+      d >>= 2;
+    }
+    return [x, y];
+  }
+
+  var order = Math.max(1, Math.ceil(Math.log2(Math.max(w, h, 1))));
+  var side = 1 << order;
+  var total = side * side;
+
+  for (var d = 0; d < total; d++) {
+    var xy = d2xy(order, d);
+    var px = xy[0], py = xy[1];
+    if (px >= w || py >= h) continue;  // outside image bounds
+
+    var idx = py * w + px;
+
+    // Accumulate weighted error from the queue
+    var accR = 0, accG = 0, accB = 0;
+    for (var qi = 0; qi < QUEUE_LEN; qi++) {
+      var slot = (pos - 1 - qi + QUEUE_LEN * 2) % QUEUE_LEN;
+      accR += qR[slot] * weights[qi];
+      accG += qG[slot] * weights[qi];
+      accB += qB[slot] * weights[qi];
+    }
+
+    var cr = Math.max(0, Math.min(255, buf[idx * 3]     + accR));
+    var cg = Math.max(0, Math.min(255, buf[idx * 3 + 1] + accG));
+    var cb = Math.max(0, Math.min(255, buf[idx * 3 + 2] + accB));
+
+    var chosen = findBest(rgbToLab(cr, cg, cb), pal, allowBlends);
+    result[idx] = chosen;
+
+    var slot2 = pos % QUEUE_LEN;
+    qR[slot2] = cr - chosen.rgb[0];
+    qG[slot2] = cg - chosen.rgb[1];
+    qB[slot2] = cb - chosen.rgb[2];
+    pos++;
+  }
+
+  return result;
+}
+
 function doMap(data, w, h, pal, allowBlends = true) {
   let r = new Array(w * h);
   let cache = new Map();
@@ -1699,4 +1804,4 @@ _colourUtilsGlobal.dE2000 = dE2000;
 const UNIQUE_THRESHOLD_DE = 5;
 _colourUtilsGlobal.UNIQUE_THRESHOLD_DE = UNIQUE_THRESHOLD_DE;
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE }; }

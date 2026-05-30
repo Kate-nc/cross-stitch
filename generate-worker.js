@@ -17,7 +17,7 @@
    Dependencies (imported via importScripts — all pure, no DOM):
      constants.js  → FABRIC_COUNTS, A4W, A4H, etc.
      dmc-data.js   → DMC_RAW, rgbToLab, dE, dE2, DMC, SYMS
-     colour-utils.js → findSolid, findBest, quantize, quantizeConstrained, doDither, doMap,
+     colour-utils.js → findSolid, findBest, quantize, quantizeConstrained, doDither, doRiemersma, doMap,
                        buildPalette, applyGaussianBlur, applyMedianFilter, applyBilateralFilter,
                        generateSaliencyMap, generateEdgeMap,
                        labelConnectedComponents, removeOrphanStitches,
@@ -97,6 +97,8 @@ self.onmessage = function(e) {
       mapped = doMap(raw, width, height, p, allowBlends);
     } else if (dithAlgo === "bayer") {
       mapped = doBayerDither(raw, width, height, p, allowBlends, dithBayerSize);
+    } else if (dithAlgo === "riemersma") {
+      mapped = doRiemersma(raw, width, height, p, allowBlends, saliencyMap, {});
     } else {
       mapped = doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt, ditherStrength: dithStrength });
     }
