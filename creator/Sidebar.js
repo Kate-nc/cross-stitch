@@ -234,6 +234,18 @@ window.CreatorSidebar = function CreatorSidebar() {
             title: "Remove all colours not used in the pattern",
             style:{fontSize:'var(--text-xs)',padding:"2px 7px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:500,cursor:"pointer",lineHeight:1.4}
           }, "Remove unused (" + unusedCount + ")"),
+          app.appMode === "edit" && ctx.pal && ctx.pal.length > 1 && h("button", {
+            onClick: function(e) {
+              e.stopPropagation();
+              cv.setActiveTool("magicWand");
+              ctx.setPartialStitchTool && ctx.setPartialStitchTool(null);
+              cv.setBsStart && cv.setBsStart(null);
+              cv.selectAll();
+              cv.setWandPanel("reduce");
+            },
+            title: "Select all stitches and open the Simplify Colours panel to merge similar colours",
+            style:{fontSize:'var(--text-xs)',padding:"2px 7px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:500,cursor:"pointer",lineHeight:1.4}
+          }, "Simplify colours\u2026"),
           h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, displayPal.length + " colour" + (displayPal.length !== 1 ? "s" : ""))
         )
       ),
