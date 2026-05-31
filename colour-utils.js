@@ -1727,7 +1727,7 @@ const _de2000Cache = new Map();
 const _DE2000_CACHE_MAX = 5000;
 
 function dE2000(lab1, lab2) {
-  const k = lab1[0].toFixed(2)+','+lab1[1].toFixed(2)+','+lab1[2].toFixed(2)+'-'+lab2[0].toFixed(2)+','+lab2[1].toFixed(2)+','+lab2[2].toFixed(2);
+  const k = lab1[0].toFixed(4)+','+lab1[1].toFixed(4)+','+lab1[2].toFixed(4)+'-'+lab2[0].toFixed(4)+','+lab2[1].toFixed(4)+','+lab2[2].toFixed(4);
   const cached = _de2000Cache.get(k);
   if (cached !== undefined) return cached;
 
