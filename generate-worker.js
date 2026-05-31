@@ -39,6 +39,11 @@ var STRENGTH_MAP = {
   thorough: { maxOrphanSize: 6, saliencyMultiplier: 3.0 },
 };
 
+// ORPHAN_MAX_ITERATIONS and ORPHAN_CONTRAST_GUARD_DE mirror the constants in
+// creator/generate.js.  Keep in sync when either value changes.
+var ORPHAN_MAX_ITERATIONS = 8;
+var ORPHAN_CONTRAST_GUARD_DE = 30;
+
 self.onmessage = function(e) {
   var msg = e.data;
 
@@ -238,11 +243,14 @@ self.onmessage = function(e) {
         saliencyMult = sp.saliencyMultiplier;
       }
       var edgeMap = (stitchCleanup && stitchCleanup.protectDetails) ? generateEdgeMap(raw, width, height) : null;
+      // The ΔE contrast guard is a sibling of edge protection: both guard deliberate
+      // small features.  Disable it when the user has turned off protectDetails.
+      var contrastGuard = (stitchCleanup && stitchCleanup.protectDetails) ? ORPHAN_CONTRAST_GUARD_DE : 0;
       preCleanupIds = mapped.map(function(m) { return m.id; });
       mapped = removeOrphanStitches(
         mapped, width, height, maxOrphanSize,
         edgeMap, saliencyMap,
-        { saliencyMultiplier: saliencyMult },
+        { saliencyMultiplier: saliencyMult, deContrastGuard: contrastGuard, maxIterations: ORPHAN_MAX_ITERATIONS },
         preLabels
       );
       var postLabels = labelConnectedComponents(mapped, width, height);

@@ -1455,187 +1455,148 @@ function labelConnectedComponents(mapped, w, h) {
  * @param {object}       [opts]
  * @param {number}       [opts.saliencyMultiplier=2.0]    Scales effectiveMaxSize in flat areas
  * @param {number}       [opts.deTieBreakThreshold=1.0]   ΔE within which frequency wins
+ * @param {number}       [opts.deContrastGuard=0]         ΔE2000 threshold above which an orphan is
+ *                                                         treated as a deliberate high-contrast accent
+ *                                                         and is NOT merged. 0 = disabled.
+ * @param {number}       [opts.maxIterations=1]           Maximum stability-loop passes. The loop also
+ *                                                         exits early when no change occurs or when the
+ *                                                         eligible-component count stops decreasing
+ *                                                         (oscillation guard).
+ * @param {object}       [opts._statsOut]                 Optional mutable object; receives { iterations }
+ *                                                         after the function returns (for testing).
  */
-function removeOrphanStitches(mapped, w, h, maxOrphanSize, edgeMap = null, saliencyMap = null, { saliencyMultiplier = 2.0, deTieBreakThreshold = 1.0 } = {}, precomputedLabels = null) {
+function removeOrphanStitches(mapped, w, h, maxOrphanSize, edgeMap = null, saliencyMap = null, { saliencyMultiplier = 2.0, deTieBreakThreshold = 1.0, deContrastGuard = 0, maxIterations = 1, _statsOut = null } = {}, precomputedLabels = null) {
   if (maxOrphanSize <= 0) return mapped;
 
   const len = mapped.length;
 
-  // Maximum BFS exploration bound: effectiveMaxSize is maximised when saliency=0
+  // Maximum possible effective orphan size (at mean saliency = 0).
+  // Used as a quick pre-filter: any component larger than this is ineligible.
   const absoluteMaxSize = Math.ceil(maxOrphanSize * (1.0 + saliencyMultiplier));
 
-  // Pre-build a color-entry lookup to avoid O(n) scans per orphan
-  const colorEntries = {};
-  for (let i = 0; i < len; i++) {
-    const id = mapped[i].id;
-    if (!colorEntries[id]) colorEntries[id] = mapped[i];
+  // Use provided labels for the first pass; compute fresh labels if not provided.
+  let currentLabels = precomputedLabels || labelConnectedComponents(mapped, w, h);
+
+  // Count initial small components for the oscillation guard.
+  // Uses absoluteMaxSize as a conservative upper bound (edgeMap / per-component
+  // saliency checks may further reduce eligibility, but this is O(components)
+  // and stays consistent across iterations).
+  let prevOrphanCount = 0;
+  for (const [, comp] of currentLabels.components) {
+    if (comp.size <= absoluteMaxSize) prevOrphanCount++;
   }
 
-  // ─── Fast path: use pre-labelled components to skip the BFS entirely ───────
-  if (precomputedLabels) {
-    for (const [, comp] of precomputedLabels.components) {
-      if (comp.size > absoluteMaxSize) continue;
-      const cells = comp.cells, compCount = cells.length, tid = comp.id;
+  let iters = 0;
+  if (prevOrphanCount > 0) {
+    for (let iter = 0; iter < maxIterations; iter++) {
+      iters++;
 
-      if (edgeMap) {
-        let onEdge = false;
-        for (let i = 0; i < compCount; i++) { if (edgeMap[cells[i]]) { onEdge = true; break; } }
-        if (onEdge) continue;
+      // Rebuild color-entry lookup from the current grid state each pass.
+      // Required because previous passes mutate mapped[] in place.
+      const colorEntries = {};
+      for (let i = 0; i < len; i++) {
+        const id = mapped[i].id;
+        if (!colorEntries[id]) colorEntries[id] = mapped[i];
       }
 
-      let effectiveMaxSize = maxOrphanSize;
-      if (saliencyMap) {
-        let saliencySum = 0;
-        for (let i = 0; i < compCount; i++) saliencySum += saliencyMap[cells[i]];
-        effectiveMaxSize = maxOrphanSize * (1.0 + (1.0 - saliencySum / compCount) * saliencyMultiplier);
-      }
-      if (compCount > effectiveMaxSize) continue;
+      let anyChanged = false;
 
-      const neighborFreq = {};
-      for (let i = 0; i < compCount; i++) {
-        const cidx = cells[i], cx = cidx % w, cy = (cidx / w) | 0;
-        const checkN = (ni) => {
-          const nid = mapped[ni].id;
-          if (nid !== tid && nid !== '__skip__' && nid !== '__empty__') neighborFreq[nid] = (neighborFreq[nid] || 0) + 1;
-        };
-        if (cx > 0)           checkN(cidx - 1);
-        if (cx < w - 1)       checkN(cidx + 1);
-        if (cy > 0)           checkN(cidx - w);
-        if (cy < h - 1)       checkN(cidx + w);
-        if (cx > 0 && cy > 0)         checkN(cidx - w - 1);
-        if (cx < w-1 && cy > 0)       checkN(cidx - w + 1);
-        if (cx > 0 && cy < h-1)       checkN(cidx + w - 1);
-        if (cx < w-1 && cy < h-1)     checkN(cidx + w + 1);
-      }
+      for (const [, comp] of currentLabels.components) {
+        if (comp.size > absoluteMaxSize) continue;
+        const cells = comp.cells, compCount = cells.length, tid = comp.id;
 
-      const orphanLab = mapped[cells[0]].lab;
-      let minDE = Infinity;
-      for (const nid in neighborFreq) { const entry = colorEntries[nid]; if (!entry) continue; const de = Math.sqrt(dE2(orphanLab, entry.lab)); if (de < minDE) minDE = de; }
-      let bestId = null, bestCount = -1;
-      for (const nid in neighborFreq) { const entry = colorEntries[nid]; if (!entry) continue; const de = Math.sqrt(dE2(orphanLab, entry.lab)); if (de - minDE <= deTieBreakThreshold) { if (neighborFreq[nid] > bestCount) { bestCount = neighborFreq[nid]; bestId = nid; } } }
-      if (bestId) { const replacement = colorEntries[bestId]; for (let i = 0; i < compCount; i++) mapped[cells[i]] = replacement; }
-    }
-    return mapped;
-  }
+        // ── Edge protection ────────────────────────────────────────────────────
+        if (edgeMap) {
+          let onEdge = false;
+          for (let i = 0; i < compCount; i++) { if (edgeMap[cells[i]]) { onEdge = true; break; } }
+          if (onEdge) continue;
+        }
 
-  const vis  = new Uint8Array(len);
-  // Queue sized for full image to be safe (components exceeding absoluteMaxSize are drained)
-  const q    = new Uint32Array(len);
-  const comp = new Uint32Array(absoluteMaxSize + 2);
+        // ── Saliency-scaled effective size limit ─────────────────────────────
+        let effectiveMaxSize = maxOrphanSize;
+        if (saliencyMap) {
+          let saliencySum = 0;
+          for (let i = 0; i < compCount; i++) saliencySum += saliencyMap[cells[i]];
+          effectiveMaxSize = maxOrphanSize * (1.0 + (1.0 - saliencySum / compCount) * saliencyMultiplier);
+        }
+        if (compCount > effectiveMaxSize) continue;
 
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const idx = y * w + x;
-      if (vis[idx]) continue;
-      const m = mapped[idx];
-      if (m.id === '__skip__' || m.id === '__empty__') { vis[idx] = 1; continue; }
-
-      const tid = m.id;
-      let qHead = 0, qTail = 0, compCount = 0;
-
-      q[qTail++] = idx;
-      vis[idx] = 1;
-
-      while (qHead < qTail) {
-        const curr = q[qHead++];
-
-        if (compCount <= absoluteMaxSize) comp[compCount++] = curr;
-
-        // If already beyond the absolute limit stop expanding (drain handled below)
-        if (compCount > absoluteMaxSize) break;
-
-        const cx = curr % w, cy = (curr / w) | 0;
-        if (cx > 0)     { const n = curr - 1; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
-        if (cx < w - 1) { const n = curr + 1; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
-        if (cy > 0)     { const n = curr - w; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
-        if (cy < h - 1) { const n = curr + w; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
-      }
-
-      // Drain remainder so all component pixels are marked visited
-      while (qHead < qTail) {
-        const curr = q[qHead++];
-        const cx = curr % w, cy = (curr / w) | 0;
-        if (cx > 0)     { const n = curr - 1; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
-        if (cx < w - 1) { const n = curr + 1; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
-        if (cy > 0)     { const n = curr - w; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
-        if (cy < h - 1) { const n = curr + w; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
-      }
-
-      // Component exceeds the absolute maximum — cannot be an orphan
-      if (compCount > absoluteMaxSize) continue;
-
-      // --- Stage 5, step 2: Edge protection ---
-      if (edgeMap) {
-        let onEdge = false;
+        // ── Collect 8-neighbour border colors with frequency ─────────────────
+        const neighborFreq = {};
         for (let i = 0; i < compCount; i++) {
-          if (edgeMap[comp[i]]) { onEdge = true; break; }
+          const cidx = cells[i], cx = cidx % w, cy = (cidx / w) | 0;
+          const checkN = (ni) => {
+            const nid = mapped[ni].id;
+            if (nid !== tid && nid !== '__skip__' && nid !== '__empty__') neighborFreq[nid] = (neighborFreq[nid] || 0) + 1;
+          };
+          if (cx > 0)                     checkN(cidx - 1);
+          if (cx < w - 1)                 checkN(cidx + 1);
+          if (cy > 0)                     checkN(cidx - w);
+          if (cy < h - 1)                 checkN(cidx + w);
+          if (cx > 0 && cy > 0)           checkN(cidx - w - 1);
+          if (cx < w - 1 && cy > 0)       checkN(cidx - w + 1);
+          if (cx > 0 && cy < h - 1)       checkN(cidx + w - 1);
+          if (cx < w - 1 && cy < h - 1)   checkN(cidx + w + 1);
         }
-        if (onEdge) continue;
-      }
 
-      // --- Stage 5, step 3: Saliency-scaled effective max size ---
-      let effectiveMaxSize = maxOrphanSize;
-      if (saliencyMap) {
-        let saliencySum = 0;
-        for (let i = 0; i < compCount; i++) saliencySum += saliencyMap[comp[i]];
-        const meanSaliency = saliencySum / compCount;
-        effectiveMaxSize = maxOrphanSize * (1.0 + (1.0 - meanSaliency) * saliencyMultiplier);
-      }
+        if (Object.keys(neighborFreq).length === 0) continue;
 
-      if (compCount > effectiveMaxSize) continue;
+        // ── Perceptual replacement selection ─────────────────────────────────
+        const orphanLab = mapped[cells[0]].lab;
+        let minDE = Infinity;
+        for (const nid in neighborFreq) {
+          const entry = colorEntries[nid];
+          if (!entry) continue;
+          const de = Math.sqrt(dE2(orphanLab, entry.lab));
+          if (de < minDE) minDE = de;
+        }
 
-      // --- Stage 5, step 4: Perceptual replacement color selection ---
-      // Collect 8-neighbor border colors with their frequency
-      const neighborFreq = {};
-      for (let i = 0; i < compCount; i++) {
-        const cidx = comp[i];
-        const cx = cidx % w, cy = (cidx / w) | 0;
-        const checkN = (ni) => {
-          const nid = mapped[ni].id;
-          if (nid !== tid && nid !== '__skip__' && nid !== '__empty__') {
-            neighborFreq[nid] = (neighborFreq[nid] || 0) + 1;
+        // ── ΔE contrast guard ────────────────────────────────────────────────
+        // If the orphan's color is perceptually very distant from ALL its
+        // neighbours (minDE exceeds the threshold), it is a deliberate
+        // high-contrast accent — e.g. a white catchlight in a dark eye (ΔE ≈ 70)
+        // or a dark pupil in a pale face (ΔE ≈ 50). Preserve it unchanged.
+        // deContrastGuard = 0 disables this check entirely.
+        if (deContrastGuard > 0 && minDE > deContrastGuard) continue;
+
+        // Among candidates within deTieBreakThreshold of minDE, prefer by frequency.
+        let bestId = null, bestCount = -1;
+        for (const nid in neighborFreq) {
+          const entry = colorEntries[nid];
+          if (!entry) continue;
+          const de = Math.sqrt(dE2(orphanLab, entry.lab));
+          if (de - minDE <= deTieBreakThreshold) {
+            if (neighborFreq[nid] > bestCount) { bestCount = neighborFreq[nid]; bestId = nid; }
           }
-        };
-        if (cx > 0)             checkN(cidx - 1);
-        if (cx < w - 1)         checkN(cidx + 1);
-        if (cy > 0)             checkN(cidx - w);
-        if (cy < h - 1)         checkN(cidx + w);
-        if (cx > 0 && cy > 0)         checkN(cidx - w - 1);
-        if (cx < w-1 && cy > 0)       checkN(cidx - w + 1);
-        if (cx > 0 && cy < h-1)       checkN(cidx + w - 1);
-        if (cx < w-1 && cy < h-1)     checkN(cidx + w + 1);
-      }
+        }
 
-      // Find the minimum ΔE distance to the orphan's Lab color
-      const orphanLab = m.lab;
-      let minDE = Infinity;
-      for (const nid in neighborFreq) {
-        const entry = colorEntries[nid];
-        if (!entry) continue;
-        const de = Math.sqrt(dE2(orphanLab, entry.lab));
-        if (de < minDE) minDE = de;
-      }
-
-      // Among candidates within deTieBreakThreshold of minDE, prefer by frequency
-      let bestId = null, bestCount = -1;
-      for (const nid in neighborFreq) {
-        const entry = colorEntries[nid];
-        if (!entry) continue;
-        const de = Math.sqrt(dE2(orphanLab, entry.lab));
-        if (de - minDE <= deTieBreakThreshold) {
-          if (neighborFreq[nid] > bestCount) {
-            bestCount = neighborFreq[nid];
-            bestId = nid;
-          }
+        if (bestId) {
+          const replacement = colorEntries[bestId];
+          for (let i = 0; i < compCount; i++) mapped[cells[i]] = replacement;
+          anyChanged = true;
         }
       }
 
-      if (bestId) {
-        const replacement = colorEntries[bestId];
-        for (let i = 0; i < compCount; i++) mapped[comp[i]] = replacement;
+      if (!anyChanged) break; // fully stable — no components were changed
+
+      // Only re-label and check progress when another iteration may follow.
+      if (iter < maxIterations - 1) {
+        currentLabels = labelConnectedComponents(mapped, w, h);
+
+        // Oscillation guard: stop if the eligible-component count did not decrease.
+        // This detects 2-way oscillation (A→B then B→A across passes) and avoids
+        // exhausting all maxIterations passes to no benefit.
+        let currentOrphanCount = 0;
+        for (const [, comp] of currentLabels.components) {
+          if (comp.size <= absoluteMaxSize) currentOrphanCount++;
+        }
+        if (currentOrphanCount === 0 || currentOrphanCount >= prevOrphanCount) break;
+        prevOrphanCount = currentOrphanCount;
       }
     }
   }
+
+  if (_statsOut) _statsOut.iterations = iters;
   return mapped;
 }
 

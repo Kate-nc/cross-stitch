@@ -42,7 +42,8 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
   const [zoomPos, setZoomPos] = useState(null);
   const altHeld = useRef(false);
   const [altDown, setAltDown] = useState(false);
-  // magnifier toggle removed — use Alt key to zoom
+  // magnifier toggle — stays active without holding Alt
+  const [zoomLocked, setZoomLocked] = useState(false);
   // diff overlay
   const [showDiff, setShowDiff] = useState(false);
   const [diffUrl, setDiffUrl] = useState(null);
@@ -133,7 +134,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
   }, [diffUrl]);
 
   function handlePointerMove(e) {
-    if (altHeld.current && containerRef.current) {
+    if ((altHeld.current || zoomLocked) && containerRef.current) {
       var rect = containerRef.current.getBoundingClientRect();
       if (rect.width > 0) setZoomPos({cx: e.clientX - rect.left, cy: e.clientY - rect.top, W: rect.width, H: rect.height});
     } else if (zoomPos) { setZoomPos(null); }
@@ -147,7 +148,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
   return (
     <div>
       <div ref={containerRef}
-        style={{position:"relative",width:"100%",aspectRatio:`${width}/${height}`,overflow:"hidden",cursor:altDown?"zoom-in":"ew-resize",borderRadius:8,border:"0.5px solid #E5DCCB",userSelect:"none",touchAction:"none"}}
+        style={{position:"relative",width:"100%",aspectRatio:`${width}/${height}`,overflow:"hidden",cursor:altDown?"zoom-in":(zoomLocked?"crosshair":"ew-resize"),borderRadius:8,border:"0.5px solid #E5DCCB",userSelect:"none",touchAction:"none"}}
         onPointerDown={function(e){
           if(altHeld.current)return;
           dragging.current=true; setSweeping(false);
@@ -233,6 +234,11 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:sweeping?"#B85C38":"#FBF8F3",color:sweeping?"#fff":"#5C5448",fontWeight:500}}>
           {sweeping?<>{Icons.pause()} Pause</>:<>{Icons.play()} Auto-sweep</>}
         </button>
+        <button type="button" onClick={function(){setZoomLocked(function(z){return !z;});}}
+          title={zoomLocked?"Turn off magnifier":"Turn on magnifier (or hold Alt)"}
+          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(zoomLocked?"#A04E11":"#E5DCCB"),borderRadius:6,background:zoomLocked?"#F8EFD8":"#FBF8F3",color:zoomLocked?"#A04E11":"#5C5448",fontWeight:500,display:"inline-flex",alignItems:"center",gap:4}}>
+          {Icons.magnify()} Magnifier
+        </button>
         {diffUrl&&<button type="button" onClick={function(){setShowDiff(function(d){return !d;});}}
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showDiff?"#A04E11":"#E5DCCB"),borderRadius:6,background:showDiff?"#F8EFD8":"#FBF8F3",color:showDiff?"#A04E11":"#5C5448",fontWeight:500}}>
           {showDiff?"Hide changes":"Show changes"}
@@ -241,7 +247,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showHeatmap?"#A53D3D":"#E5DCCB"),borderRadius:6,background:showHeatmap?"#FCEFEF":"#FBF8F3",color:showHeatmap?"#A53D3D":"#5C5448",fontWeight:500}}>
           {showHeatmap?"Hide heatmap":<>{Icons.fire()} Heatmap</>}
         </button>}
-        {!altDown&&<span style={{fontSize:10,color:"#A89E89"}}>Hold Alt to zoom</span>}
+        {!zoomLocked&&<span style={{fontSize:10,color:"#A89E89"}}>Hold Alt to zoom</span>}
       </div>
     </div>
   );
@@ -424,8 +430,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     smooth: state.smooth, setSmooth: state.setSmooth,
     smoothType: state.smoothType, setSmoothType: state.setSmoothType,
     orphans: state.orphans, setOrphans: state.setOrphans,
-    disambig: state.disambig, setDisambig: state.setDisambig,
-    disambigLevel: state.disambigLevel, setDisambigLevel: state.setDisambigLevel,
     allowBlends: state.allowBlends, setAllowBlends: state.setAllowBlends,
     busy: state.busy, setBusy: state.setBusy,
     progressMessage: state.progressMessage, setProgressMessage: state.setProgressMessage,
@@ -450,8 +454,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     coverageGaps: state.coverageGaps, setCoverageGaps: state.setCoverageGaps,
     cleanupDiff: state.cleanupDiff, setCleanupDiff: state.setCleanupDiff,
     showCleanupDiff: state.showCleanupDiff, setShowCleanupDiff: state.setShowCleanupDiff,
-    disambigData: state.disambigData, setDisambigData: state.setDisambigData,
-    disambiguateNow: state.disambiguateNow,
     fRef: state.fRef, prevSW: state.prevSW, prevSH: state.prevSH,
     stashThreadCount: state.stashThreadCount,
     effectiveMaxC: state.effectiveMaxC,
@@ -471,7 +473,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.skipBg, state.bgTh, state.bgCol, state.pickBg,
     state.minSt, state.smooth, state.smoothType,
     state.orphans, state.allowBlends, state.busy, state.progressMessage,
-    state.disambig, state.disambigLevel, state.disambigData,
     state.origW, state.origH, state.hasGenerated,
     state.stitchCleanup, state.isCropping, state.cropRect,
     state.generate, state.randomise, state.generateGallery,
@@ -479,7 +480,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.variationSeed, state.variationSubset, state.variationHistory,
     state.gallerySlots, state.galleryOpen,
     state.stashConstrained, state.coverageGaps,
-    state.cleanupDiff, state.showCleanupDiff, state.disambigData,
+    state.cleanupDiff, state.showCleanupDiff,
     state.stashThreadCount, state.effectiveMaxC, state.stashPalette,
     state.blendsAutoDisabled, state.effectiveAllowBlends,
   ]);
@@ -627,11 +628,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     wandPanel: state.wandPanel, setWandPanel: state.setWandPanel,
     confettiThreshold: state.confettiThreshold, setConfettiThreshold: state.setConfettiThreshold,
     confettiPreview: state.confettiPreview, setConfettiPreview: state.setConfettiPreview,
-    reduceMode: state.reduceMode, setReduceMode: state.setReduceMode,
     reduceTarget: state.reduceTarget, setReduceTarget: state.setReduceTarget,
-    reduceThreshold: state.reduceThreshold, setReduceThreshold: state.setReduceThreshold,
     reducePreview: state.reducePreview, setReducePreview: state.setReducePreview,
-    reducePreviewStale: state.reducePreviewStale, setReducePreviewStale: state.setReducePreviewStale,
     replaceSource: state.replaceSource, setReplaceSource: state.setReplaceSource,
     replaceDest: state.replaceDest, setReplaceDest: state.setReplaceDest,
     replaceFuzzy: state.replaceFuzzy, setReplaceFuzzy: state.setReplaceFuzzy,
@@ -908,23 +906,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onSave={state.pat&&state.pal?io.saveProject:null}
         onTrack={state.pat&&state.pal?io.handleOpenInTracker:null}
         onExportPDF={state.pat?()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},exportData):null}
-        onExportOxs={state.pat?function(){
-          if(typeof generateOXS!=='function'){
-            if(window.Toast&&window.Toast.show)window.Toast.show({message:'OXS export is not available.',type:'error'});
-            return;
-          }
-          var result=generateOXS({w:state.sW,h:state.sH,pattern:state.pat,bsLines:state.bsLines||[],name:state.projectName||'pattern'});
-          if(result.warnings&&result.warnings.length>0){
-            if(window.Toast&&window.Toast.show)window.Toast.show({message:result.warnings[0],type:'warning',duration:6000});
-          }
-          var blob=new Blob([result.xml],{type:'application/xml'});
-          var url=URL.createObjectURL(blob);
-          var a=document.createElement('a');
-          a.href=url;
-          a.download=((state.projectName||'pattern').replace(/[^\w\-]+/g,'_')||'pattern')+'.oxs';
-          document.body.appendChild(a);a.click();document.body.removeChild(a);
-          setTimeout(function(){URL.revokeObjectURL(url);},5000);
-        }:null}
         onNewProject={()=>{if(!state.pat||confirm("Start a new project? Unsaved changes will be lost."))state.resetAll();}}
         onOpenProject={typeof window.ProjectStorage!=='undefined'?()=>{window.location.href='home.html';}:undefined}
         onPreferences={typeof window.PreferencesModal!=='undefined'?()=>state.setPreferencesOpen(true):undefined}

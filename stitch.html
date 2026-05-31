@@ -72,14 +72,14 @@ window.loadPdfStack = function() {
 </script>
 <link rel="stylesheet" href="styles.css">
 <script src="constants.js"></script>
-<script src="dmc-data.js?v=20d4dd21"></script>
+<script src="dmc-data.js"></script>
 <!-- defer: Anchor + thread-conversions are only consumed inside function bodies
      (typeof X === 'undefined' guards). Defer lets HTML parsing continue while
      these 110 KB download in parallel. -->
 <script src="anchor-data.js" defer></script>
 <script src="thread-conversions.js" defer></script>
 <script src="starter-kits.js"></script>
-<script src="colour-utils.js?v=1d5705c9"></script>
+<script src="colour-utils.js"></script>
 <script src="helpers.js"></script>
 <script src="coaching.js"></script>
 <script src="keyboard-utils.js"></script>
@@ -151,7 +151,7 @@ window.loadPdfStack = function() {
    build-creator-bundle.js when tracker-app.js content changes. */
 (function () {
   if (typeof window === 'undefined') return;
-  var TRACKER_CACHE_KEY = 'babel_tracker_f8c7974029';
+  var TRACKER_CACHE_KEY = 'babel_tracker_181f1ae3fc';
   var cached = null;
   try { cached = localStorage.getItem(TRACKER_CACHE_KEY); } catch (e) {}
   if (cached) {
