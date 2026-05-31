@@ -3018,6 +3018,13 @@ function doExportOxs(){
   setTimeout(function(){URL.revokeObjectURL(url);},5000);
 }
 
+function persistProjectRecord(project){
+  if(window.CrossTabResolution&&typeof window.CrossTabResolution.saveWithConflictResolution==='function'){
+    return window.CrossTabResolution.saveWithConflictResolution(project);
+  }
+  return ProjectStorage.save(project).then(function(id){ProjectStorage.setActiveProject(id);return{ok:true,id:id};});
+}
+
 function handleEditInCreator(){
   if(!pat||!pal)return;
   if(onSwitchToDesign){
@@ -3025,8 +3032,10 @@ function handleEditInCreator(){
     const project=buildSnapshot();
     if(project){
       lastSnapshotRef.current=project;
-      saveProjectToDB(project).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
-      ProjectStorage.save(project).then(id=>ProjectStorage.setActiveProject(id)).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
+      persistProjectRecord(project).then(function(saveResult){
+        if(saveResult&&saveResult.reason==='reloaded')return null;
+        return saveProjectToDB(project);
+      }).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
       // Push ALL tracker-specific fields to Creator so its auto-save doesn't overwrite them
       try{
         if(typeof window.__updateCreatorTrackerFields==='function'){
@@ -3494,7 +3503,7 @@ function loadProject(e){
         if(!project.id) project.id = ProjectStorage.newId();
         if(!project.createdAt) project.createdAt = new Date().toISOString();
         processLoadedProject(project);
-        ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("JSON import save failed:", err));
+        persistProjectRecord(project).catch(err => console.error("JSON import save failed:", err));
       }catch(err){
         console.error(err);
         setLoadError("Could not load: "+err.message);
@@ -3512,7 +3521,7 @@ function loadProject(e){
         project.id = "proj_" + importedAt;
         if(!project.createdAt) project.createdAt = new Date(importedAt).toISOString();
         processLoadedProject(project);
-        ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("Import save failed:", err));
+        persistProjectRecord(project).catch(err => console.error("Import save failed:", err));
         setImportSuccess(`Imported "${baseName || 'pattern'}" \u2014 ${result.width}\u00d7${result.height}, ${result.paletteSize} colours, ${result.stitchCount} stitches`);
       }catch(err){
         console.error(err);
@@ -3554,7 +3563,7 @@ function loadProject(e){
     }).then(project => {
       if (!project.name) project.name = baseName;
       processLoadedProject(project);
-      ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("Import save failed:", err));
+      persistProjectRecord(project).catch(err => console.error("Import save failed:", err));
       setLoadError(null);
       const s = project.settings || {};
       const palCount = project.pattern ? new Set(project.pattern.filter(m => m && m.id !== '__skip__' && m.id !== '__empty__').map(m => m.id)).size : 0;
@@ -3627,7 +3636,7 @@ useEffect(() => {
       } else {
         // Persist the incoming project so it survives beyond this one-shot key
         if (projectData.id) {
-          ProjectStorage.save(projectData).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("ProjectStorage save failed:", err));
+          persistProjectRecord(projectData).catch(err => console.error("ProjectStorage save failed:", err));
         }
         processLoadedProject(projectData);
         hasLoadedOnceRef.current=true; // T-4
@@ -3701,6 +3710,7 @@ useEffect(() => {
     // Diagnostic: log what we did/didn't find so future "No pattern" reports
     // can be traced. ProjectStorage.listProjects is a metadata-only read so
     // this is cheap even for large libraries.
+    var shouldWarn = !!(_urlId2 || activeId || projectIfAny);
     var diag = {
       activeId: activeId,
       urlId: _urlId2,
@@ -3711,7 +3721,7 @@ useEffect(() => {
       keys: projectIfAny ? Object.keys(projectIfAny).slice(0, 20) : null
     };
     try {
-      if (ProjectStorage && ProjectStorage.listProjects) {
+      if (shouldWarn && ProjectStorage && ProjectStorage.listProjects) {
         ProjectStorage.listProjects().then(function (l) {
           diag.libraryCount = (l || []).length;
           diag.libraryIds = (l || []).slice(0, 5).map(function (m) { return m && m.id; });
@@ -3719,11 +3729,11 @@ useEffect(() => {
         }).catch(function () {
           console.warn('[TrackerApp] Could not load a project on mount:', diag);
         });
-      } else {
+      } else if (shouldWarn) {
         console.warn('[TrackerApp] Could not load a project on mount:', diag);
       }
     } catch (_) {
-      console.warn('[TrackerApp] Could not load a project on mount:', diag);
+      if (shouldWarn) console.warn('[TrackerApp] Could not load a project on mount:', diag);
     }
     // Only clear the pointer when the URL didn't ask for a specific id —
     // if it did, we want to keep the pointer for the next reload attempt.
@@ -3815,39 +3825,44 @@ useEffect(() => {
     const project = buildSnapshot();
     if (!project) return;
     lastSnapshotRef.current = project;
-    ProjectStorage.save(project).then(id => {ProjectStorage.setActiveProject(id);try{if(projectIdRef.current)localStorage.removeItem('cs_pending_session_'+projectIdRef.current);}catch(_){}}).catch(err => console.error("Tracker auto-save failed:", err));
-    saveProjectToDB(project).catch(err => console.error("Tracker DB auto-save failed:", err));
-    // Keep the Creator's tracker-field preservation container in sync so that if
-    // the user switches to Creator mode, the next Creator auto-save won't overwrite
-    // sessions, stats settings, milestones, etc. with stale data.
-    try{
-      if(typeof window.__updateCreatorTrackerFields==='function'){
-        var _v3=v3FieldsRef.current||{};
-        window.__updateCreatorTrackerFields({
-          statsSessions:project.statsSessions, statsSettings:project.statsSettings,
-          achievedMilestones:project.achievedMilestones, doneSnapshots:project.doneSnapshots,
-          breadcrumbs:project.breadcrumbs, stitchingStyle:project.stitchingStyle,
-          blockW:project.blockW, blockH:project.blockH, focusBlock:project.focusBlock,
-          startCorner:project.startCorner, colourSequence:project.colourSequence,
-          originalPaletteState:project.originalPaletteState,
-          singleStitchEdits:project.singleStitchEdits,
-          halfStitches:project.halfStitches, halfDone:project.halfDone,
-          finishStatus:_v3.finishStatus, startedAt:_v3.startedAt,
-          lastTouchedAt:_v3.lastTouchedAt, completedAt:_v3.completedAt,
-          stitchLog:_v3.stitchLog
-        });
-      }
-      if(typeof window.__setCreatorProjectName==='function') window.__setCreatorProjectName(projectName||'');
-    }catch(e){}
-    if (typeof StashBridge !== "undefined" && skeinData.length > 0) {
-      StashBridge.syncProjectToLibrary(
-        projectIdRef.current,
-        projectName || `${sW}×${sH} pattern`,
-        skeinData,
-        combinedDone >= combinedTotal && combinedTotal > 0 ? "completed" : "inprogress",
-        fabricCt
-      ).catch(err => console.error("Library sync failed:", err));
-    }
+    persistProjectRecord(project).then(function(saveResult){
+      if(saveResult&&saveResult.reason==='reloaded')return null;
+      try{if(projectIdRef.current)localStorage.removeItem('cs_pending_session_'+projectIdRef.current);}catch(_){}
+      return saveProjectToDB(project).catch(err => console.error("Tracker DB auto-save failed:", err)).then(function(){
+        // Keep the Creator's tracker-field preservation container in sync so that if
+        // the user switches to Creator mode, the next Creator auto-save won't overwrite
+        // sessions, stats settings, milestones, etc. with stale data.
+        try{
+          if(typeof window.__updateCreatorTrackerFields==='function'){
+            var _v3=v3FieldsRef.current||{};
+            window.__updateCreatorTrackerFields({
+              statsSessions:project.statsSessions, statsSettings:project.statsSettings,
+              achievedMilestones:project.achievedMilestones, doneSnapshots:project.doneSnapshots,
+              breadcrumbs:project.breadcrumbs, stitchingStyle:project.stitchingStyle,
+              blockW:project.blockW, blockH:project.blockH, focusBlock:project.focusBlock,
+              startCorner:project.startCorner, colourSequence:project.colourSequence,
+              originalPaletteState:project.originalPaletteState,
+              singleStitchEdits:project.singleStitchEdits,
+              halfStitches:project.halfStitches, halfDone:project.halfDone,
+              finishStatus:_v3.finishStatus, startedAt:_v3.startedAt,
+              lastTouchedAt:_v3.lastTouchedAt, completedAt:_v3.completedAt,
+              stitchLog:_v3.stitchLog
+            });
+          }
+          if(typeof window.__setCreatorProjectName==='function') window.__setCreatorProjectName(projectName||'');
+        }catch(e){}
+        if (typeof StashBridge !== "undefined" && skeinData.length > 0) {
+          return StashBridge.syncProjectToLibrary(
+            projectIdRef.current,
+            projectName || `${sW}×${sH} pattern`,
+            skeinData,
+            combinedDone >= combinedTotal && combinedTotal > 0 ? "completed" : "inprogress",
+            fabricCt
+          ).catch(err => console.error("Library sync failed:", err));
+        }
+        return null;
+      });
+    }).catch(err => console.error("Tracker auto-save failed:", err));
   }, 5000);
   return () => clearTimeout(saveTimer);
 }, [pat, pal, done, bsLines, parkMarkers, totalTime, hlRow, hlCol, threadOwned,
@@ -3934,8 +3949,10 @@ useEffect(() => {
     if (!pat || !pal) {
       const project = lastSnapshotRef.current;
       if (project) {
-        await ProjectStorage.save(project);
-        await saveProjectToDB(project).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
+        const saveResult = await persistProjectRecord(project);
+        if (!saveResult || saveResult.reason !== 'reloaded') {
+          await saveProjectToDB(project).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
+        }
       }
       return;
     }
@@ -3955,8 +3972,10 @@ useEffect(() => {
       breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence
     };
     lastSnapshotRef.current = project;
-    await ProjectStorage.save(project);
-    await saveProjectToDB(project).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
+    const saveResult = await persistProjectRecord(project);
+    if (!saveResult || saveResult.reason !== 'reloaded') {
+      await saveProjectToDB(project).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
+    }
   };
   return () => {
     // Replace with a snapshot-based fallback rather than deleting outright.
@@ -3965,8 +3984,10 @@ useEffect(() => {
     var last = lastSnapshotRef.current;
     window.__flushProjectToIDB = async function() {
       if (last) {
-        await ProjectStorage.save(last);
-        await saveProjectToDB(last).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
+        const saveResult = await persistProjectRecord(last);
+        if (!saveResult || saveResult.reason !== 'reloaded') {
+          await saveProjectToDB(last).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
+        }
       }
     };
   };

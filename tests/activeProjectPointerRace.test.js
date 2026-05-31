@@ -54,10 +54,12 @@ describe('Active-project pointer race (regression)', () => {
   });
 
   test('useProjectIO still calls setActiveProject inside the save .then for the success path', () => {
-    // The synchronous write is for race protection; the post-save write
-    // remains so the eventual id (which may differ if save() minted one)
-    // is canonical. Both paths must coexist.
-    expect(useProjectIO).toMatch(/ProjectStorage\.save\(project5\)\.then\(function \(id\) \{[\s\S]*?ProjectStorage\.setActiveProject\(id\)/);
+    // The synchronous write is for race protection; the eventual persisted id
+    // still needs to flow back through the success path. The new shared helper
+    // may delegate to CrossTabResolution.saveWithConflictResolution first, but
+    // its fallback path must still save via ProjectStorage.save(...).then(setActiveProject).
+    expect(useProjectIO).toMatch(/function persistProjectRecord\(project\)[\s\S]*?CrossTabResolution\.saveWithConflictResolution/);
+    expect(useProjectIO).toMatch(/ProjectStorage\.save\(project\)\.then\(function \(id\) \{[\s\S]*?ProjectStorage\.setActiveProject\(id\)/);
   });
 
   test('home-app self-heals stale active-project pointers', () => {
