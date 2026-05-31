@@ -744,19 +744,120 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
 /* ─── generate.js ─── */
 /* creator/generate.js — Pure pattern-generation pipeline.
    All inputs passed explicitly; returns { pat, pal, cmap, confettiData } or null.
-   Uses globals: quantize, doDither, doMap, buildPalette, rgbToLab, dE,
+   Uses globals: quantize, quantizeConstrained, doDither, doRiemersma, doMap, buildPalette, rgbToLab, dE,
                  generateSaliencyMap, generateEdgeMap, labelConnectedComponents,
                  removeOrphanStitches, analyzeConfetti, findSolid,
-                 applyGaussianBlur, applyMedianFilter
+                 applyGaussianBlur, applyMedianFilter, applyBilateralFilter,
+                 disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP
    (all defined in colour-utils.js / constants.js). */
+
+/**
+ * Progressive area-averaging downscale for large reduction ratios.
+ *
+ * A single canvas drawImage at 'low' quality (bilinear) discards most source
+ * pixels at ratios above ~2:1, producing speckle noise in flat regions.
+ * This helper steps the image down in 2:1 halvings until within 2× of the
+ * target.  At each 2:1 step bilinear sampling covers every source pixel
+ * (equivalent to area averaging), so the chain produces a clean mean for
+ * any reduction ratio.
+ *
+ * Returns the source unchanged when the ratio is already ≤ 2:1 in both
+ * dimensions — the caller's final drawImage with 'high' quality suffices.
+ *
+ * Used by runGenerationPipeline, startGeneration (useCreatorState), and
+ * generatePreview (usePreview).  Defined here because generate.js is the
+ * first entry in the bundle ORDER so the function is in scope for all three.
+ *
+ * @param {HTMLImageElement|HTMLCanvasElement} source
+ * @param {number} targetW
+ * @param {number} targetH
+ * @returns {HTMLImageElement|HTMLCanvasElement}
+ */
+function prescaleForGrid(source, targetW, targetH) {
+  var srcW = (source.naturalWidth || source.width) | 0;
+  var srcH = (source.naturalHeight || source.height) | 0;
+  if (!srcW || !srcH || (srcW <= targetW * 2 && srcH <= targetH * 2)) return source;
+  var cur = source;
+  var w = srcW, h = srcH;
+  while (w > targetW * 2 || h > targetH * 2) {
+    w = Math.max(targetW, Math.ceil(w / 2));
+    h = Math.max(targetH, Math.ceil(h / 2));
+    var tc = document.createElement('canvas');
+    tc.width = w; tc.height = h;
+    var tcx = tc.getContext('2d');
+    tcx.imageSmoothingEnabled = true;
+    if ('imageSmoothingQuality' in tcx) tcx.imageSmoothingQuality = 'high';
+    tcx.drawImage(cur, 0, 0, w, h);
+    cur = tc;
+  }
+  return cur;
+}
+
+/**
+ * Apply a pre-downscale luminance unsharp mask to a source image/canvas.
+ *
+ * Works at a fixed "working resolution" of 8× the target grid dimensions
+ * (capped at the source size) so the filter parameters (radius, threshold)
+ * are image-size-independent — a 50×50 target sharpens at ≤400×400,
+ * a 120×80 target at ≤960×640.  The sharpened canvas is then passed
+ * through prescaleForGrid so the preserved edge signal survives the
+ * area-average chain.
+ *
+ * Delegates pixel manipulation to applyUnsharpMask() in colour-utils.js.
+ * DOM-only — cannot be called inside a Web Worker.
+ *
+ * @param {HTMLImageElement|HTMLCanvasElement} source
+ * @param {number} targetW  Pattern grid width in stitches
+ * @param {number} targetH  Pattern grid height in stitches
+ * @param {object} [opts]   Forwarded verbatim to applyUnsharpMask
+ *   @param {number} [opts.radius=2.0]    Gaussian sigma in working-res pixels
+ *   @param {number} [opts.amount=0.5]    USM strength (0–2); 0.5 is conservative
+ *   @param {number} [opts.threshold=8]   min |L − blur(L)| in Lab L units
+ * @returns {HTMLCanvasElement}  canvas containing the sharpened image
+ */
+function applyPreSharpenCanvas(source, targetW, targetH, opts) {
+  var srcW = (source.naturalWidth  || source.width)  | 0;
+  var srcH = (source.naturalHeight || source.height) | 0;
+  if (!srcW || !srcH) return source;
+  // Work at 8× the target dimensions (capped at source size so we never
+  // upscale — upscaling would invent detail that doesn't exist).
+  var wW = Math.min(srcW, targetW * 8);
+  var wH = Math.min(srcH, targetH * 8);
+  // Never go below the target size itself
+  if (wW < targetW) wW = Math.min(srcW, targetW);
+  if (wH < targetH) wH = Math.min(srcH, targetH);
+  var c = document.createElement('canvas');
+  c.width = wW; c.height = wH;
+  var cx = c.getContext('2d');
+  cx.imageSmoothingEnabled = true;
+  if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
+  cx.drawImage(source, 0, 0, wW, wH);
+  var id = cx.getImageData(0, 0, wW, wH);
+  applyUnsharpMask(id.data, wW, wH, opts);
+  cx.putImageData(id, 0, 0);
+  return c;
+}
 
 // Strength → numeric pipeline parameters for the Stitch Cleanup pipeline.
 // (Originally defined inline in index.html; moved here because generate uses it.)
 window.STRENGTH_MAP = {
   gentle:   { maxOrphanSize: 2, saliencyMultiplier: 1.0 },
-  balanced: { maxOrphanSize: 3, saliencyMultiplier: 2.0 },
-  thorough: { maxOrphanSize: 5, saliencyMultiplier: 3.0 },
+  balanced: { maxOrphanSize: 4, saliencyMultiplier: 2.0 },
+  thorough: { maxOrphanSize: 6, saliencyMultiplier: 3.0 },
 };
+
+// Maximum passes for the orphan-removal stability loop.
+// The loop also exits early when no change occurs or orphan count stops decreasing.
+// 8 is a conservative upper cap; normal images typically stabilise in 1–3 passes.
+var ORPHAN_MAX_ITERATIONS = 8;
+
+// ΔE2000 contrast guard for orphan removal.
+// A small region whose nearest-neighbour palette colour differs by more than this
+// value is treated as a deliberate high-contrast feature (e.g. a white catchlight
+// in a dark eye, ΔE ≈ 70) and is NOT merged regardless of its size.
+// Noise artefacts typically differ from their surroundings by ΔE < 20;
+// intentional accents are reliably above ΔE 30.  Set to 0 to disable.
+var ORPHAN_CONTRAST_GUARD_DE = 30;
 
 /**
  * Shared quantize → map/dither → bg-removal → confetti → orphan-removal pipeline.
@@ -766,7 +867,7 @@ window.STRENGTH_MAP = {
  * @param {number}            width  Grid width in stitches
  * @param {number}            height Grid height in stitches
  * @param {object}            opts   Pipeline settings
- * @returns {{ mapped, palette, confettiRaw, confettiClean, saliencyMap }} or null
+ * @returns {{ mapped, palette, confettiRaw, confettiClean, saliencyMap, preCleanupIds, disambigData }} or null
  */
 window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts) {
   var maxC = opts.maxC, dith = opts.dith, allowBlends = opts.allowBlends;
@@ -777,7 +878,9 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var dithBayerSize = opts.dithBayerSize || 4;
   var minSt = (typeof opts.minSt === "number" && opts.minSt > 0) ? opts.minSt : 0;
 
-  var p = quantize(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed});
+  if (opts.preSmooth) applyBilateralFilter(raw, width, height);
+
+  var p = quantizeConstrained(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed});
   if (!p.length) return null;
 
   var saliencyMap = generateSaliencyMap(raw, width, height);
@@ -787,6 +890,8 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     mapped = doMap(raw, width, height, p, allowBlends);
   } else if (dithAlgo === "bayer") {
     mapped = doBayerDither(raw, width, height, p, allowBlends, dithBayerSize);
+  } else if (dithAlgo === "riemersma") {
+    mapped = doRiemersma(raw, width, height, p, allowBlends, saliencyMap, {});
   } else {
     mapped = doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt, ditherStrength: dithStrength });
   }
@@ -829,6 +934,42 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     }
   }
 
+  // ── Auto-coverage post-pass ──────────────────────────────────────────────
+  // Remove colours that cover less than 0.5% of non-skip cells (capped at 15
+  // stitches) regardless of whether minSt was set. This prevents one or two
+  // quantisation stragglers from consuming palette slots. Only runs when its
+  // threshold would exceed the user's explicit minSt setting, so the two
+  // passes are never redundant.
+  {
+    var _atTotal = 0;
+    for (var _ati = 0; _ati < mapped.length; _ati++) { if (mapped[_ati].id !== '__skip__') _atTotal++; }
+    var _autoThresh = Math.max(2, Math.min(15, Math.floor(_atTotal * 0.005)));
+    if (_autoThresh > minSt) {
+      for (var _apass = 0; _apass < 3; _apass++) {
+        var _aep = buildPalette(mapped);
+        var _arare = _aep.pal.filter(function(e) { return e.count < _autoThresh; });
+        var _akeep = _aep.pal.filter(function(e) { return e.count >= _autoThresh; });
+        if (!_arare.length || !_akeep.length) break;
+        var _arm = {};
+        _arare.forEach(function(r) {
+          var _ab = null, _abd = 1e9;
+          _akeep.forEach(function(k) { var d = dE(r.lab, k.lab); if (d < _abd) { _abd = d; _ab = k.id; } });
+          if (_ab) _arm[r.id] = _ab;
+        });
+        var _akm = {};
+        _akeep.forEach(function(k) { _akm[k.id] = k; });
+        var _achanged = false;
+        for (var _aj = 0; _aj < mapped.length; _aj++) {
+          if (mapped[_aj].id !== '__skip__' && _arm[mapped[_aj].id]) {
+            mapped[_aj] = Object.assign({}, _akm[_arm[mapped[_aj].id]]);
+            _achanged = true;
+          }
+        }
+        if (!_achanged) break;
+      }
+    }
+  }
+
   var preLabels = labelConnectedComponents(mapped, width, height);
   var confettiRaw = analyzeConfetti(mapped, width, height, preLabels);
   var confettiClean = null;
@@ -851,13 +992,35 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     var maxOrphanSize = orphansOpt > 0 ? orphansOpt : sp.maxOrphanSize;
     var saliencyMult = sp.saliencyMultiplier;
     var edgeMap = (stitchCleanup && stitchCleanup.protectDetails) ? generateEdgeMap(raw, width, height) : null;
+    // The ΔE contrast guard is a sibling of edge protection: both guard deliberate
+    // small features.  Disable it when the user has turned off protectDetails.
+    var contrastGuard = (stitchCleanup && stitchCleanup.protectDetails) ? ORPHAN_CONTRAST_GUARD_DE : 0;
     preCleanupIds = mapped.map(function(m) { return m.id; });
-    mapped = removeOrphanStitches(mapped, width, height, maxOrphanSize, edgeMap, saliencyMap, { saliencyMultiplier: saliencyMult }, preLabels);
+    mapped = removeOrphanStitches(mapped, width, height, maxOrphanSize, edgeMap, saliencyMap, { saliencyMultiplier: saliencyMult, deContrastGuard: contrastGuard, maxIterations: ORPHAN_MAX_ITERATIONS }, preLabels);
     var postLabels = labelConnectedComponents(mapped, width, height);
     confettiClean = analyzeConfetti(mapped, width, height, postLabels);
   }
 
-  return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, saliencyMap: saliencyMap, preCleanupIds: preCleanupIds };
+  // ── Stage 9: Adjacent-cell colour disambiguation ────────────────────────────
+  // Prevents adjacent cells from being assigned perceptually indistinguishable
+  // thread colours (dE2000 < threshold). Off by default (opts.disambig falsy).
+  var disambigData = null;
+  if (opts.disambig && opts.disambigLevel && opts.disambigLevel !== 'off') {
+    var dlevel = (typeof DISAMBIG_LEVEL_MAP !== 'undefined' ? DISAMBIG_LEVEL_MAP : {})[opts.disambigLevel] || { threshold: 15, maxDegradation: 20 };
+    // Reuse edgeMap from Stage 8 cleanup if available; otherwise compute now.
+    // `edgeMap` is var-scoped so it's accessible here (undefined if cleanup didn't run).
+    var disambigEdgeMap = (typeof edgeMap !== 'undefined' ? edgeMap : null) || generateEdgeMap(raw, width, height);
+    // Solid palette entries only — blend entries don't have a single .lab value
+    var solidPalette = p.filter(function(e) { return e.type !== 'blend' && e.lab; });
+    var dr = disambiguateSimilarNeighbours(mapped, width, height, disambigEdgeMap, saliencyMap, solidPalette, {
+      threshold:      dlevel.threshold,
+      maxDegradation: dlevel.maxDegradation,
+      maxIterations:  5,
+    });
+    disambigData = { swaps: dr.totalSwaps, iterations: dr.iterations };
+  }
+
+  return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, saliencyMap: saliencyMap, preCleanupIds: preCleanupIds, disambigData: disambigData };
 };
 
 // Collect the unique set of thread ids referenced by a mapped pattern.
@@ -928,13 +1091,17 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   var c = document.createElement("canvas");
   c.width = sW; c.height = sH;
   var cx = c.getContext("2d");
+  cx.imageSmoothingEnabled = true;
+  if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
   cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-  cx.drawImage(img, 0, 0, sW, sH);
+  var _preSrc = opts.preSharpenOpts ? applyPreSharpenCanvas(img, sW, sH, opts.preSharpenOpts) : img;
+  cx.drawImage(prescaleForGrid(_preSrc, sW, sH), 0, 0, sW, sH);
   cx.filter = "none";
   var raw = cx.getImageData(0, 0, sW, sH).data;
 
   if (smooth > 0) {
     if (smoothType === "gaussian") applyGaussianBlur(raw, sW, sH, smooth);
+    else if (smoothType === "bilateral") applyBilateralFilter(raw, sW, sH);
     else applyMedianFilter(raw, sW, sH, smooth);
   }
 
@@ -973,6 +1140,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
     cmap: palResult.cmap,
     confettiData: { raw: rawConfetti, clean: cleanConfetti },
     preCleanupIds: pipelineResult.preCleanupIds,
+    disambigData: pipelineResult.disambigData,
   };
 };
 
@@ -2878,10 +3046,21 @@ window.useMagicWand = function useMagicWand(state) {
   var confettiPreview = _cfPreview[0], setConfettiPreview = _cfPreview[1];
 
   // sub-state for colour reduction
+  var _redMode    = React.useState("count"); // "count" | "threshold"
+  var reduceMode = _redMode[0], setReduceMode = _redMode[1];
   var _redTarget  = React.useState(3);
   var reduceTarget = _redTarget[0], setReduceTarget = _redTarget[1];
-  var _redPreview = React.useState(null);    // [{from, to, count}]
+  var _redThresh  = React.useState(5);       // ΔE threshold (CIEDE2000 units)
+  var reduceThreshold = _redThresh[0], setReduceThreshold = _redThresh[1];
+  var _redPreview = React.useState(null);    // [{from, to, count, de}]
   var reducePreview = _redPreview[0], setReducePreview = _redPreview[1];
+  var _redStale   = React.useState(false);   // true when settings changed after preview ran
+  var reducePreviewStale = _redStale[0], setReducePreviewStale = _redStale[1];
+
+  // Mark preview stale whenever mode/target/threshold change after a preview has been generated.
+  React.useEffect(function() {
+    if (reducePreview !== null) setReducePreviewStale(true);
+  }, [reduceMode, reduceTarget, reduceThreshold]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // sub-state for colour replacement
   var _repSrc     = React.useState(null);    // color id
@@ -3161,7 +3340,7 @@ window.useMagicWand = function useMagicWand(state) {
   function previewColorReduction() {
     var pat = state.pat, cmap = state.cmap, mask = selectionMask;
     if (!pat || !cmap || !mask) return;
-    var target = reduceTarget;
+
     var counts = {};
     for (var i = 0; i < pat.length; i++) {
       if (!mask[i]) continue;
@@ -3170,7 +3349,6 @@ window.useMagicWand = function useMagicWand(state) {
       counts[cell.id] = (counts[cell.id] || 0) + 1;
     }
     var ids = Object.keys(counts);
-    if (ids.length <= target) { setReducePreview([]); return; }
 
     var labs = {};
     ids.forEach(function(id) {
@@ -3181,28 +3359,70 @@ window.useMagicWand = function useMagicWand(state) {
     var activeIds = ids.slice();
     var merges = [];
 
-    while (activeIds.length > target) {
-      var bestDE = Infinity, bestI = -1, bestJ = -1;
-      for (var a = 0; a < activeIds.length; a++) {
-        for (var b = a + 1; b < activeIds.length; b++) {
-          var de = deltaE(labs[activeIds[a]], labs[activeIds[b]]);
-          if (de < bestDE) { bestDE = de; bestI = a; bestJ = b; }
+    if (reduceMode === "threshold") {
+      // Threshold mode: merge all pairs within reduceThreshold ΔE, greedily
+      // by the cost function (closest pair first), stopping when no pair
+      // falls below the threshold.
+      var changed = true;
+      while (changed && activeIds.length > 1) {
+        changed = false;
+        var bestCost = Infinity, bestI = -1, bestJ = -1, bestDE = Infinity;
+        for (var a = 0; a < activeIds.length; a++) {
+          for (var b = a + 1; b < activeIds.length; b++) {
+            var de = dE2000(labs[activeIds[a]], labs[activeIds[b]]);
+            if (de > reduceThreshold) continue;
+            var cntMin = Math.min(counts[activeIds[a]] || 0, counts[activeIds[b]] || 0);
+            var cost = de * (cntMin + 1);
+            if (cost < bestCost) { bestCost = cost; bestDE = de; bestI = a; bestJ = b; }
+          }
         }
+        if (bestI < 0) break;
+        changed = true;
+        var idA = activeIds[bestI], idB = activeIds[bestJ];
+        var cntA = counts[idA] || 0, cntB = counts[idB] || 0;
+        var fromId, toId;
+        if (cntA <= cntB) { fromId = idA; toId = idB; }
+        else              { fromId = idB; toId = idA; }
+        merges.push({ from: fromId, to: toId, count: counts[fromId] || 0, de: Math.round(bestDE * 10) / 10,
+          fromName: (cmap[fromId] ? cmap[fromId].name : fromId),
+          toName:   (cmap[toId]   ? cmap[toId].name   : toId) });
+        counts[toId] = (counts[toId] || 0) + (counts[fromId] || 0);
+        delete counts[fromId];
+        activeIds.splice(activeIds.indexOf(fromId), 1);
       }
-      if (bestI < 0) break;
-      var idA = activeIds[bestI], idB = activeIds[bestJ];
-      var cntA = counts[idA] || 0, cntB = counts[idB] || 0;
-      var fromId, toId;
-      if (cntA <= cntB) { fromId = idA; toId = idB; }
-      else              { fromId = idB; toId = idA; }
-      merges.push({ from: fromId, to: toId, count: counts[fromId] || 0,
-        fromName: (cmap[fromId] ? cmap[fromId].name : fromId),
-        toName:   (cmap[toId]   ? cmap[toId].name   : toId) });
-      counts[toId] = (counts[toId] || 0) + (counts[fromId] || 0);
-      delete counts[fromId];
-      activeIds.splice(activeIds.indexOf(fromId), 1);
+    } else {
+      // Count mode: reduce to target, picking lowest-cost merge each step.
+      var target = reduceTarget;
+      if (ids.length <= target) { setReducePreview([]); return; }
+      while (activeIds.length > target) {
+        // Cost = ΔE × countFrom (number of stitches that will change × perceptual shift).
+        // This prefers merging near-duplicate low-count colours over forcing large
+        // colour regions together, giving the least-visible merge at each step.
+        var bestCost = Infinity, bestI = -1, bestJ = -1, bestDE = Infinity;
+        for (var a = 0; a < activeIds.length; a++) {
+          for (var b = a + 1; b < activeIds.length; b++) {
+            var de = dE2000(labs[activeIds[a]], labs[activeIds[b]]);
+            var cntMin = Math.min(counts[activeIds[a]] || 0, counts[activeIds[b]] || 0);
+            var cost = de * (cntMin + 1); // +1 so zero-count entries can still be cleared
+            if (cost < bestCost) { bestCost = cost; bestDE = de; bestI = a; bestJ = b; }
+          }
+        }
+        if (bestI < 0) break;
+        var idA = activeIds[bestI], idB = activeIds[bestJ];
+        var cntA = counts[idA] || 0, cntB = counts[idB] || 0;
+        var fromId, toId;
+        if (cntA <= cntB) { fromId = idA; toId = idB; }
+        else              { fromId = idB; toId = idA; }
+        merges.push({ from: fromId, to: toId, count: counts[fromId] || 0, de: Math.round(bestDE * 10) / 10,
+          fromName: (cmap[fromId] ? cmap[fromId].name : fromId),
+          toName:   (cmap[toId]   ? cmap[toId].name   : toId) });
+        counts[toId] = (counts[toId] || 0) + (counts[fromId] || 0);
+        delete counts[fromId];
+        activeIds.splice(activeIds.indexOf(fromId), 1);
+      }
     }
     setReducePreview(merges);
+    setReducePreviewStale(false);
   }
 
   function applyColorReduction() {
@@ -3428,8 +3648,11 @@ window.useMagicWand = function useMagicWand(state) {
     wandPanel, setWandPanel,
     confettiThreshold, setConfettiThreshold,
     confettiPreview, setConfettiPreview,
+    reduceMode, setReduceMode,
     reduceTarget, setReduceTarget,
+    reduceThreshold, setReduceThreshold,
     reducePreview, setReducePreview,
+    reducePreviewStale, setReducePreviewStale,
     replaceSource, setReplaceSource,
     replaceDest, setReplaceDest,
     replaceFuzzy, setReplaceFuzzy,
@@ -4405,12 +4628,13 @@ function _applyImageFilters(imageData, bri, con, sat) {
 // Manifest of state-variable keys that contribute to the conversion output.
 // Used by the preview-coverage tests.
 var CONVERSION_STATE_KEYS = [
-  'sW', 'sH', 'bri', 'con', 'sat', 'smooth', 'smoothType',
+  'sW', 'sH', 'bri', 'con', 'sat', 'smooth', 'smoothType', 'preSharpen', 'preSharpenAmount',
   'maxC', 'dithMode', 'allowBlends', 'minSt',
   'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans',
   'stashConstrained', 'globalStash',
   'variationSeed', 'variationSubset',
   'fabricCt',
+  'disambig', 'disambigLevel',
 ];
 
 // Build the allowedPalette + count from a globalStash (composite-keyed) or a
@@ -4509,8 +4733,14 @@ window.useCreatorState = function useCreatorState() {
   var minSt  = _minSt[0],  setMinSt  = _minSt[1];
   var _smooth = useState(0);          var smooth = _smooth[0], setSmooth = _smooth[1];
   var _sType  = useState("median");   var smoothType = _sType[0], setSmoothType = _sType[1];
+  var _preSharpen = useState(false);  var preSharpen = _preSharpen[0], setPreSharpen = _preSharpen[1];
+  var _preSharpenAmount = useState(0.5); var preSharpenAmount = _preSharpenAmount[0], setPreSharpenAmount = _preSharpenAmount[1];
   var _orphans= useState(function () { var v = loadUserPref("creatorOrphanRemovalStrength", 0); return (typeof v === "number" && v >= 0) ? v : 0; });
   var orphans = _orphans[0], setOrphans = _orphans[1];
+  var _disambig = useState(false);
+  var disambig = _disambig[0], setDisambig = _disambig[1];
+  var _disambigLevel = useState('standard');
+  var disambigLevel = _disambigLevel[0], setDisambigLevel = _disambigLevel[1];
   var _blends = useState(function () { var v = loadUserPref("creatorAllowBlends", true); return v !== false; });
   var allowBlends = _blends[0], setAllowBlends = _blends[1];
 
@@ -4710,10 +4940,10 @@ window.useCreatorState = function useCreatorState() {
   var _dimOpen  = useState(true);    var dimOpen  = _dimOpen[0],  setDimOpen  = _dimOpen[1];
   var _palOpen  = useState(true);    var palOpen  = _palOpen[0],  setPalOpen  = _palOpen[1];
   var _fabOpen  = useState(false);   var fabOpen  = _fabOpen[0],  setFabOpen  = _fabOpen[1];
-  var _adjOpen  = useState(false);   var adjOpen  = _adjOpen[0],  setAdjOpen  = _adjOpen[1];
+  var _adjOpen  = useState(true);    var adjOpen  = _adjOpen[0],  setAdjOpen  = _adjOpen[1];
   var _bgOpen   = useState(false);   var bgOpen   = _bgOpen[0],   setBgOpen   = _bgOpen[1];
   var _palAdv   = useState(false);   var palAdvanced = _palAdv[0], setPalAdvanced = _palAdv[1];
-  var _clOpen   = useState(false);   var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
+  var _clOpen   = useState(true);    var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
   var _sc       = useState(function () {
     var savedStrength = loadUserPref("creatorStitchCleanupStrength", "balanced");
     if (savedStrength !== "gentle" && savedStrength !== "balanced" && savedStrength !== "thorough") {
@@ -4860,6 +5090,8 @@ window.useCreatorState = function useCreatorState() {
   // Cleanup diff state
   var _cleanupDiff      = useState(null);  var cleanupDiff      = _cleanupDiff[0],      setCleanupDiff      = _cleanupDiff[1];
   var _showCleanupDiff  = useState(false); var showCleanupDiff  = _showCleanupDiff[0],  setShowCleanupDiff  = _showCleanupDiff[1];
+  // Disambiguation result from last generation (null = not run or not enabled)
+  var _disambigData     = useState(null);  var disambigData     = _disambigData[0],     setDisambigData     = _disambigData[1];
 
   // Coverage gaps (QW4)
   var _coverageGaps = useState(null); var coverageGaps = _coverageGaps[0], setCoverageGaps = _coverageGaps[1];
@@ -5402,6 +5634,7 @@ window.useCreatorState = function useCreatorState() {
     });
     setGenPatSnapshot({ pat: result.mapped.slice(), pal: result.pal.slice(), cmap: Object.assign({}, result.cmap) });
     // Compute cleanup diff mask from preCleanupIds
+    setDisambigData(result.disambigData || null);
     setShowCleanupDiff(false);
     if (result.preCleanupIds && result.preCleanupIds.length === result.mapped.length) {
       var mask = new Uint8Array(result.mapped.length);
@@ -5479,6 +5712,17 @@ window.useCreatorState = function useCreatorState() {
           if (msg.type === 'result') {
             setProgressMessage("");
             applyResultRef.current(msg);
+          }
+          if (msg.type === 'disambiguate-result') {
+            // Post-hoc disambiguation result from PatternTab Re-apply.
+            // Apply the updated mapped array and store disambigData.
+            if (msg.mapped && msg.mapped.length) {
+              setPat(msg.mapped);
+              var pRes = buildPalette(msg.mapped);
+              setPal(pRes.pal); setCmap(pRes.cmap);
+            }
+            setDisambigData(msg.disambigData || null);
+            setBusy(false);
           }
         };
         w.onerror = function(err) {
@@ -5576,10 +5820,13 @@ window.useCreatorState = function useCreatorState() {
       var c = document.createElement("canvas");
       c.width = sW; c.height = sH;
       var cx = c.getContext("2d");
+      cx.imageSmoothingEnabled = true;
+      if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
       if (_canvasFilterSupported && (bri !== 0 || con !== 0 || sat !== 0)) {
-        cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";  
+        cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
       }
-      cx.drawImage(img, 0, 0, sW, sH);
+      var _genSrc = preSharpen ? applyPreSharpenCanvas(img, sW, sH, { amount: preSharpenAmount }) : img;
+      cx.drawImage(prescaleForGrid(_genSrc, sW, sH), 0, 0, sW, sH);
       if (_canvasFilterSupported) cx.filter = "none";
       var imageData;
       try {
@@ -5605,9 +5852,11 @@ window.useCreatorState = function useCreatorState() {
               minSt: minSt, smooth: smooth, smoothType: smoothType,
               stitchCleanup: stitchCleanup, orphans: orphans, allowBlends: effAllowBlends,
               allowedPalette: allowedPalette, seed: _seed,
+              disambig: disambig, disambigLevel: disambigLevel,
+              preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null,
             });
             if (!result) { setBusy(false); return; }
-            applyResultRef.current({ reqId: reqId, mapped: result.pat, pal: result.pal, cmap: result.cmap, confettiData: result.confettiData, preCleanupIds: result.preCleanupIds });
+            applyResultRef.current({ reqId: reqId, mapped: result.pat, pal: result.pal, cmap: result.cmap, confettiData: result.confettiData, preCleanupIds: result.preCleanupIds, disambigData: result.disambigData });
           } catch (err) { console.error(err); setBusy(false); }
         }, 50);
         return;
@@ -5625,6 +5874,7 @@ window.useCreatorState = function useCreatorState() {
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
           minSt: minSt, smooth: smooth, smoothType: smoothType,
           stitchCleanup: stitchCleanup, orphans: orphans,
+          disambig: disambig, disambigLevel: disambigLevel,
           allowedPalette: allowedPalette, seed: _seed,
         },
       }, [imageData.data.buffer]);
@@ -5635,7 +5885,7 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setTimeout(startGeneration, 0);
     }
-  }, [img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, stitchCleanup, orphans, hasGenerated, allowBlends, stashConstrained, globalStash, variationSeed, variationSubset]);
+  }, [img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, stashConstrained, globalStash, variationSeed, variationSubset]);
 
   // ─── Variation helpers: seeded Fisher-Yates shuffle → roulette subset ───────
   function _buildRoulette(pool, n, seed) {
@@ -5752,6 +6002,44 @@ window.useCreatorState = function useCreatorState() {
     }
     genSlot(0);
   }, [img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, smooth, smoothType, stitchCleanup, orphans, allowBlends, stashConstrained, globalStash]);
+
+  var disambiguateNow = useCallback(function() {
+    if (!pat || !pal || busy) return;
+    var worker = getOrCreateWorker();
+    if (!worker) {
+      // Fallback: run synchronously
+      setTimeout(function() {
+        try {
+          var solidPal = pal.filter(function(e) { return e.type !== 'blend' && e.lab; });
+          var mapped2 = pat.slice();
+          var dr = typeof disambiguateSimilarNeighbours !== 'undefined'
+            ? disambiguateSimilarNeighbours(mapped2, sW, sH, null, null, solidPal, Object.assign({deriveBoundaryEdges: true}, (typeof DISAMBIG_LEVEL_MAP !== 'undefined' ? DISAMBIG_LEVEL_MAP : {})[disambigLevel] || {threshold: 15, maxDegradation: 20}))
+            : {totalSwaps: 0, iterations: 0};
+          var newPal = buildPaletteWithScratch(mapped2);
+          var newCmap = {};
+          newPal.forEach(function(e) { newCmap[e.id] = e; });
+          setPat(mapped2);
+          setPal(newPal);
+          setCmap(newCmap);
+          setDisambigData({swaps: dr.totalSwaps, iterations: dr.iterations});
+          setBusy(false);
+        } catch (err) { console.error(err); setBusy(false); }
+      }, 0);
+      setBusy(true);
+      return;
+    }
+    setBusy(true);
+    var reqId = Date.now();
+    worker.postMessage({
+      type: 'disambiguate',
+      reqId: reqId,
+      mapped: pat.slice(),
+      palette: pal,
+      width: sW,
+      height: sH,
+      settings: { disambigLevel: disambigLevel || 'standard', maxIterations: 5 },
+    });
+  }, [pat, pal, sW, sH, disambigLevel, busy]);
 
   // Terminate the worker when the component unmounts to prevent memory leaks
   useEffect(function() {
@@ -5883,7 +6171,8 @@ window.useCreatorState = function useCreatorState() {
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
     dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
-    orphans, setOrphans, allowBlends, setAllowBlends,
+    preSharpen, setPreSharpen, preSharpenAmount, setPreSharpenAmount,
+    orphans, setOrphans, disambig, setDisambig, disambigLevel, setDisambigLevel, allowBlends, setAllowBlends,
     pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, progressMessage, setProgressMessage,
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
@@ -5954,6 +6243,7 @@ window.useCreatorState = function useCreatorState() {
     nameModalReason, setNameModalReason,
     preferencesOpen, setPreferencesOpen,
     cleanupDiff, setCleanupDiff, showCleanupDiff, setShowCleanupDiff,
+    disambigData, setDisambigData,
     cleanupTargetColorId, setCleanupTargetColorId,
     cleanupTolerance, setCleanupTolerance,
     cleanupSelTool, setCleanupSelTool,
@@ -6044,6 +6334,7 @@ window.useCreatorState = function useCreatorState() {
         // Image adjustments
         bri: bri, con: con, sat: sat,
         smooth: smooth, smoothType: smoothType,
+        preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
         // Quantisation
         maxC: effMaxC,
         dith: dith, dithMode: dithMode, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize,
@@ -6053,6 +6344,7 @@ window.useCreatorState = function useCreatorState() {
         skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
         // Cleanup
         minSt: minSt, stitchCleanup: stitchCleanup, orphans: orphans,
+        disambig: disambig, disambigLevel: disambigLevel,
         // Variation
         seed: variationSeed, subset: variationSubset,
         // Fabric (for stats, not pixels)
@@ -6062,16 +6354,17 @@ window.useCreatorState = function useCreatorState() {
         stashCount: stashInfo.count,
       });
     }, [
-      sW, sH, bri, con, sat, smooth, smoothType,
+      sW, sH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount,
       maxC, dith, dithMode, dithStrength, allowBlends,
       skipBg, bgCol, bgTh, minSt, stitchCleanup, orphans,
+      disambig, disambigLevel,
       stashConstrained, globalStash, variationSeed, variationSubset, fabricCt,
     ]),
     // Functions
     buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType,
     setBrushAndActivate, setTool, setHsTool, setPsTool: setHsTool, fitZ, copyText,
     resetAll, initBlankGrid, startScratch, addScratchColour, removeScratchColour, removeUnusedColours,
-    toggleOwned, generate, randomise, generateGallery, promoteVariation, applyVariationSeed,
+    toggleOwned, generate, randomise, generateGallery, promoteVariation, applyVariationSeed, disambiguateNow,
     // Eyedropper feedback
     eyedropperEmpty, setEyedropperEmpty,
     // Context menu
@@ -9894,6 +10187,7 @@ window.usePreview = function usePreview(state) {
     var sW = settings.sW, sH = settings.sH;
     var bri = settings.bri, con = settings.con, sat = settings.sat;
     var smooth = settings.smooth, smoothType = settings.smoothType;
+    var preSharpen = settings.preSharpen, preSharpenAmount = settings.preSharpenAmount;
     var fabricCt = settings.fabricCt;
     var stashConstrained = settings.stashConstrained;
     var globalStash = state.globalStash;
@@ -9911,17 +10205,21 @@ window.usePreview = function usePreview(state) {
 
     // --- Geometric (image-drawing) cache: skip canvas if only pipeline settings changed ---
     var raw;
-    var geoSig = img.src + '|' + pw + '|' + ph + '|' + bri + '|' + con + '|' + sat + '|' + smooth + '|' + smoothType;
+    var geoSig = img.src + '|' + pw + '|' + ph + '|' + bri + '|' + con + '|' + sat + '|' + smooth + '|' + smoothType + '|' + (preSharpen ? preSharpenAmount : '0');
     if (rawCacheRef.current && rawCacheRef.current.sig === geoSig) {
       raw = rawCacheRef.current.raw;
     } else {
       var c = document.createElement("canvas"); c.width = pw; c.height = ph;
       var cx = c.getContext("2d");
+      cx.imageSmoothingEnabled = true;
+      if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
       cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-      cx.drawImage(img, 0, 0, pw, ph); cx.filter = "none";
+      var _prevSrc = preSharpen ? applyPreSharpenCanvas(img, pw, ph, { amount: preSharpenAmount }) : img;
+      cx.drawImage(prescaleForGrid(_prevSrc, pw, ph), 0, 0, pw, ph); cx.filter = "none";
       raw = cx.getImageData(0, 0, pw, ph).data;
       if (smooth > 0) {
         if (smoothType === "gaussian") applyGaussianBlur(raw, pw, ph, smooth);
+        else if (smoothType === "bilateral" && typeof applyBilateralFilter === 'function') applyBilateralFilter(raw, pw, ph);
         else applyMedianFilter(raw, pw, ph, smooth);
       }
       rawCacheRef.current = { sig: geoSig, raw: new Uint8ClampedArray(raw), pw: pw, ph: ph };
@@ -11743,35 +12041,69 @@ window.MagicWandPanel = function MagicWandPanel() {
     h("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 } },
       h("strong", { style: { color: "#2E4824" } }, "Simplify Colours in Selection"),
       h("span", { style: { color: "#3F6432" } }, selColors + " colours in selection"),
-      h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
+      // Mode toggle: target count vs ΔE threshold
+      h("div", { className: "tb-grp" },
+        btn("Target count", function() { cv.setReduceMode("count"); cv.setReducePreview(null); },
+          { active: cv.reduceMode === "count", title: "Reduce to a specific number of colours", style: { fontSize: 10 } }),
+        btn("Near-duplicates (\u0394E)", function() { cv.setReduceMode("threshold"); cv.setReducePreview(null); },
+          { active: cv.reduceMode === "threshold", title: "Merge any pair of colours closer than a \u0394E threshold", style: { fontSize: 10 } })
+      ),
+      // Count mode: target number input
+      cv.reduceMode !== "threshold" && h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
         "Target:",
         h("input", {
           type: "number", min: 1, max: selColors, value: cv.reduceTarget,
-          onChange: function(e) { cv.setReduceTarget(Math.max(1, parseInt(e.target.value) || 1)); cv.setReducePreview(null); },
+          onChange: function(e) { cv.setReduceTarget(Math.max(1, parseInt(e.target.value) || 1)); },
           style: { width: 50, padding: "1px 4px" }
         })
       ),
+      // Threshold mode: ΔE slider
+      cv.reduceMode === "threshold" && h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
+        "\u0394E\u2264",
+        h("input", {
+          type: "range", min: 1, max: 20, step: 0.5, value: cv.reduceThreshold,
+          onChange: function(e) { cv.setReduceThreshold(Number(e.target.value)); },
+          style: { width: 70 }
+        }),
+        h("span", { style: { minWidth: 22, fontVariantNumeric: "tabular-nums" } }, cv.reduceThreshold),
+        h("span", { style: { fontSize: 9, color: "var(--text-tertiary)", marginLeft: 1 } },
+          cv.reduceThreshold <= 3 ? "(near-identical)" : cv.reduceThreshold <= 6 ? "(very similar)" : cv.reduceThreshold <= 10 ? "(similar)" : "(broad)")
+      ),
       btn("Preview merges", cv.previewColorReduction, { style: { fontSize: 10 } }),
       btn("Apply", cv.applyColorReduction, {
-        green: true, disabled: !cv.reducePreview || !cv.reducePreview.length,
+        green: true, disabled: !cv.reducePreview || !cv.reducePreview.length || !!cv.reducePreviewStale,
         style: { fontSize: 10 }
       }),
       btn("\u00D7", function() { cv.setWandPanel(null); cv.setReducePreview(null); }, { style: { fontSize: 10 } })
     ),
+    cv.reducePreviewStale && cv.reducePreview !== null && h("div", {
+      style: { fontSize: 9, color: "#B45309", padding: "2px 4px", marginBottom: 2 }
+    }, "Settings changed \u2014 run Preview merges to update"),
     cv.reducePreview && cv.reducePreview.length ? h("div", {
       style: { maxHeight: 120, overflowY: "auto", borderTop: "1px solid #C4DCB6", paddingTop: 6 }
     },
       cv.reducePreview.map(function(m, i) {
         var fromE = ctx.cmap && ctx.cmap[m.from];
         var toE   = ctx.cmap && ctx.cmap[m.to];
+        // Colour-code ΔE badge: green ≤ 3, amber ≤ 8, red > 8
+        var de = m.de != null ? m.de : null;
+        var deBadgeColor = de == null ? "#6b7280" : de <= 3 ? "#16a34a" : de <= 8 ? "#d97706" : "#dc2626";
         return h("div", { key: i, style: { display: "flex", alignItems: "center", gap: 5, marginBottom: 2 } },
           swatch(fromE ? fromE.rgb : null), h("span", null, m.from + " " + m.fromName),
           h("span", { "aria-hidden":"true", style: { color: "#6b7280", display:"inline-flex" } }, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
           swatch(toE ? toE.rgb : null), h("span", null, m.to + " " + m.toName),
-          h("span", { style: { color: "#6b7280" } }, "(" + m.count + " stitches)")
+          h("span", { style: { color: "#6b7280" } }, "(" + m.count + " stitches)"),
+          de != null && h("span", {
+            title: "CIEDE2000 colour distance between these two threads",
+            style: { fontSize: 9, fontWeight: 600, color: deBadgeColor,
+              border: "1px solid " + deBadgeColor, borderRadius: 3, padding: "0 3px", lineHeight: "14px" }
+          }, "\u0394E\u00a0" + de)
         );
       })
-    ) : null
+    ) : cv.reducePreview && cv.reducePreview.length === 0 ? h("div", {
+      style: { paddingTop: 6, color: "#3F6432", fontStyle: "italic" }
+    }, cv.reduceMode === "threshold" ? "No colour pairs are within this \u0394E threshold." : "Already at target — no merges needed.")
+    : null
   ) : null;
 
   // ─── Replace colour panel ────────────────────────────────────────────────────
@@ -12703,6 +13035,18 @@ window.CreatorSidebar = function CreatorSidebar() {
             title: "Remove all colours not used in the pattern",
             style:{fontSize:'var(--text-xs)',padding:"2px 7px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:500,cursor:"pointer",lineHeight:1.4}
           }, "Remove unused (" + unusedCount + ")"),
+          app.appMode === "edit" && ctx.pal && ctx.pal.length > 1 && h("button", {
+            onClick: function(e) {
+              e.stopPropagation();
+              cv.setActiveTool("magicWand");
+              ctx.setPartialStitchTool && ctx.setPartialStitchTool(null);
+              cv.setBsStart && cv.setBsStart(null);
+              cv.selectAll();
+              cv.setWandPanel("reduce");
+            },
+            title: "Select all stitches and open the Simplify Colours panel to merge similar colours",
+            style:{fontSize:'var(--text-xs)',padding:"2px 7px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:500,cursor:"pointer",lineHeight:1.4}
+          }, "Simplify colours\u2026"),
           h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, displayPal.length + " colour" + (displayPal.length !== 1 ? "s" : ""))
         )
       ),
@@ -13031,8 +13375,8 @@ window.CreatorSidebar = function CreatorSidebar() {
   ) : null;
 
   // ── Dimensions section ──────────────────────────────────────────────────────
-  var dimBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--text-secondary)",background:"var(--surface-tertiary)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}}, ctx.sW+"×"+ctx.sH);
-  var dimSection = h(Section, {title:"Dimensions", isOpen:app.dimOpen, onToggle:app.setDimOpen, badge:dimBadge},
+  var dimBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--text-secondary)",background:"var(--surface-tertiary)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}}, ctx.sW+"×"+ctx.sH+" · "+(ctx.fabricCt||14)+"ct");
+  var dimSection = h(Section, {title:"Output", isOpen:app.dimOpen, onToggle:app.setDimOpen, badge:dimBadge},
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)'}},
       h("input", {type:"checkbox", checked:ctx.arLock, onChange:function(e){ctx.setArLock(e.target.checked);}}),
       h("span", null, "Lock aspect ratio"),
@@ -13055,18 +13399,37 @@ window.CreatorSidebar = function CreatorSidebar() {
               h("input", {type:"number", value:ctx.sH, onChange:function(e){ctx.chgH(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',fontSize:'var(--text-md)'}})
             )
           )
-        )
+        ),
+    h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
+    h("div", {style:{marginTop:'var(--s-1)'}},
+      h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
+        h("span", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5}}, "Fabric"),
+        h(InfoIcon, {text:"The thread count of your Aida or evenweave fabric — affects finished size and skein estimates", width:220})
+      ),
+      h("select", {
+        value:ctx.fabricCt, onChange:function(e){ctx.setFabricCt(Number(e.target.value));},
+        style:{width:"100%",padding:"6px 10px",borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",fontSize:'var(--text-md)',background:"var(--surface)"}
+      }, FABRIC_COUNTS.map(function(f) {
+        return h("option", {key:f.ct, value:f.ct}, f.label);
+      })),
+      h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:6}},
+        "\u2248 " + (ctx.sW / (ctx.fabricCt||14)).toFixed(1) + " \u00D7 " + (ctx.sH / (ctx.fabricCt||14)).toFixed(1) + " in finished"
+      )
+    )
   );
 
   // ── Palette section (non-scratch) ───────────────────────────────────────────
-  var palSection = !ctx.isScratchMode ? h(Section, {title:"Colours", isOpen:app.palOpen, onToggle:app.setPalOpen},
+  var palSection = !ctx.isScratchMode ? h(Section, {title:"Palette", isOpen:app.palOpen, onToggle:app.setPalOpen},
     h("div", {style:{marginTop:'var(--s-2)'}},
-      h(SliderRow, {label:"Max colours", value:gen.maxC, min:10, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(10, gen.stashThreadCount) : 40, onChange:gen.setMaxC,
+      h(SliderRow, {label:"Max colours", value:gen.maxC, min:2, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(2, gen.stashThreadCount) : 100, onChange:gen.setMaxC,
         helpText:"One colour = one DMC thread skein",
         inlineHint:"Each colour = one skein of DMC thread. Fewer colours means less shopping and faster stitching — 10\u201315 is a good starting range for most photos.",
         helpTopic:"palette"}),
       gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && h("div", {style:{fontSize:10,color:"#A06F2D",marginTop:2}},
         "Clamped to " + gen.stashThreadCount + " (stash size)"
+      ),
+      ctx.pal && ctx.pal.length > 0 && ctx.pal.length < gen.effectiveMaxC && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:2}},
+        ctx.pal.length + " of " + gen.effectiveMaxC + " colours used"
       )
     ),
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:gen.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)',opacity:gen.blendsAutoDisabled?0.5:1}},
@@ -13261,7 +13624,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   // mental model: pick how colours mix → then clean up the result.
   var tidySection = !ctx.isScratchMode ? (function() {
     var sc2 = gen.stitchCleanup;
-    var tidyActive = gen.dith || gen.minSt > 0 || gen.orphans > 0 || sc2.enabled;
+    var tidyActive = gen.dith || gen.minSt > 0 || gen.orphans > 0 || sc2.enabled || gen.disambig;
     var tidyBadge = tidyActive ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
     var strengthKeys=["gentle","balanced","thorough"];
     var strengthLabels=["Gentle","Balanced","Thorough"];
@@ -13307,7 +13670,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       );
     }
     var smoothDithActive = gen.dith && dithAlgo === "atkinson";
-    return h(Section, {title:"Smoothing & cleanup", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:tidyBadge},
+    return h(Section, {title:"Quality", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:tidyBadge},
       // ── Dithering subsection ─────────────────────────────────────────────
       h("div", {style:{marginTop:'var(--s-2)'}},
         h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
@@ -13346,6 +13709,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
       ),
       h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
+      h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-1)',marginTop:'var(--s-1)'}}, "Colour reduction"),
       h("div", {style:{marginTop:'var(--s-2)'}},
         h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:500, step:5, onChange:gen.setMinSt,
           format:function(v){return v===0?"Off":v;},
@@ -13421,6 +13785,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         );
       })(),
       h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
+      h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-1)',marginTop:'var(--s-1)'}}, "Cleanup"),
       h("div", {style:{marginTop:'var(--s-1)'}},
         h(Toggle, {
           checked:sc2.enabled,
@@ -13462,8 +13827,46 @@ window.CreatorSidebar = function CreatorSidebar() {
           // "Smooth dithering" toggle moved to the Dithering subsection above —
           // it modifies the dither pass, not the cleanup pass.
         )
+      ),
+    h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
+    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-1)',marginTop:'var(--s-1)'}}, "Legibility"),
+    h("div", {style:{marginTop:'var(--s-1)'}},
+      h(Toggle, {
+        checked:gen.disambig,
+        onChange:gen.setDisambig,
+        label:"Separate similar neighbours",
+        help:"After generation, checks each pair of adjacent cells and replaces any that are too visually similar to tell apart. Useful for patterns with many near-identical colours like skies or skin tones."
+      }),
+      gen.disambig && h(React.Fragment, null,
+        h("div", {style:{marginTop:'var(--s-2)'}},
+          h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
+            h("span", {style:{fontSize:'var(--text-sm)',color:"#52525b",fontWeight:500}}, "Separation strength"),
+            h(InfoIcon, {text:"How different adjacent cell colours must be. Gentle: only fix very obvious clashes (\u0394E>8). Standard: fix colours hard to distinguish on a printed grid. Strong: maximise separation even at the cost of slight colour accuracy.", width:240})
+          ),
+          h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
+            [["gentle","Gentle"],["standard","Standard"],["strong","Strong"]].map(function(pair) {
+              var id = pair[0], label = pair[1];
+              var active = (gen.disambigLevel || 'standard') === id;
+              return h("button", {
+                key:id,
+                onClick:function(){gen.setDisambigLevel(id);},
+                style:{flex:1,padding:"5px 6px",fontSize:'var(--text-xs)',fontWeight:active?600:400,
+                  background:active?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',
+                  color:active?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",
+                  boxShadow:active?"0 1px 2px rgba(0,0,0,0.04)":"none",whiteSpace:"nowrap"}
+              }, label);
+            })
+          )
+        ),
+        gen.disambigData && gen.disambigData.swaps > 0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:'var(--s-1)',lineHeight:1.5}},
+          "Last run: ", h("strong", null, gen.disambigData.swaps.toLocaleString()), " cells swapped across ", gen.disambigData.iterations, " pass", gen.disambigData.iterations !== 1 ? "es" : ""
+        ),
+        gen.disambigData && gen.disambigData.swaps === 0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--success)",marginTop:'var(--s-1)'}},
+          "No adjacent cells needed correction."
+        )
       )
-    );
+    )
+  );
   })() : null;
 
   // ── Fabric & Floss section ──────────────────────────────────────────────────
@@ -13484,9 +13887,9 @@ window.CreatorSidebar = function CreatorSidebar() {
     )
   );
 
-  // ── Adjustments section (non-scratch) ──────────────────────────────────────
-  var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
-  var adjSection = !ctx.isScratchMode ? h(Section, {title:"Source", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
+  // ── Image section (non-scratch) — source adjustments + background ──────────
+  var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth||gen.skipBg||gen.preSharpen) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
+  var adjSection = !ctx.isScratchMode ? h(Section, {title:"Image", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Smooth", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
@@ -13506,7 +13909,58 @@ window.CreatorSidebar = function CreatorSidebar() {
       ),
       h(SliderRow, {label:"Brightness", value:gen.bri, min:-50, max:50, onChange:gen.setBri, format:function(v){return (v>0?"+":"")+v+"%";}}),
       h(SliderRow, {label:"Contrast", value:gen.con, min:-50, max:50, onChange:gen.setCon, format:function(v){return (v>0?"+":"")+v+"%";}}),
-      h(SliderRow, {label:"Saturation", value:gen.sat, min:-50, max:50, onChange:gen.setSat, format:function(v){return (v>0?"+":"")+v+"%";}})
+      h(SliderRow, {label:"Saturation", value:gen.sat, min:-50, max:50, onChange:gen.setSat, format:function(v){return (v>0?"+":"")+v+"%";}}),
+      h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-2)',paddingTop:'var(--s-2)'}}),
+      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",userSelect:"none"}},
+        h("input", {type:"checkbox", checked:!!gen.preSharpen, onChange:function(e){gen.setPreSharpen(e.target.checked);}}),
+        h("span", null, "Pre-sharpen detail"),
+        h(InfoIcon, {text:"Sharpens the source image before downscaling so facial features, eyes, and fine edges survive the reduction. Uses a luminance-only unsharp mask — chroma is left unchanged to prevent colour fringing. Leave off for already-sharp or very noisy images.", width:260})
+      ),
+      gen.preSharpen && h(SliderRow, {
+        label:"Amount",
+        value:gen.preSharpenAmount != null ? gen.preSharpenAmount : 0.5,
+        min:0.1, max:2.0, step:0.1,
+        onChange:gen.setPreSharpenAmount,
+        format:function(v){return v.toFixed(1)+"x";},
+        helpText:"Sharpening strength. 0.5 is conservative; increase to 1.0 for visibly soft portraits.",
+        inlineHint:"0.5 is a safe default. Above 1.0 watch for halos on hard edges.",
+        helpTopic:"image"
+      }),
+      h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
+      h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-1)'}}, "Background"),
+      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginTop:'var(--s-1)'}},
+        h("input", {type:"checkbox", checked:gen.skipBg, onChange:function(e){
+          var on = e.target.checked;
+          gen.setSkipBg(on);
+          var isDefaultWhite = gen.bgCol[0]===255 && gen.bgCol[1]===255 && gen.bgCol[2]===255;
+          if (on && isDefaultWhite) armBgPick();
+          else if (!on && gen.pickBg) gen.setPickBg(false);
+        }}),
+        h("span", null, "Skip background"),
+        h(InfoIcon, {text:"Exclude pixels matching a chosen colour, leaving them unstitched. Good for solid colour backgrounds", width:220})
+      ),
+      gen.skipBg && h("div", {style:{marginTop:10}},
+        h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:10}},
+          h("div", {
+            onClick:armBgPick,
+            title:"Pick background colour from the source image",
+            style:{width:24,height:24,borderRadius:'var(--radius-sm)',background:"rgb("+gen.bgCol+")",border:"2px solid var(--border)",cursor:"pointer"}
+          }),
+          h("button", {
+            onClick:armBgPick,
+            style:{fontSize:'var(--text-xs)',padding:"3px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',background:gen.pickBg?"#F8EFD8":"var(--surface-secondary)",color:gen.pickBg?"var(--accent-hover)":"var(--text-primary)",cursor:"pointer"}
+          }, gen.pickBg ? "Picking\u2026" : "Pick")
+        ),
+        h(SliderRow, {label:"Tolerance", value:gen.bgTh, min:3, max:50, onChange:gen.setBgTh,
+          helpText:"How closely a pixel must match the background colour to be skipped. Higher = more pixels removed"}),
+        ctx.pat && h("div", {style:{marginTop:10,padding:"8px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
+          h("div", {style:{marginBottom:6}}, "Want to shrink the pattern to fit only the stitches?"),
+          h("button", {
+            onClick:gen.autoCrop,
+            style:{width:"100%",padding:"6px",fontSize:'var(--text-sm)',fontWeight:500,background:"var(--surface)",border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',cursor:"pointer",color:"var(--text-primary)"}
+          }, "Auto-Crop to Stitches")
+        )
+      )
     )
   ) : null;
 
@@ -13610,8 +14064,8 @@ window.CreatorSidebar = function CreatorSidebar() {
       disabledHint:"Generate a pattern to unlock brush, lasso, magic wand, half-stitches, and backstitch."},
     {id:"view",       label:"View",       icon:"eye",     requires:"edit",
       disabled: !hasPattern,
-      disabledHint:"Generate a pattern to unlock symbols, gridlines, and zoom presets."},
-    {id:"preview",    label:"Preview",    icon:"layers"},
+      disabledHint:"Generate a pattern to unlock display options."},
+    {id:"preview",    label:"Preview",    icon:"image"},
     {id:"project",    label:"Project",    icon:"folder"}
   ];
 
@@ -13990,27 +14444,84 @@ window.CreatorSidebar = function CreatorSidebar() {
         "Upload an image to get started")
     );
 
+    // ── Project section — name/designer/description + live stats ──────────
+    var createProjectSection = h(Section, {title:"Project", defaultOpen:true},
+      h("div", {style:{display:"flex",flexDirection:"column",gap:'var(--s-2)',padding:"4px 0 2px"}},
+        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
+          "Pattern name",
+          h("input", {
+            type:"text", value:app.projectName||"", maxLength:60,
+            placeholder:ctx.pat?(ctx.sW+"\xD7"+ctx.sH+" pattern"):"e.g. Sunflower sampler",
+            onChange:function(e){var v=e.target.value.slice(0,60);if(typeof app.setProjectName==="function")app.setProjectName(v);},
+            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
+          })
+        ),
+        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
+          "Designer (optional)",
+          h("input", {
+            type:"text", value:app.projectDesigner||"", maxLength:80,
+            placeholder:"Your name or studio",
+            onChange:function(e){var v=e.target.value.slice(0,80);if(typeof app.setProjectDesigner==="function")app.setProjectDesigner(v);},
+            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
+          })
+        ),
+        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
+          "Description / notes (optional)",
+          h("textarea", {
+            value:app.projectDescription||"", maxLength:500, rows:3,
+            placeholder:"Source, copyright, stitching notes\u2026",
+            onChange:function(e){var v=e.target.value.slice(0,500);if(typeof app.setProjectDescription==="function")app.setProjectDescription(v);},
+            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
+          })
+        )
+      ),
+      ctx.pat && (function() {
+        var palLen = ctx.pat&&ctx.pal?(ctx.displayPal||ctx.pal||[]).length:0;
+        var stitchable = ctx.totalStitchable||(ctx.pat?(ctx.sW*ctx.sH):0);
+        var fabricCt = ctx.fabricCt||14;
+        var finishedW = (ctx.sW/fabricCt).toFixed(1);
+        var finishedH = (ctx.sH/fabricCt).toFixed(1);
+        var skeins = (ctx.pat&&typeof skeinEst==="function"&&palLen>0)
+          ?(ctx.displayPal||ctx.pal||[]).reduce(function(t,p){return t+(p&&p.count?skeinEst(p.count,fabricCt):0);},0):0;
+        var cost = skeins*(ctx.skeinPrice||(typeof DEFAULT_SKEIN_PRICE!=="undefined"?DEFAULT_SKEIN_PRICE:0.95));
+        function statRow(label, value) {
+          return h(React.Fragment, null,
+            h("span", {style:{color:"var(--text-tertiary)"}}, label),
+            h("span", {style:{textAlign:"right",fontVariantNumeric:"tabular-nums"}}, value)
+          );
+        }
+        return h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-2)',paddingTop:'var(--s-2)',display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)'}},
+          statRow("Size", ctx.sW+" \u00D7 "+ctx.sH+" stitches"),
+          statRow("Finished", finishedW+" \u00D7 "+finishedH+" in ("+fabricCt+"ct)"),
+          statRow("Colours", palLen+" colour"+(palLen===1?"":"s")),
+          statRow("Stitches", stitchable.toLocaleString()),
+          statRow("Skeins", skeins>0?("\u2248 "+Math.ceil(skeins)):"\u2014"),
+          statRow("Est. cost", cost>0?("\u2248 "+(typeof window.AppPrefs!=="undefined"&&window.AppPrefs.formatCurrency?window.AppPrefs.formatCurrency(cost):("\u00A3"+cost.toFixed(2)))):"\u2014")
+        );
+      })()
+    );
+
     // ── Single scrollable settings panel (Palette → Size & Fabric → Detail → Source) ──
     var createPanel = h("div", {
       style:{overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}
     },
       globalRegenCta,
-      // 1. Palette (first — most-used during conversion)
+      // 1. Image (source adjustments + background)
+      adjSection,
+      bgSection,
+      // 2. Output (dimensions + fabric)
+      dimSection,
+      fabSection,
+      // 3. Palette
       palSection,
+      // 4. Quality (dithering + cleanup)
       tidySection,
+      // 5. Palette swap (conditional)
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.revertSection,
-      // 2. Size & Fabric
-      dimSection,
-      fabSection,
-      // 3. Detail / Background
-      bgSection,
-      // 4. Source adjustments (collapsible, less-frequently touched)
-      adjSection,
-      // 5. Project info (collapsible)
-      projectInfoSection,
-      projectSummary
+      // 6. Project (info + summary)
+      createProjectSection
     );
 
     return h(React.Fragment, null,
@@ -14213,11 +14724,74 @@ window.CreatorSidebar = function CreatorSidebar() {
     }, "Clear selection (" + (cv.selectionCount || 0).toLocaleString() + ")")
   );
 
+  var correctSection = h("div", {style:{padding:"0 12px 12px",borderTop:"1px solid var(--border)",paddingTop:12}},
+    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-2)'}},
+      "Correct"),
+    h("div", {style:{display:"flex",gap:6,marginBottom:8}},
+      h("button", {
+        onClick:function(){
+          if (cv.activeTool==="cleanup") { if (cv.exitCleanup) cv.exitCleanup(); }
+          else { cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); if (cv.enterCleanup) cv.enterCleanup(); }
+        },
+        "aria-pressed": cv.activeTool==="cleanup" ? "true" : "false",
+        style:{
+          flex:1,padding:"6px 8px",fontSize:'var(--text-sm)',
+          fontWeight:cv.activeTool==="cleanup"?600:400,
+          border:"1px solid "+(cv.activeTool==="cleanup"?"var(--accent)":"var(--border)"),
+          background:cv.activeTool==="cleanup"?"var(--accent-light)":"transparent",
+          color:cv.activeTool==="cleanup"?"var(--accent)":"var(--text-secondary)",
+          borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
+        }
+      }, "Cleanup"),
+      h("button", {
+        onClick:function(){
+          if (cv.activeTool==="denoise") { if (cv.exitDenoise) cv.exitDenoise(); }
+          else { cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); if (cv.enterDenoise) cv.enterDenoise(); }
+        },
+        "aria-pressed": cv.activeTool==="denoise" ? "true" : "false",
+        style:{
+          flex:1,padding:"6px 8px",fontSize:'var(--text-sm)',
+          fontWeight:cv.activeTool==="denoise"?600:400,
+          border:"1px solid "+(cv.activeTool==="denoise"?"var(--accent)":"var(--border)"),
+          background:cv.activeTool==="denoise"?"var(--accent-light)":"transparent",
+          color:cv.activeTool==="denoise"?"var(--accent)":"var(--text-secondary)",
+          borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
+        }
+      }, "Denoise")
+    ),
+    h("button", {
+      onClick:function(){ if (app&&app.openResizeCanvas) app.openResizeCanvas(); },
+      style:{
+        width:"100%",padding:"6px 8px",fontSize:'var(--text-sm)',
+        border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',
+        background:"transparent",color:"var(--text-secondary)",
+        cursor:"pointer",fontFamily:"inherit",textAlign:"left"
+      }
+    }, "Resize canvas\u2026")
+  );
+
   var toolsContent = h(React.Fragment, null,
     stitchTypeSection,
     bsContSection,
     brushSizeSection,
-    selectionSection
+    selectionSection,
+    correctSection
+  );
+
+  var subHeaderStyle = {padding:"10px 12px 2px",fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5};
+  var viewContent = h(React.Fragment, null,
+    h("div", {style:subHeaderStyle}, "View"),
+    viewToggle,
+    highlightControls
+  );
+
+  var displayContent = h(React.Fragment, null,
+    h("div", {style:subHeaderStyle}, "View"),
+    viewToggle,
+    highlightControls,
+    h("div", {style:{borderTop:"0.5px solid var(--border)",margin:"8px 0 0"}}),
+    h("div", {style:subHeaderStyle}, "Preview"),
+    previewPanel
   );
 
   var moreContent = h(React.Fragment, null,
@@ -14293,10 +14867,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         coloursSection
       ),
       sTab === "tools" && toolsContent,
-      sTab === "view" && h(React.Fragment, null,
-        viewToggle,
-        highlightControls
-      ),
+      sTab === "view" && viewContent,
       sTab === "preview" && previewPanel,
       sTab === "project" && projectInfoSection,
       sTab === "more" && moreContent
@@ -14674,6 +15245,30 @@ window.CreatorPatternTab = function CreatorPatternTab() {
           title:"Higher score = easier to stitch. Fewer isolated single stitches means fewer thread changes and less counting fatigue. Reduce Confetti Cleanup level or increase grid size to improve.",
           style:{cursor:"help",color:"var(--text-tertiary)",borderBottom:"1px dotted var(--text-tertiary)",fontSize:'var(--text-xs)',whiteSpace:"nowrap"}
         }, "What is this?")
+      );
+    })(),
+
+    gen.disambig && (function() {
+      var hasResult = gen.disambigData != null;
+      var canRun = ctx.pat && ctx.pal && !app.busy;
+      return h("div", {style:{padding:"8px 10px",background:"var(--surface-secondary)",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',marginBottom:'var(--s-2)',display:"flex",alignItems:"center",gap:'var(--s-2)',flexWrap:"wrap"}},
+        h("span", {style:{flex:1,color:"var(--text-secondary)",fontWeight:500}}, "Separate similar neighbours"),
+        hasResult && gen.disambigData.swaps > 0 && h("span", {style:{color:"var(--text-tertiary)"}},
+          gen.disambigData.swaps.toLocaleString(), " cell", gen.disambigData.swaps !== 1 ? "s" : "", " corrected"
+        ),
+        hasResult && gen.disambigData.swaps === 0 && h("span", {style:{color:"var(--success)"}}, "No clashes found"),
+        h("button", {
+          disabled: !canRun,
+          onClick: function() {
+            if (!canRun) return;
+            gen.disambiguateNow();
+          },
+          style:{padding:"4px 10px",fontSize:'var(--text-xs)',fontWeight:500,background:canRun?"var(--accent)":"var(--surface-tertiary)",color:canRun?"var(--on-accent)":"var(--text-tertiary)",border:"none",borderRadius:'var(--radius-sm)',cursor:canRun?"pointer":"not-allowed",flexShrink:0,transition:"background 0.15s"}
+        }, hasResult ? "Re-apply" : "Apply now"),
+        h("button", {
+          onClick: function() { gen.setDisambig(false); },
+          style:{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",fontSize:15,lineHeight:1,padding:0,flexShrink:0}
+        }, "\xD7")
       );
     })(),
 

@@ -454,11 +454,14 @@ function generateOXS(project) {
 }
 
 function parseImagePattern(img, options = {}) {
-  const maxWidth = options.maxWidth || 200;
-  const maxHeight = options.maxHeight || 200;
-  const maxColours = options.maxColours || 30;
+  const maxWidth    = options.maxWidth    || 200;
+  const maxHeight   = options.maxHeight   || 200;
+  const maxColours  = options.maxColours  || 30;
   const skipWhiteBg = options.skipWhiteBg || false;
   const bgThreshold = options.bgThreshold || 15;
+  const preSmooth   = !!options.preSmooth;
+  const dither      = !!options.dither;
+  const dithAlgo    = options.dithAlgo || (dither ? 'atkinson' : 'off');
 
   let targetWidth = img.width;
   let targetHeight = img.height;
@@ -483,8 +486,30 @@ function parseImagePattern(img, options = {}) {
   const imgData = ctx.getImageData(0, 0, targetWidth, targetHeight);
   const data = imgData.data;
 
-  const pal = quantize(data, targetWidth, targetHeight, maxColours);
-  const mapped = doMap(data, targetWidth, targetHeight, pal);
+  // Apply edge-preserving pre-smooth before quantisation if requested.
+  // applyBilateralFilter is defined in colour-utils.js (loaded before this file).
+  if (preSmooth && typeof applyBilateralFilter === 'function') {
+    applyBilateralFilter(data, targetWidth, targetHeight);
+  }
+
+  // quantizeConstrained keeps every centroid on a real DMC colour throughout
+  // all iterations (no free-space drift then final snap). Falls back to the
+  // legacy quantize if the constrained version is not yet loaded.
+  const _quantize = (typeof quantizeConstrained === 'function') ? quantizeConstrained : quantize;
+  const pal = _quantize(data, targetWidth, targetHeight, maxColours);
+
+  let mapped;
+  if (dithAlgo === 'riemersma' && typeof doRiemersma === 'function') {
+    const saliencyMap = typeof generateSaliencyMap === 'function'
+      ? generateSaliencyMap(data, targetWidth, targetHeight) : null;
+    mapped = doRiemersma(data, targetWidth, targetHeight, pal, false, saliencyMap, {});
+  } else if (dither && typeof doDither === 'function') {
+    const saliencyMap = typeof generateSaliencyMap === 'function'
+      ? generateSaliencyMap(data, targetWidth, targetHeight) : null;
+    mapped = doDither(data, targetWidth, targetHeight, pal, false, saliencyMap, {});
+  } else {
+    mapped = doMap(data, targetWidth, targetHeight, pal);
+  }
 
   let stitchCount = 0;
   const pattern = new Array(targetWidth * targetHeight);

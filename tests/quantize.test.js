@@ -5,7 +5,7 @@
  */
 
 const fs = require('fs');
-const { rgbToLab, dE2, DMC } = require('../dmc-data.js');
+const { rgbToLab, rgbToOklab, dE2, dE2ok, DMC } = require('../dmc-data.js');
 
 // ---------------------------------------------------------------------------
 // Extract functions from colour-utils.js using the same pattern as doDither.test.js
@@ -34,6 +34,10 @@ function extractFn(src, name) {
   throw new Error(`Unterminated function ${name}`);
 }
 
+// dE2000 references module-level cache vars; declare them with var so they
+// are visible to subsequent eval calls (const is block-scoped to each eval).
+eval('var _de2000Cache = new Map(); var _DE2000_CACHE_MAX = 5000;'); // eslint-disable-line no-eval
+eval(extractFn(cuSrc, 'dE2000'));              // eslint-disable-line no-eval  (needed by quantizeConstrained)
 eval(extractFn(cuSrc, 'quantize'));            // eslint-disable-line no-eval
 eval(extractFn(cuSrc, 'quantizeConstrained')); // eslint-disable-line no-eval
 

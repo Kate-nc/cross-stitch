@@ -7,21 +7,25 @@
        { type: 'generate', reqId: number, pixels: ArrayBuffer, width: number, height: number,
          settings: { maxC, dith, allowBlends, skipBg, bgCol, bgTh, minSt,
                      smooth, smoothType, stitchCleanup,
+                     disambig?: boolean, disambigLevel?: 'gentle'|'standard'|'strong',
                      allowedPalette? } }  // allowedPalette: array of DMC entries or null
+       { type: 'disambiguate', reqId: number, mapped: Array, palette: Array,
+         settings: { disambigLevel?: string, maxIterations?: number } }
 
      Worker → Main:
-       { type: 'result', reqId: number, mapped, pal, cmap, confettiData }
+       { type: 'result', reqId: number, mapped, pal, cmap, confettiData, disambigData }
+       { type: 'disambiguate-result', reqId: number, mapped: Array, disambigData: object }
        { type: 'progress', reqId: number, stage: string, message: string }
        { type: 'error',  reqId: number, message: string, stack?: string }
 
    Dependencies (imported via importScripts — all pure, no DOM):
      constants.js  → FABRIC_COUNTS, A4W, A4H, etc.
      dmc-data.js   → DMC_RAW, rgbToLab, dE, dE2, DMC, SYMS
-     colour-utils.js → findSolid, findBest, quantize, doDither, doMap,
-                       buildPalette, applyGaussianBlur, applyMedianFilter,
+     colour-utils.js → findSolid, findBest, quantize, quantizeConstrained, doDither, doRiemersma, doMap,
+                       buildPalette, applyGaussianBlur, applyMedianFilter, applyBilateralFilter,
                        generateSaliencyMap, generateEdgeMap,
                        labelConnectedComponents, removeOrphanStitches,
-                       analyzeConfetti
+                       analyzeConfetti, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP
 */
 
 importScripts('constants.js', 'dmc-data.js', 'colour-utils.js');
@@ -31,12 +35,45 @@ importScripts('constants.js', 'dmc-data.js', 'colour-utils.js');
 // calls document.createElement, making it unsuitable for worker import.
 var STRENGTH_MAP = {
   gentle:   { maxOrphanSize: 2, saliencyMultiplier: 1.0 },
-  balanced: { maxOrphanSize: 3, saliencyMultiplier: 2.0 },
-  thorough: { maxOrphanSize: 5, saliencyMultiplier: 3.0 },
+  balanced: { maxOrphanSize: 4, saliencyMultiplier: 2.0 },
+  thorough: { maxOrphanSize: 6, saliencyMultiplier: 3.0 },
 };
+
+// ORPHAN_MAX_ITERATIONS and ORPHAN_CONTRAST_GUARD_DE mirror the constants in
+// creator/generate.js.  Keep in sync when either value changes.
+var ORPHAN_MAX_ITERATIONS = 8;
+var ORPHAN_CONTRAST_GUARD_DE = 30;
 
 self.onmessage = function(e) {
   var msg = e.data;
+
+  // ── Post-hoc disambiguation (from PatternTab "Re-apply" button) ────────────
+  // Derives edge map from pattern boundaries (conservative: all colour-boundary
+  // cells are protected). No saliency scaling — flat threshold only.
+  if (msg.type === 'disambiguate') {
+    try {
+      var reqId2 = msg.reqId;
+      var mapped2 = msg.mapped;
+      var palette2 = msg.palette;
+      var s2 = msg.settings || {};
+      var dlvl2 = (typeof DISAMBIG_LEVEL_MAP !== 'undefined' ? DISAMBIG_LEVEL_MAP : {})[s2.disambigLevel] || { threshold: 15, maxDegradation: 20 };
+      var solidPalette2 = palette2.filter(function(e) { return e.type !== 'blend' && e.lab; });
+      var mapped2work = mapped2.slice();
+      var dr2 = disambiguateSimilarNeighbours(
+        mapped2work,
+        msg.width, msg.height,
+        null, null, solidPalette2,
+        { threshold: dlvl2.threshold, maxDegradation: dlvl2.maxDegradation,
+          maxIterations: typeof s2.maxIterations === 'number' ? s2.maxIterations : 5,
+          deriveBoundaryEdges: true }
+      );
+      self.postMessage({ type: 'disambiguate-result', reqId: reqId2, mapped: mapped2work, disambigData: { swaps: dr2.totalSwaps, iterations: dr2.iterations } });
+    } catch (err2) {
+      self.postMessage({ type: 'error', reqId: msg.reqId, message: err2.message, stack: err2.stack });
+    }
+    return;
+  }
+
   if (msg.type !== 'generate') return;
 
   var reqId    = msg.reqId;
@@ -53,10 +90,16 @@ self.onmessage = function(e) {
     }
 
     // ── 1. Pre-processing: image smoothing ─────────────────────────────────
+    if (settings.preSmooth) {
+      postProgress('smoothing', 'Pre-smoothing image…');
+      applyBilateralFilter(raw, width, height);
+    }
     if (settings.smooth > 0) {
       postProgress('smoothing', 'Smoothing image…');
       if (settings.smoothType === 'gaussian') {
         applyGaussianBlur(raw, width, height, settings.smooth);
+      } else if (settings.smoothType === 'bilateral') {
+        applyBilateralFilter(raw, width, height);
       } else {
         applyMedianFilter(raw, width, height, settings.smooth);
       }
@@ -77,7 +120,7 @@ self.onmessage = function(e) {
 
     var allowedPalette = settings.allowedPalette || null;
     postProgress('quantizing', 'Choosing colours…');
-    var p = quantize(raw, width, height, maxC, allowedPalette, {seed: settings.seed});
+    var p = quantizeConstrained(raw, width, height, maxC, allowedPalette, {seed: settings.seed});
     if (!p.length) {
       self.postMessage({ type: 'error', reqId: reqId, message: 'Could not find enough distinct colours in your image. Try increasing the maximum colours, or use a clearer image.' });
       return;
@@ -91,6 +134,8 @@ self.onmessage = function(e) {
       mapped = doMap(raw, width, height, p, allowBlends);
     } else if (dithAlgo === "bayer") {
       mapped = doBayerDither(raw, width, height, p, allowBlends, dithBayerSize);
+    } else if (dithAlgo === "riemersma") {
+      mapped = doRiemersma(raw, width, height, p, allowBlends, saliencyMap, {});
     } else {
       mapped = doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt, ditherStrength: dithStrength });
     }
@@ -137,6 +182,40 @@ self.onmessage = function(e) {
       }
     }
 
+    // ── Auto-coverage post-pass (mirrors runCleanupPipeline) ─────────────────
+    // Remove colours covering < 0.5% of non-skip cells (cap 15) to prevent
+    // 1–3 stitch stragglers from consuming palette slots.
+    {
+      var _atTotal = 0;
+      for (var _ati = 0; _ati < mapped.length; _ati++) { if (mapped[_ati].id !== '__skip__') _atTotal++; }
+      var _autoThresh = Math.max(2, Math.min(15, Math.floor(_atTotal * 0.005)));
+      if (_autoThresh > (minSt || 0)) {
+        postProgress('rarity', 'Removing rare colours…');
+        for (var _apass = 0; _apass < 3; _apass++) {
+          var _aep = buildPalette(mapped);
+          var _arare = _aep.pal.filter(function(e) { return e.count < _autoThresh; });
+          var _akeep = _aep.pal.filter(function(e) { return e.count >= _autoThresh; });
+          if (!_arare.length || !_akeep.length) break;
+          var _arm = {};
+          _arare.forEach(function(r) {
+            var _ab = null, _abd = 1e9;
+            _akeep.forEach(function(k) { var d = dE(r.lab, k.lab); if (d < _abd) { _abd = d; _ab = k.id; } });
+            if (_ab) _arm[r.id] = _ab;
+          });
+          var _akm = {};
+          _akeep.forEach(function(k) { _akm[k.id] = k; });
+          var _achanged = false;
+          for (var _aj = 0; _aj < mapped.length; _aj++) {
+            if (mapped[_aj].id !== '__skip__' && _arm[mapped[_aj].id]) {
+              mapped[_aj] = Object.assign({}, _akm[_arm[mapped[_aj].id]]);
+              _achanged = true;
+            }
+          }
+          if (!_achanged) break;
+        }
+      }
+    }
+
     var preLabels   = labelConnectedComponents(mapped, width, height);
     var confettiRaw = analyzeConfetti(mapped, width, height, preLabels);
     var confettiClean = null;
@@ -164,18 +243,36 @@ self.onmessage = function(e) {
         saliencyMult = sp.saliencyMultiplier;
       }
       var edgeMap = (stitchCleanup && stitchCleanup.protectDetails) ? generateEdgeMap(raw, width, height) : null;
+      // The ΔE contrast guard is a sibling of edge protection: both guard deliberate
+      // small features.  Disable it when the user has turned off protectDetails.
+      var contrastGuard = (stitchCleanup && stitchCleanup.protectDetails) ? ORPHAN_CONTRAST_GUARD_DE : 0;
       preCleanupIds = mapped.map(function(m) { return m.id; });
       mapped = removeOrphanStitches(
         mapped, width, height, maxOrphanSize,
         edgeMap, saliencyMap,
-        { saliencyMultiplier: saliencyMult },
+        { saliencyMultiplier: saliencyMult, deContrastGuard: contrastGuard, maxIterations: ORPHAN_MAX_ITERATIONS },
         preLabels
       );
       var postLabels = labelConnectedComponents(mapped, width, height);
       confettiClean = analyzeConfetti(mapped, width, height, postLabels);
     }
 
-    // ── 4. maxC enforcement pass ──────────────────────────────────────────────
+    // ── Stage 9: Adjacent-cell colour disambiguation ────────────────────────
+    var disambigData = null;
+    if (settings.disambig && settings.disambigLevel && settings.disambigLevel !== 'off') {
+      postProgress('disambiguating', 'Separating similar neighbours…');
+      var dlvl = (typeof DISAMBIG_LEVEL_MAP !== 'undefined' ? DISAMBIG_LEVEL_MAP : {})[settings.disambigLevel] || { threshold: 15, maxDegradation: 20 };
+      var disambigEdgeMap = (typeof edgeMap !== 'undefined' ? edgeMap : null) || generateEdgeMap(raw, width, height);
+      var solidPalette = p.filter(function(e) { return e.type !== 'blend' && e.lab; });
+      var dr = disambiguateSimilarNeighbours(mapped, width, height, disambigEdgeMap, saliencyMap, solidPalette, {
+        threshold:      dlvl.threshold,
+        maxDegradation: dlvl.maxDegradation,
+        maxIterations:  5,
+      });
+      disambigData = { swaps: dr.totalSwaps, iterations: dr.iterations };
+    }
+
+    // ── maxC enforcement pass ──────────────────────────────────────────────────
     for (var safe = 0; safe < 5; safe++) {
       var ids = new Set();
       for (var k = 0; k < mapped.length; k++) {
@@ -227,6 +324,7 @@ self.onmessage = function(e) {
       cmap: palResult.cmap,
       confettiData: { raw: confettiRaw, clean: confettiClean || confettiRaw },
       preCleanupIds: preCleanupIds,
+      disambigData: disambigData,
     });
 
   } catch (err) {

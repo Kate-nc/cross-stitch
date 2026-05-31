@@ -4,7 +4,11 @@
 // OKLCH Colour Conversion Utilities
 // ═══════════════════════════════════════════════════════════
 
-function rgbToOklab(r, g, b) {
+// NOTE: dmc-data.js defines the canonical global rgbToOklab that returns arrays
+// [L, a, b] — quantizeConstrained relies on it. This local version returns an
+// {L, a, b} object for palette-swap's own sorting / hue logic.  It must NOT
+// overwrite the global, so it uses a private name.
+function _psRgbToOklab(r, g, b) {
   r /= 255; g /= 255; b /= 255;
   r = r <= 0.04045 ? r / 12.92 : Math.pow((r + 0.055) / 1.055, 2.4);
   g = g <= 0.04045 ? g / 12.92 : Math.pow((g + 0.055) / 1.055, 2.4);
@@ -52,7 +56,7 @@ function oklabToRgb(L, a, b) {
 }
 
 function shiftRgbHue(rgb, degrees) {
-  var ok = rgbToOklab(rgb[0], rgb[1], rgb[2]);
+  var ok = _psRgbToOklab(rgb[0], rgb[1], rgb[2]);
   var lch = oklabToOklch(ok.L, ok.a, ok.b);
   lch.H = (lch.H + degrees) % 360;
   if (lch.H < 0) lch.H += 360;
@@ -453,7 +457,7 @@ function expandPalette(hexColours, targetCount) {
   // Sort by OKLAB lightness for perceptual ordering
   var sorted = hexColours.slice().sort(function(a, b) {
     var ra = hexToRgb(a), rb = hexToRgb(b);
-    return rgbToOklab(ra[0], ra[1], ra[2]).L - rgbToOklab(rb[0], rb[1], rb[2]).L;
+    return _psRgbToOklab(ra[0], ra[1], ra[2]).L - _psRgbToOklab(rb[0], rb[1], rb[2]).L;
   });
   var result = sorted.slice();
   while (result.length < targetCount) {
@@ -461,8 +465,8 @@ function expandPalette(hexColours, targetCount) {
     var maxGap = -1, maxIdx = 0;
     for (var i = 0; i < result.length - 1; i++) {
       var rgbA = hexToRgb(result[i]), rgbB = hexToRgb(result[i + 1]);
-      var okA = rgbToOklab(rgbA[0], rgbA[1], rgbA[2]);
-      var okB = rgbToOklab(rgbB[0], rgbB[1], rgbB[2]);
+      var okA = _psRgbToOklab(rgbA[0], rgbA[1], rgbA[2]);
+      var okB = _psRgbToOklab(rgbB[0], rgbB[1], rgbB[2]);
       var gap = Math.sqrt(
         (okA.L - okB.L) * (okA.L - okB.L) +
         (okA.a - okB.a) * (okA.a - okB.a) +
@@ -471,7 +475,7 @@ function expandPalette(hexColours, targetCount) {
       if (gap > maxGap) { maxGap = gap; maxIdx = i; }
     }
     var rA = hexToRgb(result[maxIdx]), rB = hexToRgb(result[maxIdx + 1]);
-    var oA = rgbToOklab(rA[0], rA[1], rA[2]), oB = rgbToOklab(rB[0], rB[1], rB[2]);
+    var oA = _psRgbToOklab(rA[0], rA[1], rA[2]), oB = _psRgbToOklab(rB[0], rB[1], rB[2]);
     var mid = oklabToRgb((oA.L + oB.L) / 2, (oA.a + oB.a) / 2, (oA.b + oB.b) / 2);
     result.splice(maxIdx + 1, 0, rgbToHex(mid));
   }
@@ -484,7 +488,7 @@ function reducePalette(hexColours, targetCount) {
   // MaxMin diversity selection in OKLAB space
   var oklabs = hexColours.map(function(hex) {
     var r = hexToRgb(hex);
-    return rgbToOklab(r[0], r[1], r[2]);
+    return _psRgbToOklab(r[0], r[1], r[2]);
   });
   var n = oklabs.length;
   var selected = [0];
@@ -581,11 +585,11 @@ function computePresetMapping(pal, presetColours, lockedIds) {
     return e.id !== "__skip__" && e.id !== "__empty__" && !lockedIds.has(e.id);
   });
   var sortedSource = unlocked.slice().sort(function(a, b) {
-    return rgbToOklab(a.rgb[0], a.rgb[1], a.rgb[2]).L - rgbToOklab(b.rgb[0], b.rgb[1], b.rgb[2]).L;
+    return _psRgbToOklab(a.rgb[0], a.rgb[1], a.rgb[2]).L - _psRgbToOklab(b.rgb[0], b.rgb[1], b.rgb[2]).L;
   });
   var targetRgbs = presetColours.map(hexToRgb);
   var sortedTarget = targetRgbs.slice().sort(function(a, b) {
-    return rgbToOklab(a[0], a[1], a[2]).L - rgbToOklab(b[0], b[1], b[2]).L;
+    return _psRgbToOklab(a[0], a[1], a[2]).L - _psRgbToOklab(b[0], b[1], b[2]).L;
   });
 
   var mapping = {};
@@ -626,7 +630,7 @@ function computePresetMapping(pal, presetColours, lockedIds) {
 
 function generateHarmonyPalette(baseHex, harmonyType, count) {
   var baseRgb = hexToRgb(baseHex);
-  var ok = rgbToOklab(baseRgb[0], baseRgb[1], baseRgb[2]);
+  var ok = _psRgbToOklab(baseRgb[0], baseRgb[1], baseRgb[2]);
   var lch = oklabToOklch(ok.L, ok.a, ok.b);
   var angles = HARMONY_TYPES[harmonyType] || [];
   var colours = [rgbToHex(baseRgb)];
@@ -644,7 +648,7 @@ function generateHarmonyPalette(baseHex, harmonyType, count) {
     var ci = 0;
     while (expanded.length < target) {
       var cRgb = hexToRgb(colours[ci % colours.length]);
-      var cOk = rgbToOklab(cRgb[0], cRgb[1], cRgb[2]);
+      var cOk = _psRgbToOklab(cRgb[0], cRgb[1], cRgb[2]);
       var cLch = oklabToOklch(cOk.L, cOk.a, cOk.b);
       var step = Math.floor(ci / colours.length) + 1;
       var lightL = Math.min(0.95, cLch.L + step * 0.12);

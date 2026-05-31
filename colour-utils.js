@@ -125,7 +125,105 @@ function quantize(data,w,h,n,allowedPalette,options){
   }
   return pl;
 }
-function quantizeConstrained(data,w,h,n,allowedPalette,options){return quantize(data,w,h,n,allowedPalette,options);}
+function quantizeConstrained(data,w,h,n,allowedPalette,options){
+  var pool=allowedPalette&&allowedPalette.length?allowedPalette:DMC;
+  var maxN=Math.min(n,pool.length);
+  let seed=(options&&options.seed!=null)?options.seed:1337;
+  function random(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}
+  let len=w*h, px=new Array(len), pxOk=new Array(len);
+  for(let i=0;i<len;i++){let j=i*4;px[i]=rgbToLab(data[j],data[j+1],data[j+2]);pxOk[i]=rgbToOklab(data[j],data[j+1],data[j+2]);}
+  // Pre-compute OKLab for every pool entry once, computing on-the-fly for any
+  // entry that lacks .oklab (e.g. stash entries loaded from IndexedDB that were
+  // serialised before this field was added). Without this guard, pool[ti].oklab
+  // being undefined causes dE2ok → NaN, the k-means++ while loop breaks after
+  // the first centre, and every pixel collapses to a single grey average.
+  let poolOk=new Array(pool.length);
+  for(let ti=0;ti<pool.length;ti++)poolOk[ti]=pool[ti].oklab||rgbToOklab(pool[ti].rgb[0],pool[ti].rgb[1],pool[ti].rgb[2]);
+  // k-means++ initialisation: pick directly from pool (DMC entries), not free pixel LABs.
+  // This keeps every centroid on an achievable DMC colour throughout all iterations.
+  // csOk tracks the OKLab triplet for each selected centre in parallel with cs[].
+  let cs=[], csOk=[], usedInit=new Set();
+  {
+    let fp=px[Math.floor(random()*len)];
+    let b=null,bd=1e9,bti=-1;
+    for(let ti=0;ti<pool.length;ti++){let d=dE2(fp,pool[ti].lab);if(d<bd){bd=d;b=pool[ti];bti=ti;}}
+    if(b){cs.push(b);csOk.push(poolOk[bti]);usedInit.add(b.id);}
+  }
+  // familyBonus < 1 discounts distance for pool entries from colour families
+  // not yet in the selection, nudging initial centres to span the DMC colour
+  // wheel rather than clustering in one family. 0.85 = 15% discount.
+  let familyBonus=(options&&options.familyBonus!=null)?options.familyBonus:0.85;
+  let familiesInCs=new Set(cs.filter(function(e){return e.fam>0;}).map(function(e){return e.fam;}));
+  let ds=new Float32Array(len);
+  for(let i=0;i<len;i++)ds[i]=1e9;
+  while(cs.length<Math.min(maxN,pool.length)){
+    // Use OKLab for k-means++ distance weighting: better hue uniformity than
+    // CIE LAB, so the probabilistic sampling reflects perceptual spread more accurately.
+    let lastOk=csOk[csOk.length-1];
+    let sum=0;
+    for(let i=0;i<len;i++){
+      let d=dE2ok(pxOk[i],lastOk);
+      if(d<ds[i])ds[i]=d;
+      sum+=ds[i];
+    }
+    if(!sum)break;
+    let r=random()*sum,acc=0,chosenPxOk=null;
+    for(let i=0;i<len;i++){acc+=ds[i];if(acc>=r){chosenPxOk=pxOk[i];break;}}
+    if(!chosenPxOk)chosenPxOk=pxOk[len-1];
+    let b=null,bd=1e9,bti=-1;
+    for(let ti=0;ti<pool.length;ti++){
+      if(usedInit.has(pool[ti].id))continue;
+      let d=dE2ok(chosenPxOk,poolOk[ti]);
+      // Apply diversity discount for entries from families not yet selected.
+      if(familyBonus<1&&pool[ti].fam>0&&!familiesInCs.has(pool[ti].fam))d*=familyBonus;
+      if(d<bd){bd=d;b=pool[ti];bti=ti;}
+    }
+    if(!b)break;
+    cs.push(b);csOk.push(poolOk[bti]);usedInit.add(b.id);
+    if(b.fam>0)familiesInCs.add(b.fam);
+  }
+  // Constrained Lloyd's iterations: after each assignment, snap each centroid to
+  // the nearest unused pool entry (greedy in cluster order) rather than a free
+  // LAB point. This eliminates the double-error of unconstrained k-means → final snap.
+  // Per-pixel assignment uses OKLab (better hue linearity); centroid-to-pool
+  // snapping uses dE2000 (perceptually accurate for small palette decisions).
+  let _sumL=new Float64Array(cs.length),_sumA=new Float64Array(cs.length),_sumB=new Float64Array(cs.length),_cnt=new Uint32Array(cs.length);
+  for(let it=0;it<20;it++){
+    _sumL.fill(0);_sumA.fill(0);_sumB.fill(0);_cnt.fill(0);
+    for(let pi=0;pi<len;pi++){
+      let md=1e9,mi=0;
+      for(let c=0;c<cs.length;c++){let d=dE2ok(pxOk[pi],csOk[c]);if(d<md){md=d;mi=c;}}
+      _sumL[mi]+=px[pi][0];_sumA[mi]+=px[pi][1];_sumB[mi]+=px[pi][2];_cnt[mi]++;
+    }
+    let mv=false;
+    let usedIter=new Set();
+    for(let c=0;c<cs.length;c++){
+      // Empty cluster: anchor to current centre to keep it stable; it still
+      // competes for pool entries so a previously-claimed entry can't cause
+      // a duplicate in the output.
+      let centroid=_cnt[c]>0?[_sumL[c]/_cnt[c],_sumA[c]/_cnt[c],_sumB[c]/_cnt[c]]:cs[c].lab;
+      let b=null,bd=1e9,bti=-1;
+      for(let ti=0;ti<pool.length;ti++){
+        if(usedIter.has(pool[ti].id))continue;
+        let d=dE2000(centroid,pool[ti].lab);if(d<bd){bd=d;b=pool[ti];bti=ti;}
+      }
+      if(!b)continue;
+      if(b.id!==cs[c].id)mv=true;
+      cs[c]=b;csOk[c]=poolOk[bti];usedIter.add(b.id);
+    }
+    if(!mv)break;
+  }
+  // Empty-palette fallback: mirrors quantize behaviour
+  if(!cs.length){
+    if(len){
+      let mid=px[Math.floor(len/2)];
+      let b=null,bd=1e9;
+      for(let ti=0;ti<pool.length;ti++){let d=dE2(mid,pool[ti].lab);if(d<bd){bd=d;b=pool[ti];}}
+      if(b)cs.push(b);
+    }
+  }
+  return cs;
+}
 /**
  * Atkinson dithering with Stage 2 confetti-aware color selection.
  *
@@ -391,6 +489,115 @@ function doBayerDither(data, w, h, pal, allowBlends = true, bayerSize = 4) {
   return r;
 }
 
+/**
+ * Riemersma dithering: traverses pixels along a Hilbert space-filling curve
+ * and propagates quantisation error to the next ~16 pixels with exponential
+ * decay. Because the Hilbert curve visits spatially nearby pixels in close
+ * sequence, errors stay local and the result contains fewer isolated stitches
+ * (confetti) than raster-order diffusion algorithms like Atkinson.
+ *
+ * Reference: Riemersma, T. (1999). Dithering. CompuPhase.
+ *   https://www.compuphase.com/riemer.htm
+ *
+ * @param {Uint8ClampedArray} data
+ * @param {number}            w
+ * @param {number}            h
+ * @param {Array}             pal
+ * @param {boolean}           [allowBlends=true]
+ * @param {Float32Array|null} [saliencyMap]   accepted for API parity with doDither; unused
+ * @param {object}            [opts]
+ * @param {number}            [opts.queueLen=16]  error history length
+ */
+function doRiemersma(data, w, h, pal, allowBlends, saliencyMap, opts) {
+  if (allowBlends === undefined) allowBlends = true;
+  var QUEUE_LEN = (opts && opts.queueLen != null) ? opts.queueLen : 16;
+
+  // Pre-compute blend table once per palette
+  if (allowBlends && typeof findBest.precomputeBlends === 'function') findBest.precomputeBlends(pal);
+
+  // Exponential decay weights: weight[0] = most recent, weight[QUEUE_LEN-1] = oldest
+  // mult chosen so the oldest weight = 1/QUEUE_LEN of the newest.
+  var mult = Math.pow(1 / QUEUE_LEN, 1 / (QUEUE_LEN - 1));
+  var weights = new Float32Array(QUEUE_LEN);
+  var wSum = 0;
+  for (var wi = 0; wi < QUEUE_LEN; wi++) { weights[wi] = Math.pow(mult, wi); wSum += weights[wi]; }
+  for (var wi2 = 0; wi2 < QUEUE_LEN; wi2++) weights[wi2] /= wSum;
+
+  // Working float buffer (pixel values may need error correction beyond [0,255])
+  var N = w * h;
+  var buf = new Float32Array(N * 3);
+  for (var i = 0; i < N; i++) {
+    buf[i * 3]     = data[i * 4];
+    buf[i * 3 + 1] = data[i * 4 + 1];
+    buf[i * 3 + 2] = data[i * 4 + 2];
+  }
+
+  var result = new Array(N);
+
+  // Circular error queue
+  var qR = new Float32Array(QUEUE_LEN);
+  var qG = new Float32Array(QUEUE_LEN);
+  var qB = new Float32Array(QUEUE_LEN);
+  var pos = 0;  // global step counter along the curve
+
+  // Hilbert curve: convert 1D index d to (x,y) for a 2^order × 2^order grid.
+  // Standard rotate-and-reflect algorithm (Thompson & Cunniff, 1994).
+  function d2xy(order, d) {
+    var x = 0, y = 0;
+    for (var s = 1; s < (1 << order); s <<= 1) {
+      var rx = (d & 2) ? 1 : 0;
+      var ry = ((d & 1) ^ rx) ? 1 : 0;
+      if (ry === 0) {
+        if (rx === 1) { x = s - 1 - x; y = s - 1 - y; }
+        var tmp = x; x = y; y = tmp;
+      }
+      x += s * rx; y += s * ry;
+      d >>= 2;
+    }
+    return [x, y];
+  }
+
+  var order = Math.max(1, Math.ceil(Math.log2(Math.max(w, h, 1))));
+  var side = 1 << order;
+  var total = side * side;
+
+  for (var d = 0; d < total; d++) {
+    var xy = d2xy(order, d);
+    var px = xy[0], py = xy[1];
+    if (px >= w || py >= h) continue;  // outside image bounds
+
+    var idx = py * w + px;
+
+    // Accumulate weighted error from the queue
+    var accR = 0, accG = 0, accB = 0;
+    for (var qi = 0; qi < QUEUE_LEN; qi++) {
+      var slot = (pos - 1 - qi + QUEUE_LEN * 2) % QUEUE_LEN;
+      accR += qR[slot] * weights[qi];
+      accG += qG[slot] * weights[qi];
+      accB += qB[slot] * weights[qi];
+    }
+
+    var cr = Math.max(0, Math.min(255, buf[idx * 3]     + accR));
+    var cg = Math.max(0, Math.min(255, buf[idx * 3 + 1] + accG));
+    var cb = Math.max(0, Math.min(255, buf[idx * 3 + 2] + accB));
+
+    var chosen = findBest(rgbToLab(cr, cg, cb), pal, allowBlends);
+    result[idx] = chosen;
+
+    // Saliency-aware error decay: high-saliency (edge) pixels absorb their own
+    // quantisation error rather than propagating it to neighbours. This keeps
+    // detail-region colour boundaries sharp while still dithering flat areas.
+    var saliencyScale = (saliencyMap && idx < saliencyMap.length) ? (1.0 - saliencyMap[idx]) : 1.0;
+    var slot2 = pos % QUEUE_LEN;
+    qR[slot2] = (cr - chosen.rgb[0]) * saliencyScale;
+    qG[slot2] = (cg - chosen.rgb[1]) * saliencyScale;
+    qB[slot2] = (cb - chosen.rgb[2]) * saliencyScale;
+    pos++;
+  }
+
+  return result;
+}
+
 function doMap(data, w, h, pal, allowBlends = true) {
   let r = new Array(w * h);
   let cache = new Map();
@@ -609,6 +816,173 @@ function applyGaussianBlur(data, w, h, sigma) {
     }
   }
 
+  return data;
+}
+
+/**
+ * Edge-preserving bilateral filter tuned for cross-stitch pre-quantisation.
+ * Merges intra-zone colour variation (fabric texture, lighting) while keeping
+ * hard colour-zone boundaries sharp, reducing confetti before quantise runs.
+ *
+ * Wider sigmaR (50) vs the wand tool's version (30) is intentional: we want
+ * aggressive within-region colour merging before palette selection.
+ *
+ * Mutates `data` in-place (same contract as applyGaussianBlur / applyMedianFilter).
+ *
+ * @param {Uint8ClampedArray} data   RGBA pixels
+ * @param {number}            w
+ * @param {number}            h
+ * @param {object}            [opts]
+ * @param {number}            [opts.sigmaS=8]   spatial Gaussian sigma (pixels)
+ * @param {number}            [opts.sigmaR=50]  range Gaussian sigma (0–255 scale)
+ * @param {number}            [opts.radius=5]   kernel half-width
+ */
+function applyBilateralFilter(data, w, h, opts) {
+  const sigmaS = (opts && opts.sigmaS != null) ? opts.sigmaS : 8.0;
+  const sigmaR = (opts && opts.sigmaR != null) ? opts.sigmaR : 50.0;
+  const R      = (opts && opts.radius  != null) ? opts.radius  : 5;
+  const sigS2  = 2 * sigmaS * sigmaS;
+  const sigR2  = 2 * sigmaR * sigmaR;
+  const kd     = 2 * R + 1;
+
+  // Pre-compute spatial weight table (constant per kernel offset)
+  const spatialW = new Float32Array(kd * kd);
+  for (let ky = -R; ky <= R; ky++) {
+    for (let kx = -R; kx <= R; kx++) {
+      spatialW[(ky + R) * kd + (kx + R)] = Math.exp(-(kx * kx + ky * ky) / sigS2);
+    }
+  }
+
+  // Range-weight LUT (indexed by quantised squared RGB distance)
+  // Max squared RGB dist = 3 × 255² = 195075 → map to 1024 buckets
+  const LUT_N  = 1024;
+  const LUT_SC = 195075 / (LUT_N - 1);
+  const rangeLUT = new Float32Array(LUT_N);
+  for (let i = 0; i < LUT_N; i++) rangeLUT[i] = Math.exp(-(i * LUT_SC) / sigR2);
+
+  const out = new Uint8ClampedArray(data.length);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const ci = (y * w + x) * 4;
+      const cr = data[ci], cg = data[ci + 1], cb = data[ci + 2];
+      let sr = 0, sg = 0, sb = 0, wSum = 0;
+      for (let ky = -R; ky <= R; ky++) {
+        const ny = Math.max(0, Math.min(h - 1, y + ky));
+        for (let kx = -R; kx <= R; kx++) {
+          const nx  = Math.max(0, Math.min(w - 1, x + kx));
+          const ni  = (ny * w + nx) * 4;
+          const dr  = data[ni] - cr, dg = data[ni + 1] - cg, db = data[ni + 2] - cb;
+          const rid = Math.min(LUT_N - 1, (dr * dr + dg * dg + db * db) / LUT_SC) | 0;
+          const wt  = spatialW[(ky + R) * kd + (kx + R)] * rangeLUT[rid];
+          sr += data[ni] * wt;  sg += data[ni + 1] * wt;  sb += data[ni + 2] * wt;
+          wSum += wt;
+        }
+      }
+      out[ci]     = sr / wSum;
+      out[ci + 1] = sg / wSum;
+      out[ci + 2] = sb / wSum;
+      out[ci + 3] = data[ci + 3];
+    }
+  }
+  data.set(out);
+  return data;
+}
+
+// ---------------------------------------------------------------------------
+// Pre-downscale detail enhancement: Lab-L unsharp mask
+// ---------------------------------------------------------------------------
+
+/**
+ * Inverse of rgbToLab (defined in dmc-data.js): converts CIE L*a*b* to sRGB.
+ * Clamps output to [0, 255] and rounds to integers.
+ *
+ * @param {number} L   L* (0–100)
+ * @param {number} a   a* (approximately −128 to +127)
+ * @param {number} b   b* (approximately −128 to +127)
+ * @returns {[number, number, number]}  [R, G, B] each 0–255
+ */
+function labToRgb(L, a, b) {
+  var fy = (L + 16) / 116;
+  var fx = a / 500 + fy;
+  var fz = fy - b / 200;
+  // Lab f-inverse: f⁻¹(t) = t³ if t > ∛0.008856 ≈ 0.2069, else (t - 16/116) / 7.787
+  var fi = function(t) { return t > 0.2069 ? t * t * t : (t - 16 / 116) / 7.787; };
+  var X = 0.95047 * fi(fx);
+  var Y = fi(fy);
+  var Z = 1.08883 * fi(fz);
+  // XYZ D65 → linear sRGB (IEC 61966-2-1 matrix)
+  var rlin =  X * 3.2404542 - Y * 1.5371385 - Z * 0.4985314;
+  var glin = -X * 0.9692660 + Y * 1.8760108 + Z * 0.0415560;
+  var blin =  X * 0.0556434 - Y * 0.2040259 + Z * 1.0572252;
+  // Gamma compression (sRGB transfer function)
+  var gc = function(c) {
+    if (c <= 0) return 0;
+    return c > 0.0031308 ? 1.055 * Math.pow(c, 1 / 2.4) - 0.055 : 12.92 * c;
+  };
+  return [
+    Math.max(0, Math.min(255, Math.round(gc(rlin) * 255))),
+    Math.max(0, Math.min(255, Math.round(gc(glin) * 255))),
+    Math.max(0, Math.min(255, Math.round(gc(blin) * 255))),
+  ];
+}
+
+/**
+ * Luminance-channel (Lab L*) unsharp mask — applied to RGBA pixel data
+ * before the area-average downscale to preserve edges and focal features.
+ *
+ * Sharpens L* only; a* and b* (chroma) are left unchanged so the filter
+ * cannot produce colour fringing at high-contrast edges.  Only pixels where
+ * the local luminance contrast exceeds `threshold` are sharpened — flat
+ * regions (sky, fur, noisy backgrounds) are left untouched.
+ *
+ * Ordering: call applyPreSharpenCanvas() (creator/generate.js) before
+ * prescaleForGrid() so the enhanced edges survive the area-average chain.
+ *
+ * @param {Uint8ClampedArray} data       RGBA pixels, mutated in-place
+ * @param {number}            w          image width in pixels
+ * @param {number}            h          image height in pixels
+ * @param {object}            [opts]
+ * @param {number}            [opts.radius=2.0]    Gaussian sigma (working-res pixels)
+ * @param {number}            [opts.amount=0.5]    USM strength multiplier (0–2)
+ * @param {number}            [opts.threshold=8]   min |L - blur(L)| in Lab L units
+ * @returns {Uint8ClampedArray}  the same `data` reference
+ */
+function applyUnsharpMask(data, w, h, opts) {
+  var radius    = (opts && opts.radius    != null) ? opts.radius    : 2.0;
+  var amount    = (opts && opts.amount    != null) ? opts.amount    : 0.5;
+  var threshold = (opts && opts.threshold != null) ? opts.threshold : 8;
+  if (amount <= 0 || radius <= 0) return data;
+
+  var n = w * h;
+
+  // Extract L* channel (0–100) together with a* and b* for reconstruction.
+  // rgbToLab is defined in dmc-data.js and available as a global.
+  var lCh = new Float32Array(n);
+  var aCh = new Float32Array(n);
+  var bCh = new Float32Array(n);
+  for (var i = 0; i < n; i++) {
+    var lab = rgbToLab(data[i * 4], data[i * 4 + 1], data[i * 4 + 2]);
+    lCh[i] = lab[0]; aCh[i] = lab[1]; bCh[i] = lab[2];
+  }
+
+  // Gaussian-blur the L channel with a separable 1-D kernel.
+  // _gaussianBlur1 is defined further down in this file (Stage 1 saliency).
+  var lBlur = new Float32Array(lCh);
+  _gaussianBlur1(lBlur, w, h, radius);
+
+  // Apply thresholded unsharp mask and convert back to RGB.
+  for (var i = 0; i < n; i++) {
+    var diff = lCh[i] - lBlur[i];
+    if (Math.abs(diff) > threshold) {
+      var lNew = lCh[i] + amount * diff;
+      if (lNew < 0) lNew = 0; else if (lNew > 100) lNew = 100;
+      var rgb = labToRgb(lNew, aCh[i], bCh[i]);
+      data[i * 4]     = rgb[0];
+      data[i * 4 + 1] = rgb[1];
+      data[i * 4 + 2] = rgb[2];
+      // data[i * 4 + 3] (alpha) left unchanged
+    }
+  }
   return data;
 }
 
@@ -1179,187 +1553,148 @@ function labelConnectedComponents(mapped, w, h) {
  * @param {object}       [opts]
  * @param {number}       [opts.saliencyMultiplier=2.0]    Scales effectiveMaxSize in flat areas
  * @param {number}       [opts.deTieBreakThreshold=1.0]   ΔE within which frequency wins
+ * @param {number}       [opts.deContrastGuard=0]         ΔE2000 threshold above which an orphan is
+ *                                                         treated as a deliberate high-contrast accent
+ *                                                         and is NOT merged. 0 = disabled.
+ * @param {number}       [opts.maxIterations=1]           Maximum stability-loop passes. The loop also
+ *                                                         exits early when no change occurs or when the
+ *                                                         eligible-component count stops decreasing
+ *                                                         (oscillation guard).
+ * @param {object}       [opts._statsOut]                 Optional mutable object; receives { iterations }
+ *                                                         after the function returns (for testing).
  */
-function removeOrphanStitches(mapped, w, h, maxOrphanSize, edgeMap = null, saliencyMap = null, { saliencyMultiplier = 2.0, deTieBreakThreshold = 1.0 } = {}, precomputedLabels = null) {
+function removeOrphanStitches(mapped, w, h, maxOrphanSize, edgeMap = null, saliencyMap = null, { saliencyMultiplier = 2.0, deTieBreakThreshold = 1.0, deContrastGuard = 0, maxIterations = 1, _statsOut = null } = {}, precomputedLabels = null) {
   if (maxOrphanSize <= 0) return mapped;
 
   const len = mapped.length;
 
-  // Maximum BFS exploration bound: effectiveMaxSize is maximised when saliency=0
+  // Maximum possible effective orphan size (at mean saliency = 0).
+  // Used as a quick pre-filter: any component larger than this is ineligible.
   const absoluteMaxSize = Math.ceil(maxOrphanSize * (1.0 + saliencyMultiplier));
 
-  // Pre-build a color-entry lookup to avoid O(n) scans per orphan
-  const colorEntries = {};
-  for (let i = 0; i < len; i++) {
-    const id = mapped[i].id;
-    if (!colorEntries[id]) colorEntries[id] = mapped[i];
+  // Use provided labels for the first pass; compute fresh labels if not provided.
+  let currentLabels = precomputedLabels || labelConnectedComponents(mapped, w, h);
+
+  // Count initial small components for the oscillation guard.
+  // Uses absoluteMaxSize as a conservative upper bound (edgeMap / per-component
+  // saliency checks may further reduce eligibility, but this is O(components)
+  // and stays consistent across iterations).
+  let prevOrphanCount = 0;
+  for (const [, comp] of currentLabels.components) {
+    if (comp.size <= absoluteMaxSize) prevOrphanCount++;
   }
 
-  // ─── Fast path: use pre-labelled components to skip the BFS entirely ───────
-  if (precomputedLabels) {
-    for (const [, comp] of precomputedLabels.components) {
-      if (comp.size > absoluteMaxSize) continue;
-      const cells = comp.cells, compCount = cells.length, tid = comp.id;
+  let iters = 0;
+  if (prevOrphanCount > 0) {
+    for (let iter = 0; iter < maxIterations; iter++) {
+      iters++;
 
-      if (edgeMap) {
-        let onEdge = false;
-        for (let i = 0; i < compCount; i++) { if (edgeMap[cells[i]]) { onEdge = true; break; } }
-        if (onEdge) continue;
+      // Rebuild color-entry lookup from the current grid state each pass.
+      // Required because previous passes mutate mapped[] in place.
+      const colorEntries = {};
+      for (let i = 0; i < len; i++) {
+        const id = mapped[i].id;
+        if (!colorEntries[id]) colorEntries[id] = mapped[i];
       }
 
-      let effectiveMaxSize = maxOrphanSize;
-      if (saliencyMap) {
-        let saliencySum = 0;
-        for (let i = 0; i < compCount; i++) saliencySum += saliencyMap[cells[i]];
-        effectiveMaxSize = maxOrphanSize * (1.0 + (1.0 - saliencySum / compCount) * saliencyMultiplier);
-      }
-      if (compCount > effectiveMaxSize) continue;
+      let anyChanged = false;
 
-      const neighborFreq = {};
-      for (let i = 0; i < compCount; i++) {
-        const cidx = cells[i], cx = cidx % w, cy = (cidx / w) | 0;
-        const checkN = (ni) => {
-          const nid = mapped[ni].id;
-          if (nid !== tid && nid !== '__skip__' && nid !== '__empty__') neighborFreq[nid] = (neighborFreq[nid] || 0) + 1;
-        };
-        if (cx > 0)           checkN(cidx - 1);
-        if (cx < w - 1)       checkN(cidx + 1);
-        if (cy > 0)           checkN(cidx - w);
-        if (cy < h - 1)       checkN(cidx + w);
-        if (cx > 0 && cy > 0)         checkN(cidx - w - 1);
-        if (cx < w-1 && cy > 0)       checkN(cidx - w + 1);
-        if (cx > 0 && cy < h-1)       checkN(cidx + w - 1);
-        if (cx < w-1 && cy < h-1)     checkN(cidx + w + 1);
-      }
+      for (const [, comp] of currentLabels.components) {
+        if (comp.size > absoluteMaxSize) continue;
+        const cells = comp.cells, compCount = cells.length, tid = comp.id;
 
-      const orphanLab = mapped[cells[0]].lab;
-      let minDE = Infinity;
-      for (const nid in neighborFreq) { const entry = colorEntries[nid]; if (!entry) continue; const de = Math.sqrt(dE2(orphanLab, entry.lab)); if (de < minDE) minDE = de; }
-      let bestId = null, bestCount = -1;
-      for (const nid in neighborFreq) { const entry = colorEntries[nid]; if (!entry) continue; const de = Math.sqrt(dE2(orphanLab, entry.lab)); if (de - minDE <= deTieBreakThreshold) { if (neighborFreq[nid] > bestCount) { bestCount = neighborFreq[nid]; bestId = nid; } } }
-      if (bestId) { const replacement = colorEntries[bestId]; for (let i = 0; i < compCount; i++) mapped[cells[i]] = replacement; }
-    }
-    return mapped;
-  }
+        // ── Edge protection ────────────────────────────────────────────────────
+        if (edgeMap) {
+          let onEdge = false;
+          for (let i = 0; i < compCount; i++) { if (edgeMap[cells[i]]) { onEdge = true; break; } }
+          if (onEdge) continue;
+        }
 
-  const vis  = new Uint8Array(len);
-  // Queue sized for full image to be safe (components exceeding absoluteMaxSize are drained)
-  const q    = new Uint32Array(len);
-  const comp = new Uint32Array(absoluteMaxSize + 2);
+        // ── Saliency-scaled effective size limit ─────────────────────────────
+        let effectiveMaxSize = maxOrphanSize;
+        if (saliencyMap) {
+          let saliencySum = 0;
+          for (let i = 0; i < compCount; i++) saliencySum += saliencyMap[cells[i]];
+          effectiveMaxSize = maxOrphanSize * (1.0 + (1.0 - saliencySum / compCount) * saliencyMultiplier);
+        }
+        if (compCount > effectiveMaxSize) continue;
 
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const idx = y * w + x;
-      if (vis[idx]) continue;
-      const m = mapped[idx];
-      if (m.id === '__skip__' || m.id === '__empty__') { vis[idx] = 1; continue; }
-
-      const tid = m.id;
-      let qHead = 0, qTail = 0, compCount = 0;
-
-      q[qTail++] = idx;
-      vis[idx] = 1;
-
-      while (qHead < qTail) {
-        const curr = q[qHead++];
-
-        if (compCount <= absoluteMaxSize) comp[compCount++] = curr;
-
-        // If already beyond the absolute limit stop expanding (drain handled below)
-        if (compCount > absoluteMaxSize) break;
-
-        const cx = curr % w, cy = (curr / w) | 0;
-        if (cx > 0)     { const n = curr - 1; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
-        if (cx < w - 1) { const n = curr + 1; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
-        if (cy > 0)     { const n = curr - w; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
-        if (cy < h - 1) { const n = curr + w; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
-      }
-
-      // Drain remainder so all component pixels are marked visited
-      while (qHead < qTail) {
-        const curr = q[qHead++];
-        const cx = curr % w, cy = (curr / w) | 0;
-        if (cx > 0)     { const n = curr - 1; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
-        if (cx < w - 1) { const n = curr + 1; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
-        if (cy > 0)     { const n = curr - w; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
-        if (cy < h - 1) { const n = curr + w; if (!vis[n] && mapped[n].id === tid) { vis[n] = 1; q[qTail++] = n; } }
-      }
-
-      // Component exceeds the absolute maximum — cannot be an orphan
-      if (compCount > absoluteMaxSize) continue;
-
-      // --- Stage 5, step 2: Edge protection ---
-      if (edgeMap) {
-        let onEdge = false;
+        // ── Collect 8-neighbour border colors with frequency ─────────────────
+        const neighborFreq = {};
         for (let i = 0; i < compCount; i++) {
-          if (edgeMap[comp[i]]) { onEdge = true; break; }
+          const cidx = cells[i], cx = cidx % w, cy = (cidx / w) | 0;
+          const checkN = (ni) => {
+            const nid = mapped[ni].id;
+            if (nid !== tid && nid !== '__skip__' && nid !== '__empty__') neighborFreq[nid] = (neighborFreq[nid] || 0) + 1;
+          };
+          if (cx > 0)                     checkN(cidx - 1);
+          if (cx < w - 1)                 checkN(cidx + 1);
+          if (cy > 0)                     checkN(cidx - w);
+          if (cy < h - 1)                 checkN(cidx + w);
+          if (cx > 0 && cy > 0)           checkN(cidx - w - 1);
+          if (cx < w - 1 && cy > 0)       checkN(cidx - w + 1);
+          if (cx > 0 && cy < h - 1)       checkN(cidx + w - 1);
+          if (cx < w - 1 && cy < h - 1)   checkN(cidx + w + 1);
         }
-        if (onEdge) continue;
-      }
 
-      // --- Stage 5, step 3: Saliency-scaled effective max size ---
-      let effectiveMaxSize = maxOrphanSize;
-      if (saliencyMap) {
-        let saliencySum = 0;
-        for (let i = 0; i < compCount; i++) saliencySum += saliencyMap[comp[i]];
-        const meanSaliency = saliencySum / compCount;
-        effectiveMaxSize = maxOrphanSize * (1.0 + (1.0 - meanSaliency) * saliencyMultiplier);
-      }
+        if (Object.keys(neighborFreq).length === 0) continue;
 
-      if (compCount > effectiveMaxSize) continue;
+        // ── Perceptual replacement selection ─────────────────────────────────
+        const orphanLab = mapped[cells[0]].lab;
+        let minDE = Infinity;
+        for (const nid in neighborFreq) {
+          const entry = colorEntries[nid];
+          if (!entry) continue;
+          const de = Math.sqrt(dE2(orphanLab, entry.lab));
+          if (de < minDE) minDE = de;
+        }
 
-      // --- Stage 5, step 4: Perceptual replacement color selection ---
-      // Collect 8-neighbor border colors with their frequency
-      const neighborFreq = {};
-      for (let i = 0; i < compCount; i++) {
-        const cidx = comp[i];
-        const cx = cidx % w, cy = (cidx / w) | 0;
-        const checkN = (ni) => {
-          const nid = mapped[ni].id;
-          if (nid !== tid && nid !== '__skip__' && nid !== '__empty__') {
-            neighborFreq[nid] = (neighborFreq[nid] || 0) + 1;
+        // ── ΔE contrast guard ────────────────────────────────────────────────
+        // If the orphan's color is perceptually very distant from ALL its
+        // neighbours (minDE exceeds the threshold), it is a deliberate
+        // high-contrast accent — e.g. a white catchlight in a dark eye (ΔE ≈ 70)
+        // or a dark pupil in a pale face (ΔE ≈ 50). Preserve it unchanged.
+        // deContrastGuard = 0 disables this check entirely.
+        if (deContrastGuard > 0 && minDE > deContrastGuard) continue;
+
+        // Among candidates within deTieBreakThreshold of minDE, prefer by frequency.
+        let bestId = null, bestCount = -1;
+        for (const nid in neighborFreq) {
+          const entry = colorEntries[nid];
+          if (!entry) continue;
+          const de = Math.sqrt(dE2(orphanLab, entry.lab));
+          if (de - minDE <= deTieBreakThreshold) {
+            if (neighborFreq[nid] > bestCount) { bestCount = neighborFreq[nid]; bestId = nid; }
           }
-        };
-        if (cx > 0)             checkN(cidx - 1);
-        if (cx < w - 1)         checkN(cidx + 1);
-        if (cy > 0)             checkN(cidx - w);
-        if (cy < h - 1)         checkN(cidx + w);
-        if (cx > 0 && cy > 0)         checkN(cidx - w - 1);
-        if (cx < w-1 && cy > 0)       checkN(cidx - w + 1);
-        if (cx > 0 && cy < h-1)       checkN(cidx + w - 1);
-        if (cx < w-1 && cy < h-1)     checkN(cidx + w + 1);
-      }
+        }
 
-      // Find the minimum ΔE distance to the orphan's Lab color
-      const orphanLab = m.lab;
-      let minDE = Infinity;
-      for (const nid in neighborFreq) {
-        const entry = colorEntries[nid];
-        if (!entry) continue;
-        const de = Math.sqrt(dE2(orphanLab, entry.lab));
-        if (de < minDE) minDE = de;
-      }
-
-      // Among candidates within deTieBreakThreshold of minDE, prefer by frequency
-      let bestId = null, bestCount = -1;
-      for (const nid in neighborFreq) {
-        const entry = colorEntries[nid];
-        if (!entry) continue;
-        const de = Math.sqrt(dE2(orphanLab, entry.lab));
-        if (de - minDE <= deTieBreakThreshold) {
-          if (neighborFreq[nid] > bestCount) {
-            bestCount = neighborFreq[nid];
-            bestId = nid;
-          }
+        if (bestId) {
+          const replacement = colorEntries[bestId];
+          for (let i = 0; i < compCount; i++) mapped[cells[i]] = replacement;
+          anyChanged = true;
         }
       }
 
-      if (bestId) {
-        const replacement = colorEntries[bestId];
-        for (let i = 0; i < compCount; i++) mapped[comp[i]] = replacement;
+      if (!anyChanged) break; // fully stable — no components were changed
+
+      // Only re-label and check progress when another iteration may follow.
+      if (iter < maxIterations - 1) {
+        currentLabels = labelConnectedComponents(mapped, w, h);
+
+        // Oscillation guard: stop if the eligible-component count did not decrease.
+        // This detects 2-way oscillation (A→B then B→A across passes) and avoids
+        // exhausting all maxIterations passes to no benefit.
+        let currentOrphanCount = 0;
+        for (const [, comp] of currentLabels.components) {
+          if (comp.size <= absoluteMaxSize) currentOrphanCount++;
+        }
+        if (currentOrphanCount === 0 || currentOrphanCount >= prevOrphanCount) break;
+        prevOrphanCount = currentOrphanCount;
       }
     }
   }
+
+  if (_statsOut) _statsOut.iterations = iters;
   return mapped;
 }
 
@@ -1451,7 +1786,7 @@ const _de2000Cache = new Map();
 const _DE2000_CACHE_MAX = 5000;
 
 function dE2000(lab1, lab2) {
-  const k = lab1[0].toFixed(2)+','+lab1[1].toFixed(2)+','+lab1[2].toFixed(2)+'-'+lab2[0].toFixed(2)+','+lab2[1].toFixed(2)+','+lab2[2].toFixed(2);
+  const k = lab1[0].toFixed(4)+','+lab1[1].toFixed(4)+','+lab1[2].toFixed(4)+'-'+lab2[0].toFixed(4)+','+lab2[1].toFixed(4)+','+lab2[2].toFixed(4);
   const cached = _de2000Cache.get(k);
   if (cached !== undefined) return cached;
 
@@ -1555,4 +1890,183 @@ _colourUtilsGlobal.dE2000 = dE2000;
 const UNIQUE_THRESHOLD_DE = 5;
 _colourUtilsGlobal.UNIQUE_THRESHOLD_DE = UNIQUE_THRESHOLD_DE;
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, doDither, doBayerDither, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE }; }
+// ─── Adjacent-Cell Colour Disambiguation ──────────────────────────────────────
+// Post-quantisation pass: ensures no two adjacent cells have thread colours so
+// perceptually similar that stitchers can't distinguish them on the grid.
+//
+// Improvements over simpler single-pass approaches:
+//  - dE2000 (CIEDE2000) throughout — perceptually accurate, especially blues/purples/reds
+//  - Processes worst (most-similar) conflicts first
+//  - Replacement must satisfy ΔE ≥ threshold with ALL 4 cardinal neighbours
+//  - Saliency-aware: threshold ×1.4 in flat areas (sal<0.3), ×0.6 in detail areas (sal>0.7)
+//  - Edge protection: Canny edgeMap cells are never reassigned
+//  - Quality cap: replacement must be within maxDegradation ΔE2000 of the current cell
+//  - Convergent iteration: repeats until stable or maxIterations passes
+//
+// Post-hoc mode (no image data): pass null for edgeMap and saliencyMap, and set
+// opts.deriveBoundaryEdges = true. A conservative boundary map is derived from the
+// pattern itself — any cell whose 4-neighbour has a different colour id is an edge.
+//
+// @param {Array}        mapped                Pattern array, mutated in-place
+// @param {number}       w                     Grid width
+// @param {number}       h                     Grid height
+// @param {Uint8Array}   edgeMap               From generateEdgeMap(); null = no protection
+// @param {Float32Array} saliencyMap           From generateSaliencyMap(); null = flat threshold
+// @param {Array}        palette               Active palette (solid entries with .lab and .id)
+// @param {object}       [opts]
+// @param {number}       [opts.threshold=15]   Base ΔE2000 below which neighbours are "too similar"
+// @param {number}       [opts.maxDegradation=20]  Max ΔE2000 a replacement may differ from current cell
+// @param {number}       [opts.maxIterations=5]
+// @param {boolean}      [opts.deriveBoundaryEdges]  Derive edge map from pattern (post-hoc mode)
+// @returns {{ totalSwaps: number, iterations: number }}
+function disambiguateSimilarNeighbours(mapped, w, h, edgeMap, saliencyMap, palette, opts) {
+  opts = opts || {};
+  var threshold      = typeof opts.threshold      === 'number' ? opts.threshold      : 15;
+  var maxDegradation = typeof opts.maxDegradation === 'number' ? opts.maxDegradation : 20;
+  var maxIterations  = typeof opts.maxIterations  === 'number' ? opts.maxIterations  : 5;
+  var n = w * h;
+
+  // Post-hoc mode: derive a conservative edge map from colour boundaries in the pattern.
+  // Every cell adjacent to a differently-coloured 4-neighbour is treated as an edge cell
+  // (more conservative than Canny — all colour boundaries are protected).
+  var effectiveEdgeMap = edgeMap;
+  if (!effectiveEdgeMap && opts.deriveBoundaryEdges) {
+    effectiveEdgeMap = new Uint8Array(n);
+    for (var ei = 0; ei < n; ei++) {
+      var em = mapped[ei];
+      if (!em || em.id === '__skip__' || em.id === '__empty__') continue;
+      var ex = ei % w, ey = (ei / w) | 0;
+      var nb0 = ex > 0     ? mapped[ei - 1] : null;
+      var nb1 = ex < w - 1 ? mapped[ei + 1] : null;
+      var nb2 = ey > 0     ? mapped[ei - w] : null;
+      var nb3 = ey < h - 1 ? mapped[ei + w] : null;
+      if ((nb0 && nb0.id !== em.id && nb0.id !== '__skip__' && nb0.id !== '__empty__') ||
+          (nb1 && nb1.id !== em.id && nb1.id !== '__skip__' && nb1.id !== '__empty__') ||
+          (nb2 && nb2.id !== em.id && nb2.id !== '__skip__' && nb2.id !== '__empty__') ||
+          (nb3 && nb3.id !== em.id && nb3.id !== '__skip__' && nb3.id !== '__empty__')) {
+        effectiveEdgeMap[ei] = 1;
+      }
+    }
+  }
+
+  // Per-cell candidate lists: palette entries within maxDegradation, sorted by
+  // dE2000 from the cell's current colour (closest substitute first).
+  // Keyed by cell id; invalidated when the cell is swapped.
+  var candidateCache = Object.create(null);
+  function getCandidates(cell) {
+    var key = cell.id;
+    if (candidateCache[key]) return candidateCache[key];
+    var list = [];
+    for (var ci = 0; ci < palette.length; ci++) {
+      var c = palette[ci];
+      if (!c.lab) continue;
+      if (c.id === cell.id) continue;
+      var d = dE2000(c.lab, cell.lab);
+      if (d <= maxDegradation) list.push({ entry: c, dist: d });
+    }
+    list.sort(function(a, b) { return a.dist - b.dist; });
+    candidateCache[key] = list;
+    return list;
+  }
+
+  var totalSwaps = 0;
+  var iter = 0;
+  for (; iter < maxIterations; iter++) {
+    // ── Collect conflicts ────────────────────────────────────────────────────
+    var conflicts = [];
+    for (var i = 0; i < n; i++) {
+      var cell = mapped[i];
+      if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
+      if (effectiveEdgeMap && effectiveEdgeMap[i]) continue;
+
+      var ix = i % w, iy = (i / w) | 0;
+
+      // Saliency-scaled effective threshold for this cell
+      var effThr = threshold;
+      if (saliencyMap) {
+        var sal = saliencyMap[i];
+        if (sal < 0.3)      effThr = threshold * 1.4;
+        else if (sal > 0.7) effThr = threshold * 0.6;
+      }
+
+      // Check 4-cardinal neighbours; flag cell on first conflict found
+      var pushed = false;
+      if (!pushed && ix > 0)     { var nb = mapped[i - 1]; if (nb && nb.id !== '__skip__' && nb.id !== '__empty__' && nb.id !== cell.id && dE2000(cell.lab, nb.lab) < effThr) { conflicts.push({ i: i, de: dE2000(cell.lab, nb.lab), effThr: effThr }); pushed = true; } }
+      if (!pushed && ix < w - 1) { var nb = mapped[i + 1]; if (nb && nb.id !== '__skip__' && nb.id !== '__empty__' && nb.id !== cell.id && dE2000(cell.lab, nb.lab) < effThr) { conflicts.push({ i: i, de: dE2000(cell.lab, nb.lab), effThr: effThr }); pushed = true; } }
+      if (!pushed && iy > 0)     { var nb = mapped[i - w]; if (nb && nb.id !== '__skip__' && nb.id !== '__empty__' && nb.id !== cell.id && dE2000(cell.lab, nb.lab) < effThr) { conflicts.push({ i: i, de: dE2000(cell.lab, nb.lab), effThr: effThr }); pushed = true; } }
+      if (!pushed && iy < h - 1) { var nb = mapped[i + w]; if (nb && nb.id !== '__skip__' && nb.id !== '__empty__' && nb.id !== cell.id && dE2000(cell.lab, nb.lab) < effThr) { conflicts.push({ i: i, de: dE2000(cell.lab, nb.lab), effThr: effThr }); } }
+    }
+
+    if (conflicts.length === 0) break; // converged
+
+    // Sort worst conflicts first (lowest ΔE = most similar = most urgent)
+    conflicts.sort(function(a, b) { return a.de - b.de; });
+
+    // ── Resolve conflicts ────────────────────────────────────────────────────
+    var swapped = new Uint8Array(n); // prevent double-swapping within one pass
+    var passSwaps = 0;
+
+    for (var ci2 = 0; ci2 < conflicts.length; ci2++) {
+      var cf = conflicts[ci2];
+      var idx = cf.i;
+      if (swapped[idx]) continue;
+
+      var cur = mapped[idx];
+      if (!cur || !cur.lab) continue;
+      var candidates = getCandidates(cur);
+      if (!candidates.length) continue;
+
+      var idx_x = idx % w, idx_y = (idx / w) | 0;
+
+      for (var ki = 0; ki < candidates.length; ki++) {
+        var cand = candidates[ki].entry;
+
+        // Verify candidate satisfies ΔE ≥ effThr with ALL 4 neighbours of idx
+        var ok = true;
+        if (idx_x > 0) {
+          var n2 = mapped[idx - 1];
+          if (n2 && n2.id !== '__skip__' && n2.id !== '__empty__' && dE2000(cand.lab, n2.lab) < cf.effThr) { ok = false; }
+        }
+        if (ok && idx_x < w - 1) {
+          var n2 = mapped[idx + 1];
+          if (n2 && n2.id !== '__skip__' && n2.id !== '__empty__' && dE2000(cand.lab, n2.lab) < cf.effThr) { ok = false; }
+        }
+        if (ok && idx_y > 0) {
+          var n2 = mapped[idx - w];
+          if (n2 && n2.id !== '__skip__' && n2.id !== '__empty__' && dE2000(cand.lab, n2.lab) < cf.effThr) { ok = false; }
+        }
+        if (ok && idx_y < h - 1) {
+          var n2 = mapped[idx + w];
+          if (n2 && n2.id !== '__skip__' && n2.id !== '__empty__' && dE2000(cand.lab, n2.lab) < cf.effThr) { ok = false; }
+        }
+
+        if (ok) {
+          mapped[idx] = cand;
+          swapped[idx] = 1;
+          passSwaps++;
+          totalSwaps++;
+          // Invalidate cache for the old id (its neighbours changed, so cached
+          // candidate lists for that id may now produce different conflict checks)
+          candidateCache[cur.id] = null;
+          break;
+        }
+      }
+    }
+
+    if (passSwaps === 0) break; // no progress — already converged
+  }
+
+  return { totalSwaps: totalSwaps, iterations: iter };
+}
+
+// Level presets — keyed by UI option value
+var DISAMBIG_LEVEL_MAP = {
+  gentle:   { threshold: 8,  maxDegradation: 12 },
+  standard: { threshold: 15, maxDegradation: 20 },
+  strong:   { threshold: 25, maxDegradation: 30 },
+};
+
+_colourUtilsGlobal.disambiguateSimilarNeighbours = disambiguateSimilarNeighbours;
+_colourUtilsGlobal.DISAMBIG_LEVEL_MAP = DISAMBIG_LEVEL_MAP;
+
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP }; }

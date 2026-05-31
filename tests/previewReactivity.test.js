@@ -18,7 +18,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { DMC, rgbToLab, dE2 } = require('../dmc-data.js');
+const { DMC, rgbToLab, rgbToOklab, dE2, dE2ok } = require('../dmc-data.js');
 
 // ── Source loaders ──────────────────────────────────────────────────────────
 
@@ -54,8 +54,10 @@ function extractFn(src, name) {
 // Globals required by colour-utils.js
 global.DMC = DMC;
 global.rgbToLab = rgbToLab;
+global.rgbToOklab = rgbToOklab;
 global.dE = dE2;            // colour-utils uses both names; alias
 global.dE2 = dE2;
+global.dE2ok = dE2ok;
 // SYMS lives in dmc-data.js as a top-level `const SYMS = "…".split("")`. Module
 // exports don't surface it, so reproduce here for buildPalette().
 global.SYMS = "●◆■▲★♦♥♣♠◄►▼○◇□△☆♢♡♧♤◁▷▽⊕⊗⊞⊠⊡⊘⊙⊚⊛⊜⊝⬡⬢⬣⬥⬦⬧⬨⬩".split("");

@@ -56,6 +56,47 @@
     var ds = React.useState(false);
     var discardOpen = ds[0], setDiscardOpen = ds[1];
 
+    // Stitchability preview — runs parseImagePattern when the user reaches
+    // Step 5 so we can show confetti rate before they confirm.
+    var _stitchStats = React.useState(null);
+    var stitchStats = _stitchStats[0], setStitchStats = _stitchStats[1];
+    var _statsKey = React.useState(null);
+    var statsKey = _statsKey[0], setStatsKey = _statsKey[1];
+
+    React.useEffect(function () {
+      if (wizard.step !== 5) return;
+      // Build a key from the relevant inputs; skip if already computed for these.
+      var sz = wizard.size, s = wizard.settings, p = wizard.palette;
+      var key = sz.w + ',' + sz.h + ',' + p.maxColours + ',' + (s.dithAlgo || '') + ',' + !!s.preSmooth + ',' + !!s.skipBg;
+      if (key === statsKey) return;
+      setStatsKey(key);
+      setStitchStats(null);
+      try {
+        if (!image || typeof parseImagePattern !== 'function') return;
+        var dithAlgoVal = s.dithAlgo || (s.dither ? 'atkinson' : 'off');
+        var result = parseImagePattern(image, {
+          maxWidth: sz.w, maxHeight: sz.h,
+          maxColours: p.maxColours,
+          skipWhiteBg: !!s.skipBg, bgThreshold: s.bgThreshold || 15,
+          preSmooth: !!s.preSmooth,
+          dither: dithAlgoVal !== 'off',
+          dithAlgo: dithAlgoVal
+        });
+        var stats = null;
+        if (typeof analyzeConfetti === 'function' && result && result.pattern) {
+          var raw = analyzeConfetti(result.pattern, result.width, result.height);
+          var pct = raw && raw.pct != null ? raw.pct : null;
+          var label = pct == null ? null
+            : pct < 2   ? 'Excellent'
+            : pct < 5   ? 'Good'
+            : pct < 10  ? 'Fair'
+            : 'Needs cleanup';
+          stats = { pct: pct, label: label, singles: raw && raw.singles };
+        }
+        setStitchStats(stats);
+      } catch (_) { setStitchStats(null); }
+    }, [wizard.step, wizard.size, wizard.settings, wizard.palette, image, statsKey]);
+
     // Move focus to the active step heading on every step change.
     React.useEffect(function () {
       var node = headingRef.current;
@@ -183,7 +224,7 @@
     function renderStep2() {
       var p = wizard.palette;
       function setMode(m)   { wizard.setPalette(Object.assign({}, p, { mode: m })); }
-      function setMaxC(n)   { wizard.setPalette(Object.assign({}, p, { maxColours: Math.max(5, Math.min(80, n | 0)) })); }
+      function setMaxC(n)   { wizard.setPalette(Object.assign({}, p, { maxColours: Math.max(2, Math.min(100, n | 0)) })); }
       function toggleBlend(){ wizard.setPalette(Object.assign({}, p, { allowBlends: !p.allowBlends })); }
       var modes = [
         { v: "dmc",    label: "Full DMC palette",   desc: "Match against the entire DMC range." },
@@ -209,12 +250,16 @@
           h("label", { className: "iw-field-label", htmlFor: "iw-max-colours" }, "Maximum colours"),
           h("input", {
             id: "iw-max-colours",
-            type: "range", min: 5, max: 80, step: 1,
+            type: "range", min: 2, max: 100, step: 1,
             value: p.maxColours,
             onChange: function (e) { setMaxC(Number(e.target.value)); },
-            "aria-valuemin": 5, "aria-valuemax": 80, "aria-valuenow": p.maxColours
+            "aria-valuemin": 2, "aria-valuemax": 100, "aria-valuenow": p.maxColours
           }),
           h("output", { className: "iw-output" }, p.maxColours)
+        ),
+        h("p", { className: "iw-step-desc", style: { margin: "4px 0 10px" } },
+          "Each colour = one DMC thread spool.",
+          p.allowBlends && (" Blends pair two spools — up to " + Math.floor(p.maxColours * (p.maxColours - 1) / 2) + " combinations from this palette.")
         ),
         h("label", { className: "iw-checkbox" },
           h("input", { type: "checkbox", checked: !!p.allowBlends, onChange: toggleBlend }),
@@ -287,20 +332,36 @@
 
     function renderStep4() {
       var s = wizard.settings;
-      function setDither()    { wizard.setSettings(Object.assign({}, s, { dither: !s.dither })); }
+      var DITH_OPTS = [
+        { value: 'off',       label: 'Off' },
+        { value: 'atkinson',  label: 'Atkinson (default)' },
+        { value: 'riemersma', label: 'Riemersma (fewer isolated stitches)' },
+        { value: 'bayer',     label: 'Bayer (geometric)' },
+      ];
+      function setDithAlgo(v) { wizard.setSettings(Object.assign({}, s, { dithAlgo: v })); }
+      function setPreSmooth() { wizard.setSettings(Object.assign({}, s, { preSmooth: !s.preSmooth })); }
       function setContrast(n) { wizard.setSettings(Object.assign({}, s, { contrast: Math.max(-50, Math.min(50, n | 0)) })); }
       function setSaliency()  { wizard.setSettings(Object.assign({}, s, { saliency: !s.saliency })); }
       function setSkipBg()    { wizard.setSettings(Object.assign({}, s, { skipBg: !s.skipBg })); }
       function setBgT(n)      { wizard.setSettings(Object.assign({}, s, { bgThreshold: Math.max(3, Math.min(50, n | 0)) })); }
+      var curDithAlgo = s.dithAlgo || (s.dither ? 'atkinson' : 'off');
       return h("div", { className: "iw-step iw-step-preview" },
         h("h2", { id: "iw-step-heading", ref: headingRef, tabIndex: -1, className: "iw-step-title" }, "Step 4 of 5: Preview & tune"),
         h("p", { className: "iw-step-desc" }, "Live preview is coming in a follow-up. For now, choose how the pixels should be processed."),
         image ? h("div", { className: "iw-preview-thumb" },
           h("img", { src: image.src, alt: "Image preview", style: { imageRendering: "pixelated" } })
         ) : null,
+        h("div", { className: "iw-row" },
+          h("label", { className: "iw-field-label", htmlFor: "iw-dith" }, "Dithering"),
+          h("select", {
+            id: "iw-dith", value: curDithAlgo,
+            onChange: function (e) { setDithAlgo(e.target.value); },
+            className: "iw-select"
+          }, DITH_OPTS.map(function (o) { return h("option", { key: o.value, value: o.value }, o.label); }))
+        ),
         h("label", { className: "iw-checkbox" },
-          h("input", { type: "checkbox", checked: !!s.dither, onChange: setDither }),
-          h("span", null, "Use dithering (smoother gradients)")
+          h("input", { type: "checkbox", checked: !!s.preSmooth, onChange: setPreSmooth }),
+          h("span", null, "Pre-smooth image (reduces confetti in flat colour areas)")
         ),
         h("div", { className: "iw-row" },
           h("label", { className: "iw-field-label", htmlFor: "iw-contrast" }, "Contrast"),
@@ -358,9 +419,17 @@
             h("dt", null, "Fabric count"), h("dd", null, sz.fabricCt + " count"),
             h("dt", null, "Palette"), h("dd", null, paletteText),
             h("dt", null, "Blends"), h("dd", null, p.allowBlends ? "Allowed" : "Off"),
-            h("dt", null, "Dithering"), h("dd", null, st.dither ? "On" : "Off"),
+            h("dt", null, "Dithering"), h("dd", null, (function() { var a = st.dithAlgo || (st.dither ? 'atkinson' : 'off'); return a === 'off' ? 'Off' : a.charAt(0).toUpperCase() + a.slice(1); })()),
             h("dt", null, "Skip background"), h("dd", null, st.skipBg ? ("On (tolerance " + st.bgThreshold + ")") : "Off"),
-            h("dt", null, "Estimate"), h("dd", null, skeinText)
+            h("dt", null, "Estimate"), h("dd", null, skeinText),
+            stitchStats && stitchStats.label ? h(React.Fragment, null,
+              h("dt", null, "Stitchability"),
+              h("dd", { title: stitchStats.pct != null ? (stitchStats.pct.toFixed(1) + "% isolated stitches") : "" },
+                stitchStats.label + (stitchStats.pct != null ? " (" + stitchStats.pct.toFixed(1) + "% confetti)" : ""))
+            ) : (wizard.step === 5 && !stitchStats ? h(React.Fragment, null,
+              h("dt", null, "Stitchability"),
+              h("dd", null, "Calculating…")
+            ) : null)
           )
         )
       );

@@ -45,7 +45,8 @@ function extractFn(src, name) {
   throw new Error(`Unterminated function ${name}`);
 }
 
-eval(extractFn(cuSrc, 'removeOrphanStitches')); // eslint-disable-line no-eval
+eval(extractFn(cuSrc, 'labelConnectedComponents')); // eslint-disable-line no-eval
+eval(extractFn(cuSrc, 'removeOrphanStitches'));      // eslint-disable-line no-eval
 
 // ---------------------------------------------------------------------------
 // Palette entry factory

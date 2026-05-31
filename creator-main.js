@@ -429,6 +429,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     minSt: state.minSt, setMinSt: state.setMinSt,
     smooth: state.smooth, setSmooth: state.setSmooth,
     smoothType: state.smoothType, setSmoothType: state.setSmoothType,
+    preSharpen: state.preSharpen, setPreSharpen: state.setPreSharpen,
+    preSharpenAmount: state.preSharpenAmount, setPreSharpenAmount: state.setPreSharpenAmount,
     orphans: state.orphans, setOrphans: state.setOrphans,
     allowBlends: state.allowBlends, setAllowBlends: state.setAllowBlends,
     busy: state.busy, setBusy: state.setBusy,
@@ -471,7 +473,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.img, state.isUploading, state.isDragging,
     state.maxC, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength,
     state.skipBg, state.bgTh, state.bgCol, state.pickBg,
-    state.minSt, state.smooth, state.smoothType,
+    state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount,
     state.orphans, state.allowBlends, state.busy, state.progressMessage,
     state.origW, state.origH, state.hasGenerated,
     state.stitchCleanup, state.isCropping, state.cropRect,
@@ -906,23 +908,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onSave={state.pat&&state.pal?io.saveProject:null}
         onTrack={state.pat&&state.pal?io.handleOpenInTracker:null}
         onExportPDF={state.pat?()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},exportData):null}
-        onExportOxs={state.pat?function(){
-          if(typeof generateOXS!=='function'){
-            if(window.Toast&&window.Toast.show)window.Toast.show({message:'OXS export is not available.',type:'error'});
-            return;
-          }
-          var result=generateOXS({w:state.sW,h:state.sH,pattern:state.pat,bsLines:state.bsLines||[],name:state.projectName||'pattern'});
-          if(result.warnings&&result.warnings.length>0){
-            if(window.Toast&&window.Toast.show)window.Toast.show({message:result.warnings[0],type:'warning',duration:6000});
-          }
-          var blob=new Blob([result.xml],{type:'application/xml'});
-          var url=URL.createObjectURL(blob);
-          var a=document.createElement('a');
-          a.href=url;
-          a.download=((state.projectName||'pattern').replace(/[^\w\-]+/g,'_')||'pattern')+'.oxs';
-          document.body.appendChild(a);a.click();document.body.removeChild(a);
-          setTimeout(function(){URL.revokeObjectURL(url);},5000);
-        }:null}
         onNewProject={()=>{if(!state.pat||confirm("Start a new project? Unsaved changes will be lost."))state.resetAll();}}
         onOpenProject={typeof window.ProjectStorage!=='undefined'?()=>{window.location.href='home.html';}:undefined}
         onPreferences={typeof window.PreferencesModal!=='undefined'?()=>state.setPreferencesOpen(true):undefined}

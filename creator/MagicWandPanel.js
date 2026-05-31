@@ -185,35 +185,69 @@ window.MagicWandPanel = function MagicWandPanel() {
     h("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 } },
       h("strong", { style: { color: "#2E4824" } }, "Simplify Colours in Selection"),
       h("span", { style: { color: "#3F6432" } }, selColors + " colours in selection"),
-      h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
+      // Mode toggle: target count vs ΔE threshold
+      h("div", { className: "tb-grp" },
+        btn("Target count", function() { cv.setReduceMode("count"); cv.setReducePreview(null); },
+          { active: cv.reduceMode === "count", title: "Reduce to a specific number of colours", style: { fontSize: 10 } }),
+        btn("Near-duplicates (\u0394E)", function() { cv.setReduceMode("threshold"); cv.setReducePreview(null); },
+          { active: cv.reduceMode === "threshold", title: "Merge any pair of colours closer than a \u0394E threshold", style: { fontSize: 10 } })
+      ),
+      // Count mode: target number input
+      cv.reduceMode !== "threshold" && h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
         "Target:",
         h("input", {
           type: "number", min: 1, max: selColors, value: cv.reduceTarget,
-          onChange: function(e) { cv.setReduceTarget(Math.max(1, parseInt(e.target.value) || 1)); cv.setReducePreview(null); },
+          onChange: function(e) { cv.setReduceTarget(Math.max(1, parseInt(e.target.value) || 1)); },
           style: { width: 50, padding: "1px 4px" }
         })
       ),
+      // Threshold mode: ΔE slider
+      cv.reduceMode === "threshold" && h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
+        "\u0394E\u2264",
+        h("input", {
+          type: "range", min: 1, max: 20, step: 0.5, value: cv.reduceThreshold,
+          onChange: function(e) { cv.setReduceThreshold(Number(e.target.value)); },
+          style: { width: 70 }
+        }),
+        h("span", { style: { minWidth: 22, fontVariantNumeric: "tabular-nums" } }, cv.reduceThreshold),
+        h("span", { style: { fontSize: 9, color: "var(--text-tertiary)", marginLeft: 1 } },
+          cv.reduceThreshold <= 3 ? "(near-identical)" : cv.reduceThreshold <= 6 ? "(very similar)" : cv.reduceThreshold <= 10 ? "(similar)" : "(broad)")
+      ),
       btn("Preview merges", cv.previewColorReduction, { style: { fontSize: 10 } }),
       btn("Apply", cv.applyColorReduction, {
-        green: true, disabled: !cv.reducePreview || !cv.reducePreview.length,
+        green: true, disabled: !cv.reducePreview || !cv.reducePreview.length || !!cv.reducePreviewStale,
         style: { fontSize: 10 }
       }),
       btn("\u00D7", function() { cv.setWandPanel(null); cv.setReducePreview(null); }, { style: { fontSize: 10 } })
     ),
+    cv.reducePreviewStale && cv.reducePreview !== null && h("div", {
+      style: { fontSize: 9, color: "#B45309", padding: "2px 4px", marginBottom: 2 }
+    }, "Settings changed \u2014 run Preview merges to update"),
     cv.reducePreview && cv.reducePreview.length ? h("div", {
       style: { maxHeight: 120, overflowY: "auto", borderTop: "1px solid #C4DCB6", paddingTop: 6 }
     },
       cv.reducePreview.map(function(m, i) {
         var fromE = ctx.cmap && ctx.cmap[m.from];
         var toE   = ctx.cmap && ctx.cmap[m.to];
+        // Colour-code ΔE badge: green ≤ 3, amber ≤ 8, red > 8
+        var de = m.de != null ? m.de : null;
+        var deBadgeColor = de == null ? "#6b7280" : de <= 3 ? "#16a34a" : de <= 8 ? "#d97706" : "#dc2626";
         return h("div", { key: i, style: { display: "flex", alignItems: "center", gap: 5, marginBottom: 2 } },
           swatch(fromE ? fromE.rgb : null), h("span", null, m.from + " " + m.fromName),
           h("span", { "aria-hidden":"true", style: { color: "#6b7280", display:"inline-flex" } }, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
           swatch(toE ? toE.rgb : null), h("span", null, m.to + " " + m.toName),
-          h("span", { style: { color: "#6b7280" } }, "(" + m.count + " stitches)")
+          h("span", { style: { color: "#6b7280" } }, "(" + m.count + " stitches)"),
+          de != null && h("span", {
+            title: "CIEDE2000 colour distance between these two threads",
+            style: { fontSize: 9, fontWeight: 600, color: deBadgeColor,
+              border: "1px solid " + deBadgeColor, borderRadius: 3, padding: "0 3px", lineHeight: "14px" }
+          }, "\u0394E\u00a0" + de)
         );
       })
-    ) : null
+    ) : cv.reducePreview && cv.reducePreview.length === 0 ? h("div", {
+      style: { paddingTop: 6, color: "#3F6432", fontStyle: "italic" }
+    }, cv.reduceMode === "threshold" ? "No colour pairs are within this \u0394E threshold." : "Already at target — no merges needed.")
+    : null
   ) : null;
 
   // ─── Replace colour panel ────────────────────────────────────────────────────

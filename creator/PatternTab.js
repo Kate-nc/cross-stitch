@@ -152,6 +152,30 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       );
     })(),
 
+    gen.disambig && (function() {
+      var hasResult = gen.disambigData != null;
+      var canRun = ctx.pat && ctx.pal && !app.busy;
+      return h("div", {style:{padding:"8px 10px",background:"var(--surface-secondary)",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',marginBottom:'var(--s-2)',display:"flex",alignItems:"center",gap:'var(--s-2)',flexWrap:"wrap"}},
+        h("span", {style:{flex:1,color:"var(--text-secondary)",fontWeight:500}}, "Separate similar neighbours"),
+        hasResult && gen.disambigData.swaps > 0 && h("span", {style:{color:"var(--text-tertiary)"}},
+          gen.disambigData.swaps.toLocaleString(), " cell", gen.disambigData.swaps !== 1 ? "s" : "", " corrected"
+        ),
+        hasResult && gen.disambigData.swaps === 0 && h("span", {style:{color:"var(--success)"}}, "No clashes found"),
+        h("button", {
+          disabled: !canRun,
+          onClick: function() {
+            if (!canRun) return;
+            gen.disambiguateNow();
+          },
+          style:{padding:"4px 10px",fontSize:'var(--text-xs)',fontWeight:500,background:canRun?"var(--accent)":"var(--surface-tertiary)",color:canRun?"var(--on-accent)":"var(--text-tertiary)",border:"none",borderRadius:'var(--radius-sm)',cursor:canRun?"pointer":"not-allowed",flexShrink:0,transition:"background 0.15s"}
+        }, hasResult ? "Re-apply" : "Apply now"),
+        h("button", {
+          onClick: function() { gen.setDisambig(false); },
+          style:{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",fontSize:15,lineHeight:1,padding:0,flexShrink:0}
+        }, "\xD7")
+      );
+    })(),
+
     app.splitPaneEnabled
       ? h(window.CreatorSplitPane, null)
       : h("div", {

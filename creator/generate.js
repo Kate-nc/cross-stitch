@@ -1,18 +1,119 @@
 /* creator/generate.js — Pure pattern-generation pipeline.
    All inputs passed explicitly; returns { pat, pal, cmap, confettiData } or null.
-   Uses globals: quantize, doDither, doMap, buildPalette, rgbToLab, dE,
+   Uses globals: quantize, quantizeConstrained, doDither, doRiemersma, doMap, buildPalette, rgbToLab, dE,
                  generateSaliencyMap, generateEdgeMap, labelConnectedComponents,
                  removeOrphanStitches, analyzeConfetti, findSolid,
-                 applyGaussianBlur, applyMedianFilter
+                 applyGaussianBlur, applyMedianFilter, applyBilateralFilter,
+                 disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP
    (all defined in colour-utils.js / constants.js). */
+
+/**
+ * Progressive area-averaging downscale for large reduction ratios.
+ *
+ * A single canvas drawImage at 'low' quality (bilinear) discards most source
+ * pixels at ratios above ~2:1, producing speckle noise in flat regions.
+ * This helper steps the image down in 2:1 halvings until within 2× of the
+ * target.  At each 2:1 step bilinear sampling covers every source pixel
+ * (equivalent to area averaging), so the chain produces a clean mean for
+ * any reduction ratio.
+ *
+ * Returns the source unchanged when the ratio is already ≤ 2:1 in both
+ * dimensions — the caller's final drawImage with 'high' quality suffices.
+ *
+ * Used by runGenerationPipeline, startGeneration (useCreatorState), and
+ * generatePreview (usePreview).  Defined here because generate.js is the
+ * first entry in the bundle ORDER so the function is in scope for all three.
+ *
+ * @param {HTMLImageElement|HTMLCanvasElement} source
+ * @param {number} targetW
+ * @param {number} targetH
+ * @returns {HTMLImageElement|HTMLCanvasElement}
+ */
+function prescaleForGrid(source, targetW, targetH) {
+  var srcW = (source.naturalWidth || source.width) | 0;
+  var srcH = (source.naturalHeight || source.height) | 0;
+  if (!srcW || !srcH || (srcW <= targetW * 2 && srcH <= targetH * 2)) return source;
+  var cur = source;
+  var w = srcW, h = srcH;
+  while (w > targetW * 2 || h > targetH * 2) {
+    w = Math.max(targetW, Math.ceil(w / 2));
+    h = Math.max(targetH, Math.ceil(h / 2));
+    var tc = document.createElement('canvas');
+    tc.width = w; tc.height = h;
+    var tcx = tc.getContext('2d');
+    tcx.imageSmoothingEnabled = true;
+    if ('imageSmoothingQuality' in tcx) tcx.imageSmoothingQuality = 'high';
+    tcx.drawImage(cur, 0, 0, w, h);
+    cur = tc;
+  }
+  return cur;
+}
+
+/**
+ * Apply a pre-downscale luminance unsharp mask to a source image/canvas.
+ *
+ * Works at a fixed "working resolution" of 8× the target grid dimensions
+ * (capped at the source size) so the filter parameters (radius, threshold)
+ * are image-size-independent — a 50×50 target sharpens at ≤400×400,
+ * a 120×80 target at ≤960×640.  The sharpened canvas is then passed
+ * through prescaleForGrid so the preserved edge signal survives the
+ * area-average chain.
+ *
+ * Delegates pixel manipulation to applyUnsharpMask() in colour-utils.js.
+ * DOM-only — cannot be called inside a Web Worker.
+ *
+ * @param {HTMLImageElement|HTMLCanvasElement} source
+ * @param {number} targetW  Pattern grid width in stitches
+ * @param {number} targetH  Pattern grid height in stitches
+ * @param {object} [opts]   Forwarded verbatim to applyUnsharpMask
+ *   @param {number} [opts.radius=2.0]    Gaussian sigma in working-res pixels
+ *   @param {number} [opts.amount=0.5]    USM strength (0–2); 0.5 is conservative
+ *   @param {number} [opts.threshold=8]   min |L − blur(L)| in Lab L units
+ * @returns {HTMLCanvasElement}  canvas containing the sharpened image
+ */
+function applyPreSharpenCanvas(source, targetW, targetH, opts) {
+  var srcW = (source.naturalWidth  || source.width)  | 0;
+  var srcH = (source.naturalHeight || source.height) | 0;
+  if (!srcW || !srcH) return source;
+  // Work at 8× the target dimensions (capped at source size so we never
+  // upscale — upscaling would invent detail that doesn't exist).
+  var wW = Math.min(srcW, targetW * 8);
+  var wH = Math.min(srcH, targetH * 8);
+  // Never go below the target size itself
+  if (wW < targetW) wW = Math.min(srcW, targetW);
+  if (wH < targetH) wH = Math.min(srcH, targetH);
+  var c = document.createElement('canvas');
+  c.width = wW; c.height = wH;
+  var cx = c.getContext('2d');
+  cx.imageSmoothingEnabled = true;
+  if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
+  cx.drawImage(source, 0, 0, wW, wH);
+  var id = cx.getImageData(0, 0, wW, wH);
+  applyUnsharpMask(id.data, wW, wH, opts);
+  cx.putImageData(id, 0, 0);
+  return c;
+}
 
 // Strength → numeric pipeline parameters for the Stitch Cleanup pipeline.
 // (Originally defined inline in index.html; moved here because generate uses it.)
 window.STRENGTH_MAP = {
   gentle:   { maxOrphanSize: 2, saliencyMultiplier: 1.0 },
-  balanced: { maxOrphanSize: 3, saliencyMultiplier: 2.0 },
-  thorough: { maxOrphanSize: 5, saliencyMultiplier: 3.0 },
+  balanced: { maxOrphanSize: 4, saliencyMultiplier: 2.0 },
+  thorough: { maxOrphanSize: 6, saliencyMultiplier: 3.0 },
 };
+
+// Maximum passes for the orphan-removal stability loop.
+// The loop also exits early when no change occurs or orphan count stops decreasing.
+// 8 is a conservative upper cap; normal images typically stabilise in 1–3 passes.
+var ORPHAN_MAX_ITERATIONS = 8;
+
+// ΔE2000 contrast guard for orphan removal.
+// A small region whose nearest-neighbour palette colour differs by more than this
+// value is treated as a deliberate high-contrast feature (e.g. a white catchlight
+// in a dark eye, ΔE ≈ 70) and is NOT merged regardless of its size.
+// Noise artefacts typically differ from their surroundings by ΔE < 20;
+// intentional accents are reliably above ΔE 30.  Set to 0 to disable.
+var ORPHAN_CONTRAST_GUARD_DE = 30;
 
 /**
  * Shared quantize → map/dither → bg-removal → confetti → orphan-removal pipeline.
@@ -22,7 +123,7 @@ window.STRENGTH_MAP = {
  * @param {number}            width  Grid width in stitches
  * @param {number}            height Grid height in stitches
  * @param {object}            opts   Pipeline settings
- * @returns {{ mapped, palette, confettiRaw, confettiClean, saliencyMap }} or null
+ * @returns {{ mapped, palette, confettiRaw, confettiClean, saliencyMap, preCleanupIds, disambigData }} or null
  */
 window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts) {
   var maxC = opts.maxC, dith = opts.dith, allowBlends = opts.allowBlends;
@@ -33,7 +134,9 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var dithBayerSize = opts.dithBayerSize || 4;
   var minSt = (typeof opts.minSt === "number" && opts.minSt > 0) ? opts.minSt : 0;
 
-  var p = quantize(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed});
+  if (opts.preSmooth) applyBilateralFilter(raw, width, height);
+
+  var p = quantizeConstrained(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed});
   if (!p.length) return null;
 
   var saliencyMap = generateSaliencyMap(raw, width, height);
@@ -43,6 +146,8 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     mapped = doMap(raw, width, height, p, allowBlends);
   } else if (dithAlgo === "bayer") {
     mapped = doBayerDither(raw, width, height, p, allowBlends, dithBayerSize);
+  } else if (dithAlgo === "riemersma") {
+    mapped = doRiemersma(raw, width, height, p, allowBlends, saliencyMap, {});
   } else {
     mapped = doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt, ditherStrength: dithStrength });
   }
@@ -85,6 +190,42 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     }
   }
 
+  // ── Auto-coverage post-pass ──────────────────────────────────────────────
+  // Remove colours that cover less than 0.5% of non-skip cells (capped at 15
+  // stitches) regardless of whether minSt was set. This prevents one or two
+  // quantisation stragglers from consuming palette slots. Only runs when its
+  // threshold would exceed the user's explicit minSt setting, so the two
+  // passes are never redundant.
+  {
+    var _atTotal = 0;
+    for (var _ati = 0; _ati < mapped.length; _ati++) { if (mapped[_ati].id !== '__skip__') _atTotal++; }
+    var _autoThresh = Math.max(2, Math.min(15, Math.floor(_atTotal * 0.005)));
+    if (_autoThresh > minSt) {
+      for (var _apass = 0; _apass < 3; _apass++) {
+        var _aep = buildPalette(mapped);
+        var _arare = _aep.pal.filter(function(e) { return e.count < _autoThresh; });
+        var _akeep = _aep.pal.filter(function(e) { return e.count >= _autoThresh; });
+        if (!_arare.length || !_akeep.length) break;
+        var _arm = {};
+        _arare.forEach(function(r) {
+          var _ab = null, _abd = 1e9;
+          _akeep.forEach(function(k) { var d = dE(r.lab, k.lab); if (d < _abd) { _abd = d; _ab = k.id; } });
+          if (_ab) _arm[r.id] = _ab;
+        });
+        var _akm = {};
+        _akeep.forEach(function(k) { _akm[k.id] = k; });
+        var _achanged = false;
+        for (var _aj = 0; _aj < mapped.length; _aj++) {
+          if (mapped[_aj].id !== '__skip__' && _arm[mapped[_aj].id]) {
+            mapped[_aj] = Object.assign({}, _akm[_arm[mapped[_aj].id]]);
+            _achanged = true;
+          }
+        }
+        if (!_achanged) break;
+      }
+    }
+  }
+
   var preLabels = labelConnectedComponents(mapped, width, height);
   var confettiRaw = analyzeConfetti(mapped, width, height, preLabels);
   var confettiClean = null;
@@ -107,13 +248,35 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     var maxOrphanSize = orphansOpt > 0 ? orphansOpt : sp.maxOrphanSize;
     var saliencyMult = sp.saliencyMultiplier;
     var edgeMap = (stitchCleanup && stitchCleanup.protectDetails) ? generateEdgeMap(raw, width, height) : null;
+    // The ΔE contrast guard is a sibling of edge protection: both guard deliberate
+    // small features.  Disable it when the user has turned off protectDetails.
+    var contrastGuard = (stitchCleanup && stitchCleanup.protectDetails) ? ORPHAN_CONTRAST_GUARD_DE : 0;
     preCleanupIds = mapped.map(function(m) { return m.id; });
-    mapped = removeOrphanStitches(mapped, width, height, maxOrphanSize, edgeMap, saliencyMap, { saliencyMultiplier: saliencyMult }, preLabels);
+    mapped = removeOrphanStitches(mapped, width, height, maxOrphanSize, edgeMap, saliencyMap, { saliencyMultiplier: saliencyMult, deContrastGuard: contrastGuard, maxIterations: ORPHAN_MAX_ITERATIONS }, preLabels);
     var postLabels = labelConnectedComponents(mapped, width, height);
     confettiClean = analyzeConfetti(mapped, width, height, postLabels);
   }
 
-  return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, saliencyMap: saliencyMap, preCleanupIds: preCleanupIds };
+  // ── Stage 9: Adjacent-cell colour disambiguation ────────────────────────────
+  // Prevents adjacent cells from being assigned perceptually indistinguishable
+  // thread colours (dE2000 < threshold). Off by default (opts.disambig falsy).
+  var disambigData = null;
+  if (opts.disambig && opts.disambigLevel && opts.disambigLevel !== 'off') {
+    var dlevel = (typeof DISAMBIG_LEVEL_MAP !== 'undefined' ? DISAMBIG_LEVEL_MAP : {})[opts.disambigLevel] || { threshold: 15, maxDegradation: 20 };
+    // Reuse edgeMap from Stage 8 cleanup if available; otherwise compute now.
+    // `edgeMap` is var-scoped so it's accessible here (undefined if cleanup didn't run).
+    var disambigEdgeMap = (typeof edgeMap !== 'undefined' ? edgeMap : null) || generateEdgeMap(raw, width, height);
+    // Solid palette entries only — blend entries don't have a single .lab value
+    var solidPalette = p.filter(function(e) { return e.type !== 'blend' && e.lab; });
+    var dr = disambiguateSimilarNeighbours(mapped, width, height, disambigEdgeMap, saliencyMap, solidPalette, {
+      threshold:      dlevel.threshold,
+      maxDegradation: dlevel.maxDegradation,
+      maxIterations:  5,
+    });
+    disambigData = { swaps: dr.totalSwaps, iterations: dr.iterations };
+  }
+
+  return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, saliencyMap: saliencyMap, preCleanupIds: preCleanupIds, disambigData: disambigData };
 };
 
 // Collect the unique set of thread ids referenced by a mapped pattern.
@@ -184,13 +347,17 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   var c = document.createElement("canvas");
   c.width = sW; c.height = sH;
   var cx = c.getContext("2d");
+  cx.imageSmoothingEnabled = true;
+  if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
   cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-  cx.drawImage(img, 0, 0, sW, sH);
+  var _preSrc = opts.preSharpenOpts ? applyPreSharpenCanvas(img, sW, sH, opts.preSharpenOpts) : img;
+  cx.drawImage(prescaleForGrid(_preSrc, sW, sH), 0, 0, sW, sH);
   cx.filter = "none";
   var raw = cx.getImageData(0, 0, sW, sH).data;
 
   if (smooth > 0) {
     if (smoothType === "gaussian") applyGaussianBlur(raw, sW, sH, smooth);
+    else if (smoothType === "bilateral") applyBilateralFilter(raw, sW, sH);
     else applyMedianFilter(raw, sW, sH, smooth);
   }
 
@@ -229,5 +396,6 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
     cmap: palResult.cmap,
     confettiData: { raw: rawConfetti, clean: cleanConfetti },
     preCleanupIds: pipelineResult.preCleanupIds,
+    disambigData: pipelineResult.disambigData,
   };
 };
