@@ -1248,7 +1248,6 @@ window.CreatorSidebar = function CreatorSidebar() {
   var rawTab = app.sidebarTab;
   // Back-compat: legacy "settings" (single-Settings-accordion) → first new tab.
   if (rawTab === "settings") rawTab = "image";
-  if (rawTab === "view" || rawTab === "preview") rawTab = "display";
   var hasPattern = !!(ctx.pat && ctx.pal);
   var sTab = rawTab || (mode === "create" ? "image" : "palette");
 
@@ -1262,9 +1261,10 @@ window.CreatorSidebar = function CreatorSidebar() {
     {id:"tools",      label:"Tools",      icon:"pencil",  requires:"edit",
       disabled: !hasPattern,
       disabledHint:"Generate a pattern to unlock brush, lasso, magic wand, half-stitches, and backstitch."},
-    {id:"display",    label:"Display",    icon:"eye",     requires:"edit",
+    {id:"view",       label:"View",       icon:"eye",     requires:"edit",
       disabled: !hasPattern,
       disabledHint:"Generate a pattern to unlock display options."},
+    {id:"preview",    label:"Preview",    icon:"image"},
     {id:"project",    label:"Project",    icon:"folder"}
   ];
 
@@ -1707,8 +1707,10 @@ window.CreatorSidebar = function CreatorSidebar() {
       globalRegenCta,
       // 1. Image (source adjustments + background)
       adjSection,
+      bgSection,
       // 2. Output (dimensions + fabric)
       dimSection,
+      fabSection,
       // 3. Palette
       palSection,
       // 4. Quality (dithering + cleanup)
@@ -1976,6 +1978,12 @@ window.CreatorSidebar = function CreatorSidebar() {
   );
 
   var subHeaderStyle = {padding:"10px 12px 2px",fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5};
+  var viewContent = h(React.Fragment, null,
+    h("div", {style:subHeaderStyle}, "View"),
+    viewToggle,
+    highlightControls
+  );
+
   var displayContent = h(React.Fragment, null,
     h("div", {style:subHeaderStyle}, "View"),
     viewToggle,
@@ -2058,7 +2066,8 @@ window.CreatorSidebar = function CreatorSidebar() {
         coloursSection
       ),
       sTab === "tools" && toolsContent,
-      sTab === "display" && displayContent,
+      sTab === "view" && viewContent,
+      sTab === "preview" && previewPanel,
       sTab === "project" && projectInfoSection,
       sTab === "more" && moreContent
     ),
