@@ -383,6 +383,7 @@
     var skipDone = usePref("trackerHighlightSkipDone", true);
     var onlyStarted = usePref("trackerOnlyStarted", false);
     var idleMin = usePref("trackerIdleMinutes", 10);
+    var gapCap = usePref("trackerActiveGapCapSec", 90);
     var style = usePref("trackerStitchingStyle", "freestyle");
     var block = usePref("trackerBlockShape", "10x10");
     var corner = usePref("trackerStartCorner", "top-left");
@@ -447,14 +448,36 @@
       ),
 
       h(Section, { title: "Session timer" },
-        h(Row, { last: true, label: "Auto-pause after inactivity",
-          desc: "If you stop stitching for this long, the session timer pauses and the elapsed time is finalised." },
+        h(Row, { label: "End session after inactivity",
+          desc: "If you stop stitching for this long the session is closed and saved. One controls how much of a break still counts as stitching time (below); this controls when the session itself ends." },
           h("select", { value: String(idleMin[0]), onChange: function (e) { idleMin[1](Number(e.target.value)); }, style: styles.input },
             h("option", { value: "5"  }, "5 minutes"),
             h("option", { value: "10" }, "10 minutes (default)"),
             h("option", { value: "15" }, "15 minutes"),
             h("option", { value: "30" }, "30 minutes"),
-            h("option", { value: "0"  }, "Never auto-pause")
+            h("option", { value: "0"  }, "Never auto-end")
+          )
+        ),
+        h(Row, { last: true, label: "Count breaks as stitching for up to\u2026",
+          desc: "If you pause mid-stitch (to count or rethread), this much of the break still counts as active time. Lower = stricter totals; higher = more forgiving. Default: 90 seconds." },
+          h("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+            h("select", { value: String(Math.min(600, Math.max(15, Number(gapCap[0]) || 90))), onChange: function (e) {
+              var v = Number(e.target.value);
+              gapCap[1](Math.min(600, Math.max(15, v)));
+            }, style: styles.input },
+              h("option", { value: "15"  }, "15 seconds"),
+              h("option", { value: "30"  }, "30 seconds"),
+              h("option", { value: "60"  }, "1 minute"),
+              h("option", { value: "90"  }, "1 min 30 s (default)"),
+              h("option", { value: "120" }, "2 minutes"),
+              h("option", { value: "180" }, "3 minutes"),
+              h("option", { value: "300" }, "5 minutes"),
+              h("option", { value: "600" }, "10 minutes")
+            ),
+            (gapCap[0] !== 90) ? h("button", {
+              onClick: function () { gapCap[1](90); },
+              style: { fontSize: 12, padding: "3px 8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-secondary)", cursor: "pointer" }
+            }, "Reset") : null
           )
         )
       ),

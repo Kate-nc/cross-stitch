@@ -97,8 +97,13 @@
     // Palette filter defaults (previously session-only)
     trackerHighlightSkipDone: true,             // hide finished colours from the palette filter
     trackerOnlyStarted:       false,            // restrict palette to colours with at least one stitch done
-    // Session timer idle threshold in minutes (0 = never auto-pause)
+    // Session timer idle threshold in minutes (0 = never auto-finalise)
     trackerIdleMinutes:       10,
+    // Active gap cap in seconds: the maximum dwell between stitches credited as
+    // active time. Gaps longer than this contribute only capSec worth. Controls
+    // time accounting only — does NOT close the session (that is trackerIdleMinutes).
+    // Validated range: 15–600 s. Default 90 s.
+    trackerActiveGapCapSec:   90,
     trackerStitchingStyle: "freestyle",         // freestyle | block | crosscountry | royal
     trackerBlockShape:     "10x10",             // WxH; "10x10" | "5x5" | etc.
     trackerStartCorner:    "TL",                // TL | TR | BL | BR | C
