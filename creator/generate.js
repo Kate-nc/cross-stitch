@@ -7,6 +7,48 @@
                  disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP
    (all defined in colour-utils.js / constants.js). */
 
+/**
+ * Progressive area-averaging downscale for large reduction ratios.
+ *
+ * A single canvas drawImage at 'low' quality (bilinear) discards most source
+ * pixels at ratios above ~2:1, producing speckle noise in flat regions.
+ * This helper steps the image down in 2:1 halvings until within 2× of the
+ * target.  At each 2:1 step bilinear sampling covers every source pixel
+ * (equivalent to area averaging), so the chain produces a clean mean for
+ * any reduction ratio.
+ *
+ * Returns the source unchanged when the ratio is already ≤ 2:1 in both
+ * dimensions — the caller's final drawImage with 'high' quality suffices.
+ *
+ * Used by runGenerationPipeline, startGeneration (useCreatorState), and
+ * generatePreview (usePreview).  Defined here because generate.js is the
+ * first entry in the bundle ORDER so the function is in scope for all three.
+ *
+ * @param {HTMLImageElement|HTMLCanvasElement} source
+ * @param {number} targetW
+ * @param {number} targetH
+ * @returns {HTMLImageElement|HTMLCanvasElement}
+ */
+function prescaleForGrid(source, targetW, targetH) {
+  var srcW = (source.naturalWidth || source.width) | 0;
+  var srcH = (source.naturalHeight || source.height) | 0;
+  if (!srcW || !srcH || (srcW <= targetW * 2 && srcH <= targetH * 2)) return source;
+  var cur = source;
+  var w = srcW, h = srcH;
+  while (w > targetW * 2 || h > targetH * 2) {
+    w = Math.max(targetW, Math.ceil(w / 2));
+    h = Math.max(targetH, Math.ceil(h / 2));
+    var tc = document.createElement('canvas');
+    tc.width = w; tc.height = h;
+    var tcx = tc.getContext('2d');
+    tcx.imageSmoothingEnabled = true;
+    if ('imageSmoothingQuality' in tcx) tcx.imageSmoothingQuality = 'high';
+    tcx.drawImage(cur, 0, 0, w, h);
+    cur = tc;
+  }
+  return cur;
+}
+
 // Strength → numeric pipeline parameters for the Stitch Cleanup pipeline.
 // (Originally defined inline in index.html; moved here because generate uses it.)
 window.STRENGTH_MAP = {
@@ -244,8 +286,10 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   var c = document.createElement("canvas");
   c.width = sW; c.height = sH;
   var cx = c.getContext("2d");
+  cx.imageSmoothingEnabled = true;
+  if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
   cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-  cx.drawImage(img, 0, 0, sW, sH);
+  cx.drawImage(prescaleForGrid(img, sW, sH), 0, 0, sW, sH);
   cx.filter = "none";
   var raw = cx.getImageData(0, 0, sW, sH).data;
 

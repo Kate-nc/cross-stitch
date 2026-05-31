@@ -41,8 +41,10 @@ window.usePreview = function usePreview(state) {
     } else {
       var c = document.createElement("canvas"); c.width = pw; c.height = ph;
       var cx = c.getContext("2d");
+      cx.imageSmoothingEnabled = true;
+      if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
       cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-      cx.drawImage(img, 0, 0, pw, ph); cx.filter = "none";
+      cx.drawImage(prescaleForGrid(img, pw, ph), 0, 0, pw, ph); cx.filter = "none";
       raw = cx.getImageData(0, 0, pw, ph).data;
       if (smooth > 0) {
         if (smoothType === "gaussian") applyGaussianBlur(raw, pw, ph, smooth);

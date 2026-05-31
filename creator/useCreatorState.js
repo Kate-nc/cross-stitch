@@ -1279,10 +1279,12 @@ window.useCreatorState = function useCreatorState() {
       var c = document.createElement("canvas");
       c.width = sW; c.height = sH;
       var cx = c.getContext("2d");
+      cx.imageSmoothingEnabled = true;
+      if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
       if (_canvasFilterSupported && (bri !== 0 || con !== 0 || sat !== 0)) {
         cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";  
       }
-      cx.drawImage(img, 0, 0, sW, sH);
+      cx.drawImage(prescaleForGrid(img, sW, sH), 0, 0, sW, sH);
       if (_canvasFilterSupported) cx.filter = "none";
       var imageData;
       try {
