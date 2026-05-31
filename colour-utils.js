@@ -889,6 +889,104 @@ function applyBilateralFilter(data, w, h, opts) {
 }
 
 // ---------------------------------------------------------------------------
+// Pre-downscale detail enhancement: Lab-L unsharp mask
+// ---------------------------------------------------------------------------
+
+/**
+ * Inverse of rgbToLab (defined in dmc-data.js): converts CIE L*a*b* to sRGB.
+ * Clamps output to [0, 255] and rounds to integers.
+ *
+ * @param {number} L   L* (0–100)
+ * @param {number} a   a* (approximately −128 to +127)
+ * @param {number} b   b* (approximately −128 to +127)
+ * @returns {[number, number, number]}  [R, G, B] each 0–255
+ */
+function labToRgb(L, a, b) {
+  var fy = (L + 16) / 116;
+  var fx = a / 500 + fy;
+  var fz = fy - b / 200;
+  // Lab f-inverse: f⁻¹(t) = t³ if t > ∛0.008856 ≈ 0.2069, else (t - 16/116) / 7.787
+  var fi = function(t) { return t > 0.2069 ? t * t * t : (t - 16 / 116) / 7.787; };
+  var X = 0.95047 * fi(fx);
+  var Y = fi(fy);
+  var Z = 1.08883 * fi(fz);
+  // XYZ D65 → linear sRGB (IEC 61966-2-1 matrix)
+  var rlin =  X * 3.2404542 - Y * 1.5371385 - Z * 0.4985314;
+  var glin = -X * 0.9692660 + Y * 1.8760108 + Z * 0.0415560;
+  var blin =  X * 0.0556434 - Y * 0.2040259 + Z * 1.0572252;
+  // Gamma compression (sRGB transfer function)
+  var gc = function(c) {
+    if (c <= 0) return 0;
+    return c > 0.0031308 ? 1.055 * Math.pow(c, 1 / 2.4) - 0.055 : 12.92 * c;
+  };
+  return [
+    Math.max(0, Math.min(255, Math.round(gc(rlin) * 255))),
+    Math.max(0, Math.min(255, Math.round(gc(glin) * 255))),
+    Math.max(0, Math.min(255, Math.round(gc(blin) * 255))),
+  ];
+}
+
+/**
+ * Luminance-channel (Lab L*) unsharp mask — applied to RGBA pixel data
+ * before the area-average downscale to preserve edges and focal features.
+ *
+ * Sharpens L* only; a* and b* (chroma) are left unchanged so the filter
+ * cannot produce colour fringing at high-contrast edges.  Only pixels where
+ * the local luminance contrast exceeds `threshold` are sharpened — flat
+ * regions (sky, fur, noisy backgrounds) are left untouched.
+ *
+ * Ordering: call applyPreSharpenCanvas() (creator/generate.js) before
+ * prescaleForGrid() so the enhanced edges survive the area-average chain.
+ *
+ * @param {Uint8ClampedArray} data       RGBA pixels, mutated in-place
+ * @param {number}            w          image width in pixels
+ * @param {number}            h          image height in pixels
+ * @param {object}            [opts]
+ * @param {number}            [opts.radius=2.0]    Gaussian sigma (working-res pixels)
+ * @param {number}            [opts.amount=0.5]    USM strength multiplier (0–2)
+ * @param {number}            [opts.threshold=8]   min |L - blur(L)| in Lab L units
+ * @returns {Uint8ClampedArray}  the same `data` reference
+ */
+function applyUnsharpMask(data, w, h, opts) {
+  var radius    = (opts && opts.radius    != null) ? opts.radius    : 2.0;
+  var amount    = (opts && opts.amount    != null) ? opts.amount    : 0.5;
+  var threshold = (opts && opts.threshold != null) ? opts.threshold : 8;
+  if (amount <= 0 || radius <= 0) return data;
+
+  var n = w * h;
+
+  // Extract L* channel (0–100) together with a* and b* for reconstruction.
+  // rgbToLab is defined in dmc-data.js and available as a global.
+  var lCh = new Float32Array(n);
+  var aCh = new Float32Array(n);
+  var bCh = new Float32Array(n);
+  for (var i = 0; i < n; i++) {
+    var lab = rgbToLab(data[i * 4], data[i * 4 + 1], data[i * 4 + 2]);
+    lCh[i] = lab[0]; aCh[i] = lab[1]; bCh[i] = lab[2];
+  }
+
+  // Gaussian-blur the L channel with a separable 1-D kernel.
+  // _gaussianBlur1 is defined further down in this file (Stage 1 saliency).
+  var lBlur = new Float32Array(lCh);
+  _gaussianBlur1(lBlur, w, h, radius);
+
+  // Apply thresholded unsharp mask and convert back to RGB.
+  for (var i = 0; i < n; i++) {
+    var diff = lCh[i] - lBlur[i];
+    if (Math.abs(diff) > threshold) {
+      var lNew = lCh[i] + amount * diff;
+      if (lNew < 0) lNew = 0; else if (lNew > 100) lNew = 100;
+      var rgb = labToRgb(lNew, aCh[i], bCh[i]);
+      data[i * 4]     = rgb[0];
+      data[i * 4 + 1] = rgb[1];
+      data[i * 4 + 2] = rgb[2];
+      // data[i * 4 + 3] (alpha) left unchanged
+    }
+  }
+  return data;
+}
+
+// ---------------------------------------------------------------------------
 // Image processing primitives (Gaussian blur, Sobel, Canny).
 // These are defined as function declarations in embroidery.js for embroidery
 // pages.  The fallbacks below ensure they are available when colour-utils.js
@@ -1971,4 +2069,4 @@ var DISAMBIG_LEVEL_MAP = {
 _colourUtilsGlobal.disambiguateSimilarNeighbours = disambiguateSimilarNeighbours;
 _colourUtilsGlobal.DISAMBIG_LEVEL_MAP = DISAMBIG_LEVEL_MAP;
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP }; }

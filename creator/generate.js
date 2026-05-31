@@ -49,6 +49,51 @@ function prescaleForGrid(source, targetW, targetH) {
   return cur;
 }
 
+/**
+ * Apply a pre-downscale luminance unsharp mask to a source image/canvas.
+ *
+ * Works at a fixed "working resolution" of 8× the target grid dimensions
+ * (capped at the source size) so the filter parameters (radius, threshold)
+ * are image-size-independent — a 50×50 target sharpens at ≤400×400,
+ * a 120×80 target at ≤960×640.  The sharpened canvas is then passed
+ * through prescaleForGrid so the preserved edge signal survives the
+ * area-average chain.
+ *
+ * Delegates pixel manipulation to applyUnsharpMask() in colour-utils.js.
+ * DOM-only — cannot be called inside a Web Worker.
+ *
+ * @param {HTMLImageElement|HTMLCanvasElement} source
+ * @param {number} targetW  Pattern grid width in stitches
+ * @param {number} targetH  Pattern grid height in stitches
+ * @param {object} [opts]   Forwarded verbatim to applyUnsharpMask
+ *   @param {number} [opts.radius=2.0]    Gaussian sigma in working-res pixels
+ *   @param {number} [opts.amount=0.5]    USM strength (0–2); 0.5 is conservative
+ *   @param {number} [opts.threshold=8]   min |L − blur(L)| in Lab L units
+ * @returns {HTMLCanvasElement}  canvas containing the sharpened image
+ */
+function applyPreSharpenCanvas(source, targetW, targetH, opts) {
+  var srcW = (source.naturalWidth  || source.width)  | 0;
+  var srcH = (source.naturalHeight || source.height) | 0;
+  if (!srcW || !srcH) return source;
+  // Work at 8× the target dimensions (capped at source size so we never
+  // upscale — upscaling would invent detail that doesn't exist).
+  var wW = Math.min(srcW, targetW * 8);
+  var wH = Math.min(srcH, targetH * 8);
+  // Never go below the target size itself
+  if (wW < targetW) wW = Math.min(srcW, targetW);
+  if (wH < targetH) wH = Math.min(srcH, targetH);
+  var c = document.createElement('canvas');
+  c.width = wW; c.height = wH;
+  var cx = c.getContext('2d');
+  cx.imageSmoothingEnabled = true;
+  if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
+  cx.drawImage(source, 0, 0, wW, wH);
+  var id = cx.getImageData(0, 0, wW, wH);
+  applyUnsharpMask(id.data, wW, wH, opts);
+  cx.putImageData(id, 0, 0);
+  return c;
+}
+
 // Strength → numeric pipeline parameters for the Stitch Cleanup pipeline.
 // (Originally defined inline in index.html; moved here because generate uses it.)
 window.STRENGTH_MAP = {
@@ -56,6 +101,19 @@ window.STRENGTH_MAP = {
   balanced: { maxOrphanSize: 4, saliencyMultiplier: 2.0 },
   thorough: { maxOrphanSize: 6, saliencyMultiplier: 3.0 },
 };
+
+// Maximum passes for the orphan-removal stability loop.
+// The loop also exits early when no change occurs or orphan count stops decreasing.
+// 8 is a conservative upper cap; normal images typically stabilise in 1–3 passes.
+var ORPHAN_MAX_ITERATIONS = 8;
+
+// ΔE2000 contrast guard for orphan removal.
+// A small region whose nearest-neighbour palette colour differs by more than this
+// value is treated as a deliberate high-contrast feature (e.g. a white catchlight
+// in a dark eye, ΔE ≈ 70) and is NOT merged regardless of its size.
+// Noise artefacts typically differ from their surroundings by ΔE < 20;
+// intentional accents are reliably above ΔE 30.  Set to 0 to disable.
+var ORPHAN_CONTRAST_GUARD_DE = 30;
 
 /**
  * Shared quantize → map/dither → bg-removal → confetti → orphan-removal pipeline.
@@ -190,8 +248,11 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     var maxOrphanSize = orphansOpt > 0 ? orphansOpt : sp.maxOrphanSize;
     var saliencyMult = sp.saliencyMultiplier;
     var edgeMap = (stitchCleanup && stitchCleanup.protectDetails) ? generateEdgeMap(raw, width, height) : null;
+    // The ΔE contrast guard is a sibling of edge protection: both guard deliberate
+    // small features.  Disable it when the user has turned off protectDetails.
+    var contrastGuard = (stitchCleanup && stitchCleanup.protectDetails) ? ORPHAN_CONTRAST_GUARD_DE : 0;
     preCleanupIds = mapped.map(function(m) { return m.id; });
-    mapped = removeOrphanStitches(mapped, width, height, maxOrphanSize, edgeMap, saliencyMap, { saliencyMultiplier: saliencyMult }, preLabels);
+    mapped = removeOrphanStitches(mapped, width, height, maxOrphanSize, edgeMap, saliencyMap, { saliencyMultiplier: saliencyMult, deContrastGuard: contrastGuard, maxIterations: ORPHAN_MAX_ITERATIONS }, preLabels);
     var postLabels = labelConnectedComponents(mapped, width, height);
     confettiClean = analyzeConfetti(mapped, width, height, postLabels);
   }
@@ -289,7 +350,8 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   cx.imageSmoothingEnabled = true;
   if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
   cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-  cx.drawImage(prescaleForGrid(img, sW, sH), 0, 0, sW, sH);
+  var _preSrc = opts.preSharpenOpts ? applyPreSharpenCanvas(img, sW, sH, opts.preSharpenOpts) : img;
+  cx.drawImage(prescaleForGrid(_preSrc, sW, sH), 0, 0, sW, sH);
   cx.filter = "none";
   var raw = cx.getImageData(0, 0, sW, sH).data;
 

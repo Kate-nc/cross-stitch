@@ -89,7 +89,7 @@ function _applyImageFilters(imageData, bri, con, sat) {
 // Manifest of state-variable keys that contribute to the conversion output.
 // Used by the preview-coverage tests.
 var CONVERSION_STATE_KEYS = [
-  'sW', 'sH', 'bri', 'con', 'sat', 'smooth', 'smoothType',
+  'sW', 'sH', 'bri', 'con', 'sat', 'smooth', 'smoothType', 'preSharpen', 'preSharpenAmount',
   'maxC', 'dithMode', 'allowBlends', 'minSt',
   'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans',
   'stashConstrained', 'globalStash',
@@ -194,6 +194,8 @@ window.useCreatorState = function useCreatorState() {
   var minSt  = _minSt[0],  setMinSt  = _minSt[1];
   var _smooth = useState(0);          var smooth = _smooth[0], setSmooth = _smooth[1];
   var _sType  = useState("median");   var smoothType = _sType[0], setSmoothType = _sType[1];
+  var _preSharpen = useState(false);  var preSharpen = _preSharpen[0], setPreSharpen = _preSharpen[1];
+  var _preSharpenAmount = useState(0.5); var preSharpenAmount = _preSharpenAmount[0], setPreSharpenAmount = _preSharpenAmount[1];
   var _orphans= useState(function () { var v = loadUserPref("creatorOrphanRemovalStrength", 0); return (typeof v === "number" && v >= 0) ? v : 0; });
   var orphans = _orphans[0], setOrphans = _orphans[1];
   var _disambig = useState(false);
@@ -1282,9 +1284,10 @@ window.useCreatorState = function useCreatorState() {
       cx.imageSmoothingEnabled = true;
       if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
       if (_canvasFilterSupported && (bri !== 0 || con !== 0 || sat !== 0)) {
-        cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";  
+        cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
       }
-      cx.drawImage(prescaleForGrid(img, sW, sH), 0, 0, sW, sH);
+      var _genSrc = preSharpen ? applyPreSharpenCanvas(img, sW, sH, { amount: preSharpenAmount }) : img;
+      cx.drawImage(prescaleForGrid(_genSrc, sW, sH), 0, 0, sW, sH);
       if (_canvasFilterSupported) cx.filter = "none";
       var imageData;
       try {
@@ -1311,6 +1314,7 @@ window.useCreatorState = function useCreatorState() {
               stitchCleanup: stitchCleanup, orphans: orphans, allowBlends: effAllowBlends,
               allowedPalette: allowedPalette, seed: _seed,
               disambig: disambig, disambigLevel: disambigLevel,
+              preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null,
             });
             if (!result) { setBusy(false); return; }
             applyResultRef.current({ reqId: reqId, mapped: result.pat, pal: result.pal, cmap: result.cmap, confettiData: result.confettiData, preCleanupIds: result.preCleanupIds, disambigData: result.disambigData });
@@ -1342,7 +1346,7 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setTimeout(startGeneration, 0);
     }
-  }, [img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, stashConstrained, globalStash, variationSeed, variationSubset]);
+  }, [img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, stashConstrained, globalStash, variationSeed, variationSubset]);
 
   // ─── Variation helpers: seeded Fisher-Yates shuffle → roulette subset ───────
   function _buildRoulette(pool, n, seed) {
@@ -1628,6 +1632,7 @@ window.useCreatorState = function useCreatorState() {
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
     dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
+    preSharpen, setPreSharpen, preSharpenAmount, setPreSharpenAmount,
     orphans, setOrphans, disambig, setDisambig, disambigLevel, setDisambigLevel, allowBlends, setAllowBlends,
     pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, progressMessage, setProgressMessage,
     origW, setOrigW, origH, setOrigH,
@@ -1790,6 +1795,7 @@ window.useCreatorState = function useCreatorState() {
         // Image adjustments
         bri: bri, con: con, sat: sat,
         smooth: smooth, smoothType: smoothType,
+        preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
         // Quantisation
         maxC: effMaxC,
         dith: dith, dithMode: dithMode, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize,
@@ -1809,7 +1815,7 @@ window.useCreatorState = function useCreatorState() {
         stashCount: stashInfo.count,
       });
     }, [
-      sW, sH, bri, con, sat, smooth, smoothType,
+      sW, sH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount,
       maxC, dith, dithMode, dithStrength, allowBlends,
       skipBg, bgCol, bgTh, minSt, stitchCleanup, orphans,
       disambig, disambigLevel,

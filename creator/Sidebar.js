@@ -1087,7 +1087,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   );
 
   // ── Image section (non-scratch) — source adjustments + background ──────────
-  var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth||gen.skipBg) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
+  var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth||gen.skipBg||gen.preSharpen) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
   var adjSection = !ctx.isScratchMode ? h(Section, {title:"Image", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Smooth", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
@@ -1109,6 +1109,22 @@ window.CreatorSidebar = function CreatorSidebar() {
       h(SliderRow, {label:"Brightness", value:gen.bri, min:-50, max:50, onChange:gen.setBri, format:function(v){return (v>0?"+":"")+v+"%";}}),
       h(SliderRow, {label:"Contrast", value:gen.con, min:-50, max:50, onChange:gen.setCon, format:function(v){return (v>0?"+":"")+v+"%";}}),
       h(SliderRow, {label:"Saturation", value:gen.sat, min:-50, max:50, onChange:gen.setSat, format:function(v){return (v>0?"+":"")+v+"%";}}),
+      h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-2)',paddingTop:'var(--s-2)'}}),
+      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",userSelect:"none"}},
+        h("input", {type:"checkbox", checked:!!gen.preSharpen, onChange:function(e){gen.setPreSharpen(e.target.checked);}}),
+        h("span", null, "Pre-sharpen detail"),
+        h(InfoIcon, {text:"Sharpens the source image before downscaling so facial features, eyes, and fine edges survive the reduction. Uses a luminance-only unsharp mask — chroma is left unchanged to prevent colour fringing. Leave off for already-sharp or very noisy images.", width:260})
+      ),
+      gen.preSharpen && h(SliderRow, {
+        label:"Amount",
+        value:gen.preSharpenAmount != null ? gen.preSharpenAmount : 0.5,
+        min:0.1, max:2.0, step:0.1,
+        onChange:gen.setPreSharpenAmount,
+        format:function(v){return v.toFixed(1)+"x";},
+        helpText:"Sharpening strength. 0.5 is conservative; increase to 1.0 for visibly soft portraits.",
+        inlineHint:"0.5 is a safe default. Above 1.0 watch for halos on hard edges.",
+        helpTopic:"image"
+      }),
       h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
       h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-1)'}}, "Background"),
       h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginTop:'var(--s-1)'}},

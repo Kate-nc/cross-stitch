@@ -18,6 +18,7 @@ window.usePreview = function usePreview(state) {
     var sW = settings.sW, sH = settings.sH;
     var bri = settings.bri, con = settings.con, sat = settings.sat;
     var smooth = settings.smooth, smoothType = settings.smoothType;
+    var preSharpen = settings.preSharpen, preSharpenAmount = settings.preSharpenAmount;
     var fabricCt = settings.fabricCt;
     var stashConstrained = settings.stashConstrained;
     var globalStash = state.globalStash;
@@ -35,7 +36,7 @@ window.usePreview = function usePreview(state) {
 
     // --- Geometric (image-drawing) cache: skip canvas if only pipeline settings changed ---
     var raw;
-    var geoSig = img.src + '|' + pw + '|' + ph + '|' + bri + '|' + con + '|' + sat + '|' + smooth + '|' + smoothType;
+    var geoSig = img.src + '|' + pw + '|' + ph + '|' + bri + '|' + con + '|' + sat + '|' + smooth + '|' + smoothType + '|' + (preSharpen ? preSharpenAmount : '0');
     if (rawCacheRef.current && rawCacheRef.current.sig === geoSig) {
       raw = rawCacheRef.current.raw;
     } else {
@@ -44,7 +45,8 @@ window.usePreview = function usePreview(state) {
       cx.imageSmoothingEnabled = true;
       if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
       cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-      cx.drawImage(prescaleForGrid(img, pw, ph), 0, 0, pw, ph); cx.filter = "none";
+      var _prevSrc = preSharpen ? applyPreSharpenCanvas(img, pw, ph, { amount: preSharpenAmount }) : img;
+      cx.drawImage(prescaleForGrid(_prevSrc, pw, ph), 0, 0, pw, ph); cx.filter = "none";
       raw = cx.getImageData(0, 0, pw, ph).data;
       if (smooth > 0) {
         if (smoothType === "gaussian") applyGaussianBlur(raw, pw, ph, smooth);

@@ -793,6 +793,51 @@ function prescaleForGrid(source, targetW, targetH) {
   return cur;
 }
 
+/**
+ * Apply a pre-downscale luminance unsharp mask to a source image/canvas.
+ *
+ * Works at a fixed "working resolution" of 8× the target grid dimensions
+ * (capped at the source size) so the filter parameters (radius, threshold)
+ * are image-size-independent — a 50×50 target sharpens at ≤400×400,
+ * a 120×80 target at ≤960×640.  The sharpened canvas is then passed
+ * through prescaleForGrid so the preserved edge signal survives the
+ * area-average chain.
+ *
+ * Delegates pixel manipulation to applyUnsharpMask() in colour-utils.js.
+ * DOM-only — cannot be called inside a Web Worker.
+ *
+ * @param {HTMLImageElement|HTMLCanvasElement} source
+ * @param {number} targetW  Pattern grid width in stitches
+ * @param {number} targetH  Pattern grid height in stitches
+ * @param {object} [opts]   Forwarded verbatim to applyUnsharpMask
+ *   @param {number} [opts.radius=2.0]    Gaussian sigma in working-res pixels
+ *   @param {number} [opts.amount=0.5]    USM strength (0–2); 0.5 is conservative
+ *   @param {number} [opts.threshold=8]   min |L − blur(L)| in Lab L units
+ * @returns {HTMLCanvasElement}  canvas containing the sharpened image
+ */
+function applyPreSharpenCanvas(source, targetW, targetH, opts) {
+  var srcW = (source.naturalWidth  || source.width)  | 0;
+  var srcH = (source.naturalHeight || source.height) | 0;
+  if (!srcW || !srcH) return source;
+  // Work at 8× the target dimensions (capped at source size so we never
+  // upscale — upscaling would invent detail that doesn't exist).
+  var wW = Math.min(srcW, targetW * 8);
+  var wH = Math.min(srcH, targetH * 8);
+  // Never go below the target size itself
+  if (wW < targetW) wW = Math.min(srcW, targetW);
+  if (wH < targetH) wH = Math.min(srcH, targetH);
+  var c = document.createElement('canvas');
+  c.width = wW; c.height = wH;
+  var cx = c.getContext('2d');
+  cx.imageSmoothingEnabled = true;
+  if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
+  cx.drawImage(source, 0, 0, wW, wH);
+  var id = cx.getImageData(0, 0, wW, wH);
+  applyUnsharpMask(id.data, wW, wH, opts);
+  cx.putImageData(id, 0, 0);
+  return c;
+}
+
 // Strength → numeric pipeline parameters for the Stitch Cleanup pipeline.
 // (Originally defined inline in index.html; moved here because generate uses it.)
 window.STRENGTH_MAP = {
@@ -800,6 +845,19 @@ window.STRENGTH_MAP = {
   balanced: { maxOrphanSize: 4, saliencyMultiplier: 2.0 },
   thorough: { maxOrphanSize: 6, saliencyMultiplier: 3.0 },
 };
+
+// Maximum passes for the orphan-removal stability loop.
+// The loop also exits early when no change occurs or orphan count stops decreasing.
+// 8 is a conservative upper cap; normal images typically stabilise in 1–3 passes.
+var ORPHAN_MAX_ITERATIONS = 8;
+
+// ΔE2000 contrast guard for orphan removal.
+// A small region whose nearest-neighbour palette colour differs by more than this
+// value is treated as a deliberate high-contrast feature (e.g. a white catchlight
+// in a dark eye, ΔE ≈ 70) and is NOT merged regardless of its size.
+// Noise artefacts typically differ from their surroundings by ΔE < 20;
+// intentional accents are reliably above ΔE 30.  Set to 0 to disable.
+var ORPHAN_CONTRAST_GUARD_DE = 30;
 
 /**
  * Shared quantize → map/dither → bg-removal → confetti → orphan-removal pipeline.
@@ -934,8 +992,11 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     var maxOrphanSize = orphansOpt > 0 ? orphansOpt : sp.maxOrphanSize;
     var saliencyMult = sp.saliencyMultiplier;
     var edgeMap = (stitchCleanup && stitchCleanup.protectDetails) ? generateEdgeMap(raw, width, height) : null;
+    // The ΔE contrast guard is a sibling of edge protection: both guard deliberate
+    // small features.  Disable it when the user has turned off protectDetails.
+    var contrastGuard = (stitchCleanup && stitchCleanup.protectDetails) ? ORPHAN_CONTRAST_GUARD_DE : 0;
     preCleanupIds = mapped.map(function(m) { return m.id; });
-    mapped = removeOrphanStitches(mapped, width, height, maxOrphanSize, edgeMap, saliencyMap, { saliencyMultiplier: saliencyMult }, preLabels);
+    mapped = removeOrphanStitches(mapped, width, height, maxOrphanSize, edgeMap, saliencyMap, { saliencyMultiplier: saliencyMult, deContrastGuard: contrastGuard, maxIterations: ORPHAN_MAX_ITERATIONS }, preLabels);
     var postLabels = labelConnectedComponents(mapped, width, height);
     confettiClean = analyzeConfetti(mapped, width, height, postLabels);
   }
@@ -1033,7 +1094,8 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   cx.imageSmoothingEnabled = true;
   if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
   cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-  cx.drawImage(prescaleForGrid(img, sW, sH), 0, 0, sW, sH);
+  var _preSrc = opts.preSharpenOpts ? applyPreSharpenCanvas(img, sW, sH, opts.preSharpenOpts) : img;
+  cx.drawImage(prescaleForGrid(_preSrc, sW, sH), 0, 0, sW, sH);
   cx.filter = "none";
   var raw = cx.getImageData(0, 0, sW, sH).data;
 
@@ -4566,7 +4628,7 @@ function _applyImageFilters(imageData, bri, con, sat) {
 // Manifest of state-variable keys that contribute to the conversion output.
 // Used by the preview-coverage tests.
 var CONVERSION_STATE_KEYS = [
-  'sW', 'sH', 'bri', 'con', 'sat', 'smooth', 'smoothType',
+  'sW', 'sH', 'bri', 'con', 'sat', 'smooth', 'smoothType', 'preSharpen', 'preSharpenAmount',
   'maxC', 'dithMode', 'allowBlends', 'minSt',
   'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans',
   'stashConstrained', 'globalStash',
@@ -4671,6 +4733,8 @@ window.useCreatorState = function useCreatorState() {
   var minSt  = _minSt[0],  setMinSt  = _minSt[1];
   var _smooth = useState(0);          var smooth = _smooth[0], setSmooth = _smooth[1];
   var _sType  = useState("median");   var smoothType = _sType[0], setSmoothType = _sType[1];
+  var _preSharpen = useState(false);  var preSharpen = _preSharpen[0], setPreSharpen = _preSharpen[1];
+  var _preSharpenAmount = useState(0.5); var preSharpenAmount = _preSharpenAmount[0], setPreSharpenAmount = _preSharpenAmount[1];
   var _orphans= useState(function () { var v = loadUserPref("creatorOrphanRemovalStrength", 0); return (typeof v === "number" && v >= 0) ? v : 0; });
   var orphans = _orphans[0], setOrphans = _orphans[1];
   var _disambig = useState(false);
@@ -5759,9 +5823,10 @@ window.useCreatorState = function useCreatorState() {
       cx.imageSmoothingEnabled = true;
       if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
       if (_canvasFilterSupported && (bri !== 0 || con !== 0 || sat !== 0)) {
-        cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";  
+        cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
       }
-      cx.drawImage(prescaleForGrid(img, sW, sH), 0, 0, sW, sH);
+      var _genSrc = preSharpen ? applyPreSharpenCanvas(img, sW, sH, { amount: preSharpenAmount }) : img;
+      cx.drawImage(prescaleForGrid(_genSrc, sW, sH), 0, 0, sW, sH);
       if (_canvasFilterSupported) cx.filter = "none";
       var imageData;
       try {
@@ -5788,6 +5853,7 @@ window.useCreatorState = function useCreatorState() {
               stitchCleanup: stitchCleanup, orphans: orphans, allowBlends: effAllowBlends,
               allowedPalette: allowedPalette, seed: _seed,
               disambig: disambig, disambigLevel: disambigLevel,
+              preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null,
             });
             if (!result) { setBusy(false); return; }
             applyResultRef.current({ reqId: reqId, mapped: result.pat, pal: result.pal, cmap: result.cmap, confettiData: result.confettiData, preCleanupIds: result.preCleanupIds, disambigData: result.disambigData });
@@ -5819,7 +5885,7 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setTimeout(startGeneration, 0);
     }
-  }, [img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, stashConstrained, globalStash, variationSeed, variationSubset]);
+  }, [img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, stashConstrained, globalStash, variationSeed, variationSubset]);
 
   // ─── Variation helpers: seeded Fisher-Yates shuffle → roulette subset ───────
   function _buildRoulette(pool, n, seed) {
@@ -6105,6 +6171,7 @@ window.useCreatorState = function useCreatorState() {
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
     dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
+    preSharpen, setPreSharpen, preSharpenAmount, setPreSharpenAmount,
     orphans, setOrphans, disambig, setDisambig, disambigLevel, setDisambigLevel, allowBlends, setAllowBlends,
     pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, progressMessage, setProgressMessage,
     origW, setOrigW, origH, setOrigH,
@@ -6267,6 +6334,7 @@ window.useCreatorState = function useCreatorState() {
         // Image adjustments
         bri: bri, con: con, sat: sat,
         smooth: smooth, smoothType: smoothType,
+        preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
         // Quantisation
         maxC: effMaxC,
         dith: dith, dithMode: dithMode, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize,
@@ -6286,7 +6354,7 @@ window.useCreatorState = function useCreatorState() {
         stashCount: stashInfo.count,
       });
     }, [
-      sW, sH, bri, con, sat, smooth, smoothType,
+      sW, sH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount,
       maxC, dith, dithMode, dithStrength, allowBlends,
       skipBg, bgCol, bgTh, minSt, stitchCleanup, orphans,
       disambig, disambigLevel,
@@ -10119,6 +10187,7 @@ window.usePreview = function usePreview(state) {
     var sW = settings.sW, sH = settings.sH;
     var bri = settings.bri, con = settings.con, sat = settings.sat;
     var smooth = settings.smooth, smoothType = settings.smoothType;
+    var preSharpen = settings.preSharpen, preSharpenAmount = settings.preSharpenAmount;
     var fabricCt = settings.fabricCt;
     var stashConstrained = settings.stashConstrained;
     var globalStash = state.globalStash;
@@ -10136,7 +10205,7 @@ window.usePreview = function usePreview(state) {
 
     // --- Geometric (image-drawing) cache: skip canvas if only pipeline settings changed ---
     var raw;
-    var geoSig = img.src + '|' + pw + '|' + ph + '|' + bri + '|' + con + '|' + sat + '|' + smooth + '|' + smoothType;
+    var geoSig = img.src + '|' + pw + '|' + ph + '|' + bri + '|' + con + '|' + sat + '|' + smooth + '|' + smoothType + '|' + (preSharpen ? preSharpenAmount : '0');
     if (rawCacheRef.current && rawCacheRef.current.sig === geoSig) {
       raw = rawCacheRef.current.raw;
     } else {
@@ -10145,7 +10214,8 @@ window.usePreview = function usePreview(state) {
       cx.imageSmoothingEnabled = true;
       if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
       cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-      cx.drawImage(prescaleForGrid(img, pw, ph), 0, 0, pw, ph); cx.filter = "none";
+      var _prevSrc = preSharpen ? applyPreSharpenCanvas(img, pw, ph, { amount: preSharpenAmount }) : img;
+      cx.drawImage(prescaleForGrid(_prevSrc, pw, ph), 0, 0, pw, ph); cx.filter = "none";
       raw = cx.getImageData(0, 0, pw, ph).data;
       if (smooth > 0) {
         if (smoothType === "gaussian") applyGaussianBlur(raw, pw, ph, smooth);
@@ -13818,7 +13888,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   );
 
   // ── Image section (non-scratch) — source adjustments + background ──────────
-  var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth||gen.skipBg) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
+  var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth||gen.skipBg||gen.preSharpen) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
   var adjSection = !ctx.isScratchMode ? h(Section, {title:"Image", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Smooth", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
@@ -13840,6 +13910,22 @@ window.CreatorSidebar = function CreatorSidebar() {
       h(SliderRow, {label:"Brightness", value:gen.bri, min:-50, max:50, onChange:gen.setBri, format:function(v){return (v>0?"+":"")+v+"%";}}),
       h(SliderRow, {label:"Contrast", value:gen.con, min:-50, max:50, onChange:gen.setCon, format:function(v){return (v>0?"+":"")+v+"%";}}),
       h(SliderRow, {label:"Saturation", value:gen.sat, min:-50, max:50, onChange:gen.setSat, format:function(v){return (v>0?"+":"")+v+"%";}}),
+      h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-2)',paddingTop:'var(--s-2)'}}),
+      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",userSelect:"none"}},
+        h("input", {type:"checkbox", checked:!!gen.preSharpen, onChange:function(e){gen.setPreSharpen(e.target.checked);}}),
+        h("span", null, "Pre-sharpen detail"),
+        h(InfoIcon, {text:"Sharpens the source image before downscaling so facial features, eyes, and fine edges survive the reduction. Uses a luminance-only unsharp mask — chroma is left unchanged to prevent colour fringing. Leave off for already-sharp or very noisy images.", width:260})
+      ),
+      gen.preSharpen && h(SliderRow, {
+        label:"Amount",
+        value:gen.preSharpenAmount != null ? gen.preSharpenAmount : 0.5,
+        min:0.1, max:2.0, step:0.1,
+        onChange:gen.setPreSharpenAmount,
+        format:function(v){return v.toFixed(1)+"x";},
+        helpText:"Sharpening strength. 0.5 is conservative; increase to 1.0 for visibly soft portraits.",
+        inlineHint:"0.5 is a safe default. Above 1.0 watch for halos on hard edges.",
+        helpTopic:"image"
+      }),
       h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
       h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-1)'}}, "Background"),
       h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginTop:'var(--s-1)'}},
