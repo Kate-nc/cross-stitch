@@ -31,6 +31,18 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     sH: state.sH
   };
 
+  function persistProjectRecord(project) {
+    if (typeof window !== "undefined"
+        && window.CrossTabResolution
+        && typeof window.CrossTabResolution.saveWithConflictResolution === "function") {
+      return window.CrossTabResolution.saveWithConflictResolution(project);
+    }
+    return ProjectStorage.save(project).then(function (id) {
+      try { ProjectStorage.setActiveProject(id); } catch (_) {}
+      return { ok: true, id: id };
+    });
+  }
+
   // ─── doSaveProject ───────────────────────────────────────────────────────────
   function doSaveProject(finalName) {
     var pat = state.pat, pal = state.pal, cmap = state.cmap;
@@ -135,8 +147,14 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       imgData: img ? img.src : null, partialStitches: psArr,
     });
     if (onSwitchToTrack) {
+      var saveResult = null;
+      try {
+        saveResult = await persistProjectRecord(project);
+      } catch (err) {
+        console.error('ProjectStorage.save failed before switch-to-tracker:', err);
+      }
+      if (saveResult && saveResult.reason === 'reloaded') return;
       saveProjectToDB(project).catch(function (err) { console.error('Auto-save (legacy DB) failed before switch-to-tracker:', err); });
-      ProjectStorage.save(project).then(function(id) { ProjectStorage.setActiveProject(id); }).catch(function (err) { console.error('ProjectStorage.save failed before switch-to-tracker:', err); });
       // Belt-and-braces stash sync: the debounced auto-save may not have fired yet
       // (e.g. if the user generated and immediately clicked "Open in Tracker"). Without
       // this the pattern would not appear in the Stash Manager library until the
@@ -162,7 +180,9 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     // handoff payload (localStorage / URL hash) is unavailable — but only if
     // these writes have actually committed. AWAIT both before continuing,
     // otherwise window.location.href can fire mid-transaction.
-    try { await ProjectStorage.save(project); } catch (_) {}
+    var persisted = null;
+    try { persisted = await persistProjectRecord(project); } catch (_) {}
+    if (persisted && persisted.reason === 'reloaded') return;
     try { await saveProjectToDB(project); } catch (_) {}
     // Preferred path: write the project to localStorage and let the Tracker pick
     // it up via `crossstitch_handoff`. This works for any pattern size that fits
@@ -773,28 +793,26 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     // finishes, even if the user navigates away within 1 s.
     var isFirstSave = firstSaveDoneRef.current !== state.projectIdRef.current;
     function persistAll() {
-      // Run both writes in parallel and treat the cycle as failed if either
-      // one rejects, so the visible save status reflects reality. The legacy
-      // saveProjectToDB key is kept in lockstep with ProjectStorage so older
-      // entry points (Tracker recovery, BackupRestore) still find a snapshot.
-      var p1 = ProjectStorage.save(project5).then(function (id) {
-        ProjectStorage.setActiveProject(id);
-        return id;
+      return persistProjectRecord(project5).then(function (saveResult) {
+        if (saveResult && saveResult.reason === 'reloaded') {
+          return saveResult.id || project5.id;
+        }
+        return saveProjectToDB(project5).then(function () {
+          if (typeof StashBridge !== "undefined") {
+            try {
+              StashBridge.syncProjectToLibrary(
+                state.projectIdRef.current,
+                state.projectName || (state.sW + "\xD7" + state.sH + " pattern"),
+                state.skeinData,
+                "inprogress",
+                state.fabricCt
+              );
+            } catch (_) {}
+          }
+          firstSaveDoneRef.current = state.projectIdRef.current;
+          return (saveResult && saveResult.id) || project5.id;
+        });
       });
-      var p2 = saveProjectToDB(project5);
-      if (typeof StashBridge !== "undefined") {
-        try {
-          StashBridge.syncProjectToLibrary(
-            state.projectIdRef.current,
-            state.projectName || (state.sW + "\xD7" + state.sH + " pattern"),
-            state.skeinData,
-            "inprogress",
-            state.fabricCt
-          );
-        } catch (_) {}
-      }
-      firstSaveDoneRef.current = state.projectIdRef.current;
-      return Promise.all([p1, p2]).then(function (results) { return results[0]; });
     }
     // Lazily build the controller. The callbacks close over the latest
     // state setters because we re-resolve them via `state.*` on each call.
@@ -867,7 +885,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     window.__flushProjectToIDB = function() {
       var p = creatorSnapshotRef.current;
       if (p) {
-        return ProjectStorage.save(p).then(function() {
+        return persistProjectRecord(p).then(function (saveResult) {
+          if (saveResult && saveResult.reason === 'reloaded') return null;
           return saveProjectToDB(p);
         }).catch(function() {});
       }
@@ -879,7 +898,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       // the Tracker registers its own handler, this ensures IDB is still written.
       var last = creatorSnapshotRef.current;
       window.__flushProjectToIDB = function() {
-        if (last) return ProjectStorage.save(last).then(function() { return saveProjectToDB(last); }).catch(function() {});
+        if (last) return persistProjectRecord(last).then(function (saveResult) {
+          if (saveResult && saveResult.reason === 'reloaded') return null;
+          return saveProjectToDB(last);
+        }).catch(function() {});
         return Promise.resolve();
       };
     };
@@ -953,12 +975,14 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       var snap = creatorSnapshotRef.current;
       if (!ctrl || !snap) return;
       ctrl.schedule(function () {
-        var p1 = ProjectStorage.save(snap).then(function (id) {
-          ProjectStorage.setActiveProject(id);
-          return id;
+        return persistProjectRecord(snap).then(function (saveResult) {
+          if (saveResult && saveResult.reason === 'reloaded') {
+            return saveResult.id || snap.id;
+          }
+          return saveProjectToDB(snap).then(function () {
+            return (saveResult && saveResult.id) || snap.id;
+          });
         });
-        var p2 = saveProjectToDB(snap);
-        return Promise.all([p1, p2]).then(function (r) { return r[0]; });
       });
       ctrl.flush();
     },

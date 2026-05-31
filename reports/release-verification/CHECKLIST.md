@@ -1,0 +1,27 @@
+# Release Verification Checklist
+
+- [x] Reconcile shipped scope against briefs/specs in `00-reconciliation.md`
+- [x] Map runtime surfaces, ownership, and persistence boundaries in `01-system-map.md`
+- [x] Confirm current automated baseline and rerun full Jest suite
+- [x] Smoke-walk `home.html`
+- [x] Smoke-walk `create.html`
+- [x] Smoke-walk `manager.html?from=home`
+- [x] Smoke-walk `stitch.html?from=home`
+- [x] Audit shipped navigation behaviour and record outcome
+- [x] Audit shipped delete + toast undo behaviour and record outcome
+- [x] Audit stash partial-skein behaviour and record outcome
+- [x] Audit size/thread calculator behaviour and record outcome
+- [x] Audit cleanup mode behaviour and record outcome
+- [x] Audit denoise mode behaviour and record outcome
+- [x] Audit crop/canvas-resize behaviour and record outcome
+- [x] Audit cross-tab sync behaviour and record outcome
+- [x] Fix INT-7 runtime save wiring gap
+- [x] Rebuild `creator/bundle.js` after Creator-side change
+- [x] Repair affected guardrail tests to match the shipped contract
+- [x] Add regression test for conflict-aware save wiring
+- [x] Remove tracker empty-state warning noise on the expected no-project path
+- [x] Add regression test for tracker empty-state warning gating
+- [x] Write integration sweep report
+- [x] Write hygiene sweep report
+- [x] Write non-functional sweep report
+- [x] Write final release summary

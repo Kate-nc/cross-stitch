@@ -122,6 +122,71 @@
     });
   }
 
+  // saveWithConflictResolution(project)
+  // Shared wiring for the shipped INT-7 save path:
+  //   1. Prefer ProjectStorage.saveChecked() when available so stale reads are
+  //      detected before the write.
+  //   2. On conflict, route through handle(...) so the user's policy decides
+  //      whether to reload or keep local edits.
+  //   3. If the user keeps local edits, perform a plain save() to intentionally
+  //      overwrite the remote version.
+  // Returns Promise<{ ok, id, reason?, resolvedConflict?, decision? }>.
+  function saveWithConflictResolution(project) {
+    if (!window.ProjectStorage || typeof window.ProjectStorage.save !== "function") {
+      return Promise.reject(new Error("ProjectStorage.save is unavailable"));
+    }
+    var storage = window.ProjectStorage;
+
+    function activate(id) {
+      try {
+        if (id && typeof storage.setActiveProject === "function") {
+          storage.setActiveProject(id);
+        }
+      } catch (_) {}
+      return id;
+    }
+
+    function plainSave(meta) {
+      return storage.save(project).then(function (id) {
+        activate(id);
+        return {
+          ok: true,
+          id: id,
+          resolvedConflict: !!(meta && meta.resolvedConflict),
+          decision: meta && meta.decision ? meta.decision : null
+        };
+      });
+    }
+
+    if (typeof storage.saveChecked !== "function") {
+      return plainSave();
+    }
+
+    return storage.saveChecked(project).then(function (result) {
+      if (!result || result.ok !== false) {
+        var id = activate((result && result.id) || project.id || null);
+        return { ok: true, id: id };
+      }
+      if (result.reason !== "conflict") {
+        return result;
+      }
+      return handle({
+        projectId: result.id || project.id || null,
+        remoteWriteAt: result.remoteWriteAt,
+        remoteWriteTabId: result.remoteWriteTabId
+      }).then(function (decision) {
+        if (decision === "reload") {
+          return {
+            ok: false,
+            id: result.id || project.id || null,
+            reason: "reloaded"
+          };
+        }
+        return plainSave({ resolvedConflict: true, decision: decision });
+      });
+    });
+  }
+
   function onBroadcast(payload) {
     if (!payload || !payload.projectId) return;
     var active = activeProjectId();
@@ -149,6 +214,7 @@
 
   window.CrossTabResolution = {
     handle: handle,
+    saveWithConflictResolution: saveWithConflictResolution,
     // Exposed for tests and for the (future) preferences UI:
     _getPolicy: getPolicy,
     _POLICY_KEY: POLICY_KEY
