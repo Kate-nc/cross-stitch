@@ -528,6 +528,56 @@ function TrackerProjectRail({activeId,activeDoneCount,activeTotalStitchable,pal,
   );
 }
 
+// ─── Event-log timing engine ─────────────────────────────────────────────────
+// computeActiveMs: pure function — active stitching duration from an event log.
+// Events each carry {kind, t} (t = Unix ms). Recognised kinds:
+//   start, stitch, hidden, visible, manualPause, manualResume
+// Intervals inside a hidden or manualPause span are excluded entirely.
+// All other inter-event gaps are credited at most capMs each, so natural
+// dwell (counting, rethreading) counts up to capMs without crediting walk-away.
+function computeActiveMs(log, upToTime, capMs) {
+  if (!log || log.length === 0) return 0;
+  var activeMs = 0;
+  var hiddenAt = null;
+  var manualPauseAt = null;
+  var prevT = null;
+  for (var i = 0; i < log.length; i++) {
+    var ev = log[i];
+    var t = ev.t <= upToTime ? ev.t : upToTime;
+    if (prevT !== null && t > prevT) {
+      if (hiddenAt === null && manualPauseAt === null) {
+        activeMs += Math.min(t - prevT, capMs);
+      }
+    }
+    if (ev.t > upToTime) { prevT = t; break; }
+    if      (ev.kind === 'hidden')       hiddenAt = ev.t;
+    else if (ev.kind === 'visible')      hiddenAt = null;
+    else if (ev.kind === 'manualPause')  manualPauseAt = ev.t;
+    else if (ev.kind === 'manualResume') manualPauseAt = null;
+    prevT = ev.t;
+  }
+  // Tail: from last event up to upToTime
+  if (prevT !== null && prevT < upToTime && hiddenAt === null && manualPauseAt === null) {
+    activeMs += Math.min(upToTime - prevT, capMs);
+  }
+  return activeMs;
+}
+
+// Derive current paused state from the event log (for liveAutoIsPaused).
+function deriveIsLogPaused(log) {
+  if (!log || log.length === 0) return false;
+  var hidden = false, manual = false;
+  for (var i = 0; i < log.length; i++) {
+    var k = log[i].kind;
+    if      (k === 'hidden')       hidden = true;
+    else if (k === 'visible')      hidden = false;
+    else if (k === 'manualPause')  manual = true;
+    else if (k === 'manualResume') manual = false;
+  }
+  return hidden || manual;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 function TrackerApp({onSwitchToDesign=null, onGoHome=null, isActive=true, incomingProject=null}={}){
 const[sW,setSW]=useState(80);
 const[sH,setSH]=useState(80);
@@ -785,23 +835,39 @@ const goalCelebrationRef=useRef({daily:false,weekly:false,monthly:false});
 const currentAutoSessionRef=useRef(null);
 const pendingColoursRef=useRef(new Set());
 const pendingMilestonesRef=useRef([]);
-const lastStitchActivityRef=useRef(null);
 const autoIdleTimerRef=useRef(null);
 const prevAutoCountRef=useRef({done:0,halfDone:0});
 const justLoadedRef=useRef(false);
 const justLoadedSettlePassRef=useRef(0);
 const autoStatsRef=useRef({doneCount:0,totalStitchable:0});
 const finaliseAutoSessionRef=useRef(null);
-// Idle threshold is now driven by the trackerIdleMinutes preference. Read
-// fresh on each timer arm so a settings change applies on the next stroke
-// without restarting the session. 0 disables the auto-pause entirely.
+// Idle threshold (trackerIdleMinutes): read fresh on each timer arm so a
+// settings change applies on the next stroke without restarting the session.
+// 0 = never auto-finalise the session.
 function getIdleThresholdMs(){
   try{
     var m=window.UserPrefs&&window.UserPrefs.get("trackerIdleMinutes");
-    if(m===0)return Infinity; // never auto-pause
+    if(m===0)return Infinity; // never auto-finalise
     if(typeof m==="number"&&m>0)return m*60*1000;
   }catch(_){}
   return 10*60*1000;
+}
+// Gap cap (trackerActiveGapCapSec): maximum dwell between stitches credited
+// as active time. Gaps longer than this contribute only capMs — natural
+// dwell (counting, rethreading) is credited; walk-away time is not. Read
+// fresh on each call so preference changes apply immediately to the live timer.
+// Resolution: UserPrefs.trackerActiveGapCapSec → statsSettings.inactivityPauseSec → 90s.
+// Clamped to [15, 600] seconds.
+function getActiveGapCapMs(){
+  try{
+    var s=window.UserPrefs&&window.UserPrefs.get("trackerActiveGapCapSec");
+    if(typeof s==="number"&&Number.isFinite(s))return Math.min(600,Math.max(15,s))*1000;
+  }catch(_){}
+  try{
+    var p=statsSettings&&statsSettings.inactivityPauseSec;
+    if(typeof p==="number"&&Number.isFinite(p)&&p>=15&&p<=600)return p*1000;
+  }catch(_){}
+  return 90*1000;
 }
 // Persistent milestones, session onboarding, session note toast
 const[achievedMilestones,setAchievedMilestones]=useState([]);
@@ -813,23 +879,15 @@ const[hlIntroSeen,setHlIntroSeen]=useState(()=>{try{return !!localStorage.getIte
 const[hlIntroBannerVisible,setHlIntroBannerVisible]=useState(false);
 const hlIntroTimerRef=useRef(null);
 
-// Variables for auto-session visibility auto-pause
+// Variables for auto-session live display
 const [liveAutoElapsed, setLiveAutoElapsed] = useState(0);
 const [liveAutoStitches, setLiveAutoStitches] = useState(0);
 const [liveAutoIsPaused, setLiveAutoIsPaused] = useState(false);
 const autoSessionDisplayTimerRef = useRef(null);
-const documentHiddenRef = useRef(false);
-const lastPauseTimeRef = useRef(null);
 
-// Manual pause/resume
+// Manual pause/resume — state + ref mirror for shortcut handler
 const [manuallyPaused, setManuallyPaused] = useState(false);
-const manualPauseTimeRef = useRef(null);
 const manuallyPausedRef = useRef(false);
-
-// Inactivity auto-pause
-const inactivityTimerRef = useRef(null);
-const inactivityPausedRef = useRef(false);
-const inactivityPauseTimeRef = useRef(null);
 
 const[stitchMode,setStitchMode]=useState("track");
 const[stitchView,setStitchView]=useState(()=>{try{var v=window.UserPrefs&&window.UserPrefs.get("trackerDefaultView");return (v==="symbol"||v==="colour"||v==="highlight")?v:"symbol";}catch(_){return "symbol";}});
@@ -1736,6 +1794,9 @@ useEffect(()=>{
 
 // ═══ Auto-session recording ═══
 function getStitchingDateLocal(now){
+  // NOTE: attribution uses local date at session-start time. Cross-midnight
+  // sessions are attributed to the day they started. A future PR may revisit
+  // this; do not change attribution semantics here.
   try{
     const d=new Date(now);
     const deh=(statsSettings&&statsSettings.dayEndHour)||0;
@@ -1746,35 +1807,36 @@ function getStitchingDateLocal(now){
 }
 function recordAutoActivity(completed,undone){
   try{
-    const now=new Date();
-    lastStitchActivityRef.current=now;
+    const now=Date.now();
     if(!currentAutoSessionRef.current){
+      // Guard: don't start a new session if the tab is unloading.
+      if(isUnloadingRef.current)return;
       currentAutoSessionRef.current={
-        id:'sess_'+Date.now(),
+        id:'sess_'+now,
         date:getStitchingDateLocal(now),
-        startTime:now.toISOString(),
+        startTime:new Date(now).toISOString(),
         stitchesCompleted:0,
         stitchesUndone:0,
         coloursWorked:new Set(),
-        totalPausedMs:0
+        // Event log: timestamped events drive all duration computation.
+        eventLog:[{kind:'start',t:now}]
       };
+      // Seed hidden state if the tab is already hidden when the session starts.
+      if(document.hidden){
+        currentAutoSessionRef.current.eventLog.push({kind:'hidden',t:now});
+      }
       setLiveAutoStitches(0);
       setLiveAutoElapsed(0);
       setLiveAutoIsPaused(document.hidden);
     }
-    // Auto-resume manual pause on stitch activity
-    if(manuallyPausedRef.current&&manualPauseTimeRef.current){
-      currentAutoSessionRef.current.totalPausedMs=(currentAutoSessionRef.current.totalPausedMs||0)+(Date.now()-manualPauseTimeRef.current);
-      manualPauseTimeRef.current=null;
+    // Auto-resume manual pause on stitch activity (stitch implies intent to continue).
+    if(manuallyPausedRef.current){
+      currentAutoSessionRef.current.eventLog.push({kind:'manualResume',t:now});
+      manuallyPausedRef.current=false;
       setManuallyPaused(false);
     }
-    // Auto-resume inactivity pause on stitch activity
-    if(inactivityPausedRef.current&&inactivityPauseTimeRef.current){
-      currentAutoSessionRef.current.totalPausedMs=(currentAutoSessionRef.current.totalPausedMs||0)+(Date.now()-inactivityPauseTimeRef.current);
-      inactivityPausedRef.current=false;
-      inactivityPauseTimeRef.current=null;
-      setLiveAutoIsPaused(document.hidden);
-    }
+    // Record the stitch event (net delta for the activity burst).
+    currentAutoSessionRef.current.eventLog.push({kind:'stitch',t:now,delta:completed-undone});
     currentAutoSessionRef.current.stitchesCompleted+=completed;
     currentAutoSessionRef.current.stitchesUndone+=undone;
     // DEFECT-011: a flurry of undos right after enabling Live tracking can drive
@@ -1783,27 +1845,19 @@ function recordAutoActivity(completed,undone){
     // negative is meaningless and would also break the "stitches active" gate
     // in the footer (`liveAutoStitches > 0`).
     setLiveAutoStitches(Math.max(0, currentAutoSessionRef.current.stitchesCompleted-currentAutoSessionRef.current.stitchesUndone));
+    // Update liveAutoIsPaused from log (manual resume above may have changed it).
+    setLiveAutoIsPaused(deriveIsLogPaused(currentAutoSessionRef.current.eventLog));
     // Merge any pending colour IDs into the session
     if(pendingColoursRef.current.size>0){
       pendingColoursRef.current.forEach(c=>currentAutoSessionRef.current.coloursWorked.add(c));
       pendingColoursRef.current.clear();
     }
+    // Arm the idle-finalise timer (session lifecycle). Only fires to close
+    // the session — duration is computed from the event log, not the timer.
     clearTimeout(autoIdleTimerRef.current);
     var idleMs=getIdleThresholdMs();
     if(isFinite(idleMs)){
       autoIdleTimerRef.current=setTimeout(()=>{try{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();}catch(e){}},idleMs);
-    }
-    // Reset inactivity pause timer (only if not manually paused)
-    clearTimeout(inactivityTimerRef.current);
-    const inactThresh=(statsSettings.inactivityPauseSec||0)*1000;
-    if(inactThresh>0&&!manuallyPausedRef.current){
-      inactivityTimerRef.current=setTimeout(()=>{
-        if(currentAutoSessionRef.current&&!manuallyPausedRef.current){
-          inactivityPausedRef.current=true;
-          inactivityPauseTimeRef.current=Date.now();
-          setLiveAutoIsPaused(true);
-        }
-      },inactThresh);
     }
   }catch(e){}
 }
@@ -1814,43 +1868,24 @@ function finaliseAutoSession(){
       currentAutoSessionRef.current=null;
       return;
     }
-    // Bug 2 fix: flush any colour IDs that were added to pendingColoursRef between
-    // the last recordAutoActivity call and now (e.g. if the idle timer fires before
-    // the countsVer effect runs recordAutoActivity for the very last stitch).
+    // Flush any colour IDs pending between the last recordAutoActivity call and now.
     if(pendingColoursRef.current.size>0&&session.coloursWorked){
       pendingColoursRef.current.forEach(c=>session.coloursWorked.add(c));
       pendingColoursRef.current.clear();
     }
-    // Determine the end of active stitching before closing out open pauses.
-    // Using lastStitchActivityRef ensures idle time after the last stitch is
-    // excluded from the duration without any subtraction.
-    const endTime=lastStitchActivityRef.current||new Date();
-    const endTimeMs=endTime instanceof Date?endTime.getTime():new Date(endTime).getTime();
-    // Close out any open pause before computing duration.
-    // Bug 1 fix: cap each pause's effective duration at endTimeMs so that pauses
-    // which started *after* the last stitch (manual pause, inactivity, tab-hide) do
-    // not exceed the session window and produce a negative activeDurationMs.
-    if(manuallyPausedRef.current&&manualPauseTimeRef.current){
-      const cap=Math.min(manualPauseTimeRef.current,endTimeMs);
-      session.totalPausedMs=(session.totalPausedMs||0)+Math.max(0,endTimeMs-cap);
-      manualPauseTimeRef.current=null;
-    }
-    if(inactivityPausedRef.current&&inactivityPauseTimeRef.current){
-      const cap=Math.min(inactivityPauseTimeRef.current,endTimeMs);
-      session.totalPausedMs=(session.totalPausedMs||0)+Math.max(0,endTimeMs-cap);
-      inactivityPausedRef.current=false;
-      inactivityPauseTimeRef.current=null;
-    }
-    const startTime=new Date(session.startTime);
-    let activeDurationMs=endTimeMs-startTime.getTime()-(session.totalPausedMs||0);
-    if(activeDurationMs<0) activeDurationMs=0;
+    // Duration: pure function of the event log — live display and saved value
+    // use the same clock. The cap credits the tail (natural dwell after the
+    // last stitch) and excludes any interval longer than capMs.
+    const endTimeMs=Date.now();
+    const capMs=getActiveGapCapMs();
+    const activeDurationMs=Math.max(0,computeActiveMs(session.eventLog,endTimeMs,capMs));
     const ref=autoStatsRef.current||{doneCount:0,totalStitchable:0};
     const tc=ref.doneCount||0,ts=ref.totalStitchable||0;
     const finalised={
       id:session.id,
       date:session.date,
       startTime:session.startTime,
-      endTime:endTime instanceof Date?endTime.toISOString():new Date(endTime).toISOString(),
+      endTime:new Date(endTimeMs).toISOString(),
       durationSeconds:Math.max(1,Math.round(activeDurationMs/1000)),
       durationMinutes:Math.max(1,Math.round(activeDurationMs/60000)),
       stitchesCompleted:session.stitchesCompleted,
@@ -1883,9 +1918,7 @@ function finaliseAutoSession(){
     }
     currentAutoSessionRef.current=null;
     clearTimeout(autoIdleTimerRef.current);
-    clearTimeout(inactivityTimerRef.current);
-    // Bug 3 fix: clear the ref synchronously so the 1-second display timer does
-    // not skip a tick for the next session while the React effect is pending.
+    // Clear pause state synchronously so the display timer doesn't see stale state.
     manuallyPausedRef.current=false;
     setManuallyPaused(false);
     setLiveAutoIsPaused(false);
@@ -1903,34 +1936,13 @@ finaliseAutoSessionRef.current=finaliseAutoSession;
 useEffect(() => {
   function handleVisibilityChange() {
     const isHidden = document.hidden;
-    documentHiddenRef.current = isHidden;
-    if(!manuallyPausedRef.current&&!inactivityPausedRef.current) setLiveAutoIsPaused(isHidden);
-
-    if (isHidden) {
-      // Only record a visibility-pause start when the session is actually running.
-      // If inactivity (or manual) pause is already active the timer is already
-      // stopped, so recording a separate visibility-pause start would cause the
-      // hide duration to be counted twice when the tab becomes visible again.
-      if(currentAutoSessionRef.current && !manuallyPausedRef.current && !inactivityPausedRef.current) {
-        lastPauseTimeRef.current = Date.now();
-      }
-    } else {
-      if (lastPauseTimeRef.current && currentAutoSessionRef.current && !manuallyPausedRef.current) {
-        // If inactivity fired while the tab was hidden, only count the gap from
-        // when the tab hid to when inactivity started; inactivity's own accounting
-        // covers the rest. Without this cap the two ranges overlap and
-        // totalPausedMs grows larger than the real paused window, causing
-        // liveAutoElapsed to jump backwards once the inactivity pause is resumed.
-        const pauseEnd = (inactivityPausedRef.current && inactivityPauseTimeRef.current)
-          ? inactivityPauseTimeRef.current
-          : Date.now();
-        const pausedMs = Math.max(0, pauseEnd - lastPauseTimeRef.current);
-        if (pausedMs > 0) {
-          currentAutoSessionRef.current.totalPausedMs = (currentAutoSessionRef.current.totalPausedMs || 0) + pausedMs;
-        }
-      }
-      lastPauseTimeRef.current = null;
+    if (currentAutoSessionRef.current) {
+      // Push visibility event to the log — computeActiveMs will exclude the
+      // hidden span automatically. No separate totalPausedMs accounting needed.
+      currentAutoSessionRef.current.eventLog.push({kind: isHidden ? 'hidden' : 'visible', t: Date.now()});
     }
+    // Update liveAutoIsPaused (hidden overrides any other state for UI).
+    setLiveAutoIsPaused(isHidden || manuallyPausedRef.current);
   }
   document.addEventListener('visibilitychange', handleVisibilityChange);
   return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -1939,11 +1951,13 @@ useEffect(() => {
 useEffect(() => {
   autoSessionDisplayTimerRef.current = setInterval(() => {
     if (!currentAutoSessionRef.current) return;
-    if (documentHiddenRef.current || manuallyPausedRef.current || inactivityPausedRef.current) return;
-    const now = Date.now();
-    const start = new Date(currentAutoSessionRef.current.startTime).getTime();
-    const paused = currentAutoSessionRef.current.totalPausedMs || 0;
-    const elapsedMs = Math.max(0, now - start - paused);
+    // computeActiveMs uses the same algorithm as finaliseAutoSession — the live
+    // display and the saved value agree by construction (±1 s from rounding).
+    const elapsedMs = computeActiveMs(
+      currentAutoSessionRef.current.eventLog,
+      Date.now(),
+      getActiveGapCapMs()
+    );
     setLiveAutoElapsed(Math.floor(elapsedMs / 1000));
   }, 1000);
   return () => clearInterval(autoSessionDisplayTimerRef.current);
@@ -5384,15 +5398,18 @@ useShortcuts(!isActive ? [] : [
     description: "Pause / resume session timer",
     when: () => !!currentAutoSessionRef.current,
     run: () => {
+      if(!currentAutoSessionRef.current)return;
+      const now=Date.now();
       if(manuallyPausedRef.current){
-        const pausedMs=Date.now()-manualPauseTimeRef.current;
-        currentAutoSessionRef.current.totalPausedMs=(currentAutoSessionRef.current.totalPausedMs||0)+pausedMs;
-        manualPauseTimeRef.current=null;
+        // Resume: emit manualResume event
+        currentAutoSessionRef.current.eventLog.push({kind:'manualResume',t:now});
+        manuallyPausedRef.current=false;
         setManuallyPaused(false);
-        setLiveAutoIsPaused(document.hidden||inactivityPausedRef.current);
+        setLiveAutoIsPaused(document.hidden);
       }else{
-        clearTimeout(inactivityTimerRef.current);
-        manualPauseTimeRef.current=Date.now();
+        // Pause: emit manualPause event
+        currentAutoSessionRef.current.eventLog.push({kind:'manualPause',t:now});
+        manuallyPausedRef.current=true;
         setManuallyPaused(true);
         setLiveAutoIsPaused(true);
       }
@@ -6391,15 +6408,18 @@ return(
             <div style={{display:"flex",gap:8}}>
               <button
                 onClick={()=>{
+                  if(!currentAutoSessionRef.current)return;
+                  const now=Date.now();
                   if(manuallyPausedRef.current){
-                    const pausedMs=Date.now()-manualPauseTimeRef.current;
-                    currentAutoSessionRef.current.totalPausedMs=(currentAutoSessionRef.current.totalPausedMs||0)+pausedMs;
-                    manualPauseTimeRef.current=null;
+                    // Resume: emit manualResume event to log
+                    currentAutoSessionRef.current.eventLog.push({kind:'manualResume',t:now});
+                    manuallyPausedRef.current=false;
                     setManuallyPaused(false);
-                    setLiveAutoIsPaused(document.hidden||inactivityPausedRef.current);
+                    setLiveAutoIsPaused(document.hidden);
                   }else{
-                    clearTimeout(inactivityTimerRef.current);
-                    manualPauseTimeRef.current=Date.now();
+                    // Pause: emit manualPause event to log
+                    currentAutoSessionRef.current.eventLog.push({kind:'manualPause',t:now});
+                    manuallyPausedRef.current=true;
                     setManuallyPaused(true);
                     setLiveAutoIsPaused(true);
                   }
