@@ -16,7 +16,6 @@ exports[`Icons object used icon set matches snapshot 1`] = `
   "chevronRight",
   "chevronUp",
   "clipboard",
-  "clock",
   "cloudAlert",
   "cloudCheck",
   "cloudOff",
