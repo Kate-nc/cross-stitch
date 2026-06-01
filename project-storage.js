@@ -74,6 +74,10 @@ const ProjectStorage = (() => {
       totalStitches: totalSt,
       completedStitches: completedSt,
       isComplete: totalSt > 0 && completedSt >= totalSt,
+      // Root cause of S6: finishStatus must flow through to summary consumers so
+      // that the engine and stats pages can apply the unified completion rule
+      // (exclude if isComplete OR finishStatus === 'completed').
+      finishStatus: p.finishStatus || 'active',
       statsSessions: p.statsSessions || [],
       achievedMilestones: p.achievedMilestones || [],
       // Derive palette from p.palette if present (tracker-saved projects), otherwise

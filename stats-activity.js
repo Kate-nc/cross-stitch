@@ -107,7 +107,11 @@ function buildGrid(byDay, periodStart, today, trackingStart) {
     cursor.setDate(cursor.getDate() + 1);
   }
 
-  // Percentile-based colour bins for non-zero days
+  // Percentile binning (adaptive): p25/p50/p75 thresholds are derived from
+  // this user's own distribution, so infrequent stitchers still get a range
+  // of colour shades. The hour-of-week heatmap in stats-insights.js uses
+  // fixed ratio thresholds — both approaches are intentional and serve
+  // different data densities.
   const nonZero = days.filter(d => d.inPeriod && !d.preTracking && d.count > 0).map(d => d.count).sort((a, b) => a - b);
   const p25 = nonZero[Math.floor(nonZero.length * 0.25)] || 0;
   const p50 = nonZero[Math.floor(nonZero.length * 0.5)] || 0;
@@ -178,10 +182,13 @@ function computeBusiestPeriods(grid, groupBy) {
     if (groupBy === 'month') {
       key = day.date.slice(0, 7);
     } else {
+      // Monday-start weeks so busiest-weeks bucketing matches the weekly streak
+      // and rhythm matrix, which are also Monday-start.
       const d = new Date(day.date + 'T00:00:00');
-      const sunday = new Date(d);
-      sunday.setDate(d.getDate() - d.getDay());
-      key = ymd(sunday);
+      const dow = d.getDay() === 0 ? 6 : d.getDay() - 1; // Mon=0..Sun=6
+      const monday = new Date(d);
+      monday.setDate(d.getDate() - dow);
+      key = ymd(monday);
     }
     if (!map[key]) map[key] = { key, total: 0, days: {} };
     map[key].total += day.count;

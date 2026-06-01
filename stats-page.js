@@ -1690,7 +1690,13 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
   // ── Completion ETAs for active projects (Work item 6) ─────────
   const completionEtas = useMemo(() => {
     if (typeof window.InsightsEngine === 'undefined' || !window.InsightsEngine.generateProjections) return [];
-    const active = richProjects.filter(p => !p.finished && p.totalStitches > 0);
+    // Unified completion rule (S6): exclude if stitch-count complete OR
+    // user explicitly marked finished (finishStatus === 'completed').
+    const active = richProjects.filter(p =>
+      !(p.completedStitches >= p.totalStitches && p.totalStitches > 0) &&
+      p.finishStatus !== 'completed' &&
+      p.totalStitches > 0
+    );
     if (active.length === 0) return [];
     try { return window.InsightsEngine.generateProjections(active).slice(0, 3); }
     catch (_) { return []; }
@@ -2016,7 +2022,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
               h('div', { className: 'gsd-metric-sub' }, 'Add a pattern to see how your stash covers it')
             )
       ),
-      show('streak') && h(StatCard, { title: 'Stitching Streak', id: 'stats-streak' },
+      show('streak') && h(StatCard, { title: 'Weekly Streak', id: 'stats-streak' },
         streakData.current > 0
           ? h('div', null,
               h('div', { className: 'gsd-metric-value' }, streakData.current),
@@ -2332,8 +2338,8 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
           h('div', { className: 'gsd-metric-sub', style: { marginBottom: 8 } }, 'Estimated finish dates for your active projects'),
           completionEtas.map(p => h('div', { key: p.id || p.name, style: { fontSize: 'var(--text-md)', padding: '4px 0', borderBottom: '1px solid var(--border)' } },
             h('span', { style: { fontWeight: 600, color: 'var(--text-primary)' } }, p.name || 'Untitled'),
-            p.eta
-              ? h('span', { style: { color: 'var(--text-secondary)', marginLeft: 8 } }, p.eta)
+            p.projectedText
+              ? h('span', { style: { color: 'var(--text-secondary)', marginLeft: 8 } }, p.projectedText)
               : h('span', { style: { color: 'var(--text-tertiary)', marginLeft: 8 } }, 'not enough data')
           ))
         )

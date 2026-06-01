@@ -111,7 +111,8 @@
   }
 
   // ── Streak (weekly) ─────────────────────────────────────────────────────────
-  // Counts consecutive ISO weeks ending this week with at least one session.
+  // Counts consecutive ISO weeks (Mon-start) ending this week with at least
+  // one session. Returns a plain number (current streak only).
   function computeWeeklyStreak(allSessions, today) {
     today = today || new Date();
     if (!Array.isArray(allSessions) || allSessions.length === 0) return 0;
@@ -139,6 +140,33 @@
       if (streak > 520) break; // hard cap (10 yrs)
     }
     return streak;
+  }
+
+  // ── Streak (daily) ───────────────────────────────────────────────────────────
+  // Counts consecutive calendar days ending today (or yesterday if today has no
+  // session) with at least one session. Returns { current, longest }.
+  function computeDailyStreak(allSessions, today) {
+    today = today || new Date();
+    if (!Array.isArray(allSessions) || allSessions.length === 0) return { current: 0, longest: 0 };
+    var dates = Object.create(null);
+    for (var i = 0; i < allSessions.length; i++) {
+      var d = allSessions[i] && allSessions[i].date;
+      if (d) dates[d] = true;
+    }
+    function prevDay(ds) { var x = new Date(ds + 'T12:00:00'); x.setDate(x.getDate() - 1); return ymd(x); }
+    var todayStr = ymd(today);
+    var current = 0, check = todayStr;
+    while (dates[check]) { current++; check = prevDay(check); }
+    if (current === 0) { check = prevDay(todayStr); while (dates[check]) { current++; check = prevDay(check); } }
+    var sorted = Object.keys(dates).sort(), longest = 0, run = 0, prevD = null;
+    for (var j = 0; j < sorted.length; j++) {
+      var cur = sorted[j];
+      if (prevD) { var nx = new Date(prevD + 'T12:00:00'); nx.setDate(nx.getDate() + 1); run = ymd(nx) === cur ? run + 1 : 1; }
+      else { run = 1; }
+      if (run > longest) longest = run;
+      prevD = cur;
+    }
+    return { current: current, longest: Math.max(longest, current) };
   }
 
   // ── Projections per project ────────────────────────────────────────────────
@@ -227,10 +255,17 @@
       if (isNaN(dt.getTime())) continue;
       var dow = dt.getDay() === 0 ? 6 : dt.getDay() - 1; // Mon=0..Sun=6
       var hr = dt.getHours();
-      var inc = s.netStitches || 1;
-      grid[dow][hr] += inc;
+      // Use actual stitch count; 0 for zero-net sessions so they don't inflate
+      // the heatmap. NB: day-level totals in stats-activity.js use percentile
+      // binning (adaptive to each user's distribution); this hour-of-week grid
+      // uses fixed ratio thresholds (0.25/0.5/0.75 of max) which suits the
+      // sparser per-cell data — both choices are intentional.
+      var inc = s.netStitches || 0;
+      if (inc > 0) {
+        grid[dow][hr] += inc;
+        if (grid[dow][hr] > max) max = grid[dow][hr];
+      }
       total++;
-      if (grid[dow][hr] > max) max = grid[dow][hr];
     }
     return { grid: grid, max: max, total: total };
   }
@@ -350,8 +385,10 @@
     }
 
     // Most-neglected project
+    // Exclude projects that are complete by stitch count OR by user's explicit
+    // 'mark as finished' action (finishStatus === 'completed').
     var active = summaries.filter(function (p) {
-      return !p.isComplete && (p.totalStitches || 0) > 0;
+      return !p.isComplete && p.finishStatus !== 'completed' && (p.totalStitches || 0) > 0;
     });
     if (active.length > 1) {
       function lastTouched(p) {
@@ -436,6 +473,8 @@
     generateWeeklySummary: generateWeeklySummary,
     generateProjections: generateProjections,
     computeWeeklyStreak: computeWeeklyStreak,
+    computeDailyStreak: computeDailyStreak,
+    calculateRecentPace: calculateRecentPace,
     buildRhythmMatrix: buildRhythmMatrix,
     getPeakHour: getPeakHour,
     getPeakCell: getPeakCell,
