@@ -577,6 +577,8 @@ function deriveIsLogPaused(log) {
   return hidden || manual;
 }
 // ─────────────────────────────────────────────────────────────────────────────
+// Expose to useAutoSession.js (loaded as a separate script in the same page)
+if (typeof window !== 'undefined') { window.computeActiveMs = computeActiveMs; window.deriveIsLogPaused = deriveIsLogPaused; }
 
 function TrackerApp({onSwitchToDesign=null, onGoHome=null, isActive=true, incomingProject=null}={}){
 const[sW,setSW]=useState(80);
