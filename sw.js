@@ -57,6 +57,7 @@ var PRECACHE_URLS = [
   './useTrackerPrefs.js',
   './useCanvasOverlays.js',
   './useAutoSession.js',
+  './useStitchCounts.js',
   './tracker-app.js',
   './manager-app.js',
 

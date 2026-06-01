@@ -77,6 +77,7 @@ const fs = require('fs');
 const path = require('path');
 
 const trackerSrc = fs.readFileSync(path.resolve(__dirname, '..', 'tracker-app.js'), 'utf8');
+const useStitchCountsSrc = fs.readFileSync(path.resolve(__dirname, '..', 'useStitchCounts.js'), 'utf8');
 const helpersSrc = fs.readFileSync(path.resolve(__dirname, '..', 'helpers.js'), 'utf8');
 
 // ─── Provide helpers.js globals (getStitchingDate, getSessionSeconds, etc.) ──
@@ -97,13 +98,13 @@ function resetCounterStubs() {
 
 // ─── Extract and eval the two counter functions ───────────────────────────────
 // Both functions live between "function recomputeAllCounts" and
-// "const[statsView" in tracker-app.js.  They reference doneCountRef,
+// "return {" in useStitchCounts.js.  They reference doneCountRef,
 // colourDoneCountsRef, and setCountsVer by name — the module-scope stubs above
 // satisfy those references.
-const counterBlockMatch = trackerSrc.match(
-  /function recomputeAllCounts\(patArr,doneArr,hs,hd\)[\s\S]+?(?=const\[statsView)/
+const counterBlockMatch = useStitchCountsSrc.match(
+  /function recomputeAllCounts\(patArr,doneArr,hs,hd\)[\s\S]+?(?=\s*useEffect\(|\s*return\s*\{)/
 );
-if (!counterBlockMatch) throw new Error('Could not extract counter functions from tracker-app.js');
+if (!counterBlockMatch) throw new Error('Could not extract counter functions from useStitchCounts.js');
 eval(counterBlockMatch[0]); // defines recomputeAllCounts and applyDoneCountsDelta
 
 // ─── Extract and wrap the stitchLog derivation as a pure function ─────────────
@@ -930,16 +931,16 @@ describe('Round-trip serialization (INV-1, INV-2)', () => {
 
 describe('Structural safeguards', () => {
   it('T-5 comment and doneCountRef invariant block is present in source', () => {
-    expect(trackerSrc).toMatch(/T-5 invariant/);
-    expect(trackerSrc).toMatch(/recomputeAllCounts/);
-    expect(trackerSrc).toMatch(/applyDoneCountsDelta/);
-    expect(trackerSrc).toMatch(/doneCountRef/);
-    expect(trackerSrc).toMatch(/colourDoneCountsRef/);
+    expect(useStitchCountsSrc).toMatch(/T-5 invariant/);
+    expect(useStitchCountsSrc).toMatch(/recomputeAllCounts/);
+    expect(useStitchCountsSrc).toMatch(/applyDoneCountsDelta/);
+    expect(useStitchCountsSrc).toMatch(/doneCountRef/);
+    expect(useStitchCountsSrc).toMatch(/colourDoneCountsRef/);
   });
 
   it('recomputeAllCounts is called in useEffect([pat, halfStitches]) to enforce INV-1', () => {
     // The useEffect that rebuilds counts on pattern/halfStitch change must exist.
-    expect(trackerSrc).toMatch(
+    expect(useStitchCountsSrc).toMatch(
       /useEffect\(\(\)=>\{recomputeAllCounts\(pat,done,halfStitches,halfDone\);/
     );
   });
