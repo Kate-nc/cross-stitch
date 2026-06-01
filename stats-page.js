@@ -5,44 +5,53 @@
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 const h = React.createElement;
 
-// ── Stats cache ──────────────────────────────────────────────────
-let statsCacheVersion = 0;
-window.invalidateStatsCache = function() { statsCacheVersion++; };
-const _memoised = new Map();
-function getCached(key, fn) {
-  const cacheKey = `${statsCacheVersion}:${key}`;
-  if (_memoised.has(cacheKey)) return _memoised.get(cacheKey);
-  const value = fn();
-  _memoised.set(cacheKey, value);
-  for (const k of _memoised.keys()) if (!k.startsWith(`${statsCacheVersion}:`)) _memoised.delete(k);
-  return value;
+// ── Local-date helper (Work item 4) ─────────────────────────────
+// Returns YYYY-MM-DD in the LOCAL timezone. Used for streak week-key
+// bucketing so it matches the heatmap's local-date logic in stats-activity.js.
+function ymd(d) {
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
 }
 
 // ── Default visibility prefs ─────────────────────────────────────
+// Keys listed here define what first-time visitors see.
+// Existing users keep their saved values; only new keys added in Work item 6
+// (finishRate, completionEta, seasonalPattern, peakTimeSummary) use these
+// defaults since they won't be present in older saved payloads.
 const DEFAULT_STATS_VISIBILITY = {
+  // ── Always on — core metrics every user wants at a glance ──
   lifetimeStitches: true,
   activeProjects: true,
   finishedThisYear: true,
   coverage: true,
   streak: true,
   pace: true,
-  sableIndex: true,
-  stashComposition: true,
-  dmcCoverage: true,
-  readyToStart: true,
-  useWhatYouHave: true,
-  buyingImpact: true,
-  duplicateRisk: true,
+  // ── Curated on for new users ──
   oldestWip: true,
-  stashAge: true,
-  mostUsedColours: true,
-  threadsNeverUsed: true,
-  colourFingerprint: true,
-  designerLeaderboard: true,
-  brandAlignment: true,
-  quarterPortfolio: true,
-  difficultyVsCompletion: true,
-  patternSource: true
+  readyToStart: true,
+  // ── Off for new users (discoverable via Customise) ──
+  sableIndex: false,
+  stashComposition: false,
+  dmcCoverage: false,
+  useWhatYouHave: false,
+  buyingImpact: false,
+  duplicateRisk: false,
+  stashAge: false,
+  mostUsedColours: false,
+  threadsNeverUsed: false,
+  colourFingerprint: false,
+  designerLeaderboard: false,
+  brandAlignment: false,
+  quarterPortfolio: false,
+  difficultyVsCompletion: false,
+  patternSource: false,
+  // ── New stats (Work item 6) — off by default so existing users
+  //    are not surprised; discoverable via Customise ──
+  finishRate: false,
+  completionEta: false,
+  seasonalPattern: false,
+  peakTimeSummary: false
 };
 
 const SECTION_LABELS = {
@@ -68,7 +77,11 @@ const SECTION_LABELS = {
   brandAlignment: 'Brand Alignment',
   quarterPortfolio: 'Projects per Quarter',
   difficultyVsCompletion: 'Difficulty vs Completion',
-  patternSource: 'Pattern Source'
+  patternSource: 'Pattern Source',
+  finishRate: 'Finish Rate',
+  completionEta: 'Completion ETAs',
+  seasonalPattern: 'Seasonal Stitching',
+  peakTimeSummary: 'Peak Stitching Time'
 };
 
 // ── Pref persistence ─────────────────────────────────────────────
@@ -92,6 +105,22 @@ function loadDismissedDuplicates() {
 }
 function saveDismissedDuplicates(s) {
   try { localStorage.setItem('cs_stats_dismissed_dupes', JSON.stringify([...s])); } catch (e) {}
+}
+
+// ── Match tolerance pref (Work item 5) ──────────────────────────
+// Controls the dE2000 threshold for counting a stash thread as a valid
+// colour substitute when calculating coverage ratio. Near-duplicate
+// detection uses its own fixed threshold (dE2000 < 1) and is NOT affected.
+const MATCH_TOLERANCE_PRESETS = { strict: 3, normal: 6, loose: 10 };
+function loadMatchTolerance() {
+  try {
+    const v = localStorage.getItem('cs_stats_match_tolerance');
+    if (v && MATCH_TOLERANCE_PRESETS[v] !== undefined) return v;
+  } catch (e) {}
+  return 'normal'; // matches pre-existing dE2000 < 6 behaviour
+}
+function saveMatchTolerance(v) {
+  try { localStorage.setItem('cs_stats_match_tolerance', v); } catch (e) {}
 }
 
 // fmtNum and threadKm are shared globals from helpers.js
@@ -371,7 +400,7 @@ function StatCard({ title, children, id, onClick, style }) {
 }
 
 // ── Customise modal ──────────────────────────────────────────────
-function CustomiseModal({ visibility, onChange, onClose }) {
+function CustomiseModal({ visibility, onChange, tolerance, onToleranceChange, onClose }) {
   if (window.useEscape) window.useEscape(onClose); else useEffect(() => {
     const handler = e => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', handler);
@@ -382,6 +411,26 @@ function CustomiseModal({ visibility, onChange, onClose }) {
       h('button', { className: 'modal-close', onClick: onClose, 'aria-label': 'Close' }, window.Icons && window.Icons.x ? window.Icons.x() : null),
       h('h3', { id: 'stats-settings-title', style: { marginTop: 0, marginBottom:'var(--s-3)', fontSize: 18, color: 'var(--text-primary)' } }, 'Customise Stats'),
       h('p', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)', marginBottom:'var(--s-4)' } }, 'Show or hide sections on your stats page.'),
+      h('div', { style: { marginBottom: 'var(--s-4)', paddingBottom: 'var(--s-3)', borderBottom: '1px solid var(--line)' } },
+        h('div', { style: { fontWeight: 600, fontSize: 'var(--text-md)', color: 'var(--text-primary)', marginBottom: 4 } }, 'Coverage match tolerance'),
+        h('p', { style: { fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', margin: '0 0 10px' } }, 'How closely a substitute thread must match a pattern colour to count as covered.'),
+        h('div', { role: 'group', 'aria-label': 'Match tolerance', style: { display: 'flex', gap: 6 } },
+          ['strict', 'normal', 'loose'].map(preset =>
+            h('button', {
+              key: preset,
+              onClick: () => onToleranceChange(preset),
+              style: {
+                flex: 1, padding: '6px 0', borderRadius: 'var(--radius-sm)',
+                border: '1px solid ' + (tolerance === preset ? 'var(--accent)' : 'var(--line)'),
+                background: tolerance === preset ? 'var(--accent)' : 'transparent',
+                color: tolerance === preset ? '#fff' : 'var(--text-secondary)',
+                cursor: 'pointer', fontSize: 'var(--text-sm)', fontWeight: 600,
+                fontFamily: 'inherit', textTransform: 'capitalize', transition: 'var(--motion)'
+              }
+            }, preset.charAt(0).toUpperCase() + preset.slice(1))
+          )
+        )
+      ),
       Object.entries(SECTION_LABELS).map(([key, label]) =>
         h('label', { key, style: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border-subtle)', cursor: 'pointer', fontSize:'var(--text-lg)' } },
           h('input', { type: 'checkbox', checked: visibility[key] !== false, onChange: () => {
@@ -1040,13 +1089,13 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
   const [oldestWip, setOldestWip] = useState(null);
   const [mostUsed, setMostUsed] = useState([]);
   const [readyToStart, setReadyToStart] = useState([]);
-  const [coverageRatio, setCoverageRatio] = useState(null);
   const [mostUsedFilter, setMostUsedFilter] = useState('year');
   const [readyExpanded, setReadyExpanded] = useState(false);
   // ── Extended analytics state ─────────────────────────────────
   const [oldestWips, setOldestWips] = useState([]); // top-5 leaderboard
   const [managerPatterns, setManagerPatterns] = useState([]);
   const [richProjects, setRichProjects] = useState([]); // for difficulty / quarter / fingerprint
+  const [matchTolerance, setMatchTolerance] = useState(loadMatchTolerance);
 
   // Run v3 migrations then load all data
   useEffect(() => {
@@ -1087,71 +1136,121 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       setOldestWips(results[8] || []);
       setManagerPatterns(results[9] || []);
 
-      // Compute coverage ratio
-      await computeCoverage(results[2]);
+      // Single bulk hydration: loads all projects once and computes
+      // richProjects, neverUsedData, and patternSourceData together.
+      await computeFullHydration(results[2]);
 
       setLoading(false);
     }
 
-    async function computeCoverage(stashData) {
-      if (typeof ProjectStorage === 'undefined') return;
+    // ── Single-pass full project hydration (Work item 1) ─────────
+    // Replaces four independent getAllFull() calls with one. Sets:
+    //   richProjects, neverUsedData, patternSourceData.
+    // coverageRatio is now a useMemo below (reactive to matchTolerance).
+    async function computeFullHydration(stashData) {
+      if (typeof ProjectStorage === 'undefined') {
+        if (!cancelled) { setRichProjects([]); setNeverUsedData({ count: 0, legacyCount: 0, samples: [] }); setPatternSourceData(null); }
+        return;
+      }
       try {
-        // Cached bulk hydration (action plan H4 = 2C.1) so this and the
-        // sibling effects share a single IndexedDB read for the entire
-        // project library.
-        const projects = (typeof ProjectStorage.getAllFull === 'function')
+        const fulls = typeof ProjectStorage.getAllFull === 'function'
           ? await ProjectStorage.getAllFull()
-          : await Promise.all((await ProjectStorage.listProjects()).map(m => ProjectStorage.get(m.id)));
-        let totalThreads = 0, coveredThreads = 0;
-        const dmcById = new Map(typeof DMC !== 'undefined' ? DMC.map(d => [d.id, d]) : []);
-        const anchorById = new Map(typeof ANCHOR !== 'undefined' ? ANCHOR.map(d => [d.id, d]) : []);
-        const ownedLabEntries = [];
-        if (typeof rgbToLab === 'function') {
-          for (const [sKey, sEntry] of Object.entries(stashData || {})) {
-            if (!sEntry || !sEntry.owned || sEntry.owned <= 0) continue;
-            const colonIdx = sKey.indexOf(':');
-            const parsed = colonIdx >= 0 ? { brand: sKey.substring(0, colonIdx), id: sKey.substring(colonIdx + 1) } : { brand: 'dmc', id: sKey };
-            const info = parsed.brand === 'anchor' ? anchorById.get(parsed.id) : dmcById.get(parsed.id);
-            if (!info) continue;
-            ownedLabEntries.push({
-              key: sKey,
-              lab: info.lab || rgbToLab(info.rgb[0], info.rgb[1], info.rgb[2]),
-            });
-          }
-        }
-        for (const proj of projects) {
-          if (!proj || !proj.pattern) continue;
-          if (proj.finishStatus && proj.finishStatus !== 'active' && proj.finishStatus !== 'planned') continue;
-          // Get unique thread IDs used in this pattern
-          const threadIds = new Set();
-          for (const cell of proj.pattern) {
-            if (cell && cell.id && cell.id !== '__skip__' && cell.id !== '__empty__') threadIds.add(cell.id);
-          }
-          for (const tid of threadIds) {
-            totalThreads++;
-            // Check if this thread (or a close substitute) is in the stash
-            const compositeKey = normaliseStashKey(tid);
-            const entry = stashData[compositeKey];
-            if (entry && entry.owned > 0) { coveredThreads++; continue; }
-            // Check cross-brand substitutes
-            let found = false;
-            if (typeof dE2000 === 'function' && ownedLabEntries.length > 0) {
-              const threadInfo = dmcById.get(tid);
-              if (threadInfo) {
-                const targetLab = threadInfo.lab || (typeof rgbToLab === 'function' ? rgbToLab(threadInfo.rgb[0], threadInfo.rgb[1], threadInfo.rgb[2]) : null);
-                if (targetLab) {
-                  for (const owned of ownedLabEntries) {
-                    if (owned.key === compositeKey) continue;
-                    if (dE2000(targetLab, owned.lab) < 6) { found = true; break; }
-                  }
-                }
+          : await Promise.all(
+              (await ProjectStorage.listProjects()).map(m => ProjectStorage.get(m.id).catch(() => null))
+            );
+        const rich = [];
+        const buckets = { small: 0, medium: 0, large: 0 };
+        const designerMap = {}, genreMap = {};
+        let patternHasAny = false;
+        const globalUsedKeys = new Set();
+        for (const p of fulls) {
+          if (!p) continue;
+          let total = 0, completed = 0;
+          const palette = new Set();
+          const blendIds = new Set();
+          if (p.pattern && p.pattern.length) {
+            const done = p.done && p.done.length === p.pattern.length ? p.done : null;
+            for (let i = 0; i < p.pattern.length; i++) {
+              const cell = p.pattern[i];
+              if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
+              total++;
+              if (done && done[i]) completed++;
+              if (cell.id.indexOf('+') !== -1) {
+                blendIds.add(cell.id);
+                cell.id.split('+').forEach(function(part) { part = part.trim(); if (part) palette.add(part); });
+              } else {
+                palette.add(cell.id);
               }
             }
-            if (found) coveredThreads++;
           }
+          // Accumulate used thread IDs for threads-never-used (skip planned)
+          if (p.finishStatus !== 'planned') {
+            for (const tid of palette) {
+              if (typeof normaliseStashKey === 'function') globalUsedKeys.add(normaliseStashKey(tid));
+              globalUsedKeys.add(tid);
+            }
+          }
+          const blendCount = blendIds.size;
+          const palLen = palette.size;
+          const diff = typeof calcDifficulty === 'function' && palLen > 0
+            ? calcDifficulty(palLen, blendCount, total)
+            : { stars: 1, label: 'Beginner', color: 'var(--success)' };
+          const pct = total > 0 ? Math.round(completed / total * 100) : 0;
+          rich.push({
+            id: p.id, name: p.name || 'Untitled',
+            finishStatus: p.finishStatus || 'active',
+            completedAt: p.completedAt, createdAt: p.createdAt, startedAt: p.startedAt,
+            designerName: p.designerName || null,
+            totalStitches: total, completedStitches: completed,
+            paletteIds: Array.from(palette), palLen, blendCount,
+            difficulty: diff.stars, difficultyLabel: diff.label, difficultyColor: diff.color,
+            pct, finished: p.finishStatus === 'completed',
+            statsSessions: Array.isArray(p.statsSessions) ? p.statsSessions : []
+          });
+          // Pattern source buckets
+          const stitches = (p.w || 0) * (p.h || 0);
+          if (stitches > 0) {
+            patternHasAny = true;
+            if (stitches < 5000) buckets.small++;
+            else if (stitches < 25000) buckets.medium++;
+            else buckets.large++;
+          }
+          if (p.designerName) designerMap[p.designerName] = (designerMap[p.designerName] || 0) + 1;
+          if (p.tags && p.tags.length) p.tags.forEach(t => { genreMap[t] = (genreMap[t] || 0) + 1; });
         }
-        if (!cancelled) setCoverageRatio(totalThreads > 0 ? Math.round(coveredThreads / totalThreads * 100) : null);
-      } catch (e) { /* silent */ }
+        // Threads never used
+        const LEGACY_EP = typeof StashBridge !== 'undefined' ? StashBridge.LEGACY_EPOCH : '2020-01-01T00:00:00Z';
+        const neverUsed = [];
+        let legacyCount = 0;
+        for (const [key, entry] of Object.entries(stashData || {})) {
+          if (!entry || !entry.owned || entry.owned <= 0) continue;
+          const colon = key.indexOf(':');
+          const bareId = colon >= 0 ? key.slice(colon + 1) : key;
+          if (globalUsedKeys.has(key) || globalUsedKeys.has(bareId)) continue;
+          const isLegacy = !entry.addedAt || entry.addedAt === LEGACY_EP;
+          if (isLegacy) { legacyCount++; continue; }
+          neverUsed.push({ key, entry });
+        }
+        neverUsed.sort((a, b) => (a.entry.addedAt || '').localeCompare(b.entry.addedAt || ''));
+        const neverUsedSamples = neverUsed.slice(0, 6).map(({ key }) => {
+          const colon = key.indexOf(':');
+          const brand = colon >= 0 ? key.slice(0, colon) : 'dmc';
+          const id = colon >= 0 ? key.slice(colon + 1) : key;
+          const info = typeof findThreadInCatalog === 'function' ? findThreadInCatalog(brand, id) : null;
+          return { key, brand, id, name: info ? info.name : id, rgb: info ? info.rgb : [128, 128, 128] };
+        });
+        if (!cancelled) {
+          setRichProjects(rich);
+          setNeverUsedData({ count: neverUsed.length + legacyCount, trackedCount: neverUsed.length, legacyCount, samples: neverUsedSamples });
+          setPatternSourceData({ buckets, designerMap, genreMap, hasAny: patternHasAny });
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setRichProjects([]);
+          setNeverUsedData({ count: 0, legacyCount: 0, samples: [] });
+          setPatternSourceData(null);
+        }
+      }
     }
 
     load();
@@ -1165,99 +1264,6 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       window.removeEventListener('cs:projectsChanged', reloadOnChange);
       window.removeEventListener('cs:backupRestored', reloadOnChange);
     };
-  }, []);
-
-  // Load threads-never-used data (depends on stash + projects)
-  useEffect(() => {
-    if (typeof ProjectStorage === 'undefined') return;
-    if (Object.keys(stash).length === 0 && !loading) { setNeverUsedData({ count: 0, legacyCount: 0, samples: [] }); return; }
-    if (loading) return;
-    let cancelled = false;
-    async function compute() {
-      try {
-        const metas = await ProjectStorage.listProjects();
-        const usedKeys = new Set();
-        // Load projects sequentially to avoid retaining all large pattern arrays in
-        // memory at once (peak-memory concern on mobile / large libraries).
-        for (const m of metas) {
-          let proj = null;
-          try { proj = await ProjectStorage.get(m.id); } catch (_) { proj = null; }
-          if (!proj || !proj.pattern) continue;
-          if (proj.finishStatus === 'planned') continue;
-          for (const cell of proj.pattern) {
-            if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
-            // Split blend cells ("310+550") into components so stash keys
-            // ("dmc:310", "dmc:550") are correctly matched as 'used'.
-            const cellIds = cell.id.indexOf('+') !== -1
-              ? cell.id.split('+').map(p => p.trim()).filter(Boolean)
-              : [cell.id];
-            for (const cid of cellIds) {
-              const normalized = normaliseStashKey(cid);
-              usedKeys.add(normalized);
-              usedKeys.add(cid.indexOf(':') >= 0 ? cid.split(':').slice(1).join(':') : cid);
-            }
-          }
-        }
-        const LEGACY_EP = typeof StashBridge !== 'undefined' ? StashBridge.LEGACY_EPOCH : '2020-01-01T00:00:00Z';
-        const neverUsed = [];
-        let legacyCount = 0;
-        for (const [key, entry] of Object.entries(stash)) {
-          if (!entry || !entry.owned || entry.owned <= 0) continue;
-          const colon = key.indexOf(':');
-          const bareId = colon >= 0 ? key.slice(colon + 1) : key;
-          if (usedKeys.has(key) || usedKeys.has(bareId)) continue;
-          const isLegacy = !entry.addedAt || entry.addedAt === LEGACY_EP;
-          if (isLegacy) { legacyCount++; continue; }
-          neverUsed.push({ key, entry });
-        }
-        neverUsed.sort((a, b) => (a.entry.addedAt || '').localeCompare(b.entry.addedAt || ''));
-        const samples = neverUsed.slice(0, 6).map(({ key, entry }) => {
-          const colon = key.indexOf(':');
-          const brand = colon >= 0 ? key.slice(0, colon) : 'dmc';
-          const id = colon >= 0 ? key.slice(colon + 1) : key;
-          const info = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(brand, id) : null;
-          return { key, brand, id, name: info ? info.name : id, rgb: info ? info.rgb : [128, 128, 128] };
-        });
-        if (!cancelled) setNeverUsedData({ count: neverUsed.length + legacyCount, trackedCount: neverUsed.length, legacyCount, samples });
-      } catch (e) { if (!cancelled) setNeverUsedData({ count: 0, legacyCount: 0, samples: [] }); }
-    }
-    compute();
-    return () => { cancelled = true; };
-  }, [stash, loading]);
-
-  // Load pattern source data (size buckets from project w×h)
-  useEffect(() => {
-    if (typeof ProjectStorage === 'undefined') return;
-    let cancelled = false;
-    async function compute() {
-      try {
-        const metas = await ProjectStorage.listProjects();
-        const buckets = { small: 0, medium: 0, large: 0 }; // <5k, 5k-25k, >25k stitches
-        const designerMap = {};
-        const genreMap = {};
-        let hasAny = false;
-        // PERF (perf-5 #7 + action plan H4): cached bulk hydration shared
-        // with the sibling stats effects.
-        const fulls = (typeof ProjectStorage.getAllFull === 'function')
-          ? await ProjectStorage.getAllFull()
-          : await Promise.all(metas.map(m => ProjectStorage.get(m.id).catch(() => null)));
-        for (const proj of fulls) {
-          if (!proj) continue;
-          const stitches = (proj.w || 0) * (proj.h || 0);
-          if (stitches > 0) {
-            hasAny = true;
-            if (stitches < 5000) buckets.small++;
-            else if (stitches < 25000) buckets.medium++;
-            else buckets.large++;
-          }
-          if (proj.designerName) designerMap[proj.designerName] = (designerMap[proj.designerName] || 0) + 1;
-          if (proj.tags && proj.tags.length) proj.tags.forEach(t => { genreMap[t] = (genreMap[t] || 0) + 1; });
-        }
-        if (!cancelled) setPatternSourceData({ buckets, designerMap, genreMap, hasAny });
-      } catch (e) { if (!cancelled) setPatternSourceData(null); }
-    }
-    compute();
-    return () => { cancelled = true; };
   }, []);
 
   // Lazy-load StatsActivity when activity tab is first selected
@@ -1296,67 +1302,58 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     }
   }, [loading, highlightSection]);
 
-  // We need to load full projects for finishStatus - use a secondary load
-  const [projectDetails, setProjectDetails] = useState([]);
-  useEffect(() => {
-    if (typeof ProjectStorage === 'undefined') return;
-    let cancelled = false;
-    async function loadDetails() {
-      const metas = await ProjectStorage.listProjects();
-      const details = [];
-      const rich = [];
-      // PERF (perf-5 #7 + action plan H4): cached bulk hydration shared
-      // with the sibling stats effects.
-      const fulls = (typeof ProjectStorage.getAllFull === 'function')
-        ? await ProjectStorage.getAllFull()
-        : await Promise.all(metas.map(m => ProjectStorage.get(m.id).catch(() => null)));
-      for (const p of fulls) {
-        if (!p) continue;
-        details.push({ id: p.id, name: p.name, finishStatus: p.finishStatus || 'active', completedAt: p.completedAt, startedAt: p.startedAt });
-        // Compute difficulty + completion + palette stats once per project.
-        // Blend cells ("310+550") are split into their component ids so palLen
-        // counts distinct physical threads, not compound entries.
-        let total = 0, completed = 0;
-        const palette = new Set();
-        const blendIds = new Set(); // distinct blend pairs for difficulty calc
-        if (p.pattern && p.pattern.length) {
-          const done = p.done && p.done.length === p.pattern.length ? p.done : null;
-          for (let i = 0; i < p.pattern.length; i++) {
-            const cell = p.pattern[i];
-            if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
-            total++;
-            if (done && done[i]) completed++;
-            if (cell.id.indexOf('+') !== -1) {
-              blendIds.add(cell.id);
-              cell.id.split('+').forEach(function(part) { part = part.trim(); if (part) palette.add(part); });
-            } else {
-              palette.add(cell.id);
-            }
-          }
-        }
-        const blendCount = blendIds.size;
-        const palLen = palette.size;
-        const diff = (typeof calcDifficulty === 'function' && palLen > 0)
-          ? calcDifficulty(palLen, blendCount, total)
-          : { stars: 1, label: 'Beginner', color: 'var(--success)' };
-        const pct = total > 0 ? Math.round(completed / total * 100) : 0;
-        rich.push({
-          id: p.id, name: p.name || 'Untitled',
-          finishStatus: p.finishStatus || 'active',
-          completedAt: p.completedAt, createdAt: p.createdAt, startedAt: p.startedAt,
-          designerName: p.designerName || null,
-          totalStitches: total, completedStitches: completed,
-          paletteIds: Array.from(palette), palLen, blendCount,
-          difficulty: diff.stars, difficultyLabel: diff.label, difficultyColor: diff.color,
-          pct, finished: (p.finishStatus === 'completed'),
-          statsSessions: Array.isArray(p.statsSessions) ? p.statsSessions : []
-        });
+  // ── Derived from richProjects (Work item 1) ───────────────────
+  // projectDetails is a lightweight slice of richProjects — no extra effect needed.
+  const projectDetails = useMemo(() => richProjects.map(p => ({
+    id: p.id, name: p.name, finishStatus: p.finishStatus || 'active',
+    completedAt: p.completedAt, startedAt: p.startedAt
+  })), [richProjects]);
+
+  // ── Coverage ratio (Work items 1 + 5) ────────────────────────
+  // Computed synchronously from richProjects.paletteIds, stash, and
+  // matchTolerance so it reacts to tolerance changes without an extra
+  // IndexedDB round-trip.
+  const coverageRatio = useMemo(() => {
+    if (richProjects.length === 0 || Object.keys(stash).length === 0) return null;
+    const dmcById = typeof DMC !== 'undefined' ? new Map(DMC.map(d => [d.id, d])) : new Map();
+    const anchorById = typeof ANCHOR !== 'undefined' ? new Map(ANCHOR.map(d => [d.id, d])) : new Map();
+    const threshold = MATCH_TOLERANCE_PRESETS[matchTolerance] || 6;
+    const ownedLabEntries = [];
+    if (typeof rgbToLab === 'function') {
+      for (const [sKey, sEntry] of Object.entries(stash)) {
+        if (!sEntry || !sEntry.owned || sEntry.owned <= 0) continue;
+        const colonIdx = sKey.indexOf(':');
+        const parsed = colonIdx >= 0
+          ? { brand: sKey.substring(0, colonIdx), id: sKey.substring(colonIdx + 1) }
+          : { brand: 'dmc', id: sKey };
+        const info = parsed.brand === 'anchor' ? anchorById.get(parsed.id) : dmcById.get(parsed.id);
+        if (!info) continue;
+        ownedLabEntries.push({ key: sKey, lab: info.lab || rgbToLab(info.rgb[0], info.rgb[1], info.rgb[2]) });
       }
-      if (!cancelled) { setProjectDetails(details); setRichProjects(rich); }
     }
-    loadDetails();
-    return () => { cancelled = true; };
-  }, []);
+    let totalThreads = 0, coveredThreads = 0;
+    for (const proj of richProjects) {
+      if (proj.finishStatus && proj.finishStatus !== 'active' && proj.finishStatus !== 'planned') continue;
+      for (const tid of (proj.paletteIds || [])) {
+        totalThreads++;
+        const compositeKey = typeof normaliseStashKey === 'function' ? normaliseStashKey(tid) : 'dmc:' + tid;
+        const entry = stash[compositeKey];
+        if (entry && entry.owned > 0) { coveredThreads++; continue; }
+        if (typeof dE2000 !== 'function' || ownedLabEntries.length === 0) continue;
+        const threadInfo = dmcById.get(tid);
+        if (!threadInfo) continue;
+        const targetLab = threadInfo.lab || rgbToLab(threadInfo.rgb[0], threadInfo.rgb[1], threadInfo.rgb[2]);
+        if (!targetLab) continue;
+        let found = false;
+        for (const owned of ownedLabEntries) {
+          if (owned.key === compositeKey) continue;
+          if (dE2000(targetLab, owned.lab) < threshold) { found = true; break; }
+        }
+        if (found) coveredThreads++;
+      }
+    }
+    return totalThreads > 0 ? Math.round(coveredThreads / totalThreads * 100) : null;
+  }, [richProjects, stash, matchTolerance]);
 
   const activeProjectCount = useMemo(() => projectDetails.filter(p => p.finishStatus === 'active').length, [projectDetails]);
   const finishedThisYear = useMemo(() => {
@@ -1443,7 +1440,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       // ISO week-start (Monday)
       const dow = d.getDay() === 0 ? 6 : d.getDay() - 1;
       const m = new Date(d); m.setDate(d.getDate() - dow);
-      weekKeys.add(m.toISOString().slice(0, 10));
+      weekKeys.add(ymd(m)); // local date — matches heatmap bucketing (Work item 4)
     }
     const sortedWeeks = Array.from(weekKeys).sort();
     let longest = 0, run = 0, prev = null;
@@ -1645,6 +1642,55 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     return best ? best.id : null;
   }, [readyToStart]);
 
+  // ── Finish rate (Work item 6) ─────────────────────────────────
+  const finishRate = useMemo(() => {
+    if (richProjects.length === 0) return null;
+    const started = richProjects.length;
+    const finished = richProjects.filter(p => p.finished).length;
+    return { started, finished, pct: Math.round(finished / started * 100) };
+  }, [richProjects]);
+
+  // ── Seasonal stitching pattern (Work item 6) ──────────────────
+  const seasonalPattern = useMemo(() => {
+    const monthTotals = new Array(12).fill(0);
+    for (const s of allSessions) {
+      if (!s.date) continue;
+      const m = parseInt(s.date.slice(5, 7), 10) - 1;
+      if (m >= 0 && m < 12) monthTotals[m] += s.netStitches || 0;
+    }
+    if (monthTotals.reduce((a, b) => a + b, 0) === 0) return null;
+    if (monthTotals.filter(v => v > 0).length < 3) return null;
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const peakIdx = monthTotals.indexOf(Math.max(...monthTotals));
+    return { months: monthTotals.map((v, i) => ({ month: MONTHS[i], stitches: v })), peakIdx };
+  }, [allSessions]);
+
+  // ── Peak stitching time (Work item 6) ─────────────────────────
+  const peakTimeSummary = useMemo(() => {
+    if (typeof window.InsightsEngine === 'undefined') return null;
+    const { buildRhythmMatrix, getPeakCell } = window.InsightsEngine;
+    if (!buildRhythmMatrix || !getPeakCell || allSessions.length < 5) return null;
+    try {
+      const data = buildRhythmMatrix(allSessions);
+      const peak = getPeakCell(data.grid);
+      if (!peak) return null;
+      const DAY_NAMES = ['Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays', 'Sundays'];
+      const hr = peak.hr;
+      const period = hr < 12 ? 'mornings' : hr < 17 ? 'afternoons' : 'evenings';
+      const ampm = hr === 0 ? '12am' : hr < 12 ? hr + 'am' : hr === 12 ? '12pm' : (hr - 12) + 'pm';
+      return 'You stitch most on ' + DAY_NAMES[peak.dow] + ' ' + period + ' (around ' + ampm + ').';
+    } catch (_) { return null; }
+  }, [allSessions]);
+
+  // ── Completion ETAs for active projects (Work item 6) ─────────
+  const completionEtas = useMemo(() => {
+    if (typeof window.InsightsEngine === 'undefined' || !window.InsightsEngine.generateProjections) return [];
+    const active = richProjects.filter(p => !p.finished && p.totalStitches > 0);
+    if (active.length === 0) return [];
+    try { return window.InsightsEngine.generateProjections(active).slice(0, 3); }
+    catch (_) { return []; }
+  }, [richProjects]);
+
   // SABLE headline
   const sableHeadline = useMemo(() => {
     if (sableData.length < 3) return null;
@@ -1657,14 +1703,57 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     return { text: 'Using more than adding', color: 'var(--accent)' };
   }, [sableData]);
 
-  // Duplicate detection
+  // ── Duplicate detection (Work item 2) ────────────────────────
+  // Split into two memos so colour math only reruns when the stash changes,
+  // NOT when the user dismisses a near-duplicate (which only changes dismissedDupes).
+
+  // Step 1: expensive — keyed on stash ONLY. Precomputes LAB once per entry
+  // and prunes candidate pairs with a fast |ΔL| > 3 guard before calling dE2000.
+  const nearDuplicateCandidates = useMemo(() => {
+    if (typeof rgbToLab !== 'function' || typeof dE2000 !== 'function') return [];
+    const LEGACY_EPOCH = typeof StashBridge !== 'undefined' ? StashBridge.LEGACY_EPOCH : '2020-01-01T00:00:00Z';
+    const ownedEntries = Object.entries(stash).filter(([, e]) => e.owned > 0 && e.addedAt && e.addedAt !== LEGACY_EPOCH);
+    // Precompute LAB for each entry once (avoids O(n²) rgbToLab calls)
+    const enriched = ownedEntries.map(([k]) => {
+      const colon = k.indexOf(':');
+      const brand = colon >= 0 ? k.slice(0, colon) : 'dmc';
+      const id = colon >= 0 ? k.slice(colon + 1) : k;
+      const info = typeof findThreadInCatalog === 'function' ? findThreadInCatalog(brand, id) : null;
+      if (!info) return null;
+      const lab = info.lab || rgbToLab(info.rgb[0], info.rgb[1], info.rgb[2]);
+      return { key: k, brand, id, info, lab };
+    }).filter(Boolean);
+    const candidates = [];
+    for (let i = 0; i < enriched.length; i++) {
+      for (let j = i + 1; j < enriched.length; j++) {
+        const e1 = enriched[i], e2 = enriched[j];
+        // Fast L-channel prune: if |ΔL| > 3, dE2000 cannot be < 1
+        if (Math.abs(e1.lab[0] - e2.lab[0]) > 3) continue;
+        if (dE2000(e1.lab, e2.lab) < 1) {
+          const owned1 = stash[e1.key] ? (stash[e1.key].owned || 0) : 0;
+          const owned2 = stash[e2.key] ? (stash[e2.key].owned || 0) : 0;
+          candidates.push({
+            key: e1.key + '|' + e2.key,
+            brand: e1.brand, id: e1.id,
+            name: (e1.info.name || e1.id) + ' \u2194 ' + (e2.info.name || e2.id),
+            rgb: e1.info.rgb, owned: owned1 + owned2,
+            keys: [e1.key, e2.key]
+          });
+        }
+      }
+    }
+    return candidates;
+  }, [stash]);
+
+  // Step 2: cheap — apply dismiss filter + repeat-purchase detection.
+  // Keyed on stash + dismissedDupes + nearDuplicateCandidates.
   const duplicates = useMemo(() => {
     const results = [];
     const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+    // Repeat-purchase detection (unchanged logic)
     for (const [key, entry] of Object.entries(stash)) {
       if (dismissedDupes.has(key)) continue;
       if (!entry.history || entry.history.length < 2) continue;
-      // Check for 2+ positive deltas separated by >30 days
       const adds = entry.history.filter(h => h.delta > 0).map(h => new Date(h.date).getTime()).sort((a, b) => a - b);
       if (adds.length >= 2 && (adds[adds.length - 1] - adds[0]) > THIRTY_DAYS) {
         const parsed = key.indexOf(':') >= 0 ? { brand: key.split(':')[0], id: key.split(':').slice(1).join(':') } : { brand: 'dmc', id: key };
@@ -1680,37 +1769,13 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
         });
       }
     }
-    // Near-duplicate detection (different keys, very close colours)
-    const LEGACY_EPOCH = typeof StashBridge !== 'undefined' ? StashBridge.LEGACY_EPOCH : '2020-01-01T00:00:00Z';
-    const ownedEntries = Object.entries(stash).filter(([, e]) => e.owned > 0 && e.addedAt && e.addedAt !== LEGACY_EPOCH);
-    for (let i = 0; i < ownedEntries.length; i++) {
-      for (let j = i + 1; j < ownedEntries.length; j++) {
-        const [k1] = ownedEntries[i], [k2] = ownedEntries[j];
-        if (k1 === k2 || dismissedDupes.has(k1 + '|' + k2)) continue;
-        // Get colour info for both
-        const getInfo = (k) => {
-          const p = k.indexOf(':') >= 0 ? { brand: k.split(':')[0], id: k.split(':').slice(1).join(':') } : { brand: 'dmc', id: k };
-          return (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(p.brand, p.id) : null;
-        };
-        const info1 = getInfo(k1), info2 = getInfo(k2);
-        if (!info1 || !info2) continue;
-        if (typeof rgbToLab !== 'function' || typeof dE2000 !== 'function') continue;
-        const lab1 = info1.lab || rgbToLab(info1.rgb[0], info1.rgb[1], info1.rgb[2]);
-        const lab2 = info2.lab || rgbToLab(info2.rgb[0], info2.rgb[1], info2.rgb[2]);
-        if (dE2000(lab1, lab2) < 1) {
-          const p1 = k1.indexOf(':') >= 0 ? { brand: k1.split(':')[0], id: k1.split(':').slice(1).join(':') } : { brand: 'dmc', id: k1 };
-          results.push({
-            key: k1 + '|' + k2, brand: p1.brand, id: p1.id,
-            name: `${info1.name || p1.id} ↔ ${info2.name || k2}`,
-            rgb: info1.rgb, owned: (ownedEntries[i][1].owned || 0) + (ownedEntries[j][1].owned || 0),
-            type: 'near',
-            keys: [k1, k2]
-          });
-        }
-      }
+    // Near-duplicate: filter pre-computed candidates by dismissedDupes (O(n))
+    for (const c of nearDuplicateCandidates) {
+      if (dismissedDupes.has(c.key)) continue;
+      results.push({ ...c, type: 'near' });
     }
     return results;
-  }, [stash, dismissedDupes]);
+  }, [stash, dismissedDupes, nearDuplicateCandidates]);
 
   // Handle visibility toggle
   const handleVisibilityChange = useCallback(v => {
@@ -2249,8 +2314,48 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       )
     ),
 
+    // ── New stats: Finish Rate, Seasonal, Peak Time, ETAs (Work item 6) ──
+    (show('finishRate') || show('completionEta')) && h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 10, margin: '10px 0' } },
+      show('finishRate') && finishRate && h(StatCard, { title: 'Finish Rate', id: 'stats-finishRate' },
+        h('div', null,
+          h('div', { className: 'gsd-metric-value', style: { color: finishRate.pct >= 50 ? 'var(--accent)' : 'var(--text-primary)' } }, finishRate.pct + '%'),
+          h('div', { className: 'gsd-metric-sub' }, finishRate.finished + ' of ' + finishRate.started + ' projects finished')
+        )
+      ),
+      show('completionEta') && completionEtas.length > 0 && h(StatCard, { title: 'Completion ETAs', id: 'stats-completionEta' },
+        h('div', null,
+          h('div', { className: 'gsd-metric-sub', style: { marginBottom: 8 } }, 'Estimated finish dates for your active projects'),
+          completionEtas.map(p => h('div', { key: p.id || p.name, style: { fontSize: 'var(--text-md)', padding: '4px 0', borderBottom: '1px solid var(--border)' } },
+            h('span', { style: { fontWeight: 600, color: 'var(--text-primary)' } }, p.name || 'Untitled'),
+            p.eta
+              ? h('span', { style: { color: 'var(--text-secondary)', marginLeft: 8 } }, p.eta)
+              : h('span', { style: { color: 'var(--text-tertiary)', marginLeft: 8 } }, 'not enough data')
+          ))
+        )
+      )
+    ),
+    (show('seasonalPattern') || show('peakTimeSummary')) && h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 10, margin: '10px 0' } },
+      show('seasonalPattern') && seasonalPattern && h(StatCard, { title: 'Seasonal Stitching', id: 'stats-seasonalPattern' },
+        h('div', null,
+          h('div', { className: 'gsd-metric-sub', style: { marginBottom: 8 } }, 'Stitches by month across all your projects'),
+          h('div', { style: { display: 'flex', gap: 2, alignItems: 'flex-end', height: 48 } },
+            seasonalPattern.months.map((m, i) => {
+              const maxVal = Math.max(...seasonalPattern.months.map(x => x.stitches));
+              const barH = maxVal > 0 ? Math.max(4, Math.round((m.stitches / maxVal) * 44)) : 4;
+              return h('div', { key: m.month, title: m.month + ': ' + (typeof fmtNum === 'function' ? fmtNum(m.stitches) : m.stitches), style: { flex: 1, height: barH, borderRadius: '2px 2px 0 0', background: i === seasonalPattern.peakIdx ? 'var(--accent)' : 'var(--border)', transition: 'var(--motion)' } });
+            })
+          ),
+          h('div', { style: { fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', marginTop: 4 } },
+            'Peak: ' + seasonalPattern.months[seasonalPattern.peakIdx].month)
+        )
+      ),
+      show('peakTimeSummary') && peakTimeSummary && h(StatCard, { title: 'Peak Stitching Time', id: 'stats-peakTimeSummary' },
+        h('div', { className: 'gsd-metric-sub' }, peakTimeSummary)
+      )
+    ),
+
     // ── Modals ───────────────────────────────────────────────────
-    showCustomise && h(CustomiseModal, { visibility, onChange: handleVisibilityChange, onClose: () => setShowCustomise(false) }),
+    showCustomise && h(CustomiseModal, { visibility, onChange: handleVisibilityChange, tolerance: matchTolerance, onToleranceChange: t => { setMatchTolerance(t); saveMatchTolerance(t); }, onClose: () => setShowCustomise(false) }),
     showShareCard && h(ShareCardModal, { lifetimeStitches, onClose: () => setShowShareCard(false) })
   );
 }

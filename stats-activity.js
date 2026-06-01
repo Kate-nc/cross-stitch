@@ -151,7 +151,10 @@ function computeInsights(grid, isFiltered) {
   const totalDays = inPeriodDays.length;
   if (totalDays >= 7) {
     const daysPerWeek = Math.round(active.length / (totalDays / 7) * 10) / 10;
-    const freq = daysPerWeek < 1.5 ? 'about once a week' : daysPerWeek < 2.5 ? 'about twice a week' : Math.round(daysPerWeek) + ' days a week';
+    const freq = daysPerWeek < 1.5 ? 'about once a week'
+      : daysPerWeek < 2.5 ? 'about twice a week'
+      : daysPerWeek < 3.5 ? 'about 3 days a week'
+      : Math.round(daysPerWeek) + ' days a week';
     const text = (isFiltered ? "You've worked on this project" : "You've stitched") + ' on ' + active.length + ' of the last ' + totalDays + ' days — ' + freq + '.';
     insights.push({ id: 'cadence', label: 'Cadence', text });
   }
@@ -341,14 +344,33 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
     const totalStitches = active.reduce((s, d) => s + d.count, 0);
     if (active.length === 0) return null;
     const avgPerSession = Math.round(totalStitches / active.length);
-    // Use real stitching seconds when available; fall back to estimate
-    const realSeconds = active.reduce((s, d) => s + (durationByDay[d.date] || 0), 0);
-    const estHours = realSeconds > 0
-      ? realSeconds / 3600
-      : totalStitches / STITCHES_PER_HOUR;
+    // Split into timed (have real duration) and untimed days
+    const timedDays = active.filter(d => durationByDay[d.date] > 0);
+    const timedSeconds = timedDays.reduce((s, d) => s + durationByDay[d.date], 0);
+    const timedStitches = timedDays.reduce((s, d) => s + d.count, 0);
+    // Derive a personal rate when there is enough timed data:
+    // at least 3 timed sessions covering at least 1 hour in total.
+    const hasEnoughTimedData = timedDays.length >= 3 && timedSeconds >= 3600;
+    const personalRate = hasEnoughTimedData
+      ? Math.round(timedStitches / (timedSeconds / 3600))
+      : null;
+    const effectiveRate = personalRate || STITCHES_PER_HOUR;
+    // Estimate hours: timed days use real seconds, untimed use effective rate
+    const untimedStitches = active
+      .filter(d => !durationByDay[d.date])
+      .reduce((s, d) => s + d.count, 0);
+    const estHours = (timedSeconds / 3600) + (untimedStitches / effectiveRate);
     const estHoursRounded = Math.round(estHours);
     const totalDays = grid.filter(d => d.inPeriod && !d.preTracking).length;
-    return { totalStitches, sessionCount: active.length, avgPerSession, estHours: estHoursRounded, sessionHours: estHours / active.length, totalDays, hasRealDuration: realSeconds > 0 };
+    const rateLabel = personalRate !== null
+      ? 'based on your ~' + personalRate + ' stitches/hour'
+      : 'based on ~' + STITCHES_PER_HOUR + ' stitches/hour (estimate)';
+    return {
+      totalStitches, sessionCount: active.length, avgPerSession,
+      estHours: estHoursRounded, sessionHours: estHours / active.length,
+      totalDays, hasRealDuration: timedDays.length > 0,
+      isPersonalized: personalRate !== null, rateLabel
+    };
   }, [grid, durationByDay]);
 
   const insights = useMemo(() => {
@@ -413,7 +435,7 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
     const d = new Date(day.date + 'T00:00:00');
     const dateLabel = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
     const projCount = entry ? Object.keys(entry.projects || {}).length : 0;
-    const suffix = projCount > 1 ? ' across ' + projCount + ' project' + (projCount === 1 ? '' : 's') : '';
+    const suffix = projCount > 1 ? ' across ' + projCount + ' projects' : '';
     return dateLabel + ' \u00b7 ' + fmtNum(day.count) + ' stitch' + (day.count === 1 ? '' : 'es') + suffix;
   }
 
@@ -518,7 +540,7 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
       h('div', { className: 'gsd-metric', style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius:'var(--radius-lg)', padding: '12px 14px' } },
         h('div', { className: 'gsd-metric-label' }, 'Est. Hours'),
         h('div', { className: 'gsd-metric-value' }, '\u2248 ' + paceStats.estHours),
-        h('div', { className: 'gsd-metric-sub' }, 'based on ~400 stitches/hour')
+        h('div', { className: 'gsd-metric-sub' }, paceStats.rateLabel)
       ),
       h('div', { className: 'gsd-metric', style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius:'var(--radius-lg)', padding: '12px 14px' } },
         h('div', { className: 'gsd-metric-label' }, 'Avg. Session'),
