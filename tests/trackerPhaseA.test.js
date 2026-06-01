@@ -97,11 +97,11 @@ function resetCounterStubs() {
 
 // ─── Extract and eval the two counter functions ───────────────────────────────
 // Both functions live between "function recomputeAllCounts" and
-// "const[statsSessions" in tracker-app.js.  They reference doneCountRef,
+// "const[statsView" in tracker-app.js.  They reference doneCountRef,
 // colourDoneCountsRef, and setCountsVer by name — the module-scope stubs above
 // satisfy those references.
 const counterBlockMatch = trackerSrc.match(
-  /function recomputeAllCounts\(patArr,doneArr,hs,hd\)[\s\S]+?(?=const\[statsSessions)/
+  /function recomputeAllCounts\(patArr,doneArr,hs,hd\)[\s\S]+?(?=const\[statsView)/
 );
 if (!counterBlockMatch) throw new Error('Could not extract counter functions from tracker-app.js');
 eval(counterBlockMatch[0]); // defines recomputeAllCounts and applyDoneCountsDelta
