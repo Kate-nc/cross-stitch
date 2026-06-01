@@ -599,6 +599,20 @@ const _editInCreatorRef=useRef(null);
 const[fabricCt,setFabricCt]=useState(14);
 const prefs = window.useTrackerPrefs();
 const { skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed, statsSettings, setStatsSettings } = prefs;
+const canvas = window.useCanvasOverlays({ sW });
+const { stitchView, setStitchView, stitchZoom, setStitchZoom, stitchZoomRef,
+  highlightSkipDone, setHighlightSkipDone, onlyStarted, setOnlyStarted,
+  trackerDimLevel, setTrackerDimLevel, trackerFabricColour, setTrackerFabricColour,
+  trackerCanvasTexture, setTrackerCanvasTexture, paletteDetail, setPaletteDetail,
+  highlightMode, setHighlightMode, tintColor, setTintColor, tintOpacity, setTintOpacity,
+  spotDimOpacity, setSpotDimOpacity, antsOffset, setAntsOffset,
+  hlIntroSeen, setHlIntroSeen, hlIntroBannerVisible, setHlIntroBannerVisible, hlIntroTimerRef,
+  countingAidsEnabled, setCountingAidsEnabled, countRunMin, setCountRunMin,
+  countRunDir, setCountRunDir, countNinjaEnabled, setCountNinjaEnabled,
+  countingAidsCanvasRef, countingAidsRafRef,
+  focusOverlayCanvasRef, breadcrumbCanvasRef, threadUsageCanvasRef,
+  hlRow, setHlRow, hlCol, setHlCol, selectedColorId, setSelectedColorId,
+  scs, fitSZ } = canvas;
 
 const[loadError,setLoadError]=useState(null);
 const[copied,setCopied]=useState(null);
@@ -826,10 +840,6 @@ const[achievedMilestones,setAchievedMilestones]=useState([]);
 const[sessionOnboardingShown,setSessionOnboardingShown]=useState(()=>{try{return !!localStorage.getItem("cs_sessionOnboardingDone");}catch(_){return false;}});
 const[sessionSavedToast,setSessionSavedToast]=useState(null);
 const isUnloadingRef=useRef(false);
-// Highlight mode intro hint (Option 4)
-const[hlIntroSeen,setHlIntroSeen]=useState(()=>{try{return !!localStorage.getItem("cs_hlIntroSeen");}catch(_){return false;}});
-const[hlIntroBannerVisible,setHlIntroBannerVisible]=useState(false);
-const hlIntroTimerRef=useRef(null);
 
 // Variables for auto-session live display
 const [liveAutoElapsed, setLiveAutoElapsed] = useState(0);
@@ -842,15 +852,9 @@ const [manuallyPaused, setManuallyPaused] = useState(false);
 const manuallyPausedRef = useRef(false);
 
 const[stitchMode,setStitchMode]=useState("track");
-const[stitchView,setStitchView]=useState(()=>{try{var v=window.UserPrefs&&window.UserPrefs.get("trackerDefaultView");return (v==="symbol"||v==="colour"||v==="highlight")?v:"symbol";}catch(_){return "symbol";}});
 // R11: Row-by-row navigation mode — session-local, not persisted.
 const[rowModeActive,setRowModeActive]=useState(false);
 const[currentRow,setCurrentRow]=useState(0);
-// Persist sticky "default view" so the choice survives reloads (mirrors
-// the highlight-mode behaviour) — the prefs UI reads/writes the same key.
-useEffect(()=>{try{if(window.UserPrefs)window.UserPrefs.set("trackerDefaultView",stitchView);}catch(_){}},[stitchView]);
-const[stitchZoom,setStitchZoom]=useState(1);
-useEffect(()=>{stitchZoomRef.current=stitchZoom;},[stitchZoom]);
 const[isEditMode,setIsEditMode]=useState(false);
 const[originalPaletteState,setOriginalPaletteState]=useState(null);
 // V2: single-level undo snapshot (replaces editHistory array)
@@ -866,74 +870,6 @@ const[showExitEditModal,setShowExitEditModal]=useState(false);
 const[drawer,setDrawer]=useState(false);
 const[focusColour,setFocusColour]=useState(null);
 const[showNavHelp,setShowNavHelp]=useState(false);
-const[highlightSkipDone,setHighlightSkipDone]=useState(()=>{try{var v=window.UserPrefs&&window.UserPrefs.get("trackerHighlightSkipDone");return v!==false;}catch(_){return true;}});
-const[onlyStarted,setOnlyStarted]=useState(()=>{try{return !!(window.UserPrefs&&window.UserPrefs.get("trackerOnlyStarted"));}catch(_){return false;}});
-useEffect(()=>{try{if(window.UserPrefs)window.UserPrefs.set("trackerHighlightSkipDone",highlightSkipDone);}catch(_){}},[highlightSkipDone]);
-useEffect(()=>{try{if(window.UserPrefs)window.UserPrefs.set("trackerOnlyStarted",onlyStarted);}catch(_){}},[onlyStarted]);
-const[trackerDimLevel,setTrackerDimLevel]=useState(()=>{
-  try{var pv=window.UserPrefs&&window.UserPrefs.get("trackerDimLevel");if(typeof pv==="number"&&pv>=0&&pv<=1)return pv;}catch(_){}
-  try{return parseFloat(localStorage.getItem("cs_trDimLv")||"0.1");}catch(_){return 0.1;}
-});
-useEffect(()=>{try{localStorage.setItem("cs_trDimLv",String(trackerDimLevel));}catch(_){}try{if(window.UserPrefs)window.UserPrefs.set("trackerDimLevel",trackerDimLevel);}catch(_){}},[trackerDimLevel]);
-// color-2 (B3): tracker canvas background fabric colour. Validated as #RRGGBB.
-const[trackerFabricColour,setTrackerFabricColour]=useState(()=>{
-  try{var pv=window.UserPrefs&&window.UserPrefs.get("trackerFabricColour");if(typeof pv==="string"&&/^#[0-9a-fA-F]{6}$/.test(pv))return pv;}catch(_){}
-  return "#FFFFFF";
-});
-// color-11: thread sheen texture toggle for tracker canvas
-const[trackerCanvasTexture,setTrackerCanvasTexture]=useState(()=>{
-  try{return !!(window.UserPrefs&&window.UserPrefs.get("trackerCanvasTexture"));}catch(_){return false;}
-});
-useEffect(()=>{
-  function _onTCT(e){if(e&&e.detail&&e.detail.key==="trackerCanvasTexture")setTrackerCanvasTexture(!!e.detail.value);}
-  document.addEventListener("cs:prefsChanged",_onTCT);
-  return()=>document.removeEventListener("cs:prefsChanged",_onTCT);
-},[]);
-// color-3 (C2): swatch detail popover state — opened when user clicks the
-// small palette swatch in the colours sidebar.
-const[paletteDetail,setPaletteDetail]=useState(null);
-useEffect(()=>{try{if(window.UserPrefs&&/^#[0-9a-fA-F]{6}$/.test(trackerFabricColour))window.UserPrefs.set("trackerFabricColour",trackerFabricColour);}catch(_){}},[trackerFabricColour]);
-const[highlightMode,setHighlightMode]=useState(()=>{
-  // Prefer UserPrefs (synced with the prefs modal); fall back to the legacy
-  // cs_hlMode key for users created before the pref existed; finally default.
-  try{
-    var pv=window.UserPrefs&&window.UserPrefs.get("trackerDefaultHighlightMode");
-    if(pv==="isolate"||pv==="outline"||pv==="tint"||pv==="spotlight")return pv;
-  }catch(_){}
-  try{return localStorage.getItem("cs_hlMode")||"isolate";}catch(_){return "isolate";}
-});
-const[tintColor,setTintColor]=useState(()=>{
-  try{var pv=window.UserPrefs&&window.UserPrefs.get("trackerTintColour");if(typeof pv==="string"&&/^#[0-9a-f]{6}$/i.test(pv))return pv;}catch(_){}
-  try{return localStorage.getItem("cs_tintColor")||"#FFD700";}catch(_){return "#FFD700";}
-});
-const[tintOpacity,setTintOpacity]=useState(()=>{
-  try{var pv=window.UserPrefs&&window.UserPrefs.get("trackerTintOpacity");if(typeof pv==="number"&&pv>=0&&pv<=1)return pv;}catch(_){}
-  try{return parseFloat(localStorage.getItem("cs_tintOp")||"0.4");}catch(_){return 0.4;}
-});
-const[spotDimOpacity,setSpotDimOpacity]=useState(()=>{
-  try{var pv=window.UserPrefs&&window.UserPrefs.get("trackerSpotDimOpacity");if(typeof pv==="number"&&pv>=0&&pv<=1)return pv;}catch(_){}
-  try{return parseFloat(localStorage.getItem("cs_spotDimOp")||"0.15");}catch(_){return 0.15;}
-});
-useEffect(()=>{try{localStorage.setItem("cs_tintColor",tintColor);}catch(_){}try{if(window.UserPrefs)window.UserPrefs.set("trackerTintColour",tintColor);}catch(_){}},[tintColor]);
-useEffect(()=>{try{localStorage.setItem("cs_tintOp",String(tintOpacity));}catch(_){}try{if(window.UserPrefs)window.UserPrefs.set("trackerTintOpacity",tintOpacity);}catch(_){}},[tintOpacity]);
-useEffect(()=>{try{localStorage.setItem("cs_spotDimOp",String(spotDimOpacity));}catch(_){}try{if(window.UserPrefs)window.UserPrefs.set("trackerSpotDimOpacity",spotDimOpacity);}catch(_){}},[spotDimOpacity]);
-const[antsOffset,setAntsOffset]=useState(0);
-useEffect(()=>{
-  try{localStorage.setItem("cs_hlMode",highlightMode);}catch(_){}
-  try{if(window.UserPrefs)window.UserPrefs.set("trackerDefaultHighlightMode",highlightMode);}catch(_){}
-},[highlightMode]);
-// Show one-time intro hint on first entry to Highlight mode (Option 4)
-useEffect(()=>{
-  if(stitchView==="highlight"&&!hlIntroSeen){
-    setHlIntroBannerVisible(true);
-    setHlIntroSeen(true);
-    try{localStorage.setItem("cs_hlIntroSeen","1");}catch(_){}
-    clearTimeout(hlIntroTimerRef.current);
-    hlIntroTimerRef.current=setTimeout(()=>setHlIntroBannerVisible(false),8000);
-  }
-  if(stitchView!=="highlight")clearTimeout(hlIntroTimerRef.current);
-  return()=>clearTimeout(hlIntroTimerRef.current);
-},[stitchView]);
 useEffect(()=>{manuallyPausedRef.current=manuallyPaused;},[manuallyPaused]);
 const[advanceToast,setAdvanceToast]=useState(null);
 const[parkMarkers,setParkMarkers]=useState([]);
@@ -974,17 +910,6 @@ useEffect(()=>{try{localStorage.setItem("cs_focusEnabled",focusEnabled?"1":"0");
 useEffect(()=>{try{localStorage.setItem("cs_colourSeq",colourSequence);}catch(_){}},[colourSequence]);
 useEffect(()=>{try{localStorage.setItem("cs_startCorner",startCorner);}catch(_){}},[startCorner]);
 useEffect(()=>{try{localStorage.setItem("cs_bcVisible",breadcrumbVisible?"1":"0");}catch(_){}},[breadcrumbVisible]);
-// ── Counting aids ──
-const[countingAidsEnabled,setCountingAidsEnabled]=useState(()=>{try{return localStorage.getItem("cs_countAids")!=="0";}catch(_){return true;}});
-const[countRunMin,setCountRunMin]=useState(()=>{try{return parseInt(localStorage.getItem("cs_countRunMin")||"3");}catch(_){return 3;}});
-const[countRunDir,setCountRunDir]=useState(()=>{try{return localStorage.getItem("cs_countRunDir")||"h";}catch(_){return"h";}});
-const[countNinjaEnabled,setCountNinjaEnabled]=useState(()=>{try{return localStorage.getItem("cs_countNinja")!=="0";}catch(_){return true;}});
-const countingAidsCanvasRef=useRef(null);
-const countingAidsRafRef=useRef(null);
-useEffect(()=>{try{localStorage.setItem("cs_countAids",countingAidsEnabled?"1":"0");}catch(_){}},[countingAidsEnabled]);
-useEffect(()=>{try{localStorage.setItem("cs_countRunMin",String(countRunMin));}catch(_){}},[countRunMin]);
-useEffect(()=>{try{localStorage.setItem("cs_countRunDir",countRunDir);}catch(_){}},[countRunDir]);
-useEffect(()=>{try{localStorage.setItem("cs_countNinja",countNinjaEnabled?"1":"0");}catch(_){}},[countNinjaEnabled]);
 const[blockAdvanceToast,setBlockAdvanceToast]=useState(null);
 const prevFocusBlockDoneRef=useRef(false);
 const blockAdvanceTimerRef=useRef(null);
@@ -998,17 +923,11 @@ const[sessionSummaryData,setSessionSummaryData]=useState(null);
 // project already has stitching sessions. Cleared via Continue/Stats/Switch/Close.
 const[resumeRecap,setResumeRecap]=useState(null);
 const resumeRecapShownRef=useRef(new Set());
-const focusOverlayCanvasRef=useRef(null);
-const breadcrumbCanvasRef=useRef(null);
-const[hlRow,setHlRow]=useState(-1);
-const[hlCol,setHlCol]=useState(-1);
 const dragStateRef=useRef({isDragging:false, dragVal:1});
 const dragChangesRef=useRef([]);
 const scrollRafRef=useRef(null);
 const lastClickedRef=useRef(null); // { idx, row, col, val } for shift+click range
 // C3: range-select state lives inside useDragMark (long-press anchor + shift+click).
-
-const[selectedColorId,setSelectedColorId]=useState(null);
 
 // ═══ Half-stitch state ═══
 // Sparse map: cellIdx → { fwd?: {id,rgb,lab,name,type,symbol}, bck?: {id,rgb,lab,name,type,symbol} }
@@ -1029,7 +948,6 @@ const isSpaceDownRef=useRef(false);
 const spaceDownTimeRef=useRef(0);
 const spacePannedRef=useRef(false);
 const touchStateRef=useRef({mode:"none",startX:0,startY:0,pinchDist:0,tapIdx:-1,tapVal:0,pinchAnchorCanvas:null,pinchAnchorScreen:null});
-const stitchZoomRef=useRef(1);
 const hasTouchRef=useRef(typeof window!=="undefined"&&"ontouchstart" in window);
 // Stable handler refs — point to latest function each render; listeners attach once
 const touchStartHandlerRef=useRef(null);
@@ -1094,7 +1012,6 @@ const analysisRequestIdRef=useRef(0);
 const analysisThrottleRef=useRef(null);
 // Thread usage visualisation: null | "distance" | "cluster"
 const[threadUsageMode,setThreadUsageMode]=useState(null);
-const threadUsageCanvasRef=useRef(null);
 const threadUsageRafRef=useRef(null);
 // Next-stitch recommendations
 const[recDismissed,setRecDismissed]=useState(()=>new Set());
@@ -1495,9 +1412,6 @@ useEffect(()=>{
 },[countsVer,focusColour,stitchView,highlightSkipDone,pal]);
 
 const estCompletion=useMemo(()=>{let t=totalTime+liveAutoElapsed;if(doneCount<1||t<60)return null;return Math.round((totalStitchable-doneCount)*(t/doneCount));},[totalTime,liveAutoElapsed,doneCount,totalStitchable]);
-const scs=useMemo(()=>Math.max(2,Math.round(20*stitchZoom)),[stitchZoom]);
-const fitSZ=useCallback(()=>setStitchZoom(Math.min(3,Math.max(0.05,750/(sW*20)))),[sW]);
-
 const skeinData=useMemo(()=>{
   if(!pal)return[];
   let map={};

@@ -123,6 +123,7 @@ window.loadPdfStack = function() {
 </main>
 <script src="useWakeLock.js"></script>
 <script src="useTrackerPrefs.js"></script>
+<script src="useCanvasOverlays.js"></script>
 <script src="useDragMark.js"></script>
 <!-- Cat C perf split: conditionally preload the ImportWizard bundle only
      when the experimental flag is on. Default users never fetch the 30 KB.
@@ -153,7 +154,7 @@ window.loadPdfStack = function() {
    build-creator-bundle.js when tracker-app.js content changes. */
 (function () {
   if (typeof window === 'undefined') return;
-  var TRACKER_CACHE_KEY = 'babel_tracker_a460962bfd';
+  var TRACKER_CACHE_KEY = 'babel_tracker_0a050af742';
   var cached = null;
   try { cached = localStorage.getItem(TRACKER_CACHE_KEY); } catch (e) {}
   if (cached) {

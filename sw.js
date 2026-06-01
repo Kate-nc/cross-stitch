@@ -55,6 +55,7 @@ var PRECACHE_URLS = [
   './wake-lock.js',
   './useWakeLock.js',
   './useTrackerPrefs.js',
+  './useCanvasOverlays.js',
   './tracker-app.js',
   './manager-app.js',
 
