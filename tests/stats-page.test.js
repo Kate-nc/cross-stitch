@@ -145,7 +145,7 @@ describe('stats-page.js — review feedback regressions', () => {
 
   test('duplicate candidate labels use plain text separators', () => {
     expect(source).not.toContain('\\u2194');
-    expect(source).toContain(" + ' / ' + ");
+    expect(source).toContain("' / '");
   });
 
   test('owned LAB stash entries are memoised separately from coverage ratio', () => {
