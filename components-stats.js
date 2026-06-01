@@ -1116,7 +1116,7 @@ function ProjectComparison({currentProjectId, onClose, onOpenProject}) {
       ),
       mostNeglected && React.createElement('div', {className:'comparison-insight-card'},
         React.createElement('span', {className:'comparison-insight-icon'}, Icons.sleep()),
-        React.createElement('span', null, React.createElement('strong', null, 'Most neglected: '), mostNeglected.name + ' (last worked ' + relativeDate(mostNeglected.updatedAt).toLowerCase() + ')')
+        React.createElement('span', null, React.createElement('strong', null, 'Longest companion: '), mostNeglected.name + ' (last worked ' + relativeDate(mostNeglected.updatedAt).toLowerCase() + ')') 
       )
     )
   );

@@ -731,6 +731,8 @@ const[projectPickerOpen,setProjectPickerOpen]=useState(false);
 const[projectPickerList,setProjectPickerList]=useState([]);
 const[preferencesOpen,setPreferencesOpen]=useState(false);
 const[shortcutsHintDismissed,setShortcutsHintDismissed]=useState(()=>{try{return !!localStorage.getItem("shortcuts_hint_dismissed");}catch(_){return false;}});
+const[trackerLoadCount,setTrackerLoadCount]=useState(()=>{try{const n=parseInt(localStorage.getItem("cs_trackerHintLoadCount")||"0",10);return isNaN(n)?0:n;}catch(_){return 0;}});
+const hintLoadCountedRef=useRef(false);
 const [pdfSettings, setPdfSettings] = useState(DEFAULT_PDF_SETTINGS);
 const showCtr=true;
 const[bsLines,setBsLines]=useState([]);
@@ -5067,6 +5069,13 @@ useEffect(()=>{
   return()=>el.removeEventListener("wheel",handler);
 },[!!pat]);
 
+// Increment shortcuts-hint session counter once per pattern load
+useEffect(()=>{
+  if(!pat||hintLoadCountedRef.current)return;
+  hintLoadCountedRef.current=true;
+  try{const n=Math.min(99,parseInt(localStorage.getItem("cs_trackerHintLoadCount")||"0",10)+1);localStorage.setItem("cs_trackerHintLoadCount",String(n));setTrackerLoadCount(n);}catch(_){}
+},[!!pat]);
+
 // Attach touch listeners once when pattern loads — wrapper delegates to latest handler
 // NOTE (Safari iOS): the canvas uses Touch Events (not Pointer Events) because
 // {passive:false} touch listeners are required to call preventDefault() and block
@@ -5736,7 +5745,7 @@ return(
       </div>;
       if(stitchMode==="track") return <div style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--accent-border)"}}>{hasTouchRef.current?"Tap or drag to mark · Long-press a cell, then tap the opposite corner to fill a rectangle · Pinch to zoom":"Click or drag to mark/unmark cross stitches · Shift+click or long-press for rectangle fill · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
       if(stitchMode==="navigate") return <div style={{fontSize:'var(--text-sm)',color:"var(--text-primary)",background:"var(--surface-tertiary)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)"}}>{selectedColorId?"Click to park. Shift+click to move guide.":"Click to place guide crosshair"}{hasTouchRef.current?"":" · T for track mode"}</div>;
-      if(!shortcutsHintDismissed&&pat) return <div style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} aria-label="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",lineHeight:1,padding:0,display:"inline-flex",alignItems:"center"}}>{Icons.x?Icons.x():null}</button></div>;
+      if(!shortcutsHintDismissed&&pat&&trackerLoadCount>=3) return <div style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} aria-label="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",lineHeight:1,padding:0,display:"inline-flex",alignItems:"center"}}>{Icons.x?Icons.x():null}</button></div>;
       return null;
     })()}
 
@@ -6086,6 +6095,14 @@ return(
             onClick={()=>setSessionConfigOpen(true)}
             style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",textAlign:"left",display:"flex",alignItems:"center",gap:8}}
           >{Icons.gear?Icons.gear():null}{" Session settings"}</button>
+          <button
+            onClick={()=>setStyleOnboardingOpen(true)}
+            style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",textAlign:"left",display:"flex",alignItems:"center",gap:8}}
+          >{Icons.palette?Icons.palette():null}{" Stitching style"}</button>
+          <button
+            onClick={()=>window.dispatchEvent(new Event("cs:openShortcuts"))}
+            style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",textAlign:"left",display:"flex",alignItems:"center",gap:8}}
+          >{Icons.keyboard?Icons.keyboard():null}{" Keyboard shortcuts"}</button>
           {/* RT live tracking toggle */}
           <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,cursor:"pointer",userSelect:"none"}}>
             <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Live tracking (RT)</span>
