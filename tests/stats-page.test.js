@@ -137,6 +137,24 @@ describe('StatsShowcase — embedded in stats-page.js', () => {
   });
 });
 
+describe('stats-page.js — review feedback regressions', () => {
+  test('match tolerance preset buttons expose pressed state and do not submit forms', () => {
+    expect(source).toContain("type: 'button'");
+    expect(source).toContain("'aria-pressed': tolerance === preset");
+  });
+
+  test('duplicate candidate labels use plain text separators', () => {
+    expect(source).not.toContain('\\u2194');
+    expect(source).toContain(" + ' / ' + ");
+  });
+
+  test('owned LAB stash entries are memoised separately from coverage ratio', () => {
+    expect(source).toContain('const ownedLabEntries = useMemo(() => {');
+    expect(source).toContain('}, [stash]);');
+    expect(source).toContain('}, [richProjects, stash, matchTolerance, ownedLabEntries]);');
+  });
+});
+
 // ── index.html stats loader tests ─────────────────────────────────
 
 describe('index.html — stats loaders', () => {
@@ -158,4 +176,3 @@ describe('index.html — stats loaders', () => {
     expect(loaderRegion).toContain("s.src = 'stats-page.js'");
   });
 });
-

@@ -418,6 +418,8 @@ function CustomiseModal({ visibility, onChange, tolerance, onToleranceChange, on
           ['strict', 'normal', 'loose'].map(preset =>
             h('button', {
               key: preset,
+              type: 'button',
+              'aria-pressed': tolerance === preset,
               onClick: () => onToleranceChange(preset),
               style: {
                 flex: 1, padding: '6px 0', borderRadius: 'var(--radius-sm)',
@@ -1313,24 +1315,27 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
   // Computed synchronously from richProjects.paletteIds, stash, and
   // matchTolerance so it reacts to tolerance changes without an extra
   // IndexedDB round-trip.
+  const ownedLabEntries = useMemo(() => {
+    if (Object.keys(stash).length === 0 || typeof rgbToLab !== 'function') return [];
+    const dmcById = typeof DMC !== 'undefined' ? new Map(DMC.map(d => [d.id, d])) : new Map();
+    const anchorById = typeof ANCHOR !== 'undefined' ? new Map(ANCHOR.map(d => [d.id, d])) : new Map();
+    const entries = [];
+    for (const [sKey, sEntry] of Object.entries(stash)) {
+      if (!sEntry || !sEntry.owned || sEntry.owned <= 0) continue;
+      const colonIdx = sKey.indexOf(':');
+      const parsed = colonIdx >= 0
+        ? { brand: sKey.substring(0, colonIdx), id: sKey.substring(colonIdx + 1) }
+        : { brand: 'dmc', id: sKey };
+      const info = parsed.brand === 'anchor' ? anchorById.get(parsed.id) : dmcById.get(parsed.id);
+      if (!info) continue;
+      entries.push({ key: sKey, lab: info.lab || rgbToLab(info.rgb[0], info.rgb[1], info.rgb[2]) });
+    }
+    return entries;
+  }, [stash]);
   const coverageRatio = useMemo(() => {
     if (richProjects.length === 0 || Object.keys(stash).length === 0) return null;
     const dmcById = typeof DMC !== 'undefined' ? new Map(DMC.map(d => [d.id, d])) : new Map();
-    const anchorById = typeof ANCHOR !== 'undefined' ? new Map(ANCHOR.map(d => [d.id, d])) : new Map();
     const threshold = MATCH_TOLERANCE_PRESETS[matchTolerance] || 6;
-    const ownedLabEntries = [];
-    if (typeof rgbToLab === 'function') {
-      for (const [sKey, sEntry] of Object.entries(stash)) {
-        if (!sEntry || !sEntry.owned || sEntry.owned <= 0) continue;
-        const colonIdx = sKey.indexOf(':');
-        const parsed = colonIdx >= 0
-          ? { brand: sKey.substring(0, colonIdx), id: sKey.substring(colonIdx + 1) }
-          : { brand: 'dmc', id: sKey };
-        const info = parsed.brand === 'anchor' ? anchorById.get(parsed.id) : dmcById.get(parsed.id);
-        if (!info) continue;
-        ownedLabEntries.push({ key: sKey, lab: info.lab || rgbToLab(info.rgb[0], info.rgb[1], info.rgb[2]) });
-      }
-    }
     let totalThreads = 0, coveredThreads = 0;
     for (const proj of richProjects) {
       if (proj.finishStatus && proj.finishStatus !== 'active' && proj.finishStatus !== 'planned') continue;
@@ -1353,7 +1358,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       }
     }
     return totalThreads > 0 ? Math.round(coveredThreads / totalThreads * 100) : null;
-  }, [richProjects, stash, matchTolerance]);
+  }, [richProjects, stash, matchTolerance, ownedLabEntries]);
 
   const activeProjectCount = useMemo(() => projectDetails.filter(p => p.finishStatus === 'active').length, [projectDetails]);
   const finishedThisYear = useMemo(() => {
@@ -1735,7 +1740,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
           candidates.push({
             key: e1.key + '|' + e2.key,
             brand: e1.brand, id: e1.id,
-            name: (e1.info.name || e1.id) + ' \u2194 ' + (e2.info.name || e2.id),
+            name: (e1.info.name || e1.id) + ' / ' + (e2.info.name || e2.id),
             rgb: e1.info.rgb, owned: owned1 + owned2,
             keys: [e1.key, e2.key]
           });
