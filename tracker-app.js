@@ -824,7 +824,7 @@ function applyDoneCountsDelta(changes,patArr,newDoneArr){
 
 const[statsSessions,setStatsSessions]=useState([]);
 const totalTime=useMemo(()=>{if(!statsSessions||statsSessions.length===0)return 0;return statsSessions.reduce(function(sum,s){return sum+getSessionSeconds(s);},0);},[statsSessions]);
-const[statsSettings,setStatsSettings]=useState({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,inactivityPauseSec:90,useActiveDays:true});
+const[statsSettings,setStatsSettings]=useState({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,useActiveDays:true});
 const[statsView,setStatsView]=useState(false);
 const[statsTab,setStatsTab]=useState('all');
 const[trackerPreviewOpen,setTrackerPreviewOpen]=useState(false);
@@ -856,16 +856,11 @@ function getIdleThresholdMs(){
 // as active time. Gaps longer than this contribute only capMs — natural
 // dwell (counting, rethreading) is credited; walk-away time is not. Read
 // fresh on each call so preference changes apply immediately to the live timer.
-// Resolution: UserPrefs.trackerActiveGapCapSec → statsSettings.inactivityPauseSec → 90s.
 // Clamped to [15, 600] seconds.
 function getActiveGapCapMs(){
   try{
     var s=window.UserPrefs&&window.UserPrefs.get("trackerActiveGapCapSec");
     if(typeof s==="number"&&Number.isFinite(s))return Math.min(600,Math.max(15,s))*1000;
-  }catch(_){}
-  try{
-    var p=statsSettings&&statsSettings.inactivityPauseSec;
-    if(typeof p==="number"&&Number.isFinite(p)&&p>=15&&p<=600)return p*1000;
   }catch(_){}
   return 90*1000;
 }
@@ -3427,7 +3422,7 @@ function processLoadedProject(project){
       }
     }
   }catch(_e){}
-  setStatsSettings(Object.assign({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,inactivityPauseSec:90,useActiveDays:true,sectionCols:50,sectionRows:50},project.statsSettings||{}));
+  setStatsSettings(Object.assign({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,useActiveDays:true,sectionCols:50,sectionRows:50},project.statsSettings||{}));
   setStatsView(false);
   setCelebration(null);
   celebratedRef.current=new Set();
@@ -5780,7 +5775,7 @@ return(
   <div className="info-strip-row">
     <span className="info-strip-pct">{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</span>
     {progressPct<100&&totalStitchable>0&&<span className="info-strip-counts">{doneCount.toLocaleString('en-GB')} done &middot; {Math.max(0,totalStitchable-doneCount).toLocaleString('en-GB')} to go</span>}
-    {liveAutoStitches>0&&<span className="info-strip-timer"><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused?(Icons.pause?Icons.pause():null):(Icons.clock?Icons.clock():null)}</span> {fmtTime(liveAutoElapsed)}</span>}
+    {liveAutoStitches>0&&<span className="info-strip-timer"><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}</span> {fmtTime(liveAutoElapsed)}</span>}
   </div>
 </div>
 <div className="app-info-chip-wrap info-strip-chip-wrap">
@@ -6017,7 +6012,7 @@ return(
         <div className="ppal-header-stats">
           <span className="ppal-pct">{progressPct>=100?"Complete!":progressPct.toFixed(1)+"%"}</span>
           {liveAutoStitches>0&&<span className="ppal-session-chip" role="button" tabIndex={0} title="Open Session controls" onClick={()=>{setLeftSidebarTab("session");setMorePanelOpen(true);}} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();setLeftSidebarTab("session");setMorePanelOpen(true);}}}>
-            {liveAutoIsPaused||manuallyPaused?(Icons.pause?Icons.pause():null):(Icons.clock?Icons.clock():null)}{" "}{fmtTime(liveAutoElapsed)}{" · "}{liveAutoStitches}{" st"}
+            {liveAutoIsPaused||manuallyPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}{" "}{fmtTime(liveAutoElapsed)}{" · "}{liveAutoStitches}{" st"}
           </span>}
         </div>
       </div>
