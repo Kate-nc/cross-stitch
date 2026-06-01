@@ -53,6 +53,7 @@ var PRECACHE_URLS = [
   './import-engine/bundle.js',
   './creator-main.js',
   './wake-lock.js',
+  './useWakeLock.js',
   './tracker-app.js',
   './manager-app.js',
 
