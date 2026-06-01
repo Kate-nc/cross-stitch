@@ -54,6 +54,7 @@ var PRECACHE_URLS = [
   './creator-main.js',
   './wake-lock.js',
   './useWakeLock.js',
+  './useTrackerPrefs.js',
   './tracker-app.js',
   './manager-app.js',
 

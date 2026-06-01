@@ -597,8 +597,8 @@ const hasLoadedOnceRef=useRef(false);
 // calls the latest handleEditInCreator closure (which captures current state).
 const _editInCreatorRef=useRef(null);
 const[fabricCt,setFabricCt]=useState(14);
-const[skeinPrice,setSkeinPrice]=useState(DEFAULT_SKEIN_PRICE);
-const[stitchSpeed,setStitchSpeed]=useState(40);
+const prefs = window.useTrackerPrefs();
+const { skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed, statsSettings, setStatsSettings } = prefs;
 
 const[loadError,setLoadError]=useState(null);
 const[copied,setCopied]=useState(null);
@@ -782,7 +782,6 @@ function applyDoneCountsDelta(changes,patArr,newDoneArr){
 
 const[statsSessions,setStatsSessions]=useState([]);
 const totalTime=useMemo(()=>{if(!statsSessions||statsSessions.length===0)return 0;return statsSessions.reduce(function(sum,s){return sum+getSessionSeconds(s);},0);},[statsSessions]);
-const[statsSettings,setStatsSettings]=useState({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,useActiveDays:true});
 const[statsView,setStatsView]=useState(false);
 const[statsTab,setStatsTab]=useState('all');
 const[trackerPreviewOpen,setTrackerPreviewOpen]=useState(false);
