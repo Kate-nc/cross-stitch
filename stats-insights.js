@@ -44,6 +44,11 @@
   function saveDismissed(map) {
     try { localStorage.setItem(DISMISS_KEY, JSON.stringify(map)); } catch (e) {}
   }
+  // Fixed ratio thresholds (0.25/0.5/0.75 of max) are intentional here.
+  // Hour-of-week cells are sparse so a fixed scale is simpler and more
+  // predictable. The day-level heatmap in stats-activity.js uses percentile
+  // binning (adaptive to each user's distribution) — both approaches are
+  // deliberate and serve different data densities.
   function heatmapColor(count, max) {
     if (!count || max === 0) return HEATMAP_RAMP[0];
     const ratio = count / max;
@@ -352,7 +357,9 @@
     const projections = useMemo(() => {
       if (typeof InsightsEngine === 'undefined') return [];
       return InsightsEngine.generateProjections(
-        (data.summaries || []).filter(s => !s.isComplete && (s.totalStitches || 0) > 0)
+        // Unified completion rule: exclude if stitch-count complete OR user
+        // explicitly marked finished (finishStatus === 'completed').
+        (data.summaries || []).filter(s => !s.isComplete && s.finishStatus !== 'completed' && (s.totalStitches || 0) > 0)
       );
     }, [data.summaries]);
     const insights = useMemo(() => {

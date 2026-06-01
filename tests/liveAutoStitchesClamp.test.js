@@ -3,9 +3,9 @@
 const fs = require('fs');
 const path = require('path');
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'tracker-app.js'), 'utf8');
+const SRC = fs.readFileSync(path.join(__dirname, '..', 'useAutoSession.js'), 'utf8');
 
-describe('tracker-app.js — liveAutoStitches clamp (DEFECT-011)', () => {
+describe('useAutoSession.js — liveAutoStitches clamp (DEFECT-011)', () => {
   test('setLiveAutoStitches always wraps the difference in Math.max(0, ...)', () => {
     expect(SRC).toMatch(/setLiveAutoStitches\(\s*Math\.max\(\s*0\s*,\s*currentAutoSessionRef\.current\.stitchesCompleted\s*-\s*currentAutoSessionRef\.current\.stitchesUndone\s*\)\s*\)/);
   });

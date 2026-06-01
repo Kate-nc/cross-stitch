@@ -13,6 +13,8 @@ const useCleanupMode = fs.readFileSync(
   path.join(__dirname, '..', 'creator', 'useCleanupMode.js'), 'utf8');
 const tracker = fs.readFileSync(
   path.join(__dirname, '..', 'tracker-app.js'), 'utf8');
+const useStitchCounts = fs.readFileSync(
+  path.join(__dirname, '..', 'useStitchCounts.js'), 'utf8');
 const homeApp = fs.readFileSync(
   path.join(__dirname, '..', 'home-app.js'), 'utf8');
 const creatorMain = fs.readFileSync(
@@ -68,7 +70,7 @@ describe('CL-3: brush mask updates throttled with rAF', () => {
 
 describe('T-5: tracker counter invariant documented', () => {
   test('header comment above doneCountRef explains recompute vs delta rules', () => {
-    const m = tracker.match(
+    const m = useStitchCounts.match(
       /T-5 invariant[\s\S]{0,1200}?const doneCountRef=useRef\(0\)/);
     expect(m).not.toBeNull();
     expect(m[0]).toMatch(/recomputeAllCounts/);

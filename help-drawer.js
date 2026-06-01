@@ -426,6 +426,7 @@
     { id: "t.undo",    scope: "tracker", keys: ["Ctrl+Z", "⌘Z"], description: "Undo" },
     { id: "t.redo",    scope: "tracker", keys: ["Ctrl+Y", "Ctrl+Shift+Z"], description: "Redo" },
     { id: "t.save",    scope: "tracker", keys: ["Ctrl+S", "⌘S"], description: "Save project" },
+    { id: "t.jump",    scope: "tracker", keys: ["J"], description: "Jump to next remaining stitch of the focused colour" },
 
     // Tracker — Highlight view
     { id: "th.prev", scope: "tracker", keys: ["[", "←"], description: "Highlight: focus the previous colour" },

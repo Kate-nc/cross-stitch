@@ -67,11 +67,11 @@ const SECTION_LABELS = {
   readyToStart: 'Ready to Start',
   useWhatYouHave: 'Use What You Have',
   buyingImpact: 'Buying Impact',
-  duplicateRisk: 'Duplicate Alerts',
+  duplicateRisk: 'Possible Duplicates',
   oldestWip: 'Oldest WIPs',
   stashAge: 'Stash Age',
   mostUsedColours: 'Most-Used Colours',
-  threadsNeverUsed: 'Threads Never Used',
+  threadsNeverUsed: 'Threads Ready and Waiting',
   colourFingerprint: 'Colour Preference Fingerprint',
   designerLeaderboard: 'Designer Leaderboard',
   brandAlignment: 'Brand Alignment',
@@ -138,7 +138,7 @@ function SableChart({ data }) {
   const usedPts = data.map((d, i) => `${toX(i)},${toY(d.used)}`).join(' ');
   // Y-axis ticks
   const ticks = [0, Math.round(maxVal / 2), Math.round(maxVal)];
-  return h('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', maxWidth: 520, display: 'block' }, 'aria-label': 'SABLE index chart' },
+  return h('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', maxWidth: 520, display: 'block' }, 'aria-label': 'SABLE index timeline' },
     // Grid lines
     ticks.map(t => h('line', { key: t, x1: PX, y1: toY(t), x2: W - 10, y2: toY(t), stroke: 'var(--border)', strokeWidth: 1 })),
     ticks.map(t => h('text', { key: 't' + t, x: PX - 6, y: toY(t) + 4, textAnchor: 'end', fontSize: 10, fill: 'var(--text-tertiary)' }, t)),
@@ -601,7 +601,7 @@ function sableSentence(sableData) {
   if (totalUsed === 0 && totalAdded === 0) return null;
   const ratio = totalUsed > 0 ? totalAdded / totalUsed : totalAdded > 0 ? Infinity : 1;
   if (!isFinite(ratio) || ratio > 1.5)
-    return `You're adding thread ${isFinite(ratio) ? Math.round(ratio * 10) / 10 + '\xd7' : 'much'} faster than you're using it.`;
+    return `Your stash is growing ${isFinite(ratio) ? Math.round(ratio * 10) / 10 + '\xd7' : 'much'} faster than you're stitching through it.`;
   if (ratio >= 0.8) return 'Your stash is beautifully balanced \u2014 adding and using in equal measure.';
   return "You're making real progress through your stash.";
 }
@@ -1690,7 +1690,13 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
   // ── Completion ETAs for active projects (Work item 6) ─────────
   const completionEtas = useMemo(() => {
     if (typeof window.InsightsEngine === 'undefined' || !window.InsightsEngine.generateProjections) return [];
-    const active = richProjects.filter(p => !p.finished && p.totalStitches > 0);
+    // Unified completion rule (S6): exclude if stitch-count complete OR
+    // user explicitly marked finished (finishStatus === 'completed').
+    const active = richProjects.filter(p =>
+      !(p.completedStitches >= p.totalStitches && p.totalStitches > 0) &&
+      p.finishStatus !== 'completed' &&
+      p.totalStitches > 0
+    );
     if (active.length === 0) return [];
     try { return window.InsightsEngine.generateProjections(active).slice(0, 3); }
     catch (_) { return []; }
@@ -2016,7 +2022,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
               h('div', { className: 'gsd-metric-sub' }, 'Add a pattern to see how your stash covers it')
             )
       ),
-      show('streak') && h(StatCard, { title: 'Stitching Streak', id: 'stats-streak' },
+      show('streak') && h(StatCard, { title: 'Weekly Streak', id: 'stats-streak' },
         streakData.current > 0
           ? h('div', null,
               h('div', { className: 'gsd-metric-value' }, streakData.current),
@@ -2042,7 +2048,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
 
     // ── Middle row: SABLE + Hue Wheel ────────────────────────────
     h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10, margin: '10px 0' } },
-      show('sableIndex') && h(StatCard, { title: h('span', {style:{display:'inline-flex',alignItems:'center',gap:4}}, 'SABLE Index', h(InfoIcon, {text:'SABLE = Stash Accumulated Beyond Life Expectancy — a ratio of how fast you accumulate thread vs how fast you stitch it. Above 1.0 means your stash is growing faster than you can use it.', width:220})), id: 'stats-sableIndex', style: { minHeight: 200 } },
+      show('sableIndex') && h(StatCard, { title: h('span', {style:{display:'inline-flex',alignItems:'center',gap:4}}, 'SABLE Index', h(InfoIcon, {text:'SABLE = Stash Accumulated Beyond Life Expectancy — a cherished cross-stitch tradition: tracking the ever-hopeful gap between acquiring thread and stitching it. A ratio above 1 means your stash is growing; below 1 means you’re making good progress through it.', width:220})), id: 'stats-sableIndex', style: { minHeight: 200 } },
         sableData.length >= 3
           ? h('div', null,
               sableHeadline && h('div', { style: { fontSize:'var(--text-lg)', fontWeight: 600, color: sableHeadline.color, marginBottom:'var(--s-2)' } }, sableHeadline.text),
@@ -2099,7 +2105,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
           );
         })()
       ),
-      show('duplicateRisk') && h(StatCard, { title: 'Duplicate Alerts', id: 'stats-duplicateRisk' },
+      show('duplicateRisk') && h(StatCard, { title: 'Possible Duplicates', id: 'stats-duplicateRisk' },
         duplicates.length > 0
           ? h('div', null,
               duplicates.slice(0, 5).map(d => h('div', { key: d.key, style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', padding: '6px 0', borderBottom: '1px solid var(--border-subtle)', fontSize:'var(--text-md)' } },
@@ -2184,11 +2190,11 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
 
     // ── Threads Never Used ────────────────────────────────────────
     show('threadsNeverUsed') && neverUsedData !== null && neverUsedData.count > 0 && h('div', { style: { margin: '10px 0' } },
-      h(StatCard, { title: 'Threads Never Used', id: 'stats-threadsNeverUsed' },
+      h(StatCard, { title: 'Threads Ready and Waiting', id: 'stats-threadsNeverUsed' },
         h('div', null,
           h('div', { className: 'gsd-metric-value' }, fmtNum(neverUsedData.count)),
           h('div', { className: 'gsd-metric-sub', style: { marginBottom: 10 } },
-            'thread' + (neverUsedData.count === 1 ? '' : 's') + ' in your stash that\u2019ve never appeared in a project' +
+            'thread' + (neverUsedData.count === 1 ? '' : 's') + ' in your stash that haven\u2019t yet found a project' +
             (neverUsedData.legacyCount > 0 ? ' (' + fmtNum(neverUsedData.legacyCount) + ' pre-tracking)' : '')
           ),
           neverUsedData.samples.length > 0 && h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom:'var(--s-2)' } },
@@ -2243,7 +2249,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
           useWhatYouHaveRecs.map(r => h('div', { key: r.id, style: { padding: '6px 0', borderBottom: '1px solid var(--border-subtle)', fontSize:'var(--text-md)' } },
             h('div', { style: { fontWeight: 600, color: 'var(--text-primary)' } }, r.title),
             h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginTop: 2 } },
-              r.matches + ' dormant thread' + (r.matches === 1 ? '' : 's') + ' would get used: ' + r.sampleNames.slice(0, 3).join(', ')
+              r.matches + ' thread' + (r.matches === 1 ? '' : 's') + ' from your stash would get used: ' + r.sampleNames.slice(0, 3).join(', ')
             )
           ))
         )
@@ -2272,7 +2278,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
               : h('div', { style: { fontSize:'var(--text-sm)', color: 'var(--text-tertiary)' } }, 'Stocked everything you use')
           ),
           h('div', null,
-            h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 4 } }, 'Stocked but rarely used'),
+            h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 4 } }, 'Stocked but saving for later'),
             colourFingerprint.ownedNotUsed.length > 0
               ? colourFingerprint.ownedNotUsed.map(t => h('div', { key: t.id, style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', fontSize:'var(--text-sm)', color: 'var(--text-primary)', marginBottom: 3 } }, h(Swatch, { rgb: t.rgb, size: 16 }), 'DMC ' + t.id + (t.name ? ' \u2014 ' + t.name : '')))
               : h('div', { style: { fontSize:'var(--text-sm)', color: 'var(--text-tertiary)' } }, 'Everything earns its place')
@@ -2332,8 +2338,8 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
           h('div', { className: 'gsd-metric-sub', style: { marginBottom: 8 } }, 'Estimated finish dates for your active projects'),
           completionEtas.map(p => h('div', { key: p.id || p.name, style: { fontSize: 'var(--text-md)', padding: '4px 0', borderBottom: '1px solid var(--border)' } },
             h('span', { style: { fontWeight: 600, color: 'var(--text-primary)' } }, p.name || 'Untitled'),
-            p.eta
-              ? h('span', { style: { color: 'var(--text-secondary)', marginLeft: 8 } }, p.eta)
+            p.projectedText
+              ? h('span', { style: { color: 'var(--text-secondary)', marginLeft: 8 } }, p.projectedText)
               : h('span', { style: { color: 'var(--text-tertiary)', marginLeft: 8 } }, 'not enough data')
           ))
         )

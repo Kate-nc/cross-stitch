@@ -1116,7 +1116,7 @@ function ProjectComparison({currentProjectId, onClose, onOpenProject}) {
       ),
       mostNeglected && React.createElement('div', {className:'comparison-insight-card'},
         React.createElement('span', {className:'comparison-insight-icon'}, Icons.sleep()),
-        React.createElement('span', null, React.createElement('strong', null, 'Most neglected: '), mostNeglected.name + ' (last worked ' + relativeDate(mostNeglected.updatedAt).toLowerCase() + ')')
+        React.createElement('span', null, React.createElement('strong', null, 'Longest companion: '), mostNeglected.name + ' (last worked ' + relativeDate(mostNeglected.updatedAt).toLowerCase() + ')') 
       )
     )
   );
@@ -1537,21 +1537,10 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
   }, [allSessions, projectSummaries]);
 
   var globalStreak = React.useMemo(function() {
-    var allDates = new Set(allSessions.map(function(s) { return s.date; }).filter(Boolean));
-    var today = formatYMD(new Date());
-    var current = 0, checkDate = today;
-    while (allDates.has(checkDate)) { current++; checkDate = subtractOneDay(checkDate); }
-    if (current === 0) {
-      checkDate = subtractOneDay(today);
-      while (allDates.has(checkDate)) { current++; checkDate = subtractOneDay(checkDate); }
-    }
-    var longest = 0, run = 0, prevD = null;
-    Array.from(allDates).sort().forEach(function(d) {
-      if (prevD && dayDiff(prevD, d) === 1) { run++; } else { run = 1; }
-      if (run > longest) longest = run;
-      prevD = d;
-    });
-    return {current: current, longest: longest};
+    // Daily streak (consecutive calendar days) — canonical source is the engine
+    // so this and stats-page.js (weekly streak) cannot drift from each other.
+    if (typeof InsightsEngine === 'undefined' || !InsightsEngine.computeDailyStreak) return {current: 0, longest: 0};
+    return InsightsEngine.computeDailyStreak(allSessions);
   }, [allSessions]);
 
   var weekComparison = React.useMemo(function() {
@@ -1597,17 +1586,15 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
       var peak = hourCounts.indexOf(maxH);
       result.push({icon: 'clock', color: 'purple', text: 'You stitch most between ' + formatHour(peak) + '\u2013' + formatHour((peak + 2) % 24)});
     }
-    var inProg = projectSummaries.filter(function(p) { return !p.isComplete && p.completedStitches > 0 && p.totalStitches > 0; }).sort(function(a, b) { return (a.totalStitches - a.completedStitches) - (b.totalStitches - b.completedStitches); });
-    if (inProg.length > 0) {
-      var p = inProg[0];
-      var rem = p.totalStitches - p.completedStitches;
-      var rDates = Array.from(new Set((p.statsSessions || []).map(function(s) { return s.date; }))).sort().reverse().slice(0, 14);
-      var rSt = (p.statsSessions || []).filter(function(s) { return rDates.indexOf(s.date) >= 0; }).reduce(function(sum, s) { return sum + (s.netStitches || 0); }, 0);
-      var apd = rDates.length > 0 ? rSt / rDates.length : 0;
-      if (apd > 0) {
-        var daysLeft = Math.ceil(rem / apd);
-        var estD = new Date(); estD.setDate(estD.getDate() + daysLeft);
-        result.push({icon: 'calendar', color: 'coral', text: p.name + ' est. complete: ' + formatDateReadable(formatYMD(estD)) + ' at current pace'});
+    // Unified completion rule (S6): exclude if stitch-count complete OR user
+    // explicitly marked finished. Use engine for ETA (S4) so all three stats
+    // pages produce consistent projections.
+    var inProg = projectSummaries.filter(function(p) { return !p.isComplete && p.finishStatus !== 'completed' && p.completedStitches > 0 && p.totalStitches > 0; }).sort(function(a, b) { return (a.totalStitches - a.completedStitches) - (b.totalStitches - b.completedStitches); });
+    if (inProg.length > 0 && typeof InsightsEngine !== 'undefined' && InsightsEngine.generateProjections) {
+      var projs = InsightsEngine.generateProjections(inProg);
+      var proj = projs.find(function(pr) { return pr.status === 'projected'; });
+      if (proj && proj.projectedText) {
+        result.push({icon: 'calendar', color: 'coral', text: proj.name + ': ' + proj.projectedText});
       }
     }
     var firstDate = allSessions.reduce(function(min, s) { return (s.date && s.date < min) ? s.date : min; }, allSessions[0].date || '');
@@ -1691,7 +1678,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
       React.createElement('div', {className: 'gsd-streak-flame'}, Icons.fire()),
       React.createElement('div', {className: 'gsd-streak-body'},
         React.createElement('div', {className: 'gsd-streak-num'}, globalStreak.current + ' day' + (globalStreak.current !== 1 ? 's' : '')),
-        React.createElement('div', {className: 'gsd-streak-label'}, globalStreak.current > 0 ? 'Keep it going \u2014 stitch today!' : 'Start a new streak!')
+        React.createElement('div', {className: 'gsd-streak-label'}, globalStreak.current > 0 ? 'Daily streak \u2014 keep it going!' : 'Start your daily streak!')
       ),
       React.createElement('div', {className: 'gsd-streak-best'}, 'Best: ' + globalStreak.longest + ' days')
     ),

@@ -597,8 +597,22 @@ const hasLoadedOnceRef=useRef(false);
 // calls the latest handleEditInCreator closure (which captures current state).
 const _editInCreatorRef=useRef(null);
 const[fabricCt,setFabricCt]=useState(14);
-const[skeinPrice,setSkeinPrice]=useState(DEFAULT_SKEIN_PRICE);
-const[stitchSpeed,setStitchSpeed]=useState(40);
+const prefs = window.useTrackerPrefs();
+const { skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed, statsSettings, setStatsSettings } = prefs;
+const canvas = window.useCanvasOverlays({ sW });
+const { stitchView, setStitchView, stitchZoom, setStitchZoom, stitchZoomRef,
+  highlightSkipDone, setHighlightSkipDone, onlyStarted, setOnlyStarted,
+  trackerDimLevel, setTrackerDimLevel, trackerFabricColour, setTrackerFabricColour,
+  trackerCanvasTexture, setTrackerCanvasTexture, paletteDetail, setPaletteDetail,
+  highlightMode, setHighlightMode, tintColor, setTintColor, tintOpacity, setTintOpacity,
+  spotDimOpacity, setSpotDimOpacity, antsOffset, setAntsOffset,
+  hlIntroSeen, setHlIntroSeen, hlIntroBannerVisible, setHlIntroBannerVisible, hlIntroTimerRef,
+  countingAidsEnabled, setCountingAidsEnabled, countRunMin, setCountRunMin,
+  countRunDir, setCountRunDir, countNinjaEnabled, setCountNinjaEnabled,
+  countingAidsCanvasRef, countingAidsRafRef,
+  focusOverlayCanvasRef, breadcrumbCanvasRef, threadUsageCanvasRef,
+  hlRow, setHlRow, hlCol, setHlCol, selectedColorId, setSelectedColorId,
+  scs, fitSZ } = canvas;
 
 const[loadError,setLoadError]=useState(null);
 const[copied,setCopied]=useState(null);
@@ -613,49 +627,7 @@ const[dockY,setDockY]=useState(()=>{
   try{const v=parseInt(localStorage.getItem("tracker_dock_y")||"",10);return Number.isFinite(v)?v:40;}catch(_){return 40;}
 });
 useEffect(()=>{try{localStorage.setItem("tracker_dock_y",String(dockY));}catch(_){}},[dockY]);
-// ── Phase 4 (UX-12) — wake-lock chip ──
-// Holds the WakeLockSentinel returned by navigator.wakeLock.request when active.
-// Re-acquired on next session if the user previously toggled it on (UserPrefs).
-const wakeLockRef=useRef(null);
-const[wakeLockActive,setWakeLockActive]=useState(false);
-const releaseWakeLock=useCallback(async()=>{
-  if(wakeLockRef.current){try{await wakeLockRef.current.release();}catch(_){}wakeLockRef.current=null;}
-  setWakeLockActive(false);
-},[]);
-const acquireWakeLock=useCallback(async()=>{
-  try{
-    if(typeof navigator==='undefined'||!navigator.wakeLock||!navigator.wakeLock.request)return false;
-    const sentinel=await navigator.wakeLock.request('screen');
-    wakeLockRef.current=sentinel;
-    setWakeLockActive(true);
-    sentinel.addEventListener&&sentinel.addEventListener('release',()=>{setWakeLockActive(false);wakeLockRef.current=null;});
-    return true;
-  }catch(_){setWakeLockActive(false);return false;}
-},[]);
-const toggleWakeLock=useCallback(async()=>{
-  if(wakeLockActive){
-    await releaseWakeLock();
-    try{if(window.UserPrefs)window.UserPrefs.set('trackerWakeLock',false);}catch(_){}
-  }else{
-    const ok=await acquireWakeLock();
-    try{if(window.UserPrefs)window.UserPrefs.set('trackerWakeLock',!!ok);}catch(_){}
-    if(!ok){try{if(window.Toast&&window.Toast.show)window.Toast.show({message:"Screen wake-lock not available on this browser.",type:"warn"});}catch(_){}}
-  }
-},[wakeLockActive,acquireWakeLock,releaseWakeLock]);
-useEffect(()=>{
-  let cancelled=false;
-  try{
-    const want=window.UserPrefs&&window.UserPrefs.get('trackerWakeLock');
-    if(want){acquireWakeLock().then(ok=>{if(cancelled&&ok)releaseWakeLock();});}
-  }catch(_){}
-  function onVis(){
-    if(document.visibilityState==='visible'){
-      try{const want=window.UserPrefs&&window.UserPrefs.get('trackerWakeLock');if(want&&!wakeLockRef.current)acquireWakeLock();}catch(_){}
-    }
-  }
-  document.addEventListener('visibilitychange',onVis);
-  return()=>{cancelled=true;document.removeEventListener('visibilitychange',onVis);releaseWakeLock();};
-},[acquireWakeLock,releaseWakeLock]);
+const { wakeLockActive, toggleWakeLock } = window.useWakeLock();
 // Tag the document body with `tracker-mobile` while the Tracker is mounted on a
 // touch / narrow viewport. CSS scopes the new bottom action bar and quick-
 // switcher drawer to this class so desktop layout is untouched.
@@ -759,6 +731,8 @@ const[projectPickerOpen,setProjectPickerOpen]=useState(false);
 const[projectPickerList,setProjectPickerList]=useState([]);
 const[preferencesOpen,setPreferencesOpen]=useState(false);
 const[shortcutsHintDismissed,setShortcutsHintDismissed]=useState(()=>{try{return !!localStorage.getItem("shortcuts_hint_dismissed");}catch(_){return false;}});
+const[trackerLoadCount,setTrackerLoadCount]=useState(()=>{try{const n=parseInt(localStorage.getItem("cs_trackerHintLoadCount")||"0",10);return isNaN(n)?0:n;}catch(_){return 0;}});
+const hintLoadCountedRef=useRef(false);
 const [pdfSettings, setPdfSettings] = useState(DEFAULT_PDF_SETTINGS);
 const showCtr=true;
 const[bsLines,setBsLines]=useState([]);
@@ -778,122 +752,14 @@ const[trackHistory,setTrackHistory]=useState([]);
 const[redoStack,setRedoStack]=useState([]);
 const TRACK_HISTORY_MAX=50;
 
-// ── Incremental stitch counters ──
-// T-5 invariant: `doneCountRef.current` and `colourDoneCountsRef.current`
-// MUST be derivable from (pat, done, halfStitches, halfDone) at all times.
-// There are exactly two valid ways to keep them in sync:
-//   1. Full rebuild — `recomputeAllCounts(pat, done, halfStitches, halfDone)`
-//      after any change that is not a single-cell flip (load, undo, paste,
-//      regenerate, palette swap, halfStitches mutation, etc.).
-//   2. Incremental — `applyDoneCountsDelta(changes, pat, newDone)` after a
-//      stitch flip where you know exactly which indices changed. Halves
-//      always go through path 1.
-// If you mutate `done` and forget both, the counter (`Stitches done` chip,
-// rail progress bars, milestone celebrations, autosave snapshot) silently
-// drifts. Add a recomputeAllCounts call when in doubt — it's O(w·h) but
-// still <2 ms on 300×300 grids.
-const doneCountRef=useRef(0);
-const colourDoneCountsRef=useRef({});
-const[countsVer,setCountsVer]=useState(0);
-function recomputeAllCounts(patArr,doneArr,hs,hd){
-  let dc=0,cdc={};
-  if(patArr){
-    for(let i=0;i<patArr.length;i++){const id=patArr[i].id;if(id==="__skip__"||id==="__empty__")continue;if(!cdc[id])cdc[id]={total:0,done:0,halfTotal:0,halfDone:0};cdc[id].total++;if(doneArr&&doneArr[i]){dc++;cdc[id].done++;}}
-    if(hs)hs.forEach(function(hsv,idx){
-      if(hsv.fwd){var id=hsv.fwd.id;if(!cdc[id])cdc[id]={total:0,done:0,halfTotal:0,halfDone:0};cdc[id].halfTotal++;var hdv=hd&&hd.get(idx);if(hdv&&hdv.fwd)cdc[id].halfDone++;}
-      if(hsv.bck){var id=hsv.bck.id;if(!cdc[id])cdc[id]={total:0,done:0,halfTotal:0,halfDone:0};cdc[id].halfTotal++;var hdv=hd&&hd.get(idx);if(hdv&&hdv.bck)cdc[id].halfDone++;}
-    });
-  }
-  doneCountRef.current=dc;colourDoneCountsRef.current=cdc;setCountsVer(function(v){return v+1;});
-}
-function applyDoneCountsDelta(changes,patArr,newDoneArr){
-  if(!changes||!changes.length||!patArr)return;
-  var dc=doneCountRef.current,cdc=colourDoneCountsRef.current;
-  // Shallow-copy only affected colour entries
-  var touched={};
-  for(var i=0;i<changes.length;i++){
-    var idx=changes[i].idx,oldV=changes[i].oldVal,newV=newDoneArr[idx];
-    if(oldV===newV)continue;
-    var id=patArr[idx].id;if(id==="__skip__"||id==="__empty__")continue;
-    if(!touched[id]){touched[id]=true;cdc[id]=cdc[id]?{total:cdc[id].total,done:cdc[id].done,halfTotal:cdc[id].halfTotal,halfDone:cdc[id].halfDone}:{total:0,done:0,halfTotal:0,halfDone:0};}
-    if(oldV&&!newV){dc--;cdc[id].done--;}
-    else if(!oldV&&newV){dc++;cdc[id].done++;}
-  }
-  doneCountRef.current=dc;colourDoneCountsRef.current=cdc;setCountsVer(function(v){return v+1;});
-}
-
-const[statsSessions,setStatsSessions]=useState([]);
-const totalTime=useMemo(()=>{if(!statsSessions||statsSessions.length===0)return 0;return statsSessions.reduce(function(sum,s){return sum+getSessionSeconds(s);},0);},[statsSessions]);
-const[statsSettings,setStatsSettings]=useState({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,useActiveDays:true});
 const[statsView,setStatsView]=useState(false);
 const[statsTab,setStatsTab]=useState('all');
 const[trackerPreviewOpen,setTrackerPreviewOpen]=useState(false);
 const[trackerPreviewLevel,setTrackerPreviewLevel]=useState(2);
-const[celebration,setCelebration]=useState(null);
-const celebratedRef=useRef(new Set());
-const goalCelebrationRef=useRef({daily:false,weekly:false,monthly:false});
-const currentAutoSessionRef=useRef(null);
-const pendingColoursRef=useRef(new Set());
-const pendingMilestonesRef=useRef([]);
-const autoIdleTimerRef=useRef(null);
-const prevAutoCountRef=useRef({done:0,halfDone:0});
-const justLoadedRef=useRef(false);
-const justLoadedSettlePassRef=useRef(0);
-const autoStatsRef=useRef({doneCount:0,totalStitchable:0});
-const finaliseAutoSessionRef=useRef(null);
-// Idle threshold (trackerIdleMinutes): read fresh on each timer arm so a
-// settings change applies on the next stroke without restarting the session.
-// 0 = never auto-finalise the session.
-function getIdleThresholdMs(){
-  try{
-    var m=window.UserPrefs&&window.UserPrefs.get("trackerIdleMinutes");
-    if(m===0)return Infinity; // never auto-finalise
-    if(typeof m==="number"&&m>0)return m*60*1000;
-  }catch(_){}
-  return 10*60*1000;
-}
-// Gap cap (trackerActiveGapCapSec): maximum dwell between stitches credited
-// as active time. Gaps longer than this contribute only capMs — natural
-// dwell (counting, rethreading) is credited; walk-away time is not. Read
-// fresh on each call so preference changes apply immediately to the live timer.
-// Clamped to [15, 600] seconds.
-function getActiveGapCapMs(){
-  try{
-    var s=window.UserPrefs&&window.UserPrefs.get("trackerActiveGapCapSec");
-    if(typeof s==="number"&&Number.isFinite(s))return Math.min(600,Math.max(15,s))*1000;
-  }catch(_){}
-  return 90*1000;
-}
-// Persistent milestones, session onboarding, session note toast
-const[achievedMilestones,setAchievedMilestones]=useState([]);
-const[sessionOnboardingShown,setSessionOnboardingShown]=useState(()=>{try{return !!localStorage.getItem("cs_sessionOnboardingDone");}catch(_){return false;}});
-const[sessionSavedToast,setSessionSavedToast]=useState(null);
-const isUnloadingRef=useRef(false);
-// Highlight mode intro hint (Option 4)
-const[hlIntroSeen,setHlIntroSeen]=useState(()=>{try{return !!localStorage.getItem("cs_hlIntroSeen");}catch(_){return false;}});
-const[hlIntroBannerVisible,setHlIntroBannerVisible]=useState(false);
-const hlIntroTimerRef=useRef(null);
-
-// Variables for auto-session live display
-const [liveAutoElapsed, setLiveAutoElapsed] = useState(0);
-const [liveAutoStitches, setLiveAutoStitches] = useState(0);
-const [liveAutoIsPaused, setLiveAutoIsPaused] = useState(false);
-const autoSessionDisplayTimerRef = useRef(null);
-
-// Manual pause/resume — state + ref mirror for shortcut handler
-const [manuallyPaused, setManuallyPaused] = useState(false);
-const manuallyPausedRef = useRef(false);
-
 const[stitchMode,setStitchMode]=useState("track");
-const[stitchView,setStitchView]=useState(()=>{try{var v=window.UserPrefs&&window.UserPrefs.get("trackerDefaultView");return (v==="symbol"||v==="colour"||v==="highlight")?v:"symbol";}catch(_){return "symbol";}});
 // R11: Row-by-row navigation mode — session-local, not persisted.
 const[rowModeActive,setRowModeActive]=useState(false);
 const[currentRow,setCurrentRow]=useState(0);
-// Persist sticky "default view" so the choice survives reloads (mirrors
-// the highlight-mode behaviour) — the prefs UI reads/writes the same key.
-useEffect(()=>{try{if(window.UserPrefs)window.UserPrefs.set("trackerDefaultView",stitchView);}catch(_){}},[stitchView]);
-const[stitchZoom,setStitchZoom]=useState(1);
-useEffect(()=>{stitchZoomRef.current=stitchZoom;},[stitchZoom]);
 const[isEditMode,setIsEditMode]=useState(false);
 const[originalPaletteState,setOriginalPaletteState]=useState(null);
 // V2: single-level undo snapshot (replaces editHistory array)
@@ -909,75 +775,6 @@ const[showExitEditModal,setShowExitEditModal]=useState(false);
 const[drawer,setDrawer]=useState(false);
 const[focusColour,setFocusColour]=useState(null);
 const[showNavHelp,setShowNavHelp]=useState(false);
-const[highlightSkipDone,setHighlightSkipDone]=useState(()=>{try{var v=window.UserPrefs&&window.UserPrefs.get("trackerHighlightSkipDone");return v!==false;}catch(_){return true;}});
-const[onlyStarted,setOnlyStarted]=useState(()=>{try{return !!(window.UserPrefs&&window.UserPrefs.get("trackerOnlyStarted"));}catch(_){return false;}});
-useEffect(()=>{try{if(window.UserPrefs)window.UserPrefs.set("trackerHighlightSkipDone",highlightSkipDone);}catch(_){}},[highlightSkipDone]);
-useEffect(()=>{try{if(window.UserPrefs)window.UserPrefs.set("trackerOnlyStarted",onlyStarted);}catch(_){}},[onlyStarted]);
-const[trackerDimLevel,setTrackerDimLevel]=useState(()=>{
-  try{var pv=window.UserPrefs&&window.UserPrefs.get("trackerDimLevel");if(typeof pv==="number"&&pv>=0&&pv<=1)return pv;}catch(_){}
-  try{return parseFloat(localStorage.getItem("cs_trDimLv")||"0.1");}catch(_){return 0.1;}
-});
-useEffect(()=>{try{localStorage.setItem("cs_trDimLv",String(trackerDimLevel));}catch(_){}try{if(window.UserPrefs)window.UserPrefs.set("trackerDimLevel",trackerDimLevel);}catch(_){}},[trackerDimLevel]);
-// color-2 (B3): tracker canvas background fabric colour. Validated as #RRGGBB.
-const[trackerFabricColour,setTrackerFabricColour]=useState(()=>{
-  try{var pv=window.UserPrefs&&window.UserPrefs.get("trackerFabricColour");if(typeof pv==="string"&&/^#[0-9a-fA-F]{6}$/.test(pv))return pv;}catch(_){}
-  return "#FFFFFF";
-});
-// color-11: thread sheen texture toggle for tracker canvas
-const[trackerCanvasTexture,setTrackerCanvasTexture]=useState(()=>{
-  try{return !!(window.UserPrefs&&window.UserPrefs.get("trackerCanvasTexture"));}catch(_){return false;}
-});
-useEffect(()=>{
-  function _onTCT(e){if(e&&e.detail&&e.detail.key==="trackerCanvasTexture")setTrackerCanvasTexture(!!e.detail.value);}
-  document.addEventListener("cs:prefsChanged",_onTCT);
-  return()=>document.removeEventListener("cs:prefsChanged",_onTCT);
-},[]);
-// color-3 (C2): swatch detail popover state — opened when user clicks the
-// small palette swatch in the colours sidebar.
-const[paletteDetail,setPaletteDetail]=useState(null);
-useEffect(()=>{try{if(window.UserPrefs&&/^#[0-9a-fA-F]{6}$/.test(trackerFabricColour))window.UserPrefs.set("trackerFabricColour",trackerFabricColour);}catch(_){}},[trackerFabricColour]);
-const[highlightMode,setHighlightMode]=useState(()=>{
-  // Prefer UserPrefs (synced with the prefs modal); fall back to the legacy
-  // cs_hlMode key for users created before the pref existed; finally default.
-  try{
-    var pv=window.UserPrefs&&window.UserPrefs.get("trackerDefaultHighlightMode");
-    if(pv==="isolate"||pv==="outline"||pv==="tint"||pv==="spotlight")return pv;
-  }catch(_){}
-  try{return localStorage.getItem("cs_hlMode")||"isolate";}catch(_){return "isolate";}
-});
-const[tintColor,setTintColor]=useState(()=>{
-  try{var pv=window.UserPrefs&&window.UserPrefs.get("trackerTintColour");if(typeof pv==="string"&&/^#[0-9a-f]{6}$/i.test(pv))return pv;}catch(_){}
-  try{return localStorage.getItem("cs_tintColor")||"#FFD700";}catch(_){return "#FFD700";}
-});
-const[tintOpacity,setTintOpacity]=useState(()=>{
-  try{var pv=window.UserPrefs&&window.UserPrefs.get("trackerTintOpacity");if(typeof pv==="number"&&pv>=0&&pv<=1)return pv;}catch(_){}
-  try{return parseFloat(localStorage.getItem("cs_tintOp")||"0.4");}catch(_){return 0.4;}
-});
-const[spotDimOpacity,setSpotDimOpacity]=useState(()=>{
-  try{var pv=window.UserPrefs&&window.UserPrefs.get("trackerSpotDimOpacity");if(typeof pv==="number"&&pv>=0&&pv<=1)return pv;}catch(_){}
-  try{return parseFloat(localStorage.getItem("cs_spotDimOp")||"0.15");}catch(_){return 0.15;}
-});
-useEffect(()=>{try{localStorage.setItem("cs_tintColor",tintColor);}catch(_){}try{if(window.UserPrefs)window.UserPrefs.set("trackerTintColour",tintColor);}catch(_){}},[tintColor]);
-useEffect(()=>{try{localStorage.setItem("cs_tintOp",String(tintOpacity));}catch(_){}try{if(window.UserPrefs)window.UserPrefs.set("trackerTintOpacity",tintOpacity);}catch(_){}},[tintOpacity]);
-useEffect(()=>{try{localStorage.setItem("cs_spotDimOp",String(spotDimOpacity));}catch(_){}try{if(window.UserPrefs)window.UserPrefs.set("trackerSpotDimOpacity",spotDimOpacity);}catch(_){}},[spotDimOpacity]);
-const[antsOffset,setAntsOffset]=useState(0);
-useEffect(()=>{
-  try{localStorage.setItem("cs_hlMode",highlightMode);}catch(_){}
-  try{if(window.UserPrefs)window.UserPrefs.set("trackerDefaultHighlightMode",highlightMode);}catch(_){}
-},[highlightMode]);
-// Show one-time intro hint on first entry to Highlight mode (Option 4)
-useEffect(()=>{
-  if(stitchView==="highlight"&&!hlIntroSeen){
-    setHlIntroBannerVisible(true);
-    setHlIntroSeen(true);
-    try{localStorage.setItem("cs_hlIntroSeen","1");}catch(_){}
-    clearTimeout(hlIntroTimerRef.current);
-    hlIntroTimerRef.current=setTimeout(()=>setHlIntroBannerVisible(false),8000);
-  }
-  if(stitchView!=="highlight")clearTimeout(hlIntroTimerRef.current);
-  return()=>clearTimeout(hlIntroTimerRef.current);
-},[stitchView]);
-useEffect(()=>{manuallyPausedRef.current=manuallyPaused;},[manuallyPaused]);
 const[advanceToast,setAdvanceToast]=useState(null);
 const[parkMarkers,setParkMarkers]=useState([]);
 // Multi-colour parking — Option C: per-colour visibility map.
@@ -1017,17 +814,6 @@ useEffect(()=>{try{localStorage.setItem("cs_focusEnabled",focusEnabled?"1":"0");
 useEffect(()=>{try{localStorage.setItem("cs_colourSeq",colourSequence);}catch(_){}},[colourSequence]);
 useEffect(()=>{try{localStorage.setItem("cs_startCorner",startCorner);}catch(_){}},[startCorner]);
 useEffect(()=>{try{localStorage.setItem("cs_bcVisible",breadcrumbVisible?"1":"0");}catch(_){}},[breadcrumbVisible]);
-// ── Counting aids ──
-const[countingAidsEnabled,setCountingAidsEnabled]=useState(()=>{try{return localStorage.getItem("cs_countAids")!=="0";}catch(_){return true;}});
-const[countRunMin,setCountRunMin]=useState(()=>{try{return parseInt(localStorage.getItem("cs_countRunMin")||"3");}catch(_){return 3;}});
-const[countRunDir,setCountRunDir]=useState(()=>{try{return localStorage.getItem("cs_countRunDir")||"h";}catch(_){return"h";}});
-const[countNinjaEnabled,setCountNinjaEnabled]=useState(()=>{try{return localStorage.getItem("cs_countNinja")!=="0";}catch(_){return true;}});
-const countingAidsCanvasRef=useRef(null);
-const countingAidsRafRef=useRef(null);
-useEffect(()=>{try{localStorage.setItem("cs_countAids",countingAidsEnabled?"1":"0");}catch(_){}},[countingAidsEnabled]);
-useEffect(()=>{try{localStorage.setItem("cs_countRunMin",String(countRunMin));}catch(_){}},[countRunMin]);
-useEffect(()=>{try{localStorage.setItem("cs_countRunDir",countRunDir);}catch(_){}},[countRunDir]);
-useEffect(()=>{try{localStorage.setItem("cs_countNinja",countNinjaEnabled?"1":"0");}catch(_){}},[countNinjaEnabled]);
 const[blockAdvanceToast,setBlockAdvanceToast]=useState(null);
 const prevFocusBlockDoneRef=useRef(false);
 const blockAdvanceTimerRef=useRef(null);
@@ -1041,17 +827,11 @@ const[sessionSummaryData,setSessionSummaryData]=useState(null);
 // project already has stitching sessions. Cleared via Continue/Stats/Switch/Close.
 const[resumeRecap,setResumeRecap]=useState(null);
 const resumeRecapShownRef=useRef(new Set());
-const focusOverlayCanvasRef=useRef(null);
-const breadcrumbCanvasRef=useRef(null);
-const[hlRow,setHlRow]=useState(-1);
-const[hlCol,setHlCol]=useState(-1);
 const dragStateRef=useRef({isDragging:false, dragVal:1});
 const dragChangesRef=useRef([]);
 const scrollRafRef=useRef(null);
 const lastClickedRef=useRef(null); // { idx, row, col, val } for shift+click range
 // C3: range-select state lives inside useDragMark (long-press anchor + shift+click).
-
-const[selectedColorId,setSelectedColorId]=useState(null);
 
 // ═══ Half-stitch state ═══
 // Sparse map: cellIdx → { fwd?: {id,rgb,lab,name,type,symbol}, bck?: {id,rgb,lab,name,type,symbol} }
@@ -1072,7 +852,6 @@ const isSpaceDownRef=useRef(false);
 const spaceDownTimeRef=useRef(0);
 const spacePannedRef=useRef(false);
 const touchStateRef=useRef({mode:"none",startX:0,startY:0,pinchDist:0,tapIdx:-1,tapVal:0,pinchAnchorCanvas:null,pinchAnchorScreen:null});
-const stitchZoomRef=useRef(1);
 const hasTouchRef=useRef(typeof window!=="undefined"&&"ontouchstart" in window);
 // Stable handler refs — point to latest function each render; listeners attach once
 const touchStartHandlerRef=useRef(null);
@@ -1137,7 +916,6 @@ const analysisRequestIdRef=useRef(0);
 const analysisThrottleRef=useRef(null);
 // Thread usage visualisation: null | "distance" | "cluster"
 const[threadUsageMode,setThreadUsageMode]=useState(null);
-const threadUsageCanvasRef=useRef(null);
 const threadUsageRafRef=useRef(null);
 // Next-stitch recommendations
 const[recDismissed,setRecDismissed]=useState(()=>new Set());
@@ -1370,6 +1148,11 @@ const projectIdRef=useRef(null);    // current project's storage ID
 const createdAtRef=useRef(null);    // stable createdAt ISO string for the active project
 const lastSnapshotRef=useRef(null); // freshest serialised project for beforeunload
 const v3FieldsRef=useRef({});       // preserve v3 stats fields across save round-trips
+const autoSaveDirtyRef=useRef(false);
+const session=window.useAutoSession({projectIdRef,v3FieldsRef,autoSaveDirtyRef,statsSettings});
+const{statsSessions,setStatsSessions,totalTime,liveAutoElapsed,liveAutoStitches,liveAutoIsPaused,manuallyPaused,setManuallyPaused,manuallyPausedRef,celebration,setCelebration,celebratedRef,goalCelebrationRef,currentAutoSessionRef,finaliseAutoSessionRef,pendingColoursRef,pendingMilestonesRef,prevAutoCountRef,justLoadedRef,justLoadedSettlePassRef,autoStatsRef,isUnloadingRef,achievedMilestones,setAchievedMilestones,sessionOnboardingShown,setSessionOnboardingShown,sessionSavedToast,setSessionSavedToast,recordAutoActivity,editSessionNote}=session;
+const counts=window.useStitchCounts({pat,done,halfStitches,halfDone});
+const{doneCountRef,colourDoneCountsRef,countsVer,recomputeAllCounts,applyDoneCountsDelta}=counts;
 const[projectName,setProjectName]=useState("");
 const[projectDesigner,setProjectDesigner]=useState("");
 const[projectDescription,setProjectDescription]=useState("");
@@ -1463,8 +1246,6 @@ const progressChipRef=useRef(null);
 
 const colourDoneCounts=countsVer>=0?colourDoneCountsRef.current:{};
 const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total,backstitch:bsLines.length,quarter:0,petite:0,french_knot:0,long_stitch:0}),[totalStitchable,halfStitchCounts.total,bsLines.length]);
-// Full recompute only on structural changes (pattern load, half-stitch structure edits)
-useEffect(()=>{recomputeAllCounts(pat,done,halfStitches,halfDone);},[pat,halfStitches]);
 // After recomputeAllCounts has run post-load, snap prevAutoCountRef to the real
 // counts so the auto-detect effect below never sees a spurious delta.
 useEffect(()=>{if(justLoadedRef.current){prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||0};justLoadedRef.current=false;}},[countsVer]);
@@ -1538,9 +1319,6 @@ useEffect(()=>{
 },[countsVer,focusColour,stitchView,highlightSkipDone,pal]);
 
 const estCompletion=useMemo(()=>{let t=totalTime+liveAutoElapsed;if(doneCount<1||t<60)return null;return Math.round((totalStitchable-doneCount)*(t/doneCount));},[totalTime,liveAutoElapsed,doneCount,totalStitchable]);
-const scs=useMemo(()=>Math.max(2,Math.round(20*stitchZoom)),[stitchZoom]);
-const fitSZ=useCallback(()=>setStitchZoom(Math.min(3,Math.max(0.05,750/(sW*20)))),[sW]);
-
 const skeinData=useMemo(()=>{
   if(!pal)return[];
   let map={};
@@ -1786,177 +1564,6 @@ useEffect(()=>{
   prevRtConsumptionRef.current=rtConsumption;
 },[rtConsumption,wastePrefs.enabled]);
 
-
-// ═══ Auto-session recording ═══
-function getStitchingDateLocal(now){
-  // NOTE: attribution uses local date at session-start time. Cross-midnight
-  // sessions are attributed to the day they started. A future PR may revisit
-  // this; do not change attribution semantics here.
-  try{
-    const d=new Date(now);
-    const deh=(statsSettings&&statsSettings.dayEndHour)||0;
-    if(deh>0&&d.getHours()<deh)d.setDate(d.getDate()-1);
-    const y=d.getFullYear(),m=('0'+(d.getMonth()+1)).slice(-2),day=('0'+d.getDate()).slice(-2);
-    return y+'-'+m+'-'+day;
-  }catch(e){const d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
-}
-function recordAutoActivity(completed,undone){
-  try{
-    const now=Date.now();
-    if(!currentAutoSessionRef.current){
-      // Guard: don't start a new session if the tab is unloading.
-      if(isUnloadingRef.current)return;
-      currentAutoSessionRef.current={
-        id:'sess_'+now,
-        date:getStitchingDateLocal(now),
-        startTime:new Date(now).toISOString(),
-        stitchesCompleted:0,
-        stitchesUndone:0,
-        coloursWorked:new Set(),
-        // Event log: timestamped events drive all duration computation.
-        eventLog:[{kind:'start',t:now}]
-      };
-      // Seed hidden state if the tab is already hidden when the session starts.
-      if(document.hidden){
-        currentAutoSessionRef.current.eventLog.push({kind:'hidden',t:now});
-      }
-      setLiveAutoStitches(0);
-      setLiveAutoElapsed(0);
-      setLiveAutoIsPaused(document.hidden);
-    }
-    // Auto-resume manual pause on stitch activity (stitch implies intent to continue).
-    if(manuallyPausedRef.current){
-      currentAutoSessionRef.current.eventLog.push({kind:'manualResume',t:now});
-      manuallyPausedRef.current=false;
-      setManuallyPaused(false);
-    }
-    // Record the stitch event (net delta for the activity burst).
-    currentAutoSessionRef.current.eventLog.push({kind:'stitch',t:now,delta:completed-undone});
-    currentAutoSessionRef.current.stitchesCompleted+=completed;
-    currentAutoSessionRef.current.stitchesUndone+=undone;
-    // DEFECT-011: a flurry of undos right after enabling Live tracking can drive
-    // stitchesUndone past stitchesCompleted (the undos refer to stitches done
-    // in a *previous* session). Clamp the displayed counter at 0 — anything
-    // negative is meaningless and would also break the "stitches active" gate
-    // in the footer (`liveAutoStitches > 0`).
-    setLiveAutoStitches(Math.max(0, currentAutoSessionRef.current.stitchesCompleted-currentAutoSessionRef.current.stitchesUndone));
-    // Update liveAutoIsPaused from log (manual resume above may have changed it).
-    setLiveAutoIsPaused(deriveIsLogPaused(currentAutoSessionRef.current.eventLog));
-    // Merge any pending colour IDs into the session
-    if(pendingColoursRef.current.size>0){
-      pendingColoursRef.current.forEach(c=>currentAutoSessionRef.current.coloursWorked.add(c));
-      pendingColoursRef.current.clear();
-    }
-    // Arm the idle-finalise timer (session lifecycle). Only fires to close
-    // the session — duration is computed from the event log, not the timer.
-    clearTimeout(autoIdleTimerRef.current);
-    var idleMs=getIdleThresholdMs();
-    if(isFinite(idleMs)){
-      autoIdleTimerRef.current=setTimeout(()=>{try{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();}catch(e){}},idleMs);
-    }
-  }catch(e){}
-}
-function finaliseAutoSession(){
-  try{
-    const session=currentAutoSessionRef.current;
-    if(!session||session.stitchesCompleted+session.stitchesUndone===0){
-      currentAutoSessionRef.current=null;
-      return;
-    }
-    // Flush any colour IDs pending between the last recordAutoActivity call and now.
-    if(pendingColoursRef.current.size>0&&session.coloursWorked){
-      pendingColoursRef.current.forEach(c=>session.coloursWorked.add(c));
-      pendingColoursRef.current.clear();
-    }
-    // Duration: pure function of the event log — live display and saved value
-    // use the same clock. The cap credits the tail (natural dwell after the
-    // last stitch) and excludes any interval longer than capMs.
-    const endTimeMs=Date.now();
-    const capMs=getActiveGapCapMs();
-    const activeDurationMs=Math.max(0,computeActiveMs(session.eventLog,endTimeMs,capMs));
-    const ref=autoStatsRef.current||{doneCount:0,totalStitchable:0};
-    const tc=ref.doneCount||0,ts=ref.totalStitchable||0;
-    const finalised={
-      id:session.id,
-      date:session.date,
-      startTime:session.startTime,
-      endTime:new Date(endTimeMs).toISOString(),
-      durationSeconds:Math.max(1,Math.round(activeDurationMs/1000)),
-      durationMinutes:Math.max(1,Math.round(activeDurationMs/60000)),
-      stitchesCompleted:session.stitchesCompleted,
-      stitchesUndone:session.stitchesUndone,
-      netStitches:session.stitchesCompleted-session.stitchesUndone,
-      totalAtEnd:tc,
-      percentAtEnd:ts>0?Math.round((tc/ts)*1000)/10:0,
-      note:'',
-      coloursWorked:session.coloursWorked?[...session.coloursWorked]:[],
-    };
-    if(pendingMilestonesRef.current.length>0){
-      finalised.milestones=pendingMilestonesRef.current.slice();
-      pendingMilestonesRef.current=[];
-    }
-    setStatsSessions(prev=>[...(prev||[]),finalised]);
-    // Synchronous localStorage backup so the session survives if the tab is closed
-    // before the 5-second auto-save timer fires (beforeunload IDB writes are async
-    // and may not complete in time). Cleared once the auto-save timer succeeds.
-    try{if(projectIdRef.current)localStorage.setItem('cs_pending_session_'+projectIdRef.current,JSON.stringify(finalised));}catch(_){}
-    // Update lastTouchedAt and finishStatus in v3FieldsRef.
-    // stitchLog is now derived from statsSessions in buildSnapshot() — no direct mutation needed.
-    if(projectIdRef.current){
-      const _now=new Date();
-      const _prev=v3FieldsRef.current||{};
-      const _newV3=Object.assign({},_prev,{lastTouchedAt:_now.toISOString()});
-      if(_prev.finishStatus==='planned'&&finalised.netStitches>0){_newV3.finishStatus='active';}
-      v3FieldsRef.current=_newV3;
-      autoSaveDirtyRef.current=true;
-      if(typeof invalidateStatsCache==='function')invalidateStatsCache();
-    }
-    currentAutoSessionRef.current=null;
-    clearTimeout(autoIdleTimerRef.current);
-    // Clear pause state synchronously so the display timer doesn't see stale state.
-    manuallyPausedRef.current=false;
-    setManuallyPaused(false);
-    setLiveAutoIsPaused(false);
-    setLiveAutoElapsed(0);
-    setLiveAutoStitches(0);
-    // Show note prompt toast (not during page unload)
-    if(!isUnloadingRef.current&&finalised.netStitches>0){
-      setSessionSavedToast({sessionId:finalised.id,stitches:finalised.netStitches,durationMin:finalised.durationMinutes,showNoteInput:false,noteText:''});
-    }
-    return finalised;
-  }catch(e){currentAutoSessionRef.current=null;return null;}
-}
-finaliseAutoSessionRef.current=finaliseAutoSession;
-
-useEffect(() => {
-  function handleVisibilityChange() {
-    const isHidden = document.hidden;
-    if (currentAutoSessionRef.current) {
-      // Push visibility event to the log — computeActiveMs will exclude the
-      // hidden span automatically. No separate totalPausedMs accounting needed.
-      currentAutoSessionRef.current.eventLog.push({kind: isHidden ? 'hidden' : 'visible', t: Date.now()});
-    }
-    // Update liveAutoIsPaused (hidden overrides any other state for UI).
-    setLiveAutoIsPaused(isHidden || manuallyPausedRef.current);
-  }
-  document.addEventListener('visibilitychange', handleVisibilityChange);
-  return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-}, []);
-
-useEffect(() => {
-  autoSessionDisplayTimerRef.current = setInterval(() => {
-    if (!currentAutoSessionRef.current) return;
-    // computeActiveMs uses the same algorithm as finaliseAutoSession — the live
-    // display and the saved value agree by construction (±1 s from rounding).
-    const elapsedMs = computeActiveMs(
-      currentAutoSessionRef.current.eventLog,
-      Date.now(),
-      getActiveGapCapMs()
-    );
-    setLiveAutoElapsed(Math.floor(elapsedMs / 1000));
-  }, 1000);
-  return () => clearInterval(autoSessionDisplayTimerRef.current);
-}, []);
 // Keep autoStatsRef fresh
 useEffect(()=>{autoStatsRef.current={doneCount,totalStitchable};},[doneCount,totalStitchable]);
 // Auto-detect stitch activity from doneCount & halfDone changes
@@ -2037,19 +1644,6 @@ useEffect(()=>{
     prevAutoCountRef.current={done:curDone,halfDone:curHalf};
   }catch(e){}
 },[doneCount,halfStitchCounts.done]);
-// Session onboarding toast: auto-dismiss after 8s (only for very first session ever)
-useEffect(()=>{
-  if(!sessionOnboardingShown&&liveAutoStitches>0&&statsSessions.length===0){
-    const timer=setTimeout(()=>{setSessionOnboardingShown(true);try{localStorage.setItem("cs_sessionOnboardingDone","1");}catch(_){}},8000);
-    return()=>clearTimeout(timer);
-  }
-},[sessionOnboardingShown,liveAutoStitches,statsSessions.length]);
-// Session saved toast: auto-dismiss after 10s (unless note input is open)
-useEffect(()=>{
-  if(!sessionSavedToast||sessionSavedToast.showNoteInput)return;
-  const timer=setTimeout(()=>setSessionSavedToast(null),10000);
-  return()=>clearTimeout(timer);
-},[sessionSavedToast]);
 // Goal-completion detection — fire a celebration when any goal is first reached in this session
 useEffect(()=>{
   try{
@@ -2077,17 +1671,6 @@ useEffect(()=>{
     }
   }catch(e){}
 },[todayStitchesForBar,liveAutoStitches,statsSessions,statsSettings]);
-// Edit session note
-function editSessionNote(sessionId,noteText){
-  try{setStatsSessions(prev=>(prev||[]).map(s=>s.id===sessionId?Object.assign({},s,{note:noteText}):s));}catch(e){}
-  // Flush immediately so a tab close before the next auto-save doesn't lose the edit
-  setTimeout(function(){
-    if(typeof window.__flushProjectToIDB==='function'){
-      var flushPromise=window.__flushProjectToIDB();
-      if(flushPromise&&typeof flushPromise.catch==='function')flushPromise.catch(function(){});
-    }
-  },0);
-}
 
 // ═══ Analysis worker lifecycle ═══
 useEffect(()=>{
@@ -3784,7 +3367,6 @@ useEffect(() => {
 // Marks the project as dirty on every relevant state change but defers the
 // expensive snapshot serialisation until the 5-second debounce timer fires.
 // lastSnapshotRef is rebuilt lazily by buildSnapshot() for beforeunload.
-const autoSaveDirtyRef = useRef(false);
 const buildSnapshotRef = useRef(null);
 const buildSnapshot = () => {
   if (!pat || !pal) return null;
@@ -5487,6 +5069,13 @@ useEffect(()=>{
   return()=>el.removeEventListener("wheel",handler);
 },[!!pat]);
 
+// Increment shortcuts-hint session counter once per pattern load
+useEffect(()=>{
+  if(!pat||hintLoadCountedRef.current)return;
+  hintLoadCountedRef.current=true;
+  try{const n=Math.min(99,parseInt(localStorage.getItem("cs_trackerHintLoadCount")||"0",10)+1);localStorage.setItem("cs_trackerHintLoadCount",String(n));setTrackerLoadCount(n);}catch(_){}
+},[!!pat]);
+
 // Attach touch listeners once when pattern loads — wrapper delegates to latest handler
 // NOTE (Safari iOS): the canvas uses Touch Events (not Pointer Events) because
 // {passive:false} touch listeners are required to call preventDefault() and block
@@ -6156,7 +5745,7 @@ return(
       </div>;
       if(stitchMode==="track") return <div style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--accent-border)"}}>{hasTouchRef.current?"Tap or drag to mark · Long-press a cell, then tap the opposite corner to fill a rectangle · Pinch to zoom":"Click or drag to mark/unmark cross stitches · Shift+click or long-press for rectangle fill · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
       if(stitchMode==="navigate") return <div style={{fontSize:'var(--text-sm)',color:"var(--text-primary)",background:"var(--surface-tertiary)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)"}}>{selectedColorId?"Click to park. Shift+click to move guide.":"Click to place guide crosshair"}{hasTouchRef.current?"":" · T for track mode"}</div>;
-      if(!shortcutsHintDismissed&&pat) return <div style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} aria-label="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",lineHeight:1,padding:0,display:"inline-flex",alignItems:"center"}}>{Icons.x?Icons.x():null}</button></div>;
+      if(!shortcutsHintDismissed&&pat&&trackerLoadCount>=3) return <div style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} aria-label="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",lineHeight:1,padding:0,display:"inline-flex",alignItems:"center"}}>{Icons.x?Icons.x():null}</button></div>;
       return null;
     })()}
 
@@ -6506,6 +6095,14 @@ return(
             onClick={()=>setSessionConfigOpen(true)}
             style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",textAlign:"left",display:"flex",alignItems:"center",gap:8}}
           >{Icons.gear?Icons.gear():null}{" Session settings"}</button>
+          <button
+            onClick={()=>setStyleOnboardingOpen(true)}
+            style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",textAlign:"left",display:"flex",alignItems:"center",gap:8}}
+          >{Icons.palette?Icons.palette():null}{" Stitching style"}</button>
+          <button
+            onClick={()=>window.dispatchEvent(new Event("cs:openShortcuts"))}
+            style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",textAlign:"left",display:"flex",alignItems:"center",gap:8}}
+          >{Icons.keyboard?Icons.keyboard():null}{" Keyboard shortcuts"}</button>
           {/* RT live tracking toggle */}
           <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,cursor:"pointer",userSelect:"none"}}>
             <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Live tracking (RT)</span>

@@ -17,6 +17,7 @@ const fs = require('fs');
 const path = require('path');
 
 const trackerSrc = fs.readFileSync(path.resolve(__dirname, '..', 'tracker-app.js'), 'utf8');
+const autoSessionSrc = fs.readFileSync(path.resolve(__dirname, '..', 'useAutoSession.js'), 'utf8');
 const creatorIOSrc = fs.readFileSync(path.resolve(__dirname, '..', 'creator', 'useProjectIO.js'), 'utf8');
 const creatorMainSrc = fs.readFileSync(path.resolve(__dirname, '..', 'creator-main.js'), 'utf8');
 
@@ -208,17 +209,17 @@ describe('Complete field inventory: Creator trackerFieldsRef preservation', () =
 
 describe('Session recording uses correct dates', () => {
   test('recordAutoActivity uses getStitchingDateLocal for session date', () => {
-    const recordMatch = trackerSrc.match(/function recordAutoActivity[\s\S]*?date:getStitchingDateLocal\(now\)/);
+    const recordMatch = autoSessionSrc.match(/function recordAutoActivity[\s\S]*?date:getStitchingDateLocal\(now\)/);
     expect(recordMatch).not.toBeNull();
   });
 
   test('finaliseAutoSession preserves the original session date', () => {
-    const finalMatch = trackerSrc.match(/function finaliseAutoSession[\s\S]*?date:session\.date/);
+    const finalMatch = autoSessionSrc.match(/function finaliseAutoSession[\s\S]*?date:session\.date/);
     expect(finalMatch).not.toBeNull();
   });
 
   test('getStitchingDateLocal respects dayEndHour setting', () => {
-    const dateFunc = trackerSrc.match(/function getStitchingDateLocal\(now\)\{[\s\S]*?dayEndHour[\s\S]*?\}/);
+    const dateFunc = autoSessionSrc.match(/function getStitchingDateLocal\(now\)\{[\s\S]*?dayEndHour[\s\S]*?\}/);
     expect(dateFunc).not.toBeNull();
   });
 });
