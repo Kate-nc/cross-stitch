@@ -2760,11 +2760,6 @@ function processLoadedProject(project){
   // Install the loaded project's identity before any downstream work so a
   // later render-time failure can't cause the next auto-save to mint a copy.
   projectIdRef.current = project.id || null;
-  try {
-    if (project.id && ProjectStorage && ProjectStorage.setActiveProject) {
-      ProjectStorage.setActiveProject(project.id);
-    }
-  } catch (_) {}
   let s=project.settings||{};
   setSW(project.w||s.sW||project.settings?.w||80);
   setSH(project.h||s.sH||project.settings?.h||80);

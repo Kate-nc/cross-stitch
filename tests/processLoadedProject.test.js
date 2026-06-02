@@ -18,6 +18,16 @@ const fs = require('fs');
 // We can't run the full TrackerApp (React + browser APIs), but we can extract
 // and test the guard logic in isolation.
 const src = fs.readFileSync('./tracker-app.js', 'utf8');
+const processLoadedProjectStart = src.indexOf('function processLoadedProject(project){');
+const processLoadedProjectEnd = src.indexOf('\n\nfunction loadProjectFile', processLoadedProjectStart);
+const processLoadedProjectSrc = processLoadedProjectStart > -1 && processLoadedProjectEnd > processLoadedProjectStart
+  ? src.slice(processLoadedProjectStart, processLoadedProjectEnd)
+  : '';
+const persistProjectRecordStart = src.indexOf('function persistProjectRecord(project){');
+const persistProjectRecordEnd = src.indexOf('\n\nfunction handleEditInCreator', persistProjectRecordStart);
+const persistProjectRecordSrc = persistProjectRecordStart > -1 && persistProjectRecordEnd > persistProjectRecordStart
+  ? src.slice(persistProjectRecordStart, persistProjectRecordEnd)
+  : '';
 
 // Extract the processLoadedProject guard: the first 3 lines of the function.
 const guardMatch = src.match(
@@ -55,8 +65,9 @@ describe('processLoadedProject null guard', () => {
     expect(settingsIdx).toBeGreaterThan(idIdx);
   });
 
-  it('syncs the active-project pointer during processLoadedProject', () => {
-    expect(src).toMatch(/ProjectStorage\.setActiveProject\(project\.id\)/);
+  it('does not sync the active-project pointer before the loaded project is persisted', () => {
+    expect(processLoadedProjectSrc).not.toMatch(/ProjectStorage\.setActiveProject\(project\.id\)/);
+    expect(persistProjectRecordSrc).toMatch(/ProjectStorage\.setActiveProject\(id\)/);
   });
 
   it('uses the hook reset helper instead of touching autoIdleTimerRef directly', () => {
