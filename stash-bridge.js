@@ -184,90 +184,125 @@ const StashBridge = (() => {
   // rather than misleadingly showing 'added today' on the migration date.
   const LEGACY_EPOCH = '2020-01-01T00:00:00Z';
 
+  function _migrateThreadsToV2(threads) {
+    const migrated = {};
+    let changed = false;
+    for (const [key, val] of Object.entries(threads || {})) {
+      if (key.indexOf(':') < 0) {
+        migrated['dmc:' + key] = val;
+        changed = true;
+      } else {
+        migrated[key] = val;
+      }
+    }
+    return { threads: changed ? migrated : (threads || {}), changed: changed };
+  }
+
+  function _migrateThreadsToV3(threads) {
+    const migrated = {};
+    for (const [key, entry] of Object.entries(threads || {})) {
+      if (entry && !entry.addedAt) {
+        migrated[key] = Object.assign({}, entry, {
+          addedAt: LEGACY_EPOCH,
+          lastAdjustedAt: LEGACY_EPOCH,
+          acquisitionSource: 'legacy',
+          history: [],
+        });
+      } else {
+        migrated[key] = entry;
+      }
+    }
+    return migrated;
+  }
+
+  function _readManagerStateSnapshot(db) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("manager_state", "readonly");
+      const store = tx.objectStore("manager_state");
+      let threads = {};
+      let schemaVersion = 0;
+      let settled = 0;
+      function check() {
+        settled++;
+        if (settled === 2) resolve({ threads: threads, schemaVersion: schemaVersion });
+      }
+      const threadsReq = store.get("threads");
+      threadsReq.onsuccess = () => {
+        threads = threadsReq.result || {};
+        check();
+      };
+      threadsReq.onerror = () => reject(threadsReq.error);
+      const versionReq = store.get("schema_version");
+      versionReq.onsuccess = () => {
+        schemaVersion = Number(versionReq.result) || 0;
+        check();
+      };
+      versionReq.onerror = () => {
+        schemaVersion = 0;
+        check();
+      };
+    });
+  }
+
+  async function migrateToLatest(targetVersion) {
+    const desiredVersion = targetVersion == null ? 3 : (targetVersion >= 3 ? 3 : 2);
+    if (desiredVersion <= 2 && _migrationDone) return;
+    if (desiredVersion >= 3 && _migrationDone && _schemaVersion >= 3) return;
+    try {
+      const db = await openManagerDB();
+      try {
+        const snapshot = await _readManagerStateSnapshot(db);
+        const storedVersion = snapshot.schemaVersion;
+        const v2 = _migrateThreadsToV2(snapshot.threads || {});
+        const needV2 = v2.changed;
+        const needV3 = desiredVersion >= 3 && storedVersion < 3;
+        const nextThreads = needV3 ? _migrateThreadsToV3(v2.threads) : v2.threads;
+
+        if (!needV2 && !needV3) {
+          _migrationDone = true;
+          _schemaVersion = storedVersion;
+          return;
+        }
+
+        // Queue all IDB requests synchronously inside one tx so Safari does not
+        // auto-commit the transaction on an `await`/microtask yield.
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction("manager_state", "readwrite");
+          const store = tx.objectStore("manager_state");
+          store.put(nextThreads, "threads");
+          if (needV3) store.put(3, "schema_version");
+          tx.oncomplete = resolve;
+          tx.onerror = () => reject(tx.error);
+        });
+
+        _migrationDone = true;
+        _schemaVersion = needV3 ? 3 : storedVersion;
+        if (needV3) {
+          console.log('Schema migrated to v3');
+          // Notify any open page (e.g. the Manager) that the stash data has been
+          // updated so it reloads from IDB. Without this, a race condition can
+          // cause the Manager's auto-save to overwrite the V3 fields with the
+          // bare pre-migration React state it already loaded.
+          _dispatchStashChanged();
+        }
+      } finally {
+        try { db.close(); } catch (_) { /* swallow */ }
+      }
+    } catch (e) {
+      console.warn(desiredVersion >= 3 ? 'StashBridge: v3 migration failed' : 'StashBridge: schema migration failed', e);
+    }
+  }
+
   // One-time migration: converts legacy bare DMC keys (e.g. "310") in the
   // "threads" store to composite keys (e.g. "dmc:310").
   async function migrateSchemaToV2() {
-    if (_migrationDone) return;
-    try {
-      const db = await openManagerDB();
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction("manager_state", "readwrite");
-        const store = tx.objectStore("manager_state");
-        const req = store.get("threads");
-        req.onsuccess = () => {
-          const threads = req.result || {};
-          let changed = false;
-          const migrated = {};
-          for (const [key, val] of Object.entries(threads)) {
-            if (key.indexOf(':') < 0) {
-              migrated['dmc:' + key] = val;
-              changed = true;
-            } else {
-              migrated[key] = val;
-            }
-          }
-          if (changed) {
-            store.put(migrated, "threads");
-            tx.oncomplete = () => { _migrationDone = true; resolve(); };
-            tx.onerror = () => reject(tx.error);
-          } else {
-            _migrationDone = true;
-            resolve();
-          }
-        };
-        req.onerror = () => reject(req.error);
-      });
-    } catch (e) {
-      console.warn('StashBridge: schema migration failed', e);
-    }
+    await migrateToLatest(2);
   }
 
   // V3 migration: adds addedAt, lastAdjustedAt, acquisitionSource, history to every stash entry.
   // Must run after V2 migration completes.
   async function migrateSchemaToV3() {
-    try {
-      const db = await openManagerDB();
-      const sv = await new Promise((resolve, reject) => {
-        const tx = db.transaction("manager_state", "readonly");
-        const req = tx.objectStore("manager_state").get("schema_version");
-        req.onsuccess = () => resolve(req.result || 0);
-        req.onerror = () => resolve(0);
-      });
-      if (sv >= 3) { _schemaVersion = sv; return; }
-
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction("manager_state", "readwrite");
-        const store = tx.objectStore("manager_state");
-        const req = store.get("threads");
-        req.onsuccess = () => {
-          const threads = req.result || {};
-          for (const [key, entry] of Object.entries(threads)) {
-            if (!entry.addedAt) {
-              entry.addedAt = LEGACY_EPOCH;
-              entry.lastAdjustedAt = LEGACY_EPOCH;
-              entry.acquisitionSource = 'legacy';
-              entry.history = [];
-            }
-          }
-          store.put(threads, "threads");
-          store.put(3, "schema_version");
-          tx.oncomplete = () => {
-            _schemaVersion = 3;
-            console.log('Schema migrated to v3');
-            // Notify any open page (e.g. the Manager) that the stash data has been
-            // updated so it reloads from IDB. Without this, a race condition can
-            // cause the Manager's auto-save to overwrite the V3 fields with the
-            // bare pre-migration React state it already loaded.
-            _dispatchStashChanged();
-            resolve();
-          };
-          tx.onerror = () => reject(tx.error);
-        };
-        req.onerror = () => reject(req.error);
-      });
-    } catch (e) {
-      console.warn('StashBridge: v3 migration failed', e);
-    }
+    await migrateToLatest(3);
   }
 
   function openManagerDB() {
@@ -286,6 +321,7 @@ const StashBridge = (() => {
   }
 
   return {
+    migrateToLatest,
     migrateSchemaToV2,
 
     // Returns { [compositeKey]: { owned: number, tobuy: bool, partialStatus: string|null } }
@@ -1232,8 +1268,7 @@ const StashBridge = (() => {
 })();
 
 // Auto-run migrations on script load (best-effort; errors are swallowed internally).
-StashBridge.migrateSchemaToV2()
-  .then(function() { return StashBridge.migrateSchemaToV3(); })
+StashBridge.migrateToLatest()
   .catch(function() { /* migrations log internally */ });
 
 // Top-level `const` in a classic <script> creates a global binding but does
