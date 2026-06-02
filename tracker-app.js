@@ -1152,7 +1152,7 @@ const lastSnapshotRef=useRef(null); // freshest serialised project for beforeunl
 const v3FieldsRef=useRef({});       // preserve v3 stats fields across save round-trips
 const autoSaveDirtyRef=useRef(false);
 const session=window.useAutoSession({projectIdRef,v3FieldsRef,autoSaveDirtyRef,statsSettings});
-const{statsSessions,setStatsSessions,totalTime,liveAutoElapsed,liveAutoStitches,liveAutoIsPaused,manuallyPaused,setManuallyPaused,manuallyPausedRef,celebration,setCelebration,celebratedRef,goalCelebrationRef,currentAutoSessionRef,finaliseAutoSessionRef,pendingColoursRef,pendingMilestonesRef,prevAutoCountRef,justLoadedRef,justLoadedSettlePassRef,autoStatsRef,isUnloadingRef,achievedMilestones,setAchievedMilestones,sessionOnboardingShown,setSessionOnboardingShown,sessionSavedToast,setSessionSavedToast,recordAutoActivity,editSessionNote}=session;
+const{statsSessions,setStatsSessions,totalTime,liveAutoElapsed,liveAutoStitches,liveAutoIsPaused,manuallyPaused,setManuallyPaused,manuallyPausedRef,celebration,setCelebration,celebratedRef,goalCelebrationRef,currentAutoSessionRef,finaliseAutoSessionRef,resetAutoSessionForProjectLoad,pendingColoursRef,pendingMilestonesRef,prevAutoCountRef,justLoadedRef,justLoadedSettlePassRef,autoStatsRef,isUnloadingRef,achievedMilestones,setAchievedMilestones,sessionOnboardingShown,setSessionOnboardingShown,sessionSavedToast,setSessionSavedToast,recordAutoActivity,editSessionNote}=session;
 const counts=window.useStitchCounts({pat,done,halfStitches,halfDone});
 const{doneCountRef,colourDoneCountsRef,countsVer,recomputeAllCounts,applyDoneCountsDelta}=counts;
 const[projectName,setProjectName]=useState("");
@@ -2757,6 +2757,14 @@ function processLoadedProject(project){
         project.id, project.lastWriteAt, project.lastWriteTabId);
     }
   } catch (_) {}
+  // Install the loaded project's identity before any downstream work so a
+  // later render-time failure can't cause the next auto-save to mint a copy.
+  projectIdRef.current = project.id || null;
+  try {
+    if (project.id && ProjectStorage && ProjectStorage.setActiveProject) {
+      ProjectStorage.setActiveProject(project.id);
+    }
+  } catch (_) {}
   let s=project.settings||{};
   setSW(project.w||s.sW||project.settings?.w||80);
   setSH(project.h||s.sH||project.settings?.h||80);
@@ -3013,9 +3021,7 @@ function processLoadedProject(project){
   setCelebration(null);
   celebratedRef.current=new Set();
   goalCelebrationRef.current={daily:false,weekly:false,monthly:false};
-  pendingMilestonesRef.current=[];
-  currentAutoSessionRef.current=null;
-  clearTimeout(autoIdleTimerRef.current);
+  resetAutoSessionForProjectLoad();
   // Restore persisted milestones and seed celebratedRef so celebrations don't re-fire
   var persistedMilestones=project.achievedMilestones||[];
   setAchievedMilestones(persistedMilestones);
@@ -3036,7 +3042,6 @@ function processLoadedProject(project){
   setProjectName(project.name||"");
   setProjectDesigner(project.designer||"");
   setProjectDescription(project.description||"");
-  projectIdRef.current = project.id || null;
   try{const saved=localStorage.getItem('cs_layerVis_'+(project.id||''));if(saved)setLayerVis(JSON.parse(saved));else setLayerVis(ALL_LAYERS_VISIBLE);}catch(_){setLayerVis(ALL_LAYERS_VISIBLE);}
   try{const saved=localStorage.getItem('cs_parkLayers_'+(project.id||''));setParkLayers(saved?JSON.parse(saved):{});}catch(_){setParkLayers({});}
   // Per-project legend overlay (sort + collapsed). When absent, the

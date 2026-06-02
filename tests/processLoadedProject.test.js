@@ -47,6 +47,22 @@ describe('processLoadedProject null guard', () => {
     expect(guardIdx).toBeGreaterThan(-1);
     expect(settingsIdx).toBeGreaterThan(guardIdx);
   });
+
+  it('installs projectIdRef before reading settings or loading the rest of the project', () => {
+    const idIdx = src.indexOf('projectIdRef.current = project.id || null;');
+    const settingsIdx = src.indexOf('let s=project.settings||{};');
+    expect(idIdx).toBeGreaterThan(-1);
+    expect(settingsIdx).toBeGreaterThan(idIdx);
+  });
+
+  it('syncs the active-project pointer during processLoadedProject', () => {
+    expect(src).toMatch(/ProjectStorage\.setActiveProject\(project\.id\)/);
+  });
+
+  it('uses the hook reset helper instead of touching autoIdleTimerRef directly', () => {
+    expect(src).toMatch(/resetAutoSessionForProjectLoad\(\);/);
+    expect(src).not.toMatch(/clearTimeout\(autoIdleTimerRef\.current\)/);
+  });
 });
 
 describe('incomingProject resolution handles {id}-only shape', () => {
