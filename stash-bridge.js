@@ -446,6 +446,7 @@ const StashBridge = (() => {
 
   async function _withThreadsWrite(opLabel, mutate, options) {
     const opts = options || {};
+    await migrateToLatest(3);
     return _withManagerWriteLock(opLabel, async function () {
       const db = await openManagerDB();
       try {

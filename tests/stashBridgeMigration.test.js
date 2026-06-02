@@ -316,3 +316,22 @@ describe('stash-bridge writers after migration initialise V3 fields', () => {
     expect(typeof state.threads['dmc:321'].addedAt).toBe('string');
   });
 });
+
+describe('stash-bridge writers ensure migration before writes', () => {
+  test('updateThreadOwned migrates to v3 before mutating stash rows', async () => {
+    const indexedDB = new FDBFactory();
+    const { StashBridge } = loadBridge(indexedDB);
+
+    await StashBridge.updateThreadOwned('310', 2);
+
+    const state = await readManagerState(indexedDB);
+    const entry = state.threads['dmc:310'];
+    expect(state.schema_version).toBe(3);
+    expect(entry.owned).toBe(2);
+    expect(typeof entry.addedAt).toBe('string');
+    expect(typeof entry.lastAdjustedAt).toBe('string');
+    expect(entry.acquisitionSource).toBeNull();
+    expect(entry.history).toHaveLength(1);
+    expect(entry.history[0].delta).toBe(2);
+  });
+});
