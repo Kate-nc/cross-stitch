@@ -107,6 +107,6 @@ describe('INT-5: stash-bridge lifetime invariant documented', () => {
   test('stash-bridge.js header explains the singleton + per-call connection model', () => {
     expect(stashBridge).toMatch(/INT-5 lifetime invariant/);
     expect(stashBridge).toMatch(/module-level singleton/);
-    expect(stashBridge).toMatch(/INT-7/);
+    expect(stashBridge).toMatch(/CrossTabLock\.acquire\(\)/);
   });
 });

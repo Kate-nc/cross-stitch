@@ -10,9 +10,8 @@
 //     reference at any point after stash-bridge.js has loaded.
 //   • Callers may invoke `StashBridge.*` from React effects, event
 //     handlers, or module top-level without coordinating ordering.
-//   • Cross-tab consistency is not provided. If two tabs mutate the stash
-//     concurrently, last-writer-wins on `stitch_manager_db.manager_state`.
-//     INT-7 (cross-tab coordination) is the planned follow-up.
+//   • Stash writes are now best-effort coordinated across tabs through
+//     window.CrossTabLock.acquire(). Reads remain unlocked.
 //   • The cached owned-counts (if any) live inside callers, not the
 //     bridge — do not assume the bridge memoises reads.
 
@@ -98,6 +97,8 @@ const StashBridge = (() => {
   // Schema version tracked in stash data. V2 = composite keys, V3 = addedAt/history fields,
   // V4 = tobuy_qty / tobuy_added_at fields on each entry (lazy: defaults to 0/null when absent).
   let _schemaVersion = 0;
+  const _seenThreadVersions = Object.create(null);
+  const _managerWriteResource = 'manager_state';
 
   // Fires the cross-app 'cs:stashChanged' event so listeners (Home, Manager,
   // Tracker, Creator) reload from the live DB. Guarded for non-browser test
@@ -249,45 +250,50 @@ const StashBridge = (() => {
     if (desiredVersion <= 2 && _migrationDone) return;
     if (desiredVersion >= 3 && _migrationDone && _schemaVersion >= 3) return;
     try {
-      const db = await openManagerDB();
-      try {
-        const snapshot = await _readManagerStateSnapshot(db);
-        const storedVersion = snapshot.schemaVersion;
-        const v2 = _migrateThreadsToV2(snapshot.threads || {});
-        const needV2 = v2.changed;
-        const needV3 = desiredVersion >= 3 && storedVersion < 3;
-        const nextThreads = needV3 ? _migrateThreadsToV3(v2.threads) : v2.threads;
+      await _withManagerWriteLock('migrate-stash-schema', async function () {
+        const db = await openManagerDB();
+        try {
+          const snapshot = await _readManagerStateSnapshot(db);
+          const storedVersion = snapshot.schemaVersion;
+          const v2 = _migrateThreadsToV2(snapshot.threads || {});
+          const needV2 = v2.changed;
+          const needV3 = desiredVersion >= 3 && storedVersion < 3;
+          const nextThreads = needV3 ? _migrateThreadsToV3(v2.threads) : v2.threads;
 
-        if (!needV2 && !needV3) {
+          if (!needV2 && !needV3) {
+            _migrationDone = true;
+            _schemaVersion = storedVersion;
+            _noteSeenThreadVersions(snapshot.threads || {});
+            return;
+          }
+
+          // Queue all IDB requests synchronously inside one tx so Safari does not
+          // auto-commit the transaction on an `await`/microtask yield.
+          await new Promise((resolve, reject) => {
+            const tx = db.transaction("manager_state", "readwrite");
+            const store = tx.objectStore("manager_state");
+            store.put(nextThreads, "threads");
+            if (needV3) store.put(3, "schema_version");
+            tx.oncomplete = resolve;
+            tx.onerror = () => reject(tx.error);
+            tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
+          });
+
           _migrationDone = true;
-          _schemaVersion = storedVersion;
-          return;
+          _schemaVersion = needV3 ? 3 : storedVersion;
+          _noteSeenThreadVersions(nextThreads);
+          if (needV3) {
+            console.log('Schema migrated to v3');
+            // Notify any open page (e.g. the Manager) that the stash data has been
+            // updated so it reloads from IDB. Without this, a race condition can
+            // cause the Manager's auto-save to overwrite the V3 fields with the
+            // bare pre-migration React state it already loaded.
+            _dispatchStashChanged();
+          }
+        } finally {
+          try { db.close(); } catch (_) { /* swallow */ }
         }
-
-        // Queue all IDB requests synchronously inside one tx so Safari does not
-        // auto-commit the transaction on an `await`/microtask yield.
-        await new Promise((resolve, reject) => {
-          const tx = db.transaction("manager_state", "readwrite");
-          const store = tx.objectStore("manager_state");
-          store.put(nextThreads, "threads");
-          if (needV3) store.put(3, "schema_version");
-          tx.oncomplete = resolve;
-          tx.onerror = () => reject(tx.error);
-        });
-
-        _migrationDone = true;
-        _schemaVersion = needV3 ? 3 : storedVersion;
-        if (needV3) {
-          console.log('Schema migrated to v3');
-          // Notify any open page (e.g. the Manager) that the stash data has been
-          // updated so it reloads from IDB. Without this, a race condition can
-          // cause the Manager's auto-save to overwrite the V3 fields with the
-          // bare pre-migration React state it already loaded.
-          _dispatchStashChanged();
-        }
-      } finally {
-        try { db.close(); } catch (_) { /* swallow */ }
-      }
+      });
     } catch (e) {
       console.warn(desiredVersion >= 3 ? 'StashBridge: v3 migration failed' : 'StashBridge: schema migration failed', e);
     }
@@ -320,6 +326,169 @@ const StashBridge = (() => {
     });
   }
 
+  function _normaliseVersion(value) {
+    const n = Number(value);
+    return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+  }
+
+  function _getEntryVersion(entry) {
+    return _normaliseVersion(entry && entry._v);
+  }
+
+  function _noteSeenVersion(key, version) {
+    if (!key) return;
+    _seenThreadVersions[key] = _normaliseVersion(version);
+  }
+
+  function _noteSeenThreadVersions(threads) {
+    for (const key of Object.keys(threads || {})) {
+      _noteSeenVersion(key, _getEntryVersion(threads[key]));
+    }
+  }
+
+  function _noteSeenThreadKeys(threads, keys) {
+    for (const key of keys || []) {
+      if (threads && threads[key]) _noteSeenVersion(key, _getEntryVersion(threads[key]));
+    }
+  }
+
+  function _warnIfVersionAdvanced(key, entry) {
+    const seen = _seenThreadVersions[key];
+    const current = _getEntryVersion(entry);
+    if (typeof seen === 'number' && current > seen) {
+      console.warn('StashBridge: observed newer stash entry version before write', {
+        key: key,
+        seenVersion: seen,
+        currentVersion: current
+      });
+    }
+  }
+
+  function _bumpEntryVersion(key, entry) {
+    const next = _getEntryVersion(entry) + 1;
+    entry._v = next;
+    _noteSeenVersion(key, next);
+    return next;
+  }
+
+  function _makeThreadEntry(now, isV3, acquisitionSource) {
+    const entry = { owned: 0, tobuy: false, partialStatus: null };
+    if (isV3) {
+      entry.addedAt = now;
+      entry.lastAdjustedAt = null;
+      entry.acquisitionSource = acquisitionSource === undefined ? null : acquisitionSource;
+      entry.history = [];
+    }
+    return entry;
+  }
+
+  function _ensureThreadEntry(threads, key, ctx, options) {
+    const opts = options || {};
+    let entry = threads[key];
+    let created = false;
+    let touchedDefaults = false;
+    if (!entry || typeof entry !== 'object') {
+      entry = _makeThreadEntry(ctx.now, ctx.isV3, opts.acquisitionSource);
+      threads[key] = entry;
+      created = true;
+      touchedDefaults = true;
+    }
+    _warnIfVersionAdvanced(key, entry);
+    if (ctx.isV3) {
+      if (entry.addedAt === undefined) { entry.addedAt = ctx.now; touchedDefaults = true; }
+      if (entry.lastAdjustedAt === undefined) { entry.lastAdjustedAt = null; touchedDefaults = true; }
+      if (entry.acquisitionSource === undefined) { entry.acquisitionSource = opts.acquisitionSource === undefined ? null : opts.acquisitionSource; touchedDefaults = true; }
+      if (!Array.isArray(entry.history)) { entry.history = []; touchedDefaults = true; }
+    }
+    return { entry: entry, created: created, touchedDefaults: touchedDefaults };
+  }
+
+  function _appendHistory(entry, delta, now) {
+    if (!delta) return;
+    if (!Array.isArray(entry.history)) entry.history = [];
+    entry.history.push({ date: now, delta: delta });
+    if (entry.history.length > 500) {
+      entry.history = entry.history.slice(entry.history.length - 500);
+    }
+  }
+
+  async function _acquireManagerWriteLock(opLabel) {
+    try {
+      if (typeof window === 'undefined' || !window.CrossTabLock || typeof window.CrossTabLock.acquire !== 'function') {
+        console.warn('StashBridge: cross-tab lock unavailable; proceeding without write lock for ' + opLabel);
+        return { ok: true, degraded: true, release: async function () { return false; } };
+      }
+      const lease = await window.CrossTabLock.acquire(_managerWriteResource, opLabel, { timeoutMs: 1500 });
+      if (!lease || lease.ok !== true) {
+        console.warn('StashBridge: cross-tab lock timed out; proceeding without write lock for ' + opLabel);
+        return { ok: false, degraded: true, release: async function () { return false; } };
+      }
+      if (lease.degraded) {
+        console.warn('StashBridge: cross-tab lock degraded; proceeding without strict exclusion for ' + opLabel);
+      }
+      return lease;
+    } catch (err) {
+      console.warn('StashBridge: cross-tab lock failed; proceeding without write lock for ' + opLabel, err);
+      return { ok: false, degraded: true, release: async function () { return false; } };
+    }
+  }
+
+  async function _withManagerWriteLock(opLabel, work) {
+    const lease = await _acquireManagerWriteLock(opLabel);
+    try {
+      return await work(lease);
+    } finally {
+      try {
+        if (lease && typeof lease.release === 'function') await lease.release();
+      } catch (_) { /* swallow */ }
+    }
+  }
+
+  async function _withThreadsWrite(opLabel, mutate, options) {
+    const opts = options || {};
+    return _withManagerWriteLock(opLabel, async function () {
+      const db = await openManagerDB();
+      try {
+        return await new Promise((resolve, reject) => {
+          const tx = db.transaction("manager_state", "readwrite");
+          const store = tx.objectStore("manager_state");
+          let settled = false;
+          let completionValue;
+          let changedKeys = [];
+          function resolveOnce(value) { if (!settled) { settled = true; resolve(value); } }
+          function rejectOnce(err) { if (!settled) { settled = true; reject(err); } }
+          tx.onerror = () => rejectOnce(tx.error || new Error('Transaction failed'));
+          tx.onabort = () => rejectOnce(tx.error || new Error('Transaction aborted'));
+          const req = store.get("threads");
+          req.onsuccess = () => {
+            const threads = req.result || {};
+            const ctx = { now: new Date().toISOString(), isV3: _schemaVersion >= 3 };
+            let outcome;
+            try {
+              outcome = mutate(threads, ctx) || {};
+              completionValue = Object.prototype.hasOwnProperty.call(outcome, 'value') ? outcome.value : outcome;
+              changedKeys = Array.isArray(outcome.changedKeys) ? outcome.changedKeys.slice() : [];
+            } catch (err) {
+              rejectOnce(err);
+              return;
+            }
+            const putReq = store.put(threads, "threads");
+            putReq.onerror = () => rejectOnce(putReq.error);
+            tx.oncomplete = () => {
+              if (opts.invalidateStats && typeof invalidateStatsCache === 'function') invalidateStatsCache();
+              _noteSeenThreadKeys(threads, changedKeys);
+              if (opts.dispatch !== false) _dispatchStashChanged();
+              resolveOnce(completionValue);
+            };
+          };
+          req.onerror = () => rejectOnce(req.error);
+        });
+      } finally {
+        try { db.close(); } catch (_) { /* swallow */ }
+      }
+    });
+  }
+
   return {
     migrateToLatest,
     migrateSchemaToV2,
@@ -333,7 +502,11 @@ const StashBridge = (() => {
           const tx = db.transaction("manager_state", "readonly");
           const store = tx.objectStore("manager_state");
           const req = store.get("threads");
-          req.onsuccess = () => resolve(req.result || {});
+          req.onsuccess = () => {
+            const threads = req.result || {};
+            _noteSeenThreadVersions(threads);
+            resolve(threads);
+          };
           req.onerror = () => reject(req.error);
         });
       } catch (e) {
@@ -382,59 +555,23 @@ const StashBridge = (() => {
     async updateThreadOwned(dmcId, newCount) {
       const key = _normaliseKey(dmcId);
       try {
-        const db = await openManagerDB();
-        return new Promise((resolve, reject) => {
-          const tx = db.transaction("manager_state", "readwrite");
-          const store = tx.objectStore("manager_state");
-          const req = store.get("threads");
-          req.onsuccess = () => {
-            const threads = req.result || {};
-            const isV3 = _schemaVersion >= 3;
-            if (!threads[key]) {
-              threads[key] = { owned: 0, tobuy: false, partialStatus: null };
-              if (isV3) {
-                threads[key].addedAt = new Date().toISOString();
-                threads[key].lastAdjustedAt = null;
-                threads[key].acquisitionSource = null;
-                threads[key].history = [];
-              }
-            } else if (isV3) {
-              if (threads[key].addedAt === undefined) threads[key].addedAt = new Date().toISOString();
-              if (threads[key].lastAdjustedAt === undefined) threads[key].lastAdjustedAt = null;
-              if (threads[key].acquisitionSource === undefined) threads[key].acquisitionSource = null;
-              if (!Array.isArray(threads[key].history)) threads[key].history = [];
-              // Re-acquisition: if a thread was at zero (legacy-tagged) and is now being
-              // owned for the first time, treat it as a fresh acquisition rather than
-              // showing it as "before tracking started".
-              const prevOwned = threads[key].owned || 0;
-              if (prevOwned === 0 && newCount > 0 && threads[key].addedAt === LEGACY_EPOCH) {
-                threads[key].addedAt = new Date().toISOString();
-                threads[key].acquisitionSource = null;
-              }
-            }
-            const oldCount = threads[key].owned || 0;
-            const delta = newCount - oldCount;
-            threads[key].owned = newCount;
-            // V3 history tracking
-            if (delta !== 0 && isV3) {
-              const now = new Date().toISOString();
-              threads[key].lastAdjustedAt = now;
-              if (!Array.isArray(threads[key].history)) threads[key].history = [];
-              threads[key].history.push({ date: now, delta: delta });
-              // Cap history at 500 entries per thread
-              if (threads[key].history.length > 500) {
-                threads[key].history = threads[key].history.slice(threads[key].history.length - 500);
-              }
-            }
-            store.put(threads, "threads");
-            tx.oncomplete = () => {
-              if (typeof invalidateStatsCache === 'function') invalidateStatsCache();
-              _dispatchStashChanged();
-              resolve();
-            };
-          };
-          req.onerror = () => reject(req.error);
-        });
+        return await _withThreadsWrite('updateThreadOwned', function (threads, ctx) {
+          const ensured = _ensureThreadEntry(threads, key, ctx, { now: ctx.now });
+          const entry = ensured.entry;
+          const oldCount = entry.owned || 0;
+          if (ctx.isV3 && oldCount === 0 && newCount > 0 && entry.addedAt === LEGACY_EPOCH) {
+            entry.addedAt = ctx.now;
+            entry.acquisitionSource = null;
+          }
+          const delta = newCount - oldCount;
+          entry.owned = newCount;
+          if (delta !== 0 && ctx.isV3) {
+            entry.lastAdjustedAt = ctx.now;
+            _appendHistory(entry, delta, ctx.now);
+          }
+          _bumpEntryVersion(key, entry);
+          return { changedKeys: [key] };
+        }, { invalidateStats: true });
       } catch (e) {
         console.error("StashBridge.updateThreadOwned failed:", e);
       }
@@ -494,38 +631,45 @@ const StashBridge = (() => {
     //           detection can convert stitches to skeins using the correct count.
     async syncProjectToLibrary(projectId, projectName, skeinData, status, fabricCt) {
       try {
-        const db = await openManagerDB();
-        return new Promise((resolve, reject) => {
-          const tx = db.transaction("manager_state", "readwrite");
-          const store = tx.objectStore("manager_state");
-          const req = store.get("patterns");
-          req.onsuccess = () => {
-            const patterns = req.result || [];
-            const existingIdx = patterns.findIndex(p => p.linkedProjectId === projectId);
-            const existing = existingIdx >= 0 ? patterns[existingIdx] : null;
-            const entry = {
-              id: existing ? existing.id : Date.now().toString(),
-              linkedProjectId: projectId,
-              title: projectName,
-              // Preserve user-edited designer and tags; only set defaults for new entries.
-              designer: existing ? existing.designer : "",
-              status: status || (existing ? existing.status : "inprogress"),
-              tags: existing ? existing.tags : ["auto-synced"],
-              fabricCt: fabricCt || 14,
-              threads: skeinData.map(d => ({
-                id: d.id,
-                name: d.name,
-                qty: d.stitches,
-                unit: "stitches",
-                brand: "DMC"
-              }))
-            };
-            if (existingIdx >= 0) patterns[existingIdx] = entry;
-            else patterns.push(entry);
-            store.put(patterns, "patterns");
-            tx.oncomplete = () => { _dispatchPatternsChanged(); resolve(); };
-          };
-          req.onerror = () => reject(req.error);
+        return await _withManagerWriteLock('syncProjectToLibrary', async function () {
+          const db = await openManagerDB();
+          try {
+            return await new Promise((resolve, reject) => {
+              const tx = db.transaction("manager_state", "readwrite");
+              const store = tx.objectStore("manager_state");
+              const req = store.get("patterns");
+              req.onsuccess = () => {
+                const patterns = req.result || [];
+                const existingIdx = patterns.findIndex(p => p.linkedProjectId === projectId);
+                const existing = existingIdx >= 0 ? patterns[existingIdx] : null;
+                const entry = {
+                  id: existing ? existing.id : Date.now().toString(),
+                  linkedProjectId: projectId,
+                  title: projectName,
+                  designer: existing ? existing.designer : "",
+                  status: status || (existing ? existing.status : "inprogress"),
+                  tags: existing ? existing.tags : ["auto-synced"],
+                  fabricCt: fabricCt || 14,
+                  threads: skeinData.map(d => ({
+                    id: d.id,
+                    name: d.name,
+                    qty: d.stitches,
+                    unit: "stitches",
+                    brand: "DMC"
+                  }))
+                };
+                if (existingIdx >= 0) patterns[existingIdx] = entry;
+                else patterns.push(entry);
+                store.put(patterns, "patterns");
+                tx.oncomplete = () => { _dispatchPatternsChanged(); resolve(); };
+                tx.onerror = () => reject(tx.error);
+                tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
+              };
+              req.onerror = () => reject(req.error);
+            });
+          } finally {
+            try { db.close(); } catch (_) { /* swallow */ }
+          }
         });
       } catch (e) {
         console.error("StashBridge.syncProjectToLibrary failed:", e);
@@ -536,23 +680,30 @@ const StashBridge = (() => {
     // No-op when nothing is linked. Safe to call on every project delete.
     async unlinkProjectFromLibrary(projectId) {
       try {
-        const db = await openManagerDB();
-        return new Promise((resolve, reject) => {
-          const tx = db.transaction("manager_state", "readwrite");
-          const store = tx.objectStore("manager_state");
-          const req = store.get("patterns");
-          req.onsuccess = () => {
-            const patterns = req.result || [];
-            const filtered = patterns.filter(p => p.linkedProjectId !== projectId);
-            if (filtered.length !== patterns.length) {
-              store.put(filtered, "patterns");
-            }
-            tx.oncomplete = () => {
-              if (filtered.length !== patterns.length) _dispatchPatternsChanged();
-              resolve();
-            };
-          };
-          req.onerror = () => reject(req.error);
+        return await _withManagerWriteLock('unlinkProjectFromLibrary', async function () {
+          const db = await openManagerDB();
+          try {
+            return await new Promise((resolve, reject) => {
+              const tx = db.transaction("manager_state", "readwrite");
+              const store = tx.objectStore("manager_state");
+              const req = store.get("patterns");
+              req.onsuccess = () => {
+                const patterns = req.result || [];
+                const filtered = patterns.filter(p => p.linkedProjectId !== projectId);
+                const changed = filtered.length !== patterns.length;
+                if (changed) store.put(filtered, "patterns");
+                tx.oncomplete = () => {
+                  if (changed) _dispatchPatternsChanged();
+                  resolve();
+                };
+                tx.onerror = () => reject(tx.error);
+                tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
+              };
+              req.onerror = () => reject(req.error);
+            });
+          } finally {
+            try { db.close(); } catch (_) { /* swallow */ }
+          }
         });
       } catch (e) {
         console.error("StashBridge.unlinkProjectFromLibrary failed:", e);
@@ -663,41 +814,33 @@ const StashBridge = (() => {
       if (!Number.isFinite(increment) || !Number.isInteger(increment) || increment < 1) {
         throw new Error("addToStash count must be a finite integer greater than or equal to 1");
       }
-      // Ensure new entries get V3 fields before updateThreadOwned runs
-      const stash = await StashBridge.getGlobalStash();
-      const current = (stash[key] && stash[key].owned) || 0;
-      const isNew = !stash[key] || current === 0;
-      if (isNew && _schemaVersion >= 3) {
-        // Pre-create with V3 fields so updateThreadOwned's history append works
-        try {
-          const db = await openManagerDB();
-          await new Promise((resolve, reject) => {
-            const tx = db.transaction("manager_state", "readwrite");
-            const store = tx.objectStore("manager_state");
-            const req = store.get("threads");
-            req.onsuccess = () => {
-              const threads = req.result || {};
-              const now = new Date().toISOString();
-              const src = (options && options.acquisitionSource) || 'purchased';
-              if (!threads[key]) {
-                threads[key] = { owned: 0, tobuy: false, partialStatus: null,
-                  addedAt: now, lastAdjustedAt: now, acquisitionSource: src, history: [] };
-              } else if (!threads[key].addedAt) {
-                threads[key].addedAt = now;
-                threads[key].lastAdjustedAt = now;
-                threads[key].acquisitionSource = src;
-                threads[key].history = threads[key].history || [];
-              }
-              store.put(threads, "threads");
-              tx.oncomplete = () => resolve();
-            };
-            req.onerror = () => reject(req.error);
-          });
-        } catch (e) { /* best effort */ }
+      try {
+        return await _withThreadsWrite('addToStash', function (threads, ctx) {
+          const src = (options && options.acquisitionSource) || 'purchased';
+          const current = (threads[key] && threads[key].owned) || 0;
+          const isNew = !threads[key] || current === 0;
+          const ensured = _ensureThreadEntry(threads, key, ctx, { acquisitionSource: isNew ? src : null, now: ctx.now });
+          const entry = ensured.entry;
+          if (isNew && ctx.isV3) {
+            if (!entry.addedAt) entry.addedAt = ctx.now;
+            if (entry.lastAdjustedAt == null) entry.lastAdjustedAt = ctx.now;
+            if (entry.acquisitionSource == null) entry.acquisitionSource = src;
+            if (!Array.isArray(entry.history)) entry.history = [];
+          }
+          const next = current + increment;
+          const delta = next - current;
+          entry.owned = next;
+          if (delta !== 0 && ctx.isV3) {
+            entry.lastAdjustedAt = ctx.now;
+            _appendHistory(entry, delta, ctx.now);
+          }
+          _bumpEntryVersion(key, entry);
+          return { value: next, changedKeys: [key] };
+        }, { invalidateStats: true });
+      } catch (e) {
+        console.error("StashBridge.addToStash failed:", e);
+        throw e;
       }
-      const next = current + increment;
-      await StashBridge.updateThreadOwned(key, next);
-      return next;
     },
 
     // Finds similar threads to a given thread key from your owned stash.
@@ -738,24 +881,16 @@ const StashBridge = (() => {
     async updateThreadToBuy(keyOrId, toBuy) {
       const key = _normaliseKey(keyOrId);
       try {
-        const db = await openManagerDB();
-        return new Promise((resolve, reject) => {
-          const tx = db.transaction("manager_state", "readwrite");
-          const store = tx.objectStore("manager_state");
-          const req = store.get("threads");
-          req.onsuccess = () => {
-            const threads = req.result || {};
-            if (!threads[key]) threads[key] = { owned: 0, tobuy: false, partialStatus: null };
-            threads[key].tobuy = toBuy;
-            // Clear quantity when toggling off so the My-list view doesn't show stale rows.
-            if (!toBuy) {
-              threads[key].tobuy_qty = 0;
-              threads[key].tobuy_added_at = null;
-            }
-            store.put(threads, "threads");
-            tx.oncomplete = () => { _dispatchStashChanged(); resolve(); };
-          };
-          req.onerror = () => reject(req.error);
+        return await _withThreadsWrite('updateThreadToBuy', function (threads, ctx) {
+          const ensured = _ensureThreadEntry(threads, key, ctx, { now: ctx.now });
+          const entry = ensured.entry;
+          entry.tobuy = toBuy;
+          if (!toBuy) {
+            entry.tobuy_qty = 0;
+            entry.tobuy_added_at = null;
+          }
+          _bumpEntryVersion(key, entry);
+          return { changedKeys: [key] };
         });
       } catch (e) {
         console.error("StashBridge.updateThreadToBuy failed:", e);
@@ -781,46 +916,40 @@ const StashBridge = (() => {
         for (const k of Object.keys(qtyMap)) qtyByKey[_normaliseKey(k)] = Number(qtyMap[k]) || 0;
       }
       try {
-        const db = await openManagerDB();
-        return new Promise((resolve, reject) => {
-          const tx = db.transaction("manager_state", "readwrite");
-          const store = tx.objectStore("manager_state");
-          let settled = false;
-          function resolveOnce(val) { if (!settled) { settled = true; resolve(val); } }
-          function rejectOnce(err) { if (!settled) { settled = true; reject(err); } }
-          tx.onerror = () => rejectOnce(tx.error);
-          tx.onabort = () => rejectOnce(tx.error || new Error('Transaction aborted'));
-          const req = store.get("threads");
-          req.onsuccess = () => {
-            const threads = req.result || {};
-            const now = new Date().toISOString();
-            let changed = 0;
-            for (const key of keys) {
-              if (!threads[key]) threads[key] = { owned: 0, tobuy: false, partialStatus: null };
-              const wasOn = !!threads[key].tobuy;
-              if (wasOn !== flag) {
-                threads[key].tobuy = flag;
-                changed++;
-              }
-              if (flag) {
-                const qty = qtyByKey[key];
-                if (qty > 0) {
-                  threads[key].tobuy_qty = qty;
-                }
-                if (!wasOn && !threads[key].tobuy_added_at) {
-                  threads[key].tobuy_added_at = now;
-                }
-              } else {
-                // Toggling off: drop the qty + added-at so My-list rows stay clean.
-                threads[key].tobuy_qty = 0;
-                threads[key].tobuy_added_at = null;
-              }
+        return await _withThreadsWrite('markManyToBuy', function (threads, ctx) {
+          let changed = 0;
+          const changedKeys = [];
+          for (const key of keys) {
+            const ensured = _ensureThreadEntry(threads, key, ctx, { now: ctx.now });
+            const entry = ensured.entry;
+            const wasOn = !!entry.tobuy;
+            let touched = false;
+            if (wasOn !== flag) {
+              entry.tobuy = flag;
+              changed++;
+              touched = true;
             }
-            const putReq = store.put(threads, "threads");
-            putReq.onerror = () => rejectOnce(putReq.error);
-            tx.oncomplete = () => { _dispatchStashChanged(); resolveOnce(changed); };
-          };
-          req.onerror = () => rejectOnce(req.error);
+            if (flag) {
+              const qty = qtyByKey[key];
+              if (qty > 0 && Number(entry.tobuy_qty) !== qty) {
+                entry.tobuy_qty = qty;
+                touched = true;
+              }
+              if (!wasOn && !entry.tobuy_added_at) {
+                entry.tobuy_added_at = ctx.now;
+                touched = true;
+              }
+            } else {
+              if ((Number(entry.tobuy_qty) || 0) !== 0 || entry.tobuy_added_at) touched = true;
+              entry.tobuy_qty = 0;
+              entry.tobuy_added_at = null;
+            }
+            if (touched) {
+              _bumpEntryVersion(key, entry);
+              changedKeys.push(key);
+            }
+          }
+          return { value: changed, changedKeys: changedKeys };
         });
       } catch (e) {
         console.error("StashBridge.markManyToBuy failed:", e);
@@ -836,30 +965,21 @@ const StashBridge = (() => {
       const key = _normaliseKey(keyOrId);
       const n = Math.max(0, Math.floor(Number(qty) || 0));
       try {
-        const db = await openManagerDB();
-        return new Promise((resolve, reject) => {
-          const tx = db.transaction("manager_state", "readwrite");
-          const store = tx.objectStore("manager_state");
-          const req = store.get("threads");
-          req.onsuccess = () => {
-            const threads = req.result || {};
-            if (!threads[key]) threads[key] = { owned: 0, tobuy: false, partialStatus: null };
-            const wasOn = !!threads[key].tobuy;
-            if (n <= 0) {
-              threads[key].tobuy = false;
-              threads[key].tobuy_qty = 0;
-              threads[key].tobuy_added_at = null;
-            } else {
-              threads[key].tobuy = true;
-              threads[key].tobuy_qty = n;
-              if (!wasOn || !threads[key].tobuy_added_at) {
-                threads[key].tobuy_added_at = new Date().toISOString();
-              }
-            }
-            store.put(threads, "threads");
-            tx.oncomplete = () => { _dispatchStashChanged(); resolve(n); };
-          };
-          req.onerror = () => reject(req.error);
+        return await _withThreadsWrite('setToBuyQty', function (threads, ctx) {
+          const ensured = _ensureThreadEntry(threads, key, ctx, { now: ctx.now });
+          const entry = ensured.entry;
+          const wasOn = !!entry.tobuy;
+          if (n <= 0) {
+            entry.tobuy = false;
+            entry.tobuy_qty = 0;
+            entry.tobuy_added_at = null;
+          } else {
+            entry.tobuy = true;
+            entry.tobuy_qty = n;
+            if (!wasOn || !entry.tobuy_added_at) entry.tobuy_added_at = ctx.now;
+          }
+          _bumpEntryVersion(key, entry);
+          return { value: n, changedKeys: [key] };
         });
       } catch (e) {
         console.error("StashBridge.setToBuyQty failed:", e);
@@ -876,37 +996,38 @@ const StashBridge = (() => {
       });
       if (entries.length === 0) return 0;
       try {
-        const db = await openManagerDB();
-        return new Promise((resolve, reject) => {
-          const tx = db.transaction("manager_state", "readwrite");
-          const store = tx.objectStore("manager_state");
-          const req = store.get("threads");
-          req.onsuccess = () => {
-            const threads = req.result || {};
-            const now = new Date().toISOString();
-            let changed = 0;
-            for (const { key, qty } of entries) {
-              if (!threads[key]) threads[key] = { owned: 0, tobuy: false, partialStatus: null };
-              const wasOn = !!threads[key].tobuy;
-              const wasQty = Number(threads[key].tobuy_qty) || 0;
-              if (qty <= 0) {
-                if (wasOn || wasQty > 0) {
-                  threads[key].tobuy = false;
-                  threads[key].tobuy_qty = 0;
-                  threads[key].tobuy_added_at = null;
-                  changed++;
-                }
-              } else {
-                if (!wasOn || wasQty !== qty) changed++;
-                threads[key].tobuy = true;
-                threads[key].tobuy_qty = qty;
-                if (!wasOn || !threads[key].tobuy_added_at) threads[key].tobuy_added_at = now;
+        return await _withThreadsWrite('setToBuyQtyMany', function (threads, ctx) {
+          let changed = 0;
+          const changedKeys = [];
+          for (const { key, qty } of entries) {
+            const ensured = _ensureThreadEntry(threads, key, ctx, { now: ctx.now });
+            const entry = ensured.entry;
+            const wasOn = !!entry.tobuy;
+            const wasQty = Number(entry.tobuy_qty) || 0;
+            let touched = false;
+            if (qty <= 0) {
+              if (wasOn || wasQty > 0 || entry.tobuy_added_at) {
+                entry.tobuy = false;
+                entry.tobuy_qty = 0;
+                entry.tobuy_added_at = null;
+                changed++;
+                touched = true;
               }
+            } else {
+              if (!wasOn || wasQty !== qty || !entry.tobuy_added_at) {
+                changed++;
+                touched = true;
+              }
+              entry.tobuy = true;
+              entry.tobuy_qty = qty;
+              if (!wasOn || !entry.tobuy_added_at) entry.tobuy_added_at = ctx.now;
             }
-            store.put(threads, "threads");
-            tx.oncomplete = () => { _dispatchStashChanged(); resolve(changed); };
-          };
-          req.onerror = () => reject(req.error);
+            if (touched) {
+              _bumpEntryVersion(key, entry);
+              changedKeys.push(key);
+            }
+          }
+          return { value: changed, changedKeys: changedKeys };
         });
       } catch (e) {
         console.error("StashBridge.setToBuyQtyMany failed:", e);
@@ -923,57 +1044,28 @@ const StashBridge = (() => {
     async markBought(keyOrId, qty) {
       const key = _normaliseKey(keyOrId);
       try {
-        const db = await openManagerDB();
-        return new Promise((resolve, reject) => {
-          const tx = db.transaction("manager_state", "readwrite");
-          const store = tx.objectStore("manager_state");
-          const req = store.get("threads");
-          req.onsuccess = () => {
-            const threads = req.result || {};
-            const isV3 = _schemaVersion >= 3;
-            if (!threads[key]) {
-              threads[key] = { owned: 0, tobuy: false, partialStatus: null };
-              if (isV3) {
-                threads[key].addedAt = new Date().toISOString();
-                threads[key].lastAdjustedAt = null;
-                threads[key].acquisitionSource = null;
-                threads[key].history = [];
-              }
-            }
-            const entry = threads[key];
-            let n = Number(qty);
-            if (!Number.isFinite(n) || n <= 0) {
-              n = Number(entry.tobuy_qty) > 0 ? Number(entry.tobuy_qty) : 1;
-            }
-            n = Math.max(1, Math.floor(n));
-            const oldOwned = entry.owned || 0;
-            const newOwned = oldOwned + n;
-            entry.owned = newOwned;
-            // V3 history tracking — same shape as updateThreadOwned writes.
-            if (isV3) {
-              const now = new Date().toISOString();
-              entry.lastAdjustedAt = now;
-              if (entry.addedAt === undefined) entry.addedAt = now;
-              if (entry.acquisitionSource === undefined) entry.acquisitionSource = null;
-              if (!Array.isArray(entry.history)) entry.history = [];
-              entry.history.push({ date: now, delta: n });
-              if (entry.history.length > 500) {
-                entry.history = entry.history.slice(entry.history.length - 500);
-              }
-            }
-            // Clear the shopping-list state in the same tx.
-            entry.tobuy = false;
-            entry.tobuy_qty = 0;
-            entry.tobuy_added_at = null;
-            store.put(threads, "threads");
-            tx.oncomplete = () => {
-              if (typeof invalidateStatsCache === 'function') invalidateStatsCache();
-              _dispatchStashChanged();
-              resolve({ key: key, addedSkeins: n, newOwned: newOwned });
-            };
-          };
-          req.onerror = () => reject(req.error);
-        });
+        return await _withThreadsWrite('markBought', function (threads, ctx) {
+          const ensured = _ensureThreadEntry(threads, key, ctx, { now: ctx.now });
+          const entry = ensured.entry;
+          let n = Number(qty);
+          if (!Number.isFinite(n) || n <= 0) {
+            n = Number(entry.tobuy_qty) > 0 ? Number(entry.tobuy_qty) : 1;
+          }
+          n = Math.max(1, Math.floor(n));
+          const newOwned = (entry.owned || 0) + n;
+          entry.owned = newOwned;
+          if (ctx.isV3) {
+            entry.lastAdjustedAt = ctx.now;
+            if (entry.addedAt === undefined) entry.addedAt = ctx.now;
+            if (entry.acquisitionSource === undefined) entry.acquisitionSource = null;
+            _appendHistory(entry, n, ctx.now);
+          }
+          entry.tobuy = false;
+          entry.tobuy_qty = 0;
+          entry.tobuy_added_at = null;
+          _bumpEntryVersion(key, entry);
+          return { value: { key: key, addedSkeins: n, newOwned: newOwned }, changedKeys: [key] };
+        }, { invalidateStats: true });
       } catch (e) {
         console.error("StashBridge.markBought failed:", e);
         return null;
@@ -991,59 +1083,34 @@ const StashBridge = (() => {
       });
       if (entries.length === 0) return [];
       try {
-        const db = await openManagerDB();
-        return new Promise((resolve, reject) => {
-          const tx = db.transaction("manager_state", "readwrite");
-          const store = tx.objectStore("manager_state");
-          const req = store.get("threads");
-          req.onsuccess = () => {
-            const threads = req.result || {};
-            const isV3 = _schemaVersion >= 3;
-            const now = new Date().toISOString();
-            const results = [];
-            for (const { key, qty } of entries) {
-              if (!threads[key]) {
-                threads[key] = { owned: 0, tobuy: false, partialStatus: null };
-                if (isV3) {
-                  threads[key].addedAt = now;
-                  threads[key].lastAdjustedAt = null;
-                  threads[key].acquisitionSource = null;
-                  threads[key].history = [];
-                }
-              }
-              const entry = threads[key];
-              let n = qty;
-              if (!Number.isFinite(n) || n <= 0) {
-                n = Number(entry.tobuy_qty) > 0 ? Number(entry.tobuy_qty) : 1;
-              }
-              n = Math.max(1, Math.floor(n));
-              const oldOwned = entry.owned || 0;
-              const newOwned = oldOwned + n;
-              entry.owned = newOwned;
-              if (isV3) {
-                entry.lastAdjustedAt = now;
-                if (entry.addedAt === undefined) entry.addedAt = now;
-                if (entry.acquisitionSource === undefined) entry.acquisitionSource = null;
-                if (!Array.isArray(entry.history)) entry.history = [];
-                entry.history.push({ date: now, delta: n });
-                if (entry.history.length > 500) {
-                  entry.history = entry.history.slice(entry.history.length - 500);
-                }
-              }
-              entry.tobuy = false;
-              entry.tobuy_qty = 0;
-              entry.tobuy_added_at = null;
-              results.push({ key: key, addedSkeins: n, newOwned: newOwned });
+        return await _withThreadsWrite('markBoughtMany', function (threads, ctx) {
+          const results = [];
+          const changedKeys = [];
+          for (const { key, qty } of entries) {
+            const ensured = _ensureThreadEntry(threads, key, ctx, { now: ctx.now });
+            const entry = ensured.entry;
+            let n = qty;
+            if (!Number.isFinite(n) || n <= 0) {
+              n = Number(entry.tobuy_qty) > 0 ? Number(entry.tobuy_qty) : 1;
             }
-            store.put(threads, "threads");
-            tx.oncomplete = () => {
-              if (typeof invalidateStatsCache === 'function') invalidateStatsCache();
-              _dispatchStashChanged();
-              resolve(results);
-            };
-          };
-          req.onerror = () => reject(req.error);
-        });
+            n = Math.max(1, Math.floor(n));
+            const newOwned = (entry.owned || 0) + n;
+            entry.owned = newOwned;
+            if (ctx.isV3) {
+              entry.lastAdjustedAt = ctx.now;
+              if (entry.addedAt === undefined) entry.addedAt = ctx.now;
+              if (entry.acquisitionSource === undefined) entry.acquisitionSource = null;
+              _appendHistory(entry, n, ctx.now);
+            }
+            entry.tobuy = false;
+            entry.tobuy_qty = 0;
+            entry.tobuy_added_at = null;
+            _bumpEntryVersion(key, entry);
+            changedKeys.push(key);
+            results.push({ key: key, addedSkeins: n, newOwned: newOwned });
+          }
+          return { value: results, changedKeys: changedKeys };
+        }, { invalidateStats: true });
       } catch (e) {
         console.error("StashBridge.markBoughtMany failed:", e);
         return [];
@@ -1067,27 +1134,21 @@ const StashBridge = (() => {
     // transaction. Returns the number of rows cleared.
     async clearShoppingList() {
       try {
-        const db = await openManagerDB();
-        return new Promise((resolve, reject) => {
-          const tx = db.transaction("manager_state", "readwrite");
-          const store = tx.objectStore("manager_state");
-          const req = store.get("threads");
-          req.onsuccess = () => {
-            const threads = req.result || {};
-            let cleared = 0;
-            for (const key of Object.keys(threads)) {
-              const e = threads[key];
-              if (e && (e.tobuy || (Number(e.tobuy_qty) || 0) > 0)) {
-                e.tobuy = false;
-                e.tobuy_qty = 0;
-                e.tobuy_added_at = null;
-                cleared++;
-              }
+        return await _withThreadsWrite('clearShoppingList', function (threads) {
+          let cleared = 0;
+          const changedKeys = [];
+          for (const key of Object.keys(threads)) {
+            const entry = threads[key];
+            if (entry && (entry.tobuy || (Number(entry.tobuy_qty) || 0) > 0)) {
+              entry.tobuy = false;
+              entry.tobuy_qty = 0;
+              entry.tobuy_added_at = null;
+              _bumpEntryVersion(key, entry);
+              cleared++;
+              changedKeys.push(key);
             }
-            store.put(threads, "threads");
-            tx.oncomplete = () => { _dispatchStashChanged(); resolve(cleared); };
-          };
-          req.onerror = () => reject(req.error);
+          }
+          return { value: cleared, changedKeys: changedKeys };
         });
       } catch (e) {
         console.error("StashBridge.clearShoppingList failed:", e);

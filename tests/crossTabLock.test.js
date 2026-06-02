@@ -24,8 +24,9 @@ describe('INT-7 Phase C: cross-tab-lock.js public surface', () => {
   test('idempotent install guard', () => {
     expect(LOCK_SRC).toMatch(/if \(window\.CrossTabLock\) return/);
   });
-  test('exposes requestLock + tabId on window.CrossTabLock', () => {
+  test('exposes requestLock, acquire, and tabId on window.CrossTabLock', () => {
     expect(LOCK_SRC).toMatch(/window\.CrossTabLock\s*=\s*\{[\s\S]{0,400}requestLock:\s*requestLock/);
+    expect(LOCK_SRC).toMatch(/window\.CrossTabLock\s*=\s*\{[\s\S]{0,500}acquire:\s*acquire/);
     expect(LOCK_SRC).toMatch(/tabId:\s*TAB_ID/);
   });
   test('uses BroadcastChannel name cs-project-lock', () => {
@@ -54,8 +55,15 @@ describe('INT-7 Phase C: cross-tab-lock.js public surface', () => {
   test('timeout is clamped 50-2000 ms', () => {
     expect(LOCK_SRC).toMatch(/MIN_TIMEOUT_MS\s*=\s*50/);
     expect(LOCK_SRC).toMatch(/MAX_TIMEOUT_MS\s*=\s*2000/);
-    expect(LOCK_SRC).toMatch(/if \(timeoutMs < MIN_TIMEOUT_MS\)/);
-    expect(LOCK_SRC).toMatch(/if \(timeoutMs > MAX_TIMEOUT_MS\)/);
+    expect(LOCK_SRC).toMatch(/function _clampTimeout\(timeoutMs\)/);
+    expect(LOCK_SRC).toMatch(/if \(n < MIN_TIMEOUT_MS\) n = MIN_TIMEOUT_MS/);
+    expect(LOCK_SRC).toMatch(/if \(n > MAX_TIMEOUT_MS\) n = MAX_TIMEOUT_MS/);
+  });
+  test('defines a lease-based acquire API for critical sections', () => {
+    expect(LOCK_SRC).toMatch(/function _leaseKey\(resourceId\)/);
+    expect(LOCK_SRC).toMatch(/async function acquire\(resourceId, opLabel, options\)/);
+    expect(LOCK_SRC).toMatch(/reason:\s*'timeout'/);
+    expect(LOCK_SRC).toMatch(/release:\s*_makeRelease/);
   });
 });
 
@@ -152,7 +160,8 @@ describe('INT-7 Phase C: cross-tab-lock.js runtime behaviour', () => {
     var ls = {
       _store: {},
       getItem: function (k) { return this._store[k] != null ? this._store[k] : null; },
-      setItem: function (k, v) { this._store[k] = String(v); }
+      setItem: function (k, v) { this._store[k] = String(v); },
+      removeItem: function (k) { delete this._store[k]; }
     };
     var win = {
       crypto: { randomUUID: function () { return 'test-uuid-' + Math.random().toString(36).slice(2, 8); } },
@@ -167,6 +176,20 @@ describe('INT-7 Phase C: cross-tab-lock.js runtime behaviour', () => {
       LOCK_SRC + '\n;'
     )(win, ls, BC, setTimeout);
     win.localStorage = ls;
+    return win;
+  }
+
+  function freshWindowWithStorage(sharedStorage) {
+    var win = {
+      crypto: { randomUUID: function () { return 'test-uuid-' + Math.random().toString(36).slice(2, 8); } },
+      CrossTabCoord: null
+    };
+    var BC = (typeof global.BroadcastChannel !== 'undefined') ? global.BroadcastChannel : undefined;
+    new Function(
+      'window', 'localStorage', 'BroadcastChannel', 'setTimeout',
+      LOCK_SRC + '\n;'
+    )(win, sharedStorage, BC, setTimeout);
+    win.localStorage = sharedStorage;
     return win;
   }
 
@@ -257,5 +280,79 @@ describe('INT-7 Phase C: cross-tab-lock.js runtime behaviour', () => {
     var result = await win.CrossTabLock.requestLock('proj_abc', 'test', { timeoutMs: 50 });
     expect(result.ok).toBe(true);
     expect(result.denials).toEqual([]);
+  });
+
+  test('acquire serializes a shared resource until release', async () => {
+    var sharedStorage = {
+      _store: {},
+      getItem: function (k) { return this._store[k] != null ? this._store[k] : null; },
+      setItem: function (k, v) { this._store[k] = String(v); },
+      removeItem: function (k) { delete this._store[k]; }
+    };
+    var holder = freshWindowWithStorage(sharedStorage);
+    var waiter = freshWindowWithStorage(sharedStorage);
+
+    var first = await holder.CrossTabLock.acquire('manager_state', 'first-write', { timeoutMs: 80, leaseMs: 500 });
+    expect(first.ok).toBe(true);
+
+    var secondPromise = waiter.CrossTabLock.acquire('manager_state', 'second-write', { timeoutMs: 120, leaseMs: 500 });
+    await Promise.resolve();
+    await first.release();
+    var second = await secondPromise;
+
+    expect(second.ok).toBe(true);
+    expect(second.token).not.toBe(first.token);
+    await second.release();
+  });
+
+  test('acquire times out instead of hanging forever when lease is held', async () => {
+    var sharedStorage = {
+      _store: {},
+      getItem: function (k) { return this._store[k] != null ? this._store[k] : null; },
+      setItem: function (k, v) { this._store[k] = String(v); },
+      removeItem: function (k) { delete this._store[k]; }
+    };
+    var holder = freshWindowWithStorage(sharedStorage);
+    var waiter = freshWindowWithStorage(sharedStorage);
+
+    var first = await holder.CrossTabLock.acquire('manager_state', 'held-write', { timeoutMs: 80, leaseMs: 500 });
+    var second = await waiter.CrossTabLock.acquire('manager_state', 'timed-out-write', { timeoutMs: 60, leaseMs: 500 });
+
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(false);
+    expect(second.reason).toBe('timeout');
+    await first.release();
+  });
+
+  test('release is idempotent and clears only the owner token', async () => {
+    var sharedStorage = {
+      _store: {},
+      getItem: function (k) { return this._store[k] != null ? this._store[k] : null; },
+      setItem: function (k, v) { this._store[k] = String(v); },
+      removeItem: function (k) { delete this._store[k]; }
+    };
+    var win = freshWindowWithStorage(sharedStorage);
+    var lease = await win.CrossTabLock.acquire('manager_state', 'single-write', { timeoutMs: 80, leaseMs: 500 });
+    var key = win.CrossTabLock._LEASE_PREFIX + 'manager_state';
+
+    expect(lease.ok).toBe(true);
+    expect(sharedStorage.getItem(key)).toContain(lease.token);
+    await lease.release();
+    expect(sharedStorage.getItem(key)).toBeNull();
+    await expect(lease.release()).resolves.toBe(false);
+  });
+
+  test('acquire degrades gracefully when localStorage removeItem is unavailable', async () => {
+    var badStorage = {
+      _store: {},
+      getItem: function (k) { return this._store[k] != null ? this._store[k] : null; },
+      setItem: function (k, v) { this._store[k] = String(v); }
+    };
+    var win = freshWindowWithStorage(badStorage);
+    var lease = await win.CrossTabLock.acquire('manager_state', 'degraded-write', { timeoutMs: 80, leaseMs: 500 });
+
+    expect(lease.ok).toBe(true);
+    expect(lease.degraded).toBe(true);
+    await expect(lease.release()).resolves.toBe(false);
   });
 });

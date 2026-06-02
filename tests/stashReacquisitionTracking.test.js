@@ -26,22 +26,18 @@ describe('stash-bridge.js — re-acquisition tracking', () => {
     const fnEnd   = SB_SRC.indexOf('\n    },', fnStart); // next method boundary
     const fnBody  = SB_SRC.slice(fnStart, fnEnd);
 
-    expect(fnBody).toMatch(/prevOwned\s*===\s*0/);
+    expect(fnBody).toMatch(/oldCount\s*===\s*0/);
     expect(fnBody).toMatch(/LEGACY_EPOCH/);
     expect(fnBody).toMatch(/acquisitionSource\s*=\s*null/);
   });
 
-  test('re-acquisition block runs before the oldCount assignment so prevOwned captures the original value', () => {
-    // prevOwned must be assigned BEFORE `const oldCount = threads[key].owned`.
+  test('re-acquisition block uses oldCount as the pre-mutation owned baseline', () => {
     const fnStart = SB_SRC.indexOf('async updateThreadOwned(');
     const fnEnd   = SB_SRC.indexOf('\n    },', fnStart);
     const fnBody  = SB_SRC.slice(fnStart, fnEnd);
 
-    const prevIdx = fnBody.indexOf('prevOwned');
-    const oldCountIdx = fnBody.indexOf('const oldCount = threads[key].owned');
-    expect(prevIdx).toBeGreaterThan(-1);
-    expect(oldCountIdx).toBeGreaterThan(-1);
-    expect(prevIdx).toBeLessThan(oldCountIdx);
+    expect(fnBody).toMatch(/const oldCount = entry\.owned \|\| 0/);
+    expect(fnBody).toMatch(/oldCount\s*===\s*0\s*&&\s*newCount\s*>\s*0/);
   });
 
   test('LEGACY_EPOCH constant is defined in stash-bridge.js', () => {
