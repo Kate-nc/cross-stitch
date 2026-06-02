@@ -1905,6 +1905,9 @@
 
     var pat = ctx.pat, sW = ctx.sW, sH = ctx.sH, pal = ctx.pal;
     var stash = ctx.globalStash || {};
+    var _threadDataReady = useState(function () {
+      return typeof ANCHOR !== 'undefined' && (typeof getOfficialMatch === 'function' || typeof CONVERSIONS !== 'undefined');
+    }); var threadDataReady = _threadDataReady[0], setThreadDataReady = _threadDataReady[1];
 
     var _mode = useState(initialMode); var mode = _mode[0], setMode = _mode[1];
     var _brandTgt = useState('anchor'); var brandTarget = _brandTgt[0], setBrandTarget = _brandTgt[1];
@@ -1933,10 +1936,23 @@
       });
     }, [pat, pal]);
 
+    useEffect(function () {
+      if (threadDataReady || typeof window.loadThreadData !== 'function') return;
+      var cancelled = false;
+      window.loadThreadData({ failMessage: 'Could not load the Anchor or conversion catalogue for palette adaptation. Reload and try again.' })
+        .then(function () {
+          if (!cancelled) setThreadDataReady(true);
+        })
+        .catch(function () {});
+      return function () {
+        cancelled = true;
+      };
+    }, [threadDataReady]);
+
     // Compute proposal (re-runs whenever inputs change).
     var _prop = useState(null); var proposal = _prop[0], setProposal = _prop[1];
     useEffect(function () {
-      if (!window.AdaptationEngine) return;
+      if (!window.AdaptationEngine || !threadDataReady) return;
       try {
         var p = mode === 'brand'
           ? window.AdaptationEngine.proposeBrand(srcPalette, srcBrand, brandTarget, { maxDeltaE: threshold, stash: stash })
@@ -1946,7 +1962,7 @@
         // eslint-disable-next-line no-console
         console.error('AdaptModal proposal failed:', err);
       }
-    }, [mode, brandTarget, srcBrand, srcPalette, stash, threshold, ctx.fabricCt]);
+    }, [mode, brandTarget, srcBrand, srcPalette, stash, threshold, ctx.fabricCt, threadDataReady]);
 
     // Manual overrides keyed by source key. Applied on top of the auto proposal.
     var _ov = useState({}); var overrides = _ov[0], setOverrides = _ov[1];
@@ -4137,6 +4153,8 @@ window.CreatorExportTab = function CreatorExportTab() {
 
     var _profile = useState(null);
     var profile = _profile[0], setProfile = _profile[1];
+    var _anchorReady = useState(function () { return typeof ANCHOR !== 'undefined'; });
+    var anchorDataReady = _anchorReady[0], setAnchorDataReady = _anchorReady[1];
     var _copied = useState(false);
     var copied = _copied[0], setCopied = _copied[1];
     var _pushed = useState(false);
@@ -4166,6 +4184,19 @@ window.CreatorExportTab = function CreatorExportTab() {
       } catch (_) { fallback(); }
       return function () { cancelled = true; };
     }, [ctx.fabricCt]);
+
+    useEffect(function () {
+      if (anchorDataReady || typeof window.loadAnchorData !== 'function') return;
+      var needsAnchor = Array.isArray(ctx.pal) && ctx.pal.some(function (p) { return p && p.brand === 'anchor'; });
+      if (!needsAnchor) return;
+      var cancelled = false;
+      window.loadAnchorData({ failMessage: 'Could not load the Anchor catalogue for the shopping list. Reload and try again.' })
+        .then(function () {
+          if (!cancelled) setAnchorDataReady(true);
+        })
+        .catch(function () {});
+      return function () { cancelled = true; };
+    }, [anchorDataReady, ctx.pal]);
 
     var stash = ctx.globalStash || {};
     var fabricCt = (profile && profile.fabric_count) || ctx.fabricCt || 14;
@@ -4231,7 +4262,7 @@ window.CreatorExportTab = function CreatorExportTab() {
         if (an !== bn) return an - bn;
         return String(a.id).localeCompare(String(b.id));
       });
-    }, [ctx.pat, ctx.pal, stash, fabricCt, strandsUsed, wasteFactor]);
+    }, [ctx.pat, ctx.pal, stash, fabricCt, strandsUsed, wasteFactor, anchorDataReady]);
 
     var ownedRows = rows.filter(function (r) { return r.status === 'owned'; });
     var buyRows = rows.filter(function (r) { return r.status !== 'owned'; });

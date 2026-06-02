@@ -50,10 +50,9 @@
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" integrity="sha384-tMH8h3BGESGckSAVGZ82T9n90ztNXxvdwvdM6UoR56cYcf+0iGXBliJ29D+wZ/x8" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" integrity="sha384-bm7MnzvK++ykSwVJ2tynSE5TRdN+xL418osEVF2DE/L/gfWHj91J2Sphe582B1Bh" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js" integrity="sha384-ku9eM40vVDsFUiERorrdlHlF0LIhdfn716M7TntM72Uo98T7LWiogD3hNenPx8Q0" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js" integrity="sha384-rNlaE5fs9dGIjmxWDALQh/RBAaGRYT5ChrzHo6tRfgrZ36iRFAiquP5g41Jsv+0j" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<!-- CDN failure detection: show a banner if React, ReactDOM, or Babel failed to load -->
-<script>(function(){if(typeof React==='undefined'||typeof ReactDOM==='undefined'||typeof Babel==='undefined'){document.addEventListener('DOMContentLoaded',function(){var d=document.createElement('div');d.setAttribute('role','alert');d.style.cssText='position:fixed;top:0;left:0;right:0;padding:1.2rem 2rem;background:#c0392b;color:#fff;font-family:sans-serif;font-size:0.9rem;text-align:center;z-index:99999;';d.textContent='This page could not load (a required library failed to download). Please check your connection and reload.';if(document.body)document.body.prepend(d);});}}());</script>
+<!-- CDN failure detection: show a banner if React or ReactDOM failed to load -->
+<script>(function(){if(typeof React==='undefined'||typeof ReactDOM==='undefined'){document.addEventListener('DOMContentLoaded',function(){var d=document.createElement('div');d.setAttribute('role','alert');d.style.cssText='position:fixed;top:0;left:0;right:0;padding:1.2rem 2rem;background:#c0392b;color:#fff;font-family:sans-serif;font-size:0.9rem;text-align:center;z-index:99999;';d.textContent='This page could not load (a required library failed to download). Please check your connection and reload.';if(document.body)document.body.prepend(d);});}}());</script>
 <!-- pdf.js + pdf-importer are lazy-loaded on first PDF import -->
 <script>
 window.loadScript = function(src, opts) {
@@ -73,11 +72,6 @@ window.loadPdfStack = function() {
 <link rel="stylesheet" href="styles.css">
 <script src="constants.js"></script>
 <script src="dmc-data.js"></script>
-<!-- defer: Anchor + thread-conversions are only consumed inside function bodies
-     (typeof X === 'undefined' guards). Defer lets HTML parsing continue while
-     these 110 KB download in parallel. -->
-<script src="anchor-data.js" defer></script>
-<script src="thread-conversions.js" defer></script>
 <script src="starter-kits.js"></script>
 <script src="colour-utils.js"></script>
 <script src="helpers.js"></script>
@@ -114,6 +108,7 @@ window.loadPdfStack = function() {
 <script src="command-palette.js" defer></script>
 <script src="preferences-modal.js" defer></script>
 <script src="insights-engine.js"></script>
+<script src="runtime-loaders.js"></script>
 </head>
 <body>
 <a class="skip-to-content" href="#main-content">Skip to content</a>
@@ -148,42 +143,16 @@ window.loadPdfStack = function() {
 })();
 </script>
 <script>
-/* PERF (action plan Â§2A.5): cache the in-browser Babel compile of
-   tracker-app.js in localStorage. Without this, every page load
-   re-runs Babel on the ~6 KLOC source (~80â€“150 ms TBT). The cache
-   key is shared with index.html so visitors who land on either entry
-   benefit from a single compile. The hash suffix is auto-bumped by
-   build-creator-bundle.js when tracker-app.js content changes. */
+/* Load the precompiled tracker entry bundle. The file is wrapped in an IIFE
+   during the build step so its top-level const/let bindings do not collide
+   with other page scripts. */
 (function () {
   if (typeof window === 'undefined') return;
-  var TRACKER_CACHE_KEY = 'babel_tracker_a55a09dac2';
-  var cached = null;
-  try { cached = localStorage.getItem(TRACKER_CACHE_KEY); } catch (e) {}
-  if (cached) {
-    /* Wrap in IIFE so const/let don't collide with the surrounding script. */
-    var s = document.createElement('script');
-    s.textContent = '(function(){' + cached + '})();';
-    document.head.appendChild(s);
-    return;
-  }
-  /* No cache yet: fetch + compile. On fetch failure (file://, offline)
-     fall back to a text/babel tag so Babel-standalone compiles inline. */
-  if (typeof Babel === 'undefined') {
-    var fb0 = document.createElement('script'); fb0.type = 'text/babel'; fb0.src = 'tracker-app.js';
-    document.head.appendChild(fb0);
-    return;
-  }
-  fetch('tracker-app.js').then(function (r) {
-    return r.ok ? r.text() : Promise.reject('fetch failed');
-  }).then(function (src) {
-    var compiled = Babel.transform(src, { presets: ['react'], filename: 'tracker-app.js' }).code;
-    try { localStorage.setItem(TRACKER_CACHE_KEY, compiled); } catch (e) {}
-    var s = document.createElement('script');
-    s.textContent = '(function(){' + compiled + '})();';
-    document.head.appendChild(s);
-  }).catch(function () {
-    var fb = document.createElement('script'); fb.type = 'text/babel'; fb.src = 'tracker-app.js';
-    document.head.appendChild(fb);
+  window.loadScript('compiled/tracker-app.compiled.js', {
+    test: function () { return typeof window.TrackerApp !== 'undefined'; },
+    failMessage: 'This page could not load (the tracker bundle is missing or failed to download). Please rebuild the app and reload.'
+  }).catch(function (err) {
+    console.error('Tracker boot failed:', err);
   });
 })();
 </script>

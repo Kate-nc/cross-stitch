@@ -85,8 +85,8 @@ describe('INT-7 Phase C: service-worker precache', () => {
   test('sw.js precaches ./cross-tab-lock.js', () => {
     expect(SW_SRC).toMatch(/'\.\/cross-tab-lock\.js'/);
   });
-  test('cache name bumped to v52', () => {
-    expect(SW_SRC).toMatch(/CACHE_NAME\s*=\s*'cross-stitch-cache-v52'/);
+  test('cache name bumped to v53', () => {
+    expect(SW_SRC).toMatch(/CACHE_NAME\s*=\s*'cross-stitch-cache-v53'/);
   });
 });
 

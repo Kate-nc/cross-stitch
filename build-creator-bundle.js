@@ -3,12 +3,8 @@
 // Run: node build-creator-bundle.js
 // Outputs: creator/bundle.js
 //
-// Phase 4: also auto-bumps CREATOR_CACHE_KEY in index.html based on the
-// content hash of bundle.js + creator-main.js, so users automatically get
-// fresh JS in their browsers without a manual version edit.
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 
 // Write `content` to `target` only if the existing file differs. Returns true
 // when a write actually happened. Keeps the build idempotent so re-running
@@ -158,113 +154,3 @@ const wizardChanged = writeIfChanged(wizardTarget, wizardBundle);
 const wkb = (wizardBundle.length / 1024).toFixed(1);
 console.log(`creator/import-wizard-bundle.js ${wizardChanged ? 'written' : 'unchanged'} \u2014 ${wizardBundle.length} bytes (${wkb} KB), ${WIZARD_ORDER.length} files merged`);
 
-// Auto-bump CREATOR_CACHE_KEY in create.html and index.html so the
-// in-browser babel cache for creator-main.js invalidates whenever the
-// bundle, the extras-bundle, or creator-main.js change. (Action plan §3.2:
-// extras-bundle now contributes to the hash so a Materials & Output edit
-// also busts the compiled-app cache, and the same key is written to both
-// HTML files so they stay in sync.)
-try {
-  const creatorMainPath = 'creator-main.js';
-  if (fs.existsSync(creatorMainPath)) {
-    const creatorMain = fs.readFileSync(creatorMainPath);
-    const hash = crypto.createHash('sha256')
-      .update(bundle)
-      .update(extrasBundle)
-      .update(creatorMain)
-      .digest('hex')
-      .slice(0, 10);
-    const newKey = `babel_creator_${hash}`;
-    const re = /var\s+CREATOR_CACHE_KEY\s*=\s*['"][^'"]+['"]/;
-    for (const target of ['create.html', 'index.html']) {
-      if (!fs.existsSync(target)) continue;
-      const html = fs.readFileSync(target, 'utf8');
-      if (!re.test(html)) {
-        console.warn(`${target}: CREATOR_CACHE_KEY declaration not found — skipped auto-bump`);
-        continue;
-      }
-      const updated = html.replace(re, `var CREATOR_CACHE_KEY = '${newKey}'`);
-      if (updated !== html) {
-        fs.writeFileSync(target, updated, 'utf8');
-        console.log(`${target} CREATOR_CACHE_KEY → ${newKey}`);
-      } else {
-        console.log(`${target} CREATOR_CACHE_KEY unchanged (${newKey})`);
-      }
-    }
-  }
-} catch (e) {
-  console.warn('Auto-bump of CREATOR_CACHE_KEY failed:', e.message);
-}
-
-// Auto-bump the other Babel-cache keys in index.html based on a hash of the
-// source file each one caches. Without this, edits to tracker-app.js,
-// stats-activity.js, stats-insights.js or stats-page.js are invisible to any
-// browser that already has the previous compiled output in localStorage —
-// which is the most common cause of "the deploy looks like it didn't take
-// effect" reports. Mapping is { CACHE_KEY_NAME: [sourceFilesToHash], prefix }.
-//
-// Action plan §2A.5: the same cache-key rewrite now also runs against
-// stitch.html (TRACKER_CACHE_KEY) and manager.html (MANAGER_CACHE_KEY) so
-// the tracker / manager Babel-cache loaders introduced in those pages stay
-// in sync with the source.
-try {
-  const HTML_TARGETS = [
-    {
-      path: 'index.html',
-      keys: [
-        { varName: 'TRACKER_CACHE_KEY',  prefix: 'babel_tracker_',  files: ['tracker-app.js'] },
-        // ACTIVITY_/INSIGHTS_/STATS_CACHE_KEY removed: stats-*.js are now
-        // injected as plain <script src> (no Babel transform required).
-      ],
-    },
-    {
-      path: 'stitch.html',
-      keys: [
-        { varName: 'TRACKER_CACHE_KEY',  prefix: 'babel_tracker_',  files: ['tracker-app.js'] },
-      ],
-    },
-    {
-      path: 'manager.html',
-      keys: [
-        { varName: 'MANAGER_CACHE_KEY',  prefix: 'babel_manager_',  files: ['manager-app.js'] },
-      ],
-    },
-    {
-      path: 'create.html',
-      keys: [
-        { varName: 'TRACKER_CACHE_KEY',  prefix: 'babel_tracker_',  files: ['tracker-app.js'] },
-      ],
-    },
-  ];
-  for (const target of HTML_TARGETS) {
-    if (!fs.existsSync(target.path)) continue;
-    let html = fs.readFileSync(target.path, 'utf8');
-    let changed = false;
-    for (const entry of target.keys) {
-      const missing = entry.files.filter(f => !fs.existsSync(f));
-      if (missing.length) {
-        console.warn(`Auto-bump skipped for ${entry.varName}: missing ${missing.join(', ')}`);
-        continue;
-      }
-      const h = crypto.createHash('sha256');
-      for (const f of entry.files) h.update(fs.readFileSync(f));
-      const newKey = `${entry.prefix}${h.digest('hex').slice(0, 10)}`;
-      const re = new RegExp(`var\\s+${entry.varName}\\s*=\\s*['"][^'"]+['"]`);
-      if (!re.test(html)) {
-        console.warn(`${target.path}: ${entry.varName} declaration not found — skipped`);
-        continue;
-      }
-      const updated = html.replace(re, `var ${entry.varName} = '${newKey}'`);
-      if (updated !== html) {
-        html = updated;
-        changed = true;
-        console.log(`${target.path} ${entry.varName} → ${newKey}`);
-      } else {
-        console.log(`${target.path} ${entry.varName} unchanged (${newKey})`);
-      }
-    }
-    if (changed) fs.writeFileSync(target.path, html, 'utf8');
-  }
-} catch (e) {
-  console.warn('Auto-bump of secondary Babel cache keys failed:', e.message);
-}
