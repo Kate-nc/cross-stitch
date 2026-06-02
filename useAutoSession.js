@@ -219,6 +219,19 @@
     }
     finaliseAutoSessionRef.current=finaliseAutoSession;
 
+    function resetAutoSessionForProjectLoad(){
+      currentAutoSessionRef.current=null;
+      clearTimeout(autoIdleTimerRef.current);
+      pendingColoursRef.current.clear();
+      pendingMilestonesRef.current=[];
+      manuallyPausedRef.current=false;
+      setManuallyPaused(false);
+      setLiveAutoIsPaused(false);
+      setLiveAutoElapsed(0);
+      setLiveAutoStitches(0);
+      setSessionSavedToast(null);
+    }
+
     useEffect(() => {
       function handleVisibilityChange() {
         const isHidden = document.hidden;
@@ -280,6 +293,7 @@
       manuallyPaused, setManuallyPaused, manuallyPausedRef,
       celebration, setCelebration, celebratedRef, goalCelebrationRef,
       currentAutoSessionRef, finaliseAutoSessionRef,
+      resetAutoSessionForProjectLoad,
       pendingColoursRef, pendingMilestonesRef,
       prevAutoCountRef, justLoadedRef, justLoadedSettlePassRef, autoStatsRef,
       isUnloadingRef,

@@ -1152,7 +1152,7 @@ const lastSnapshotRef=useRef(null); // freshest serialised project for beforeunl
 const v3FieldsRef=useRef({});       // preserve v3 stats fields across save round-trips
 const autoSaveDirtyRef=useRef(false);
 const session=window.useAutoSession({projectIdRef,v3FieldsRef,autoSaveDirtyRef,statsSettings});
-const{statsSessions,setStatsSessions,totalTime,liveAutoElapsed,liveAutoStitches,liveAutoIsPaused,manuallyPaused,setManuallyPaused,manuallyPausedRef,celebration,setCelebration,celebratedRef,goalCelebrationRef,currentAutoSessionRef,finaliseAutoSessionRef,pendingColoursRef,pendingMilestonesRef,prevAutoCountRef,justLoadedRef,justLoadedSettlePassRef,autoStatsRef,isUnloadingRef,achievedMilestones,setAchievedMilestones,sessionOnboardingShown,setSessionOnboardingShown,sessionSavedToast,setSessionSavedToast,recordAutoActivity,editSessionNote}=session;
+const{statsSessions,setStatsSessions,totalTime,liveAutoElapsed,liveAutoStitches,liveAutoIsPaused,manuallyPaused,setManuallyPaused,manuallyPausedRef,celebration,setCelebration,celebratedRef,goalCelebrationRef,currentAutoSessionRef,finaliseAutoSessionRef,resetAutoSessionForProjectLoad,pendingColoursRef,pendingMilestonesRef,prevAutoCountRef,justLoadedRef,justLoadedSettlePassRef,autoStatsRef,isUnloadingRef,achievedMilestones,setAchievedMilestones,sessionOnboardingShown,setSessionOnboardingShown,sessionSavedToast,setSessionSavedToast,recordAutoActivity,editSessionNote}=session;
 const counts=window.useStitchCounts({pat,done,halfStitches,halfDone});
 const{doneCountRef,colourDoneCountsRef,countsVer,recomputeAllCounts,applyDoneCountsDelta}=counts;
 const[projectName,setProjectName]=useState("");
@@ -2745,6 +2745,7 @@ function handleSymbolReassignment(oldColorId, newThread) {
 
 function processLoadedProject(project){
   if(!project){console.error("processLoadedProject called with null/undefined");return;}
+  if(!project.id){console.warn('[stitchx/tracker] processLoadedProject: project has no id — a new id will be minted on first auto-save; call stack:', new Error().stack);}
   // INT-7 Phase B-1: seed the last-seen cache so a future save() from this
   // tab can detect concurrent writes from other tabs. No-op when
   // CrossTabCoord isn't loaded or the project lacks Phase B fields (legacy
@@ -2756,6 +2757,9 @@ function processLoadedProject(project){
         project.id, project.lastWriteAt, project.lastWriteTabId);
     }
   } catch (_) {}
+  // Install the loaded project's identity before any downstream work so a
+  // later render-time failure can't cause the next auto-save to mint a copy.
+  projectIdRef.current = project.id || null;
   let s=project.settings||{};
   setSW(project.w||s.sW||project.settings?.w||80);
   setSH(project.h||s.sH||project.settings?.h||80);
@@ -3012,9 +3016,7 @@ function processLoadedProject(project){
   setCelebration(null);
   celebratedRef.current=new Set();
   goalCelebrationRef.current={daily:false,weekly:false,monthly:false};
-  pendingMilestonesRef.current=[];
-  currentAutoSessionRef.current=null;
-  clearTimeout(autoIdleTimerRef.current);
+  resetAutoSessionForProjectLoad();
   // Restore persisted milestones and seed celebratedRef so celebrations don't re-fire
   var persistedMilestones=project.achievedMilestones||[];
   setAchievedMilestones(persistedMilestones);
@@ -3035,7 +3037,6 @@ function processLoadedProject(project){
   setProjectName(project.name||"");
   setProjectDesigner(project.designer||"");
   setProjectDescription(project.description||"");
-  projectIdRef.current = project.id || null;
   try{const saved=localStorage.getItem('cs_layerVis_'+(project.id||''));if(saved)setLayerVis(JSON.parse(saved));else setLayerVis(ALL_LAYERS_VISIBLE);}catch(_){setLayerVis(ALL_LAYERS_VISIBLE);}
   try{const saved=localStorage.getItem('cs_parkLayers_'+(project.id||''));setParkLayers(saved?JSON.parse(saved):{});}catch(_){setParkLayers({});}
   // Per-project legend overlay (sort + collapsed). When absent, the
@@ -3156,6 +3157,8 @@ function loadProject(e){
       return importer.import(f);
     }).then(project => {
       if (!project.name) project.name = baseName;
+      if (!project.id) project.id = ProjectStorage.newId();
+      if (!project.createdAt) project.createdAt = new Date().toISOString();
       processLoadedProject(project);
       persistProjectRecord(project).catch(err => console.error("Import save failed:", err));
       setLoadError(null);
@@ -3254,6 +3257,7 @@ useEffect(() => {
             }
             const decompressed = pako.inflate(binaryData, { to: 'string' });
             const project = JSON.parse(decompressed);
+            if (!project.id) project.id = ProjectStorage.newId();
             processLoadedProject(project);
             hasLoadedOnceRef.current=true; // T-4
             window.location.hash = ''; // Clear hash after loading
@@ -3372,7 +3376,10 @@ useEffect(() => {
 const buildSnapshotRef = useRef(null);
 const buildSnapshot = () => {
   if (!pat || !pal) return null;
-  if (!projectIdRef.current) projectIdRef.current = ProjectStorage.newId();
+  if (!projectIdRef.current) {
+    projectIdRef.current = ProjectStorage.newId();
+    console.warn('[stitchx/tracker] buildSnapshot: projectIdRef was null — assigning new id', projectIdRef.current, new Error().stack);
+  }
   if (!createdAtRef.current) createdAtRef.current = new Date().toISOString();
   const sseArr = [...singleStitchEdits.entries()];
   const hsArr = [...halfStitches.entries()].map(([idx, hs]) => [idx, {
