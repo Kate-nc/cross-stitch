@@ -20,6 +20,8 @@
 
     var _profile = useState(null);
     var profile = _profile[0], setProfile = _profile[1];
+    var _anchorReady = useState(function () { return typeof ANCHOR !== 'undefined'; });
+    var anchorDataReady = _anchorReady[0], setAnchorDataReady = _anchorReady[1];
     var _copied = useState(false);
     var copied = _copied[0], setCopied = _copied[1];
     var _pushed = useState(false);
@@ -49,6 +51,19 @@
       } catch (_) { fallback(); }
       return function () { cancelled = true; };
     }, [ctx.fabricCt]);
+
+    useEffect(function () {
+      if (anchorDataReady || typeof window.loadAnchorData !== 'function') return;
+      var needsAnchor = Array.isArray(ctx.pal) && ctx.pal.some(function (p) { return p && p.brand === 'anchor'; });
+      if (!needsAnchor) return;
+      var cancelled = false;
+      window.loadAnchorData({ failMessage: 'Could not load the Anchor catalogue for the shopping list. Reload and try again.' })
+        .then(function () {
+          if (!cancelled) setAnchorDataReady(true);
+        })
+        .catch(function () {});
+      return function () { cancelled = true; };
+    }, [anchorDataReady, ctx.pal]);
 
     var stash = ctx.globalStash || {};
     var fabricCt = (profile && profile.fabric_count) || ctx.fabricCt || 14;
@@ -114,7 +129,7 @@
         if (an !== bn) return an - bn;
         return String(a.id).localeCompare(String(b.id));
       });
-    }, [ctx.pat, ctx.pal, stash, fabricCt, strandsUsed, wasteFactor]);
+    }, [ctx.pat, ctx.pal, stash, fabricCt, strandsUsed, wasteFactor, anchorDataReady]);
 
     var ownedRows = rows.filter(function (r) { return r.status === 'owned'; });
     var buyRows = rows.filter(function (r) { return r.status !== 'owned'; });

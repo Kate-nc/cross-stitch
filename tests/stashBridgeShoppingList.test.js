@@ -46,11 +46,12 @@ describe('Schema v4 — Shopping List bridge', () => {
     });
 
     test('every writer dispatches cs:stashChanged', () => {
-      // updateThreadOwned, updateThreadToBuy, markManyToBuy, setToBuyQty,
-      // setToBuyQtyMany, markBought, markBoughtMany, clearShoppingList —
-      // at least 8 _dispatchStashChanged call sites.
+      // Writers now centralise dispatching in _withThreadsWrite(), so we only
+      // need to assert that the helper fires the event and that the file still
+      // contains a few direct dispatch sites for migration / non-thread writes.
+      expect(SRC).toMatch(/async function _withThreadsWrite\([\s\S]{0,4000}_dispatchStashChanged\(\)/);
       const matches = SRC.match(/_dispatchStashChanged\(\)/g) || [];
-      expect(matches.length).toBeGreaterThanOrEqual(8);
+      expect(matches.length).toBeGreaterThanOrEqual(3);
     });
 
     test('markBought is a single-tx mutation (no nested await on updateThreadOwned)', () => {
@@ -135,6 +136,13 @@ describe('Schema v4 — Shopping List bridge', () => {
       const rows = buildRows(threads, function() { return null; });
       expect(rows[0].name).toBe('999999');
       expect(rows[0].rgb).toEqual([200, 200, 200]);
+    });
+
+    test('does not leak internal _v version metadata into shopping-list rows', () => {
+      const threads = { 'dmc:310': { owned: 0, tobuy: true, tobuy_qty: 2, _v: 7 } };
+      const rows = buildRows(threads, function() { return null; });
+      expect(rows[0]._v).toBeUndefined();
+      expect(Object.prototype.hasOwnProperty.call(rows[0], '_v')).toBe(false);
     });
 
     test('ties on tobuy_added_at sort by brand then numeric id', () => {

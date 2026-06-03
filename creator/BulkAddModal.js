@@ -7,7 +7,7 @@
      StashBridge (stash-bridge.js), threadKey (helpers.js) */
 
 window.BulkAddModal = (function () {
-  const { useState, useMemo, useCallback } = React;
+  const { useState, useMemo, useEffect, useCallback } = React;
 
   // Hoisted: regexes used per-token by parseBulkThreadList. Avoids recompiling
   // five regexes for every token in the input.
@@ -102,9 +102,25 @@ window.BulkAddModal = (function () {
     var [kitRemovedIds, setKitRemovedIds] = useState({}); // { normalised: true }
     var [saving, setSaving] = useState(false);
     var [done, setDone] = useState(false);
+    var [anchorDataReady, setAnchorDataReady] = useState(function () { return typeof ANCHOR !== 'undefined'; });
+
+    useEffect(function () {
+      var needsAnchor = brand === 'anchor' || kitBrand === 'anchor';
+      if (!needsAnchor || anchorDataReady || typeof window.loadAnchorData !== 'function') return;
+      var cancelled = false;
+      window.loadAnchorData({ failMessage: 'Could not load the Anchor catalogue for Bulk Add. Reload and try again.' })
+        .then(function () {
+          if (!cancelled) setAnchorDataReady(true);
+        })
+        .catch(function () {});
+      return function () {
+        cancelled = true;
+      };
+    }, [brand, kitBrand, anchorDataReady]);
 
     // ── Paste tab logic ──────────────────────────────────────────────────────
     var pasteResolved = useMemo(function () {
+      if (brand === 'anchor' && !anchorDataReady) return [];
       var raw = parseBulkThreadList(pasteText, brand);
       var resolved = resolveIds(raw, brand);
       // Remove duplicates by normalised id
@@ -114,7 +130,7 @@ window.BulkAddModal = (function () {
         seen[r.normalised] = true;
         return true;
       }).filter(function (r) { return removedRaws.indexOf(r.raw) === -1; });
-    }, [pasteText, brand, removedRaws]);
+    }, [pasteText, brand, removedRaws, anchorDataReady]);
 
     function removePasteEntry(rawToken) {
       setRemovedRaws(function (prev) { return prev.concat(rawToken); });
@@ -127,6 +143,7 @@ window.BulkAddModal = (function () {
     var kitResolved = useMemo(function () {
       var kit = kits[selectedKit];
       if (!kit) return [];
+      if (kitBrand === 'anchor' && !anchorDataReady) return [];
       var arr = kitBrand === 'anchor'
         ? (typeof ANCHOR !== 'undefined' ? ANCHOR : [])
         : (typeof DMC !== 'undefined' ? DMC : []);
@@ -138,7 +155,7 @@ window.BulkAddModal = (function () {
           var thread = byId[id] || null;
           return { raw: id, normalised: id, thread: thread, valid: !!thread };
         });
-    }, [kitBrand, selectedKit, kitRemovedIds]);
+    }, [kitBrand, selectedKit, kitRemovedIds, anchorDataReady]);
 
     function removeKitEntry(id) {
       setKitRemovedIds(function (prev) { return Object.assign({}, prev, { [id]: true }); });
@@ -178,6 +195,7 @@ window.BulkAddModal = (function () {
     var activeItems = activeTab === 'paste' ? pasteResolved : kitResolved;
     var validCount = activeItems.filter(function (i) { return i.valid; }).length;
     var invalidCount = activeItems.filter(function (i) { return !i.valid; }).length;
+    var anchorLoading = (activeTab === 'paste' ? brand : kitBrand) === 'anchor' && !anchorDataReady;
 
     if (done) {
       return React.createElement(window.Overlay, {
@@ -234,6 +252,7 @@ window.BulkAddModal = (function () {
               rows: 5,
               style: { width: '100%', fontSize:'var(--text-md)', padding: '8px 10px', border: '1px solid var(--border)', borderRadius:'var(--radius-sm)', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'monospace' }
             }),
+            anchorLoading && React.createElement('div', { style: { marginTop:'var(--s-2)', fontSize:'var(--text-sm)', color:'var(--text-secondary)' } }, 'Loading Anchor catalogue…'),
             pasteResolved.length > 0 && React.createElement('div', { style: { marginTop:'var(--s-3)' } },
               React.createElement('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 6 } },
                 validCount + ' valid' + (invalidCount > 0 ? ', ' + invalidCount + ' unrecognised (click the remove icon to clear)' : '')
@@ -264,6 +283,7 @@ window.BulkAddModal = (function () {
                 }, kit.label);
               })
             ),
+            anchorLoading && React.createElement('div', { style: { marginBottom:'var(--s-2)', fontSize:'var(--text-sm)', color:'var(--text-secondary)' } }, 'Loading Anchor catalogue…'),
             kitResolved.length > 0 && React.createElement(React.Fragment, null,
               React.createElement('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 6 } },
                 validCount + ' threads in this kit' + (invalidCount > 0 ? ', ' + invalidCount + ' unrecognised' : '')

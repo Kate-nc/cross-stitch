@@ -46,11 +46,11 @@
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
 <!-- Prefetch lazy-loaded assets in the background at idle time -->
-<link rel="prefetch" href="tracker-app.js">
+<link rel="prefetch" href="compiled/tracker-app.compiled.js">
 <link rel="prefetch" href="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js">
 <link rel="prefetch" href="pdf-export-worker.js">
 <!-- Prefetch creator-main.js in the background so it is ready when the user switches to Creator mode -->
-<link rel="prefetch" href="creator-main.js">
+<link rel="prefetch" href="compiled/creator-main.compiled.js">
 <link rel="prefetch" href="stats-page.js">
 <link rel="prefetch" href="stats-activity.js">
 <!-- Flag set before any Babel scripts so TrackerApp's guard fires correctly -->
@@ -61,25 +61,18 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" integrity="sha384-tMH8h3BGESGckSAVGZ82T9n90ztNXxvdwvdM6UoR56cYcf+0iGXBliJ29D+wZ/x8" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" integrity="sha384-bm7MnzvK++ykSwVJ2tynSE5TRdN+xL418osEVF2DE/L/gfWHj91J2Sphe582B1Bh" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js" integrity="sha384-ku9eM40vVDsFUiERorrdlHlF0LIhdfn716M7TntM72Uo98T7LWiogD3hNenPx8Q0" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <!-- pako needed at startup (project data uses deflate/inflate) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js" integrity="sha384-rNlaE5fs9dGIjmxWDALQh/RBAaGRYT5ChrzHo6tRfgrZ36iRFAiquP5g41Jsv+0j" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <!-- JSZip (C6 bundle export) â€” loaded eagerly on the Creator page so the
      "Download bundle" action is available without a CDN round-trip on click.
      Pinned to 3.10.1 (immutable on cdnjs). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<!-- CDN failure detection: show a banner if React, ReactDOM, or Babel failed to load -->
-<script>(function(){if(typeof React==='undefined'||typeof ReactDOM==='undefined'||typeof Babel==='undefined'){document.addEventListener('DOMContentLoaded',function(){var d=document.createElement('div');d.setAttribute('role','alert');d.style.cssText='position:fixed;top:0;left:0;right:0;padding:1.2rem 2rem;background:#c0392b;color:#fff;font-family:sans-serif;font-size:0.9rem;text-align:center;z-index:99999;';d.textContent='This page could not load (a required library failed to download). Please check your connection and reload.';if(document.body)document.body.prepend(d);});}}());</script>
+<!-- CDN failure detection: show a banner if React or ReactDOM failed to load -->
+<script>(function(){if(typeof React==='undefined'||typeof ReactDOM==='undefined'){document.addEventListener('DOMContentLoaded',function(){var d=document.createElement('div');d.setAttribute('role','alert');d.style.cssText='position:fixed;top:0;left:0;right:0;padding:1.2rem 2rem;background:#c0392b;color:#fff;font-family:sans-serif;font-size:0.9rem;text-align:center;z-index:99999;';d.textContent='This page could not load (a required library failed to download). Please check your connection and reload.';if(document.body)document.body.prepend(d);});}}());</script>
 <!-- pdf-lib (export), pdf.js (import) and pdf-importer are lazy-loaded on first use -->
 <link rel="stylesheet" href="styles.css">
 <script src="constants.js"></script>
 <script src="dmc-data.js"></script>
-<!-- defer: Anchor + thread-conversions are only consumed inside function bodies
-     (typeof X === 'undefined' guards). Defer lets HTML parsing continue while
-     these 110 KB download in parallel. They still execute before
-     DOMContentLoaded so React mount sees them. -->
-<script src="anchor-data.js" defer></script>
-<script src="thread-conversions.js" defer></script>
 <script src="starter-kits.js"></script>
 <script src="colour-utils.js"></script>
 <script src="helpers.js"></script>
@@ -130,17 +123,9 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
      pipeline live in a separate bundle that downloads in parallel with the
      main bundle but doesn't block HTML parsing. -->
 <script src="creator/extras-bundle.js" defer></script>
-<!-- Lazy-load helpers â€” available to both regular and Babel scripts -->
+<script src="runtime-loaders.js"></script>
+<!-- Lazy-load helpers â€” available to regular scripts -->
 <script>
-window.loadScript = function(src, opts) {
-  if (document.querySelector('script[src="' + src + '"]')) return Promise.resolve();
-  opts = opts || {};
-  return new Promise(function(res, rej) {
-    var s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej;
-    if (opts.integrity) { s.integrity = opts.integrity; s.crossOrigin = opts.crossOrigin || 'anonymous'; s.referrerPolicy = 'no-referrer'; }
-    document.head.appendChild(s);
-  });
-};
 window.loadPdfStack = function() {
   return window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', { integrity: 'sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e' })
     .then(function() {
@@ -163,96 +148,89 @@ window.loadPdfStack = function() {
     else setTimeout(go, 0);
   } catch (_) {}
 })();
-/* Loads TrackerApp via Babel, caching compiled output in localStorage.
-   Falls back to direct text/babel tag if fetch is unavailable (e.g. file:// protocol). */
-var TRACKER_CACHE_KEY = 'babel_tracker_a55a09dac2';
 window.loadTrackerApp = function() {
-  if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return;
+  if (window.__trackerLoading || typeof window.TrackerApp !== 'undefined') return window.__trackerLoadPromise || Promise.resolve();
   window.__trackerLoading = true;
-  // Clear stale cache from previous versions
-  try { localStorage.removeItem('babel_tracker_v2'); localStorage.removeItem('babel_tracker_v3'); localStorage.removeItem('babel_tracker_v4'); localStorage.removeItem('babel_tracker_v5'); localStorage.removeItem('babel_tracker_v6'); localStorage.removeItem('babel_tracker_v7'); localStorage.removeItem('babel_tracker_v8'); localStorage.removeItem('babel_tracker_v9'); localStorage.removeItem('babel_tracker_v10'); localStorage.removeItem('babel_tracker_v11'); localStorage.removeItem('babel_tracker_v12'); localStorage.removeItem('babel_tracker_v13'); localStorage.removeItem('babel_tracker_v14'); localStorage.removeItem('babel_tracker_v15'); } catch(e) {}
-  // Clear stale creator cache
-  try { localStorage.removeItem('babel_creator_v4'); localStorage.removeItem('babel_creator_v5'); localStorage.removeItem('babel_creator_v6'); localStorage.removeItem('babel_creator_v7'); localStorage.removeItem('babel_creator_v8'); localStorage.removeItem('babel_creator_v9'); } catch(e) {}
-  // Clear stale stats cache on tracker version bump
-  try { localStorage.removeItem('babel_stats_v0'); localStorage.removeItem('babel_stats_v1'); localStorage.removeItem('babel_stats_v2'); localStorage.removeItem('babel_stats_v3'); localStorage.removeItem('babel_stats_v4'); } catch(e) {}
-  var cached = null;
-  try { cached = localStorage.getItem(TRACKER_CACHE_KEY); } catch(e) {}
-  // Wrap in IIFE so const/let declarations don't collide with the inline Babel script
-  if (cached) {
-    var s = document.createElement('script'); s.textContent = '(function(){' + cached + '})();'; document.head.appendChild(s); return;
-  }
-  fetch('tracker-app.js').then(function(r) {
-    return r.ok ? r.text() : Promise.reject('fetch failed');
-  }).then(function(src) {
-    var compiled = Babel.transform(src, { presets: ['react'], filename: 'tracker-app.js' }).code;
-    try { localStorage.setItem(TRACKER_CACHE_KEY, compiled); } catch(e) {}
-    var s = document.createElement('script'); s.textContent = '(function(){' + compiled + '})();'; document.head.appendChild(s);
-  }).catch(function(err) {
-    /* file:// or network error â€” fall back to Babel MutationObserver path */
+  window.__trackerLoadPromise = window.loadScript('compiled/tracker-app.compiled.js', {
+    test: function () { return typeof window.TrackerApp !== 'undefined'; },
+    failMessage: 'This page could not load (the tracker bundle is missing or failed to download). Please rebuild the app and reload.'
+  }).then(function () {
+    window.__trackerLoaded = true;
+    window.__trackerLoading = false;
+  }).catch(function (err) {
     console.error('loadTrackerApp failed:', err);
     window.__trackerLoading = false;
-    var s = document.createElement('script'); s.type = 'text/babel'; s.src = 'tracker-app.js';
-    document.head.appendChild(s);
+    window.__trackerLoadPromise = null;
+    throw err;
   });
+  return window.__trackerLoadPromise;
 };
-/* Loads creator-main.js via Babel, caching compiled output in localStorage.
-   Falls back to direct text/babel tag if fetch is unavailable. */
-var CREATOR_CACHE_KEY = 'babel_creator_e4011edf1a';
 window.loadCreatorMain = function() {
-  if (window.__creatorMainLoading || window.__creatorMainLoaded) return;
+  if (window.__creatorMainLoading || window.__creatorMainLoaded) return window.__creatorMainLoadPromise || Promise.resolve();
   window.__creatorMainLoading = true;
-  var cached = null;
-  try { cached = localStorage.getItem(CREATOR_CACHE_KEY); } catch(e) {}
-  if (cached) {
+  window.__creatorMainLoadPromise = window.loadScript('compiled/creator-main.compiled.js', {
+    test: function () { return window.__creatorMainLoaded; },
+    failMessage: 'This page could not load (the creator bundle is missing or failed to download). Please rebuild the app and reload.'
+  }).then(function () {
     window.__creatorMainLoaded = true;
-    var s = document.createElement('script'); s.textContent = '(function(){' + cached + '})();'; document.head.appendChild(s); return;
-  }
-  fetch('creator-main.js').then(function(r) {
-    return r.ok ? r.text() : Promise.reject('fetch failed');
-  }).then(function(src) {
-    var compiled = Babel.transform(src, { presets: ['react'], filename: 'creator-main.js' }).code;
-    try { localStorage.setItem(CREATOR_CACHE_KEY, compiled); } catch(e) {}
-    window.__creatorMainLoaded = true;
-    var s = document.createElement('script'); s.textContent = '(function(){' + compiled + '})();'; document.head.appendChild(s);
-  }).catch(function() {
-    /* file:// or network error â€” fall back to Babel MutationObserver path */
     window.__creatorMainLoading = false;
-    var s = document.createElement('script'); s.type = 'text/babel'; s.src = 'creator-main.js';
-    document.head.appendChild(s);
+  }).catch(function (err) {
+    console.error('loadCreatorMain failed:', err);
+    window.__creatorMainLoading = false;
+    window.__creatorMainLoadPromise = null;
+    throw err;
   });
+  return window.__creatorMainLoadPromise;
 };/* stats-activity.js / stats-insights.js / stats-page.js are pure
    React.createElement (no JSX), so they're injected as plain <script src>
-   without Babel.transform. SW + HTTP cache handle freshness; old
-   localStorage cache entries are removed on first load to free space. */
+   without Babel.transform. SW + HTTP cache handle freshness. */
 window.loadStatsActivity = function() {
-  if (window.__statsActivityLoading || window.__statsActivityLoaded) return;
+  if (window.__statsActivityLoading || window.__statsActivityLoaded) return window.__statsActivityLoadPromise || Promise.resolve();
   window.__statsActivityLoading = true;
-  try { localStorage.removeItem('babel_activity_b51213250f'); localStorage.removeItem('babel_activity_4172b908a9'); } catch(e) {}
-  var s = document.createElement('script');
-  s.src = 'stats-activity.js';
-  s.onload = function() { window.__statsActivityLoaded = true; window.__statsActivityLoading = false; };
-  s.onerror = function() { window.__statsActivityLoading = false; };
-  document.head.appendChild(s);
+  window.__statsActivityLoadPromise = window.loadScript('stats-activity.js', {
+    test: function () { return window.__statsActivityLoaded; },
+    failMessage: 'This page could not load (the stats activity bundle is missing or failed to download). Please reload.'
+  }).then(function () {
+    window.__statsActivityLoaded = true;
+    window.__statsActivityLoading = false;
+  }).catch(function (err) {
+    window.__statsActivityLoading = false;
+    window.__statsActivityLoadPromise = null;
+    throw err;
+  });
+  return window.__statsActivityLoadPromise;
 };
 window.loadStatsInsights = function() {
-  if (window.__statsInsightsLoading || window.__statsInsightsLoaded) return;
+  if (window.__statsInsightsLoading || window.__statsInsightsLoaded) return window.__statsInsightsLoadPromise || Promise.resolve();
   window.__statsInsightsLoading = true;
-  try { localStorage.removeItem('babel_insights_a9d11c6dc2'); } catch(e) {}
-  var s = document.createElement('script');
-  s.src = 'stats-insights.js';
-  s.onload = function() { window.__statsInsightsLoaded = true; window.__statsInsightsLoading = false; };
-  s.onerror = function() { window.__statsInsightsLoading = false; };
-  document.head.appendChild(s);
+  window.__statsInsightsLoadPromise = window.loadScript('stats-insights.js', {
+    test: function () { return window.__statsInsightsLoaded; },
+    failMessage: 'This page could not load (the stats insights bundle is missing or failed to download). Please reload.'
+  }).then(function () {
+    window.__statsInsightsLoaded = true;
+    window.__statsInsightsLoading = false;
+  }).catch(function (err) {
+    window.__statsInsightsLoading = false;
+    window.__statsInsightsLoadPromise = null;
+    throw err;
+  });
+  return window.__statsInsightsLoadPromise;
 };
 window.loadStatsPage = function() {
-  if (window.__statsPageLoading || window.__statsPageLoaded) return;
+  if (window.__statsPageLoading || window.__statsPageLoaded) return window.__statsPageLoadPromise || Promise.resolve();
   window.__statsPageLoading = true;
-  try { localStorage.removeItem('babel_stats_1a95b826aa'); } catch(e) {}
-  var s = document.createElement('script');
-  s.src = 'stats-page.js';
-  s.onload = function() { window.__statsPageLoaded = true; window.__statsPageLoading = false; };
-  s.onerror = function() { window.__statsPageLoading = false; };
-  document.head.appendChild(s);
+  window.__statsPageLoadPromise = window.loadScript('stats-page.js', {
+    test: function () { return window.__statsPageLoaded; },
+    failMessage: 'This page could not load (the stats page bundle is missing or failed to download). Please reload.'
+  }).then(function () {
+    window.__statsPageLoaded = true;
+    window.__statsPageLoading = false;
+  }).catch(function (err) {
+    window.__statsPageLoading = false;
+    window.__statsPageLoadPromise = null;
+    throw err;
+  });
+  return window.__statsPageLoadPromise;
 };
 </script>
 <!-- TrackerApp is lazy-loaded (above) the first time the user switches to Track mode -->

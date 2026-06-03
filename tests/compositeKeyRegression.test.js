@@ -184,12 +184,16 @@ describe('C2 — stats-insights ColourHeatmap blend ownership', () => {
 describe('C3 — stash-bridge migration chaining', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'stash-bridge.js'), 'utf8');
 
-  it('migrateSchemaToV3 is awaited via promise chain return', () => {
-    // Pattern: .then(function() { return StashBridge.migrateSchemaToV3(); })
-    expect(src).toMatch(/\.then\(function\(\) \{ return StashBridge\.migrateSchemaToV3\(\); \}\)/);
+  it('auto-run uses the single migrateToLatest orchestrator', () => {
+    expect(src).toMatch(/StashBridge\.migrateToLatest\(\)/);
   });
 
   it('migration chain has a catch handler', () => {
-    expect(src).toMatch(/migrateSchemaToV2\(\)[\s\S]{0,200}\.catch\(/);
+    expect(src).toMatch(/migrateToLatest\(\)[\s\S]{0,120}\.catch\(/);
+  });
+
+  it('keeps both versioned migration wrappers on the public surface', () => {
+    expect(src).toMatch(/migrateSchemaToV2/);
+    expect(src).toMatch(/migrateSchemaToV3/);
   });
 });

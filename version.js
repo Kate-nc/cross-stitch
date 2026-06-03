@@ -55,6 +55,18 @@ window.APP_CHANGELOG = [
 ];
 
 (function () {
+  try {
+    var cleanupKey = 'stitchx_babel_cleanup_version';
+    if (localStorage.getItem(cleanupKey) === window.APP_VERSION) return;
+    for (var i = localStorage.length - 1; i >= 0; i--) {
+      var key = localStorage.key(i);
+      if (key && /^babel_/i.test(key)) localStorage.removeItem(key);
+    }
+    localStorage.setItem(cleanupKey, window.APP_VERSION);
+  } catch (_) {}
+})();
+
+(function () {
   function inject() {
     if (document.getElementById('app-version-badge')) return;
     var el = document.createElement('div');

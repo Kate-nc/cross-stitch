@@ -15,6 +15,32 @@ window.CreatorSidebar = function CreatorSidebar() {
   var _qaLoad = React.useState(false); var qaLoading = _qaLoad[0], setQaLoading = _qaLoad[1];
   var _seedEd = React.useState(false); var seedEditing = _seedEd[0], setSeedEditing = _seedEd[1];
   var _seedTmp = React.useState(""); var seedTmp = _seedTmp[0], setSeedTmp = _seedTmp[1];
+  var _anchorReady = React.useState(typeof ANCHOR !== 'undefined'); var anchorDataReady = _anchorReady[0], setAnchorDataReady = _anchorReady[1];
+
+  React.useEffect(function () {
+    if (anchorDataReady || typeof window.loadAnchorData !== 'function') return;
+    var displayPal = ctx.displayPal || ctx.pal || [];
+    var needsAnchor = displayPal.some(function (p) { return p && p.brand === 'anchor'; });
+    if (!needsAnchor) {
+      var stash = ctx.globalStash || {};
+      for (var key in stash) {
+        if (Object.prototype.hasOwnProperty.call(stash, key) && key.indexOf('anchor:') === 0) {
+          needsAnchor = true;
+          break;
+        }
+      }
+    }
+    if (!needsAnchor) return;
+    var cancelled = false;
+    window.loadAnchorData({ failMessage: 'Could not load the Anchor catalogue for this pattern. Reload and try again.' })
+      .then(function () {
+        if (!cancelled) setAnchorDataReady(true);
+      })
+      .catch(function () {});
+    return function () {
+      cancelled = true;
+    };
+  }, [anchorDataReady, ctx.displayPal, ctx.pal, ctx.globalStash]);
 
   function getCleanupWarning(sW, sH, orphans, previewStats) {
     if (orphans === 0) return null;

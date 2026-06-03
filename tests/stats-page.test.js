@@ -150,7 +150,7 @@ describe('stats-page.js — review feedback regressions', () => {
 
   test('owned LAB stash entries are memoised separately from coverage ratio', () => {
     expect(source).toContain('const ownedLabEntries = useMemo(() => {');
-    expect(source).toContain('}, [stash]);');
+    expect(source).toContain('}, [stash, anchorDataReady]);');
     expect(source).toContain('}, [richProjects, stash, matchTolerance, ownedLabEntries]);');
   });
 });
@@ -173,6 +173,6 @@ describe('index.html — stats loaders', () => {
       html.indexOf('</script>', html.indexOf('window.loadStatsPage'))
     );
     expect(loaderRegion).not.toMatch(/Babel\.transform/);
-    expect(loaderRegion).toContain("s.src = 'stats-page.js'");
+    expect(loaderRegion).toContain("window.loadScript('stats-page.js'");
   });
 });
