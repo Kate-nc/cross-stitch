@@ -46,11 +46,12 @@ function SessionTimeline({sessions, statsSettings, onEditNote, palette}){
     var daySessions = grouped[date].slice().reverse();
     for (var si = 0; si < daySessions.length; si++) {
       var session = daySessions[si];
+      var sessionWindow = formatTimeRange(session.startTime, session.endTime);
       var contentChildren = [
-        React.createElement("span", {key:"date", className:"timeline-date"}, formatRelativeDate(session.date, dayEndHour) + ", " + formatTimeRange(session.startTime, session.endTime)),
+        React.createElement("span", {key:"date", className:"timeline-date"}, formatRelativeDate(session.date, dayEndHour) + " - Session window " + sessionWindow),
         React.createElement("div", {key:"stats", className:"timeline-stats"},
           React.createElement("span", {className:"timeline-stitches"}, session.netStitches + " stitches"),
-          React.createElement("span", {className:"timeline-duration"}, formatStatsDuration(getSessionSeconds(session)))
+          React.createElement("span", {className:"timeline-duration"}, "Active time " + formatStatsDuration(getSessionSeconds(session)))
         )
       ];
       if (session.coloursWorked && session.coloursWorked.length > 0) {
