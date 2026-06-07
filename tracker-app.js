@@ -533,20 +533,30 @@ function TrackerProjectRail({activeId,activeDoneCount,activeTotalStitchable,pal,
 // Events each carry {kind, t} (t = Unix ms). Recognised kinds:
 //   start, stitch, hidden, visible, manualPause, manualResume
 // Intervals inside a hidden or manualPause span are excluded entirely.
-// All other inter-event gaps are credited at most capMs each, so natural
-// dwell (counting, rethreading) counts up to capMs without crediting walk-away.
+// All other inter-event gaps are credited at most capMs each by default.
+// When the interval ends in a bulk stitch event (delta > 1), the credit cap
+// scales up for that one gap so row-at-a-time / batch-marking workflows are
+// not forced down to the small per-click default. Tail time after the final
+// event still uses the base cap because there is no later burst to justify it.
+function getEventGapCapMs(prevEv, ev, baseCapMs) {
+  if (!ev || ev.kind !== 'stitch') return baseCapMs;
+  var burst = Math.max(1, Math.abs(ev.delta || 1));
+  if (burst <= 1) return baseCapMs;
+  return Math.min(10 * 60 * 1000, baseCapMs * Math.min(burst, 6));
+}
 function computeActiveMs(log, upToTime, capMs) {
   if (!log || log.length === 0) return 0;
   var activeMs = 0;
   var hiddenAt = null;
   var manualPauseAt = null;
   var prevT = null;
+  var prevEv = null;
   for (var i = 0; i < log.length; i++) {
     var ev = log[i];
     var t = ev.t <= upToTime ? ev.t : upToTime;
     if (prevT !== null && t > prevT) {
       if (hiddenAt === null && manualPauseAt === null) {
-        activeMs += Math.min(t - prevT, capMs);
+        activeMs += Math.min(t - prevT, getEventGapCapMs(prevEv, ev, capMs));
       }
     }
     if (ev.t > upToTime) { prevT = t; break; }
@@ -555,6 +565,7 @@ function computeActiveMs(log, upToTime, capMs) {
     else if (ev.kind === 'manualPause')  manualPauseAt = ev.t;
     else if (ev.kind === 'manualResume') manualPauseAt = null;
     prevT = ev.t;
+    prevEv = ev;
   }
   // Tail: from last event up to upToTime
   if (prevT !== null && prevT < upToTime && hiddenAt === null && manualPauseAt === null) {
