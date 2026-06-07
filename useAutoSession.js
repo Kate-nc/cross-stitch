@@ -62,6 +62,15 @@
       }catch(_){}
       return 90*1000;
     }
+    function getTimingMode(){
+      var mode=statsSettings&&statsSettings.timingMode;
+      if(mode==='classic'||mode==='batchAware')return mode;
+      try{
+        var globalMode=window.UserPrefs&&window.UserPrefs.get("trackerTimingMode");
+        if(globalMode==='classic'||globalMode==='batchAware')return globalMode;
+      }catch(_){}
+      return 'classic';
+    }
     // Persistent milestones, session onboarding, session note toast
     const[achievedMilestones,setAchievedMilestones]=useState([]);
     const[sessionOnboardingShown,setSessionOnboardingShown]=useState(()=>{try{return !!localStorage.getItem("cs_sessionOnboardingDone");}catch(_){return false;}});
@@ -101,6 +110,7 @@
             id:'sess_'+now,
             date:getStitchingDateLocal(now),
             startTime:new Date(now).toISOString(),
+            timingMode:getTimingMode(),
             stitchesCompleted:0,
             stitchesUndone:0,
             coloursWorked:new Set(),
@@ -164,7 +174,8 @@
         // last stitch) and excludes any interval longer than capMs.
         const endTimeMs=Date.now();
         const capMs=getActiveGapCapMs();
-        const activeDurationMs=Math.max(0,computeActiveMs(session.eventLog,endTimeMs,capMs));
+        const timingMode=session.timingMode||getTimingMode();
+        const activeDurationMs=Math.max(0,computeActiveMs(session.eventLog,endTimeMs,capMs,timingMode));
         const ref=autoStatsRef.current||{doneCount:0,totalStitchable:0};
         const tc=ref.doneCount||0,ts=ref.totalStitchable||0;
         const finalised={
@@ -172,6 +183,7 @@
           date:session.date,
           startTime:session.startTime,
           endTime:new Date(endTimeMs).toISOString(),
+          timingModeUsed:timingMode,
           durationSeconds:Math.max(1,Math.round(activeDurationMs/1000)),
           durationMinutes:Math.max(1,Math.round(activeDurationMs/60000)),
           stitchesCompleted:session.stitchesCompleted,
@@ -255,7 +267,8 @@
         const elapsedMs = computeActiveMs(
           currentAutoSessionRef.current.eventLog,
           Date.now(),
-          getActiveGapCapMs()
+          getActiveGapCapMs(),
+          currentAutoSessionRef.current.timingMode || getTimingMode()
         );
         setLiveAutoElapsed(Math.floor(elapsedMs / 1000));
       }, 1000);

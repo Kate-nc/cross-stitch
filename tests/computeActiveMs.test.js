@@ -193,25 +193,35 @@ describe('computeActiveMs – cap sensitivity', () => {
     expect(short).toBeLessThan(tall);
   });
 
-  it('extends the cap for bulk stitch events', () => {
+  it('defaults to classic timing mode when none is supplied', () => {
     const T = 1_000_000;
     const cap = 90_000;
     const log = [
       { kind: 'start',  t: T },
       { kind: 'stitch', t: T + 240_000, delta: 12 },
     ];
-    expect(computeActiveMs(log, T + 240_000, cap)).toBe(240_000);
+    expect(computeActiveMs(log, T + 240_000, cap)).toBe(90_000);
   });
 
-  it('keeps the base cap for single-stitch events and tail time', () => {
+  it('extends the cap for bulk stitch events in batchAware mode', () => {
+    const T = 1_000_000;
+    const cap = 90_000;
+    const log = [
+      { kind: 'start',  t: T },
+      { kind: 'stitch', t: T + 240_000, delta: 12 },
+    ];
+    expect(computeActiveMs(log, T + 240_000, cap, 'batchAware')).toBe(240_000);
+  });
+
+  it('keeps the base cap for single-stitch events and tail time in batchAware mode', () => {
     const T = 1_000_000;
     const cap = 90_000;
     const log = [
       { kind: 'start',  t: T },
       { kind: 'stitch', t: T + 240_000, delta: 1 },
     ];
-    expect(computeActiveMs(log, T + 240_000, cap)).toBe(90_000);
-    expect(computeActiveMs(log, T + 480_000, cap)).toBe(180_000);
+    expect(computeActiveMs(log, T + 240_000, cap, 'batchAware')).toBe(90_000);
+    expect(computeActiveMs(log, T + 480_000, cap, 'batchAware')).toBe(180_000);
   });
 });
 

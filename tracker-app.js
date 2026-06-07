@@ -533,18 +533,45 @@ function TrackerProjectRail({activeId,activeDoneCount,activeTotalStitchable,pal,
 // Events each carry {kind, t} (t = Unix ms). Recognised kinds:
 //   start, stitch, hidden, visible, manualPause, manualResume
 // Intervals inside a hidden or manualPause span are excluded entirely.
-// All other inter-event gaps are credited at most capMs each by default.
-// When the interval ends in a bulk stitch event (delta > 1), the credit cap
-// scales up for that one gap so row-at-a-time / batch-marking workflows are
-// not forced down to the small per-click default. Tail time after the final
-// event still uses the base cap because there is no later burst to justify it.
-function getEventGapCapMs(prevEv, ev, baseCapMs) {
+// Classic mode credits all eligible gaps at most capMs each.
+// Batch-aware mode keeps the same rules except that an interval ending in a
+// bulk stitch event (delta > 1) can scale beyond the base cap.
+function normaliseTimingMode(mode) {
+  return mode === 'batchAware' ? 'batchAware' : 'classic';
+}
+function getEventGapCapMs(ev, baseCapMs) {
   if (!ev || ev.kind !== 'stitch') return baseCapMs;
   var burst = Math.max(1, Math.abs(ev.delta || 1));
   if (burst <= 1) return baseCapMs;
   return Math.min(10 * 60 * 1000, baseCapMs * Math.min(burst, 6));
 }
-function computeActiveMs(log, upToTime, capMs) {
+function computeActiveMsClassic(log, upToTime, capMs) {
+  if (!log || log.length === 0) return 0;
+  var activeMs = 0;
+  var hiddenAt = null;
+  var manualPauseAt = null;
+  var prevT = null;
+  for (var i = 0; i < log.length; i++) {
+    var ev = log[i];
+    var t = ev.t <= upToTime ? ev.t : upToTime;
+    if (prevT !== null && t > prevT) {
+      if (hiddenAt === null && manualPauseAt === null) {
+        activeMs += Math.min(t - prevT, capMs);
+      }
+    }
+    if (ev.t > upToTime) { prevT = t; break; }
+    if      (ev.kind === 'hidden')       hiddenAt = ev.t;
+    else if (ev.kind === 'visible')      hiddenAt = null;
+    else if (ev.kind === 'manualPause')  manualPauseAt = ev.t;
+    else if (ev.kind === 'manualResume') manualPauseAt = null;
+    prevT = ev.t;
+  }
+  if (prevT !== null && prevT < upToTime && hiddenAt === null && manualPauseAt === null) {
+    activeMs += Math.min(upToTime - prevT, capMs);
+  }
+  return activeMs;
+}
+function computeActiveMsBatchAware(log, upToTime, capMs) {
   if (!log || log.length === 0) return 0;
   var activeMs = 0;
   var hiddenAt = null;
@@ -556,7 +583,7 @@ function computeActiveMs(log, upToTime, capMs) {
     var t = ev.t <= upToTime ? ev.t : upToTime;
     if (prevT !== null && t > prevT) {
       if (hiddenAt === null && manualPauseAt === null) {
-        activeMs += Math.min(t - prevT, getEventGapCapMs(prevEv, ev, capMs));
+        activeMs += Math.min(t - prevT, getEventGapCapMs(ev, capMs));
       }
     }
     if (ev.t > upToTime) { prevT = t; break; }
@@ -572,6 +599,11 @@ function computeActiveMs(log, upToTime, capMs) {
     activeMs += Math.min(upToTime - prevT, capMs);
   }
   return activeMs;
+}
+function computeActiveMs(log, upToTime, capMs, mode) {
+  return normaliseTimingMode(mode) === 'batchAware'
+    ? computeActiveMsBatchAware(log, upToTime, capMs)
+    : computeActiveMsClassic(log, upToTime, capMs);
 }
 
 // Derive current paused state from the event log (for liveAutoIsPaused).
@@ -3022,7 +3054,7 @@ function processLoadedProject(project){
       }
     }
   }catch(_e){}
-  setStatsSettings(Object.assign({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,useActiveDays:true,sectionCols:50,sectionRows:50},project.statsSettings||{}));
+  setStatsSettings(Object.assign({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,timingMode:null,stitchingSpeedOverride:null,useActiveDays:true,sectionCols:50,sectionRows:50},project.statsSettings||{}));
   setStatsView(false);
   setCelebration(null);
   celebratedRef.current=new Set();
