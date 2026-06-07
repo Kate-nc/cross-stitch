@@ -1227,6 +1227,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
   var overviewStats = computeOverviewStats(statsSessions || [], totalCompleted, totalStitches, useActiveDays);
   var milestones = getMilestones(statsSessions || [], totalCompleted, totalStitches, overviewStats.avgPerDay);
   var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
+  var timingMode = (statsSettings && typeof statsSettings.timingMode === 'string') ? statsSettings.timingMode : '';
 
   if (showComparison) {
     return React.createElement(ProjectComparison, {
@@ -1348,6 +1349,16 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
         )
       ),
       React.createElement("p", {style:{fontSize:'var(--text-xs)', color:'var(--text-tertiary)', margin:'4px 0 0'}}, "Stitches after this time count for the previous day"),
+      React.createElement("div", {style:{height:10}}),
+      React.createElement("label", {style:{display:'flex', alignItems:'center', gap:'var(--s-2)', fontSize:'var(--text-md)', color:'var(--text-secondary)'}},
+        "Session timing:",
+        React.createElement("select", {value:timingMode, onChange:function(e){ onUpdateSettings(Object.assign({}, statsSettings, {timingMode:e.target.value || null})); }, style:{fontSize:'var(--text-sm)', padding:'4px 8px', borderRadius:'var(--radius-sm)', border:'1px solid var(--border)'}},
+          React.createElement("option", {value:''}, "Use global default"),
+          React.createElement("option", {value:'classic'}, "Classic"),
+          React.createElement("option", {value:'batchAware'}, "Batch-friendly")
+        )
+      ),
+      React.createElement("p", {style:{fontSize:'var(--text-xs)', color:'var(--text-tertiary)', margin:'4px 0 0'}}, timingMode ? "This project overrides the global tracker timing mode." : "This project follows the global tracker timing mode from Preferences."),
       React.createElement("div", {style:{height:10}}),
       React.createElement("div", {style:{fontSize:'var(--text-md)', color:'var(--text-secondary)', marginBottom:'var(--s-1)'}}, "Pace calculation:"),
       React.createElement("label", {style:{display:'flex', alignItems:'center', gap:6, fontSize:'var(--text-md)', color:'var(--text-secondary)', cursor:'pointer', marginBottom:'var(--s-1)'}},
@@ -1480,7 +1491,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
     writeGlobalGoals(goals);
   }
   // Effective settings for GoalTracker: combine global goals with any per-project timing settings
-  var effectiveGoalSettings = Object.assign({dayEndHour: 0, useActiveDays: true}, statsSettings || {}, globalGoals);
+  var effectiveGoalSettings = Object.assign({dayEndHour: 0, timingMode: null, useActiveDays: true}, statsSettings || {}, globalGoals);
   var loading = _loading[0], setLoading = _loading[1];
   var _tlLimit = React.useState(20);
   var tlLimit = _tlLimit[0], setTlLimit = _tlLimit[1];

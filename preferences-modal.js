@@ -383,6 +383,7 @@
     var skipDone = usePref("trackerHighlightSkipDone", true);
     var onlyStarted = usePref("trackerOnlyStarted", false);
     var idleMin = usePref("trackerIdleMinutes", 10);
+    var timingMode = usePref("trackerTimingMode", "classic");
     var gapCap = usePref("trackerActiveGapCapSec", 90);
     var style = usePref("trackerStitchingStyle", "freestyle");
     var block = usePref("trackerBlockShape", "10x10");
@@ -474,8 +475,15 @@
               h("option", { value: "300" }, "5 minutes"),
               h("option", { value: "600" }, "10 minutes")
             ),
+          h(Row, { label: "Session timing mode",
+            desc: "Classic uses the original fixed break cap. Batch-friendly keeps the same rules but credits longer gaps when you mark a large run of stitches at once." },
+            h("select", { value: timingMode[0], onChange: function (e) { timingMode[1](e.target.value); }, style: styles.input },
+              h("option", { value: "classic" }, "Classic"),
+              h("option", { value: "batchAware" }, "Batch-friendly")
+            )
+          ),
             (gapCap[0] !== 90) ? h("button", {
-              onClick: function () { gapCap[1](90); },
+            desc: "Used by both Classic and Batch-friendly timing. If you pause mid-stitch (to count or rethread), this much of the break still counts as active time. Lower = stricter totals; higher = more forgiving. Default: 90 seconds." },
               style: { fontSize: 12, padding: "3px 8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-secondary)", cursor: "pointer" }
             }, "Reset") : null
           )
