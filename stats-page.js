@@ -1079,6 +1079,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
   const [dismissedDupes, setDismissedDupes] = useState(loadDismissedDuplicates);
   const [activityLoaded, setActivityLoaded] = useState(() => typeof window.StatsActivity === 'function');
   const [insightsLoaded, setInsightsLoaded] = useState(() => typeof window.StatsInsights === 'function');
+  const [anchorDataReady, setAnchorDataReady] = useState(() => typeof ANCHOR !== 'undefined');
   const [neverUsedData, setNeverUsedData] = useState(null);
   const [patternSourceData, setPatternSourceData] = useState(null);
 
@@ -1098,6 +1099,19 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
   const [managerPatterns, setManagerPatterns] = useState([]);
   const [richProjects, setRichProjects] = useState([]); // for difficulty / quarter / fingerprint
   const [matchTolerance, setMatchTolerance] = useState(loadMatchTolerance);
+
+  useEffect(() => {
+    if (anchorDataReady || typeof window.loadAnchorData !== 'function') return;
+    let cancelled = false;
+    window.loadAnchorData({ failMessage: 'Could not load the Anchor catalogue for the Stats view. Reload and try again.' })
+      .then(() => {
+        if (!cancelled) setAnchorDataReady(true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [anchorDataReady]);
 
   // Run v3 migrations then load all data
   useEffect(() => {
@@ -1331,7 +1345,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       entries.push({ key: sKey, lab: info.lab || rgbToLab(info.rgb[0], info.rgb[1], info.rgb[2]) });
     }
     return entries;
-  }, [stash]);
+  }, [stash, anchorDataReady]);
   const coverageRatio = useMemo(() => {
     if (richProjects.length === 0 || Object.keys(stash).length === 0) return null;
     const dmcById = typeof DMC !== 'undefined' ? new Map(DMC.map(d => [d.id, d])) : new Map();

@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v52';
+var CACHE_NAME = 'cross-stitch-cache-v53';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -17,6 +17,7 @@ var PRECACHE_URLS = [
   // Shared local assets
   './styles.css',
   './version.js',
+  './runtime-loaders.js',
   './constants.js',
   './dmc-data.js',
   './anchor-data.js',
@@ -51,6 +52,10 @@ var PRECACHE_URLS = [
   './creator/import-wizard-bundle.js',
   './import-engine/lazy-shim.js',
   './import-engine/bundle.js',
+  './compiled/tracker-app.compiled.js',
+  './compiled/creator-main.compiled.js',
+  './compiled/manager-app.compiled.js',
+  './compiled/embroidery.compiled.js',
   './creator-main.js',
   './wake-lock.js',
   './useWakeLock.js',
@@ -78,7 +83,6 @@ var PRECACHE_URLS = [
   // External CDN dependencies (exact versioned URLs from HTML)
   'https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'

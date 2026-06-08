@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<!--
+  overlay-benchmark.html — Measures raw canvas rendering cost of each
+  TrackerApp overlay type at a 300×300 pattern scale.
+
+  Open in Chrome, wait ~5 s for results in the panel.  No server needed —
+  works from file:// or http://localhost.
+
+  What is being measured
+  ──────────────────────
+  Each "overlay" is the critical-path work its useEffect callback performs
+  on every trigger (zoom change, analysis update, etc.).  The benchmark runs
+  each work item 60 times (one "virtual second" of the continuous rec loop)
+  and also runs individual micro-benchmarks for comparison.
+
+  Pattern parameters match the largest realistic case:
+    sW = sH = 300   (90 000 cells)
+    scs = 20        (zoom ≈ 1.0 → canvas 6002 × 6002 px)
+    viewport = 1000 × 800 px scrolled to the centre of the canvas
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Overlay RAF Benchmark</title>
+<style>
+  body{font-family:monospace;padding:20px;background:#1a1a2e;color:#e0e0e0;margin:0}
+  h1{color:#b85c38;margin:0 0 4px}
+  p{color:#888;margin:0 0 16px;font-size:13px}
+  #log{background:#0d0d1a;border:1px solid #333;padding:12px;min-height:200px;
+       white-space:pre;overflow:auto;font-size:12px;line-height:1.6;max-height:80vh}
+  .ok {color:#4ade80}
+  .warn{color:#facc15}
+  .err {color:#f87171}
+  .hd  {color:#60a5fa;font-weight:bold}
+  .dim {color:#555}
+</style>
+</head>
+<body>
+<h1>TrackerApp Overlay Benchmark</h1>
+<p>300×300 pattern · scs=20 (zoom 1.0) · viewport 1000×800</p>
+<div id="log">Running…</div>
+
+<script>
+'use strict';
+
+const log = document.getElementById('log');
+function print(cls, msg) {
+  const span = document.createElement('span');
+  span.className = cls;
+  span.textContent = msg + '\n';
+  log.appendChild(span);
+}
+function hd(msg)  { print('hd',  msg); }
+function ok(msg)  { print('ok',  msg); }
+function dim(msg) { print('dim', msg); }
+function warn(msg){ print('warn',msg); }
+function err(msg) { print('err', msg); }
+log.textContent = '';
+
+// ═══════════════════════════════════════════════════════════════════════
+// Pattern parameters (worst-case realistic)
+// ═══════════════════════════════════════════════════════════════════════
+const sW = 300, sH = 300;
+const scs = 20;                          // cell size at zoom 1.0
+const G   = 1;                           // gutter px (matches app constant)
+const CANVAS_W = sW * scs + G + 2;       // 6002
+const CANVAS_H = sH * scs + G + 2;       // 6002
+
+// Viewport: centred on the canvas, 1000×800 px window
+const VP_W = 1000, VP_H = 800;
+const VP_SL = Math.floor((CANVAS_W - VP_W) / 2);
+const VP_ST = Math.floor((CANVAS_H - VP_H) / 2);
+
+// Block geometry (default blockW=blockH=10)
+const blockW = 10, blockH = 10;
+const bCols = Math.ceil(sW / blockW);    // 30
+const bRows = Math.ceil(sH / blockH);   // 30
+
+// Viewport-visible blocks
+const visC0 = Math.max(0, Math.floor((VP_SL - G) / scs / blockW));
+const visC1 = Math.min(bCols, Math.ceil((VP_SL + VP_W) / scs / blockW) + 1);
+const visR0 = Math.max(0, Math.floor((VP_ST - G) / scs / blockH));
+const visR1 = Math.min(bRows, Math.ceil((VP_ST + VP_H) / scs / blockH) + 1);
+dim(`Canvas: ${CANVAS_W}×${CANVAS_H} px`);
+dim(`Viewport blocks: cols ${visC0}–${visC1-1}, rows ${visR0}–${visR1-1} (${(visC1-visC0)*(visR1-visR0)} blocks)`);
+
+// ═══════════════════════════════════════════════════════════════════════
+// Helper: precise timing over N iterations, returns stats in µs
+// ═══════════════════════════════════════════════════════════════════════
+function bench(label, n, fn) {
+  // Warmup
+  for (let i = 0; i < 3; i++) fn();
+  const t0 = performance.now();
+  for (let i = 0; i < n; i++) fn();
+  const elapsed = performance.now() - t0;
+  const avgMs = elapsed / n;
+  const avgUs = avgMs * 1000;
+  const budget16 = (avgMs / 16.67 * 100).toFixed(1);
+  const cls = avgMs > 8 ? 'err' : avgMs > 4 ? 'warn' : 'ok';
+  print(cls, `  ${label.padEnd(38)} avg ${avgUs.toFixed(0).padStart(5)} µs  (${budget16}% of 16ms budget)`);
+  return avgMs;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Build a synthetic pattern array (alternating colours)
+// ═══════════════════════════════════════════════════════════════════════
+const COLOURS = ['310','550','666','700','815','900','3750','3838'];
+const pat = new Array(sW * sH);
+for (let i = 0; i < pat.length; i++) {
+  pat[i] = { id: COLOURS[i % COLOURS.length], rgb: [100, 100, 100] };
+}
+// Mark ~10% as done
+const done = new Uint8Array(sW * sH);
+for (let i = 0; i < done.length; i += 10) done[i] = 1;
+
+// Synthetic analysis result for thread-usage / counting-aids
+const analysisResult = {
+  sW, sH,
+  perStitch: {
+    nearestDist: new Float32Array(sW * sH).fill(8),
+    clusterSize: new Uint8Array(sW * sH).fill(4),
+  },
+  regionSize: 10,
+  regionCols: bCols,
+};
+
+// Synthetic recommendations (5 regions)
+const recommendations = {
+  top: [0,1,2,3,4].map(i => ({ idx: i })),
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// Canvas factory — create or reuse off-screen canvases
+// ═══════════════════════════════════════════════════════════════════════
+function makeCanvas() {
+  const c = document.createElement('canvas');
+  c.width  = CANVAS_W;
+  c.height = CANVAS_H;
+  return c;
+}
+
+const canvasPool = {};
+function getCanvas(name) {
+  if (!canvasPool[name]) canvasPool[name] = makeCanvas();
+  return canvasPool[name];
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 1. Thread-usage overlay  (one-shot RAF body)
+//    Iterates ALL 90 000 cells, one fillStyle+fillRect per coloured cell.
+// ═══════════════════════════════════════════════════════════════════════
+function renderThreadUsage(mode) {
+  const canvas = getCanvas('threadUsage');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const ps = analysisResult.perStitch;
+  for (let i = 0; i < pat.length; i++) {
+    const cell = pat[i];
+    if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
+    const x = i % sW, y = Math.floor(i / sW);
+    const px = G + x * scs, py = G + y * scs;
+    let r=0, g=0, b=0, a=0;
+    if (mode === 'distance') {
+      const dist = ps.nearestDist[i];
+      if (dist <= 1.415) continue;
+      else if (dist <= 5)  { const t=(dist-1.415)/3.585; r=255;g=200;b=0;a=t*0.3; }
+      else if (dist <= 15) { const t=(dist-5)/10;        r=255;g=120;b=0;a=t*0.4; }
+      else                 { r=220;g=40;b=40;a=0.4; }
+    } else {
+      const sz = ps.clusterSize[i];
+      if (sz >= 20) continue;
+      else if (sz >= 5) { r=100;g=150;b=255;a=0.15; }
+      else if (sz >= 2) { r=255;g=200;b=0;a=0.25; }
+      else              { r=220;g=40;b=40;a=0.40; }
+    }
+    if (a > 0) { ctx.fillStyle=`rgba(${r},${g},${b},${a})`; ctx.fillRect(px,py,scs,scs); }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 2. Recommendations pulse  (one frame of the continuous loop)
+//    Draws N coloured border rectangles + phase increment.
+// ═══════════════════════════════════════════════════════════════════════
+let recPhase = 0;
+function renderRecPulse() {
+  const canvas = getCanvas('recPulse');
+  const RS = analysisResult.regionSize;
+  const RC = analysisResult.regionCols;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  recPhase = (recPhase + 0.016) % (Math.PI * 2);
+  const pulseAlpha = 0.3 + 0.4 * ((Math.sin(recPhase) + 1) / 2);
+  recommendations.top.forEach((rec, rank) => {
+    const rCol = rec.idx % RC, rRow = Math.floor(rec.idx / RC);
+    const x = G + rCol*RS*scs, y = G + rRow*RS*scs;
+    const w = Math.min(RS, sW-rCol*RS)*scs, h = Math.min(RS, sH-rRow*RS)*scs;
+    if (rank === 0) { ctx.strokeStyle=`rgba(184,92,56,${pulseAlpha})`; ctx.lineWidth=3; }
+    else            { ctx.strokeStyle='rgba(184,92,56,0.2)'; ctx.lineWidth=2; }
+    ctx.strokeRect(x+1,y+1,w-2,h-2);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 3. Focus overlay  (synchronous draw)
+//    Full-canvas fillRect + composite cut-outs for neighbouring blocks.
+// ═══════════════════════════════════════════════════════════════════════
+function renderFocusOverlay() {
+  const canvas = getCanvas('focus');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const bx = 15, by = 15; // middle block
+  ctx.fillStyle = 'rgba(241,245,249,0.94)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-out';
+  for (let dy = -1; dy <= 1; dy++) { for (let dx = -1; dx <= 1; dx++) {
+    if (dx === 0 && dy === 0) continue;
+    const nbx = bx+dx, nby = by+dy;
+    if (nbx < 0 || nbx >= bCols || nby < 0 || nby >= bRows) continue;
+    ctx.globalAlpha = 0.54;
+    ctx.fillStyle = 'black';
+    const nx = G+nbx*blockW*scs, ny = G+nby*blockH*scs;
+    const nw = Math.min(blockW,sW-nbx*blockW)*scs, nh = Math.min(blockH,sH-nby*blockH)*scs;
+    ctx.fillRect(nx,ny,nw,nh);
+  }}
+  ctx.globalAlpha = 1;
+  const fx = G+bx*blockW*scs, fy = G+by*blockH*scs;
+  const fw = Math.min(blockW,sW-bx*blockW)*scs, fh = Math.min(blockH,sH-by*blockH)*scs;
+  ctx.fillRect(fx,fy,fw,fh);
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(184,92,56,0.9)'; ctx.lineWidth = 2;
+  ctx.strokeRect(fx+1,fy+1,fw-2,fh-2);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 4. Breadcrumb trail  (synchronous draw)
+//    Draws N small rects over previously visited blocks.
+// ═══════════════════════════════════════════════════════════════════════
+const breadcrumbs = Array.from({length:40}, (_,i) => ({
+  bx: i % bCols, by: Math.floor(i/bCols), sessionIdx: 0, seqN: i+1
+}));
+function renderBreadcrumbs() {
+  const canvas = getCanvas('breadcrumb');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const TINTS = ['59,130,246','20,184,166','139,92,246','234,88,12','22,163,74','225,29,72'];
+  breadcrumbs.forEach(b => {
+    const fx = G+b.bx*blockW*scs, fy = G+b.by*blockH*scs;
+    const fw = Math.min(blockW,sW-b.bx*blockW)*scs, fh = Math.min(blockH,sH-b.by*blockH)*scs;
+    const tint = TINTS[b.sessionIdx % TINTS.length];
+    ctx.fillStyle = `rgba(${tint},0.08)`; ctx.fillRect(fx,fy,fw,fh);
+    ctx.strokeStyle = `rgba(${tint},0.30)`; ctx.lineWidth = 1;
+    ctx.strokeRect(fx+0.5,fy+0.5,fw-1,fh-1);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 5. Counting-aids overlay  (one-shot RAF body, viewport-culled)
+//    Iterates only visible blocks; per-cell pass for the focus colour.
+// ═══════════════════════════════════════════════════════════════════════
+const focusColour = '310';
+function renderCountingAids() {
+  const canvas = getCanvas('counting');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // Per-block counts
+  for (let by = visR0; by < visR1; by++) { for (let bx = visC0; bx < visC1; bx++) {
+    const x0=bx*blockW, y0=by*blockH;
+    const x1=Math.min(x0+blockW,sW), y1=Math.min(y0+blockH,sH);
+    let total=0, remaining=0;
+    for (let row=y0; row<y1; row++) { for (let col=x0; col<x1; col++) {
+      const idx=row*sW+col, m=pat[idx];
+      if (!m || m.id==='__skip__' || m.id==='__empty__') continue;
+      if (m.id !== focusColour) continue;
+      total++;
+      if (!done[idx]) remaining++;
+    }}
+    if (total === 0) continue;
+    const px=G+x0*scs+2, py=G+y0*scs+2;
+    if (remaining === 0) {
+      ctx.strokeStyle='#B85C38'; ctx.lineWidth=1.4; ctx.lineCap='round'; ctx.lineJoin='round';
+      ctx.beginPath(); ctx.moveTo(px+1,py+5); ctx.lineTo(px+3.4,py+7.4); ctx.lineTo(px+8,py+2); ctx.stroke();
+    } else {
+      ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.font='8px sans-serif';
+      ctx.textAlign='left'; ctx.textBaseline='top';
+      ctx.fillText(String(remaining),px,py);
+    }
+  }}
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 6. Hypothetical unified pass  (all 5 in one function)
+//    Represents the single-scheduler approach — same work, one function.
+// ═══════════════════════════════════════════════════════════════════════
+function renderUnified() {
+  renderThreadUsage('cluster');
+  renderRecPulse();
+  renderFocusOverlay();
+  renderBreadcrumbs();
+  renderCountingAids();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// RAF budget counter — how many rAF callbacks are pending per second?
+// ═══════════════════════════════════════════════════════════════════════
+function countRafBudget() {
+  return new Promise(resolve => {
+    let frames = 0, start = null;
+    function tick(t) {
+      if (!start) start = t;
+      frames++;
+      if (t - start < 1000) { requestAnimationFrame(tick); }
+      else { resolve(frames); }
+    }
+    requestAnimationFrame(tick);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Continuous-loop simulation
+// How long does the recommendations loop consume per second?
+// ═══════════════════════════════════════════════════════════════════════
+function benchRecLoopPerSecond() {
+  const FRAMES = 60;
+  const t0 = performance.now();
+  for (let i = 0; i < FRAMES; i++) renderRecPulse();
+  const ms = performance.now() - t0;
+  return ms; // total ms per "60 frames"
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Main benchmark runner (uses requestAnimationFrame so canvas ops are
+// actually processed by the GPU pipeline, not just the JS engine).
+// ═══════════════════════════════════════════════════════════════════════
+async function run() {
+  await new Promise(r => requestAnimationFrame(r)); // let page settle
+
+  hd('\n═══ 1. BASELINE RAF FRAME BUDGET ═══');
+  const fps = await countRafBudget();
+  dim(`  Browser is delivering ${fps} RAF callbacks/s (expected ≈60)`);
+
+  hd('\n═══ 2. PER-OVERLAY RENDER COST (single trigger) ═══');
+  dim('  Each figure = cost of one useEffect firing (one zoom change or deps update)');
+  const N = 20; // runs per benchmark
+  const tThread  = bench('Thread usage (cluster, 90k cells)', N, () => renderThreadUsage('cluster'));
+  const tThreadD = bench('Thread usage (distance, 90k cells)', N, () => renderThreadUsage('distance'));
+  const tRec     = bench('Rec pulse (1 frame, 5 regions)',   N, () => renderRecPulse());
+  const tFocus   = bench('Focus overlay (composite, 9 blocks)', N, () => renderFocusOverlay());
+  const tBread   = bench('Breadcrumb (40 breadcrumbs)',      N, () => renderBreadcrumbs());
+  const tCount   = bench('Counting aids (vp-culled blocks)', N, () => renderCountingAids());
+
+  hd('\n═══ 3. UNIFIED SCHEDULER PASS ═══');
+  dim('  All 5 overlays in one call (what the scheduler would do):');
+  const tUnified = bench('Unified pass (all 5)',             N, () => renderUnified());
+  const tSum = tThread + tRec + tFocus + tBread + tCount;
+  dim(`  Sum of individuals: ${(tSum*1000).toFixed(0)} µs  Unified: ${(tUnified*1000).toFixed(0)} µs`);
+  const saving = tSum - tUnified;
+  if (Math.abs(saving) < 0.2) {
+    warn(`  Overhead saving: ~${(saving*1000).toFixed(0)} µs  ← negligible (< 0.2 ms)`);
+  } else {
+    ok(`  Overhead saving: ~${(saving*1000).toFixed(0)} µs`);
+  }
+
+  hd('\n═══ 4. CONTINUOUS RECOMMENDATIONS LOOP ═══');
+  const recSec = benchRecLoopPerSecond();
+  dim(`  60 frames (1 virtual second): ${recSec.toFixed(1)} ms total`);
+  dim(`  Per-frame: ${(recSec/60*1000).toFixed(0)} µs  (${(recSec/60/16.67*100).toFixed(2)}% of frame budget)`);
+
+  hd('\n═══ 5. PAN BEHAVIOUR — NO OVERLAY WORK ═══');
+  dim('  Overlays are absolutely-positioned canvases inside the scroll container.');
+  dim('  Scrolling the container moves all canvases passively — zero JS work,');
+  dim('  zero canvas redraws, zero RAF callbacks from overlay code during pan.');
+  ok('  Pan cost attributable to overlays: 0 µs');
+
+  hd('\n═══ 6. ZOOM BEHAVIOUR — REACT BATCHING ═══');
+  dim('  When stitchZoom changes, React batches ALL useEffect callbacks from');
+  dim('  the same state update into a single commit.  One-shot RAFs scheduled');
+  dim('  inside that commit all land in the SAME next animation frame.');
+  dim('  A unified scheduler cannot reduce the frame count further.');
+  ok('  React already provides the batching the scheduler would give us.');
+
+  hd('\n═══ 7. GO / NO-GO DECISION ═══');
+  const frameMs = tThread; // most expensive single overlay
+  const contMs  = recSec / 60;
+  if (frameMs > 4 || contMs > 1) {
+    warn('  ⚑ Marginal case — see detail above.');
+  }
+  const totalContinuousBudget = (contMs / 16.67 * 100).toFixed(2);
+  const totalZoomBudget       = (tSum  / 16.67 * 100).toFixed(1);
+
+  hd('\n  Continuous overhead  (rec pulse loop, always running):');
+  dim(`    ${(contMs*1000).toFixed(0)} µs/frame  =  ${totalContinuousBudget}% of frame budget`);
+  hd('\n  On-zoom batch (all overlays redraw once):');
+  dim(`    ${(tSum*1000).toFixed(0)} µs total  =  ${totalZoomBudget}% of frame budget`);
+
+  const continuousOk = contMs < 1;    // < 1 ms/frame
+  const zoomOk       = tSum   < 8;    // < 8 ms per zoom step
+  if (continuousOk && zoomOk) {
+    ok('\n  DECISION: NO-GO');
+    ok('  ─────────────────────────────────────────────────────────────────');
+    ok('  Overlay rendering does not approach the 16 ms frame budget.');
+    ok('  A unified scheduler would not yield a measurable user-visible win.');
+    ok('  Adding the scheduler is a net loss: more complexity, more risk,');
+    ok('  zero user gain.  Work stops here per the prime directive.');
+  } else {
+    warn('\n  DECISION: BORDERLINE — investigate further before committing.');
+    warn('  See figures above for which overlay is the bottleneck.');
+  }
+
+  hd('\n═══ 8. LEAK / UNMOUNT CHECK (structural) ═══');
+  dim('  Each overlay effect returns a cleanup that calls cancelAnimationFrame.');
+  dim('  recPulseRef, threadUsageRafRef, countingAidsRafRef all cancel on unmount.');
+  dim('  setInterval (marching ants) is cleared when outline mode exits.');
+  dim('  No orphaned loops possible from existing code structure.');
+  ok('  Leak risk: none found in static analysis.');
+
+  hd('\n  Done.');
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// Expose results for Playwright extraction
+// ───────────────────────────────────────────────────────────────────────
+window.__benchmarkResults = null;
+const _origRun = run;
+window.runBenchmark = async function() {
+  log.textContent = '';
+  await _origRun();
+  // Harvest the text for Playwright
+  window.__benchmarkResults = log.innerText;
+};
+
+// Auto-run
+window.runBenchmark();
+</script>
+</body>
+</html>

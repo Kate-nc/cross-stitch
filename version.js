@@ -4,7 +4,7 @@
 // PR merge to main. Do not edit APP_VERSION manually.
 // APP_CHANGELOG is maintained manually alongside each release.
 // ════════════════════════════════════════════════════════════════════
-window.APP_VERSION = '1.0.42';
+window.APP_VERSION = '1.0.43';
 
 window.APP_CHANGELOG = [
   {
@@ -53,6 +53,18 @@ window.APP_CHANGELOG = [
     ]
   }
 ];
+
+(function () {
+  try {
+    var cleanupKey = 'stitchx_babel_cleanup_version';
+    if (localStorage.getItem(cleanupKey) === window.APP_VERSION) return;
+    for (var i = localStorage.length - 1; i >= 0; i--) {
+      var key = localStorage.key(i);
+      if (key && /^babel_/i.test(key)) localStorage.removeItem(key);
+    }
+    localStorage.setItem(cleanupKey, window.APP_VERSION);
+  } catch (_) {}
+})();
 
 (function () {
   function inject() {

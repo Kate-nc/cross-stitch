@@ -256,6 +256,9 @@ function ManagerApp() {
     // Load Manager Data
     const loadManagerData = async () => {
       try {
+        if (typeof window.loadAnchorData === 'function') {
+          await window.loadAnchorData({ failMessage: 'Could not load the Anchor catalogue for the Stash Manager. Reload and try again.' });
+        }
         await ensurePersistence();
         const db = await openManagerDB();
         const tx = db.transaction(["manager_state"], "readwrite");

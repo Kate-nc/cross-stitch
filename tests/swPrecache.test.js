@@ -36,9 +36,9 @@ describe('sw.js precache (UX-12 Phase 7 PR #13)', () => {
   // Bumped to v47 when cross-tab-resolution.js was added (INT-7 Phase B-3).
   // Bumped to v48 when cross-tab-lock.js was added (INT-7 Phase C).
   // Bumped to v51 for Creator tab reset fix (image-upload resets tab to "pattern").
-  // Bumped to v52 for the latest PRECACHE_URLS change in sw.js.
-  test('CACHE_NAME bumped to v52', () => {
-    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v52['"]/);
+  // Bumped to v53 for the precompiled runtime entry bundles and runtime loader.
+  test('CACHE_NAME bumped to v53', () => {
+    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v53['"]/);
   });
 
   test('PRECACHE_URLS does NOT include heavy lazy vendor blobs', () => {
