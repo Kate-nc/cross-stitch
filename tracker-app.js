@@ -5638,7 +5638,7 @@ return(
     </div>
   </div>}
 
-  {!statsView&&pat&&pal&&<><div className="cs-main">
+  {!statsView&&pat&&pal&&<><div className={"cs-main"+(leftSidebarMode==="open"?" cs-main--palette-open":"")}>
     {/* Phase 5: backdrop scrim — only visible on mobile while the
         drawer is open. Tap to close. CSS controls visibility (hidden
         on >=900px) so desktop layout is untouched. */}
@@ -5966,7 +5966,7 @@ return(
 
     {/* ─ Mode strip ─ */}
     <div className={"toolbar-row"+(isEditMode?" toolbar-row--edit":"")+" ppal-mode-strip"} role="toolbar" aria-label="Canvas controls">
-      <button className="ppal-mode-btn" onClick={cycleLeftSidebar} aria-label="Open colour palette" title="Open colour palette (P)">
+      <button className={"ppal-mode-btn"+(leftSidebarMode==="open"?" ppal-mode-btn--on":"")} onClick={()=>setLeftSidebarMode(prev=>prev==="open"?"hidden":"open")} aria-label="Open colour palette" aria-pressed={leftSidebarMode==="open"} title="Open colour palette (P)">
         <span className="ppal-mode-btn-icon">{Icons.palette?Icons.palette():null}</span>
         <span className="ppal-mode-btn-label">Colours</span>
       </button>

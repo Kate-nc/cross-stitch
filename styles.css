@@ -635,11 +635,14 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 @keyframes lpanel-fade-in{from{opacity:0;}to{opacity:1;}}
 @media(prefers-reduced-motion:reduce){.lpanel-backdrop{animation:none;}}
 /* I3 (audit) — at desktop the lpanel docks as a left side-pane (320px wide,
-   full height) so users can keep settings open beside the canvas. The
-   canvas wrapper isn't resized — the panel sits over the leftmost strip
-   while the chart remains centre-pannable/zoomable. The backdrop scrim
-   is suppressed on desktop so the chart stays clickable. */
+   full height) so users can keep settings open beside the canvas. When the
+   palette is open (.cs-main--palette-open) the canvas wrapper is shifted right
+   by the extra overlap (320px lpanel − 220px project-rail = 100px) so the
+   row/column ruler is never hidden behind the panel. The backdrop scrim is
+   suppressed on desktop so the chart stays clickable. */
 @media(min-width:1024px){
+  .cs-main{transition:margin-left var(--motion,0.18s ease);}
+  .cs-main--palette-open{margin-left:320px;}
   .lpanel{
     left:0;right:auto;top:0;bottom:0;
     width:320px;max-width:320px;max-height:100vh;
