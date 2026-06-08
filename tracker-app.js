@@ -653,6 +653,17 @@ function deriveIsLogPaused(log) {
 // Expose to useAutoSession.js (loaded as a separate script in the same page)
 if (typeof window !== 'undefined') { window.computeActiveMs = computeActiveMs; window.deriveIsLogPaused = deriveIsLogPaused; }
 
+function formatTimingModeLabel(mode) {
+  if (mode === 'batchAware') return 'Batch-friendly';
+  if (mode === 'manual') return 'Manual timer';
+  return 'Classic';
+}
+function formatTimingModeShortLabel(mode) {
+  if (mode === 'batchAware') return 'Batch';
+  if (mode === 'manual') return 'Manual';
+  return 'Classic';
+}
+
 function TrackerApp({onSwitchToDesign=null, onGoHome=null, isActive=true, incomingProject=null}={}){
 const[sW,setSW]=useState(80);
 const[sH,setSH]=useState(80);
@@ -1225,7 +1236,7 @@ const lastSnapshotRef=useRef(null); // freshest serialised project for beforeunl
 const v3FieldsRef=useRef({});       // preserve v3 stats fields across save round-trips
 const autoSaveDirtyRef=useRef(false);
 const session=window.useAutoSession({projectIdRef,v3FieldsRef,autoSaveDirtyRef,statsSettings});
-const{statsSessions,setStatsSessions,totalTime,liveAutoElapsed,liveAutoStitches,liveAutoIsPaused,manuallyPaused,setManuallyPaused,manuallyPausedRef,celebration,setCelebration,celebratedRef,goalCelebrationRef,currentAutoSessionRef,finaliseAutoSessionRef,resetAutoSessionForProjectLoad,pendingColoursRef,pendingMilestonesRef,prevAutoCountRef,justLoadedRef,justLoadedSettlePassRef,autoStatsRef,isUnloadingRef,achievedMilestones,setAchievedMilestones,sessionOnboardingShown,setSessionOnboardingShown,sessionSavedToast,setSessionSavedToast,recordAutoActivity,editSessionNote}=session;
+const{statsSessions,setStatsSessions,totalTime,liveAutoElapsed,liveAutoStitches,liveAutoIsPaused,currentTimingMode,manuallyPaused,setManuallyPaused,manuallyPausedRef,celebration,setCelebration,celebratedRef,goalCelebrationRef,currentAutoSessionRef,finaliseAutoSessionRef,resetAutoSessionForProjectLoad,pendingColoursRef,pendingMilestonesRef,prevAutoCountRef,justLoadedRef,justLoadedSettlePassRef,autoStatsRef,isUnloadingRef,achievedMilestones,setAchievedMilestones,sessionOnboardingShown,setSessionOnboardingShown,sessionSavedToast,setSessionSavedToast,recordAutoActivity,editSessionNote}=session;
 const counts=window.useStitchCounts({pat,done,halfStitches,halfDone});
 const{doneCountRef,colourDoneCountsRef,countsVer,recomputeAllCounts,applyDoneCountsDelta}=counts;
 const[projectName,setProjectName]=useState("");
@@ -5446,7 +5457,7 @@ return(
   <div className="info-strip-row">
     <span className="info-strip-pct">{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</span>
     {progressPct<100&&totalStitchable>0&&<span className="info-strip-counts">{doneCount.toLocaleString('en-GB')} done &middot; {Math.max(0,totalStitchable-doneCount).toLocaleString('en-GB')} to go</span>}
-    {liveAutoStitches>0&&<span className="info-strip-timer"><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}</span> {fmtTime(liveAutoElapsed)}</span>}
+    {liveAutoStitches>0&&<span className="info-strip-timer"><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}</span> {fmtTime(liveAutoElapsed)} &middot; {formatTimingModeShortLabel(currentTimingMode)}</span>}
   </div>
 </div>
 <div className="app-info-chip-wrap info-strip-chip-wrap">
@@ -5683,7 +5694,7 @@ return(
         <div className="ppal-header-stats">
           <span className="ppal-pct">{progressPct>=100?"Complete!":progressPct.toFixed(1)+"%"}</span>
           {liveAutoStitches>0&&<span className="ppal-session-chip" role="button" tabIndex={0} title="Open Session controls" onClick={()=>{setLeftSidebarTab("session");setMorePanelOpen(true);}} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();setLeftSidebarTab("session");setMorePanelOpen(true);}}}>
-            {liveAutoIsPaused||manuallyPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}{" "}{fmtTime(liveAutoElapsed)}{" · "}{liveAutoStitches}{" st"}
+            {liveAutoIsPaused||manuallyPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}{" "}{fmtTime(liveAutoElapsed)}{" · "}{liveAutoStitches}{" st · "}{formatTimingModeShortLabel(currentTimingMode)}
           </span>}
         </div>
       </div>
@@ -6065,6 +6076,7 @@ return(
                   ?<span style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--warning-soft)",color:"var(--warning)",fontWeight:600}}>Paused</span>
                   :<span style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--success-soft)",color:"var(--success)",fontWeight:600}}>Active</span>
                 }
+                <span style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:600,border:"1px solid var(--border)"}}>{formatTimingModeLabel(currentTimingMode)}</span>
               </div>
               <div style={{display:"flex",gap:24}}>
                 <div><div style={{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>Time</div><div style={{fontSize:'var(--text-lg)',fontWeight:700,color:"var(--text-primary)",fontVariantNumeric:"tabular-nums"}}>{fmtTime(liveAutoElapsed)}</div></div>

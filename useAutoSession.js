@@ -300,9 +300,12 @@
       },0);
     }
 
+    var currentTimingMode=(currentAutoSessionRef.current&&currentAutoSessionRef.current.timingMode)||getTimingMode();
+
     return {
       statsSessions, setStatsSessions, totalTime,
       liveAutoElapsed, liveAutoStitches, liveAutoIsPaused,
+      currentTimingMode,
       manuallyPaused, setManuallyPaused, manuallyPausedRef,
       celebration, setCelebration, celebratedRef, goalCelebrationRef,
       currentAutoSessionRef, finaliseAutoSessionRef,

@@ -26,4 +26,10 @@ describe('tracker timing mode settings wiring', () => {
     expect(src).toMatch(/This project follows the global tracker timing mode from Preferences\./);
     expect(src).toMatch(/value:'manual'/);
   });
+
+  it('tracker-app.js surfaces the resolved timing mode in the live session UI', () => {
+    const src = read('tracker-app.js');
+    expect(src).toMatch(/formatTimingModeShortLabel\(currentTimingMode\)/);
+    expect(src).toMatch(/formatTimingModeLabel\(currentTimingMode\)/);
+  });
 });
