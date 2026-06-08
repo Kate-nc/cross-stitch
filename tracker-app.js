@@ -5969,7 +5969,7 @@ return(
 
     {/* ─ Mode strip ─ */}
     <div className={"toolbar-row"+(isEditMode?" toolbar-row--edit":"")+" ppal-mode-strip"} role="toolbar" aria-label="Canvas controls">
-      <button className={"ppal-mode-btn"+(leftSidebarMode==="open"?" ppal-mode-btn--on":"")} onClick={()=>setLeftSidebarMode(prev=>prev==="open"?"hidden":"open")} aria-label="Open colour palette" aria-pressed={leftSidebarMode==="open"} title="Toggle colour palette">
+      <button className={"ppal-mode-btn"+(leftSidebarMode==="open"?" ppal-mode-btn--on":"")} onClick={cycleLeftSidebar} aria-label={leftSidebarMode==="hidden"?"Open colour palette":"Cycle colour palette mode"} aria-pressed={leftSidebarMode==="open"} title="Toggle colour palette">
         <span className="ppal-mode-btn-icon">{Icons.palette?Icons.palette():null}</span>
         <span className="ppal-mode-btn-label">Colours</span>
       </button>

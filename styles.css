@@ -642,7 +642,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
    suppressed on desktop so the chart stays clickable. */
 @media(min-width:1024px){
   .cs-main{transition:margin-left var(--motion,0.18s ease);}
-  .cs-main--palette-open{margin-left:320px;}
+  .cs-main.cs-main--palette-open{margin-left:320px;}
   .lpanel{
     left:0;right:auto;top:0;bottom:0;
     width:320px;max-width:320px;max-height:100vh;
