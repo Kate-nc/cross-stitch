@@ -1355,7 +1355,8 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
         React.createElement("select", {value:timingMode, onChange:function(e){ onUpdateSettings(Object.assign({}, statsSettings, {timingMode:e.target.value || null})); }, style:{fontSize:'var(--text-sm)', padding:'4px 8px', borderRadius:'var(--radius-sm)', border:'1px solid var(--border)'}},
           React.createElement("option", {value:''}, "Use global default"),
           React.createElement("option", {value:'classic'}, "Classic"),
-          React.createElement("option", {value:'batchAware'}, "Batch-friendly")
+          React.createElement("option", {value:'batchAware'}, "Batch-friendly"),
+          React.createElement("option", {value:'manual'}, "Manual timer")
         )
       ),
       React.createElement("p", {style:{fontSize:'var(--text-xs)', color:'var(--text-tertiary)', margin:'4px 0 0'}}, timingMode ? "This project overrides the global tracker timing mode." : "This project follows the global tracker timing mode from Preferences."),

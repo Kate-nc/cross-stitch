@@ -223,6 +223,30 @@ describe('computeActiveMs – cap sensitivity', () => {
     expect(computeActiveMs(log, T + 240_000, cap, 'batchAware')).toBe(90_000);
     expect(computeActiveMs(log, T + 480_000, cap, 'batchAware')).toBe(180_000);
   });
+
+  it('manual mode credits the full active interval without a gap cap', () => {
+    const T = 1_000_000;
+    const cap = 90_000;
+    const log = [
+      { kind: 'start',  t: T },
+      { kind: 'stitch', t: T + 240_000, delta: 1 },
+    ];
+    expect(computeActiveMs(log, T + 240_000, cap, 'manual')).toBe(240_000);
+    expect(computeActiveMs(log, T + 480_000, cap, 'manual')).toBe(480_000);
+  });
+
+  it('manual mode still excludes hidden and paused intervals', () => {
+    const T = 1_000_000;
+    const cap = 90_000;
+    const log = [
+      { kind: 'start', t: T },
+      { kind: 'hidden', t: T + 30_000 },
+      { kind: 'visible', t: T + 150_000 },
+      { kind: 'manualPause', t: T + 180_000 },
+      { kind: 'manualResume', t: T + 240_000 },
+    ];
+    expect(computeActiveMs(log, T + 300_000, cap, 'manual')).toBe(30_000 + 30_000 + 60_000);
+  });
 });
 
 // ─── deriveIsLogPaused ────────────────────────────────────────────────────────

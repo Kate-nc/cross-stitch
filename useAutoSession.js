@@ -64,10 +64,10 @@
     }
     function getTimingMode(){
       var mode=statsSettings&&statsSettings.timingMode;
-      if(mode==='classic'||mode==='batchAware')return mode;
+      if(mode==='classic'||mode==='batchAware'||mode==='manual')return mode;
       try{
         var globalMode=window.UserPrefs&&window.UserPrefs.get("trackerTimingMode");
-        if(globalMode==='classic'||globalMode==='batchAware')return globalMode;
+        if(globalMode==='classic'||globalMode==='batchAware'||globalMode==='manual')return globalMode;
       }catch(_){}
       return 'classic';
     }

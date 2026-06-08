@@ -536,8 +536,11 @@ function TrackerProjectRail({activeId,activeDoneCount,activeTotalStitchable,pal,
 // Classic mode credits all eligible gaps at most capMs each.
 // Batch-aware mode keeps the same rules except that an interval ending in a
 // bulk stitch event (delta > 1) can scale beyond the base cap.
+// Manual mode counts the full visible, unpaused wall-clock interval while the
+// session is open, regardless of how often stitches are marked.
 function normaliseTimingMode(mode) {
-  return mode === 'batchAware' ? 'batchAware' : 'classic';
+  if (mode === 'batchAware' || mode === 'manual') return mode;
+  return 'classic';
 }
 function getEventGapCapMs(ev, baseCapMs) {
   if (!ev || ev.kind !== 'stitch') return baseCapMs;
@@ -600,10 +603,37 @@ function computeActiveMsBatchAware(log, upToTime, capMs) {
   }
   return activeMs;
 }
+function computeActiveMsManual(log, upToTime) {
+  if (!log || log.length === 0) return 0;
+  var activeMs = 0;
+  var hiddenAt = null;
+  var manualPauseAt = null;
+  var prevT = null;
+  for (var i = 0; i < log.length; i++) {
+    var ev = log[i];
+    var t = ev.t <= upToTime ? ev.t : upToTime;
+    if (prevT !== null && t > prevT) {
+      if (hiddenAt === null && manualPauseAt === null) {
+        activeMs += (t - prevT);
+      }
+    }
+    if (ev.t > upToTime) { prevT = t; break; }
+    if      (ev.kind === 'hidden')       hiddenAt = ev.t;
+    else if (ev.kind === 'visible')      hiddenAt = null;
+    else if (ev.kind === 'manualPause')  manualPauseAt = ev.t;
+    else if (ev.kind === 'manualResume') manualPauseAt = null;
+    prevT = ev.t;
+  }
+  if (prevT !== null && prevT < upToTime && hiddenAt === null && manualPauseAt === null) {
+    activeMs += (upToTime - prevT);
+  }
+  return activeMs;
+}
 function computeActiveMs(log, upToTime, capMs, mode) {
-  return normaliseTimingMode(mode) === 'batchAware'
-    ? computeActiveMsBatchAware(log, upToTime, capMs)
-    : computeActiveMsClassic(log, upToTime, capMs);
+  var timingMode = normaliseTimingMode(mode);
+  if (timingMode === 'batchAware') return computeActiveMsBatchAware(log, upToTime, capMs);
+  if (timingMode === 'manual') return computeActiveMsManual(log, upToTime);
+  return computeActiveMsClassic(log, upToTime, capMs);
 }
 
 // Derive current paused state from the event log (for liveAutoIsPaused).

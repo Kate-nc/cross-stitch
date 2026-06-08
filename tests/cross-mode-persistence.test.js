@@ -234,7 +234,7 @@ describe('Session recording uses correct dates', () => {
   });
 
   test('getTimingMode resolves project override before global preference', () => {
-    const modeFunc = autoSessionSrc.match(/function getTimingMode\(\)\{[\s\S]*?statsSettings&&statsSettings\.timingMode[\s\S]*?trackerTimingMode[\s\S]*?return 'classic';[\s\S]*?\}/);
+    const modeFunc = autoSessionSrc.match(/function getTimingMode\(\)\{[\s\S]*?statsSettings&&statsSettings\.timingMode[\s\S]*?manual[\s\S]*?trackerTimingMode[\s\S]*?return 'classic';[\s\S]*?\}/);
     expect(modeFunc).not.toBeNull();
   });
 });
