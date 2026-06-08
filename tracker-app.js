@@ -4992,6 +4992,9 @@ useShortcuts(!isActive ? [] : [
       if(tOverflowOpen){setTOverflowOpen(false);return;}
       if(focusColour&&stitchView==="highlight"){setFocusColour(null);return;}
       if(drawer){setDrawer(false);return;}
+      // Close the palette panel on mobile/tablet (≤1023px). On desktop the
+      // panel is persistent so ESC intentionally leaves it open.
+      if(leftSidebarOpen&&typeof window!=="undefined"&&window.matchMedia&&window.matchMedia("(max-width:1023px)").matches){setLeftSidebarOpen(false);return;}
     } },
 
   // History / save (modified — fire from inputs by default).
@@ -5966,7 +5969,7 @@ return(
 
     {/* ─ Mode strip ─ */}
     <div className={"toolbar-row"+(isEditMode?" toolbar-row--edit":"")+" ppal-mode-strip"} role="toolbar" aria-label="Canvas controls">
-      <button className={"ppal-mode-btn"+(leftSidebarMode==="open"?" ppal-mode-btn--on":"")} onClick={()=>setLeftSidebarMode(prev=>prev==="open"?"hidden":"open")} aria-label="Open colour palette" aria-pressed={leftSidebarMode==="open"} title="Open colour palette (P)">
+      <button className={"ppal-mode-btn"+(leftSidebarMode==="open"?" ppal-mode-btn--on":"")} onClick={()=>setLeftSidebarMode(prev=>prev==="open"?"hidden":"open")} aria-label="Open colour palette" aria-pressed={leftSidebarMode==="open"} title="Toggle colour palette">
         <span className="ppal-mode-btn-icon">{Icons.palette?Icons.palette():null}</span>
         <span className="ppal-mode-btn-label">Colours</span>
       </button>
