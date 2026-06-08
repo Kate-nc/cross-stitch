@@ -459,8 +459,15 @@
             h("option", { value: "0"  }, "Never auto-end")
           )
         ),
-        h(Row, { last: true, label: "Count breaks as stitching for up to\u2026",
-          desc: "If you pause mid-stitch (to count or rethread), this much of the break still counts as active time. Lower = stricter totals; higher = more forgiving. Default: 90 seconds." },
+        h(Row, { label: "Session timing mode",
+          desc: "Classic uses the original fixed break cap. Batch-friendly keeps the same rules but credits longer gaps when you mark a large run of stitches at once." },
+          h("select", { value: timingMode[0], onChange: function (e) { timingMode[1](e.target.value); }, style: styles.input },
+            h("option", { value: "classic" }, "Classic"),
+            h("option", { value: "batchAware" }, "Batch-friendly")
+          )
+        ),
+        h(Row, { last: true, label: "Count breaks as stitching for up to…",
+          desc: "Used by both Classic and Batch-friendly timing. If you pause mid-stitch (to count or rethread), this much of the break still counts as active time. Lower = stricter totals; higher = more forgiving. Default: 90 seconds." },
           h("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
             h("select", { value: String(Math.min(600, Math.max(15, Number(gapCap[0]) || 90))), onChange: function (e) {
               var v = Number(e.target.value);
@@ -475,15 +482,8 @@
               h("option", { value: "300" }, "5 minutes"),
               h("option", { value: "600" }, "10 minutes")
             ),
-          h(Row, { label: "Session timing mode",
-            desc: "Classic uses the original fixed break cap. Batch-friendly keeps the same rules but credits longer gaps when you mark a large run of stitches at once." },
-            h("select", { value: timingMode[0], onChange: function (e) { timingMode[1](e.target.value); }, style: styles.input },
-              h("option", { value: "classic" }, "Classic"),
-              h("option", { value: "batchAware" }, "Batch-friendly")
-            )
-          ),
             (gapCap[0] !== 90) ? h("button", {
-            desc: "Used by both Classic and Batch-friendly timing. If you pause mid-stitch (to count or rethread), this much of the break still counts as active time. Lower = stricter totals; higher = more forgiving. Default: 90 seconds." },
+              onClick: function () { gapCap[1](90); },
               style: { fontSize: 12, padding: "3px 8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-secondary)", cursor: "pointer" }
             }, "Reset") : null
           )
