@@ -383,6 +383,7 @@
     var skipDone = usePref("trackerHighlightSkipDone", true);
     var onlyStarted = usePref("trackerOnlyStarted", false);
     var idleMin = usePref("trackerIdleMinutes", 10);
+    var timingMode = usePref("trackerTimingMode", "classic");
     var gapCap = usePref("trackerActiveGapCapSec", 90);
     var style = usePref("trackerStitchingStyle", "freestyle");
     var block = usePref("trackerBlockShape", "10x10");
@@ -458,8 +459,16 @@
             h("option", { value: "0"  }, "Never auto-end")
           )
         ),
-        h(Row, { last: true, label: "Count breaks as stitching for up to\u2026",
-          desc: "If you pause mid-stitch (to count or rethread), this much of the break still counts as active time. Lower = stricter totals; higher = more forgiving. Default: 90 seconds." },
+        h(Row, { label: "Session timing mode",
+          desc: "Classic uses the original fixed break cap. Batch-friendly credits longer gaps when you mark a large run at once. Manual runs a true session timer until you pause, hide the tab, or the idle timeout ends the session." },
+          h("select", { value: timingMode[0], onChange: function (e) { timingMode[1](e.target.value); }, style: styles.input },
+            h("option", { value: "classic" }, "Classic"),
+            h("option", { value: "batchAware" }, "Batch-friendly"),
+            h("option", { value: "manual" }, "Manual timer")
+          )
+        ),
+        h(Row, { last: true, label: "Count breaks as stitching for up to…",
+          desc: "Used by Classic and Batch-friendly timing. Manual timer mode ignores this cap and instead counts the full visible, unpaused session." },
           h("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
             h("select", { value: String(Math.min(600, Math.max(15, Number(gapCap[0]) || 90))), onChange: function (e) {
               var v = Number(e.target.value);

@@ -533,9 +533,22 @@ function TrackerProjectRail({activeId,activeDoneCount,activeTotalStitchable,pal,
 // Events each carry {kind, t} (t = Unix ms). Recognised kinds:
 //   start, stitch, hidden, visible, manualPause, manualResume
 // Intervals inside a hidden or manualPause span are excluded entirely.
-// All other inter-event gaps are credited at most capMs each, so natural
-// dwell (counting, rethreading) counts up to capMs without crediting walk-away.
-function computeActiveMs(log, upToTime, capMs) {
+// Classic mode credits all eligible gaps at most capMs each.
+// Batch-aware mode keeps the same rules except that an interval ending in a
+// bulk stitch event (delta > 1) can scale beyond the base cap.
+// Manual mode counts the full visible, unpaused wall-clock interval while the
+// session is open, regardless of how often stitches are marked.
+function normaliseTimingMode(mode) {
+  if (mode === 'batchAware' || mode === 'manual') return mode;
+  return 'classic';
+}
+function getEventGapCapMs(ev, baseCapMs) {
+  if (!ev || ev.kind !== 'stitch') return baseCapMs;
+  var burst = Math.max(1, Math.abs(ev.delta || 1));
+  if (burst <= 1) return baseCapMs;
+  return Math.min(10 * 60 * 1000, baseCapMs * Math.min(burst, 6));
+}
+function computeActiveMsClassic(log, upToTime, capMs) {
   if (!log || log.length === 0) return 0;
   var activeMs = 0;
   var hiddenAt = null;
@@ -556,11 +569,71 @@ function computeActiveMs(log, upToTime, capMs) {
     else if (ev.kind === 'manualResume') manualPauseAt = null;
     prevT = ev.t;
   }
+  if (prevT !== null && prevT < upToTime && hiddenAt === null && manualPauseAt === null) {
+    activeMs += Math.min(upToTime - prevT, capMs);
+  }
+  return activeMs;
+}
+function computeActiveMsBatchAware(log, upToTime, capMs) {
+  if (!log || log.length === 0) return 0;
+  var activeMs = 0;
+  var hiddenAt = null;
+  var manualPauseAt = null;
+  var prevT = null;
+  var prevEv = null;
+  for (var i = 0; i < log.length; i++) {
+    var ev = log[i];
+    var t = ev.t <= upToTime ? ev.t : upToTime;
+    if (prevT !== null && t > prevT) {
+      if (hiddenAt === null && manualPauseAt === null) {
+        activeMs += Math.min(t - prevT, getEventGapCapMs(ev, capMs));
+      }
+    }
+    if (ev.t > upToTime) { prevT = t; break; }
+    if      (ev.kind === 'hidden')       hiddenAt = ev.t;
+    else if (ev.kind === 'visible')      hiddenAt = null;
+    else if (ev.kind === 'manualPause')  manualPauseAt = ev.t;
+    else if (ev.kind === 'manualResume') manualPauseAt = null;
+    prevT = ev.t;
+    prevEv = ev;
+  }
   // Tail: from last event up to upToTime
   if (prevT !== null && prevT < upToTime && hiddenAt === null && manualPauseAt === null) {
     activeMs += Math.min(upToTime - prevT, capMs);
   }
   return activeMs;
+}
+function computeActiveMsManual(log, upToTime) {
+  if (!log || log.length === 0) return 0;
+  var activeMs = 0;
+  var hiddenAt = null;
+  var manualPauseAt = null;
+  var prevT = null;
+  for (var i = 0; i < log.length; i++) {
+    var ev = log[i];
+    var t = ev.t <= upToTime ? ev.t : upToTime;
+    if (prevT !== null && t > prevT) {
+      if (hiddenAt === null && manualPauseAt === null) {
+        activeMs += (t - prevT);
+      }
+    }
+    if (ev.t > upToTime) { prevT = t; break; }
+    if      (ev.kind === 'hidden')       hiddenAt = ev.t;
+    else if (ev.kind === 'visible')      hiddenAt = null;
+    else if (ev.kind === 'manualPause')  manualPauseAt = ev.t;
+    else if (ev.kind === 'manualResume') manualPauseAt = null;
+    prevT = ev.t;
+  }
+  if (prevT !== null && prevT < upToTime && hiddenAt === null && manualPauseAt === null) {
+    activeMs += (upToTime - prevT);
+  }
+  return activeMs;
+}
+function computeActiveMs(log, upToTime, capMs, mode) {
+  var timingMode = normaliseTimingMode(mode);
+  if (timingMode === 'batchAware') return computeActiveMsBatchAware(log, upToTime, capMs);
+  if (timingMode === 'manual') return computeActiveMsManual(log, upToTime);
+  return computeActiveMsClassic(log, upToTime, capMs);
 }
 
 // Derive current paused state from the event log (for liveAutoIsPaused).
@@ -579,6 +652,17 @@ function deriveIsLogPaused(log) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Expose to useAutoSession.js (loaded as a separate script in the same page)
 if (typeof window !== 'undefined') { window.computeActiveMs = computeActiveMs; window.deriveIsLogPaused = deriveIsLogPaused; }
+
+function formatTimingModeLabel(mode) {
+  if (mode === 'batchAware') return 'Batch-friendly';
+  if (mode === 'manual') return 'Manual timer';
+  return 'Classic';
+}
+function formatTimingModeShortLabel(mode) {
+  if (mode === 'batchAware') return 'Batch';
+  if (mode === 'manual') return 'Manual';
+  return 'Classic';
+}
 
 function TrackerApp({onSwitchToDesign=null, onGoHome=null, isActive=true, incomingProject=null}={}){
 const[sW,setSW]=useState(80);
@@ -1152,7 +1236,7 @@ const lastSnapshotRef=useRef(null); // freshest serialised project for beforeunl
 const v3FieldsRef=useRef({});       // preserve v3 stats fields across save round-trips
 const autoSaveDirtyRef=useRef(false);
 const session=window.useAutoSession({projectIdRef,v3FieldsRef,autoSaveDirtyRef,statsSettings});
-const{statsSessions,setStatsSessions,totalTime,liveAutoElapsed,liveAutoStitches,liveAutoIsPaused,manuallyPaused,setManuallyPaused,manuallyPausedRef,celebration,setCelebration,celebratedRef,goalCelebrationRef,currentAutoSessionRef,finaliseAutoSessionRef,resetAutoSessionForProjectLoad,pendingColoursRef,pendingMilestonesRef,prevAutoCountRef,justLoadedRef,justLoadedSettlePassRef,autoStatsRef,isUnloadingRef,achievedMilestones,setAchievedMilestones,sessionOnboardingShown,setSessionOnboardingShown,sessionSavedToast,setSessionSavedToast,recordAutoActivity,editSessionNote}=session;
+const{statsSessions,setStatsSessions,totalTime,liveAutoElapsed,liveAutoStitches,liveAutoIsPaused,currentTimingMode,manuallyPaused,setManuallyPaused,manuallyPausedRef,celebration,setCelebration,celebratedRef,goalCelebrationRef,currentAutoSessionRef,finaliseAutoSessionRef,resetAutoSessionForProjectLoad,pendingColoursRef,pendingMilestonesRef,prevAutoCountRef,justLoadedRef,justLoadedSettlePassRef,autoStatsRef,isUnloadingRef,achievedMilestones,setAchievedMilestones,sessionOnboardingShown,setSessionOnboardingShown,sessionSavedToast,setSessionSavedToast,recordAutoActivity,editSessionNote}=session;
 const counts=window.useStitchCounts({pat,done,halfStitches,halfDone});
 const{doneCountRef,colourDoneCountsRef,countsVer,recomputeAllCounts,applyDoneCountsDelta}=counts;
 const[projectName,setProjectName]=useState("");
@@ -3011,7 +3095,7 @@ function processLoadedProject(project){
       }
     }
   }catch(_e){}
-  setStatsSettings(Object.assign({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,useActiveDays:true,sectionCols:50,sectionRows:50},project.statsSettings||{}));
+  setStatsSettings(Object.assign({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,timingMode:null,stitchingSpeedOverride:null,useActiveDays:true,sectionCols:50,sectionRows:50},project.statsSettings||{}));
   setStatsView(false);
   setCelebration(null);
   celebratedRef.current=new Set();
@@ -4908,6 +4992,9 @@ useShortcuts(!isActive ? [] : [
       if(tOverflowOpen){setTOverflowOpen(false);return;}
       if(focusColour&&stitchView==="highlight"){setFocusColour(null);return;}
       if(drawer){setDrawer(false);return;}
+      // Close the palette panel on mobile/tablet (≤1023px). On desktop the
+      // panel is persistent so ESC intentionally leaves it open.
+      if(leftSidebarOpen&&typeof window!=="undefined"&&window.matchMedia&&window.matchMedia("(max-width:1023px)").matches){setLeftSidebarOpen(false);return;}
     } },
 
   // History / save (modified — fire from inputs by default).
@@ -5373,7 +5460,7 @@ return(
   <div className="info-strip-row">
     <span className="info-strip-pct">{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</span>
     {progressPct<100&&totalStitchable>0&&<span className="info-strip-counts">{doneCount.toLocaleString('en-GB')} done &middot; {Math.max(0,totalStitchable-doneCount).toLocaleString('en-GB')} to go</span>}
-    {liveAutoStitches>0&&<span className="info-strip-timer"><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}</span> {fmtTime(liveAutoElapsed)}</span>}
+    {liveAutoStitches>0&&<span className="info-strip-timer"><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}</span> {fmtTime(liveAutoElapsed)} &middot; {formatTimingModeShortLabel(currentTimingMode)}</span>}
   </div>
 </div>
 <div className="app-info-chip-wrap info-strip-chip-wrap">
@@ -5554,7 +5641,7 @@ return(
     </div>
   </div>}
 
-  {!statsView&&pat&&pal&&<><div className="cs-main">
+  {!statsView&&pat&&pal&&<><div className={"cs-main"+(leftSidebarMode==="open"?" cs-main--palette-open":"")}>
     {/* Phase 5: backdrop scrim — only visible on mobile while the
         drawer is open. Tap to close. CSS controls visibility (hidden
         on >=900px) so desktop layout is untouched. */}
@@ -5610,7 +5697,7 @@ return(
         <div className="ppal-header-stats">
           <span className="ppal-pct">{progressPct>=100?"Complete!":progressPct.toFixed(1)+"%"}</span>
           {liveAutoStitches>0&&<span className="ppal-session-chip" role="button" tabIndex={0} title="Open Session controls" onClick={()=>{setLeftSidebarTab("session");setMorePanelOpen(true);}} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();setLeftSidebarTab("session");setMorePanelOpen(true);}}}>
-            {liveAutoIsPaused||manuallyPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}{" "}{fmtTime(liveAutoElapsed)}{" · "}{liveAutoStitches}{" st"}
+            {liveAutoIsPaused||manuallyPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}{" "}{fmtTime(liveAutoElapsed)}{" · "}{liveAutoStitches}{" st · "}{formatTimingModeShortLabel(currentTimingMode)}
           </span>}
         </div>
       </div>
@@ -5882,7 +5969,7 @@ return(
 
     {/* ─ Mode strip ─ */}
     <div className={"toolbar-row"+(isEditMode?" toolbar-row--edit":"")+" ppal-mode-strip"} role="toolbar" aria-label="Canvas controls">
-      <button className="ppal-mode-btn" onClick={cycleLeftSidebar} aria-label="Open colour palette" title="Open colour palette (P)">
+      <button className={"ppal-mode-btn"+(leftSidebarMode==="open"?" ppal-mode-btn--on":"")} onClick={cycleLeftSidebar} aria-label={leftSidebarMode==="hidden"?"Open colour palette":"Cycle colour palette mode"} aria-pressed={leftSidebarMode==="open"} title="Toggle colour palette">
         <span className="ppal-mode-btn-icon">{Icons.palette?Icons.palette():null}</span>
         <span className="ppal-mode-btn-label">Colours</span>
       </button>
@@ -5992,6 +6079,7 @@ return(
                   ?<span style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--warning-soft)",color:"var(--warning)",fontWeight:600}}>Paused</span>
                   :<span style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--success-soft)",color:"var(--success)",fontWeight:600}}>Active</span>
                 }
+                <span style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:600,border:"1px solid var(--border)"}}>{formatTimingModeLabel(currentTimingMode)}</span>
               </div>
               <div style={{display:"flex",gap:24}}>
                 <div><div style={{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>Time</div><div style={{fontSize:'var(--text-lg)',fontWeight:700,color:"var(--text-primary)",fontVariantNumeric:"tabular-nums"}}>{fmtTime(liveAutoElapsed)}</div></div>

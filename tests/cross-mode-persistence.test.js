@@ -213,14 +213,36 @@ describe('Session recording uses correct dates', () => {
     expect(recordMatch).not.toBeNull();
   });
 
+  test('recordAutoActivity stamps the resolved timing mode onto the session', () => {
+    const recordMatch = autoSessionSrc.match(/function recordAutoActivity[\s\S]*?timingMode:getTimingMode\(\)/);
+    expect(recordMatch).not.toBeNull();
+  });
+
   test('finaliseAutoSession preserves the original session date', () => {
     const finalMatch = autoSessionSrc.match(/function finaliseAutoSession[\s\S]*?date:session\.date/);
+    expect(finalMatch).not.toBeNull();
+  });
+
+  test('finaliseAutoSession records timingModeUsed on the saved session', () => {
+    const finalMatch = autoSessionSrc.match(/function finaliseAutoSession[\s\S]*?timingModeUsed:timingMode/);
     expect(finalMatch).not.toBeNull();
   });
 
   test('getStitchingDateLocal respects dayEndHour setting', () => {
     const dateFunc = autoSessionSrc.match(/function getStitchingDateLocal\(now\)\{[\s\S]*?dayEndHour[\s\S]*?\}/);
     expect(dateFunc).not.toBeNull();
+  });
+
+  test('getTimingMode resolves project override before global preference', () => {
+    const modeFunc = autoSessionSrc.match(/function getTimingMode\(\)\{[\s\S]*?statsSettings&&statsSettings\.timingMode[\s\S]*?manual[\s\S]*?trackerTimingMode[\s\S]*?return 'classic';[\s\S]*?\}/);
+    expect(modeFunc).not.toBeNull();
+  });
+});
+
+describe('Project stats settings defaults include timing mode override slot', () => {
+  test('Tracker project load seeds statsSettings.timingMode to null by default', () => {
+    const defaultMatch = trackerSrc.match(/setStatsSettings\(Object\.assign\(\{dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,timingMode:null/);
+    expect(defaultMatch).not.toBeNull();
   });
 });
 

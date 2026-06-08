@@ -192,6 +192,61 @@ describe('computeActiveMs – cap sensitivity', () => {
     expect(tall).toBe(120_000);
     expect(short).toBeLessThan(tall);
   });
+
+  it('defaults to classic timing mode when none is supplied', () => {
+    const T = 1_000_000;
+    const cap = 90_000;
+    const log = [
+      { kind: 'start',  t: T },
+      { kind: 'stitch', t: T + 240_000, delta: 12 },
+    ];
+    expect(computeActiveMs(log, T + 240_000, cap)).toBe(90_000);
+  });
+
+  it('extends the cap for bulk stitch events in batchAware mode', () => {
+    const T = 1_000_000;
+    const cap = 90_000;
+    const log = [
+      { kind: 'start',  t: T },
+      { kind: 'stitch', t: T + 240_000, delta: 12 },
+    ];
+    expect(computeActiveMs(log, T + 240_000, cap, 'batchAware')).toBe(240_000);
+  });
+
+  it('keeps the base cap for single-stitch events and tail time in batchAware mode', () => {
+    const T = 1_000_000;
+    const cap = 90_000;
+    const log = [
+      { kind: 'start',  t: T },
+      { kind: 'stitch', t: T + 240_000, delta: 1 },
+    ];
+    expect(computeActiveMs(log, T + 240_000, cap, 'batchAware')).toBe(90_000);
+    expect(computeActiveMs(log, T + 480_000, cap, 'batchAware')).toBe(180_000);
+  });
+
+  it('manual mode credits the full active interval without a gap cap', () => {
+    const T = 1_000_000;
+    const cap = 90_000;
+    const log = [
+      { kind: 'start',  t: T },
+      { kind: 'stitch', t: T + 240_000, delta: 1 },
+    ];
+    expect(computeActiveMs(log, T + 240_000, cap, 'manual')).toBe(240_000);
+    expect(computeActiveMs(log, T + 480_000, cap, 'manual')).toBe(480_000);
+  });
+
+  it('manual mode still excludes hidden and paused intervals', () => {
+    const T = 1_000_000;
+    const cap = 90_000;
+    const log = [
+      { kind: 'start', t: T },
+      { kind: 'hidden', t: T + 30_000 },
+      { kind: 'visible', t: T + 150_000 },
+      { kind: 'manualPause', t: T + 180_000 },
+      { kind: 'manualResume', t: T + 240_000 },
+    ];
+    expect(computeActiveMs(log, T + 300_000, cap, 'manual')).toBe(30_000 + 30_000 + 60_000);
+  });
 });
 
 // ─── deriveIsLogPaused ────────────────────────────────────────────────────────

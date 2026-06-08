@@ -103,6 +103,7 @@
     // active time. Gaps longer than this contribute only capSec worth. Controls
     // time accounting only — does NOT close the session (that is trackerIdleMinutes).
     // Validated range: 15–600 s. Default 90 s.
+    trackerTimingMode:       "classic",       // classic | batchAware | manual
     trackerActiveGapCapSec:   90,
     trackerStitchingStyle: "freestyle",         // freestyle | block | crosscountry | royal
     trackerBlockShape:     "10x10",             // WxH; "10x10" | "5x5" | etc.
