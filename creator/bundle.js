@@ -5363,12 +5363,12 @@ window.useCreatorState = function useCreatorState() {
   function chgW(v) {
     var w = Math.max(10, Math.min(500, parseInt(v) || 10));
     setSW(w);
-    if (arLock) setSH(Math.max(10, Math.round(w / ar)));
+    if (arLock) setSH(Math.max(10, Math.min(500, Math.round(w / ar))));
   }
   function chgH(v) {
     var h = Math.max(10, Math.min(500, parseInt(v) || 10));
     setSH(h);
-    if (arLock) setSW(Math.max(10, Math.round(h * ar)));
+    if (arLock) setSW(Math.max(10, Math.min(500, Math.round(h * ar))));
   }
   function slRsz(v) { chgW(v); }
 
@@ -13452,7 +13452,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("span", null, "Lock aspect ratio"),
       h(InfoIcon, {text:"Keep width and height proportional when resizing", width:220})
     ),
-    h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:-6,marginBottom:'var(--s-2)'}}, "Max: 5000 \u00D7 5000 stitches"),
+    h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:-6,marginBottom:'var(--s-2)'}}, "Max: 500 \u00D7 500 stitches"),
     ctx.arLock
       ? h("div", null,
           h(SliderRow, {label:"Size", value:ctx.sW, min:10, max:500, onChange:ctx.slRsz, suffix:" st"}),
