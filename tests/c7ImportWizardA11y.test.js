@@ -62,7 +62,7 @@ describe("ImportWizard accessibility", () => {
   test("number inputs use inputMode='numeric' with min/max/step", () => {
     expect(SRC).toMatch(/inputMode:\s*"numeric"/);
     // The size step has at least one numeric input with explicit bounds.
-    expect(SRC).toMatch(/min:\s*10,\s*max:\s*300,\s*step:\s*1/);
+    expect(SRC).toMatch(/min:\s*10,\s*max:\s*500,\s*step:\s*1/);
   });
 
   test("estimate readout is announced via aria-live polite", () => {
