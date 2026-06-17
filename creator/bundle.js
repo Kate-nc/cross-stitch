@@ -5361,12 +5361,12 @@ window.useCreatorState = function useCreatorState() {
   }
 
   function chgW(v) {
-    var w = Math.max(10, Math.min(300, parseInt(v) || 10));
+    var w = Math.max(10, Math.min(500, parseInt(v) || 10));
     setSW(w);
     if (arLock) setSH(Math.max(10, Math.round(w / ar)));
   }
   function chgH(v) {
-    var h = Math.max(10, Math.min(300, parseInt(v) || 10));
+    var h = Math.max(10, Math.min(500, parseInt(v) || 10));
     setSH(h);
     if (arLock) setSW(Math.max(10, Math.round(h * ar)));
   }
@@ -13455,7 +13455,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:-6,marginBottom:'var(--s-2)'}}, "Max: 5000 \u00D7 5000 stitches"),
     ctx.arLock
       ? h("div", null,
-          h(SliderRow, {label:"Size", value:ctx.sW, min:10, max:300, onChange:ctx.slRsz, suffix:" st"}),
+          h(SliderRow, {label:"Size", value:ctx.sW, min:10, max:500, onChange:ctx.slRsz, suffix:" st"}),
           h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:2}}, "Pattern will be "+ctx.sW+"\xD7"+ctx.sH+" stitches (aspect ratio preserved)")
         )
       : h(FieldWithHint, {hint:"Stitches across and down your pattern. At 14ct, every 14 stitches \u2248 1 inch (2.5\xa0cm). More stitches = more detail, but a larger and more time-consuming piece.",topic:"dimensions"},
@@ -13470,6 +13470,9 @@ window.CreatorSidebar = function CreatorSidebar() {
             )
           )
         ),
+    (ctx.sW > 250 || ctx.sH > 250) && h("div", {style:{fontSize:10,color:"var(--text-secondary)",background:"var(--surface-tertiary)",borderRadius:'var(--radius-sm)',padding:"4px 8px",marginTop:'var(--s-1)'}},
+      "Large pattern \u2014 keep colours to 15\u201325 for faster generation and a cleaner result."
+    ),
     h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
     h("div", {style:{marginTop:'var(--s-1)'}},
       h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},

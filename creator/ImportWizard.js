@@ -271,7 +271,7 @@
     function renderStep3() {
       var sz = wizard.size;
       function setW(n) {
-        var w = Math.max(10, Math.min(300, n | 0));
+        var w = Math.max(10, Math.min(500, n | 0));
         if (sz.lock && image && image.width && image.height) {
           var ratio = image.height / image.width;
           wizard.setSize(Object.assign({}, sz, { w: w, h: Math.max(10, Math.round(w * ratio)) }));
@@ -280,7 +280,7 @@
         }
       }
       function setH(n) {
-        var hh = Math.max(10, Math.min(300, n | 0));
+        var hh = Math.max(10, Math.min(500, n | 0));
         if (sz.lock && image && image.width && image.height) {
           var ratio = image.width / image.height;
           wizard.setSize(Object.assign({}, sz, { h: hh, w: Math.max(10, Math.round(hh * ratio)) }));
@@ -291,6 +291,7 @@
       function setLock()  { wizard.setSize(Object.assign({}, sz, { lock: !sz.lock })); }
       function setFab(v)  { wizard.setSize(Object.assign({}, sz, { fabricCt: Number(v) })); }
       var warn = (sz.w * sz.h) > 40000;
+      var warnLarge = sz.w > 250 || sz.h > 250;
       return h("div", { className: "iw-step iw-step-size" },
         h("h2", { id: "iw-step-heading", ref: headingRef, tabIndex: -1, className: "iw-step-title" }, "Step 3 of 5: Size & fabric count"),
         h("p", { className: "iw-step-desc" }, "Set the finished pattern dimensions in stitches and pick your fabric count."),
@@ -298,14 +299,14 @@
           h("label", { className: "iw-field" },
             h("span", { className: "iw-field-label" }, "Width (stitches)"),
             h("input", {
-              type: "number", inputMode: "numeric", min: 10, max: 300, step: 1,
+              type: "number", inputMode: "numeric", min: 10, max: 500, step: 1,
               value: sz.w, onChange: function (e) { setW(Number(e.target.value)); }
             })
           ),
           h("label", { className: "iw-field" },
             h("span", { className: "iw-field-label" }, "Height (stitches)"),
             h("input", {
-              type: "number", inputMode: "numeric", min: 10, max: 300, step: 1,
+              type: "number", inputMode: "numeric", min: 10, max: 500, step: 1,
               value: sz.h, onChange: function (e) { setH(Number(e.target.value)); }
             })
           )
@@ -326,7 +327,8 @@
           h("div", null, "Total stitches: " + stitchCount.toLocaleString()),
           h("div", null, skeinText)
         ),
-        warn ? h("div", { className: "iw-warn", role: "alert" }, "Patterns over 40,000 stitches can be slow to generate on older devices.") : null
+        warn ? h("div", { className: "iw-warn", role: "alert" }, "Patterns over 40,000 stitches can be slow to generate on older devices.") : null,
+        warnLarge ? h("div", { className: "iw-warn", role: "status" }, "Large pattern \u2014 keep colours to 15\u201325 for faster generation and a cleaner result.") : null
       );
     }
 

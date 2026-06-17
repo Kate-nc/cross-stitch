@@ -822,12 +822,12 @@ window.useCreatorState = function useCreatorState() {
   }
 
   function chgW(v) {
-    var w = Math.max(10, Math.min(300, parseInt(v) || 10));
+    var w = Math.max(10, Math.min(500, parseInt(v) || 10));
     setSW(w);
     if (arLock) setSH(Math.max(10, Math.round(w / ar)));
   }
   function chgH(v) {
-    var h = Math.max(10, Math.min(300, parseInt(v) || 10));
+    var h = Math.max(10, Math.min(500, parseInt(v) || 10));
     setSH(h);
     if (arLock) setSW(Math.max(10, Math.round(h * ar)));
   }
