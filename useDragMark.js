@@ -36,8 +36,14 @@
       window aborts (browser handles pinch-zoom natively).
    4. Long-press 500ms with no movement → set range anchor; next tap on a
       different cell commits the rectangular region as one undo step.
+      Touch/pen only — see note in (5).
    5. Mouse: click+drag = drag-mark; shift+click commits a range from the
-      most recent anchor.
+      most recent anchor. Mouse never arms the (4) long-press timer, so a
+      click has no minimum OR maximum hold-time to register as a tap — it
+      always toggles the cell as long as the button is released without
+      moving off it. This avoids a dead zone where a click held anywhere
+      between ~200ms-500ms (very plausible with a real mouse) used to be
+      silently swallowed instead of registering as a tap or a drag.
    6. Pointer cancel discards the gesture.                                */
 (function () {
   'use strict';
@@ -146,7 +152,17 @@
         // Pending: nothing committed yet.
         var path = new Set();
         if (isMarkableAt(ctx.pattern, action.idx)) path.add(action.idx);
-        effects.push({ type: 'START_LONG_PRESS' });
+        // Long-press-to-range is a touch/pen affordance only. Mouse users
+        // already have an unambiguous, immediate range gesture (shift+click,
+        // handled above) — arming the same 500ms timer for mouse meant any
+        // click held a little longer than tapHoldMs (e.g. a deliberate but
+        // unhurried click, or one delayed by a busy main thread) silently
+        // turned into a range anchor and swallowed the click instead of
+        // toggling the cell. See the pointerType==='mouse' bypass in the
+        // POINTER_UP 'pending' branch below for the other half of this fix.
+        if ((action.pointerType || 'mouse') !== 'mouse') {
+          effects.push({ type: 'START_LONG_PRESS' });
+        }
         return {
           state: {
             mode: 'pending',
@@ -272,7 +288,12 @@
         // pending → tap.
         if (s.mode === 'pending') {
           var dt = action.time - s.startTime;
-          if (dt <= tapHoldMs() && action.idx === s.startIdx
+          // Mouse never arms the long-press timer (see POINTER_DOWN), so
+          // there's no risk of this being a stale/duplicate range gesture —
+          // any mouse click that didn't move to a different cell is a tap,
+          // regardless of how long the button was held.
+          var isMouse = s.pointerType === 'mouse';
+          if ((isMouse || dt <= tapHoldMs()) && action.idx === s.startIdx
               && isMarkableAt(ctx.pattern, s.startIdx)) {
             effects.push({ type: 'TOGGLE_CELL', idx: s.startIdx });
             return {
