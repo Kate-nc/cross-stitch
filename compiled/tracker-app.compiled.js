@@ -3488,10 +3488,15 @@ function TrackerApp({
           minPat
         };
       }
+      // PERF: postMessage's structured clone copies a Uint8Array with a single
+      // memcpy; Array.from(done) instead boxed every byte into a JS number and
+      // built a full-size plain Array — much more expensive for large patterns,
+      // for no benefit since the worker immediately does `new Uint8Array(done)`
+      // on the other side regardless of which one it receives.
       analysisWorkerRef.current.postMessage({
         type: "analyse",
         pat: minPat,
-        done: done ? Array.from(done) : null,
+        done: done || null,
         sW,
         sH,
         requestId: reqId,

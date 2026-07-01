@@ -1827,7 +1827,12 @@ useEffect(()=>{
       for(let i=0;i<pat.length;i++)minPat[i]={id:pat[i].id};
       analysisMinPatCacheRef.current={pat,minPat};
     }
-    analysisWorkerRef.current.postMessage({type:"analyse",pat:minPat,done:done?Array.from(done):null,sW,sH,requestId:reqId,blockSize:blockW});
+    // PERF: postMessage's structured clone copies a Uint8Array with a single
+    // memcpy; Array.from(done) instead boxed every byte into a JS number and
+    // built a full-size plain Array — much more expensive for large patterns,
+    // for no benefit since the worker immediately does `new Uint8Array(done)`
+    // on the other side regardless of which one it receives.
+    analysisWorkerRef.current.postMessage({type:"analyse",pat:minPat,done:done||null,sW,sH,requestId:reqId,blockSize:blockW});
   },500);
   return()=>clearTimeout(analysisThrottleRef.current);
 },[pat,done,sW,sH,blockW]);
