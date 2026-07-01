@@ -1443,9 +1443,22 @@ function TrackerProjectRail({
 // Events each carry {kind, t} (t = Unix ms). Recognised kinds:
 //   start, stitch, hidden, visible, manualPause, manualResume
 // Intervals inside a hidden or manualPause span are excluded entirely.
-// All other inter-event gaps are credited at most capMs each, so natural
-// dwell (counting, rethreading) counts up to capMs without crediting walk-away.
-function computeActiveMs(log, upToTime, capMs) {
+// Classic mode credits all eligible gaps at most capMs each.
+// Batch-aware mode keeps the same rules except that an interval ending in a
+// bulk stitch event (delta > 1) can scale beyond the base cap.
+// Manual mode counts the full visible, unpaused wall-clock interval while the
+// session is open, regardless of how often stitches are marked.
+function normaliseTimingMode(mode) {
+  if (mode === 'batchAware' || mode === 'manual') return mode;
+  return 'classic';
+}
+function getEventGapCapMs(ev, baseCapMs) {
+  if (!ev || ev.kind !== 'stitch') return baseCapMs;
+  var burst = Math.max(1, Math.abs(ev.delta || 1));
+  if (burst <= 1) return baseCapMs;
+  return Math.min(10 * 60 * 1000, baseCapMs * Math.min(burst, 6));
+}
+function computeActiveMsClassic(log, upToTime, capMs) {
   if (!log || log.length === 0) return 0;
   var activeMs = 0;
   var hiddenAt = null;
@@ -1466,11 +1479,71 @@ function computeActiveMs(log, upToTime, capMs) {
     if (ev.kind === 'hidden') hiddenAt = ev.t;else if (ev.kind === 'visible') hiddenAt = null;else if (ev.kind === 'manualPause') manualPauseAt = ev.t;else if (ev.kind === 'manualResume') manualPauseAt = null;
     prevT = ev.t;
   }
+  if (prevT !== null && prevT < upToTime && hiddenAt === null && manualPauseAt === null) {
+    activeMs += Math.min(upToTime - prevT, capMs);
+  }
+  return activeMs;
+}
+function computeActiveMsBatchAware(log, upToTime, capMs) {
+  if (!log || log.length === 0) return 0;
+  var activeMs = 0;
+  var hiddenAt = null;
+  var manualPauseAt = null;
+  var prevT = null;
+  var prevEv = null;
+  for (var i = 0; i < log.length; i++) {
+    var ev = log[i];
+    var t = ev.t <= upToTime ? ev.t : upToTime;
+    if (prevT !== null && t > prevT) {
+      if (hiddenAt === null && manualPauseAt === null) {
+        activeMs += Math.min(t - prevT, getEventGapCapMs(ev, capMs));
+      }
+    }
+    if (ev.t > upToTime) {
+      prevT = t;
+      break;
+    }
+    if (ev.kind === 'hidden') hiddenAt = ev.t;else if (ev.kind === 'visible') hiddenAt = null;else if (ev.kind === 'manualPause') manualPauseAt = ev.t;else if (ev.kind === 'manualResume') manualPauseAt = null;
+    prevT = ev.t;
+    prevEv = ev;
+  }
   // Tail: from last event up to upToTime
   if (prevT !== null && prevT < upToTime && hiddenAt === null && manualPauseAt === null) {
     activeMs += Math.min(upToTime - prevT, capMs);
   }
   return activeMs;
+}
+function computeActiveMsManual(log, upToTime) {
+  if (!log || log.length === 0) return 0;
+  var activeMs = 0;
+  var hiddenAt = null;
+  var manualPauseAt = null;
+  var prevT = null;
+  for (var i = 0; i < log.length; i++) {
+    var ev = log[i];
+    var t = ev.t <= upToTime ? ev.t : upToTime;
+    if (prevT !== null && t > prevT) {
+      if (hiddenAt === null && manualPauseAt === null) {
+        activeMs += t - prevT;
+      }
+    }
+    if (ev.t > upToTime) {
+      prevT = t;
+      break;
+    }
+    if (ev.kind === 'hidden') hiddenAt = ev.t;else if (ev.kind === 'visible') hiddenAt = null;else if (ev.kind === 'manualPause') manualPauseAt = ev.t;else if (ev.kind === 'manualResume') manualPauseAt = null;
+    prevT = ev.t;
+  }
+  if (prevT !== null && prevT < upToTime && hiddenAt === null && manualPauseAt === null) {
+    activeMs += upToTime - prevT;
+  }
+  return activeMs;
+}
+function computeActiveMs(log, upToTime, capMs, mode) {
+  var timingMode = normaliseTimingMode(mode);
+  if (timingMode === 'batchAware') return computeActiveMsBatchAware(log, upToTime, capMs);
+  if (timingMode === 'manual') return computeActiveMsManual(log, upToTime);
+  return computeActiveMsClassic(log, upToTime, capMs);
 }
 
 // Derive current paused state from the event log (for liveAutoIsPaused).
@@ -1489,6 +1562,16 @@ function deriveIsLogPaused(log) {
 if (typeof window !== 'undefined') {
   window.computeActiveMs = computeActiveMs;
   window.deriveIsLogPaused = deriveIsLogPaused;
+}
+function formatTimingModeLabel(mode) {
+  if (mode === 'batchAware') return 'Batch-friendly';
+  if (mode === 'manual') return 'Manual timer';
+  return 'Classic';
+}
+function formatTimingModeShortLabel(mode) {
+  if (mode === 'batchAware') return 'Batch';
+  if (mode === 'manual') return 'Manual';
+  return 'Classic';
 }
 function TrackerApp({
   onSwitchToDesign = null,
@@ -2070,6 +2153,15 @@ function TrackerApp({
   const analysisWorkerRef = useRef(null);
   const analysisRequestIdRef = useRef(0);
   const analysisThrottleRef = useRef(null);
+  // PERF: cache the minimal-size pat payload sent to the analysis worker, keyed
+  // on `pat`'s identity. The analyse effect below also depends on `done` (which
+  // changes on every single stitch mark), so without this cache we'd reallocate
+  // a full pat.length-sized array of {id} objects on almost every debounce tick
+  // even though the pattern itself hadn't changed since the last one.
+  const analysisMinPatCacheRef = useRef({
+    pat: null,
+    minPat: null
+  });
   // Thread usage visualisation: null | "distance" | "cluster"
   const [threadUsageMode, setThreadUsageMode] = useState(null);
   const threadUsageRafRef = useRef(null);
@@ -2365,6 +2457,7 @@ function TrackerApp({
     liveAutoElapsed,
     liveAutoStitches,
     liveAutoIsPaused,
+    currentTimingMode,
     manuallyPaused,
     setManuallyPaused,
     manuallyPausedRef,
@@ -2589,6 +2682,44 @@ function TrackerApp({
     french_knot: 0,
     long_stitch: 0
   }), [totalStitchable, halfStitchCounts.total, bsLines.length]);
+  // PERF: the palette legend tile list (rendered below) used to be rebuilt and
+  // re-sorted from `pal` on every single render of this component — including
+  // re-renders triggered by unrelated state (drag-preview updates, hover, etc.)
+  // while marking stitches. `colourDoneCountsRef.current` is mutated in place
+  // (see the T-5 counts invariant), so `countsVer` — not `colourDoneCounts`
+  // itself — is the correct "did the counts actually change" signal here.
+  const legendRows = useMemo(() => {
+    if (!pal) return null;
+    const rows = pal.map(p => {
+      const dc = colourDoneCountsRef.current[p.id] || {
+        total: 0,
+        done: 0,
+        halfTotal: 0,
+        halfDone: 0
+      };
+      const totalWH = dc.total + dc.halfTotal * 0.5;
+      const doneWH = dc.done + dc.halfDone * 0.5;
+      const pct = totalWH > 0 ? Math.round(doneWH / totalWH * 100) : 0;
+      const remaining = Math.max(0, totalWH - doneWH);
+      const complete = doneWH >= totalWH && totalWH > 0;
+      return {
+        p,
+        dc,
+        pct,
+        remaining,
+        complete
+      };
+    });
+    if (legendSort === "done") rows.sort((a, b) => b.pct - a.pct);else if (legendSort === "count") rows.sort((a, b) => b.remaining - a.remaining);else rows.sort((a, b) => {
+      const ai = String(a.p.id),
+        bi = String(b.p.id);
+      const an = parseInt(ai, 10),
+        bn = parseInt(bi, 10);
+      if (isFinite(an) && isFinite(bn) && String(an) === ai && String(bn) === bi) return an - bn;
+      return ai.localeCompare(bi);
+    });
+    return rows;
+  }, [pal, countsVer, legendSort]);
   // After recomputeAllCounts has run post-load, snap prevAutoCountRef to the real
   // counts so the auto-detect effect below never sees a spurious delta.
   useEffect(() => {
@@ -2660,6 +2791,10 @@ function TrackerApp({
     animRafId: null
   });
   const renderStitchRef = useRef(null);
+  // PERF: set true by single/bulk stitch-toggle paths that already painted their
+  // changed cells directly (see drawCellDirectly call sites) so the full-viewport
+  // renderStitch effect can skip a redundant redraw. See the effect below for detail.
+  const skipNextFullRedrawRef = useRef(false);
   const focusableColors = useMemo(() => {
     if (!pal) return [];
     let list = pal;
@@ -3340,11 +3475,19 @@ function TrackerApp({
     analysisThrottleRef.current = setTimeout(() => {
       const reqId = ++analysisRequestIdRef.current;
       setAnalysisRunning(true);
-      // Send minimal-size pat objects — only need the id field
-      const minPat = new Array(pat.length);
-      for (let i = 0; i < pat.length; i++) minPat[i] = {
-        id: pat[i].id
-      };
+      // Send minimal-size pat objects — only need the id field. Reuse the cached
+      // array when `pat` hasn't changed since the last build (see PERF comment above).
+      let minPat = analysisMinPatCacheRef.current.pat === pat ? analysisMinPatCacheRef.current.minPat : null;
+      if (!minPat) {
+        minPat = new Array(pat.length);
+        for (let i = 0; i < pat.length; i++) minPat[i] = {
+          id: pat[i].id
+        };
+        analysisMinPatCacheRef.current = {
+          pat,
+          minPat
+        };
+      }
       analysisWorkerRef.current.postMessage({
         type: "analyse",
         pat: minPat,
@@ -3621,6 +3764,9 @@ function TrackerApp({
     if (changes.length > 0) {
       pushTrackHistory(changes);
       applyDoneCountsDelta(changes, pat, nd);
+      const _nv = md ? 1 : 0;
+      for (let i = 0; i < changes.length; i++) drawCellDirectly(changes[i].idx, _nv);
+      skipNextFullRedrawRef.current = true;
     }
     doneRef.current = nd;
     setDone(nd);
@@ -3705,6 +3851,8 @@ function TrackerApp({
     }));
     for (let c of last) nd[c.idx] = c.oldVal;
     applyDoneCountsDelta(redoChanges, pat, nd);
+    for (let c of last) drawCellDirectly(c.idx, c.oldVal);
+    skipNextFullRedrawRef.current = true;
     setDone(nd);
     setTrackHistory(prev => prev.slice(0, -1));
     let redoEntry = lastEntry && lastEntry.type === "BULK_TOGGLE" ? {
@@ -3729,6 +3877,8 @@ function TrackerApp({
     }));
     for (let c of last) nd[c.idx] = c.oldVal;
     applyDoneCountsDelta(undoChanges, pat, nd);
+    for (let c of last) drawCellDirectly(c.idx, c.oldVal);
+    skipNextFullRedrawRef.current = true;
     setDone(nd);
     setRedoStack(prev => prev.slice(0, -1));
     let undoEntry = lastEntry && lastEntry.type === "BULK_TOGGLE" ? {
@@ -5034,11 +5184,6 @@ function TrackerApp({
     // Install the loaded project's identity before any downstream work so a
     // later render-time failure can't cause the next auto-save to mint a copy.
     projectIdRef.current = project.id || null;
-    try {
-      if (project.id && ProjectStorage && ProjectStorage.setActiveProject) {
-        ProjectStorage.setActiveProject(project.id);
-      }
-    } catch (_) {}
     let s = project.settings || {};
     setSW(project.w || s.sW || project.settings?.w || 80);
     setSH(project.h || s.sH || project.settings?.h || 80);
@@ -5384,6 +5529,7 @@ function TrackerApp({
       monthlyGoal: null,
       targetDate: null,
       dayEndHour: 0,
+      timingMode: null,
       stitchingSpeedOverride: null,
       useActiveDays: true,
       sectionCols: 50,
@@ -6714,7 +6860,21 @@ function TrackerApp({
     }
     drawStitch(canvas.getContext("2d"), scs, viewportRect);
   }, [pat, cmap, scs, sW, sH, showCtr, bsLines, done, parkMarkers, parkLayers, hlRow, hlCol, stitchView, focusColour, halfStitches, halfDone, stitchZoom, highlightMode, tintColor, tintOpacity, spotDimOpacity, antsOffset, trackerDimLevel, layerVis, bsThickness, lockDetailLevel, lowZoomFade, rowModeActive, currentRow, trackerFabricColour, trackerCanvasTexture]);
-  useEffect(() => renderStitch(), [renderStitch]);
+  // PERF: single/bulk stitch toggles already paint their own changed cells directly
+  // via drawCellDirectly() (see markColourDone / _commitBulk / _dragMarkOnToggle /
+  // undoTrack / redoTrack) for instant feedback. Those call sites set
+  // skipNextFullRedrawRef.current=true right before their setDone() so this effect
+  // — which would otherwise repaint the *entire visible viewport* just because the
+  // `done` array reference changed — can skip the redundant full redraw. Anything
+  // that legitimately needs a full repaint (project load, zoom, view-mode change,
+  // undo of an edit-mode snapshot, etc.) never sets the flag, so it still gets one.
+  useEffect(() => {
+    if (skipNextFullRedrawRef.current) {
+      skipNextFullRedrawRef.current = false;
+      return;
+    }
+    renderStitch();
+  }, [renderStitch]);
   // Keep renderStitchRef current so animation callbacks always call the latest closure
   useEffect(() => {
     renderStitchRef.current = renderStitch;
@@ -8186,6 +8346,12 @@ function TrackerApp({
         setDrawer(false);
         return;
       }
+      // Close the palette panel on mobile/tablet (≤1023px). On desktop the
+      // panel is persistent so ESC intentionally leaves it open.
+      if (leftSidebarOpen && typeof window !== "undefined" && window.matchMedia && window.matchMedia("(max-width:1023px)").matches) {
+        setLeftSidebarOpen(false);
+        return;
+      }
     }
   },
   // History / save (modified — fire from inputs by default).
@@ -8625,8 +8791,12 @@ function TrackerApp({
     pushBulkToggleHistory(changes, source);
     applyDoneCountsDelta(changes, pat, nd);
     doneRef.current = nd;
+    // PERF: paint just the changed cells directly instead of a full-viewport
+    // renderStitch() redraw (previously called here unconditionally on every
+    // drag-mark commit, then AGAIN via the done-dependent useEffect below).
+    for (let i = 0; i < changes.length; i++) drawCellDirectly(changes[i].idx, want);
+    skipNextFullRedrawRef.current = true;
     setDone(nd);
-    if (typeof renderStitch === 'function') renderStitch();
     _pulseCells(changes.map(function (c) {
       return c.idx;
     }));
@@ -8675,8 +8845,12 @@ function TrackerApp({
       oldVal: oldVal
     }], pat, nd);
     doneRef.current = nd;
+    // PERF: paint just this cell directly instead of a full-viewport renderStitch()
+    // redraw (previously called here unconditionally on every single tap, then
+    // AGAIN via the done-dependent useEffect below).
+    drawCellDirectly(idx, nv);
+    skipNextFullRedrawRef.current = true;
     setDone(nd);
-    if (typeof renderStitch === 'function') renderStitch();
     // BUGFIX (#2): mirror _commitBulk — explicitly record the single-tap so the
     // session timer starts immediately rather than depending on the doneCount
     // diff useEffect.
@@ -8927,7 +9101,7 @@ function TrackerApp({
   }, /*#__PURE__*/React.createElement("span", {
     className: "info-strip-timer-icon",
     "aria-hidden": "true"
-  }, liveAutoIsPaused ? Icons.pause ? Icons.pause() : null : Icons.play ? Icons.play() : null), " ", fmtTime(liveAutoElapsed)))), /*#__PURE__*/React.createElement("div", {
+  }, liveAutoIsPaused ? Icons.pause ? Icons.pause() : null : Icons.play ? Icons.play() : null), " ", fmtTime(liveAutoElapsed), " \xB7 ", formatTimingModeShortLabel(currentTimingMode)))), /*#__PURE__*/React.createElement("div", {
     className: "app-info-chip-wrap info-strip-chip-wrap"
   }, /*#__PURE__*/React.createElement("button", {
     ref: progressChipRef,
@@ -9474,7 +9648,7 @@ function TrackerApp({
       display: 'inline-flex'
     }
   }, Icons.chevronLeft ? Icons.chevronLeft() : null), "Back to my projects")))), !statsView && pat && pal && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    className: "cs-main"
+    className: "cs-main" + (leftSidebarMode === "open" ? " cs-main--palette-open" : "")
   }, leftSidebarMode === "open" && /*#__PURE__*/React.createElement("div", {
     className: "lpanel-backdrop",
     onClick: () => setLeftSidebarOpen(false),
@@ -9557,7 +9731,7 @@ function TrackerApp({
         setMorePanelOpen(true);
       }
     }
-  }, liveAutoIsPaused || manuallyPaused ? Icons.pause ? Icons.pause() : null : Icons.play ? Icons.play() : null, " ", fmtTime(liveAutoElapsed), " · ", liveAutoStitches, " st"))), /*#__PURE__*/React.createElement("div", {
+  }, liveAutoIsPaused || manuallyPaused ? Icons.pause ? Icons.pause() : null : Icons.play ? Icons.play() : null, " ", fmtTime(liveAutoElapsed), " · ", liveAutoStitches, " st · ", formatTimingModeShortLabel(currentTimingMode)))), /*#__PURE__*/React.createElement("div", {
     className: "ppal-sort-row",
     role: "group",
     "aria-label": "Sort colour list"
@@ -9614,34 +9788,7 @@ function TrackerApp({
     className: "ppal-tile-list",
     role: "list"
   }, (() => {
-    const rows = pal.map(p => {
-      const dc = colourDoneCounts[p.id] || {
-        total: 0,
-        done: 0,
-        halfTotal: 0,
-        halfDone: 0
-      };
-      const totalWH = dc.total + dc.halfTotal * 0.5;
-      const doneWH = dc.done + dc.halfDone * 0.5;
-      const pct = totalWH > 0 ? Math.round(doneWH / totalWH * 100) : 0;
-      const remaining = Math.max(0, totalWH - doneWH);
-      const complete = doneWH >= totalWH && totalWH > 0;
-      return {
-        p,
-        dc,
-        pct,
-        remaining,
-        complete
-      };
-    });
-    if (legendSort === "done") rows.sort((a, b) => b.pct - a.pct);else if (legendSort === "count") rows.sort((a, b) => b.remaining - a.remaining);else rows.sort((a, b) => {
-      const ai = String(a.p.id),
-        bi = String(b.p.id);
-      const an = parseInt(ai, 10),
-        bn = parseInt(bi, 10);
-      if (isFinite(an) && isFinite(bn) && String(an) === ai && String(bn) === bi) return an - bn;
-      return ai.localeCompare(bi);
-    });
+    const rows = legendRows || [];
     return rows.map(({
       p,
       dc,
@@ -10302,10 +10449,11 @@ function TrackerApp({
     role: "toolbar",
     "aria-label": "Canvas controls"
   }, /*#__PURE__*/React.createElement("button", {
-    className: "ppal-mode-btn",
+    className: "ppal-mode-btn" + (leftSidebarMode === "open" ? " ppal-mode-btn--on" : ""),
     onClick: cycleLeftSidebar,
-    "aria-label": "Open colour palette",
-    title: "Open colour palette (P)"
+    "aria-label": leftSidebarMode === "hidden" ? "Open colour palette" : "Cycle colour palette mode",
+    "aria-pressed": leftSidebarMode === "open",
+    title: "Toggle colour palette"
   }, /*#__PURE__*/React.createElement("span", {
     className: "ppal-mode-btn-icon"
   }, Icons.palette ? Icons.palette() : null), /*#__PURE__*/React.createElement("span", {
@@ -10645,7 +10793,17 @@ function TrackerApp({
       color: "var(--success)",
       fontWeight: 600
     }
-  }, "Active")), /*#__PURE__*/React.createElement("div", {
+  }, "Active"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 'var(--text-xs)',
+      padding: "2px 8px",
+      borderRadius: "var(--radius-sm)",
+      background: "var(--surface)",
+      color: "var(--text-secondary)",
+      fontWeight: 600,
+      border: "1px solid var(--border)"
+    }
+  }, formatTimingModeLabel(currentTimingMode))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 24

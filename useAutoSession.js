@@ -141,8 +141,14 @@
         // negative is meaningless and would also break the "stitches active" gate
         // in the footer (`liveAutoStitches > 0`).
         setLiveAutoStitches(Math.max(0, currentAutoSessionRef.current.stitchesCompleted-currentAutoSessionRef.current.stitchesUndone));
-        // Update liveAutoIsPaused from log (manual resume above may have changed it).
-        setLiveAutoIsPaused(deriveIsLogPaused(currentAutoSessionRef.current.eventLog));
+        // Update liveAutoIsPaused from the already-live flags (manual resume above
+        // may have changed it). PERF: this used to call deriveIsLogPaused(), which
+        // rescans the *entire* session event log on every single stitch — an O(n)
+        // cost that grows for the whole session and made marking progressively
+        // slower the longer a session ran. document.hidden and manuallyPausedRef
+        // are kept perfectly in sync with the log's 'hidden'/'visible'/'manualPause'/
+        // 'manualResume' events elsewhere, so they're an O(1) equivalent.
+        setLiveAutoIsPaused(document.hidden||manuallyPausedRef.current);
         // Merge any pending colour IDs into the session
         if(pendingColoursRef.current.size>0){
           pendingColoursRef.current.forEach(c=>currentAutoSessionRef.current.coloursWorked.add(c));

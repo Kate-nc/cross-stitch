@@ -1000,6 +1000,12 @@ const[analysisRunning,setAnalysisRunning]=useState(false);
 const analysisWorkerRef=useRef(null);
 const analysisRequestIdRef=useRef(0);
 const analysisThrottleRef=useRef(null);
+// PERF: cache the minimal-size pat payload sent to the analysis worker, keyed
+// on `pat`'s identity. The analyse effect below also depends on `done` (which
+// changes on every single stitch mark), so without this cache we'd reallocate
+// a full pat.length-sized array of {id} objects on almost every debounce tick
+// even though the pattern itself hadn't changed since the last one.
+const analysisMinPatCacheRef=useRef({pat:null,minPat:null});
 // Thread usage visualisation: null | "distance" | "cluster"
 const[threadUsageMode,setThreadUsageMode]=useState(null);
 const threadUsageRafRef=useRef(null);
@@ -1332,6 +1338,28 @@ const progressChipRef=useRef(null);
 
 const colourDoneCounts=countsVer>=0?colourDoneCountsRef.current:{};
 const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total,backstitch:bsLines.length,quarter:0,petite:0,french_knot:0,long_stitch:0}),[totalStitchable,halfStitchCounts.total,bsLines.length]);
+// PERF: the palette legend tile list (rendered below) used to be rebuilt and
+// re-sorted from `pal` on every single render of this component — including
+// re-renders triggered by unrelated state (drag-preview updates, hover, etc.)
+// while marking stitches. `colourDoneCountsRef.current` is mutated in place
+// (see the T-5 counts invariant), so `countsVer` — not `colourDoneCounts`
+// itself — is the correct "did the counts actually change" signal here.
+const legendRows=useMemo(()=>{
+  if(!pal)return null;
+  const rows=pal.map(p=>{
+    const dc=colourDoneCountsRef.current[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
+    const totalWH=dc.total+dc.halfTotal*0.5;
+    const doneWH=dc.done+dc.halfDone*0.5;
+    const pct=totalWH>0?Math.round(doneWH/totalWH*100):0;
+    const remaining=Math.max(0,totalWH-doneWH);
+    const complete=doneWH>=totalWH&&totalWH>0;
+    return {p,dc,pct,remaining,complete};
+  });
+  if(legendSort==="done")rows.sort((a,b)=>b.pct-a.pct);
+  else if(legendSort==="count")rows.sort((a,b)=>b.remaining-a.remaining);
+  else rows.sort((a,b)=>{const ai=String(a.p.id),bi=String(b.p.id);const an=parseInt(ai,10),bn=parseInt(bi,10);if(isFinite(an)&&isFinite(bn)&&String(an)===ai&&String(bn)===bi)return an-bn;return ai.localeCompare(bi);});
+  return rows;
+},[pal,countsVer,legendSort]);
 // After recomputeAllCounts has run post-load, snap prevAutoCountRef to the real
 // counts so the auto-detect effect below never sees a spurious delta.
 useEffect(()=>{if(justLoadedRef.current){prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||0};justLoadedRef.current=false;}},[countsVer]);
@@ -1350,6 +1378,10 @@ useEffect(()=>{try{localStorage.setItem('cs_lowZoomFade',String(lowZoomFade));}c
 const tierRef=useRef(3);
 const tierFadeRef=useRef({symbolOpacity:1.0,bsHsOpacity:1.0,animRafId:null});
 const renderStitchRef=useRef(null);
+// PERF: set true by single/bulk stitch-toggle paths that already painted their
+// changed cells directly (see drawCellDirectly call sites) so the full-viewport
+// renderStitch effect can skip a redundant redraw. See the effect below for detail.
+const skipNextFullRedrawRef=useRef(false);
 
 const focusableColors=useMemo(()=>{
   if(!pal)return[];
@@ -1787,9 +1819,14 @@ useEffect(()=>{
   analysisThrottleRef.current=setTimeout(()=>{
     const reqId=++analysisRequestIdRef.current;
     setAnalysisRunning(true);
-    // Send minimal-size pat objects — only need the id field
-    const minPat=new Array(pat.length);
-    for(let i=0;i<pat.length;i++)minPat[i]={id:pat[i].id};
+    // Send minimal-size pat objects — only need the id field. Reuse the cached
+    // array when `pat` hasn't changed since the last build (see PERF comment above).
+    let minPat=analysisMinPatCacheRef.current.pat===pat?analysisMinPatCacheRef.current.minPat:null;
+    if(!minPat){
+      minPat=new Array(pat.length);
+      for(let i=0;i<pat.length;i++)minPat[i]={id:pat[i].id};
+      analysisMinPatCacheRef.current={pat,minPat};
+    }
     analysisWorkerRef.current.postMessage({type:"analyse",pat:minPat,done:done?Array.from(done):null,sW,sH,requestId:reqId,blockSize:blockW});
   },500);
   return()=>clearTimeout(analysisThrottleRef.current);
@@ -1936,7 +1973,7 @@ const threadUsageSummary=useMemo(()=>{
   return{isolated,small,medium,large,total,estChanges,mostScattered,mostClustered};
 },[analysisResult,pat]);
 
-function markColourDone(cid,md){const cur=doneRef.current;if(!pat||!cur)return;let changes=[];let nd=new Uint8Array(cur);for(let i=0;i<pat.length;i++)if(pat[i].id===cid){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0){pushTrackHistory(changes);applyDoneCountsDelta(changes,pat,nd);}doneRef.current=nd;setDone(nd);}
+function markColourDone(cid,md){const cur=doneRef.current;if(!pat||!cur)return;let changes=[];let nd=new Uint8Array(cur);for(let i=0;i<pat.length;i++)if(pat[i].id===cid){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0){pushTrackHistory(changes);applyDoneCountsDelta(changes,pat,nd);const _nv=md?1:0;for(let i=0;i<changes.length;i++)drawCellDirectly(changes[i].idx,_nv);skipNextFullRedrawRef.current=true;}doneRef.current=nd;setDone(nd);}
 function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);setTimeout(()=>setCopied(null),2000);}).catch(()=>{});}
 function copyProgressSummary(){
   let t=totalTime+liveAutoElapsed;
@@ -1988,6 +2025,8 @@ function undoTrack(){
   let redoChanges=last.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
   for(let c of last)nd[c.idx]=c.oldVal;
   applyDoneCountsDelta(redoChanges,pat,nd);
+  for(let c of last)drawCellDirectly(c.idx,c.oldVal);
+  skipNextFullRedrawRef.current=true;
   setDone(nd);
   setTrackHistory(prev=>prev.slice(0,-1));
   let redoEntry=(lastEntry&&lastEntry.type==="BULK_TOGGLE")
@@ -2003,6 +2042,8 @@ function redoTrack(){
   let undoChanges=last.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
   for(let c of last)nd[c.idx]=c.oldVal;
   applyDoneCountsDelta(undoChanges,pat,nd);
+  for(let c of last)drawCellDirectly(c.idx,c.oldVal);
+  skipNextFullRedrawRef.current=true;
   setDone(nd);
   setRedoStack(prev=>prev.slice(0,-1));
   let undoEntry=(lastEntry&&lastEntry.type==="BULK_TOGGLE")
@@ -4001,7 +4042,18 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
   }
   drawStitch(canvas.getContext("2d"),scs,viewportRect);
 },[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,parkLayers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,rowModeActive,currentRow,trackerFabricColour,trackerCanvasTexture]);
-useEffect(()=>renderStitch(),[renderStitch]);
+// PERF: single/bulk stitch toggles already paint their own changed cells directly
+// via drawCellDirectly() (see markColourDone / _commitBulk / _dragMarkOnToggle /
+// undoTrack / redoTrack) for instant feedback. Those call sites set
+// skipNextFullRedrawRef.current=true right before their setDone() so this effect
+// — which would otherwise repaint the *entire visible viewport* just because the
+// `done` array reference changed — can skip the redundant full redraw. Anything
+// that legitimately needs a full repaint (project load, zoom, view-mode change,
+// undo of an edit-mode snapshot, etc.) never sets the flag, so it still gets one.
+useEffect(()=>{
+  if(skipNextFullRedrawRef.current){skipNextFullRedrawRef.current=false;return;}
+  renderStitch();
+},[renderStitch]);
 // Keep renderStitchRef current so animation callbacks always call the latest closure
 useEffect(()=>{renderStitchRef.current=renderStitch;},[renderStitch]);
 // Tier-change handler: compute new tier, animate feature opacities across boundaries
@@ -5262,8 +5314,12 @@ const _commitBulk=useCallback(function(set,intent,source){
   pushBulkToggleHistory(changes,source);
   applyDoneCountsDelta(changes,pat,nd);
   doneRef.current=nd;
+  // PERF: paint just the changed cells directly instead of a full-viewport
+  // renderStitch() redraw (previously called here unconditionally on every
+  // drag-mark commit, then AGAIN via the done-dependent useEffect below).
+  for(let i=0;i<changes.length;i++)drawCellDirectly(changes[i].idx,want);
+  skipNextFullRedrawRef.current=true;
   setDone(nd);
-  if(typeof renderStitch==='function')renderStitch();
   _pulseCells(changes.map(function(c){return c.idx;}));
   // BUGFIX (#2): explicitly start/extend the auto-session for drag-mark commits.
   // The diff-based useEffect at line ~1419 sometimes misses bulk commits when
@@ -5300,8 +5356,12 @@ const _dragMarkOnToggle=useCallback(function(idx){
   pushTrackHistory([{idx:idx,oldVal:oldVal}]);
   applyDoneCountsDelta([{idx:idx,oldVal:oldVal}],pat,nd);
   doneRef.current=nd;
+  // PERF: paint just this cell directly instead of a full-viewport renderStitch()
+  // redraw (previously called here unconditionally on every single tap, then
+  // AGAIN via the done-dependent useEffect below).
+  drawCellDirectly(idx,nv);
+  skipNextFullRedrawRef.current=true;
   setDone(nd);
-  if(typeof renderStitch==='function')renderStitch();
   // BUGFIX (#2): mirror _commitBulk — explicitly record the single-tap so the
   // session timer starts immediately rather than depending on the doneCount
   // diff useEffect.
@@ -5734,18 +5794,7 @@ return(
       {/* ─ Colour tile list ─ */}
       {pal&&<div className="ppal-tile-list" role="list">
         {(()=>{
-          const rows=pal.map(p=>{
-            const dc=colourDoneCounts[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
-            const totalWH=dc.total+dc.halfTotal*0.5;
-            const doneWH=dc.done+dc.halfDone*0.5;
-            const pct=totalWH>0?Math.round(doneWH/totalWH*100):0;
-            const remaining=Math.max(0,totalWH-doneWH);
-            const complete=doneWH>=totalWH&&totalWH>0;
-            return {p,dc,pct,remaining,complete};
-          });
-          if(legendSort==="done")rows.sort((a,b)=>b.pct-a.pct);
-          else if(legendSort==="count")rows.sort((a,b)=>b.remaining-a.remaining);
-          else rows.sort((a,b)=>{const ai=String(a.p.id),bi=String(b.p.id);const an=parseInt(ai,10),bn=parseInt(bi,10);if(isFinite(an)&&isFinite(bn)&&String(an)===ai&&String(bn)===bi)return an-bn;return ai.localeCompare(bi);});
+          const rows=legendRows||[];
           return rows.map(({p,dc,pct,complete})=>{
             const isFocused=focusColour===p.id;
             const swRgb="rgb("+p.rgb+")";
