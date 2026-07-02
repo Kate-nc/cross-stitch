@@ -9,7 +9,7 @@
 
    API
    ───
-     const { handlers, dragState } = window.useDragMark({
+     const { handlers, dragState, notifyShiftUp } = window.useDragMark({
        w, h,            // grid dimensions
        pattern,         // flat cell array (read-only)
        done,            // flat done array (read-only)
@@ -21,8 +21,11 @@
      });
      // Spread handlers onto the grid container:
      //   <div {...handlers} />
+     // Call notifyShiftUp() from a document-level Shift keyup/blur
+     // listener so the range-select anchor is forgotten the instant
+     // Shift is released — see behaviour (7) below.
      // Use dragState to paint a translucent overlay:
-     //   { mode: 'idle'|'pending'|'drag'|'range',
+     //   { mode: 'idle'|'pending'|'drag'|'range'|'shiftRange',
      //     path: Set<number>, anchor: number|null,
      //     intent: 'mark'|'unmark'|null }
 
@@ -37,14 +40,25 @@
    4. Long-press 500ms with no movement → set range anchor; next tap on a
       different cell commits the rectangular region as one undo step.
       Touch/pen only — see note in (5).
-   5. Mouse: click+drag = drag-mark; shift+click commits a range from the
-      most recent anchor. Mouse never arms the (4) long-press timer, so a
-      click has no minimum OR maximum hold-time to register as a tap — it
-      always toggles the cell as long as the button is released without
-      moving off it. This avoids a dead zone where a click held anywhere
-      between ~200ms-500ms (very plausible with a real mouse) used to be
-      silently swallowed instead of registering as a tap or a drag.
-   6. Pointer cancel discards the gesture.                                */
+   5. Mouse: click+drag = drag-mark; shift+mousedown starts a LIVE
+      rubber-band rectangle from the most recent anchor — the preview
+      (state.path) follows the pointer as it moves and only commits on
+      release, so the selected area is always visible before it's applied.
+      Mouse never arms the (4) long-press timer, so a click has no minimum
+      OR maximum hold-time to register as a tap — it always toggles the
+      cell as long as the button is released without moving off it. This
+      avoids a dead zone where a click held anywhere between ~200ms-500ms
+      (very plausible with a real mouse) used to be silently swallowed
+      instead of registering as a tap or a drag.
+   6. Pointer cancel discards the gesture (shift-range preview included).
+   7. The range-select anchor (lastAnchor) is forgotten as soon as Shift
+      is released (parent calls notifyShiftUp() on keyup/blur) — it does
+      NOT persist indefinitely across unrelated clicks. If Shift goes up
+      while a rubber-band drag is still in progress (mouse button not yet
+      released), the drag finishes normally on release, but the anchor it
+      would otherwise leave behind is discarded too. Holding Shift down
+      across multiple clicks still lets you chain range-selects from the
+      previous one, same as before.                                     */
 (function () {
   'use strict';
 
@@ -98,6 +112,7 @@
   //   POINTER_CANCEL
   //   LONG_PRESS_FIRED
   //   MULTI_TOUCH   { time }   — second pointer observed
+  //   SHIFT_UP      — Shift key released; forget the anchor (see (5))
   //   RESET
   // returns { state, effects:[ {type, payload} ] }
   // effect types:
@@ -116,7 +131,8 @@
         mode: 'idle', path: new Set(), anchor: null, intent: null,
         startIdx: -1, startTime: 0, startX: 0, startY: 0,
         pointerType: 'mouse', pointerId: null, moved: false,
-        lastAnchor: s.lastAnchor, pointerCount: 0,
+        lastAnchor: s.lastAnchor, lastIntent: s.lastIntent,
+        pointerCount: 0, shiftReleased: false,
       };
     }
 
@@ -134,17 +150,46 @@
           return { state: s, effects: effects };
         }
 
-        // Shift+click: commit a range from the last anchor (mouse path).
+        // Shift+click: begin a LIVE rubber-band rectangle from the last
+        // anchor instead of committing immediately. The rectangle preview
+        // (state.path) updates as the pointer moves (POINTER_MOVE below)
+        // and only commits on release (POINTER_UP below), so the user can
+        // see exactly which cells will be marked before it happens.
         if (action.shiftKey && s.lastAnchor != null
-            && isMarkableAt(ctx.pattern, action.idx)
             && isMarkableAt(ctx.pattern, s.lastAnchor)) {
-          var rs = rectIndices(s.lastAnchor, action.idx,
-                               ctx.w, ctx.h, ctx.pattern);
-          var ri = intentForCell(ctx.done, s.lastAnchor);
-          effects.push({ type: 'COMMIT_RANGE',
-                         set: rs, intent: ri });
+          var anchorIdx = s.lastAnchor;
+          var otherIdx0 = (action.idx >= 0 && isMarkableAt(ctx.pattern, action.idx))
+                          ? action.idx : anchorIdx;
+          // Use the direction of the action that was just applied to the
+          // anchor (lastIntent), not the anchor cell's current done state.
+          // By the time this shift+click fires, the anchor may already have
+          // been toggled by the immediately-preceding click/drag/range that
+          // set it as lastAnchor — re-deriving intent from ctx.done here
+          // would read that POST-toggle state and invert the fill (e.g. a
+          // click that just marked the anchor done would make the following
+          // shift+click UNMARK the whole range instead of continuing to
+          // mark it). Falling back to the anchor's done state only when
+          // there's no recorded lastIntent (e.g. very first shift+click).
+          var riShift = (s.lastIntent != null)
+                        ? s.lastIntent : intentForCell(ctx.done, anchorIdx);
           return {
-            state: next({ lastAnchor: action.idx }),
+            state: {
+              mode: 'shiftRange',
+              path: rectIndices(anchorIdx, otherIdx0, ctx.w, ctx.h, ctx.pattern),
+              anchor: anchorIdx,
+              intent: riShift,
+              startIdx: anchorIdx,
+              startTime: action.time,
+              startX: (typeof action.x === 'number' ? action.x : 0),
+              startY: (typeof action.y === 'number' ? action.y : 0),
+              pointerType: action.pointerType || 'mouse',
+              pointerId: action.pointerId,
+              moved: false,
+              lastAnchor: s.lastAnchor,
+              pointerCount: 1,
+              otherIdx: otherIdx0,
+              shiftReleased: false,
+            },
             effects: effects,
           };
         }
@@ -185,6 +230,23 @@
 
       case 'POINTER_MOVE': {
         if (s.mode === 'idle' || s.mode === 'range') return { state: s, effects: effects };
+        if (s.mode === 'shiftRange') {
+          // Live rubber-band: keep the last valid cell under the pointer
+          // (falls back to the previous one if it wanders over a
+          // __skip__/__empty__ cell or off the grid) and recompute the
+          // preview rectangle from the fixed anchor.
+          var newOther = (action.idx >= 0 && isMarkableAt(ctx.pattern, action.idx))
+                         ? action.idx : s.otherIdx;
+          if (newOther === s.otherIdx) return { state: s, effects: effects };
+          return {
+            state: next({
+              otherIdx: newOther,
+              path: rectIndices(s.anchor, newOther, ctx.w, ctx.h, ctx.pattern),
+              moved: true,
+            }),
+            effects: effects,
+          };
+        }
         if (action.idx === s.startIdx && !s.moved && s.mode === 'pending') {
           // Still on first cell — no transition.
           return { state: s, effects: effects };
@@ -265,12 +327,32 @@
             effects.push({ type: 'COMMIT_RANGE',
                            set: rs2, intent: s.intent });
             return {
-              state: Object.assign(idle(), { lastAnchor: action.idx }),
+              state: Object.assign(idle(), { lastAnchor: action.idx, lastIntent: s.intent }),
               effects: effects,
             };
           }
           // Tap on same cell or non-markable → keep anchor.
           return { state: s, effects: effects };
+        }
+
+        if (s.mode === 'shiftRange') {
+          // Release commits the rectangle currently shown in the preview.
+          var finalIdx = (action.idx >= 0 && isMarkableAt(ctx.pattern, action.idx))
+                         ? action.idx : s.otherIdx;
+          var rsFinal = rectIndices(s.anchor, finalIdx, ctx.w, ctx.h, ctx.pattern);
+          if (rsFinal.size > 0) {
+            effects.push({ type: 'COMMIT_RANGE', set: rsFinal, intent: s.intent });
+          }
+          // If Shift was already released before the mouse button (see
+          // SHIFT_UP below), forget the anchor right away instead of
+          // leaving it available for a future, unrelated shift+click.
+          return {
+            state: Object.assign(idle(), {
+              lastAnchor: s.shiftReleased ? null : finalIdx,
+              lastIntent: s.shiftReleased ? null : s.intent,
+            }),
+            effects: effects,
+          };
         }
 
         if (s.mode === 'drag') {
@@ -280,7 +362,7 @@
           }
           var laD = (action.idx >= 0 ? action.idx : s.startIdx);
           return {
-            state: Object.assign(idle(), { lastAnchor: laD }),
+            state: Object.assign(idle(), { lastAnchor: laD, lastIntent: s.intent }),
             effects: effects,
           };
         }
@@ -295,9 +377,14 @@
           var isMouse = s.pointerType === 'mouse';
           if ((isMouse || dt <= tapHoldMs()) && action.idx === s.startIdx
               && isMarkableAt(ctx.pattern, s.startIdx)) {
+            // Record the direction THIS tap just applied (computed from the
+            // pre-toggle done state) so a following shift+click continues
+            // the same direction instead of re-deriving it from the anchor's
+            // now-toggled state.
+            var tapIntent = intentForCell(ctx.done, s.startIdx);
             effects.push({ type: 'TOGGLE_CELL', idx: s.startIdx });
             return {
-              state: Object.assign(idle(), { lastAnchor: s.startIdx }),
+              state: Object.assign(idle(), { lastAnchor: s.startIdx, lastIntent: tapIntent }),
               effects: effects,
             };
           }
@@ -320,6 +407,20 @@
         return { state: s, effects: effects };
       }
 
+      case 'SHIFT_UP': {
+        // Forget the anchor as soon as Shift is released so a later,
+        // unrelated shift+click can't silently reuse a stale starting
+        // point. If a shift-range drag is still in progress (the button
+        // release lagged the key release), let it finish naturally —
+        // just flag it so the anchor set by that eventual commit is
+        // discarded too (see the 'shiftRange' POINTER_UP branch above).
+        if (s.mode === 'shiftRange') {
+          return { state: next({ shiftReleased: true }), effects: effects };
+        }
+        if (s.lastAnchor == null) return { state: s, effects: effects };
+        return { state: next({ lastAnchor: null, lastIntent: null }), effects: effects };
+      }
+
       case 'RESET':
       default:
         effects.push({ type: 'CLEAR_LONG_PRESS' });
@@ -332,7 +433,8 @@
       mode: 'idle', path: new Set(), anchor: null, intent: null,
       startIdx: -1, startTime: 0, startX: 0, startY: 0,
       pointerType: 'mouse', pointerId: null, moved: false,
-      lastAnchor: null, pointerCount: 0,
+      lastAnchor: null, lastIntent: null, pointerCount: 0, otherIdx: null,
+      shiftReleased: false,
     };
   }
 
@@ -349,6 +451,7 @@
           onContextMenu: noop,
         },
         dragState: { mode: 'idle', path: new Set(), anchor: null, intent: null },
+        notifyShiftUp: noop,
       };
     }
     var w = opts.w, h = opts.h;
@@ -501,9 +604,18 @@
 
     var onContextMenu = R.useCallback(function (e) {
       // Suppress browser context menu on long-press in range mode.
-      if (stateRef.current.mode === 'range' || stateRef.current.mode === 'drag') {
+      if (stateRef.current.mode === 'range' || stateRef.current.mode === 'drag'
+          || stateRef.current.mode === 'shiftRange') {
         if (e && e.preventDefault) e.preventDefault();
       }
+    }, []);
+
+    // Exposed so the parent can forget the range-select anchor the instant
+    // the Shift key is released (see SHIFT_UP in the reducer above) —
+    // otherwise a stale anchor from long ago could silently be reused by
+    // an unrelated later shift+click.
+    var notifyShiftUp = R.useCallback(function () {
+      dispatch({ type: 'SHIFT_UP' });
     }, []);
 
     if (isEdit) {
@@ -515,6 +627,7 @@
         },
         dragState: { mode: 'idle', path: new Set(),
                      anchor: null, intent: null },
+        notifyShiftUp: noop,
       };
     }
 
@@ -527,6 +640,7 @@
         onContextMenu: onContextMenu,
       },
       dragState: dragState,
+      notifyShiftUp: notifyShiftUp,
     };
   }
 

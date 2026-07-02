@@ -619,6 +619,8 @@
       var paletteText = p.mode === "dmc" ? "Full DMC"
                       : p.mode === "stash" ? "From stash"
                       : "Limited (" + p.maxColours + ")";
+      var confettiHelpText = "“Confetti” stitches are isolated single cells or tiny 2–3 cell clusters. "
+                           + "They're accurate to the source image but tedious to stitch because each needs its own thread pass. Lower is easier to stitch.";
       return h("div", { className: "iw-step iw-step-confirm" },
         h("h2", { id: "iw-step-heading", ref: headingRef, tabIndex: -1, className: "iw-step-title" }, "Step 5 of 5: Confirm"),
         h("p", { className: "iw-step-desc" }, "Check the details, then generate your pattern."),
@@ -643,9 +645,18 @@
             h("dt", null, "Skip background"), h("dd", null, st.skipBg ? ("On (tolerance " + st.bgThreshold + ")") : "Off"),
             h("dt", null, "Estimate"), h("dd", null, skeinText),
             stitchStats && stitchStats.label ? h(React.Fragment, null,
-              h("dt", null, "Stitchability"),
+              h("dt", { "aria-label": "Stitchability. " + confettiHelpText },
+                "Stitchability",
+                Tooltip ? h(Tooltip, {
+                  text: confettiHelpText,
+                  width: 240
+                }, h("span", { className: "iw-info-icon", "aria-hidden": "true" }, Icons.info ? Icons.info() : "?")) : null
+              ),
               h("dd", { title: stitchStats.pct != null ? (stitchStats.pct.toFixed(1) + "% isolated stitches") : "" },
-                stitchStats.label + (stitchStats.pct != null ? " (" + stitchStats.pct.toFixed(1) + "% confetti)" : ""))
+                stitchStats.label + (stitchStats.pct != null ? " (" + stitchStats.pct.toFixed(1) + "% confetti)" : ""),
+                (stitchStats.label === "Fair" || stitchStats.label === "Needs cleanup") ? h("div", { className: "iw-stitchability-hint" },
+                  "You'll be able to smooth stray stitches out with the Cleanup tool after generating."
+                ) : null)
             ) : (wizard.step === 5 && !stitchStats ? h(React.Fragment, null,
               h("dt", null, "Stitchability"),
               h("dd", null, "Calculating…")

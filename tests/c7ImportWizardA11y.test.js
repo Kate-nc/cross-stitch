@@ -69,6 +69,10 @@ describe("ImportWizard accessibility", () => {
     expect(SRC).toMatch(/"aria-live":\s*"polite"/);
   });
 
+  test("stitchability summary exposes the confetti explanation to assistive tech", () => {
+    expect(SRC).toMatch(/"aria-label":\s*"Stitchability\. "\s*\+\s*confettiHelpText/);
+  });
+
   test("disabled state is mirrored to aria-disabled for assistive tech", () => {
     expect(SRC).toMatch(/"aria-disabled"/);
   });

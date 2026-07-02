@@ -38,6 +38,8 @@
     ],
     tracker: [
       "firstStitch_tracker",
+      "rectSelect_tracker",  // UX-fix — teach rectangle range-select after a
+                              // few stitches, before the user needs it.
       // "undo",          // Phase 2
       // "progress"       // Phase 2
     ],

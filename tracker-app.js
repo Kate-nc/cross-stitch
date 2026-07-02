@@ -663,6 +663,14 @@ function formatTimingModeShortLabel(mode) {
   if (mode === 'manual') return 'Manual';
   return 'Classic';
 }
+// UX-fix — session timer mode was only explained in Preferences, with no
+// inline hint at the point the mode badge is actually shown. Mirrors the
+// wording in preferences-modal.js's "Session timing mode" row.
+function formatTimingModeDescription(mode) {
+  if (mode === 'batchAware') return 'Batch-friendly timing: credits longer gaps when you mark a large run of stitches at once.';
+  if (mode === 'manual') return 'Manual timer: runs until you pause, hide the tab, or the idle timeout ends the session.';
+  return 'Classic timing: uses a fixed cap on how long a break still counts as stitching time.';
+}
 
 function TrackerApp({onSwitchToDesign=null, onGoHome=null, isActive=true, incomingProject=null}={}){
 const[sW,setSW]=useState(80);
@@ -816,6 +824,10 @@ useEffect(()=>{
 const[projectPickerOpen,setProjectPickerOpen]=useState(false);
 const[projectPickerList,setProjectPickerList]=useState([]);
 const[preferencesOpen,setPreferencesOpen]=useState(false);
+// UX-fix — lets the session-timer mode badge deep-link straight into the
+// Preferences panel's Tracker category instead of forcing the user to hunt
+// for it manually.
+const[preferencesInitialCategory,setPreferencesInitialCategory]=useState(null);
 const[shortcutsHintDismissed,setShortcutsHintDismissed]=useState(()=>{try{return !!localStorage.getItem("shortcuts_hint_dismissed");}catch(_){return false;}});
 const[trackerLoadCount,setTrackerLoadCount]=useState(()=>{try{const n=parseInt(localStorage.getItem("cs_trackerHintLoadCount")||"0",10);return isNaN(n)?0:n;}catch(_){return 0;}});
 const hintLoadCountedRef=useRef(false);
@@ -943,10 +955,24 @@ const spacePannedRef=useRef(false);
 // via document-level listeners (not just onMouseDown's e.shiftKey) so the
 // indicator appears the instant Shift is pressed, before any click happens.
 const[isShiftDown,setIsShiftDown]=useState(false);
+// Mirrors the latest useDragMark().notifyShiftUp so the keyup/blur
+// listener below (registered once, on mount) always calls into the
+// current hook instance instead of a stale first-render closure — see
+// useDragMark.js behaviour (7): the range-select anchor is forgotten the
+// instant Shift is released, rather than persisting across unrelated clicks.
+const dragMarkNotifyShiftUpRef=useRef(null);
 useEffect(()=>{
   const onKeyDown=e=>{if(e.key==="Shift")setIsShiftDown(true);};
-  const onKeyUp=e=>{if(e.key==="Shift")setIsShiftDown(false);};
-  const onBlur=()=>setIsShiftDown(false);
+  const onKeyUp=e=>{
+    if(e.key==="Shift"){
+      setIsShiftDown(false);
+      if(dragMarkNotifyShiftUpRef.current)dragMarkNotifyShiftUpRef.current();
+    }
+  };
+  const onBlur=()=>{
+    setIsShiftDown(false);
+    if(dragMarkNotifyShiftUpRef.current)dragMarkNotifyShiftUpRef.current();
+  };
   window.addEventListener("keydown",onKeyDown);
   window.addEventListener("keyup",onKeyUp);
   window.addEventListener("blur",onBlur);
@@ -5313,6 +5339,11 @@ const _pulseCells=useCallback(function(idxList){
 },[]);
 
 const[dragMarkPulse,setDragMarkPulse]=useState(null);
+// UX-fix — tracks whether the user has ever completed a rectangle
+// range-select, so the rectSelect_tracker coachmark can auto-dismiss the
+// moment the behaviour is actually discovered (mirrors firstStitch's
+// doneCount>0 auto-complete below).
+const[_rectSelectUsed,_setRectSelectUsed]=useState(false);
 
 const _commitBulk=useCallback(function(set,intent,source){
   // BUGFIX: read live `done` via doneRef so back-to-back commits before
@@ -5358,6 +5389,7 @@ const _commitBulk=useCallback(function(set,intent,source){
     recordAutoActivity(_bulkCompleted,_bulkUndone);
     prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||(prevAutoCountRef.current&&prevAutoCountRef.current.halfDone)||0};
   }
+  if(source==='range')_setRectSelectUsed(true);
 },[pat,focusColour,_pulseCells,recordAutoActivity,halfStitchCounts]);
 
 const _dragMarkOnToggle=useCallback(function(idx){
@@ -5427,6 +5459,10 @@ const _dragMark=(typeof window!=='undefined'&&window.useDragMark)
   :{handlers:{},dragState:{mode:'idle',path:new Set(),anchor:null,intent:null}};
 const dragMarkHandlers=_dragMark.handlers;
 const dragMarkState=_dragMark.dragState;
+// Keep the keyup/blur listener (registered once, on mount, above) calling
+// into the CURRENT hook instance's notifyShiftUp — see useDragMark.js (7).
+dragMarkNotifyShiftUpRef.current=_dragMark.notifyShiftUp||null;
+
 
 // C3: useDragMark now owns both touch AND mouse pointer events. The
 // previous touch-only gate is no longer needed because legacy mouse
@@ -5457,6 +5493,55 @@ const _showTrFirstStitchCoach = _trCoachReady
   && !styleOnboardingOpen
   && !welcomeOpen
   && doneCount === 0;
+
+// ── UX-fix — rectangle range-select coachmark (Tracker) ────────────────
+// Rectangle-select (Shift+click on desktop, long-press+tap on touch) had no
+// affordance until the user stumbled into Help. Trigger once the user has
+// marked a few stitches by hand (so basic tapping is familiar) and has not
+// yet used range-select. Auto-completes the moment `_rectSelectUsed` flips
+// true (see _commitBulk), mirroring firstStitch's doneCount>0 pattern.
+const RECT_SELECT_COACH_THRESHOLD=4;
+const[_isCoarsePointer,_setIsCoarsePointer]=React.useState(false);
+React.useEffect(()=>{
+  if(typeof window==='undefined'||!window.matchMedia)return;
+  const mql=window.matchMedia('(pointer: coarse)');
+  const apply=()=>_setIsCoarsePointer(mql.matches);
+  apply();
+  if(mql.addEventListener)mql.addEventListener('change',apply);
+  else if(mql.addListener)mql.addListener(apply);
+  return()=>{
+    if(mql.removeEventListener)mql.removeEventListener('change',apply);
+    else if(mql.removeListener)mql.removeListener(apply);
+  };
+},[]);
+// BUGFIX: gate on a boolean "threshold met" flag rather than the raw,
+// ever-incrementing doneCount. doneCount keeps changing on every stitch
+// marked after the threshold too, so using it directly in the deps array
+// re-ran this effect (and cancelled/restarted the 600ms timer) on every
+// subsequent stitch — a user stitching faster than one cell per 600ms
+// would never see `_trRectCoachReady` flip true at all.
+const _rectSelectThresholdMet = (doneCount + ((halfStitchCounts&&halfStitchCounts.done)||0)) >= RECT_SELECT_COACH_THRESHOLD;
+const [_trRectCoachReady, _setTrRectCoachReady] = React.useState(false);
+React.useEffect(()=>{
+  _setTrRectCoachReady(false);
+  if (!pat || styleOnboardingOpen || welcomeOpen) return;
+  if (_trCoach.active !== 'rectSelect_tracker') return;
+  if (_rectSelectUsed) return;
+  if (!_rectSelectThresholdMet) return;
+  const t = setTimeout(()=>_setTrRectCoachReady(true), 600);
+  return ()=>clearTimeout(t);
+}, [!!pat, styleOnboardingOpen, welcomeOpen, _trCoach.active, _rectSelectThresholdMet, _rectSelectUsed]);
+React.useEffect(()=>{
+  if (_trCoach.active !== 'rectSelect_tracker') return;
+  if (_rectSelectUsed) _trCoach.complete('rectSelect_tracker');
+}, [_rectSelectUsed, _trCoach.active]);
+const _showTrRectSelectCoach = _trRectCoachReady
+  && _trCoach.active === 'rectSelect_tracker'
+  && !!pat
+  && !styleOnboardingOpen
+  && !welcomeOpen
+  && !_rectSelectUsed
+  && _rectSelectThresholdMet;
 
 // Keep ref current on every render (function declarations are hoisted so this
 // is always defined; the ref lets the registered handler call the latest closure).
@@ -5493,7 +5578,7 @@ return(
     });
   }}
 />}
-{preferencesOpen&&typeof window.PreferencesModal!=='undefined'&&React.createElement(window.PreferencesModal,{onClose:()=>setPreferencesOpen(false)})}
+{preferencesOpen&&typeof window.PreferencesModal!=='undefined'&&React.createElement(window.PreferencesModal,{initialCategory:preferencesInitialCategory||undefined,onClose:()=>{setPreferencesOpen(false);setPreferencesInitialCategory(null);}})}
 {namePromptOpen&&<NamePromptModal
   defaultName={projectName || (sW+'×'+sH+' pattern')}
   onConfirm={name=>{setProjectName(name);setNamePromptOpen(false);doSaveProject(name);}}
@@ -5870,7 +5955,7 @@ return(
     <div className="canvas-area" style={{padding:"12px 16px",position:"relative"}}>
     {isShiftDown&&_dragMarkActive&&<div style={{position:"absolute",top:4,right:20,zIndex:30,pointerEvents:"none",display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:'var(--radius-md)',background:"var(--accent)",color:"var(--surface)",fontSize:'var(--text-xs)',fontWeight:600,boxShadow:'var(--shadow-sm)'}}>
       <span aria-hidden="true" style={{display:"inline-flex"}}>{Icons.crop?Icons.crop():null}</span>
-      <span>Shift held — click another cell to select a rectangle</span>
+      <span>{dragMarkState&&dragMarkState.mode==='shiftRange'?"Drag to select a rectangle, release to apply":"Shift held — drag from a cell to select a rectangle"}</span>
     </div>}
     {showNavHelp&&!isEditMode&&(()=>{const isTouch=hasTouchRef.current;return(
     <div style={{marginBottom:'var(--s-2)',padding:"14px 16px",background:"var(--surface)",border:"1px solid var(--accent-light)",borderRadius:'var(--radius-lg)',fontSize:'var(--text-sm)'}}>
@@ -5953,7 +6038,7 @@ return(
           })}
         </div>
         <div style={{ position: 'relative' }}>
-          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid" style={{display:"block",position:"relative",zIndex:2, marginTop: -G, marginLeft: -G, touchAction:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onContextMenu={e=>e.preventDefault()} {...dragMarkHandlers}/>
+          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid" style={{display:"block",position:"relative",zIndex:2, marginTop: -G, marginLeft: -G, touchAction:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} {...dragMarkHandlers}/>
 
           {/* B2 — drag-mark / range-select visual overlay (touch) */}
           {_dragMarkActive&&dragMarkState&&(dragMarkState.path.size>0||dragMarkState.anchor!=null||dragMarkPulse)&&(
@@ -5990,8 +6075,9 @@ return(
           {/* Counting aids overlay (block counts, run lengths, ninja stitches) */}
           {countingAidsEnabled&&stitchView==="highlight"&&focusColour&&<canvas ref={countingAidsCanvasRef} style={{display:"block",position:"absolute",top:-G,left:-G,zIndex:7,pointerEvents:"none"}}/>}
 
-          {/* C3: range anchor overlay driven by useDragMark long-press anchor. */}
-          {dragMarkState&&dragMarkState.mode==='range'&&dragMarkState.anchor!=null&&sW>0&&<div style={{
+          {/* C3: range anchor overlay driven by useDragMark long-press anchor
+              (touch) and the live shift-drag rubber-band anchor (mouse). */}
+          {dragMarkState&&(dragMarkState.mode==='range'||dragMarkState.mode==='shiftRange')&&dragMarkState.anchor!=null&&sW>0&&<div style={{
             position:'absolute',
             left:(dragMarkState.anchor%sW)*scs,
             top:Math.floor(dragMarkState.anchor/sW)*scs,
@@ -6157,7 +6243,13 @@ return(
                   ?<span style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--warning-soft)",color:"var(--warning)",fontWeight:600}}>Paused</span>
                   :<span style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--success-soft)",color:"var(--success)",fontWeight:600}}>Active</span>
                 }
-                <span style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:600,border:"1px solid var(--border)"}}>{formatTimingModeLabel(currentTimingMode)}</span>
+                <Tooltip text={formatTimingModeDescription(currentTimingMode)+' Open preferences to change.'} width={220}>
+                  <button type="button"
+                    onClick={e=>{e.stopPropagation();setPreferencesInitialCategory('tracker');setPreferencesOpen(true);}}
+                    style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:600,border:"1px solid var(--border)",cursor:"pointer"}}
+                    aria-label={"Session timing mode: "+formatTimingModeLabel(currentTimingMode)+". "+formatTimingModeDescription(currentTimingMode)+" Open preferences to change."}
+                  >{formatTimingModeLabel(currentTimingMode)}</button>
+                </Tooltip>
               </div>
               <div style={{display:"flex",gap:24}}>
                 <div><div style={{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>Time</div><div style={{fontSize:'var(--text-lg)',fontWeight:700,color:"var(--text-primary)",fontVariantNumeric:"tabular-nums"}}>{fmtTime(liveAutoElapsed)}</div></div>
@@ -6511,6 +6603,18 @@ return(
     helpTopic: 'stitching',
     onComplete: ()=>_trCoach.complete('firstStitch_tracker'),
     onSkip: ()=>_trCoach.skip('firstStitch_tracker')
+  })}
+  {_showTrRectSelectCoach && window.Coachmark && React.createElement(window.Coachmark, {
+    id: 'rectSelect_tracker',
+    title: 'Select a rectangle of stitches',
+    body: _isCoarsePointer
+      ? 'Press and hold a cell, then tap another cell to mark a whole rectangle at once.'
+      : 'Hold Shift and drag across the rectangle you want to mark, then release.',
+    placement: 'centre',
+    showHighlight: false,
+    helpTopic: 'stitching',
+    onComplete: ()=>_trCoach.complete('rectSelect_tracker'),
+    onSkip: ()=>_trCoach.skip('rectSelect_tracker')
   })}
   {sessionConfigOpen&&<SessionConfigModal liveAutoElapsed={liveAutoElapsed} liveAutoStitches={liveAutoStitches} onClose={()=>setSessionConfigOpen(false)} onStart={cfg=>{
     setExplicitSession({startTime:Date.now(),timeAvail:cfg.timeAvail,stitchGoal:cfg.stitchGoal,startStitches:doneCount,blocks:[]});

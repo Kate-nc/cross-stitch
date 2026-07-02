@@ -11230,7 +11230,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     ];
     var dnOps = cv.denoiseOps || { palette: true, speckle: false, fringe: true };
     var dnReport = cv.denoisePreviewReport;
-    var dnHasMergePending = !!(dnReport && dnReport.mergeMap && Object.keys(dnReport.mergeMap).length > 0);
+    var dnMergeCount = (dnReport && dnReport.mergeMap) ? Object.keys(dnReport.mergeMap).length : 0;
+    var dnHasMergePending = dnMergeCount > 0;
     var dnCanApply = dnHasPending || dnHasMergePending;
     denoiseRow = h('div', {
       className: 'swatch-strip-row',
@@ -11303,7 +11304,22 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           'aria-label':'Increase palette threshold',
           title:'Increase threshold',
           disabled:(cv.denoiseThreshold||5) >= 30
-        }, window.Icons && window.Icons.plus ? window.Icons.plus() : '+')
+        }, window.Icons && window.Icons.plus ? window.Icons.plus() : '+'),
+        // UX-fix — the raw ΔE number is abstract on its own; show the concrete
+        // effect (how many colours this threshold would merge away) so the
+        // slider stops requiring guesswork. While auto-running, the hint stays
+        // visible but swaps to "Recalculating…" until the next merge count
+        // arrives from the debounced worker re-run (~350ms).
+        dnReport && dnReport.mergeMap && h('span', {
+          style:{fontSize:11,color:'var(--text-tertiary)',flexShrink:0,whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:3}
+        },
+          window.Icons && window.Icons.pointing ? window.Icons.pointing() : null,
+          cv.denoiseAutoRunning
+            ? 'Recalculating…'
+            : (dnMergeCount > 0
+                ? dnMergeCount + ' colour' + (dnMergeCount === 1 ? '' : 's') + ' merged'
+                : 'No merges at this level')
+        )
       ),
       // ── Mode radios ──────────────────────────────────────────────────────
       h('span', {

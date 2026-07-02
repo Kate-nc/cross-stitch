@@ -244,6 +244,218 @@ test('POINTER_CANCEL discards drag with no commit', () => {
   expect(fx.filter(e => e.type === 'COMMIT_RANGE')).toHaveLength(0);
 });
 
+// ─── 5b. Shift+mousedown → live rubber-band preview, commit on release ──
+test('shift+mousedown starts a live preview rectangle; no commit until release', () => {
+  const w = 10, h = 10;
+  const ctx = makeCtx(w, h, makePattern(w, h));
+  let s = initialState();
+  const fx = [];
+  // First click sets lastAnchor (11 = (1,1)) via a normal tap.
+  s = step(s, { type: 'POINTER_DOWN', idx: 11, time: 0,
+                pointerId: 1, shiftKey: false, pointerType: 'mouse' }, ctx, fx);
+  s = step(s, { type: 'POINTER_UP', idx: 11, time: 50 }, ctx, fx);
+  expect(s.lastAnchor).toBe(11);
+  expect(fx.filter(e => e.type === 'COMMIT_RANGE')).toHaveLength(0);
+
+  // Shift+mousedown elsewhere begins the preview — no commit yet.
+  s = step(s, { type: 'POINTER_DOWN', idx: 33, time: 100,
+                pointerId: 2, shiftKey: true, pointerType: 'mouse' }, ctx, fx);
+  expect(s.mode).toBe('shiftRange');
+  expect(s.anchor).toBe(11);
+  // 11=(1,1), 33=(3,3) → 3x3 = 9 cells already visible in the preview.
+  expect(s.path.size).toBe(9);
+  expect(fx.filter(e => e.type === 'COMMIT_RANGE')).toHaveLength(0);
+
+  // Moving the pointer live-updates the preview rectangle.
+  s = step(s, { type: 'POINTER_MOVE', idx: 44, time: 120 }, ctx, fx);
+  // 11=(1,1), 44=(4,4) → 4x4 = 16 cells.
+  expect(s.path.size).toBe(16);
+  expect(fx.filter(e => e.type === 'COMMIT_RANGE')).toHaveLength(0);
+
+  // Release commits exactly the previewed rectangle.
+  s = step(s, { type: 'POINTER_UP', idx: 44, time: 150 }, ctx, fx);
+  const ranges = fx.filter(e => e.type === 'COMMIT_RANGE');
+  expect(ranges).toHaveLength(1);
+  expect(ranges[0].set.size).toBe(16);
+  expect(s.mode).toBe('idle');
+  expect(s.lastAnchor).toBe(44);
+});
+
+test('shift-drag preview falls back to last valid cell when pointer leaves the grid', () => {
+  const w = 10, h = 10;
+  const ctx = makeCtx(w, h, makePattern(w, h));
+  let s = initialState();
+  const fx = [];
+  s = step(s, { type: 'POINTER_DOWN', idx: 11, time: 0,
+                pointerId: 1, shiftKey: false, pointerType: 'mouse' }, ctx, fx);
+  s = step(s, { type: 'POINTER_UP', idx: 11, time: 50 }, ctx, fx);
+  s = step(s, { type: 'POINTER_DOWN', idx: 33, time: 100,
+                pointerId: 2, shiftKey: true, pointerType: 'mouse' }, ctx, fx);
+  expect(s.path.size).toBe(9);
+  // Pointer moves off-grid → cellAtPoint would report -1.
+  s = step(s, { type: 'POINTER_MOVE', idx: -1, time: 120 }, ctx, fx);
+  // Preview keeps the last valid cell (33), unchanged.
+  expect(s.path.size).toBe(9);
+  // Release off-grid still commits using the last valid cell.
+  s = step(s, { type: 'POINTER_UP', idx: -1, time: 150 }, ctx, fx);
+  const ranges = fx.filter(e => e.type === 'COMMIT_RANGE');
+  expect(ranges).toHaveLength(1);
+  expect(ranges[0].set.size).toBe(9);
+});
+
+test('POINTER_CANCEL during shift-drag preview discards with no commit', () => {
+  const w = 10, h = 10;
+  const ctx = makeCtx(w, h, makePattern(w, h));
+  let s = initialState();
+  const fx = [];
+  s = step(s, { type: 'POINTER_DOWN', idx: 11, time: 0,
+                pointerId: 1, shiftKey: false, pointerType: 'mouse' }, ctx, fx);
+  s = step(s, { type: 'POINTER_UP', idx: 11, time: 50 }, ctx, fx);
+  s = step(s, { type: 'POINTER_DOWN', idx: 33, time: 100,
+                pointerId: 2, shiftKey: true, pointerType: 'mouse' }, ctx, fx);
+  s = step(s, { type: 'POINTER_CANCEL' }, ctx, fx);
+  expect(s.mode).toBe('idle');
+  expect(fx.filter(e => e.type === 'COMMIT_RANGE')).toHaveLength(0);
+  // lastAnchor from before the aborted gesture is preserved.
+  expect(s.lastAnchor).toBe(11);
+});
+
+// ─── 5c. SHIFT_UP forgets the anchor ─────────────────────────────────────
+test('SHIFT_UP clears lastAnchor when idle, so a later shift+click is a no-op range', () => {
+  const w = 10, h = 10;
+  const ctx = makeCtx(w, h, makePattern(w, h));
+  let s = initialState();
+  const fx = [];
+  s = step(s, { type: 'POINTER_DOWN', idx: 11, time: 0,
+                pointerId: 1, shiftKey: false, pointerType: 'mouse' }, ctx, fx);
+  s = step(s, { type: 'POINTER_UP', idx: 11, time: 50 }, ctx, fx);
+  expect(s.lastAnchor).toBe(11);
+
+  // Shift is released without ever being used for a range-select.
+  s = step(s, { type: 'SHIFT_UP' }, ctx, fx);
+  expect(s.lastAnchor).toBe(null);
+
+  // A later shift+mousedown now has no anchor to work from — falls
+  // through to a normal pending tap instead of starting a preview.
+  s = step(s, { type: 'POINTER_DOWN', idx: 33, time: 200,
+                pointerId: 2, shiftKey: true, pointerType: 'mouse' }, ctx, fx);
+  expect(s.mode).toBe('pending');
+});
+
+test('SHIFT_UP mid-drag lets the rubber-band finish, then forgets the anchor', () => {
+  const w = 10, h = 10;
+  const ctx = makeCtx(w, h, makePattern(w, h));
+  let s = initialState();
+  const fx = [];
+  s = step(s, { type: 'POINTER_DOWN', idx: 11, time: 0,
+                pointerId: 1, shiftKey: false, pointerType: 'mouse' }, ctx, fx);
+  s = step(s, { type: 'POINTER_UP', idx: 11, time: 50 }, ctx, fx);
+  s = step(s, { type: 'POINTER_DOWN', idx: 33, time: 100,
+                pointerId: 2, shiftKey: true, pointerType: 'mouse' }, ctx, fx);
+  expect(s.mode).toBe('shiftRange');
+
+  // Shift key released while the mouse button is still down.
+  s = step(s, { type: 'SHIFT_UP' }, ctx, fx);
+  // Gesture is untouched — still previewing, no commit yet.
+  expect(s.mode).toBe('shiftRange');
+  expect(fx.filter(e => e.type === 'COMMIT_RANGE')).toHaveLength(0);
+
+  // Continue moving and release — the drag finishes normally...
+  s = step(s, { type: 'POINTER_MOVE', idx: 44, time: 120 }, ctx, fx);
+  s = step(s, { type: 'POINTER_UP', idx: 44, time: 150 }, ctx, fx);
+  const ranges = fx.filter(e => e.type === 'COMMIT_RANGE');
+  expect(ranges).toHaveLength(1);
+  expect(ranges[0].set.size).toBe(16); // (1,1)-(4,4) inclusive = 4x4
+  // ...but the anchor it would normally leave behind is discarded, since
+  // Shift was already released before the gesture completed.
+  expect(s.lastAnchor).toBe(null);
+});
+
+test('holding Shift across multiple clicks still allows chaining range-selects', () => {
+  const w = 10, h = 10;
+  const ctx = makeCtx(w, h, makePattern(w, h));
+  let s = initialState();
+  const fx = [];
+  s = step(s, { type: 'POINTER_DOWN', idx: 11, time: 0,
+                pointerId: 1, shiftKey: false, pointerType: 'mouse' }, ctx, fx);
+  s = step(s, { type: 'POINTER_UP', idx: 11, time: 50 }, ctx, fx);
+
+  // First shift-drag: 11 -> 22, commits, lastAnchor becomes 22.
+  s = step(s, { type: 'POINTER_DOWN', idx: 22, time: 100,
+                pointerId: 2, shiftKey: true, pointerType: 'mouse' }, ctx, fx);
+  s = step(s, { type: 'POINTER_UP', idx: 22, time: 150 }, ctx, fx);
+  expect(s.lastAnchor).toBe(22);
+
+  // Shift never released — a second shift-drag chains from the new anchor.
+  s = step(s, { type: 'POINTER_DOWN', idx: 33, time: 200,
+                pointerId: 3, shiftKey: true, pointerType: 'mouse' }, ctx, fx);
+  expect(s.mode).toBe('shiftRange');
+  expect(s.anchor).toBe(22);
+});
+
+// ─── 5d. Range fill direction must not invert after the anchor is toggled ──
+// Regression test: ctx.done here is mutated between steps (like the real
+// tracker-app.js wiring does via setDone/doneRef), unlike makeCtx's usual
+// static all-zero fixture. This reproduces a real bug where reading the
+// anchor cell's CURRENT done state at shift+click time (after it had
+// already been marked done by the immediately-preceding click) inverted
+// the whole range fill to 'unmark' instead of continuing to 'mark'.
+test('shift+click after a click that just marked the anchor continues marking, not unmarking', () => {
+  const w = 10, h = 10;
+  const done = new Uint8Array(w * h); // starts all undone
+  const ctx = makeCtx(w, h, makePattern(w, h), done);
+  let s = initialState();
+  const fx = [];
+
+  // Click cell 11 (undone -> done). Simulate the real done-array mutation
+  // that tracker-app.js's onToggleCell effect performs.
+  s = step(s, { type: 'POINTER_DOWN', idx: 11, time: 0,
+                pointerId: 1, shiftKey: false, pointerType: 'mouse' }, ctx, fx);
+  s = step(s, { type: 'POINTER_UP', idx: 11, time: 50 }, ctx, fx);
+  expect(fx.filter(e => e.type === 'TOGGLE_CELL')).toHaveLength(1);
+  done[11] = 1; // apply the toggle, exactly as the real app would before the next event
+
+  // Shift+drag from 11 to 33 — must fill as 'mark', continuing what the
+  // click just did, even though ctx.done[11] now reads as done.
+  s = step(s, { type: 'POINTER_DOWN', idx: 33, time: 100,
+                pointerId: 2, shiftKey: true, pointerType: 'mouse' }, ctx, fx);
+  expect(s.mode).toBe('shiftRange');
+  expect(s.intent).toBe('mark');
+  s = step(s, { type: 'POINTER_UP', idx: 33, time: 150 }, ctx, fx);
+  const ranges = fx.filter(e => e.type === 'COMMIT_RANGE');
+  expect(ranges).toHaveLength(1);
+  expect(ranges[0].intent).toBe('mark');
+
+  // Chaining a second shift-click from the new anchor (33) should also
+  // keep marking, not flip again.
+  for (const i of ranges[0].set) done[i] = 1;
+  s = step(s, { type: 'POINTER_DOWN', idx: 44, time: 200,
+                pointerId: 3, shiftKey: true, pointerType: 'mouse' }, ctx, fx);
+  expect(s.intent).toBe('mark');
+});
+
+test('SHIFT_UP is a no-op when there is no anchor to forget', () => {
+  const w = 10, h = 10;
+  const ctx = makeCtx(w, h, makePattern(w, h));
+  let s = initialState();
+  const fx = [];
+  s = step(s, { type: 'SHIFT_UP' }, ctx, fx);
+  expect(s.lastAnchor).toBe(null);
+  expect(s.mode).toBe('idle');
+});
+
+test('shift+mousedown with no prior anchor falls through to a normal pending tap', () => {
+  const w = 10, h = 10;
+  const ctx = makeCtx(w, h, makePattern(w, h));
+  let s = initialState();
+  const fx = [];
+  s = step(s, { type: 'POINTER_DOWN', idx: 11, time: 0,
+                pointerId: 1, shiftKey: true, pointerType: 'mouse' }, ctx, fx);
+  expect(s.mode).toBe('pending');
+  s = step(s, { type: 'POINTER_UP', idx: 11, time: 50 }, ctx, fx);
+  expect(fx.filter(e => e.type === 'TOGGLE_CELL')).toHaveLength(1);
+});
+
 // ─── 7. isEditMode → no-op handlers (hook level) ────────────────────────
 test('useDragMark with isEditMode=true returns no-op handlers and idle dragState', () => {
   const fakeReact = {
@@ -289,6 +501,12 @@ test('tracker-app.js wires useDragMark handlers and BULK_TOGGLE undo', () => {
   expect(src).toMatch(/dragMarkState|dragState/);
   // BULK_TOGGLE undo case present.
   expect(src).toMatch(/BULK_TOGGLE/);
+  // Canvas should rely on useDragMark's conditional context-menu handler.
+  expect(src).not.toMatch(/\.\.\.dragMarkHandlers[\s\S]{0,160}onContextMenu=\{e=>e\.preventDefault\(\)\}/);
+  // Desktop coachmark matches the live Shift-drag gesture.
+  expect(src).toMatch(/Hold Shift and drag across the rectangle you want to mark, then release\./);
+  // Timing-mode badge exposes the description to assistive technology.
+  expect(src).toMatch(/aria-label=\{"Session timing mode: "\+formatTimingModeLabel\(currentTimingMode\)\+"\.\s"\+formatTimingModeDescription\(currentTimingMode\)\+" Open preferences to change\."\}/);
 });
 
 // ─── Sanity on pure helpers ─────────────────────────────────────────────
