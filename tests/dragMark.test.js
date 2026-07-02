@@ -393,6 +393,47 @@ test('holding Shift across multiple clicks still allows chaining range-selects',
   expect(s.anchor).toBe(22);
 });
 
+// ─── 5d. Range fill direction must not invert after the anchor is toggled ──
+// Regression test: ctx.done here is mutated between steps (like the real
+// tracker-app.js wiring does via setDone/doneRef), unlike makeCtx's usual
+// static all-zero fixture. This reproduces a real bug where reading the
+// anchor cell's CURRENT done state at shift+click time (after it had
+// already been marked done by the immediately-preceding click) inverted
+// the whole range fill to 'unmark' instead of continuing to 'mark'.
+test('shift+click after a click that just marked the anchor continues marking, not unmarking', () => {
+  const w = 10, h = 10;
+  const done = new Uint8Array(w * h); // starts all undone
+  const ctx = makeCtx(w, h, makePattern(w, h), done);
+  let s = initialState();
+  const fx = [];
+
+  // Click cell 11 (undone -> done). Simulate the real done-array mutation
+  // that tracker-app.js's onToggleCell effect performs.
+  s = step(s, { type: 'POINTER_DOWN', idx: 11, time: 0,
+                pointerId: 1, shiftKey: false, pointerType: 'mouse' }, ctx, fx);
+  s = step(s, { type: 'POINTER_UP', idx: 11, time: 50 }, ctx, fx);
+  expect(fx.filter(e => e.type === 'TOGGLE_CELL')).toHaveLength(1);
+  done[11] = 1; // apply the toggle, exactly as the real app would before the next event
+
+  // Shift+drag from 11 to 33 — must fill as 'mark', continuing what the
+  // click just did, even though ctx.done[11] now reads as done.
+  s = step(s, { type: 'POINTER_DOWN', idx: 33, time: 100,
+                pointerId: 2, shiftKey: true, pointerType: 'mouse' }, ctx, fx);
+  expect(s.mode).toBe('shiftRange');
+  expect(s.intent).toBe('mark');
+  s = step(s, { type: 'POINTER_UP', idx: 33, time: 150 }, ctx, fx);
+  const ranges = fx.filter(e => e.type === 'COMMIT_RANGE');
+  expect(ranges).toHaveLength(1);
+  expect(ranges[0].intent).toBe('mark');
+
+  // Chaining a second shift-click from the new anchor (33) should also
+  // keep marking, not flip again.
+  for (const i of ranges[0].set) done[i] = 1;
+  s = step(s, { type: 'POINTER_DOWN', idx: 44, time: 200,
+                pointerId: 3, shiftKey: true, pointerType: 'mouse' }, ctx, fx);
+  expect(s.intent).toBe('mark');
+});
+
 test('SHIFT_UP is a no-op when there is no anchor to forget', () => {
   const w = 10, h = 10;
   const ctx = makeCtx(w, h, makePattern(w, h));

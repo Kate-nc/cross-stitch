@@ -131,7 +131,8 @@
         mode: 'idle', path: new Set(), anchor: null, intent: null,
         startIdx: -1, startTime: 0, startX: 0, startY: 0,
         pointerType: 'mouse', pointerId: null, moved: false,
-        lastAnchor: s.lastAnchor, pointerCount: 0, shiftReleased: false,
+        lastAnchor: s.lastAnchor, lastIntent: s.lastIntent,
+        pointerCount: 0, shiftReleased: false,
       };
     }
 
@@ -159,7 +160,18 @@
           var anchorIdx = s.lastAnchor;
           var otherIdx0 = (action.idx >= 0 && isMarkableAt(ctx.pattern, action.idx))
                           ? action.idx : anchorIdx;
-          var riShift = intentForCell(ctx.done, anchorIdx);
+          // Use the direction of the action that was just applied to the
+          // anchor (lastIntent), not the anchor cell's current done state.
+          // By the time this shift+click fires, the anchor may already have
+          // been toggled by the immediately-preceding click/drag/range that
+          // set it as lastAnchor — re-deriving intent from ctx.done here
+          // would read that POST-toggle state and invert the fill (e.g. a
+          // click that just marked the anchor done would make the following
+          // shift+click UNMARK the whole range instead of continuing to
+          // mark it). Falling back to the anchor's done state only when
+          // there's no recorded lastIntent (e.g. very first shift+click).
+          var riShift = (s.lastIntent != null)
+                        ? s.lastIntent : intentForCell(ctx.done, anchorIdx);
           return {
             state: {
               mode: 'shiftRange',
@@ -315,7 +327,7 @@
             effects.push({ type: 'COMMIT_RANGE',
                            set: rs2, intent: s.intent });
             return {
-              state: Object.assign(idle(), { lastAnchor: action.idx }),
+              state: Object.assign(idle(), { lastAnchor: action.idx, lastIntent: s.intent }),
               effects: effects,
             };
           }
@@ -335,7 +347,10 @@
           // SHIFT_UP below), forget the anchor right away instead of
           // leaving it available for a future, unrelated shift+click.
           return {
-            state: Object.assign(idle(), { lastAnchor: s.shiftReleased ? null : finalIdx }),
+            state: Object.assign(idle(), {
+              lastAnchor: s.shiftReleased ? null : finalIdx,
+              lastIntent: s.shiftReleased ? null : s.intent,
+            }),
             effects: effects,
           };
         }
@@ -347,7 +362,7 @@
           }
           var laD = (action.idx >= 0 ? action.idx : s.startIdx);
           return {
-            state: Object.assign(idle(), { lastAnchor: laD }),
+            state: Object.assign(idle(), { lastAnchor: laD, lastIntent: s.intent }),
             effects: effects,
           };
         }
@@ -362,9 +377,14 @@
           var isMouse = s.pointerType === 'mouse';
           if ((isMouse || dt <= tapHoldMs()) && action.idx === s.startIdx
               && isMarkableAt(ctx.pattern, s.startIdx)) {
+            // Record the direction THIS tap just applied (computed from the
+            // pre-toggle done state) so a following shift+click continues
+            // the same direction instead of re-deriving it from the anchor's
+            // now-toggled state.
+            var tapIntent = intentForCell(ctx.done, s.startIdx);
             effects.push({ type: 'TOGGLE_CELL', idx: s.startIdx });
             return {
-              state: Object.assign(idle(), { lastAnchor: s.startIdx }),
+              state: Object.assign(idle(), { lastAnchor: s.startIdx, lastIntent: tapIntent }),
               effects: effects,
             };
           }
@@ -398,7 +418,7 @@
           return { state: next({ shiftReleased: true }), effects: effects };
         }
         if (s.lastAnchor == null) return { state: s, effects: effects };
-        return { state: next({ lastAnchor: null }), effects: effects };
+        return { state: next({ lastAnchor: null, lastIntent: null }), effects: effects };
       }
 
       case 'RESET':
@@ -413,7 +433,7 @@
       mode: 'idle', path: new Set(), anchor: null, intent: null,
       startIdx: -1, startTime: 0, startX: 0, startY: 0,
       pointerType: 'mouse', pointerId: null, moved: false,
-      lastAnchor: null, pointerCount: 0, otherIdx: null,
+      lastAnchor: null, lastIntent: null, pointerCount: 0, otherIdx: null,
       shiftReleased: false,
     };
   }
