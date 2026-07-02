@@ -663,6 +663,14 @@ function formatTimingModeShortLabel(mode) {
   if (mode === 'manual') return 'Manual';
   return 'Classic';
 }
+// UX-fix — session timer mode was only explained in Preferences, with no
+// inline hint at the point the mode badge is actually shown. Mirrors the
+// wording in preferences-modal.js's "Session timing mode" row.
+function formatTimingModeDescription(mode) {
+  if (mode === 'batchAware') return 'Batch-friendly timing: credits longer gaps when you mark a large run of stitches at once.';
+  if (mode === 'manual') return 'Manual timer: runs until you pause, hide the tab, or the idle timeout ends the session.';
+  return 'Classic timing: uses a fixed cap on how long a break still counts as stitching time.';
+}
 
 function TrackerApp({onSwitchToDesign=null, onGoHome=null, isActive=true, incomingProject=null}={}){
 const[sW,setSW]=useState(80);
@@ -816,6 +824,10 @@ useEffect(()=>{
 const[projectPickerOpen,setProjectPickerOpen]=useState(false);
 const[projectPickerList,setProjectPickerList]=useState([]);
 const[preferencesOpen,setPreferencesOpen]=useState(false);
+// UX-fix — lets the session-timer mode badge deep-link straight into the
+// Preferences panel's Tracker category instead of forcing the user to hunt
+// for it manually.
+const[preferencesInitialCategory,setPreferencesInitialCategory]=useState(null);
 const[shortcutsHintDismissed,setShortcutsHintDismissed]=useState(()=>{try{return !!localStorage.getItem("shortcuts_hint_dismissed");}catch(_){return false;}});
 const[trackerLoadCount,setTrackerLoadCount]=useState(()=>{try{const n=parseInt(localStorage.getItem("cs_trackerHintLoadCount")||"0",10);return isNaN(n)?0:n;}catch(_){return 0;}});
 const hintLoadCountedRef=useRef(false);
@@ -5541,7 +5553,7 @@ return(
     });
   }}
 />}
-{preferencesOpen&&typeof window.PreferencesModal!=='undefined'&&React.createElement(window.PreferencesModal,{onClose:()=>setPreferencesOpen(false)})}
+{preferencesOpen&&typeof window.PreferencesModal!=='undefined'&&React.createElement(window.PreferencesModal,{initialCategory:preferencesInitialCategory||undefined,onClose:()=>{setPreferencesOpen(false);setPreferencesInitialCategory(null);}})}
 {namePromptOpen&&<NamePromptModal
   defaultName={projectName || (sW+'×'+sH+' pattern')}
   onConfirm={name=>{setProjectName(name);setNamePromptOpen(false);doSaveProject(name);}}
@@ -6205,7 +6217,13 @@ return(
                   ?<span style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--warning-soft)",color:"var(--warning)",fontWeight:600}}>Paused</span>
                   :<span style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--success-soft)",color:"var(--success)",fontWeight:600}}>Active</span>
                 }
-                <span style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:600,border:"1px solid var(--border)"}}>{formatTimingModeLabel(currentTimingMode)}</span>
+                <Tooltip text={formatTimingModeDescription(currentTimingMode)+' Tap to change.'} width={220}>
+                  <button type="button"
+                    onClick={()=>{setPreferencesInitialCategory('tracker');setPreferencesOpen(true);}}
+                    style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:600,border:"1px solid var(--border)",cursor:"pointer"}}
+                    aria-label={"Session timing mode: "+formatTimingModeLabel(currentTimingMode)+". Open preferences to change."}
+                  >{formatTimingModeLabel(currentTimingMode)}</button>
+                </Tooltip>
               </div>
               <div style={{display:"flex",gap:24}}>
                 <div><div style={{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>Time</div><div style={{fontSize:'var(--text-lg)',fontWeight:700,color:"var(--text-primary)",fontVariantNumeric:"tabular-nums"}}>{fmtTime(liveAutoElapsed)}</div></div>
