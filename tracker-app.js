@@ -5313,6 +5313,11 @@ const _pulseCells=useCallback(function(idxList){
 },[]);
 
 const[dragMarkPulse,setDragMarkPulse]=useState(null);
+// UX-fix — tracks whether the user has ever completed a rectangle
+// range-select, so the rectSelect_tracker coachmark can auto-dismiss the
+// moment the behaviour is actually discovered (mirrors firstStitch's
+// doneCount>0 auto-complete below).
+const[_rectSelectUsed,_setRectSelectUsed]=useState(false);
 
 const _commitBulk=useCallback(function(set,intent,source){
   // BUGFIX: read live `done` via doneRef so back-to-back commits before
@@ -5358,6 +5363,7 @@ const _commitBulk=useCallback(function(set,intent,source){
     recordAutoActivity(_bulkCompleted,_bulkUndone);
     prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||(prevAutoCountRef.current&&prevAutoCountRef.current.halfDone)||0};
   }
+  if(source==='range')_setRectSelectUsed(true);
 },[pat,focusColour,_pulseCells,recordAutoActivity,halfStitchCounts]);
 
 const _dragMarkOnToggle=useCallback(function(idx){
@@ -5457,6 +5463,48 @@ const _showTrFirstStitchCoach = _trCoachReady
   && !styleOnboardingOpen
   && !welcomeOpen
   && doneCount === 0;
+
+// ── UX-fix — rectangle range-select coachmark (Tracker) ────────────────
+// Rectangle-select (Shift+click on desktop, long-press+tap on touch) had no
+// affordance until the user stumbled into Help. Trigger once the user has
+// marked a few stitches by hand (so basic tapping is familiar) and has not
+// yet used range-select. Auto-completes the moment `_rectSelectUsed` flips
+// true (see _commitBulk), mirroring firstStitch's doneCount>0 pattern.
+const RECT_SELECT_COACH_THRESHOLD=4;
+const[_isCoarsePointer,_setIsCoarsePointer]=React.useState(false);
+React.useEffect(()=>{
+  if(typeof window==='undefined'||!window.matchMedia)return;
+  const mql=window.matchMedia('(pointer: coarse)');
+  const apply=()=>_setIsCoarsePointer(mql.matches);
+  apply();
+  if(mql.addEventListener)mql.addEventListener('change',apply);
+  else if(mql.addListener)mql.addListener(apply);
+  return()=>{
+    if(mql.removeEventListener)mql.removeEventListener('change',apply);
+    else if(mql.removeListener)mql.removeListener(apply);
+  };
+},[]);
+const [_trRectCoachReady, _setTrRectCoachReady] = React.useState(false);
+React.useEffect(()=>{
+  _setTrRectCoachReady(false);
+  if (!pat || styleOnboardingOpen || welcomeOpen) return;
+  if (_trCoach.active !== 'rectSelect_tracker') return;
+  if (_rectSelectUsed) return;
+  if (doneCount < RECT_SELECT_COACH_THRESHOLD) return;
+  const t = setTimeout(()=>_setTrRectCoachReady(true), 600);
+  return ()=>clearTimeout(t);
+}, [!!pat, styleOnboardingOpen, welcomeOpen, _trCoach.active, doneCount, _rectSelectUsed]);
+React.useEffect(()=>{
+  if (_trCoach.active !== 'rectSelect_tracker') return;
+  if (_rectSelectUsed) _trCoach.complete('rectSelect_tracker');
+}, [_rectSelectUsed, _trCoach.active]);
+const _showTrRectSelectCoach = _trRectCoachReady
+  && _trCoach.active === 'rectSelect_tracker'
+  && !!pat
+  && !styleOnboardingOpen
+  && !welcomeOpen
+  && !_rectSelectUsed
+  && doneCount >= RECT_SELECT_COACH_THRESHOLD;
 
 // Keep ref current on every render (function declarations are hoisted so this
 // is always defined; the ref lets the registered handler call the latest closure).
@@ -6511,6 +6559,18 @@ return(
     helpTopic: 'stitching',
     onComplete: ()=>_trCoach.complete('firstStitch_tracker'),
     onSkip: ()=>_trCoach.skip('firstStitch_tracker')
+  })}
+  {_showTrRectSelectCoach && window.Coachmark && React.createElement(window.Coachmark, {
+    id: 'rectSelect_tracker',
+    title: 'Select a rectangle of stitches',
+    body: _isCoarsePointer
+      ? 'Press and hold a cell, then tap another cell to mark a whole rectangle at once.'
+      : 'Hold Shift and click another cell to mark a whole rectangle at once.',
+    placement: 'centre',
+    showHighlight: false,
+    helpTopic: 'stitching',
+    onComplete: ()=>_trCoach.complete('rectSelect_tracker'),
+    onSkip: ()=>_trCoach.skip('rectSelect_tracker')
   })}
   {sessionConfigOpen&&<SessionConfigModal liveAutoElapsed={liveAutoElapsed} liveAutoStitches={liveAutoStitches} onClose={()=>setSessionConfigOpen(false)} onStart={cfg=>{
     setExplicitSession({startTime:Date.now(),timeAvail:cfg.timeAvail,stitchGoal:cfg.stitchGoal,startStitches:doneCount,blocks:[]});

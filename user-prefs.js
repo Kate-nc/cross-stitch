@@ -204,6 +204,7 @@
     // Phase 1 active:
     "onboarding.coached.firstStitch_creator": false,
     "onboarding.coached.firstStitch_tracker": false,
+    "onboarding.coached.rectSelect_tracker": false,
     // Phase 2 reserved (declared so resetCoaching() finds them):
     "onboarding.coached.import":   false,
     "onboarding.coached.undo":     false,
