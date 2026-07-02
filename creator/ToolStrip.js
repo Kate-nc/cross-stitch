@@ -325,7 +325,15 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           'aria-label':'Increase palette threshold',
           title:'Increase threshold',
           disabled:(cv.denoiseThreshold||5) >= 30
-        }, window.Icons && window.Icons.plus ? window.Icons.plus() : '+')
+        }, window.Icons && window.Icons.plus ? window.Icons.plus() : '+'),
+        // UX-fix — the raw ΔE number is abstract on its own; show the concrete
+        // effect (how many colours this threshold would merge away) so the
+        // slider stops requiring guesswork.
+        dnReport && dnReport.mergeMap && h('span', {
+          style:{fontSize:11,color:'var(--text-tertiary)',flexShrink:0,whiteSpace:'nowrap'}
+        }, Object.keys(dnReport.mergeMap).length > 0
+             ? '→ ' + Object.keys(dnReport.mergeMap).length + ' colour' + (Object.keys(dnReport.mergeMap).length === 1 ? '' : 's') + ' merged'
+             : '→ no merges at this level')
       ),
       // ── Mode radios ──────────────────────────────────────────────────────
       h('span', {
