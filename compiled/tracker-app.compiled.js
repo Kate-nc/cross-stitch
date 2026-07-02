@@ -2079,14 +2079,26 @@ function TrackerApp({
   // via document-level listeners (not just onMouseDown's e.shiftKey) so the
   // indicator appears the instant Shift is pressed, before any click happens.
   const [isShiftDown, setIsShiftDown] = useState(false);
+  // Mirrors the latest useDragMark().notifyShiftUp so the keyup/blur
+  // listener below (registered once, on mount) always calls into the
+  // current hook instance instead of a stale first-render closure — see
+  // useDragMark.js behaviour (7): the range-select anchor is forgotten the
+  // instant Shift is released, rather than persisting across unrelated clicks.
+  const dragMarkNotifyShiftUpRef = useRef(null);
   useEffect(() => {
     const onKeyDown = e => {
       if (e.key === "Shift") setIsShiftDown(true);
     };
     const onKeyUp = e => {
-      if (e.key === "Shift") setIsShiftDown(false);
+      if (e.key === "Shift") {
+        setIsShiftDown(false);
+        if (dragMarkNotifyShiftUpRef.current) dragMarkNotifyShiftUpRef.current();
+      }
     };
-    const onBlur = () => setIsShiftDown(false);
+    const onBlur = () => {
+      setIsShiftDown(false);
+      if (dragMarkNotifyShiftUpRef.current) dragMarkNotifyShiftUpRef.current();
+    };
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("blur", onBlur);
@@ -8948,6 +8960,9 @@ function TrackerApp({
   };
   const dragMarkHandlers = _dragMark.handlers;
   const dragMarkState = _dragMark.dragState;
+  // Keep the keyup/blur listener (registered once, on mount, above) calling
+  // into the CURRENT hook instance's notifyShiftUp — see useDragMark.js (7).
+  dragMarkNotifyShiftUpRef.current = _dragMark.notifyShiftUp || null;
 
   // C3: useDragMark now owns both touch AND mouse pointer events. The
   // previous touch-only gate is no longer needed because legacy mouse
@@ -10047,7 +10062,7 @@ function TrackerApp({
     style: {
       display: "inline-flex"
     }
-  }, Icons.crop ? Icons.crop() : null), /*#__PURE__*/React.createElement("span", null, "Shift held \u2014 click another cell to select a rectangle")), showNavHelp && !isEditMode && (() => {
+  }, Icons.crop ? Icons.crop() : null), /*#__PURE__*/React.createElement("span", null, dragMarkState && dragMarkState.mode === 'shiftRange' ? "Drag to select a rectangle, release to apply" : "Shift held — drag from a cell to select a rectangle")), showNavHelp && !isEditMode && (() => {
     const isTouch = hasTouchRef.current;
     return /*#__PURE__*/React.createElement("div", {
       style: {
@@ -10385,9 +10400,10 @@ function TrackerApp({
       touchAction: "none"
     },
     onMouseDown: handleStitchMouseDown,
-    onMouseMove: handleStitchMouseMove,
+    onMouseMove: handleStitchMouseMove
+  }, dragMarkHandlers, {
     onContextMenu: e => e.preventDefault()
-  }, dragMarkHandlers)), _dragMarkActive && dragMarkState && (dragMarkState.path.size > 0 || dragMarkState.anchor != null || dragMarkPulse) && /*#__PURE__*/React.createElement("div", {
+  })), _dragMarkActive && dragMarkState && (dragMarkState.path.size > 0 || dragMarkState.anchor != null || dragMarkPulse) && /*#__PURE__*/React.createElement("div", {
     className: "drag-mark-overlay drag-mark-overlay--" + (dragMarkState.intent || 'mark'),
     style: {
       position: "absolute",
@@ -10488,7 +10504,7 @@ function TrackerApp({
       zIndex: 7,
       pointerEvents: "none"
     }
-  }), dragMarkState && dragMarkState.mode === 'range' && dragMarkState.anchor != null && sW > 0 && /*#__PURE__*/React.createElement("div", {
+  }), dragMarkState && (dragMarkState.mode === 'range' || dragMarkState.mode === 'shiftRange') && dragMarkState.anchor != null && sW > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       position: 'absolute',
       left: dragMarkState.anchor % sW * scs,
