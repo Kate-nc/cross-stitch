@@ -5496,16 +5496,23 @@ React.useEffect(()=>{
     else if(mql.removeListener)mql.removeListener(apply);
   };
 },[]);
+// BUGFIX: gate on a boolean "threshold met" flag rather than the raw,
+// ever-incrementing doneCount. doneCount keeps changing on every stitch
+// marked after the threshold too, so using it directly in the deps array
+// re-ran this effect (and cancelled/restarted the 600ms timer) on every
+// subsequent stitch — a user stitching faster than one cell per 600ms
+// would never see `_trRectCoachReady` flip true at all.
+const _rectSelectThresholdMet = (doneCount + ((halfStitchCounts&&halfStitchCounts.done)||0)) >= RECT_SELECT_COACH_THRESHOLD;
 const [_trRectCoachReady, _setTrRectCoachReady] = React.useState(false);
 React.useEffect(()=>{
   _setTrRectCoachReady(false);
   if (!pat || styleOnboardingOpen || welcomeOpen) return;
   if (_trCoach.active !== 'rectSelect_tracker') return;
   if (_rectSelectUsed) return;
-  if (doneCount < RECT_SELECT_COACH_THRESHOLD) return;
+  if (!_rectSelectThresholdMet) return;
   const t = setTimeout(()=>_setTrRectCoachReady(true), 600);
   return ()=>clearTimeout(t);
-}, [!!pat, styleOnboardingOpen, welcomeOpen, _trCoach.active, doneCount, _rectSelectUsed]);
+}, [!!pat, styleOnboardingOpen, welcomeOpen, _trCoach.active, _rectSelectThresholdMet, _rectSelectUsed]);
 React.useEffect(()=>{
   if (_trCoach.active !== 'rectSelect_tracker') return;
   if (_rectSelectUsed) _trCoach.complete('rectSelect_tracker');
@@ -5516,7 +5523,7 @@ const _showTrRectSelectCoach = _trRectCoachReady
   && !styleOnboardingOpen
   && !welcomeOpen
   && !_rectSelectUsed
-  && doneCount >= RECT_SELECT_COACH_THRESHOLD;
+  && _rectSelectThresholdMet;
 
 // Keep ref current on every render (function declarations are hoisted so this
 // is always defined; the ref lets the registered handler call the latest closure).
@@ -6219,7 +6226,7 @@ return(
                 }
                 <Tooltip text={formatTimingModeDescription(currentTimingMode)+' Tap to change.'} width={220}>
                   <button type="button"
-                    onClick={()=>{setPreferencesInitialCategory('tracker');setPreferencesOpen(true);}}
+                    onClick={e=>{e.stopPropagation();setPreferencesInitialCategory('tracker');setPreferencesOpen(true);}}
                     style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:600,border:"1px solid var(--border)",cursor:"pointer"}}
                     aria-label={"Session timing mode: "+formatTimingModeLabel(currentTimingMode)+". Open preferences to change."}
                   >{formatTimingModeLabel(currentTimingMode)}</button>
