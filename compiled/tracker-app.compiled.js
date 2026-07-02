@@ -2061,6 +2061,29 @@ function TrackerApp({
   const isSpaceDownRef = useRef(false);
   const spaceDownTimeRef = useRef(0);
   const spacePannedRef = useRef(false);
+  // B2/mouse UX: live Shift-key state, so the canvas can show a visual cue
+  // distinguishing "click + drag" (freehand multi-mark) from "Shift+click"
+  // (rectangular range select) — see useDragMark.js behaviour (5). Tracked
+  // via document-level listeners (not just onMouseDown's e.shiftKey) so the
+  // indicator appears the instant Shift is pressed, before any click happens.
+  const [isShiftDown, setIsShiftDown] = useState(false);
+  useEffect(() => {
+    const onKeyDown = e => {
+      if (e.key === "Shift") setIsShiftDown(true);
+    };
+    const onKeyUp = e => {
+      if (e.key === "Shift") setIsShiftDown(false);
+    };
+    const onBlur = () => setIsShiftDown(false);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, []);
   const touchStateRef = useRef({
     mode: "none",
     startX: 0,
@@ -6873,13 +6896,7 @@ function TrackerApp({
   // `done` array reference changed — can skip the redundant full redraw. Anything
   // that legitimately needs a full repaint (project load, zoom, view-mode change,
   // undo of an edit-mode snapshot, etc.) never sets the flag, so it still gets one.
-  useEffect(() => {
-    if (skipNextFullRedrawRef.current) {
-      skipNextFullRedrawRef.current = false;
-      return;
-    }
-    renderStitch();
-  }, [renderStitch]);
+  useEffect(() => renderStitch(), [renderStitch]);
   // Keep renderStitchRef current so animation callbacks always call the latest closure
   useEffect(() => {
     renderStitchRef.current = renderStitch;
@@ -9935,9 +9952,33 @@ function TrackerApp({
   }, /*#__PURE__*/React.createElement("div", {
     className: "canvas-area",
     style: {
-      padding: "12px 16px"
+      padding: "12px 16px",
+      position: "relative"
     }
-  }, showNavHelp && !isEditMode && (() => {
+  }, isShiftDown && _dragMarkActive && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: 4,
+      right: 20,
+      zIndex: 30,
+      pointerEvents: "none",
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      padding: "5px 10px",
+      borderRadius: 'var(--radius-md)',
+      background: "var(--accent)",
+      color: "var(--surface)",
+      fontSize: 'var(--text-xs)',
+      fontWeight: 600,
+      boxShadow: 'var(--shadow-sm)'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    "aria-hidden": "true",
+    style: {
+      display: "inline-flex"
+    }
+  }, Icons.crop ? Icons.crop() : null), /*#__PURE__*/React.createElement("span", null, "Shift held \u2014 click another cell to select a rectangle")), showNavHelp && !isEditMode && (() => {
     const isTouch = hasTouchRef.current;
     return /*#__PURE__*/React.createElement("div", {
       style: {
@@ -9979,7 +10020,7 @@ function TrackerApp({
         gridTemplateColumns: "1fr 1fr",
         gap: "6px 24px"
       }
-    }, [["Pan", isTouch ? "Drag one finger across the canvas" : "Hold Space + drag  ·  or middle-click drag"], ["Zoom in / out", isTouch ? "Pinch two fingers apart / together" : "Ctrl + scroll  ·  or use − / + buttons"], ["Zoom to fit", "Tap the Fit button"], ["Mark a stitch", isTouch ? "Tap a cell" : "Click a cell"], ["Mark multiple", isTouch ? "Tap, then drag across cells" : "Click + drag across cells — all set to same state"], ["Undo last marks", "Undo button (top right)"], stitchView === "highlight" ? ["Cycle colours", isTouch ? "Open the Highlight tab in the sidebar" : "[ or ] keys"] : null, stitchView === "highlight" ? ["Clear focus", "Tap the colour pill to show all colours"] : null, stitchMode === "navigate" ? ["Place crosshair", "Click on any cell to drop a guide"] : null, stitchMode === "navigate" ? ["Park marker", "Select a colour, then click to place a marker"] : null].filter(Boolean).map(([label, tip], i) => /*#__PURE__*/React.createElement("div", {
+    }, [["Pan", isTouch ? "Drag one finger across the canvas" : "Hold Space + drag  ·  or middle-click drag"], ["Zoom in / out", isTouch ? "Pinch two fingers apart / together" : "Ctrl + scroll  ·  or use − / + buttons"], ["Zoom to fit", "Tap the Fit button"], ["Mark a stitch", isTouch ? "Tap a cell" : "Click a cell"], ["Mark multiple", isTouch ? "Tap, then drag across cells" : "Click + drag across cells — all set to same state"], ["Select a rectangle", isTouch ? "Long-press a cell, then tap another" : "Hold Shift + click another cell"], ["Undo last marks", "Undo button (top right)"], stitchView === "highlight" ? ["Cycle colours", isTouch ? "Open the Highlight tab in the sidebar" : "[ or ] keys"] : null, stitchView === "highlight" ? ["Clear focus", "Tap the colour pill to show all colours"] : null, stitchMode === "navigate" ? ["Place crosshair", "Click on any cell to drop a guide"] : null, stitchMode === "navigate" ? ["Park marker", "Select a colour, then click to place a marker"] : null].filter(Boolean).map(([label, tip], i) => /*#__PURE__*/React.createElement("div", {
       key: i,
       style: {
         display: "contents"
@@ -10169,7 +10210,7 @@ function TrackerApp({
       border: "0.5px solid var(--border)",
       borderRadius: "8px 8px 0 0",
       background: "var(--surface-tertiary)",
-      cursor: isPanning ? "grabbing" : isSpaceDownRef.current ? "grab" : !isEditMode && stitchMode === "track" ? "crosshair" : "default",
+      cursor: isPanning ? "grabbing" : isSpaceDownRef.current ? "grab" : !isEditMode && stitchMode === "track" ? isShiftDown && _dragMarkActive ? "cell" : "crosshair" : "default",
       transition: "max-height 0.3s",
       position: "relative"
     },

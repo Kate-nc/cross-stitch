@@ -937,6 +937,25 @@ const stitchScrollRef=useRef(null);
 const isSpaceDownRef=useRef(false);
 const spaceDownTimeRef=useRef(0);
 const spacePannedRef=useRef(false);
+// B2/mouse UX: live Shift-key state, so the canvas can show a visual cue
+// distinguishing "click + drag" (freehand multi-mark) from "Shift+click"
+// (rectangular range select) — see useDragMark.js behaviour (5). Tracked
+// via document-level listeners (not just onMouseDown's e.shiftKey) so the
+// indicator appears the instant Shift is pressed, before any click happens.
+const[isShiftDown,setIsShiftDown]=useState(false);
+useEffect(()=>{
+  const onKeyDown=e=>{if(e.key==="Shift")setIsShiftDown(true);};
+  const onKeyUp=e=>{if(e.key==="Shift")setIsShiftDown(false);};
+  const onBlur=()=>setIsShiftDown(false);
+  window.addEventListener("keydown",onKeyDown);
+  window.addEventListener("keyup",onKeyUp);
+  window.addEventListener("blur",onBlur);
+  return()=>{
+    window.removeEventListener("keydown",onKeyDown);
+    window.removeEventListener("keyup",onKeyUp);
+    window.removeEventListener("blur",onBlur);
+  };
+},[]);
 const touchStateRef=useRef({mode:"none",startX:0,startY:0,pinchDist:0,tapIdx:-1,tapVal:0,pinchAnchorCanvas:null,pinchAnchorScreen:null});
 const hasTouchRef=useRef(typeof window!=="undefined"&&"ontouchstart" in window);
 // Stable handler refs — point to latest function each render; listeners attach once
@@ -5845,7 +5864,11 @@ return(
     </div>}
 
     <div className="ppal-canvas-col">
-    <div className="canvas-area" style={{padding:"12px 16px"}}>
+    <div className="canvas-area" style={{padding:"12px 16px",position:"relative"}}>
+    {isShiftDown&&_dragMarkActive&&<div style={{position:"absolute",top:4,right:20,zIndex:30,pointerEvents:"none",display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:'var(--radius-md)',background:"var(--accent)",color:"var(--surface)",fontSize:'var(--text-xs)',fontWeight:600,boxShadow:'var(--shadow-sm)'}}>
+      <span aria-hidden="true" style={{display:"inline-flex"}}>{Icons.crop?Icons.crop():null}</span>
+      <span>Shift held — click another cell to select a rectangle</span>
+    </div>}
     {showNavHelp&&!isEditMode&&(()=>{const isTouch=hasTouchRef.current;return(
     <div style={{marginBottom:'var(--s-2)',padding:"14px 16px",background:"var(--surface)",border:"1px solid var(--accent-light)",borderRadius:'var(--radius-lg)',fontSize:'var(--text-sm)'}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -5859,6 +5882,7 @@ return(
           ["Zoom to fit","Tap the Fit button"],
           ["Mark a stitch",isTouch?"Tap a cell":"Click a cell"],
           ["Mark multiple",isTouch?"Tap, then drag across cells":"Click + drag across cells — all set to same state"],
+          ["Select a rectangle",isTouch?"Long-press a cell, then tap another":"Hold Shift + click another cell"],
           ["Undo last marks","Undo button (top right)"],
           stitchView==="highlight"?["Cycle colours",isTouch?"Open the Highlight tab in the sidebar":"[ or ] keys"]:null,
           stitchView==="highlight"?["Clear focus","Tap the colour pill to show all colours"]:null,
@@ -5896,7 +5920,7 @@ return(
       return null;
     })()}
 
-    <div ref={stitchScrollRef} onScroll={()=>{if(!scrollRafRef.current){scrollRafRef.current=requestAnimationFrame(()=>{renderStitch();scrollRafRef.current=null;})}}} style={{overflow:"auto",maxHeight:drawer?340:600,border:"0.5px solid var(--border)",borderRadius:"8px 8px 0 0",background:"var(--surface-tertiary)",cursor:isPanning?"grabbing":isSpaceDownRef.current?"grab":(!isEditMode&&stitchMode==="track"?"crosshair":"default"),transition:"max-height 0.3s",position:"relative"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}>
+    <div ref={stitchScrollRef} onScroll={()=>{if(!scrollRafRef.current){scrollRafRef.current=requestAnimationFrame(()=>{renderStitch();scrollRafRef.current=null;})}}} style={{overflow:"auto",maxHeight:drawer?340:600,border:"0.5px solid var(--border)",borderRadius:"8px 8px 0 0",background:"var(--surface-tertiary)",cursor:isPanning?"grabbing":isSpaceDownRef.current?"grab":(!isEditMode&&stitchMode==="track"?(isShiftDown&&_dragMarkActive?"cell":"crosshair"):"default"),transition:"max-height 0.3s",position:"relative"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}>
       <div style={{ position: 'sticky', top: 0, zIndex: 3, display: 'flex', width: 'max-content', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ width: G, height: G, flexShrink: 0, position: 'sticky', left: 0, background: 'var(--surface)', borderRight: '1px solid var(--border)', zIndex: 4 }}></div>
         {Array.from({length: sW}, (_, x) => {
