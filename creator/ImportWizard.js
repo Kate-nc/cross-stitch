@@ -425,9 +425,19 @@
             h("dt", null, "Skip background"), h("dd", null, st.skipBg ? ("On (tolerance " + st.bgThreshold + ")") : "Off"),
             h("dt", null, "Estimate"), h("dd", null, skeinText),
             stitchStats && stitchStats.label ? h(React.Fragment, null,
-              h("dt", null, "Stitchability"),
+              h("dt", null,
+                "Stitchability",
+                Tooltip ? h(Tooltip, {
+                  text: "“Confetti” stitches are isolated single cells or tiny 2–3 cell clusters. "
+                      + "They're accurate to the source image but tedious to stitch because each needs its own thread pass. Lower is easier to stitch.",
+                  width: 240
+                }, h("span", { className: "iw-info-icon", "aria-hidden": "true" }, Icons.info ? Icons.info() : "?")) : null
+              ),
               h("dd", { title: stitchStats.pct != null ? (stitchStats.pct.toFixed(1) + "% isolated stitches") : "" },
-                stitchStats.label + (stitchStats.pct != null ? " (" + stitchStats.pct.toFixed(1) + "% confetti)" : ""))
+                stitchStats.label + (stitchStats.pct != null ? " (" + stitchStats.pct.toFixed(1) + "% confetti)" : ""),
+                (stitchStats.label === "Fair" || stitchStats.label === "Needs cleanup") ? h("div", { className: "iw-stitchability-hint" },
+                  "You'll be able to smooth stray stitches out with the Cleanup tool after generating."
+                ) : null)
             ) : (wizard.step === 5 && !stitchStats ? h(React.Fragment, null,
               h("dt", null, "Stitchability"),
               h("dd", null, "Calculating…")

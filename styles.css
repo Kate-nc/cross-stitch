@@ -4881,8 +4881,11 @@ html.pref-dark a { color: var(--accent); }
 }
 .iw-summary-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: pixelated; }
 .iw-summary-list { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; font-size: 13px; }
-.iw-summary-list dt { color: var(--text-tertiary); }
+.iw-summary-list dt { color: var(--text-tertiary); display: flex; align-items: center; gap: 5px; }
 .iw-summary-list dd { margin: 0; color: var(--text-primary); font-weight: 500; }
+.iw-info-icon { display: inline-flex; align-items: center; color: var(--text-tertiary); cursor: help; line-height: 1; }
+.iw-info-icon svg { width: 13px; height: 13px; }
+.iw-stitchability-hint { margin-top: 3px; font-size: 12px; font-weight: 400; color: var(--text-tertiary); line-height: 1.4; }
 
 .iw-discard-modal {
   position: absolute; inset: 0; background: rgba(15, 23, 42, 0.5);
