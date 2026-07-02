@@ -244,6 +244,94 @@ test('POINTER_CANCEL discards drag with no commit', () => {
   expect(fx.filter(e => e.type === 'COMMIT_RANGE')).toHaveLength(0);
 });
 
+// ─── 5b. Shift+mousedown → live rubber-band preview, commit on release ──
+test('shift+mousedown starts a live preview rectangle; no commit until release', () => {
+  const w = 10, h = 10;
+  const ctx = makeCtx(w, h, makePattern(w, h));
+  let s = initialState();
+  const fx = [];
+  // First click sets lastAnchor (11 = (1,1)) via a normal tap.
+  s = step(s, { type: 'POINTER_DOWN', idx: 11, time: 0,
+                pointerId: 1, shiftKey: false, pointerType: 'mouse' }, ctx, fx);
+  s = step(s, { type: 'POINTER_UP', idx: 11, time: 50 }, ctx, fx);
+  expect(s.lastAnchor).toBe(11);
+  expect(fx.filter(e => e.type === 'COMMIT_RANGE')).toHaveLength(0);
+
+  // Shift+mousedown elsewhere begins the preview — no commit yet.
+  s = step(s, { type: 'POINTER_DOWN', idx: 33, time: 100,
+                pointerId: 2, shiftKey: true, pointerType: 'mouse' }, ctx, fx);
+  expect(s.mode).toBe('shiftRange');
+  expect(s.anchor).toBe(11);
+  // 11=(1,1), 33=(3,3) → 3x3 = 9 cells already visible in the preview.
+  expect(s.path.size).toBe(9);
+  expect(fx.filter(e => e.type === 'COMMIT_RANGE')).toHaveLength(0);
+
+  // Moving the pointer live-updates the preview rectangle.
+  s = step(s, { type: 'POINTER_MOVE', idx: 44, time: 120 }, ctx, fx);
+  // 11=(1,1), 44=(4,4) → 4x4 = 16 cells.
+  expect(s.path.size).toBe(16);
+  expect(fx.filter(e => e.type === 'COMMIT_RANGE')).toHaveLength(0);
+
+  // Release commits exactly the previewed rectangle.
+  s = step(s, { type: 'POINTER_UP', idx: 44, time: 150 }, ctx, fx);
+  const ranges = fx.filter(e => e.type === 'COMMIT_RANGE');
+  expect(ranges).toHaveLength(1);
+  expect(ranges[0].set.size).toBe(16);
+  expect(s.mode).toBe('idle');
+  expect(s.lastAnchor).toBe(44);
+});
+
+test('shift-drag preview falls back to last valid cell when pointer leaves the grid', () => {
+  const w = 10, h = 10;
+  const ctx = makeCtx(w, h, makePattern(w, h));
+  let s = initialState();
+  const fx = [];
+  s = step(s, { type: 'POINTER_DOWN', idx: 11, time: 0,
+                pointerId: 1, shiftKey: false, pointerType: 'mouse' }, ctx, fx);
+  s = step(s, { type: 'POINTER_UP', idx: 11, time: 50 }, ctx, fx);
+  s = step(s, { type: 'POINTER_DOWN', idx: 33, time: 100,
+                pointerId: 2, shiftKey: true, pointerType: 'mouse' }, ctx, fx);
+  expect(s.path.size).toBe(9);
+  // Pointer moves off-grid → cellAtPoint would report -1.
+  s = step(s, { type: 'POINTER_MOVE', idx: -1, time: 120 }, ctx, fx);
+  // Preview keeps the last valid cell (33), unchanged.
+  expect(s.path.size).toBe(9);
+  // Release off-grid still commits using the last valid cell.
+  s = step(s, { type: 'POINTER_UP', idx: -1, time: 150 }, ctx, fx);
+  const ranges = fx.filter(e => e.type === 'COMMIT_RANGE');
+  expect(ranges).toHaveLength(1);
+  expect(ranges[0].set.size).toBe(9);
+});
+
+test('POINTER_CANCEL during shift-drag preview discards with no commit', () => {
+  const w = 10, h = 10;
+  const ctx = makeCtx(w, h, makePattern(w, h));
+  let s = initialState();
+  const fx = [];
+  s = step(s, { type: 'POINTER_DOWN', idx: 11, time: 0,
+                pointerId: 1, shiftKey: false, pointerType: 'mouse' }, ctx, fx);
+  s = step(s, { type: 'POINTER_UP', idx: 11, time: 50 }, ctx, fx);
+  s = step(s, { type: 'POINTER_DOWN', idx: 33, time: 100,
+                pointerId: 2, shiftKey: true, pointerType: 'mouse' }, ctx, fx);
+  s = step(s, { type: 'POINTER_CANCEL' }, ctx, fx);
+  expect(s.mode).toBe('idle');
+  expect(fx.filter(e => e.type === 'COMMIT_RANGE')).toHaveLength(0);
+  // lastAnchor from before the aborted gesture is preserved.
+  expect(s.lastAnchor).toBe(11);
+});
+
+test('shift+mousedown with no prior anchor falls through to a normal pending tap', () => {
+  const w = 10, h = 10;
+  const ctx = makeCtx(w, h, makePattern(w, h));
+  let s = initialState();
+  const fx = [];
+  s = step(s, { type: 'POINTER_DOWN', idx: 11, time: 0,
+                pointerId: 1, shiftKey: true, pointerType: 'mouse' }, ctx, fx);
+  expect(s.mode).toBe('pending');
+  s = step(s, { type: 'POINTER_UP', idx: 11, time: 50 }, ctx, fx);
+  expect(fx.filter(e => e.type === 'TOGGLE_CELL')).toHaveLength(1);
+});
+
 // ─── 7. isEditMode → no-op handlers (hook level) ────────────────────────
 test('useDragMark with isEditMode=true returns no-op handlers and idle dragState', () => {
   const fakeReact = {

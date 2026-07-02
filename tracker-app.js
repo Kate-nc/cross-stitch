@@ -5937,7 +5937,7 @@ return(
     <div className="canvas-area" style={{padding:"12px 16px",position:"relative"}}>
     {isShiftDown&&_dragMarkActive&&<div style={{position:"absolute",top:4,right:20,zIndex:30,pointerEvents:"none",display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:'var(--radius-md)',background:"var(--accent)",color:"var(--surface)",fontSize:'var(--text-xs)',fontWeight:600,boxShadow:'var(--shadow-sm)'}}>
       <span aria-hidden="true" style={{display:"inline-flex"}}>{Icons.crop?Icons.crop():null}</span>
-      <span>Shift held — click another cell to select a rectangle</span>
+      <span>{dragMarkState&&dragMarkState.mode==='shiftRange'?"Drag to select a rectangle, release to apply":"Shift held — drag from a cell to select a rectangle"}</span>
     </div>}
     {showNavHelp&&!isEditMode&&(()=>{const isTouch=hasTouchRef.current;return(
     <div style={{marginBottom:'var(--s-2)',padding:"14px 16px",background:"var(--surface)",border:"1px solid var(--accent-light)",borderRadius:'var(--radius-lg)',fontSize:'var(--text-sm)'}}>
@@ -6057,8 +6057,9 @@ return(
           {/* Counting aids overlay (block counts, run lengths, ninja stitches) */}
           {countingAidsEnabled&&stitchView==="highlight"&&focusColour&&<canvas ref={countingAidsCanvasRef} style={{display:"block",position:"absolute",top:-G,left:-G,zIndex:7,pointerEvents:"none"}}/>}
 
-          {/* C3: range anchor overlay driven by useDragMark long-press anchor. */}
-          {dragMarkState&&dragMarkState.mode==='range'&&dragMarkState.anchor!=null&&sW>0&&<div style={{
+          {/* C3: range anchor overlay driven by useDragMark long-press anchor
+              (touch) and the live shift-drag rubber-band anchor (mouse). */}
+          {dragMarkState&&(dragMarkState.mode==='range'||dragMarkState.mode==='shiftRange')&&dragMarkState.anchor!=null&&sW>0&&<div style={{
             position:'absolute',
             left:(dragMarkState.anchor%sW)*scs,
             top:Math.floor(dragMarkState.anchor/sW)*scs,

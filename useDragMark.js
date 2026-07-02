@@ -22,7 +22,7 @@
      // Spread handlers onto the grid container:
      //   <div {...handlers} />
      // Use dragState to paint a translucent overlay:
-     //   { mode: 'idle'|'pending'|'drag'|'range',
+     //   { mode: 'idle'|'pending'|'drag'|'range'|'shiftRange',
      //     path: Set<number>, anchor: number|null,
      //     intent: 'mark'|'unmark'|null }
 
@@ -37,14 +37,17 @@
    4. Long-press 500ms with no movement → set range anchor; next tap on a
       different cell commits the rectangular region as one undo step.
       Touch/pen only — see note in (5).
-   5. Mouse: click+drag = drag-mark; shift+click commits a range from the
-      most recent anchor. Mouse never arms the (4) long-press timer, so a
-      click has no minimum OR maximum hold-time to register as a tap — it
-      always toggles the cell as long as the button is released without
-      moving off it. This avoids a dead zone where a click held anywhere
-      between ~200ms-500ms (very plausible with a real mouse) used to be
-      silently swallowed instead of registering as a tap or a drag.
-   6. Pointer cancel discards the gesture.                                */
+   5. Mouse: click+drag = drag-mark; shift+mousedown starts a LIVE
+      rubber-band rectangle from the most recent anchor — the preview
+      (state.path) follows the pointer as it moves and only commits on
+      release, so the selected area is always visible before it's applied.
+      Mouse never arms the (4) long-press timer, so a click has no minimum
+      OR maximum hold-time to register as a tap — it always toggles the
+      cell as long as the button is released without moving off it. This
+      avoids a dead zone where a click held anywhere between ~200ms-500ms
+      (very plausible with a real mouse) used to be silently swallowed
+      instead of registering as a tap or a drag.
+   6. Pointer cancel discards the gesture (shift-range preview included).*/
 (function () {
   'use strict';
 
@@ -134,17 +137,34 @@
           return { state: s, effects: effects };
         }
 
-        // Shift+click: commit a range from the last anchor (mouse path).
+        // Shift+click: begin a LIVE rubber-band rectangle from the last
+        // anchor instead of committing immediately. The rectangle preview
+        // (state.path) updates as the pointer moves (POINTER_MOVE below)
+        // and only commits on release (POINTER_UP below), so the user can
+        // see exactly which cells will be marked before it happens.
         if (action.shiftKey && s.lastAnchor != null
-            && isMarkableAt(ctx.pattern, action.idx)
             && isMarkableAt(ctx.pattern, s.lastAnchor)) {
-          var rs = rectIndices(s.lastAnchor, action.idx,
-                               ctx.w, ctx.h, ctx.pattern);
-          var ri = intentForCell(ctx.done, s.lastAnchor);
-          effects.push({ type: 'COMMIT_RANGE',
-                         set: rs, intent: ri });
+          var anchorIdx = s.lastAnchor;
+          var otherIdx0 = (action.idx >= 0 && isMarkableAt(ctx.pattern, action.idx))
+                          ? action.idx : anchorIdx;
+          var riShift = intentForCell(ctx.done, anchorIdx);
           return {
-            state: next({ lastAnchor: action.idx }),
+            state: {
+              mode: 'shiftRange',
+              path: rectIndices(anchorIdx, otherIdx0, ctx.w, ctx.h, ctx.pattern),
+              anchor: anchorIdx,
+              intent: riShift,
+              startIdx: anchorIdx,
+              startTime: action.time,
+              startX: (typeof action.x === 'number' ? action.x : 0),
+              startY: (typeof action.y === 'number' ? action.y : 0),
+              pointerType: action.pointerType || 'mouse',
+              pointerId: action.pointerId,
+              moved: false,
+              lastAnchor: s.lastAnchor,
+              pointerCount: 1,
+              otherIdx: otherIdx0,
+            },
             effects: effects,
           };
         }
@@ -185,6 +205,23 @@
 
       case 'POINTER_MOVE': {
         if (s.mode === 'idle' || s.mode === 'range') return { state: s, effects: effects };
+        if (s.mode === 'shiftRange') {
+          // Live rubber-band: keep the last valid cell under the pointer
+          // (falls back to the previous one if it wanders over a
+          // __skip__/__empty__ cell or off the grid) and recompute the
+          // preview rectangle from the fixed anchor.
+          var newOther = (action.idx >= 0 && isMarkableAt(ctx.pattern, action.idx))
+                         ? action.idx : s.otherIdx;
+          if (newOther === s.otherIdx) return { state: s, effects: effects };
+          return {
+            state: next({
+              otherIdx: newOther,
+              path: rectIndices(s.anchor, newOther, ctx.w, ctx.h, ctx.pattern),
+              moved: true,
+            }),
+            effects: effects,
+          };
+        }
         if (action.idx === s.startIdx && !s.moved && s.mode === 'pending') {
           // Still on first cell — no transition.
           return { state: s, effects: effects };
@@ -273,6 +310,20 @@
           return { state: s, effects: effects };
         }
 
+        if (s.mode === 'shiftRange') {
+          // Release commits the rectangle currently shown in the preview.
+          var finalIdx = (action.idx >= 0 && isMarkableAt(ctx.pattern, action.idx))
+                         ? action.idx : s.otherIdx;
+          var rsFinal = rectIndices(s.anchor, finalIdx, ctx.w, ctx.h, ctx.pattern);
+          if (rsFinal.size > 0) {
+            effects.push({ type: 'COMMIT_RANGE', set: rsFinal, intent: s.intent });
+          }
+          return {
+            state: Object.assign(idle(), { lastAnchor: finalIdx }),
+            effects: effects,
+          };
+        }
+
         if (s.mode === 'drag') {
           if (s.path.size > 0) {
             effects.push({ type: 'COMMIT_DRAG',
@@ -332,7 +383,7 @@
       mode: 'idle', path: new Set(), anchor: null, intent: null,
       startIdx: -1, startTime: 0, startX: 0, startY: 0,
       pointerType: 'mouse', pointerId: null, moved: false,
-      lastAnchor: null, pointerCount: 0,
+      lastAnchor: null, pointerCount: 0, otherIdx: null,
     };
   }
 
@@ -501,7 +552,8 @@
 
     var onContextMenu = R.useCallback(function (e) {
       // Suppress browser context menu on long-press in range mode.
-      if (stateRef.current.mode === 'range' || stateRef.current.mode === 'drag') {
+      if (stateRef.current.mode === 'range' || stateRef.current.mode === 'drag'
+          || stateRef.current.mode === 'shiftRange') {
         if (e && e.preventDefault) e.preventDefault();
       }
     }, []);
