@@ -4074,7 +4074,10 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
 // `done` array reference changed — can skip the redundant full redraw. Anything
 // that legitimately needs a full repaint (project load, zoom, view-mode change,
 // undo of an edit-mode snapshot, etc.) never sets the flag, so it still gets one.
-useEffect(()=>renderStitch(),[renderStitch]);
+useEffect(()=>{
+  if(skipNextFullRedrawRef.current){skipNextFullRedrawRef.current=false;return;}
+  renderStitch();
+},[renderStitch]);
 // Keep renderStitchRef current so animation callbacks always call the latest closure
 useEffect(()=>{renderStitchRef.current=renderStitch;},[renderStitch]);
 // Tier-change handler: compute new tier, animate feature opacities across boundaries
