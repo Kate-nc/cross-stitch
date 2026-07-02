@@ -6224,7 +6224,7 @@ return(
                   ?<span style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--warning-soft)",color:"var(--warning)",fontWeight:600}}>Paused</span>
                   :<span style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--success-soft)",color:"var(--success)",fontWeight:600}}>Active</span>
                 }
-                <Tooltip text={formatTimingModeDescription(currentTimingMode)+' Tap to change.'} width={220}>
+                <Tooltip text={formatTimingModeDescription(currentTimingMode)+' Open preferences to change.'} width={220}>
                   <button type="button"
                     onClick={e=>{e.stopPropagation();setPreferencesInitialCategory('tracker');setPreferencesOpen(true);}}
                     style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:600,border:"1px solid var(--border)",cursor:"pointer"}}

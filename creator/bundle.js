@@ -11307,9 +11307,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         }, window.Icons && window.Icons.plus ? window.Icons.plus() : '+'),
         // UX-fix — the raw ΔE number is abstract on its own; show the concrete
         // effect (how many colours this threshold would merge away) so the
-        // slider stops requiring guesswork. Gated on !denoiseAutoRunning so it
-        // never shows a merge count computed for a threshold the ΔE display
-        // has already moved past (the worker re-run is debounced ~350ms).
+        // slider stops requiring guesswork. While auto-running, the hint stays
+        // visible but swaps to "Recalculating…" until the next merge count
+        // arrives from the debounced worker re-run (~350ms).
         dnReport && dnReport.mergeMap && h('span', {
           style:{fontSize:11,color:'var(--text-tertiary)',flexShrink:0,whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:3}
         },
