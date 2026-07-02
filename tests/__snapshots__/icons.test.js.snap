@@ -22,6 +22,7 @@ exports[`Icons object used icon set matches snapshot 1`] = `
   "cloudSync",
   "colourSwap",
   "copy",
+  "crop",
   "dice",
   "document",
   "dot",

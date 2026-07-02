@@ -88,6 +88,38 @@ test('tap > 200ms is NOT a toggle (becomes long-press candidate)', () => {
   expect(fx.filter(e => e.type === 'TOGGLE_CELL')).toHaveLength(0);
 });
 
+// ─── 2b. Mouse has no long-press dead zone ───────────────────────────────
+test('mouse click held 350ms (past tapHoldMs, before long-press) still toggles', () => {
+  const ctx = makeCtx(4, 4, makePattern(4, 4));
+  let s = initialState();
+  const fx = [];
+  s = step(s, { type: 'POINTER_DOWN', idx: 5, time: 0,
+                pointerId: 1, shiftKey: false, pointerType: 'mouse' }, ctx, fx);
+  s = step(s, { type: 'POINTER_UP', idx: 5, time: 350 }, ctx, fx);
+  const toggles = fx.filter(e => e.type === 'TOGGLE_CELL');
+  expect(toggles).toHaveLength(1);
+  expect(toggles[0].idx).toBe(5);
+  expect(s.mode).toBe('idle');
+});
+
+test('mouse click held past 500ms (would be a touch long-press) still toggles, not range', () => {
+  const ctx = makeCtx(4, 4, makePattern(4, 4));
+  let s = initialState();
+  const fx = [];
+  s = step(s, { type: 'POINTER_DOWN', idx: 5, time: 0,
+                pointerId: 1, shiftKey: false, pointerType: 'mouse' }, ctx, fx);
+  // No POINTER_DOWN-triggered long-press timer is armed for mouse, so a
+  // LONG_PRESS_FIRED should never be dispatched in the real hook for this
+  // gesture — confirm the mode is still 'pending' right up to release.
+  expect(s.mode).toBe('pending');
+  s = step(s, { type: 'POINTER_UP', idx: 5, time: 900 }, ctx, fx);
+  const toggles = fx.filter(e => e.type === 'TOGGLE_CELL');
+  expect(toggles).toHaveLength(1);
+  expect(toggles[0].idx).toBe(5);
+  expect(fx.filter(e => e.type === 'START_LONG_PRESS')).toHaveLength(0);
+  expect(fx.filter(e => e.type === 'COMMIT_RANGE')).toHaveLength(0);
+});
+
 // ─── 3. Drag across cells → COMMIT_DRAG ─────────────────────────────────
 test('drag across 5 cells emits one COMMIT_DRAG with set of 5; intent from first', () => {
   const w = 10, h = 10;
