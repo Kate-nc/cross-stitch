@@ -955,10 +955,24 @@ const spacePannedRef=useRef(false);
 // via document-level listeners (not just onMouseDown's e.shiftKey) so the
 // indicator appears the instant Shift is pressed, before any click happens.
 const[isShiftDown,setIsShiftDown]=useState(false);
+// Mirrors the latest useDragMark().notifyShiftUp so the keyup/blur
+// listener below (registered once, on mount) always calls into the
+// current hook instance instead of a stale first-render closure — see
+// useDragMark.js behaviour (7): the range-select anchor is forgotten the
+// instant Shift is released, rather than persisting across unrelated clicks.
+const dragMarkNotifyShiftUpRef=useRef(null);
 useEffect(()=>{
   const onKeyDown=e=>{if(e.key==="Shift")setIsShiftDown(true);};
-  const onKeyUp=e=>{if(e.key==="Shift")setIsShiftDown(false);};
-  const onBlur=()=>setIsShiftDown(false);
+  const onKeyUp=e=>{
+    if(e.key==="Shift"){
+      setIsShiftDown(false);
+      if(dragMarkNotifyShiftUpRef.current)dragMarkNotifyShiftUpRef.current();
+    }
+  };
+  const onBlur=()=>{
+    setIsShiftDown(false);
+    if(dragMarkNotifyShiftUpRef.current)dragMarkNotifyShiftUpRef.current();
+  };
   window.addEventListener("keydown",onKeyDown);
   window.addEventListener("keyup",onKeyUp);
   window.addEventListener("blur",onBlur);
@@ -5445,6 +5459,10 @@ const _dragMark=(typeof window!=='undefined'&&window.useDragMark)
   :{handlers:{},dragState:{mode:'idle',path:new Set(),anchor:null,intent:null}};
 const dragMarkHandlers=_dragMark.handlers;
 const dragMarkState=_dragMark.dragState;
+// Keep the keyup/blur listener (registered once, on mount, above) calling
+// into the CURRENT hook instance's notifyShiftUp — see useDragMark.js (7).
+dragMarkNotifyShiftUpRef.current=_dragMark.notifyShiftUp||null;
+
 
 // C3: useDragMark now owns both touch AND mouse pointer events. The
 // previous touch-only gate is no longer needed because legacy mouse

@@ -9,7 +9,7 @@
 
    API
    ───
-     const { handlers, dragState } = window.useDragMark({
+     const { handlers, dragState, notifyShiftUp } = window.useDragMark({
        w, h,            // grid dimensions
        pattern,         // flat cell array (read-only)
        done,            // flat done array (read-only)
@@ -21,6 +21,9 @@
      });
      // Spread handlers onto the grid container:
      //   <div {...handlers} />
+     // Call notifyShiftUp() from a document-level Shift keyup/blur
+     // listener so the range-select anchor is forgotten the instant
+     // Shift is released — see behaviour (7) below.
      // Use dragState to paint a translucent overlay:
      //   { mode: 'idle'|'pending'|'drag'|'range'|'shiftRange',
      //     path: Set<number>, anchor: number|null,
@@ -47,7 +50,15 @@
       avoids a dead zone where a click held anywhere between ~200ms-500ms
       (very plausible with a real mouse) used to be silently swallowed
       instead of registering as a tap or a drag.
-   6. Pointer cancel discards the gesture (shift-range preview included).*/
+   6. Pointer cancel discards the gesture (shift-range preview included).
+   7. The range-select anchor (lastAnchor) is forgotten as soon as Shift
+      is released (parent calls notifyShiftUp() on keyup/blur) — it does
+      NOT persist indefinitely across unrelated clicks. If Shift goes up
+      while a rubber-band drag is still in progress (mouse button not yet
+      released), the drag finishes normally on release, but the anchor it
+      would otherwise leave behind is discarded too. Holding Shift down
+      across multiple clicks still lets you chain range-selects from the
+      previous one, same as before.                                     */
 (function () {
   'use strict';
 
@@ -101,6 +112,7 @@
   //   POINTER_CANCEL
   //   LONG_PRESS_FIRED
   //   MULTI_TOUCH   { time }   — second pointer observed
+  //   SHIFT_UP      — Shift key released; forget the anchor (see (5))
   //   RESET
   // returns { state, effects:[ {type, payload} ] }
   // effect types:
@@ -119,7 +131,7 @@
         mode: 'idle', path: new Set(), anchor: null, intent: null,
         startIdx: -1, startTime: 0, startX: 0, startY: 0,
         pointerType: 'mouse', pointerId: null, moved: false,
-        lastAnchor: s.lastAnchor, pointerCount: 0,
+        lastAnchor: s.lastAnchor, pointerCount: 0, shiftReleased: false,
       };
     }
 
@@ -164,6 +176,7 @@
               lastAnchor: s.lastAnchor,
               pointerCount: 1,
               otherIdx: otherIdx0,
+              shiftReleased: false,
             },
             effects: effects,
           };
@@ -318,8 +331,11 @@
           if (rsFinal.size > 0) {
             effects.push({ type: 'COMMIT_RANGE', set: rsFinal, intent: s.intent });
           }
+          // If Shift was already released before the mouse button (see
+          // SHIFT_UP below), forget the anchor right away instead of
+          // leaving it available for a future, unrelated shift+click.
           return {
-            state: Object.assign(idle(), { lastAnchor: finalIdx }),
+            state: Object.assign(idle(), { lastAnchor: s.shiftReleased ? null : finalIdx }),
             effects: effects,
           };
         }
@@ -371,6 +387,20 @@
         return { state: s, effects: effects };
       }
 
+      case 'SHIFT_UP': {
+        // Forget the anchor as soon as Shift is released so a later,
+        // unrelated shift+click can't silently reuse a stale starting
+        // point. If a shift-range drag is still in progress (the button
+        // release lagged the key release), let it finish naturally —
+        // just flag it so the anchor set by that eventual commit is
+        // discarded too (see the 'shiftRange' POINTER_UP branch above).
+        if (s.mode === 'shiftRange') {
+          return { state: next({ shiftReleased: true }), effects: effects };
+        }
+        if (s.lastAnchor == null) return { state: s, effects: effects };
+        return { state: next({ lastAnchor: null }), effects: effects };
+      }
+
       case 'RESET':
       default:
         effects.push({ type: 'CLEAR_LONG_PRESS' });
@@ -384,6 +414,7 @@
       startIdx: -1, startTime: 0, startX: 0, startY: 0,
       pointerType: 'mouse', pointerId: null, moved: false,
       lastAnchor: null, pointerCount: 0, otherIdx: null,
+      shiftReleased: false,
     };
   }
 
@@ -400,6 +431,7 @@
           onContextMenu: noop,
         },
         dragState: { mode: 'idle', path: new Set(), anchor: null, intent: null },
+        notifyShiftUp: noop,
       };
     }
     var w = opts.w, h = opts.h;
@@ -558,6 +590,14 @@
       }
     }, []);
 
+    // Exposed so the parent can forget the range-select anchor the instant
+    // the Shift key is released (see SHIFT_UP in the reducer above) —
+    // otherwise a stale anchor from long ago could silently be reused by
+    // an unrelated later shift+click.
+    var notifyShiftUp = R.useCallback(function () {
+      dispatch({ type: 'SHIFT_UP' });
+    }, []);
+
     if (isEdit) {
       return {
         handlers: {
@@ -567,6 +607,7 @@
         },
         dragState: { mode: 'idle', path: new Set(),
                      anchor: null, intent: null },
+        notifyShiftUp: noop,
       };
     }
 
@@ -579,6 +620,7 @@
         onContextMenu: onContextMenu,
       },
       dragState: dragState,
+      notifyShiftUp: notifyShiftUp,
     };
   }
 

@@ -320,6 +320,89 @@ test('POINTER_CANCEL during shift-drag preview discards with no commit', () => {
   expect(s.lastAnchor).toBe(11);
 });
 
+// ─── 5c. SHIFT_UP forgets the anchor ─────────────────────────────────────
+test('SHIFT_UP clears lastAnchor when idle, so a later shift+click is a no-op range', () => {
+  const w = 10, h = 10;
+  const ctx = makeCtx(w, h, makePattern(w, h));
+  let s = initialState();
+  const fx = [];
+  s = step(s, { type: 'POINTER_DOWN', idx: 11, time: 0,
+                pointerId: 1, shiftKey: false, pointerType: 'mouse' }, ctx, fx);
+  s = step(s, { type: 'POINTER_UP', idx: 11, time: 50 }, ctx, fx);
+  expect(s.lastAnchor).toBe(11);
+
+  // Shift is released without ever being used for a range-select.
+  s = step(s, { type: 'SHIFT_UP' }, ctx, fx);
+  expect(s.lastAnchor).toBe(null);
+
+  // A later shift+mousedown now has no anchor to work from — falls
+  // through to a normal pending tap instead of starting a preview.
+  s = step(s, { type: 'POINTER_DOWN', idx: 33, time: 200,
+                pointerId: 2, shiftKey: true, pointerType: 'mouse' }, ctx, fx);
+  expect(s.mode).toBe('pending');
+});
+
+test('SHIFT_UP mid-drag lets the rubber-band finish, then forgets the anchor', () => {
+  const w = 10, h = 10;
+  const ctx = makeCtx(w, h, makePattern(w, h));
+  let s = initialState();
+  const fx = [];
+  s = step(s, { type: 'POINTER_DOWN', idx: 11, time: 0,
+                pointerId: 1, shiftKey: false, pointerType: 'mouse' }, ctx, fx);
+  s = step(s, { type: 'POINTER_UP', idx: 11, time: 50 }, ctx, fx);
+  s = step(s, { type: 'POINTER_DOWN', idx: 33, time: 100,
+                pointerId: 2, shiftKey: true, pointerType: 'mouse' }, ctx, fx);
+  expect(s.mode).toBe('shiftRange');
+
+  // Shift key released while the mouse button is still down.
+  s = step(s, { type: 'SHIFT_UP' }, ctx, fx);
+  // Gesture is untouched — still previewing, no commit yet.
+  expect(s.mode).toBe('shiftRange');
+  expect(fx.filter(e => e.type === 'COMMIT_RANGE')).toHaveLength(0);
+
+  // Continue moving and release — the drag finishes normally...
+  s = step(s, { type: 'POINTER_MOVE', idx: 44, time: 120 }, ctx, fx);
+  s = step(s, { type: 'POINTER_UP', idx: 44, time: 150 }, ctx, fx);
+  const ranges = fx.filter(e => e.type === 'COMMIT_RANGE');
+  expect(ranges).toHaveLength(1);
+  expect(ranges[0].set.size).toBe(16); // (1,1)-(4,4) inclusive = 4x4
+  // ...but the anchor it would normally leave behind is discarded, since
+  // Shift was already released before the gesture completed.
+  expect(s.lastAnchor).toBe(null);
+});
+
+test('holding Shift across multiple clicks still allows chaining range-selects', () => {
+  const w = 10, h = 10;
+  const ctx = makeCtx(w, h, makePattern(w, h));
+  let s = initialState();
+  const fx = [];
+  s = step(s, { type: 'POINTER_DOWN', idx: 11, time: 0,
+                pointerId: 1, shiftKey: false, pointerType: 'mouse' }, ctx, fx);
+  s = step(s, { type: 'POINTER_UP', idx: 11, time: 50 }, ctx, fx);
+
+  // First shift-drag: 11 -> 22, commits, lastAnchor becomes 22.
+  s = step(s, { type: 'POINTER_DOWN', idx: 22, time: 100,
+                pointerId: 2, shiftKey: true, pointerType: 'mouse' }, ctx, fx);
+  s = step(s, { type: 'POINTER_UP', idx: 22, time: 150 }, ctx, fx);
+  expect(s.lastAnchor).toBe(22);
+
+  // Shift never released — a second shift-drag chains from the new anchor.
+  s = step(s, { type: 'POINTER_DOWN', idx: 33, time: 200,
+                pointerId: 3, shiftKey: true, pointerType: 'mouse' }, ctx, fx);
+  expect(s.mode).toBe('shiftRange');
+  expect(s.anchor).toBe(22);
+});
+
+test('SHIFT_UP is a no-op when there is no anchor to forget', () => {
+  const w = 10, h = 10;
+  const ctx = makeCtx(w, h, makePattern(w, h));
+  let s = initialState();
+  const fx = [];
+  s = step(s, { type: 'SHIFT_UP' }, ctx, fx);
+  expect(s.lastAnchor).toBe(null);
+  expect(s.mode).toBe('idle');
+});
+
 test('shift+mousedown with no prior anchor falls through to a normal pending tap', () => {
   const w = 10, h = 10;
   const ctx = makeCtx(w, h, makePattern(w, h));
