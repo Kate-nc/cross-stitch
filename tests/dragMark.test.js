@@ -501,6 +501,12 @@ test('tracker-app.js wires useDragMark handlers and BULK_TOGGLE undo', () => {
   expect(src).toMatch(/dragMarkState|dragState/);
   // BULK_TOGGLE undo case present.
   expect(src).toMatch(/BULK_TOGGLE/);
+  // Canvas should rely on useDragMark's conditional context-menu handler.
+  expect(src).not.toMatch(/\.\.\.dragMarkHandlers[\s\S]{0,160}onContextMenu=\{e=>e\.preventDefault\(\)\}/);
+  // Desktop coachmark matches the live Shift-drag gesture.
+  expect(src).toMatch(/Hold Shift and drag across the rectangle you want to mark, then release\./);
+  // Timing-mode badge exposes the description to assistive technology.
+  expect(src).toMatch(/aria-label=\{"Session timing mode: "\+formatTimingModeLabel\(currentTimingMode\)\+"\.\s"\+formatTimingModeDescription\(currentTimingMode\)\+" Open preferences to change\."\}/);
 });
 
 // ─── Sanity on pure helpers ─────────────────────────────────────────────

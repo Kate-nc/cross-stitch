@@ -10401,9 +10401,7 @@ function TrackerApp({
     },
     onMouseDown: handleStitchMouseDown,
     onMouseMove: handleStitchMouseMove
-  }, dragMarkHandlers, {
-    onContextMenu: e => e.preventDefault()
-  })), _dragMarkActive && dragMarkState && (dragMarkState.path.size > 0 || dragMarkState.anchor != null || dragMarkPulse) && /*#__PURE__*/React.createElement("div", {
+  }, dragMarkHandlers)), _dragMarkActive && dragMarkState && (dragMarkState.path.size > 0 || dragMarkState.anchor != null || dragMarkPulse) && /*#__PURE__*/React.createElement("div", {
     className: "drag-mark-overlay drag-mark-overlay--" + (dragMarkState.intent || 'mark'),
     style: {
       position: "absolute",
@@ -10944,7 +10942,7 @@ function TrackerApp({
       border: "1px solid var(--border)",
       cursor: "pointer"
     },
-    "aria-label": "Session timing mode: " + formatTimingModeLabel(currentTimingMode) + ". Open preferences to change."
+    "aria-label": "Session timing mode: " + formatTimingModeLabel(currentTimingMode) + ". " + formatTimingModeDescription(currentTimingMode) + " Open preferences to change."
   }, formatTimingModeLabel(currentTimingMode)))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -11817,7 +11815,7 @@ function TrackerApp({
   }), _showTrRectSelectCoach && window.Coachmark && React.createElement(window.Coachmark, {
     id: 'rectSelect_tracker',
     title: 'Select a rectangle of stitches',
-    body: _isCoarsePointer ? 'Press and hold a cell, then tap another cell to mark a whole rectangle at once.' : 'Hold Shift and click another cell to mark a whole rectangle at once.',
+    body: _isCoarsePointer ? 'Press and hold a cell, then tap another cell to mark a whole rectangle at once.' : 'Hold Shift and drag across the rectangle you want to mark, then release.',
     placement: 'centre',
     showHighlight: false,
     helpTopic: 'stitching',

@@ -6038,7 +6038,7 @@ return(
           })}
         </div>
         <div style={{ position: 'relative' }}>
-          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid" style={{display:"block",position:"relative",zIndex:2, marginTop: -G, marginLeft: -G, touchAction:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} {...dragMarkHandlers} onContextMenu={e=>e.preventDefault()}/>
+          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid" style={{display:"block",position:"relative",zIndex:2, marginTop: -G, marginLeft: -G, touchAction:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} {...dragMarkHandlers}/>
 
           {/* B2 — drag-mark / range-select visual overlay (touch) */}
           {_dragMarkActive&&dragMarkState&&(dragMarkState.path.size>0||dragMarkState.anchor!=null||dragMarkPulse)&&(
@@ -6247,7 +6247,7 @@ return(
                   <button type="button"
                     onClick={e=>{e.stopPropagation();setPreferencesInitialCategory('tracker');setPreferencesOpen(true);}}
                     style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:600,border:"1px solid var(--border)",cursor:"pointer"}}
-                    aria-label={"Session timing mode: "+formatTimingModeLabel(currentTimingMode)+". Open preferences to change."}
+                    aria-label={"Session timing mode: "+formatTimingModeLabel(currentTimingMode)+". "+formatTimingModeDescription(currentTimingMode)+" Open preferences to change."}
                   >{formatTimingModeLabel(currentTimingMode)}</button>
                 </Tooltip>
               </div>
@@ -6609,7 +6609,7 @@ return(
     title: 'Select a rectangle of stitches',
     body: _isCoarsePointer
       ? 'Press and hold a cell, then tap another cell to mark a whole rectangle at once.'
-      : 'Hold Shift and click another cell to mark a whole rectangle at once.',
+      : 'Hold Shift and drag across the rectangle you want to mark, then release.',
     placement: 'centre',
     showHighlight: false,
     helpTopic: 'stitching',
