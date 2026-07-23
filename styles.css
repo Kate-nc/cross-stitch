@@ -7293,6 +7293,16 @@ body.cs-focus .lpanel-backdrop { display: none !important; }
 .ppal-title{font-size:var(--text-sm);font-weight:700;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;}
 .ppal-close{background:none;border:none;cursor:pointer;color:var(--text-tertiary);padding:2px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1;}
 .ppal-close:hover{color:var(--text-primary);background:var(--surface-tertiary);}
+/* Pin toggle — only meaningful at >=1024px, where the panel docks as a
+   persistent side-pane (see .cs-main--palette-open below). Hidden on
+   mobile/tablet where the panel is a dismissable overlay/bottom-sheet. */
+.ppal-pin-btn{background:none;border:none;cursor:pointer;color:var(--text-tertiary);padding:2px;border-radius:4px;display:none;align-items:center;justify-content:center;flex-shrink:0;line-height:1;margin-right:2px;}
+.ppal-pin-btn:hover{color:var(--text-primary);background:var(--surface-tertiary);}
+.ppal-pin-btn--on{color:var(--accent);}
+.ppal-pin-btn--on:hover{color:var(--accent);background:var(--accent-light);}
+@media(min-width:1024px){
+  .ppal-pin-btn{display:inline-flex;}
+}
 .ppal-progress-bar{height:4px;background:var(--surface-tertiary);border-radius:2px;overflow:hidden;margin-bottom:6px;}
 .ppal-progress-fill{height:100%;background:var(--accent);border-radius:2px;transition:width 0.3s ease;}
 .ppal-header-stats{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
