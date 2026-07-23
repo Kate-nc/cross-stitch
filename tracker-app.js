@@ -1121,7 +1121,19 @@ const setLeftSidebarOpen = useCallback((next)=>{
   });
 },[]);
 const cycleLeftSidebar = useCallback(()=>{
-  setLeftSidebarMode(prev=>prev==="hidden"?"rail":(prev==="rail"?"open":"hidden"));
+  // The "rail" collapsed-strip state is CSS-hidden at >=900px (see the
+  // "Desktop-only: always show palette panel" rule in styles.css, which
+  // forces `.lpanel--rail{display:none!important;}`). If we still routed
+  // through "rail" on those viewports the first click from "hidden" would
+  // land on an invisible state, making the Colours button appear to do
+  // nothing until a second click reached "open". Skip straight to "open"
+  // whenever rail isn't visually supported.
+  var railSupported = !(typeof window!=='undefined' && window.matchMedia && window.matchMedia('(min-width: 900px)').matches);
+  setLeftSidebarMode(prev=>{
+    if(prev==="hidden") return railSupported ? "rail" : "open";
+    if(prev==="rail") return "open";
+    return "hidden";
+  });
 },[]);
 // Tracks whether the screen is currently ≥1024px (docked lpanel mode).
 // Updated by the orientation-change effect; used by the persist effect
