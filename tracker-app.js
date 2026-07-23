@@ -1145,8 +1145,9 @@ const cycleLeftSidebar = useCallback(()=>{
   // nothing until a second click reached "open". Skip straight to "open"
   // whenever rail isn't visually supported.
   var railSupported = !(typeof window!=='undefined' && window.matchMedia && window.matchMedia('(min-width: 900px)').matches);
+  var pinSupported = !!(typeof window!=='undefined' && window.matchMedia && window.matchMedia('(min-width: 1024px)').matches);
   setLeftSidebarMode(prev=>{
-    if(leftSidebarPinnedRef.current && prev==="open") return prev;
+    if(pinSupported && leftSidebarPinnedRef.current && prev==="open") return prev;
     if(prev==="hidden") return railSupported ? "rail" : "open";
     if(prev==="rail") return "open";
     return "hidden";
