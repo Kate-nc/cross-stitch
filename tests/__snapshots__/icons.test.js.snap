@@ -51,6 +51,7 @@ exports[`Icons object used icon set matches snapshot 1`] = `
   "parkFlag",
   "pause",
   "pencil",
+  "pin",
   "play",
   "plus",
   "pointing",

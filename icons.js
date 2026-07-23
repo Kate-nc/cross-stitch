@@ -677,6 +677,14 @@ window.Icons = (function() {
         l(12, 2, 12, 22)
       );
     },
+    // Pin — map-pin outline. Used by the Tracker colour panel header to
+    // toggle "pin panel open" (desktop docked mode).
+    pin: function() {
+      return svg(
+        p('M12 21c-4-4.5-7-8.4-7-11.5a7 7 0 0 1 14 0C19 12.6 16 16.5 12 21z'),
+        c(12, 9.5, 2.25)
+      );
+    },
     // Settings — alias for gear (used by spec EL-SCR-062-* references)
     settings: function() {
       return svg(

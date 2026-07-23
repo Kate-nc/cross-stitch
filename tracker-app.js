@@ -1120,6 +1120,22 @@ const setLeftSidebarOpen = useCallback((next)=>{
     return "hidden";
   });
 },[]);
+// Desktop-only "pin" — keeps the colour panel permanently docked open
+// (see .cs-main--palette-open in styles.css, which shifts the canvas
+// right by 320px so the panel never overlaps the chart) and blocks the
+// Colours toggle button from collapsing it. Only surfaced in the panel
+// header at >=1024px, where the panel docks as a persistent side-pane
+// rather than a mobile/tablet overlay. The explicit close (X) button
+// always works and clears the pin, since that's an unambiguous "I want
+// this gone" action.
+const[leftSidebarPinned,setLeftSidebarPinned]=useState(()=>{
+  try{return localStorage.getItem("cs_pref_trackerLeftSidebarPinned")==="1";}catch(_){return false;}
+});
+const leftSidebarPinnedRef=useRef(leftSidebarPinned);
+leftSidebarPinnedRef.current=leftSidebarPinned;
+useEffect(()=>{
+  try{localStorage.setItem("cs_pref_trackerLeftSidebarPinned",leftSidebarPinned?"1":"0");}catch(_){}
+},[leftSidebarPinned]);
 const cycleLeftSidebar = useCallback(()=>{
   // The "rail" collapsed-strip state is CSS-hidden at >=900px (see the
   // "Desktop-only: always show palette panel" rule in styles.css, which
@@ -1130,6 +1146,7 @@ const cycleLeftSidebar = useCallback(()=>{
   // whenever rail isn't visually supported.
   var railSupported = !(typeof window!=='undefined' && window.matchMedia && window.matchMedia('(min-width: 900px)').matches);
   setLeftSidebarMode(prev=>{
+    if(leftSidebarPinnedRef.current && prev==="open") return prev;
     if(prev==="hidden") return railSupported ? "rail" : "open";
     if(prev==="rail") return "open";
     return "hidden";
@@ -5872,7 +5889,14 @@ return(
       <div className="ppal-header">
         <div className="ppal-header-top">
           <span className="ppal-title" title={projectName||"Pattern"}>{projectName||"Pattern"}</span>
-          <button className="ppal-close" onClick={()=>setLeftSidebarOpen(false)} aria-label="Close palette panel">{Icons.x()}</button>
+          <button
+            className={"ppal-pin-btn"+(leftSidebarPinned?" ppal-pin-btn--on":"")}
+            onClick={()=>setLeftSidebarPinned(v=>!v)}
+            aria-pressed={leftSidebarPinned}
+            aria-label={leftSidebarPinned?"Unpin colour panel":"Pin colour panel open"}
+            title={leftSidebarPinned?"Unpin panel (allow collapsing)":"Pin panel open"}
+          >{Icons.pin&&Icons.pin()}</button>
+          <button className="ppal-close" onClick={()=>{setLeftSidebarPinned(false);setLeftSidebarOpen(false);}} aria-label="Close palette panel">{Icons.x()}</button>
         </div>
         <div className="ppal-progress-bar"><div className="ppal-progress-fill" style={{width:progressPct+"%"}}/></div>
         <div className="ppal-header-stats">
