@@ -1423,12 +1423,23 @@ const SyncEngine = (() => {
           var S = typeof snapStash[id] === "number" ? snapStash[id] : null;
           if (S !== null) {
             if (L !== S && R !== S && L !== R) {
-              // Both devices changed it differently — conflict
+              // Both devices changed it differently — conflict card (user chooses).
+              // modals.js will override plan.stashMerge.threads[id].owned with the choice.
               conflicts.push({ type: "stash", id: "stash:" + id, threadId: id, localOwned: L, remoteOwned: R, snapshotOwned: S });
             } else if (R !== S && L === S) {
-              stashUpdated++; // apply remote silently
+              // Only remote changed — apply remote's value (could be a reduction).
+              // Use R directly instead of mergeStash's max(), which would ignore reductions.
+              stashUpdated++;
+              if (plan.stashMerge && plan.stashMerge.threads && plan.stashMerge.threads[id]) {
+                plan.stashMerge.threads[id].owned = R;
+              }
             } else if (L !== S && R === S) {
-              stashUpdated++; // keep local silently
+              // Only local changed — keep local's value (could be a reduction).
+              // Use L directly instead of mergeStash's max(), which would ignore reductions.
+              stashUpdated++;
+              if (plan.stashMerge && plan.stashMerge.threads && plan.stashMerge.threads[id]) {
+                plan.stashMerge.threads[id].owned = L;
+              }
             }
           } else {
             // Thread not in snapshot — treat as non-conflicting (conservative merge)
@@ -1705,7 +1716,21 @@ const SyncEngine = (() => {
         await ProjectStorage.save(merged);
         // Delete the now-orphaned local record (only if its id differs from canonical).
         if (oldLocalId && oldLocalId !== canon && ProjectStorage.delete) {
-          try { await ProjectStorage.delete(oldLocalId); } catch (e) {
+          try {
+            await ProjectStorage.delete(oldLocalId);
+            // ProjectStorage.delete() writes a tombstone for the deleted ID. For idRewrite
+            // deletions this is wrong: the deletion is a structural ID-convergence (not a
+            // user deletion), so a tombstone would permanently block future imports from
+            // any third device still using the old ID. Remove the tombstone immediately.
+            try {
+              var _tbs = getLocalTombstones();
+              var _tidx = _tbs.indexOf(oldLocalId);
+              if (_tidx !== -1) {
+                _tbs.splice(_tidx, 1);
+                localStorage.setItem(LS_TOMBSTONE_KEY, JSON.stringify(_tbs));
+              }
+            } catch (_) {}
+          } catch (e) {
             console.warn("SyncEngine: could not delete orphaned project " + oldLocalId, e);
           }
         }

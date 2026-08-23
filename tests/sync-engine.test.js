@@ -1084,6 +1084,165 @@ describe('executeImport: canonical-id reconciliation', () => {
 });
 
 // ---------------------------------------------------------------------------
+// executeImport: idRewrite must NOT leave a tombstone for the orphaned ID.
+// Regression for the 3-device phantom-block bug:
+//   Device A (proj_local) + Device B (proj_remote) → idRewrite → canonical = proj_remote.
+//   Device C still holds proj_local. If proj_local is tombstoned, Device C's future
+//   imports would be silently skipped forever.
+// ---------------------------------------------------------------------------
+
+describe('executeImport: idRewrite tombstone cleanup', () => {
+  const TS_KEY = 'cs_deleted_project_ids';
+
+  function makeChart(id, updatedAt) {
+    return {
+      id, name: 'Chart ' + id, w: 2, h: 2,
+      settings: { sW: 2, sH: 2 },
+      pattern: [{ id: '310', type: 'solid', rgb: [0,0,0] }, { id: '550', type: 'solid', rgb: [128,58,153] },
+                { id: '310', type: 'solid', rgb: [0,0,0] }, { id: '__skip__' }],
+      done: null, sessions: [], threadOwned: {}, updatedAt
+    };
+  }
+
+  beforeEach(() => {
+    global.localStorage.removeItem(TS_KEY);
+    global.ProjectStorage = {
+      _store: {},
+      listProjects: async function() { return Object.values(this._store).map(p => ({ id: p.id })); },
+      get: async function(id) { return this._store[id] || null; },
+      save: async function(p) { if (!p.id) p.id = 'proj_auto'; this._store[p.id] = p; return p.id; },
+      // Simulate the real ProjectStorage.delete tombstone-writing behaviour.
+      delete: async function(id) {
+        delete this._store[id];
+        try {
+          var raw = global.localStorage.getItem(TS_KEY);
+          var arr = raw ? JSON.parse(raw) : [];
+          if (!arr.includes(id)) { arr.push(id); global.localStorage.setItem(TS_KEY, JSON.stringify(arr)); }
+        } catch(_) {}
+      }
+    };
+  });
+
+  test('idRewrite delete does not leave a tombstone for the orphaned ID', async () => {
+    var local  = makeChart('proj_b_bbbb', '2024-06-01T00:00:00Z');
+    var remote = makeChart('proj_a_aaaa', '2024-06-02T00:00:00Z');
+    global.ProjectStorage._store['proj_b_bbbb'] = local;
+
+    var plan = {
+      newRemote: [],
+      mergeTracking: [{
+        id: remote.id, local, remote: { data: remote },
+        idRewrite: { localId: 'proj_b_bbbb', remoteId: 'proj_a_aaaa', canonicalId: 'proj_a_aaaa' }
+      }],
+      conflicts: [], stashMerge: null
+    };
+
+    await SE.executeImport(plan, {});
+
+    // Old local ID should be gone from IDB.
+    expect(global.ProjectStorage._store['proj_b_bbbb']).toBeUndefined();
+    // Canonical record should be present.
+    expect(global.ProjectStorage._store['proj_a_aaaa']).toBeDefined();
+    // Tombstone must NOT contain the orphaned ID (Device C would be blocked otherwise).
+    var tombstones = JSON.parse(global.localStorage.getItem(TS_KEY) || '[]');
+    expect(tombstones).not.toContain('proj_b_bbbb');
+  });
+
+  test('real user deletions are still tombstoned (idRewrite cleanup is scoped)', async () => {
+    // Pre-populate a real user deletion tombstone.
+    global.localStorage.setItem(TS_KEY, JSON.stringify(['proj_user_deleted']));
+
+    var local  = makeChart('proj_b_bbbb', '2024-06-01T00:00:00Z');
+    var remote = makeChart('proj_a_aaaa', '2024-06-02T00:00:00Z');
+    global.ProjectStorage._store['proj_b_bbbb'] = local;
+
+    var plan = {
+      newRemote: [],
+      mergeTracking: [{
+        id: remote.id, local, remote: { data: remote },
+        idRewrite: { localId: 'proj_b_bbbb', remoteId: 'proj_a_aaaa', canonicalId: 'proj_a_aaaa' }
+      }],
+      conflicts: [], stashMerge: null
+    };
+
+    await SE.executeImport(plan, {});
+
+    var tombstones = JSON.parse(global.localStorage.getItem(TS_KEY) || '[]');
+    // Pre-existing real user deletion must still be there.
+    expect(tombstones).toContain('proj_user_deleted');
+    // Orphaned idRewrite ID must not be there.
+    expect(tombstones).not.toContain('proj_b_bbbb');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// analyseConflicts: stash thread reductions
+// With a snapshot, a one-sided reduction (L < S, R = S) should be applied
+// directly instead of letting mergeStash's max() override it back to S.
+// ---------------------------------------------------------------------------
+
+describe('analyseConflicts: stash thread reductions', () => {
+  function makeStashPlan(localOwned, remoteOwned) {
+    var localStash  = { threads: { '310': { owned: localOwned,  tobuy: false } } };
+    var remoteStash = { threads: { '310': { owned: remoteOwned, tobuy: false } } };
+    return {
+      newRemote: [], mergeTracking: [], conflicts: [], localOnly: [],
+      stashMerge: SE.mergeStash(localStash, remoteStash),  // max() baseline
+      localStash,
+      syncObj: { stash: remoteStash },
+      remoteTombstones: []
+    };
+  }
+
+  function makeSnapshot(snapOwned) {
+    return { projects: {}, stash: { '310': snapOwned }, prefs: {} };
+  }
+
+  test('local reduced skeins: plan.stashMerge uses local value, not max', () => {
+    // Snapshot: 5. Local used 3 (now 2). Remote unchanged (still 5).
+    // Expected: merged.owned = 2  (local wins), NOT 5 (max would give 5).
+    var plan = makeStashPlan(2, 5);
+    SE.analyseConflicts(plan, makeSnapshot(5));
+    expect(plan.stashMerge.threads['310'].owned).toBe(2);
+  });
+
+  test('remote reduced skeins: plan.stashMerge uses remote value, not max', () => {
+    // Snapshot: 5. Remote used 3 (now 2). Local unchanged (still 5).
+    // Expected: merged.owned = 2  (remote wins), NOT 5 (max would give 5).
+    var plan = makeStashPlan(5, 2);
+    SE.analyseConflicts(plan, makeSnapshot(5));
+    expect(plan.stashMerge.threads['310'].owned).toBe(2);
+  });
+
+  test('both devices reduced differently: conflict card is raised, not auto-resolved', () => {
+    // Snapshot: 5. Local: 3. Remote: 1. Both changed differently → conflict card.
+    var plan = makeStashPlan(3, 1);
+    var result = SE.analyseConflicts(plan, makeSnapshot(5));
+    var stashConflicts = result.conflicts.filter(c => c.type === 'stash');
+    expect(stashConflicts).toHaveLength(1);
+    expect(stashConflicts[0].localOwned).toBe(3);
+    expect(stashConflicts[0].remoteOwned).toBe(1);
+    // plan.stashMerge is left for modals.js to override via conflict resolution.
+  });
+
+  test('no snapshot: falls back to max (existing safe default)', () => {
+    // Without a snapshot we cannot determine which side changed, so max is safest.
+    var plan = makeStashPlan(2, 5);
+    SE.analyseConflicts(plan, null);  // null snapshot
+    expect(plan.stashMerge.threads['310'].owned).toBe(5);  // max(2,5) = 5
+  });
+
+  test('only local bought more: no conflict, stashMerge uses local value', () => {
+    // Snapshot: 2. Local bought 2 more (now 4). Remote unchanged (still 2).
+    // L !== S, R === S → only local changed → apply L, no conflict card.
+    var plan = makeStashPlan(4, 2);
+    var result = SE.analyseConflicts(plan, makeSnapshot(2));
+    expect(result.conflicts.filter(c => c.type === 'stash')).toHaveLength(0);
+    expect(plan.stashMerge.threads['310'].owned).toBe(4);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // prepareImport surfaces idRewrites + does not double-count local-only.
 // ---------------------------------------------------------------------------
 
