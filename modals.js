@@ -738,7 +738,7 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
     }, []);
     return h(window.Overlay, {
       onClose: props.onCancel, variant: 'dialog', maxWidth: 440,
-      labelledBy: titleId
+      labelledBy: titleId, zIndex: 1200
     },
       h(window.Overlay.CloseButton, { onClose: props.onCancel }),
       h('div', { style: { padding: 24 } },
@@ -822,7 +822,7 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
     }
     return h(window.Overlay, {
       onClose: props.onCancel, variant: 'dialog', maxWidth: 440,
-      labelledBy: titleId
+      labelledBy: titleId, zIndex: 1200
     },
       h(window.Overlay.CloseButton, { onClose: props.onCancel }),
       h('div', { style: { padding: 24 } },
