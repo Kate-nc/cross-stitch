@@ -1668,6 +1668,22 @@ const SyncEngine = (() => {
         || (mEntry.local && mEntry.local.id)
         || mEntry.id;
       var freshLocal = await ProjectStorage.get(localId);
+      // Honour keep-remote stitch gate resolution: zero out only the disputed cells
+      // (local=1, remote=0) in freshLocal.done before the union merge so those cells
+      // end up as 0 (remote's value). Additive cells (remote=1, local=0) are preserved.
+      // The stitch conflict id in gateResolutions is the project id (= mEntry.id = remote.id).
+      // For idRewrite entries localId differs from mEntry.id, so check both.
+      var srRes = gateResolutions[localId] || gateResolutions[mEntry.id] || 'keep-local';
+      if (srRes === 'keep-remote'
+          && freshLocal && freshLocal.done
+          && mEntry.remote && mEntry.remote.data && mEntry.remote.data.done) {
+        var srRemDone = mEntry.remote.data.done;
+        var srAdjDone = Array.prototype.slice.call(freshLocal.done);
+        for (var srdi = 0; srdi < srAdjDone.length; srdi++) {
+          if (srAdjDone[srdi] === 1 && !srRemDone[srdi]) srAdjDone[srdi] = 0;
+        }
+        freshLocal = Object.assign({}, freshLocal, { done: srAdjDone });
+      }
       // Build per-field meta overrides for this project from gateResolutions.
       var projectMetaOverrides = null;
       var metaProjectId = localId || mEntry.id;

@@ -155,6 +155,29 @@ describe('mergeDoneArrays', () => {
     const result = SE.mergeDoneArrays(done, [...done], 4);
     expect(result).toEqual([1, 0, 1, 0]);
   });
+
+  // Regression: stitch-conflict "keep-local" must preserve remote additive cells.
+  // The conflict UI only flags cells where local=1 AND remote=0. Cells where
+  // remote=1 AND local=0 are purely additive and must always survive the merge,
+  // regardless of what the user chose for the contested cells.
+  test('keep-local: local wins disputed cells AND remote additive cells are preserved', () => {
+    // cell 0: local done, remote not  → disputed (local should win → 1)
+    // cell 1: local not,  remote done → additive  (must survive → 1)
+    // cell 2: neither done            → stays 0
+    const local  = [1, 0, 0];
+    const remote = [0, 1, 0];
+    // keep-local: pass both arrays unchanged — union handles it
+    expect(SE.mergeDoneArrays(local, remote, 3)).toEqual([1, 1, 0]);
+  });
+
+  test('keep-remote: remote wins disputed cells AND remote additive cells are preserved', () => {
+    // cell 0: local done, remote not  → disputed (remote should win → 0)
+    // cell 1: local not,  remote done → additive  (must survive → 1)
+    // cell 2: neither done            → stays 0
+    const remote = [0, 1, 0];
+    // keep-remote: null out local.done entirely so union = remote.done
+    expect(SE.mergeDoneArrays(null, remote, 3)).toEqual([0, 1, 0]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -781,6 +804,47 @@ describe('executeImport', () => {
     const result = await SE.executeImport(plan, {});
     expect(result.conflictsResolved).toBe(1);
     expect(global.ProjectStorage._store['proj_1'].pattern[0].id).toBe('310');
+  });
+
+  test('keep-remote stitch gate resolution: disputed cells become 0, additive remote cells preserved', async () => {
+    // local: cell 0 done (disputed — remote has it not done)
+    // remote: cell 1 done (additive — local has it not done)
+    // keep-remote → cell 0 should end up NOT done, cell 1 should be done
+    const local  = makeProject('proj_1', '2024-06-01T00:00:00Z', undefined, [1, 0, 0, 0]);
+    const remote = makeProject('proj_1', '2024-06-02T00:00:00Z', undefined, [0, 1, 0, 0]);
+    global.ProjectStorage._store['proj_1'] = local;
+
+    const plan = {
+      newRemote: [],
+      mergeTracking: [{ id: 'proj_1', local: local, remote: { data: remote } }],
+      conflicts: [],
+      stashMerge: null
+    };
+
+    await SE.executeImport(plan, {}, { 'proj_1': 'keep-remote' });
+    const saved = global.ProjectStorage._store['proj_1'];
+    // disputed cell 0: remote wins → 0
+    // additive cell 1: remote-only but preserved regardless of resolution → 1
+    expect(saved.done).toEqual([0, 1, 0, 0]);
+  });
+
+  test('keep-local stitch gate resolution: disputed cells stay done, additive remote cells also preserved', async () => {
+    // local: cell 0 done (disputed), remote: cell 1 done (additive)
+    // keep-local (default) → both cells should end up done (union)
+    const local  = makeProject('proj_1', '2024-06-01T00:00:00Z', undefined, [1, 0, 0, 0]);
+    const remote = makeProject('proj_1', '2024-06-02T00:00:00Z', undefined, [0, 1, 0, 0]);
+    global.ProjectStorage._store['proj_1'] = local;
+
+    const plan = {
+      newRemote: [],
+      mergeTracking: [{ id: 'proj_1', local: local, remote: { data: remote } }],
+      conflicts: [],
+      stashMerge: null
+    };
+
+    await SE.executeImport(plan, {}, { 'proj_1': 'keep-local' });
+    const saved = global.ProjectStorage._store['proj_1'];
+    expect(saved.done).toEqual([1, 1, 0, 0]);
   });
 
   test('handles mixed operations in one import', async () => {

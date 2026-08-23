@@ -2094,32 +2094,14 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
         });
       }
 
-      // Pre-apply stitch conflict resolutions by adjusting the plan's done arrays
-      // so that mergeDoneArrays produces the user-chosen result:
-      //   keep-remote → use remote.done exactly (null out local.done so union = remote)
-      //   keep-local  → use local.done exactly  (null out remote.done so union = local)
-      // Object.assign creates a new object so the original entry refs are not mutated.
-      // Only the `done` property (a direct scalar/array ref) is replaced with null —
-      // no nested object is modified — so a shallow clone is sufficient here.
-      if (gateState && gateState.conflicts && plan) {
-        gateState.conflicts.forEach(function(c) {
-          if (c.type !== 'stitch' || !c.entry) return;
-          var res = resolutions[c.id] || 'keep-local';
-          var entry = c.entry;
-          if (res === 'keep-remote') {
-            // Replace entry.local with a new object that has done: null so the
-            // union merge falls back entirely to remote.done.
-            entry.local = Object.assign({}, entry.local, { done: null });
-          } else {
-            // keep-local: null out remote's done array so the union returns local.done.
-            if (entry.remote && entry.remote.data) {
-              entry.remote = Object.assign({}, entry.remote, {
-                data: Object.assign({}, entry.remote.data, { done: null })
-              });
-            }
-          }
-        });
-      }
+      // Stitch conflict resolutions (keep-local / keep-remote) are handled inside
+      // SyncEngine.executeImport via the gateResMap passed below. They are NOT
+      // pre-applied here because executeImport re-reads freshLocal from IDB, so
+      // any mutation of entry.local.done here would be silently ignored.
+      //   keep-local  → no-op; the union in mergeDoneArrays already keeps local=1
+      //                 cells done and merges in any remote-only additive cells.
+      //   keep-remote → handled in executeImport: disputed cells (local=1, remote=0)
+      //                 are zeroed in freshLocal.done before the union merge.
 
       // Pre-apply stash conflict resolutions by overriding the merged stash
       // thread owned count with the user's chosen side before IDB write.
