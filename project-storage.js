@@ -680,8 +680,17 @@ const ProjectStorage = (() => {
               var raw = localStorage.getItem(LS_TOMBSTONE_KEY);
               var tombstones = [];
               try { tombstones = JSON.parse(raw) || []; } catch (_) {}
-              if (!tombstones.includes(id)) {
-                tombstones.push(id);
+              if (!Array.isArray(tombstones)) tombstones = [];
+              // Records are { id, deletedAt }. The timestamp lets SyncEngine
+              // tell a stale deletion from a live one: if a peer edits the
+              // project after we deleted it, that work is accepted back
+              // instead of being blocked forever. Legacy bare-string entries
+              // are left as-is and normalised on read.
+              var already = tombstones.some(function (t) {
+                return (typeof t === "string") ? t === id : (t && t.id === id);
+              });
+              if (!already) {
+                tombstones.push({ id: id, deletedAt: new Date().toISOString() });
                 // Cap at 200 to avoid unbounded localStorage growth.
                 if (tombstones.length > 200) tombstones = tombstones.slice(tombstones.length - 200);
                 localStorage.setItem(LS_TOMBSTONE_KEY, JSON.stringify(tombstones));

@@ -95,13 +95,67 @@ const SyncEngine = (() => {
   // when exporting (so remote devices know not to re-import it) and when
   // classifying remote projects (so already-deleted projects are skipped).
   var LS_TOMBSTONE_KEY = "cs_deleted_project_ids";
+  var TOMBSTONE_MAX = 200;
 
-  function getLocalTombstones() {
+  // Tombstones are stored as { id, deletedAt } records. They used to be bare
+  // id strings, which made a deletion permanent and unconditional: once an id
+  // was tombstoned, classifyProjects skipped it on every future import from
+  // every device, forever, with nothing in the UI to say why. A user who
+  // deleted a pattern on one device months ago would silently never receive
+  // the peer's ongoing work on it.
+  //
+  // Legacy bare-string entries normalise to deletedAt:null and keep the old
+  // always-skip behaviour — we can't know when they were deleted, and quietly
+  // resurrecting months-old deletions would be a worse surprise. They are
+  // visible via getTombstones() and can be released individually.
+  function getTombstoneRecords() {
     try {
       var raw = localStorage.getItem(LS_TOMBSTONE_KEY);
       var arr = raw ? JSON.parse(raw) : [];
-      return Array.isArray(arr) ? arr : [];
+      if (!Array.isArray(arr)) return [];
+      var out = [];
+      for (var i = 0; i < arr.length; i++) {
+        var e = arr[i];
+        if (typeof e === "string") {
+          out.push({ id: e, deletedAt: null });
+        } else if (e && typeof e === "object" && typeof e.id === "string") {
+          out.push({ id: e.id, deletedAt: e.deletedAt || null });
+        }
+      }
+      return out;
     } catch (e) { return []; }
+  }
+
+  // Id-only view. The .csync wire format carries a plain id array, and
+  // callers that only need membership use this.
+  function getLocalTombstones() {
+    return getTombstoneRecords().map(function (r) { return r.id; });
+  }
+
+  function _writeTombstoneRecords(records) {
+    try {
+      var trimmed = (records.length > TOMBSTONE_MAX)
+        ? records.slice(records.length - TOMBSTONE_MAX)
+        : records;
+      localStorage.setItem(LS_TOMBSTONE_KEY, JSON.stringify(trimmed));
+    } catch (e) {}
+  }
+
+  // Release a tombstone so the pattern can arrive again from a peer.
+  function forgetTombstone(id) {
+    var records = getTombstoneRecords();
+    var kept = records.filter(function (r) { return r.id !== id; });
+    if (kept.length === records.length) return false;
+    _writeTombstoneRecords(kept);
+    _logEvent({ type: "tombstone-released", message: 'Allowed "' + id + '" to sync again' });
+    return true;
+  }
+
+  function clearTombstones() {
+    var n = getTombstoneRecords().length;
+    try { localStorage.removeItem(LS_TOMBSTONE_KEY); } catch (e) {}
+    if (n) _logEvent({ type: "tombstone-released", message: "Cleared " + n + " deletion record" + (n === 1 ? "" : "s") });
+    return n;
   }
 
   // ── Fingerprinting ───────────────────────────────────────────────────────
@@ -402,6 +456,10 @@ const SyncEngine = (() => {
       // which projects this device has intentionally deleted. The receiving
       // device should not re-import any project whose id appears in this list.
       deletedProjectIds: getLocalTombstones(),
+      // Additive companion to deletedProjectIds carrying the deletion time, so
+      // a peer can tell an old deletion from a fresh one. Older builds ignore
+      // this field and fall back to the id list above.
+      deletedProjects: getTombstoneRecords(),
       projects: projectsToExport.map(function (p) {
         return {
           id: p.id,
@@ -858,9 +916,14 @@ const SyncEngine = (() => {
     // Collect tombstones from both local and remote so we can skip projects
     // that were intentionally deleted on either device.
     // localTombstoneSet: ids deleted on this device (never re-import them).
-    var localTombstones = getLocalTombstones();
+    var localTombstoneRecords = getTombstoneRecords();
     var localTombstoneSet = Object.create(null);
-    for (var ti = 0; ti < localTombstones.length; ti++) localTombstoneSet[localTombstones[ti]] = true;
+    for (var ti = 0; ti < localTombstoneRecords.length; ti++) {
+      localTombstoneSet[localTombstoneRecords[ti].id] = localTombstoneRecords[ti];
+    }
+    // Projects we refused to import, and why. Surfaced on the plan so the
+    // reason is visible instead of the pattern just never appearing.
+    var skippedTombstoned = [];
     // Build fingerprint index from local projects so we can match remotes
     // whose ids differ but whose chart contents are identical. Only used
     // when there is no direct id match.
@@ -880,9 +943,29 @@ const SyncEngine = (() => {
       var remote = remoteProjects[i];
 
       // VER-SYNC-009: skip remote projects that this device has tombstoned.
-      // If the local user already deleted this project, do not re-import it
-      // — treat it as if it were identical (already handled) and continue.
-      if (localTombstoneSet[remote.id]) continue;
+      // A deletion here does NOT outrank work the peer did afterwards: if the
+      // remote copy was edited after we deleted ours, the other device is
+      // actively using that pattern, so we accept it back and release the
+      // tombstone. Without this, one old deletion silently black-holed a
+      // pattern on that device permanently.
+      var tomb = localTombstoneSet[remote.id];
+      if (tomb) {
+        var deletedAtMs = tomb.deletedAt ? new Date(tomb.deletedAt).getTime() : null;
+        var remoteUpdatedMs = remote.updatedAt ? new Date(remote.updatedAt).getTime() : 0;
+        var staleDeletion = (deletedAtMs !== null)
+          && isFinite(deletedAtMs)
+          && remoteUpdatedMs > deletedAtMs;
+        if (!staleDeletion) {
+          skippedTombstoned.push({
+            id: remote.id,
+            name: (remote.data && remote.data.name) || null,
+            deletedAt: tomb.deletedAt,
+            remoteUpdatedAt: remote.updatedAt || null,
+            reason: (deletedAtMs === null) ? "legacy-tombstone" : "deleted-after-remote-edit"
+          });
+          continue;
+        }
+      }
 
       var local = localProjectsMap[remote.id] || null;
       var entry = {
@@ -932,8 +1015,12 @@ const SyncEngine = (() => {
           }
         }
       }
+      if (tomb) entry.releasedTombstone = true;
       results.push(entry);
     }
+    // Carried as a property so the return type stays a plain entry array for
+    // every existing caller; prepareImport lifts it onto the plan.
+    results.skippedTombstoned = skippedTombstoned;
     return results;
   }
 
@@ -1833,6 +1920,13 @@ const SyncEngine = (() => {
       // VER-SYNC-009: remote tombstones to absorb into local deleted-ids list.
       remoteTombstones: (syncObj.deletedProjectIds && Array.isArray(syncObj.deletedProjectIds))
         ? syncObj.deletedProjectIds : [],
+      // Timestamped form when the peer is new enough to send it. Without this
+      // the deletedAt would be lost at the first hop and every absorbed
+      // tombstone would degrade to the legacy always-skip behaviour.
+      remoteTombstoneRecords: (syncObj.deletedProjects && Array.isArray(syncObj.deletedProjects))
+        ? syncObj.deletedProjects : null,
+      // Remote projects we declined to import, with the reason.
+      skippedTombstoned: classified.skippedTombstoned || [],
       syncObj: syncObj,
       localMap: localMap,
       localStash: localStash
@@ -2041,21 +2135,59 @@ const SyncEngine = (() => {
     // 5. Absorb remote tombstones: merge the remote's deleted-project list into
     //    our local tombstone store so that projects deleted on the remote device
     //    are also skipped on this device on the next import.
-    if (plan.remoteTombstones && plan.remoteTombstones.length) {
+    if ((plan.remoteTombstones && plan.remoteTombstones.length)
+        || (plan.remoteTombstoneRecords && plan.remoteTombstoneRecords.length)) {
       try {
-        var existingTombstones = getLocalTombstones();
+        var existingRecords = getTombstoneRecords();
         var tombstoneSet = Object.create(null);
-        for (var tsi = 0; tsi < existingTombstones.length; tsi++) tombstoneSet[existingTombstones[tsi]] = true;
+        for (var tsi = 0; tsi < existingRecords.length; tsi++) tombstoneSet[existingRecords[tsi].id] = true;
+        // Prefer the timestamped form; fall back to bare ids from older peers.
+        var incoming = [];
+        if (plan.remoteTombstoneRecords && plan.remoteTombstoneRecords.length) {
+          for (var rri = 0; rri < plan.remoteTombstoneRecords.length; rri++) {
+            var rec = plan.remoteTombstoneRecords[rri];
+            if (rec && typeof rec.id === "string") incoming.push({ id: rec.id, deletedAt: rec.deletedAt || null });
+          }
+        } else {
+          for (var rti = 0; rti < plan.remoteTombstones.length; rti++) {
+            incoming.push({ id: plan.remoteTombstones[rti], deletedAt: null });
+          }
+        }
         var changed = false;
-        for (var rti = 0; rti < plan.remoteTombstones.length; rti++) {
-          var rtId = plan.remoteTombstones[rti];
-          if (!tombstoneSet[rtId]) { existingTombstones.push(rtId); changed = true; }
+        for (var ii = 0; ii < incoming.length; ii++) {
+          if (!tombstoneSet[incoming[ii].id]) {
+            existingRecords.push(incoming[ii]);
+            tombstoneSet[incoming[ii].id] = true;
+            changed = true;
+          }
         }
-        if (changed) {
-          if (existingTombstones.length > 200) existingTombstones = existingTombstones.slice(existingTombstones.length - 200);
-          localStorage.setItem(LS_TOMBSTONE_KEY, JSON.stringify(existingTombstones));
-        }
+        if (changed) _writeTombstoneRecords(existingRecords);
       } catch (_) {}
+    }
+
+    // 5a. Release tombstones for projects we accepted back because the peer
+    //     had edited them after our deletion. Leaving them would re-evaluate
+    //     the same resurrection on every future sync.
+    try {
+      var reAccepted = (plan.newRemote || []).concat(plan.mergeTracking || [])
+        .filter(function (e) { return e && e.releasedTombstone && e.id; });
+      for (var rai = 0; rai < reAccepted.length; rai++) forgetTombstone(reAccepted[rai].id);
+    } catch (_) {}
+
+    // Make declined imports visible — previously the pattern simply never
+    // appeared, with nothing anywhere explaining why.
+    if (plan.skippedTombstoned && plan.skippedTombstoned.length) {
+      _logEvent({
+        type: "tombstone-skipped",
+        direction: "in",
+        deviceId: (plan.syncObj && plan.syncObj._deviceId) || null,
+        deviceName: (plan.syncObj && plan.syncObj._deviceName) || null,
+        projectCount: plan.skippedTombstoned.length,
+        message: plan.skippedTombstoned.length + " pattern"
+          + (plan.skippedTombstoned.length === 1 ? " was" : "s were")
+          + " not imported — deleted on this device. Use SyncEngine.forgetTombstone(id) to allow "
+          + (plan.skippedTombstoned.length === 1 ? "it" : "them") + " back."
+      });
     }
 
     // 5b. Apply remote prefs and custom palettes to localStorage.
@@ -3551,6 +3683,11 @@ const SyncEngine = (() => {
     // Destructive: wipe this device's library + sync bookkeeping so it can be
     // rebuilt from a peer. Requires { confirm: "DELETE_LOCAL_LIBRARY" }.
     resetForResync: resetForResync,
+
+    // Deletion records — inspect why a pattern isn't arriving, and release it.
+    getTombstones: getTombstoneRecords,
+    forgetTombstone: forgetTombstone,
+    clearTombstones: clearTombstones,
 
     // Snapshot
     readSnapshot: readSnapshot,
