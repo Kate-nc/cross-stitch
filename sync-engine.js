@@ -1656,11 +1656,16 @@ const SyncEngine = (() => {
     // projects are re-presented on next import.  Partial imports do NOT corrupt
     // data — they only mean some projects were not yet imported.
 
-    // 1. Import new-remote projects
+    // 1. Import new-remote projects.
+    //    preserveUpdatedAt keeps the authoring device's edit time. Without it
+    //    every imported project is stamped with the import moment, which both
+    //    destroys the real "last edited" dates and reverses the library order
+    //    on the receiving device (we save newest-first; listProjects sorts
+    //    newest-first again).
     for (var i = 0; i < plan.newRemote.length; i++) {
       var entry = plan.newRemote[i];
       try {
-        await ProjectStorage.save(entry.remote.data);
+        await ProjectStorage.save(entry.remote.data, { preserveUpdatedAt: true });
       } catch (saveErr) {
         if (saveErr && saveErr.name === "QuotaExceededError") {
           throw new Error("Not enough browser storage to import all projects — free up space or clear cached data and try again. (QuotaExceededError saving \"" + (entry.remote.data && entry.remote.data.name || entry.remote.id) + "\")");
@@ -1713,7 +1718,9 @@ const SyncEngine = (() => {
         var canon = mEntry.idRewrite.canonicalId;
         var oldLocalId = (freshLocal && freshLocal.id) || localId;
         merged.id = canon;
-        await ProjectStorage.save(merged);
+        // mergeTrackingProgress already resolved updatedAt to the later of
+        // the two sides — preserve it rather than restamping with "now".
+        await ProjectStorage.save(merged, { preserveUpdatedAt: true });
         // Delete the now-orphaned local record (only if its id differs from canonical).
         if (oldLocalId && oldLocalId !== canon && ProjectStorage.delete) {
           try {
@@ -1735,7 +1742,7 @@ const SyncEngine = (() => {
           }
         }
       } else {
-        await ProjectStorage.save(merged);
+        await ProjectStorage.save(merged, { preserveUpdatedAt: true });
       }
     }
 
@@ -1744,7 +1751,7 @@ const SyncEngine = (() => {
       var cEntry = plan.conflicts[k];
       var resolution = conflictResolutions[cEntry.id] || "keep-local";
       if (resolution === "keep-remote") {
-        await ProjectStorage.save(cEntry.remote.data);
+        await ProjectStorage.save(cEntry.remote.data, { preserveUpdatedAt: true });
       } else if (resolution === "keep-both") {
         // Keep local as-is; import remote as a new project via normal save logic
         var remoteCopy = _clone(cEntry.remote.data); // PERF (perf-6 #5)

@@ -339,7 +339,19 @@ const ProjectStorage = (() => {
 
     // Save a project. Assigns a new ID and createdAt if the project has none.
     // Returns a Promise<string> of the saved project ID.
-    async save(project) {
+    //
+    // options.preserveUpdatedAt — keep the project's existing `updatedAt`
+    // instead of restamping it with this device's wall clock. Sync writes
+    // MUST pass this. An imported record's `updatedAt` is the *authoring*
+    // device's edit time; overwriting it with "now" destroyed the real edit
+    // history and — because executeImport saves newest-first while
+    // listProjects() sorts newest-first again — inverted the receiving
+    // device's library, surfacing the oldest patterns at the top. It also
+    // made the `identical` classification in SyncEngine.classifyProjects
+    // unreachable, so every shared project stayed permanently in
+    // merge-tracking and re-synced on every watcher tick.
+    async save(project, options) {
+      const opts = options || {};
       if (!project.id) {
         project.id = this.newId();
         project.createdAt = new Date().toISOString();
@@ -348,7 +360,9 @@ const ProjectStorage = (() => {
       if (this._deletedIds.has(project.id)) {
         return project.id;
       }
-      project.updatedAt = new Date().toISOString();
+      if (!(opts.preserveUpdatedAt && project.updatedAt)) {
+        project.updatedAt = new Date().toISOString();
+      }
       // INT-7 Phase B: stamp a numeric (epoch ms) write timestamp and the
       // authoring tab id alongside the existing ISO `updatedAt` string.
       // These power the stale-read conflict detection in Phase B-2:
