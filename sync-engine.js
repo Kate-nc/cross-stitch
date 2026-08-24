@@ -991,6 +991,105 @@ const SyncEngine = (() => {
     return total;
   }
 
+  // ── Field-coverage helpers (sync fix #7) ─────────────────────────────────
+  //
+  // mergeTrackingProgress takes the LOCAL project as its base, so any field it
+  // doesn't explicitly merge silently keeps the local value forever. That is
+  // why a "successfully merged" pattern could still look stale: per-day stitch
+  // history, fractional stitches, completion status, thumbnail and notes never
+  // crossed between devices. Every helper below must be idempotent — these run
+  // unattended on every peer publish now that merge-tracking auto-applies.
+
+  // Project-level metadata resolved by "newer updatedAt wins". These are small,
+  // user-editable, and CAN legitimately be cleared, so an empty remote value is
+  // allowed to replace a non-empty local one when the remote is newer.
+  var META_NEWEST_WINS = ["name", "state", "finishStatus", "projectColor",
+                          "designer", "description", "notes"];
+
+  // Derived or expensive assets. Newer still wins, but we never replace a
+  // present value with an absent one — losing a thumbnail or the source image
+  // because the other device hadn't generated one yet is pure data loss, not
+  // an edit the user intended.
+  var META_PREFER_PRESENT = ["thumbnail", "imgData", "palette", "settings"];
+
+  // Union of `[index, detail]` pair arrays — the serialised-Map shape used by
+  // halfStitches ([idx, {fwd, bck}]) and partialStitches ([k, {TL,TR,BL,BR}]).
+  // Local wins per sub-key so a device never loses its own fractional work;
+  // remote contributes only the positions local hasn't recorded.
+  function mergeIndexedPairs(localPairs, remotePairs) {
+    var lp = Array.isArray(localPairs) ? localPairs : [];
+    var rp = Array.isArray(remotePairs) ? remotePairs : [];
+    if (!lp.length && !rp.length) return Array.isArray(localPairs) ? localPairs : (Array.isArray(remotePairs) ? remotePairs : []);
+    var byIndex = Object.create(null);
+    var order = [];
+    function absorb(pairs, isLocal) {
+      for (var i = 0; i < pairs.length; i++) {
+        var pair = pairs[i];
+        if (!Array.isArray(pair) || pair.length < 2) continue;
+        var key = String(pair[0]);
+        var detail = pair[1];
+        if (!Object.prototype.hasOwnProperty.call(byIndex, key)) {
+          byIndex[key] = _clone(detail);
+          order.push({ key: key, raw: pair[0] });
+          continue;
+        }
+        if (isLocal) continue; // local already claimed this index
+        var existing = byIndex[key];
+        if (existing && detail && typeof existing === "object" && typeof detail === "object") {
+          var sub = Object.keys(detail);
+          for (var s = 0; s < sub.length; s++) {
+            if (existing[sub[s]] === undefined || existing[sub[s]] === null) {
+              existing[sub[s]] = _clone(detail[sub[s]]);
+            }
+          }
+        }
+      }
+    }
+    absorb(lp, true);
+    absorb(rp, false);
+    var out = [];
+    for (var o = 0; o < order.length; o++) out.push([order[o].raw, byIndex[order[o].key]]);
+    return out;
+  }
+
+  // Union of per-day stitch counts ([{date, count}]). Takes the MAX count per
+  // date rather than the sum: summing is not idempotent, so a project re-merged
+  // after each peer edit would inflate its history without bound. The cost is
+  // under-counting a day both devices stitched on — the same trade-off, and for
+  // the same reason, as merged totalTime.
+  function mergeStitchLogs(localLog, remoteLog) {
+    var ll = Array.isArray(localLog) ? localLog : [];
+    var rl = Array.isArray(remoteLog) ? remoteLog : [];
+    if (!ll.length && !rl.length) return Array.isArray(localLog) ? localLog : (Array.isArray(remoteLog) ? remoteLog : []);
+    var byDate = Object.create(null);
+    function absorb(entries) {
+      for (var i = 0; i < entries.length; i++) {
+        var e = entries[i];
+        if (!e || !e.date) continue;
+        var count = (typeof e.count === "number" && isFinite(e.count)) ? e.count : 0;
+        if (byDate[e.date] === undefined || count > byDate[e.date]) byDate[e.date] = count;
+      }
+    }
+    absorb(ll);
+    absorb(rl);
+    var dates = Object.keys(byDate).sort();
+    var out = [];
+    for (var d = 0; d < dates.length; d++) out.push({ date: dates[d], count: byDate[dates[d]] });
+    return out;
+  }
+
+  // Earliest / latest of two ISO timestamps, ignoring blanks.
+  function _earlierIso(a, b) {
+    if (!a) return b || null;
+    if (!b) return a;
+    return (new Date(a).getTime() <= new Date(b).getTime()) ? a : b;
+  }
+  function _laterIso(a, b) {
+    if (!a) return b || null;
+    if (!b) return a;
+    return (new Date(a).getTime() >= new Date(b).getTime()) ? a : b;
+  }
+
   function mergeTrackingProgress(local, remote, metaOverrides) {
     // Merge a project where the chart structure is identical but tracking differs.
     // Take the LOCAL project as base, deep-clone mutable sub-objects to avoid
@@ -1105,27 +1204,51 @@ const SyncEngine = (() => {
       merged.updatedAt = remote.updatedAt;
     }
 
-    // Merge project-level metadata (name, state).
-    // Default strategy: the side with the newer updatedAt timestamp wins.
-    // metaOverrides can pin a field to 'keep-local' or 'keep-remote' to
-    // respect explicit user choices made in the SyncReviewGate conflict UI.
+    // Merge fractional-stitch records (sync fix #7). halfDone is handled above;
+    // these are the serialised-Map companions that were previously dropped, so
+    // quarter/half stitches worked on one device never reached the other.
+    merged.halfStitches = mergeIndexedPairs(local.halfStitches, remote.halfStitches);
+    merged.partialStitches = mergeIndexedPairs(local.partialStitches, remote.partialStitches);
+
+    // Merge per-day stitch history (sync fix #7). Drives lifetime totals and
+    // the activity charts, and was previously local-only.
+    merged.stitchLog = mergeStitchLogs(local.stitchLog, remote.stitchLog);
+
+    // Lifecycle timestamps: earliest start, latest touch, first completion.
+    merged.startedAt = _earlierIso(local.startedAt, remote.startedAt);
+    merged.lastTouchedAt = _laterIso(local.lastTouchedAt, remote.lastTouchedAt);
+    merged.completedAt = _earlierIso(local.completedAt, remote.completedAt);
+
+    // Merge project-level metadata. Default strategy: the side with the newer
+    // updatedAt timestamp wins. metaOverrides can pin a field to 'keep-local'
+    // or 'keep-remote' to respect explicit user choices made in the
+    // SyncReviewGate conflict UI.
+    //
+    // The list used to be just name/state, which is why completion status,
+    // colour, notes, designer, description and the thumbnail never travelled
+    // between devices — a pattern could merge "successfully" and still show
+    // the receiving device's months-old metadata.
     var localTs = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
     var remoteTs = remote.updatedAt ? new Date(remote.updatedAt).getTime() : 0;
-    var metaFieldsList = ["name", "state"];
-    for (var mfi = 0; mfi < metaFieldsList.length; mfi++) {
-      var mf = metaFieldsList[mfi];
-      if (remote[mf] !== undefined && remote[mf] !== local[mf]) {
-        var ovr = metaOverrides && metaOverrides[mf];
-        if (ovr === 'keep-remote') {
-          merged[mf] = remote[mf];
-        } else if (ovr === 'keep-local') {
-          // keep local (already in merged via Object.assign)
-        } else if (remoteTs > localTs) {
-          // Default: newer updatedAt wins
-          merged[mf] = remote[mf];
-        }
-        // else local wins (already in merged)
-      }
+    function _isPresent(v) { return v !== undefined && v !== null && v !== ""; }
+
+    function resolveMetaField(field, preferPresent) {
+      if (remote[field] === undefined) return;
+      if (remote[field] === local[field]) return;
+      var ovr = metaOverrides && metaOverrides[field];
+      if (ovr === 'keep-remote') { merged[field] = remote[field]; return; }
+      if (ovr === 'keep-local') return; // already in merged via Object.assign
+      if (remoteTs <= localTs) return;  // local is newer — it wins
+      // Never let a newer-but-empty remote wipe an expensive local asset.
+      if (preferPresent && !_isPresent(remote[field]) && _isPresent(local[field])) return;
+      merged[field] = remote[field];
+    }
+
+    for (var mfi = 0; mfi < META_NEWEST_WINS.length; mfi++) {
+      resolveMetaField(META_NEWEST_WINS[mfi], false);
+    }
+    for (var mpi = 0; mpi < META_PREFER_PRESENT.length; mpi++) {
+      resolveMetaField(META_PREFER_PRESENT[mpi], true);
     }
 
     return merged;
@@ -3357,6 +3480,8 @@ const SyncEngine = (() => {
     mergeSessions: mergeSessions,
     mergeTrackingProgress: mergeTrackingProgress,
     mergeStash: mergeStash,
+    mergeIndexedPairs: mergeIndexedPairs,
+    mergeStitchLogs: mergeStitchLogs,
 
     // Device & status
     getDeviceId: getDeviceId,
