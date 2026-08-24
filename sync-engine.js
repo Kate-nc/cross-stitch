@@ -1381,7 +1381,16 @@ const SyncEngine = (() => {
     return merged;
   }
 
-  function mergeStash(localStash, remoteStash) {
+  // opts.presentProjectIds (optional): map of project ids that exist locally
+  // or will exist once the current import plan is applied. When provided,
+  // remote library entries whose linkedProjectId is NOT in the map are
+  // skipped instead of upserted. Without this guard, a remote stash could
+  // resurrect entries linked to projects this device declined (tombstoned
+  // after "Delete all patterns") or never received — those entries are
+  // counted by the Pattern Library badge but render no card, producing the
+  // "count shows N patterns but none are visible" state.
+  function mergeStash(localStash, remoteStash, opts) {
+    var presentIds = (opts && opts.presentProjectIds) || null;
     var merged = { threads: {}, patterns: [], userProfile: null };
 
     // Merge threads: per-thread max owned, OR for tobuy
@@ -1429,6 +1438,9 @@ const SyncEngine = (() => {
     localPatterns.forEach(function (p) { if (p && p.id) patternMap[p.id] = p; });
     remotePatterns.forEach(function (p) {
       if (!p || !p.id) return;
+      // Consistency guard (see opts.presentProjectIds above): a linked entry
+      // is only meaningful if its project exists here after the import.
+      if (presentIds && p.linkedProjectId && !presentIds[p.linkedProjectId]) return;
       var existing = patternMap[p.id];
       if (!existing) {
         patternMap[p.id] = p;
@@ -1986,9 +1998,21 @@ const SyncEngine = (() => {
       }
     });
 
-    // Preview stash merge if stash data present
+    // Preview stash merge if stash data present. presentProjectIds is the
+    // set of project ids that will exist locally after the import: everything
+    // already here plus every classified remote entry (tombstone-skipped
+    // projects never reach `classified`, so their linked library entries are
+    // excluded — they'd be counted by the Pattern Library badge without ever
+    // rendering a card).
     if (syncObj.stash) {
-      plan.stashMerge = mergeStash(localStash, syncObj.stash);
+      var presentProjectIds = Object.create(null);
+      Object.keys(localMap).forEach(function (id) { presentProjectIds[id] = true; });
+      classified.forEach(function (c) {
+        if (c.id) presentProjectIds[c.id] = true;
+        if (c.local && c.local.id) presentProjectIds[c.local.id] = true;
+        if (c.idRewrite && c.idRewrite.canonicalId) presentProjectIds[c.idRewrite.canonicalId] = true;
+      });
+      plan.stashMerge = mergeStash(localStash, syncObj.stash, { presentProjectIds: presentProjectIds });
     }
 
     return plan;
@@ -2046,7 +2070,12 @@ const SyncEngine = (() => {
     for (var i = 0; i < plan.newRemote.length; i++) {
       var entry = plan.newRemote[i];
       try {
-        await ProjectStorage.save(entry.remote.data, { preserveUpdatedAt: true });
+        // resurrect: an import is a deliberate (re-)creation, so it must not
+        // be swallowed by ProjectStorage's session-delete guard. Without it,
+        // "Delete all patterns" followed by a re-import in the same session
+        // silently dropped every save while executeImport still reported the
+        // projects as imported.
+        await ProjectStorage.save(entry.remote.data, { preserveUpdatedAt: true, resurrect: true });
       } catch (saveErr) {
         if (saveErr && saveErr.name === "QuotaExceededError") {
           throw new Error("Not enough browser storage to import all projects — free up space or clear cached data and try again. (QuotaExceededError saving \"" + (entry.remote.data && entry.remote.data.name || entry.remote.id) + "\")");
@@ -2101,7 +2130,7 @@ const SyncEngine = (() => {
         merged.id = canon;
         // mergeTrackingProgress already resolved updatedAt to the later of
         // the two sides — preserve it rather than restamping with "now".
-        await ProjectStorage.save(merged, { preserveUpdatedAt: true });
+        await ProjectStorage.save(merged, { preserveUpdatedAt: true, resurrect: true });
         // Delete the now-orphaned local record (only if its id differs from canonical).
         if (oldLocalId && oldLocalId !== canon && ProjectStorage.delete) {
           try {
@@ -2123,7 +2152,7 @@ const SyncEngine = (() => {
           }
         }
       } else {
-        await ProjectStorage.save(merged, { preserveUpdatedAt: true });
+        await ProjectStorage.save(merged, { preserveUpdatedAt: true, resurrect: true });
       }
     }
 
@@ -2132,7 +2161,7 @@ const SyncEngine = (() => {
       var cEntry = plan.conflicts[k];
       var resolution = conflictResolutions[cEntry.id] || "keep-local";
       if (resolution === "keep-remote") {
-        await ProjectStorage.save(cEntry.remote.data, { preserveUpdatedAt: true });
+        await ProjectStorage.save(cEntry.remote.data, { preserveUpdatedAt: true, resurrect: true });
       } else if (resolution === "keep-both") {
         // Keep local as-is; import remote as a new project via normal save logic
         var remoteCopy = _clone(cEntry.remote.data); // PERF (perf-6 #5)
@@ -2228,6 +2257,40 @@ const SyncEngine = (() => {
           + " not imported — deleted on this device. Use SyncEngine.forgetTombstone(id) to allow "
           + (plan.skippedTombstoned.length === 1 ? "it" : "them") + " back."
       });
+      // Surface the decline where the user is actually looking. The activity
+      // log alone was invisible: the import "succeeded", the library stayed
+      // empty, and nothing on screen said why. The Restore action releases
+      // the tombstones and saves the declined projects from this same plan.
+      try {
+        if (typeof window !== "undefined" && window.Toast && window.Toast.show) {
+          var skippedN = plan.skippedTombstoned.length;
+          window.Toast.show({
+            message: skippedN + " pattern" + (skippedN === 1 ? " was" : "s were")
+              + " skipped because " + (skippedN === 1 ? "it was" : "they were")
+              + " previously deleted on this device.",
+            type: "warning",
+            duration: 12000,
+            actionLabel: "Restore",
+            action: function () {
+              restoreSkippedPatterns(plan).then(function (r) {
+                if (window.Toast && window.Toast.show) {
+                  window.Toast.show({
+                    message: r.restored > 0
+                      ? r.restored + " pattern" + (r.restored === 1 ? "" : "s") + " restored."
+                      : "Nothing to restore — re-sync from the other device.",
+                    type: r.restored > 0 ? "success" : "info",
+                    duration: 6000
+                  });
+                }
+              }).catch(function (e) {
+                if (window.Toast && window.Toast.show) {
+                  window.Toast.show({ message: "Restore failed: " + ((e && e.message) || e), type: "error", duration: 8000 });
+                }
+              });
+            }
+          });
+        }
+      } catch (e) {}
     }
 
     // 5b. Apply remote prefs and custom palettes to localStorage.
@@ -2297,8 +2360,58 @@ const SyncEngine = (() => {
       imported: plan.newRemote.length,
       merged: plan.mergeTracking.length,
       conflictsResolved: plan.conflicts.length,
-      stashUpdated: !!plan.stashMerge
+      stashUpdated: !!plan.stashMerge,
+      // Declined projects, so callers can render their own affordance on top
+      // of the engine's warning toast.
+      skippedTombstoned: (plan.skippedTombstoned || []).length
     };
+  }
+
+  // Restore projects that an import declined because this device had deleted
+  // them ("Delete all patterns" tombstones). Releases each tombstone and
+  // saves the declined remote copy from the plan's own sync object, bypassing
+  // the session-delete guard (resurrect). Returns { restored }.
+  async function restoreSkippedPatterns(plan) {
+    var skipped = (plan && plan.skippedTombstoned) || [];
+    if (!skipped.length) return { restored: 0 };
+    var byId = Object.create(null);
+    var remoteList = (plan.syncObj && plan.syncObj.projects) || [];
+    for (var i = 0; i < remoteList.length; i++) {
+      if (remoteList[i] && remoteList[i].id) byId[remoteList[i].id] = remoteList[i];
+    }
+    var restored = 0;
+    for (var s = 0; s < skipped.length; s++) {
+      var id = skipped[s] && skipped[s].id;
+      if (!id) continue;
+      forgetTombstone(id);
+      var rp = byId[id];
+      if (rp && rp.data) {
+        try {
+          await ProjectStorage.save(rp.data, { preserveUpdatedAt: true, resurrect: true });
+          restored++;
+        } catch (e) {
+          console.warn("SyncEngine.restoreSkippedPatterns: could not restore " + id, e);
+        }
+      }
+    }
+    if (restored > 0) {
+      _logEvent({
+        type: "restore-skipped",
+        direction: "in",
+        deviceId: (plan.syncObj && plan.syncObj._deviceId) || null,
+        deviceName: (plan.syncObj && plan.syncObj._deviceName) || null,
+        projectCount: restored,
+        message: restored + " previously deleted pattern" + (restored === 1 ? "" : "s") + " restored from sync."
+      });
+      // ProjectStorage.save dispatches cs:projectsChanged per project already,
+      // but fire one summary event for listeners that debounce on reason.
+      try {
+        if (typeof window !== "undefined" && window.dispatchEvent) {
+          window.dispatchEvent(new CustomEvent("cs:projectsChanged", { detail: { reason: "sync-restore", count: restored } }));
+        }
+      } catch (e) {}
+    }
+    return { restored: restored };
   }
 
   // ── File System Access API helpers (for folder watching, session 4) ─────
@@ -2955,12 +3068,19 @@ const SyncEngine = (() => {
     if (typeof w !== "number" || typeof h !== "number") return false;
     if (!isFinite(w) || !isFinite(h)) return false;
     if (w <= 0 || h <= 0 || w > 10000 || h > 10000) return false;
-    if (!Array.isArray(p.pattern)) return false;
+    // Accept both grid encodings: the normal `.pattern` array of {id} cells
+    // and the compact `.p` array of ["id", flag] cells used by v8/URL-shared
+    // projects (computeFingerprint and ProjectStorage.countTotalStitches
+    // already accept both). Requiring `.pattern` alone made the auto-apply
+    // gate reject every compact-format project, shunting whole deliveries to
+    // manual review.
+    var grid = Array.isArray(p.pattern) ? p.pattern : (Array.isArray(p.p) ? p.p : null);
+    if (!grid) return false;
     // Accept slight length drift (some legacy versions stored sparse arrays)
     // but reject obvious truncation: pattern shorter than half the expected
     // grid is almost certainly corrupt.
     var expected = w * h;
-    if (p.pattern.length > 0 && p.pattern.length < expected / 2) return false;
+    if (grid.length > 0 && grid.length < expected / 2) return false;
     return true;
   }
 
@@ -3038,7 +3158,13 @@ const SyncEngine = (() => {
     if (!plan) return false;
     return _stashMergeChangesAnything(plan)
         || _tombstonesChangeAnything(plan)
-        || _prefsChangeAnything(plan);
+        || _prefsChangeAnything(plan)
+        // Declined-as-tombstoned projects are not "work" the import will do,
+        // but they ARE something the user must hear about — otherwise a
+        // delete-all followed by a re-sync applies nothing and says nothing.
+        // Keeping the plan alive routes it to the review gate, whose
+        // executeImport surfaces the skip toast with the Restore action.
+        || !!(plan.skippedTombstoned && plan.skippedTombstoned.length);
   }
 
   // Split a prepared plan into the part we can apply unattended and the part
@@ -3760,6 +3886,8 @@ const SyncEngine = (() => {
     getTombstones: getTombstoneRecords,
     forgetTombstone: forgetTombstone,
     clearTombstones: clearTombstones,
+    // Bring back projects a plan declined as tombstoned (Restore toast action).
+    restoreSkippedPatterns: restoreSkippedPatterns,
 
     // Snapshot
     readSnapshot: readSnapshot,

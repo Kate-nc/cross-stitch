@@ -172,8 +172,8 @@ describe('control: import onto a genuinely fresh device works', () => {
   });
 });
 
-describe('bug: tombstoned projects are declined but their stash entries are counted', () => {
-  test('after "Delete all patterns" + re-import: count 1, visible 0', async () => {
+describe('fixed: tombstoned projects no longer leave phantom stash entries behind', () => {
+  test('after "Delete all patterns" + re-import: count matches visible (both 0)', async () => {
     // Device B previously imported proj_100_aaa, then the user ran
     // Settings ▸ Delete all patterns (clearAllProjects tombstone:true):
     // the project row, its meta, and its manager library entry are gone,
@@ -198,44 +198,40 @@ describe('bug: tombstoned projects are declined but their stash entries are coun
     expect(plan.skippedTombstoned.length).toBe(1);
     expect(plan.skippedTombstoned[0].id).toBe('proj_100_aaa');
 
-    // …but mergeStash still resurrects the linked library entry.
-    expect(plan.stashMerge.patterns.length).toBe(1);
-    expect(plan.stashMerge.patterns[0].linkedProjectId).toBe('proj_100_aaa');
+    // …and mergeStash now declines the linked library entry with it: the
+    // project won't exist after the import, so importing the entry would only
+    // inflate the count badge without ever rendering a card.
+    expect(plan.stashMerge.patterns.length).toBe(0);
 
     const result = await SE.executeImport(plan);
     expect(result.imported).toBe(0);
+    expect(result.skippedTombstoned).toBe(1);
 
-    // The divergence the user sees:
-    //  count badge (manager patterns.length)      → 1
-    //  visible project cards (listProjects)        → 0
-    //  visible manual-only patterns (no linked id) → 0
+    // Count and cards agree again: both zero.
     const visibleProjects = await global.ProjectStorage.listProjects();
-    const countedPatterns = managerState.patterns;
-    const manualOnly = countedPatterns.filter(p => !p.linkedProjectId);
-
-    expect(countedPatterns.length).toBe(1);   // what the badge shows
-    expect(visibleProjects.length).toBe(0);   // what the card grid shows
-    expect(manualOnly.length).toBe(0);        // no fallback card either
+    expect(managerState.patterns.length).toBe(0);  // badge
+    expect(visibleProjects.length).toBe(0);        // card grid
   });
 
-  test('orphaned linked entries also arrive when the project import fails shape validation', () => {
+  test('compact .p projects now pass shape validation (no more review-gate stranding)', () => {
     // Compact/legacy projects store their grid in `.p`, not `.pattern`
-    // (see project-storage.js countTotalStitches). The auto-apply gate
-    // rejects them outright, so via the folder watcher they are shunted to
-    // manual review — while a stash-only autoPlan would still carry the
-    // linked library entries.
+    // (see project-storage.js countTotalStitches). The auto-apply gate used
+    // to reject them outright, shunting whole deliveries to manual review.
     const compact = {
       id: 'proj_200_bbb',
       updatedAt: '2026-08-10T00:00:00.000Z',
       settings: { sW: 2, sH: 2 },
       p: [['310'], ['550'], ['310'], ['550']]
     };
-    expect(SE._test.isProjectShapeValid(compact)).toBe(false);
+    expect(SE._test.isProjectShapeValid(compact)).toBe(true);
+    // Truncation is still rejected in either encoding.
+    const truncated = { ...compact, p: [['310']] };
+    expect(SE._test.isProjectShapeValid(truncated)).toBe(false);
   });
 });
 
-describe('partition: a declined-everything plan still carries the stash side effects', () => {
-  test('plan with zero importable projects but stash changes goes to review as stash-only', async () => {
+describe('partition: a declined-everything plan can no longer smuggle phantom entries through review', () => {
+  test('review-applied stash from a declined plan imports zero orphaned entries', async () => {
     global.localStorage.setItem('cs_deleted_project_ids', JSON.stringify([
       { id: 'proj_100_aaa', deletedAt: '2026-08-14T00:00:00.000Z' }
     ]));
@@ -251,14 +247,17 @@ describe('partition: a declined-everything plan still carries the stash side eff
     expect(SE._test.planHasProjectWork(plan)).toBe(false);
 
     const parts = SE._test.partitionPlan(plan);
-    // Nothing auto-applies; the whole thing waits for review, and when the
-    // user clicks through the gate, executeImport applies ONLY the stash —
-    // which is exactly the phantom-count outcome.
+    // Nothing auto-applies, but the plan is NOT dropped: the declined
+    // projects are a side effect worth surfacing, so a review half survives
+    // and its executeImport can show the skip toast with Restore.
     expect(parts.autoPlan).toBe(null);
     expect(parts.reviewPlan).not.toBe(null);
 
     const result = await SE.executeImport(parts.reviewPlan);
     expect(result.imported).toBe(0);
-    expect(managerState.patterns.length).toBe(1);
+    expect(result.skippedTombstoned).toBe(1);
+    // The merge preview no longer contains the orphaned linked entry, so
+    // clicking through the gate cannot inflate the count.
+    expect(managerState.patterns.length).toBe(0);
   });
 });
