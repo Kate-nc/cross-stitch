@@ -205,6 +205,38 @@ const ProjectStorage = (() => {
     };
   }
 
+  // VER-SYNC-009: persist deletions as tombstones so SyncEngine can tell remote
+  // devices "we intentionally deleted this project" and stop it re-appearing on
+  // the next sync import. Shared by delete() (one id) and clearAllProjects()
+  // when the wipe is a deliberate user action rather than a resync rebuild.
+  //
+  // Records are { id, deletedAt }. The timestamp lets SyncEngine tell a stale
+  // deletion from a live one: if a peer edits the project after we deleted it,
+  // that work is accepted back instead of being blocked forever. Legacy bare-
+  // string entries are left as-is and normalised on read.
+  const LS_TOMBSTONE_KEY = "cs_deleted_project_ids";
+  const TOMBSTONE_MAX = 200;
+  function writeTombstones(ids) {
+    try {
+      const raw = localStorage.getItem(LS_TOMBSTONE_KEY);
+      let tombstones = [];
+      try { tombstones = JSON.parse(raw) || []; } catch (_) {}
+      if (!Array.isArray(tombstones)) tombstones = [];
+      const deletedAt = new Date().toISOString();
+      for (const id of ids) {
+        const already = tombstones.some(function (t) {
+          return (typeof t === "string") ? t === id : (t && t.id === id);
+        });
+        if (!already) tombstones.push({ id: id, deletedAt: deletedAt });
+      }
+      // Cap to avoid unbounded localStorage growth.
+      if (tombstones.length > TOMBSTONE_MAX) {
+        tombstones = tombstones.slice(tombstones.length - TOMBSTONE_MAX);
+      }
+      localStorage.setItem(LS_TOMBSTONE_KEY, JSON.stringify(tombstones));
+    } catch (_) {}
+  }
+
   let _cachedDB = null;
   // Set to true once IDB is confirmed unavailable (e.g. Safari private browsing).
   let _idbUnavailable = false;
@@ -672,30 +704,7 @@ const ProjectStorage = (() => {
           };
           autoSaveReq.onerror = () => reject(autoSaveReq.error);
           tx.oncomplete = () => {
-            // VER-SYNC-009: persist this deletion as a tombstone so SyncEngine can
-            // tell remote devices "we intentionally deleted this project" and stop
-            // it re-appearing on the next sync import.
-            try {
-              var LS_TOMBSTONE_KEY = "cs_deleted_project_ids";
-              var raw = localStorage.getItem(LS_TOMBSTONE_KEY);
-              var tombstones = [];
-              try { tombstones = JSON.parse(raw) || []; } catch (_) {}
-              if (!Array.isArray(tombstones)) tombstones = [];
-              // Records are { id, deletedAt }. The timestamp lets SyncEngine
-              // tell a stale deletion from a live one: if a peer edits the
-              // project after we deleted it, that work is accepted back
-              // instead of being blocked forever. Legacy bare-string entries
-              // are left as-is and normalised on read.
-              var already = tombstones.some(function (t) {
-                return (typeof t === "string") ? t === id : (t && t.id === id);
-              });
-              if (!already) {
-                tombstones.push({ id: id, deletedAt: new Date().toISOString() });
-                // Cap at 200 to avoid unbounded localStorage growth.
-                if (tombstones.length > 200) tombstones = tombstones.slice(tombstones.length - 200);
-                localStorage.setItem(LS_TOMBSTONE_KEY, JSON.stringify(tombstones));
-              }
-            } catch (_) {}
+            writeTombstones([id]);
             // Brief D — remove any auto-synced Manager pattern entry that was
             // linked to this project so the library doesn't show stale entries.
             if (typeof StashBridge !== "undefined" && StashBridge.unlinkProjectFromLibrary) {
@@ -725,17 +734,26 @@ const ProjectStorage = (() => {
       return this._deletedIds.has(id);
     },
 
-    // Remove every project on this device WITHOUT tombstoning them, so the
-    // library can be rebuilt from a peer's .csync.
+    // Remove every project on this device.
     //
-    // delete() is the wrong tool for this job, in three separate ways:
-    //   1. it writes a tombstone per id, and SyncEngine.classifyProjects uses
-    //      tombstones to permanently skip those projects on import;
-    //   2. it adds the id to the session-local _deletedIds guard, which makes
-    //      save() a silent no-op for that id until the page reloads;
-    //   3. both of the above survive the wipe, so a bulk delete followed by a
-    //      re-sync would import nothing at all and look like sync was broken.
-    // This method deliberately touches neither.
+    // Two callers with opposite needs, selected by options.tombstone:
+    //
+    //   • tombstone: false (default) — "wipe and rebuild from a peer's .csync".
+    //     delete() is the wrong tool for that job in three ways: it writes a
+    //     tombstone per id, and SyncEngine.classifyProjects uses tombstones to
+    //     permanently skip those projects on import; it adds the id to the
+    //     session-local _deletedIds guard, which makes save() a silent no-op
+    //     for that id until the page reloads; and both survive the wipe, so a
+    //     bulk delete followed by a re-sync imports nothing at all and looks
+    //     exactly like sync being broken. This mode touches neither.
+    //
+    //   • tombstone: true — "the user chose Settings ▸ Start over ▸ Delete all
+    //     patterns". Here the deletion IS the intent, so it must behave like N
+    //     calls to delete(): tombstone every id so a connected sync folder does
+    //     not re-import the patterns on its next tick, hold the ids in the
+    //     session-delete guard so an in-flight Creator/Tracker autosave can't
+    //     write the open project straight back, and drop the auto-synced
+    //     Manager library entries that pointed at them.
     //
     // options.includeAutoSave (default true) also drops the legacy "auto_save"
     // record, so a stale single-project autosave can't resurrect wiped work.
@@ -746,6 +764,7 @@ const ProjectStorage = (() => {
     async clearAllProjects(options) {
       const opts = options || {};
       const includeAutoSave = opts.includeAutoSave !== false;
+      const tombstone = opts.tombstone === true;
       try {
         const db = await getDB();
         const allKeys = await new Promise((resolve, reject) => {
@@ -772,13 +791,21 @@ const ProjectStorage = (() => {
         });
         this._allFullCache = null;
         this.clearActiveProject();
-        // Release the session-delete guard. It exists to stop an in-flight
-        // autosave from resurrecting a just-deleted project, but after a full
-        // wipe it would silently no-op save() for any id deleted earlier in
-        // this page session — so those patterns would NOT come back on the
-        // rebuild, with no error to explain why. Forgetting the deletions is
-        // the correct semantic here: we are about to re-import from a peer.
-        try { this._deletedIds.clear(); } catch (_) {}
+        if (tombstone) {
+          // Deliberate user deletion: make it stick. Tombstones stop a
+          // connected sync folder re-importing the patterns, and the session
+          // guard stops an autosave already in flight from re-writing one.
+          writeTombstones(projectIds);
+          try { for (const id of projectIds) this._deletedIds.add(id); } catch (_) {}
+        } else {
+          // Release the session-delete guard. It exists to stop an in-flight
+          // autosave from resurrecting a just-deleted project, but after a full
+          // wipe it would silently no-op save() for any id deleted earlier in
+          // this page session — so those patterns would NOT come back on the
+          // rebuild, with no error to explain why. Forgetting the deletions is
+          // the correct semantic here: we are about to re-import from a peer.
+          try { this._deletedIds.clear(); } catch (_) {}
+        }
         try { if (typeof window !== 'undefined') window.__csMostUsedCache = null; } catch (_) {}
         // Drop dashboard state for the removed ids so stale entries don't
         // linger for projects that may never come back.
@@ -790,6 +817,21 @@ const ProjectStorage = (() => {
           }
           if (changed) localStorage.setItem('cs_projectStates', JSON.stringify(states));
         } catch (_) {}
+        // Mirror delete(): drop the auto-synced Manager library entries that
+        // pointed at these projects, so the pattern library doesn't keep
+        // listing patterns the user just deleted. Only on a deliberate
+        // deletion — a resync wipe expects the same ids to come back.
+        if (tombstone && projectIds.length && typeof StashBridge !== "undefined") {
+          try {
+            if (StashBridge.unlinkProjectsFromLibrary) {
+              StashBridge.unlinkProjectsFromLibrary(projectIds).catch(() => {});
+            } else if (StashBridge.unlinkProjectFromLibrary) {
+              for (const id of projectIds) {
+                StashBridge.unlinkProjectFromLibrary(id).catch(() => {});
+              }
+            }
+          } catch (e) {}
+        }
         try {
           if (typeof window !== "undefined" && window.dispatchEvent) {
             window.dispatchEvent(new CustomEvent("cs:projectsChanged", {

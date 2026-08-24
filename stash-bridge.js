@@ -730,6 +730,44 @@ const StashBridge = (() => {
       }
     },
 
+    // Bulk form of unlinkProjectFromLibrary, for "delete every pattern".
+    // Doing it one id at a time would take the manager write lock N times and
+    // fire N cs:patternsChanged events; this takes the lock once and fires one.
+    async unlinkProjectsFromLibrary(projectIds) {
+      const ids = Array.isArray(projectIds) ? projectIds : [];
+      if (!ids.length) return;
+      const doomed = new Set(ids);
+      try {
+        return await _withManagerWriteLock('unlinkProjectsFromLibrary', async function () {
+          const db = await openManagerDB();
+          try {
+            return await new Promise((resolve, reject) => {
+              const tx = db.transaction("manager_state", "readwrite");
+              const store = tx.objectStore("manager_state");
+              const req = store.get("patterns");
+              req.onsuccess = () => {
+                const patterns = req.result || [];
+                const filtered = patterns.filter(p => !doomed.has(p.linkedProjectId));
+                const changed = filtered.length !== patterns.length;
+                if (changed) store.put(filtered, "patterns");
+                tx.oncomplete = () => {
+                  if (changed) _dispatchPatternsChanged();
+                  resolve();
+                };
+                tx.onerror = () => reject(tx.error);
+                tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
+              };
+              req.onerror = () => reject(req.error);
+            });
+          } finally {
+            try { db.close(); } catch (_) { /* swallow */ }
+          }
+        });
+      } catch (e) {
+        console.error("StashBridge.unlinkProjectsFromLibrary failed:", e);
+      }
+    },
+
     // Detects conflicts: threads where total demand across active patterns > owned supply.
     // Returns [ { id, name, rgb, owned, totalNeeded, patterns: [{title, qty}] } ]
     async detectConflicts() {

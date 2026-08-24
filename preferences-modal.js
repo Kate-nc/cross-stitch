@@ -1076,6 +1076,25 @@
       });
     }
 
+    // Deleting every pattern used to be a bare
+    // `indexedDB.deleteDatabase("CrossStitchDB")`, which looked like it worked
+    // and then let the patterns come straight back:
+    //   • it wrote no tombstones, so a connected sync folder re-imported every
+    //     deleted pattern on its next tick;
+    //   • it left ProjectStorage's session-delete guard empty, so an autosave
+    //     already in flight in the Creator/Tracker wrote the open project back
+    //     into the freshly recreated database seconds later;
+    //   • it fired no cs:projectsChanged, so the Home grid, pattern library and
+    //     header switcher all carried on listing the patterns — the modal said
+    //     "deleted", the app said otherwise;
+    //   • it left the auto-synced Manager library entries pointing at the now
+    //     missing projects;
+    //   • and deleteDatabase fires `blocked` (not error) when another tab holds
+    //     a connection open, so with no onblocked handler nothing happened at
+    //     all and no message was ever shown.
+    // ProjectStorage.clearAllProjects({ tombstone: true }) is the same code path
+    // as a per-pattern delete, so the first four are handled there — and the
+    // last one goes away with deleteDatabase itself.
     function clearProjects() {
       window.ConfirmDialog.show({
         title: "Delete every pattern?",
@@ -1084,11 +1103,23 @@
         danger: true
       }).then(function (ok) {
         if (!ok) return;
-        try {
-          var req = indexedDB.deleteDatabase("CrossStitchDB");
-          req.onsuccess = function () { msg[1]({ kind: "ok", text: "All patterns deleted. Reload the page to start fresh." }); };
-          req.onerror = function () { msg[1]({ kind: "err", text: "Could not clear the project database." }); };
-        } catch (e) { msg[1]({ kind: "err", text: e.message || "Could not clear the database." }); }
+        if (window.ProjectStorage && typeof window.ProjectStorage.clearAllProjects === "function") {
+          busy[1](true); msg[1](null);
+          window.ProjectStorage.clearAllProjects({ tombstone: true }).then(function (n) {
+            busy[1](false);
+            msg[1]({ kind: "ok", text: n === 0
+              ? "There were no patterns left to delete."
+              : ("Deleted " + n + " pattern" + (n === 1 ? "" : "s") + ".") });
+          }).catch(function (e) {
+            busy[1](false);
+            msg[1]({ kind: "err", text: (e && e.message) || "Could not delete your patterns." });
+          });
+          return;
+        }
+        // Fallback for a page without ProjectStorage loaded.
+        deleteWholeDatabase("CrossStitchDB",
+          "All patterns deleted. Reload the page to start fresh.",
+          "Could not clear the project database.");
       });
     }
 
@@ -1100,12 +1131,40 @@
         danger: true
       }).then(function (ok) {
         if (!ok) return;
-        try {
-          var req = indexedDB.deleteDatabase("stitch_manager_db");
-          req.onsuccess = function () { msg[1]({ kind: "ok", text: "Stash cleared. Reload the page to start fresh." }); };
-          req.onerror = function () { msg[1]({ kind: "err", text: "Could not clear the stash database." }); };
-        } catch (e) { msg[1]({ kind: "err", text: e.message || "Could not clear the database." }); }
+        deleteWholeDatabase("stitch_manager_db",
+          "Stash cleared.",
+          "Could not clear the stash database.",
+          function () {
+            // Manager, Home and the stats pages all listen for these, so the
+            // emptied stash and pattern library show up without a reload.
+            try { window.dispatchEvent(new CustomEvent("cs:stashChanged")); } catch (_) {}
+            try { window.dispatchEvent(new CustomEvent("cs:patternsChanged")); } catch (_) {}
+          });
       });
+    }
+
+    // deleteDatabase resolves in three ways, and `blocked` is the one that bit
+    // us: it fires instead of success/error when another connection is still
+    // open, and the request then just sits there. Surface it rather than
+    // leaving the user staring at an unchanged screen.
+    function deleteWholeDatabase(name, okText, errText, onDone) {
+      try {
+        busy[1](true); msg[1](null);
+        var req = indexedDB.deleteDatabase(name);
+        req.onsuccess = function () {
+          busy[1](false);
+          if (onDone) { try { onDone(); } catch (_) {} }
+          msg[1]({ kind: "ok", text: okText });
+        };
+        req.onerror = function () { busy[1](false); msg[1]({ kind: "err", text: errText }); };
+        req.onblocked = function () {
+          busy[1](false);
+          msg[1]({ kind: "err", text: "Another tab of this app is still using the data. Close the other tabs and try again." });
+        };
+      } catch (e) {
+        busy[1](false);
+        msg[1]({ kind: "err", text: (e && e.message) || "Could not clear the database." });
+      }
     }
 
     var st = syncStatus[0] || {};
@@ -1305,10 +1364,10 @@
 
       h(Section, { title: "Start over" },
         h(Row, { label: "Delete all patterns", desc: "Clears every pattern saved in the Creator and Tracker." },
-          h("button", { style: styles.btnDanger, onClick: clearProjects }, "Delete patterns�")
+          h("button", { style: styles.btnDanger, disabled: busy[0], onClick: clearProjects }, "Delete patterns�")
         ),
         h(Row, { last: true, label: "Delete my stash", desc: "Clears the Stash Manager's thread inventory and pattern library." },
-          h("button", { style: styles.btnDanger, onClick: clearStash }, "Delete stash�")
+          h("button", { style: styles.btnDanger, disabled: busy[0], onClick: clearStash }, "Delete stash�")
         )
       ),
       msg[0] ? h("div", {
