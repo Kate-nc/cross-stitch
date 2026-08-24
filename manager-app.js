@@ -190,19 +190,42 @@ function ManagerApp() {
     };
   };
   const reconcileAutoSyncedPatterns = useCallback(async (basePatterns, allMeta) => {
+    // Orphan cleanup first: an entry whose linkedProjectId matches no stored
+    // project is counted by the Pattern Library badge but never renders a
+    // card (linked entries rely on their project's card; see
+    // project-library.js manualPatterns). Sync used to manufacture these when
+    // a remote stash carried entries for projects this device declined.
+    //   • auto-synced orphans are dropped — reconcile re-creates them if the
+    //     project ever arrives;
+    //   • manually curated orphans keep their user data and become
+    //     manual-only entries, so they at least render with the
+    //     "Stash Manager only" badge.
+    const metaIds = new Set(allMeta.map(m => m.id));
+    let cleaned = basePatterns;
+    if (basePatterns.some(p => p.linkedProjectId && !metaIds.has(p.linkedProjectId))) {
+      cleaned = [];
+      for (const p of basePatterns) {
+        if (!p.linkedProjectId || metaIds.has(p.linkedProjectId)) { cleaned.push(p); continue; }
+        if (p.tags && p.tags.includes('auto-synced')) continue;
+        const manualCopy = { ...p };
+        delete manualCopy.linkedProjectId;
+        cleaned.push(manualCopy);
+      }
+    }
+
     // Build a map of linkedProjectId ? index for fast lookup.
     const linkedIdxMap = new Map(
-      basePatterns.map((p, i) => p.linkedProjectId ? [p.linkedProjectId, i] : null).filter(Boolean)
+      cleaned.map((p, i) => p.linkedProjectId ? [p.linkedProjectId, i] : null).filter(Boolean)
     );
     const unlinked = allMeta.filter(m => !linkedIdxMap.has(m.id));
 
     // For each project that already has a library entry, check whether its name
     // changed (e.g. renamed on another device via sync). If so, update title only —
     // leave user-set fields (designer, tags, status) untouched.
-    let reconciled = updateTitleIfChanged(basePatterns, allMeta, linkedIdxMap);
+    let reconciled = updateTitleIfChanged(cleaned, allMeta, linkedIdxMap);
 
     if (unlinked.length === 0) return reconciled;
-    return await addUnlinkedPatterns(reconciled, basePatterns, unlinked);
+    return await addUnlinkedPatterns(reconciled, cleaned, unlinked);
   }, []);
 
   function updateTitleIfChanged(basePatterns, allMeta, linkedIdxMap) {

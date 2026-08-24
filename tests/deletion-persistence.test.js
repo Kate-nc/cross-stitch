@@ -46,8 +46,11 @@ describe('ProjectStorage deletion guards (source analysis)', () => {
   test('save() returns early without writing when project is deleted', () => {
     const saveMethod = storageSrc.match(/async save\(project(?:,\s*\w+)?\)\s*\{[\s\S]*?\n    \}/);
     const body = saveMethod[0];
-    // Should return early with project.id (no-op)
-    expect(body).toMatch(/if\s*\(this\._deletedIds\.has\(project\.id\)\)\s*\{?\s*return project\.id/);
+    // Should return early with project.id (no-op) unless the caller passed
+    // the explicit resurrect override (sync imports / restore actions).
+    expect(body).toMatch(/if\s*\(this\._deletedIds\.has\(project\.id\)\)\s*\{[\s\S]*?return project\.id/);
+    expect(body).toContain('opts.resurrect');
+    expect(body).toContain('this._deletedIds.delete(project.id)');
   });
 
   test('isDeleted() method exists', () => {

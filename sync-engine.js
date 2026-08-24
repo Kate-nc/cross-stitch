@@ -389,6 +389,26 @@ const SyncEngine = (() => {
     });
   }
 
+  // Mirror StashBridge's manager_state write lock (stash-bridge.js
+  // _withManagerWriteLock, resource "manager_state") so sync imports can't
+  // interleave with bridge writes from another tab. Degrades to an unlocked
+  // write when CrossTabLock isn't loaded (standalone pages, tests) — same
+  // policy as the bridge itself.
+  async function _withManagerStateLock(opLabel, work) {
+    var lease = null;
+    try {
+      if (typeof window !== "undefined" && window.CrossTabLock
+          && typeof window.CrossTabLock.acquire === "function") {
+        lease = await window.CrossTabLock.acquire("manager_state", opLabel, { timeoutMs: 1500 });
+      }
+    } catch (e) { lease = null; }
+    try {
+      return await work();
+    } finally {
+      try { if (lease && typeof lease.release === "function") await lease.release(); } catch (e) {}
+    }
+  }
+
   // ── Export ────────────────────────────────────────────────────────────────
 
   async function exportSync(options) {
@@ -499,6 +519,14 @@ const SyncEngine = (() => {
           data = Object.assign({}, p);
           delete data.imgData;
         }
+        // A typed-array `done` (tracker holds Uint8Array in memory) would
+        // JSON.stringify into {"0":1,...} and silently destroy all progress
+        // on the importing device. Current save paths store plain arrays,
+        // but legacy IDB records may predate that — normalise on the way out.
+        if (data && data.done && ArrayBuffer.isView(data.done)) {
+          if (data === p) data = Object.assign({}, p);
+          data.done = Array.prototype.slice.call(data.done);
+        }
         return {
           id: p.id,
           updatedAt: p.updatedAt,
@@ -545,9 +573,12 @@ const SyncEngine = (() => {
       syncObj.prefs = prefsEnvelope;
     }
 
-    // Record export timestamp
-    var exportTime = syncObj._createdAt;
-    try { localStorage.setItem(LS_LAST_EXPORT, exportTime); } catch (e) {}
+    // NOTE: cs_sync_lastExportAt is deliberately NOT recorded here. Building
+    // the object is not exporting it — encryption can still throw
+    // passphrase_required below, and the folder write / download can fail.
+    // Callers stamp the timestamp via _markExportComplete after the bytes
+    // actually left the app, so the sync status panel can't report a failed
+    // export as a success.
 
     // Encryption layer (opt-in). If the user has enabled encryption but
     // hasn't set a session passphrase, we throw a typed error so callers
@@ -837,14 +868,27 @@ const SyncEngine = (() => {
     var a = document.createElement("a");
     a.href = url;
     var date = new Date().toISOString().slice(0, 10);
-    var deviceName = getDeviceName();
-    var namePart = deviceName ? "-" + deviceName.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 20) : "";
-    a.download = "cross-stitch-sync-" + date + namePart + ".csync";
+    a.download = "cross-stitch-sync-" + date + _safeDeviceNamePart() + ".csync";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    _markExportComplete(syncObj._createdAt);
     return syncObj;
+  }
+
+  // Stamp the moment an export verifiably left the app (file written to the
+  // sync folder, or download handed to the browser). See the note in
+  // exportSync for why this must not run at build time.
+  function _markExportComplete(ts) {
+    try { localStorage.setItem(LS_LAST_EXPORT, ts || new Date().toISOString()); } catch (e) {}
+  }
+
+  // Filename-safe "-<deviceName>" fragment shared by the download and
+  // folder-export filename builders.
+  function _safeDeviceNamePart() {
+    var deviceName = getDeviceName();
+    return deviceName ? "-" + deviceName.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 20) : "";
   }
 
   // ── Read a .csync file ───────────────────────────────────────────────────
@@ -981,6 +1025,7 @@ const SyncEngine = (() => {
     var results = [];
     for (var i = 0; i < remoteProjects.length; i++) {
       var remote = remoteProjects[i];
+      var local = localProjectsMap[remote.id] || null;
 
       // VER-SYNC-009: skip remote projects that this device has tombstoned.
       // A deletion here does NOT outrank work the peer did afterwards: if the
@@ -988,8 +1033,14 @@ const SyncEngine = (() => {
       // actively using that pattern, so we accept it back and release the
       // tombstone. Without this, one old deletion silently black-holed a
       // pattern on that device permanently.
+      //
+      // A LIVE local project with the same id always overrides the tombstone:
+      // the record's presence proves the deletion was superseded (restored,
+      // re-imported, or the tombstone was absorbed from a peer while we still
+      // held the project). Checking the tombstone first used to decline every
+      // future update to a project the user could see in their library.
       var tomb = localTombstoneSet[remote.id];
-      if (tomb) {
+      if (tomb && !local) {
         var deletedAtMs = tomb.deletedAt ? new Date(tomb.deletedAt).getTime() : null;
         var remoteUpdatedMs = remote.updatedAt ? new Date(remote.updatedAt).getTime() : 0;
         var staleDeletion = (deletedAtMs !== null)
@@ -1007,7 +1058,6 @@ const SyncEngine = (() => {
         }
       }
 
-      var local = localProjectsMap[remote.id] || null;
       var entry = {
         id: remote.id,
         remote: remote,
@@ -1381,7 +1431,16 @@ const SyncEngine = (() => {
     return merged;
   }
 
-  function mergeStash(localStash, remoteStash) {
+  // opts.presentProjectIds (optional): map of project ids that exist locally
+  // or will exist once the current import plan is applied. When provided,
+  // remote library entries whose linkedProjectId is NOT in the map are
+  // skipped instead of upserted. Without this guard, a remote stash could
+  // resurrect entries linked to projects this device declined (tombstoned
+  // after "Delete all patterns") or never received — those entries are
+  // counted by the Pattern Library badge but render no card, producing the
+  // "count shows N patterns but none are visible" state.
+  function mergeStash(localStash, remoteStash, opts) {
+    var presentIds = (opts && opts.presentProjectIds) || null;
     var merged = { threads: {}, patterns: [], userProfile: null };
 
     // Merge threads: per-thread max owned, OR for tobuy
@@ -1429,6 +1488,9 @@ const SyncEngine = (() => {
     localPatterns.forEach(function (p) { if (p && p.id) patternMap[p.id] = p; });
     remotePatterns.forEach(function (p) {
       if (!p || !p.id) return;
+      // Consistency guard (see opts.presentProjectIds above): a linked entry
+      // is only meaningful if its project exists here after the import.
+      if (presentIds && p.linkedProjectId && !presentIds[p.linkedProjectId]) return;
       var existing = patternMap[p.id];
       if (!existing) {
         patternMap[p.id] = p;
@@ -1727,24 +1789,19 @@ const SyncEngine = (() => {
       var remoteDone = remoteData.done || null;
       if (!remoteDone) continue;
       var patLen = (remoteData.pattern && remoteData.pattern.length) || (localDone && localDone.length) || 0;
-      var cellsAdded = 0, localHas1 = false;
+      // Single pass over the cells: additive count, disagreement count, and
+      // both totals together (this used to be three separate loops).
+      var cellsAdded = 0, disagreeCount = 0, localTotal = 0, remoteTotal = 0;
       for (var ci = 0; ci < patLen; ci++) {
         var lv = localDone && localDone[ci] === 1 ? 1 : 0;
         var rv = remoteDone[ci] === 1 ? 1 : 0;
+        if (lv === 1) localTotal++;
+        if (rv === 1) remoteTotal++;
         if (lv === 0 && rv === 1) cellsAdded++;
-        if (lv === 1 && rv === 0) localHas1 = true;
+        if (lv === 1 && rv === 0) disagreeCount++;
       }
       if (cellsAdded > 0) { stitchAdded += cellsAdded; stitchProjects++; }
-      if (localHas1) {
-        var localTotal = 0, remoteTotal = 0;
-        if (localDone) for (var ldi = 0; ldi < localDone.length; ldi++) if (localDone[ldi] === 1) localTotal++;
-        if (remoteDone) for (var rdi = 0; rdi < remoteDone.length; rdi++) if (remoteDone[rdi] === 1) remoteTotal++;
-        var disagreeCount = 0;
-        for (var di = 0; di < patLen; di++) {
-          var l = localDone && localDone[di] === 1 ? 1 : 0;
-          var r = remoteDone[di] === 1 ? 1 : 0;
-          if (l === 1 && r === 0) disagreeCount++;
-        }
+      if (disagreeCount > 0) {
         conflicts.push({
           type: "stitch",
           id: entry.id || (remoteData && remoteData.id),
@@ -1911,6 +1968,21 @@ const SyncEngine = (() => {
 
   // ── Import (full pipeline) ───────────────────────────────────────────────
 
+  // Convert an object-form done ({"0":1,"1":0,...} — the JSON serialisation
+  // of a typed array) back into a plain 0/1 array sized to the project grid.
+  // No-op for absent, array, or typed-array values.
+  function _repairObjectDone(project) {
+    if (!project) return;
+    var d = project.done;
+    if (!d || Array.isArray(d) || ArrayBuffer.isView(d) || typeof d !== "object") return;
+    var grid = project.pattern || project.p;
+    var len = (grid && grid.length) || 0;
+    if (!len) return;
+    var arr = new Array(len);
+    for (var i = 0; i < len; i++) arr[i] = d[i] === 1 ? 1 : 0;
+    project.done = arr;
+  }
+
   async function prepareImport(syncObj) {
     // If the envelope is encrypted, decrypt before any further work.
     // Throws a typed EncryptionError ("passphrase_required" or
@@ -1924,6 +1996,14 @@ const SyncEngine = (() => {
     // Validate
     var check = validate(syncObj);
     if (!check.valid) throw new Error(check.error);
+
+    // Repair object-form done arrays ({"0":1,...}) from files written while a
+    // legacy IDB record still held a typed array — the importing side would
+    // otherwise store the object and the tracker's `done.length` check would
+    // reset all progress on load. Idempotent; plain arrays pass through.
+    for (var ri = 0; ri < syncObj.projects.length; ri++) {
+      _repairObjectDone(syncObj.projects[ri] && syncObj.projects[ri].data);
+    }
 
     // Load all local projects into a map
     var localMap = {};
@@ -1986,9 +2066,25 @@ const SyncEngine = (() => {
       }
     });
 
-    // Preview stash merge if stash data present
+    // Preview stash merge if stash data present. presentProjectIds is the
+    // set of project ids that will exist locally after the import: everything
+    // already here plus every classified remote entry (tombstone-skipped
+    // projects never reach `classified`, so their linked library entries are
+    // excluded — they'd be counted by the Pattern Library badge without ever
+    // rendering a card).
     if (syncObj.stash) {
-      plan.stashMerge = mergeStash(localStash, syncObj.stash);
+      var presentProjectIds = Object.create(null);
+      Object.keys(localMap).forEach(function (id) { presentProjectIds[id] = true; });
+      classified.forEach(function (c) {
+        if (c.id) presentProjectIds[c.id] = true;
+        if (c.local && c.local.id) presentProjectIds[c.local.id] = true;
+        if (c.idRewrite && c.idRewrite.canonicalId) presentProjectIds[c.idRewrite.canonicalId] = true;
+      });
+      plan.stashMerge = mergeStash(localStash, syncObj.stash, { presentProjectIds: presentProjectIds });
+      // Carried on the plan (a plain map, so it survives pending-plan
+      // persistence) so executeImport can re-merge against the live stash
+      // with the same orphan guard.
+      plan.presentProjectIds = presentProjectIds;
     }
 
     return plan;
@@ -2046,7 +2142,12 @@ const SyncEngine = (() => {
     for (var i = 0; i < plan.newRemote.length; i++) {
       var entry = plan.newRemote[i];
       try {
-        await ProjectStorage.save(entry.remote.data, { preserveUpdatedAt: true });
+        // resurrect: an import is a deliberate (re-)creation, so it must not
+        // be swallowed by ProjectStorage's session-delete guard. Without it,
+        // "Delete all patterns" followed by a re-import in the same session
+        // silently dropped every save while executeImport still reported the
+        // projects as imported.
+        await ProjectStorage.save(entry.remote.data, { preserveUpdatedAt: true, resurrect: true });
       } catch (saveErr) {
         if (saveErr && saveErr.name === "QuotaExceededError") {
           throw new Error("Not enough browser storage to import all projects — free up space or clear cached data and try again. (QuotaExceededError saving \"" + (entry.remote.data && entry.remote.data.name || entry.remote.id) + "\")");
@@ -2101,7 +2202,7 @@ const SyncEngine = (() => {
         merged.id = canon;
         // mergeTrackingProgress already resolved updatedAt to the later of
         // the two sides — preserve it rather than restamping with "now".
-        await ProjectStorage.save(merged, { preserveUpdatedAt: true });
+        await ProjectStorage.save(merged, { preserveUpdatedAt: true, resurrect: true });
         // Delete the now-orphaned local record (only if its id differs from canonical).
         if (oldLocalId && oldLocalId !== canon && ProjectStorage.delete) {
           try {
@@ -2123,7 +2224,7 @@ const SyncEngine = (() => {
           }
         }
       } else {
-        await ProjectStorage.save(merged, { preserveUpdatedAt: true });
+        await ProjectStorage.save(merged, { preserveUpdatedAt: true, resurrect: true });
       }
     }
 
@@ -2132,7 +2233,7 @@ const SyncEngine = (() => {
       var cEntry = plan.conflicts[k];
       var resolution = conflictResolutions[cEntry.id] || "keep-local";
       if (resolution === "keep-remote") {
-        await ProjectStorage.save(cEntry.remote.data, { preserveUpdatedAt: true });
+        await ProjectStorage.save(cEntry.remote.data, { preserveUpdatedAt: true, resurrect: true });
       } else if (resolution === "keep-both") {
         // Keep local as-is; import remote as a new project via normal save logic
         var remoteCopy = _clone(cEntry.remote.data); // PERF (perf-6 #5)
@@ -2144,18 +2245,51 @@ const SyncEngine = (() => {
       // "keep-local" → do nothing
     }
 
-    // 4. Merge stash
+    // 4. Merge stash. plan.stashMerge was computed at PREPARE time; the
+    //    review gate (or a hydrated pending plan) can execute it much later,
+    //    so writing it wholesale would clobber every stash change made in
+    //    between. Re-merge against the stash as it is NOW, then carry over
+    //    the explicit per-thread resolutions (gate choices and snapshot-based
+    //    one-sided changes) by diffing the plan's merge against a
+    //    deterministic re-run over the prepare-time local stash — any thread
+    //    whose owned differs from that baseline was explicitly resolved.
     if (plan.stashMerge) {
+      var stashToWrite = plan.stashMerge;
       try {
-        var db = await openManagerDB();
-        await new Promise(function (resolve, reject) {
-          var tx = db.transaction("manager_state", "readwrite");
-          var store = tx.objectStore("manager_state");
-          if (plan.stashMerge.threads) store.put(plan.stashMerge.threads, "threads");
-          if (plan.stashMerge.patterns) store.put(plan.stashMerge.patterns, "patterns");
-          if (plan.stashMerge.userProfile) store.put(plan.stashMerge.userProfile, "userProfile");
-          tx.oncomplete = function () { db.close(); resolve(); };
-          tx.onerror = function () { db.close(); reject(tx.error); };
+        var remoteStash = (plan.syncObj && plan.syncObj.stash) || {};
+        var stashMergeOpts = plan.presentProjectIds
+          ? { presentProjectIds: plan.presentProjectIds } : undefined;
+        var freshLocalStash = await readManagerStore();
+        var freshMerge = mergeStash(freshLocalStash, remoteStash, stashMergeOpts);
+        var prepareBaseline = mergeStash(plan.localStash || {}, remoteStash, stashMergeOpts);
+        Object.keys(plan.stashMerge.threads || {}).forEach(function (tid) {
+          var planned = plan.stashMerge.threads[tid];
+          var base = prepareBaseline.threads ? prepareBaseline.threads[tid] : null;
+          if (planned && base && planned.owned !== base.owned && freshMerge.threads[tid]) {
+            freshMerge.threads[tid].owned = planned.owned;
+          }
+        });
+        stashToWrite = freshMerge;
+      } catch (remergeErr) {
+        // Fall back to the prepare-time merge rather than dropping the stash
+        // portion of the import.
+        console.warn("SyncEngine: fresh stash re-merge failed, applying prepare-time merge:", remergeErr);
+      }
+      try {
+        // Same cross-tab lock StashBridge takes for every manager_state
+        // write, so a sync import can't interleave with a bridge write from
+        // another tab.
+        await _withManagerStateLock("sync-import-stash", async function () {
+          var db = await openManagerDB();
+          await new Promise(function (resolve, reject) {
+            var tx = db.transaction("manager_state", "readwrite");
+            var store = tx.objectStore("manager_state");
+            if (stashToWrite.threads) store.put(stashToWrite.threads, "threads");
+            if (stashToWrite.patterns) store.put(stashToWrite.patterns, "patterns");
+            if (stashToWrite.userProfile) store.put(stashToWrite.userProfile, "userProfile");
+            tx.oncomplete = function () { db.close(); resolve(); };
+            tx.onerror = function () { db.close(); reject(tx.error); };
+          });
         });
       } catch (e) {
         // VER-SYNC-019: surface QuotaExceededError with an actionable message
@@ -2195,21 +2329,37 @@ const SyncEngine = (() => {
         }
         var changed = false;
         for (var ii = 0; ii < incoming.length; ii++) {
-          if (!tombstoneSet[incoming[ii].id]) {
-            existingRecords.push(incoming[ii]);
-            tombstoneSet[incoming[ii].id] = true;
-            changed = true;
+          if (tombstoneSet[incoming[ii].id]) continue;
+          // Never absorb a tombstone for a project that is alive in THIS
+          // library with edits newer than the deletion — that would freeze
+          // all future updates to a project the user can still see. A
+          // deletion newer than our copy still absorbs (the peer's intent
+          // stands); a timestampless legacy tombstone never outranks a live
+          // record.
+          var liveLocal = plan.localMap ? plan.localMap[incoming[ii].id] : null;
+          if (liveLocal) {
+            var absDelMs = incoming[ii].deletedAt ? new Date(incoming[ii].deletedAt).getTime() : NaN;
+            var absUpdMs = liveLocal.updatedAt ? new Date(liveLocal.updatedAt).getTime() : 0;
+            if (!isFinite(absDelMs) || absDelMs <= absUpdMs) continue;
           }
+          existingRecords.push(incoming[ii]);
+          tombstoneSet[incoming[ii].id] = true;
+          changed = true;
         }
         if (changed) _writeTombstoneRecords(existingRecords);
       } catch (_) {}
     }
 
-    // 5a. Release tombstones for projects we accepted back because the peer
-    //     had edited them after our deletion. Leaving them would re-evaluate
-    //     the same resurrection on every future sync.
+    // 5a. Release tombstones for projects we accepted back — either because
+    //     the peer edited them after our deletion, or because a live local
+    //     copy proved the tombstone stale (classifyProjects marks both with
+    //     releasedTombstone, on any classification incl. identical/conflict).
+    //     Leaving them would re-evaluate the same resurrection every sync.
     try {
-      var reAccepted = (plan.newRemote || []).concat(plan.mergeTracking || [])
+      var reAccepted = (plan.newRemote || [])
+        .concat(plan.mergeTracking || [])
+        .concat(plan.identical || [])
+        .concat(plan.conflicts || [])
         .filter(function (e) { return e && e.releasedTombstone && e.id; });
       for (var rai = 0; rai < reAccepted.length; rai++) forgetTombstone(reAccepted[rai].id);
     } catch (_) {}
@@ -2228,6 +2378,40 @@ const SyncEngine = (() => {
           + " not imported — deleted on this device. Use SyncEngine.forgetTombstone(id) to allow "
           + (plan.skippedTombstoned.length === 1 ? "it" : "them") + " back."
       });
+      // Surface the decline where the user is actually looking. The activity
+      // log alone was invisible: the import "succeeded", the library stayed
+      // empty, and nothing on screen said why. The Restore action releases
+      // the tombstones and saves the declined projects from this same plan.
+      try {
+        if (typeof window !== "undefined" && window.Toast && window.Toast.show) {
+          var skippedN = plan.skippedTombstoned.length;
+          window.Toast.show({
+            message: skippedN + " pattern" + (skippedN === 1 ? " was" : "s were")
+              + " skipped because " + (skippedN === 1 ? "it was" : "they were")
+              + " previously deleted on this device.",
+            type: "warning",
+            duration: 12000,
+            actionLabel: "Restore",
+            action: function () {
+              restoreSkippedPatterns(plan).then(function (r) {
+                if (window.Toast && window.Toast.show) {
+                  window.Toast.show({
+                    message: r.restored > 0
+                      ? r.restored + " pattern" + (r.restored === 1 ? "" : "s") + " restored."
+                      : "Nothing to restore — re-sync from the other device.",
+                    type: r.restored > 0 ? "success" : "info",
+                    duration: 6000
+                  });
+                }
+              }).catch(function (e) {
+                if (window.Toast && window.Toast.show) {
+                  window.Toast.show({ message: "Restore failed: " + ((e && e.message) || e), type: "error", duration: 8000 });
+                }
+              });
+            }
+          });
+        }
+      } catch (e) {}
     }
 
     // 5b. Apply remote prefs and custom palettes to localStorage.
@@ -2297,8 +2481,58 @@ const SyncEngine = (() => {
       imported: plan.newRemote.length,
       merged: plan.mergeTracking.length,
       conflictsResolved: plan.conflicts.length,
-      stashUpdated: !!plan.stashMerge
+      stashUpdated: !!plan.stashMerge,
+      // Declined projects, so callers can render their own affordance on top
+      // of the engine's warning toast.
+      skippedTombstoned: (plan.skippedTombstoned || []).length
     };
+  }
+
+  // Restore projects that an import declined because this device had deleted
+  // them ("Delete all patterns" tombstones). Releases each tombstone and
+  // saves the declined remote copy from the plan's own sync object, bypassing
+  // the session-delete guard (resurrect). Returns { restored }.
+  async function restoreSkippedPatterns(plan) {
+    var skipped = (plan && plan.skippedTombstoned) || [];
+    if (!skipped.length) return { restored: 0 };
+    var byId = Object.create(null);
+    var remoteList = (plan.syncObj && plan.syncObj.projects) || [];
+    for (var i = 0; i < remoteList.length; i++) {
+      if (remoteList[i] && remoteList[i].id) byId[remoteList[i].id] = remoteList[i];
+    }
+    var restored = 0;
+    for (var s = 0; s < skipped.length; s++) {
+      var id = skipped[s] && skipped[s].id;
+      if (!id) continue;
+      forgetTombstone(id);
+      var rp = byId[id];
+      if (rp && rp.data) {
+        try {
+          await ProjectStorage.save(rp.data, { preserveUpdatedAt: true, resurrect: true });
+          restored++;
+        } catch (e) {
+          console.warn("SyncEngine.restoreSkippedPatterns: could not restore " + id, e);
+        }
+      }
+    }
+    if (restored > 0) {
+      _logEvent({
+        type: "restore-skipped",
+        direction: "in",
+        deviceId: (plan.syncObj && plan.syncObj._deviceId) || null,
+        deviceName: (plan.syncObj && plan.syncObj._deviceName) || null,
+        projectCount: restored,
+        message: restored + " previously deleted pattern" + (restored === 1 ? "" : "s") + " restored from sync."
+      });
+      // ProjectStorage.save dispatches cs:projectsChanged per project already,
+      // but fire one summary event for listeners that debounce on reason.
+      try {
+        if (typeof window !== "undefined" && window.dispatchEvent) {
+          window.dispatchEvent(new CustomEvent("cs:projectsChanged", { detail: { reason: "sync-restore", count: restored } }));
+        }
+      } catch (e) {}
+    }
+    return { restored: restored };
   }
 
   // ── File System Access API helpers (for folder watching, session 4) ─────
@@ -2396,15 +2630,13 @@ const SyncEngine = (() => {
     var syncObj = await exportSync();
     var compressed = compress(syncObj);
     // Use a fixed filename per device so each device has one file
-    var deviceName = getDeviceName();
-    var namePart = deviceName ? "-" + deviceName.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 20) : "";
-    var deviceId = getDeviceId();
-    var idPart = deviceId.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 30);
-    var fileName = "cross-stitch-sync" + namePart + "-" + idPart + ".csync";
+    var idPart = getDeviceId().replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 30);
+    var fileName = "cross-stitch-sync" + _safeDeviceNamePart() + "-" + idPart + ".csync";
     var fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
     var writable = await fileHandle.createWritable();
     await writable.write(compressed);
     await writable.close();
+    _markExportComplete(syncObj._createdAt);
     _logEvent({
       type: "export-success",
       direction: "out",
@@ -2415,6 +2647,14 @@ const SyncEngine = (() => {
     });
     return { fileName: fileName, syncObj: syncObj };
   }
+
+  // Per-session parse cache for scanFolder, keyed by file name and validated
+  // against (size, lastModified). The watcher ticks every ~10 s and used to
+  // gunzip + JSON.parse EVERY peer file on EVERY tick — with a multi-MB
+  // library in a cloud folder that was constant CPU/battery burn on phones.
+  // A file only gets re-parsed when its size or mtime changes; unreadable /
+  // invalid files are cached too so they aren't re-parsed every tick either.
+  var _scanCache = Object.create(null);
 
   // Scan the sync folder for .csync files and return metadata for each
   async function scanFolder(dirHandleArg) {
@@ -2431,11 +2671,22 @@ const SyncEngine = (() => {
       if (entry.kind !== "file" || !entry.name.endsWith(".csync")) continue;
       try {
         var file = await entry.getFile();
+        var cached = _scanCache[entry.name];
+        if (cached && cached.size === file.size && cached.lastModified === file.lastModified) {
+          if (cached.invalid) continue;
+          // Refresh the handle — the cached one may belong to an old
+          // directory iteration.
+          results.push(Object.assign({}, cached.result, { fileHandle: entry }));
+          continue;
+        }
         var arrayBuffer = await file.arrayBuffer();
         var syncObj = decompress(arrayBuffer);
         var valid = validate(syncObj);
-        if (!valid.valid) continue;
-        results.push({
+        if (!valid.valid) {
+          _scanCache[entry.name] = { size: file.size, lastModified: file.lastModified, invalid: true };
+          continue;
+        }
+        var parsed = {
           fileName: entry.name,
           fileHandle: entry,
           deviceId: syncObj._deviceId || null,
@@ -2446,7 +2697,9 @@ const SyncEngine = (() => {
           syncObj: syncObj,
           size: file.size,
           lastModified: file.lastModified
-        });
+        };
+        _scanCache[entry.name] = { size: file.size, lastModified: file.lastModified, result: parsed };
+        results.push(parsed);
       } catch (e) {
         console.warn("SyncEngine: skipping unreadable file:", entry.name, e);
       }
@@ -2606,9 +2859,22 @@ const SyncEngine = (() => {
   var _lastPermWarningAt = 0;
   // Cooldown between permission-warning toasts during a persistent failure run.
   var PERM_WARN_COOLDOWN_MS = 60000;
-  var AUTO_EXPORT_DELAY = 30000; // legacy export — kept for compatibility
   var FAST_EXPORT_DELAY = 2000;
   var COOLDOWN_MS = 30000;
+
+  // Single source for the "sync paused, permission revoked" toast — shown by
+  // both _reportSyncError (permission-flavoured failures) and the watcher
+  // tick's explicit permission probe.
+  function _showPermissionRevokedToast() {
+    if (typeof window === "undefined" || !window.Toast || !window.Toast.show) return;
+    try {
+      window.Toast.show({
+        message: "Sync paused — folder permission was revoked. Re-open the sync panel to reconnect.",
+        type: "warning",
+        duration: 8000
+      });
+    } catch (e) {}
+  }
 
   // Internal helper used by both auto-export and the polling watcher to
   // surface failures consistently. Dispatches a `cs:syncError` event and
@@ -2635,16 +2901,7 @@ const SyncEngine = (() => {
     });
     // Permission errors warrant a visible toast; transient errors don't
     // (we don't want to spam the user with one toast per failed poll).
-    var isPerm = /permission/i.test(msg);
-    if (isPerm && typeof window !== "undefined" && window.Toast && window.Toast.show) {
-      try {
-        window.Toast.show({
-          message: "Sync paused — folder permission was revoked. Re-open the sync panel to reconnect.",
-          type: "warning",
-          duration: 8000
-        });
-      } catch (e) {}
-    }
+    if (/permission/i.test(msg)) _showPermissionRevokedToast();
   }
 
   function triggerAutoExport() {
@@ -2955,12 +3212,19 @@ const SyncEngine = (() => {
     if (typeof w !== "number" || typeof h !== "number") return false;
     if (!isFinite(w) || !isFinite(h)) return false;
     if (w <= 0 || h <= 0 || w > 10000 || h > 10000) return false;
-    if (!Array.isArray(p.pattern)) return false;
+    // Accept both grid encodings: the normal `.pattern` array of {id} cells
+    // and the compact `.p` array of ["id", flag] cells used by v8/URL-shared
+    // projects (computeFingerprint and ProjectStorage.countTotalStitches
+    // already accept both). Requiring `.pattern` alone made the auto-apply
+    // gate reject every compact-format project, shunting whole deliveries to
+    // manual review.
+    var grid = Array.isArray(p.pattern) ? p.pattern : (Array.isArray(p.p) ? p.p : null);
+    if (!grid) return false;
     // Accept slight length drift (some legacy versions stored sparse arrays)
     // but reject obvious truncation: pattern shorter than half the expected
     // grid is almost certainly corrupt.
     var expected = w * h;
-    if (p.pattern.length > 0 && p.pattern.length < expected / 2) return false;
+    if (grid.length > 0 && grid.length < expected / 2) return false;
     return true;
   }
 
@@ -3038,7 +3302,13 @@ const SyncEngine = (() => {
     if (!plan) return false;
     return _stashMergeChangesAnything(plan)
         || _tombstonesChangeAnything(plan)
-        || _prefsChangeAnything(plan);
+        || _prefsChangeAnything(plan)
+        // Declined-as-tombstoned projects are not "work" the import will do,
+        // but they ARE something the user must hear about — otherwise a
+        // delete-all followed by a re-sync applies nothing and says nothing.
+        // Keeping the plan alive routes it to the review gate, whose
+        // executeImport surfaces the skip toast with the Restore action.
+        || !!(plan.skippedTombstoned && plan.skippedTombstoned.length);
   }
 
   // Split a prepared plan into the part we can apply unattended and the part
@@ -3309,15 +3579,7 @@ const SyncEngine = (() => {
             type: "permission-needed",
             message: 'Browser permission was "' + permState + '" for folder "' + (handle.name || "?") + '" (watcher tick)'
           });
-          if (typeof window !== "undefined" && window.Toast && window.Toast.show) {
-            try {
-              window.Toast.show({
-                message: "Sync paused — folder permission was revoked. Re-open the sync panel to reconnect.",
-                type: "warning",
-                duration: 8000
-              });
-            } catch (e) {}
-          }
+          _showPermissionRevokedToast();
         }
         return;
       }
@@ -3760,6 +4022,8 @@ const SyncEngine = (() => {
     getTombstones: getTombstoneRecords,
     forgetTombstone: forgetTombstone,
     clearTombstones: clearTombstones,
+    // Bring back projects a plan declined as tombstoned (Restore toast action).
+    restoreSkippedPatterns: restoreSkippedPatterns,
 
     // Snapshot
     readSnapshot: readSnapshot,

@@ -132,7 +132,10 @@ const ProjectStorage = (() => {
   // Extract lightweight metadata from a full project object.
   function buildMeta(p) {
     const s = p.settings || {};
-    const totalSt = p.pattern ? countTotalStitches(p) : 0;
+    // countTotalStitches accepts both `.pattern` and the compact `.p` grid;
+    // gate on either so compact-format projects don't report 0 stitches and
+    // land in the dashboard's catch-all bucket.
+    const totalSt = (p.pattern || p.p) ? countTotalStitches(p) : 0;
     const completedSt = p.done ? countCompletedStitches(p.done) : 0;
     const sessions = p.statsSessions || [];
     const totalSeconds = sessions.reduce((sum, s) => sum + (s.durationSeconds != null ? s.durationSeconds : (s.durationMinutes || 0) * 60), 0);
@@ -388,9 +391,19 @@ const ProjectStorage = (() => {
         project.id = this.newId();
         project.createdAt = new Date().toISOString();
       }
-      // Refuse to save a project that was deleted during this page session.
+      // Refuse to save a project that was deleted during this page session —
+      // the guard exists to stop an in-flight autosave resurrecting a project
+      // the user just deleted. Sync imports and explicit restores pass
+      // opts.resurrect to override it: there the (re-)creation IS the intent,
+      // and silently returning success here made a delete-all followed by a
+      // same-session re-import drop every project while the import reported
+      // them as imported.
       if (this._deletedIds.has(project.id)) {
-        return project.id;
+        if (opts.resurrect) {
+          this._deletedIds.delete(project.id);
+        } else {
+          return project.id;
+        }
       }
       if (!(opts.preserveUpdatedAt && project.updatedAt)) {
         project.updatedAt = new Date().toISOString();

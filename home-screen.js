@@ -782,6 +782,22 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
     return { active: active, queued: queued, paused: paused, complete: complete, design: design };
   }, [projects, states]);
 
+  // If every project sits in a collapsed section, the library renders as
+  // empty even though the counts say otherwise — the canonical case is a
+  // fresh sync import of Creator-authored patterns, which all infer state
+  // 'design'. Expand the non-empty collapsed sections once so newly arrived
+  // patterns are actually visible; after that the user's toggles win.
+  var autoExpandedRef = React.useRef(false);
+  useEffect(function() {
+    if (autoExpandedRef.current) return;
+    if (projects.length === 0) return;
+    autoExpandedRef.current = true;
+    if (categorised.active.length + categorised.queued.length > 0) return;
+    if (categorised.design.length > 0) setDesignOpen(true);
+    if (categorised.paused.length > 0) setPausedOpen(true);
+    if (categorised.complete.length > 0) setCompletedOpen(true);
+  }, [categorised, projects]);
+
   // Suggestion
   var suggestion = useMemo(function() {
     return getSuggestion(categorised.active, null);
