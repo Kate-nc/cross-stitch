@@ -974,6 +974,23 @@ const SyncEngine = (() => {
     return merged;
   }
 
+  // Total duration (seconds) recorded across a session array. Mirrors the
+  // field precedence used by ProjectStorage.buildMeta so the two agree.
+  function _sumSessionSeconds(sessions) {
+    if (!sessions || !sessions.length) return 0;
+    var total = 0;
+    for (var i = 0; i < sessions.length; i++) {
+      var s = sessions[i];
+      if (!s) continue;
+      if (typeof s.durationSeconds === "number" && isFinite(s.durationSeconds)) {
+        total += s.durationSeconds;
+      } else if (typeof s.durationMinutes === "number" && isFinite(s.durationMinutes)) {
+        total += s.durationMinutes * 60;
+      }
+    }
+    return total;
+  }
+
   function mergeTrackingProgress(local, remote, metaOverrides) {
     // Merge a project where the chart structure is identical but tracking differs.
     // Take the LOCAL project as base, deep-clone mutable sub-objects to avoid
@@ -1019,11 +1036,29 @@ const SyncEngine = (() => {
     merged.statsSessions = mergeSessions(local.statsSessions, remote.statsSessions);
     merged.sessions = mergeSessions(local.sessions, remote.sessions);
 
-    // Sum total time from both sides: each device tracks its own elapsed stitching
-    // time independently, so the correct merged value is the sum, not the max.
-    // Using Math.max would cap the merged total at whichever device's clock ran
-    // longer, silently discarding the other device's recorded work time.
-    merged.totalTime = (local.totalTime || 0) + (remote.totalTime || 0);
+    // Total stitching time must be IDEMPOTENT under repeated merges. This was
+    // a plain sum (local + remote), which is not: every time the peer edited
+    // the project and we re-merged, its entire accumulated total was added to
+    // ours again. A + B = 100/0 converged correctly the first time, but after
+    // the peer stitched 10 more seconds we computed 100 + 110 = 210 instead of
+    // 110, compounding with every subsequent edit. Auto-applying merge-tracking
+    // turns that from an occasional manual-merge glitch into continuous drift.
+    //
+    // The session arrays are already deduplicated unions keyed on start time,
+    // so their combined duration is both idempotent and the most accurate
+    // record of genuine cross-device work. Take the largest of the three
+    // candidates: max() of idempotent inputs is itself idempotent, and the
+    // session sum recovers the true total whenever session records exist
+    // (the normal case — the tracker writes one per stitching session).
+    var mergedSessionSeconds = Math.max(
+      _sumSessionSeconds(merged.statsSessions),
+      _sumSessionSeconds(merged.sessions)
+    );
+    merged.totalTime = Math.max(
+      local.totalTime || 0,
+      remote.totalTime || 0,
+      mergedSessionSeconds
+    );
 
     // Merge threadOwned (union: keep owned/tobuy status from either side)
     if (remote.threadOwned && typeof remote.threadOwned === "object") {
@@ -2569,6 +2604,11 @@ const SyncEngine = (() => {
       // (still surfaced for review); drop genuinely empty ones entirely.
       return { autoPlan: null, reviewPlan: _planHasSideEffects(plan) ? plan : null };
     }
+
+    // Fast path — the common case is a delivery that is entirely safe.
+    // Reusing the whole-plan predicate keeps one source of truth for
+    // "can this be applied unattended" instead of restating the rule here.
+    if (_isPlanAutoApplicable(plan)) return { autoPlan: plan, reviewPlan: null };
 
     var autoNew = [], reviewNew = [], autoMerge = [], reviewMerge = [];
     var i;

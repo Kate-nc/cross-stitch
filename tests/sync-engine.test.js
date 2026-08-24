@@ -340,7 +340,11 @@ describe('mergeTrackingProgress', () => {
       settings: { sW: 2, sH: 2 },
       pattern: [{ id: '310' }, { id: '550' }, { id: '310' }, { id: '550' }],
       done: [1, 0, 0, 0],
-      totalTime: 100,
+      // 30 minutes of sessions == 1800s of totalTime. The two fields record
+      // the same quantity in seconds (see the tracker's legacy migration,
+      // which synthesises a session with durationSeconds: project.totalTime),
+      // so the fixture keeps them consistent.
+      totalTime: 1800,
       statsSessions: [{ start: '2024-01-01T10:00:00Z', durationMinutes: 30 }],
       sessions: [{ start: '2024-01-01T10:00:00Z' }],
       threadOwned: { '310': 'owned' },
@@ -351,7 +355,7 @@ describe('mergeTrackingProgress', () => {
       settings: { sW: 2, sH: 2 },
       pattern: [{ id: '310' }, { id: '550' }, { id: '310' }, { id: '550' }],
       done: [0, 1, 0, 1],
-      totalTime: 200,
+      totalTime: 2700, // 45 minutes, matching the session below
       statsSessions: [{ start: '2024-01-02T10:00:00Z', durationMinutes: 45 }],
       sessions: [{ start: '2024-01-02T10:00:00Z' }],
       threadOwned: { '550': 'tobuy' },
@@ -367,9 +371,11 @@ describe('mergeTrackingProgress', () => {
     expect(merged.statsSessions).toHaveLength(2);
     expect(merged.sessions).toHaveLength(2);
 
-    // Total time is the sum of both sides: each device records its own elapsed
-    // stitching time independently, so the correct merged value is local + remote.
-    expect(merged.totalTime).toBe(300);
+    // Both devices' stitching time is preserved — neither side is capped away.
+    // The value is derived from the deduplicated session union (1800 + 2700)
+    // rather than a raw local+remote sum, so re-merging the same pair cannot
+    // compound it. See tests/syncMergeIdempotency.test.js.
+    expect(merged.totalTime).toBe(4500);
 
     // Thread owned merged
     expect(merged.threadOwned['310']).toBe('owned');
