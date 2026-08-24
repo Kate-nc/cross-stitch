@@ -119,7 +119,113 @@ inside a collapsed section — which compounds the "I can't see them" impression
 6. **(UX) Consider expanding the `design` section** — or a "New from sync"
    grouping — when an import just added projects to a collapsed bucket.
 
-## 4. What was verified working
+## 4. Status of the recommended fixes
+
+All six fixes from §3 are implemented on this branch (commit `e08139e`) and
+covered by `tests/syncImportFixes.test.js` (real `project-storage.js` on
+fake-indexeddb under the real `sync-engine.js`) plus the updated regression
+suite in `tests/syncImportVisibility.test.js`. Full suite: 2604 tests / 201
+suites green.
+
+## 5. Additional issues found in the follow-up audit (proposed, not yet fixed)
+
+Ordered by severity. None of these is the reported bug; they were found while
+sweeping the rest of the engine.
+
+### 5.1 HIGH — absorbed remote tombstones can freeze a live local project
+
+`classifyProjects` checks the tombstone list **before** checking whether the
+project exists locally (`sync-engine.js:991-1008` skips via `continue` without
+ever consulting `localProjectsMap`), and `executeImport` step 5 absorbs every
+peer tombstone wholesale (`sync-engine.js` "Absorb remote tombstones").
+Sequence: device A deletes X (its exports now carry X's tombstone) → B imports
+one of those files and absorbs the tombstone **while still holding X** (or
+after X was restored) → every future update to X, from any device, is declined
+on B as "deleted on this device" — while X sits visibly in B's library.
+
+**Proposed fix:** (a) in `classifyProjects`, ignore/release a local tombstone
+when a live local project with that id exists — the record's presence proves
+the deletion was superseded; (b) when absorbing remote tombstones, skip ids
+that exist in the local library with `updatedAt` newer than the tombstone's
+`deletedAt`.
+
+### 5.2 HIGH — executeImport's stash write is stale and bypasses the write-lock
+
+`plan.stashMerge` is computed at **prepare** time, but the review gate can run
+`executeImport` much later — and a hydrated pending plan
+(`_persistPendingPlan` / `PENDING_PLAN_TTL_MS`) can execute a merge computed
+hours earlier. Step 4 then wholesale-overwrites `manager_state.threads` /
+`patterns` / `userProfile` with that stale merge. The write also uses a raw
+transaction instead of StashBridge's `_withManagerWriteLock`
+(`stash-bridge.js:455`), so it can clobber a concurrent bridge write from
+another tab (the exact race the lock exists to prevent).
+
+**Proposed fix:** inside `executeImport`, re-read the local stash and
+recompute `mergeStash` fresh (mirroring the `freshLocal` re-reads it already
+does for projects), and route the write through the same manager write-lock.
+
+### 5.3 MEDIUM — `lastExportAt` bookkeeping records failures as successes
+
+`exportSync` writes `cs_sync_lastExportAt` before the encryption layer can
+throw `passphrase_required` and before `exportToFolder` attempts the actual
+file write. A failed export therefore still bumps "last exported", so the
+sync status panel reports success, and if incremental mode is ever enabled,
+the changes made before the failed export would be skipped by the next one.
+
+**Proposed fix:** move the timestamp write out of `exportSync` into the
+callers, after the download/write has actually succeeded.
+
+### 5.4 MEDIUM — the watcher decompresses every .csync on every 10-second tick
+
+`scanFolder` gunzips + JSON.parses every peer file on each tick regardless of
+whether it changed. With a multi-MB library in a cloud folder this is
+constant CPU/battery burn on phones.
+
+**Proposed fix:** cache a `(fileName, size, lastModified) → parsed metadata`
+verdict per session and only decompress files whose triple changed since the
+last scan.
+
+### 5.5 LOW — `restoreSkippedPatterns` doesn't restore the linked library entries
+
+The orphan guard (fix 2) skipped those stash entries at import time, so after
+a Restore the Manager library entry is missing until the Manager page's
+reconcile rebuilds it (it does — `auto-synced` entries are regenerated from
+projects). Self-healing, but the count is briefly one short.
+
+**Proposed fix (optional):** have `restoreSkippedPatterns` re-add the linked
+entries from `plan.syncObj.stash.patterns` for the ids it restored.
+
+### 5.6 LOW — a typed-array `done` would not survive JSON export
+
+The tracker holds `done` as a `Uint8Array`; every current save path
+normalises with `Array.from(done)` before IDB, but nothing enforces that. If
+any future path saves the typed array, `JSON.stringify` serialises it as
+`{"0":1,"1":0,…}`, and the importing device would silently lose all progress
+(the tracker's `project.done.length === restored.length` check fails and
+resets `done`; `countCompletedStitches` counts 0).
+
+**Proposed fix:** belt-and-braces normalisation in `exportSync`'s project
+mapping (`if (ArrayBuffer.isView(data.done)) data.done = Array.from(data.done)`)
+and object-form conversion on import.
+
+### 5.7 LOW — tombstone staleness compares wall clocks across devices
+
+`remote.updatedAt` (authoring device's clock) is compared with `deletedAt`
+(this device's clock). A peer with a slow clock can have genuine
+post-deletion edits declined. Mitigated by the new Restore toast; a full fix
+needs logical versions (e.g. the existing `syncMeta.syncVersion` counters)
+instead of timestamps.
+
+### 5.8 LOW — device-id collision detection can miss same-name clones
+
+`_detectDeviceIdCollision` treats a file with matching id **and** matching
+device name as "our own export". Two cloned browser profiles that share both
+id and default name silently overwrite each other's files with no warning.
+
+**Proposed fix:** compare against a per-install random nonce (regenerated on
+profile copy) instead of the user-editable display name.
+
+## 6. What was verified working
 
 - The core pipeline on a genuinely fresh device is sound: `prepareImport` →
   `executeImport` → `ProjectStorage.save` writes both the project record and
