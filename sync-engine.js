@@ -2435,15 +2435,40 @@ const SyncEngine = (() => {
   function _isProjectShapeValid(p) {
     if (!p || typeof p !== "object") return false;
     if (typeof p.id !== "string" || !p.id) return false;
-    if (typeof p.w !== "number" || typeof p.h !== "number") return false;
-    if (p.w <= 0 || p.h <= 0 || p.w > 10000 || p.h > 10000) return false;
+    // Dimensions must be read the same way computeFingerprint reads them.
+    // The Creator writes them ONLY into settings.sW / settings.sH (see
+    // creator/useProjectIO.js) with no top-level w/h, so a `typeof p.w`
+    // check rejected every Creator-authored project — which meant the
+    // auto-apply gate refused the entire first sync and pushed it to
+    // manual review, where it was easy to never notice.
+    var w = _projectWidth(p);
+    var h = _projectHeight(p);
+    if (typeof w !== "number" || typeof h !== "number") return false;
+    if (!isFinite(w) || !isFinite(h)) return false;
+    if (w <= 0 || h <= 0 || w > 10000 || h > 10000) return false;
     if (!Array.isArray(p.pattern)) return false;
     // Accept slight length drift (some legacy versions stored sparse arrays)
     // but reject obvious truncation: pattern shorter than half the expected
     // grid is almost certainly corrupt.
-    var expected = p.w * p.h;
+    var expected = w * h;
     if (p.pattern.length > 0 && p.pattern.length < expected / 2) return false;
     return true;
+  }
+
+  // Canonical dimension accessors. settings.sW/sH is the shape the Creator
+  // persists; top-level w/h is what the Tracker and some importers add.
+  // computeFingerprint has always preferred settings first — everything that
+  // reasons about a project's size must agree with it.
+  function _projectWidth(p) {
+    if (!p) return undefined;
+    if (p.settings && typeof p.settings.sW === "number") return p.settings.sW;
+    return typeof p.w === "number" ? p.w : undefined;
+  }
+
+  function _projectHeight(p) {
+    if (!p) return undefined;
+    if (p.settings && typeof p.settings.sH === "number") return p.settings.sH;
+    return typeof p.h === "number" ? p.h : undefined;
   }
 
   async function _processFolderUpdates(updates) {
@@ -3164,6 +3189,8 @@ const SyncEngine = (() => {
     _test: {
       isProjectShapeValid: _isProjectShapeValid,
       isPlanAutoApplicable: _isPlanAutoApplicable,
+      projectWidth: _projectWidth,
+      projectHeight: _projectHeight,
       recordDeviceImport: _recordDeviceImport,
       encryptSyncObj: _encryptSyncObj,
       decryptSyncObj: _decryptSyncObj,
