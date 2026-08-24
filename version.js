@@ -8,6 +8,19 @@ window.APP_VERSION = '1.0.53';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.53',
+    date: 'August 2026',
+    notes: [
+      'Fixed a sync bug where patterns imported from another device could show up in the Pattern Library count but never actually appear on screen.',
+      'Fixed a bug where deleting all patterns and then reconnecting a sync folder could permanently stop that device from receiving future updates to those patterns — even after they came back.',
+      'When a sync skips a pattern because it was deleted on this device, you now see a prompt explaining why, with a one-tap Restore.',
+      'Freshly synced patterns no longer get hidden inside a collapsed section of the Projects list.',
+      'Legacy and URL-shared pattern files now sync automatically instead of getting stuck waiting for manual review.',
+      'Checking a sync folder for updates is lighter on battery — files that have not changed since the last check are no longer re-read every time.',
+      'The sync status panel no longer reports a successful export when the write actually failed.',
+    ]
+  },
+  {
     version: '1.0.51',
     date: 'August 2026',
     notes: [
