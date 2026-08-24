@@ -19,6 +19,9 @@ const SyncEngine = (() => {
   // export and required-passphrase on import. The passphrase itself is
   // never written to disk — see _sessionPassphrase below.
   const LS_ENC_ENABLED = "cs_sync_encryption_enabled";
+  // Auto-export toggle. "1" = on, "0" = explicitly off, absent = never chosen
+  // (which setWatchDirectory upgrades to on — see _defaultAutoSyncOnConnect).
+  const LS_AUTO_SYNC = "cs_sync_folderAutoSync";
   // Per-device "last import" map — { deviceId: { at, fileLastModified, deviceName, projectCount } }.
   // Updated in executeImport when the source device is known via plan.syncObj._deviceId.
   // Powers the inline "Devices in this folder" panel (Concept B).
@@ -1898,6 +1901,10 @@ const SyncEngine = (() => {
         tx.onerror = function () { db.close(); reject(tx.error); };
       });
     } catch (e) { console.warn("SyncEngine: could not persist watch dir handle:", e); }
+    // Choosing a folder means "sync this device". Turn on auto-export unless
+    // the user has previously opted out — otherwise the device can receive
+    // but never send, which is silent and very hard to notice.
+    try { _defaultAutoSyncOnConnect(); } catch (e) {}
     // Phase-3 sync-fix #1: kick off the polling watcher automatically so any
     // page that configures a sync folder starts receiving remote updates.
     // startWatching() also fires _runWatcherTick() once immediately, which
@@ -1955,7 +1962,9 @@ const SyncEngine = (() => {
         tx.onerror = function () { db.close(); reject(tx.error); };
       });
     } catch (e) { console.warn("SyncEngine: could not clear watch dir handle:", e); }
-    try { localStorage.removeItem("cs_sync_folderAutoSync"); } catch (e) {}
+    // Remove rather than set "0": disconnecting clears the preference so a
+    // future reconnect opts in again, instead of inheriting a stale opt-out.
+    try { localStorage.removeItem(LS_AUTO_SYNC); } catch (e) {}
   }
 
   // Write current state to the sync folder as a .csync file
@@ -2125,13 +2134,42 @@ const SyncEngine = (() => {
   }
 
   function isAutoSyncEnabled() {
-    try { return localStorage.getItem("cs_sync_folderAutoSync") === "1"; } catch (e) { return false; }
+    try { return localStorage.getItem(LS_AUTO_SYNC) === "1"; } catch (e) { return false; }
   }
 
+  // Explicit "off" is now stored as "0" rather than by removing the key, so
+  // we can tell "the user turned this off" apart from "never chosen". Only
+  // the latter gets upgraded to on when a folder is connected — see
+  // _defaultAutoSyncOnConnect.
   function setAutoSyncEnabled(enabled) {
     try {
-      if (enabled) localStorage.setItem("cs_sync_folderAutoSync", "1");
-      else localStorage.removeItem("cs_sync_folderAutoSync");
+      localStorage.setItem(LS_AUTO_SYNC, enabled ? "1" : "0");
+    } catch (e) {}
+  }
+
+  // Has the user ever expressed a preference either way?
+  function hasAutoSyncPreference() {
+    try { return localStorage.getItem(LS_AUTO_SYNC) !== null; } catch (e) { return false; }
+  }
+
+  // Connecting a sync folder used to start the watcher (the read path) but
+  // leave auto-export (the write path) switched off, because the toggle
+  // lived behind a separate Preferences control that defaulted to off. The
+  // result was a device that could receive but never send — one user's
+  // second device had a folder connected for months with lastExportAt stuck
+  // at the day it was set up, so nothing it did ever reached the peer.
+  //
+  // Picking a folder is an unambiguous "I want this to sync", so treat it as
+  // opting in. A user who has explicitly turned auto-sync off is respected.
+  function _defaultAutoSyncOnConnect() {
+    if (hasAutoSyncPreference()) return;
+    setAutoSyncEnabled(true);
+    try {
+      if (typeof window !== "undefined" && window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent("cs:syncStatusChanged", {
+          detail: { reason: "auto-sync-enabled-on-connect" }
+        }));
+      }
     } catch (e) {}
   }
 
@@ -3257,6 +3295,7 @@ const SyncEngine = (() => {
     checkForUpdates: checkForUpdates,
     isAutoSyncEnabled: isAutoSyncEnabled,
     setAutoSyncEnabled: setAutoSyncEnabled,
+    hasAutoSyncPreference: hasAutoSyncPreference,
     triggerAutoExport: triggerAutoExport,
 
     // Folder watcher (Phase-3)
