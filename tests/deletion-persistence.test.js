@@ -33,7 +33,7 @@ describe('ProjectStorage deletion guards (source analysis)', () => {
   });
 
   test('save() checks _deletedIds before writing', () => {
-    const saveMethod = storageSrc.match(/async save\(project\)\s*\{[\s\S]*?\n    \}/);
+    const saveMethod = storageSrc.match(/async save\(project(?:,\s*\w+)?\)\s*\{[\s\S]*?\n    \}/);
     expect(saveMethod).not.toBeNull();
     const body = saveMethod[0];
     expect(body).toContain('_deletedIds.has(project.id)');
@@ -44,7 +44,7 @@ describe('ProjectStorage deletion guards (source analysis)', () => {
   });
 
   test('save() returns early without writing when project is deleted', () => {
-    const saveMethod = storageSrc.match(/async save\(project\)\s*\{[\s\S]*?\n    \}/);
+    const saveMethod = storageSrc.match(/async save\(project(?:,\s*\w+)?\)\s*\{[\s\S]*?\n    \}/);
     const body = saveMethod[0];
     // Should return early with project.id (no-op)
     expect(body).toMatch(/if\s*\(this\._deletedIds\.has\(project\.id\)\)\s*\{?\s*return project\.id/);

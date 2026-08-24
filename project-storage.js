@@ -339,7 +339,19 @@ const ProjectStorage = (() => {
 
     // Save a project. Assigns a new ID and createdAt if the project has none.
     // Returns a Promise<string> of the saved project ID.
-    async save(project) {
+    //
+    // options.preserveUpdatedAt — keep the project's existing `updatedAt`
+    // instead of restamping it with this device's wall clock. Sync writes
+    // MUST pass this. An imported record's `updatedAt` is the *authoring*
+    // device's edit time; overwriting it with "now" destroyed the real edit
+    // history and — because executeImport saves newest-first while
+    // listProjects() sorts newest-first again — inverted the receiving
+    // device's library, surfacing the oldest patterns at the top. It also
+    // made the `identical` classification in SyncEngine.classifyProjects
+    // unreachable, so every shared project stayed permanently in
+    // merge-tracking and re-synced on every watcher tick.
+    async save(project, options) {
+      const opts = options || {};
       if (!project.id) {
         project.id = this.newId();
         project.createdAt = new Date().toISOString();
@@ -348,7 +360,9 @@ const ProjectStorage = (() => {
       if (this._deletedIds.has(project.id)) {
         return project.id;
       }
-      project.updatedAt = new Date().toISOString();
+      if (!(opts.preserveUpdatedAt && project.updatedAt)) {
+        project.updatedAt = new Date().toISOString();
+      }
       // INT-7 Phase B: stamp a numeric (epoch ms) write timestamp and the
       // authoring tab id alongside the existing ISO `updatedAt` string.
       // These power the stale-read conflict detection in Phase B-2:
@@ -666,8 +680,17 @@ const ProjectStorage = (() => {
               var raw = localStorage.getItem(LS_TOMBSTONE_KEY);
               var tombstones = [];
               try { tombstones = JSON.parse(raw) || []; } catch (_) {}
-              if (!tombstones.includes(id)) {
-                tombstones.push(id);
+              if (!Array.isArray(tombstones)) tombstones = [];
+              // Records are { id, deletedAt }. The timestamp lets SyncEngine
+              // tell a stale deletion from a live one: if a peer edits the
+              // project after we deleted it, that work is accepted back
+              // instead of being blocked forever. Legacy bare-string entries
+              // are left as-is and normalised on read.
+              var already = tombstones.some(function (t) {
+                return (typeof t === "string") ? t === id : (t && t.id === id);
+              });
+              if (!already) {
+                tombstones.push({ id: id, deletedAt: new Date().toISOString() });
                 // Cap at 200 to avoid unbounded localStorage growth.
                 if (tombstones.length > 200) tombstones = tombstones.slice(tombstones.length - 200);
                 localStorage.setItem(LS_TOMBSTONE_KEY, JSON.stringify(tombstones));
@@ -700,6 +723,85 @@ const ProjectStorage = (() => {
     // Check whether a project ID was deleted during this page session.
     isDeleted(id) {
       return this._deletedIds.has(id);
+    },
+
+    // Remove every project on this device WITHOUT tombstoning them, so the
+    // library can be rebuilt from a peer's .csync.
+    //
+    // delete() is the wrong tool for this job, in three separate ways:
+    //   1. it writes a tombstone per id, and SyncEngine.classifyProjects uses
+    //      tombstones to permanently skip those projects on import;
+    //   2. it adds the id to the session-local _deletedIds guard, which makes
+    //      save() a silent no-op for that id until the page reloads;
+    //   3. both of the above survive the wipe, so a bulk delete followed by a
+    //      re-sync would import nothing at all and look like sync was broken.
+    // This method deliberately touches neither.
+    //
+    // options.includeAutoSave (default true) also drops the legacy "auto_save"
+    // record, so a stale single-project autosave can't resurrect wiped work.
+    // The thread stash is intentionally left alone — it is device inventory,
+    // not synced library content.
+    //
+    // Returns the number of project records removed.
+    async clearAllProjects(options) {
+      const opts = options || {};
+      const includeAutoSave = opts.includeAutoSave !== false;
+      try {
+        const db = await getDB();
+        const allKeys = await new Promise((resolve, reject) => {
+          const tx = db.transaction(STORE_NAME, "readonly");
+          const req = tx.objectStore(STORE_NAME).getAllKeys();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => reject(req.error);
+        });
+        const projectIds = allKeys.filter(
+          k => typeof k === "string" && k.startsWith("proj_"));
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE], "readwrite");
+          const store = tx.objectStore(STORE_NAME);
+          const metaStore = tx.objectStore(META_STORE);
+          const statsStore = tx.objectStore(STATS_STORE);
+          for (const id of projectIds) {
+            store.delete(id);
+            metaStore.delete(id);
+            statsStore.delete(id);
+          }
+          if (includeAutoSave) store.delete("auto_save");
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+        this._allFullCache = null;
+        this.clearActiveProject();
+        // Release the session-delete guard. It exists to stop an in-flight
+        // autosave from resurrecting a just-deleted project, but after a full
+        // wipe it would silently no-op save() for any id deleted earlier in
+        // this page session — so those patterns would NOT come back on the
+        // rebuild, with no error to explain why. Forgetting the deletions is
+        // the correct semantic here: we are about to re-import from a peer.
+        try { this._deletedIds.clear(); } catch (_) {}
+        try { if (typeof window !== 'undefined') window.__csMostUsedCache = null; } catch (_) {}
+        // Drop dashboard state for the removed ids so stale entries don't
+        // linger for projects that may never come back.
+        try {
+          const states = this.getProjectStates();
+          let changed = false;
+          for (const id of projectIds) {
+            if (states[id] !== undefined) { delete states[id]; changed = true; }
+          }
+          if (changed) localStorage.setItem('cs_projectStates', JSON.stringify(states));
+        } catch (_) {}
+        try {
+          if (typeof window !== "undefined" && window.dispatchEvent) {
+            window.dispatchEvent(new CustomEvent("cs:projectsChanged", {
+              detail: { reason: "clearAll", count: projectIds.length }
+            }));
+          }
+        } catch (_) {}
+        return projectIds.length;
+      } catch (err) {
+        console.error("ProjectStorage.clearAllProjects failed:", err);
+        throw err;
+      }
     },
 
     // Internal set of project IDs deleted during this page session.

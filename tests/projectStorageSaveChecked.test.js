@@ -41,8 +41,12 @@ describe('INT-7 Phase B-2: saveChecked() structural shape', () => {
     const okMatches = SRC.match(/return\s*\{\s*ok:\s*true,\s*id:\s*id\s*\}/g) || [];
     expect(okMatches.length).toBeGreaterThanOrEqual(2);
   });
-  test('does not modify the existing save() signature', () => {
-    expect(SRC).toMatch(/async\s+save\(project\)\s*\{/);
+  test('keeps save() call-compatible — project stays the first parameter', () => {
+    // save() gained an optional trailing `options` bag (sync writes pass
+    // { preserveUpdatedAt: true }). That is additive: every existing
+    // single-argument call site behaves exactly as before. What must not
+    // change is `project` remaining the first positional parameter.
+    expect(SRC).toMatch(/async\s+save\(project(?:,\s*\w+)?\)\s*\{/);
   });
 });
 

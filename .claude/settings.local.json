@@ -28,7 +28,8 @@
       "Bash(npx jest *)",
       "Bash(node build-creator-bundle.js)",
       "Bash(sed -i 's|<script src=\"colour-utils.js\"></script>|<script src=\"colour-utils.js?v=1d5705c9\"></script>|g' index.html create.html stitch.html)",
-      "Bash(sed -i 's|<script src=\"dmc-data.js\"></script>|<script src=\"dmc-data.js?v=20d4dd21\"></script>|g' index.html create.html stitch.html)"
+      "Bash(sed -i 's|<script src=\"dmc-data.js\"></script>|<script src=\"dmc-data.js?v=20d4dd21\"></script>|g' index.html create.html stitch.html)",
+      "Bash(git commit *)"
     ]
   }
 }

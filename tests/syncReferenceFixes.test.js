@@ -141,19 +141,28 @@ describe('sync-reference — auto-apply heuristic intent', () => {
   const enginePath = path.join(__dirname, '..', 'sync-engine.js');
   const src = fs.readFileSync(enginePath, 'utf8');
 
-  test('engine defines _isPlanAutoApplicable and uses it inside _processFolderUpdates', () => {
+  test('engine defines the auto-apply helpers and partitions inside _processFolderUpdates', () => {
     expect(src).toMatch(/function\s+_isPlanAutoApplicable\s*\(/);
+    expect(src).toMatch(/function\s+_partitionPlan\s*\(/);
     const procIdx = src.indexOf('async function _processFolderUpdates');
     expect(procIdx).toBeGreaterThan(0);
     const procBody = src.slice(procIdx, procIdx + 4000);
-    expect(procBody).toMatch(/_isPlanAutoApplicable\s*\(/);
+    // The watcher now splits each delivery into an auto half and a review
+    // half rather than making one all-or-nothing decision per file.
+    expect(procBody).toMatch(/_partitionPlan\s*\(/);
+    expect(procBody).toMatch(/autoPlan/);
+    expect(procBody).toMatch(/reviewPlan/);
   });
 
-  test('auto-apply heuristic refuses plans with conflicts or merge-tracking work', () => {
+  test('auto-apply heuristic still gates on conflicts and validates every entry', () => {
     const fnIdx = src.indexOf('function _isPlanAutoApplicable');
-    const fnBody = src.slice(fnIdx, fnIdx + 600);
-    // The heuristic must still gate on conflicts.length and mergeTracking.length.
+    const fnBody = src.slice(fnIdx, fnIdx + 2000);
+    // Structural conflicts must always block auto-apply.
     expect(fnBody).toMatch(/conflicts/);
+    // merge-tracking is now auto-applied (the union merge is non-destructive),
+    // but every entry — newRemote and mergeTracking alike — must still pass
+    // the shape check before it can be written without review.
     expect(fnBody).toMatch(/mergeTracking/);
+    expect(fnBody).toMatch(/_isProjectShapeValid/);
   });
 });

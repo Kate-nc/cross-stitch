@@ -19,6 +19,9 @@ const SyncEngine = (() => {
   // export and required-passphrase on import. The passphrase itself is
   // never written to disk — see _sessionPassphrase below.
   const LS_ENC_ENABLED = "cs_sync_encryption_enabled";
+  // Auto-export toggle. "1" = on, "0" = explicitly off, absent = never chosen
+  // (which setWatchDirectory upgrades to on — see _defaultAutoSyncOnConnect).
+  const LS_AUTO_SYNC = "cs_sync_folderAutoSync";
   // Per-device "last import" map — { deviceId: { at, fileLastModified, deviceName, projectCount } }.
   // Updated in executeImport when the source device is known via plan.syncObj._deviceId.
   // Powers the inline "Devices in this folder" panel (Concept B).
@@ -92,13 +95,67 @@ const SyncEngine = (() => {
   // when exporting (so remote devices know not to re-import it) and when
   // classifying remote projects (so already-deleted projects are skipped).
   var LS_TOMBSTONE_KEY = "cs_deleted_project_ids";
+  var TOMBSTONE_MAX = 200;
 
-  function getLocalTombstones() {
+  // Tombstones are stored as { id, deletedAt } records. They used to be bare
+  // id strings, which made a deletion permanent and unconditional: once an id
+  // was tombstoned, classifyProjects skipped it on every future import from
+  // every device, forever, with nothing in the UI to say why. A user who
+  // deleted a pattern on one device months ago would silently never receive
+  // the peer's ongoing work on it.
+  //
+  // Legacy bare-string entries normalise to deletedAt:null and keep the old
+  // always-skip behaviour — we can't know when they were deleted, and quietly
+  // resurrecting months-old deletions would be a worse surprise. They are
+  // visible via getTombstones() and can be released individually.
+  function getTombstoneRecords() {
     try {
       var raw = localStorage.getItem(LS_TOMBSTONE_KEY);
       var arr = raw ? JSON.parse(raw) : [];
-      return Array.isArray(arr) ? arr : [];
+      if (!Array.isArray(arr)) return [];
+      var out = [];
+      for (var i = 0; i < arr.length; i++) {
+        var e = arr[i];
+        if (typeof e === "string") {
+          out.push({ id: e, deletedAt: null });
+        } else if (e && typeof e === "object" && typeof e.id === "string") {
+          out.push({ id: e.id, deletedAt: e.deletedAt || null });
+        }
+      }
+      return out;
     } catch (e) { return []; }
+  }
+
+  // Id-only view. The .csync wire format carries a plain id array, and
+  // callers that only need membership use this.
+  function getLocalTombstones() {
+    return getTombstoneRecords().map(function (r) { return r.id; });
+  }
+
+  function _writeTombstoneRecords(records) {
+    try {
+      var trimmed = (records.length > TOMBSTONE_MAX)
+        ? records.slice(records.length - TOMBSTONE_MAX)
+        : records;
+      localStorage.setItem(LS_TOMBSTONE_KEY, JSON.stringify(trimmed));
+    } catch (e) {}
+  }
+
+  // Release a tombstone so the pattern can arrive again from a peer.
+  function forgetTombstone(id) {
+    var records = getTombstoneRecords();
+    var kept = records.filter(function (r) { return r.id !== id; });
+    if (kept.length === records.length) return false;
+    _writeTombstoneRecords(kept);
+    _logEvent({ type: "tombstone-released", message: 'Allowed "' + id + '" to sync again' });
+    return true;
+  }
+
+  function clearTombstones() {
+    var n = getTombstoneRecords().length;
+    try { localStorage.removeItem(LS_TOMBSTONE_KEY); } catch (e) {}
+    if (n) _logEvent({ type: "tombstone-released", message: "Cleared " + n + " deletion record" + (n === 1 ? "" : "s") });
+    return n;
   }
 
   // ── Fingerprinting ───────────────────────────────────────────────────────
@@ -343,6 +400,21 @@ const SyncEngine = (() => {
     var includePalettes = (opts.includePalettes !== undefined)
       ? !!opts.includePalettes
       : !!_pref("sync.includePalettes", true);
+    // Source photos (project.imgData) are base64 data URLs of the original
+    // image the pattern was generated from, and they dominate the file size —
+    // a 17-pattern library serialised to 5.93 MB, rewritten on every autosave
+    // burst into a cloud folder from a phone. They are also the one part of a
+    // project that never changes after creation, so re-sending them on every
+    // export is pure waste.
+    //
+    // Off by default. Dropping them is safe in both directions: the merge
+    // treats imgData as prefer-present, so a device that already has the
+    // source image never loses it to an incoming copy that omits one. The
+    // only cost is that the photo does not travel to a device that has never
+    // seen it — opt back in with the sync.includeSourceImages preference.
+    var includeSourceImages = (opts.includeSourceImages !== undefined)
+      ? !!opts.includeSourceImages
+      : !!_pref("sync.includeSourceImages", false);
 
     // Flush any in-flight React state before reading
     if (window.__flushProjectToIDB) {
@@ -399,12 +471,24 @@ const SyncEngine = (() => {
       // which projects this device has intentionally deleted. The receiving
       // device should not re-import any project whose id appears in this list.
       deletedProjectIds: getLocalTombstones(),
+      // Additive companion to deletedProjectIds carrying the deletion time, so
+      // a peer can tell an old deletion from a fresh one. Older builds ignore
+      // this field and fall back to the id list above.
+      deletedProjects: getTombstoneRecords(),
       projects: projectsToExport.map(function (p) {
+        var data = p;
+        if (!includeSourceImages && p && p.imgData) {
+          // Shallow copy so the caller's in-memory project keeps its image.
+          data = Object.assign({}, p);
+          delete data.imgData;
+        }
         return {
           id: p.id,
           updatedAt: p.updatedAt,
+          // Computed from the full project. imgData is not part of the
+          // fingerprint, so stripping it cannot change classification.
           fingerprint: computeFingerprint(p),
-          data: p
+          data: data
         };
       })
     };
@@ -855,9 +939,14 @@ const SyncEngine = (() => {
     // Collect tombstones from both local and remote so we can skip projects
     // that were intentionally deleted on either device.
     // localTombstoneSet: ids deleted on this device (never re-import them).
-    var localTombstones = getLocalTombstones();
+    var localTombstoneRecords = getTombstoneRecords();
     var localTombstoneSet = Object.create(null);
-    for (var ti = 0; ti < localTombstones.length; ti++) localTombstoneSet[localTombstones[ti]] = true;
+    for (var ti = 0; ti < localTombstoneRecords.length; ti++) {
+      localTombstoneSet[localTombstoneRecords[ti].id] = localTombstoneRecords[ti];
+    }
+    // Projects we refused to import, and why. Surfaced on the plan so the
+    // reason is visible instead of the pattern just never appearing.
+    var skippedTombstoned = [];
     // Build fingerprint index from local projects so we can match remotes
     // whose ids differ but whose chart contents are identical. Only used
     // when there is no direct id match.
@@ -877,9 +966,29 @@ const SyncEngine = (() => {
       var remote = remoteProjects[i];
 
       // VER-SYNC-009: skip remote projects that this device has tombstoned.
-      // If the local user already deleted this project, do not re-import it
-      // — treat it as if it were identical (already handled) and continue.
-      if (localTombstoneSet[remote.id]) continue;
+      // A deletion here does NOT outrank work the peer did afterwards: if the
+      // remote copy was edited after we deleted ours, the other device is
+      // actively using that pattern, so we accept it back and release the
+      // tombstone. Without this, one old deletion silently black-holed a
+      // pattern on that device permanently.
+      var tomb = localTombstoneSet[remote.id];
+      if (tomb) {
+        var deletedAtMs = tomb.deletedAt ? new Date(tomb.deletedAt).getTime() : null;
+        var remoteUpdatedMs = remote.updatedAt ? new Date(remote.updatedAt).getTime() : 0;
+        var staleDeletion = (deletedAtMs !== null)
+          && isFinite(deletedAtMs)
+          && remoteUpdatedMs > deletedAtMs;
+        if (!staleDeletion) {
+          skippedTombstoned.push({
+            id: remote.id,
+            name: (remote.data && remote.data.name) || null,
+            deletedAt: tomb.deletedAt,
+            remoteUpdatedAt: remote.updatedAt || null,
+            reason: (deletedAtMs === null) ? "legacy-tombstone" : "deleted-after-remote-edit"
+          });
+          continue;
+        }
+      }
 
       var local = localProjectsMap[remote.id] || null;
       var entry = {
@@ -929,8 +1038,12 @@ const SyncEngine = (() => {
           }
         }
       }
+      if (tomb) entry.releasedTombstone = true;
       results.push(entry);
     }
+    // Carried as a property so the return type stays a plain entry array for
+    // every existing caller; prepareImport lifts it onto the plan.
+    results.skippedTombstoned = skippedTombstoned;
     return results;
   }
 
@@ -969,6 +1082,122 @@ const SyncEngine = (() => {
       return new Date(a.start || a.date || 0) - new Date(b.start || b.date || 0);
     });
     return merged;
+  }
+
+  // Total duration (seconds) recorded across a session array. Mirrors the
+  // field precedence used by ProjectStorage.buildMeta so the two agree.
+  function _sumSessionSeconds(sessions) {
+    if (!sessions || !sessions.length) return 0;
+    var total = 0;
+    for (var i = 0; i < sessions.length; i++) {
+      var s = sessions[i];
+      if (!s) continue;
+      if (typeof s.durationSeconds === "number" && isFinite(s.durationSeconds)) {
+        total += s.durationSeconds;
+      } else if (typeof s.durationMinutes === "number" && isFinite(s.durationMinutes)) {
+        total += s.durationMinutes * 60;
+      }
+    }
+    return total;
+  }
+
+  // ── Field-coverage helpers (sync fix #7) ─────────────────────────────────
+  //
+  // mergeTrackingProgress takes the LOCAL project as its base, so any field it
+  // doesn't explicitly merge silently keeps the local value forever. That is
+  // why a "successfully merged" pattern could still look stale: per-day stitch
+  // history, fractional stitches, completion status, thumbnail and notes never
+  // crossed between devices. Every helper below must be idempotent — these run
+  // unattended on every peer publish now that merge-tracking auto-applies.
+
+  // Project-level metadata resolved by "newer updatedAt wins". These are small,
+  // user-editable, and CAN legitimately be cleared, so an empty remote value is
+  // allowed to replace a non-empty local one when the remote is newer.
+  var META_NEWEST_WINS = ["name", "state", "finishStatus", "projectColor",
+                          "designer", "description", "notes"];
+
+  // Derived or expensive assets. Newer still wins, but we never replace a
+  // present value with an absent one — losing a thumbnail or the source image
+  // because the other device hadn't generated one yet is pure data loss, not
+  // an edit the user intended.
+  var META_PREFER_PRESENT = ["thumbnail", "imgData", "palette", "settings"];
+
+  // Union of `[index, detail]` pair arrays — the serialised-Map shape used by
+  // halfStitches ([idx, {fwd, bck}]) and partialStitches ([k, {TL,TR,BL,BR}]).
+  // Local wins per sub-key so a device never loses its own fractional work;
+  // remote contributes only the positions local hasn't recorded.
+  function mergeIndexedPairs(localPairs, remotePairs) {
+    var lp = Array.isArray(localPairs) ? localPairs : [];
+    var rp = Array.isArray(remotePairs) ? remotePairs : [];
+    if (!lp.length && !rp.length) return Array.isArray(localPairs) ? localPairs : (Array.isArray(remotePairs) ? remotePairs : []);
+    var byIndex = Object.create(null);
+    var order = [];
+    function absorb(pairs, isLocal) {
+      for (var i = 0; i < pairs.length; i++) {
+        var pair = pairs[i];
+        if (!Array.isArray(pair) || pair.length < 2) continue;
+        var key = String(pair[0]);
+        var detail = pair[1];
+        if (!Object.prototype.hasOwnProperty.call(byIndex, key)) {
+          byIndex[key] = _clone(detail);
+          order.push({ key: key, raw: pair[0] });
+          continue;
+        }
+        if (isLocal) continue; // local already claimed this index
+        var existing = byIndex[key];
+        if (existing && detail && typeof existing === "object" && typeof detail === "object") {
+          var sub = Object.keys(detail);
+          for (var s = 0; s < sub.length; s++) {
+            if (existing[sub[s]] === undefined || existing[sub[s]] === null) {
+              existing[sub[s]] = _clone(detail[sub[s]]);
+            }
+          }
+        }
+      }
+    }
+    absorb(lp, true);
+    absorb(rp, false);
+    var out = [];
+    for (var o = 0; o < order.length; o++) out.push([order[o].raw, byIndex[order[o].key]]);
+    return out;
+  }
+
+  // Union of per-day stitch counts ([{date, count}]). Takes the MAX count per
+  // date rather than the sum: summing is not idempotent, so a project re-merged
+  // after each peer edit would inflate its history without bound. The cost is
+  // under-counting a day both devices stitched on — the same trade-off, and for
+  // the same reason, as merged totalTime.
+  function mergeStitchLogs(localLog, remoteLog) {
+    var ll = Array.isArray(localLog) ? localLog : [];
+    var rl = Array.isArray(remoteLog) ? remoteLog : [];
+    if (!ll.length && !rl.length) return Array.isArray(localLog) ? localLog : (Array.isArray(remoteLog) ? remoteLog : []);
+    var byDate = Object.create(null);
+    function absorb(entries) {
+      for (var i = 0; i < entries.length; i++) {
+        var e = entries[i];
+        if (!e || !e.date) continue;
+        var count = (typeof e.count === "number" && isFinite(e.count)) ? e.count : 0;
+        if (byDate[e.date] === undefined || count > byDate[e.date]) byDate[e.date] = count;
+      }
+    }
+    absorb(ll);
+    absorb(rl);
+    var dates = Object.keys(byDate).sort();
+    var out = [];
+    for (var d = 0; d < dates.length; d++) out.push({ date: dates[d], count: byDate[dates[d]] });
+    return out;
+  }
+
+  // Earliest / latest of two ISO timestamps, ignoring blanks.
+  function _earlierIso(a, b) {
+    if (!a) return b || null;
+    if (!b) return a;
+    return (new Date(a).getTime() <= new Date(b).getTime()) ? a : b;
+  }
+  function _laterIso(a, b) {
+    if (!a) return b || null;
+    if (!b) return a;
+    return (new Date(a).getTime() >= new Date(b).getTime()) ? a : b;
   }
 
   function mergeTrackingProgress(local, remote, metaOverrides) {
@@ -1016,11 +1245,29 @@ const SyncEngine = (() => {
     merged.statsSessions = mergeSessions(local.statsSessions, remote.statsSessions);
     merged.sessions = mergeSessions(local.sessions, remote.sessions);
 
-    // Sum total time from both sides: each device tracks its own elapsed stitching
-    // time independently, so the correct merged value is the sum, not the max.
-    // Using Math.max would cap the merged total at whichever device's clock ran
-    // longer, silently discarding the other device's recorded work time.
-    merged.totalTime = (local.totalTime || 0) + (remote.totalTime || 0);
+    // Total stitching time must be IDEMPOTENT under repeated merges. This was
+    // a plain sum (local + remote), which is not: every time the peer edited
+    // the project and we re-merged, its entire accumulated total was added to
+    // ours again. A + B = 100/0 converged correctly the first time, but after
+    // the peer stitched 10 more seconds we computed 100 + 110 = 210 instead of
+    // 110, compounding with every subsequent edit. Auto-applying merge-tracking
+    // turns that from an occasional manual-merge glitch into continuous drift.
+    //
+    // The session arrays are already deduplicated unions keyed on start time,
+    // so their combined duration is both idempotent and the most accurate
+    // record of genuine cross-device work. Take the largest of the three
+    // candidates: max() of idempotent inputs is itself idempotent, and the
+    // session sum recovers the true total whenever session records exist
+    // (the normal case — the tracker writes one per stitching session).
+    var mergedSessionSeconds = Math.max(
+      _sumSessionSeconds(merged.statsSessions),
+      _sumSessionSeconds(merged.sessions)
+    );
+    merged.totalTime = Math.max(
+      local.totalTime || 0,
+      remote.totalTime || 0,
+      mergedSessionSeconds
+    );
 
     // Merge threadOwned (union: keep owned/tobuy status from either side)
     if (remote.threadOwned && typeof remote.threadOwned === "object") {
@@ -1067,27 +1314,51 @@ const SyncEngine = (() => {
       merged.updatedAt = remote.updatedAt;
     }
 
-    // Merge project-level metadata (name, state).
-    // Default strategy: the side with the newer updatedAt timestamp wins.
-    // metaOverrides can pin a field to 'keep-local' or 'keep-remote' to
-    // respect explicit user choices made in the SyncReviewGate conflict UI.
+    // Merge fractional-stitch records (sync fix #7). halfDone is handled above;
+    // these are the serialised-Map companions that were previously dropped, so
+    // quarter/half stitches worked on one device never reached the other.
+    merged.halfStitches = mergeIndexedPairs(local.halfStitches, remote.halfStitches);
+    merged.partialStitches = mergeIndexedPairs(local.partialStitches, remote.partialStitches);
+
+    // Merge per-day stitch history (sync fix #7). Drives lifetime totals and
+    // the activity charts, and was previously local-only.
+    merged.stitchLog = mergeStitchLogs(local.stitchLog, remote.stitchLog);
+
+    // Lifecycle timestamps: earliest start, latest touch, first completion.
+    merged.startedAt = _earlierIso(local.startedAt, remote.startedAt);
+    merged.lastTouchedAt = _laterIso(local.lastTouchedAt, remote.lastTouchedAt);
+    merged.completedAt = _earlierIso(local.completedAt, remote.completedAt);
+
+    // Merge project-level metadata. Default strategy: the side with the newer
+    // updatedAt timestamp wins. metaOverrides can pin a field to 'keep-local'
+    // or 'keep-remote' to respect explicit user choices made in the
+    // SyncReviewGate conflict UI.
+    //
+    // The list used to be just name/state, which is why completion status,
+    // colour, notes, designer, description and the thumbnail never travelled
+    // between devices — a pattern could merge "successfully" and still show
+    // the receiving device's months-old metadata.
     var localTs = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
     var remoteTs = remote.updatedAt ? new Date(remote.updatedAt).getTime() : 0;
-    var metaFieldsList = ["name", "state"];
-    for (var mfi = 0; mfi < metaFieldsList.length; mfi++) {
-      var mf = metaFieldsList[mfi];
-      if (remote[mf] !== undefined && remote[mf] !== local[mf]) {
-        var ovr = metaOverrides && metaOverrides[mf];
-        if (ovr === 'keep-remote') {
-          merged[mf] = remote[mf];
-        } else if (ovr === 'keep-local') {
-          // keep local (already in merged via Object.assign)
-        } else if (remoteTs > localTs) {
-          // Default: newer updatedAt wins
-          merged[mf] = remote[mf];
-        }
-        // else local wins (already in merged)
-      }
+    function _isPresent(v) { return v !== undefined && v !== null && v !== ""; }
+
+    function resolveMetaField(field, preferPresent) {
+      if (remote[field] === undefined) return;
+      if (remote[field] === local[field]) return;
+      var ovr = metaOverrides && metaOverrides[field];
+      if (ovr === 'keep-remote') { merged[field] = remote[field]; return; }
+      if (ovr === 'keep-local') return; // already in merged via Object.assign
+      if (remoteTs <= localTs) return;  // local is newer — it wins
+      // Never let a newer-but-empty remote wipe an expensive local asset.
+      if (preferPresent && !_isPresent(remote[field]) && _isPresent(local[field])) return;
+      merged[field] = remote[field];
+    }
+
+    for (var mfi = 0; mfi < META_NEWEST_WINS.length; mfi++) {
+      resolveMetaField(META_NEWEST_WINS[mfi], false);
+    }
+    for (var mpi = 0; mpi < META_PREFER_PRESENT.length; mpi++) {
+      resolveMetaField(META_PREFER_PRESENT[mpi], true);
     }
 
     return merged;
@@ -1301,6 +1572,92 @@ const SyncEngine = (() => {
       console.warn("SyncEngine: writeSnapshot failed:", e);
       return null;
     }
+  }
+
+  // Drop the stored three-way snapshot. After a library reset it describes a
+  // state that no longer exists, and analyseConflicts would read it as "the
+  // user deleted all this locally" and raise spurious conflicts.
+  async function _clearSnapshot() {
+    try {
+      var db = await _openSnapshotDB();
+      await new Promise(function (resolve, reject) {
+        var tx = db.transaction("sync_snapshots", "readwrite");
+        tx.objectStore("sync_snapshots").delete("latest");
+        tx.oncomplete = function () { db.close(); resolve(); };
+        tx.onerror = function () { db.close(); reject(tx.error); };
+      });
+      return true;
+    } catch (e) {
+      console.warn("SyncEngine: could not clear snapshot:", e);
+      return false;
+    }
+  }
+
+  // ── Reset for re-sync ────────────────────────────────────────────────────
+  //
+  // Wipes this device's pattern library and every piece of sync bookkeeping
+  // that would otherwise stop a peer's .csync from landing cleanly. Intended
+  // for "this device's copies are wrong — rebuild them from the other device".
+  //
+  // Clearing the library alone is NOT enough, and each of these is a way the
+  // rebuild silently imports nothing:
+  //   • tombstones           — classifyProjects skips tombstoned ids forever
+  //   • per-device cursor    — checkForUpdates treats the peer's existing file
+  //                            as already seen and never re-offers it
+  //   • global last-import   — same, for files with no device attribution
+  //   • pending-plan cache   — a stale plan referencing deleted records
+  //   • snapshot             — three-way analysis against a vanished baseline
+  //
+  // The thread stash is left intact (device inventory, not library content).
+  // Destructive, so it requires an explicit confirmation token.
+  var RESET_CONFIRM_TOKEN = "DELETE_LOCAL_LIBRARY";
+
+  async function resetForResync(options) {
+    var opts = options || {};
+    if (opts.confirm !== RESET_CONFIRM_TOKEN) {
+      throw new Error('SyncEngine.resetForResync() permanently deletes this '
+        + 'device\'s patterns. Call it as resetForResync({ confirm: "'
+        + RESET_CONFIRM_TOKEN + '" }).');
+    }
+
+    var removed = 0;
+    if (typeof ProjectStorage !== "undefined" && ProjectStorage.clearAllProjects) {
+      removed = await ProjectStorage.clearAllProjects({
+        includeAutoSave: opts.includeAutoSave !== false
+      });
+    } else {
+      throw new Error("ProjectStorage.clearAllProjects is unavailable — cannot reset safely.");
+    }
+
+    try { localStorage.removeItem(LS_TOMBSTONE_KEY); } catch (e) {}
+    try { localStorage.removeItem(LS_LAST_IMPORT_PER_DEVICE); } catch (e) {}
+    try { localStorage.removeItem(LS_LAST_IMPORT); } catch (e) {}
+
+    _seenPendingKeys = Object.create(null);
+    try { clearPendingPlan(); } catch (e) {}
+    await _clearSnapshot();
+
+    _logEvent({
+      type: "library-reset",
+      message: "Local library cleared for re-sync (" + removed + " pattern"
+        + (removed === 1 ? "" : "s") + " removed)"
+    });
+
+    try {
+      if (typeof window !== "undefined" && window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent("cs:projectsChanged", {
+          detail: { reason: "reset-for-resync", count: removed }
+        }));
+        window.dispatchEvent(new CustomEvent("cs:syncStatusChanged", {
+          detail: { reason: "reset-for-resync" }
+        }));
+      }
+    } catch (e) {}
+
+    // Pull the peer's file straight away rather than waiting for the next tick.
+    try { _runWatcherTick(); } catch (e) {}
+
+    return { removed: removed };
   }
 
   // Register a beforeunload handler that writes a snapshot when the page closes.
@@ -1586,6 +1943,13 @@ const SyncEngine = (() => {
       // VER-SYNC-009: remote tombstones to absorb into local deleted-ids list.
       remoteTombstones: (syncObj.deletedProjectIds && Array.isArray(syncObj.deletedProjectIds))
         ? syncObj.deletedProjectIds : [],
+      // Timestamped form when the peer is new enough to send it. Without this
+      // the deletedAt would be lost at the first hop and every absorbed
+      // tombstone would degrade to the legacy always-skip behaviour.
+      remoteTombstoneRecords: (syncObj.deletedProjects && Array.isArray(syncObj.deletedProjects))
+        ? syncObj.deletedProjects : null,
+      // Remote projects we declined to import, with the reason.
+      skippedTombstoned: classified.skippedTombstoned || [],
       syncObj: syncObj,
       localMap: localMap,
       localStash: localStash
@@ -1656,11 +2020,16 @@ const SyncEngine = (() => {
     // projects are re-presented on next import.  Partial imports do NOT corrupt
     // data — they only mean some projects were not yet imported.
 
-    // 1. Import new-remote projects
+    // 1. Import new-remote projects.
+    //    preserveUpdatedAt keeps the authoring device's edit time. Without it
+    //    every imported project is stamped with the import moment, which both
+    //    destroys the real "last edited" dates and reverses the library order
+    //    on the receiving device (we save newest-first; listProjects sorts
+    //    newest-first again).
     for (var i = 0; i < plan.newRemote.length; i++) {
       var entry = plan.newRemote[i];
       try {
-        await ProjectStorage.save(entry.remote.data);
+        await ProjectStorage.save(entry.remote.data, { preserveUpdatedAt: true });
       } catch (saveErr) {
         if (saveErr && saveErr.name === "QuotaExceededError") {
           throw new Error("Not enough browser storage to import all projects — free up space or clear cached data and try again. (QuotaExceededError saving \"" + (entry.remote.data && entry.remote.data.name || entry.remote.id) + "\")");
@@ -1713,7 +2082,9 @@ const SyncEngine = (() => {
         var canon = mEntry.idRewrite.canonicalId;
         var oldLocalId = (freshLocal && freshLocal.id) || localId;
         merged.id = canon;
-        await ProjectStorage.save(merged);
+        // mergeTrackingProgress already resolved updatedAt to the later of
+        // the two sides — preserve it rather than restamping with "now".
+        await ProjectStorage.save(merged, { preserveUpdatedAt: true });
         // Delete the now-orphaned local record (only if its id differs from canonical).
         if (oldLocalId && oldLocalId !== canon && ProjectStorage.delete) {
           try {
@@ -1735,7 +2106,7 @@ const SyncEngine = (() => {
           }
         }
       } else {
-        await ProjectStorage.save(merged);
+        await ProjectStorage.save(merged, { preserveUpdatedAt: true });
       }
     }
 
@@ -1744,7 +2115,7 @@ const SyncEngine = (() => {
       var cEntry = plan.conflicts[k];
       var resolution = conflictResolutions[cEntry.id] || "keep-local";
       if (resolution === "keep-remote") {
-        await ProjectStorage.save(cEntry.remote.data);
+        await ProjectStorage.save(cEntry.remote.data, { preserveUpdatedAt: true });
       } else if (resolution === "keep-both") {
         // Keep local as-is; import remote as a new project via normal save logic
         var remoteCopy = _clone(cEntry.remote.data); // PERF (perf-6 #5)
@@ -1787,21 +2158,59 @@ const SyncEngine = (() => {
     // 5. Absorb remote tombstones: merge the remote's deleted-project list into
     //    our local tombstone store so that projects deleted on the remote device
     //    are also skipped on this device on the next import.
-    if (plan.remoteTombstones && plan.remoteTombstones.length) {
+    if ((plan.remoteTombstones && plan.remoteTombstones.length)
+        || (plan.remoteTombstoneRecords && plan.remoteTombstoneRecords.length)) {
       try {
-        var existingTombstones = getLocalTombstones();
+        var existingRecords = getTombstoneRecords();
         var tombstoneSet = Object.create(null);
-        for (var tsi = 0; tsi < existingTombstones.length; tsi++) tombstoneSet[existingTombstones[tsi]] = true;
+        for (var tsi = 0; tsi < existingRecords.length; tsi++) tombstoneSet[existingRecords[tsi].id] = true;
+        // Prefer the timestamped form; fall back to bare ids from older peers.
+        var incoming = [];
+        if (plan.remoteTombstoneRecords && plan.remoteTombstoneRecords.length) {
+          for (var rri = 0; rri < plan.remoteTombstoneRecords.length; rri++) {
+            var rec = plan.remoteTombstoneRecords[rri];
+            if (rec && typeof rec.id === "string") incoming.push({ id: rec.id, deletedAt: rec.deletedAt || null });
+          }
+        } else {
+          for (var rti = 0; rti < plan.remoteTombstones.length; rti++) {
+            incoming.push({ id: plan.remoteTombstones[rti], deletedAt: null });
+          }
+        }
         var changed = false;
-        for (var rti = 0; rti < plan.remoteTombstones.length; rti++) {
-          var rtId = plan.remoteTombstones[rti];
-          if (!tombstoneSet[rtId]) { existingTombstones.push(rtId); changed = true; }
+        for (var ii = 0; ii < incoming.length; ii++) {
+          if (!tombstoneSet[incoming[ii].id]) {
+            existingRecords.push(incoming[ii]);
+            tombstoneSet[incoming[ii].id] = true;
+            changed = true;
+          }
         }
-        if (changed) {
-          if (existingTombstones.length > 200) existingTombstones = existingTombstones.slice(existingTombstones.length - 200);
-          localStorage.setItem(LS_TOMBSTONE_KEY, JSON.stringify(existingTombstones));
-        }
+        if (changed) _writeTombstoneRecords(existingRecords);
       } catch (_) {}
+    }
+
+    // 5a. Release tombstones for projects we accepted back because the peer
+    //     had edited them after our deletion. Leaving them would re-evaluate
+    //     the same resurrection on every future sync.
+    try {
+      var reAccepted = (plan.newRemote || []).concat(plan.mergeTracking || [])
+        .filter(function (e) { return e && e.releasedTombstone && e.id; });
+      for (var rai = 0; rai < reAccepted.length; rai++) forgetTombstone(reAccepted[rai].id);
+    } catch (_) {}
+
+    // Make declined imports visible — previously the pattern simply never
+    // appeared, with nothing anywhere explaining why.
+    if (plan.skippedTombstoned && plan.skippedTombstoned.length) {
+      _logEvent({
+        type: "tombstone-skipped",
+        direction: "in",
+        deviceId: (plan.syncObj && plan.syncObj._deviceId) || null,
+        deviceName: (plan.syncObj && plan.syncObj._deviceName) || null,
+        projectCount: plan.skippedTombstoned.length,
+        message: plan.skippedTombstoned.length + " pattern"
+          + (plan.skippedTombstoned.length === 1 ? " was" : "s were")
+          + " not imported — deleted on this device. Use SyncEngine.forgetTombstone(id) to allow "
+          + (plan.skippedTombstoned.length === 1 ? "it" : "them") + " back."
+      });
     }
 
     // 5b. Apply remote prefs and custom palettes to localStorage.
@@ -1891,6 +2300,10 @@ const SyncEngine = (() => {
         tx.onerror = function () { db.close(); reject(tx.error); };
       });
     } catch (e) { console.warn("SyncEngine: could not persist watch dir handle:", e); }
+    // Choosing a folder means "sync this device". Turn on auto-export unless
+    // the user has previously opted out — otherwise the device can receive
+    // but never send, which is silent and very hard to notice.
+    try { _defaultAutoSyncOnConnect(); } catch (e) {}
     // Phase-3 sync-fix #1: kick off the polling watcher automatically so any
     // page that configures a sync folder starts receiving remote updates.
     // startWatching() also fires _runWatcherTick() once immediately, which
@@ -1948,7 +2361,9 @@ const SyncEngine = (() => {
         tx.onerror = function () { db.close(); reject(tx.error); };
       });
     } catch (e) { console.warn("SyncEngine: could not clear watch dir handle:", e); }
-    try { localStorage.removeItem("cs_sync_folderAutoSync"); } catch (e) {}
+    // Remove rather than set "0": disconnecting clears the preference so a
+    // future reconnect opts in again, instead of inheriting a stale opt-out.
+    try { localStorage.removeItem(LS_AUTO_SYNC); } catch (e) {}
   }
 
   // Write current state to the sync folder as a .csync file
@@ -2118,13 +2533,42 @@ const SyncEngine = (() => {
   }
 
   function isAutoSyncEnabled() {
-    try { return localStorage.getItem("cs_sync_folderAutoSync") === "1"; } catch (e) { return false; }
+    try { return localStorage.getItem(LS_AUTO_SYNC) === "1"; } catch (e) { return false; }
   }
 
+  // Explicit "off" is now stored as "0" rather than by removing the key, so
+  // we can tell "the user turned this off" apart from "never chosen". Only
+  // the latter gets upgraded to on when a folder is connected — see
+  // _defaultAutoSyncOnConnect.
   function setAutoSyncEnabled(enabled) {
     try {
-      if (enabled) localStorage.setItem("cs_sync_folderAutoSync", "1");
-      else localStorage.removeItem("cs_sync_folderAutoSync");
+      localStorage.setItem(LS_AUTO_SYNC, enabled ? "1" : "0");
+    } catch (e) {}
+  }
+
+  // Has the user ever expressed a preference either way?
+  function hasAutoSyncPreference() {
+    try { return localStorage.getItem(LS_AUTO_SYNC) !== null; } catch (e) { return false; }
+  }
+
+  // Connecting a sync folder used to start the watcher (the read path) but
+  // leave auto-export (the write path) switched off, because the toggle
+  // lived behind a separate Preferences control that defaulted to off. The
+  // result was a device that could receive but never send — one user's
+  // second device had a folder connected for months with lastExportAt stuck
+  // at the day it was set up, so nothing it did ever reached the peer.
+  //
+  // Picking a folder is an unambiguous "I want this to sync", so treat it as
+  // opting in. A user who has explicitly turned auto-sync off is respected.
+  function _defaultAutoSyncOnConnect() {
+    if (hasAutoSyncPreference()) return;
+    setAutoSyncEnabled(true);
+    try {
+      if (typeof window !== "undefined" && window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent("cs:syncStatusChanged", {
+          detail: { reason: "auto-sync-enabled-on-connect" }
+        }));
+      }
     } catch (e) {}
   }
 
@@ -2135,7 +2579,11 @@ const SyncEngine = (() => {
   //     write at the end of the cooldown — this preserves the original
   //     "don't write 50 times during a paint stroke" behaviour.
   var _autoExportTimer = null;
-  var _lastExportFiredAt = 0;
+  // Start (not completion) of the most recent real write, and whether one is
+  // running right now. See _scheduleAutoExport for why both are needed.
+  var _lastExportStartedAt = 0;
+  var _exportInFlight = false;
+  var _exportQueued = false;
   // Timestamp of the most recent permission-warning toast for auto-export failures.
   // Used to rate-limit repeated toasts on persistent failures.
   var _lastPermWarningAt = 0;
@@ -2187,55 +2635,83 @@ const SyncEngine = (() => {
     Promise.resolve(_watchDirHandle || getWatchDirectory()).then(function (dirHandle) {
       if (!dirHandle) return;
       _watchDirHandle = dirHandle;
-      // Coalesce: if a write is already scheduled, leave it alone so a
-      // burst of saves all fold into the same write.
-      if (_autoExportTimer) return;
-      var sinceLast = Date.now() - _lastExportFiredAt;
-      var delay;
-      if (_lastExportFiredAt === 0 || sinceLast >= COOLDOWN_MS) {
-        delay = FAST_EXPORT_DELAY;
-      } else {
-        delay = Math.max(FAST_EXPORT_DELAY, COOLDOWN_MS - sinceLast);
-      }
-      _autoExportTimer = setTimeout(function () {
-        var watchDirHandle = _watchDirHandle;
-        _autoExportTimer = null;
-        // Note: _lastExportFiredAt is intentionally NOT bumped here. We
-        // only count a fire as "happened" once exportToFolder actually
-        // resolves successfully — otherwise a permission-denied or
-        // transient I/O failure would silently inflate the cooldown
-        // window, delaying the *next* legitimate auto-export attempt by
-        // up to COOLDOWN_MS even though no bytes were written.
-        if (!watchDirHandle) return;
-        // Pre-check permission without user gesture — skip if not granted
-        watchDirHandle.queryPermission({ mode: "readwrite" }).then(function (perm) {
-          if (perm !== "granted") {
-            // Only surface a permission warning toast once per PERM_WARN_COOLDOWN_MS
-            // to avoid spamming when the user keeps making changes with no folder access.
-            var now = Date.now();
-            if (now - _lastPermWarningAt >= PERM_WARN_COOLDOWN_MS) {
-              _lastPermWarningAt = now;
-              _reportSyncError("auto-export", new Error("Write permission not granted (re-open sync panel to re-authorise)"));
-            }
-            return;
-          }
-          return exportToFolder().then(function () {
-            _lastExportFiredAt = Date.now();
-            try {
-              if (typeof window !== "undefined" && window.dispatchEvent) {
-                window.dispatchEvent(new CustomEvent("cs:syncStatusChanged", {
-                  detail: { reason: "exported" }
-                }));
-              }
-            } catch (e) {}
-          });
-        }).catch(function (e) {
-          _reportSyncError("auto-export", e);
-        });
-      }, delay);
+      _scheduleAutoExport();
     }).catch(function (e) {
       _reportSyncError("auto-export", e);
     });
+  }
+
+  // The debounce previously leaked: the timer handle was cleared at the START
+  // of its callback, before the (async) write finished, and the cooldown was
+  // measured from the last *completed* export. A save arriving mid-write
+  // therefore saw no scheduled timer and a stale "last export" far in the
+  // past, so it scheduled a fresh write on the 2s fast path immediately.
+  // With autosave firing on every stitch this produced a write roughly every
+  // 6 seconds — a real device logged 20 exports of a 5.93 MB file in 3.5
+  // minutes, straight into a cloud-synced folder from a phone.
+  //
+  // Now an in-flight export blocks scheduling outright and sets a queued flag,
+  // so a burst collapses to: the current write, then at most one more once the
+  // cooldown has elapsed.
+  function _scheduleAutoExport() {
+    if (_exportInFlight) { _exportQueued = true; return; }
+    if (_autoExportTimer) return; // already scheduled — coalesce into it
+    var sinceStart = Date.now() - _lastExportStartedAt;
+    var delay = (_lastExportStartedAt === 0 || sinceStart >= COOLDOWN_MS)
+      ? FAST_EXPORT_DELAY
+      : Math.max(FAST_EXPORT_DELAY, COOLDOWN_MS - sinceStart);
+    _autoExportTimer = setTimeout(_runAutoExport, delay);
+  }
+
+  function _runAutoExport() {
+    _autoExportTimer = null;
+    var watchDirHandle = _watchDirHandle;
+    if (!watchDirHandle) return;
+    _exportInFlight = true;
+    _exportQueued = false;
+
+    function settle() {
+      _exportInFlight = false;
+      if (_exportQueued) {
+        _exportQueued = false;
+        _scheduleAutoExport();
+      }
+    }
+
+    // Pre-check permission without a user gesture — skip if not granted.
+    Promise.resolve()
+      .then(function () { return watchDirHandle.queryPermission({ mode: "readwrite" }); })
+      .then(function (perm) {
+        if (perm !== "granted") {
+          // Rate-limit the warning so a user working with no folder access
+          // isn't buried in toasts. Deliberately does NOT consume the
+          // cooldown: no bytes were written, so the next genuine attempt
+          // should not be delayed by up to COOLDOWN_MS.
+          var now = Date.now();
+          if (now - _lastPermWarningAt >= PERM_WARN_COOLDOWN_MS) {
+            _lastPermWarningAt = now;
+            _reportSyncError("auto-export", new Error("Write permission not granted (re-open sync panel to re-authorise)"));
+          }
+          return;
+        }
+        // Stamp at the start of a real write. Measuring the cooldown from the
+        // start rather than the finish is what stops a slow export from
+        // immediately earning another one.
+        _lastExportStartedAt = Date.now();
+        return exportToFolder().then(function () {
+          try {
+            if (typeof window !== "undefined" && window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent("cs:syncStatusChanged", {
+                detail: { reason: "exported" }
+              }));
+            }
+          } catch (e) {}
+        });
+      })
+      .catch(function (e) {
+        _reportSyncError("auto-export", e);
+      })
+      .then(settle, settle);
   }
 
   // ── Folder watcher (Phase-3, sync-fix #1) ────────────────────────────────
@@ -2397,25 +2873,48 @@ const SyncEngine = (() => {
     return d + "|" + m;
   }
 
+  function _entryData(entry) {
+    return (entry && entry.remote && entry.remote.data) || null;
+  }
+
   function _isPlanAutoApplicable(plan) {
     if (!plan) return false;
+    // Structural conflicts always need a human: the two devices edited the
+    // chart itself in incompatible ways and the merge engine cannot pick a
+    // winner without losing someone's work.
     if (plan.conflicts && plan.conflicts.length > 0) return false;
-    if (plan.mergeTracking && plan.mergeTracking.length > 0) return false;
-    // Big2: integrity gate. Refuse to auto-apply a plan whose newRemote
-    // entries look malformed (missing id, missing pattern, wrong dims).
-    // Falls through to the manual review path so the user can inspect
-    // before importing instead of silently writing garbage to IDB.
-    if (plan.newRemote && plan.newRemote.length > 0) {
-      for (var i = 0; i < plan.newRemote.length; i++) {
-        var entry = plan.newRemote[i];
-        var p = entry && entry.remote && entry.remote.data;
-        if (!_isProjectShapeValid(p)) return false;
+    // Big2: integrity gate. Refuse to auto-apply entries that look malformed
+    // (missing id, missing pattern, implausible dims) so we never silently
+    // write garbage to IDB — those fall through to manual review instead.
+    var applicable = 0;
+    var i;
+    if (plan.newRemote) {
+      for (i = 0; i < plan.newRemote.length; i++) {
+        if (!_isProjectShapeValid(_entryData(plan.newRemote[i]))) return false;
+        applicable++;
       }
-      return true;
     }
-    // remote tombstones alone could be auto-applied too, but they're
-    // surfaced via the manual flow today — keep parity.
-    return false;
+    // merge-tracking is auto-applicable. mergeTrackingProgress unions the
+    // done arrays and dedups sessions, so applying it is non-destructive by
+    // construction — it produces exactly what the review gate's default
+    // "merge" action produces. Gating it here was why updates to an
+    // already-shared pattern never propagated: after the first sync every
+    // shared project lands in merge-tracking, so the gate blocked every
+    // subsequent change and the receiving device stayed frozen.
+    //
+    // Known limitation: a deliberate un-stitch on the peer is re-added by
+    // the union. Distinguishing that from "this device simply stitched more"
+    // needs three-way snapshot diffing (see analyseConflicts) and is tracked
+    // separately; the union was already the gate's default outcome.
+    if (plan.mergeTracking) {
+      for (i = 0; i < plan.mergeTracking.length; i++) {
+        if (!_isProjectShapeValid(_entryData(plan.mergeTracking[i]))) return false;
+        applicable++;
+      }
+    }
+    // remote tombstones / stash / prefs alone could be auto-applied too, but
+    // they're surfaced via the manual flow today — keep parity.
+    return applicable > 0;
   }
 
   // Big2: cheap structural sanity check used by the auto-apply gate.
@@ -2428,15 +2927,172 @@ const SyncEngine = (() => {
   function _isProjectShapeValid(p) {
     if (!p || typeof p !== "object") return false;
     if (typeof p.id !== "string" || !p.id) return false;
-    if (typeof p.w !== "number" || typeof p.h !== "number") return false;
-    if (p.w <= 0 || p.h <= 0 || p.w > 10000 || p.h > 10000) return false;
+    // Dimensions must be read the same way computeFingerprint reads them.
+    // The Creator writes them ONLY into settings.sW / settings.sH (see
+    // creator/useProjectIO.js) with no top-level w/h, so a `typeof p.w`
+    // check rejected every Creator-authored project — which meant the
+    // auto-apply gate refused the entire first sync and pushed it to
+    // manual review, where it was easy to never notice.
+    var w = _projectWidth(p);
+    var h = _projectHeight(p);
+    if (typeof w !== "number" || typeof h !== "number") return false;
+    if (!isFinite(w) || !isFinite(h)) return false;
+    if (w <= 0 || h <= 0 || w > 10000 || h > 10000) return false;
     if (!Array.isArray(p.pattern)) return false;
     // Accept slight length drift (some legacy versions stored sparse arrays)
     // but reject obvious truncation: pattern shorter than half the expected
     // grid is almost certainly corrupt.
-    var expected = p.w * p.h;
+    var expected = w * h;
     if (p.pattern.length > 0 && p.pattern.length < expected / 2) return false;
     return true;
+  }
+
+  // Canonical dimension accessors. settings.sW/sH is the shape the Creator
+  // persists; top-level w/h is what the Tracker and some importers add.
+  // computeFingerprint has always preferred settings first — everything that
+  // reasons about a project's size must agree with it.
+  function _projectWidth(p) {
+    if (!p) return undefined;
+    if (p.settings && typeof p.settings.sW === "number") return p.settings.sW;
+    return typeof p.w === "number" ? p.w : undefined;
+  }
+
+  function _projectHeight(p) {
+    if (!p) return undefined;
+    if (p.settings && typeof p.settings.sH === "number") return p.settings.sH;
+    return typeof p.h === "number" ? p.h : undefined;
+  }
+
+  // True when a plan carries no project-level work at all. Used to suppress
+  // empty "updates available" banners: now that imported projects keep their
+  // original updatedAt, a peer re-exporting unchanged data classifies every
+  // project as `identical`, which would otherwise fire a review prompt with
+  // nothing in it on every watcher tick.
+  function _planHasProjectWork(plan) {
+    if (!plan) return false;
+    return ((plan.newRemote && plan.newRemote.length) || 0)
+         + ((plan.mergeTracking && plan.mergeTracking.length) || 0)
+         + ((plan.conflicts && plan.conflicts.length) || 0) > 0;
+  }
+
+  // Does the stash merge actually change anything, or does it just restate
+  // what we already hold? plan.stashMerge is non-null on essentially every
+  // sync (mergeStash always returns an object), so testing it for existence
+  // is useless — it would mark every unchanged re-sync as "has side effects"
+  // and fire a review prompt on every watcher tick. Compare against the
+  // normalised local stash instead: merging local with nothing yields the
+  // same shape mergeStash produces, so any difference is a real remote
+  // contribution.
+  function _stashMergeChangesAnything(plan) {
+    if (!plan || !plan.stashMerge) return false;
+    try {
+      var normalisedLocal = mergeStash(plan.localStash || {}, {});
+      return JSON.stringify(normalisedLocal) !== JSON.stringify(plan.stashMerge);
+    } catch (e) {
+      return true; // be conservative — surface it rather than swallow it
+    }
+  }
+
+  function _prefsChangeAnything(plan) {
+    var prefs = plan && plan.syncObj && plan.syncObj.prefs;
+    if (!prefs) return false;
+    var keys = Object.keys(prefs);
+    for (var i = 0; i < keys.length; i++) {
+      var current = null;
+      try { current = localStorage.getItem(keys[i]); } catch (e) {}
+      if (current !== prefs[keys[i]]) return true;
+    }
+    return false;
+  }
+
+  function _tombstonesChangeAnything(plan) {
+    var remote = plan && plan.remoteTombstones;
+    if (!remote || !remote.length) return false;
+    var known = Object.create(null);
+    var local = getLocalTombstones();
+    for (var i = 0; i < local.length; i++) known[local[i]] = true;
+    for (var j = 0; j < remote.length; j++) {
+      if (!known[remote[j]]) return true;
+    }
+    return false;
+  }
+
+  function _planHasSideEffects(plan) {
+    if (!plan) return false;
+    return _stashMergeChangesAnything(plan)
+        || _tombstonesChangeAnything(plan)
+        || _prefsChangeAnything(plan);
+  }
+
+  // Split a prepared plan into the part we can apply unattended and the part
+  // that genuinely needs the user. Previously the auto-apply decision was
+  // all-or-nothing across the whole file: a single malformed entry sent every
+  // other project in the same .csync to manual review with it. Now the good
+  // entries land immediately and only the questionable ones are queued.
+  //
+  // Returns { autoPlan, reviewPlan }, either of which may be null.
+  // Side effects (stash, prefs, tombstones) ride with autoPlan when one
+  // exists and are stripped from reviewPlan so they can't be applied twice.
+  function _partitionPlan(plan) {
+    if (!plan) return { autoPlan: null, reviewPlan: null };
+
+    if (!_planHasProjectWork(plan)) {
+      // Nothing to import. Keep parity for stash/prefs-only deliveries
+      // (still surfaced for review); drop genuinely empty ones entirely.
+      return { autoPlan: null, reviewPlan: _planHasSideEffects(plan) ? plan : null };
+    }
+
+    // Fast path — the common case is a delivery that is entirely safe.
+    // Reusing the whole-plan predicate keeps one source of truth for
+    // "can this be applied unattended" instead of restating the rule here.
+    if (_isPlanAutoApplicable(plan)) return { autoPlan: plan, reviewPlan: null };
+
+    var autoNew = [], reviewNew = [], autoMerge = [], reviewMerge = [];
+    var i;
+    for (i = 0; i < (plan.newRemote || []).length; i++) {
+      var ne = plan.newRemote[i];
+      (_isProjectShapeValid(_entryData(ne)) ? autoNew : reviewNew).push(ne);
+    }
+    for (i = 0; i < (plan.mergeTracking || []).length; i++) {
+      var me = plan.mergeTracking[i];
+      (_isProjectShapeValid(_entryData(me)) ? autoMerge : reviewMerge).push(me);
+    }
+    var conflicts = plan.conflicts || [];
+
+    var hasAuto = (autoNew.length + autoMerge.length) > 0;
+    var hasReview = (reviewNew.length + reviewMerge.length + conflicts.length) > 0;
+
+    // Nothing safe to apply — hand the whole plan over untouched.
+    if (!hasAuto) return { autoPlan: null, reviewPlan: plan };
+
+    function keptRewrites(entries) {
+      return (plan.idRewrites || []).filter(function (r) { return entries.indexOf(r) !== -1; });
+    }
+
+    var autoPlan = Object.assign({}, plan, {
+      newRemote: autoNew,
+      mergeTracking: autoMerge,
+      conflicts: [],
+      idRewrites: keptRewrites(autoMerge)
+    });
+
+    if (!hasReview) return { autoPlan: autoPlan, reviewPlan: null };
+
+    // autoPlan already applied stash / prefs / tombstones — strip them from
+    // the review half so executeImport can't double-apply them later.
+    var reviewSyncObj = Object.assign({}, plan.syncObj);
+    delete reviewSyncObj.prefs;
+    var reviewPlan = Object.assign({}, plan, {
+      newRemote: reviewNew,
+      mergeTracking: reviewMerge,
+      conflicts: conflicts,
+      idRewrites: keptRewrites(reviewMerge),
+      stashMerge: null,
+      remoteTombstones: [],
+      syncObj: reviewSyncObj
+    });
+
+    return { autoPlan: autoPlan, reviewPlan: reviewPlan };
   }
 
   async function _processFolderUpdates(updates) {
@@ -2451,17 +3107,24 @@ const SyncEngine = (() => {
         // entry / per-device "last imported" record to a real file.
         plan._fileName = u.fileName || null;
         plan._fileLastModified = u.lastModified || null;
-        if (_isPlanAutoApplicable(plan)) {
-          var result = await executeImport(plan);
-          autoApplied.push({ update: u, plan: plan, result: result });
+        // Split the delivery: everything safe applies now, anything needing
+        // a decision is queued. A malformed entry no longer holds back the
+        // healthy projects that arrived in the same file.
+        var parts = _partitionPlan(plan);
+        if (parts.autoPlan) {
+          var result = await executeImport(parts.autoPlan);
+          autoApplied.push({ update: u, plan: parts.autoPlan, result: result });
           // Tell the rest of the app (home dashboard, manager, tracker) to
           // refresh — this matches the events fired by the manual import path.
           try { window.dispatchEvent(new CustomEvent("cs:backupRestored")); } catch (e) {}
           if (result && result.stashUpdated) {
             try { window.dispatchEvent(new CustomEvent("cs:stashChanged")); } catch (e) {}
           }
-        } else {
-          pending.push({ update: u, plan: plan });
+        }
+        if (parts.reviewPlan) {
+          // executeImport clears the pending-plan cache on success, so the
+          // review half must be queued after the auto half has run.
+          pending.push({ update: u, plan: parts.reviewPlan });
         }
       } catch (e) {
         // EncryptionError("passphrase_required") is the expected steady
@@ -2486,7 +3149,12 @@ const SyncEngine = (() => {
       var deviceNames = Object.create(null);
       for (var j = 0; j < autoApplied.length; j++) {
         var pa = autoApplied[j].plan;
-        totalImported += (pa.newRemote ? pa.newRemote.length : 0);
+        // Count merges as well as brand-new imports — merge-tracking is now
+        // auto-applied, and a silent update is exactly what the user was
+        // missing before. Without this the toast stays at 0 and an update to
+        // an existing pattern lands with no feedback at all.
+        totalImported += (pa.newRemote ? pa.newRemote.length : 0)
+                       + (pa.mergeTracking ? pa.mergeTracking.length : 0);
         var dn = autoApplied[j].update.deviceName;
         if (dn) deviceNames[dn] = true;
       }
@@ -3067,6 +3735,15 @@ const SyncEngine = (() => {
     prepareImport: prepareImport,
     executeImport: executeImport,
 
+    // Destructive: wipe this device's library + sync bookkeeping so it can be
+    // rebuilt from a peer. Requires { confirm: "DELETE_LOCAL_LIBRARY" }.
+    resetForResync: resetForResync,
+
+    // Deletion records — inspect why a pattern isn't arriving, and release it.
+    getTombstones: getTombstoneRecords,
+    forgetTombstone: forgetTombstone,
+    clearTombstones: clearTombstones,
+
     // Snapshot
     readSnapshot: readSnapshot,
     writeSnapshot: writeSnapshot,
@@ -3085,6 +3762,8 @@ const SyncEngine = (() => {
     mergeSessions: mergeSessions,
     mergeTrackingProgress: mergeTrackingProgress,
     mergeStash: mergeStash,
+    mergeIndexedPairs: mergeIndexedPairs,
+    mergeStitchLogs: mergeStitchLogs,
 
     // Device & status
     getDeviceId: getDeviceId,
@@ -3104,6 +3783,7 @@ const SyncEngine = (() => {
     checkForUpdates: checkForUpdates,
     isAutoSyncEnabled: isAutoSyncEnabled,
     setAutoSyncEnabled: setAutoSyncEnabled,
+    hasAutoSyncPreference: hasAutoSyncPreference,
     triggerAutoExport: triggerAutoExport,
 
     // Folder watcher (Phase-3)
@@ -3157,6 +3837,11 @@ const SyncEngine = (() => {
     _test: {
       isProjectShapeValid: _isProjectShapeValid,
       isPlanAutoApplicable: _isPlanAutoApplicable,
+      partitionPlan: _partitionPlan,
+      planHasProjectWork: _planHasProjectWork,
+      planHasSideEffects: _planHasSideEffects,
+      projectWidth: _projectWidth,
+      projectHeight: _projectHeight,
       recordDeviceImport: _recordDeviceImport,
       encryptSyncObj: _encryptSyncObj,
       decryptSyncObj: _decryptSyncObj,
