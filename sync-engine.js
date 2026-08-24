@@ -2579,12 +2579,53 @@ const SyncEngine = (() => {
          + ((plan.conflicts && plan.conflicts.length) || 0) > 0;
   }
 
+  // Does the stash merge actually change anything, or does it just restate
+  // what we already hold? plan.stashMerge is non-null on essentially every
+  // sync (mergeStash always returns an object), so testing it for existence
+  // is useless — it would mark every unchanged re-sync as "has side effects"
+  // and fire a review prompt on every watcher tick. Compare against the
+  // normalised local stash instead: merging local with nothing yields the
+  // same shape mergeStash produces, so any difference is a real remote
+  // contribution.
+  function _stashMergeChangesAnything(plan) {
+    if (!plan || !plan.stashMerge) return false;
+    try {
+      var normalisedLocal = mergeStash(plan.localStash || {}, {});
+      return JSON.stringify(normalisedLocal) !== JSON.stringify(plan.stashMerge);
+    } catch (e) {
+      return true; // be conservative — surface it rather than swallow it
+    }
+  }
+
+  function _prefsChangeAnything(plan) {
+    var prefs = plan && plan.syncObj && plan.syncObj.prefs;
+    if (!prefs) return false;
+    var keys = Object.keys(prefs);
+    for (var i = 0; i < keys.length; i++) {
+      var current = null;
+      try { current = localStorage.getItem(keys[i]); } catch (e) {}
+      if (current !== prefs[keys[i]]) return true;
+    }
+    return false;
+  }
+
+  function _tombstonesChangeAnything(plan) {
+    var remote = plan && plan.remoteTombstones;
+    if (!remote || !remote.length) return false;
+    var known = Object.create(null);
+    var local = getLocalTombstones();
+    for (var i = 0; i < local.length; i++) known[local[i]] = true;
+    for (var j = 0; j < remote.length; j++) {
+      if (!known[remote[j]]) return true;
+    }
+    return false;
+  }
+
   function _planHasSideEffects(plan) {
     if (!plan) return false;
-    if (plan.stashMerge) return true;
-    if (plan.remoteTombstones && plan.remoteTombstones.length) return true;
-    if (plan.syncObj && plan.syncObj.prefs && Object.keys(plan.syncObj.prefs).length) return true;
-    return false;
+    return _stashMergeChangesAnything(plan)
+        || _tombstonesChangeAnything(plan)
+        || _prefsChangeAnything(plan);
   }
 
   // Split a prepared plan into the part we can apply unattended and the part
@@ -3391,6 +3432,7 @@ const SyncEngine = (() => {
       isPlanAutoApplicable: _isPlanAutoApplicable,
       partitionPlan: _partitionPlan,
       planHasProjectWork: _planHasProjectWork,
+      planHasSideEffects: _planHasSideEffects,
       projectWidth: _projectWidth,
       projectHeight: _projectHeight,
       recordDeviceImport: _recordDeviceImport,

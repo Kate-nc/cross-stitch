@@ -174,6 +174,44 @@ describe('sync fix #3 — empty deliveries stay silent', () => {
     expect(reviewPlan).not.toBeNull();
   });
 
+  test('an unchanged stash does not count as a side effect', () => {
+    // Regression: plan.stashMerge is non-null on essentially every sync,
+    // because mergeStash always returns an object. Testing it for existence
+    // marked every unchanged re-sync as actionable and fired a review prompt
+    // on every 10s watcher tick. It must compare against the local stash.
+    const localStash = { threads: { 310: { owned: 2, tobuy: false } }, patterns: [], userProfile: null };
+    const p = plan({ localStash, stashMerge: null });
+    // Build the merge the way prepareImport does, from an identical remote.
+    p.stashMerge = SE.mergeStash(localStash, localStash);
+    expect(SE._test.planHasSideEffects(p)).toBe(false);
+    expect(SE._test.partitionPlan(p).reviewPlan).toBeNull();
+  });
+
+  test('a stash that genuinely gained a thread does count', () => {
+    const localStash = { threads: { 310: { owned: 2 } }, patterns: [], userProfile: null };
+    const remoteStash = { threads: { 310: { owned: 2 }, 550: { owned: 5 } }, patterns: [], userProfile: null };
+    const p = plan({ localStash, stashMerge: SE.mergeStash(localStash, remoteStash) });
+    expect(SE._test.planHasSideEffects(p)).toBe(true);
+  });
+
+  test('tombstones we already know about do not count', () => {
+    localStorage.setItem('cs_deleted_project_ids', JSON.stringify(['proj_dead']));
+    expect(SE._test.planHasSideEffects(plan({ remoteTombstones: ['proj_dead'] }))).toBe(false);
+    expect(SE._test.planHasSideEffects(plan({ remoteTombstones: ['proj_dead', 'proj_new'] }))).toBe(true);
+    localStorage.removeItem('cs_deleted_project_ids');
+  });
+
+  test('prefs already matching localStorage do not count', () => {
+    localStorage.setItem('cs_pref_units', 'cm');
+    expect(SE._test.planHasSideEffects(plan({
+      syncObj: { _deviceId: 'dev_A', prefs: { cs_pref_units: 'cm' } }
+    }))).toBe(false);
+    expect(SE._test.planHasSideEffects(plan({
+      syncObj: { _deviceId: 'dev_A', prefs: { cs_pref_units: 'inches' } }
+    }))).toBe(true);
+    localStorage.removeItem('cs_pref_units');
+  });
+
   test('planHasProjectWork reflects all three project buckets', () => {
     expect(SE._test.planHasProjectWork(plan())).toBe(false);
     expect(SE._test.planHasProjectWork(plan({ newRemote: [entry(goodProject())] }))).toBe(true);
