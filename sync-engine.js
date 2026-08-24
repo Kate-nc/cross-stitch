@@ -2404,25 +2404,48 @@ const SyncEngine = (() => {
     return d + "|" + m;
   }
 
+  function _entryData(entry) {
+    return (entry && entry.remote && entry.remote.data) || null;
+  }
+
   function _isPlanAutoApplicable(plan) {
     if (!plan) return false;
+    // Structural conflicts always need a human: the two devices edited the
+    // chart itself in incompatible ways and the merge engine cannot pick a
+    // winner without losing someone's work.
     if (plan.conflicts && plan.conflicts.length > 0) return false;
-    if (plan.mergeTracking && plan.mergeTracking.length > 0) return false;
-    // Big2: integrity gate. Refuse to auto-apply a plan whose newRemote
-    // entries look malformed (missing id, missing pattern, wrong dims).
-    // Falls through to the manual review path so the user can inspect
-    // before importing instead of silently writing garbage to IDB.
-    if (plan.newRemote && plan.newRemote.length > 0) {
-      for (var i = 0; i < plan.newRemote.length; i++) {
-        var entry = plan.newRemote[i];
-        var p = entry && entry.remote && entry.remote.data;
-        if (!_isProjectShapeValid(p)) return false;
+    // Big2: integrity gate. Refuse to auto-apply entries that look malformed
+    // (missing id, missing pattern, implausible dims) so we never silently
+    // write garbage to IDB — those fall through to manual review instead.
+    var applicable = 0;
+    var i;
+    if (plan.newRemote) {
+      for (i = 0; i < plan.newRemote.length; i++) {
+        if (!_isProjectShapeValid(_entryData(plan.newRemote[i]))) return false;
+        applicable++;
       }
-      return true;
     }
-    // remote tombstones alone could be auto-applied too, but they're
-    // surfaced via the manual flow today — keep parity.
-    return false;
+    // merge-tracking is auto-applicable. mergeTrackingProgress unions the
+    // done arrays and dedups sessions, so applying it is non-destructive by
+    // construction — it produces exactly what the review gate's default
+    // "merge" action produces. Gating it here was why updates to an
+    // already-shared pattern never propagated: after the first sync every
+    // shared project lands in merge-tracking, so the gate blocked every
+    // subsequent change and the receiving device stayed frozen.
+    //
+    // Known limitation: a deliberate un-stitch on the peer is re-added by
+    // the union. Distinguishing that from "this device simply stitched more"
+    // needs three-way snapshot diffing (see analyseConflicts) and is tracked
+    // separately; the union was already the gate's default outcome.
+    if (plan.mergeTracking) {
+      for (i = 0; i < plan.mergeTracking.length; i++) {
+        if (!_isProjectShapeValid(_entryData(plan.mergeTracking[i]))) return false;
+        applicable++;
+      }
+    }
+    // remote tombstones / stash / prefs alone could be auto-applied too, but
+    // they're surfaced via the manual flow today — keep parity.
+    return applicable > 0;
   }
 
   // Big2: cheap structural sanity check used by the auto-apply gate.
@@ -2471,6 +2494,92 @@ const SyncEngine = (() => {
     return typeof p.h === "number" ? p.h : undefined;
   }
 
+  // True when a plan carries no project-level work at all. Used to suppress
+  // empty "updates available" banners: now that imported projects keep their
+  // original updatedAt, a peer re-exporting unchanged data classifies every
+  // project as `identical`, which would otherwise fire a review prompt with
+  // nothing in it on every watcher tick.
+  function _planHasProjectWork(plan) {
+    if (!plan) return false;
+    return ((plan.newRemote && plan.newRemote.length) || 0)
+         + ((plan.mergeTracking && plan.mergeTracking.length) || 0)
+         + ((plan.conflicts && plan.conflicts.length) || 0) > 0;
+  }
+
+  function _planHasSideEffects(plan) {
+    if (!plan) return false;
+    if (plan.stashMerge) return true;
+    if (plan.remoteTombstones && plan.remoteTombstones.length) return true;
+    if (plan.syncObj && plan.syncObj.prefs && Object.keys(plan.syncObj.prefs).length) return true;
+    return false;
+  }
+
+  // Split a prepared plan into the part we can apply unattended and the part
+  // that genuinely needs the user. Previously the auto-apply decision was
+  // all-or-nothing across the whole file: a single malformed entry sent every
+  // other project in the same .csync to manual review with it. Now the good
+  // entries land immediately and only the questionable ones are queued.
+  //
+  // Returns { autoPlan, reviewPlan }, either of which may be null.
+  // Side effects (stash, prefs, tombstones) ride with autoPlan when one
+  // exists and are stripped from reviewPlan so they can't be applied twice.
+  function _partitionPlan(plan) {
+    if (!plan) return { autoPlan: null, reviewPlan: null };
+
+    if (!_planHasProjectWork(plan)) {
+      // Nothing to import. Keep parity for stash/prefs-only deliveries
+      // (still surfaced for review); drop genuinely empty ones entirely.
+      return { autoPlan: null, reviewPlan: _planHasSideEffects(plan) ? plan : null };
+    }
+
+    var autoNew = [], reviewNew = [], autoMerge = [], reviewMerge = [];
+    var i;
+    for (i = 0; i < (plan.newRemote || []).length; i++) {
+      var ne = plan.newRemote[i];
+      (_isProjectShapeValid(_entryData(ne)) ? autoNew : reviewNew).push(ne);
+    }
+    for (i = 0; i < (plan.mergeTracking || []).length; i++) {
+      var me = plan.mergeTracking[i];
+      (_isProjectShapeValid(_entryData(me)) ? autoMerge : reviewMerge).push(me);
+    }
+    var conflicts = plan.conflicts || [];
+
+    var hasAuto = (autoNew.length + autoMerge.length) > 0;
+    var hasReview = (reviewNew.length + reviewMerge.length + conflicts.length) > 0;
+
+    // Nothing safe to apply — hand the whole plan over untouched.
+    if (!hasAuto) return { autoPlan: null, reviewPlan: plan };
+
+    function keptRewrites(entries) {
+      return (plan.idRewrites || []).filter(function (r) { return entries.indexOf(r) !== -1; });
+    }
+
+    var autoPlan = Object.assign({}, plan, {
+      newRemote: autoNew,
+      mergeTracking: autoMerge,
+      conflicts: [],
+      idRewrites: keptRewrites(autoMerge)
+    });
+
+    if (!hasReview) return { autoPlan: autoPlan, reviewPlan: null };
+
+    // autoPlan already applied stash / prefs / tombstones — strip them from
+    // the review half so executeImport can't double-apply them later.
+    var reviewSyncObj = Object.assign({}, plan.syncObj);
+    delete reviewSyncObj.prefs;
+    var reviewPlan = Object.assign({}, plan, {
+      newRemote: reviewNew,
+      mergeTracking: reviewMerge,
+      conflicts: conflicts,
+      idRewrites: keptRewrites(reviewMerge),
+      stashMerge: null,
+      remoteTombstones: [],
+      syncObj: reviewSyncObj
+    });
+
+    return { autoPlan: autoPlan, reviewPlan: reviewPlan };
+  }
+
   async function _processFolderUpdates(updates) {
     if (!updates || !updates.length) return { autoApplied: [], pending: [] };
     var autoApplied = [];
@@ -2483,17 +2592,24 @@ const SyncEngine = (() => {
         // entry / per-device "last imported" record to a real file.
         plan._fileName = u.fileName || null;
         plan._fileLastModified = u.lastModified || null;
-        if (_isPlanAutoApplicable(plan)) {
-          var result = await executeImport(plan);
-          autoApplied.push({ update: u, plan: plan, result: result });
+        // Split the delivery: everything safe applies now, anything needing
+        // a decision is queued. A malformed entry no longer holds back the
+        // healthy projects that arrived in the same file.
+        var parts = _partitionPlan(plan);
+        if (parts.autoPlan) {
+          var result = await executeImport(parts.autoPlan);
+          autoApplied.push({ update: u, plan: parts.autoPlan, result: result });
           // Tell the rest of the app (home dashboard, manager, tracker) to
           // refresh — this matches the events fired by the manual import path.
           try { window.dispatchEvent(new CustomEvent("cs:backupRestored")); } catch (e) {}
           if (result && result.stashUpdated) {
             try { window.dispatchEvent(new CustomEvent("cs:stashChanged")); } catch (e) {}
           }
-        } else {
-          pending.push({ update: u, plan: plan });
+        }
+        if (parts.reviewPlan) {
+          // executeImport clears the pending-plan cache on success, so the
+          // review half must be queued after the auto half has run.
+          pending.push({ update: u, plan: parts.reviewPlan });
         }
       } catch (e) {
         // EncryptionError("passphrase_required") is the expected steady
@@ -2518,7 +2634,12 @@ const SyncEngine = (() => {
       var deviceNames = Object.create(null);
       for (var j = 0; j < autoApplied.length; j++) {
         var pa = autoApplied[j].plan;
-        totalImported += (pa.newRemote ? pa.newRemote.length : 0);
+        // Count merges as well as brand-new imports — merge-tracking is now
+        // auto-applied, and a silent update is exactly what the user was
+        // missing before. Without this the toast stays at 0 and an update to
+        // an existing pattern lands with no feedback at all.
+        totalImported += (pa.newRemote ? pa.newRemote.length : 0)
+                       + (pa.mergeTracking ? pa.mergeTracking.length : 0);
         var dn = autoApplied[j].update.deviceName;
         if (dn) deviceNames[dn] = true;
       }
@@ -3189,6 +3310,8 @@ const SyncEngine = (() => {
     _test: {
       isProjectShapeValid: _isProjectShapeValid,
       isPlanAutoApplicable: _isPlanAutoApplicable,
+      partitionPlan: _partitionPlan,
+      planHasProjectWork: _planHasProjectWork,
       projectWidth: _projectWidth,
       projectHeight: _projectHeight,
       recordDeviceImport: _recordDeviceImport,
