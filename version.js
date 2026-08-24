@@ -8,6 +8,21 @@ window.APP_VERSION = '1.0.51';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.51',
+    date: 'August 2026',
+    notes: [
+      'Cross-device sync overhaul. Patterns now keep their real "last edited" dates when they arrive on another device — previously every imported pattern was stamped with the moment it landed, which put your oldest work at the top of the list and buried recent changes at the bottom.',
+      'Changes to a pattern you have already synced now arrive on their own. Before, only brand-new patterns appeared automatically and every later edit sat waiting behind a manual review step.',
+      'Connecting a sync folder now sends your changes as well as receiving them. A device could previously be connected for months and never send anything.',
+      'More of your work travels between devices: fractional stitches, daily stitch history, completion status, project colour, notes, designer and description, and thumbnails.',
+      'Deleting a pattern on one device no longer blocks it forever. If you carry on working on it elsewhere, it comes back.',
+      'Sync status now appears on every page, including a prompt to reconnect when your browser drops permission for the sync folder — the most common reason sync stops silently.',
+      'Sync files are much smaller and written far less often. Source photos are no longer included by default; you can switch them back on in Preferences under What to sync.',
+      'Fixed an error that could stop the thread stash saving during a sync import ("One of the specified object stores was not found").',
+      'Added a way to rebuild a device’s library from another device, for when its copies have gone wrong.',
+    ]
+  },
+  {
     version: '1.0.4',
     date: 'May 2026',
     notes: [
