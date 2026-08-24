@@ -716,6 +716,85 @@ const ProjectStorage = (() => {
       return this._deletedIds.has(id);
     },
 
+    // Remove every project on this device WITHOUT tombstoning them, so the
+    // library can be rebuilt from a peer's .csync.
+    //
+    // delete() is the wrong tool for this job, in three separate ways:
+    //   1. it writes a tombstone per id, and SyncEngine.classifyProjects uses
+    //      tombstones to permanently skip those projects on import;
+    //   2. it adds the id to the session-local _deletedIds guard, which makes
+    //      save() a silent no-op for that id until the page reloads;
+    //   3. both of the above survive the wipe, so a bulk delete followed by a
+    //      re-sync would import nothing at all and look like sync was broken.
+    // This method deliberately touches neither.
+    //
+    // options.includeAutoSave (default true) also drops the legacy "auto_save"
+    // record, so a stale single-project autosave can't resurrect wiped work.
+    // The thread stash is intentionally left alone — it is device inventory,
+    // not synced library content.
+    //
+    // Returns the number of project records removed.
+    async clearAllProjects(options) {
+      const opts = options || {};
+      const includeAutoSave = opts.includeAutoSave !== false;
+      try {
+        const db = await getDB();
+        const allKeys = await new Promise((resolve, reject) => {
+          const tx = db.transaction(STORE_NAME, "readonly");
+          const req = tx.objectStore(STORE_NAME).getAllKeys();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => reject(req.error);
+        });
+        const projectIds = allKeys.filter(
+          k => typeof k === "string" && k.startsWith("proj_"));
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE], "readwrite");
+          const store = tx.objectStore(STORE_NAME);
+          const metaStore = tx.objectStore(META_STORE);
+          const statsStore = tx.objectStore(STATS_STORE);
+          for (const id of projectIds) {
+            store.delete(id);
+            metaStore.delete(id);
+            statsStore.delete(id);
+          }
+          if (includeAutoSave) store.delete("auto_save");
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+        this._allFullCache = null;
+        this.clearActiveProject();
+        // Release the session-delete guard. It exists to stop an in-flight
+        // autosave from resurrecting a just-deleted project, but after a full
+        // wipe it would silently no-op save() for any id deleted earlier in
+        // this page session — so those patterns would NOT come back on the
+        // rebuild, with no error to explain why. Forgetting the deletions is
+        // the correct semantic here: we are about to re-import from a peer.
+        try { this._deletedIds.clear(); } catch (_) {}
+        try { if (typeof window !== 'undefined') window.__csMostUsedCache = null; } catch (_) {}
+        // Drop dashboard state for the removed ids so stale entries don't
+        // linger for projects that may never come back.
+        try {
+          const states = this.getProjectStates();
+          let changed = false;
+          for (const id of projectIds) {
+            if (states[id] !== undefined) { delete states[id]; changed = true; }
+          }
+          if (changed) localStorage.setItem('cs_projectStates', JSON.stringify(states));
+        } catch (_) {}
+        try {
+          if (typeof window !== "undefined" && window.dispatchEvent) {
+            window.dispatchEvent(new CustomEvent("cs:projectsChanged", {
+              detail: { reason: "clearAll", count: projectIds.length }
+            }));
+          }
+        } catch (_) {}
+        return projectIds.length;
+      } catch (err) {
+        console.error("ProjectStorage.clearAllProjects failed:", err);
+        throw err;
+      }
+    },
+
     // Internal set of project IDs deleted during this page session.
     _deletedIds: new Set(),
 

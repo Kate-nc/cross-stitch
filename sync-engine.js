@@ -1464,6 +1464,92 @@ const SyncEngine = (() => {
     }
   }
 
+  // Drop the stored three-way snapshot. After a library reset it describes a
+  // state that no longer exists, and analyseConflicts would read it as "the
+  // user deleted all this locally" and raise spurious conflicts.
+  async function _clearSnapshot() {
+    try {
+      var db = await _openSnapshotDB();
+      await new Promise(function (resolve, reject) {
+        var tx = db.transaction("sync_snapshots", "readwrite");
+        tx.objectStore("sync_snapshots").delete("latest");
+        tx.oncomplete = function () { db.close(); resolve(); };
+        tx.onerror = function () { db.close(); reject(tx.error); };
+      });
+      return true;
+    } catch (e) {
+      console.warn("SyncEngine: could not clear snapshot:", e);
+      return false;
+    }
+  }
+
+  // ── Reset for re-sync ────────────────────────────────────────────────────
+  //
+  // Wipes this device's pattern library and every piece of sync bookkeeping
+  // that would otherwise stop a peer's .csync from landing cleanly. Intended
+  // for "this device's copies are wrong — rebuild them from the other device".
+  //
+  // Clearing the library alone is NOT enough, and each of these is a way the
+  // rebuild silently imports nothing:
+  //   • tombstones           — classifyProjects skips tombstoned ids forever
+  //   • per-device cursor    — checkForUpdates treats the peer's existing file
+  //                            as already seen and never re-offers it
+  //   • global last-import   — same, for files with no device attribution
+  //   • pending-plan cache   — a stale plan referencing deleted records
+  //   • snapshot             — three-way analysis against a vanished baseline
+  //
+  // The thread stash is left intact (device inventory, not library content).
+  // Destructive, so it requires an explicit confirmation token.
+  var RESET_CONFIRM_TOKEN = "DELETE_LOCAL_LIBRARY";
+
+  async function resetForResync(options) {
+    var opts = options || {};
+    if (opts.confirm !== RESET_CONFIRM_TOKEN) {
+      throw new Error('SyncEngine.resetForResync() permanently deletes this '
+        + 'device\'s patterns. Call it as resetForResync({ confirm: "'
+        + RESET_CONFIRM_TOKEN + '" }).');
+    }
+
+    var removed = 0;
+    if (typeof ProjectStorage !== "undefined" && ProjectStorage.clearAllProjects) {
+      removed = await ProjectStorage.clearAllProjects({
+        includeAutoSave: opts.includeAutoSave !== false
+      });
+    } else {
+      throw new Error("ProjectStorage.clearAllProjects is unavailable — cannot reset safely.");
+    }
+
+    try { localStorage.removeItem(LS_TOMBSTONE_KEY); } catch (e) {}
+    try { localStorage.removeItem(LS_LAST_IMPORT_PER_DEVICE); } catch (e) {}
+    try { localStorage.removeItem(LS_LAST_IMPORT); } catch (e) {}
+
+    _seenPendingKeys = Object.create(null);
+    try { clearPendingPlan(); } catch (e) {}
+    await _clearSnapshot();
+
+    _logEvent({
+      type: "library-reset",
+      message: "Local library cleared for re-sync (" + removed + " pattern"
+        + (removed === 1 ? "" : "s") + " removed)"
+    });
+
+    try {
+      if (typeof window !== "undefined" && window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent("cs:projectsChanged", {
+          detail: { reason: "reset-for-resync", count: removed }
+        }));
+        window.dispatchEvent(new CustomEvent("cs:syncStatusChanged", {
+          detail: { reason: "reset-for-resync" }
+        }));
+      }
+    } catch (e) {}
+
+    // Pull the peer's file straight away rather than waiting for the next tick.
+    try { _runWatcherTick(); } catch (e) {}
+
+    return { removed: removed };
+  }
+
   // Register a beforeunload handler that writes a snapshot when the page closes.
   // Safe to call multiple times — only registers once.
   var _beforeUnloadRegistered = false;
@@ -3461,6 +3547,10 @@ const SyncEngine = (() => {
     validate: validate,
     prepareImport: prepareImport,
     executeImport: executeImport,
+
+    // Destructive: wipe this device's library + sync bookkeeping so it can be
+    // rebuilt from a peer. Requires { confirm: "DELETE_LOCAL_LIBRARY" }.
+    resetForResync: resetForResync,
 
     // Snapshot
     readSnapshot: readSnapshot,
