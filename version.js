@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.53';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.54',
+    date: 'August 2026',
+    notes: [
+      'The colour panel in the Stitch Tracker now always sits beside your chart rather than on top of it. If you had the projects list collapsed, opening Colours used to hide part of the chart behind the panel.',
+      'Removed the projects list from the left edge of the Stitch Tracker. Switching projects now happens entirely through the project menu in the top bar, and the chart gets the reclaimed space.',
+    ]
+  },
+  {
     version: '1.0.53',
     date: 'August 2026',
     notes: [
