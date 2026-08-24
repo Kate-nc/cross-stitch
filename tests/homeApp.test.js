@@ -112,11 +112,17 @@ describe('home-app.js source contract', () => {
     expect(SRC).not.toMatch(/StashBridge\.loadStash/);
   });
 
-  test('loads pattern library directly from stitch_manager_db', () => {
+  test('loads pattern library directly from the manager DB', () => {
     // Patterns are stored under the "patterns" key in the manager_state
     // store; StashBridge has no public read for them so /home reads the
     // raw IDB row, mirroring home-screen.js.
-    expect(SRC).toMatch(/stitch_manager_db/);
+    //
+    // The database is opened via the canonical window.openManagerDB() helper
+    // rather than a hard-coded indexedDB.open("stitch_manager_db", 1): that
+    // form cannot create manager_state on a database left storeless by a
+    // versionless open, and breaks with VersionError once one is repaired.
+    // See tests/managerDbOpener.test.js.
+    expect(SRC).toMatch(/window\.openManagerDB\(\)/);
     expect(SRC).toMatch(/manager_state/);
     expect(SRC).toMatch(/store\.get\(['"]patterns['"]\)/);
   });

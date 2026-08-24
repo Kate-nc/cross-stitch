@@ -926,9 +926,9 @@
     function loadManagerPatterns() {
       return new Promise(function (resolve) {
         try {
-          var req = indexedDB.open('stitch_manager_db', 1);
-          req.onsuccess = function (e) {
-            var db = e.target.result;
+          // Canonical versionless opener — a hard-coded version 1 throws
+          // VersionError once the database has been repaired to 2.
+          window.openManagerDB().then(function (db) {
             try {
               if (!db.objectStoreNames.contains('manager_state')) { resolve([]); return; }
               var tx = db.transaction('manager_state', 'readonly');
@@ -937,8 +937,7 @@
               r.onsuccess = function () { resolve(Array.isArray(r.result) ? r.result : []); };
               r.onerror = function () { resolve([]); };
             } catch (_) { resolve([]); }
-          };
-          req.onerror = function () { resolve([]); };
+          }).catch(function () { resolve([]); });
         } catch (_) { resolve([]); }
       });
     }

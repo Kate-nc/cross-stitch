@@ -35,19 +35,38 @@ const BackupRestore = (() => {
   }
 
   // Open an IndexedDB by name, creating expected stores if needed
+  // version === null opens at whatever version already exists (creating the
+  // database at 1 if absent) and then repairs any missing stores with a
+  // version bump. stitch_manager_db needs this: a versionless open elsewhere
+  // can leave it existing-but-storeless, and a hard-coded open(name, 1) then
+  // never fires onupgradeneeded, so the store is never created.
   function openDB(name, version, storeNames) {
+    function createMissing(db) {
+      storeNames.forEach(s => {
+        if (!db.objectStoreNames.contains(s)) db.createObjectStore(s);
+      });
+    }
     return new Promise((resolve, reject) => {
-      const req = indexedDB.open(name, version);
-      req.onupgradeneeded = (e) => {
-        const db = e.target.result;
-        storeNames.forEach(s => {
-          if (!db.objectStoreNames.contains(s)) db.createObjectStore(s);
-        });
-      };
+      const req = (version == null) ? indexedDB.open(name) : indexedDB.open(name, version);
+      req.onupgradeneeded = (e) => createMissing(e.target.result);
       req.onblocked = () => {
         reject(new Error(name + " upgrade blocked — close other tabs and retry."));
       };
-      req.onsuccess = () => resolve(req.result);
+      req.onsuccess = () => {
+        const db = req.result;
+        const missing = storeNames.filter(s => !db.objectStoreNames.contains(s));
+        // A pinned version means the caller owns the schema — don't fight it.
+        if (!missing.length || version != null) { resolve(db); return; }
+        const next = db.version + 1;
+        db.close();
+        const up = indexedDB.open(name, next);
+        up.onupgradeneeded = (e) => createMissing(e.target.result);
+        up.onsuccess = () => resolve(up.result);
+        up.onerror = () => reject(up.error);
+        up.onblocked = () => {
+          reject(new Error(name + " upgrade blocked — close other tabs and retry."));
+        };
+      };
       req.onerror = () => reject(req.error);
     });
   }
@@ -167,7 +186,7 @@ const BackupRestore = (() => {
 
       // 2. stitch_manager_db
       try {
-        const db = await openDB("stitch_manager_db", 1, ["manager_state"]);
+        const db = await openDB("stitch_manager_db", null, ["manager_state"]);
         backup.databases.stitch_manager_db = {
           manager_state: await readStore(db, "manager_state")
         };
@@ -367,7 +386,7 @@ const BackupRestore = (() => {
 
       // 2. stitch_manager_db
       if (backup.databases.stitch_manager_db) {
-        const db = await openDB("stitch_manager_db", 1, ["manager_state"]);
+        const db = await openDB("stitch_manager_db", null, ["manager_state"]);
         const data = backup.databases.stitch_manager_db;
         for (const storeName of ["manager_state"]) {
           if (!data[storeName]) continue;

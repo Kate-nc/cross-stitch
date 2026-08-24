@@ -311,18 +311,37 @@ const StashBridge = (() => {
     await migrateToLatest(3);
   }
 
+  // Delegates to the canonical opener in helpers.js, which opens without a
+  // version and repairs a database left storeless by a versionless open. The
+  // old hard-coded open(name, 1) here could not create manager_state on a
+  // database that already existed at version 1 without it — onupgradeneeded
+  // never fires — so every transaction threw NotFoundError.
   function openManagerDB() {
+    if (typeof ensurePersistence === 'function') ensurePersistence();
+    if (typeof window !== 'undefined' && typeof window.openManagerDB === 'function') {
+      return window.openManagerDB();
+    }
+    // Fallback for contexts where helpers.js isn't present (tests, workers).
     return new Promise((resolve, reject) => {
-      if (typeof ensurePersistence === 'function') ensurePersistence();
-      const req = indexedDB.open("stitch_manager_db", 1);
+      const req = indexedDB.open("stitch_manager_db");
       req.onupgradeneeded = (e) => {
         const db = e.target.result;
-        if (!db.objectStoreNames.contains("manager_state")) {
-          db.createObjectStore("manager_state");
-        }
+        if (!db.objectStoreNames.contains("manager_state")) db.createObjectStore("manager_state");
       };
-      req.onsuccess = (e) => resolve(e.target.result);
-      req.onerror = (e) => reject(e.target.error);
+      req.onsuccess = () => {
+        const db = req.result;
+        if (db.objectStoreNames.contains("manager_state")) { resolve(db); return; }
+        const next = db.version + 1;
+        db.close();
+        const up = indexedDB.open("stitch_manager_db", next);
+        up.onupgradeneeded = (e) => {
+          const d = e.target.result;
+          if (!d.objectStoreNames.contains("manager_state")) d.createObjectStore("manager_state");
+        };
+        up.onsuccess = () => resolve(up.result);
+        up.onerror = () => reject(up.error);
+      };
+      req.onerror = () => reject(req.error);
     });
   }
 

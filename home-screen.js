@@ -1318,17 +1318,16 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
         // Try to get patterns from stash manager DB
         return new Promise(function(resolve) {
           try {
-            var req = indexedDB.open("stitch_manager_db", 1);
-            req.onsuccess = function(e) {
-              var db = e.target.result;
+            // Canonical versionless opener — a hard-coded version 1 throws
+            // VersionError once the database has been repaired to 2.
+            window.openManagerDB().then(function(db) {
               if (!db.objectStoreNames.contains("manager_state")) { resolve([]); return; }
               var tx = db.transaction("manager_state", "readonly");
               var store = tx.objectStore("manager_state");
               var r = store.get("patterns");
               r.onsuccess = function() { resolve(r.result || []); };
               r.onerror = function() { resolve([]); };
-            };
-            req.onerror = function() { resolve([]); };
+            }).catch(function() { resolve([]); });
           } catch(e) { resolve([]); }
         });
       })() : Promise.resolve([])
