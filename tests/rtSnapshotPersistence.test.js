@@ -19,7 +19,7 @@ describe('tracker-app.js — RT snapshot lifecycle (DEFECT-001)', () => {
     expect(SRC).toMatch(re);
   });
 
-  test('the Live toggle in TrackerProjectRail uses __ensureRtStashSnapshot, not __setRtStashSnapshot', () => {
+  test('the Live toggle uses __ensureRtStashSnapshot, not __setRtStashSnapshot', () => {
     // The "Turning on" branch must not call the unconditional setter, otherwise
     // the snapshot moves forward on every re-enable.
     const toggleBlock = SRC.match(/Turning on:[\s\S]{0,800}__ensureRtStashSnapshot/);

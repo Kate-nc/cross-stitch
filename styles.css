@@ -646,14 +646,13 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
    them together or not at all. */
 @media(min-width:1024px){
   .cs-main{transition:margin-left var(--motion,0.18s ease);}
-  /* The docked panel is 320px wide and paints over the project rail
-     (z-index 1000 vs 300), so the canvas must clear the full 320px whichever
-     width the rail is currently showing. `body.tracker-rail-collapsed
-     .cs-main` (specificity 0,2,1) outranks a bare `.cs-main--palette-open`
-     (0,2,0), so the collapsed-rail case needs its own selector here — without
-     it the 56px rail margin wins and the panel covers 264px of chart. */
-  .cs-main.cs-main--palette-open,
-  body.tracker-rail-collapsed .cs-main.cs-main--palette-open{margin-left:320px;}
+  /* The docked panel is 320px wide, so the canvas clears exactly that much.
+     Nothing else writes margin-left on .cs-main at this breakpoint any more —
+     the project rail that used to reserve 220px (56px collapsed) was removed,
+     and its collapsed-state rule outranked this one, which is what let the
+     panel overlap the chart. Keep it that way: any new .cs-main margin rule
+     needs to lose to this one while the panel is open. */
+  .cs-main.cs-main--palette-open{margin-left:320px;}
   .lpanel{
     left:0;right:auto;top:0;bottom:0;
     width:320px;max-width:320px;max-height:100vh;
@@ -2266,12 +2265,10 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 /* ═════════════════════════════════════════════════════════
    Phase 4 (UX-12) — Tracker Workshop chrome
    Floating tool dock + bottom mode pill + sticky colour chip on
-   phone; project rail + side panel on tablet/desktop. Wake-lock
-   chip lives inline with the toolbar pill row.
+   phone. Wake-lock chip lives inline with the toolbar pill row.
    ═════════════════════════════════════════════════════════ */
 /* Hide-by-default; phone media query below opts in. */
 .tracker-tool-dock,.tracker-mode-pill,.tracker-colour-chip{display:none;}
-.tracker-project-rail{display:none;}
 /* Wake-lock chip — visible on every viewport inside the toolbar. */
 .tracker-wake-chip{
   display:inline-flex;align-items:center;gap:6px;
@@ -2352,165 +2349,11 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
   body.tracker-mobile .canvas-area{padding-bottom:max(132px,calc(132px + env(safe-area-inset-bottom,0)))!important;}
 }
 
-/* ── Tablet (≥600px) — show project rail + side panel; hide phone-only chrome ── */
+/* ── Tablet (≥600px) — hide phone-only chrome ── */
 @media (min-width: 600px){
-  .tracker-project-rail{
-    display:flex;flex-direction:column;
-    position:fixed;left:0;top:0;bottom:0;width:220px;
-    padding:12px;padding-top:max(12px,env(safe-area-inset-top,0));
-    padding-bottom:max(12px,env(safe-area-inset-bottom,0));
-    background:var(--surface-tertiary,var(--surface));border-right:1px solid var(--border);
-    overflow-y:auto;z-index:300;gap:6px;
-  }
-  .tpr-h{font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-tertiary);margin:0 0 4px;font-weight:600;}
-  .tpr-list{display:flex;flex-direction:column;gap:4px;}
-  .tpr-empty{font-size:12px;color:var(--text-tertiary);padding:6px;}
-  .tpr-row{
-    display:flex;align-items:center;gap:8px;
-    padding:6px;border:1px solid var(--border);border-radius:8px;
-    background:var(--surface);text-align:left;cursor:pointer;font:inherit;color:var(--text-primary);
-  }
-  .tpr-row--on{border-color:var(--accent);background:var(--accent-light,#F4DDCF);}
-  .tpr-thumb{width:36px;height:36px;border-radius:6px;background-size:cover;background-position:center;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;color:var(--surface);font-weight:700;font-size:13px;border:1px solid var(--border);}
-  .tpr-text{display:flex;flex-direction:column;min-width:0;flex:1;}
-  .tpr-name{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .tpr-pct{font-size:10px;color:var(--text-tertiary);}
-  .tpr-more{margin-top:8px;padding:8px;border:1px dashed var(--border);background:transparent;border-radius:8px;color:var(--text-secondary);cursor:pointer;font-size:11px;font-family:inherit;}
-  .tpr-more:hover{background:var(--surface);}
-
-  /* Touch-1 H-1b: collapse / expand toggle. Header is a simple
-     row with the heading on the left and a chevron button on the
-     right. When the rail collapses the heading hides and the
-     chevron mirrors. */
-  .tpr-header{
-    display:flex;align-items:center;justify-content:space-between;gap:8px;
-    margin-bottom:6px;
-  }
-  .tpr-header .tpr-h{margin:0;}
-  .tpr-collapse-btn{
-    width:36px;height:36px;border-radius:8px;
-    border:1px solid var(--border);background:var(--surface);
-    color:var(--text-primary);cursor:pointer;
-    display:inline-flex;align-items:center;justify-content:center;
-    font-family:inherit;flex-shrink:0;
-    transition:background 160ms ease-out, border-color 160ms ease-out, color 160ms ease-out;
-  }
-  .tpr-collapse-btn:hover{background:var(--accent-light,var(--surface-tertiary));color:var(--accent);border-color:var(--accent);}
-  .tpr-collapse-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
-
-  /* Collapsed state — narrow rail with thumbnails only. The .cs-main
-     left margin is also halved so the canvas reclaims the freed
-     space (rule lives next to the existing 220 px margin below). */
-  .tracker-project-rail--collapsed{width:56px;padding-left:6px;padding-right:6px;}
-  .tracker-project-rail--collapsed .tpr-row{padding:4px;justify-content:center;}
-  .tracker-project-rail--collapsed .tpr-text{display:none;}
-  .tracker-project-rail--collapsed .tpr-header{justify-content:center;}
-
-  .tracker-side-panel{
-    display:flex;flex-direction:column;gap:8px;margin-top:12px;
-  }
-  .tsp-card{padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);}
-  .tsp-h{font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-tertiary);margin:0 0 6px;font-weight:600;}
-  .tsp-stat{display:flex;justify-content:space-between;font-size:12px;color:var(--text-secondary);padding:2px 0;border-bottom:1px dashed var(--border);}
-  .tsp-stat:last-child{border-bottom:none;}
-  .tsp-stat strong{color:var(--text-primary);font-variant-numeric:tabular-nums;}
-  .tsp-pal{display:flex;flex-direction:column;gap:2px;max-height:50vh;overflow-y:auto;}
-  .tsp-row{
-    display:grid;grid-template-columns:14px auto 1fr auto;gap:6px;align-items:center;
-    padding:4px 6px;border:none;background:transparent;border-radius:6px;
-    text-align:left;cursor:pointer;font:inherit;color:var(--text-primary);
-  }
-  .tsp-row:hover{background:var(--surface-tertiary);}
-  .tsp-row--on{background:var(--accent-light,#F4DDCF);}
-  .tsp-sw{width:14px;height:14px;border-radius:3px;border:1px solid var(--border);}
-  .tsp-id{font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}
-  .tsp-name{font-size:11px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .tsp-rem{font-size:10px;color:var(--text-tertiary);font-variant-numeric:tabular-nums;}
-
-  /* Threads-needed view (tracker rail). Decomposed individual threads,
-     grouped by stash ownership; ties into the global stash via
-     StashBridge.updateThreadOwned so /manager stays in sync. */
-  .tsp-group{margin-top:6px;}
-  .tsp-group:first-of-type{margin-top:0;}
-  .tsp-group-h{font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.06em;margin:6px 0 2px;padding:0 2px;}
-  .tsp-row--thread{grid-template-columns:1fr auto;padding:0;background:transparent;}
-  .tsp-row--thread:hover{background:transparent;}
-  .tsp-row--thread.tsp-row--on .tsp-thread-main{background:var(--accent-light,#F4DDCF);}
-  .tsp-thread-main{
-    display:grid;grid-template-columns:14px auto 1fr auto auto;gap:6px;align-items:center;
-    padding:4px 6px;border:none;background:transparent;border-radius:6px;
-    text-align:left;cursor:pointer;font:inherit;color:var(--text-primary);
-    width:100%;min-width:0;
-  }
-  .tsp-thread-main:hover{background:var(--surface-tertiary);}
-  .tsp-own-pip{
-    display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:16px;padding:0 4px;
-    font-size:9px;font-weight:700;border-radius:4px;font-variant-numeric:tabular-nums;
-  }
-  .tsp-own-pip--have{background:var(--success-soft);color:var(--success);}
-  .tsp-own-pip--need{background:var(--danger-soft);color:var(--danger);}
-  .tsp-stash-btn{
-    flex-shrink:0;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;
-    border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;
-    font-size:14px;font-weight:600;color:var(--text-secondary);font-family:inherit;line-height:1;
-    margin-left:4px;
-  }
-  .tsp-stash-btn:hover{background:var(--surface-tertiary);color:var(--text-primary);}
-  .tsp-empty{font-size:11px;color:var(--text-tertiary);font-style:italic;padding:6px;}
-
-  /* ── RT deduction: Proposal D inline meter ─────────────────────── */
-  .tsp-rt-header{display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:nowrap;}
-  .tsp-rt-header .tsp-h{flex:1;margin:0;font-size:11px;}
-  .tsp-rt-controls{display:flex;align-items:center;gap:5px;flex-shrink:0;}
-  .tsp-rt-toggle-lbl{font-size:10px;color:var(--text-secondary);white-space:nowrap;}
-  /* CSS toggle switch */
-  .tsp-rt-toggle{position:relative;display:inline-block;width:28px;height:16px;cursor:pointer;}
-  .tsp-rt-toggle input{position:absolute;opacity:0;width:0;height:0;}
-  .tsp-rt-track{position:absolute;inset:0;border-radius:8px;background:var(--border);transition:background var(--motion);}
-  .tsp-rt-toggle input:checked~.tsp-rt-track{background:var(--accent);}
-  .tsp-rt-toggle input:focus-visible~.tsp-rt-track{outline:2px solid var(--accent);outline-offset:2px;}
-  .tsp-rt-thumb{position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:transform var(--motion);pointer-events:none;}
-  .tsp-rt-toggle input:checked~.tsp-rt-thumb{transform:translateX(12px);}
-  /* Gear button */
-  .tsp-rt-gear-wrap{position:relative;}
-  .tsp-rt-gear-btn{width:22px;height:22px;border-radius:4px;border:1px solid var(--border);background:var(--surface);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:var(--text-secondary);flex-shrink:0;}
-  .tsp-rt-gear-btn:hover,.tsp-rt-gear-btn[aria-expanded="true"]{background:var(--surface-secondary);color:var(--text-primary);}
-  .tsp-rt-gear-btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
-  /* Gear flyout */
-  .tsp-rt-gear-flyout{position:absolute;right:0;top:calc(100% + 4px);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;box-shadow:0 4px 12px rgba(0,0,0,.12);z-index:50;width:210px;}
-  .tsp-rt-gear-title{font-size:11px;font-weight:700;color:var(--text-primary);margin-bottom:8px;}
-  .tsp-rt-gear-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;cursor:default;}
-  .tsp-rt-gear-lbl{font-size:10px;color:var(--text-secondary);}
-  .tsp-rt-gear-input{width:54px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text-primary);font-size:11px;}
-  .tsp-rt-gear-hint{font-size:10px;color:var(--text-tertiary);margin-top:4px;padding-top:6px;border-top:1px solid var(--border);}
-  /* Per-row skein meter — lives inside .tsp-thread-col below the button */
-  .tsp-thread-col{min-width:0;display:block;}
-  .tsp-rt-meter{padding:1px 6px 4px 6px;}
-  .tsp-rt-meter-bar{height:4px;background:var(--surface-tertiary,var(--surface-secondary));border-radius:2px;overflow:hidden;}
-  .tsp-rt-meter-fill{height:100%;border-radius:2px;transition:width .3s;}
-  /* RT fraction text in pip slot */
-  .tsp-rt-frac{font-size:10px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--text-secondary);}
-  .tsp-rt-frac--low{color:var(--warning);}
-  .tsp-rt-frac--neg{color:var(--danger);}
-  /* Low badge */
-  .tsp-rt-low-badge{font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--warning);color:#fff;margin-left:4px;vertical-align:middle;line-height:1.4;}
-  /* Danger group header */
-  .tsp-group-h--danger{color:var(--danger);}
-
-  /* Hide phone-only chrome on tablet+. */
   body.tracker-mobile .tracker-mode-pill{display:none;}
   body.tracker-mobile .tracker-tool-dock{display:none;}
   body.tracker-mobile .tracker-colour-chip{display:none;}
-  /* Make room for the rail. */
-  .cs-main{margin-left:220px;}
-  /* Collapsed rail — canvas reclaims most of the freed space. */
-  body.tracker-rail-collapsed .cs-main{margin-left:56px;}
-}
-
-@media (max-width: 599px){
-  /* Ensure rail/panel stay hidden on phone even when CSS cascading order
-     would otherwise show them (defensive). */
-  .tracker-project-rail{display:none!important;}
 }
 
 /* ═════════════════════════════════════════════════════════
@@ -7038,15 +6881,13 @@ body.cs-focus .toolbar-row,
 body.cs-focus .tracker-action-bar,
 body.cs-focus .rpanel,
 body.cs-focus .lpanel,
-body.cs-focus .tracker-project-rail,
 body.cs-focus .status-bar {
   display: none !important;
 }
 body.cs-focus { padding-bottom: 0 !important; padding-left: 0 !important; padding-right: 0 !important; }
-/* The project rail's 220 px reservation lives on .cs-main as a left
-   margin in the tablet+ breakpoint. Reclaim it (and any padding the
-   canvas wrapper added for the bottom toolbar) so the chart can grow
-   to fill the freed viewport. */
+/* Drop the docked-palette offset (and any padding the canvas wrapper added
+   for the bottom toolbar) so the chart can grow to fill the freed viewport.
+   The palette itself is hidden above, so nothing is left to clear. */
 body.cs-focus .cs-main { margin-left: 0 !important; height: 100vh; max-height: 100vh; }
 body.cs-focus .canvas-area,
 body.cs-focus .stitch-wrap,

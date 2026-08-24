@@ -304,12 +304,10 @@ describe('TrackerApp getActiveProject fallback path — legacy p field', () => {
     expect(block).not.toBeNull();
   });
 
-  test('project rail onPickProject accepts project.p as well as project.pattern', () => {
-    const block = trackerApp.match(
-      /onPickProject[\s\S]*?p\.pattern\s*\|\|\s*p\.p/
-    );
-    expect(block).not.toBeNull();
-  });
+  // (The tracker project rail had its own onPickProject handler with the same
+  // requirement. The rail was removed — switching projects now goes through the
+  // header switcher, which navigates to stitch.html?id= and so lands on the
+  // _hasPattern path covered by the first test in this block.)
 
   test('StatsContainer onOpenProject accepts project.p as well as project.pattern', () => {
     // Opening a project from the global stats view must accept the legacy
