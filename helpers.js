@@ -1589,3 +1589,53 @@ if(typeof window!=='undefined'){
   window.PatternIO.stripCellForSave=stripCellForSave;
   window.PatternIO.serializePattern=serializePattern;
 }
+
+// ── Manager DB opener (canonical) ────────────────────────────────────────
+//
+// stitch_manager_db holds the thread stash and the pattern library. Every
+// consumer used to open it with a hard-coded `open(name, 1)` and create the
+// `manager_state` store from onupgradeneeded — EXCEPT two Creator call sites
+// that opened it with no version at all and created nothing.
+//
+// A versionless open on a database that does not exist yet still CREATES it,
+// at version 1, with no object stores. After that, every `open(name, 1)`
+// matches the existing version, so onupgradeneeded never fires, the store is
+// never created, and the next transaction throws:
+//
+//   NotFoundError: One of the specified object stores was not found.
+//
+// Repairing that requires a version bump (the only way to add a store), which
+// in turn makes every hard-coded `open(name, 1)` fail with VersionError. So
+// all callers must route through here: open with no version, and if the store
+// is missing, reopen at version+1 to create it.
+function openManagerDB() {
+  var DB_NAME = 'stitch_manager_db';
+  var STORE = 'manager_state';
+  function ensureStore(db) {
+    if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
+  }
+  return new Promise(function (resolve, reject) {
+    var req;
+    try { req = indexedDB.open(DB_NAME); } catch (e) { reject(e); return; }
+    // Fires only when the database is brand new (created at version 1).
+    req.onupgradeneeded = function (e) { ensureStore(e.target.result); };
+    req.onsuccess = function () {
+      var db = req.result;
+      if (db.objectStoreNames.contains(STORE)) { resolve(db); return; }
+      // Recovery path: the database exists but has no store, because a
+      // versionless open created it empty. Bump the version to add it.
+      var nextVersion = db.version + 1;
+      db.close();
+      var up;
+      try { up = indexedDB.open(DB_NAME, nextVersion); } catch (e) { reject(e); return; }
+      up.onupgradeneeded = function (e) { ensureStore(e.target.result); };
+      up.onsuccess = function () { resolve(up.result); };
+      up.onerror = function () { reject(up.error); };
+      up.onblocked = function () {
+        reject(new Error('Stash database upgrade is blocked — close other tabs of this app and retry.'));
+      };
+    };
+    req.onerror = function () { reject(req.error); };
+  });
+}
+if (typeof window !== 'undefined') window.openManagerDB = openManagerDB;

@@ -4167,9 +4167,14 @@ window.CreatorExportTab = function CreatorExportTab() {
       var cancelled = false;
       function fallback() { if (!cancelled) setProfile({ fabric_count: ctx.fabricCt || 14, strands_used: 2, waste_factor: 0.20, thread_brand: 'DMC' }); }
       try {
-        var req = indexedDB.open('stitch_manager_db');
-        req.onsuccess = function () {
-          var db = req.result;
+        // This used to be a bare indexedDB.open('stitch_manager_db') with no
+        // version and no onupgradeneeded. On a device that had never opened
+        // the Manager, that CREATED the database at version 1 with no object
+        // stores — after which every open(name, 1) elsewhere matched the
+        // existing version, never fired onupgradeneeded, and threw
+        // NotFoundError on the first transaction. Route through the canonical
+        // opener so the store always exists.
+        window.openManagerDB().then(function (db) {
           if (!db.objectStoreNames.contains('manager_state')) { fallback(); return; }
           var tx = db.transaction('manager_state', 'readonly');
           var store = tx.objectStore('manager_state');
@@ -4179,8 +4184,7 @@ window.CreatorExportTab = function CreatorExportTab() {
             setProfile(g.result || { fabric_count: ctx.fabricCt || 14, strands_used: 2, waste_factor: 0.20, thread_brand: 'DMC' });
           };
           g.onerror = fallback;
-        };
-        req.onerror = fallback;
+        }).catch(fallback);
       } catch (_) { fallback(); }
       return function () { cancelled = true; };
     }, [ctx.fabricCt]);

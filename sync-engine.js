@@ -333,16 +333,33 @@ const SyncEngine = (() => {
 
   // ── Stash DB helpers ─────────────────────────────────────────────────────
 
+  // Canonical opener lives in helpers.js — see the commentary there. It opens
+  // without a version and repairs a database that a versionless open left with
+  // no object stores, which is what made executeImport's stash write fail with
+  // "One of the specified object stores was not found".
   function openManagerDB() {
+    if (typeof window !== "undefined" && typeof window.openManagerDB === "function") {
+      return window.openManagerDB();
+    }
     return new Promise(function (resolve, reject) {
-      var req = indexedDB.open("stitch_manager_db", 1);
+      var req = indexedDB.open("stitch_manager_db");
       req.onupgradeneeded = function (e) {
         var db = e.target.result;
-        if (!db.objectStoreNames.contains("manager_state")) {
-          db.createObjectStore("manager_state");
-        }
+        if (!db.objectStoreNames.contains("manager_state")) db.createObjectStore("manager_state");
       };
-      req.onsuccess = function () { resolve(req.result); };
+      req.onsuccess = function () {
+        var db = req.result;
+        if (db.objectStoreNames.contains("manager_state")) { resolve(db); return; }
+        var next = db.version + 1;
+        db.close();
+        var up = indexedDB.open("stitch_manager_db", next);
+        up.onupgradeneeded = function (e) {
+          var d = e.target.result;
+          if (!d.objectStoreNames.contains("manager_state")) d.createObjectStore("manager_state");
+        };
+        up.onsuccess = function () { resolve(up.result); };
+        up.onerror = function () { reject(up.error); };
+      };
       req.onerror = function () { reject(req.error); };
     });
   }

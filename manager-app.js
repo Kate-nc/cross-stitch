@@ -553,15 +553,15 @@ function ManagerApp() {
     profileRef.current = userProfile;
     const handleBeforeUnload = () => {
       try {
-        const req = indexedDB.open("stitch_manager_db", 1);
-        req.onsuccess = (e) => {
-          const db = e.target.result;
+        // Versionless open via the canonical helper: a hard-coded version 1
+        // fails with VersionError once the database has been repaired to 2.
+        window.openManagerDB().then((db) => {
           const tx = db.transaction(["manager_state"], "readwrite");
           const store = tx.objectStore("manager_state");
           store.put(threadsRef.current, "threads");
           store.put(patternsRef.current, "patterns");
           store.put(profileRef.current, "userProfile");
-        };
+        }).catch(() => {});
       } catch (err) {}
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -621,19 +621,13 @@ function ManagerApp() {
     };
   }, [lowStockAlerts, patterns]);
 
+  // Delegates to the canonical opener in helpers.js. A hard-coded
+  // open(name, 1) cannot create manager_state on a database that already
+  // exists at version 1 without it (onupgradeneeded never fires), and would
+  // fail with VersionError once that database has been repaired to 2.
   function openManagerDB() {
-    return new Promise((resolve, reject) => {
-      ensurePersistence();
-      const req = indexedDB.open("stitch_manager_db", 1);
-      req.onupgradeneeded = (e) => {
-        const db = e.target.result;
-        if (!db.objectStoreNames.contains("manager_state")) {
-          db.createObjectStore("manager_state");
-        }
-      };
-      req.onsuccess = (e) => resolve(e.target.result);
-      req.onerror = (e) => reject(e.target.error);
-    });
+    ensurePersistence();
+    return window.openManagerDB();
   }
 
   const handleBackupDownload = async () => {
