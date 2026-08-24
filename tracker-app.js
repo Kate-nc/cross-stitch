@@ -427,107 +427,6 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
   );
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Phase 4 (UX-12) — Tracker tablet/desktop project rail + side panel.
-// Reads recent projects from ProjectStorage.listProjects() and renders a
-// fast switcher on the left, plus a stacked palette + Today stats card on
-// the right. Both surfaces are CSS-gated to >=600px viewports; phone
-// keeps its existing chrome (action bar + dock + mode pill).
-// ═══════════════════════════════════════════════════════════════
-function TrackerProjectRail({activeId,activeDoneCount,activeTotalStitchable,pal,cmap,colourDoneCounts,focusColour,setFocusColour,stitchView,setStitchView,todayStitchesForBar,liveAutoElapsed,liveAutoStitches,onPickProject}){
-  const[recent,setRecent]=React.useState([]);
-  const[collapsed,setCollapsed]=React.useState(function(){
-    try{return !!(window.UserPrefs&&window.UserPrefs.get("trackerProjectRailCollapsed"));}catch(_){return false;}
-  });
-  const[gearOpen,setGearOpen]=React.useState(false);
-  const gearRef=React.useRef(null);
-  React.useEffect(function(){
-    try{window.UserPrefs&&window.UserPrefs.set("trackerProjectRailCollapsed",!!collapsed);}catch(_){}
-    try{document.body.classList.toggle("tracker-rail-collapsed",!!collapsed);}catch(_){}
-    return function(){try{document.body.classList.remove("tracker-rail-collapsed");}catch(_){}};
-  },[collapsed]);
-  // Close gear flyout when clicking outside.
-  React.useEffect(function(){
-    if(!gearOpen)return;
-    function onDoc(e){if(gearRef.current&&!gearRef.current.contains(e.target))setGearOpen(false);}
-    document.addEventListener('mousedown',onDoc);
-    return function(){document.removeEventListener('mousedown',onDoc);};
-  },[gearOpen]);
-  React.useEffect(function(){
-    let cancelled=false;
-    function load(){
-      if(!window.ProjectStorage||!window.ProjectStorage.listProjects)return;
-      window.ProjectStorage.listProjects().then(function(list){
-        if(cancelled)return;
-        setRecent((list||[]).slice(0,8));
-      }).catch(function(){});
-    }
-    load();
-    var onChange=function(){load();};
-    window.addEventListener('cs:projectsChanged',onChange);
-    return function(){cancelled=true;window.removeEventListener('cs:projectsChanged',onChange);};
-  },[activeId]);
-  function openProject(id){
-    if(!id||id===activeId)return;
-    if(typeof onPickProject==='function'){onPickProject(id);return;}
-    try{window.ProjectStorage.setActiveProject(id);}catch(_){}
-    try{window.location.reload();}catch(_){}
-  }
-  var sec=liveAutoElapsed||0;
-  var hh=Math.floor(sec/3600),mm=Math.floor((sec%3600)/60);
-  var timer=(hh>0?hh+"h ":"")+mm+"m";
-  return React.createElement('aside',{className:'tracker-project-rail'+(collapsed?' tracker-project-rail--collapsed':''),role:'complementary','aria-label':'Recent projects'},
-    React.createElement('div',{className:'tpr-header'},
-      collapsed?null:React.createElement('h3',{className:'tpr-h'},'Projects'),
-      React.createElement('button',{
-        type:'button',className:'tpr-collapse-btn',
-        onClick:function(){setCollapsed(function(c){return !c;});},
-        'aria-label':collapsed?'Expand projects rail':'Collapse projects rail',
-        'aria-expanded':!collapsed,
-        title:collapsed?'Expand projects rail':'Collapse projects rail'
-      },(collapsed?(window.Icons&&window.Icons.chevronRight?window.Icons.chevronRight():null):(window.Icons&&window.Icons.chevronLeft?window.Icons.chevronLeft():null)))
-    ),
-    React.createElement('div',{className:'tpr-list'},
-      (recent.length===0
-        ? React.createElement('div',{className:'tpr-empty'},'No saved projects yet')
-        : recent.map(function(p){
-            var isActiveProj=p.id===activeId;
-            var pct=0;
-            if(isActiveProj&&activeTotalStitchable>0)pct=Math.round(activeDoneCount/activeTotalStitchable*100);
-            else if(p.totalStitches&&p.completedStitches!=null)pct=Math.round(p.completedStitches/p.totalStitches*100);
-            else if(p.progressPct!=null)pct=Math.round(p.progressPct);
-            var thumb=p.thumbDataUrl;
-            var initial=(p.name||'?').trim().charAt(0).toUpperCase()||'?';
-            var firstColour=p.firstPaletteRgb||null;
-            return React.createElement('button',{
-              key:p.id,type:'button',className:'tpr-row'+(isActiveProj?' tpr-row--on':''),
-              onClick:function(){openProject(p.id);},'aria-current':isActiveProj?'true':'false',
-              title:p.name||'Untitled project'
-            },
-              React.createElement('span',{className:'tpr-thumb',style:thumb?{backgroundImage:'url('+thumb+')'}:(firstColour?{background:'rgb('+firstColour+')'}:{background:'var(--surface-tertiary)'})},
-                thumb?null:React.createElement('span',{className:'tpr-initial'},initial)
-              ),
-              React.createElement('span',{className:'tpr-text'},
-                React.createElement('span',{className:'tpr-name'},p.name||'Untitled'),
-                React.createElement('span',{className:'tpr-pct'},pct+'% done')
-              )
-            );
-          })
-      )
-    ),
-    React.createElement('button',{
-      className:'tpr-more',type:'button',
-      style:collapsed?{display:'none'}:undefined,
-      onClick:function(){
-        try{
-          var btn=document.querySelector('.tracker-hamburger');
-          if(btn)btn.click();
-        }catch(_){}
-      }
-    },'More projects…')
-  );
-}
-
 // ─── Event-log timing engine ─────────────────────────────────────────────────
 // computeActiveMs: pure function — active stitching duration from an event log.
 // Events each carry {kind, t} (t = Unix ms). Recognised kinds:
@@ -1014,7 +913,8 @@ const rtDebounceRef=useRef(null);
 const rtConsumptionRef=useRef({});
 // Tracks which thread ids have already triggered a low-thread toast this session.
 const rtLowToastedRef=useRef(new Set());
-// Expose snapshot setter for TrackerProjectRail's enable toggle (different component scope).
+// Expose the snapshot setters on window for the "Live tracking (RT)" toggle in
+// the palette More panel, which renders in a different component scope.
 // __setRtStashSnapshot replaces the snapshot unconditionally (used by project-load).
 // __ensureRtStashSnapshot sets the snapshot ONLY IF the current ref is empty — used by
 // the Live toggle so re-enabling Live within the same project session doesn't move the
@@ -1027,7 +927,7 @@ useEffect(function(){
   };
   return function(){delete window.__setRtStashSnapshot;delete window.__ensureRtStashSnapshot;};
 },[]);
-// Listen for disable request from TrackerProjectRail's toggle.
+// Listen for the disable request dispatched by that same Live tracking toggle.
 useEffect(function(){
   function onDisable(){setModal('rt_disable_confirm');}
   window.addEventListener('cs:rtDisableRequest',onDisable);
@@ -1125,9 +1025,12 @@ const setLeftSidebarOpen = useCallback((next)=>{
 // right by 320px so the panel never overlaps the chart) and blocks the
 // Colours toggle button from collapsing it. Only surfaced in the panel
 // header at >=1024px, where the panel docks as a persistent side-pane
-// rather than a mobile/tablet overlay. The explicit close (X) button
-// always works and clears the pin, since that's an unambiguous "I want
-// this gone" action.
+// rather than a mobile/tablet overlay. Keep that breakpoint in step
+// with the .ppal-pin-btn / .cs-main--palette-open media queries — if the
+// JS thinks pinning is supported at a width the CSS still treats as a
+// bottom sheet (or vice versa) the pin silently does nothing. The
+// explicit close (X) button always works and clears the pin, since
+// that's an unambiguous "I want this gone" action.
 const[leftSidebarPinned,setLeftSidebarPinned]=useState(()=>{
   try{return localStorage.getItem("cs_pref_trackerLeftSidebarPinned")==="1";}catch(_){return false;}
 });
@@ -6437,32 +6340,6 @@ return(
 
     </div>{/* end ppal-canvas-col */}
   </div>{/* end cs-main */}
-  {/* Phase 4 (UX-12) — tablet/desktop project rail (left) and side panel (right).
-      Hidden via CSS on phone. Reads from ProjectStorage and existing palette state. */}
-  {!statsView&&pat&&pal&&<TrackerProjectRail
-    activeId={projectIdRef.current}
-    activeDoneCount={doneCount}
-    activeTotalStitchable={totalStitchable}
-    pal={pal}
-    cmap={cmap}
-    colourDoneCounts={colourDoneCounts}
-    focusColour={focusColour}
-    setFocusColour={setFocusColour}
-    stitchView={stitchView}
-    setStitchView={setStitchView}
-    todayStitchesForBar={todayStitchesForBar}
-    liveAutoElapsed={liveAutoElapsed}
-    liveAutoStitches={liveAutoStitches}
-    onPickProject={(id)=>{
-      if(!id||id===projectIdRef.current)return;      ProjectStorage.get(id).then(p=>{
-        if(p&&(p.pattern||p.p)&&p.settings){
-          processLoadedProject(p);
-          try{ProjectStorage.setActiveProject(p.id);}catch(_){}
-          try{window.dispatchEvent(new Event('cs:projectsChanged'));}catch(_){}
-        }
-      }).catch(err=>console.error('Rail project switch failed:',err));
-    }}
-  />}
   </>}
 
   {importDialog==="image"&&importImage&&(()=>{

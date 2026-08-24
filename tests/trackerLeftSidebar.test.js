@@ -203,3 +203,43 @@ describe('Tracker sidebar — screen-rotation handling', () => {
     expect(stylesSrc).toMatch(/mgr-rpanel--open[^}]*padding-bottom\s*:\s*env\(safe-area-inset-bottom/);
   });
 });
+
+describe('Tracker docked colour panel — canvas offset', () => {
+  // Regression: the docked panel is 320px wide, so .cs-main must clear the
+  // full 320px while it is open. The project rail's collapsed-state rule
+  // (`body.tracker-rail-collapsed .cs-main`, specificity 0,2,1) outranked the
+  // bare `.cs-main--palette-open` (0,2,0), so with the rail collapsed the
+  // canvas kept the rail's 56px margin and the panel covered 264px of chart.
+  // The rail has since been removed entirely; these tests keep the offset
+  // honest and guard against a new margin rule reintroducing the overlap.
+  test('the docked palette offsets the canvas by the panel width', () => {
+    expect(stylesSrc).toMatch(
+      /\.cs-main\.cs-main--palette-open\s*\{\s*margin-left\s*:\s*320px;\s*\}/
+    );
+  });
+
+  test('the offset matches the docked panel width', () => {
+    // If the .lpanel dock width ever changes, the margin above must follow.
+    expect(stylesSrc).toMatch(/\.lpanel\s*\{[^}]*width\s*:\s*320px\s*;\s*max-width\s*:\s*320px/);
+  });
+
+  test('no other rule competes for .cs-main margin-left while docked', () => {
+    // Any additional margin-left on .cs-main risks outranking the rule above
+    // (that is exactly how the rail broke it). The only survivor is the
+    // focus-mode reset, which is !important and hides the panel anyway.
+    const rules = stylesSrc.match(/^[^\n{}]*\.cs-main[^\n{}]*\{[^}]*\}/gm) || [];
+    const competing = rules.filter(
+      // A declaration, not `transition: margin-left`.
+      (r) => /[{;]\s*margin-left\s*:/.test(r) && !/cs-focus/.test(r)
+    );
+    expect(competing).toHaveLength(1);
+    expect(competing[0]).toMatch(/cs-main--palette-open/);
+  });
+
+  test('pinSupported uses the same breakpoint as the docking media query', () => {
+    // A mismatch here makes the pin button appear at a width where the CSS
+    // still renders a bottom sheet, so pinning silently does nothing.
+    expect(trackerSrc).toMatch(/pinSupported\s*=[^;]*min-width:\s*1024px/);
+    expect(stylesSrc).toMatch(/@media\(min-width:1024px\)\{\s*\.ppal-pin-btn\{display:inline-flex;\}/);
+  });
+});
