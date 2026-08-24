@@ -127,10 +127,17 @@ fake-indexeddb under the real `sync-engine.js`) plus the updated regression
 suite in `tests/syncImportVisibility.test.js`. Full suite: 2604 tests / 201
 suites green.
 
-## 5. Additional issues found in the follow-up audit (proposed, not yet fixed)
+## 5. Additional issues found in the follow-up audit
 
 Ordered by severity. None of these is the reported bug; they were found while
 sweeping the rest of the engine.
+
+**Status (2026-08-24, second pass):** 5.1, 5.2, 5.3, 5.4 and 5.6 are now
+**fixed** on this branch and covered by `tests/syncEngineHardening.test.js`
+(17 tests). 5.5 is left as-is (it self-heals on the next Manager reconcile),
+5.7 needs an architecture change (logical versions instead of wall clocks),
+and 5.8 only affects cloned browser profiles — both are deferred, with the
+Restore toast mitigating 5.7 in the meantime.
 
 ### 5.1 HIGH — absorbed remote tombstones can freeze a live local project
 
@@ -225,7 +232,26 @@ id and default name silently overwrite each other's files with no warning.
 **Proposed fix:** compare against a per-install random nonce (regenerated on
 profile copy) instead of the user-editable display name.
 
-## 6. What was verified working
+## 6. Redundancy cleanup (second pass)
+
+Alongside the §5 fixes, a cleanup sweep of `sync-engine.js` removed:
+
+- the unused legacy constant `AUTO_EXPORT_DELAY`;
+- three separate per-cell loops in `analyseConflicts`' stitch analysis,
+  collapsed into a single pass computing additive count, disagreement count
+  and both totals together (totals now count within the pattern grid rather
+  than the raw done-array length — more correct when lengths drift);
+- the verbatim-duplicated "Sync paused — folder permission was revoked" toast
+  (now `_showPermissionRevokedToast`, shared by `_reportSyncError` and the
+  watcher tick);
+- the duplicated device-name filename sanitiser in `downloadSync` and
+  `exportToFolder` (now `_safeDeviceNamePart`).
+
+Also unified rather than duplicated: `prepareImport` now stores
+`plan.presentProjectIds` so `executeImport`'s fresh stash re-merge reuses the
+same orphan-guard set instead of rebuilding it with slightly different logic.
+
+## 7. What was verified working
 
 - The core pipeline on a genuinely fresh device is sound: `prepareImport` →
   `executeImport` → `ProjectStorage.save` writes both the project record and
