@@ -18,6 +18,23 @@ var _lastReceivedPlan = null;
 // React.useId is unavailable (pre-18 fallback only).
 var _syncPopoverIdCounter = 0;
 
+// How stale an outgoing sync has to get before we call it out. The write path
+// dies silently when browser folder permission lapses, so a device can look
+// connected while having sent nothing for weeks — the exact failure that hid
+// a broken sync for months.
+var SYNC_STALE_EXPORT_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
+
+// Everything in a pending plan that the user could act on. The badge used to
+// count plan.conflicts only, but the watcher now partitions each delivery and
+// the review half can hold malformed new-remote or merge-tracking entries with
+// zero conflicts — those would have shown no badge at all.
+function _reviewableCount(plan) {
+  if (!plan) return 0;
+  return ((plan.conflicts && plan.conflicts.length) || 0)
+       + ((plan.newRemote && plan.newRemote.length) || 0)
+       + ((plan.mergeTracking && plan.mergeTracking.length) || 0);
+}
+
 // Listen for sync-plan-ready events dispatched after a .csync file is
 // imported via the header's file-picker. Mount the SyncReviewGate for ALL
 // pages (replaces the old per-page confirm-dialog fallback).
@@ -501,25 +518,39 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
   //   - cs:backupRestored   (any restored state invalidates the plan)
   const [pendingConflicts, setPendingConflicts] = React.useState(0);
   const [reviewOpen, setReviewOpen] = React.useState(false);
+  // Folder permission loss. Browsers drop File System Access grants on
+  // restart, which kills BOTH the watcher and auto-export with no visible
+  // sign. This was only ever surfaced by home-screen.js, which /home does not
+  // load — so on the page users spend most time on, sync could be dead for
+  // weeks in total silence. The header renders on every page, so it is the
+  // right place for it.
+  const [permissionNeeded, setPermissionNeeded] = React.useState(false);
   React.useEffect(function () {
     if (typeof window === 'undefined' || typeof SyncEngine === 'undefined') return;
     function readCount() {
       try {
-        var p = SyncEngine.getPendingPlan && SyncEngine.getPendingPlan();
-        return (p && p.conflicts && p.conflicts.length) || 0;
+        return _reviewableCount(SyncEngine.getPendingPlan && SyncEngine.getPendingPlan());
       } catch (_) { return 0; }
     }
     function refresh() { setPendingConflicts(readCount()); }
     function onPlan(e) {
       var plan = e && e.detail && e.detail.plan;
-      if (plan && plan.conflicts) setPendingConflicts(plan.conflicts.length);
-      else if (plan === null) setPendingConflicts(0);
+      if (plan === null) setPendingConflicts(0);
+      else if (plan) setPendingConflicts(_reviewableCount(plan));
       else refresh();
     }
     function onOpened() { setReviewOpen(true); }
     function onClosed() { setReviewOpen(false); refresh(); }
     function onRestored() { setPendingConflicts(0); }
+    function onPermissionNeeded() { setPermissionNeeded(true); }
+    function onStatusChanged(e) {
+      var reason = e && e.detail && e.detail.reason;
+      if (reason === 'permission-granted') setPermissionNeeded(false);
+      try { setSyncStatus(SyncEngine.getSyncStatus()); } catch (_) {}
+    }
     refresh();
+    window.addEventListener('cs:syncPermissionNeeded', onPermissionNeeded);
+    window.addEventListener('cs:syncStatusChanged', onStatusChanged);
     // Also try to hydrate the persisted plan so a fresh page load shows
     // the badge without waiting for a watcher tick.
     if (SyncEngine.hydratePendingPlan) {
@@ -534,9 +565,33 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
       window.removeEventListener('cs:syncReviewOpened', onOpened);
       window.removeEventListener('cs:syncReviewClosed', onClosed);
       window.removeEventListener('cs:backupRestored', onRestored);
+      window.removeEventListener('cs:syncPermissionNeeded', onPermissionNeeded);
+      window.removeEventListener('cs:syncStatusChanged', onStatusChanged);
     };
   }, []);
-  const showSyncBadge = pendingConflicts > 0 && !reviewOpen;
+  // A connected folder that hasn't sent anything in days means the write path
+  // has quietly stopped. Surfaced as a warning rather than left to be inferred
+  // from a timestamp the user would have to go looking for.
+  const exportIsStale = !!(syncStatus && syncStatus.hasWatchDir && syncStatus.autoSync
+    && syncStatus.lastExportAt
+    && (Date.now() - new Date(syncStatus.lastExportAt).getTime()) > SYNC_STALE_EXPORT_MS);
+  const showSyncBadge = (pendingConflicts > 0 && !reviewOpen) || permissionNeeded;
+
+  function handleReconnectFolder() {
+    if (typeof SyncEngine === 'undefined' || !SyncEngine.requestFolderPermission) return;
+    // Must run from this click — requestPermission() needs a user gesture.
+    SyncEngine.requestFolderPermission().then(function (perm) {
+      if (perm === 'granted') {
+        setPermissionNeeded(false);
+        try { setSyncStatus(SyncEngine.getSyncStatus()); } catch (_) {}
+        if (window.Toast) window.Toast.show({ message: 'Sync folder reconnected.', type: 'success' });
+      } else if (window.Toast) {
+        window.Toast.show({ message: 'Folder permission was not granted — sync stays paused.', type: 'warning' });
+      }
+    }).catch(function (e) {
+      if (window.Toast) window.Toast.show({ message: 'Could not reconnect: ' + (e && e.message || e), type: 'error' });
+    });
+  }
   React.useEffect(() => {
     if (!fileMenuOpen) return;
     function close(e) { if (fileMenuRef.current && !fileMenuRef.current.contains(e.target)) setFileMenuOpen(false); }
@@ -874,6 +929,22 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                   Icons.folder(),
                   React.createElement('span', null, folderName)
                 ));
+                // Permission loss stops both directions dead — lead with it.
+                if (permissionNeeded) {
+                  rows.push(React.createElement('div', { key: 'perm', className: 'sync-popover-row sync-popover-row--warn' },
+                    Icons.warning(),
+                    React.createElement('span', null,
+                      'Sync is paused — the browser dropped permission for this folder. Reconnect to resume.')
+                  ));
+                } else if (exportIsStale) {
+                  rows.push(React.createElement('div', { key: 'stale', className: 'sync-popover-row sync-popover-row--warn' },
+                    Icons.warning(),
+                    React.createElement('span', null,
+                      'Nothing has been sent since '
+                      + new Date(syncStatus.lastExportAt).toLocaleDateString('en-GB')
+                      + '. Reconnect the folder if this looks wrong.')
+                  ));
+                }
                 if (syncStatus.autoSync) {
                   rows.push(React.createElement('div', { key: 'auto', className: 'sync-popover-row sync-popover-row--ok' },
                     Icons.check(),
@@ -911,7 +982,14 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
 
             // Quick actions
             React.createElement('div', { className: 'sync-popover-actions' },
-              syncStatus && syncStatus.hasWatchDir && React.createElement('button', {
+              // Reconnect must be the primary action while permission is lost:
+              // nothing else in this popover can work until it succeeds.
+              syncStatus && syncStatus.hasWatchDir && (permissionNeeded || exportIsStale)
+                && React.createElement('button', {
+                  className: 'sync-popover-btn sync-popover-btn--primary',
+                  onClick: () => { setSyncPopoverOpen(false); handleReconnectFolder(); }
+                }, Icons.cloudSync(), 'Reconnect folder'),
+              syncStatus && syncStatus.hasWatchDir && !permissionNeeded && React.createElement('button', {
                 className: 'sync-popover-btn sync-popover-btn--primary',
                 onClick: () => {
                   setSyncPopoverOpen(false);
