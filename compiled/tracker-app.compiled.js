@@ -2291,9 +2291,12 @@ function TrackerApp({
   // right by 320px so the panel never overlaps the chart) and blocks the
   // Colours toggle button from collapsing it. Only surfaced in the panel
   // header at >=1024px, where the panel docks as a persistent side-pane
-  // rather than a mobile/tablet overlay. The explicit close (X) button
-  // always works and clears the pin, since that's an unambiguous "I want
-  // this gone" action.
+  // rather than a mobile/tablet overlay. Keep that breakpoint in step
+  // with the .ppal-pin-btn / .cs-main--palette-open media queries — if the
+  // JS thinks pinning is supported at a width the CSS still treats as a
+  // bottom sheet (or vice versa) the pin silently does nothing. The
+  // explicit close (X) button always works and clears the pin, since
+  // that's an unambiguous "I want this gone" action.
   const [leftSidebarPinned, setLeftSidebarPinned] = useState(() => {
     try {
       return localStorage.getItem("cs_pref_trackerLeftSidebarPinned") === "1";

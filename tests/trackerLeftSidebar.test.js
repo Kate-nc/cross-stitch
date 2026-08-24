@@ -203,3 +203,44 @@ describe('Tracker sidebar — screen-rotation handling', () => {
     expect(stylesSrc).toMatch(/mgr-rpanel--open[^}]*padding-bottom\s*:\s*env\(safe-area-inset-bottom/);
   });
 });
+
+describe('Tracker docked colour panel — canvas offset', () => {
+  // Regression: the docked panel is 320px wide and paints over the project
+  // rail (z-index 1000 vs 300), so .cs-main has to clear the full 320px in
+  // both rail states. `body.tracker-rail-collapsed .cs-main` (specificity
+  // 0,2,1) beat the bare `.cs-main--palette-open` (0,2,0), so with the rail
+  // collapsed the canvas kept the rail's 56px margin and the panel covered
+  // 264px of chart — the "panel overlaps the chart instead of pushing it"
+  // report. Fixed by giving the collapsed-rail case its own selector.
+  test('palette-open offset outranks the collapsed-rail margin', () => {
+    expect(stylesSrc).toMatch(
+      /body\.tracker-rail-collapsed\s+\.cs-main\.cs-main--palette-open\s*\{\s*margin-left\s*:\s*320px/
+    );
+  });
+
+  test('both rail states land on the same 320px offset', () => {
+    // The two selectors share one declaration block, so they cannot drift.
+    expect(stylesSrc).toMatch(
+      /\.cs-main\.cs-main--palette-open,\s*body\.tracker-rail-collapsed\s+\.cs-main\.cs-main--palette-open\s*\{\s*margin-left\s*:\s*320px;\s*\}/
+    );
+  });
+
+  test('the offset matches the docked panel width', () => {
+    // If the .lpanel dock width ever changes, the margin above must follow.
+    expect(stylesSrc).toMatch(/\.lpanel\s*\{[^}]*width\s*:\s*320px\s*;\s*max-width\s*:\s*320px/);
+  });
+
+  test('rail margins still apply when the palette is closed', () => {
+    // The 220/56px rail reservations must survive — the fix only overrides
+    // them while the docked panel is open.
+    expect(stylesSrc).toMatch(/\.cs-main\s*\{\s*margin-left\s*:\s*220px;\s*\}/);
+    expect(stylesSrc).toMatch(/body\.tracker-rail-collapsed\s+\.cs-main\s*\{\s*margin-left\s*:\s*56px;\s*\}/);
+  });
+
+  test('pinSupported uses the same breakpoint as the docking media query', () => {
+    // A mismatch here makes the pin button appear at a width where the CSS
+    // still renders a bottom sheet, so pinning silently does nothing.
+    expect(trackerSrc).toMatch(/pinSupported\s*=[^;]*min-width:\s*1024px/);
+    expect(stylesSrc).toMatch(/@media\(min-width:1024px\)\{\s*\.ppal-pin-btn\{display:inline-flex;\}/);
+  });
+});
