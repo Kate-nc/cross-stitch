@@ -879,6 +879,7 @@
     var includeStash = usePref("sync.includeStash", true);
     var includePrefs = usePref("sync.includePrefs", false);
     var includePalettes = usePref("sync.includePalettes", true);
+    var includeSourceImages = usePref("sync.includeSourceImages", false);
     var conflictBehaviour = usePref("sync.conflictBehaviour", "auto-merge-safe");
     var pollInterval = usePref("sync.pollIntervalSec", 60);
     var defaultConflictAction = usePref("sync.defaultConflictAction", "ask");
@@ -1192,6 +1193,10 @@
         h(Row, { label: "Custom palettes",
           desc: "Saved colour groups created in the Creator's palette manager." },
           h(Switch, { checked: !!includePalettes[0], onChange: includePalettes[1] })
+        ),
+        h(Row, { label: "Source photos",
+          desc: "The original image a pattern was made from. These are by far the largest part of a sync file — leaving them off keeps syncs small and fast. Patterns still sync either way, and turning this off never removes a photo a device already has." },
+          h(Switch, { checked: !!includeSourceImages[0], onChange: includeSourceImages[1] })
         ),
         h(Row, { last: true, label: "Preferences",
           desc: "Not currently included in sync files. User preferences such as theme, accent and units stay on this device only." },

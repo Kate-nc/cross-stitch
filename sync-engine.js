@@ -400,6 +400,21 @@ const SyncEngine = (() => {
     var includePalettes = (opts.includePalettes !== undefined)
       ? !!opts.includePalettes
       : !!_pref("sync.includePalettes", true);
+    // Source photos (project.imgData) are base64 data URLs of the original
+    // image the pattern was generated from, and they dominate the file size —
+    // a 17-pattern library serialised to 5.93 MB, rewritten on every autosave
+    // burst into a cloud folder from a phone. They are also the one part of a
+    // project that never changes after creation, so re-sending them on every
+    // export is pure waste.
+    //
+    // Off by default. Dropping them is safe in both directions: the merge
+    // treats imgData as prefer-present, so a device that already has the
+    // source image never loses it to an incoming copy that omits one. The
+    // only cost is that the photo does not travel to a device that has never
+    // seen it — opt back in with the sync.includeSourceImages preference.
+    var includeSourceImages = (opts.includeSourceImages !== undefined)
+      ? !!opts.includeSourceImages
+      : !!_pref("sync.includeSourceImages", false);
 
     // Flush any in-flight React state before reading
     if (window.__flushProjectToIDB) {
@@ -461,11 +476,19 @@ const SyncEngine = (() => {
       // this field and fall back to the id list above.
       deletedProjects: getTombstoneRecords(),
       projects: projectsToExport.map(function (p) {
+        var data = p;
+        if (!includeSourceImages && p && p.imgData) {
+          // Shallow copy so the caller's in-memory project keeps its image.
+          data = Object.assign({}, p);
+          delete data.imgData;
+        }
         return {
           id: p.id,
           updatedAt: p.updatedAt,
+          // Computed from the full project. imgData is not part of the
+          // fingerprint, so stripping it cannot change classification.
           fingerprint: computeFingerprint(p),
-          data: p
+          data: data
         };
       })
     };
@@ -2556,7 +2579,11 @@ const SyncEngine = (() => {
   //     write at the end of the cooldown — this preserves the original
   //     "don't write 50 times during a paint stroke" behaviour.
   var _autoExportTimer = null;
-  var _lastExportFiredAt = 0;
+  // Start (not completion) of the most recent real write, and whether one is
+  // running right now. See _scheduleAutoExport for why both are needed.
+  var _lastExportStartedAt = 0;
+  var _exportInFlight = false;
+  var _exportQueued = false;
   // Timestamp of the most recent permission-warning toast for auto-export failures.
   // Used to rate-limit repeated toasts on persistent failures.
   var _lastPermWarningAt = 0;
@@ -2608,55 +2635,83 @@ const SyncEngine = (() => {
     Promise.resolve(_watchDirHandle || getWatchDirectory()).then(function (dirHandle) {
       if (!dirHandle) return;
       _watchDirHandle = dirHandle;
-      // Coalesce: if a write is already scheduled, leave it alone so a
-      // burst of saves all fold into the same write.
-      if (_autoExportTimer) return;
-      var sinceLast = Date.now() - _lastExportFiredAt;
-      var delay;
-      if (_lastExportFiredAt === 0 || sinceLast >= COOLDOWN_MS) {
-        delay = FAST_EXPORT_DELAY;
-      } else {
-        delay = Math.max(FAST_EXPORT_DELAY, COOLDOWN_MS - sinceLast);
-      }
-      _autoExportTimer = setTimeout(function () {
-        var watchDirHandle = _watchDirHandle;
-        _autoExportTimer = null;
-        // Note: _lastExportFiredAt is intentionally NOT bumped here. We
-        // only count a fire as "happened" once exportToFolder actually
-        // resolves successfully — otherwise a permission-denied or
-        // transient I/O failure would silently inflate the cooldown
-        // window, delaying the *next* legitimate auto-export attempt by
-        // up to COOLDOWN_MS even though no bytes were written.
-        if (!watchDirHandle) return;
-        // Pre-check permission without user gesture — skip if not granted
-        watchDirHandle.queryPermission({ mode: "readwrite" }).then(function (perm) {
-          if (perm !== "granted") {
-            // Only surface a permission warning toast once per PERM_WARN_COOLDOWN_MS
-            // to avoid spamming when the user keeps making changes with no folder access.
-            var now = Date.now();
-            if (now - _lastPermWarningAt >= PERM_WARN_COOLDOWN_MS) {
-              _lastPermWarningAt = now;
-              _reportSyncError("auto-export", new Error("Write permission not granted (re-open sync panel to re-authorise)"));
-            }
-            return;
-          }
-          return exportToFolder().then(function () {
-            _lastExportFiredAt = Date.now();
-            try {
-              if (typeof window !== "undefined" && window.dispatchEvent) {
-                window.dispatchEvent(new CustomEvent("cs:syncStatusChanged", {
-                  detail: { reason: "exported" }
-                }));
-              }
-            } catch (e) {}
-          });
-        }).catch(function (e) {
-          _reportSyncError("auto-export", e);
-        });
-      }, delay);
+      _scheduleAutoExport();
     }).catch(function (e) {
       _reportSyncError("auto-export", e);
     });
+  }
+
+  // The debounce previously leaked: the timer handle was cleared at the START
+  // of its callback, before the (async) write finished, and the cooldown was
+  // measured from the last *completed* export. A save arriving mid-write
+  // therefore saw no scheduled timer and a stale "last export" far in the
+  // past, so it scheduled a fresh write on the 2s fast path immediately.
+  // With autosave firing on every stitch this produced a write roughly every
+  // 6 seconds — a real device logged 20 exports of a 5.93 MB file in 3.5
+  // minutes, straight into a cloud-synced folder from a phone.
+  //
+  // Now an in-flight export blocks scheduling outright and sets a queued flag,
+  // so a burst collapses to: the current write, then at most one more once the
+  // cooldown has elapsed.
+  function _scheduleAutoExport() {
+    if (_exportInFlight) { _exportQueued = true; return; }
+    if (_autoExportTimer) return; // already scheduled — coalesce into it
+    var sinceStart = Date.now() - _lastExportStartedAt;
+    var delay = (_lastExportStartedAt === 0 || sinceStart >= COOLDOWN_MS)
+      ? FAST_EXPORT_DELAY
+      : Math.max(FAST_EXPORT_DELAY, COOLDOWN_MS - sinceStart);
+    _autoExportTimer = setTimeout(_runAutoExport, delay);
+  }
+
+  function _runAutoExport() {
+    _autoExportTimer = null;
+    var watchDirHandle = _watchDirHandle;
+    if (!watchDirHandle) return;
+    _exportInFlight = true;
+    _exportQueued = false;
+
+    function settle() {
+      _exportInFlight = false;
+      if (_exportQueued) {
+        _exportQueued = false;
+        _scheduleAutoExport();
+      }
+    }
+
+    // Pre-check permission without a user gesture — skip if not granted.
+    Promise.resolve()
+      .then(function () { return watchDirHandle.queryPermission({ mode: "readwrite" }); })
+      .then(function (perm) {
+        if (perm !== "granted") {
+          // Rate-limit the warning so a user working with no folder access
+          // isn't buried in toasts. Deliberately does NOT consume the
+          // cooldown: no bytes were written, so the next genuine attempt
+          // should not be delayed by up to COOLDOWN_MS.
+          var now = Date.now();
+          if (now - _lastPermWarningAt >= PERM_WARN_COOLDOWN_MS) {
+            _lastPermWarningAt = now;
+            _reportSyncError("auto-export", new Error("Write permission not granted (re-open sync panel to re-authorise)"));
+          }
+          return;
+        }
+        // Stamp at the start of a real write. Measuring the cooldown from the
+        // start rather than the finish is what stops a slow export from
+        // immediately earning another one.
+        _lastExportStartedAt = Date.now();
+        return exportToFolder().then(function () {
+          try {
+            if (typeof window !== "undefined" && window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent("cs:syncStatusChanged", {
+                detail: { reason: "exported" }
+              }));
+            }
+          } catch (e) {}
+        });
+      })
+      .catch(function (e) {
+        _reportSyncError("auto-export", e);
+      })
+      .then(settle, settle);
   }
 
   // ── Folder watcher (Phase-3, sync-fix #1) ────────────────────────────────
