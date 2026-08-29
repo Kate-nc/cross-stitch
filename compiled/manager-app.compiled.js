@@ -1671,11 +1671,9 @@ function ManagerApp() {
     }, "Low"), /*#__PURE__*/React.createElement("div", {
       className: "owned"
     }, state.owned), /*#__PURE__*/React.createElement("div", {
-      className: "gauge"
-    }, [0, 1, 2, 3].map(s => /*#__PURE__*/React.createElement("div", {
-      key: s,
-      className: "seg" + (s < gaugeLevel && gaugeLevel < 4 ? " full" : "") + (gaugeLevel === 1 && s === 0 ? " warn" : "") + (gaugeLevel === 4 ? " full" : "")
-    }))));
+      className: "gauge",
+      "data-level": gaugeLevel
+    }));
   }), filteredThreads.length === 0 && (totalOwnedCount === 0 && threadFilter === 'all' && window.EmptyState ? /*#__PURE__*/React.createElement("div", {
     style: {
       gridColumn: "1 / -1",

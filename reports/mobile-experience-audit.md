@@ -706,3 +706,112 @@ AUDIT_OUT=before.json npx playwright test --project=mobile-audit   # dump raw nu
 The two projects live in the repo's existing [playwright.config.js](../playwright.config.js);
 `tests/mobile-audit/` is excluded from Jest via `testPathIgnorePatterns` in
 `package.json`, alongside the existing `tests/e2e` and `tests/perf` entries.
+
+---
+
+## G. Implementation record — third pass (start-up + manager DOM)
+
+Branch `perf/startup-and-manager-dom`. Covers §E item 10, part of item 6/13,
+and corrects the framing of §C1.
+
+### The C1 diagnosis was aimed at the wrong lever
+
+§C1 blamed "0.9–2.2 MB of render-blocking, unminified JS" and proposed `defer`
++ minification. Measuring properly — throttled to 4 Mbps / 100 ms RTT / 4× CPU,
+cold **and** warm — shows that was only part of the story, and not the useful
+part.
+
+Two harness faults had to be fixed before any of it could be trusted: the dev
+server sent neither compression nor a validator, so it overstated transfer
+sizes ~4× and turned every repeat visit into a full re-download. `serve.js` now
+gzips text and serves `ETag`/`304`, matching the production host.
+
+With that corrected:
+
+| Page | cold wall | warm wall | warm wire |
+| --- | ---: | ---: | ---: |
+| `home.html` | 5.4 s | 4.1 s | **9 KB** |
+| `manager.html` | 7.4 s | 5.8 s | **12 KB** |
+| `create.html` | 8.9 s | 6.7 s | **15 KB** |
+
+**A warm load transfers essentially nothing and still takes 4–7 seconds.** So
+caching headers — the thing this pass set out to fix — would buy almost
+nothing, and neither would gzip. The cost is request count and the parse and
+execute of decoded JS, which no caching or compression policy touches.
+
+Splitting resources by `initiatorType` separates what is *parsed* from what is
+merely *fetched*:
+
+| Page | parsed (`<script>`) | prefetched (never parsed) | requests |
+| --- | ---: | ---: | ---: |
+| `home.html` | 1 295 KB | 0 | 35 |
+| `manager.html` | 1 627 KB | 0 | 43 |
+| `create.html` | **3 013 KB** | **1 305 KB** (345 KB wire) | 62 |
+
+### What changed
+
+**1. Speculative prefetch is gated on the device and connection.**
+`create.html` and `index.html` carried six static `<link rel="prefetch">` tags
+for *other pages'* assets — the tracker bundle, pdf-lib, the stats page —
+totalling 1.3 MB decoded / 345 KB over the wire. A static `<link>` cannot be
+conditional, so the list is now built at runtime and skipped when
+`navigator.connection.saveData` is set, `effectiveType` is 2g/slow-2g, or the
+pointer is coarse. Desktop is unchanged. Measured on the phone project:
+**wire 1 166 KB → 847 KB, requests 62 → 56, prefetch 345 KB → 0.**
+
+Wall time barely moves, because prefetch is idle-priority and was not blocking
+much. The win here is a phone's data allowance and bandwidth contention, not
+latency — worth being precise about.
+
+**2. The thread gauge is one element instead of five.** Each of ~1 200 thread
+cards rendered a 4-segment fill gauge as a track plus four `<div class="seg">`.
+That was **4 892 nodes on its own** — a third of the manager's DOM. The gauge
+is now a single element whose `box-shadow` copies paint the other three pills;
+a zero-spread shadow follows the element's `border-radius`, so the pill shape
+survives, and `width:4px` + `margin-right:18px` reserves the same 22 px the
+flex track did.
+
+| | before | after |
+| --- | ---: | ---: |
+| `manager.html` DOM nodes | 14 341 | **9 449** |
+| `manager.html` total blocking | 677–847 ms | **378 ms** |
+
+### Verified
+
+- **Pixel equivalence, not assumed.** `desktop-gauge-equivalence.spec.js`
+  renders the old four-`div` markup and the new one-element markup side by
+  side against the live stylesheet and diffs the bitmaps: **0 differing pixels
+  at all five fill levels** at DPR 1.
+- On the phone project (DPR 2.75) ~8 % of pixels differ, because flexbox and
+  `box-shadow` round fractional device pixels differently. That is antialiasing
+  on the pill edges, so `gauge-equivalence.spec.js` asserts the structure
+  instead: the centre of each of the four pills and each of the three gaps
+  must match exactly (**0/7 mismatches at every level**), with a bound on total
+  edge drift.
+- Full Jest suite **205 suites / 2 672 tests green** (2 657 before; +15 from
+  the new [tests/managerGaugeDom.test.js](../tests/managerGaugeDom.test.js)).
+- Mobile audit **37 checks green** across the phone and desktop projects.
+- `perf-mobile` harness 10 passed. Terminology lint clean; CSS-token lint
+  unchanged at 13 pre-existing warnings.
+- The four `touch-tablet-chromium` failures are unchanged from `main` and were
+  re-confirmed on a stash: `manager-touch` fails on
+  `getByRole('button', {name: /Thread Stash/i})`, a selector the current UI no
+  longer renders. Not caused by this pass.
+
+### Not done, and why
+
+**Minification is more invasive than §C1 implied.** `vercel.json` sets
+`"buildCommand": null` — the repo is served exactly as committed, so minified
+output would have to be committed alongside the source and the HTML pointed at
+it. That is a real structural change, not the drop-in the audit suggested.
+
+**Lazy-loading the heavy modules needs call-site work.** `sync-engine.js`
+(182 KB), `modals.js` (115 KB) and `preferences-modal.js` (91 KB) are the
+biggest remaining parse costs, but they cannot simply move behind
+`runtime-loaders.js`: `PreferencesModal` is consumed as a React component
+(`React.createElement(window.PreferencesModal, …)`), and `CommandPalette`
+gates the *existence* of its toolbar button on the global being defined. Each
+needs its call sites converted to load-then-open, including sites inside the
+generated `creator/bundle.js`. Worth doing — it is the only remaining lever on
+the 1.3–3.0 MB of parsed JS — but it belongs in its own pass with its own
+verification.
