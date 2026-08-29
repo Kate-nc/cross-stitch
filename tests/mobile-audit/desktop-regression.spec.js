@@ -99,6 +99,26 @@ test('desktop: a large pattern is not clamped on a high-memory device', async ({
   expect(c.h).toBe(250 * 20 + 30);
 });
 
+test('desktop: the mass hover-wrap did not disable hover', async ({ page }) => {
+  // 144 hover rules were wrapped in @media (hover: hover) to stop them
+  // latching on touch. On a fine pointer they must all still resolve — a
+  // mis-wrap would silently kill every hover affordance in the app.
+  await setup(page);
+  await page.goto('/manager.html?from=home', { waitUntil: 'load', timeout: 120000 });
+  await page.waitForTimeout(3000);
+  // .mgr-chip:hover changes colour, not background — read the property the
+  // rule actually sets.
+  const chip = page.locator('.mgr-chip:not(.on)').first();
+  await expect(chip).toBeVisible();
+  const read = () => chip.evaluate(el => getComputedStyle(el).color);
+  const before = await read();
+  await chip.hover();
+  await page.waitForTimeout(400);
+  const after = await read();
+  console.log('DESK_HOVER_LIVE ' + JSON.stringify({ before, after }));
+  expect(after, '.mgr-chip:hover must still resolve on a fine pointer').not.toBe(before);
+});
+
 test('desktop hover styling still applies', async ({ page }) => {
   await setup(page);
   await page.goto('/home.html?from=home', { waitUntil: 'load', timeout: 120000 });

@@ -8,6 +8,20 @@ window.APP_VERSION = '1.0.55';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.56',
+    date: 'August 2026',
+    notes: [
+      'Fixed controls being cut off the right-hand side of the top bar on a phone. The File menu was completely unreachable on the Pattern Creator. The row now scrolls sideways so everything in it can be reached.',
+      'The top bar no longer sits underneath the notch or status bar on phones that have one.',
+      'Buttons, tabs, filter chips and the sort control are now big enough to tap accurately.',
+      'Tapping a text field no longer makes the page zoom in and stay zoomed on iPhone and iPad.',
+      'Pressing and holding on the chart no longer pops up the "Save Image" menu, and dragging to mark stitches no longer selects text.',
+      'Buttons, cards and menu items no longer stay highlighted after you tap them.',
+      'Removed a strip of empty space below the chart on tablets.',
+      'The keyboard shortcuts button is now hidden on touch devices, where there is no keyboard to use them with. The shortcuts list is still available from the Help panel.',
+    ]
+  },
+  {
     version: '1.0.55',
     date: 'August 2026',
     notes: [
