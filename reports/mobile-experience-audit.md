@@ -13,6 +13,13 @@ hit-testing of every control, touch-target sizes, and canvas backing-store
 dimensions. The tracker was additionally loaded with generated 100 × 100 and
 200 × 250 fixtures. Numbers below are measured, not estimated.
 
+> **Reading this after the first fix pass.** §§A–D are the original diagnosis
+> and their `file:line` citations point at the code **as it was at `2b34ae0`**;
+> items 1–5 have since been fixed, so those lines have moved. §F records what
+> actually changed and re-states the current numbers. Two claims in §A2 and
+> §C3 were found to be wrong during implementation and carry inline
+> corrections.
+
 ---
 
 ## Executive summary
@@ -660,6 +667,21 @@ e2e specs fail identically on `main` — they target `.tb-progress` and
 figure is the median of repeated runs, the higher one is quoted above to be
 conservative.
 
+### A limitation of the harness worth knowing
+
+Playwright's `devices['Pixel 5']` emulates the viewport, touch and user-agent
+but **not `navigator.deviceMemory`** — Chromium reports 8 regardless. The
+phone-project runs therefore receive the *desktop* canvas budget, which is why
+the 200 × 250 measurements above still show a 4030 × 5030 chart. The real
+phone behaviour is exercised in `verify-fixes.spec.js`, which stubs
+`deviceMemory` away and caps `HTMLCanvasElement.width` at 4096 to emulate
+Safari; that is where the 3230 × 4030 / 13.0 Mpx figure comes from.
+
+The consequence is that the cold-load and tracker-open **timings** below are
+measured without the cap engaging. They are still valid as a before/after of
+items 2–5, and of item 1's effect on the animation loops, but they do not show
+what the canvas cap alone buys a real phone.
+
 ### Known-unfixed, and newly measured
 
 - **A4 (main-thread panning) is now the dominant cost on large patterns.**
@@ -674,10 +696,13 @@ conservative.
 ### Reproducing
 
 ```
-npx playwright test --config=mobile-audit.config.js              # both projects
-npx playwright test --config=mobile-audit.config.js --project=pixel5
-npx playwright test --config=mobile-audit.config.js --project=desktop
+npm run test:mobile-audit                                  # both projects
+npx playwright test --project=mobile-audit                  # phone only
+npx playwright test --project=mobile-audit-desktop          # desktop only
+
+AUDIT_OUT=before.json npx playwright test --project=mobile-audit   # dump raw numbers
 ```
 
+The two projects live in the repo's existing [playwright.config.js](../playwright.config.js);
 `tests/mobile-audit/` is excluded from Jest via `testPathIgnorePatterns` in
 `package.json`, alongside the existing `tests/e2e` and `tests/perf` entries.

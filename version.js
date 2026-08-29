@@ -8,6 +8,17 @@ window.APP_VERSION = '1.0.54';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.55',
+    date: 'August 2026',
+    notes: [
+      'Fixed the Stitch Tracker freezing or showing a blank chart on phones and tablets with larger patterns. The chart was being drawn at a size the device could not actually handle, so it silently gave up. It is now capped to what your device supports.',
+      'On very large patterns the maximum zoom is lower than it used to be, and lower on a phone than on a desktop. The zoom levels that have gone were the ones that produced the blank chart, so they never worked.',
+      'Fixed the Stash Manager sliding sideways on a phone. The filter row now scrolls on its own instead of stretching the whole page, which also puts the bottom panel back where it belongs rather than partway down the page.',
+      'Buttons no longer stay highlighted after you tap them on a touchscreen.',
+      'The Stitch Tracker no longer animates in the background, and pages load faster across the app.',
+    ]
+  },
+  {
     version: '1.0.54',
     date: 'August 2026',
     notes: [

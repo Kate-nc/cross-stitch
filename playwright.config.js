@@ -41,6 +41,28 @@ module.exports = defineConfig({
         browserName: 'chromium',
       },
     },
+    // Mobile audit + regression guards for reports/mobile-experience-audit.md.
+    // Run both with `npm run test:mobile-audit`. The phone project holds the
+    // measurements and the mobile-side assertions; the desktop one exists to
+    // prove the mobile fixes did not change desktop behaviour, so they must
+    // stay paired. See tests/mobile-audit/.
+    {
+      name: 'mobile-audit',
+      testDir: './tests/mobile-audit',
+      testIgnore: /desktop-.*\.spec\.js/,
+      timeout: 180000,
+      use: {
+        ...devices['Pixel 5'],
+        browserName: 'chromium',
+      },
+    },
+    {
+      name: 'mobile-audit-desktop',
+      testDir: './tests/mobile-audit',
+      testMatch: /desktop-.*\.spec\.js/,
+      timeout: 180000,
+      use: { browserName: 'chromium', viewport: { width: 1440, height: 900 } },
+    },
   ],
   webServer: {
     command: 'node serve.js 8000',

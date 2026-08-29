@@ -13,6 +13,7 @@
     "test:e2e": "playwright test --project=touch-tablet-chromium",
     "perf:baseline": "playwright test --project=perf-desktop",
     "perf:mobile": "playwright test --project=perf-mobile",
+    "test:mobile-audit": "playwright test --project=mobile-audit --project=mobile-audit-desktop",
     "lint:terminology": "node scripts/lint-terminology.js",
     "lint:css-tokens": "node scripts/lint-css-tokens.js",
     "build:creator": "node build-creator-bundle.js",

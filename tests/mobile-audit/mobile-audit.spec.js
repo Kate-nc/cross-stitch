@@ -1,4 +1,9 @@
-const { test } = require('@playwright/test');
+/* Mobile audit harness + regression tripwires for
+   reports/mobile-experience-audit.md. Run with `npm run test:mobile-audit`
+   (this project plus its desktop counterpart, which proves the mobile fixes
+   did not change desktop behaviour). Set AUDIT_OUT=<path> to dump the raw
+   measurements as JSON for before/after comparison. */
+const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
 
@@ -203,9 +208,34 @@ for (const [w, h, cols] of [[100, 100, 12], [200, 250, 40]]) {
       log({ scenario: 'tracker-pan-interaction', pattern: `${w}x${h}`, cpuThrottle: '4x', ...interact });
     }
     await s.detach().catch(() => {});
+
+    // Tripwires, not targets. These are deliberately slack so they survive
+    // slower CI hardware — they exist to catch a *regression* of the audit's
+    // findings, not to police the numbers. Tighten them only alongside the
+    // remaining §E items.
+    expect(afterOpen.hasHScroll, 'tracker page must not scroll horizontally').toBe(false);
+
+    // Every chart canvas must respect the budget this device reports. Note
+    // Playwright's Pixel 5 does not emulate navigator.deviceMemory (it reports
+    // 8), so this run gets the *desktop* budget and the canvas is legitimately
+    // larger than a real phone's would be. The hard 4096/16.7 Mpx phone limits
+    // are asserted in verify-fixes.spec.js, which emulates iOS properly. What
+    // is checked here is the invariant that holds on any device: the canvas
+    // never exceeds what the app itself decided the device can take.
+    const budget = await page.evaluate(() => (window.canvasSizeLimits ? window.canvasSizeLimits() : null));
+    expect(budget, 'canvasSizeLimits must be exposed for the guard to mean anything').not.toBeNull();
+    for (const c of afterOpen.canvases) {
+      const [cw, ch] = c.backing.split('x').map(Number);
+      expect(cw, `canvas ${c.backing} wider than the device side limit`).toBeLessThanOrEqual(budget.side);
+      expect(ch, `canvas ${c.backing} taller than the device side limit`).toBeLessThanOrEqual(budget.side);
+      expect(cw * ch, `canvas ${c.backing} over the device area budget`).toBeLessThanOrEqual(budget.area);
+    }
+    // 200x250 measured ~2.3s after the first-pass fixes; 100x100 ~0.35s.
+    expect(afterOpen.totalBlockingMs).toBeLessThan(w * h > 20000 ? 6000 : 2000);
   });
 }
 
 test.afterAll(() => {
-  fs.writeFileSync(process.env.AUDIT_OUT || 'mobile-audit.json', JSON.stringify(OUT, null, 2));
+  // Opt-in JSON dump for before/after comparisons: AUDIT_OUT=path npx playwright test ...
+  if (process.env.AUDIT_OUT) fs.writeFileSync(process.env.AUDIT_OUT, JSON.stringify(OUT, null, 2));
 });
