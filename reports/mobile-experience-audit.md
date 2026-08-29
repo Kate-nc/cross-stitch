@@ -684,10 +684,25 @@ what the canvas cap alone buys a real phone.
 
 ### Known-unfixed, and newly measured
 
-- **A4 (main-thread panning) is now the dominant cost on large patterns.**
+- ~~**A4 (main-thread panning) is now the dominant cost on large patterns.**
   Instrumenting a 12-gesture pan on the 200 × 250 fixture records **203 long
-  tasks / 6 663 ms blocking**, versus 0 on the 100 × 100 fixture. This is
-  item 12 in §E and is untouched by this pass.
+  tasks / 6 663 ms blocking**, versus 0 on the 100 × 100 fixture.~~
+
+  > **Retracted (2026-08-29).** This was not a pan measurement. A CDP touch
+  > drag over the chart never reaches the pan path: across the whole gesture
+  > sequence the scroller fires **0 scroll events** and the canvas takes
+  > **0 `fillRect` calls**, so `renderStitch` never runs. The blocking time
+  > recorded in that window is the tracker settling after load — IndexedDB
+  > autosave (`project-storage.js:605`) and the recommendation-pulse rAF loop
+  > — not panning. A CPU profile over the same window attributes 21 s of
+  > 38 k samples to `(program)`, i.e. browser-internal layout/raster/GC,
+  > with under 100 ms of app JS.
+  >
+  > **The real cost of panning on a phone is therefore still unmeasured.**
+  > Item 12 should not be prioritised on the strength of this number, and
+  > the harness needs a gesture that actually drives the scroller before any
+  > claim is made about it. The scenario is renamed in
+  > `mobile-audit.spec.js` so it cannot be quoted as a pan measurement again.
 - The `.mgr-filter-bar` chips are still 27 px tall and the search box is still
   12 px — items 9 (D1/D2) remain open. The bar now scrolls rather than
   overflowing, which is the layout fix, not the ergonomics one.
