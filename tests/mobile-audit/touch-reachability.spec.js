@@ -57,15 +57,15 @@ test('B3: the File menu button can actually be scrolled to and opened', async ({
   await expect(fileBtn).toBeVisible();
   await fileBtn.scrollIntoViewIfNeeded();
   const box = await fileBtn.boundingBox();
+  const viewport = page.viewportSize();
   console.log('FILEBTN ' + JSON.stringify(box));
   expect(box, 'File button must have a box after scrolling to it').not.toBeNull();
   expect(box.x).toBeGreaterThanOrEqual(0);
-  expect(box.x + box.width).toBeLessThanOrEqual(394);
+  expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
   await fileBtn.click();
   const fileMenu = page.locator('.tb-page-dropdown').last();
   await expect(fileMenu).toBeVisible();
   const menuBox = await fileMenu.boundingBox();
-  const viewport = page.viewportSize();
   console.log('FILEMENU ' + JSON.stringify({ menuBox, viewport }));
   expect(menuBox, 'File menu must have a box after opening').not.toBeNull();
   expect(menuBox.x).toBeGreaterThanOrEqual(0);
