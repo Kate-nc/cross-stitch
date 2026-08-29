@@ -24,7 +24,8 @@
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/tests/e2e/",
-      "/tests/perf/"
+      "/tests/perf/",
+      "/tests/mobile-audit/"
     ]
   },
   "repository": {
