@@ -182,10 +182,16 @@ test('D2: the ::after hit expansion on the panel close button really works', asy
   });
   await page.waitForSelector('canvas', { timeout: 60000 });
   await page.waitForTimeout(2000);
-  // The button can sit outside the viewport, where elementFromPoint returns
-  // null for reasons that have nothing to do with the hit area.
+  // Open the More panel via its trigger button so the panel slides in and the
+  // close button is actually visible and hittable.
+  const moreBtn = page.locator('.ppal-mode-btn').first();
+  if (await moreBtn.count()) {
+    await moreBtn.click();
+    await page.waitForSelector('.ppal-more-panel--open', { timeout: 5000 }).catch(() => {});
+  }
   const closeBtn = page.locator('.ppal-more-close').first();
-  if (await closeBtn.count()) await closeBtn.scrollIntoViewIfNeeded().catch(() => {});
+  await expect(closeBtn).toBeVisible({ timeout: 5000 });
+  await closeBtn.scrollIntoViewIfNeeded().catch(() => {});
   await page.waitForTimeout(300);
 
   const r = await page.evaluate(() => {
