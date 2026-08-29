@@ -238,7 +238,13 @@ for (const [w, h, cols] of [[100, 100, 12], [200, 250, 40]]) {
       expect(cw * ch, `canvas ${c.backing} over the device area budget`).toBeLessThanOrEqual(budget.area);
     }
     // 200x250 measured ~2.3s after the first-pass fixes; 100x100 ~0.35s.
-    expect(afterOpen.totalBlockingMs).toBeLessThan(w * h > 20000 ? 6000 : 2000);
+    // Deliberately slack. Repeated runs of the pan measurement on this
+    // harness produced totals varying 4-5x for an identical build (e.g.
+    // 2,211 / 9,209 / 10,415 ms for the same scenario), so a tight budget
+    // here flakes rather than catching anything. This is a gross-regression
+    // tripwire only — for work that needs a real number, assert on counted
+    // work (paints, cleared pixels, DOM nodes) as pan-cost.spec.js does.
+    expect(afterOpen.totalBlockingMs).toBeLessThan(w * h > 20000 ? 20000 : 8000);
   });
 }
 

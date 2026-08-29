@@ -830,3 +830,109 @@ needs its call sites converted to load-then-open, including sites inside the
 generated `creator/bundle.js`. Worth doing — it is the only remaining lever on
 the 1.3–3.0 MB of parsed JS — but it belongs in its own pass with its own
 verification.
+
+---
+
+## H. Implementation record — fourth pass (panning, measured at last)
+
+Branch `perf/lazy-load-and-pan-measurement`. Covers §E item 12 and the second
+tier of item 9. **Item 13 (lazy-loading) was planned for this pass and was not
+done** — see the end of this section.
+
+### Getting a pan measurement at all
+
+§F retracted the original pan figure because the gesture never reached the pan
+path. Three separate things were blocking it, none of them a product bug:
+
+1. A **"How do you usually work through a pattern?"** modal covers the chart on
+   first load, so every synthetic touch landed on `.modal-content`.
+   Pre-seeding `cs_stitchStyle` skips it.
+2. Once that goes, a **coachmark popover** (`.cs-coachmark-popover`) takes its
+   place. Pre-seeding the `cs_pref_onboarding.coached.*` flags skips those.
+3. The scroller is **not `.canvas-area`** — that reports
+   `scrollWidth === clientWidth`. It is an inner unclassed div, the one that
+   actually overflows (4030 / 359).
+
+`pan-cost.spec.js` now asserts the scroller actually moved before reporting
+anything, so this failure mode cannot recur silently.
+
+### What the measurement showed
+
+Eight pan gestures, 4× CPU throttle, phone project:
+
+| | 100 × 100 | 200 × 250 |
+| --- | ---: | ---: |
+| `fillRect` calls | 285 513 | 285 603 |
+| pixels cleared | 981 Mpx | **4 176 Mpx** |
+
+Two independent per-frame costs, and the 100 × 100 case was nearly as bad as
+the 200 × 250 one — so this was never primarily about canvas size.
+
+**1. Every scroll frame repainted the chart.** `onScroll` ran a full
+`renderStitch`, even though `drawStitch` already paints a 20-cell margin
+around the viewport. That margin is exactly how far the user can scroll before
+a repaint is genuinely needed, so almost every frame was redundant work.
+`renderStitch` now records the region it painted and the scroll handler skips
+the repaint while the viewport is still inside it. Both sides derive the
+margin from one `chartOverdraw()` helper so they cannot drift apart, and the
+recorded region carries the `scs` it was painted at, so a zoom change
+invalidates it.
+
+**2. The recommendation overlay cleared its whole canvas every frame.** That
+overlay is sized to the entire chart — 4030 × 5030 on a 200 × 250 pattern —
+and `draw()` began with `clearRect(0, 0, canvas.width, canvas.height)` on every
+animation frame. It now clears only the rectangles it stroked last frame
+(three ~200 px boxes), which is equivalent because the boxes are stable
+between frames.
+
+| | before | after |
+| --- | ---: | ---: |
+| `fillRect` calls, 8 gestures | 285 513 | **7 741** (−97 %) |
+| pixels cleared, 8 gestures | 4 176 Mpx | **~30 Mpx** (−99 %) |
+
+### On the timings — deliberately not quoted
+
+Blocking time on this harness varies **4–5× between identical runs** of the
+same build: three consecutive runs of the 100 × 100 pan gave 9 209 / 10 415 /
+2 211 ms. That spread is wider than most effects worth claiming, so the
+budgets in `pan-cost.spec.js` are on **counted work** — paints and cleared
+pixels, which are deterministic — and no before/after wall-clock figure is
+given for this pass. The pre-existing time-based tripwire in
+`mobile-audit.spec.js` was widened for the same reason after it flaked one run
+in two.
+
+This is also why the §F timing tables should be read with caution; they were
+single samples.
+
+### Touch targets, second tier
+
+Re-measuring after the §F pass left nine sub-44 px controls on the tracker.
+Two carried **inline** sizing, which outranks any stylesheet rule — the same
+trap the thread sort control fell into in §G:
+
+- the highlight-style buttons (`Isolate` / `Outline` / `Tint` / `Spotlight`,
+  61–74 × 28) had inline padding and no class at all;
+- the panel checkboxes had `style={{width:16,height:16}}` in eight places.
+
+Both now carry classes. Sub-44 px controls on the tracker: **9 → 3**. The three
+that remain are the two checkboxes at 24 × 24 (44 px would dominate the dense
+rows they sit in — a deliberate partial fix) and `.ppal-more-close`, which is
+21 × 21 by design and grows its tap area with a transparent `::after`. That
+expansion is now **verified by hit-testing** rather than assumed: a tap 8 px
+outside the visible box registers on the button.
+
+### Verified
+
+- Full Jest suite **206 suites / 2 682 tests green** (2 672 before; +10 from
+  [tests/trackerPanRepaint.test.js](../tests/trackerPanRepaint.test.js)).
+- Mobile audit **40 checks green**, run twice to confirm stability after the
+  tripwire fix.
+- Terminology lint clean; CSS-token lint unchanged at 13 pre-existing warnings.
+
+### Item 13 (lazy-loading) was not done
+
+It was the plan for this pass. The pan measurement landed first and turned out
+to describe a far larger problem — 285 k paints and 4.2 billion cleared pixels
+per eight swipes, on the single most-used interaction in the app — so the
+budget went there instead. The lazy-loading analysis in §G still stands and is
+still the only remaining lever on the 1.3–3.0 MB of parsed JS.

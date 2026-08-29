@@ -9,6 +9,14 @@ async function setup(page) {
     try {
       ['tracker', 'creator', 'manager', 'home'].forEach(p =>
         localStorage.setItem('cs_welcome_' + p + '_done', '1'));
+      // First-run chrome that otherwise covers the thing under test: the
+      // "How do you usually work through a pattern?" modal, and the
+      // coachmark popover that appears once it is dismissed.
+      localStorage.setItem('cs_stitchStyle', 'block');
+      for (const k of ['firstStitch_tracker', 'rectSelect_tracker', 'firstStitch_creator',
+        'import', 'undo', 'progress', 'save']) {
+        localStorage.setItem('cs_pref_onboarding.coached.' + k, 'true');
+      }
     } catch (e) {}
   });
 }
@@ -150,6 +158,70 @@ test('D2: the audited touch targets are at least 44px', async ({ page }) => {
     expect(box.h, `${name} height`).toBeGreaterThanOrEqual(44);
   }
   expect(r.navLink.w, 'nav link width').toBeGreaterThanOrEqual(44);
+});
+
+test('D2: the ::after hit expansion on the panel close button really works', async ({ page }) => {
+  // .ppal-more-close stays 21x21 visually and grows its tap area with a
+  // transparent ::after. A bounding-box measurement cannot see that, so hit
+  // test the expanded area directly — otherwise the "fix" is unverified.
+  await setup(page);
+  await page.goto('/stitch.html?from=home', { waitUntil: 'load', timeout: 120000 });
+  const sW = 40, sH = 40, total = sW * sH;
+  const col = { id: '310', type: 'solid', rgb: [0, 0, 0], symbol: 'A' };
+  await page.locator('input[type="file"]').first().setInputFiles({
+    name: 'hit.json', mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({
+      version: 9, page: 'tracker', name: 'hit',
+      settings: { sW, sH, fabricCt: 14, skeinPrice: 0.95, stitchSpeed: 40 },
+      pattern: new Array(total).fill(col), bsLines: [], done: new Array(total).fill(0),
+      parkMarkers: [], totalTime: 0, sessions: [], hlRow: -1, hlCol: -1, threadOwned: {},
+      originalPaletteState: [{ ...col, name: 'Black', lab: [0, 0, 0], count: total }],
+      singleStitchEdits: [], halfStitches: [], halfDone: [], statsSessions: [], statsSettings: {},
+      savedZoom: 1, savedScroll: { left: 0, top: 0 },
+    })),
+  });
+  await page.waitForSelector('canvas', { timeout: 60000 });
+  await page.waitForTimeout(2000);
+  // Open the More panel via its trigger button so the panel slides in and the
+  // close button is actually visible and hittable.
+  const moreBtn = page.locator('.ppal-mode-btn').first();
+  if (await moreBtn.count()) {
+    await moreBtn.click();
+    await page.waitForSelector('.ppal-more-panel--open', { timeout: 5000 }).catch(() => {});
+  }
+  const closeBtn = page.locator('.ppal-more-close').first();
+  await expect(closeBtn).toBeVisible({ timeout: 5000 });
+  await closeBtn.scrollIntoViewIfNeeded().catch(() => {});
+  await page.waitForTimeout(300);
+
+  const r = await page.evaluate(() => {
+    const btn = document.querySelector('.ppal-more-close');
+    if (!btn) return { skipped: 'close button not mounted' };
+    const b = btn.getBoundingClientRect();
+    if (b.width === 0) return { skipped: 'close button not visible' };
+    const probe = (dx, dy) => {
+      const el = document.elementFromPoint(Math.round(b.left + b.width / 2 + dx), Math.round(b.top + b.height / 2 + dy));
+      return !!(el && (el === btn || btn.contains(el)));
+    };
+    return {
+      box: { w: Math.round(b.width), h: Math.round(b.height) },
+      centre: probe(0, 0),
+      // ::after is inset:-12px, so ~10px outside the box must still hit it.
+      outsideLeft: probe(-(b.width / 2 + 8), 0),
+      outsideBelow: probe(0, b.height / 2 + 8),
+      position: getComputedStyle(btn).position,
+      coveredBy: (function(){var el=document.elementFromPoint(Math.round(b.left+b.width/2),Math.round(b.top+b.height/2));return el?el.tagName.toLowerCase()+"."+(typeof el.className==="string"?el.className.slice(0,40):""):null;})(),
+      panelOpen: !!document.querySelector(".ppal-more-panel"),
+      btnVisible: getComputedStyle(btn).visibility+"/"+getComputedStyle(btn).display,
+    };
+  });
+  console.log('HIT_EXPANSION ' + JSON.stringify(r));
+  if (r.skipped) { console.log('skipped: ' + r.skipped); return; }
+  // ::after needs a positioned ancestor to anchor to.
+  expect(r.position).not.toBe('static');
+  expect(r.centre, 'centre of the close button must hit it').toBe(true);
+  expect(r.outsideLeft && r.outsideBelow,
+    'the ::after hit expansion is not catching taps outside the 21x21 box').toBe(true);
 });
 
 test('D3: the chart suppresses the iOS callout and text selection', async ({ page }) => {

@@ -7542,7 +7542,17 @@ body.cs-focus .lpanel-backdrop { display: none !important; }
                align-items:center; justify-content:center; }
   .mgr-chip,
   .ppal-utility-chip,
-  .ppal-more-tab{ min-height:44px; touch-action:manipulation; }
+  .ppal-more-tab,
+  /* Second tier, found by re-measuring after the first touch pass. The
+     highlight-style buttons carry inline padding, so they need a class of
+     their own to be reachable from CSS at all. */
+  .ppal-hl-mode-btn,
+  .ppal-phone-chip{ min-height:44px; touch-action:manipulation; }
+  .modal-close{ min-width:44px; min-height:44px; }
+  /* Checkboxes ship at 16px. 44px would dominate the dense rows they sit in,
+     so this is a partial improvement rather than a full fix — the row label
+     remains the larger target. */
+  input[type=checkbox], .ppal-check{ width:24px; height:24px; }
   .mgr-filter-bar select,
   .mgr-filter-bar button{ min-height:44px; touch-action:manipulation; }
   /* Visible size unchanged — only the hit area grows. Needs a positioned
@@ -7573,3 +7583,8 @@ body.cs-focus .lpanel-backdrop { display: none !important; }
   .tb-proj-badge-saved,
   .mgr-tab .cnt{ font-size:11px; }
 }
+
+/* Tracker panel checkboxes. Sizing lives here, not inline: an inline
+   width/height outranks the coarse-pointer rule that enlarges them for
+   touch (the same trap the thread sort control fell into). */
+.ppal-check{ width:16px; height:16px; cursor:pointer; }
