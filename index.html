@@ -45,14 +45,35 @@
 <!-- Preconnect so CDN requests start immediately -->
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
-<!-- Prefetch lazy-loaded assets in the background at idle time -->
-<link rel="prefetch" href="compiled/tracker-app.compiled.js">
-<link rel="prefetch" href="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js">
-<link rel="prefetch" href="pdf-export-worker.js">
-<!-- Prefetch creator-main.js in the background so it is ready when the user switches to Creator mode -->
-<link rel="prefetch" href="compiled/creator-main.compiled.js">
-<link rel="prefetch" href="stats-page.js">
-<link rel="prefetch" href="stats-activity.js">
+<!-- Speculative prefetch of assets belonging to OTHER pages (tracker, stats,
+     PDF export). Measured at 1.3 MB decoded / 345 KB over the wire — on a
+     phone that is the largest single item in a cold load, and it competes
+     with the critical path for bandwidth on exactly the connections least
+     able to spare it. Desktop keeps it; phones and metered/slow links opt
+     out. Purely speculative, so skipping it costs only a later fetch. -->
+<script>
+(function () {
+  try {
+    var c = navigator.connection || {};
+    var slow = c.saveData === true || /(^|-)(2g|slow-2g)$/.test(c.effectiveType || '');
+    var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    if (slow || coarse) return;
+    [
+      'compiled/tracker-app.compiled.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js',
+      'pdf-export-worker.js',
+      'compiled/creator-main.compiled.js',
+      'stats-page.js',
+      'stats-activity.js'
+    ].forEach(function (href) {
+      var l = document.createElement('link');
+      l.rel = 'prefetch';
+      l.href = href;
+      document.head.appendChild(l);
+    });
+  } catch (_) { /* prefetch is an optimisation; never let it break the page */ }
+}());
+</script>
 <!-- Flag set before any Babel scripts so TrackerApp's guard fires correctly -->
 <script>
 window.__UNIFIED__=true;

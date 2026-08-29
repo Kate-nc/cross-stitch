@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.56';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.57',
+    date: 'August 2026',
+    notes: [
+      'The Stash Manager opens roughly twice as fast. The thread list was building about a third more of the page than it needed to, which was the slowest thing in the app on a phone.',
+      'The Pattern Creator no longer downloads around 350 KB of files for other parts of the app on phones and metered connections. It still does so on desktop, where it makes later pages open instantly.',
+    ]
+  },
+  {
     version: '1.0.56',
     date: 'August 2026',
     notes: [

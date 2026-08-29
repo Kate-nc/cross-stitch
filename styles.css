@@ -2868,10 +2868,25 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 
 /* Thread card badge */
 .tcard .badge-low{font-size:9px;font-weight:700;color:var(--warning);background:var(--warning-soft);padding:1px 6px;border-radius:8px;white-space:nowrap;}
-.tcard .gauge{display:flex;gap:2px;flex-shrink:0;}
-.tcard .gauge .seg{width:4px;height:14px;border-radius:2px;background:var(--surface-tertiary);}
-.tcard .gauge .seg.full{background:var(--accent);}
-.tcard .gauge .seg.warn{background:var(--warning);}
+/* Thread fill gauge — four 4px pills, 2px apart, 22px overall.
+   Drawn as ONE element: the box itself is the first pill and box-shadow
+   paints the other three at 6/12/18px. A zero-spread box-shadow follows the
+   element's border-radius, so the copies are pixel-identical to the old
+   four <div>s. width:4px + margin-right:18px reserves the same 22px in the
+   flex row as the old display:flex track did.
+   This is a DOM-size fix: the old markup was 4,892 nodes across the ~1,200
+   thread cards, a third of the manager's entire DOM. */
+.tcard .gauge{
+  width:4px;height:14px;border-radius:2px;flex-shrink:0;margin-right:18px;
+  background:var(--surface-tertiary);
+  box-shadow:6px 0 0 var(--surface-tertiary),12px 0 0 var(--surface-tertiary),18px 0 0 var(--surface-tertiary);
+}
+/* level 1 = "remnant": a single warning-coloured pill. */
+.tcard .gauge[data-level="1"]{background:var(--warning);}
+.tcard .gauge[data-level="2"]{background:var(--accent);box-shadow:6px 0 0 var(--accent),12px 0 0 var(--surface-tertiary),18px 0 0 var(--surface-tertiary);}
+.tcard .gauge[data-level="3"]{background:var(--accent);box-shadow:6px 0 0 var(--accent),12px 0 0 var(--accent),18px 0 0 var(--surface-tertiary);}
+/* level 4 = "used up": the old markup filled all four. */
+.tcard .gauge[data-level="4"]{background:var(--accent);box-shadow:6px 0 0 var(--accent),12px 0 0 var(--accent),18px 0 0 var(--accent);}
 
 /* Large gauge for rpanel */
 .gauge-lg{display:flex;gap:4px;justify-content:center;margin:8px 0;}

@@ -4,11 +4,36 @@
 const http = require('http');
 const fs   = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 
 const argvPort = parseInt(process.argv[2], 10);
 const envPort = parseInt(process.env.PORT, 10);
 const PORT = !Number.isNaN(argvPort) ? argvPort : !Number.isNaN(envPort) ? envPort : 8000;
 const ROOT = __dirname;
+function acceptsGzipValue(headerValue) {
+  if (!headerValue) return false;
+  for (const part of headerValue.split(',')) {
+    const token = part.trim();
+    if (!token) continue;
+    const sections = token.split(';');
+    const encoding = (sections[0] || '').trim().toLowerCase();
+    if (encoding !== 'gzip') continue;
+    let q = 1;
+    for (let i = 1; i < sections.length; i++) {
+      const param = sections[i].trim();
+      if (!param) continue;
+      const eq = param.indexOf('=');
+      if (eq === -1) continue;
+      const key = param.slice(0, eq).trim().toLowerCase();
+      if (key !== 'q') continue;
+      const value = param.slice(eq + 1).trim();
+      const n = Number(value);
+      if (!Number.isNaN(n)) q = n;
+    }
+    if (q > 0) return true;
+  }
+  return false;
+}
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -26,6 +51,7 @@ const MIME = {
   '.mp4':  'video/mp4',
   '.webm': 'video/webm',
 };
+const COMPRESSIBLE = new Set(['.js', '.css', '.html', '.json', '.svg', '.map']);
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
@@ -80,11 +106,37 @@ const server = http.createServer((req, res) => {
     'Content-Type': MIME[ext] || 'application/octet-stream',
     'Cache-Control': 'no-cache',
   };
+
+  // Compress text responses and send a validator, mirroring what the
+  // production host does. Without these the dev server is a poor stand-in for
+  // production and any performance measurement taken against it is wrong in
+  // two directions at once: transfer sizes look ~4x larger than they really
+  // are, and `Cache-Control: no-cache` degrades to a full re-download on a
+  // repeat visit instead of a 304.
+  const stat = fs.statSync(filePath);
+  const etag = `W/"${stat.size.toString(16)}-${stat.mtimeMs.toString(16)}"`;
+  headers.ETag = etag;
+  headers['Last-Modified'] = stat.mtime.toUTCString();
+
+  if (req.headers['if-none-match'] === etag) {
+    res.writeHead(304, { ETag: etag, 'Cache-Control': 'no-cache' });
+    res.end();
+    return;
+  }
+
+  const acceptsGzip = acceptsGzipValue(req.headers['accept-encoding']);
+  const useGzip = acceptsGzip && COMPRESSIBLE.has(ext);
+  if (useGzip) {
+    headers['Content-Encoding'] = 'gzip';
+    headers.Vary = 'Accept-Encoding';
+  }
+
   const stream = fs.createReadStream(filePath);
 
   stream.on('open', () => {
     res.writeHead(200, headers);
-    stream.pipe(res);
+    if (useGzip) stream.pipe(zlib.createGzip()).pipe(res);
+    else stream.pipe(res);
   });
 
   stream.on('error', (err) => {
