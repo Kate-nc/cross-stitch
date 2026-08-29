@@ -1314,17 +1314,9 @@ function ManagerApp() {
     }
   }, "Sort:"), /*#__PURE__*/React.createElement("select", {
     "aria-label": "Sort threads",
+    className: "mgr-sort-select",
     value: threadSort,
-    onChange: e => setThreadSort(e.target.value),
-    style: {
-      fontSize: 12,
-      padding: '3px 6px',
-      borderRadius: 6,
-      border: '1px solid var(--border)',
-      background: 'var(--surface)',
-      color: 'var(--text-primary)',
-      cursor: 'pointer'
-    }
+    onChange: e => setThreadSort(e.target.value)
   }, /*#__PURE__*/React.createElement("option", {
     value: "number"
   }, "Number"), /*#__PURE__*/React.createElement("option", {

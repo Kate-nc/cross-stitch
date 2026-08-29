@@ -715,8 +715,29 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         : 'Project'))
     : null;
 
+  // --app-header-height is the anchor every sticky offset below the header
+  // is calculated from (the tracker info-strip, most visibly). It was a hard
+  // 48px in :root and never updated, so it was wrong wherever the header is
+  // actually taller — notably once the header started reserving the top
+  // safe-area inset on notched devices. Publish the measured height instead.
+  const topbarRef = React.useRef(null);
+  React.useEffect(function () {
+    const el = topbarRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const publish = function () {
+      const h = el.getBoundingClientRect().height;
+      // Ignore a zero height (display:none, or measured mid-teardown) —
+      // writing 0 would collapse every sticky offset on the page.
+      if (h > 0) document.documentElement.style.setProperty('--app-header-height', h + 'px');
+    };
+    publish();
+    const ro = new ResizeObserver(publish);
+    ro.observe(el);
+    return function () { ro.disconnect(); };
+  }, []);
+
   return React.createElement(React.Fragment, null,
-    React.createElement('header', { className: 'tb-topbar' },
+    React.createElement('header', { className: 'tb-topbar', ref: topbarRef },
       React.createElement('div', { className: 'tb-topbar-inner' },
         // Logo — single source of truth for "go home". On /home itself
         // we just scroll to top; on every tool page we navigate to the
@@ -1048,7 +1069,11 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
           'aria-label': 'Open command palette (Ctrl/Cmd+K)',
           title: 'Open command palette (Ctrl/Cmd+K)'
         }, window.Icons && window.Icons.magnify ? window.Icons.magnify() : 'Search') : null,
-        React.createElement('button', { className: 'tb-nav-link', onClick: () => window.HelpDrawer.open({ tab: 'shortcuts' }), 'aria-label': 'Keyboard shortcuts', title: 'Keyboard shortcuts' }, window.Icons && window.Icons.keyboard ? window.Icons.keyboard() : 'Shortcuts'),
+        // Keyboard-shortcuts shortcut. Hidden on coarse pointers: a phone has
+        // no keyboard to use them with, and the header row is already ~640px
+        // of content on a 393px screen. The panel itself is not lost — the
+        // Help button opens the same drawer, which has a Shortcuts tab.
+        React.createElement('button', { className: 'tb-nav-link tb-desktop-only', onClick: () => window.HelpDrawer.open({ tab: 'shortcuts' }), 'aria-label': 'Keyboard shortcuts', title: 'Keyboard shortcuts' }, window.Icons && window.Icons.keyboard ? window.Icons.keyboard() : 'Shortcuts'),
         React.createElement('button', {
           className: 'tb-nav-link tb-help-btn',
           onClick: () => window.HelpDrawer.open({ tab: 'help' }),

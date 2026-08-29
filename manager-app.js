@@ -999,11 +999,14 @@ function ManagerApp() {
             <button key={'brand-' + f.id} className={"mgr-chip" + (brandFilter === f.id ? " on" : "")} onClick={() => setBrandFilter(f.id)}>{f.label}</button>
           ))}
           <span style={{marginLeft:8,marginRight:2,color:'var(--text-tertiary)',fontSize:11}}>Sort:</span>
+          {/* Styling lives in .mgr-sort-select, not inline: an inline
+              font-size outranks the coarse-pointer 16px rule that stops iOS
+              zooming the whole page when the field takes focus. */}
           <select
             aria-label="Sort threads"
+            className="mgr-sort-select"
             value={threadSort}
             onChange={e => setThreadSort(e.target.value)}
-            style={{fontSize:12,padding:'3px 6px',borderRadius:6,border:'1px solid var(--border)',background:'var(--surface)',color:'var(--text-primary)',cursor:'pointer'}}
           >
             <option value="number">Number</option>
             <option value="colour">Colour</option>
