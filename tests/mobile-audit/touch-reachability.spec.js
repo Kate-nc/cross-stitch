@@ -61,6 +61,17 @@ test('B3: the File menu button can actually be scrolled to and opened', async ({
   expect(box, 'File button must have a box after scrolling to it').not.toBeNull();
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(394);
+  await fileBtn.click();
+  const fileMenu = page.locator('.tb-page-dropdown').last();
+  await expect(fileMenu).toBeVisible();
+  const menuBox = await fileMenu.boundingBox();
+  const viewport = page.viewportSize();
+  console.log('FILEMENU ' + JSON.stringify({ menuBox, viewport }));
+  expect(menuBox, 'File menu must have a box after opening').not.toBeNull();
+  expect(menuBox.x).toBeGreaterThanOrEqual(0);
+  expect(menuBox.y).toBeGreaterThanOrEqual(0);
+  expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(viewport.width);
+  expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(viewport.height);
 });
 
 test('B4/B5: --app-header-height matches the real header, strip sits flush', async ({ page }) => {

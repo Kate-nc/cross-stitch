@@ -49,6 +49,8 @@ describe('B4/B5 — header height and the top safe-area inset', () => {
     // env(safe-area-inset-top, 52px))` added an inset the header did not
     // reserve, and its 52px fallback only applied where env() was unsupported.
     expect(css).not.toMatch(/env\(safe-area-inset-top,\s*52px\)/);
+    expect(css).toMatch(/\.tb-strip\{[^}]*top:var\(--app-header-height, 48px\)/);
+    expect(css).toMatch(/\.toolbar-row\{[^}]*top:var\(--app-header-height, 48px\)/);
     expect(css).toMatch(/\.info-strip-wrap\{position:sticky;top:var\(--app-header-height/);
     expect(css).toMatch(/\.info-strip\{position:sticky;top:var\(--app-header-height/);
   });
@@ -107,6 +109,11 @@ describe('D1 — iOS zoom-on-focus', () => {
 describe('C4 — hover rules cannot latch after a tap', () => {
   test('hover-only rules are wrapped in @media (hover: hover)', () => {
     expect((css.match(/@media \(hover: hover\)/g) || []).length).toBeGreaterThan(100);
+  });
+
+  test('goal preset active and hover states are declared separately', () => {
+    expect(css).toMatch(/\.goal-preset-btn\.active\s*\{[^}]*border-color:\s*var\(--accent\)/);
+    expect(css).toMatch(/@media \(hover: hover\)\s*\{\s*\.goal-preset-btn:hover\s*\{/);
   });
 
   test('mixed :hover/:focus-within rules are left alone', () => {

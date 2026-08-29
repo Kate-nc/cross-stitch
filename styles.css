@@ -535,13 +535,13 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .tb-action-btn--orange{background:var(--accent);color:var(--surface);border-color:var(--accent);}
 @media (hover: hover){.tb-action-btn--orange:hover{background:var(--accent-hover);filter:none;}}
 /* Tool strip */
-.tb-strip{background:var(--surface-tertiary);border-bottom:1px solid var(--border);position:sticky;top:48px;z-index:99;height:38px;overflow:visible;}
+.tb-strip{background:var(--surface-tertiary);border-bottom:1px solid var(--border);position:sticky;top:var(--app-header-height, 48px);z-index:99;height:38px;overflow:visible;}
 .tb-strip--sel{background:var(--surface-tertiary);border-bottom:1px solid var(--border);height:auto;overflow:visible;}
 .tb-strip-inner{max-width:1300px;margin:0 auto;padding:0 16px;height:100%;display:flex;align-items:center;gap:3px;overflow:visible;}
 .tb-sdiv{width:1px;height:20px;background:var(--border);flex-shrink:0;margin:0 2px;}
 .tb-grp{display:flex;gap:1px;background:var(--surface);border:0.5px solid var(--border);border-radius:7px;padding:2px;flex-shrink:0;}
 /* ── Proposal-B: Pill toolbar ── */
-.toolbar-row{display:flex;flex-direction:column;position:sticky;top:48px;z-index:99;background:var(--surface-secondary);border-bottom:1px solid var(--border);flex-shrink:0;}
+.toolbar-row{display:flex;flex-direction:column;position:sticky;top:var(--app-header-height, 48px);z-index:99;background:var(--surface-secondary);border-bottom:1px solid var(--border);flex-shrink:0;}
 .pill-row{height:52px;display:flex;align-items:center;justify-content:center;}
 .swatch-strip-row{height:52px;display:flex;align-items:center;justify-content:center;gap:3px;border-top:1px solid var(--border);background:var(--surface);padding:0 12px;overflow:visible;}
 .pill{display:inline-flex;align-items:center;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:4px;box-shadow:var(--shadow-md);max-width:calc(100vw - 40px);overflow:visible;}
@@ -795,8 +795,8 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   /* Clip the topbar's overflow so the header doesn't cause page-level horizontal scroll.
      Dropdowns that need to escape the clip use position:fixed below. */
   .tb-topbar{overflow:hidden;}
-  .tb-proj-switcher__menu{position:fixed;left:8px;right:8px;top:54px;max-width:none;width:auto;}
-  .tb-page-dropdown{position:fixed;top:54px;}
+  .tb-proj-switcher__menu{position:fixed;left:8px;right:8px;top:calc(var(--app-header-height, 48px) + 6px);max-width:none;width:auto;}
+  .tb-page-dropdown{position:fixed;top:calc(var(--app-header-height, 48px) + 6px);}
   /* Allow pill to scroll horizontally as fallback rather than clip */
   .pill{overflow-x:auto;scrollbar-width:none;}
   .pill::-webkit-scrollbar{display:none;}
@@ -1613,7 +1613,11 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   color: var(--text-secondary);
   cursor: pointer;
 }
-.goal-preset-btn.active,
+.goal-preset-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  color: var(--accent);
+}
 @media (hover: hover){
 .goal-preset-btn:hover {
   border-color: var(--accent);
