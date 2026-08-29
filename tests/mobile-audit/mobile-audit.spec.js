@@ -205,7 +205,14 @@ for (const [w, h, cols] of [[100, 100, 12], [200, 250, 40]]) {
         const lt = (window.__lt || []).filter(t => t.d > 50);
         return { longTaskCount: lt.length, longestTaskMs: lt.reduce((m, t) => Math.max(m, t.d), 0), totalBlockingMs: lt.reduce((s, t) => s + (t.d - 50), 0) };
       });
-      log({ scenario: 'tracker-pan-interaction', pattern: `${w}x${h}`, cpuThrottle: '4x', ...interact });
+      // WARNING: this scenario does NOT currently measure panning. A CDP
+      // touch drag over the chart leaves scrollLeft/scrollTop untouched —
+      // verified by counting scroll events (0) and canvas fillRect calls (0)
+      // across the whole gesture sequence. Whatever it records is the
+      // tracker settling after load, not pan cost. Do not quote these
+      // numbers as a pan measurement until the gesture actually drives the
+      // scroller; see reports/mobile-experience-audit.md §F.
+      log({ scenario: 'tracker-post-load-idle (NOT a pan measurement)', pattern: `${w}x${h}`, cpuThrottle: '4x', ...interact });
     }
     await s.detach().catch(() => {});
 
