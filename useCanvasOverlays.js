@@ -17,7 +17,94 @@
 
   var R = (typeof window !== 'undefined' && window.React) || null;
 
-  window.useCanvasOverlays = function useCanvasOverlays({ sW }) {
+  /* ── Canvas backing-store ceiling ───────────────────────────────────────
+     The chart and every overlay size their backing store to the *whole*
+     pattern at the current zoom (sW*scs+G+2 x sH*scs+G+2 — see the
+     canvas.width assignments in tracker-app.js). Browsers cap how large a
+     single canvas may be, and mobile caps are far lower than desktop ones:
+     iOS Safari refuses anything over 16,777,216 px^2 (~4096x4096) and many
+     mobile GPUs cannot texture a surface wider than 4096 px. Neither throws
+     — the canvas just renders blank while the tab thrashes memory, which is
+     what "the chart froze and went white" looks like on a phone.
+
+     So we derive a per-device cell-size ceiling and expose it as a zoom
+     ceiling. Clamping the *zoom* rather than `scs` alone keeps `scs`, the
+     zoom read-out and the pinch/wheel scroll maths agreeing with each other
+     (they all derive from stitchZoom); `scs` is clamped too as a backstop in
+     case some future path writes the zoom without going through the setter.
+
+     The limit is probed rather than hardcoded so desktop keeps its current
+     maximum zoom — the probe costs three 1-px-tall canvases (<64 KB total),
+     which is why we measure the side limit and infer the area budget from it
+     rather than allocating a square. */
+  var GRID_GUTTER  = 28;   // must match `const G` in tracker-app.js
+  var SCS_MIN      = 2;    // matches the existing Math.max(2, ...) floor
+  var SCS_PER_ZOOM = 20;   // scs = round(20 * stitchZoom)
+  var ZOOM_MAX     = 4;    // matches the existing wheel/pinch/button ceiling
+
+  var _limits = null;
+  function canvasLimits() {
+    if (_limits) return _limits;
+    var side = 4096;
+    try {
+      // 1-px-tall probes: allocating 16384x1 costs 64 KB, not 1 GB.
+      var candidates = [16384, 8192, 4096];
+      for (var i = 0; i < candidates.length; i++) {
+        var c = document.createElement('canvas');
+        c.width = candidates[i]; c.height = 1;
+        var cx = c.getContext('2d');
+        if (!cx) continue;
+        cx.fillStyle = '#fff';
+        cx.fillRect(candidates[i] - 1, 0, 1, 1);
+        // A canvas over the limit is silently resized or refuses to paint.
+        if (c.width === candidates[i] && cx.getImageData(candidates[i] - 1, 0, 1, 1).data[3] === 255) {
+          side = candidates[i];
+          break;
+        }
+      }
+    } catch (_) { /* probe blocked (private mode / no canvas) — keep 4096 */ }
+
+    /* Area budget. A side limit does not imply the device can afford a
+       square of that side (16384^2 would be 1 GB), so budget by memory:
+       iOS reports no navigator.deviceMemory, hence the coarse-pointer arm. */
+    var mem = (typeof navigator !== 'undefined' && navigator.deviceMemory) || 0;
+    var coarse = false;
+    try { coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches; } catch (_) {}
+    var area;
+    if (mem && mem <= 1)      area = 16777216;    // 16.7 Mpx  — low-end phone
+    else if (mem && mem <= 4) area = 33554432;    // 33.5 Mpx  — mid-range phone
+    else if (!mem && coarse)  area = 16777216;    // 16.7 Mpx  — iOS (no deviceMemory)
+    else                      area = 134217728;   // 134 Mpx   — desktop
+    _limits = { side: side, area: Math.min(area, side * side) };
+    return _limits;
+  }
+
+  /* Largest `scs` for which both chart dimensions and the total pixel count
+     stay inside the device limits. Returns 0 when the pattern cannot fit at
+     the minimum usable cell size, and the uncapped maximum when dimensions
+     are not known yet. */
+  function maxCellSize(sW, sH) {
+    var ceiling = SCS_PER_ZOOM * ZOOM_MAX;
+    if (!sW || !sH) return ceiling;
+    var lim = canvasLimits();
+    var pad = GRID_GUTTER + 2;
+    var scs = Math.min(
+      Math.floor((lim.side - pad) / sW),
+      Math.floor((lim.side - pad) / sH),
+      Math.floor(Math.sqrt(lim.area / (sW * sH)))
+    );
+    // sqrt() ignores the gutter, so step down until the exact area fits.
+    while (scs > 0 && (sW * scs + pad) * (sH * scs + pad) > lim.area) scs--;
+    return Math.max(0, Math.min(ceiling, scs));
+  }
+
+  /* Exposed for tests and for the canvas-budget regression guard. Also lets a
+     future tiled renderer reuse the same limits. */
+  window.canvasSizeLimits = canvasLimits;
+  window.maxChartCellSize = maxCellSize;
+  window.__resetCanvasLimits = function () { _limits = null; };
+
+  window.useCanvasOverlays = function useCanvasOverlays({ sW, sH }) {
     var useState    = R.useState;
     var useRef      = R.useRef;
     var useEffect   = R.useEffect;
@@ -35,8 +122,28 @@
     useEffect(()=>{try{if(window.UserPrefs)window.UserPrefs.set("trackerDefaultView",stitchView);}catch(_){}},[stitchView]);
     // stitchZoomRef declared before the mirror-effect so the closure captures it
     const stitchZoomRef=useRef(1);
-    const[stitchZoom,setStitchZoom]=useState(1);
+    const[stitchZoom,_setStitchZoom]=useState(1);
     useEffect(()=>{stitchZoomRef.current=stitchZoom;},[stitchZoom]);
+
+    // Highest zoom whose chart canvas still fits this device (see maxCellSize).
+    // Kept in a ref as well so the setter wrapper below stays referentially
+    // stable — it is passed straight into onClick handlers and effect deps.
+    const maxZoom=useMemo(()=>Math.max(0.05,Math.min(ZOOM_MAX,maxCellSize(sW,sH)/SCS_PER_ZOOM)),[sW,sH]);
+    const maxZoomRef=useRef(maxZoom);
+    useEffect(()=>{maxZoomRef.current=maxZoom;},[maxZoom]);
+    // Every caller (buttons, shortcuts, pinch, wheel, saved-zoom restore) goes
+    // through this, so the clamp cannot be bypassed. Supports both direct
+    // values and functional updaters, matching the useState contract.
+    const setStitchZoom=useCallback((v)=>{
+      _setStitchZoom((prev)=>{
+        const next=(typeof v==="function")?v(prev):v;
+        if(typeof next!=="number"||!isFinite(next))return prev;
+        return Math.min(next,maxZoomRef.current);
+      });
+    },[]);
+    // If the pattern changes to one with a lower ceiling, pull the current
+    // zoom down to it rather than leaving an out-of-range value in state.
+    useEffect(()=>{_setStitchZoom((z)=>Math.min(z,maxZoom));},[maxZoom]);
 
     const[highlightSkipDone,setHighlightSkipDone]=useState(()=>{try{var v=window.UserPrefs&&window.UserPrefs.get("trackerHighlightSkipDone");return v!==false;}catch(_){return true;}});
     const[onlyStarted,setOnlyStarted]=useState(()=>{try{return !!(window.UserPrefs&&window.UserPrefs.get("trackerOnlyStarted"));}catch(_){return false;}});
@@ -128,8 +235,11 @@
     const[selectedColorId,setSelectedColorId]=useState(null);
 
     // ── Derived rendering values ──
-    const scs=useMemo(()=>Math.max(2,Math.round(20*stitchZoom)),[stitchZoom]);
-    const fitSZ=useCallback(()=>setStitchZoom(Math.min(3,Math.max(0.05,750/(sW*20)))),[sW]);
+    // The Math.min() is a backstop: setStitchZoom already clamps, so it is a
+    // no-op in normal operation, but it guarantees the canvas can never be
+    // asked for a size the device will refuse.
+    const scs=useMemo(()=>Math.min(Math.max(SCS_MIN,Math.round(SCS_PER_ZOOM*stitchZoom)),maxCellSize(sW,sH)),[stitchZoom,sW,sH]);
+    const fitSZ=useCallback(()=>setStitchZoom(Math.min(3,Math.max(0.05,750/(sW*20)))),[sW,setStitchZoom]);
 
     return {
       stitchView, setStitchView,
@@ -155,7 +265,7 @@
       focusOverlayCanvasRef, breadcrumbCanvasRef, threadUsageCanvasRef,
       hlRow, setHlRow, hlCol, setHlCol,
       selectedColorId, setSelectedColorId,
-      scs, fitSZ,
+      scs, fitSZ, maxZoom,
     };
   };
 })();

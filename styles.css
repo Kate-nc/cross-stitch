@@ -86,6 +86,10 @@
      were previously hardcoded across components. */
   --radius-xs: 4px;
   --app-header-height: 48px;
+  /* Shared UI transition list — see the note beside the input/button rules.
+     Deliberately enumerates properties instead of using `all`. */
+  --transition-ui: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
+  --transition-ui-fast: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease, opacity 0.12s ease, transform 0.12s ease;
   --z-base:       1;
   --z-sticky:    100;
   --z-dropdown:  400;
@@ -154,12 +158,27 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--sur
   body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
 }
 #root{flex:1;display:flex;flex-direction:column;min-height:0;}
-input[type=range]{accent-color:var(--accent); transition: all 0.2s ease;}
-input[type=checkbox]{accent-color:var(--accent); transition: all 0.2s ease;}
-input, select { transition: all 0.2s ease; }
-button{font-family:inherit; transition: all 0.2s ease;}
-button:hover { filter: brightness(0.97); transform: translateY(0); }
-button:active { filter: brightness(0.94); transform: translateY(0); }
+/* --transition-ui (declared on :root) is an explicit property list replacing
+   `transition: all`. `all` makes the engine evaluate every animatable
+   property — including layout-affecting ones like width/height/padding — on
+   every style recalculation, for every control on the page. The list is a
+   superset of what these controls actually animate, so nothing looks
+   different. */
+input[type=range]{accent-color:var(--accent); transition: var(--transition-ui);}
+input[type=checkbox]{accent-color:var(--accent); transition: var(--transition-ui);}
+input, select { transition: var(--transition-ui); }
+button{font-family:inherit; transition: var(--transition-ui);}
+/* Touch browsers latch :hover on after a tap and keep it until the user taps
+   elsewhere, so without this guard every button a user pressed stayed visibly
+   dimmed. :active is left unguarded — it behaves correctly on touch and is
+   the press feedback. */
+@media (hover: hover) and (pointer: fine) {
+  button:hover { filter: brightness(0.97); }
+  .tb-page-btn:hover{filter:none;background:var(--surface-tertiary);}
+  .home-btn--primary:hover { background: var(--accent-hover); }
+  .home-btn--secondary:hover { background: var(--surface-secondary); }
+}
+button:active { filter: brightness(0.94); }
 select{font-family:inherit}
 input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border); outline-offset: 2px; }
 *:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
@@ -479,7 +498,6 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .tb-logo .tb-logo-dot{color:var(--accent);transition:color var(--motion-fast);}
 .tb-logo:hover .tb-logo-dot{color:var(--accent-hover);}
 .tb-page-btn{display:flex;align-items:center;gap:4px;padding:4px 10px;font-size:12px;font-weight:500;border:0.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text-primary);cursor:pointer;white-space:nowrap;flex-shrink:0;position:relative;font-family:inherit;}
-.tb-page-btn:hover{filter:none;background:var(--surface-tertiary);}
 .tb-page-dropdown{position:absolute;top:calc(100% + 4px);left:0;min-width:160px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-md);z-index:201;padding:4px 0;}
 .tb-page-dropdown-item{display:block;width:100%;padding:7px 14px;font-size:12px;font-weight:400;text-align:left;background:transparent;border:none;cursor:pointer;color:var(--text-primary);font-family:inherit;}
 .tb-page-dropdown-item:hover{filter:none;background:var(--surface-tertiary);}
@@ -926,13 +944,11 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   color: var(--surface);
   border: none;
 }
-.home-btn--primary:hover { background: var(--accent-hover); }
 .home-btn--secondary {
   background: var(--surface);
   color: var(--text-primary);
   border: 1px solid var(--border);
 }
-.home-btn--secondary:hover { background: var(--surface-secondary); }
 
 /* Start New + Recent panels */
 .home-panels {
@@ -2093,6 +2109,14 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .emb-dmc-swatch--active {
   border: 2.5px solid var(--accent);
 }
+/* Manager right panel — desktop base.
+   MUST stay above the mobile media block below. It used to live down beside
+   .mgr-main/.mgr-content; because it has the same specificity as the mobile
+   drawer rule and was declared ~580 lines later, `width:280px` and
+   `border-left` silently won on phones and the bottom sheet rendered as a
+   280px stub. .rpanel is already ordered this way — keep them consistent. */
+.mgr-rpanel{width:280px;background:var(--surface);border-left:1px solid var(--border);flex-shrink:0;overflow-y:auto;display:flex;flex-direction:column;}
+
 @media (pointer: coarse), (max-width: 899px) {
   .tb-strip{height:auto;min-height:38px;}
   .tb-strip-inner{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;padding-top:6px;padding-bottom:6px;min-height:52px;}
@@ -2690,8 +2714,21 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .mgr-tab .icon{font-size:16px;}
 .mgr-tab .cnt{font-size:10px;background:rgba(255,255,255,0.25);padding:1px 7px;border-radius:8px;font-weight:700;}
 .mgr-tab:not(.on) .cnt{background:var(--surface-tertiary);color:var(--text-tertiary);}
-.mgr-filter-bar{padding:10px 20px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;}
-.mgr-filter-bar input{flex:1;max-width:300px;padding:7px 12px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-tertiary);color:var(--text-primary);font-family:inherit;}
+/* The chips, sort control and Bulk Add button are all white-space:nowrap and
+   none of them shrinks, so their intrinsic widths total ~1050px. Without a
+   scroller that pushed the *document* to 1050px on a 393px phone, which in
+   turn expands the layout viewport — and `position:fixed` resolves against
+   the layout viewport, which is why .mgr-rpanel used to land ~1900px down
+   the page instead of docked to the bottom. Keep the row on one line but
+   let it scroll inside its own box. */
+.mgr-filter-bar{padding:10px 20px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
+.mgr-filter-bar::-webkit-scrollbar{display:none;}
+.mgr-filter-bar>*{flex-shrink:0;}
+/* flex-basis is 180px rather than 0 because the bar above is now a scroller:
+   with `flex:1` (basis 0) and no free space to grow into, the search box
+   would collapse to zero width on narrow screens. It still grows to the
+   300px cap whenever the row does have room, so desktop is unchanged. */
+.mgr-filter-bar input{flex:1 0 180px;max-width:300px;padding:7px 12px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-tertiary);color:var(--text-primary);font-family:inherit;}
 .mgr-filter-bar input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(184, 92, 56,0.3);}
 .mgr-chip{padding:5px 12px;font-size:11px;font-weight:500;border:1px solid var(--border);background:var(--surface);color:var(--text-tertiary);border-radius:16px;cursor:pointer;white-space:nowrap;font-family:inherit;}
 .mgr-chip:hover{border-color:var(--border);color:var(--text-secondary);}
@@ -2703,9 +2740,10 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .mgr-stash-chip-wrap{position:relative;}
 .mgr-main{flex:1;display:flex;overflow:hidden;}
 .mgr-content{flex:1;overflow-y:auto;padding:16px 20px;}
-.mgr-rpanel{width:280px;background:var(--surface);border-left:1px solid var(--border);flex-shrink:0;overflow-y:auto;display:flex;flex-direction:column;}
+/* .mgr-rpanel base rule moved above the mobile drawer media block — see the
+   comment there. Do not re-add it here; it would override the drawer again. */
 .thread-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));gap:8px;}
-.tcard{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xl);cursor:pointer;transition:all 0.12s;
+.tcard{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xl);cursor:pointer;transition:var(--transition-ui-fast);
   /* H6 (action plan 2B.2): skip layout + paint for off-screen thread cards.
      Equivalent to virtualising the ~900-card grid without changing the
      page-scroll behaviour. `contain-intrinsic-size` reserves a stable
@@ -2721,7 +2759,7 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .tcard .info .tnm{font-size:11px;color:var(--text-tertiary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .tcard .owned{font-size:13px;font-weight:700;color:var(--text-primary);background:var(--surface-tertiary);width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:8px;flex-shrink:0;}
 .pat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:10px;}
-.pcard{padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xl);cursor:pointer;transition:all 0.12s;
+.pcard{padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xl);cursor:pointer;transition:var(--transition-ui-fast);
   /* Same off-screen skip as .tcard (action plan H6 = 2B.2). Pattern cards
      are taller so reserve a generous intrinsic height. */
   content-visibility:auto;
@@ -2764,7 +2802,7 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 
 /* Large gauge for rpanel */
 .gauge-lg{display:flex;gap:4px;justify-content:center;margin:8px 0;}
-.gauge-lg .seg{width:28px;height:28px;border-radius:6px;border:2px solid var(--border);background:var(--surface-tertiary);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-tertiary);transition:all 0.12s;}
+.gauge-lg .seg{width:28px;height:28px;border-radius:6px;border:2px solid var(--border);background:var(--surface-tertiary);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-tertiary);transition:var(--transition-ui-fast);}
 .gauge-lg .seg:hover{border-color:var(--accent);}
 .gauge-lg .seg.full{background:var(--accent);border-color:var(--accent);color:var(--surface);}
 

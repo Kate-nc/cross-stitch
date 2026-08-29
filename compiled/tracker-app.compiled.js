@@ -1450,7 +1450,8 @@ function TrackerApp({
     setStatsSettings
   } = prefs;
   const canvas = window.useCanvasOverlays({
-    sW
+    sW,
+    sH
   });
   const {
     stitchView,
@@ -1505,7 +1506,8 @@ function TrackerApp({
     selectedColorId,
     setSelectedColorId,
     scs,
-    fitSZ
+    fitSZ,
+    maxZoom
   } = canvas;
   const [loadError, setLoadError] = useState(null);
   const [copied, setCopied] = useState(null);
@@ -5112,8 +5114,17 @@ function TrackerApp({
     // later render-time failure can't cause the next auto-save to mint a copy.
     projectIdRef.current = project.id || null;
     let s = project.settings || {};
-    setSW(project.w || s.sW || project.settings?.w || 80);
-    setSH(project.h || s.sH || project.settings?.h || 80);
+    const nextW = project.w || s.sW || project.settings?.w || 80;
+    const nextH = project.h || s.sH || project.settings?.h || 80;
+    // If this device cannot fit the chart at the minimum usable stitch-cell size,
+    // reject the load before any canvas sizing runs.
+    if (typeof window.maxChartCellSize === "function" && window.maxChartCellSize(nextW, nextH) < 2) {
+      setLoadError(`Pattern (${nextW}×${nextH}) is too large to display on this device in Stitch Tracker. Open it in the Creator to reduce stitch count.`);
+      setTimeout(() => setLoadError(null), 5000);
+      return;
+    }
+    setSW(nextW);
+    setSH(nextH);
     setBsLines(project.bsLines || project.bs || []);
     if (s.fabricCt) setFabricCt(s.fabricCt);else if (project.fc) setFabricCt(project.fc);
     if (s.skeinPrice != null) setSkeinPrice(s.skeinPrice);
@@ -6936,12 +6947,18 @@ function TrackerApp({
   useEffect(() => {
     const canvas = recOverlayCanvasRef.current;
     if (!canvas) return;
-    const draw = () => {
-      if (!recommendations || !recommendations.top || !recommendations.top.length || !recEnabled || !analysisResult) {
-        const ctx = canvas.getContext("2d");
-        if (canvas.width > 0) ctx.clearRect(0, 0, canvas.width, canvas.height);
-        return;
-      }
+    // Bail out *before* starting the loop when there is nothing to pulse.
+    // Previously `draw()` returned early but `loop()` kept re-scheduling
+    // itself at 60fps for the lifetime of the effect, so the tracker held a
+    // permanent animation-frame callback even with recommendations switched
+    // off — pure battery/main-thread cost on a phone.
+    if (!recommendations || !recommendations.top || !recommendations.top.length || !recEnabled || !analysisResult) {
+      const ctx = canvas.getContext("2d");
+      if (canvas.width > 0) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+    const prefersReducedMotion = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    const draw = (staticOnly = false) => {
       const W = analysisResult.sW,
         H = analysisResult.sH;
       const RS = analysisResult.regionSize || 10;
@@ -6955,8 +6972,8 @@ function TrackerApp({
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       const RC = analysisResult.regionCols || 1;
       // phase cycles 0→1→0 at 2s period
-      recPulsePhaseRef.current = (recPulsePhaseRef.current + 0.016) % (Math.PI * 2);
-      const pulseAlpha = 0.3 + 0.4 * ((Math.sin(recPulsePhaseRef.current) + 1) / 2);
+      if (!staticOnly) recPulsePhaseRef.current = (recPulsePhaseRef.current + 0.016) % (Math.PI * 2);
+      const pulseAlpha = staticOnly ? 0.7 : 0.3 + 0.4 * ((Math.sin(recPulsePhaseRef.current) + 1) / 2);
       recommendations.top.forEach((rec, rank) => {
         const rCol = rec.idx % RC,
           rRow = Math.floor(rec.idx / RC);
@@ -6974,12 +6991,35 @@ function TrackerApp({
         ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
       });
     };
+    if (prefersReducedMotion) {
+      draw(true);
+      return;
+    }
+    // Also suspend while the tab is hidden — rAF is already throttled when
+    // backgrounded, but this releases the callback entirely so a phone that
+    // keeps the page alive in the background does no work at all.
     const loop = () => {
       draw();
       recPulseRef.current = requestAnimationFrame(loop);
     };
-    loop();
-    return () => cancelAnimationFrame(recPulseRef.current);
+    const start = () => {
+      if (recPulseRef.current == null) loop();
+    };
+    const stop = () => {
+      if (recPulseRef.current != null) {
+        cancelAnimationFrame(recPulseRef.current);
+        recPulseRef.current = null;
+      }
+    };
+    const onVis = () => {
+      if (document.visibilityState === "visible") start();else stop();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    if (document.visibilityState === "visible") loop();
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      stop();
+    };
   }, [recommendations, recEnabled, analysisResult, scs, sW, sH]);
 
   // ═══ Focus area three-zone dimming overlay ═══
@@ -7354,25 +7394,44 @@ function TrackerApp({
       cancelAnimationFrame(countingAidsRafRef.current);
     };
   }, [pat, done, sW, sH, scs, focusColour, stitchView, countingAidsEnabled, countRunMin, countRunDir, countNinjaEnabled, blockW, blockH, focusBlock, countsVer, analysisResult, lockDetailLevel]);
+
+  // Marching-ants outline animation. Each tick is a React state update, so it
+  // re-renders the (very large) tracker component and repaints the visible slice
+  // of the chart 10x a second — cheap enough on a desktop, a meaningful share of
+  // a phone's frame budget. It now stops when it cannot be seen (tab hidden) and
+  // is not started at all under prefers-reduced-motion, matching how the rest of
+  // the app treats continuous animation.
   const hlAntsIntervalRef = useRef(null);
   useEffect(() => {
     const needAnts = stitchView === "highlight" && !!focusColour && highlightMode === "outline";
-    if (!needAnts) {
-      if (hlAntsIntervalRef.current) {
-        clearInterval(hlAntsIntervalRef.current);
-        hlAntsIntervalRef.current = null;
-      }
-      return;
-    }
-    if (hlAntsIntervalRef.current) return;
-    hlAntsIntervalRef.current = setInterval(() => setAntsOffset(p => (p + 1) % 20), 100);
-    return () => {
+    const stop = () => {
       if (hlAntsIntervalRef.current) {
         clearInterval(hlAntsIntervalRef.current);
         hlAntsIntervalRef.current = null;
       }
     };
-  }, [stitchView, focusColour, highlightMode]);
+    let reduced = false;
+    try {
+      reduced = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    } catch (_) {}
+    if (!needAnts || reduced) {
+      stop();
+      return;
+    }
+    const start = () => {
+      if (hlAntsIntervalRef.current) return;
+      hlAntsIntervalRef.current = setInterval(() => setAntsOffset(p => (p + 1) % 20), 100);
+    };
+    const onVis = () => {
+      if (document.visibilityState === "visible") start();else stop();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    if (document.visibilityState === "visible") start();
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      stop();
+    };
+  }, [stitchView, focusColour, highlightMode, setAntsOffset]);
   const updateHoverOverlay = gc => {
     if (gc && gc.gx >= 0 && gc.gx < sW && gc.gy >= 0 && gc.gy < sH) {
       if (hoverRefs.current.row) {
@@ -7884,7 +7943,10 @@ function TrackerApp({
   // Throttle React zoom state to one update per animation frame.
   // stitchZoomRef.current is updated immediately so scroll maths stays accurate.
   function scheduleZoomUpdate(newZoom) {
-    stitchZoomRef.current = newZoom;
+    // Clamp here as well as in setStitchZoom: the wheel/pinch handlers read
+    // stitchZoomRef back as `oldZoom` to compute their scroll-preserving scale
+    // factor, so the ref must not drift above the device's canvas ceiling.
+    stitchZoomRef.current = Math.min(newZoom, maxZoom);
     if (!zoomRafRef.current) {
       zoomRafRef.current = requestAnimationFrame(() => {
         setStitchZoom(stitchZoomRef.current);
@@ -7906,7 +7968,12 @@ function TrackerApp({
     const normDy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
     const delta = -normDy * 0.005;
     const oldZoom = stitchZoomRef.current;
-    const newZoom = Math.max(0.3, Math.min(4, oldZoom + delta));
+    // maxZoom (not the bare 4) so `scale` below matches the zoom that is
+    // actually applied — see the matching clamp in the pinch handler.
+    // maxZoom is applied last: on a pattern so large that maxZoom falls under
+    // the 0.3 floor, the ceiling still has to win or the ref and the scale
+    // factor would disagree.
+    const newZoom = Math.min(maxZoom, Math.max(0.3, oldZoom + delta));
     const scale = newZoom / oldZoom;
     scheduleZoomUpdate(newZoom);
     requestAnimationFrame(() => {
@@ -7990,7 +8057,11 @@ function TrackerApp({
       if (ts.pinchDist > 0) {
         const scale = newDist / ts.pinchDist;
         const oldZoom = stitchZoomRef.current;
-        const newZoom = Math.max(0.3, Math.min(4, oldZoom * scale));
+        // maxZoom (not the bare 4) so zRatio below matches the zoom that is
+        // actually applied — otherwise the scroll jumps when the pinch is
+        // clamped at the device's canvas ceiling. Ceiling applied last, as in
+        // handleStitchWheel.
+        const newZoom = Math.min(maxZoom, Math.max(0.3, oldZoom * scale));
         const container = stitchScrollRef.current;
         if (container && ts.pinchAnchorCanvas) {
           const zRatio = newZoom / oldZoom;
