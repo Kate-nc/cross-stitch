@@ -53,7 +53,7 @@ test('B3: the File menu button can actually be scrolled to and opened', async ({
   await setup(page);
   await page.goto('/create.html?from=home', { waitUntil: 'load', timeout: 120000 });
   await page.waitForTimeout(2500);
-  const fileBtn = page.locator('.tb-topbar-inner .tb-page-btn').last();
+  const fileBtn = page.getByRole('button', { name: /^File/ });
   await expect(fileBtn).toBeVisible();
   await fileBtn.scrollIntoViewIfNeeded();
   const box = await fileBtn.boundingBox();
