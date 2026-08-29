@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v53';
+var CACHE_NAME = 'cross-stitch-cache-v54';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -52,8 +52,6 @@ var PRECACHE_URLS = [
   './creator/import-wizard-bundle.js',
   './import-engine/lazy-shim.js',
   './import-engine/bundle.js',
-  './compiled/tracker-app.compiled.js',
-  './compiled/creator-main.compiled.js',
   './compiled/manager-app.compiled.js',
   './compiled/embroidery.compiled.js',
   './creator-main.js',
@@ -76,7 +74,6 @@ var PRECACHE_URLS = [
   // afterwards without bloating the initial SW install.
   './backup-restore.js',
   './sync-engine.js',
-  './pdf-export-worker.js',
   './assets/fonts/CrossStitchSymbols.base64.js',
   './assets/fonts/CrossStitchSymbols.ttf',
 
@@ -84,7 +81,6 @@ var PRECACHE_URLS = [
   'https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
 ];
 

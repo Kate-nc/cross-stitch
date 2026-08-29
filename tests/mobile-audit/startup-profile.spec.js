@@ -4,6 +4,7 @@
    diagnostic; the assertions at the bottom guard the two facts the numbers
    depend on. Run it before and after a change to compare. */
 const { test, expect } = require('@playwright/test');
+test.use({ serviceWorkers: 'block' });
 
 const PAGES = ['/home.html?from=home', '/manager.html?from=home', '/create.html?from=home'];
 
