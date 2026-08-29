@@ -108,9 +108,9 @@ describe('maxChartCellSize — device canvas budget', () => {
     expect((200 * scs + PAD) * (250 * scs + PAD)).toBeLessThanOrEqual(16777216);
   });
 
-  test('never returns below the scs floor, even for an absurd pattern', () => {
+  test('returns 0 when a pattern cannot fit at the minimum usable cell size', () => {
     const win = loadWith({ deviceMemory: undefined, maxSide: 4096, coarse: true });
-    expect(win.maxChartCellSize(5000, 5000)).toBe(2);
+    expect(win.maxChartCellSize(5000, 5000)).toBe(0);
   });
 
   test('unknown pattern size returns the uncapped ceiling', () => {
@@ -151,6 +151,10 @@ describe('the cap is actually wired into the tracker', () => {
   test('scheduleZoomUpdate clamps the ref the scroll maths reads back', () => {
     expect(trackerSrc).toMatch(/stitchZoomRef\.current=Math\.min\(newZoom,maxZoom\)/);
   });
+
+  test('tracker rejects projects that cannot fit at the minimum cell size', () => {
+    expect(trackerSrc).toMatch(/maxChartCellSize\(nextW,nextH\)<2/);
+  });
 });
 
 describe('animation loops release the main thread', () => {
@@ -158,13 +162,19 @@ describe('animation loops release the main thread', () => {
     // The early return must precede `const draw`, otherwise the loop is
     // scheduled anyway and only its body no-ops (the original bug).
     const guard = trackerSrc.indexOf('if(!recommendations||!recommendations.top||!recommendations.top.length||!recEnabled||!analysisResult){');
-    const drawDecl = trackerSrc.indexOf('const draw=()=>{', guard - 400);
+    const drawDecl = trackerSrc.indexOf('const draw=', guard - 500);
     expect(guard).toBeGreaterThan(-1);
     expect(drawDecl).toBeGreaterThan(guard);
   });
 
   test('the recommendation pulse suspends while the tab is hidden', () => {
     expect(trackerSrc).toMatch(/document\.addEventListener\("visibilitychange",onVis\)/);
+  });
+
+  test('the recommendation pulse respects reduced motion', () => {
+    const block = trackerSrc.slice(trackerSrc.indexOf('const recPulseRef'), trackerSrc.indexOf('// ═══ Focus area three-zone dimming overlay ═══'));
+    expect(block).toMatch(/prefers-reduced-motion: reduce/);
+    expect(block).toMatch(/if\(prefersReducedMotion\)\{draw\(true\);return;\}/);
   });
 
   test('the marching-ants timer respects reduced motion and tab visibility', () => {

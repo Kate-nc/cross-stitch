@@ -174,6 +174,9 @@ button{font-family:inherit; transition: var(--transition-ui);}
    the press feedback. */
 @media (hover: hover) and (pointer: fine) {
   button:hover { filter: brightness(0.97); }
+  .tb-page-btn:hover{filter:none;background:var(--surface-tertiary);}
+  .home-btn--primary:hover { background: var(--accent-hover); }
+  .home-btn--secondary:hover { background: var(--surface-secondary); }
 }
 button:active { filter: brightness(0.94); }
 select{font-family:inherit}
@@ -495,7 +498,6 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .tb-logo .tb-logo-dot{color:var(--accent);transition:color var(--motion-fast);}
 .tb-logo:hover .tb-logo-dot{color:var(--accent-hover);}
 .tb-page-btn{display:flex;align-items:center;gap:4px;padding:4px 10px;font-size:12px;font-weight:500;border:0.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text-primary);cursor:pointer;white-space:nowrap;flex-shrink:0;position:relative;font-family:inherit;}
-.tb-page-btn:hover{filter:none;background:var(--surface-tertiary);}
 .tb-page-dropdown{position:absolute;top:calc(100% + 4px);left:0;min-width:160px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-md);z-index:201;padding:4px 0;}
 .tb-page-dropdown-item{display:block;width:100%;padding:7px 14px;font-size:12px;font-weight:400;text-align:left;background:transparent;border:none;cursor:pointer;color:var(--text-primary);font-family:inherit;}
 .tb-page-dropdown-item:hover{filter:none;background:var(--surface-tertiary);}
@@ -942,13 +944,11 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   color: var(--surface);
   border: none;
 }
-.home-btn--primary:hover { background: var(--accent-hover); }
 .home-btn--secondary {
   background: var(--surface);
   color: var(--text-primary);
   border: 1px solid var(--border);
 }
-.home-btn--secondary:hover { background: var(--surface-secondary); }
 
 /* Start New + Recent panels */
 .home-panels {

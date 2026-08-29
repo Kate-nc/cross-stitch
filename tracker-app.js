@@ -2869,8 +2869,17 @@ function processLoadedProject(project){
   // later render-time failure can't cause the next auto-save to mint a copy.
   projectIdRef.current = project.id || null;
   let s=project.settings||{};
-  setSW(project.w||s.sW||project.settings?.w||80);
-  setSH(project.h||s.sH||project.settings?.h||80);
+  const nextW=project.w||s.sW||project.settings?.w||80;
+  const nextH=project.h||s.sH||project.settings?.h||80;
+  // If this device cannot fit the chart at the minimum usable stitch-cell size,
+  // reject the load before any canvas sizing runs.
+  if(typeof window.maxChartCellSize==="function"&&window.maxChartCellSize(nextW,nextH)<2){
+    setLoadError(`Pattern (${nextW}×${nextH}) is too large to display on this device in Stitch Tracker. Open it in the Creator to reduce stitch count.`);
+    setTimeout(()=>setLoadError(null),5000);
+    return;
+  }
+  setSW(nextW);
+  setSH(nextH);
   setBsLines(project.bsLines||project.bs||[]);
   if(s.fabricCt)setFabricCt(s.fabricCt);
   else if(project.fc)setFabricCt(project.fc);
@@ -4122,7 +4131,8 @@ useEffect(()=>{
     if(canvas.width>0)ctx.clearRect(0,0,canvas.width,canvas.height);
     return;
   }
-  const draw=()=>{
+  const prefersReducedMotion=!!(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const draw=(staticOnly=false)=>{
     const W=analysisResult.sW,H=analysisResult.sH;
     const RS=analysisResult.regionSize||10;
     const needW=W*scs+G+2,needH=H*scs+G+2;
@@ -4131,8 +4141,8 @@ useEffect(()=>{
     ctx.clearRect(0,0,canvas.width,canvas.height);
     const RC=analysisResult.regionCols||1;
     // phase cycles 0→1→0 at 2s period
-    recPulsePhaseRef.current=(recPulsePhaseRef.current+0.016)%(Math.PI*2);
-    const pulseAlpha=0.3+0.4*((Math.sin(recPulsePhaseRef.current)+1)/2);
+    if(!staticOnly)recPulsePhaseRef.current=(recPulsePhaseRef.current+0.016)%(Math.PI*2);
+    const pulseAlpha=staticOnly?0.7:(0.3+0.4*((Math.sin(recPulsePhaseRef.current)+1)/2));
     recommendations.top.forEach((rec,rank)=>{
       const rCol=rec.idx%RC,rRow=Math.floor(rec.idx/RC);
       const x=G+rCol*RS*scs,y=G+rRow*RS*scs;
@@ -4142,6 +4152,7 @@ useEffect(()=>{
       ctx.strokeRect(x+1,y+1,w-2,h-2);
     });
   };
+  if(prefersReducedMotion){draw(true);return;}
   // Also suspend while the tab is hidden — rAF is already throttled when
   // backgrounded, but this releases the callback entirely so a phone that
   // keeps the page alive in the background does no work at all.

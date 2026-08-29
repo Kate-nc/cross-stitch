@@ -80,8 +80,9 @@
   }
 
   /* Largest `scs` for which both chart dimensions and the total pixel count
-     stay inside the device limits. Returns the uncapped maximum when the
-     pattern size is not known yet. */
+     stay inside the device limits. Returns 0 when the pattern cannot fit at
+     the minimum usable cell size, and the uncapped maximum when dimensions
+     are not known yet. */
   function maxCellSize(sW, sH) {
     var ceiling = SCS_PER_ZOOM * ZOOM_MAX;
     if (!sW || !sH) return ceiling;
@@ -93,8 +94,8 @@
       Math.floor(Math.sqrt(lim.area / (sW * sH)))
     );
     // sqrt() ignores the gutter, so step down until the exact area fits.
-    while (scs > SCS_MIN && (sW * scs + pad) * (sH * scs + pad) > lim.area) scs--;
-    return Math.max(SCS_MIN, Math.min(ceiling, scs));
+    while (scs > 0 && (sW * scs + pad) * (sH * scs + pad) > lim.area) scs--;
+    return Math.max(0, Math.min(ceiling, scs));
   }
 
   /* Exposed for tests and for the canvas-budget regression guard. Also lets a
