@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.57';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.58',
+    date: 'August 2026',
+    notes: [
+      'Dragging around a large chart in the Stitch Tracker is dramatically smoother. The chart was being redrawn from scratch on every frame of a drag, and a highlight overlay was wiping and repainting itself across the whole pattern sixty times a second, even while you were just moving around.',
+      'More of the Stitch Tracker\'s panel controls are big enough to tap: the highlight style buttons, the palette chip, the panel close button and the tick boxes.',
+    ]
+  },
+  {
     version: '1.0.57',
     date: 'August 2026',
     notes: [

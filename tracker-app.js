@@ -7,6 +7,13 @@ const useScope     = (typeof window!=='undefined' && window.useScope)     || (fu
 // deepClone: prefer structuredClone (faster) with JSON fallback for older browsers.
 const deepClone=typeof structuredClone==='function'?structuredClone:(x)=>JSON.parse(JSON.stringify(x));
 
+// How far beyond the visible viewport drawStitch paints, in canvas px. The
+// chart is only ever painted for the visible slice plus this margin, so the
+// margin is also how far the user can scroll before a repaint is needed —
+// renderStitch and the scroll handler both derive their answer from here so
+// the two cannot drift apart.
+function chartOverdraw(cSz){return Math.max(40,20*cSz);}
+
 // Hoisted module-scope constants (avoid per-render allocation).
 const START_CORNERS=[["TL","Top-left"],["TR","Top-right"],["C","Centre"],["BL","Bottom-left"],["BR","Bottom-right"]];
 const DEFAULT_PDF_SETTINGS={chartStyle:'symbols',cellSize:3,paper:'a4',orientation:'portrait',gridInterval:10,gridNumbers:true,centerMarks:true,legendLocation:'separate',legendColumns:2,coverPage:true,progressOverlay:false,separateBackstitch:false};
@@ -827,6 +834,10 @@ const resumeRecapShownRef=useRef(new Set());
 const dragStateRef=useRef({isDragging:false, dragVal:1});
 const dragChangesRef=useRef([]);
 const scrollRafRef=useRef(null);
+// Canvas-space region currently painted on the chart, plus the cell size it
+// was painted at. Set by renderStitch, read by renderStitchIfScrolledOut to
+// skip repaints while the viewport is still inside it.
+const paintedRectRef=useRef(null);
 const lastClickedRef=useRef(null); // { idx, row, col, val } for shift+click range
 // C3: range-select state lives inside useDragMark (long-press anchor + shift+click).
 
@@ -3825,7 +3836,7 @@ function drawStitch(ctx,cSz,viewportRect){
   ctx.fillRect(0,0,gut+dW*cSz+2,gut+dH*cSz+2);
 
   // Viewport culling: 20-cell overdraw buffer for smooth panning
-  const OVERDRAW=Math.max(40,20*cSz);
+  const OVERDRAW=chartOverdraw(cSz);
   let startX=0,startY=0,endX=dW,endY=dH;
   if(viewportRect){
     startX=Math.max(0,Math.floor((viewportRect.left-gut-OVERDRAW)/cSz));
@@ -4033,7 +4044,41 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
     };
   }
   drawStitch(canvas.getContext("2d"),scs,viewportRect);
+  // Record what is now on the canvas so the scroll handler can tell whether a
+  // repaint is actually needed. drawStitch clears the whole canvas and then
+  // paints only viewportRect grown by the overdraw margin, so that grown rect
+  // is exactly the valid region. Null viewportRect means the whole chart was
+  // drawn and any scroll position is already covered.
+  if(viewportRect){
+    const od=chartOverdraw(scs);
+    paintedRectRef.current={
+      left:viewportRect.left-od, top:viewportRect.top-od,
+      right:viewportRect.right+od, bottom:viewportRect.bottom+od,
+      scs:scs
+    };
+  }else{
+    paintedRectRef.current={left:-Infinity,top:-Infinity,right:Infinity,bottom:Infinity,scs:scs};
+  }
 },[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,parkLayers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,antsOffset,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,rowModeActive,currentRow,trackerFabricColour,trackerCanvasTexture]);
+
+// Scroll-driven repaint. Previously every scroll frame ran a full
+// renderStitch, which repainted the visible slice plus a 20-cell margin from
+// scratch — measured at ~3,500 fillRect calls per touchmove and 51-127 s of
+// blocking across 8 pan gestures at 4x CPU throttle. The margin already
+// covers small movements, so while the viewport is still inside the painted
+// region there is nothing to do and the browser can scroll the existing
+// bitmap on its own. Anything that changes what the chart *looks* like goes
+// through renderStitch (see its dependency array), which repaints and resets
+// the region, so this cannot serve stale pixels.
+const renderStitchIfScrolledOut=useCallback(()=>{
+  const painted=paintedRectRef.current, el=stitchScrollRef.current;
+  if(painted&&el&&painted.scs===scs){
+    const l=el.scrollLeft, t=el.scrollTop;
+    const r=l+el.clientWidth, b=t+el.clientHeight;
+    if(l>=painted.left&&t>=painted.top&&r<=painted.right&&b<=painted.bottom)return;
+  }
+  renderStitch();
+},[renderStitch,scs]);
 // PERF: single/bulk stitch toggles already paint their own changed cells directly
 // via drawCellDirectly() (see markColourDone / _commitBulk / _dragMarkOnToggle /
 // undoTrack / redoTrack) for instant feedback. Those call sites set
@@ -4118,6 +4163,9 @@ useEffect(()=>{
 const recPulseRef=useRef(null);
 const recPulsePhaseRef=useRef(0);
 const recOverlayCanvasRef=useRef(null);
+// Rectangles stroked on the last pulse frame, so the next frame can clear
+// just those instead of the whole (chart-sized) overlay canvas.
+const recPulseBoxesRef=useRef(null);
 useEffect(()=>{
   const canvas=recOverlayCanvasRef.current;
   if(!canvas)return;
@@ -4136,21 +4184,41 @@ useEffect(()=>{
     const W=analysisResult.sW,H=analysisResult.sH;
     const RS=analysisResult.regionSize||10;
     const needW=W*scs+G+2,needH=H*scs+G+2;
-    if(canvas.width!==needW||canvas.height!==needH){canvas.width=needW;canvas.height=needH;}
+    const resized=canvas.width!==needW||canvas.height!==needH;
+    if(resized){canvas.width=needW;canvas.height=needH;}
     const ctx=canvas.getContext("2d");
-    ctx.clearRect(0,0,canvas.width,canvas.height);
     const RC=analysisResult.regionCols||1;
+    // The rectangles this frame will stroke. Computed before drawing so the
+    // clear can be limited to them.
+    const boxes=recommendations.top.map((rec,rank)=>{
+      const rCol=rec.idx%RC,rRow=Math.floor(rec.idx/RC);
+      return {
+        x:G+rCol*RS*scs, y:G+rRow*RS*scs,
+        w:Math.min(RS,W-rCol*RS)*scs, h:Math.min(RS,H-rRow*RS)*scs,
+        lw:rank===0?3:2, rank:rank
+      };
+    });
+    // Clear only what was drawn last frame, not the whole canvas. This overlay
+    // is the size of the entire chart — 4030x5030 on a 200x250 pattern — and
+    // this runs every animation frame, so a full clear was wiping 20 Mpx at
+    // 60fps: measured at 4.2 BILLION pixels cleared across 8 pan gestures, and
+    // it was the dominant cost of panning a large chart once the redraw itself
+    // was fixed. The boxes are stable between frames, so clearing them is
+    // equivalent to clearing everything. A resize already blanks the canvas.
+    if(!resized){
+      const prev=recPulseBoxesRef.current;
+      if(prev){for(const b of prev){const p=b.lw+2;ctx.clearRect(b.x-p,b.y-p,b.w+p*2,b.h+p*2);}}
+      else ctx.clearRect(0,0,canvas.width,canvas.height);
+    }
+    recPulseBoxesRef.current=boxes;
     // phase cycles 0→1→0 at 2s period
     if(!staticOnly)recPulsePhaseRef.current=(recPulsePhaseRef.current+0.016)%(Math.PI*2);
     const pulseAlpha=staticOnly?0.7:(0.3+0.4*((Math.sin(recPulsePhaseRef.current)+1)/2));
-    recommendations.top.forEach((rec,rank)=>{
-      const rCol=rec.idx%RC,rRow=Math.floor(rec.idx/RC);
-      const x=G+rCol*RS*scs,y=G+rRow*RS*scs;
-      const w=Math.min(RS,W-rCol*RS)*scs,h=Math.min(RS,H-rRow*RS)*scs;
-      if(rank===0){ctx.strokeStyle=`rgba(184, 92, 56,${pulseAlpha})`;ctx.lineWidth=3;}
+    for(const b of boxes){
+      if(b.rank===0){ctx.strokeStyle=`rgba(184, 92, 56,${pulseAlpha})`;ctx.lineWidth=3;}
       else{ctx.strokeStyle="rgba(184, 92, 56,0.2)";ctx.lineWidth=2;}
-      ctx.strokeRect(x+1,y+1,w-2,h-2);
-    });
+      ctx.strokeRect(b.x+1,b.y+1,b.w-2,b.h-2);
+    }
   };
   if(prefersReducedMotion){draw(true);return;}
   // Also suspend while the tab is hidden — rAF is already throttled when
@@ -5997,7 +6065,7 @@ return(
       return null;
     })()}
 
-    <div ref={stitchScrollRef} onScroll={()=>{if(!scrollRafRef.current){scrollRafRef.current=requestAnimationFrame(()=>{renderStitch();scrollRafRef.current=null;})}}} style={{overflow:"auto",maxHeight:drawer?340:600,border:"0.5px solid var(--border)",borderRadius:"8px 8px 0 0",background:"var(--surface-tertiary)",cursor:isPanning?"grabbing":isSpaceDownRef.current?"grab":(!isEditMode&&stitchMode==="track"?(isShiftDown&&_dragMarkActive?"cell":"crosshair"):"default"),transition:"max-height 0.3s",position:"relative"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}>
+    <div ref={stitchScrollRef} onScroll={()=>{if(!scrollRafRef.current){scrollRafRef.current=requestAnimationFrame(()=>{renderStitchIfScrolledOut();scrollRafRef.current=null;})}}} style={{overflow:"auto",maxHeight:drawer?340:600,border:"0.5px solid var(--border)",borderRadius:"8px 8px 0 0",background:"var(--surface-tertiary)",cursor:isPanning?"grabbing":isSpaceDownRef.current?"grab":(!isEditMode&&stitchMode==="track"?(isShiftDown&&_dragMarkActive?"cell":"crosshair"):"default"),transition:"max-height 0.3s",position:"relative"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}>
       <div style={{ position: 'sticky', top: 0, zIndex: 3, display: 'flex', width: 'max-content', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ width: G, height: G, flexShrink: 0, position: 'sticky', left: 0, background: 'var(--surface)', borderRight: '1px solid var(--border)', zIndex: 4 }}></div>
         {Array.from({length: sW}, (_, x) => {
@@ -6176,7 +6244,7 @@ return(
             <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Highlight style</div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {[["isolate","Isolate"],["outline","Outline"],["tint","Tint"],["spotlight","Spotlight"]].map(([v,l])=>
-                <button key={v}
+                <button key={v} className="ppal-hl-mode-btn"
                   style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(highlightMode===v&&stitchView==="highlight"?"var(--accent)":"var(--border)"),background:highlightMode===v&&stitchView==="highlight"?"var(--accent)":"var(--surface)",color:highlightMode===v&&stitchView==="highlight"?"var(--accent-ink)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:highlightMode===v&&stitchView==="highlight"?600:400}}
                   onClick={()=>{setStitchView("highlight");setHighlightMode(v);}} aria-pressed={highlightMode===v&&stitchView==="highlight"}
                 >{l}</button>
@@ -6184,11 +6252,11 @@ return(
             </div>
           </div>
           <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
-            <input type="checkbox" checked={countingAidsEnabled} onChange={e=>setCountingAidsEnabled(e.target.checked)} style={{width:16,height:16,cursor:"pointer"}}/>
+            <input type="checkbox" checked={countingAidsEnabled} onChange={e=>setCountingAidsEnabled(e.target.checked)} className="ppal-check"/>
             <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Counting aids</span>
           </label>
           <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
-            <input type="checkbox" checked={!!highlightSkipDone} onChange={e=>setHighlightSkipDone(e.target.checked)} style={{width:16,height:16,cursor:"pointer"}}/>
+            <input type="checkbox" checked={!!highlightSkipDone} onChange={e=>setHighlightSkipDone(e.target.checked)} className="ppal-check"/>
             <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Skip done stitches</span>
           </label>
           {focusColour&&<button onClick={()=>setFocusColour(null)} style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",alignSelf:"flex-start"}}>Clear focus</button>}
@@ -6217,7 +6285,7 @@ return(
             </div>
           </div>
           <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
-            <input type="checkbox" checked={!!lockDetailLevel} onChange={e=>setLockDetailLevel(e.target.checked)} style={{width:16,height:16,cursor:"pointer"}}/>
+            <input type="checkbox" checked={!!lockDetailLevel} onChange={e=>setLockDetailLevel(e.target.checked)} className="ppal-check"/>
             <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Lock detail level</span>
           </label>
         </div>}
@@ -6296,13 +6364,13 @@ return(
         {leftSidebarTab==="layers"&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
           {STITCH_LAYERS.map(layer=>
             <label key={layer.id} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
-              <input type="checkbox" checked={layerVis[layer.id]!==false} onChange={e=>setLayerVis(v=>({...v,[layer.id]:e.target.checked}))} style={{width:16,height:16,cursor:"pointer"}}/>
+              <input type="checkbox" checked={layerVis[layer.id]!==false} onChange={e=>setLayerVis(v=>({...v,[layer.id]:e.target.checked}))} className="ppal-check"/>
               <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>{layer.label}</span>
             </label>
           )}
           <hr style={{border:"none",borderTop:"1px solid var(--border)",margin:"4px 0"}}/>
           <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
-            <input type="checkbox" checked={rowModeActive} onChange={e=>{setRowModeActive(e.target.checked);setCurrentRow(0);}} style={{width:16,height:16,cursor:"pointer"}}/>
+            <input type="checkbox" checked={rowModeActive} onChange={e=>{setRowModeActive(e.target.checked);setCurrentRow(0);}} className="ppal-check"/>
             <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Row mode</span>
           </label>
           {pal&&pal.some(p=>parkCountsByColour[p.id])&&<>
@@ -6310,7 +6378,7 @@ return(
             <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Park markers</div>
             {pal.filter(p=>parkCountsByColour[p.id]).map(p=>
               <label key={p.id} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
-                <input type="checkbox" checked={parkLayers[p.id]!==false} onChange={()=>toggleParkLayer(p.id)} style={{width:16,height:16,cursor:"pointer"}}/>
+                <input type="checkbox" checked={parkLayers[p.id]!==false} onChange={()=>toggleParkLayer(p.id)} className="ppal-check"/>
                 <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>{p.id} ({parkCountsByColour[p.id]})</span>
               </label>
             )}
@@ -6340,7 +6408,7 @@ return(
                 setFocusEnabled(on);
                 try{localStorage.setItem("cs_focusEnabled",on?"1":"0");}catch(_){}
                 if(on&&!focusBlock)setFocusBlock(_getStartBlock());
-              }} style={{width:16,height:16,cursor:"pointer"}}/>
+              }} className="ppal-check"/>
             </label>
             {focusEnabled&&focusBlock&&<div style={{display:"flex",gap:12}}>
               <button onClick={()=>setFocusBlock(_getStartBlock())} style={{fontSize:'var(--text-xs)',padding:0,background:"none",border:"none",color:"var(--accent)",cursor:"pointer",fontFamily:"inherit"}}>Restart sections</button>
@@ -6380,7 +6448,7 @@ return(
                 }
                 setWastePrefs(function(prev){return Object.assign({},prev,{enabled:true});});
               }
-            }} style={{width:16,height:16,cursor:"pointer"}}/>
+            }} className="ppal-check"/>
           </label>
         </div>}
 
