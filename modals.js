@@ -1544,7 +1544,7 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
 
     var totalSteps = skipWatchStep ? 2 : 3;
     var stepperLabel = step === 1 ? 'Step 1 of ' + totalSteps + ' \u00b7 Choose file'
-      : step === 2 ? 'Step 2 of 3 \u00b7 Watch folder?'
+      : step === 2 ? 'Step 2 of ' + totalSteps + ' \u00b7 Watch folder?'
       : 'Step ' + totalSteps + ' of ' + totalSteps + ' \u00b7 Confirm';
 
     return h(window.Overlay, {
