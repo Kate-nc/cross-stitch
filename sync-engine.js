@@ -883,8 +883,9 @@ const SyncEngine = (() => {
       // via a Toast action instead of silently downloading behind the user's back.
       if (result && result.activationExpired) {
         var _ts = syncObj._createdAt;
-        if (typeof window !== "undefined" && window.Toast && window.Toast.show) {
-          window.Toast.show({
+        var _toast = (typeof window !== "undefined" && window.Toast && window.Toast.show) ? window.Toast : null;
+        if (_toast) {
+          _toast.show({
             message: "Sync file ready — tap Share to send it.",
             type: "info",
             duration: 30000,
@@ -896,11 +897,23 @@ const SyncEngine = (() => {
                 .catch(function () {});
             }
           });
+          // Do not advance the export timestamp; _markExportComplete runs in
+          // the Toast action when the user actually shares.
+          syncObj._delivery = "activationExpired";
+          return syncObj;
         }
-        // Do not advance the export timestamp; _markExportComplete runs in the
-        // Toast action when the user actually shares.
-        syncObj._delivery = "activationExpired";
-        return syncObj;
+        // No Toast on this page, so there is nothing to offer the retry from.
+        // Downloading unprompted is not ideal, but losing the export silently
+        // — no file, no message — is worse. Fall through to the download.
+        var expUrl = URL.createObjectURL(blob);
+        var expA = document.createElement("a");
+        expA.href = expUrl;
+        expA.download = filename;
+        document.body.appendChild(expA);
+        expA.click();
+        document.body.removeChild(expA);
+        setTimeout(function () { URL.revokeObjectURL(expUrl); }, 5000);
+        result = { shared: false };
       }
     } else {
       var url = URL.createObjectURL(blob);

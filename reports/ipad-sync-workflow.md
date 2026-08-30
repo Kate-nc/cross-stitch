@@ -202,6 +202,25 @@ does not. A test asserts no surface states that advice on its own again.
 wizard to the end, and was confirmed to fail against the pre-fix code before
 being kept.
 
+### Transient activation — caught in review, not by me
+
+`navigator.share()` requires a *current* transient user activation, but
+`downloadSync` awaits `exportSync()` first, which does async IndexedDB reads
+and possibly PBKDF2 encryption. On a large or encrypted library that can outlast
+the activation window, and the share then fails with `NotAllowedError`. The
+original code treated that as a generic failure and silently downloaded.
+
+`shareOrDownload` now reports it distinctly as `activationExpired`, and
+`downloadSync` offers a Toast action so the user can share from a *fresh* tap.
+That works because `toast.js` invokes the action handler synchronously inside
+the click listener, so the new activation is still live when `navigator.share()`
+runs — verified in [toast.js](../toast.js) rather than assumed.
+
+One gap in that fix was closed here: if a page has no Toast, the original had
+nothing to offer the retry from and the export vanished — no file, no message.
+It now falls through to a download. Downloading unprompted is not ideal; losing
+the export silently is worse.
+
 ### What the tests actually pin down
 
 The eviction tests are genuine regression guards, not restatements: under the
