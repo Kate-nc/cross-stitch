@@ -4,7 +4,7 @@
 // PR merge to main. Do not edit APP_VERSION manually.
 // APP_CHANGELOG is maintained manually alongside each release.
 // ════════════════════════════════════════════════════════════════════
-window.APP_VERSION = '1.0.58';
+window.APP_VERSION = '1.0.59';
 
 window.APP_CHANGELOG = [
   {
