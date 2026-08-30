@@ -58,7 +58,10 @@ describe('INT-7: every HTML entry loads cross-tab-coord.js before project-storag
 describe('INT-7: service worker precaches the new module', () => {
   test('sw.js includes cross-tab-coord.js in PRECACHE_URLS and bumps cache version', () => {
     expect(sw).toMatch(/'\.\/cross-tab-coord\.js'/);
-    expect(sw).toMatch(/CACHE_NAME\s*=\s*'cross-stitch-cache-v54'/);
+    // Floor, not an exact pin — see the note in tests/swPrecache.test.js.
+    const match = sw.match(/CACHE_NAME\s*=\s*'cross-stitch-cache-v(\d+)'/);
+    expect(match).not.toBeNull();
+    expect(Number(match[1])).toBeGreaterThanOrEqual(46);
   });
 });
 

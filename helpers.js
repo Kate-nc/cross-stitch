@@ -241,6 +241,133 @@ function calcDifficulty(palLen,blendCount,totalSt,opts){
 const DB_NAME = "CrossStitchDB";
 const STORE_NAME = "projects";
 
+// ── Platform capabilities ───────────────────────────────────────────────────
+// Every browser on iOS/iPadOS is WebKit underneath: Chrome, Edge and Firefox
+// there are Safari wearing a different badge, and they inherit Safari's limits
+// exactly — no File System Access API, UTI-based `accept` handling, and the
+// 7-day eviction of script-writable storage. Detection therefore has to key on
+// the *platform*, never on the browser name in the UA string.
+var Platform = (function () {
+  // Extensions iOS resolves to a system UTI. The Files picker filters by UTI,
+  // so an extension outside this list resolves to nothing and every file in
+  // the picker is greyed out — see fileAccept below.
+  var IOS_KNOWN_EXTENSIONS = [
+    '.json', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp',
+    '.txt', '.csv', '.zip', '.xml', '.html', '.svg'
+  ];
+
+  function _ua() {
+    return (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+  }
+
+  // True on iPhone, iPod and every iPad regardless of which browser is running.
+  function isIOS() {
+    try {
+      var ua = _ua();
+      if (/iPad|iPhone|iPod/.test(ua)) return true;
+      // iPadOS 13+ requests desktop sites by default, so an iPad reports a
+      // Macintosh UA. A real Mac reports maxTouchPoints 0, an iPad reports 5.
+      return /Macintosh/.test(ua)
+        && typeof navigator.maxTouchPoints === 'number'
+        && navigator.maxTouchPoints > 1;
+    } catch (_) { return false; }
+  }
+
+  // True for any WebKit-engine browser: all of iOS, plus desktop Safari.
+  // This — not a /Safari/ UA test — is the correct gate for "has Safari's
+  // storage and filesystem limits".
+  function isWebKit() {
+    try {
+      if (isIOS()) return true;
+      var ua = _ua();
+      return /Safari/.test(ua) && !/Chrome|Chromium|CriOS|FxiOS|EdgA|Edg\//.test(ua);
+    } catch (_) { return false; }
+  }
+
+  // Installed to the home screen / dock. iOS grants durable storage to
+  // standalone web apps, which is the only reliable way to escape eviction.
+  function isStandalone() {
+    try {
+      if (navigator.standalone === true) return true;
+      return typeof matchMedia === 'function'
+        && matchMedia('(display-mode: standalone)').matches;
+    } catch (_) { return false; }
+  }
+
+  // The File System Access API — folder-watch sync depends on it entirely.
+  // WebKit has never shipped it, so this is false on all of iOS.
+  function hasFolderSync() {
+    return typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function';
+  }
+
+  // Sanitise an <input type="file"> accept spec for the current platform.
+  // Returns undefined (i.e. "omit the attribute") when the spec names an
+  // extension iOS cannot resolve to a UTI, because a filter matching nothing
+  // is strictly worse than no filter: the user cannot pick any file at all.
+  // MIME specs such as "image/*" are always preserved — those work on iOS and
+  // give the nicer photo-library picker.
+  function fileAccept(spec) {
+    if (!spec || !isIOS()) return spec;
+    var tokens = String(spec).split(',');
+    for (var i = 0; i < tokens.length; i++) {
+      var t = tokens[i].trim().toLowerCase();
+      if (!t) continue;
+      if (t.indexOf('/') !== -1) continue;               // MIME type — fine
+      if (IOS_KNOWN_EXTENSIONS.indexOf(t) !== -1) continue; // known UTI — fine
+      return undefined;                                   // unknown — drop it
+    }
+    return spec;
+  }
+
+  // Hand a file to the OS share sheet when that is available, otherwise fall
+  // back to a download. On iPad the share sheet is the difference between
+  // "save straight into OneDrive" and "find it in Downloads and move it".
+  // Mirrors creator/ExportTab.js shareOrDownload.
+  function shareOrDownload(blob, filename, type) {
+    var url = URL.createObjectURL(blob);
+    function cleanup() { setTimeout(function () { URL.revokeObjectURL(url); }, 5000); }
+    function download() {
+      var a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      cleanup();
+    }
+    try {
+      if (typeof navigator !== 'undefined' && navigator.canShare && navigator.share
+          && typeof File === 'function') {
+        var file = new File([blob], filename, { type: type || 'application/octet-stream' });
+        if (navigator.canShare({ files: [file] })) {
+          return navigator.share({ files: [file], title: filename })
+            .then(function () { cleanup(); return { shared: true }; })
+            .catch(function (err) {
+              // AbortError means the user dismissed the sheet deliberately —
+              // silently downloading behind their back would be wrong.
+              if (err && err.name === 'AbortError') { cleanup(); return { shared: false, cancelled: true }; }
+              // NotAllowedError means the transient user activation expired before
+              // navigator.share() ran. Signal this distinctly so callers can offer
+              // a fresh share gesture rather than silently falling back to a download.
+              if (err && err.name === 'NotAllowedError') { cleanup(); return { shared: false, activationExpired: true }; }
+              download();
+              return { shared: false };
+            });
+        }
+      }
+    } catch (_) { /* fall through to download */ }
+    download();
+    return Promise.resolve({ shared: false });
+  }
+
+  return {
+    isIOS: isIOS,
+    isWebKit: isWebKit,
+    isStandalone: isStandalone,
+    hasFolderSync: hasFolderSync,
+    fileAccept: fileAccept,
+    shareOrDownload: shareOrDownload
+  };
+})();
+if (typeof window !== 'undefined') window.Platform = Platform;
+
 // Session-level flags so navigator.storage.persist() is only requested once
 // per page load. Multiple callers (getDB, project-storage, stash-bridge) all
 // reach this function; without the flag every IndexedDB open attempt would
@@ -271,17 +398,19 @@ async function ensurePersistence() {
   return false;
 }
 
-// Safari (pre-17, non-standalone) evicts IDB/localStorage after ~7 days of
-// inactivity. Warn the user when we detect this risk on startup.
+// Safari (non-standalone) evicts IDB/localStorage after ~7 days of inactivity.
+// Warn the user when we detect this risk on startup.
 // Fires at most once per browser session (sessionStorage gate).
 function checkSafariEvictionRisk() {
   try {
-    // Only warn in Safari-family browsers (not Chrome or Firefox on iOS).
-    var ua = navigator.userAgent || '';
-    var isSafariFamily = /Safari/.test(ua) && !/Chrome|CriOS|FxiOS|EdgA/.test(ua);
-    if (!isSafariFamily) return;
+    // Gate on the engine, not the browser name. The previous UA test excluded
+    // CriOS/FxiOS/EdgA on the assumption that Chrome and Firefox mean Blink
+    // and Gecko — but on iOS those are WebKit with a different badge, so they
+    // carry the identical eviction risk and were the browsers most in need of
+    // the warning. Platform.isWebKit covers iOS-anything plus desktop Safari.
+    if (!Platform.isWebKit()) return;
     // Standalone PWA: iOS grants persistence automatically — no warning needed.
-    if (navigator.standalone) return;
+    if (Platform.isStandalone()) return;
     // Already warned this session.
     if (sessionStorage.getItem('cs_eviction_warned')) return;
     // Check whether durable persistence has been granted.
@@ -298,12 +427,17 @@ function checkSafariEvictionRisk() {
 }
 function _showEvictionWarning() {
   try { sessionStorage.setItem('cs_eviction_warned', '1'); } catch (_) {}
+  // On iOS the user has a real fix available — installing to the Home Screen
+  // grants durable storage — so name it rather than only advising backups.
+  var message = Platform.isIOS()
+    ? 'Your projects are stored in this browser, and iPadOS may clear them after a week of inactivity. Tap Share, then "Add to Home Screen", and open stitch. from there — that keeps your work safe.'
+    : 'Your projects are stored in your browser. Safari may clear them after a period of inactivity — download a backup regularly to keep your work safe.';
   // Defer so Toast system is ready (this runs before React mounts).
   setTimeout(function() {
     try {
       if (window.Toast && window.Toast.show) {
         window.Toast.show({
-          message: 'Your projects are stored in your browser. Safari may clear them after a period of inactivity — download a backup regularly to keep your work safe.',
+          message: message,
           type: 'warning',
           duration: 15000
         });

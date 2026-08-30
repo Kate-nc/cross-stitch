@@ -895,7 +895,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     <window.CanvasContext.Provider value={cvCtx}>
     <window.PatternDataContext.Provider value={pdCtx}>
     <window.HoverContext.Provider value={hovCtx}>
-      <input ref={state.loadRef} type="file" accept=".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf" onChange={(e)=>{
+      {/* Platform.fileAccept drops the filter on iOS, where .oxs resolves to
+          no UTI and would grey out every file in the Files picker. */}
+      <input ref={state.loadRef} type="file" accept={window.Platform ? window.Platform.fileAccept(".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf") : ".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf"} onChange={(e)=>{
         var f = e.target.files && e.target.files[0];
         if (!f) return;
         var n = (f.name || '').toLowerCase();
@@ -1089,7 +1091,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             </div>
           </div>
         </div>}
-        <input ref={state.fRef} type="file" accept="image/*,.oxs,.xml,.json,.pdf" onChange={(e)=>{
+        <input ref={state.fRef} type="file" accept={window.Platform ? window.Platform.fileAccept("image/*,.oxs,.xml,.json,.pdf") : "image/*,.oxs,.xml,.json,.pdf"} onChange={(e)=>{
           var f = e.target.files && e.target.files[0];
           if (!f) return;
           var n = (f.name || '').toLowerCase();

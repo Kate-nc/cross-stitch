@@ -1495,7 +1495,7 @@ function CreatorApp({
   }, /*#__PURE__*/React.createElement("input", {
     ref: state.loadRef,
     type: "file",
-    accept: ".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf",
+    accept: window.Platform ? window.Platform.fileAccept(".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf") : ".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf",
     onChange: e => {
       var f = e.target.files && e.target.files[0];
       if (!f) return;
@@ -1901,7 +1901,7 @@ function CreatorApp({
   }, "Start with a blank grid and paint by hand"))))), /*#__PURE__*/React.createElement("input", {
     ref: state.fRef,
     type: "file",
-    accept: "image/*,.oxs,.xml,.json,.pdf",
+    accept: window.Platform ? window.Platform.fileAccept("image/*,.oxs,.xml,.json,.pdf") : "image/*,.oxs,.xml,.json,.pdf",
     onChange: e => {
       var f = e.target.files && e.target.files[0];
       if (!f) return;

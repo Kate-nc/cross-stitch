@@ -864,16 +864,63 @@ const SyncEngine = (() => {
     var syncObj = await exportSync(options);
     var compressed = compress(syncObj);
     var blob = new Blob([compressed], { type: "application/octet-stream" });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement("a");
-    a.href = url;
     var date = new Date().toISOString().slice(0, 10);
-    a.download = "cross-stitch-sync-" + date + _safeDeviceNamePart() + ".csync";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    _markExportComplete(syncObj._createdAt);
+    var filename = "cross-stitch-sync-" + date + _safeDeviceNamePart() + ".csync";
+
+    // Prefer the OS share sheet where it takes files. On iPad — the only
+    // platform with no folder-watch support, so the only one that depends on
+    // this path — it lets the user save straight into OneDrive or AirDrop to
+    // another device, instead of hunting the file out of Downloads afterwards.
+    // Falls back to a plain download everywhere else, which is what desktop
+    // browsers get since they do not advertise file sharing.
+    var result = { shared: false };
+    if (typeof window !== "undefined" && window.Platform && window.Platform.shareOrDownload) {
+      result = await window.Platform.shareOrDownload(blob, filename, "application/octet-stream");
+      // navigator.share() requires a current transient user activation.
+      // exportSync() above performs async IndexedDB reads and possible
+      // encryption that can outlast the original click, especially on large
+      // or encrypted libraries. If the activation expired, offer a fresh share
+      // via a Toast action instead of silently downloading behind the user's back.
+      if (result && result.activationExpired) {
+        var _ts = syncObj._createdAt;
+        if (typeof window !== "undefined" && window.Toast && window.Toast.show) {
+          window.Toast.show({
+            message: "Sync file ready — tap Share to send it.",
+            type: "info",
+            duration: 30000,
+            actionLabel: "Share",
+            action: function () {
+              var file = new File([blob], filename, { type: "application/octet-stream" });
+              navigator.share({ files: [file], title: filename })
+                .then(function () { _markExportComplete(_ts); })
+                .catch(function () {});
+            }
+          });
+        }
+        // Do not advance the export timestamp; _markExportComplete runs in the
+        // Toast action when the user actually shares.
+        syncObj._delivery = "activationExpired";
+        return syncObj;
+      }
+    } else {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // A cancelled share sheet means nothing left the device, so the export
+    // timestamp must not advance — otherwise the sync status would claim the
+    // device is up to date when it never sent anything.
+    var cancelled = !!(result && result.cancelled);
+    if (!cancelled) _markExportComplete(syncObj._createdAt);
+    // Stamped after compress(), so it never reaches the written file. Callers
+    // read it to avoid reporting "exported successfully" for a dismissed sheet.
+    syncObj._delivery = cancelled ? "cancelled" : (result && result.shared ? "shared" : "downloaded");
     return syncObj;
   }
 

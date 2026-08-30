@@ -63,6 +63,20 @@ module.exports = defineConfig({
       timeout: 180000,
       use: { browserName: 'chromium', viewport: { width: 1440, height: 900 } },
     },
+    // iPad on real WebKit. The other touch project is `iPad Mini` on *Chromium*,
+    // which still exposes showDirectoryPicker and so cannot see any of the
+    // behaviour that matters here — on a real iPad every browser is WebKit and
+    // the File System Access API does not exist. Run with
+    // `npm run test:ipad`. See tests/ipad/.
+    {
+      name: 'ipad-webkit',
+      testDir: './tests/ipad',
+      timeout: 120000,
+      use: {
+        ...devices['iPad (gen 7)'],
+        browserName: 'webkit',
+      },
+    },
   ],
   webServer: {
     command: 'node serve.js 8000',

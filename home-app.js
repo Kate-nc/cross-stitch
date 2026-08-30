@@ -588,7 +588,10 @@
       h('input', {
         ref: fileInputRef,
         type: 'file',
-        accept: 'image/*,.oxs,.xml,.json,.pdf',
+        // ".oxs" resolves to no UTI on iOS and would grey out the whole Files
+        // picker. Platform.fileAccept drops the filter there and keeps it everywhere else.
+        // See tests/platformCapabilities.test.js.
+        accept: (window.Platform ? window.Platform.fileAccept('image/*,.oxs,.xml,.json,.pdf') : 'image/*,.oxs,.xml,.json,.pdf'),
         className: 'home-create-file-input',
         onChange: handleFileChange,
         'aria-hidden': 'true',

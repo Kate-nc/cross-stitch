@@ -9085,7 +9085,7 @@ function TrackerApp({
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("input", {
     ref: loadRef,
     type: "file",
-    accept: ".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf",
+    accept: window.Platform ? window.Platform.fileAccept(".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf") : ".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf",
     onChange: loadProject,
     style: {
       display: "none"

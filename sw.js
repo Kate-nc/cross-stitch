@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v54';
+var CACHE_NAME = 'cross-stitch-cache-v55';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -13,6 +13,12 @@ var PRECACHE_URLS = [
   // PWA manifest
   './manifest.json',
   './assets/icons/app-icon.svg',
+  // PNG rasterisations (scripts/build-app-icons.js). iOS ignores SVG for
+  // apple-touch-icon, and a Home Screen install is how an iPad escapes the
+  // 7-day eviction of stored patterns — so the icon has to be present.
+  './assets/icons/app-icon-180.png',
+  './assets/icons/app-icon-192.png',
+  './assets/icons/app-icon-512.png',
 
   // Shared local assets
   './styles.css',

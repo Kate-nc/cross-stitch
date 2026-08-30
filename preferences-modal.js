@@ -1170,6 +1170,13 @@
     var st = syncStatus[0] || {};
     var hasFolder = !!st.hasWatchDir;
     var folderSupported = (typeof window.showDirectoryPicker === "function");
+    // On iOS there is no browser that can do folder watching — every browser
+    // there is WebKit — so telling the user to install Chrome is advice they
+    // cannot act on. They get the file workflow instead.
+    var isIOSDevice = !!(window.Platform && window.Platform.isIOS());
+    var folderUnsupportedDesc = isIOSDevice
+      ? "iPad and iPhone cannot watch a folder — no browser on iOS supports it, including Chrome and Edge, because they all run Safari's engine underneath. Use \"Export Sync\" and \"Import Sync\" below to move changes by file instead."
+      : "Folder watching needs a Chromium-based browser (Chrome, Edge, Brave, Opera).";
     var folderName = hasFolder ? "Sync folder" : "Not connected";
     var lastExport = st.lastExportAt ? new Date(st.lastExportAt).toLocaleString('en-GB') : "Never";
     var lastImport = st.lastImportAt ? new Date(st.lastImportAt).toLocaleString('en-GB') : "Never";
@@ -1187,7 +1194,7 @@
             ? "Connected: " + folderName + ". Other devices that watch the same folder will see your changes."
             : (folderSupported
               ? "Pick a folder (cloud-synced or local) where this device should write its sync file."
-              : "Folder watching needs a Chromium-based browser (Chrome, Edge, Brave, Opera).") },
+              : folderUnsupportedDesc) },
           hasFolder
             ? h("div", { style: { display: "flex", gap: 6 } },
                 h("button", { style: styles.btn, onClick: chooseSyncFolder, disabled: !folderSupported }, "Change folder�"),
@@ -1205,10 +1212,19 @@
             h("button", { style: styles.btn, onClick: saveDeviceName }, "Save")
           )
         ),
+        // iOS has no folder to join or hand out, so the pairing rows below can
+        // never do anything there. Explain the workflow that does work before
+        // the user hits two permanently greyed-out buttons.
+        isIOSDevice ? h(Row, { label: "How to sync this iPad",
+          desc: "Put your sync folder in OneDrive on your computer. On this iPad: tap \"Export Sync\" in the File menu, then Share and save into that same OneDrive folder. Your computer picks it up on its own. Coming back the other way, use \"Import Sync\" and choose the newest file from OneDrive." },
+          h("span", { style: { fontSize: 11, color: COLOURS.hint, fontStyle: "italic" } }, "By file")
+        ) : null,
         h(Row, { label: "Pair another device",
-          desc: hasFolder
+          desc: isIOSDevice
+            ? "Pairing codes only set up folder watching, which iOS cannot do. Use the file workflow above instead."
+            : (hasFolder
             ? "Generate a 6-digit code so a phone or other computer can join this same sync folder."
-            : "Connect a sync folder first. Then you can hand a code to another device so it joins the same folder." },
+            : "Connect a sync folder first. Then you can hand a code to another device so it joins the same folder.") },
           h("button", {
             style: styles.btn,
             disabled: !hasFolder,
@@ -1218,7 +1234,9 @@
           }, "Show pairing code�")
         ),
         h(Row, { label: "Join existing sync",
-          desc: "Have a code from another device? Enter it to set this device up to watch the same folder." },
+          desc: isIOSDevice
+            ? "Not available on iOS — this sets up folder watching, which needs a desktop browser."
+            : "Have a code from another device? Enter it to set this device up to watch the same folder." },
           h("button", {
             style: styles.btn,
             disabled: !folderSupported,
@@ -1349,6 +1367,20 @@
           h(Switch, { checked: autoLib[0], onChange: autoLib[1] })
         )
       ),
+
+      // iOS clears a website's stored data after about a week of not visiting
+      // it, which would take the whole library with it. Installing to the Home
+      // Screen makes the storage durable, so this needs to be somewhere
+      // permanent rather than only in the startup toast.
+      isIOSDevice ? h(Section, { title: "Keeping your work on this iPad" },
+        h(Row, { last: true, label: "Add to Home Screen",
+          desc: window.Platform && window.Platform.isStandalone()
+            ? "Installed. Your patterns are stored durably and iPadOS will not clear them."
+            : "Your patterns live in this browser, and iPadOS clears that after about a week of not opening the app. In Safari, tap Share then \"Add to Home Screen\", and open stitch. from the icon instead. That makes the storage permanent." },
+          h("span", { style: { fontSize: 11, color: (window.Platform && window.Platform.isStandalone()) ? COLOURS.tealDark : COLOURS.hint, fontStyle: "italic" } },
+            (window.Platform && window.Platform.isStandalone()) ? "Installed" : "Not installed")
+        )
+      ) : null,
 
       h(Section, { title: "Backup" },
         h(Row, { label: "Download a backup", desc: "Saves every pattern, your stash and your settings into a single file." },
