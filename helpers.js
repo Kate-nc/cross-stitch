@@ -300,6 +300,17 @@ var Platform = (function () {
     return typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function';
   }
 
+  // One explanation for "you cannot connect a sync folder here", shared by
+  // every surface that offers it. Desktop Safari and Firefox genuinely can fix
+  // this by switching browser; iOS cannot, because Chrome and Edge there are
+  // the same WebKit engine — so pointing an iPad user at Chrome wastes their
+  // time. Keep the two cases in one place so they cannot drift apart.
+  function folderSyncUnavailableMessage() {
+    return isIOS()
+      ? 'iPad and iPhone cannot watch a folder — no browser on iOS supports it, including Chrome and Edge, because they all run Safari’s engine underneath. Move changes with "Export Sync" and "Import Sync" instead.'
+      : 'Folder watching needs a Chromium-based browser (Chrome, Edge, Brave, Opera).';
+  }
+
   // Sanitise an <input type="file"> accept spec for the current platform.
   // Returns undefined (i.e. "omit the attribute") when the spec names an
   // extension iOS cannot resolve to a UTI, because a filter matching nothing
@@ -362,6 +373,7 @@ var Platform = (function () {
     isWebKit: isWebKit,
     isStandalone: isStandalone,
     hasFolderSync: hasFolderSync,
+    folderSyncUnavailableMessage: folderSyncUnavailableMessage,
     fileAccept: fileAccept,
     shareOrDownload: shareOrDownload
   };

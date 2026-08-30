@@ -74,9 +74,28 @@ test.describe('iPad (WebKit) sync round trip', () => {
 
     await input.setInputFiles(savedTo);
 
-    // The engine parsed it and built a plan: the round trip works.
+    // The engine parsed it and built a plan.
     await expect(page.getByText(/Ready to import/i)).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Continue' })).toBeEnabled();
+
+    // Drive the wizard to the end. An earlier version of this test stopped at
+    // "Continue is enabled", which is exactly how the dead end below survived:
+    // step 2 asked whether to watch the folder, preselected "yes", and then
+    // refused with "needs a Chromium-based browser" once the user committed.
+    await expect(page.getByText(/Step 1 of 2/i)).toBeVisible();
+    await page.getByRole('button', { name: 'Continue' }).click();
+
+    // iOS skips the watch step entirely, so this lands on the confirmation.
+    await expect(page.getByText(/Step 2 of 2/i)).toBeVisible();
+    await expect(page.getByText(/File ready to review/i)).toBeVisible();
+    await expect(page.getByText(/needs a Chromium-based browser/i)).toHaveCount(0);
+    // And it must not offer to watch a folder, nor send the user to
+    // Preferences to set up something iOS cannot do.
+    await expect(page.getByText(/Keep syncing automatically/i)).toHaveCount(0);
+    await expect(page.getByText(/Set up watching in Preferences/i)).toHaveCount(0);
+    await expect(page.getByText(/syncs by file/i)).toBeVisible();
+
+    // Finish: this hands the plan to the review gate.
+    await page.getByRole('button', { name: /Done|Review changes/ }).click();
 
     expect(pageErrors, 'the round trip threw').toEqual([]);
   });
