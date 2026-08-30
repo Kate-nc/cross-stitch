@@ -1734,9 +1734,32 @@ function stripCellForSave(m){
 if(typeof window!=='undefined')window.stripCellForSave=stripCellForSave;
 
 // Convenience wrapper for the common pat.map(...) site.
+//
+// PERF: memoised on the pattern's identity. The tracker rebuilds a full
+// snapshot every 5 s while stitching, but between those saves only `done`
+// changes — `pat` is replaced wholesale on any pattern edit and is never
+// mutated in place. Re-serialising was therefore allocating a fresh object per
+// cell (200 000 of them on a 400x500 pattern) on every autosave, purely to
+// produce the same array again: a recurring multi-megabyte main-thread spike
+// during the one activity the app exists for.
+//
+// A WeakMap so the entry dies with the pattern it describes. The consequence
+// worth knowing: callers now share one array rather than each getting a fresh
+// one, so the result must be treated as read-only. Every current caller hands
+// it straight to a structured clone (IndexedDB) or a JSON serialiser, neither
+// of which mutates.
+var _serialisedPatterns=(typeof WeakMap==='function')?new WeakMap():null;
 function serializePattern(pat){
   if(!pat||!pat.map)return pat;
-  return pat.map(stripCellForSave);
+  if(_serialisedPatterns){
+    var hit=_serialisedPatterns.get(pat);
+    // Length check so a pattern array that was somehow resized in place still
+    // re-serialises rather than silently saving the wrong cell count.
+    if(hit&&hit.length===pat.length)return hit;
+  }
+  var out=pat.map(stripCellForSave);
+  if(_serialisedPatterns)_serialisedPatterns.set(pat,out);
+  return out;
 }
 if(typeof window!=='undefined'){
   window.serializePattern=serializePattern;

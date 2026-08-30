@@ -59,23 +59,32 @@ function chartTileFor(scroller,cSz,sW,sH,gutter){
 // setTransform (not translate) because every draw entry point calls this,
 // including the single-cell fast path — an absolute transform is idempotent,
 // a relative one would accumulate.
-function applyChartTile(canvas,tile,gutter){
-  // Resizing a canvas blanks it, and so does moving it — whatever it held was
-  // painted for the old origin. `invalidated` lets callers that normally clear
-  // incrementally (the recommendation pulse) know they must repaint in full.
+// `blankOnMove` false means the caller repaints the whole tile itself, so the
+// clear a move would otherwise need is redundant — true of the chart, whose
+// drawStitch begins by filling the entire chart rect.
+function applyChartTile(canvas,tile,gutter,blankOnMove){
   const prev=canvas.__chartTile;
   const resized=canvas.width!==tile.w||canvas.height!==tile.h;
-  const moved=!prev||prev.x!==tile.x||prev.y!==tile.y;
+  const moved=!!prev&&(prev.x!==tile.x||prev.y!==tile.y);
+  const ctx=canvas.getContext("2d");
+  // Assigning width blanks the surface; *moving* it does not — the pixels
+  // stay, but they were painted for the old origin, so they are now garbage
+  // in the wrong place. Callers that clear incrementally (the recommendation
+  // pulse) rely on `invalidated` meaning "the surface is blank", so a move has
+  // to actually make that true rather than merely claim it.
   if(resized){canvas.width=tile.w;canvas.height=tile.h;}
+  else if(moved&&blankOnMove!==false){
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+  }
   // -gutter reproduces the overhang the full-size canvas got from its negative
   // margin, so a tile at origin sits exactly where the old canvas did.
   const left=(tile.x-gutter)+"px", top=(tile.y-gutter)+"px";
   if(canvas.style.left!==left)canvas.style.left=left;
   if(canvas.style.top !==top )canvas.style.top =top;
   canvas.__chartTile={x:tile.x,y:tile.y,w:tile.w,h:tile.h};
-  const ctx=canvas.getContext("2d");
   ctx.setTransform(1,0,0,1,-tile.x,-tile.y);
-  return{ctx:ctx,invalidated:resized||moved};
+  return{ctx:ctx,invalidated:resized||moved||!prev};
 }
 
 // Blank a chart canvas outright, for the branches where an overlay is switched
@@ -959,7 +968,14 @@ function registerChartOverlay(name,draw){
 // Overlays sit on the chart's geometry, so they share its tile exactly.
 function prepareOverlayTile(canvas){
   if(!canvas)return null;
-  const tile=chartTileFor(stitchScrollRef.current,scs,sW,sH,G);
+  // Follow the tile the *chart* is on rather than recomputing from the current
+  // scroll position. Two reasons: the overlays must stay registered to the
+  // chart or they would show a different slice of the pattern for a frame, and
+  // the recommendation pulse runs this at 60fps — recomputing there made every
+  // pan frame move and blank the overlay, which is what pushed cleared pixels
+  // up rather than down. Overlays now move only when the chart moves.
+  const ref=chartTileRef.current;
+  const tile=(ref&&ref.w>0)?ref:chartTileFor(stitchScrollRef.current,scs,sW,sH,G);
   const a=applyChartTile(canvas,tile,G);
   return{ctx:a.ctx,invalidated:a.invalidated,tile};
 }
@@ -4172,13 +4188,13 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
   let canvas = stitchRef.current;
   const el = stitchScrollRef.current;
   let tile = chartTileFor(el,scs,sW,sH,G);
-  let ctx = applyChartTile(canvas,tile,G).ctx;
+  let ctx = applyChartTile(canvas,tile,G,false).ctx;
   // R3 — if the browser refused or discarded this backing store, shrink the
   // tile and try once more before painting into a surface that will never
   // appear. Rare, but the failure is silent otherwise: a blank white chart.
   if(!chartTileIsLive(canvas,ctx)&&!tile.full){
     tile={x:tile.x,y:tile.y,w:Math.max(1,Math.floor(tile.w/2)),h:Math.max(1,Math.floor(tile.h/2)),full:false};
-    ctx=applyChartTile(canvas,tile,G).ctx;
+    ctx=applyChartTile(canvas,tile,G,false).ctx;
   }
   chartTileRef.current=tile;
 
@@ -4279,6 +4295,39 @@ useEffect(()=>{
   }
   return()=>{if(tierFadeRef.current.animRafId){cancelAnimationFrame(tierFadeRef.current.animRafId);tierFadeRef.current.animRafId=null;}};
 },[scs,lockDetailLevel]);
+
+// R3 (second half) — hand the chart's backing stores back while the tab is
+// hidden. Safari reclaims canvas memory aggressively under pressure and
+// decides *for* us which surfaces to discard; releasing them deliberately on
+// the way out means the return path is a clean repaint rather than whatever
+// state the browser left behind. Zeroing width is what actually frees the
+// backing store — display:none does not.
+//
+// Only the overlays are released. The chart itself is left alone: it is the
+// one canvas the user is guaranteed to be looking at on return, and blanking
+// it risks a visible flash before renderStitch runs.
+useEffect(()=>{
+  if(!pat)return;
+  const overlays=[threadUsageCanvasRef,recOverlayCanvasRef,breadcrumbCanvasRef,
+                  focusOverlayCanvasRef,countingAidsCanvasRef];
+  const onVis=()=>{
+    if(document.visibilityState==="hidden"){
+      for(const r of overlays){
+        const c=r.current;
+        if(c&&c.width){c.width=0;c.height=0;delete c.__chartTile;}
+      }
+    }else{
+      // __chartTile was cleared above, so applyChartTile sees a fresh surface
+      // and every overlay repaints from scratch at the current tile. Called
+      // through the ref so this effect does not depend on renderStitch's
+      // identity, which changes on most renders and would otherwise churn the
+      // listener every time.
+      if(renderStitchRef.current)renderStitchRef.current();
+    }
+  };
+  document.addEventListener("visibilitychange",onVis);
+  return()=>document.removeEventListener("visibilitychange",onVis);
+},[!!pat]);
 
 // ═══ Thread usage overlay rendering ═══
 useEffect(()=>{
@@ -5082,9 +5131,27 @@ function handleStitchWheel(e){
   });
 }
 
+// R6 — who owns a one-finger drag on the chart.
+//
+// In track mode that gesture *is* drag-marking, so the compositor must not
+// take it and the canvas keeps `touch-action: none`. Everywhere else (nav
+// mode, edit mode) a one-finger drag is only ever a pan, and the compositor
+// does that far better than a JS handler writing scrollLeft on every frame.
+//
+// Two-finger gestures are always ours — they pinch-zoom the chart, not the
+// page — so handleTouchStart still calls preventDefault for them, which stops
+// the browser panning a two-finger drag when touch-action would otherwise
+// allow it.
+function chartOwnsGesture(e){
+  return e.touches.length>1||_dragMarkActive;
+}
+
 function handleTouchStart(e){
   if(!pat)return;
-  e.preventDefault();
+  // Conditional, not unconditional: calling preventDefault here is exactly
+  // what forced every pan onto the main thread, because it cancels the native
+  // scroll before it starts.
+  if(chartOwnsGesture(e))e.preventDefault();
   const ts=touchStateRef.current;
   if(e.touches.length===1){
     // C3: single-finger TAP / DRAG-MARK / LONG-PRESS RANGE are owned by
@@ -5119,9 +5186,12 @@ function handleTouchStart(e){
 const PAN_THRESHOLD=8;
 function handleTouchMove(e){
   if(!pat)return;
-  e.preventDefault();
+  if(chartOwnsGesture(e))e.preventDefault();
   const ts=touchStateRef.current;
   if(e.touches.length===1&&ts.mode!=="pinch"){
+    // When the compositor owns one-finger drags there is nothing to do here:
+    // scrolling it ourselves as well would move the chart at double speed.
+    if(_dragMarkActive){
     const t=e.touches[0];
     const dx=t.clientX-ts.startX, dy=t.clientY-ts.startY;
     if(ts.mode==="tap"&&(Math.abs(dx)>PAN_THRESHOLD||Math.abs(dy)>PAN_THRESHOLD)){
@@ -5133,6 +5203,7 @@ function handleTouchMove(e){
     if(ts.mode==="pan"&&stitchScrollRef.current){
       stitchScrollRef.current.scrollLeft=panStart.current.scrollX-dx;
       stitchScrollRef.current.scrollTop=panStart.current.scrollY-dy;
+    }
     }
   }else if(e.touches.length===2&&ts.mode==="pinch"){
     const dx=e.touches[1].clientX-e.touches[0].clientX;
@@ -6293,7 +6364,7 @@ return(
             contribute (its width less the -G margin), which is what keeps the
             scroller's extent — and every saved scroll position — unchanged. */}
         <div style={{ position: 'relative', width: sW*scs+2, height: sH*scs+2 }}>
-          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid" style={{display:"block",position:"absolute",zIndex:2, left: -G, top: -G, touchAction:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} {...dragMarkHandlers}/>
+          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid" style={{display:"block",position:"absolute",zIndex:2, left: -G, top: -G, touchAction:_dragMarkActive?"none":"pan-x pan-y"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} {...dragMarkHandlers}/>
 
           {/* B2 — drag-mark / range-select visual overlay (touch) */}
           {_dragMarkActive&&dragMarkState&&(dragMarkState.path.size>0||dragMarkState.anchor!=null||dragMarkPulse)&&(

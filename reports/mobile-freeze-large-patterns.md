@@ -564,16 +564,160 @@ the chart's **scroll extent**, `G + sW*scs + 2` — rather than deleted:
 `verify-fixes.spec.js`'s iOS check also moved from the largest canvas to the
 **sum** across all of them, which is the figure §1.2 showed was never checked.
 
+---
+
+## Part 7 — Second pass: panning, autosave, and two bugs from Part 6
+
+Same branch. **R6, R7 (cheap half) and the second half of R3** are implemented.
+R5, R8–R12 remain untouched. DPR-correct rendering was assessed and
+deliberately **not** done — see the end of this section.
+
+### First: what panning actually costs now
+
+§H retracted the original pan figure, so R6 was implemented against a fresh
+measurement rather than the report's assumption. Eight pan gestures at 4× CPU
+throttle, `main` vs this branch **before** any R6 work:
+
+| Chart | Metric | main | after R4 |
+| --- | --- | ---: | ---: |
+| 100 × 100 | total blocking | 332 ms | 199 ms |
+| 200 × 250 | total blocking | **13 929 ms** | **532 ms** |
+| 200 × 250 | canvas paints | 7 741 | 5 998 |
+
+R4 had already removed 96 % of the cost of panning a large chart, which nothing
+had measured. That reframed R6 from "the fix for pan jank" to "a smoothness
+improvement on an already-cheap path", and it is why R6 below is scoped
+narrowly rather than applied everywhere.
+
+### Two bugs in the Part 6 work, found by that measurement
+
+Cleared pixels had gone **up** (27.8 → 45.7 Mpx on 200 × 250) rather than down.
+Chasing that found two defects:
+
+1. **`applyChartTile` promised a blank surface it had not delivered.** It
+   reported `invalidated` for a tile that had *moved*, and the recommendation
+   pulse uses that flag to skip its incremental clear. But assigning
+   `canvas.width` blanks a canvas — *moving* it does not. The old pixels stayed,
+   painted for the old origin, and the pulse drew on top of them. It now
+   actually clears on a move, so the flag means what its callers assume.
+2. **Overlays were chasing the scroll position at 60 fps.**
+   `prepareOverlayTile` recomputed the tile from the live scroll offset, and
+   the recommendation pulse calls it every animation frame — so during a pan
+   every overlay moved and re-blanked on every frame. Overlays now follow
+   `chartTileRef`, the tile the *chart* is on, which is also the correct
+   coupling: they must show the same slice the chart does.
+
+A third, smaller thing: the chart canvas opts out of the clear-on-move, because
+`drawStitch` begins by filling the entire chart rect and so repaints the tile
+unconditionally.
+
+After those: 200 × 250 pan blocking **163 ms** on the run that produced the
+other figures here. Repeated runs range 163–932 ms, consistent with §H's 4–5×
+variance — the honest reading is "an order of magnitude better than `main`, not
+a precise number".
+
+### R6 — who owns a one-finger drag
+
+The report proposed `touch-action: pan-x pan-y` at rest, switching to `none`
+once a gesture is classified as a mark. That does not work: `touch-action` is
+consulted when a gesture *starts*, so a mid-gesture switch is too late. The
+workable version is the report's own alternative — gate on mode:
+
+| Mode | `touch-action` | Why |
+| --- | --- | --- |
+| Track (marking) | `none` | A one-finger drag **is** drag-marking. Handing it to the compositor would break the app's primary interaction. |
+| Nav / edit | `pan-x pan-y` | A one-finger drag is only ever a pan, and the compositor does it better. |
+
+`preventDefault` also became conditional — calling it unconditionally on
+`touchstart` is what forced every pan onto the main thread, since it cancels
+the native scroll before it starts. It is still called for two-finger gestures,
+which are always the chart's (pinch-zooms the chart, not the page), and that is
+what stops the browser panning a two-finger drag.
+
+Measured, [tests/mobile-audit/pan-ownership.spec.js](../tests/mobile-audit/pan-ownership.spec.js):
+
+| Mode | `touch-action` | Scrolled? | JS scroll writes |
+| --- | --- | --- | ---: |
+| Nav | `pan-x pan-y` | yes | **0** |
+| Track | `none` | yes | 10 |
+
+Both assertions are kept, as a pair. A change that made everything native
+would pass the first and fail the second; the pre-R6 code does the reverse.
+Counting *JS scroll writes* is what distinguishes them — a compositor scroll
+never goes through the `scrollLeft` setter.
+
+**A behaviour change this creates, checked rather than assumed.** Dropping the
+unconditional `preventDefault` means the browser now synthesises mouse events
+from a nav-mode tap where it previously did not, which could plausibly place
+the guide crosshair twice or in the wrong cell. `hlRow`/`hlCol` are part of the
+saved project, so the test taps and compares the app's own saved record against
+an independently computed cell: it lands on exactly one cell, the right one.
+
+### R7 (cheap half) — autosave stops re-serialising the pattern
+
+`serializePattern` is now memoised on the pattern array's identity
+([helpers.js](../helpers.js)). `pat` is replaced wholesale on any pattern edit
+and is never mutated in place — verified, there are no `pat[i] = …`
+assignments — so identity is a sound cache key.
+
+The consequence, measured in the browser rather than reasoned about
+([autosave-cost.spec.js](../tests/mobile-audit/autosave-cost.spec.js)): a
+stitching session that triggers 2 autosaves produces **1** distinct serialised
+array. Disabling the cache makes it 2, so the test bites. On a 400 × 500
+pattern each avoided save is 200 000 object allocations.
+
+One consequence worth knowing and commented at the call site: callers now share
+one array rather than each getting a fresh one, so the result must be treated
+as read-only. Every current caller hands it straight to a structured clone or a
+JSON serialiser; nothing mutates `project.pattern`, which was checked.
+
+### R3 (second half) — release backing stores when hidden
+
+Overlay canvases are zeroed on `visibilitychange` to hidden and repainted on
+return. Safari reclaims canvas memory aggressively and picks *for* us what to
+discard; doing it deliberately makes the return path a clean repaint. The chart
+itself is deliberately left alone — it is the one canvas the user is guaranteed
+to be looking at on return, and blanking it risks a visible flash.
+
+### Verified
+
+- **Jest 208 suites / 2 760 tests green** (2 756 before; +4 from the new
+  `serializePattern` memoisation cases).
+- **Mobile audit 54 checks green**, both projects, including the three new
+  pan-ownership checks and the autosave one.
+- **iPad WebKit 16 checks green**, unchanged.
+- The four `touch-tablet-chromium` failures are the same pre-existing ones,
+  already confirmed identical on `main` in Part 6.
+- Terminology lint clean; CSS-token lint unchanged.
+
+### DPR-correct rendering — assessed, not done
+
+Part 6 listed this as unblocked. Working through the arithmetic, it is not, at
+the current budget:
+
+- The chart tile on the iPad harness is 1371 × 1193 CSS px. At
+  `devicePixelRatio` 2 that is **6.5 Mpx**, against a per-canvas budget of
+  16.7 / 4 = **4.2 Mpx**.
+- `maxTileArea()` would therefore reject the tile and fall back to the
+  pattern-proportional clamp — reinstating exactly the zoom ceiling Part 6
+  removed. A naive DPR change makes large patterns unusable again.
+
+It can be made to fit — shrink the overscan from 300 px to ~100 px, or apply
+DPR only to the chart and leave the overlays at 1× — but both are trade-offs
+against pan repaint frequency, and the 16.7 Mpx figure is itself conservative
+(it is iOS Safari's documented *per-canvas* area limit, being used here as a
+whole-page budget). Choosing between those needs its own measured pass, so it
+is left open rather than guessed at inside this one.
+
 ### Still open
 
-R5–R12 are unchanged, and two of them are worth restating now that R4 has
-landed:
-
-- **R6 (compositor panning)** is the obvious next step and is now much cheaper
-  to reason about, since a pan no longer moves a 63 MB layer.
-- **R15/A5 (DPR-correct rendering)** is unblocked: at 13.3 MB per canvas there
-  is headroom to render at `devicePixelRatio` 2 and stop shipping a soft,
-  upscaled chart on every phone and iPad. It was explicitly gated on this work.
+- **R5** (static/dynamic layer split), **R8**–**R12** unchanged. R8 remains
+  largely subsumed by R4.
+- **DPR-correct rendering**, per above — now with a concrete reason and a
+  concrete decision to make, rather than "unblocked".
+- **Track-mode panning is still main-thread**, deliberately and by necessity.
+  Cheap now that a pan no longer repaints, but it is the one place the
+  compositor still cannot help.
 - **Untested on hardware.** Verified on real WebKit at an iPad viewport, which
   is the right engine but not a real device.
 
