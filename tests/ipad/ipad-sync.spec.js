@@ -113,8 +113,9 @@ test.describe('iPad (WebKit) sync workflow', () => {
       for (const accept of accepts) {
         if (!accept) continue;
         // An accept filter that matches no UTI greys out every file in the
-        // Files picker, so the user cannot open anything at all.
-        expect(accept, `${url} has an unusable accept filter: ${accept}`).not.toMatch(/\.oxs|\.csync|\.xml/);
+        // Files picker, so the user cannot open anything at all. ".xml" is
+        // deliberately not listed: it maps to public.xml and works on iOS.
+        expect(accept, `${url} has an unusable accept filter: ${accept}`).not.toMatch(/\.oxs|\.csync/);
       }
     }
   });
@@ -131,17 +132,32 @@ test.describe('iPad (WebKit) sync workflow', () => {
     expect(res.headers()['content-type']).toContain('image/png');
   });
 
-  test('Preferences replaces the pairing rows with the iPad file workflow', async ({ page }) => {
+  // This panel is built entirely from conditionals on Platform.isIOS(), so a
+  // scoping or typo mistake shows up as a blank/crashed panel rather than as
+  // wrong text. Render it for real.
+  test('the Preferences data panel renders and carries the iPad guidance', async ({ page }) => {
+    const pageErrors = [];
+    page.on('pageerror', (e) => pageErrors.push(e.message));
+
     await page.goto('/home.html');
-    const body = await page.evaluate(async () => {
-      // Render the Data panel's copy decisions without driving the whole modal.
-      return {
-        isIOS: window.Platform.isIOS(),
-        standalone: window.Platform.isStandalone(),
-      };
-    });
-    expect(body.isIOS).toBe(true);
-    // Not installed in a test browser, so the install advice must be showing.
-    expect(body.standalone).toBe(false);
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('cs:openPreferences')));
+
+    await page.getByRole('button', { name: /Sync, backup & data/i }).click();
+    await expect(page.getByRole('heading', { name: 'Sync, backup & data' })).toBeVisible();
+
+    const panel = page.locator('.prefs-modal, [role=dialog]').first();
+    const text = await panel.innerText();
+
+    // The folder row must explain iOS, not recommend an impossible browser.
+    expect(text).toMatch(/iPad and iPhone cannot watch a folder/i);
+    expect(text).not.toMatch(/needs a Chromium-based browser/i);
+    // The workflow that does work, named with the user's actual cloud drive.
+    expect(text).toMatch(/How to sync this iPad/i);
+    expect(text).toMatch(/OneDrive/i);
+    // The storage section, which is how the library survives on iPad at all.
+    expect(text).toMatch(/Add to Home Screen/i);
+    expect(text).toMatch(/Not installed/i);
+
+    expect(pageErrors, 'preferences panel threw').toEqual([]);
   });
 });

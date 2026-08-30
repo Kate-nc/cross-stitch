@@ -1032,7 +1032,11 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               // be connected, meant half the workflow was missing from the
               // only sync surface on the page.
               (!syncStatus || !syncStatus.hasWatchDir) && React.createElement('button', {
-                className: 'sync-popover-btn sync-popover-btn--primary',
+                // Primary only on iOS, where sharing a file IS the workflow.
+                // On desktop the better next step is still connecting a
+                // folder, so this stays a secondary action there.
+                className: 'sync-popover-btn'
+                  + ((window.Platform && window.Platform.isIOS()) ? ' sync-popover-btn--primary' : ''),
                 onClick: () => {
                   setSyncPopoverOpen(false);
                   if (typeof SyncEngine === 'undefined') return;

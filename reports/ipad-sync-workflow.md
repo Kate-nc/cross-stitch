@@ -130,12 +130,17 @@ real browser; the unit tests were happy.
 
 - Full Jest suite **207 suites / 2 733 tests green** (2 682 before; +51 from
   [tests/platformCapabilities.test.js](../tests/platformCapabilities.test.js)).
-- **iPad WebKit e2e, 8 checks green** —
-  [tests/ipad/ipad-sync.spec.js](../tests/ipad/ipad-sync.spec.js) on the new
-  `ipad-webkit` project. This is the first harness in the repo that reproduces
-  an actual iPad: the existing `touch-tablet-chromium` project is the iPad Mini
-  viewport on *Chromium*, which still exposes `showDirectoryPicker` and so
-  cannot observe any of this.
+- **iPad WebKit e2e, 10 checks green** —
+  [tests/ipad/](../tests/ipad/) on the new `ipad-webkit` project. This is the
+  first harness in the repo that reproduces an actual iPad: the existing
+  `touch-tablet-chromium` project is the iPad Mini viewport on *Chromium*,
+  which still exposes `showDirectoryPicker` and so cannot observe any of this.
+- **A full round trip on the real engine** —
+  [tests/ipad/ipad-roundtrip.spec.js](../tests/ipad/ipad-roundtrip.spec.js)
+  seeds a project, exports it through `downloadSync`, saves the file, reloads,
+  and feeds it back through the import picker until the plan is ready. That
+  covers the send leg, the filename, the picker's `accept`, the mis-pick
+  guard and the parse in one pass, which no unit test could.
 - Mobile audit **40 checks green** across both projects.
 - Terminology lint clean; CSS-token lint unchanged at 13 pre-existing warnings.
 - The four `touch-tablet-chromium` failures are unchanged — re-confirmed on a
@@ -145,6 +150,27 @@ Three test files pinned `CACHE_NAME` to the literal `v54`, so the service-worker
 bump here broke all three. They now assert a floor rather than an exact version:
 pinning meant every legitimate bump broke the tests, which trains people to edit
 the assertion instead of thinking about it.
+
+### Found during self-review
+
+Three things the first pass got wrong or left unguarded:
+
+- **The Preferences data panel was untested.** It is built almost entirely from
+  `Platform.isIOS()` conditionals, so a scoping slip would surface as a blank
+  or crashed panel rather than as wrong text. It now renders for real in the
+  iPad spec, asserting no `pageerror` alongside the copy.
+- **The export button in the popover was primary on desktop too.** On a machine
+  that can watch a folder, the better next step is still connecting one, so
+  exporting a file is now primary only on iOS.
+- **The picker assertion banned `.xml`.** That extension maps to `public.xml`
+  and works fine on iOS; it only ever looked broken because every spec
+  containing it also contained `.oxs`. The assertion would have failed
+  confusingly on a future `.xml`-only picker, so it now bans `.oxs`/`.csync`
+  alone.
+
+One deliberate desktop-visible change: the sync popover gains an "Export sync
+file" action when no folder is connected. It fills a real gap on both
+platforms, but it is a change desktop users will see.
 
 ### What the tests actually pin down
 
