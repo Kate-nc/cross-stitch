@@ -437,6 +437,146 @@ below the size at which symbols become unreachable, which is why §1.1 was never
 caught. Adding a 400 × 500 and a 600 × 800 fixture is a prerequisite for
 trusting any of the above.
 
+---
+
+## Part 6 — Implementation record
+
+Branch `perf/viewport-chart-canvas`. **R1, R2, R3 and R4 are implemented**;
+R5–R12 are untouched. The fixture gap in Part 5 is closed.
+
+### What changed
+
+| Item | Change | Files |
+| --- | --- | --- |
+| — | Shared large-pattern fixture builder, up to 600 × 800 | [tests/_helpers/trackerFixture.js](../tests/_helpers/trackerFixture.js) |
+| R2 | iOS budget keyed on `Platform.isIOS()`, media query kept as fallback | [useCanvasOverlays.js](../useCanvasOverlays.js) |
+| R1 | Budget divided by the number of concurrent chart canvases | [useCanvasOverlays.js](../useCanvasOverlays.js) |
+| R3 | Backing-store liveness probe; tile halves and repaints on failure | [tracker-app.js](../tracker-app.js) |
+| R4 | Viewport-tiled chart **and all five overlays** | [tracker-app.js](../tracker-app.js), [helpers.js](../helpers.js) |
+
+**On the tiling.** `chartTileFor()` returns the slice that should be showing;
+`applyChartTile()` resizes the canvas, moves the element, and calls
+`ctx.setTransform` so every existing draw call keeps addressing cells in
+absolute chart coordinates. `drawStitch` is unchanged apart from honouring an
+explicit overdraw of 0 — the tile already contains the margin, so growing past
+it would only paint cells that get clipped.
+
+The five overlays register a redraw function in one registry; `renderStitch`
+invokes them when the tile moves. Two of them gained viewport culling as a
+consequence: the thread-usage overlay walked all 200 000 cells on every redraw,
+which was affordable when redraws were rare and would not have been once the
+tile started moving.
+
+`gridCoord()` (helpers.js) takes an optional `origin`. It defaults to `{0,0}`,
+so every creator call site — those canvases are still whole-surface — is
+untouched.
+
+**On `maxCellSize`.** With a tile, the surface saturates at
+`viewport + 2 × overscan` regardless of cell size, so if that constant fits the
+budget then *every* cell size does and there is no ceiling to impose. The
+pattern-proportional clamp survives as the fallback for when there is no window
+to measure. This is what restores symbols: the clamp is what held a 400 × 500
+chart at scs 9.
+
+### Verified
+
+**Jest: 208 suites / 2 756 tests green** (206 / 2 733 before; +18 from
+[tests/chartCanvasBudget.test.js](../tests/chartCanvasBudget.test.js)). All 10
+of that suite's target assertions were confirmed to **fail against the pre-fix
+module** before the fix was written.
+
+**Real WebKit at an iPad viewport** — [tests/ipad/ipad-chart.spec.js](../tests/ipad/ipad-chart.spec.js),
+6 checks green. This is the first chart measurement in the repo on the engine
+the bug was reported against; every other harness runs Chromium, which has a
+268 Mpx budget and reports `deviceMemory`, i.e. neither of the conditions that
+produced the failure.
+
+| Pattern | Total canvas, all mounted | Scroll extent | Zoom ceiling |
+| --- | ---: | ---: | ---: |
+| 200 × 250 | 3.32 Mpx / 13.3 MB | 4030 | scs 80 |
+| 400 × 500 | **3.32 Mpx / 13.3 MB** | 8030 | scs 80 |
+| 600 × 800 | **3.32 Mpx / 13.3 MB** | 12030 | scs 80 |
+
+The figure is *identical* at every size — that is the O(viewport) property, and
+it is the whole claim. The scroll extent still spans the full pattern, so the
+chart itself is unchanged; only its backing store is bounded. The zoom ceiling
+is scs 80 (400 %) at every size, against 18 / 9 / 5 before.
+
+Also confirmed on WebKit: an iPad reporting `pointer: fine` (trackpad attached)
+now takes the 16.7 Mpx iOS budget rather than the 134 Mpx desktop one, and the
+chart paints rather than coming up blank.
+
+**Mobile audit: 48 of 49 green.** Before/after on the same harness, same
+conditions, `main` vs branch:
+
+| Scenario | Metric | main | branch |
+| --- | --- | ---: | ---: |
+| tracker + 100 × 100 | total canvas | 8.28 Mpx | **2.34 Mpx** |
+| tracker + 100 × 100 | post-load idle blocking | 4 448 ms | **26 ms** |
+| tracker + 200 × 250 | total canvas | 40.58 Mpx | **2.34 Mpx** |
+| tracker + 200 × 250 | open blocking | 19 837 ms | **10 762 ms** |
+| tracker + 200 × 250 | post-load idle blocking | 48 843 ms | **764 ms** |
+
+Per §H's warning, the blocking figures are single samples on a harness with
+4–5× run-to-run variance and should be read as direction, not magnitude. The
+canvas figures are deterministic.
+
+**The coordinate round trip is verified by mutation, not by inspection.**
+`chart-canvas-budget.spec.js` scrolls a 400 × 500 chart 1500 × 1800 px, taps a
+point, and compares the cell the app *saved to IndexedDB* against a cell index
+computed independently from the scroller's own offsets. It marked exactly one
+cell, 42484 = row 106 × 400 + col 84, matching the oracle. Removing the tile
+origin from `_dragMarkCellAtPoint` makes it mark 12424 instead — off by exactly
+the tile offset — so the test demonstrably bites.
+
+That check was arrived at the hard way: two earlier versions of it passed
+against deliberately broken code. The first sampled pixels under the tap, which
+change on any repaint; the second mutated `handleStitchMouseDown`, which is not
+the path a touch device takes (marking goes through `useDragMark` →
+`_dragMarkCellAtPoint`). Both are recorded here because "the test passed" was
+not evidence in either case.
+
+### Pre-existing failures, confirmed unchanged
+
+- The four `touch-tablet-chromium` specs fail identically on `main`. In
+  particular `tracker-touch.spec.js` — the one inside this change's blast
+  radius — fails at the same line with the same
+  `locator('input[type="file"]')` timeout on both trees, checked by running it
+  on each.
+- `mobile-audit.spec.js`'s 100 × 100 tracker-open tripwire (`totalBlockingMs <
+  8000`) fails on both: **10 978 ms on `main`, 9 136 ms on this branch**. The
+  branch improves it and still exceeds the budget. It is the time-based
+  tripwire §H already flagged as flaking one run in two; left alone rather than
+  widened, since widening it here would disguise the fact that it was already
+  failing.
+- CSS-token lint unchanged at its pre-existing warnings; terminology lint clean.
+
+### Tests updated rather than added
+
+Five existing assertions pinned "the canvas is pattern-sized", which is exactly
+what this change makes false. Each was moved to the invariant that still holds —
+the chart's **scroll extent**, `G + sW*scs + 2` — rather than deleted:
+
+- `desktop-regression.spec.js` × 3 (400 % zoom reachable, large pattern
+  unclamped, zoom-in behaviour);
+- `verify-fixes.spec.js` × 2 (iOS clamp, zoom-out still shrinks the chart).
+
+`verify-fixes.spec.js`'s iOS check also moved from the largest canvas to the
+**sum** across all of them, which is the figure §1.2 showed was never checked.
+
+### Still open
+
+R5–R12 are unchanged, and two of them are worth restating now that R4 has
+landed:
+
+- **R6 (compositor panning)** is the obvious next step and is now much cheaper
+  to reason about, since a pan no longer moves a 63 MB layer.
+- **R15/A5 (DPR-correct rendering)** is unblocked: at 13.3 MB per canvas there
+  is headroom to render at `devicePixelRatio` 2 and stop shipping a soft,
+  upscaled chart on every phone and iPad. It was explicitly gated on this work.
+- **Untested on hardware.** Verified on real WebKit at an iPad viewport, which
+  is the right engine but not a real device.
+
 ## Reproducing the computed figures
 
 The zoom-ceiling and tier tables in §1.1 and §1.3 come from executing
