@@ -42,6 +42,27 @@
   var SCS_PER_ZOOM = 20;   // scs = round(20 * stitchZoom)
   var ZOOM_MAX     = 4;    // matches the existing wheel/pinch/button ceiling
 
+  /* ── Concurrency ────────────────────────────────────────────────────────
+     The budget below is a *device* budget: it is what the browser will hold
+     across every canvas on the page, not what one canvas may take. The
+     tracker mounts the chart plus up to five overlays (thread usage,
+     recommendations, breadcrumbs, focus block, counting aids) on identical
+     geometry, so charging the whole budget to each one over-commits by up to
+     6x. A highlight session with counting aids and a focus block on is four
+     canvases, which is the number we budget for; the two rarer overlays are
+     covered by the headroom between four and six.
+
+     Raise this if more full-geometry canvases are added; lower it only if
+     they are genuinely consolidated. tests/chartCanvasBudget.test.js asserts
+     the count against the mounted refs so the two cannot drift apart. */
+  var CONCURRENT_CHART_CANVASES = 4;
+
+  /* Pixels of pre-rendered margin around the viewport on a tiled chart. Also
+     the figure the budget check below uses to decide whether a tile is
+     affordable, so tracker-app.js reads it from here rather than keeping its
+     own copy. */
+  var TILE_OVERSCAN = 300;
+
   var _limits = null;
   function canvasLimits() {
     if (_limits) return _limits;
@@ -66,42 +87,102 @@
 
     /* Area budget. A side limit does not imply the device can afford a
        square of that side (16384^2 would be 1 GB), so budget by memory:
-       iOS reports no navigator.deviceMemory, hence the coarse-pointer arm. */
+       iOS reports no navigator.deviceMemory, hence the iOS arm.
+
+       That arm used to key on `(pointer: coarse)` alone, which has a hole:
+       iPadOS 13.4+ reports the primary pointer as `fine` whenever a Magic
+       Keyboard, trackpad or Bluetooth mouse is attached. Such an iPad fell
+       through to the *desktop* budget and was handed a ~500 MB canvas — an
+       immediate freeze. Platform.isIOS() keys on the platform (and
+       disambiguates an iPad reporting a desktop UA via maxTouchPoints), so it
+       stays correct however the pointer is reported. The media query remains
+       as the fallback because useCanvasOverlays.js is a plain <script> and
+       must not depend on helpers.js having loaded first. */
     var mem = (typeof navigator !== 'undefined' && navigator.deviceMemory) || 0;
-    var coarse = false;
-    try { coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches; } catch (_) {}
+    var touchLike = false;
+    try {
+      touchLike = !!(window.Platform && window.Platform.isIOS && window.Platform.isIOS())
+               || !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    } catch (_) {}
     var area;
-    if (mem && mem <= 1)      area = 16777216;    // 16.7 Mpx  — low-end phone
-    else if (mem && mem <= 4) area = 33554432;    // 33.5 Mpx  — mid-range phone
-    else if (!mem && coarse)  area = 16777216;    // 16.7 Mpx  — iOS (no deviceMemory)
-    else                      area = 134217728;   // 134 Mpx   — desktop
+    if (mem && mem <= 1)        area = 16777216;    // 16.7 Mpx  — low-end phone
+    else if (mem && mem <= 4)   area = 33554432;    // 33.5 Mpx  — mid-range phone
+    else if (!mem && touchLike) area = 16777216;    // 16.7 Mpx  — iOS (no deviceMemory)
+    else                        area = 134217728;   // 134 Mpx   — desktop
     _limits = { side: side, area: Math.min(area, side * side) };
     return _limits;
   }
 
-  /* Largest `scs` for which both chart dimensions and the total pixel count
-     stay inside the device limits. Returns 0 when the pattern cannot fit at
-     the minimum usable cell size, and the uncapped maximum when dimensions
-     are not known yet. */
+  /* The share of the device budget one canvas may take (see
+     CONCURRENT_CHART_CANVASES). */
+  function perCanvasBudget() {
+    return Math.floor(canvasLimits().area / CONCURRENT_CHART_CANVASES);
+  }
+
+  /* Largest tile the chart will ever allocate on this screen. A tiled canvas
+     is `min(whole chart, viewport + 2 x overscan)`, so as the cell size grows
+     the tile saturates at a constant that depends only on the screen — which
+     is the entire point of tiling. Window dimensions stand in for the
+     scroller, which is never larger and is not measurable from here.
+     Returns null when there is no window to measure. */
+  function maxTileArea() {
+    if (typeof window === 'undefined' || !window.innerWidth || !window.innerHeight) return null;
+    var w = window.innerWidth + TILE_OVERSCAN * 2;
+    var h = window.innerHeight + TILE_OVERSCAN * 2;
+    var lim = canvasLimits();
+    if (w > lim.side || h > lim.side) return null;
+    return w * h;
+  }
+
+  /* Largest `scs` for which the chart's backing store stays inside the device
+     limits. Returns 0 when the pattern cannot fit at the minimum usable cell
+     size, and the uncapped maximum when dimensions are not known yet.
+
+     Two regimes:
+
+     **Tiled** (the normal case). The chart canvas covers the visible slice
+     plus overscan, so its area saturates at `maxTileArea()` no matter how far
+     the user zooms in. If that constant is affordable then *every* cell size
+     is affordable and there is no ceiling to impose — which is what restores
+     symbols on large patterns: the old pattern-proportional clamp held a
+     400x500 chart at scs 9, below the 13 px Tier 3 threshold, so symbols
+     could never render at any zoom.
+
+     **Untiled** (no window to measure, or a screen so large the tile itself
+     will not fit). Falls back to the original pattern-proportional clamp, now
+     against the per-canvas share of the budget rather than all of it. */
   function maxCellSize(sW, sH) {
     var ceiling = SCS_PER_ZOOM * ZOOM_MAX;
     if (!sW || !sH) return ceiling;
     var lim = canvasLimits();
     var pad = GRID_GUTTER + 2;
+    var budget = perCanvasBudget();
+
+    var tile = maxTileArea();
+    if (tile !== null && tile <= budget) {
+      // The tile never exceeds the whole chart, so a chart smaller than the
+      // tile is its own bound and needs no clamp either.
+      return ceiling;
+    }
+
     var scs = Math.min(
       Math.floor((lim.side - pad) / sW),
       Math.floor((lim.side - pad) / sH),
-      Math.floor(Math.sqrt(lim.area / (sW * sH)))
+      Math.floor(Math.sqrt(budget / (sW * sH)))
     );
     // sqrt() ignores the gutter, so step down until the exact area fits.
-    while (scs > 0 && (sW * scs + pad) * (sH * scs + pad) > lim.area) scs--;
+    while (scs > 0 && (sW * scs + pad) * (sH * scs + pad) > budget) scs--;
     return Math.max(0, Math.min(ceiling, scs));
   }
 
-  /* Exposed for tests and for the canvas-budget regression guard. Also lets a
-     future tiled renderer reuse the same limits. */
+  /* Exposed for tests and for the canvas-budget regression guard. The tiled
+     renderer in tracker-app.js reads the overscan and the per-canvas budget
+     from here so the geometry it allocates and the budget that authorised it
+     cannot drift apart. */
   window.canvasSizeLimits = canvasLimits;
   window.maxChartCellSize = maxCellSize;
+  window.chartTileOverscan = TILE_OVERSCAN;
+  window.chartPerCanvasBudget = perCanvasBudget;
   window.__resetCanvasLimits = function () { _limits = null; };
 
   window.useCanvasOverlays = function useCanvasOverlays({ sW, sH }) {

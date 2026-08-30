@@ -178,10 +178,19 @@ function confettiTier(pct){
   return{color:"var(--danger)",label:"High confetti"};
 }
 
-function gridCoord(canvasRef,e,cellSize,gutter,snap=false){
+// Screen point -> grid cell for a chart canvas.
+//
+// `origin` is the chart-content coordinate that canvas pixel 0 corresponds to.
+// The tracker's chart canvas is a viewport-sized tile that slides as the user
+// scrolls (see chartTileFor in tracker-app.js), so its pixel 0 is not chart
+// pixel 0 and the offset has to be added back before the grid maths. It
+// defaults to {x:0,y:0}, which is both the untiled case and every creator
+// canvas — those are still whole-surface, so their callers pass nothing.
+function gridCoord(canvasRef,e,cellSize,gutter,snap=false,origin){
   if(!canvasRef.current)return null;
   let rect=canvasRef.current.getBoundingClientRect();
-  let mx=e.clientX-rect.left,my=e.clientY-rect.top;
+  let ox=origin?origin.x:0, oy=origin?origin.y:0;
+  let mx=e.clientX-rect.left+ox,my=e.clientY-rect.top+oy;
   let gx=snap?Math.round((mx-gutter)/cellSize):Math.floor((mx-gutter)/cellSize);
   let gy=snap?Math.round((my-gutter)/cellSize):Math.floor((my-gutter)/cellSize);
   return{gx,gy};
