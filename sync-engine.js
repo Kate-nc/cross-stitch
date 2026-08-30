@@ -876,6 +876,32 @@ const SyncEngine = (() => {
     var result = { shared: false };
     if (typeof window !== "undefined" && window.Platform && window.Platform.shareOrDownload) {
       result = await window.Platform.shareOrDownload(blob, filename, "application/octet-stream");
+      // navigator.share() requires a current transient user activation.
+      // exportSync() above performs async IndexedDB reads and possible
+      // encryption that can outlast the original click, especially on large
+      // or encrypted libraries. If the activation expired, offer a fresh share
+      // via a Toast action instead of silently downloading behind the user's back.
+      if (result && result.activationExpired) {
+        var _ts = syncObj._createdAt;
+        if (typeof window !== "undefined" && window.Toast && window.Toast.show) {
+          window.Toast.show({
+            message: "Sync file ready — tap Share to send it.",
+            type: "info",
+            duration: 30000,
+            actionLabel: "Share",
+            action: function () {
+              var file = new File([blob], filename, { type: "application/octet-stream" });
+              navigator.share({ files: [file], title: filename })
+                .then(function () { _markExportComplete(_ts); })
+                .catch(function () {});
+            }
+          });
+        }
+        // Do not advance the export timestamp; _markExportComplete runs in the
+        // Toast action when the user actually shares.
+        syncObj._delivery = "activationExpired";
+        return syncObj;
+      }
     } else {
       var url = URL.createObjectURL(blob);
       var a = document.createElement("a");

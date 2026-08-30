@@ -41,7 +41,7 @@ transport is missing, and a manual file path around it already existed.
 `UnifiedSyncImportModal` set `accept: '.csync'`. iOS resolves `accept` to UTIs,
 and `.csync` is registered by no app on the system, so the filter matched
 nothing and the Files picker greyed out every file. The same class of bug
-affected `.oxs` and `.xml` on every pattern-open picker.
+affected `.oxs` on every pattern-open picker.
 
 This is the most likely reason sync "did not work" on iPad rather than merely
 being fiddly — the user could not get as far as choosing a file.

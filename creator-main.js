@@ -895,8 +895,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     <window.CanvasContext.Provider value={cvCtx}>
     <window.PatternDataContext.Provider value={pdCtx}>
     <window.HoverContext.Provider value={hovCtx}>
-      {/* Platform.fileAccept drops the filter on iOS, where .oxs/.xml resolve
-          to no UTI and would grey out every file in the Files picker. */}
+      {/* Platform.fileAccept drops the filter on iOS, where .oxs resolves to
+          no UTI and would grey out every file in the Files picker. */}
       <input ref={state.loadRef} type="file" accept={window.Platform ? window.Platform.fileAccept(".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf") : ".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf"} onChange={(e)=>{
         var f = e.target.files && e.target.files[0];
         if (!f) return;

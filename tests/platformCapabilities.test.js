@@ -259,14 +259,16 @@ describe('Platform.shareOrDownload', () => {
     expect(clicked).toEqual([]);
   });
 
-  it('falls back to a download when the share fails for any other reason', async () => {
+  it('returns activationExpired (no silent download) when the share is blocked by a lapsed user activation', async () => {
     const failure = Object.assign(new Error('nope'), { name: 'NotAllowedError' });
     setNavigator({ canShare: jest.fn(() => true), share: jest.fn(() => Promise.reject(failure)) });
 
     const result = await Platform.shareOrDownload(blob(), 'sync.csync');
 
-    expect(result).toEqual({ shared: false });
-    expect(clicked).toEqual(['sync.csync']);
+    // Must NOT silently download — caller is responsible for offering a fresh
+    // share gesture (e.g. a Toast action) so the user isn't confused.
+    expect(result).toEqual({ shared: false, activationExpired: true });
+    expect(clicked).toEqual([]);
   });
 
   it('defers revoking the object URL so the download has time to start', async () => {
@@ -353,8 +355,8 @@ describe('call sites route through Platform', () => {
     expect(src).not.toMatch(/accept:\s*'\.csync'\s*,/);
   });
 
-  // Every live pattern-import picker. ".oxs" and ".xml" resolve to no UTI on
-  // iOS, so an unsanitised filter greys out the whole Files picker.
+  // Every live pattern-import picker. ".oxs" resolves to no UTI on iOS,
+  // so an unsanitised filter greys out the whole Files picker.
   // (home-screen.js also has such inputs, but its HomeScreen component is not
   // mounted by any page — /home.html renders home-app.js instead.)
   it.each([

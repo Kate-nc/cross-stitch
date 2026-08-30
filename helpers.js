@@ -343,6 +343,10 @@ var Platform = (function () {
               // AbortError means the user dismissed the sheet deliberately —
               // silently downloading behind their back would be wrong.
               if (err && err.name === 'AbortError') { cleanup(); return { shared: false, cancelled: true }; }
+              // NotAllowedError means the transient user activation expired before
+              // navigator.share() ran. Signal this distinctly so callers can offer
+              // a fresh share gesture rather than silently falling back to a download.
+              if (err && err.name === 'NotAllowedError') { cleanup(); return { shared: false, activationExpired: true }; }
               download();
               return { shared: false };
             });
