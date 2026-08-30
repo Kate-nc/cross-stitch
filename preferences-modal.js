@@ -1000,7 +1000,7 @@
 
     function chooseSyncFolder() {
       if (typeof window.showDirectoryPicker !== "function") {
-        notify("Folder watching needs a Chromium-based browser (Chrome, Edge, Brave, Opera).", "err");
+        notify((window.Platform ? window.Platform.folderSyncUnavailableMessage() : 'Folder watching needs a Chromium-based browser (Chrome, Edge, Brave, Opera).'), "err");
         return;
       }
       if (!window.SyncEngine) { notify("Sync engine not available on this page.", "err"); return; }
@@ -1174,9 +1174,7 @@
     // there is WebKit — so telling the user to install Chrome is advice they
     // cannot act on. They get the file workflow instead.
     var isIOSDevice = !!(window.Platform && window.Platform.isIOS());
-    var folderUnsupportedDesc = isIOSDevice
-      ? "iPad and iPhone cannot watch a folder — no browser on iOS supports it, including Chrome and Edge, because they all run Safari's engine underneath. Use \"Export Sync\" and \"Import Sync\" below to move changes by file instead."
-      : "Folder watching needs a Chromium-based browser (Chrome, Edge, Brave, Opera).";
+    var folderUnsupportedDesc = (window.Platform ? window.Platform.folderSyncUnavailableMessage() : "Folder watching needs a Chromium-based browser (Chrome, Edge, Brave, Opera).");
     var folderName = hasFolder ? "Sync folder" : "Not connected";
     var lastExport = st.lastExportAt ? new Date(st.lastExportAt).toLocaleString('en-GB') : "Never";
     var lastImport = st.lastImportAt ? new Date(st.lastImportAt).toLocaleString('en-GB') : "Never";

@@ -192,6 +192,59 @@ describe('Platform.fileAccept', () => {
   });
 });
 
+describe('Platform.folderSyncUnavailableMessage', () => {
+  let Platform;
+  beforeEach(() => { Platform = makePlatform(); });
+
+  it('does not tell an iPad user to install Chrome', () => {
+    setNavigator({ userAgent: UA.ipadLegacy, maxTouchPoints: 5 });
+    const msg = Platform.folderSyncUnavailableMessage();
+    // Chrome on iOS is the same WebKit engine, so switching browser is not a
+    // fix — recommending it just wastes the user's time.
+    expect(msg).not.toMatch(/Chromium-based/i);
+    expect(msg).toMatch(/no browser on iOS supports it/i);
+    expect(msg).toMatch(/Export Sync/);
+  });
+
+  it('keeps the browser recommendation where switching genuinely helps', () => {
+    // Desktop Safari and Firefox can fix this by using a Chromium browser.
+    setNavigator({ userAgent: UA.macSafari, maxTouchPoints: 0 });
+    expect(Platform.folderSyncUnavailableMessage()).toMatch(/Chromium-based/i);
+    setNavigator({ userAgent: UA.winFirefox, maxTouchPoints: 0 });
+    expect(Platform.folderSyncUnavailableMessage()).toMatch(/Chromium-based/i);
+  });
+});
+
+describe('the import wizard skips the unofferable watch step on iOS', () => {
+  const src = loadSource('modals.js');
+
+  it('routes step 1 past the watch step when the platform cannot watch', () => {
+    // The watch step preselected "yes" and then refused after the user
+    // committed, which dead-ended the default import path on iPad.
+    expect(src).toMatch(/var skipWatchStep = !!\(window\.Platform && window\.Platform\.isIOS\(\)\)/);
+    expect(src).toMatch(/if \(skipWatchStep\) \{[\s\S]{0,120}finalisePendingPlan\(\);/);
+  });
+
+  it('counts the wizard steps to match', () => {
+    expect(src).toMatch(/var totalSteps = skipWatchStep \? 2 : 3;/);
+  });
+
+  // Every remaining mention of the Chromium advice must sit next to a
+  // folderSyncUnavailableMessage() call as its unreachable fallback. A mention
+  // standing on its own is a surface that will keep telling iPad users to
+  // install a browser that would not help.
+  it('has no hardcoded Chromium advice left outside the shared helper', () => {
+    for (const file of ['modals.js', 'preferences-modal.js']) {
+      const lines = loadSource(file).split('\n');
+      const offenders = lines.filter((l) =>
+        /Chromium-based/.test(l) && !/folderSyncUnavailableMessage/.test(l) && !/^\s*\/\//.test(l)
+      );
+      // Jest's expect takes no message argument, so name the file in the value.
+      expect({ file, offenders }).toEqual({ file, offenders: [] });
+    }
+  });
+});
+
 describe('Platform.shareOrDownload', () => {
   let Platform;
   let clicked;

@@ -1093,7 +1093,7 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
 
     function pickFolder() {
       if (typeof window.showDirectoryPicker !== 'function') {
-        err[1]('Folder watching needs a Chromium-based browser (Chrome, Edge, Brave, Opera).');
+        err[1]((window.Platform ? window.Platform.folderSyncUnavailableMessage() : 'Folder watching needs a Chromium-based browser (Chrome, Edge, Brave, Opera).'));
         return;
       }
       busy[1](true);
@@ -1268,6 +1268,9 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
     var watchEnabled = watchEnabledState[0], setWatchEnabled = watchEnabledState[1];
     var busyState = React.useState(false);
     var busy = busyState[0], setBusy = busyState[1];
+    // No browser on iOS can watch a folder, so the watch step is skipped
+    // there and the wizard is two steps rather than three.
+    var skipWatchStep = !!(window.Platform && window.Platform.isIOS());
     var errState = React.useState('');
     var err = errState[0], setErr = errState[1];
 
@@ -1333,6 +1336,17 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
     function continueFromStep1() {
       if (!plan || busy) return;
       setErr('');
+      // Step 2 offers to watch the folder this file came from, which no
+      // browser on iOS can do. It preselected "yes", so the default path was:
+      // choose file, tap Continue, hit "needs a Chromium-based browser", and
+      // be stuck until you noticed you had to go back and pick "no". Skip
+      // straight to the confirmation instead — an unofferable choice is worse
+      // than no choice.
+      if (skipWatchStep) {
+        setWatchEnabled(false);
+        finalisePendingPlan();
+        return;
+      }
       setStep(2);
     }
 
@@ -1340,7 +1354,7 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
       setErr('');
       if (watchChoice === 'yes') {
         if (typeof window.showDirectoryPicker !== 'function') {
-          setErr('Watching a folder needs a Chromium-based browser (Chrome, Edge, Brave, Opera). You can still import this file once.');
+          setErr((window.Platform ? window.Platform.folderSyncUnavailableMessage() : 'Folder watching needs a Chromium-based browser (Chrome, Edge, Brave, Opera).') + ' You can still import this file once.');
           return;
         }
         setBusy(true);
@@ -1501,7 +1515,13 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
                 (window.Icons && window.Icons.check) ? window.Icons.check() : null,
                 ' Watching the folder for new updates.'
               )
-            : h('li', null,
+            : skipWatchStep
+              // Pointing an iPad at Preferences to "set up watching" sends it
+              // somewhere equally impossible. Say what to do next instead.
+              ? h('li', null,
+                  'This device syncs by file. Use "Export Sync" after stitching to send your progress back.'
+                )
+              : h('li', null,
                 'Not watching a folder. ',
                 h('button', {
                   type: 'button',
@@ -1522,9 +1542,10 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
       );
     }
 
-    var stepperLabel = step === 1 ? 'Step 1 of 3 \u00b7 Choose file'
-      : step === 2 ? 'Step 2 of 3 \u00b7 Watch folder?'
-      : 'Step 3 of 3 \u00b7 Confirm';
+    var totalSteps = skipWatchStep ? 2 : 3;
+    var stepperLabel = step === 1 ? 'Step 1 of ' + totalSteps + ' \u00b7 Choose file'
+      : step === 2 ? 'Step 2 of ' + totalSteps + ' \u00b7 Watch folder?'
+      : 'Step ' + totalSteps + ' of ' + totalSteps + ' \u00b7 Confirm';
 
     return h(window.Overlay, {
       onClose: props.onClose, variant: 'dialog', maxWidth: 480, labelledBy: titleId

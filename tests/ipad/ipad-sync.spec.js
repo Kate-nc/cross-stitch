@@ -140,9 +140,17 @@ test.describe('iPad (WebKit) sync workflow', () => {
     page.on('pageerror', (e) => pageErrors.push(e.message));
 
     await page.goto('/home.html');
-    await page.evaluate(() => window.dispatchEvent(new CustomEvent('cs:openPreferences')));
+    // The cs:openPreferences listener is registered in a React useEffect, so
+    // an event dispatched before the app mounts fires into the void. Retry
+    // the dispatch until the modal answers rather than guessing at a marker.
+    await expect(page.locator('.home-tabs')).toBeVisible();
+    const prefsNav = page.getByRole('button', { name: /Sync, backup & data/i });
+    await expect(async () => {
+      await page.evaluate(() => window.dispatchEvent(new CustomEvent('cs:openPreferences')));
+      await expect(prefsNav).toBeVisible({ timeout: 1000 });
+    }).toPass({ timeout: 20000 });
 
-    await page.getByRole('button', { name: /Sync, backup & data/i }).click();
+    await prefsNav.click();
     await expect(page.getByRole('heading', { name: 'Sync, backup & data' })).toBeVisible();
 
     const panel = page.locator('.prefs-modal, [role=dialog]').first();

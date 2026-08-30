@@ -172,6 +172,55 @@ One deliberate desktop-visible change: the sync popover gains an "Export sync
 file" action when no folder is connected. It fills a real gap on both
 platforms, but it is a change desktop users will see.
 
+### Found in use — the import wizard dead-ended on iPad
+
+Reported after the first pass shipped: importing on Safari showed *"Watching a
+folder needs a Chromium-based browser"*. This was a real blocker, not just
+stale wording, and the first pass missed it.
+
+Step 2 of `UnifiedSyncImportModal` asks "Keep syncing automatically?" with
+**"Yes — watch this folder" preselected**. On iPad, tapping Continue hit the
+`showDirectoryPicker` check and errored, leaving the user stuck unless they
+noticed they had to go Back and choose "No — just this one file". So the
+*default* import path dead-ended on the platform the whole branch is about.
+
+The fix is to skip the step, not to reword the error: an unofferable choice,
+preselected and then refused, is worse than no choice. On iOS the wizard is now
+two steps, step 1 goes straight to the confirmation with `watchEnabled = false`,
+and the confirmation says what to do next instead of linking to a Preferences
+page that also cannot set up watching.
+
+Three other sites still stated the Chromium advice literally
+([modals.js](../modals.js) ×2, [preferences-modal.js](../preferences-modal.js)).
+All four now route through one `Platform.folderSyncUnavailableMessage()`, which
+keeps the browser recommendation for desktop Safari and Firefox — where
+switching genuinely fixes it — and explains the file workflow on iOS, where it
+does not. A test asserts no surface states that advice on its own again.
+
+**Why the harness missed it.** The round-trip spec asserted that Continue was
+*enabled* and stopped there — one click short of the bug. It now drives the
+wizard to the end, and was confirmed to fail against the pre-fix code before
+being kept.
+
+### Transient activation — caught in review, not by me
+
+`navigator.share()` requires a *current* transient user activation, but
+`downloadSync` awaits `exportSync()` first, which does async IndexedDB reads
+and possibly PBKDF2 encryption. On a large or encrypted library that can outlast
+the activation window, and the share then fails with `NotAllowedError`. The
+original code treated that as a generic failure and silently downloaded.
+
+`shareOrDownload` now reports it distinctly as `activationExpired`, and
+`downloadSync` offers a Toast action so the user can share from a *fresh* tap.
+That works because `toast.js` invokes the action handler synchronously inside
+the click listener, so the new activation is still live when `navigator.share()`
+runs — verified in [toast.js](../toast.js) rather than assumed.
+
+One gap in that fix was closed here: if a page has no Toast, the original had
+nothing to offer the retry from and the export vanished — no file, no message.
+It now falls through to a download. Downloading unprompted is not ideal; losing
+the export silently is worse.
+
 ### What the tests actually pin down
 
 The eviction tests are genuine regression guards, not restatements: under the
