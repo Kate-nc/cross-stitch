@@ -19,14 +19,16 @@
     "build:creator": "node build-creator-bundle.js",
     "build:runtime-js": "node build-runtime-js.js",
     "build": "node build-creator-bundle.js && node build-runtime-js.js",
-    "prepare": "node scripts/install-hooks.js"
+    "prepare": "node scripts/install-hooks.js",
+    "test:ipad": "playwright test --project=ipad-webkit"
   },
   "jest": {
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/tests/e2e/",
       "/tests/perf/",
-      "/tests/mobile-audit/"
+      "/tests/mobile-audit/",
+      "/tests/ipad/"
     ]
   },
   "repository": {

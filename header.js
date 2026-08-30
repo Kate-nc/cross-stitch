@@ -940,9 +940,15 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
             (function() {
               var rows = [];
               if (!syncStatus || !syncStatus.hasWatchDir) {
+                // On iOS there is no browser that can connect a folder, so
+                // "set one up" is an instruction the user cannot carry out.
+                // Describe the workflow that does work on this device instead.
+                var noFolderText = (window.Platform && window.Platform.isIOS())
+                  ? 'This device syncs by file. Use "Share sync file" below, save it into the folder your computer watches, and use "Import file" to bring changes back.'
+                  : 'No sync folder connected. Set one up on the Home page to sync across devices.';
                 rows.push(React.createElement('div', { key: 'no-folder', className: 'sync-popover-row' },
                   Icons.cloudOff(),
-                  React.createElement('span', null, 'No sync folder connected. Set one up on the Home page to sync across devices.')
+                  React.createElement('span', null, noFolderText)
                 ));
               } else {
                 var folderName = (syncStatus.watchDirName) || 'Sync folder';
@@ -1021,6 +1027,24 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                   }
                 }
               }, Icons.cloudSync(), 'Export now'),
+              // Without a watch folder the popover previously offered import
+              // but no way to send — which on iPad, where a folder can never
+              // be connected, meant half the workflow was missing from the
+              // only sync surface on the page.
+              (!syncStatus || !syncStatus.hasWatchDir) && React.createElement('button', {
+                className: 'sync-popover-btn sync-popover-btn--primary',
+                onClick: () => {
+                  setSyncPopoverOpen(false);
+                  if (typeof SyncEngine === 'undefined') return;
+                  SyncEngine.downloadSync().then(function(syncObj) {
+                    if (syncObj && syncObj._delivery === 'shared' && window.Toast) {
+                      window.Toast.show({ message: 'Sync file shared — save it to your sync folder so your other device sees it.', type: 'success', duration: 8000 });
+                    }
+                  }).catch(function(e) {
+                    if (window.Toast) window.Toast.show({ message: 'Sync export failed: ' + e.message, type: 'error' });
+                  });
+                }
+              }, Icons.cloudSync(), (window.Platform && window.Platform.isIOS()) ? 'Share sync file' : 'Export sync file'),
               React.createElement('button', {
                 className: 'sync-popover-btn',
                 onClick: () => {
@@ -1185,7 +1209,13 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               className: 'tb-page-dropdown-item',
               onClick: () => {
                 setFileMenuOpen(false);
-                SyncEngine.downloadSync().catch(function(e) { (window.Toast ? window.Toast.show({ message: 'Sync export failed: ' + e.message, type: 'error' }) : alert('Sync export failed: ' + e.message)); });
+                SyncEngine.downloadSync().then(function(syncObj) {
+                  // On iPad this goes through the share sheet, so confirm where
+                  // the file needs to end up rather than leaving the user to guess.
+                  if (syncObj && syncObj._delivery === 'shared' && window.Toast) {
+                    window.Toast.show({ message: 'Sync file shared — save it to your sync folder so your other device sees it.', type: 'success', duration: 8000 });
+                  }
+                }).catch(function(e) { (window.Toast ? window.Toast.show({ message: 'Sync export failed: ' + e.message, type: 'error' }) : alert('Sync export failed: ' + e.message)); });
               }
             }, Icons.cloudSync(), ' Export Sync (.csync)'),
             typeof SyncEngine !== 'undefined' && React.createElement('button', {

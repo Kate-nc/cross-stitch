@@ -1277,6 +1277,15 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
       var f = e.target.files && e.target.files[0];
       if (e.target) e.target.value = '';
       if (!f) return;
+      // With the accept filter dropped on iOS (see the input below) the picker
+      // offers every file, so catch an obvious mis-pick here rather than
+      // letting it surface as "the file may be corrupted" from the inflater.
+      if (!/\.csync$/i.test(f.name || '')) {
+        setFile(null);
+        setPlan(null);
+        setErr('"' + (f.name || 'That file') + '" is not a sync file. Sync files end in .csync and are created by "Export Sync" on your other device.');
+        return;
+      }
       // VER-SYNC-012 — warn before decompressing very large files.
       if (f.size > 50 * 1024 * 1024) {
         var mb = (f.size / (1024 * 1024)).toFixed(1);
@@ -1403,7 +1412,12 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
           h('input', {
             ref: fileInputRef,
             type: 'file',
-            accept: '.csync',
+            // iOS resolves `accept` to UTIs. ".csync" is registered by no app,
+            // so on iPad the filter matches nothing and every file in the
+            // Files picker is greyed out — the user cannot import at all.
+            // Platform.fileAccept drops the attribute there and keeps the
+            // convenient filter everywhere else.
+            accept: (window.Platform ? window.Platform.fileAccept('.csync') : '.csync'),
             style: { display: 'none' },
             onChange: onPickFile
           }),

@@ -3503,6 +3503,9 @@ kbd {
 .sync-result { padding: 8px 12px; border-radius: 6px; font-size: 13px; }
 .sync-result--success { background: var(--success-soft); border: 1px solid var(--success); color: var(--success); }
 .sync-result--error { background: var(--danger-soft); border: 1px solid var(--danger-soft); color: var(--danger); }
+/* Neutral outcome — e.g. the user dismissed the iOS share sheet, so nothing
+   was sent. Not a failure, so it must not read as one. */
+.sync-result--info { background: var(--surface-secondary, var(--surface)); border: 1px solid var(--border); color: var(--text-secondary); }
 
 /* Action buttons */
 .sync-actions { display: flex; gap: 8px; flex-wrap: wrap; }

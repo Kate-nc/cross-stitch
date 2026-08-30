@@ -39,8 +39,16 @@ describe('sw.js precache (UX-12 Phase 7 PR #13)', () => {
   // Bumped to v53 for the precompiled runtime entry bundles and runtime loader.
   // Bumped to v54 when non-critical first-visit-heavy assets were removed from
   // install-time precache to align with mobile prefetch gating.
-  test('CACHE_NAME bumped to v54', () => {
-    expect(SW).toMatch(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v54['"]/);
+  // Bumped to v55 when the PNG app icons were added (iOS Home Screen install).
+  //
+  // Asserted as a floor rather than an exact match: pinning the literal meant
+  // every legitimate bump broke this test and two others, which trains people
+  // to edit the assertion rather than think about it. The guard that matters
+  // is that the version never goes backwards past a release that needed it.
+  test('CACHE_NAME is at least v55', () => {
+    const match = SW.match(/CACHE_NAME\s*=\s*['"]cross-stitch-cache-v(\d+)['"]/);
+    expect(match).not.toBeNull();
+    expect(Number(match[1])).toBeGreaterThanOrEqual(55);
   });
 
   test('PRECACHE_URLS does NOT include heavy lazy vendor blobs', () => {
