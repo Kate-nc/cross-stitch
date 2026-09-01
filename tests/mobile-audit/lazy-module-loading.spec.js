@@ -52,8 +52,18 @@ for (const p of PAGES) {
   });
 }
 
+/* These three run on home.html deliberately.
+   ────────────────────────────────────────────
+   The tracker, manager and creator each register their OWN cs:openHelp /
+   cs:openShortcuts listener which calls setModal("help"), and that renders
+   window.HelpCentre — a shim inside help-drawer.js that opens the drawer from a
+   useEffect. So on stitch.html the drawer opens whether or not the stub replays
+   the event, and an earlier version of this test passed against a stub with the
+   replay deleted. home-app.js and home-screen.js register no such listener and
+   never render HelpCentre, so there the replay is the only thing that can open
+   the drawer, and deleting it fails the test. */
 test('cs:openHelp loads the drawer and opens it', async ({ page }) => {
-  const errors = await open(page, 'stitch.html');
+  const errors = await open(page, 'home.html');
   expect(await scriptPresent(page, 'help-drawer.js')).toBe(false);
   // Before load the global is a stub, so nothing that calls it throws.
   expect(await page.evaluate(() => !!(window.HelpDrawer && window.HelpDrawer.__stub))).toBe(true);
@@ -71,7 +81,7 @@ test('cs:openHelp loads the drawer and opens it', async ({ page }) => {
 });
 
 test('the "?" key loads the drawer and opens it on Shortcuts', async ({ page }) => {
-  const errors = await open(page, 'stitch.html');
+  const errors = await open(page, 'home.html');
   await page.locator('body').click({ position: { x: 5, y: 5 } });
   await page.keyboard.press('?');
 
@@ -85,7 +95,7 @@ test('the "?" key loads the drawer and opens it on Shortcuts', async ({ page }) 
 test('HelpDrawer.open() on the stub loads the module and opens it', async ({ page }) => {
   // coaching.js ("Learn more") calls this directly with no event and no
   // fallback, so the stub has to honour the call rather than just exist.
-  const errors = await open(page, 'stitch.html');
+  const errors = await open(page, 'home.html');
   await page.evaluate(() => window.HelpDrawer.open({ tab: 'help', query: 'backstitch' }));
   await page.waitForFunction(() => !!(window.HelpDrawer && window.HelpDrawer.__real), { timeout: 15000 });
   await expect.poll(() => page.evaluate(() => window.HelpDrawer.isOpen()), { timeout: 8000 })
