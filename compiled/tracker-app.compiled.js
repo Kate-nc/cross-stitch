@@ -88,12 +88,23 @@ function chartTileFor(scroller, cSz, sW, sH, gutter) {
 // setTransform (not translate) because every draw entry point calls this,
 // including the single-cell fast path — an absolute transform is idempotent,
 // a relative one would accumulate.
-// `blankOnMove` false means the caller repaints the whole tile itself, so the
-// clear a move would otherwise need is redundant — true of the chart, whose
-// drawStitch begins by filling the entire chart rect.
-function applyChartTile(canvas, tile, gutter, blankOnMove) {
+// opts.blankOnMove === false means the caller repaints the whole tile itself,
+// so the clear a move would otherwise need is redundant — true of the chart,
+// whose drawStitch begins by filling the entire chart rect.
+//
+// opts.scale is device pixels per CSS pixel for this canvas's backing store.
+// The chart renders at the device's pixel ratio where the budget allows it
+// (see chartRenderScale); the overlays stay at 1, because they draw large flat
+// shapes where a finer raster buys almost nothing. The *CSS* size is always
+// the tile size regardless, so layout — and every screen-to-chart conversion
+// that goes through getBoundingClientRect — is unaffected by the scale.
+function applyChartTile(canvas, tile, gutter, opts) {
+  const o = opts || {};
+  const scale = o.scale > 0 ? o.scale : 1;
   const prev = canvas.__chartTile;
-  const resized = canvas.width !== tile.w || canvas.height !== tile.h;
+  const needW = Math.round(tile.w * scale),
+    needH = Math.round(tile.h * scale);
+  const resized = canvas.width !== needW || canvas.height !== needH;
   const moved = !!prev && (prev.x !== tile.x || prev.y !== tile.y);
   const ctx = canvas.getContext("2d");
   // Assigning width blanks the surface; *moving* it does not — the pixels
@@ -102,9 +113,9 @@ function applyChartTile(canvas, tile, gutter, blankOnMove) {
   // pulse) rely on `invalidated` meaning "the surface is blank", so a move has
   // to actually make that true rather than merely claim it.
   if (resized) {
-    canvas.width = tile.w;
-    canvas.height = tile.h;
-  } else if (moved && blankOnMove !== false) {
+    canvas.width = needW;
+    canvas.height = needH;
+  } else if (moved && o.blankOnMove !== false) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
@@ -114,13 +125,23 @@ function applyChartTile(canvas, tile, gutter, blankOnMove) {
     top = tile.y - gutter + "px";
   if (canvas.style.left !== left) canvas.style.left = left;
   if (canvas.style.top !== top) canvas.style.top = top;
+  // Explicit CSS size: with scale > 1 the backing store is larger than the
+  // element, and without this the browser would size the element to the
+  // backing store and the chart would render at double size.
+  const cssW = tile.w + "px",
+    cssH = tile.h + "px";
+  if (canvas.style.width !== cssW) canvas.style.width = cssW;
+  if (canvas.style.height !== cssH) canvas.style.height = cssH;
   canvas.__chartTile = {
     x: tile.x,
     y: tile.y,
     w: tile.w,
-    h: tile.h
+    h: tile.h,
+    scale: scale
   };
-  ctx.setTransform(1, 0, 0, 1, -tile.x, -tile.y);
+  // Fold the scale into the same transform that carries the tile origin, so
+  // callers keep drawing in absolute chart (CSS-pixel) coordinates.
+  ctx.setTransform(scale, 0, 0, scale, -tile.x * scale, -tile.y * scale);
   return {
     ctx: ctx,
     invalidated: resized || moved || !prev
@@ -2076,7 +2097,9 @@ function TrackerApp({
     // up rather than down. Overlays now move only when the chart moves.
     const ref = chartTileRef.current;
     const tile = ref && ref.w > 0 ? ref : chartTileFor(stitchScrollRef.current, scs, sW, sH, G);
-    const a = applyChartTile(canvas, tile, G);
+    const a = applyChartTile(canvas, tile, G, {
+      scale: 1
+    });
     return {
       ctx: a.ctx,
       invalidated: a.invalidated,
@@ -7002,7 +7025,11 @@ function TrackerApp({
     let canvas = stitchRef.current;
     const el = stitchScrollRef.current;
     let tile = chartTileFor(el, scs, sW, sH, G);
-    let ctx = applyChartTile(canvas, tile, G, false).ctx;
+    const chartScale = typeof window.chartRenderScale === "function" ? window.chartRenderScale() : 1;
+    let ctx = applyChartTile(canvas, tile, G, {
+      blankOnMove: false,
+      scale: chartScale
+    }).ctx;
     // R3 — if the browser refused or discarded this backing store, shrink the
     // tile and try once more before painting into a surface that will never
     // appear. Rare, but the failure is silent otherwise: a blank white chart.
@@ -7014,9 +7041,21 @@ function TrackerApp({
         h: Math.max(1, Math.floor(tile.h / 2)),
         full: false
       };
-      ctx = applyChartTile(canvas, tile, G, false).ctx;
+      ctx = applyChartTile(canvas, tile, G, {
+        blankOnMove: false,
+        scale: chartScale
+      }).ctx;
     }
-    chartTileRef.current = tile;
+    // Carries the render scale too: drawCellDirectly re-establishes this
+    // transform on the single-cell fast path and needs both halves of it.
+    chartTileRef.current = {
+      x: tile.x,
+      y: tile.y,
+      w: tile.w,
+      h: tile.h,
+      full: tile.full,
+      scale: chartScale
+    };
     let viewportRect = null;
     if (el) {
       viewportRect = {
@@ -7830,7 +7869,8 @@ function TrackerApp({
     // absolute px/py below land in the right place. Cheap, and it keeps this
     // fast path from having to know about tiling beyond this one line.
     const _t = chartTileRef.current;
-    ctx.setTransform(1, 0, 0, 1, -_t.x, -_t.y);
+    const _s = _t.scale > 0 ? _t.scale : 1;
+    ctx.setTransform(_s, 0, 0, _s, -_t.x * _s, -_t.y * _s);
     const gx = idx % sW;
     const gy = Math.floor(idx / sW);
     const px = G + gx * scs;
@@ -10620,6 +10660,7 @@ function TrackerApp({
     return null;
   })(), /*#__PURE__*/React.createElement("div", {
     ref: stitchScrollRef,
+    className: "tracker-chart-scroll" + (drawer ? " is-drawer" : ""),
     onScroll: () => {
       if (!scrollRafRef.current) {
         scrollRafRef.current = requestAnimationFrame(() => {
@@ -10630,7 +10671,6 @@ function TrackerApp({
     },
     style: {
       overflow: "auto",
-      maxHeight: drawer ? 340 : 600,
       border: "0.5px solid var(--border)",
       borderRadius: "8px 8px 0 0",
       background: "var(--surface-tertiary)",

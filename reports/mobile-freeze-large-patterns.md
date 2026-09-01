@@ -721,6 +721,165 @@ is left open rather than guessed at inside this one.
 - **Untested on hardware.** Verified on real WebKit at an iPad viewport, which
   is the right engine but not a real device.
 
+---
+
+## Part 8 — Third pass: Android, tablets, and DPR
+
+Branch `perf/mobile-budget-and-dpr`, off `perf/viewport-chart-canvas`.
+
+Parts 6 and 7 were written and verified against **iOS and a phone viewport**.
+This pass covers the rest of the field: Android phones, Android tablets, and
+the device-pixel-ratio question Part 7 deferred.
+
+### 8.1 The Android half of the budget hole was still open
+
+Part 6 fixed the iPad-with-a-trackpad case and stopped there. The same defect
+had an Android twin, and it was the *guard* on the fix that caused it:
+
+```js
+else if (!mem && touchLike) area = 16777216;   // only when deviceMemory is ABSENT
+```
+
+Android Chrome **does** report `deviceMemory`, so `touchLike` was unreachable
+there and every Android device fell through to the desktop arm. Confirmed on
+the harness: Chromium reports **`deviceMemory: 32`** on this machine, so the
+mid-range arms never fired either.
+
+| Device | reports | before | after |
+| --- | ---: | --- | --- |
+| Pixel / Galaxy phone (8 GB) | 8 | **desktop, 134 Mpx** | handheld, 33.5 Mpx |
+| Galaxy Tab S9 / Pixel Tablet | 8 | **desktop, 134 Mpx** | handheld, 33.5 Mpx |
+| Budget Android | 4 | mid-range, 33.5 Mpx | unchanged |
+| iPhone / iPad | — | iOS, 16.7 Mpx | unchanged |
+
+The arms are now ordered handheld-first: a touch device can never reach the
+desktop arm, and `deviceMemory` only tightens things further. Two details worth
+recording:
+
+- **iOS keeps its own tighter figure.** 16 777 216 is Safari's documented
+  per-canvas ceiling — a harder constraint than a memory estimate — so it is
+  not merged into the Android arm.
+- **An unidentified handheld takes the tighter of the two.** `useCanvasOverlays.js`
+  is a plain `<script>` and can run before `helpers.js` defines `Platform`.
+  Guessing "Android" for what might be an iPhone would hand the stricter engine
+  the looser budget, which is the wrong way to be wrong. This was caught by an
+  existing test failing, not by foresight.
+
+### 8.2 The chart was letterboxed to 600 px on every device
+
+The scroller carried an **inline** `max-height: 600px`, which no media query
+could override. Measured on a Galaxy Tab S9 (1306 CSS px tall): the chart got
+**598 px**, the same letterbox as a 727 px phone.
+
+Height now lives in CSS (`.tracker-chart-scroll`) with a `max(600px, …)` floor,
+so the rule can only ever *add* chart. Tablet: 598 → **722 px**. Phone and
+desktop resolve to exactly 600 px as before, and both have a test pinning that.
+
+### 8.3 What the harness can and cannot settle about the budget
+
+Part 7 left "settle the real canvas budget" open. A probe
+([android-canvas-probe.spec.js](../tests/mobile-audit/android-canvas-probe.spec.js),
+[ipad-canvas-probe.spec.js](../tests/ipad/ipad-canvas-probe.spec.js)) binary-searches
+the largest live canvas on each engine:
+
+| Engine under test | max square | max side |
+| --- | ---: | ---: |
+| Chromium (tablet emulation) | 268.4 Mpx | 65 535 |
+| **WebKit (iPad emulation)** | **268.4 Mpx** | 65 536 |
+
+**Emulated WebKit has desktop-class limits — nothing like a real iPad's
+16.7 Mpx.** So the harness cannot measure the target devices' ceilings, and any
+"total canvas memory" figure taken from it would be an upper bound on a phone,
+not a prediction. The budget constants therefore stay principled rather than
+measured, and the probes assert only a floor. That is the honest answer to
+"settle the budget": **the number cannot be settled here — but the budget's
+*shape* could be, and the shape was what blocked DPR.**
+
+### 8.4 DPR — the blocker was the shape, not the number
+
+Part 7 concluded DPR was unaffordable: a DPR-2 chart tile is 6.5 Mpx against a
+per-canvas budget of 16.7 / 4 = 4.2 Mpx. That arithmetic was right and the
+conclusion was wrong, because **dividing the budget by a canvas count only
+works while all the canvases are the same size.**
+
+Once the chart renders at DPR and the overlays do not, a uniform share is the
+wrong question. The tiled path now projects the actual sum — chart at scale,
+overlays at 1× — and against *that*, DPR 2 fits everywhere it matters:
+
+| Device | scale | chart backing | total | budget |
+| --- | ---: | ---: | ---: | ---: |
+| iPad (WebKit) | **2** | 2742 × 2746 | 9.5 Mpx | 16.8 Mpx |
+| Galaxy Tab S9 | **2** | 2412 × 2644 | 8.0 Mpx | 33.5 Mpx |
+| Pixel 5 | **2** | 1918 × 2396 | 5.8 Mpx | 33.5 Mpx |
+| 1 GB Android | 1 | unscaled | — | 16.8 Mpx |
+
+Overlays stay at 1× deliberately: they draw large flat shapes — dimming, block
+outlines, breadcrumbs — where a finer raster buys almost nothing, while the
+chart carries the symbols. A test asserts exactly one canvas is scaled.
+
+On iOS the result satisfies **both** readings of Safari's 16 777 216: the total
+is under it *and* the largest single canvas (7.5 Mpx) is under it as a
+per-canvas ceiling, with no dimension past the 4096 many mobile GPUs cap
+textures at.
+
+The scale is capped at 2 (phones report 2.5–3, and the extra buys little on a
+grid of flat cells), returns 1 whenever the projection does not fit, and is
+forced to 1 on ≤1 GB devices. It can only improve sharpness, never reintroduce
+the memory problem.
+
+**Pan cost did not regress**, which was the thing to check — scale 2 quadruples
+the pixels each fill covers. Eight gestures at 4× throttle: 66–83 ms total
+blocking, against 163–932 ms before this pass and 13 929 ms on `main`. The
+paint *count* is unchanged at 5 998, as expected: DPR changes how much each
+call covers, not how many there are.
+
+### 8.5 Test coverage added
+
+The gap was structural: only a phone (Pixel 5) and an iPad were emulated, and
+**Playwright's device descriptors do not set `navigator.deviceMemory`** — so
+every "phone" run in this repo had been taking the branch meant for an 8 GB
+machine. mobile-experience-audit.md §F flagged this; nothing had acted on it.
+
+- **New `mobile-audit-tablet` project** — Galaxy Tab S9 on Chromium.
+- **[tests/_helpers/deviceEmulation.js](../tests/_helpers/deviceEmulation.js)** —
+  memory-tier and canvas-limit emulation, plus a canvas census, shared across
+  specs. Every Android budget test asserts the stub actually took, so it cannot
+  pass vacuously against Chromium's own reported value.
+- **[android-budget.spec.js](../tests/mobile-audit/android-budget.spec.js)** (7),
+  **[android-dpr.spec.js](../tests/mobile-audit/android-dpr.spec.js)** (5),
+  two canvas probes, plus chart-height guards on phone and desktop.
+
+### Verified
+
+- **Jest 208 suites / 2 768 tests green** (2 760 before; +8 Android budget arms).
+  Three of the new arms were confirmed to fail against the pre-fix module.
+- **87 Playwright checks green** across all four projects — phone, tablet,
+  desktop and iPad WebKit.
+- Terminology lint clean; CSS-token lint unchanged.
+
+### One flaky test fixed, and what it was really measuring
+
+The Android scaling test compared *total* canvas bytes across three pattern
+sizes and failed one run in three: the 600 × 800 fixture is 13.8 MB and one run
+caught it an overlay short of mounted, halving the total. The tile itself was
+identical every time. It now asserts on the **chart tile dimensions** — which
+is the actual O(viewport) claim — and separately that whatever mounted stays
+inside the budget. Pinning a mount race was measuring load timing, not a
+property.
+
+### Still open
+
+- **R5** (static/dynamic layer split), **R9** (split `TrackerApp`, memo the
+  rail — the 1 Hz full reconcile), **R10** (typed-array pattern), **R11**,
+  **R12**. R9 and R10, plus the audit's own C1 (1.3–3.0 MB of parsed JS), are
+  the items that specifically hurt low-end Android, and none of the canvas work
+  touches them.
+- **Track-mode panning is still main-thread**, deliberately — see Part 7.
+- **Untested on hardware.** Everything here is emulated engines on a desktop
+  host. §8.3 is the sharpest statement of that limit: the harness cannot see a
+  real device's memory ceiling, so the budget constants remain a judgement call
+  that a physical phone or tablet could still overturn.
+
 ## Reproducing the computed figures
 
 The zoom-ceiling and tier tables in §1.1 and §1.3 come from executing

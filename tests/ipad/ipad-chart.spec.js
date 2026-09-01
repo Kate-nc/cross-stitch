@@ -107,6 +107,39 @@ test.describe('iPad (WebKit) tracker chart', () => {
     expect(ceiling).toBeGreaterThanOrEqual(SYMBOL_TIER_SCS);
   });
 
+  test('the chart renders at the device pixel ratio, and still fits iOS limits', async ({ page }) => {
+    // Sharpness on iOS is the case that mattered and the one the old uniform
+    // per-canvas budget said was unaffordable. It fits once the budget counts
+    // the *sum* — a DPR-2 chart plus 1x overlays — instead of assuming every
+    // canvas is the same size.
+    await openTracker(page, 'huge');
+    const r = await page.evaluate(() => {
+      const c = document.querySelector('canvas');
+      const rect = c.getBoundingClientRect();
+      const all = [...document.querySelectorAll('canvas')].filter(x => x.width > 0);
+      return {
+        scale: window.chartRenderScale(),
+        backing: [c.width, c.height],
+        css: [Math.round(rect.width), Math.round(rect.height)],
+        biggestPx: Math.max(...all.map(x => x.width * x.height)),
+        totalPx: all.reduce((s, x) => s + x.width * x.height, 0),
+        maxSide: Math.max(...all.map(x => Math.max(x.width, x.height))),
+        budget: window.canvasSizeLimits().area,
+      };
+    });
+    console.log('IPAD_DPR ' + JSON.stringify(r));
+
+    expect(r.scale).toBeGreaterThan(1);
+    expect(r.backing[0]).toBe(Math.round(r.css[0] * r.scale));
+    // Satisfies the budget under *both* readings of Safari's 16 777 216:
+    // as a whole-page budget...
+    expect(r.totalPx).toBeLessThanOrEqual(r.budget);
+    // ...and as the per-canvas ceiling it is actually documented to be.
+    expect(r.biggestPx).toBeLessThanOrEqual(16777216);
+    // And no dimension passes the 4096 many mobile GPUs cap textures at.
+    expect(r.maxSide).toBeLessThanOrEqual(4096);
+  });
+
   test('an iPad with a trackpad still gets the iOS budget', async ({ page }) => {
     // iPadOS reports `pointer: fine` when a Magic Keyboard or mouse is
     // attached, which used to route the device to the 134 Mpx desktop budget

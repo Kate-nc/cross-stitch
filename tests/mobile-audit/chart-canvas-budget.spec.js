@@ -249,6 +249,22 @@ test.describe('viewport-tiled chart', () => {
     expect({ gx: gotGx, gy: gotGy }).toEqual({ gx: target.gx, gy: target.gy });
   });
 
+  test('the phone chart viewport is unchanged by the tablet height rule', async ({ page }) => {
+    // The chart's max-height moved from inline 600px into CSS so tablets stop
+    // showing the chart through a phone-sized letterbox. A phone is below the
+    // 800px height breakpoint, so it must still resolve to 600px — the rule is
+    // additive on tall screens and inert everywhere else.
+    await suppressOnboarding(page); await emulateIOSLimits(page);
+    await loadTracker(page, fixtureFor('large'));
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('.tracker-chart-scroll');
+      return el ? { maxHeight: getComputedStyle(el).maxHeight, innerH: window.innerHeight } : null;
+    });
+    console.log('PHONE_CHART_HEIGHT ' + JSON.stringify(r));
+    expect(r).not.toBeNull();
+    expect(r.maxHeight).toBe('600px');
+  });
+
   test('a large pattern can be zoomed far enough to show symbols', async ({ page }) => {
     // §1.1 — the old clamp held a 400x500 chart at scs 9, below the 13 px
     // Tier 3 threshold, so symbols could never appear at any zoom.
