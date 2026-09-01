@@ -645,6 +645,9 @@
   function isOpen() { return !!state.open; }
 
   window.HelpDrawer = {
+    // Distinguishes this from the load-on-demand stub in lazy-modules.js,
+    // which stands in for the drawer until something asks to open it.
+    __real: true,
     open: open,
     close: close,
     toggle: toggle,

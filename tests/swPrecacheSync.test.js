@@ -33,7 +33,9 @@ const RUNTIME_ALLOWLIST = new Set([
   'touch-constants.js',
   'useDragMark.js',
   'onboarding-wizard.js',
-  'help-drawer.js',
+  // help-drawer.js is deliberately absent: it is no longer referenced from any
+  // HTML page (lazy-modules.js loads it on demand) and is precached instead.
+  // See the lazily-loaded-modules test at the bottom of this file.
   'toast.js',
   'apply-prefs.js',
   'command-palette.js',
@@ -96,5 +98,28 @@ describe('sw.js PRECACHE_URLS sync (action plan §2D.4)', () => {
       if (!allRefs.has(ref)) dead.push(ref);
     }
     expect(dead).toEqual([]);
+  });
+
+  // The checks above scan HTML only, so they are structurally blind to a module
+  // that lazy-modules.js pulls in at runtime — which is exactly the set that
+  // stopped being fetched during page load. Those modules used to be cached as
+  // a side effect of loading any page; now nothing fetches them until the user
+  // acts, so a user who goes offline first would lose the feature entirely
+  // unless they are precached. Hence: precache, not runtime-allowlist.
+  test('every module lazy-modules.js loads on demand is precached', () => {
+    const shim = loadSource('lazy-modules.js');
+    const lazySrcs = new Set();
+    const re = /var\s+\w*_?SRC\s*=\s*['"]([^'"]+\.js)['"]/g;
+    let m;
+    while ((m = re.exec(shim)) !== null) lazySrcs.add(m[1]);
+
+    // If this trips, the regex above has drifted from the shim and the rest of
+    // this test is silently vacuous.
+    // Listing them in the matcher rather than asserting a bare count so a
+    // failure names what was found instead of just "0 is not > 0".
+    expect([...lazySrcs].length ? 'found' : 'lazy-modules.js: no *_SRC entries matched').toBe('found');
+
+    const notPrecached = [...lazySrcs].filter((s) => !precached.has(s));
+    expect({ notPrecached }).toEqual({ notPrecached: [] });
   });
 });

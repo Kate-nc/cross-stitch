@@ -224,15 +224,27 @@ describe("HelpDrawer — source-level guarantees", () => {
     expect(fs.existsSync(path.join(__dirname, "..", "help-content.js"))).toBe(false);
   });
 
-  test("HTML entry points reference help-drawer.js (not help-content / onboarding)", () => {
+  // This used to require a static <script src="help-drawer.js">. The drawer is
+  // now loaded on demand by lazy-modules.js (audit §C1 / report Part 10), so
+  // the invariant is inverted: the tag must be ABSENT and the shim present.
+  // The static tag is what a regression would reintroduce, so asserting its
+  // absence is the point — the old assertion would have passed either way once
+  // the shim existed.
+  test("HTML entry points load the drawer via lazy-modules.js, not a static tag", () => {
     ["index.html", "stitch.html", "manager.html"].forEach(name => {
       const html = fs.readFileSync(path.join(__dirname, "..", name), "utf8");
-      expect(html).toMatch(/<script src="help-drawer\.js"(?:\s+defer)?><\/script>/);
+      expect(html).not.toMatch(/<script src="help-drawer\.js"(?:\s+defer)?><\/script>/);
+      expect(html).toMatch(/<script src="lazy-modules\.js"><\/script>/);
       expect(html).not.toMatch(/<script src="help-content\.js"(?:\s+defer)?><\/script>/);
       expect(html).not.toMatch(/<script src="onboarding\.js"(?:\s+defer)?><\/script>/);
       // onboarding-wizard.js is a different file and must remain.
       expect(html).toMatch(/<script src="onboarding-wizard\.js"(?:\s+defer)?><\/script>/);
     });
+  });
+
+  test("lazy-modules.js names help-drawer.js as a lazily loaded source", () => {
+    const shim = fs.readFileSync(path.join(__dirname, "..", "lazy-modules.js"), "utf8");
+    expect(shim).toMatch(/HELP_SRC\s*=\s*['"]help-drawer\.js['"]/);
   });
 });
 

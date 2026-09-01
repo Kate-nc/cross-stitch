@@ -656,7 +656,8 @@ function ManagerApp() {
   const handleBackupDownload = async () => {
     try {
       setBackupStatus({ type: "success", message: "Creating backup..." });
-      await BackupRestore.downloadBackup();
+      // Loaded on demand — see lazy-modules.js.
+      await (await window.loadBackupRestore()).downloadBackup();
       setBackupStatus({ type: "success", message: "Backup downloaded!" });
       try { window.Toast && window.Toast.show && window.Toast.show({ message: "Backup downloaded successfully", type: "success" }); } catch (_) {}
       setTimeout(() => setBackupStatus(null), 3000);
@@ -670,7 +671,17 @@ function ManagerApp() {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
+      let BackupRestore;
+      try {
+        // parseBackupText and validate return synchronously, so the lazily
+        // loaded module has to be in place before either runs. onConfirm below
+        // closes over this binding for the restore call.
+        BackupRestore = await window.loadBackupRestore();
+      } catch (err) {
+        setBackupStatus({ type: "error", message: "Could not load backup tools. Check your connection and try again." });
+        return;
+      }
       try {
         // PERF (deferred-2): handles both legacy JSON and CSB1\n compressed.
         const backup = BackupRestore.parseBackupText(reader.result);
