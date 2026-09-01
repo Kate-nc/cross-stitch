@@ -52,13 +52,24 @@ const CHART_TILE_OVERSCAN = typeof window !== 'undefined' && window.chartTileOve
 function chartTileFor(scroller, cSz, sW, sH, gutter) {
   const fullW = gutter + sW * cSz + 2,
     fullH = gutter + sH * cSz + 2;
-  if (!scroller || !scroller.clientWidth || !scroller.clientHeight) return {
-    x: 0,
-    y: 0,
-    w: fullW,
-    h: fullH,
-    full: true
-  };
+  if (!scroller) {
+    return {
+      x: 0,
+      y: 0,
+      w: fullW,
+      h: fullH,
+      full: true
+    };
+  }
+  if (!scroller.clientWidth || !scroller.clientHeight) {
+    return {
+      x: 0,
+      y: 0,
+      w: 0,
+      h: 0,
+      full: false
+    };
+  }
   const w = Math.min(fullW, scroller.clientWidth + CHART_TILE_OVERSCAN * 2);
   const h = Math.min(fullH, scroller.clientHeight + CHART_TILE_OVERSCAN * 2);
   if (w >= fullW && h >= fullH) return {
@@ -112,7 +123,11 @@ function applyChartTile(canvas, tile, gutter, opts) {
   // in the wrong place. Callers that clear incrementally (the recommendation
   // pulse) rely on `invalidated` meaning "the surface is blank", so a move has
   // to actually make that true rather than merely claim it.
+  //
+  // The liveness probe is cached per backing-store size, so a resize has to
+  // drop it — the new surface has not been probed.
   if (resized) {
+    delete canvas.__chartTileProbe;
     canvas.width = needW;
     canvas.height = needH;
   } else if (moved && o.blankOnMove !== false) {
@@ -165,20 +180,32 @@ function clearWholeChartCanvas(canvas) {
 // allocated size rather than per frame; getImageData on 1 px is cheap, but a
 // per-frame readback would stall the pipeline.
 function chartTileIsLive(canvas, ctx) {
+  if (!canvas || !canvas.width || !canvas.height) return false;
+  const key = canvas.width + "x" + canvas.height;
+  const state = canvas.__chartTileProbe || {};
+  if (state.key === key && typeof state.live === 'boolean') return state.live;
+  let live = true;
   try {
-    if (!canvas.width || !canvas.height) return false;
     ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(canvas.width - 1, canvas.height - 1, 1, 1);
-    const d = ctx.getImageData(canvas.width - 1, canvas.height - 1, 1, 1).data;
-    ctx.restore();
-    return d[3] === 255;
+    try {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(canvas.width - 1, canvas.height - 1, 1, 1);
+      const d = ctx.getImageData(canvas.width - 1, canvas.height - 1, 1, 1).data;
+      live = d[3] === 255;
+    } finally {
+      ctx.restore();
+    }
   } catch (_) {
     // Tainted or otherwise unreadable: no evidence of failure, so assume live
     // rather than degrading a working chart.
-    return true;
+    live = true;
   }
+  canvas.__chartTileProbe = {
+    key: key,
+    live: live
+  };
+  return live;
 }
 
 // Hoisted module-scope constants (avoid per-render allocation).
@@ -2097,6 +2124,9 @@ function TrackerApp({
     // up rather than down. Overlays now move only when the chart moves.
     const ref = chartTileRef.current;
     const tile = ref && ref.w > 0 ? ref : chartTileFor(stitchScrollRef.current, scs, sW, sH, G);
+    // A zero-sized tile means the scroller has not been measured yet; there is
+    // nothing to draw into and no geometry to draw it at.
+    if (!tile || !tile.w || !tile.h) return null;
     const a = applyChartTile(canvas, tile, G, {
       scale: 1
     });
@@ -7086,6 +7116,17 @@ function TrackerApp({
     if (!pat || !cmap || !stitchRef.current) return;
     let canvas = stitchRef.current;
     const el = stitchScrollRef.current;
+    if (el && (!el.clientWidth || !el.clientHeight)) {
+      chartTileRef.current = {
+        x: 0,
+        y: 0,
+        w: 0,
+        h: 0,
+        full: false
+      };
+      paintedRectRef.current = null;
+      return;
+    }
     let tile = chartTileFor(el, scs, sW, sH, G);
     const chartScale = typeof window.chartRenderScale === "function" ? window.chartRenderScale() : 1;
     let ctx = applyChartTile(canvas, tile, G, {
@@ -7096,18 +7137,31 @@ function TrackerApp({
     // tile and try once more before painting into a surface that will never
     // appear. Rare, but the failure is silent otherwise: a blank white chart.
     if (!chartTileIsLive(canvas, ctx) && !tile.full) {
+      // Shrink toward the viewport rather than blindly halving: a tile smaller
+      // than the visible area would leave part of the chart unpainted. Re-centred
+      // on what was showing, and clamped to the chart's bounds.
+      const fullW = G + sW * scs + 2,
+        fullH = G + sH * scs + 2;
+      const viewportW = Math.max(1, el ? el.clientWidth : tile.w);
+      const viewportH = Math.max(1, el ? el.clientHeight : tile.h);
+      const reducedW = Math.max(viewportW, Math.floor(tile.w / 2));
+      const reducedH = Math.max(viewportH, Math.floor(tile.h / 2));
+      const xShift = Math.max(0, Math.floor((tile.w - reducedW) / 2));
+      const yShift = Math.max(0, Math.floor((tile.h - reducedH) / 2));
       tile = {
-        x: tile.x,
-        y: tile.y,
-        w: Math.max(1, Math.floor(tile.w / 2)),
-        h: Math.max(1, Math.floor(tile.h / 2)),
+        x: Math.max(0, Math.min(tile.x + xShift, fullW - reducedW)),
+        y: Math.max(0, Math.min(tile.y + yShift, fullH - reducedH)),
+        w: reducedW,
+        h: reducedH,
         full: false
       };
       ctx = applyChartTile(canvas, tile, G, {
         blankOnMove: false,
         scale: chartScale
       }).ctx;
+      delete canvas.__chartTileProbe;
     }
+    const prevTile = chartTileRef.current;
     // Carries the render scale too: drawCellDirectly re-establishes this
     // transform on the single-cell fast path and needs both halves of it.
     chartTileRef.current = {
@@ -7175,7 +7229,8 @@ function TrackerApp({
       };
     }
     // Overlays share the chart's geometry, so a tile move invalidates them too.
-    redrawChartOverlays();
+    const tileChanged = !prevTile || prevTile.x !== tile.x || prevTile.y !== tile.y || prevTile.w !== tile.w || prevTile.h !== tile.h || prevTile.full !== tile.full;
+    if (tileChanged) redrawChartOverlays();
   }, [pat, cmap, scs, sW, sH, showCtr, bsLines, done, parkMarkers, parkLayers, hlRow, hlCol, stitchView, focusColour, halfStitches, halfDone, stitchZoom, highlightMode, tintColor, tintOpacity, spotDimOpacity, antsOffset, trackerDimLevel, layerVis, bsThickness, lockDetailLevel, lowZoomFade, rowModeActive, currentRow, trackerFabricColour, trackerCanvasTexture]);
 
   // Scroll-driven repaint. Previously every scroll frame ran a full
