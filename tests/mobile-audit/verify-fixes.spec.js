@@ -61,15 +61,25 @@ const zoomPct = (page) => page.evaluate(() => {
   return el ? el.textContent.trim() : null;
 });
 
-test('A1: iOS-like limits clamp a 200x250 chart inside 4096px / 16.7Mpx', async ({ page }) => {
+test('A1: iOS-like limits keep a 200x250 chart inside 4096px / 16.7Mpx', async ({ page }) => {
   await suppressOnboarding(page); await emulateIOSLimits(page);
   await loadTracker(page, fixture(200, 250));
   const r = await chartSize(page);
-  console.log('IOS_200x250 ' + JSON.stringify(r));
+  const extent = await page.evaluate(() => {
+    const all = [...document.querySelectorAll('.canvas-area div, .canvas-area')];
+    const el = all.find(e => e.scrollWidth > e.clientWidth + 10 || e.scrollHeight > e.clientHeight + 10);
+    return el ? { scrollW: el.scrollWidth, scrollH: el.scrollHeight } : null;
+  });
+  console.log('IOS_200x250 ' + JSON.stringify({ ...r, extent }));
   expect(r.biggest.w).toBeLessThanOrEqual(4096);
   expect(r.biggest.h).toBeLessThanOrEqual(4096);
-  expect(r.biggest.mpx).toBeLessThanOrEqual(16777216);
-  expect(r.biggest.w).toBeGreaterThan(1000);   // still a usable chart
+  // Now asserted on the total across every canvas, not just the largest — the
+  // chart plus its overlays all share this geometry, and the budget is what
+  // the device holds for all of them together.
+  expect(r.totalMpx).toBeLessThanOrEqual(16777216);
+  // Still a usable chart: the *scroll extent* spans the whole pattern even
+  // though the backing store only covers the viewport.
+  expect(extent.scrollW).toBe(200 * 20 + 30);
 });
 
 // Pinch is the real mobile zoom path (there are no zoom buttons in the
@@ -112,12 +122,21 @@ test('A1: pinching in saturates at the cap instead of overflowing it', async ({ 
 test('A1: zooming out still shrinks the chart (clamp does not freeze zoom)', async ({ page }) => {
   await suppressOnboarding(page); await emulateIOSLimits(page);
   await loadTracker(page, fixture(200, 250));
-  const before = (await chartSize(page)).biggest.w;
+  // Measured on the scroll extent rather than the canvas: the canvas is a
+  // viewport-sized tile and stays the same size at every zoom, which is
+  // exactly what makes the memory constant. The chart itself must still
+  // shrink.
+  const extent = () => page.evaluate(() => {
+    const all = [...document.querySelectorAll('.canvas-area div, .canvas-area')];
+    const el = all.find(e => e.scrollWidth > e.clientWidth + 10 || e.scrollHeight > e.clientHeight + 10);
+    return el ? el.scrollWidth : null;
+  });
+  const before = await extent();
   // "-" shortcut goes through setStitchZoom, the wrapper holding the clamp.
   await page.locator('canvas').first().click({ position: { x: 20, y: 20 }, force: true }).catch(() => {});
   for (let i = 0; i < 5; i++) { await page.keyboard.press('-'); await page.waitForTimeout(60); }
   await page.waitForTimeout(900);
-  const after = (await chartSize(page)).biggest.w;
+  const after = await extent();
   console.log('IOS_ZOOM_OUT ' + JSON.stringify({ before, after }));
   expect(after).toBeLessThan(before);
 });

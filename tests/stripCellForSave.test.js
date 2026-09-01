@@ -38,7 +38,9 @@ const mockGlobals = `
 `;
 
 const helperFns = mockGlobals
-  + 'var _DMC_BY_ID=null,_ANCHOR_BY_ID=null;\n'
+  // Module-level caches the extracted functions close over in helpers.js.
+  // _serialisedPatterns memoises serializePattern on the pattern's identity.
+  + 'var _DMC_BY_ID=null,_ANCHOR_BY_ID=null,_serialisedPatterns=new WeakMap();\n'
   + extractFn(helpersSource, '_getDmcById') + '\n'
   + extractFn(helpersSource, '_getAnchorById') + '\n'
   + extractFn(helpersSource, 'findThreadInCatalog') + '\n'
@@ -114,6 +116,49 @@ describe('stripCellForSave — flag ON (default)', () => {
       { id: '__skip__' },
       { id: '310+321', type: 'blend' }
     ]);
+  });
+
+  describe('memoisation on the pattern identity', () => {
+    // The tracker autosaves every 5 s while stitching, and between saves only
+    // `done` changes — `pat` is replaced wholesale on a pattern edit and never
+    // mutated in place. Re-serialising was allocating one fresh object per
+    // cell each time for no benefit.
+    const mk = () => [
+      { id: '310', type: 'solid', rgb: [0, 0, 0] },
+      { id: 'custom', type: 'solid', rgb: [9, 9, 9] },
+    ];
+
+    test('the same pattern array is serialised once', () => {
+      const pat = mk();
+      expect(serializePattern(pat)).toBe(serializePattern(pat));
+    });
+
+    test('a different pattern array is serialised afresh', () => {
+      // Equal content, different identity — a real edit replaces the array, so
+      // identity is the correct cache key and must not be conflated with
+      // deep equality.
+      const a = serializePattern(mk());
+      const b = serializePattern(mk());
+      expect(b).not.toBe(a);
+      expect(b).toEqual(a);
+    });
+
+    test('an edited pattern is not served from the cache', () => {
+      const pat = mk();
+      const before = serializePattern(pat);
+      const edited = pat.slice();
+      edited[0] = { id: '321', type: 'solid', rgb: [200, 30, 40] };
+      const after = serializePattern(edited);
+      expect(after).not.toBe(before);
+      expect(after[0]).toEqual({ id: '321', type: 'solid' });
+    });
+
+    test('a pattern resized in place re-serialises rather than saving a stale cell count', () => {
+      const pat = mk();
+      serializePattern(pat);
+      pat.push({ id: '550', type: 'solid', rgb: [100, 20, 120] });
+      expect(serializePattern(pat)).toHaveLength(3);
+    });
   });
 });
 

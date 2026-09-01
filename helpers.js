@@ -178,10 +178,19 @@ function confettiTier(pct){
   return{color:"var(--danger)",label:"High confetti"};
 }
 
-function gridCoord(canvasRef,e,cellSize,gutter,snap=false){
+// Screen point -> grid cell for a chart canvas.
+//
+// `origin` is the chart-content coordinate that canvas pixel 0 corresponds to.
+// The tracker's chart canvas is a viewport-sized tile that slides as the user
+// scrolls (see chartTileFor in tracker-app.js), so its pixel 0 is not chart
+// pixel 0 and the offset has to be added back before the grid maths. It
+// defaults to {x:0,y:0}, which is both the untiled case and every creator
+// canvas — those are still whole-surface, so their callers pass nothing.
+function gridCoord(canvasRef,e,cellSize,gutter,snap=false,origin){
   if(!canvasRef.current)return null;
   let rect=canvasRef.current.getBoundingClientRect();
-  let mx=e.clientX-rect.left,my=e.clientY-rect.top;
+  let ox=origin?origin.x:0, oy=origin?origin.y:0;
+  let mx=e.clientX-rect.left+ox,my=e.clientY-rect.top+oy;
   let gx=snap?Math.round((mx-gutter)/cellSize):Math.floor((mx-gutter)/cellSize);
   let gy=snap?Math.round((my-gutter)/cellSize):Math.floor((my-gutter)/cellSize);
   return{gx,gy};
@@ -1725,9 +1734,32 @@ function stripCellForSave(m){
 if(typeof window!=='undefined')window.stripCellForSave=stripCellForSave;
 
 // Convenience wrapper for the common pat.map(...) site.
+//
+// PERF: memoised on the pattern's identity. The tracker rebuilds a full
+// snapshot every 5 s while stitching, but between those saves only `done`
+// changes — `pat` is replaced wholesale on any pattern edit and is never
+// mutated in place. Re-serialising was therefore allocating a fresh object per
+// cell (200 000 of them on a 400x500 pattern) on every autosave, purely to
+// produce the same array again: a recurring multi-megabyte main-thread spike
+// during the one activity the app exists for.
+//
+// A WeakMap so the entry dies with the pattern it describes. The consequence
+// worth knowing: callers now share one array rather than each getting a fresh
+// one, so the result must be treated as read-only. Every current caller hands
+// it straight to a structured clone (IndexedDB) or a JSON serialiser, neither
+// of which mutates.
+var _serialisedPatterns=(typeof WeakMap==='function')?new WeakMap():null;
 function serializePattern(pat){
   if(!pat||!pat.map)return pat;
-  return pat.map(stripCellForSave);
+  if(_serialisedPatterns){
+    var hit=_serialisedPatterns.get(pat);
+    // Length check so a pattern array that was somehow resized in place still
+    // re-serialises rather than silently saving the wrong cell count.
+    if(hit&&hit.length===pat.length)return hit;
+  }
+  var out=pat.map(stripCellForSave);
+  if(_serialisedPatterns)_serialisedPatterns.set(pat,out);
+  return out;
 }
 if(typeof window!=='undefined'){
   window.serializePattern=serializePattern;

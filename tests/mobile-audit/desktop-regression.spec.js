@@ -41,6 +41,23 @@ const chart = (page) => page.evaluate(() => {
   const cs = [...document.querySelectorAll('canvas')].map(c => ({ w: c.width, h: c.height, mpx: c.width * c.height }));
   return cs.sort((a, b) => b.mpx - a.mpx)[0] || null;
 });
+
+/* Effective cell size, read from the chart's scroll extent.
+   The canvas is a viewport-sized tile now, so its `width` no longer tells you
+   what zoom is applied — but the scroller still spans the whole chart, and its
+   scrollWidth is `G + sW*scs + 2`. That is the invariant these tests are
+   really about: how big the chart is, not how big its backing store is. */
+const chartScs = (page, sW, sH) => page.evaluate(([w, h]) => {
+  const all = [...document.querySelectorAll('.canvas-area div, .canvas-area')];
+  const el = all.find(e => e.scrollWidth > e.clientWidth + 10 || e.scrollHeight > e.clientHeight + 10)
+          || document.querySelector('.canvas-area');
+  if (!el) return null;
+  const G = 28;
+  return {
+    scrollW: el.scrollWidth, scrollH: el.scrollHeight,
+    scsW: (el.scrollWidth - G - 2) / w, scsH: (el.scrollHeight - G - 2) / h,
+  };
+}, [sW, sH]);
 const zoomPct = (page) => page.evaluate(() => {
   const el = document.querySelector('.tb-zoom-pct');
   return el ? el.textContent.trim() : null;
@@ -60,43 +77,49 @@ test('desktop still reaches 400% zoom on a small pattern (clamp is inert)', asyn
   await setup(page);
   await loadTracker(page, fixture(60, 60));
   await zoomKey(page, '=', 40);             // zoom all the way in
-  const c = await chart(page);
-  console.log('DESK_MAXZOOM ' + JSON.stringify({ canvas: c, scs: (c.w - 30) / 60 }));
+  const s = await chartScs(page, 60, 60);
+  console.log('DESK_MAXZOOM ' + JSON.stringify(s));
   // 60x60 is far inside every budget, so the pre-existing zoom ceiling of 4
-  // (scs 80) must still be reachable: 60*80 + 28 + 2 = 4830.
-  expect(c.w).toBe(60 * 80 + 30);
+  // (scs 80) must still be reachable.
+  expect(s.scsW).toBe(80);
 });
 
 test('desktop zoom out still works', async ({ page }) => {
   await setup(page);
   await loadTracker(page, fixture(60, 60));
   await zoomKey(page, '=', 8);
-  const before = (await chart(page)).w;
+  const before = (await chartScs(page, 60, 60)).scsW;
   await zoomKey(page, '-', 5);
-  const after = (await chart(page)).w;
+  const after = (await chartScs(page, 60, 60)).scsW;
   console.log('DESK_ZOOMOUT ' + JSON.stringify({ before, after }));
   expect(after).toBeLessThan(before);
 });
 
-test('desktop: zoom-in on a large pattern saturates at the cap', async ({ page }) => {
+test('desktop: zoom-in on a large pattern is no longer capped by pattern size', async ({ page }) => {
   await setup(page);
   await loadTracker(page, fixture(200, 250));
   await zoomKey(page, '=', 40);
+  const s = await chartScs(page, 200, 250);
   const c = await chart(page);
-  console.log('DESK_LARGE_ZOOMED ' + JSON.stringify({ canvas: c, scs: (c.w - 30) / 200 }));
-  // Must saturate below Chrome's 268 Mpx limit rather than overflow it.
-  expect(c.w * c.h).toBeLessThanOrEqual(134217728);
-  expect((c.w - 30) / 200).toBeGreaterThan(20);   // but it did zoom in
+  console.log('DESK_LARGE_ZOOMED ' + JSON.stringify({ scs: s, canvas: c }));
+  // The surface is viewport-sized, so a 200x250 chart reaches the same 400%
+  // ceiling a 60x60 one does — it used to saturate at scs 51.
+  expect(s.scsW).toBe(80);
+  // ...and the backing store stays small while it does so, which is the whole
+  // point: this used to be 130 Mpx.
+  expect(c.w * c.h).toBeLessThanOrEqual(16777216);
 });
 
 test('desktop: a large pattern is not clamped on a high-memory device', async ({ page }) => {
   await setup(page);
   await loadTracker(page, fixture(200, 250));
-  const c = await chart(page);
-  console.log('DESK_LARGE ' + JSON.stringify({ canvas: c, scs: (c.w - 30) / 200 }));
-  // Desktop budget is 134 Mpx, so the default zoom-1 canvas (20.3 Mpx) stands.
-  expect(c.w).toBe(200 * 20 + 30);
-  expect(c.h).toBe(250 * 20 + 30);
+  const s = await chartScs(page, 200, 250);
+  console.log('DESK_LARGE ' + JSON.stringify(s));
+  // Default zoom 1 must still mean scs 20 — no silent clamp on load.
+  expect(s.scsW).toBe(20);
+  // The vertical extent carries one extra pixel from the column ruler's
+  // bottom border, so assert the raw extent rather than a derived cell size.
+  expect(s.scrollH).toBe(250 * 20 + 28 + 2 + 1);
 });
 
 test('desktop: the mass hover-wrap did not disable hover', async ({ page }) => {

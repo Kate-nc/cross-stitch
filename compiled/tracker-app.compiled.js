@@ -25,6 +25,166 @@ function chartOverdraw(cSz) {
   return Math.max(40, 20 * cSz);
 }
 
+/* ── Viewport tiling ───────────────────────────────────────────────────────
+   The chart and its overlays used to size their backing store to the whole
+   pattern at the current zoom: `canvas.width = sW*scs + G + 2`. That is
+   O(pattern) memory. A 400x500 chart at zoom 1 is 63 MB *per canvas*, and up
+   to six of them mount at once, so an ordinary highlight session asked an
+   iPad for a quarter of a gigabyte. Safari does not throw — it discards
+   backing stores under that pressure and repaints them, which is what "the
+   app freezes" feels like. The zoom clamp that used to hold this in check
+   also held large patterns below the cell size at which symbols render.
+
+   Instead every chart-geometry canvas now covers only the visible slice plus
+   an overscan margin, and its 2D context is translated so that draw code can
+   go on addressing cells in absolute chart coordinates. Memory becomes
+   O(viewport): ~11 MB whatever the pattern size.
+
+   When the whole chart already fits in one tile the origin is (0,0) and the
+   geometry is identical to the pre-tiling behaviour, so small patterns and
+   desktop are untouched. `full` records which regime a tile is in. */
+const CHART_TILE_OVERSCAN = typeof window !== 'undefined' && window.chartTileOverscan || 300;
+
+// Geometry of the tile that should be showing for a given scroller position.
+// `x`/`y` are in chart-content coordinates — the same space viewportRect and
+// scrollLeft/scrollTop use — and name the chart pixel that lands on canvas
+// pixel 0.
+function chartTileFor(scroller, cSz, sW, sH, gutter) {
+  const fullW = gutter + sW * cSz + 2,
+    fullH = gutter + sH * cSz + 2;
+  if (!scroller) {
+    return {
+      x: 0,
+      y: 0,
+      w: fullW,
+      h: fullH,
+      full: true
+    };
+  }
+  if (!scroller.clientWidth || !scroller.clientHeight) {
+    return {
+      x: 0,
+      y: 0,
+      w: 0,
+      h: 0,
+      full: false
+    };
+  }
+  const w = Math.min(fullW, scroller.clientWidth + CHART_TILE_OVERSCAN * 2);
+  const h = Math.min(fullH, scroller.clientHeight + CHART_TILE_OVERSCAN * 2);
+  if (w >= fullW && h >= fullH) return {
+    x: 0,
+    y: 0,
+    w: fullW,
+    h: fullH,
+    full: true
+  };
+  // Clamped to the chart so the tile never hangs off an edge, which would
+  // waste backing store on blank space and leave the opposite edge unpainted.
+  const x = Math.max(0, Math.min(fullW - w, Math.round(scroller.scrollLeft - CHART_TILE_OVERSCAN)));
+  const y = Math.max(0, Math.min(fullH - h, Math.round(scroller.scrollTop - CHART_TILE_OVERSCAN)));
+  return {
+    x,
+    y,
+    w,
+    h,
+    full: false
+  };
+}
+
+// Point a canvas at a tile: resize if needed, move the element so canvas pixel
+// 0 sits on chart pixel `tile.x/y`, and translate the context so callers keep
+// drawing in absolute chart coordinates. Returns the prepared 2D context.
+//
+// setTransform (not translate) because every draw entry point calls this,
+// including the single-cell fast path — an absolute transform is idempotent,
+// a relative one would accumulate.
+// `blankOnMove` false means the caller repaints the whole tile itself, so the
+// clear a move would otherwise need is redundant — true of the chart, whose
+// drawStitch begins by filling the entire chart rect.
+function applyChartTile(canvas, tile, gutter, blankOnMove) {
+  const prev = canvas.__chartTile;
+  const resized = canvas.width !== tile.w || canvas.height !== tile.h;
+  const moved = !!prev && (prev.x !== tile.x || prev.y !== tile.y);
+  const ctx = canvas.getContext("2d");
+  if (resized) {
+    delete canvas.__chartTileProbe;
+    canvas.width = tile.w;
+    canvas.height = tile.h;
+  }
+  // Assigning width blanks the surface; *moving* it does not — the pixels
+  // stay, but they were painted for the old origin, so they are now garbage
+  // in the wrong place. Callers that clear incrementally (the recommendation
+  // pulse) rely on `invalidated` meaning "the surface is blank", so a move has
+  // to actually make that true rather than merely claim it.
+  else if (moved && blankOnMove !== false) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+  // -gutter reproduces the overhang the full-size canvas got from its negative
+  // margin, so a tile at origin sits exactly where the old canvas did.
+  const left = tile.x - gutter + "px",
+    top = tile.y - gutter + "px";
+  if (canvas.style.left !== left) canvas.style.left = left;
+  if (canvas.style.top !== top) canvas.style.top = top;
+  canvas.__chartTile = {
+    x: tile.x,
+    y: tile.y,
+    w: tile.w,
+    h: tile.h
+  };
+  ctx.setTransform(1, 0, 0, 1, -tile.x, -tile.y);
+  return {
+    ctx: ctx,
+    invalidated: resized || moved || !prev
+  };
+}
+
+// Blank a chart canvas outright, for the branches where an overlay is switched
+// off. Resets the transform first: the context still carries the tile
+// translation from its last draw, so clearing 0,0..w,h through it would clear
+// the wrong region and leave the overlay visible.
+function clearWholeChartCanvas(canvas) {
+  if (!canvas || !canvas.width || !canvas.height) return;
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+// R3 — memory-pressure escape hatch. A backing store the browser refused or
+// discarded reports its dimensions normally and simply does not paint, so the
+// only way to know is to write a pixel and read it back. Checked once per
+// allocated size rather than per frame; getImageData on 1 px is cheap, but a
+// per-frame readback would stall the pipeline.
+function chartTileIsLive(canvas, ctx) {
+  if (!canvas || !canvas.width || !canvas.height) return false;
+  const key = canvas.width + "x" + canvas.height;
+  const state = canvas.__chartTileProbe || {};
+  if (state.key === key && typeof state.live === 'boolean') return state.live;
+  let live = true;
+  try {
+    ctx.save();
+    try {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(canvas.width - 1, canvas.height - 1, 1, 1);
+      const d = ctx.getImageData(canvas.width - 1, canvas.height - 1, 1, 1).data;
+      live = d[3] === 255;
+    } finally {
+      ctx.restore();
+    }
+  } catch (_) {
+    // Tainted or otherwise unreadable: no evidence of failure, so assume live
+    // rather than degrading a working chart.
+    live = true;
+  }
+  canvas.__chartTileProbe = {
+    key: key,
+    live: live
+  };
+  return live;
+}
+
 // Hoisted module-scope constants (avoid per-render allocation).
 const START_CORNERS = [["TL", "Top-left"], ["TR", "Top-right"], ["C", "Centre"], ["BL", "Bottom-left"], ["BR", "Bottom-right"]];
 const DEFAULT_PDF_SETTINGS = {
@@ -1895,6 +2055,76 @@ function TrackerApp({
   // was painted at. Set by renderStitch, read by renderStitchIfScrolledOut to
   // skip repaints while the viewport is still inside it.
   const paintedRectRef = useRef(null);
+  // Tile the chart canvas currently shows (see chartTileFor). Every conversion
+  // between screen and chart coordinates has to add this origin back, so it is
+  // the one place that knows where the canvas is, and it must be set before any
+  // draw or hit-test reads it — renderStitch does that on the first paint.
+  const chartTileRef = useRef({
+    x: 0,
+    y: 0,
+    w: 0,
+    h: 0,
+    full: true
+  });
+  // Overlay canvases share the chart's geometry, so they have to follow the tile
+  // when it moves. Each overlay effect registers its draw function here and
+  // removes it on cleanup; renderStitch invokes whatever is registered.
+  const chartOverlayRedrawRef = useRef({});
+  function redrawChartOverlays() {
+    const reg = chartOverlayRedrawRef.current;
+    for (const k in reg) {
+      try {
+        reg[k]();
+      } catch (e) {
+        console.error("overlay redraw failed: " + k, e);
+      }
+    }
+  }
+  // Register an overlay's draw function under `name` for the lifetime of an
+  // effect. Returns the cleanup to hand back from the effect, so an overlay that
+  // unmounts cannot leave a stale closure being called on every scroll.
+  function registerChartOverlay(name, draw) {
+    chartOverlayRedrawRef.current[name] = draw;
+    return () => {
+      delete chartOverlayRedrawRef.current[name];
+    };
+  }
+  // Point an overlay canvas at the chart's current tile and return its context.
+  // Overlays sit on the chart's geometry, so they share its tile exactly.
+  function prepareOverlayTile(canvas) {
+    if (!canvas) return null;
+    // Follow the tile the *chart* is on rather than recomputing from the current
+    // scroll position. Two reasons: the overlays must stay registered to the
+    // chart or they would show a different slice of the pattern for a frame, and
+    // the recommendation pulse runs this at 60fps — recomputing there made every
+    // pan frame move and blank the overlay, which is what pushed cleared pixels
+    // up rather than down. Overlays now move only when the chart moves.
+    const ref = chartTileRef.current;
+    const tile = ref && ref.w > 0 ? ref : chartTileFor(stitchScrollRef.current, scs, sW, sH, G);
+    if (!tile || !tile.w || !tile.h) return null;
+    const a = applyChartTile(canvas, tile, G);
+    return {
+      ctx: a.ctx,
+      invalidated: a.invalidated,
+      tile
+    };
+  }
+  // Clear the whole tile. Called through the chart-coordinate transform, so the
+  // rect is expressed in chart space rather than canvas space.
+  function clearOverlayTile(ctx, tile) {
+    ctx.clearRect(tile.x, tile.y, tile.w, tile.h);
+  }
+  // Cell range a tile covers. Overlays that walked the entire pattern on every
+  // redraw now walk only this — necessary as well as faster, because a tiled
+  // overlay redraws whenever the tile moves.
+  function tileCellRange(tile, cSz) {
+    return {
+      x0: Math.max(0, Math.floor((tile.x - G) / cSz)),
+      y0: Math.max(0, Math.floor((tile.y - G) / cSz)),
+      x1: Math.min(sW, Math.ceil((tile.x + tile.w - G) / cSz)),
+      y1: Math.min(sH, Math.ceil((tile.y + tile.h - G) / cSz))
+    };
+  }
   const lastClickedRef = useRef(null); // { idx, row, col, val } for shift+click range
   // C3: range-select state lives inside useDragMark (long-press anchor + shift+click).
 
@@ -6351,8 +6581,10 @@ function TrackerApp({
     ctx.fillStyle = trackerFabricColour || "#fff";
     ctx.fillRect(0, 0, gut + dW * cSz + 2, gut + dH * cSz + 2);
 
-    // Viewport culling: 20-cell overdraw buffer for smooth panning
-    const OVERDRAW = chartOverdraw(cSz);
+    // Viewport culling: 20-cell overdraw buffer for smooth panning. A tiled
+    // caller passes its own margin (0 — the tile already includes it), so the
+    // paint cannot spill past the backing store it was sized for.
+    const OVERDRAW = viewportRect && typeof viewportRect.overdraw === "number" ? viewportRect.overdraw : chartOverdraw(cSz);
     let startX = 0,
       startY = 0,
       endX = dW,
@@ -6794,28 +7026,83 @@ function TrackerApp({
   const renderStitch = useCallback(() => {
     if (!pat || !cmap || !stitchRef.current) return;
     let canvas = stitchRef.current;
-    if (canvas.width !== sW * scs + G + 2 || canvas.height !== sH * scs + G + 2) {
-      canvas.width = sW * scs + G + 2;
-      canvas.height = sH * scs + G + 2;
+    const el = stitchScrollRef.current;
+    if (el && (!el.clientWidth || !el.clientHeight)) {
+      chartTileRef.current = {
+        x: 0,
+        y: 0,
+        w: 0,
+        h: 0,
+        full: false
+      };
+      paintedRectRef.current = null;
+      return;
     }
+    let tile = chartTileFor(el, scs, sW, sH, G);
+    let ctx = applyChartTile(canvas, tile, G, false).ctx;
+    // R3 — if the browser refused or discarded this backing store, shrink the
+    // tile and try once more before painting into a surface that will never
+    // appear. Rare, but the failure is silent otherwise: a blank white chart.
+    if (!chartTileIsLive(canvas, ctx) && !tile.full) {
+      const fullW = G + sW * scs + 2,
+        fullH = G + sH * scs + 2;
+      const viewportW = Math.max(1, el ? el.clientWidth : tile.w);
+      const viewportH = Math.max(1, el ? el.clientHeight : tile.h);
+      const reducedW = Math.max(viewportW, Math.floor(tile.w / 2));
+      const reducedH = Math.max(viewportH, Math.floor(tile.h / 2));
+      const xShift = Math.max(0, Math.floor((tile.w - reducedW) / 2));
+      const yShift = Math.max(0, Math.floor((tile.h - reducedH) / 2));
+      tile = {
+        x: Math.max(0, Math.min(tile.x + xShift, fullW - reducedW)),
+        y: Math.max(0, Math.min(tile.y + yShift, fullH - reducedH)),
+        w: reducedW,
+        h: reducedH,
+        full: false
+      };
+      ctx = applyChartTile(canvas, tile, G, false).ctx;
+      delete canvas.__chartTileProbe;
+    }
+    const prevTile = chartTileRef.current;
+    chartTileRef.current = tile;
     let viewportRect = null;
-    if (stitchScrollRef.current) {
+    if (el) {
       viewportRect = {
-        left: stitchScrollRef.current.scrollLeft,
-        top: stitchScrollRef.current.scrollTop,
-        width: stitchScrollRef.current.clientWidth,
-        height: stitchScrollRef.current.clientHeight,
-        right: stitchScrollRef.current.scrollLeft + stitchScrollRef.current.clientWidth,
-        bottom: stitchScrollRef.current.scrollTop + stitchScrollRef.current.clientHeight
+        left: el.scrollLeft,
+        top: el.scrollTop,
+        width: el.clientWidth,
+        height: el.clientHeight,
+        right: el.scrollLeft + el.clientWidth,
+        bottom: el.scrollTop + el.clientHeight
       };
     }
-    drawStitch(canvas.getContext("2d"), scs, viewportRect);
+    // On a tile, the paintable region *is* the tile, so ask drawStitch for
+    // exactly that and no overdraw on top: the tile already contains the margin,
+    // and growing past it would only draw cells that get clipped away.
+    const drawRect = tile.full ? viewportRect : {
+      left: tile.x,
+      top: tile.y,
+      right: tile.x + tile.w,
+      bottom: tile.y + tile.h,
+      width: tile.w,
+      height: tile.h,
+      overdraw: 0
+    };
+    drawStitch(ctx, scs, drawRect);
+
     // Record what is now on the canvas so the scroll handler can tell whether a
-    // repaint is actually needed. drawStitch clears the whole canvas and then
-    // paints only viewportRect grown by the overdraw margin, so that grown rect
-    // is exactly the valid region. Null viewportRect means the whole chart was
-    // drawn and any scroll position is already covered.
-    if (viewportRect) {
+    // repaint is actually needed. Untiled, drawStitch paints viewportRect grown
+    // by the overdraw margin, so that grown rect is the valid region; tiled, the
+    // valid region is the tile itself. Null means the whole chart was drawn and
+    // any scroll position is already covered.
+    if (!tile.full) {
+      paintedRectRef.current = {
+        left: tile.x,
+        top: tile.y,
+        right: tile.x + tile.w,
+        bottom: tile.y + tile.h,
+        scs: scs
+      };
+    } else if (viewportRect) {
       const od = chartOverdraw(scs);
       paintedRectRef.current = {
         left: viewportRect.left - od,
@@ -6833,6 +7120,9 @@ function TrackerApp({
         scs: scs
       };
     }
+    // Overlays share the chart's geometry, so a tile move invalidates them too.
+    const tileChanged = !prevTile || prevTile.x !== tile.x || prevTile.y !== tile.y || prevTile.w !== tile.w || prevTile.h !== tile.h || prevTile.full !== tile.full;
+    if (tileChanged) redrawChartOverlays();
   }, [pat, cmap, scs, sW, sH, showCtr, bsLines, done, parkMarkers, parkLayers, hlRow, hlCol, stitchView, focusColour, halfStitches, halfDone, stitchZoom, highlightMode, tintColor, tintOpacity, spotDimOpacity, antsOffset, trackerDimLevel, layerVis, bsThickness, lockDetailLevel, lowZoomFade, rowModeActive, currentRow, trackerFabricColour, trackerCanvasTexture]);
 
   // Scroll-driven repaint. Previously every scroll frame ran a full
@@ -6914,36 +7204,67 @@ function TrackerApp({
     };
   }, [scs, lockDetailLevel]);
 
+  // R3 (second half) — hand the chart's backing stores back while the tab is
+  // hidden. Safari reclaims canvas memory aggressively under pressure and
+  // decides *for* us which surfaces to discard; releasing them deliberately on
+  // the way out means the return path is a clean repaint rather than whatever
+  // state the browser left behind. Zeroing width is what actually frees the
+  // backing store — display:none does not.
+  //
+  // Only the overlays are released. The chart itself is left alone: it is the
+  // one canvas the user is guaranteed to be looking at on return, and blanking
+  // it risks a visible flash before renderStitch runs.
+  useEffect(() => {
+    if (!pat) return;
+    const overlays = [threadUsageCanvasRef, recOverlayCanvasRef, breadcrumbCanvasRef, focusOverlayCanvasRef, countingAidsCanvasRef];
+    const onVis = () => {
+      if (document.visibilityState === "hidden") {
+        for (const r of overlays) {
+          const c = r.current;
+          if (c && c.width) {
+            c.width = 0;
+            c.height = 0;
+            delete c.__chartTile;
+          }
+        }
+      } else {
+        // __chartTile was cleared above, so applyChartTile sees a fresh surface
+        // and every overlay repaints from scratch at the current tile. Called
+        // through the ref so this effect does not depend on renderStitch's
+        // identity, which changes on most renders and would otherwise churn the
+        // listener every time.
+        if (renderStitchRef.current) renderStitchRef.current();
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [!!pat]);
+
   // ═══ Thread usage overlay rendering ═══
   useEffect(() => {
     const canvas = threadUsageCanvasRef.current;
     if (!canvas) return;
     if (!analysisResult || !threadUsageMode || !pat) {
-      if (canvas.width > 0) {
-        const ctx = canvas.getContext("2d");
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-      }
+      clearWholeChartCanvas(canvas);
       return;
     }
     const ps = analysisResult.perStitch;
     const W = analysisResult.sW,
       H = analysisResult.sH;
     if (!ps || W !== sW || H !== sH) return;
-    const needW = W * scs + G + 2,
-      needH = H * scs + G + 2;
-    if (canvas.width !== needW || canvas.height !== needH) {
-      canvas.width = needW;
-      canvas.height = needH;
-    }
-    cancelAnimationFrame(threadUsageRafRef.current);
-    threadUsageRafRef.current = requestAnimationFrame(() => {
-      const ctx = canvas.getContext("2d");
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      for (let i = 0; i < pat.length; i++) {
+    const draw = () => {
+      const prep = prepareOverlayTile(canvas);
+      if (!prep) return;
+      const ctx = prep.ctx;
+      clearOverlayTile(ctx, prep.tile);
+      // Bounded by the tile rather than pat.length: this loop is now re-run
+      // whenever the tile moves, and walking 200k cells per scroll would cost
+      // far more than the tiling saves.
+      const r0 = tileCellRange(prep.tile, scs);
+      for (let y = r0.y0; y < r0.y1; y++) for (let x = r0.x0; x < r0.x1; x++) {
+        const i = y * W + x;
         const cell = pat[i];
         if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
-        const x = i % W,
-          y = Math.floor(i / W);
         const px = G + x * scs,
           py = G + y * scs;
         let r = 0,
@@ -6994,8 +7315,14 @@ function TrackerApp({
           ctx.fillRect(px, py, scs, scs);
         }
       }
-    });
-    return () => cancelAnimationFrame(threadUsageRafRef.current);
+    };
+    cancelAnimationFrame(threadUsageRafRef.current);
+    threadUsageRafRef.current = requestAnimationFrame(draw);
+    const unregister = registerChartOverlay("threadUsage", draw);
+    return () => {
+      cancelAnimationFrame(threadUsageRafRef.current);
+      unregister();
+    };
   }, [analysisResult, threadUsageMode, scs, pat, sW, sH]);
 
   // ═══ Recommendation pulsing border animation ═══
@@ -7014,8 +7341,7 @@ function TrackerApp({
     // permanent animation-frame callback even with recommendations switched
     // off — pure battery/main-thread cost on a phone.
     if (!recommendations || !recommendations.top || !recommendations.top.length || !recEnabled || !analysisResult) {
-      const ctx = canvas.getContext("2d");
-      if (canvas.width > 0) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      clearWholeChartCanvas(canvas);
       return;
     }
     const prefersReducedMotion = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -7023,14 +7349,12 @@ function TrackerApp({
       const W = analysisResult.sW,
         H = analysisResult.sH;
       const RS = analysisResult.regionSize || 10;
-      const needW = W * scs + G + 2,
-        needH = H * scs + G + 2;
-      const resized = canvas.width !== needW || canvas.height !== needH;
-      if (resized) {
-        canvas.width = needW;
-        canvas.height = needH;
-      }
-      const ctx = canvas.getContext("2d");
+      const prep = prepareOverlayTile(canvas);
+      if (!prep) return;
+      // A tile that resized or moved is blank and holds nothing to clear
+      // incrementally, so the partial-clear path below has to be skipped.
+      const resized = prep.invalidated;
+      const ctx = prep.ctx;
       const RC = analysisResult.regionCols || 1;
       // The rectangles this frame will stroke. Computed before drawing so the
       // clear can be limited to them.
@@ -7060,7 +7384,7 @@ function TrackerApp({
             const p = b.lw + 2;
             ctx.clearRect(b.x - p, b.y - p, b.w + p * 2, b.h + p * 2);
           }
-        } else ctx.clearRect(0, 0, canvas.width, canvas.height);
+        } else clearOverlayTile(ctx, prep.tile);
       }
       recPulseBoxesRef.current = boxes;
       // phase cycles 0→1→0 at 2s period
@@ -7077,9 +7401,13 @@ function TrackerApp({
         ctx.strokeRect(b.x + 1, b.y + 1, b.w - 2, b.h - 2);
       }
     };
+    // Registered so a tile move repaints the boxes at their new origin. The
+    // static form is used because the pulse loop, when running, supplies its own
+    // animation; when it is not running this is the only thing that redraws.
+    const unregister = registerChartOverlay("recPulse", () => draw(true));
     if (prefersReducedMotion) {
       draw(true);
-      return;
+      return unregister;
     }
     // Also suspend while the tab is hidden — rAF is already throttled when
     // backgrounded, but this releases the callback entirely so a phone that
@@ -7105,6 +7433,7 @@ function TrackerApp({
     return () => {
       document.removeEventListener("visibilitychange", onVis);
       stop();
+      unregister();
     };
   }, [recommendations, recEnabled, analysisResult, scs, sW, sH]);
 
@@ -7113,83 +7442,85 @@ function TrackerApp({
     const canvas = focusOverlayCanvasRef.current;
     if (!canvas) return;
     if (!focusBlock || !focusEnabled || stitchingStyle === "crosscountry") {
-      const ctx = canvas.getContext("2d");
-      if (canvas.width > 0) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      clearWholeChartCanvas(canvas);
       return;
     }
-    const needW = sW * scs + G + 2,
-      needH = sH * scs + G + 2;
-    if (canvas.width !== needW || canvas.height !== needH) {
-      canvas.width = needW;
-      canvas.height = needH;
-    }
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // Full-canvas dim (94% opacity → pattern shows at 6% brightness)
-    ctx.fillStyle = "rgba(241,245,249,0.94)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    const bCols = Math.ceil(sW / blockW),
-      bRows = Math.ceil(sH / blockH);
-    const {
-      bx,
-      by
-    } = focusBlock;
-    // Cut out neighbour blocks (raise to ~40% brightness)
-    ctx.save();
-    ctx.globalCompositeOperation = "destination-out";
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        if (dx === 0 && dy === 0) continue;
-        const nbx = bx + dx,
-          nby = by + dy;
-        if (nbx < 0 || nbx >= bCols || nby < 0 || nby >= bRows) continue;
-        let op = 0.54; // default: raises from 6% to ~40%
-        if (stitchingStyle === "royal") {
-          const ROYAL_OP = {
-            "0,1": 0.88,
-            "1,0": 0.81
-          };
-          op = ROYAL_OP[dx + "," + dy] ?? 0.31;
+    const draw = () => {
+      const prep = prepareOverlayTile(canvas);
+      if (!prep) return;
+      const ctx = prep.ctx,
+        tile = prep.tile;
+      clearOverlayTile(ctx, tile);
+      // Full-tile dim (94% opacity → pattern shows at 6% brightness). Only the
+      // tile is dimmed because only the tile is visible; the blocks cut out of it
+      // below are addressed in chart coordinates either way.
+      ctx.fillStyle = "rgba(241,245,249,0.94)";
+      ctx.fillRect(tile.x, tile.y, tile.w, tile.h);
+      const bCols = Math.ceil(sW / blockW),
+        bRows = Math.ceil(sH / blockH);
+      const {
+        bx,
+        by
+      } = focusBlock;
+      // Cut out neighbour blocks (raise to ~40% brightness)
+      ctx.save();
+      ctx.globalCompositeOperation = "destination-out";
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const nbx = bx + dx,
+            nby = by + dy;
+          if (nbx < 0 || nbx >= bCols || nby < 0 || nby >= bRows) continue;
+          let op = 0.54; // default: raises from 6% to ~40%
+          if (stitchingStyle === "royal") {
+            const ROYAL_OP = {
+              "0,1": 0.88,
+              "1,0": 0.81
+            };
+            op = ROYAL_OP[dx + "," + dy] ?? 0.31;
+          }
+          ctx.globalAlpha = op;
+          ctx.fillStyle = "black";
+          const nx = G + nbx * blockW * scs,
+            ny = G + nby * blockH * scs;
+          const nw = Math.min(blockW, sW - nbx * blockW) * scs,
+            nh = Math.min(blockH, sH - nby * blockH) * scs;
+          ctx.fillRect(nx, ny, nw, nh);
         }
-        ctx.globalAlpha = op;
-        ctx.fillStyle = "black";
-        const nx = G + nbx * blockW * scs,
-          ny = G + nby * blockH * scs;
-        const nw = Math.min(blockW, sW - nbx * blockW) * scs,
-          nh = Math.min(blockH, sH - nby * blockH) * scs;
-        ctx.fillRect(nx, ny, nw, nh);
       }
-    }
-    // Fully clear focus block (100% brightness)
-    ctx.globalAlpha = 1;
-    const fx = G + bx * blockW * scs,
-      fy = G + by * blockH * scs;
-    const fw = Math.min(blockW, sW - bx * blockW) * scs,
-      fh = Math.min(blockH, sH - by * blockH) * scs;
-    ctx.fillRect(fx, fy, fw, fh);
-    ctx.restore();
-    // Focus block border
-    ctx.strokeStyle = "rgba(184, 92, 56,0.9)";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(fx + 1, fy + 1, fw - 2, fh - 2);
-    // Neighbour dashed borders
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        if (dx === 0 && dy === 0) continue;
-        const nbx = bx + dx,
-          nby = by + dy;
-        if (nbx < 0 || nbx >= bCols || nby < 0 || nby >= bRows) continue;
-        const nx = G + nbx * blockW * scs,
-          ny = G + nby * blockH * scs;
-        const nw = Math.min(blockW, sW - nbx * blockW) * scs,
-          nh = Math.min(blockH, sH - nby * blockH) * scs;
-        ctx.strokeStyle = "rgba(184, 92, 56,0.25)";
-        ctx.lineWidth = 1;
-        ctx.setLineDash([3, 3]);
-        ctx.strokeRect(nx + 0.5, ny + 0.5, nw - 1, nh - 1);
-        ctx.setLineDash([]);
+      // Fully clear focus block (100% brightness)
+      ctx.globalAlpha = 1;
+      const fx = G + bx * blockW * scs,
+        fy = G + by * blockH * scs;
+      const fw = Math.min(blockW, sW - bx * blockW) * scs,
+        fh = Math.min(blockH, sH - by * blockH) * scs;
+      ctx.fillRect(fx, fy, fw, fh);
+      ctx.restore();
+      // Focus block border
+      ctx.strokeStyle = "rgba(184, 92, 56,0.9)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(fx + 1, fy + 1, fw - 2, fh - 2);
+      // Neighbour dashed borders
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const nbx = bx + dx,
+            nby = by + dy;
+          if (nbx < 0 || nbx >= bCols || nby < 0 || nby >= bRows) continue;
+          const nx = G + nbx * blockW * scs,
+            ny = G + nby * blockH * scs;
+          const nw = Math.min(blockW, sW - nbx * blockW) * scs,
+            nh = Math.min(blockH, sH - nby * blockH) * scs;
+          ctx.strokeStyle = "rgba(184, 92, 56,0.25)";
+          ctx.lineWidth = 1;
+          ctx.setLineDash([3, 3]);
+          ctx.strokeRect(nx + 0.5, ny + 0.5, nw - 1, nh - 1);
+          ctx.setLineDash([]);
+        }
       }
-    }
+    };
+    draw();
+    return registerChartOverlay("focusBlock", draw);
   }, [focusBlock, focusEnabled, stitchingStyle, scs, sW, sH, blockW, blockH]);
 
   // ═══ Breadcrumb trail overlay ═══
@@ -7197,41 +7528,40 @@ function TrackerApp({
     const canvas = breadcrumbCanvasRef.current;
     if (!canvas) return;
     if (!breadcrumbVisible || !breadcrumbs || breadcrumbs.length === 0) {
-      const ctx = canvas.getContext("2d");
-      if (canvas.width > 0) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      clearWholeChartCanvas(canvas);
       return;
     }
-    const needW = sW * scs + G + 2,
-      needH = sH * scs + G + 2;
-    if (canvas.width !== needW || canvas.height !== needH) {
-      canvas.width = needW;
-      canvas.height = needH;
-    }
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const TINTS = ["59,130,246", "20,184,166", "139,92,246", "234,88,12", "22,163,74", "225,29,72"];
-    const curSessIdx = statsSessions ? statsSessions.length : 0;
-    breadcrumbs.forEach(b => {
-      const fx = G + b.bx * blockW * scs,
-        fy = G + b.by * blockH * scs;
-      const fw = Math.min(blockW, sW - b.bx * blockW) * scs,
-        fh = Math.min(blockH, sH - b.by * blockH) * scs;
-      const tint = TINTS[b.sessionIdx % TINTS.length];
-      const isCur = b.sessionIdx === curSessIdx;
-      ctx.fillStyle = `rgba(${tint},${isCur ? 0.08 : 0.03})`;
-      ctx.fillRect(fx, fy, fw, fh);
-      ctx.strokeStyle = `rgba(${tint},${isCur ? 0.30 : 0.15})`;
-      ctx.lineWidth = 1;
-      ctx.strokeRect(fx + 0.5, fy + 0.5, fw - 1, fh - 1);
-      if (isCur && scs >= 8 && fw >= 8 && fh >= 8) {
-        ctx.fillStyle = `rgba(${tint},0.4)`;
-        const fnt = Math.max(8, Math.min(12, Math.floor(Math.min(fw, fh) * 0.5)));
-        ctx.font = `${fnt}px sans-serif`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(String(b.seqN), fx + fw / 2, fy + fh / 2);
-      }
-    });
+    const draw = () => {
+      const prep = prepareOverlayTile(canvas);
+      if (!prep) return;
+      const ctx = prep.ctx;
+      clearOverlayTile(ctx, prep.tile);
+      const TINTS = ["59,130,246", "20,184,166", "139,92,246", "234,88,12", "22,163,74", "225,29,72"];
+      const curSessIdx = statsSessions ? statsSessions.length : 0;
+      breadcrumbs.forEach(b => {
+        const fx = G + b.bx * blockW * scs,
+          fy = G + b.by * blockH * scs;
+        const fw = Math.min(blockW, sW - b.bx * blockW) * scs,
+          fh = Math.min(blockH, sH - b.by * blockH) * scs;
+        const tint = TINTS[b.sessionIdx % TINTS.length];
+        const isCur = b.sessionIdx === curSessIdx;
+        ctx.fillStyle = `rgba(${tint},${isCur ? 0.08 : 0.03})`;
+        ctx.fillRect(fx, fy, fw, fh);
+        ctx.strokeStyle = `rgba(${tint},${isCur ? 0.30 : 0.15})`;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(fx + 0.5, fy + 0.5, fw - 1, fh - 1);
+        if (isCur && scs >= 8 && fw >= 8 && fh >= 8) {
+          ctx.fillStyle = `rgba(${tint},0.4)`;
+          const fnt = Math.max(8, Math.min(12, Math.floor(Math.min(fw, fh) * 0.5)));
+          ctx.font = `${fnt}px sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(String(b.seqN), fx + fw / 2, fy + fh / 2);
+        }
+      });
+    };
+    draw();
+    return registerChartOverlay("breadcrumbs", draw);
   }, [breadcrumbs, breadcrumbVisible, scs, sW, sH, blockW, blockH, statsSessions]);
 
   // ═══ Counting aids overlay ═══
@@ -7242,49 +7572,33 @@ function TrackerApp({
       cancelAnimationFrame(countingAidsRafRef.current);
     };
     if (stitchView !== "highlight" || !focusColour || !countingAidsEnabled || !pat || !done) {
-      if (canvas.width > 0) {
-        const ctx = canvas.getContext("2d");
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-      }
+      clearWholeChartCanvas(canvas);
       return () => {
         cancelAnimationFrame(countingAidsRafRef.current);
       };
-    }
-    const needW = sW * scs + G + 2,
-      needH = sH * scs + G + 2;
-    if (canvas.width !== needW || canvas.height !== needH) {
-      canvas.width = needW;
-      canvas.height = needH;
     }
     const tier = lockDetailLevel ? 3 : tierRef.current;
     if (tier < 2) {
-      const ctx = canvas.getContext("2d");
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const p0 = prepareOverlayTile(canvas);
+      if (p0) clearOverlayTile(p0.ctx, p0.tile);
       return () => {
         cancelAnimationFrame(countingAidsRafRef.current);
       };
     }
-    countingAidsRafRef.current = requestAnimationFrame(() => {
-      const ctx = canvas.getContext("2d");
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const draw = () => {
+      const prep = prepareOverlayTile(canvas);
+      if (!prep) return;
+      const ctx = prep.ctx;
+      clearOverlayTile(ctx, prep.tile);
       const bCols = Math.ceil(sW / blockW),
         bRows = Math.ceil(sH / blockH);
-      // Viewport culling
-      const scroll = stitchScrollRef.current;
-      let visC0 = 0,
-        visC1 = bCols,
-        visR0 = 0,
-        visR1 = bRows;
-      if (scroll) {
-        const sl = scroll.scrollLeft,
-          st = scroll.scrollTop,
-          cw = scroll.clientWidth,
-          ch = scroll.clientHeight;
-        visC0 = Math.max(0, Math.floor((sl - G) / scs / blockW));
-        visC1 = Math.min(bCols, Math.ceil((sl + cw) / scs / blockW) + 1);
-        visR0 = Math.max(0, Math.floor((st - G) / scs / blockH));
-        visR1 = Math.min(bRows, Math.ceil((st + ch) / scs / blockH) + 1);
-      }
+      // Culled to the tile rather than the raw viewport: the tile is what this
+      // canvas can actually hold, and it already carries the overscan margin.
+      const cr = tileCellRange(prep.tile, scs);
+      const visC0 = Math.max(0, Math.floor(cr.x0 / blockW));
+      const visC1 = Math.min(bCols, Math.ceil(cr.x1 / blockW) + 1);
+      const visR0 = Math.max(0, Math.floor(cr.y0 / blockH));
+      const visR1 = Math.min(bRows, Math.ceil(cr.y1 / blockH) + 1);
       // Ninja icon: 4-pointed star (shuriken)
       function drawNinjaIcon(cx, cy, r) {
         const ir = r * 0.35;
@@ -7475,9 +7789,12 @@ function TrackerApp({
           }
         }
       }
-    });
+    };
+    countingAidsRafRef.current = requestAnimationFrame(draw);
+    const unregister = registerChartOverlay("countingAids", draw);
     return () => {
       cancelAnimationFrame(countingAidsRafRef.current);
+      unregister();
     };
   }, [pat, done, sW, sH, scs, focusColour, stitchView, countingAidsEnabled, countRunMin, countRunDir, countNinjaEnabled, blockW, blockH, focusBlock, countsVer, analysisResult, lockDetailLevel]);
 
@@ -7557,6 +7874,11 @@ function TrackerApp({
   function drawCellDirectly(idx, nv) {
     if (!stitchRef.current || !pat || !cmap) return;
     const ctx = stitchRef.current.getContext('2d');
+    // The canvas is a tile: re-establish the chart-coordinate transform so the
+    // absolute px/py below land in the right place. Cheap, and it keeps this
+    // fast path from having to know about tiling beyond this one line.
+    const _t = chartTileRef.current;
+    ctx.setTransform(1, 0, 0, 1, -_t.x, -_t.y);
     const gx = idx % sW;
     const gy = Math.floor(idx / sW);
     const px = G + gx * scs;
@@ -7804,7 +8126,7 @@ function TrackerApp({
     // Works in both Mark and Navigate modes; bypasses edit-mode cell editor too.
     // No-op when spotlight is off or the stitching style has no spatial blocks.
     if (e.altKey && e.button === 0 && focusEnabled && stitchingStyle !== "crosscountry" && sW && sH) {
-      const gcA = gridCoord(stitchRef, e, scs, G, false);
+      const gcA = gridCoord(stitchRef, e, scs, G, false, chartTileRef.current);
       if (gcA && gcA.gx >= 0 && gcA.gx < sW && gcA.gy >= 0 && gcA.gy < sH) {
         e.preventDefault();
         const bCols = Math.ceil(sW / blockW),
@@ -7821,7 +8143,7 @@ function TrackerApp({
     // Edit Mode: left-click on grid opens cell edit popover instead of any navigate/track action
     if (isEditMode) {
       if (e.button !== 0) return;
-      const gc2 = gridCoord(stitchRef, e, scs, G, false);
+      const gc2 = gridCoord(stitchRef, e, scs, G, false, chartTileRef.current);
       if (gc2 && gc2.gx >= 0 && gc2.gx < sW && gc2.gy >= 0 && gc2.gy < sH) {
         const idx = gc2.gy * sW + gc2.gx;
         const cell = pat[idx];
@@ -7836,7 +8158,7 @@ function TrackerApp({
       }
       return;
     }
-    let gc = gridCoord(stitchRef, e, scs, G, stitchMode === "navigate" && selectedColorId);
+    let gc = gridCoord(stitchRef, e, scs, G, stitchMode === "navigate" && selectedColorId, chartTileRef.current);
     if (!gc) return;
     let {
       gx,
@@ -7844,7 +8166,7 @@ function TrackerApp({
     } = gc;
     if (stitchMode === "navigate") {
       if (e.shiftKey || !selectedColorId || !cmap || !cmap[selectedColorId]) {
-        let gc2 = gridCoord(stitchRef, e, scs, G, false);
+        let gc2 = gridCoord(stitchRef, e, scs, G, false, chartTileRef.current);
         if (gc2 && gc2.gx >= 0 && gc2.gx < sW && gc2.gy >= 0 && gc2.gy < sH) {
           setHlRow(gc2.gy);
           setHlCol(gc2.gx);
@@ -7895,8 +8217,11 @@ function TrackerApp({
       if (hasBoth) {
         // Two halves: hit-test which triangle was tapped
         const rect = stitchRef.current.getBoundingClientRect();
-        const localX = e.clientX - rect.left - G - gx * scs;
-        const localY = e.clientY - rect.top - G - gy * scs;
+        // +tile origin: the canvas is a tile, so its pixel 0 is chart pixel
+        // tile.x/y rather than 0 (see chartTileFor).
+        const _ct = chartTileRef.current;
+        const localX = e.clientX - rect.left + _ct.x - G - gx * scs;
+        const localY = e.clientY - rect.top + _ct.y - G - gy * scs;
         const hitDir = hitTestHalfStitch(localX, localY, scs, 8);
         if (hitDir === "ambiguous") {
           // Show disambiguation popup
@@ -7959,7 +8284,7 @@ function TrackerApp({
       updateHoverOverlay(null);
       return;
     }
-    let gc = gridCoord(stitchRef, e, scs, G);
+    let gc = gridCoord(stitchRef, e, scs, G, false, chartTileRef.current);
     updateHoverOverlay(gc);
     if (dragStateRef.current.isDragging) {
       if (hoverInfo) setHoverInfo(null);
@@ -8068,9 +8393,27 @@ function TrackerApp({
       container.scrollTop = canvasY * scale - mouseY;
     });
   }
+
+  // R6 — who owns a one-finger drag on the chart.
+  //
+  // In track mode that gesture *is* drag-marking, so the compositor must not
+  // take it and the canvas keeps `touch-action: none`. Everywhere else (nav
+  // mode, edit mode) a one-finger drag is only ever a pan, and the compositor
+  // does that far better than a JS handler writing scrollLeft on every frame.
+  //
+  // Two-finger gestures are always ours — they pinch-zoom the chart, not the
+  // page — so handleTouchStart still calls preventDefault for them, which stops
+  // the browser panning a two-finger drag when touch-action would otherwise
+  // allow it.
+  function chartOwnsGesture(e) {
+    return e.touches.length > 1 || _dragMarkActive;
+  }
   function handleTouchStart(e) {
     if (!pat) return;
-    e.preventDefault();
+    // Conditional, not unconditional: calling preventDefault here is exactly
+    // what forced every pan onto the main thread, because it cancels the native
+    // scroll before it starts.
+    if (chartOwnsGesture(e)) e.preventDefault();
     const ts = touchStateRef.current;
     if (e.touches.length === 1) {
       // C3: single-finger TAP / DRAG-MARK / LONG-PRESS RANGE are owned by
@@ -8114,27 +8457,31 @@ function TrackerApp({
   const PAN_THRESHOLD = 8;
   function handleTouchMove(e) {
     if (!pat) return;
-    e.preventDefault();
+    if (chartOwnsGesture(e)) e.preventDefault();
     const ts = touchStateRef.current;
     if (e.touches.length === 1 && ts.mode !== "pinch") {
-      const t = e.touches[0];
-      const dx = t.clientX - ts.startX,
-        dy = t.clientY - ts.startY;
-      if (ts.mode === "tap" && (Math.abs(dx) > PAN_THRESHOLD || Math.abs(dy) > PAN_THRESHOLD)) {
-        ts.mode = "pan";
-        ts.tapIdx = -1;
-        if (stitchScrollRef.current) {
-          panStart.current = {
-            x: ts.startX,
-            y: ts.startY,
-            scrollX: stitchScrollRef.current.scrollLeft,
-            scrollY: stitchScrollRef.current.scrollTop
-          };
+      // When the compositor owns one-finger drags there is nothing to do here:
+      // scrolling it ourselves as well would move the chart at double speed.
+      if (_dragMarkActive) {
+        const t = e.touches[0];
+        const dx = t.clientX - ts.startX,
+          dy = t.clientY - ts.startY;
+        if (ts.mode === "tap" && (Math.abs(dx) > PAN_THRESHOLD || Math.abs(dy) > PAN_THRESHOLD)) {
+          ts.mode = "pan";
+          ts.tapIdx = -1;
+          if (stitchScrollRef.current) {
+            panStart.current = {
+              x: ts.startX,
+              y: ts.startY,
+              scrollX: stitchScrollRef.current.scrollLeft,
+              scrollY: stitchScrollRef.current.scrollTop
+            };
+          }
         }
-      }
-      if (ts.mode === "pan" && stitchScrollRef.current) {
-        stitchScrollRef.current.scrollLeft = panStart.current.scrollX - dx;
-        stitchScrollRef.current.scrollTop = panStart.current.scrollY - dy;
+        if (ts.mode === "pan" && stitchScrollRef.current) {
+          stitchScrollRef.current.scrollLeft = panStart.current.scrollX - dx;
+          stitchScrollRef.current.scrollTop = panStart.current.scrollY - dy;
+        }
       }
     } else if (e.touches.length === 2 && ts.mode === "pinch") {
       const dx = e.touches[1].clientX - e.touches[0].clientX;
@@ -8833,7 +9180,7 @@ function TrackerApp({
     const gc = gridCoord(stitchRef, {
       clientX: cx,
       clientY: cy
-    }, scs, G, false);
+    }, scs, G, false, chartTileRef.current);
     if (!gc) return -1;
     if (gc.gx < 0 || gc.gx >= sW || gc.gy < 0 || gc.gy >= sH) return -1;
     return gc.gy * sW + gc.gx;
@@ -10425,7 +10772,9 @@ function TrackerApp({
     }, show ? y + 1 : '');
   })), /*#__PURE__*/React.createElement("div", {
     style: {
-      position: 'relative'
+      position: 'relative',
+      width: sW * scs + 2,
+      height: sH * scs + 2
     }
   }, /*#__PURE__*/React.createElement("canvas", _extends({
     ref: stitchRef,
@@ -10434,11 +10783,11 @@ function TrackerApp({
     "aria-label": "Cross stitch pattern grid",
     style: {
       display: "block",
-      position: "relative",
+      position: "absolute",
       zIndex: 2,
-      marginTop: -G,
-      marginLeft: -G,
-      touchAction: "none"
+      left: -G,
+      top: -G,
+      touchAction: _dragMarkActive ? "none" : "pan-x pan-y"
     },
     onMouseDown: handleStitchMouseDown,
     onMouseMove: handleStitchMouseMove

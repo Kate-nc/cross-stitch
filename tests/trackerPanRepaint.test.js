@@ -29,9 +29,11 @@ const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*
 describe('scroll does not repaint while the viewport is inside the painted region', () => {
   test('the overdraw margin has a single definition', () => {
     // renderStitch and drawStitch must agree on how far past the viewport is
-    // painted, or the skip logic would serve blank pixels.
+    // painted, or the skip logic would serve blank pixels. A tiled caller
+    // supplies its own margin (0 — the tile already contains it); everything
+    // else still derives it from the one helper.
     expect(tracker).toMatch(/function chartOverdraw\(cSz\)\{return Math\.max\(40,20\*cSz\);\}/);
-    expect(tracker).toMatch(/const OVERDRAW=chartOverdraw\(cSz\);/);
+    expect(tracker).toMatch(/const OVERDRAW=\(viewportRect&&typeof viewportRect\.overdraw==="number"\)\?viewportRect\.overdraw:chartOverdraw\(cSz\);/);
     // ...and nowhere recomputes it by hand.
     expect(tracker).not.toMatch(/OVERDRAW\s*=\s*Math\.max\(40,\s*20\s*\*\s*cSz\)/);
   });
@@ -65,16 +67,21 @@ describe('scroll does not repaint while the viewport is inside the painted regio
 describe('the recommendation pulse clears only what it drew', () => {
   test('it no longer clears the whole overlay every frame', () => {
     const block = tracker.slice(tracker.indexOf('Recommendation pulsing border animation'), tracker.indexOf('Focus area three-zone dimming overlay'));
-    // The full clear survives only as the first-frame fallback and after a
-    // resize, never as the per-frame path.
+    // The full clear survives only as the first-frame fallback and after the
+    // surface is invalidated, never as the per-frame path.
     expect(block).toMatch(/for\(const b of prev\)\{const p=b\.lw\+2;ctx\.clearRect\(b\.x-p,b\.y-p,b\.w\+p\*2,b\.h\+p\*2\);\}/);
-    expect(block).toMatch(/else ctx\.clearRect\(0,0,canvas\.width,canvas\.height\);/);
+    expect(block).toMatch(/else clearOverlayTile\(ctx,prep\.tile\);/);
   });
 
-  test('a resize skips the clear, because resizing already blanks the canvas', () => {
+  test('an invalidated surface skips the clear, because it is already blank', () => {
     const block = tracker.slice(tracker.indexOf('Recommendation pulsing border animation'), tracker.indexOf('Focus area three-zone dimming overlay'));
-    expect(block).toMatch(/const resized=canvas\.width!==needW\|\|canvas\.height!==needH;/);
+    // Both a resize and a tile *move* blank the canvas — whatever it held was
+    // painted for the old origin — so the incremental clear must be skipped
+    // for either. applyChartTile reports both as `invalidated`.
+    expect(block).toMatch(/const resized=prep\.invalidated;/);
     expect(block).toMatch(/if\(!resized\)\{/);
+    const apply = tracker.slice(tracker.indexOf('function applyChartTile'), tracker.indexOf('function clearWholeChartCanvas'));
+    expect(apply).toMatch(/invalidated:resized\|\|moved/);
   });
 
   test('the drawn rectangles are remembered for the next frame', () => {

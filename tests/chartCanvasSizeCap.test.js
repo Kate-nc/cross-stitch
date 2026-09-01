@@ -21,11 +21,19 @@ const trackerSrc = fs.readFileSync(path.join(ROOT, 'tracker-app.js'), 'utf8');
 const G = 28;
 const PAD = G + 2;
 
-/** Load useCanvasOverlays.js against a stubbed window/navigator. */
-function loadWith({ deviceMemory, maxSide, coarse }) {
+/** Load useCanvasOverlays.js against a stubbed window/navigator.
+ *
+ *  These cases deliberately leave `innerWidth`/`innerHeight` unset unless a
+ *  test asks for them. Without a measurable window the chart cannot be tiled,
+ *  so `maxCellSize` takes its pattern-proportional fallback — which is the
+ *  clamp this suite exists to pin down. The tiled regime, where the surface is
+ *  viewport-sized and the clamp does not apply, is covered by
+ *  tests/chartCanvasBudget.test.js. */
+function loadWith({ deviceMemory, maxSide, coarse, innerWidth, innerHeight }) {
   const win = {
     React: { useState: () => [], useRef: () => ({}), useEffect: () => {}, useMemo: () => {}, useCallback: () => {} },
     matchMedia: (q) => ({ matches: /pointer:\s*coarse/.test(q) ? !!coarse : false }),
+    innerWidth, innerHeight,
   };
   const doc = {
     createElement() {
@@ -67,17 +75,24 @@ describe('maxChartCellSize — device canvas budget', () => {
     const win = loadWith({ deviceMemory: undefined, maxSide: 4096, coarse: true });
     const scs = win.maxChartCellSize(200, 250);
     const over = scs + 1;
+    // Budgeted per canvas, not per device: the chart plus its overlays all
+    // size to this geometry, so one canvas may take only its share.
+    const budget = win.chartPerCanvasBudget();
     const tooWide = 200 * over + PAD > 4096;
     const tooTall = 250 * over + PAD > 4096;
-    const tooBig = (200 * over + PAD) * (250 * over + PAD) > 16777216;
+    const tooBig = (200 * over + PAD) * (250 * over + PAD) > budget;
     expect(tooWide || tooTall || tooBig).toBe(true);
   });
 
   test('desktop keeps the full 4x zoom range on ordinary pattern sizes', () => {
-    const win = loadWith({ deviceMemory: 8, maxSide: 16384, coarse: false });
-    // scs ceiling is 20 * ZOOM_MAX(4) = 80 — unchanged from before the fix.
-    expect(win.maxChartCellSize(60, 60)).toBe(80);    // 4830^2  =  23 Mpx
-    expect(win.maxChartCellSize(100, 100)).toBe(80);  // 8030^2  =  65 Mpx
+    // A real desktop has a window, so the chart is tiled and its surface is
+    // bounded by the viewport rather than the pattern — the zoom range is the
+    // plain 20 * ZOOM_MAX(4) = 80 ceiling, unchanged from before any of this.
+    const win = loadWith({ deviceMemory: 8, maxSide: 16384, coarse: false, innerWidth: 1440, innerHeight: 900 });
+    expect(win.maxChartCellSize(60, 60)).toBe(80);
+    expect(win.maxChartCellSize(100, 100)).toBe(80);
+    // ...and it holds for the large patterns that used to be clamped hardest.
+    expect(win.maxChartCellSize(600, 800)).toBe(80);
   });
 
   test('desktop caps only where the browser would have refused the canvas anyway', () => {
@@ -174,7 +189,9 @@ describe('animation loops release the main thread', () => {
   test('the recommendation pulse respects reduced motion', () => {
     const block = trackerSrc.slice(trackerSrc.indexOf('const recPulseRef'), trackerSrc.indexOf('// ═══ Focus area three-zone dimming overlay ═══'));
     expect(block).toMatch(/prefers-reduced-motion: reduce/);
-    expect(block).toMatch(/if\(prefersReducedMotion\)\{draw\(true\);return;\}/);
+    // Returns the overlay's unregister as its cleanup — the static draw still
+    // has to follow the chart tile when it moves, it just must not animate.
+    expect(block).toMatch(/if\(prefersReducedMotion\)\{draw\(true\);return unregister;\}/);
   });
 
   test('the marching-ants timer respects reduced motion and tab visibility', () => {
