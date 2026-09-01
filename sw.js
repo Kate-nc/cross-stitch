@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v55';
+var CACHE_NAME = 'cross-stitch-cache-v56';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -24,6 +24,7 @@ var PRECACHE_URLS = [
   './styles.css',
   './version.js',
   './runtime-loaders.js',
+  './lazy-modules.js',
   './constants.js',
   './dmc-data.js',
   './anchor-data.js',
@@ -79,6 +80,12 @@ var PRECACHE_URLS = [
   // handler below caches them on first use, so they remain available offline
   // afterwards without bloating the initial SW install.
   './backup-restore.js',
+  // help-drawer.js is loaded on demand by lazy-modules.js rather than by a
+  // <script> tag. It used to be runtime-cached as a side effect of every page
+  // load fetching it; now nothing fetches it until the user opens Help, so an
+  // offline user who had never opened Help would find it missing. Precaching is
+  // what keeps it available. Same reasoning as backup-restore.js above.
+  './help-drawer.js',
   './sync-engine.js',
   './assets/fonts/CrossStitchSymbols.base64.js',
   './assets/fonts/CrossStitchSymbols.ttf',
