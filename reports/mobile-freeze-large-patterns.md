@@ -987,6 +987,260 @@ renderer. Worth recording because a spec that skips itself reads as a pass.
 - **R5's layer split proper**, now less pressing — see §9.3.
 - **Untested on hardware**, as throughout.
 
+## Part 10 — Fifth pass: lazy-loading, and what C1 was actually measuring
+
+Branch `perf/lazy-load-modules`, from `main` after PR #228 merged. Covers the
+audit's **§C1 / item 13** (lazy-load the heavy situational modules).
+
+**The headline is a correction.** C1 has been carried through four passes as
+"~520 KB of render-blocking, unminified JS … the largest remaining mobile win",
+framed as parse-and-execute time. Measured per module, that framing does not
+survive. Two modules were converted; the other four were measured and
+deliberately left alone, and the reasons are below.
+
+### 10.1 What was measured, before changing anything
+
+Per-module cost on the throttled phone project (Pixel 5, 4× CPU, `stitch.html`,
+median of 5 loads). Attribution is from Chromium `devtools.timeline` trace
+events keyed by script URL: `EvaluateScript.dur` is the wall duration of
+evaluating one `<script>` **inclusive** of the compile nested inside it, so it
+is the module's total cost; `v8.compile` nested within it is the parse share.
+(An earlier version of this instrument summed `EvaluateScript` *and* `v8.run`
+*and* `v8.compile` and therefore double-counted. The numbers below are from the
+corrected one.)
+
+| module | KB | total | parse | exec | C1's rank by size |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `stash-bridge.js` | 60 | **35.0 ms** | 0.6 | 34.4 | not listed ("partially" needed) |
+| `help-drawer.js` | 68 | **19.5 ms** | 0.2 | 19.3 | 4th |
+| `sync-engine.js` | 185 | 2.5 ms | 0.2 | 2.3 | **1st — "biggest single win"** |
+| `modals.js` | 118 | 1.9 ms | 0.2 | 1.7 | 2nd |
+| `command-palette.js` | 27 | 1.7 ms | 0.2 | 1.5 | — |
+| `backup-restore.js` | 21 | 1.4 ms | 0.4 | 1.0 | 6th |
+| `preferences-modal.js` | 94 | **0.8 ms** | 0.0 | 0.8 | 3rd |
+
+**The ranking is inverted relative to file size.** The largest file in the app
+evaluates in 2.5 ms; the third largest in 0.8 ms; a 60 KB file costs 35 ms.
+
+Two mechanisms explain it, and both are properties of the engine rather than of
+this codebase:
+
+- **V8 compiles function bodies lazily.** A large file that only *declares*
+  functions is nearly free to evaluate. `sync-engine.js` is 4 195 lines of
+  declarations behind one assignment.
+- **Chromium parses scripts off the main thread while streaming them.** The
+  trace shows 87 ms of `v8.parseOnBackground` against 0.2–0.6 ms of main-thread
+  `v8.compile` for most files. Parse is largely not on the critical path at all.
+
+What actually costs time is *work performed at load*. `stash-bridge.js` is
+expensive because line 1390 calls `StashBridge.migrateToLatest()` — an
+IndexedDB migration — as a side effect of being loaded. That is 35 ms of the
+~60 ms the six modules cost between them.
+
+### 10.2 The ceiling on this whole exercise, measured
+
+Rather than infer the benefit, the six modules C1 named were physically removed
+from `stitch.html` by rewriting the HTML in flight (route interception, no repo
+file touched) and the page measured against an unmodified control. Five
+interleaved run pairs, medians:
+
+| metric | baseline | all six stripped | delta |
+| --- | ---: | ---: | ---: |
+| wall load | 2 199 ms | 2 358 ms | +159 |
+| DOMContentLoaded | 1 550 ms | 1 724 ms | +174 |
+| total blocking | 580 ms | 695 ms | +115 |
+| `EvaluateScript`, all scripts | 313.8 ms | 234.3 ms | −79.5 |
+| `EvaluateScript`, the six | 46.4 ms | 0 | **−46.4** |
+| requests | 51 | 45 | **−6** |
+| decoded | 2 358 KB | 1 812 KB | **−546 KB** |
+| over the wire | 629 KB | 484 KB | **−145 KB** |
+
+Removing every one of them — a better outcome than any lazy-loading
+implementation can achieve, since the stub itself costs something — moves wall
+time, DOMContentLoaded and blocking time **not at all**. The medians point the
+wrong way, and the baseline runs spanned 1 533–2 603 ms wall and 477–886 ms
+blocking, so the deltas are comfortably inside the harness noise §H and Part 7
+have both warned about.
+
+**So C1's premise is wrong in its causal claim and right in its arithmetic.**
+The 520 KB is real; it is not parse-and-execute time on the critical path, and
+it is not "the largest remaining mobile win". The defensible justification for
+this work is the deterministic bottom three rows — bytes and requests, on every
+page load, on a metered mobile connection. That is the justification this pass
+rests on, and it is the same one §G reached for the prefetch change: "the win
+here is a phone's data allowance and bandwidth contention, not latency".
+
+### 10.3 What changed
+
+`lazy-modules.js` (7.7 KB) registers stubs that pull the real file in on first
+use through the existing `window.loadScript()`. Two modules moved behind it.
+
+| module | trigger surface | stub |
+| --- | --- | --- |
+| `help-drawer.js` | `cs:openHelp` / `cs:openHelpDesign` / `cs:openShortcuts`, the `?` key, and `HelpDrawer.open()` called directly by coaching.js | event listeners + an API proxy |
+| `backup-restore.js` | File menu, manager backup buttons, command palette | method proxy + `loadBackupRestore()` |
+
+The stub detaches its own listeners before replaying an event, or the replay
+re-enters it. `loadScript` already dedupes by src, so repeat triggers fetch once.
+
+**Per-page effect**, phone project, `main` vs branch:
+
+| page | requests | decoded KB | wire KB |
+| --- | ---: | ---: | ---: |
+| `home.html` | 35 → 35 | 1 592 → **1 515** | 436 → **415** |
+| `manager.html` | 43 → **42** | 1 923 → **1 842** | 515 → **492** |
+| `stitch.html` | 51 → **50** | 2 358 → **2 277** | 629 → **606** |
+| `create.html` | 56 → **55** | 3 320 → **3 238** | 858 → **835** |
+| `index.html` | 56 → **55** | 3 320 → **3 238** | 858 → **835** |
+
+`home.html` keeps its request count because it had no `runtime-loaders.js` and
+needed one adding. Per-module time after the change: `help-drawer.js` and
+`backup-restore.js` no longer appear; `lazy-modules.js` costs ~5 ms. Net
+main-thread change is roughly −16 ms — real, deterministic in direction, and far
+below what this harness can resolve in a wall-clock measurement.
+
+### 10.4 A pre-existing bug this uncovered
+
+`backup-restore.js` ended with `const BackupRestore = (() => {…})()` and nothing
+else. **A top-level `const` in a classic `<script>` creates a global lexical
+binding, not a property of `window`** — the exact trap `stash-bridge.js` carries
+a comment about and works around. Probed in the browser on `main`:
+
+```
+BackupRestore    window.X = undefined    bare X = object    <-- lexical only
+```
+
+Call sites are split, and half of them were dead:
+
+- bare `BackupRestore` — header.js, manager-app.js — resolved and worked;
+- `window.BackupRestore` — `command-palette.js:129`, `preferences-modal.js:1039`
+  — feature-test the window property, so both had been **silently disabled since
+  they were written**. The command-palette backup entry never appeared and the
+  preferences-modal backup button always took its "not available" branch.
+
+Mirroring the binding onto `window` is a prerequisite for the loader handing the
+module to a caller at all, so it is fixed here. **This revives two dormant entry
+points — a behaviour change, not a pure refactor**, and worth knowing when
+reading the diff.
+
+### 10.5 An offline regression, caught by a guard that could not see it
+
+`help-drawer.js` was never in the service worker's `PRECACHE_URLS`; it was in
+`RUNTIME_ALLOWLIST`, cached on first use. That was safe only because every page
+load fetched it as a static tag. Once it became lazy, nothing fetched it until
+the user opened Help — so a user who installed the PWA and went offline before
+ever opening Help would have lost the drawer permanently.
+
+It moves into `PRECACHE_URLS` (with `lazy-modules.js`), and `CACHE_NAME` is
+bumped to `v56` so existing clients reinstall.
+
+`swPrecacheSync.test.js` scans HTML only and was therefore **structurally blind
+to the entire class of file this pass creates**. It now also parses
+`lazy-modules.js` and requires every source it loads on demand to be precached,
+with a guard that fails if its own regex stops matching — otherwise the check
+would pass vacuously the moment the shim was reformatted.
+
+### 10.6 A test that passed against deliberately broken code
+
+Recorded because Part 6 recorded the same thing, and it happened again.
+
+The first version of the replay guard ran on `stitch.html`, dispatched
+`cs:openHelp`, and asserted the drawer opened. Deleting the replay from the stub
+entirely — so the stub swallowed the event and the real listener never saw it —
+**left the test passing**.
+
+The cause: `tracker-app.js`, `manager-app.js` and `creator-main.js` each
+register their *own* `cs:openHelp` listener which calls `setModal("help")`, and
+that renders `window.HelpCentre` — a back-compat shim living inside
+`help-drawer.js` that opens the drawer from a `useEffect`. So on those three
+pages the drawer opens through a second, independent path regardless of the
+stub.
+
+`home.html` registers no such listener and never renders `HelpCentre`, so there
+the replay is the only mechanism that can open the drawer. The three "drawer
+opens" checks moved there and now fail when the replay is removed.
+
+### 10.7 Deliberately not done
+
+Four of the six modules C1 named were left as static tags. In each case the
+measured evaluation cost is 0.8–2.5 ms and the conversion is invasive:
+
+- **`sync-engine.js` (185 KB, 2.5 ms).** C1 called this "the biggest single
+  win" and the task plan called for converting its call sites to
+  load-then-open. It is not a modal. `SyncEngine.getSyncStatus()` is
+  **synchronous, returns a value used during render**, and is called from
+  `home-screen.js` (12 sites) and `header.js`; `project-storage.js` calls
+  `triggerAutoExport()` on every save and `tracker-app.js` calls
+  `registerBeforeUnloadSnapshot()` at mount. A promise-returning proxy cannot
+  serve a synchronous render read, so this needs the sync status hoisted into
+  state on four files — a real refactor of the header, for 2.5 ms and 185 KB.
+  Worth doing; not worth doing *incidentally*.
+- **`modals.js` (118 KB, 1.9 ms).** Reached through `setModal(…)` in the
+  tracker's render path and 23 window-level references. Same shape of problem.
+- **`preferences-modal.js` (94 KB, 0.8 ms).** The cheapest of all seven to
+  evaluate, and the one §G singled out as needing placeholder-then-hydrate
+  because it is consumed as `React.createElement(window.PreferencesModal, …)`.
+  Highest risk, lowest measured benefit; byte-only.
+- **`command-palette.js` (27 KB, 1.7 ms).** Gates the *existence* of its
+  toolbar button on the global being defined, so a naive lazy load removes the
+  button. 27 KB does not justify it.
+
+**`stash-bridge.js` is the one worth a follow-up, and not by lazy-loading it.**
+At 35 ms it is the single largest measured start-up cost of any module here —
+more than the other six combined — and essentially all of it is one
+`StashBridge.migrateToLatest()` call at load. It is consumed synchronously as
+`window.StashBridge` across the creator, manager and home pages, so lazy-loading
+it is the hardest conversion of the set. Deferring *the migration* — to idle, or
+to first stash use — would capture the whole 35 ms with a far smaller change.
+That has data-integrity implications a performance pass should not decide on its
+own, so it is written down rather than attempted.
+
+**Minification and `defer`-everything** (C1's items 1–2) remain out of scope for
+the reason §G gave: `vercel.json` sets `"buildCommand": null`.
+
+### 10.8 Verified
+
+- **Jest 208 suites / 2 770 tests green** (2 768 before).
+- **Playwright: 83 passed** across `mobile-audit`, `mobile-audit-desktop` and
+  `mobile-audit-tablet`, including 10 new checks in
+  [lazy-module-loading.spec.js](../tests/mobile-audit/lazy-module-loading.spec.js);
+  **17 passed** on `ipad-webkit`.
+- Terminology lint clean; CSS-token lint unchanged at 13 pre-existing warnings.
+- Every new guard **mutation-tested**, each confirmed to fail and then restored:
+
+| mutation | check that caught it |
+| --- | --- |
+| re-add `<script src="help-drawer.js">` to `stitch.html` | "lazy modules are absent at load" |
+| stub swallows the event, never replays | both "drawer opens" checks (after 10.6) |
+| drop the `window.BackupRestore` mirror | "the real module replaced the stub" |
+| stub omits `downloadBackup` | the feature-test assertion |
+| remove `help-drawer.js` from `PRECACHE_URLS` | "every lazily loaded module is precached" |
+
+### 10.9 Pre-existing failures, confirmed on `main` by running them there
+
+- The four `touch-tablet-chromium` specs, unchanged.
+- **`desktop-bulk-mark-cost.spec.js` › "cells marked off-screen still appear
+  when scrolled to"** fails identically on `main`, with the same
+  `before=0,0,0,0 after=0,0,0,0`.
+- **`ipad-chart.spec.js` › "the chart renders at the device pixel ratio"** fails
+  identically on `main` (`Expected: > 1, Received: 1`).
+
+The latter two are from the pass recorded in Parts 8 and 9, which reported "92
+Playwright checks green" and "Both fixes mutation-checked". Whatever was true
+when that was written, both checks fail on `main` today. Neither is in this
+pass's blast radius — nothing here touches canvas sizing, DPR or bulk marking —
+but they should not be inherited silently.
+
+### Still open
+
+- **R10**, **R11**, **R12**, and R5's layer split proper — unchanged.
+- **`stash-bridge.js`'s 35 ms load-time migration** — the largest single
+  start-up cost measured in this pass, and the best remaining return per unit of
+  risk on start-up. See 10.7.
+- **The four modules in 10.7**, if the byte win is judged to justify the
+  call-site work. The measurement to make that decision now exists.
+- **Untested on hardware**, as throughout.
+
 ## Reproducing the computed figures
 
 The zoom-ceiling and tier tables in §1.1 and §1.3 come from executing

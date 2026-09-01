@@ -333,6 +333,20 @@ compensates for.
 
 ### C1. HIGH — every page ships ~0.9–2.2 MB of render-blocking, unminified JS
 
+> **Corrected after measurement (2026-09-01).** The bytes below are right; the
+> causal claim built on them is not. Measured per module on a throttled Pixel 5,
+> evaluation cost does not track file size: `sync-engine.js` is 185 KB and
+> **2.5 ms**, `preferences-modal.js` is 94 KB and **0.8 ms**, while
+> `stash-bridge.js` is 60 KB and **35 ms** because it runs an IndexedDB
+> migration at load. V8 compiles function bodies lazily and Chromium parses
+> off-thread while streaming, so a large file of declarations is close to free.
+> Physically stripping all six modules named below moves wall time,
+> DOMContentLoaded and blocking time by less than the harness's run-to-run
+> noise. The real, deterministic win is bytes and requests — **−546 KB decoded,
+> −145 KB over the wire, −6 requests** — not parse-and-execute time, and this is
+> therefore not "the largest remaining mobile win". Full numbers in Part 10 of
+> [mobile-freeze-large-patterns.md](mobile-freeze-large-patterns.md).
+
 Every `<script>` in the five HTML pages is a plain, parser-blocking tag; only
 four (`help-drawer`, `onboarding-wizard`, `command-palette`,
 `preferences-modal`) carry `defer`.
@@ -820,9 +834,21 @@ flex track did.
 output would have to be committed alongside the source and the HTML pointed at
 it. That is a real structural change, not the drop-in the audit suggested.
 
-**Lazy-loading the heavy modules needs call-site work.** `sync-engine.js`
+**Lazy-loading the heavy modules needs call-site work.**
+
+> **Corrected (2026-09-01).** "The biggest remaining parse costs" is wrong —
+> these three are among the *cheapest* to evaluate (2.5 ms, 1.9 ms and 0.8 ms
+> respectively); they are merely the biggest *files*. The call-site analysis
+> below is sound and was confirmed, with one addition: `sync-engine.js` is
+> harder than described, because `SyncEngine.getSyncStatus()` is synchronous and
+> is read during render by `header.js` and `home-screen.js`, so it is not simply
+> a modal to open. See Part 10 of
+> [mobile-freeze-large-patterns.md](mobile-freeze-large-patterns.md), which
+> converted `help-drawer.js` and `backup-restore.js` and left these.
+
+`sync-engine.js`
 (182 KB), `modals.js` (115 KB) and `preferences-modal.js` (91 KB) are the
-biggest remaining parse costs, but they cannot simply move behind
+biggest remaining *files*, but they cannot simply move behind
 `runtime-loaders.js`: `PreferencesModal` is consumed as a React component
 (`React.createElement(window.PreferencesModal, …)`), and `CommandPalette`
 gates the *existence* of its toolbar button on the global being defined. Each
