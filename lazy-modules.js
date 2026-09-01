@@ -3,7 +3,7 @@
 // Why this exists
 // ───────────────
 // Several modules are loaded on all five entry pages but are only needed once
-// the user acts: the help drawer, backup/restore, the sync engine. They are
+// the user acts: the help drawer and backup/restore. They are
 // registered here as *stubs* — an event listener, or an object with the same
 // method names — that call window.loadScript() on first use and then hand the
 // call to the real module.
@@ -39,8 +39,12 @@
   // second stub for the same file) safe.
   function ensure(src, test) {
     if (loaded[src]) return loaded[src];
-    loaded[src] = window.loadScript(src, { test: test });
-    return loaded[src];
+    var request = window.loadScript(src, { test: test });
+    loaded[src] = request;
+    request.catch(function () {
+      if (loaded[src] === request) delete loaded[src];
+    });
+    return request;
   }
 
   // ── help-drawer.js ──────────────────────────────────────────────────────
@@ -61,10 +65,10 @@
 
   // Load the drawer, then re-fire `replay` so the real module's own listener —
   // which only exists once the file has run — receives it. The stubs are
-  // detached first, otherwise the replay lands back here.
+  // detached before replaying, otherwise the replay lands back here.
   function loadHelp(replay, detail) {
-    detachHelpStubs();
     return ensure(HELP_SRC, helpTest).then(function () {
+      detachHelpStubs();
       if (replay) window.dispatchEvent(new CustomEvent(replay, { detail: detail }));
     });
   }
@@ -94,14 +98,14 @@
   if (!window.HelpDrawer) {
     window.HelpDrawer = {
       open: function (opts) {
-        detachHelpStubs();
         return ensure(HELP_SRC, helpTest).then(function () {
+          detachHelpStubs();
           if (window.HelpDrawer && window.HelpDrawer.__real) window.HelpDrawer.open(opts);
         });
       },
       toggle: function (opts) {
-        detachHelpStubs();
         return ensure(HELP_SRC, helpTest).then(function () {
+          detachHelpStubs();
           if (window.HelpDrawer && window.HelpDrawer.__real) window.HelpDrawer.toggle(opts);
         });
       },

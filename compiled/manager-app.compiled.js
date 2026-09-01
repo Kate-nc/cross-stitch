@@ -845,11 +845,20 @@ function ManagerApp() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async () => {
+      let BackupRestore;
       try {
         // parseBackupText and validate return synchronously, so the lazily
         // loaded module has to be in place before either runs. onConfirm below
         // closes over this binding for the restore call.
-        const BackupRestore = await window.loadBackupRestore();
+        BackupRestore = await window.loadBackupRestore();
+      } catch (err) {
+        setBackupStatus({
+          type: "error",
+          message: "Could not load backup tools. Check your connection and try again."
+        });
+        return;
+      }
+      try {
         // PERF (deferred-2): handles both legacy JSON and CSB1\n compressed.
         const backup = BackupRestore.parseBackupText(reader.result);
         const check = BackupRestore.validate(backup);
