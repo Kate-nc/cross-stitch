@@ -122,6 +122,23 @@ test('desktop: a large pattern is not clamped on a high-memory device', async ({
   expect(s.scrollH).toBe(250 * 20 + 28 + 2 + 1);
 });
 
+test('desktop: the chart viewport height is unchanged', async ({ page }) => {
+  // The chart's max-height moved from an inline 600px to CSS so tablets could
+  // use their screen. At this viewport (900px tall) the new rule evaluates to
+  // max(600px, min(900-300, 1000)) = 600px — i.e. exactly what it was. This
+  // pins that: the change adds height on tall screens and touches nothing
+  // else.
+  await setup(page);
+  await loadTracker(page, fixture(200, 250));
+  const r = await page.evaluate(() => {
+    const el = document.querySelector('.tracker-chart-scroll');
+    return el ? { maxHeight: getComputedStyle(el).maxHeight, clientH: el.clientHeight } : null;
+  });
+  console.log('DESK_CHART_HEIGHT ' + JSON.stringify(r));
+  expect(r).not.toBeNull();
+  expect(r.maxHeight).toBe('600px');
+});
+
 test('desktop: the mass hover-wrap did not disable hover', async ({ page }) => {
   // 144 hover rules were wrapped in @media (hover: hover) to stop them
   // latching on touch. On a fine pointer they must all still resolve — a

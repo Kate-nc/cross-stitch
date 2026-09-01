@@ -49,7 +49,8 @@ module.exports = defineConfig({
     {
       name: 'mobile-audit',
       testDir: './tests/mobile-audit',
-      testIgnore: /desktop-.*\.spec\.js/,
+      // android-* belongs to the tablet project, desktop-* to the desktop one.
+      testIgnore: /(desktop|android)-.*\.spec\.js/,
       timeout: 180000,
       use: {
         ...devices['Pixel 5'],
@@ -62,6 +63,22 @@ module.exports = defineConfig({
       testMatch: /desktop-.*\.spec\.js/,
       timeout: 180000,
       use: { browserName: 'chromium', viewport: { width: 1440, height: 900 } },
+    },
+    // Android tablet. The other touch projects are a phone (Pixel 5) and an
+    // iPad, so nothing covered the combination that matters most for the
+    // canvas budget: a large viewport on a device that *reports*
+    // navigator.deviceMemory. Every Android device with 8 GB reports the
+    // spec-capped 8, which is why they used to take the desktop budget.
+    // See tests/mobile-audit/android-devices.spec.js.
+    {
+      name: 'mobile-audit-tablet',
+      testDir: './tests/mobile-audit',
+      testMatch: /android-.*\.spec\.js/,
+      timeout: 180000,
+      use: {
+        ...devices['Galaxy Tab S9'],
+        browserName: 'chromium',
+      },
     },
     // iPad on real WebKit. The other touch project is `iPad Mini` on *Chromium*,
     // which still exposes showDirectoryPicker and so cannot see any of the

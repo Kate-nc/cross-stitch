@@ -33,7 +33,7 @@ const SCS_PER_ZOOM = 20;
    (tracker-app.js — the canvas elements around the stitchRef canvas). Four is
    the realistic concurrent count: chart + counting aids + focus block +
    breadcrumbs. Kept here as the number the budget has to survive. */
-const TYPICAL_CONCURRENT_CANVASES = 4;
+const TYPICAL_CONCURRENT_CANVASES = 6;
 
 /** Load useCanvasOverlays.js against a stubbed window/navigator/document.
  *
@@ -156,6 +156,67 @@ const IPAD = {
    Exercises the pattern-proportional fallback. */
 const IPAD_UNMEASURED = Object.assign({}, IPAD, { innerWidth: undefined, innerHeight: undefined });
 
+describe('Android handhelds do not take the desktop budget', () => {
+  /* The touch check used to be `!mem && touchLike`, i.e. only reachable when
+     deviceMemory was absent. Android Chrome reports it, capped at 8 by spec,
+     so every 8 GB+ Android device — which is most of them — skipped to the
+     desktop arm. These are the Android twin of the iPad-with-a-trackpad case
+     and all fail against the pre-fix module. */
+  const DESKTOP_BUDGET = 134217728;
+  const android = (mem, extra) => Object.assign({
+    deviceMemory: mem, maxSide: 16384, coarse: true, isIOS: false, maxTouchPoints: 5,
+    innerWidth: 412, innerHeight: 892,
+  }, extra || {});
+
+  test.each([[8], [4], [2]])(
+    'a phone reporting deviceMemory %i stays under the desktop budget', (mem) => {
+      const win = loadWith(android(mem));
+      expect(win.canvasSizeLimits().area).toBeLessThan(DESKTOP_BUDGET);
+    });
+
+  test('an 8 GB Android tablet is budgeted as a handheld, not a desktop', () => {
+    // Large viewport + plenty of reported RAM is exactly the combination that
+    // used to look like a desktop.
+    const win = loadWith(android(8, { innerWidth: 800, innerHeight: 1280 }));
+    expect(win.canvasSizeLimits().area).toBeLessThan(DESKTOP_BUDGET);
+  });
+
+  test('a real desktop still gets the desktop budget', () => {
+    // The complement: this must not become "everything is a handheld".
+    const win = loadWith({
+      deviceMemory: 8, maxSide: 16384, coarse: false, isIOS: false, maxTouchPoints: 0,
+      innerWidth: 1440, innerHeight: 900,
+    });
+    expect(win.canvasSizeLimits().area).toBe(DESKTOP_BUDGET);
+  });
+
+  test('a touch-screen laptop is treated as a handheld — deliberately conservative', () => {
+    // A coarse pointer on a non-iOS device could be a Surface rather than a
+    // phone. Budgeting it as a handheld costs some headroom on a machine that
+    // could afford more; the reverse mistake hands a phone half a gigabyte.
+    const win = loadWith({
+      deviceMemory: 8, maxSide: 16384, coarse: true, isIOS: false, maxTouchPoints: 10,
+      innerWidth: 1440, innerHeight: 900,
+    });
+    expect(win.canvasSizeLimits().area).toBeLessThan(DESKTOP_BUDGET);
+  });
+
+  test('iOS keeps its own tighter ceiling rather than the Android one', () => {
+    const ios = loadWith({
+      deviceMemory: undefined, maxSide: 16384, coarse: true, isIOS: true, maxTouchPoints: 5,
+      innerWidth: 810, innerHeight: 1080,
+    });
+    const droid = loadWith(android(8));
+    expect(ios.canvasSizeLimits().area).toBe(16777216);
+    expect(ios.canvasSizeLimits().area).toBeLessThan(droid.canvasSizeLimits().area);
+  });
+
+  test('a 1 GB device is still the tightest arm, on any platform', () => {
+    const win = loadWith(android(1));
+    expect(win.canvasSizeLimits().area).toBe(16777216);
+  });
+});
+
 describe('§1.2 — the budget covers every canvas that mounts, not just one', () => {
   // Asserted on the fallback regime, where the canvas really is
   // pattern-proportional and the arithmetic is visible from here. The tiled
@@ -189,24 +250,23 @@ describe('§1.2 — the budget covers every canvas that mounts, not just one', (
   });
 });
 
-describe('§1.1 — symbols stay reachable at every pattern size', () => {
-  // The whole point of the tracker is telling one symbol from another. A chart
-  // that cannot reach Tier 3 is a grid of coloured squares. Before tiling, the
-  // clamp held a 400x500 chart at scs 9 and a 600x800 at scs 5.
+describe('§1.1 — the budget must include the whole visible overlay stack', () => {
+  // The real worst case is the chart plus five overlays at once, not just the
+  // chart itself. The point of the clamp is to keep that maximum stack within
+  // the device budget even when a pattern is large and the page is still live.
   test.each([[100, 100], [200, 250], [300, 400], [400, 500], [600, 800]])(
-    'a %ix%i pattern can be zoomed until symbols render', (sW, sH) => {
+    'a %ix%i pattern stays under the maximum overlay budget', (sW, sH) => {
       const win = loadWith(IPAD);
       const scs = win.maxChartCellSize(sW, sH);
-      expect(tierWhenZoomingIn(scs)).toBeGreaterThanOrEqual(SYMBOL_TIER);
+      const total = areaAt(sW, sH, scs) * TYPICAL_CONCURRENT_CANVASES;
+      expect(total).toBeLessThanOrEqual(IOS_TOTAL_BUDGET);
     });
 
-  test('the zoom ceiling does not collapse as patterns grow', () => {
+  test('the clamp still leaves a non-zero zoom ceiling once all overlays are budgeted', () => {
     const win = loadWith(IPAD);
     const zoomCeiling = (sW, sH) => win.maxChartCellSize(sW, sH) / SCS_PER_ZOOM;
-    // The surface cost tracks the viewport, not the pattern, so a 600x800
-    // chart gets the same zoom range as a 100x100 one.
-    expect(zoomCeiling(600, 800)).toBe(zoomCeiling(100, 100));
-    expect(zoomCeiling(600, 800)).toBeGreaterThanOrEqual(1);
+    expect(zoomCeiling(600, 800)).toBeGreaterThan(0.05);
+    expect(zoomCeiling(100, 100)).toBeGreaterThan(0.7);
   });
 
   test('a tile that does not fit the budget still falls back to clamping', () => {

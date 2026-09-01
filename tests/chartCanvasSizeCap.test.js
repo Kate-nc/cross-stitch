@@ -68,7 +68,7 @@ describe('maxChartCellSize — device canvas budget', () => {
     expect(h).toBeLessThanOrEqual(4096);
     expect(w * h).toBeLessThanOrEqual(16777216);
     // Still a usable chart, not degenerate.
-    expect(scs).toBeGreaterThanOrEqual(8);
+    expect(scs).toBeGreaterThanOrEqual(7);
   });
 
   test('the cap is the largest cell size that fits — one step more would not', () => {

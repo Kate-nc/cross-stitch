@@ -47,15 +47,15 @@
      across every canvas on the page, not what one canvas may take. The
      tracker mounts the chart plus up to five overlays (thread usage,
      recommendations, breadcrumbs, focus block, counting aids) on identical
-     geometry, so charging the whole budget to each one over-commits by up to
-     6x. A highlight session with counting aids and a focus block on is four
-     canvases, which is the number we budget for; the two rarer overlays are
-     covered by the headroom between four and six.
+     geometry, so the whole-page budget is the chart plus the maximum
+     simultaneous overlay set. The chart is already scaled by DPR at 2x in the
+     budget check, so the worst case at scale 2 is `tileCssArea * 4 +
+     tileCssArea * 5 = 9 * tileCssArea` (chart + five overlays).
 
      Raise this if more full-geometry canvases are added; lower it only if
      they are genuinely consolidated. tests/chartCanvasBudget.test.js asserts
      the count against the mounted refs so the two cannot drift apart. */
-  var CONCURRENT_CHART_CANVASES = 4;
+  var CONCURRENT_CHART_CANVASES = 6;
 
   /* Pixels of pre-rendered margin around the viewport on a tiled chart. Also
      the figure the budget check below uses to decide whether a tile is
@@ -99,24 +99,98 @@
        as the fallback because useCanvasOverlays.js is a plain <script> and
        must not depend on helpers.js having loaded first. */
     var mem = (typeof navigator !== 'undefined' && navigator.deviceMemory) || 0;
-    var touchLike = false;
+    // `platformKnown` matters as much as `isIOS`: useCanvasOverlays.js is a
+    // plain <script> and may run before helpers.js defines Platform, and an
+    // *unidentified* touch device must not be assumed to be the roomier of
+    // the two. See the arms below.
+    var platformKnown = false, isIOS = false, coarse = false, anyCoarse = false;
+    var maxTouchPoints = 0;
     try {
-      touchLike = !!(window.Platform && window.Platform.isIOS && window.Platform.isIOS())
-               || !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+      if (window.Platform && typeof window.Platform.isIOS === 'function') {
+        platformKnown = true;
+        isIOS = !!window.Platform.isIOS();
+      }
     } catch (_) {}
+    try { coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (_) {}
+    try { anyCoarse = !!(window.matchMedia && window.matchMedia('(any-pointer: coarse)').matches); } catch (_) {}
+    try { if (typeof navigator !== 'undefined' && typeof navigator.maxTouchPoints === 'number') maxTouchPoints = navigator.maxTouchPoints; } catch (_) {}
+    var touchLike = isIOS || coarse || anyCoarse || maxTouchPoints > 0;
+
+    /* Handheld before memory.
+       The touch check used to be a *fallback* for a missing deviceMemory
+       (`!mem && touchLike`), which made it unreachable on Android: Chrome
+       reports deviceMemory there, and the spec caps the value at 8 to limit
+       fingerprinting, so an 8 GB phone and a 64 GB workstation are
+       indistinguishable by that number alone. Every Android device reporting
+       8 — a Pixel, a Galaxy phone, a Galaxy Tab — therefore took the
+       *desktop* budget. That is the same hole the iPad-with-a-trackpad case
+       had, and closing only the iOS half of it was arbitrary.
+
+       A handheld is a handheld whatever it claims about its RAM, so a touch
+       device can never reach the desktop arm now. deviceMemory still tightens
+       the budget further for genuinely small devices.
+
+       iOS keeps its own, tighter figure: 16 777 216 is Safari's documented
+       per-canvas area ceiling, which is a harder constraint than a memory
+       estimate. Whether that number is the right *whole-page* budget is a
+       separate question — see the budget probe in
+       tests/mobile-audit/canvas-budget-probe.spec.js. */
     var area;
-    if (mem && mem <= 1)        area = 16777216;    // 16.7 Mpx  — low-end phone
-    else if (mem && mem <= 4)   area = 33554432;    // 33.5 Mpx  — mid-range phone
-    else if (!mem && touchLike) area = 16777216;    // 16.7 Mpx  — iOS (no deviceMemory)
-    else                        area = 134217728;   // 134 Mpx   — desktop
+    if (mem && mem <= 1)      area = 16777216;    // 16.7 Mpx — low-end, any platform
+    // A handheld we cannot identify takes the tighter of the two handheld
+    // arms. Guessing "Android" for what might be an iPhone would handle the
+    // stricter engine with the looser budget, which is the wrong way to be
+    // wrong.
+    else if (isIOS || (touchLike && !platformKnown))
+                              area = 16777216;    // 16.7 Mpx — iOS, or unidentified handheld
+    else if (touchLike)       area = 33554432;    // 33.5 Mpx — Android phone or tablet
+    else if (mem && mem <= 4) area = 33554432;    // 33.5 Mpx — low-memory desktop
+    else                      area = 134217728;   // 134 Mpx  — desktop
     _limits = { side: side, area: Math.min(area, side * side) };
     return _limits;
   }
 
-  /* The share of the device budget one canvas may take (see
-     CONCURRENT_CHART_CANVASES). */
+  /* The share of the device budget one canvas may take, used by the *untiled*
+     fallback where every canvas really is the same pattern-proportional size.
+     The tiled path budgets the sum instead — see projectedTotalPx. */
   function perCanvasBudget() {
     return Math.floor(canvasLimits().area / CONCURRENT_CHART_CANVASES);
+  }
+
+  /* Backing store the tiled chart will actually occupy, in device pixels:
+     the chart tile at `scale`, plus the overlays, which stay at 1x.
+
+     Dividing the budget by a canvas count only works while all the canvases
+     are the same size. Once the chart renders at devicePixelRatio and the
+     overlays do not, a uniform share is the wrong question — and it is what
+     made DPR look unaffordable: a DPR-2 chart tile exceeds one quarter of the
+     iOS budget while the *total* comfortably fits inside it. The overlays are
+     large flat shapes (dimming, block outlines, breadcrumbs) where a crisper
+     raster buys almost nothing, so spending the headroom on the chart, which
+     carries the symbols, is the better trade. */
+  function projectedTotalPx(tileCssArea, scale) {
+    return tileCssArea * scale * scale
+         + tileCssArea * (CONCURRENT_CHART_CANVASES - 1);
+  }
+
+  /* Device pixels per CSS pixel for the chart's backing store.
+     Capped at 2: beyond that the extra memory buys very little on a grid of
+     flat cells, and phones commonly report 2.625-3. Returns 1 when the budget
+     will not carry it, so this can only ever improve sharpness — never
+     reintroduce the memory problem. */
+  function chartRenderScale() {
+    var tile = maxTileArea();
+    if (tile === null) return 1;
+    var budget = canvasLimits().area;
+    var mem = (typeof navigator !== 'undefined' && navigator.deviceMemory) || 0;
+    var want = 1;
+    try { want = Math.min(window.devicePixelRatio || 1, 2); } catch (_) { return 1; }
+    // A 1 GB device needs its memory more than it needs a crisp chart.
+    if (mem && mem <= 1) return 1;
+    for (var s = want; s > 1; s -= 0.5) {
+      if (projectedTotalPx(tile, s) <= budget) return s;
+    }
+    return 1;
   }
 
   /* Largest tile the chart will ever allocate on this screen. A tiled canvas
@@ -159,9 +233,11 @@
     var budget = perCanvasBudget();
 
     var tile = maxTileArea();
-    if (tile !== null && tile <= budget) {
+    if (tile !== null && projectedTotalPx(tile, chartRenderScale()) <= lim.area) {
       // The tile never exceeds the whole chart, so a chart smaller than the
-      // tile is its own bound and needs no clamp either.
+      // tile is its own bound and needs no clamp either. Checked against the
+      // projected *total* — chart plus overlays — rather than a uniform
+      // per-canvas share, because they are no longer the same size.
       return ceiling;
     }
 
@@ -183,6 +259,8 @@
   window.maxChartCellSize = maxCellSize;
   window.chartTileOverscan = TILE_OVERSCAN;
   window.chartPerCanvasBudget = perCanvasBudget;
+  window.chartRenderScale = chartRenderScale;
+  window.chartProjectedTotalPx = projectedTotalPx;
   window.__resetCanvasLimits = function () { _limits = null; };
 
   window.useCanvasOverlays = function useCanvasOverlays({ sW, sH }) {

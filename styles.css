@@ -564,6 +564,26 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 /* ── Canvas + right-panel layout ── */
 .cs-main{display:flex;align-items:flex-start;flex:1;min-height:0;overflow:hidden;}
 .canvas-area{flex:1;min-width:0;min-height:0;overflow:auto;}
+
+/* Tracker chart viewport height.
+   This was an inline max-height of 600px on the scroller, so no media query
+   could reach it: a tablet with 1300 CSS px of height, or a desktop, showed
+   the chart through exactly the same letterbox as a 727px phone.
+
+   Phones keep 600px, which is already most of their screen. Taller screens get
+   a viewport-relative height instead, and the max(600px, ...) floor means this
+   rule can only ever *add* chart — never take any away from a layout that
+   works today. The 300px subtraction covers the topbar, info strip and mode
+   row above the chart; the 1000px ceiling stops a very tall window turning the
+   chart into a canvas taller than the tile logic ever needs.
+   The .is-drawer pair is specificity (0,2,0), so it wins over both base rules
+   without needing !important. */
+.tracker-chart-scroll{ max-height:600px; }
+.tracker-chart-scroll.is-drawer{ max-height:340px; }
+@media (min-height: 800px){
+  .tracker-chart-scroll{ max-height:max(600px, min(100dvh - 300px, 1000px)); }
+  .tracker-chart-scroll.is-drawer{ max-height:340px; }
+}
 .materials-cols{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:16px;align-items:start;}
 @media(max-width:599px){.materials-cols{grid-template-columns:1fr;}}
 .rpanel{width:280px;background:var(--surface);border-left:1px solid var(--border);flex-shrink:0;position:sticky;top:128px;max-height:calc(100vh - 128px);overflow-y:auto;align-self:flex-start;transition:width 0.18s ease;}
