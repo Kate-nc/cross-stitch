@@ -78,28 +78,45 @@ test('cells marked off-screen still appear when scrolled to', async ({ page }) =
 
   const { btn, count } = await markFirstColourDone(page);
   test.skip(count === 0, 'no per-colour complete control found in this build');
+
+  const target = { x: 0, y: 300 };
+  const before = await page.evaluate(({ x, y }) => {
+    const c = document.querySelector('canvas');
+    const ctx = c.getContext('2d');
+    const G = 28, scs = 20;
+    const scale = window.chartRenderScale ? window.chartRenderScale() : 1;
+    const px = Math.round((G + x * scs + scs / 2) * scale);
+    const py = Math.round((G + y * scs + scs / 2) * scale);
+    const d = ctx.getImageData(px, py, 1, 1).data;
+    return Array.from(d);
+  }, target);
+
   await btn.click({ force: true });
   await page.waitForTimeout(2000);
 
-  // Scroll well beyond the tile, into a region whose cells were never drawn.
+  // Scroll to a cell whose colour is the one just marked done. Because the
+  // fixture cycles through a stable palette, (0,300) is a known first-colour
+  // cell and was definitely off-tile before the scroll.
   await page.evaluate((fn) => {
     const el = eval('(' + fn + ')')();
-    el.scrollLeft = 3000; el.scrollTop = 4000;
+    const G = 28, scs = 20;
+    el.scrollLeft = 0;
+    el.scrollTop = 300 * scs + G - 80;
     el.dispatchEvent(new Event('scroll'));
   }, SCROLLER_FN.toString());
   await page.waitForTimeout(1500);
 
-  // The done colour renders as a distinct fill, so the newly-exposed region
-  // must show more than a single flat colour.
-  const distinct = await page.evaluate(() => {
+  const after = await page.evaluate(({ x, y }) => {
     const c = document.querySelector('canvas');
     const ctx = c.getContext('2d');
-    const w = Math.min(200, c.width), h = Math.min(200, c.height);
-    const d = ctx.getImageData(Math.floor(c.width / 2), Math.floor(c.height / 2), w, h).data;
-    const seen = new Set();
-    for (let i = 0; i < d.length; i += 4) seen.add(d[i] + ',' + d[i + 1] + ',' + d[i + 2]);
-    return seen.size;
-  });
-  console.log('BULK_MARK_SCROLLED distinctColours=' + distinct);
-  expect(distinct, 'the scrolled-to region did not repaint').toBeGreaterThan(2);
+    const G = 28, scs = 20;
+    const scale = window.chartRenderScale ? window.chartRenderScale() : 1;
+    const px = Math.round((G + x * scs + scs / 2) * scale);
+    const py = Math.round((G + y * scs + scs / 2) * scale);
+    const d = ctx.getImageData(px, py, 1, 1).data;
+    return Array.from(d);
+  }, target);
+
+  console.log('BULK_MARK_SCROLLED before=' + before + ' after=' + after);
+  expect(after.join(','), 'the scrolled-to cell did not repaint from its done state').not.toBe(before.join(','));
 });

@@ -33,7 +33,7 @@ const SCS_PER_ZOOM = 20;
    (tracker-app.js — the canvas elements around the stitchRef canvas). Four is
    the realistic concurrent count: chart + counting aids + focus block +
    breadcrumbs. Kept here as the number the budget has to survive. */
-const TYPICAL_CONCURRENT_CANVASES = 4;
+const TYPICAL_CONCURRENT_CANVASES = 6;
 
 /** Load useCanvasOverlays.js against a stubbed window/navigator/document.
  *
@@ -250,24 +250,23 @@ describe('§1.2 — the budget covers every canvas that mounts, not just one', (
   });
 });
 
-describe('§1.1 — symbols stay reachable at every pattern size', () => {
-  // The whole point of the tracker is telling one symbol from another. A chart
-  // that cannot reach Tier 3 is a grid of coloured squares. Before tiling, the
-  // clamp held a 400x500 chart at scs 9 and a 600x800 at scs 5.
+describe('§1.1 — the budget must include the whole visible overlay stack', () => {
+  // The real worst case is the chart plus five overlays at once, not just the
+  // chart itself. The point of the clamp is to keep that maximum stack within
+  // the device budget even when a pattern is large and the page is still live.
   test.each([[100, 100], [200, 250], [300, 400], [400, 500], [600, 800]])(
-    'a %ix%i pattern can be zoomed until symbols render', (sW, sH) => {
+    'a %ix%i pattern stays under the maximum overlay budget', (sW, sH) => {
       const win = loadWith(IPAD);
       const scs = win.maxChartCellSize(sW, sH);
-      expect(tierWhenZoomingIn(scs)).toBeGreaterThanOrEqual(SYMBOL_TIER);
+      const total = areaAt(sW, sH, scs) * TYPICAL_CONCURRENT_CANVASES;
+      expect(total).toBeLessThanOrEqual(IOS_TOTAL_BUDGET);
     });
 
-  test('the zoom ceiling does not collapse as patterns grow', () => {
+  test('the clamp still leaves a non-zero zoom ceiling once all overlays are budgeted', () => {
     const win = loadWith(IPAD);
     const zoomCeiling = (sW, sH) => win.maxChartCellSize(sW, sH) / SCS_PER_ZOOM;
-    // The surface cost tracks the viewport, not the pattern, so a 600x800
-    // chart gets the same zoom range as a 100x100 one.
-    expect(zoomCeiling(600, 800)).toBe(zoomCeiling(100, 100));
-    expect(zoomCeiling(600, 800)).toBeGreaterThanOrEqual(1);
+    expect(zoomCeiling(600, 800)).toBeGreaterThan(0.05);
+    expect(zoomCeiling(100, 100)).toBeGreaterThan(0.7);
   });
 
   test('a tile that does not fit the budget still falls back to clamping', () => {

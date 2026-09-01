@@ -47,15 +47,15 @@
      across every canvas on the page, not what one canvas may take. The
      tracker mounts the chart plus up to five overlays (thread usage,
      recommendations, breadcrumbs, focus block, counting aids) on identical
-     geometry, so charging the whole budget to each one over-commits by up to
-     6x. A highlight session with counting aids and a focus block on is four
-     canvases, which is the number we budget for; the two rarer overlays are
-     covered by the headroom between four and six.
+     geometry, so the whole-page budget is the chart plus the maximum
+     simultaneous overlay set. The chart is already scaled by DPR at 2x in the
+     budget check, so the worst case at scale 2 is `tileCssArea * 4 +
+     tileCssArea * 5 = 9 * tileCssArea` (chart + five overlays).
 
      Raise this if more full-geometry canvases are added; lower it only if
      they are genuinely consolidated. tests/chartCanvasBudget.test.js asserts
      the count against the mounted refs so the two cannot drift apart. */
-  var CONCURRENT_CHART_CANVASES = 4;
+  var CONCURRENT_CHART_CANVASES = 6;
 
   /* Pixels of pre-rendered margin around the viewport on a tiled chart. Also
      the figure the budget check below uses to decide whether a tile is
@@ -103,7 +103,8 @@
     // plain <script> and may run before helpers.js defines Platform, and an
     // *unidentified* touch device must not be assumed to be the roomier of
     // the two. See the arms below.
-    var platformKnown = false, isIOS = false, coarse = false;
+    var platformKnown = false, isIOS = false, coarse = false, anyCoarse = false;
+    var maxTouchPoints = 0;
     try {
       if (window.Platform && typeof window.Platform.isIOS === 'function') {
         platformKnown = true;
@@ -111,7 +112,9 @@
       }
     } catch (_) {}
     try { coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (_) {}
-    var touchLike = isIOS || coarse;
+    try { anyCoarse = !!(window.matchMedia && window.matchMedia('(any-pointer: coarse)').matches); } catch (_) {}
+    try { if (typeof navigator !== 'undefined' && typeof navigator.maxTouchPoints === 'number') maxTouchPoints = navigator.maxTouchPoints; } catch (_) {}
+    var touchLike = isIOS || coarse || anyCoarse || maxTouchPoints > 0;
 
     /* Handheld before memory.
        The touch check used to be a *fallback* for a missing deviceMemory
