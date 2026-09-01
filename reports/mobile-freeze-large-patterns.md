@@ -880,6 +880,113 @@ property.
   real device's memory ceiling, so the budget constants remain a judgement call
   that a physical phone or tablet could still overturn.
 
+---
+
+## Part 9 — Fourth pass: render cost, measured
+
+Same branch. Covers **R9** (the per-second re-render) and the bulk-draw half of
+**R5**. R10, R11, R12 and the audit's C1 remain untouched.
+
+### 9.1 §1.4's claim was half right, and pointed at the wrong thing
+
+§1.4 said the 1 Hz session clock re-renders "the entire tree — palette rail,
+legend, toolbar". Measuring it
+([idle-render-cost.spec.js](../tests/mobile-audit/idle-render-cost.spec.js),
+counting `React.createElement` calls over a 10 s idle window on a 400 × 500
+chart) gave:
+
+| State | elements / second |
+| --- | ---: |
+| Idle, no session started | **0.7** |
+| Idle, session running | **1 210** |
+
+Two corrections to the original claim:
+
+- **It only applies with a session running.** The display timer early-returns
+  unless `currentAutoSessionRef.current` is set, so a freshly-opened chart
+  costs nothing. §1.4 implied it was unconditional.
+- **The palette rail, legend and toolbar were not the problem.** Breaking the
+  count down by element type: `div` was **10 292 of 12 102 — 85 %**, about
+  1 029 divs per render. Those are the chart's sticky rulers, which render one
+  `<div>` per column and one per row and were inline in the returned JSX. On a
+  400 × 500 chart that is 900 divs rebuilt on every render; on a 600 × 800 it
+  is 1 400. The cost scales with pattern size, which is precisely where it
+  hurts.
+
+### 9.2 The fix
+
+Both rulers are now `useMemo`d on `[sW|sH, scs, rulerStep]`. They depend on the
+chart's dimensions and cell size and nothing else — certainly not on the clock.
+
+| | before | after |
+| --- | ---: | ---: |
+| Elements / second, idle with session | 1 210 | **220** |
+| ...of which `div` | 1 029 | **39** |
+
+An 82 % reduction, and it benefits *every* re-render, not only the per-second
+one. The remaining 220/s is spread across spans, buttons and SVG icon
+internals with no single dominant contributor.
+
+Correctness is guarded rather than assumed: a test reads the rendered rulers
+back — 400 columns, 500 rows, labelled at the right interval, correct cell
+width — then zooms out and requires the labelling interval and cell width to
+change. Dropping `scs` from the memo's dependencies makes that test fail with a
+stale 20 px cell, so it bites.
+
+### 9.3 Bulk marking painted thousands of clipped cells
+
+Marking a whole colour (`markColourDone`) walks the pattern and calls
+`drawCellDirectly` for every cell it changed. That was reasonable when the
+canvas covered the whole pattern. Since Part 6 it covers only the visible tile,
+so a draw for an off-tile cell is clipped away — pure waste.
+
+`drawCellDirectly` now returns early for cells outside the tile.
+
+| Marking one colour (~3 300 cells) | fills |
+| --- | ---: |
+| Before | 3 334 |
+| After | **99** |
+
+Correctness rests on the region repainting when it scrolls into view, so that
+is the second test rather than an assertion in a comment: mark a colour, scroll
+3 000 × 4 000 px into a region whose cells were never drawn, and require it to
+show more than a flat colour. "We stopped drawing things" is only a fix if the
+things still appear.
+
+This is the cheap half of R5. The static/dynamic layer split proper is still
+open, but the bulk path — the case that motivated it — is no longer the
+problem.
+
+### 9.4 A note on where these tests live
+
+`bulk-mark-cost` started life in the phone project and skipped itself: the
+per-colour "Done" control is not reachable on a phone. The palette rail is
+collapsed behind a chip, and the "Colours" button opens the More panel rather
+than the tiles. It now runs as
+[desktop-bulk-mark-cost.spec.js](../tests/mobile-audit/desktop-bulk-mark-cost.spec.js)
+on the desktop project, which exercises the same code on the same tiled
+renderer. Worth recording because a spec that skips itself reads as a pass.
+
+### Verified
+
+- **Jest 208 suites / 2 768 tests green**, unchanged.
+- **92 Playwright checks green** across all four projects (87 before; +5).
+- Both fixes mutation-checked: removing `scs` from the ruler memo, and
+  disabling the off-tile guard, each make their test fail.
+- Pan cost unchanged at 121–138 ms; terminology lint clean.
+
+### Still open
+
+- **R10** (typed-array pattern), **R11**, **R12**.
+- **C1 / lazy-loading** — the largest remaining mobile win, and the one that
+  most affects low-end Android, since it is parse-and-execute time rather than
+  paint. §G of mobile-experience-audit.md already established it needs call-site
+  conversion (`PreferencesModal` is consumed as a React component,
+  `CommandPalette` gates its toolbar button on the global being defined) and
+  belongs in its own pass. Nothing here has changed that assessment.
+- **R5's layer split proper**, now less pressing — see §9.3.
+- **Untested on hardware**, as throughout.
+
 ## Reproducing the computed figures
 
 The zoom-ceiling and tier tables in §1.1 and §1.3 come from executing
