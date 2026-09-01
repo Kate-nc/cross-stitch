@@ -485,3 +485,14 @@ const BackupRestore = (() => {
     }
   };
 })();
+
+// Top-level `const` in a classic <script> creates a global *lexical* binding,
+// not a property of `window` — the same trap stash-bridge.js documents. Call
+// sites are split between bare `BackupRestore` (header.js, manager-app.js),
+// which resolved, and `window.BackupRestore` (command-palette.js,
+// preferences-modal.js), which silently did not: both of those feature-test the
+// window property and so had been dead since they were written. Mirroring it
+// explicitly is required for the lazy loader in lazy-modules.js to hand the
+// module back to a caller at all, and revives those two entry points as a
+// side effect. See Part 10 of reports/mobile-freeze-large-patterns.md.
+try { if (typeof window !== 'undefined') window.BackupRestore = BackupRestore; } catch (_) {}

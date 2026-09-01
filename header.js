@@ -621,6 +621,10 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
     if (!file) return;
     var reader = new FileReader();
     reader.onload = function () {
+      // backup-restore.js is loaded on demand (lazy-modules.js). parseBackupText
+      // and validate return values synchronously, so they cannot be proxied —
+      // the module has to be in place before either is called.
+      window.loadBackupRestore().then(function (BackupRestore) {
       try {
         // PERF (deferred-2): parseBackupText handles both legacy JSON files
         // and the new CSB1\n compressed format.
@@ -646,6 +650,9 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
       } catch (err) {
         (window.Toast ? window.Toast.show({ message: 'Invalid file: could not parse JSON.', type: 'error' }) : alert('Invalid file: could not parse JSON.'));
       }
+      }).catch(function () {
+        (window.Toast ? window.Toast.show({ message: 'Could not load the restore tools. Please check your connection and try again.', type: 'error' }) : alert('Could not load the restore tools.'));
+      });
     };
     reader.readAsText(file);
     e.target.value = '';
@@ -1188,7 +1195,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               onClick: () => {
                 setFileMenuOpen(false);
                 if (onBackupDownload) { onBackupDownload(); }
-                else { BackupRestore.downloadBackup().catch(function(e) { (window.Toast ? window.Toast.show({ message: 'Backup failed: ' + e.message, type: 'error' }) : alert('Backup failed: ' + e.message)); }); }
+                else { window.BackupRestore.downloadBackup().catch(function(e) { (window.Toast ? window.Toast.show({ message: 'Backup failed: ' + e.message, type: 'error' }) : alert('Backup failed: ' + e.message)); }); }
               }
             }, Icons.save(), ' Export Backup'),
             // Restore — use prop handler if provided, else inline
