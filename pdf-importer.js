@@ -383,9 +383,20 @@ class PatternKeeperImporter {
       const numSingleChars = page.textItems.filter(t => t.str.trim().length === 1).length;
       const hasDMC = page.textItems.some(t => t.str.toLowerCase().includes('dmc'));
 
+      // A page printing axis rulers on both edges is a chart page, and nothing
+      // else is: a legend, cover or materials sheet has no reason to carry two
+      // monotonic numeric scales that fit a straight line. This is the most
+      // reliable signal available, so it is tested first.
+      const hasRulers = this.pageHasAxisRulers(page);
+
       // Some charts map symbols entirely as paths rather than text items.
       // If we see thousands of lines, it's definitely a chart page, even if text items are low.
-      if (numLines > 50 && (numSingleChars > 50 || numTexts > 1000 || numLines > 2000)) {
+      if (hasRulers) {
+        chartPages.push(page);
+      } else if (numLines > 50 && (numTexts > 1000 || numLines > 2000) &&
+                 this.looksLikeChartGrid(page)) {
+        chartPages.push(page);
+      } else if (numLines > 50 && numSingleChars > 50 && this.symbolsLookGridded(page)) {
         chartPages.push(page);
       } else if (hasDMC || page.textItems.some(t => t.str.toLowerCase().includes('stitch count'))) {
         legendPages.push(page);
@@ -403,7 +414,7 @@ class PatternKeeperImporter {
     const pages = chartPages.map((p, i) => {
       return {
         pageIndex: p.pageIndex,
-        grid: this.detectGrid(p),
+        grid: this.gridOf(p),
         globalOffsetCol: 0,
         globalOffsetRow: 0,
         rawPage: p
@@ -482,6 +493,83 @@ class PatternKeeperImporter {
       totalRows: totalRows,
       pages: pages
     };
+  }
+
+  /**
+   * Does this page print numeric axis rulers on both axes? Charts do; legend,
+   * cover and materials sheets do not. Returns false when the axis-label reader
+   * is unavailable, so classification simply falls back to the heuristics.
+   */
+  pageHasAxisRulers(page) {
+    const AX = (typeof window !== 'undefined' && window.PdfAxisLabels) ||
+               (typeof PdfAxisLabels !== 'undefined' ? PdfAxisLabels : null);
+    if (!AX || typeof AX.readPageRulers !== 'function') return false;
+    try {
+      return !!AX.readPageRulers(page.textItems, { yDown: true });
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /**
+   * detectGrid is needed during classification as well as during layout, so
+   * memoise it on the page rather than clustering the same lines twice.
+   */
+  gridOf(page) {
+    if (!page._grid) page._grid = this.detectGrid(page);
+    return page._grid;
+  }
+
+  /**
+   * Does the page's ruled content have the proportions of a chart?
+   *
+   * Used to qualify the "symbols are drawn as paths, not text" branch of
+   * classification, which otherwise keys off raw text and line counts. Those
+   * counts do not distinguish a chart from a colour key: gen1's key carries 531
+   * rectangles and 1059 text items, clearing both thresholds comfortably, and
+   * was therefore imported as a chart page — which left the pattern with no
+   * colour key parsed at all.
+   *
+   * A chart is ruled in both directions and tens of cells across. Keys and
+   * materials lists are a narrow column or a single band, so a modest floor on
+   * both dimensions separates them without needing to know the publisher.
+   */
+  looksLikeChartGrid(page) {
+    const g = this.gridOf(page);
+    return !!g && g.columns >= 20 && g.rows >= 20;
+  }
+
+  /**
+   * Are this page's single-character symbols laid out as a dense 2D grid, or as
+   * a sparse list?
+   *
+   * A colour key defeats the line-and-symbol-count heuristic: its swatches count
+   * as rectangles and its symbols as single characters, so a legend page can
+   * easily clear "more than 50 of each" and be taken for a chart. gen1's key
+   * does exactly that, and because it was claimed as a chart the pattern
+   * imported with no colour key parsed at all.
+   *
+   * The shapes are easy to tell apart by how many symbols share a row: a chart
+   * row holds dozens (gen1's chart pages average 86), a key row holds one or
+   * two.
+   */
+  symbolsLookGridded(page) {
+    const syms = page.textItems.filter(t => (t.str || '').trim().length === 1);
+    if (syms.length < 2) return false;
+
+    // Group by baseline. Rows of a chart share a y to within a fraction of the
+    // cell, so an exact-ish bucket is enough and needs no pitch estimate.
+    const bands = new Map();
+    for (const s of syms) {
+      const key = Math.round(s.y);
+      bands.set(key, (bands.get(key) || 0) + 1);
+    }
+    if (!bands.size) return false;
+
+    // Median rather than mean, so a single long caption cannot carry the page.
+    const counts = Array.from(bands.values()).sort((a, b) => a - b);
+    const median = counts[Math.floor(counts.length / 2)];
+    return median >= 8;
   }
 
   /**
@@ -770,10 +858,18 @@ class PatternKeeperImporter {
      // cluster is "in-band" if either its previous OR next neighbour is
      // within ±2pt of cellWidth. Outlier lines (page borders, legend
      // separators, decorative rules) get rejected because their
-     // neighbours are far away. We then take the min/max of the in-band
-     // set as the bounding box, which is robust to occasional missing
-     // grid lines (which would otherwise truncate a "longest contiguous
-     // run" approach down to a corner of the chart).
+     // neighbours are far away.
+     //
+     // The in-band set is then split into RUNS, and the largest run wins,
+     // rather than spanning from the first in-band cluster to the last. A page
+     // can hold more than one ruled block — a chart above a key, or a
+     // cross-stitch chart above a backstitch chart — and those blocks are
+     // each internally regular, so they all survive the in-band filter.
+     // Spanning across them stretches the grid over the gap: on
+     // PAT2171_2 the chart ends at y=577 but footer rules near y=739 pulled
+     // the box to 131 rows, well past the chart. Runs still tolerate missing
+     // lines, because a gap up to a few multiples of the pitch stays inside
+     // one run — which is what the span approach was protecting against.
      function denseBounds(clustered, expectedSpacing) {
          if (clustered.length < 2) return { lo: clustered[0] || 0, hi: clustered[clustered.length-1] || 0 };
          const tol = Math.max(2, expectedSpacing * 0.25);
@@ -791,7 +887,24 @@ class PatternKeeperImporter {
              if (nearMultiple(prev) || nearMultiple(next)) inBand.push(clustered[i]);
          }
          if (inBand.length < 2) return { lo: clustered[0], hi: clustered[clustered.length-1] };
-         return { lo: inBand[0], hi: inBand[inBand.length-1] };
+
+         // Split into runs, breaking where the gap is too large to be missing
+         // lines within one block. Then keep the run holding the most grid
+         // lines — the dominant chart — tie-broken by the wider span.
+         const runBreak = Math.max(expectedSpacing * 4 + tol, expectedSpacing + 2);
+         const runs = [[inBand[0]]];
+         for (let i = 1; i < inBand.length; i++) {
+             if (inBand[i] - inBand[i-1] > runBreak) runs.push([inBand[i]]);
+             else runs[runs.length-1].push(inBand[i]);
+         }
+         let best = runs[0];
+         for (let i = 1; i < runs.length; i++) {
+             const r = runs[i];
+             const bSpan = best[best.length-1] - best[0];
+             const rSpan = r[r.length-1] - r[0];
+             if (r.length > best.length || (r.length === best.length && rSpan > bSpan)) best = r;
+         }
+         return { lo: best[0], hi: best[best.length-1], regions: runs.length };
      }
 
      const vBounds = denseBounds(vClustered, cellWidth);
