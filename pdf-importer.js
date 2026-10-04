@@ -206,6 +206,15 @@ class PatternKeeperImporter {
     let currentPath = [];
     let currentRGB = null;
     let currentTransform = [1, 0, 0, 1, 0, 0];
+    // Graphics-state stack for q/Q (PDF 1.7 §8.4.2). `transform` ops multiply
+    // into currentTransform cumulatively, so Q has to restore the matrix that
+    // was in force at the matching q. Resetting it to the identity instead —
+    // as this did — silently drops any enclosing scale and lets the matrix
+    // drift for the rest of the page: charts produced by "Microsoft: Print To
+    // PDF" wrap their content in a 0.75 (72/96 dpi) scale inside q/Q, so every
+    // coordinate came out 4/3 too large and page origins landed thousands of
+    // points off the sheet.
+    const gsStack = [];
 
     const addPoint = (x, y) => {
       // Apply current transform before viewport conversion
@@ -232,11 +241,17 @@ class PatternKeeperImporter {
              b1 * e + d1 * f + f1
           ];
       } else if (fn === pdfjsLib.OPS.save) {
-          // Simplification: Not full push/pop state but we reset path
+          gsStack.push({ transform: currentTransform.slice(), rgb: currentRGB });
           currentPath = [];
       } else if (fn === pdfjsLib.OPS.restore) {
           currentPath = [];
-          currentTransform = [1, 0, 0, 1, 0, 0];
+          const prev = gsStack.pop();
+          // An unbalanced Q (more restores than saves) is malformed but does
+          // occur; leaving the matrix alone is safer than resetting it.
+          if (prev) {
+            currentTransform = prev.transform;
+            currentRGB = prev.rgb;
+          }
       }
 
       // Track RGB fills
