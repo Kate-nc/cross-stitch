@@ -62,7 +62,7 @@
             if (typeof window.pdfjsLib !== 'undefined') {
               window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
             }
-            return loadScript('pdf-importer.js');
+            return loadScript('pdf-axis-labels.js').then(function () { return loadScript('pdf-importer.js'); });
           });
       }
       return ready.then(function () {

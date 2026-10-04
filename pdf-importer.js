@@ -402,6 +402,15 @@ class PatternKeeperImporter {
     // Sort pages by page index to assume reading order (left-to-right, top-to-bottom)
     pages.sort((a, b) => a.pageIndex - b.pageIndex);
 
+    // Preferred path: read each page's printed axis rulers, which state in
+    // absolute design coordinates which slice of the pattern the page covers.
+    // That places a multi-page chart as a real 2D tiling — remainder pages,
+    // page-edge overlap and non-standard page order all fall out correctly —
+    // instead of the single horizontal strip the fallback below produces.
+    // See pdf-axis-labels.js for why this beats inferring from the page count.
+    const rulerLayout = this.readRulerLayout(pages);
+    if (rulerLayout) return rulerLayout;
+
     // Initial naive layout: just put them in a row
     // A more advanced heuristic: Check text items for overlapping row/col numbers
     // For now, we'll try to guess based on standard width.
@@ -457,6 +466,200 @@ class PatternKeeperImporter {
       totalColumns: totalCols,
       totalRows: totalRows,
       pages: pages
+    };
+  }
+
+  /**
+   * Place chart pages using their printed axis rulers (pdf-axis-labels.js).
+   *
+   * Returns a chart layout whose pages each carry a `ruler` — an affine map from
+   * page coordinates to absolute design cells — or null when the rulers can't be
+   * read, in which case detectChartLayout falls back to sequential placement.
+   *
+   * Requiring EVERY chart page to be placed is deliberate: a partial read would
+   * silently drop a page's stitches, which is worse than the fallback's
+   * predictable (if wrong-shaped) output.
+   *
+   * @param {Array} pages pages from detectChartLayout, each with { pageIndex, grid, rawPage }
+   * @returns {Object|null}
+   */
+  readRulerLayout(pages) {
+    const AX = (typeof window !== 'undefined' && window.PdfAxisLabels) ||
+               (typeof PdfAxisLabels !== 'undefined' ? PdfAxisLabels : null);
+    if (!AX || typeof AX.readLayout !== 'function') return null;
+    // A single chart page needs no placement; leave it to the existing path so
+    // behaviour for single-page charts is untouched.
+    if (pages.length < 2) return null;
+
+    let layout;
+    try {
+      layout = AX.readLayout(
+        pages.map(p => ({ pageIndex: p.pageIndex, textItems: p.rawPage.textItems })),
+        { yDown: true }
+      );
+    } catch (e) {
+      return null;
+    }
+    if (!layout || !layout.tiling) return null;
+
+    const byIndex = new Map();
+    for (const entry of layout.pages) {
+      if (entry.offsets) byIndex.set(entry.pageIndex, entry.offsets);
+    }
+    // Pages without a ruler are almost always furniture that classifyPages
+    // mistook for a chart (a legend sheet dense with symbols, say), so they are
+    // dropped rather than allowed to veto the whole layout. But if the rulers
+    // only account for a minority of pages, the read is not trustworthy and the
+    // fallback is the safer answer.
+    const placedPages = pages.filter(p => byIndex.has(p.pageIndex));
+    if (placedPages.length < 2) return null;
+    const ratio = placedPages.length / pages.length;
+    const fillsRectangle = layout.tiling &&
+      placedPages.length === layout.tiling.across * layout.tiling.down;
+    if (!fillsRectangle && ratio < 0.8) return null;
+    pages = placedPages;
+
+    // The rulers bound the design: `total*` is exact when they label their own
+    // last cell, and `total*Max` allows for the trailing cells a stride-10 ruler
+    // never names. Page content is clamped into that envelope — a content box
+    // that maps outside it has picked up prose or furniture, not stitches.
+    const limitCols = layout.totalColumnsMax || layout.totalColumns;
+    const limitRows = layout.totalRowsMax || layout.totalRows;
+    if (!limitCols || !limitRows) return null;
+
+    let totalCols = 0;
+    let totalRows = 0;
+
+    for (const p of pages) {
+      const r = byIndex.get(p.pageIndex);
+      p.ruler = r;
+      // Absolute 0-based cell span this page covers, derived from the page's own
+      // ruler rather than from detectGrid, whose pitch and origin are unreliable
+      // on glyph-style charts.
+      const span = this.rulerCellSpan(p.rawPage, r, limitCols, limitRows);
+      p.globalOffsetCol = span.colStart;
+      p.globalOffsetRow = span.rowStart;
+      p.rulerSpan = span;
+      if (span.colStart + span.columns > totalCols) totalCols = span.colStart + span.columns;
+      if (span.rowStart + span.rows > totalRows) totalRows = span.rowStart + span.rows;
+      delete p.rawPage;
+    }
+
+    if (!totalCols || !totalRows) return null;
+
+    return {
+      totalColumns: totalCols,
+      totalRows: totalRows,
+      pages: pages,
+      tiling: layout.tiling,
+      layoutSource: 'axis-rulers',
+      warnings: layout.warnings || [],
+    };
+  }
+
+  /**
+   * Work out which absolute cells a ruler-bearing page covers, by mapping the
+   * page's drawable area through the ruler and clamping to cells that exist.
+   * Coordinates returned are 0-based; the ruler's own labels are 1-based.
+   */
+  rulerCellSpan(page, ruler, limitCols, limitRows) {
+    const colAt = (x) => Math.round(ruler.colBase + x / ruler.pitchX);
+    const rowAt = (y) => Math.round(ruler.rowBase + y / ruler.pitchY);
+
+    // Bound the span by the chart's CONTENT, not the sheet. Mapping the whole
+    // page box in would pull in margins, rulers and headers — which inflates the
+    // finished size and shifts every page's start.
+    const box = this.chartContentBox(page);
+    const x0 = box ? box.x0 : 0;
+    const x1 = box ? box.x1 : (page.width || 612);
+    const y0 = box ? box.y0 : 0;
+    const y1 = box ? box.y1 : (page.height || 792);
+
+    // Clamp into the design the rulers describe. Labels are 1-based, so there is
+    // no column 0 and nothing may extend past the finished size.
+    let c0 = Math.min(Math.max(colAt(x0), 1), limitCols);
+    let c1 = Math.min(Math.max(colAt(x1), 1), limitCols);
+    let r0 = Math.min(Math.max(rowAt(y0), 1), limitRows);
+    let r1 = Math.min(Math.max(rowAt(y1), 1), limitRows);
+    if (c1 < c0) c1 = c0;
+    if (r1 < r0) r1 = r0;
+    return {
+      colStart: c0 - 1,
+      rowStart: r0 - 1,
+      columns: c1 - c0 + 1,
+      rows: r1 - r0 + 1,
+    };
+  }
+
+  /**
+   * Bounding box of a page's chart content — colour-filled cells and the
+   * single-character symbols drawn in them. Multi-character text (titles, ruler
+   * labels of two digits or more, page furniture) is excluded, so the box hugs
+   * the chart rather than the sheet.
+   *
+   * Only stitched cells matter: an unstitched margin inside the page's slice
+   * carries no data, so a tight box loses nothing and keeps the derived finished
+   * size honest.
+   *
+   * @returns {{x0:number,x1:number,y0:number,y1:number}|null}
+   */
+  chartContentBox(page) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    let seen = 0;
+
+    const paths = page.vectorPaths || [];
+    for (let i = 0; i < paths.length; i++) {
+      const pa = paths[i];
+      if (!pa.fillColor || !pa.points || !pa.points.length) continue;
+      for (let q = 0; q < pa.points.length; q++) {
+        const pt = pa.points[q];
+        if (pt.x < x0) x0 = pt.x;
+        if (pt.x > x1) x1 = pt.x;
+        if (pt.y < y0) y0 = pt.y;
+        if (pt.y > y1) y1 = pt.y;
+      }
+      seen++;
+    }
+
+    const texts = page.textItems || [];
+    for (let j = 0; j < texts.length; j++) {
+      const t = texts[j];
+      const s = (t.str || '').trim();
+      // A chart symbol is one glyph. Two-digit ruler labels and prose are not.
+      if (s.length !== 1) continue;
+      if (t.x < x0) x0 = t.x;
+      if (t.x > x1) x1 = t.x;
+      const cy = t.y - (t.height || 0) / 2;
+      if (cy < y0) y0 = cy;
+      if (cy > y1) y1 = cy;
+      seen++;
+    }
+
+    if (!seen || !isFinite(x0) || !isFinite(y0)) return null;
+    return { x0, y0, x1, y1 };
+  }
+
+  /**
+   * Build a cell grid from a page's axis rulers. The ruler gives the pitch
+   * directly and, with the page's absolute span, fixes the origin: the cell for
+   * absolute column N starts where the ruler projects N.
+   *
+   * `fallback` supplies boldLineInterval only — its geometry is what we are
+   * replacing.
+   */
+  gridFromRuler(ruler, span, fallback) {
+    // x of the leading edge of absolute column `col` (1-based), inverting
+    // col = colBase + x / pitch.
+    const xOfCol = (col) => (col - ruler.colBase) * ruler.pitchX;
+    const yOfRow = (row) => (row - ruler.rowBase) * ruler.pitchY;
+    return {
+      originX: xOfCol(span.colStart + 1) - ruler.pitchX / 2,
+      originY: yOfRow(span.rowStart + 1) - ruler.pitchY / 2,
+      cellWidth: ruler.pitchX,
+      cellHeight: ruler.pitchY,
+      columns: span.columns,
+      rows: span.rows,
+      boldLineInterval: (fallback && fallback.boldLineInterval) || 10,
     };
   }
 
@@ -632,7 +835,14 @@ class PatternKeeperImporter {
         const pageData = chartPages.find(p => p.pageIndex === pInfo.pageIndex);
         if (!pageData) continue;
 
-        const grid = pInfo.grid;
+        // When the page's axis rulers were read, they describe the cell grid more
+        // accurately than detectGrid does — on glyph-style charts detectGrid can
+        // be out by a third on pitch and can even return a negative origin,
+        // because it is clustering stroked furniture rather than cells. The
+        // ruler is an explicit statement of scale, so prefer it.
+        const grid = pInfo.ruler
+          ? this.gridFromRuler(pInfo.ruler, pInfo.rulerSpan, pInfo.grid)
+          : pInfo.grid;
 
         // PERF (Cat B-lite): pre-build Y-bucket indices for textItems and
         // colour-filled vector paths. Each cell now scans a ~1-row slice
