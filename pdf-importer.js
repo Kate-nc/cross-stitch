@@ -596,15 +596,27 @@ class PatternKeeperImporter {
       const x0 = g.originX, x1 = x0 + g.columns * g.cellWidth;
       const y0 = g.originY, y1 = y0 + g.rows * g.cellHeight;
       const colours = new Set();
+      // Where the page puts its ink, in 4x4-cell blocks: a colour chart's
+      // painted cells, a symbol chart's glyphs. Backdrops and bare paper are
+      // left out, being the same everywhere.
+      const blocks = new Set();
+      const gw = x1 - x0, gh = y1 - y0;
       for (const v of p.rawPage.vectorPaths || []) {
         if (!v.fillColor || !v.points || !v.points.length) continue;
-        let sx = 0, sy = 0;
-        for (const q of v.points) { sx += q.x; sy += q.y; }
+        let sx = 0, sy = 0, bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+        for (const q of v.points) {
+          sx += q.x; sy += q.y;
+          if (q.x < bx0) bx0 = q.x; if (q.x > bx1) bx1 = q.x;
+          if (q.y < by0) by0 = q.y; if (q.y > by1) by1 = q.y;
+        }
         sx /= v.points.length; sy /= v.points.length;
         if (sx < x0 || sx > x1 || sy < y0 || sy > y1) continue;
         colours.add(Math.round(v.fillColor[0]) + ',' + Math.round(v.fillColor[1]) + ',' + Math.round(v.fillColor[2]));
+        if (bx1 - bx0 >= gw * 0.3 && by1 - by0 >= gh * 0.3) continue;
+        if (v.fillColor[0] >= 248 && v.fillColor[1] >= 248 && v.fillColor[2] >= 248) continue;
+        blocks.add(Math.floor((sx - x0) / (g.cellWidth * 4)) + ',' + Math.floor((sy - y0) / (g.cellHeight * 4)));
       }
-      return { p, g, colours: colours.size };
+      return { p, g, colours: colours.size, blocks };
     });
     if (info.some(i => !i)) return null;
 
@@ -621,6 +633,18 @@ class PatternKeeperImporter {
     const others = info.filter(i => i !== richest);
     if (richest.colours < 5) return null;
     if (!others.every(i => i.colours <= 3)) return null;
+
+    // Colour counts alone cannot tell a re-rendering from a genuinely plain
+    // tile — a page of sky paints only two or three colours too. A re-rendering
+    // puts its ink in the same places as the original; a different tile does
+    // not. Require the occupied blocks to largely coincide.
+    const overlap = (a, b) => {
+      if (!a.size || !b.size) return 0;
+      let both = 0;
+      for (const k of a) if (b.has(k)) both++;
+      return both / (a.size + b.size - both);
+    };
+    if (!others.every(i => overlap(richest.blocks, i.blocks) >= 0.6)) return null;
 
     return { keep: richest.p, dropped: others.map(i => i.p.pageIndex) };
   }
@@ -666,7 +690,13 @@ class PatternKeeperImporter {
    */
   looksLikeChartGrid(page) {
     const g = this.gridOf(page);
-    return !!g && g.columns >= 20 && g.rows >= 20;
+    if (!g) return false;
+    // Tens of cells one way and a real span the other. Requiring twenty both
+    // ways rejected the narrow remainder page at the end of a multi-page chart
+    // (a dozen columns by eighty rows), losing its stitches; a key is still a
+    // single band or a handful of cells wide, and fails the second test.
+    const long = Math.max(g.columns, g.rows), short = Math.min(g.columns, g.rows);
+    return long >= 20 && short >= 6;
   }
 
   /**
@@ -709,9 +739,12 @@ class PatternKeeperImporter {
    * page coordinates to absolute design cells — or null when the rulers can't be
    * read, in which case detectChartLayout falls back to sequential placement.
    *
-   * Requiring EVERY chart page to be placed is deliberate: a partial read would
-   * silently drop a page's stitches, which is worse than the fallback's
-   * predictable (if wrong-shaped) output.
+   * A page whose ruler cannot be read is left out, provided the rest still
+   * account for most of the chart; it is usually a key or notes page that
+   * classification mistook for a chart. If it was a real chart page, its
+   * stitches are missing — so every page left out is named in the warnings,
+   * and pdf-axis-labels reads narrow remainder pages from as few as two labels
+   * before giving up on them.
    *
    * @param {Array} pages pages from detectChartLayout, each with { pageIndex, grid, rawPage }
    * @returns {Object|null}
@@ -750,6 +783,7 @@ class PatternKeeperImporter {
     const fillsRectangle = layout.tiling &&
       placedPages.length === layout.tiling.across * layout.tiling.down;
     if (!fillsRectangle && ratio < 0.8) return null;
+    const leftOut = pages.filter(p => !byIndex.has(p.pageIndex)).map(p => p.pageIndex);
     pages = placedPages;
 
     // The rulers bound the design: `total*` is exact when they label their own
@@ -794,7 +828,11 @@ class PatternKeeperImporter {
       pages: pages,
       tiling: layout.tiling,
       layoutSource: 'axis-rulers',
-      warnings: layout.warnings || [],
+      warnings: (layout.warnings || []).concat(leftOut.length
+        ? [(leftOut.length > 1
+            ? 'Pages ' + leftOut.join(', ') + ' looked like chart pages but could not be placed, and were not imported.'
+            : 'Page ' + leftOut[0] + ' looked like a chart page but could not be placed, and was not imported.')]
+        : []),
     };
   }
 
@@ -1278,7 +1316,10 @@ class PatternKeeperImporter {
         const coverage = new Map();           // cellKey -> Map(colourKey -> {col, area})
         const addCover = (key, col, area) => {
           let m = coverage.get(key);
-          if (!m) { m = new Map(); coverage.set(key, m); }
+          // Fills are visited in paint order. One covering the whole cell hides
+          // everything painted there before it, so it starts the tally afresh:
+          // a colour painted into a hole in a larger shape is what shows.
+          if (!m || area >= cellArea * 0.95) { m = new Map(); coverage.set(key, m); }
           const ck = Math.round(col[0]) + ',' + Math.round(col[1]) + ',' + Math.round(col[2]);
           const e = m.get(ck);
           if (e) e.area += area; else m.set(ck, { col, area });
@@ -1506,13 +1547,14 @@ class PatternKeeperImporter {
      }
 
      // Once the code-anchored reader has found a real key anywhere in the
-     // document, a page where it found nothing is not a key page, and the old
-     // reader's guesses there are noise — on PAT2171_2 it read a product
-     // reference on the materials page as a thread.
+     // document, a page where BOTH readers found next to nothing is not a key
+     // page, and a single guess there is noise — on PAT2171_2 the old reader
+     // took a product reference on the materials page for a thread. A page the
+     // old reader reads as a proper key is still used, whatever else is found.
      const anchoredTotal = readings.reduce((n, r) => n + r.anchoredCross, 0);
      for (const r of readings) {
        if (r.anchoredCross >= 2 && r.anchoredCross >= r.legacy.length) add(r.anchored);
-       else if (anchoredTotal >= 2 && r.anchoredCross < 2) continue;
+       else if (anchoredTotal >= 2 && r.anchoredCross < 2 && r.legacy.length < 2) continue;
        else add(r.legacy.length >= r.anchoredCross ? r.legacy : r.anchored);
      }
 
@@ -2095,32 +2137,50 @@ class PatternKeeperImporter {
     const y1 = y0 + grid.rows * grid.cellHeight;
     const pad = Math.max(grid.cellWidth, grid.cellHeight);
 
+    // Stroked line work inside the chart, as 2-point segments. A polyline —
+    // one moveTo then several lineTo, which is how many charts draw a run of
+    // outline — is broken into its segments rather than skipped.
     const segments = [];
+    const inBox = (pt) => pt.x >= x0 - pad && pt.x <= x1 + pad && pt.y >= y0 - pad && pt.y <= y1 + pad;
     for (const p of page.vectorPaths) {
-      if (!p.stroked || p.type !== 'line' || !p.points || p.points.length !== 2) continue;
-      const a = p.points[0], b = p.points[1];
-      if (a.x < x0 - pad || a.x > x1 + pad || b.x < x0 - pad || b.x > x1 + pad) continue;
-      if (a.y < y0 - pad || a.y > y1 + pad || b.y < y0 - pad || b.y > y1 + pad) continue;
-      segments.push(p);
+      if (!p.stroked || !p.points || p.points.length < 2) continue;
+      if (p.type !== 'line' && p.points.length > 64) continue;
+      for (let i = 1; i < p.points.length; i++) {
+        const a = p.points[i - 1], b = p.points[i];
+        if (!inBox(a) || !inBox(b)) continue;
+        if (a.x === b.x && a.y === b.y) continue;
+        segments.push({ points: [a, b], strokeColor: p.strokeColor, lineWidth: p.lineWidth,
+                        fromPolyline: p.points.length > 2 });
+      }
     }
     if (!segments.length) return [];
 
-    // The ink: the stroke colour used for the most segments. Rules and symbols
-    // vastly outnumber backstitch, so the mode is the chart's own ink.
+    const unit = Math.max(1e-6, Math.min(grid.cellWidth, grid.cellHeight));
+    const onLattice = (pt) => {
+      const fx = (pt.x - x0) / grid.cellWidth * 2, fy = (pt.y - y0) / grid.cellHeight * 2;
+      return Math.abs(fx - Math.round(fx)) <= 0.3 && Math.abs(fy - Math.round(fy)) <= 0.3;
+    };
+    const lenOf = (sg) => Math.hypot(sg.points[0].x - sg.points[1].x, sg.points[0].y - sg.points[1].y) / unit;
+    const colourKey = (sg) => sg.strokeColor ? sg.strokeColor.join(',') : 'none';
+
+    // The ink. Best witnessed by the grid's own rules — straight runs much
+    // longer than any stitch — since a chart is ruled in its ink. Only without
+    // such rules, the most common stroke colour: there, the main backstitch
+    // thread could otherwise be taken for ink and every line in it dropped.
     const tally = new Map();
-    for (const s of segments) {
-      const key = s.strokeColor ? s.strokeColor.join(',') : 'none';
-      tally.set(key, (tally.get(key) || 0) + 1);
+    const ruleTally = new Map();
+    for (const sg of segments) {
+      const k = colourKey(sg);
+      tally.set(k, (tally.get(k) || 0) + 1);
+      if (lenOf(sg) > 12) ruleTally.set(k, (ruleTally.get(k) || 0) + 1);
     }
-    let inkKey = null, inkCount = -1;
-    for (const [k, n] of tally) {
-      if (n > inkCount) { inkCount = n; inkKey = k; }
-    }
+    const modeOf = (m) => { let best = null, n = -1; for (const [k, c] of m) if (c > n) { n = c; best = k; } return best; };
+    const inkKey = ruleTally.size ? modeOf(ruleTally) : modeOf(tally);
     // Typical pen width for the ink, to catch backstitch drawn in the same
     // colour — common on charts with no coloured outlining.
     const inkWidths = segments
-      .filter(s => (s.strokeColor ? s.strokeColor.join(',') : 'none') === inkKey)
-      .map(s => s.lineWidth || 1)
+      .filter(sg => colourKey(sg) === inkKey)
+      .map(sg => sg.lineWidth || 1)
       .sort((a, b) => a - b);
     const inkWidth = inkWidths.length ? inkWidths[Math.floor(inkWidths.length / 2)] : 1;
 
@@ -2128,14 +2188,23 @@ class PatternKeeperImporter {
     const seen = new Set();
     for (const s of segments) {
       const a = s.points[0], b = s.points[1];
-      const lenCells = Math.hypot(a.x - b.x, a.y - b.y) /
-        Math.max(1e-6, Math.min(grid.cellWidth, grid.cellHeight));
+      const lenCells = lenOf(s);
+      const key = colourKey(s);
       // Shorter than most of a cell is a mark inside one — part of a symbol,
-      // not a stitch between two corners. Longer than a dozen cells in a
-      // straight line is a rule or a border.
-      if (lenCells < 0.6 || lenCells > 12) continue;
-
-      const key = s.strokeColor ? s.strokeColor.join(',') : 'none';
+      // not a stitch between two corners. A long horizontal or vertical run is
+      // a rule, whatever its colour: charts draw every tenth line bold and
+      // often black, which is both a different colour and a heavier pen than
+      // the fine grid (Books and Blossoms: 54 such rules, each 300 rows long).
+      // A long diagonal is never a rule, so it is kept as a long stitch.
+      if (lenCells < 0.6) continue;
+      const axisAligned = Math.abs(a.x - b.x) < unit * 0.1 || Math.abs(a.y - b.y) < unit * 0.1;
+      if (lenCells > 12 && (axisAligned || key === inkKey)) continue;
+      // A polyline is only stitching if its vertices sit on the stitching
+      // lattice — cell corners, or the half-cell points fractional backstitch
+      // uses. Symbol outlines are polylines too (DMC draws its symbols as white
+      // outlines, near enough to B5200 to pass for it) but their vertices fall
+      // anywhere.
+      if (s.fromPolyline && !(onLattice(a) && onLattice(b))) continue;
       const colouredDifferently = key !== inkKey;
       const heavierPen = (s.lineWidth || 1) > inkWidth * 1.4;
       if (!colouredDifferently && !heavierPen) continue;
@@ -2172,9 +2241,14 @@ class PatternKeeperImporter {
    * produces a sane canvas) and when the margin is negligible, so charts that
    * are already tight are passed through untouched.
    *
+   * Backstitch counts as design too: an outline, a caption or whiskers can run
+   * past the last cross stitch, and trimming to the crosses alone cut them off.
+   * A line runs between lattice points, so it needs the cells on either side of
+   * its ends: lattice x from a to b keeps columns a to b-1.
+   *
    * @returns {{offsetCol:number, offsetRow:number, width:number, height:number}}
    */
-  stitchedBounds(linked, gridWidth, gridHeight) {
+  stitchedBounds(linked, gridWidth, gridHeight, bsLines) {
     const full = { offsetCol: 0, offsetRow: 0, width: gridWidth, height: gridHeight };
     let c0 = Infinity, c1 = -Infinity, r0 = Infinity, r1 = -Infinity;
     for (const cell of linked) {
@@ -2187,6 +2261,15 @@ class PatternKeeperImporter {
       if (cell.col > c1) c1 = cell.col;
       if (cell.row < r0) r0 = cell.row;
       if (cell.row > r1) r1 = cell.row;
+    }
+    for (const ln of bsLines || []) {
+      const lx0 = Math.min(ln.x1, ln.x2), lx1 = Math.max(ln.x1, ln.x2);
+      const ly0 = Math.min(ln.y1, ln.y2), ly1 = Math.max(ln.y1, ln.y2);
+      if (lx0 < 0 || ly0 < 0 || lx1 > gridWidth || ly1 > gridHeight) continue;
+      const a = Math.min(lx0, gridWidth - 1), b = Math.max(a, lx1 - 1);
+      const c = Math.min(ly0, gridHeight - 1), d = Math.max(c, ly1 - 1);
+      if (a < c0) c0 = a; if (b > c1) c1 = b;
+      if (c < r0) r0 = c; if (d > r1) r1 = d;
     }
     if (!isFinite(c0) || !isFinite(r0) || c1 < c0 || r1 < r0) return full;
 
@@ -2209,7 +2292,16 @@ class PatternKeeperImporter {
      // the designer quotes. On PAT2171_2 that is the difference between the
      // 92x98 ruled grid and the 73x72 design, against a stated 14x13 cm at
      // 5.5 stitches/cm (about 77x72).
-     const trim = this.stitchedBounds(linked, gridWidth, gridHeight);
+     // When the key lists backstitch threads, a stroke matching none of them is
+     // page furniture rather than stitching — PAT1968_2's blue centre arrows sit
+     // right on the grid's edge and would otherwise widen the design by a column.
+     // With no backstitch in the key there is nothing to check against, so
+     // everything found is kept.
+     const bsKey = ((legend && legend.entries) || []).filter(e => e.kind === 'backstitch' && e.lineRgb);
+     const bsFound = (bsLines || []).map(ln => Object.assign({}, ln, { colorId: this.backstitchThreadFor(ln.rgb, bsKey) }))
+        .filter(ln => !bsKey.length || ln.colorId);
+
+     const trim = this.stitchedBounds(linked, gridWidth, gridHeight, bsFound);
      const width = trim.width;
      const height = trim.height;
 
@@ -2217,17 +2309,23 @@ class PatternKeeperImporter {
         type: "skip", id: "__skip__", rgb: [255, 255, 255], lab: [100, 0, 0]
      }));
 
-     // Backstitch sits on the lattice, so it shifts with the trim and is kept
-     // only where it still falls inside the trimmed design.
-     const bsKey = ((legend && legend.entries) || []).filter(e => e.kind === 'backstitch' && e.lineRgb);
-     const trimmedBs = (bsLines || []).map(ln => {
+     // Backstitch sits on the lattice, so it shifts with the trim. The trim
+     // box already includes it, so nothing within the design is lost.
+     // The app reads a line's thread from colorId and draws it in color.
+     const hex = (c) => '#' + c.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+     const trimmedBs = bsFound.map(ln => {
         const out = {
            x1: ln.x1 - trim.offsetCol, y1: ln.y1 - trim.offsetRow,
            x2: ln.x2 - trim.offsetCol, y2: ln.y2 - trim.offsetRow,
-           rgb: ln.rgb,
         };
-        const id = this.backstitchThreadFor(ln.rgb, bsKey);
-        if (id) out.id = id;
+        const id = ln.colorId;
+        let rgb = ln.rgb;
+        if (id) {
+           out.colorId = id;
+           const t = (typeof getDmcByIdCI === 'function') ? getDmcByIdCI(id) : null;
+           if (t && t.rgb) rgb = t.rgb;
+        }
+        if (rgb) out.color = hex(rgb);
         return out;
      }).filter(ln =>
         ln.x1 >= 0 && ln.x1 <= width && ln.x2 >= 0 && ln.x2 <= width &&

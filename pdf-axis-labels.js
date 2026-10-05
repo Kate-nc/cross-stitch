@@ -66,7 +66,8 @@
   /* Group numeric items into runs sharing a near-constant cross-axis coordinate,
    * keeping only those whose values ascend along the axis. `keyFn` picks the
    * cross-axis coordinate, `posFn` the along-axis one. */
-  function findRuns(items, keyFn, posFn) {
+  function findRuns(items, keyFn, posFn, minRun) {
+    var need = minRun || MIN_RUN;
     var buckets = [];
     for (var i = 0; i < items.length; i++) {
       var v = asLabelValue(textOf(items[i]));
@@ -86,7 +87,7 @@
     var runs = [];
     for (var j = 0; j < buckets.length; j++) {
       var m = buckets[j].members;
-      if (m.length < MIN_RUN) continue;
+      if (m.length < need) continue;
       m.sort(function (a, b) { return a.pos - b.pos; });
       var ascending = true;
       for (var k = 1; k < m.length; k++) {
@@ -108,9 +109,9 @@
   /* Regress value against position. A genuine ruler is near-perfectly linear;
    * an ascending sequence that happens to appear inside the artwork is not.
    * Returns { pitch, base, maxResidual } in cells, or null if not ruler-like. */
-  function fitRuler(values, positions) {
+  function fitRuler(values, positions, minRun, expectPitch) {
     var n = values.length;
-    if (n < MIN_RUN) return null;
+    if (n < (minRun || MIN_RUN)) return null;
     var sx = 0, sy = 0, sxx = 0, sxy = 0;
     for (var i = 0; i < n; i++) {
       sx += positions[i]; sy += values[i];
@@ -130,6 +131,9 @@
       if (r > maxResidual) maxResidual = r;
     }
     if (maxResidual > 0.5) return null;
+    // With only two or three labels the residual test proves little, so a
+    // short ruler must also agree with the pitch the rest of the chart uses.
+    if (expectPitch > 0 && Math.abs((1 / slope) / expectPitch - 1) > 0.03) return null;
 
     return { pitch: 1 / slope, base: intercept, maxResidual: maxResidual, count: n };
   }
@@ -176,20 +180,27 @@
     if (!textItems || !textItems.length) return null;
     var yDown = !!opts.yDown;
 
-    var hRuns = findRuns(textItems, function (i) { return i.y; }, function (i) { return i.x; });
+    var minRun = opts.minRun || MIN_RUN;
+    var hRuns = findRuns(textItems, function (i) { return i.y; }, function (i) { return i.x; }, minRun);
     // Row numbers ascend DOWN the page: increasing y in viewport space,
-    // decreasing y in PDF user space.
-    var vRuns = findRuns(textItems, function (i) { return i.x; }, function (i) {
-      return yDown ? i.y : -i.y;
-    });
+    // decreasing y in PDF user space. They are usually aligned against the
+    // grid, so a right-aligned column of '70', '80', '90', '100' shares a right
+    // edge but not a left one; grouping only by left edge split it into runs
+    // too short to count. Try each alignment and keep whatever reads best.
+    var vPos = function (i) { return yDown ? i.y : -i.y; };
+    var vRuns = [].concat(
+      findRuns(textItems, function (i) { return i.x; }, vPos, minRun),
+      findRuns(textItems, function (i) { return i.x + (i.width || 0); }, vPos, minRun),
+      findRuns(textItems, function (i) { return i.x + (i.width || 0) / 2; }, vPos, minRun)
+    ).sort(function (a, b) { return b.values.length - a.values.length; });
 
     var h = null, v = null, hRun = null, vRun = null;
     for (var a = 0; a < hRuns.length && !h; a++) {
-      h = fitRuler(hRuns[a].values, hRuns[a].positions);
+      h = fitRuler(hRuns[a].values, hRuns[a].positions, minRun, opts.expectPitchX);
       if (h) hRun = hRuns[a];
     }
     for (var b = 0; b < vRuns.length && !v; b++) {
-      v = fitRuler(vRuns[b].values, vRuns[b].positions);
+      v = fitRuler(vRuns[b].values, vRuns[b].positions, minRun, opts.expectPitchY);
       if (v) vRun = vRuns[b];
     }
     if (!h || !v) return null;
@@ -197,7 +208,7 @@
     // Confidence rises with the evidence on the weaker axis. Charts typically
     // print 6-10 labels per axis per page; treat 8 as full marks.
     var evidence = Math.min(h.count, v.count);
-    var confidence = Math.max(0.5, Math.min(0.97, 0.5 + (evidence - MIN_RUN) * 0.08));
+    var confidence = Math.max(0.4, Math.min(0.97, 0.5 + (evidence - MIN_RUN) * 0.08));
 
     return {
       h: h,
@@ -243,6 +254,25 @@
         pageIndex: pages[i].pageIndex,
         rulers: readPageRulers(pages[i].textItems, opts),
       });
+    }
+
+    /* Second pass for pages that did not read. A narrow remainder page — the
+     * last column of a chart, say 25 cells wide with a label every ten — prints
+     * only two or three column labels, under the four a ruler needs on its own.
+     * Left unread it would be dropped from the layout. Once other pages have
+     * fixed the chart's cell pitch, two labels that agree with it are enough. */
+    var firstPass = read.filter(function (p) { return p.rulers; });
+    if (firstPass.length && firstPass.length < read.length) {
+      var median = function (xs) { xs = xs.slice().sort(function (a, b) { return a - b; }); return xs[Math.floor(xs.length / 2)]; };
+      var pitchX = median(firstPass.map(function (p) { return p.rulers.h.pitch; }));
+      var pitchY = median(firstPass.map(function (p) { return p.rulers.v.pitch; }));
+      for (var r2 = 0; r2 < read.length; r2++) {
+        if (read[r2].rulers) continue;
+        var retry = readPageRulers(pages[r2].textItems, {
+          yDown: opts.yDown, minRun: 2, expectPitchX: pitchX, expectPitchY: pitchY,
+        });
+        if (retry) { retry.shortRuler = true; read[r2].rulers = retry; }
+      }
     }
 
     var placed = read.filter(function (p) { return p.rulers; });

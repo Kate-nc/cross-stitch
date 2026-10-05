@@ -249,8 +249,9 @@
     for (let k = 1; k <= limit; k++) {
       const score = edgeOverlapScore(tileA, tileB, k, axis);
       if (!isFinite(score)) continue;
-      // Prefer the smallest overlap that fits: a wider one can always match by
-      // covering fewer compared cells.
+      // Lowest score wins. A genuine repeat lines up only at its true width —
+      // narrower or wider, the compared bands are offset and disagree — so the
+      // minimum is the answer; on an exact tie the narrower width is kept.
       if (score < bestScore - 1e-9) { bestScore = score; best = k; }
     }
     // A genuine repeat is near-identical. Anything less is coincidence.

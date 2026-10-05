@@ -179,6 +179,26 @@ describe('parseLegend', () => {
     expect(codes).not.toContain('4015');
     expect(codes).toEqual(expect.arrayContaining(['310', '3721']));
   });
+
+  it('still uses a key page only the original reader understands', () => {
+    // A small key elsewhere must not cause a full key in an older layout to be
+    // thrown away.
+    const mini = threeColumnKey([
+      [{ code: '310', count: 1, rgb: [5, 5, 5] }, { code: '3721', count: 1, rgb: [160, 39, 75] }],
+    ]);
+    const original = page([]);
+    const spy = jest.spyOn(imp, 'parseLegendLegacy').mockImplementation((pages) => ({
+      entries: pages[0] === original
+        ? [{ symbol: 'a', threadCode: '100' }, { symbol: 'b', threadCode: '200' }, { symbol: 'c', threadCode: '300' }]
+        : [],
+    }));
+    try {
+      const codes = imp.parseLegend([mini, original], []).entries.map(e => e.threadCode);
+      expect(codes).toEqual(expect.arrayContaining(['100', '200', '300', '310', '3721']));
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });
 
 /* ── cell colour reading ─────────────────────────────────────────────────── */
@@ -315,15 +335,24 @@ describe('linkSymbolsToThreads', () => {
 
 describe('findAlternateRenderings', () => {
   const grid = { originX: 74, originY: 208, cellWidth: 4.3, cellHeight: 4.3, columns: 104, rows: 97 };
-  const filled = (colours) => colours.map((c, i) => rect(80 + i * 5, 220, 4, 4, c));
+  const filled = (colours, dx) => colours.map((c, i) => rect(80 + (dx || 0) + i * 5, 220, 4, 4, c));
 
   it('recognises a colour chart and its black-and-white twin', () => {
     // PAT1968_2: 9 colours painted inside the colour chart, 3 inside the twin.
     const colour = { pageIndex: 1, grid, rawPage: page([], filled([[1, 1, 1], [2, 2, 2], [3, 3, 3], [4, 4, 4], [5, 5, 5], [6, 6, 6]])) };
-    const mono = { pageIndex: 2, grid: Object.assign({}, grid, { rows: 101, originX: 85 }), rawPage: page([], filled([[0, 0, 0], [255, 255, 255]])) };
+    // The twin draws black symbols in the same cells the colour chart paints.
+    const mono = { pageIndex: 2, grid: Object.assign({}, grid, { rows: 101, originX: 85 }), rawPage: page([], filled([[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [255, 255, 255]], 11)) };
     const out = imp.findAlternateRenderings([colour, mono]);
     expect(out.keep).toBe(colour);
     expect(out.dropped).toEqual([2]);
+  });
+
+  it('leaves a plain tile alone even when it paints few colours', () => {
+    // A page that is mostly sky paints two or three colours, like a symbol
+    // chart would — but in different places from its detailed neighbour.
+    const detailed = { pageIndex: 1, grid, rawPage: page([], filled([[1, 1, 1], [2, 2, 2], [3, 3, 3], [4, 4, 4], [5, 5, 5], [6, 6, 6]])) };
+    const sky = { pageIndex: 2, grid, rawPage: page([], [rect(300, 500, 4, 4, [120, 170, 220]), rect(340, 560, 4, 4, [120, 170, 220])]) };
+    expect(imp.findAlternateRenderings([detailed, sky])).toBeNull();
   });
 
   it('leaves genuine tiles alone', () => {
@@ -442,5 +471,15 @@ describe('backstitchThreadFor', () => {
 
   it('declines a colour nowhere near the key', () => {
     expect(imp.backstitchThreadFor([0, 16, 159], bsKey)).toBeNull();
+  });
+});
+
+describe('extractSymbols — paint order', () => {
+  it('lets a colour painted over the whole cell win over what lies beneath', async () => {
+    // A large shape of colour A, then colour B painted into one of its cells.
+    const p = page([], [rect(100, 100, 40, 10, [10, 10, 10]), rect(120, 100, 10, 10, [200, 200, 0])]);
+    const syms = await imp.extractSymbols([p], gridLayout(4, 1, 10), null);
+    expect(cellAt(syms, 2, 0).fillColor).toEqual([200, 200, 0]);
+    expect(cellAt(syms, 1, 0).fillColor).toEqual([10, 10, 10]);
   });
 });

@@ -146,6 +146,15 @@ describe('looksLikeChartGrid', () => {
   it('rejects a narrow column, as a key would be', () => {
     expect(imp.looksLikeChartGrid(gridPage({ cols: 4, rows: 30 }))).toBe(false);
   });
+
+  it('accepts a narrow remainder page from the end of a multi-page chart', () => {
+    expect(imp.looksLikeChartGrid(gridPage({ cols: 12, rows: 80 }))).toBe(true);
+  });
+
+  it('rejects a key that is only a few cells across', () => {
+    // PAT1968_2's key reads as a 5 x 16 grid.
+    expect(imp.looksLikeChartGrid(gridPage({ cols: 5, rows: 16 }))).toBe(false);
+  });
 });
 
 describe('pageHasAxisRulers', () => {
