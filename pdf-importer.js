@@ -1413,6 +1413,64 @@ class PatternKeeperImporter {
      return { originX, originY, cellWidth, cellHeight, columns: cols, rows: rows, boldLineInterval: 10 };
   }
 
+  /**
+   * Is this filled shape a fractional stitch, and which quarters of which cell
+   * does it cover?
+   *
+   * Charting software draws fractional stitches as triangles in the thread
+   * colour:
+   *   ¾ stitch  half the cell, its corners on three cell corners. The right-
+   *             angled corner is where the quarter leg sits, and the long side
+   *             is the half stitch, so it covers every quarter but the one
+   *             opposite — which is exactly how this app stores a ¾.
+   *   ¼ stitch  a small triangle in one corner, from that corner to the
+   *             midpoints of its two sides.
+   * A vertex must land on a cell corner, edge midpoint or centre; anything else
+   * is the outline of a symbol, not a stitch.
+   *
+   * @returns {{key:number, quads:string[]}|null}
+   */
+  fractionalShape(pts, grid) {
+    if (!pts || pts.length < 3) return null;
+    const uniq = [];
+    for (const p of pts) {
+      if (!uniq.some(q => Math.abs(q.x - p.x) < 1e-3 && Math.abs(q.y - p.y) < 1e-3)) uniq.push(p);
+    }
+    if (uniq.length !== 3) return null;
+    let cx = 0, cy = 0;
+    for (const p of uniq) { cx += p.x / 3; cy += p.y / 3; }
+    const col = Math.floor((cx - grid.originX) / grid.cellWidth);
+    const row = Math.floor((cy - grid.originY) / grid.cellHeight);
+    if (col < 0 || row < 0 || col >= grid.columns || row >= grid.rows) return null;
+    const x0 = grid.originX + col * grid.cellWidth, y0 = grid.originY + row * grid.cellHeight;
+    // Snap each vertex to the half-cell lattice: 0, 0.5 or 1 on each axis.
+    const snapped = [];
+    for (const p of uniq) {
+      const u = (p.x - x0) / grid.cellWidth * 2, v = (p.y - y0) / grid.cellHeight * 2;
+      const su = Math.round(u), sv = Math.round(v);
+      if (Math.abs(u - su) > 0.24 || Math.abs(v - sv) > 0.24) return null;
+      if (su < 0 || su > 2 || sv < 0 || sv > 2) return null;
+      snapped.push(su + ',' + sv);
+    }
+    const has = (k) => snapped.indexOf(k) >= 0;
+    const corners = { TL: '0,0', TR: '2,0', BL: '0,2', BR: '2,2' };
+    const opposite = { TL: 'BR', TR: 'BL', BL: 'TR', BR: 'TL' };
+    const key = row * grid.columns + col;
+    const onCorners = Object.keys(corners).filter(q => has(corners[q]));
+    if (onCorners.length === 3) {
+      // The right angle is at the corner adjacent to both others; its opposite
+      // is the corner left out.
+      const missing = Object.keys(corners).find(q => !has(corners[q]));
+      const right = opposite[missing];
+      return { key, quads: ['TL', 'TR', 'BL', 'BR'].filter(q => q !== opposite[right]) };
+    }
+    const mids = { TL: ['1,0', '0,1'], TR: ['1,0', '2,1'], BL: ['0,1', '1,2'], BR: ['2,1', '1,2'] };
+    for (const q of Object.keys(corners)) {
+      if (has(corners[q]) && has(mids[q][0]) && has(mids[q][1])) return { key, quads: [q] };
+    }
+    return null;
+  }
+
   /** Is this closed point list an axis-aligned rectangle? */
   isAxisRect(pts) {
     if (!pts || pts.length < 4) return false;
@@ -1536,6 +1594,7 @@ class PatternKeeperImporter {
         const cellArea = grid.cellWidth * grid.cellHeight;
         const gridW = grid.columns * grid.cellWidth, gridH = grid.rows * grid.cellHeight;
         const coverage = new Map();           // cellKey -> Map(colourKey -> {col, area})
+        const cellParts = new Map();          // cellKey -> [{quads, col}] fractional stitches
         const addCover = (key, col, area) => {
           let m = coverage.get(key);
           // Fills are visited in paint order. One covering the whole cell hides
@@ -1550,6 +1609,11 @@ class PatternKeeperImporter {
           const fp = fillPaths[fi];
           const pts = fp.ref.points;
           if (!pts || pts.length < 3 || fp.w <= 0 || fp.h <= 0) continue;   // degenerate
+          const frac = this.fractionalShape(pts, grid);
+          if (frac) {
+            if (!cellParts.has(frac.key)) cellParts.set(frac.key, []);
+            cellParts.get(frac.key).push({ quads: frac.quads, col: fp.ref.fillColor });
+          }
           let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
           for (const p of pts) {
             if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x;
@@ -1677,6 +1741,18 @@ class PatternKeeperImporter {
               // A symbol cell carries its colours only for EXACT swatch
               // matching, so an unrecognised symbol on a white mono chart is
               // not pulled towards whichever key colour is nearest to white.
+              // Fractional stitches: the colour of each quarter, in paint order.
+              // Only a cell whose quarters are not all one thread is partial.
+              let partial = null;
+              const parts = cellParts.get(cellKey);
+              if (parts) {
+                const q = { TL: null, TR: null, BL: null, BR: null };
+                for (const pt of parts) for (const k of pt.quads) q[k] = pt.col;
+                const v = [q.TL, q.TR, q.BL, q.BR];
+                const same = v.every(c => c && v[0] && c[0] === v[0][0] && c[1] === v[0][1] && c[2] === v[0][2]);
+                if (!same) partial = q;
+              }
+
               let fillColor = null;
               if (!item && paint) {
                  if (paint.dominant && !isPaper(paint.dominant)) fillColor = paint.dominant;
@@ -1692,7 +1768,17 @@ class PatternKeeperImporter {
                    isEmpty: false
                  };
                  if (fillColors) sym.fillColors = fillColors;
+                 if (partial) sym.partial = partial;
                  symbols.push(sym);
+              } else if (partial) {
+                 symbols.push({
+                   col: pInfo.globalOffsetCol + c,
+                   row: pInfo.globalOffsetRow + r,
+                   symbol: "",
+                   fontName: "",
+                   isEmpty: false,
+                   partial: partial
+                 });
               } else if (fillColor) {
                  symbols.push({
                    col: pInfo.globalOffsetCol + c,
@@ -2142,7 +2228,7 @@ class PatternKeeperImporter {
   linkSymbolsToThreads(symbols, legend) {
      const linked = [];
      const entries = ((legend && legend.entries) || []).filter(e => e.kind !== 'backstitch');
-     const report = { symbol: 0, swatch: 0, nearest: 0, catalogue: 0, unresolved: 0, unresolvedSymbols: {} };
+     const report = { symbol: 0, swatch: 0, nearest: 0, catalogue: 0, unresolved: 0, partial: 0, unresolvedSymbols: {} };
      if (legend) legend.matchReport = report;
 
      const rgbKey = (c) => Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]);
@@ -2237,10 +2323,40 @@ class PatternKeeperImporter {
         return best && bestDist < 15 ? best : null;
      };
 
+     // A colour to a thread, as for a cell: exact swatch, nearest key colour,
+     // and the whole DMC range only when there is no key. Used for the quarters
+     // of a fractional stitch, which carry a colour but no symbol of their own.
+     const threadForColour = (rgb) => {
+        const sw = swatchFor(rgb);
+        if (sw) return threadFor(sw);
+        if (typeof rgbToLab !== 'function' || typeof dE !== 'function') return null;
+        const lab = rgbToLab(rgb[0], rgb[1], rgb[2]);
+        if (entries.length) { const near = nearestEntry(lab); return near ? threadFor(near) : null; }
+        if (!hasDmc) return null;
+        let best = null, bestD = Infinity;
+        for (const d of DMC) { const dd = dE(lab, d.lab); if (dd < bestD) { bestD = dd; best = d; } }
+        return best;
+     };
+
      symbols.forEach(cell => {
         if (cell.isEmpty) {
            linked.push({ ...cell, thread: null });
            return;
+        }
+
+        if (cell.partial) {
+           const quarters = {};
+           let first = null;
+           for (const q of ['TL', 'TR', 'BL', 'BR']) {
+              if (!cell.partial[q]) continue;
+              const t = threadForColour(cell.partial[q]);
+              if (t) { quarters[q] = t; if (!first) first = t; }
+           }
+           if (first) {
+              report.partial = (report.partial || 0) + 1;
+              linked.push({ ...cell, thread: first, partialThreads: quarters });
+              return;
+           }
         }
 
         let thread = null;
@@ -2557,10 +2673,25 @@ class PatternKeeperImporter {
      let stitchCount = 0;
      const paletteMap = new Set();
      const perThread = new Map();
+     // Fractional stitches live beside the full-stitch pattern, keyed by cell,
+     // with the cell itself left blank: the app fills any quarter it is not
+     // given from the full stitch beneath.
+     const partialStitches = [];
 
      linked.forEach(cell => {
         const col = cell.col - trim.offsetCol;
         const row = cell.row - trim.offsetRow;
+        if (cell.partialThreads && col >= 0 && col < width && row >= 0 && row < height) {
+           const q = {};
+           for (const k of Object.keys(cell.partialThreads)) {
+              const t = cell.partialThreads[k];
+              q[k] = { id: t.id, rgb: t.rgb, name: t.name || ('DMC ' + t.id) };
+              paletteMap.add(t.id);
+           }
+           partialStitches.push([row * width + col, q]);
+           stitchCount++;
+           return;
+        }
         if (!cell.isEmpty && cell.thread && col >= 0 && col < width && row >= 0 && row < height) {
            const idx = row * width + col;
            pattern[idx] = {
@@ -2587,6 +2718,7 @@ class PatternKeeperImporter {
         settings: { sW: width, sH: height, fabricCt: (stated && stated.fabricCount) || 14 },
         pattern: pattern,
         bsLines: trimmedBs,
+        partialStitches: partialStitches,
         done: null,
         parkMarkers: [],
         totalTime: 0,
@@ -2787,7 +2919,7 @@ class PatternKeeperImporter {
         colours: colourCount,
         matched: {
            symbol: m.symbol || 0, swatch: m.swatch || 0, nearest: m.nearest || 0,
-           catalogue: m.catalogue || 0, unresolved: m.unresolved || 0,
+           catalogue: m.catalogue || 0, unresolved: m.unresolved || 0, partial: m.partial || 0,
         },
         stated: stated || {},
         checks: (validation && validation.checks) || [],
