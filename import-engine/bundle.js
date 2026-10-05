@@ -472,6 +472,8 @@
         confidence: { overall, perCell, perPaletteEntry: perPalette },
         warnings,
         reviewHints: built.reviewHints || [],
+        // A PDF chart's per-page readings, so the review can rearrange pages.
+        layoutSession: (raw && raw._layoutSession) || null,
       };
     } catch (err) {
       if (err && err.name === 'ImportAbortedError') {
@@ -2076,6 +2078,13 @@
       errors.push({ code: 'EMPTY', message: 'No extraction data.' });
       return { warnings, errors, coverage: 0 };
     }
+    // A strategy that hands over a finished project (the PDF and OXS importers)
+    // has no cell list here to check — and checking the empty one told every
+    // PDF import that "0% of stitches matched a colour". Such importers report
+    // on themselves (the project's importReport), so there is nothing to add.
+    if (raw._legacyProject) {
+      return { warnings, errors, coverage: 1 };
+    }
     const cells = raw.cells || [];
     const legendRows = (raw.legend && raw.legend.rows) || [];
 
@@ -2616,7 +2625,9 @@
             if (typeof window.pdfjsLib !== 'undefined') {
               window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
             }
-            return loadScript('pdf-axis-labels.js').then(function () { return loadScript('pdf-importer.js'); });
+            return loadScript('pdf-axis-labels.js')
+              .then(function () { return loadScript('pdf-raster-chart.js'); })
+              .then(function () { return loadScript('pdf-importer.js'); });
           });
       }
       return ready.then(function () {
@@ -2656,6 +2667,8 @@
             legend: { rows: [], codes: new Set(), byGlyph: new Map() },
             confidence: { format: 0.85, palette: [], grid: 0.85 },
             _legacyProject: project,
+            // Lets the review dialog rearrange the pages (pdf-importer analyse()).
+            _layoutSession: project._layoutSession || null,
           };
         });
       });
@@ -2670,6 +2683,198 @@
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = { pdfGlyphStrategy: pdfGlyphStrategy };
   }
+})();
+
+
+/* ────── ui/pageLayoutModel.js ────── */
+
+/* import-engine/ui/pageLayoutModel.js — the page arrangement behind the
+ * review dialog's Pages tab, as pure functions.
+ *
+ * A multi-page PDF chart is a set of page tiles. pdf-importer places them
+ * itself — exactly, when the pages print their row and column numbers, and in
+ * reading order when they do not — but the stitcher must be able to check that
+ * and put it right. This models the arrangement as slots in a grid:
+ *
+ *   { across, order: [pageIndex | null, ...], tray: [pageIndex, ...],
+ *     overlap: { cols, rows } }
+ *
+ * `order` is row-major; null is an empty slot (a page the PDF is missing).
+ * `tray` holds pages left out of the chart: ones the importer could not place,
+ * duplicate renderings it set aside, or ones the stitcher removed.
+ *
+ * placementFromSlots() turns slots into the absolute cell offsets
+ * pdf-importer's buildFromLayout() takes. Columns and rows size themselves to
+ * their widest and tallest page, so a short last column or row lines up, and
+ * `overlap` removes the rows and columns some charts repeat at each page break.
+ *
+ * No React here, so it is tested directly (tests/import/pageLayoutModel.test.js).
+ */
+
+(function () {
+  'use strict';
+
+  function sizeOf(session, pageIndex) {
+    for (var i = 0; i < session.pages.length; i++) {
+      if (session.pages[i].pageIndex === pageIndex) return session.pages[i];
+    }
+    return null;
+  }
+
+  function median(xs) {
+    if (!xs.length) return 0;
+    var s = xs.slice().sort(function (a, b) { return a - b; });
+    return s[Math.floor(s.length / 2)];
+  }
+
+  /* Pad to whole rows. */
+  function padded(order, across) {
+    var out = order.slice();
+    while (out.length % across) out.push(null);
+    return out;
+  }
+
+  /* Read a placement back into slots: pages sharing a column offset share a
+   * slot column, and likewise rows. */
+  function slotsFromPlacement(session, placement) {
+    var at = (placement && placement.pages) || {};
+    var placed = session.pages.filter(function (p) { return at[p.pageIndex]; });
+    var cols = [], rows = [];
+    placed.forEach(function (p) {
+      var pos = at[p.pageIndex];
+      if (cols.indexOf(pos.col) < 0) cols.push(pos.col);
+      if (rows.indexOf(pos.row) < 0) rows.push(pos.row);
+    });
+    cols.sort(function (a, b) { return a - b; });
+    rows.sort(function (a, b) { return a - b; });
+    var across = Math.max(1, cols.length);
+    var order = [];
+    for (var i = 0; i < across * Math.max(1, rows.length); i++) order.push(null);
+    var spill = [];
+    placed.forEach(function (p) {
+      var pos = at[p.pageIndex];
+      var k = rows.indexOf(pos.row) * across + cols.indexOf(pos.col);
+      if (order[k] === null) order[k] = p.pageIndex; else spill.push(p.pageIndex);
+    });
+    order = order.concat(spill);
+    return {
+      across: across,
+      order: padded(order, across),
+      tray: session.pages.filter(function (p) { return !at[p.pageIndex]; }).map(function (p) { return p.pageIndex; }),
+      overlap: { cols: 0, rows: 0 },
+    };
+  }
+
+  /* Slots to absolute offsets. Each slot column is as wide as its widest page
+   * and each slot row as tall as its tallest; an empty column or row takes a
+   * typical page's size, so a missing page leaves a page-sized gap. */
+  function placementFromSlots(session, slots) {
+    var across = Math.max(1, slots.across | 0);
+    var order = slots.order || [];
+    var down = Math.ceil(order.length / across);
+    var ov = slots.overlap || { cols: 0, rows: 0 };
+    var typW = median(session.pages.map(function (p) { return p.cols; }));
+    var typH = median(session.pages.map(function (p) { return p.rows; }));
+    var colW = [], rowH = [], c, r;
+    for (c = 0; c < across; c++) colW[c] = 0;
+    for (r = 0; r < down; r++) rowH[r] = 0;
+    order.forEach(function (pi, k) {
+      if (pi === null || pi === undefined) return;
+      var p = sizeOf(session, pi);
+      if (!p) return;
+      c = k % across; r = Math.floor(k / across);
+      if (p.cols > colW[c]) colW[c] = p.cols;
+      if (p.rows > rowH[r]) rowH[r] = p.rows;
+    });
+    // Trailing empty rows add nothing; interior empty ones keep their space.
+    var lastRow = -1;
+    order.forEach(function (pi, k) { if (pi !== null && pi !== undefined) lastRow = Math.max(lastRow, Math.floor(k / across)); });
+    var colOff = [], rowOff = [], acc = 0;
+    for (c = 0; c < across; c++) { colOff[c] = acc; acc += (colW[c] || typW) - (ov.cols || 0); }
+    acc = 0;
+    for (r = 0; r <= lastRow; r++) { rowOff[r] = acc; acc += (rowH[r] || typH) - (ov.rows || 0); }
+    var pages = {};
+    order.forEach(function (pi, k) {
+      if (pi === null || pi === undefined) return;
+      pages[pi] = { col: Math.max(0, colOff[k % across]), row: Math.max(0, rowOff[Math.floor(k / across)]) };
+    });
+    return { pages: pages, manual: true };
+  }
+
+  /* Change how many pages go across, keeping reading order. Trailing empty
+   * slots are dropped first, so widening and narrowing do not accumulate gaps. */
+  function setAcross(slots, across) {
+    across = Math.max(1, across | 0);
+    var order = slots.order.slice();
+    while (order.length && (order[order.length - 1] === null || order[order.length - 1] === undefined)) order.pop();
+    return Object.assign({}, slots, { across: across, order: padded(order, across) });
+  }
+
+  /* Exchange two slots (either may be empty). */
+  function swap(slots, i, j) {
+    var order = slots.order.slice();
+    while (order.length <= Math.max(i, j)) order.push(null);
+    var t = order[i]; order[i] = order[j]; order[j] = t;
+    return Object.assign({}, slots, { order: padded(order, slots.across) });
+  }
+
+  /* Take a page out of the chart, leaving its slot empty. */
+  function toTray(slots, pageIndex) {
+    var k = slots.order.indexOf(pageIndex);
+    if (k < 0) return slots;
+    var order = slots.order.slice();
+    order[k] = null;
+    return Object.assign({}, slots, { order: order, tray: slots.tray.concat([pageIndex]) });
+  }
+
+  /* Put a page from the tray into a slot; whatever was there goes to the tray. */
+  function fromTray(slots, pageIndex, slot) {
+    if (slots.tray.indexOf(pageIndex) < 0) return slots;
+    var order = slots.order.slice();
+    while (order.length <= slot) order.push(null);
+    var tray = slots.tray.filter(function (p) { return p !== pageIndex; });
+    if (order[slot] !== null && order[slot] !== undefined) tray.push(order[slot]);
+    order[slot] = pageIndex;
+    return Object.assign({}, slots, { order: padded(order, slots.across), tray: tray });
+  }
+
+  function setOverlap(slots, cols, rows) {
+    return Object.assign({}, slots, { overlap: { cols: Math.max(0, cols | 0), rows: Math.max(0, rows | 0) } });
+  }
+
+  /* Should the review open on the page layout? Yes when the importer could not
+   * read where the pages go — no rulers, so they were put in reading order — or
+   * when it left a page out that was not a recognised duplicate. */
+  function needsReview(session) {
+    if (!session || !session.pages || session.pages.length < 2) return false;
+    if (session.layoutSource !== 'axis-rulers' && session.layoutSource !== 'alternate-renderings') return true;
+    return session.pages.some(function (p) { return p.reason === 'unplaced'; });
+  }
+
+  /* Does this placement put every page exactly where the PDF said? */
+  function samePlacement(a, b) {
+    var pa = (a && a.pages) || {}, pb = (b && b.pages) || {};
+    var ka = Object.keys(pa), kb = Object.keys(pb);
+    if (ka.length !== kb.length) return false;
+    return ka.every(function (k) { return pb[k] && pb[k].col === pa[k].col && pb[k].row === pa[k].row; });
+  }
+
+  var api = {
+    slotsFromPlacement: slotsFromPlacement,
+    placementFromSlots: placementFromSlots,
+    setAcross: setAcross,
+    swap: swap,
+    toTray: toTray,
+    fromTray: fromTray,
+    setOverlap: setOverlap,
+    needsReview: needsReview,
+    samePlacement: samePlacement,
+  };
+
+  if (typeof window !== 'undefined') {
+    window.ImportEngine = Object.assign(window.ImportEngine || {}, { pageLayout: api });
+  }
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();
 
 
@@ -2720,7 +2925,7 @@
     React.useEffect(function () {
       var c = canvas.current;
       if (!c) return;
-      var cell = Math.max(2, Math.min(8, Math.floor(480 / Math.max(w, h2 || 1))));
+      var cell = Math.max(props.maxPx ? 1 : 2, Math.min(8, Math.floor((props.maxPx || 480) / Math.max(w, h2 || 1))));
       c.width = w * cell;
       c.height = h2 * cell;
       var ctx = c.getContext('2d');
@@ -2820,10 +3025,196 @@
     );
   }
 
+  // ── Pages: check and correct where each page of a PDF chart goes ──────
+
+  // A small picture of one page's stitches, so pages can be told apart and
+  // their edges compared.
+  function PageThumb(props) {
+    var page = props.page;
+    var canvas = React.useRef(null);
+    React.useEffect(function () {
+      var c = canvas.current;
+      if (!c || !page) return;
+      var scale = Math.max(1, Math.floor(props.size / Math.max(page.cols, page.rows, 1)));
+      c.width = page.cols * scale;
+      c.height = page.rows * scale;
+      var ctx = c.getContext('2d');
+      ctx.clearRect(0, 0, c.width, c.height);
+      for (var i = 0; i < page.cells.length; i++) {
+        var cell = page.cells[i];
+        if (cell.isEmpty || !cell.thread) continue;
+        var rgb = cell.thread.rgb || [0, 0, 0];
+        ctx.fillStyle = 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')';
+        ctx.fillRect(cell.col * scale, cell.row * scale, scale, scale);
+      }
+    }, [page, props.size]);
+    return h('canvas', { ref: canvas, className: 'page-layout-thumb', 'aria-hidden': 'true' });
+  }
+
+  var TRAY_REASON = {
+    unplaced: 'Could not be placed',
+    duplicate: 'Same design in another style',
+  };
+
+  function PageLayoutPanel(props) {
+    var M = window.ImportEngine && window.ImportEngine.pageLayout;
+    var session = props.session;
+    var _s = React.useState(function () { return M.slotsFromPlacement(session, props.placement); });
+    var slots = _s[0], setSlots = _s[1];
+    var _sel = React.useState(null); var sel = _sel[0], setSel = _sel[1];   // { from: 'slot'|'tray', slot?, page }
+    var _drag = React.useState(null); var drag = _drag[0], setDrag = _drag[1];
+
+    var byIndex = {};
+    session.pages.forEach(function (p) { byIndex[p.pageIndex] = p; });
+    var leftOut = {};
+    session.pages.forEach(function (p) { if (p.reason) leftOut[p.pageIndex] = p.reason; });
+    var fromRulers = session.layoutSource === 'axis-rulers';
+    var edited = !!(props.placement && props.placement.manual);
+
+    function commit(next) {
+      setSlots(next);
+      setSel(null);
+      props.onPlacement(M.placementFromSlots(session, next));
+    }
+    function reset() {
+      setSel(null);
+      setSlots(M.slotsFromPlacement(session, session.placement));
+      props.onPlacement(session.placement);
+    }
+
+    // Tap one page, then another page or an empty slot, to swap or move it.
+    // Dragging does the same where a pointer is available.
+    function chooseSlot(k) {
+      var here = slots.order[k];
+      if (!sel) {
+        if (here !== null && here !== undefined) setSel({ from: 'slot', slot: k, page: here });
+        return;
+      }
+      if (sel.from === 'slot') {
+        if (sel.slot === k) { setSel(null); return; }
+        commit(M.swap(slots, sel.slot, k));
+      } else {
+        commit(M.fromTray(slots, sel.page, k));
+      }
+    }
+    function chooseTray(pi) {
+      if (sel && sel.from === 'tray' && sel.page === pi) { setSel(null); return; }
+      setSel({ from: 'tray', page: pi });
+    }
+    function dropOn(k) {
+      if (!drag) return;
+      if (drag.from === 'slot') { if (drag.slot !== k) commit(M.swap(slots, drag.slot, k)); }
+      else commit(M.fromTray(slots, drag.page, k));
+      setDrag(null);
+    }
+
+    // While a page is being moved, one empty row past the last, so it can go
+    // down a row; otherwise the spare row is only clutter.
+    var shown = slots.order.slice();
+    if (sel || drag) for (var e = 0; e < slots.across; e++) shown.push(null);
+
+    var across = slots.across;
+    var maxAcross = Math.max(1, session.pages.length);
+    var overlap = (slots.overlap && slots.overlap.cols) || 0;
+
+    return h('div', { className: 'page-layout' },
+      h('p', { className: 'page-layout-intro' + (fromRulers && !edited ? '' : ' attention') },
+        fromRulers
+          ? (edited
+              ? 'You have changed the layout read from the PDF.'
+              : 'Each page was placed using the row and column numbers printed on it. Check the pages line up, and move any that do not.')
+          : 'These pages have no row and column numbers, so they were laid out in page order. Set how many pages go across, then move any that are in the wrong place.'),
+      h('div', { className: 'page-layout-controls' },
+        h('div', { className: 'page-layout-stepper' },
+          h('span', { id: 'page-layout-across' }, 'Pages across'),
+          h('button', { type: 'button', className: 'g-btn icon-only', 'aria-label': 'Fewer pages across',
+            disabled: across <= 1, onClick: function () { commit(M.setAcross(slots, across - 1)); } }, I('minus')),
+          h('output', { 'aria-labelledby': 'page-layout-across', className: 'page-layout-value' }, String(across)),
+          h('button', { type: 'button', className: 'g-btn icon-only', 'aria-label': 'More pages across',
+            disabled: across >= maxAcross, onClick: function () { commit(M.setAcross(slots, across + 1)); } }, I('plus'))
+        ),
+        h('div', { className: 'page-layout-stepper' },
+          h('span', { id: 'page-layout-overlap' }, 'Rows repeated at page edges'),
+          h('button', { type: 'button', className: 'g-btn icon-only', 'aria-label': 'Fewer repeated rows',
+            disabled: overlap <= 0, onClick: function () { commit(M.setOverlap(slots, overlap - 1, overlap - 1)); } }, I('minus')),
+          h('output', { 'aria-labelledby': 'page-layout-overlap', className: 'page-layout-value' }, String(overlap)),
+          h('button', { type: 'button', className: 'g-btn icon-only', 'aria-label': 'More repeated rows',
+            disabled: overlap >= 10, onClick: function () { commit(M.setOverlap(slots, overlap + 1, overlap + 1)); } }, I('plus'))
+        ),
+        fromRulers && edited && h('button', { type: 'button', className: 'g-btn', onClick: reset },
+          I('undo'), h('span', null, 'Use the PDF’s layout'))
+      ),
+      h('p', { className: 'page-layout-hint' },
+        sel ? 'Now choose where page ' + sel.page + ' should go.' : 'Select a page, then the place it should go. You can also drag pages.'),
+      h('div', { className: 'page-layout-grid', role: 'list',
+                 style: { gridTemplateColumns: 'repeat(' + across + ', minmax(0, 1fr))' } },
+        shown.map(function (pi, k) {
+          var page = (pi === null || pi === undefined) ? null : byIndex[pi];
+          var row = Math.floor(k / across) + 1, col = (k % across) + 1;
+          var selected = sel && sel.from === 'slot' && sel.slot === k;
+          return h('div', { key: 'slot' + k, role: 'listitem', className: 'page-layout-slot',
+              onDragOver: function (ev) { ev.preventDefault(); },
+              onDrop: function (ev) { ev.preventDefault(); dropOn(k); } },
+            h('button', {
+              type: 'button',
+              className: 'page-layout-tile' + (page ? '' : ' empty') + (selected ? ' selected' : ''),
+              'aria-pressed': selected ? 'true' : 'false',
+              'aria-label': page
+                ? 'Page ' + pi + ', ' + page.cols + ' by ' + page.rows + ' stitches, row ' + row + ' column ' + col
+                : 'Empty place, row ' + row + ' column ' + col,
+              draggable: !!page,
+              onDragStart: function () { if (page) setDrag({ from: 'slot', slot: k, page: pi }); },
+              onClick: function () { chooseSlot(k); }
+            },
+              page ? h(PageThumb, { page: page, size: 96 }) : h('span', { className: 'page-layout-empty' }, 'Empty'),
+              page && h('span', { className: 'page-layout-label' }, 'Page ' + pi),
+              page && h('span', { className: 'page-layout-size' }, page.cols + ' × ' + page.rows)
+            )
+          );
+        })
+      ),
+      sel && sel.from === 'slot' && h('div', { className: 'page-layout-selected-actions' },
+        h('button', { type: 'button', className: 'g-btn', onClick: function () { commit(M.toTray(slots, sel.page)); } },
+          I('archive'), h('span', null, 'Leave page ' + sel.page + ' out'))
+      ),
+      slots.tray.length > 0 && h('section', { className: 'page-layout-tray', 'aria-label': 'Pages not in the chart' },
+        h('h3', null, 'Not in the chart'),
+        h('div', { className: 'page-layout-tray-list' },
+          slots.tray.map(function (pi) {
+            var page = byIndex[pi];
+            var selected = sel && sel.from === 'tray' && sel.page === pi;
+            return h('button', {
+              key: 'tray' + pi, type: 'button',
+              className: 'page-layout-tile tray' + (selected ? ' selected' : ''),
+              'aria-pressed': selected ? 'true' : 'false',
+              draggable: true,
+              onDragStart: function () { setDrag({ from: 'tray', page: pi }); },
+              onClick: function () { chooseTray(pi); }
+            },
+              page && h(PageThumb, { page: page, size: 64 }),
+              h('span', { className: 'page-layout-label' }, 'Page ' + pi),
+              h('span', { className: 'page-layout-size' }, TRAY_REASON[leftOut[pi]] || 'Left out')
+            );
+          })
+        )
+      ),
+      h('div', { className: 'page-layout-result' },
+        h('h3', null, 'Assembled chart'),
+        h(ImportPreviewPane, { project: props.project, showConfidence: false, maxPx: 320 })
+      )
+    );
+  }
+
   // ── Main modal ─────────────────────────────────────────────────────────
 
   function ImportReviewModal(props) {
-    var _t = React.useState('preview'); var tab = _t[0], setTab = _t[1];
+    // A PDF chart of several pages arrives with its per-page readings, so the
+    // pages can be rearranged here before anything is saved.
+    var session = props.layoutSession && props.layoutSession.pages && props.layoutSession.pages.length > 1
+      ? props.layoutSession : null;
+    var LM = window.ImportEngine && window.ImportEngine.pageLayout;
+    var _t = React.useState((session && LM && LM.needsReview(session)) ? 'pages' : 'preview'); var tab = _t[0], setTab = _t[1];
+    var _p = React.useState(session ? session.placement : null); var placement = _p[0], setPlacement = _p[1];
     var _e = React.useState({}); var edits = _e[0], setEdits = _e[1];
     var _c = React.useState(true); var showConfidence = _c[0], setShowConfidence = _c[1];
 
@@ -2842,17 +3233,27 @@
       next[field] = value;
       setEdits(next);
     }
-    var working = mergeEdits(props.project, edits);
+    // Rebuild only when the arrangement differs from the one imported.
+    var arranged = props.project;
+    if (session && placement && placement.manual && !(LM && LM.samePlacement(placement, session.placement))) {
+      arranged = memoBuild(session, placement);
+    }
+    var working = mergeEdits(arranged, edits);
+    // The importer's own findings — a page left out, a size that differs from
+    // what the PDF states — belong beside the engine's.
+    var reportWarnings = ((working && working.importReport && working.importReport.warnings) || [])
+      .map(function (m) { return { message: m, severity: 'medium' }; });
+    var allWarnings = (props.warnings || []).concat(reportWarnings);
 
     var coveragePct = Math.round((props.coverage || 0) * 100);
     var coverageIcon = props.coverage >= 0.95 ? I('confidenceHigh') : (props.coverage >= 0.8 ? I('info') : I('confidenceLow'));
 
-    var tabs = [
+    var tabs = [].concat(session ? [{ id: 'pages', label: 'Pages', icon: I('layers') }] : [], [
       { id: 'preview',  label: 'Preview',  icon: I('magnifier') },
       { id: 'palette',  label: 'Palette',  icon: I('palette') },
       { id: 'metadata', label: 'Details',  icon: I('info') },
       { id: 'compare',  label: 'Compare',  icon: I('splitView') },
-    ];
+    ]);
 
     return h('div', { className: 'import-review-modal-overlay', role: 'dialog', 'aria-modal': 'true' },
       h('div', { className: 'import-review-modal' },
@@ -2871,13 +3272,15 @@
           })
         ),
         h('section', { className: 'import-review-body' },
+          tab === 'pages'    && session && h(PageLayoutPanel, { session: session, placement: placement, project: working,
+                                                onPlacement: setPlacement }),
           tab === 'preview'  && h(ImportPreviewPane, { project: working, showConfidence: showConfidence }),
           tab === 'palette'  && h(ImportPaletteList, { project: working }),
           tab === 'metadata' && h(ImportMetadataForm, { project: working, onEdit: applyEdit }),
           tab === 'compare'  && h(ImportSideBySide, { project: working, originalFileUrl: props.originalFileUrl })
         ),
         h('aside', { className: 'import-review-warnings' },
-          h(WarningList, { warnings: props.warnings })
+          h(WarningList, { warnings: allWarnings })
         ),
         h('footer', { className: 'import-review-footer' },
           h('label', { className: 'import-review-toggle' },
@@ -2897,6 +3300,17 @@
         )
       )
     );
+  }
+
+  // Rebuilding a large chart takes a moment, and React re-renders often; keep
+  // the last build per session and arrangement.
+  var lastBuild = { session: null, key: null, project: null };
+  function memoBuild(session, placement) {
+    var key = JSON.stringify(placement.pages);
+    if (lastBuild.session === session && lastBuild.key === key) return lastBuild.project;
+    var project = session.build(placement);
+    lastBuild = { session: session, key: key, project: project };
+    return project;
   }
 
   function mergeEdits(project, edits) {
@@ -2979,7 +3393,7 @@
   // user can verify (in the browser console) that they're running the
   // current bundle and not a stale service-worker copy. If you don't see
   // this log on page load, the SW is serving an old cache.
-  var BUILD = 'wireApp v4 (2026-04-30 — modal trace + session breadcrumbs)';
+  var BUILD = 'wireApp v5 (2026-10-05 — PDF page layout review)';
   try { console.info('[ImportEngine]', BUILD); } catch (_) {}
   // Also expose it for assertion in DevTools: `window.ImportEngine.__build`.
   try {
@@ -3078,6 +3492,7 @@
         coverage: result.confidence && result.confidence.overall,
         reviewMode: result.reviewMode,
         originalFileUrl: url,
+        layoutSession: result.layoutSession || null,
       }).then(function (out) {
         if (url) try { URL.revokeObjectURL(url); } catch (_) {}
         if (out.action === 'confirm' && out.project) {

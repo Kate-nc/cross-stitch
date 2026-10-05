@@ -216,6 +216,8 @@
         confidence: { overall, perCell, perPaletteEntry: perPalette },
         warnings,
         reviewHints: built.reviewHints || [],
+        // A PDF chart's per-page readings, so the review can rearrange pages.
+        layoutSession: (raw && raw._layoutSession) || null,
       };
     } catch (err) {
       if (err && err.name === 'ImportAbortedError') {

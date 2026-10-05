@@ -5,6 +5,7 @@
  *   - openImportPicker(opts)   — used by home-app.js
  *   - importAndReview(file, opts) — used by home-app.js + creator-main.js
  *   - importPattern(file, opts) — convenience wrapper for external callers
+ *   - openReview(opts) — the review dialog alone, for a project already imported
  *   - preload() — warms the bundle without showing any UI; safe to call
  *                 from `requestIdleCallback`.
  *
@@ -79,6 +80,10 @@
     openImportPicker: lazy('openImportPicker'),
     importAndReview:  lazy('importAndReview'),
     importPattern:    lazy('importPattern'),
+    // The review dialog on its own, for callers that ran the import
+    // themselves (the tracker's PDF import, to let multi-page charts be
+    // rearranged before they are saved).
+    openReview:       lazy('openReview'),
     preload: function () { return loadBundle().then(function () { /* swallow */ }); },
   };
 })();

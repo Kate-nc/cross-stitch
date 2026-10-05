@@ -21,6 +21,13 @@
       errors.push({ code: 'EMPTY', message: 'No extraction data.' });
       return { warnings, errors, coverage: 0 };
     }
+    // A strategy that hands over a finished project (the PDF and OXS importers)
+    // has no cell list here to check — and checking the empty one told every
+    // PDF import that "0% of stitches matched a colour". Such importers report
+    // on themselves (the project's importReport), so there is nothing to add.
+    if (raw._legacyProject) {
+      return { warnings, errors, coverage: 1 };
+    }
     const cells = raw.cells || [];
     const legendRows = (raw.legend && raw.legend.rows) || [];
 

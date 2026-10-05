@@ -104,6 +104,8 @@
             legend: { rows: [], codes: new Set(), byGlyph: new Map() },
             confidence: { format: 0.85, palette: [], grid: 0.85 },
             _legacyProject: project,
+            // Lets the review dialog rearrange the pages (pdf-importer analyse()).
+            _layoutSession: project._layoutSession || null,
           };
         });
       });

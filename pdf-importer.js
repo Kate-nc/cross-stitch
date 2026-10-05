@@ -92,10 +92,42 @@ class PatternKeeperImporter {
   }
 
   /**
-   * @param {File} file
+   * Import a PDF chart.
+   *
+   * The finished project also carries, as a non-enumerable `_layoutSession`,
+   * everything needed to rebuild it with the pages arranged differently — see
+   * analyse() and buildFromLayout(). The review dialog uses it to let the
+   * stitcher check and correct where each page goes; nothing else sees it, and
+   * it is never saved with the project.
+   *
+   * @param {File|ArrayBuffer} file
    * @returns {Promise<Object>}
    */
   async import(file) {
+    const session = await this.analyse(file);
+    if (session.project) return session.project;           // a scanned chart
+    const project = this.buildFromLayout(session, session.placement);
+    Object.defineProperty(project, '_layoutSession', { value: session, enumerable: false });
+    return project;
+  }
+
+  /**
+   * Read a PDF chart without committing to a page layout.
+   *
+   * Every chart page is read at its own, page-local coordinates — including
+   * pages the automatic layout could not place and duplicate renderings it set
+   * aside — so they can be moved afterwards without reading the PDF again.
+   * Cells are linked to threads in one pass over all pages, so the match report
+   * is the same however the pages end up arranged.
+   *
+   * Returns a session:
+   *   pages[]   { pageIndex, cols, rows, cells, bs, initial: {col,row}|null,
+   *               reason: null | 'unplaced' | 'duplicate' }
+   *   placement the automatic layout, { pages: { [pageIndex]: {col,row} } }
+   *   build(placement) -> project
+   * or { project } for a scanned chart, which has a single page.
+   */
+  async analyse(file) {
     // PERF (Cat B-lite): yield to the event loop between heavy stages so the
     // browser can repaint the import progress UI, dispatch queued clicks
     // (so Cancel works), and avoid a single 20 s+ Long Task for large PDFs.
@@ -113,7 +145,7 @@ class PatternKeeperImporter {
        // No vector chart. A scanned chart, or one printed to an image, is a
        // page that is mostly a single picture: read the picture instead.
        const scanned = this.scannedChartPages(pages);
-       if (scanned.length) return this.importScanned(scanned, pages);
+       if (scanned.length) return { project: await this.importScanned(scanned, pages) };
        throw new Error("No chart pages detected in the PDF.");
     }
 
@@ -126,19 +158,117 @@ class PatternKeeperImporter {
     const legend = this.parseLegend(classified.legendPages, classified.chartPages);
     await yieldToBrowser();
 
-    const symbols = await this.extractSymbols(classified.chartPages, chartLayout, legend);
+    // Each page read at page-local coordinates: the same sampling grid as the
+    // automatic layout, with its offset set aside.
+    const placedIdx = new Set(chartLayout.pages.map(p => p.pageIndex));
+    const duplicates = new Set(chartLayout.droppedAlternates || []);
+    const entries = chartLayout.pages.map(pInfo => ({ pInfo, initial: { col: pInfo.globalOffsetCol, row: pInfo.globalOffsetRow }, reason: null }));
+    for (const page of classified.chartPages) {
+      if (placedIdx.has(page.pageIndex)) continue;
+      entries.push({
+        pInfo: { pageIndex: page.pageIndex, grid: this.gridOf(page), globalOffsetCol: 0, globalOffsetRow: 0 },
+        initial: null,
+        reason: duplicates.has(page.pageIndex) ? 'duplicate' : 'unplaced',
+      });
+    }
+
+    const tagged = [];
+    const sessionPages = [];
+    for (const e of entries) {
+      const local = Object.assign({}, e.pInfo, { globalOffsetCol: 0, globalOffsetRow: 0 });
+      const grid = this.samplingGrid(local);
+      if (!grid || !(grid.columns > 0) || !(grid.rows > 0)) continue;
+      const cells = await this.extractSymbols(classified.chartPages, { pages: [local] }, legend);
+      for (const c of cells) { c._page = e.pInfo.pageIndex; tagged.push(c); }
+      sessionPages.push({
+        pageIndex: e.pInfo.pageIndex, cols: grid.columns, rows: grid.rows,
+        cells: null, bs: this.collectBackstitch(classified.chartPages, { pages: [local] }),
+        initial: e.initial, reason: e.reason,
+      });
+      await yieldToBrowser();
+    }
+
+    const linked = this.linkSymbolsToThreads(tagged, legend);
+    const byPage = new Map(sessionPages.map(p => [p.pageIndex, p]));
+    for (const p of sessionPages) p.cells = [];
+    for (const c of linked) { const p = byPage.get(c._page); if (p) p.cells.push(c); }
     await yieldToBrowser();
 
-    const linked = this.linkSymbolsToThreads(symbols, legend);
-    await yieldToBrowser();
+    // Layout warnings that are about pages left out are rebuilt for whatever
+    // arrangement is finally chosen; the rest stand.
+    const leftOutMsg = /could not be placed|repeat page \d+ in another style/;
+    const placement = { pages: {}, manual: false };
+    for (const p of sessionPages) if (p.initial) placement.pages[p.pageIndex] = p.initial;
 
-    const bsLines = this.collectBackstitch(classified.chartPages, chartLayout);
-    await yieldToBrowser();
+    const session = {
+      kind: 'pdf-pages',
+      pages: sessionPages,
+      legend,
+      stated: this.readStatedFacts(pages),
+      layoutSource: chartLayout.layoutSource || 'sequential',
+      tiling: chartLayout.tiling || null,
+      layoutWarnings: (chartLayout.warnings || []).filter(w => !leftOutMsg.test(w)),
+      placement,
+      build: (pl) => this.buildFromLayout(session, pl),
+    };
+    return session;
+  }
 
-    // What the PDF says about itself, to check the result against.
-    const stated = this.readStatedFacts(pages);
+  /**
+   * Build the project for a given page arrangement.
+   *
+   * `placement.pages` maps a page number to the absolute cell at which its
+   * top-left corner sits; a page absent from it is left out. Where pages
+   * overlap — a chart repeating a row or two at each page break — a stitched
+   * reading beats an empty one, so repeats line up rather than double.
+   * `placement.manual` marks an arrangement made by hand rather than read from
+   * the PDF, which the import report records.
+   */
+  buildFromLayout(session, placement) {
+    const at = (placement && placement.pages) || {};
+    const manual = !!(placement && placement.manual);
+    const byKey = new Map();
+    const bsLines = [];
+    let totalCols = 0, totalRows = 0;
 
-    return this.convertToPattern(chartLayout, linked, legend, bsLines, stated);
+    for (const pg of session.pages) {
+      const pos = at[pg.pageIndex];
+      if (!pos) continue;
+      if (pos.col + pg.cols > totalCols) totalCols = pos.col + pg.cols;
+      if (pos.row + pg.rows > totalRows) totalRows = pos.row + pg.rows;
+      for (const c of pg.cells) {
+        const col = c.col + pos.col, row = c.row + pos.row;
+        const k = col + ',' + row;
+        const prev = byKey.get(k);
+        if (!prev || !c.isEmpty) byKey.set(k, Object.assign({}, c, { col, row }));
+      }
+      for (const l of pg.bs) {
+        bsLines.push(Object.assign({}, l, { x1: l.x1 + pos.col, y1: l.y1 + pos.row, x2: l.x2 + pos.col, y2: l.y2 + pos.row }));
+      }
+    }
+
+    const warnings = session.layoutWarnings.slice();
+    const out = session.pages.filter(p => !at[p.pageIndex]);
+    const dup = out.filter(p => p.reason === 'duplicate').map(p => p.pageIndex);
+    const missing = out.filter(p => p.reason !== 'duplicate').map(p => p.pageIndex);
+    if (dup.length) {
+      warnings.push((dup.length > 1 ? 'Pages ' + dup.join(', ') + ' repeat' : 'Page ' + dup[0] + ' repeats') +
+        ' another page in a different style and ' + (dup.length > 1 ? 'were' : 'was') + ' not imported.');
+    }
+    if (missing.length) {
+      warnings.push(missing.length > 1
+        ? 'Pages ' + missing.join(', ') + ' looked like chart pages but were not placed, and were not imported.'
+        : 'Page ' + missing[0] + ' looked like a chart page but was not placed, and was not imported.');
+    }
+    if (manual) warnings.push('The page layout was arranged by hand.');
+
+    const layout = {
+      totalColumns: totalCols || 1, totalRows: totalRows || 1, pages: [],
+      layoutSource: manual ? 'manual' : session.layoutSource,
+      tiling: manual ? null : session.tiling,
+      warnings,
+    };
+    return this.convertToPattern(layout, Array.from(byKey.values()), session.legend, bsLines, session.stated);
   }
 
   /**
@@ -453,6 +583,9 @@ class PatternKeeperImporter {
 
     for (const page of pages) {
       const numLines = page.vectorPaths.filter(p => p.type === 'line' || p.type === 'rect').length;
+      // Filled cells drawn as general paths rather than rectangles (pdf-lib and
+      // several charting programs draw them that way) count as shapes too.
+      const numShapes = numLines + page.vectorPaths.filter(p => p.type === 'path' && p.fillColor).length;
       const numTexts = page.textItems.length;
       const numSingleChars = page.textItems.filter(t => t.str.trim().length === 1).length;
       const hasDMC = page.textItems.some(t => t.str.toLowerCase().includes('dmc'));
@@ -467,7 +600,10 @@ class PatternKeeperImporter {
       // If we see thousands of lines, it's definitely a chart page, even if text items are low.
       if (hasRulers) {
         chartPages.push(page);
-      } else if (numLines > 50 && (numTexts > 1000 || numLines > 2000) &&
+      // A chart drawn as filled cells with no text needs only enough ruled
+      // and filled shapes to be more than a key; the grid-shape test does the
+      // real work. The count was 2000, which turned away a 30 x 30 chart.
+      } else if ((numTexts > 1000 || numShapes > 200) &&
                  this.looksLikeChartGrid(page)) {
         chartPages.push(page);
       } else if (numLines > 50 && numSingleChars > 50 && this.symbolsLookGridded(page)) {
