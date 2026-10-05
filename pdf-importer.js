@@ -126,7 +126,10 @@ class PatternKeeperImporter {
     const bsLines = this.collectBackstitch(classified.chartPages, chartLayout);
     await yieldToBrowser();
 
-    return this.convertToPattern(chartLayout, linked, legend, bsLines);
+    // What the PDF says about itself, to check the result against.
+    const stated = this.readStatedFacts(pages);
+
+    return this.convertToPattern(chartLayout, linked, legend, bsLines, stated);
   }
 
   /**
@@ -855,14 +858,29 @@ class PatternKeeperImporter {
     if (Math.abs(grid.cellWidth / ruler.pitchX - 1) > 0.04) return null;
     if (Math.abs(grid.cellHeight / ruler.pitchY - 1) > 0.04) return null;
 
+    /* Publishers place labels two ways, and the two read differently:
+     *   centred on its cell — gen-3: label N sits in the middle of cell N;
+     *   on a ruled line   — gen1: label N sits on the line that ends cell N
+     *                        (the bold tenth line).
+     * Taking every label as cell-centred put gen1's tiles a row early, since
+     * its row labels sit a hair past the line, in the next cell down. The
+     * style is read from the labels themselves: where they sit relative to the
+     * cell boundaries, on average. */
     const vote = (labels, centreOf, origin, pitch, count) => {
-      const tally = new Map();
+      const pos = [];
       for (const l of labels) {
         const c = centreOf(l);
-        if (!isFinite(c)) continue;
-        const idx = Math.floor((c - origin) / pitch);
+        if (isFinite(c)) pos.push({ l, p: (c - origin) / pitch });
+      }
+      if (!pos.length) return null;
+      const offLine = pos.reduce((n, e) => n + Math.abs(e.p - Math.round(e.p)), 0) / pos.length;
+      const onLines = offLine < 0.15;
+      const tally = new Map();
+      for (const e of pos) {
+        // The cell a label names: under it, or the one ending at its line.
+        const idx = onLines ? Math.round(e.p) - 1 : Math.floor(e.p);
         if (idx < 0 || idx >= count) continue;      // a label outside the grid votes for nothing
-        const first = l.value - idx;                 // 1-based absolute index of column/row 0
+        const first = e.l.value - idx;               // 1-based absolute index of column/row 0
         tally.set(first, (tally.get(first) || 0) + 1);
       }
       let best = null, bestN = 0;
@@ -870,13 +888,28 @@ class PatternKeeperImporter {
       return bestN >= 2 ? best : null;
     };
 
-    const firstCol = vote(ruler.colLabels, l => l.x + l.width / 2, grid.originX, grid.cellWidth, grid.columns);
-    const firstRow = vote(ruler.rowLabels, l => l.y - l.height / 2, grid.originY, grid.cellHeight, grid.rows);
+    // A label's centre. Rotated labels — gen1 prints its row numbers reading
+    // upwards — run along y from their origin, so their length is in width.
+    const colCentre = l => l.rotated ? l.x - l.height / 2 : l.x + l.width / 2;
+    const rowCentre = l => l.rotated ? l.y - l.width / 2 : l.y - l.height / 2;
+    const firstCol = vote(ruler.colLabels, colCentre, grid.originX, grid.cellWidth, grid.columns);
+    const firstRow = vote(ruler.rowLabels, rowCentre, grid.originY, grid.cellHeight, grid.rows);
     if (firstCol === null || firstRow === null || firstCol < 1 || firstRow < 1) return null;
 
     const colStart = firstCol - 1, rowStart = firstRow - 1;
-    const columns = Math.max(1, Math.min(grid.columns, limitCols - colStart));
-    const rows = Math.max(1, Math.min(grid.rows, limitRows - rowStart));
+    // The ruler can prove a cell the measurement missed. gen1's bottom pages
+    // label row 450, but grid detection found 108 rows there (342-449) — the
+    // outermost line of a chart is often its border, drawn differently from
+    // the rules inside — so the design imported a row short of the 256 x 450
+    // it states. A last label up to two cells past the measured grid extends
+    // it; further than that, the measurement is trusted over the ruler.
+    const lastCol = Math.max.apply(null, ruler.colLabels.map(l => l.value));
+    const lastRow = Math.max.apply(null, ruler.rowLabels.map(l => l.value));
+    let cols = grid.columns, rowsN = grid.rows;
+    if (lastCol - firstCol + 1 > cols && lastCol - firstCol + 1 - cols <= 2) cols = lastCol - firstCol + 1;
+    if (lastRow - firstRow + 1 > rowsN && lastRow - firstRow + 1 - rowsN <= 2) rowsN = lastRow - firstRow + 1;
+    const columns = Math.max(1, Math.min(cols, limitCols - colStart));
+    const rows = Math.max(1, Math.min(rowsN, limitRows - rowStart));
     return { colStart, rowStart, columns, rows };
   }
 
@@ -2281,7 +2314,7 @@ class PatternKeeperImporter {
     };
   }
 
-  convertToPattern(chartLayout, linked, legend, bsLines) {
+  convertToPattern(chartLayout, linked, legend, bsLines, stated) {
      const gridWidth = chartLayout.totalColumns || 50;
      const gridHeight = chartLayout.totalRows || 50;
 
@@ -2334,6 +2367,7 @@ class PatternKeeperImporter {
 
      let stitchCount = 0;
      const paletteMap = new Set();
+     const perThread = new Map();
 
      linked.forEach(cell => {
         const col = cell.col - trim.offsetCol;
@@ -2351,6 +2385,8 @@ class PatternKeeperImporter {
            };
            stitchCount++;
            paletteMap.add(cell.thread.id);
+           const tk = String(cell.thread.id).toLowerCase();
+           perThread.set(tk, (perThread.get(tk) || 0) + 1);
         }
      });
 
@@ -2358,7 +2394,8 @@ class PatternKeeperImporter {
         v: 7, // Not 8, because 8 expects compressed array format (['310', 's']) in Tracker
         w: width,
         h: height,
-        settings: { sW: width, sH: height, fabricCt: 14 },
+        // The fabric count the PDF states, where it states one.
+        settings: { sW: width, sH: height, fabricCt: (stated && stated.fabricCount) || 14 },
         pattern: pattern,
         bsLines: trimmedBs,
         done: null,
@@ -2366,7 +2403,14 @@ class PatternKeeperImporter {
         totalTime: 0,
         sessions: [],
         threadOwned: {},
-        importReport: this.buildImportReport(chartLayout, legend, width, height, stitchCount, paletteMap.size)
+        importReport: this.buildImportReport(chartLayout, legend, width, height, stitchCount, paletteMap.size,
+          this.validateAgainstStated(stated, {
+            w: width, h: height, colours: paletteMap.size,
+            keyCounts: ((legend && legend.entries) || [])
+              .filter(e => e.kind !== 'backstitch' && e.stitchCount != null)
+              .map(e => ({ code: String(e.threadCode), stated: e.stitchCount,
+                           imported: perThread.get(String(e.threadCode).toLowerCase()) || 0 })),
+          }), stated)
      };
   }
 
@@ -2389,6 +2433,99 @@ class PatternKeeperImporter {
         if (d < bestD) { bestD = d; best = e; }
      }
      return best && bestD <= 80 ? String(best.threadCode) : null;
+  }
+
+  /**
+   * What the PDF says about itself: its size in stitches, its physical size,
+   * the fabric count, and how many colours it uses. Publishers print these on
+   * the cover, materials or key page, and they are the only ground truth an
+   * import can be checked against.
+   *
+   * Recognised (all case-insensitive):
+   *   stitches   "Stitch Count: 309w x 467h", "256W x 450H", "220 x 300 stitches"
+   *   physical   "14 x 13 cm", "5.51 x 5.11 in"
+   *   fabric     "14 ct", "14 count", "Aida 14", "5,5 pts/cm" (= 14 per inch)
+   *   colours    "# of colors: 102", "102 colours"
+   *
+   * @returns {{stitches?:{w,h}, physicalCm?:{w,h}, fabricCount?:number, colours?:number}}
+   */
+  readStatedFacts(pages) {
+     const out = {};
+     const num = (s) => parseFloat(String(s).replace(',', '.'));
+     for (const page of pages || []) {
+        const text = (page.textItems || []).map(t => t.str).join(' ').replace(/\s+/g, ' ');
+        if (!out.stitches) {
+           const m = text.match(/stitch(?:es)?\s*count\s*:?\s*(\d{1,4})\s*w?\s*[x×]\s*(\d{1,4})\s*h?/i) ||
+                     text.match(/\b(\d{1,4})\s*W\s*[x×]\s*(\d{1,4})\s*H\b/) ||
+                     text.match(/\b(\d{1,4})\s*[x×]\s*(\d{1,4})\s*stitch(?:es)?\b/i) ||
+                     text.match(/stitches\s*:?\s*(\d{1,4})\s*[x×]\s*(\d{1,4})\b/i);
+           if (m) out.stitches = { w: parseInt(m[1], 10), h: parseInt(m[2], 10) };
+        }
+        if (!out.physicalCm) {
+           const cm = text.match(/\b(\d{1,3}(?:[.,]\d+)?)\s*(?:cm)?\s*[x×]\s*(\d{1,3}(?:[.,]\d+)?)\s*cm\b/i);
+           const inch = text.match(/\b(\d{1,2}(?:[.,]\d+)?)\s*[x×]\s*(\d{1,2}(?:[.,]\d+)?)\s*(?:in|inches|")(?![a-z])/i);
+           if (cm) out.physicalCm = { w: num(cm[1]), h: num(cm[2]) };
+           else if (inch) out.physicalCm = { w: num(inch[1]) * 2.54, h: num(inch[2]) * 2.54 };
+        }
+        if (!out.fabricCount) {
+           const ct = text.match(/\b(\d{2})\s*(?:ct|count)\b/i) || text.match(/\baida\s+(\d{2})\b/i);
+           const perCm = text.match(/\b(\d{1,2}[.,]\d)\s*p\s*ts\s*\/\s*cm/i);
+           if (ct && +ct[1] >= 6 && +ct[1] <= 40) out.fabricCount = parseInt(ct[1], 10);
+           else if (perCm) out.fabricCount = Math.round(num(perCm[1]) * 2.54);
+        }
+        if (!out.colours) {
+           const c = text.match(/#\s*of\s*colou?rs\s*:?\s*(\d{1,3})/i) || text.match(/\b(\d{1,3})\s+colou?rs\b/i);
+           if (c) out.colours = parseInt(c[1], 10);
+        }
+     }
+     return out;
+  }
+
+  /**
+   * Check the import against what the PDF states about itself.
+   *
+   * A stated stitch count is exact and must match. A physical size is rounded
+   * by its publisher — PAT2171_2 says "14 x 13 cm" for a design 73 stitches
+   * wide, which is 13.3 cm at its stated 5.5 per cm — so it only flags a
+   * difference of more than 10%. Where the key prints a stitch count for each
+   * thread, every thread is compared.
+   *
+   * @returns {{checks:Array<{what,stated,imported,ok}>, warnings:string[]}}
+   */
+  validateAgainstStated(stated, result) {
+     const checks = [], warnings = [];
+     if (!stated) return { checks, warnings };
+     if (stated.stitches) {
+        const ok = stated.stitches.w === result.w && stated.stitches.h === result.h;
+        checks.push({ what: 'size', stated: stated.stitches.w + ' x ' + stated.stitches.h,
+                      imported: result.w + ' x ' + result.h, ok });
+        if (!ok) warnings.push('The PDF states a design of ' + stated.stitches.w + ' x ' + stated.stitches.h +
+          ' stitches; the import is ' + result.w + ' x ' + result.h + '.');
+     } else if (stated.physicalCm && stated.fabricCount) {
+        const perCm = stated.fabricCount / 2.54;
+        const ew = stated.physicalCm.w * perCm, eh = stated.physicalCm.h * perCm;
+        const off = Math.max(Math.abs(result.w - ew) / ew, Math.abs(result.h - eh) / eh);
+        const ok = off <= 0.1;
+        checks.push({ what: 'physical size', stated: stated.physicalCm.w + ' x ' + stated.physicalCm.h + ' cm',
+                      imported: result.w + ' x ' + result.h, ok });
+        if (!ok) warnings.push('The PDF states a finished size of about ' + Math.round(ew) + ' x ' + Math.round(eh) +
+          ' stitches; the import is ' + result.w + ' x ' + result.h + '.');
+     }
+     if (stated.colours) {
+        const ok = stated.colours === result.colours;
+        checks.push({ what: 'colours', stated: stated.colours, imported: result.colours, ok });
+        if (!ok) warnings.push('The PDF lists ' + stated.colours + ' colours; ' + result.colours + ' were imported.');
+     }
+     if (result.keyCounts && result.keyCounts.length) {
+        const wrong = result.keyCounts.filter(k => k.stated !== k.imported);
+        checks.push({ what: 'per-thread counts', stated: result.keyCounts.length + ' threads',
+                      imported: (result.keyCounts.length - wrong.length) + ' match', ok: !wrong.length });
+        if (wrong.length) {
+           warnings.push(wrong.length + ' of ' + result.keyCounts.length + ' threads differ from the stitch count ' +
+             'printed in the key (e.g. ' + wrong.slice(0, 3).map(k => k.code + ': key ' + k.stated + ', imported ' + k.imported).join('; ') + ').');
+        }
+     }
+     return { checks, warnings };
   }
 
   /**
@@ -2423,7 +2560,7 @@ class PatternKeeperImporter {
    * PDF and what had to be guessed — so the result can be reviewed rather than
    * trusted blindly. Kept small: it travels with the project.
    */
-  buildImportReport(chartLayout, legend, width, height, stitchCount, colourCount) {
+  buildImportReport(chartLayout, legend, width, height, stitchCount, colourCount, validation, stated) {
      const entries = (legend && legend.entries) || [];
      const m = (legend && legend.matchReport) || {};
      const warnings = [].concat((chartLayout && chartLayout.warnings) || []);
@@ -2447,6 +2584,7 @@ class PatternKeeperImporter {
              (close ? ', and the key lists ' + close.a + ' and ' + close.b + ', which are easily confused.' : '.'));
         }
      }
+     if (validation && validation.warnings) warnings.push(...validation.warnings);
      return {
         layout: (chartLayout && chartLayout.layoutSource) || 'sequential',
         tiling: (chartLayout && chartLayout.tiling) || null,
@@ -2459,6 +2597,8 @@ class PatternKeeperImporter {
            symbol: m.symbol || 0, swatch: m.swatch || 0, nearest: m.nearest || 0,
            catalogue: m.catalogue || 0, unresolved: m.unresolved || 0,
         },
+        stated: stated || {},
+        checks: (validation && validation.checks) || [],
         warnings: warnings,
      };
   }

@@ -483,3 +483,85 @@ describe('extractSymbols — paint order', () => {
     expect(cellAt(syms, 1, 0).fillColor).toEqual([10, 10, 10]);
   });
 });
+
+/* ── stated facts and validation ─────────────────────────────────────────── */
+
+describe('readStatedFacts', () => {
+  const pg = (...strs) => page(strs.map((s, i) => text(s, 50, 50 + i * 10)));
+
+  it('reads KG-Chart\'s stitch count, finished size, fabric and colours', () => {
+    const f = imp.readStatedFacts([pg('Stitch Count: 309w x 467h', 'Finished Size: 112.12 cm x 169.45 cm (14 ct./inch)', '# of colors: 102 Colors')]);
+    expect(f.stitches).toEqual({ w: 309, h: 467 });
+    expect(f.fabricCount).toBe(14);
+    expect(f.colours).toBe(102);
+  });
+
+  it('reads the compact "256W x 450H" form', () => {
+    expect(imp.readStatedFacts([pg('256W x 450H')]).stitches).toEqual({ w: 256, h: 450 });
+  });
+
+  it('reads DMC\'s physical size and per-centimetre fabric count', () => {
+    const f = imp.readStatedFacts([pg('design size / dimensions dessin 14 x 13 cm / 5.51 x 5.11 in', 'aida 5,5 pts/cm')]);
+    expect(f.physicalCm).toEqual({ w: 14, h: 13 });
+    expect(f.fabricCount).toBe(14);
+  });
+
+  it('returns nothing when the PDF states nothing', () => {
+    expect(imp.readStatedFacts([pg('Alizarin', 'Black')])).toEqual({});
+  });
+});
+
+describe('validateAgainstStated', () => {
+  it('passes an import that matches its stated size exactly', () => {
+    const v = imp.validateAgainstStated({ stitches: { w: 309, h: 467 } }, { w: 309, h: 467 });
+    expect(v.checks[0].ok).toBe(true);
+    expect(v.warnings).toEqual([]);
+  });
+
+  it('flags a stitch count that is off by even one row', () => {
+    // gen1 states 256 x 450 and once imported 256 x 449.
+    const v = imp.validateAgainstStated({ stitches: { w: 256, h: 450 } }, { w: 256, h: 449 });
+    expect(v.checks[0].ok).toBe(false);
+    expect(v.warnings[0]).toMatch(/256 x 450.*256 x 449/);
+  });
+
+  it('allows a rounded physical size its slack', () => {
+    // PAT2171_2: "14 x 13 cm" at 14 count for a design of 73 x 72.
+    const v = imp.validateAgainstStated({ physicalCm: { w: 14, h: 13 }, fabricCount: 14 }, { w: 73, h: 72 });
+    expect(v.checks[0].ok).toBe(true);
+  });
+
+  it('flags a physical size well away from the import', () => {
+    const v = imp.validateAgainstStated({ physicalCm: { w: 14, h: 13 }, fabricCount: 14 }, { w: 150, h: 72 });
+    expect(v.checks[0].ok).toBe(false);
+  });
+
+  it('compares per-thread counts printed in the key', () => {
+    const v = imp.validateAgainstStated({}, { w: 1, h: 1, keyCounts: [
+      { code: '310', stated: 10511, imported: 10511 }, { code: 'blanc', stated: 3121, imported: 368 },
+    ] });
+    expect(v.checks[0].ok).toBe(false);
+    expect(v.warnings[0]).toMatch(/1 of 2 threads differ.*blanc: key 3121, imported 368/);
+  });
+});
+
+describe('anchorGridToRuler — label styles', () => {
+  // gen1 prints its labels ON the ruled line that ends the labelled cell,
+  // with row numbers rotated to read upwards.
+  const grid = { originX: 45.96, originY: 45.96, cellWidth: 6.12, cellHeight: 6.12, columns: 86, rows: 108 };
+  const ruler = {
+    pitchX: 6.12, pitchY: 6.12,
+    colLabels: [10, 20, 30, 40, 50, 60, 70, 80].map(v => ({ value: v, x: grid.originX + v * 6.12 - 4.2, y: 40, width: 8, height: 6 })),
+    // Rows 343..450: label N on the line ending page row (N - 342).
+    rowLabels: [350, 360, 370, 380, 390, 400, 410, 420, 430, 440, 450].map(v => ({
+      value: v, x: 30, y: grid.originY + (v - 342) * 6.12 + 6.8, width: 13.3, height: 8, rotated: true,
+    })),
+  };
+
+  it('reads labels that sit on lines, not cells', () => {
+    const a = imp.anchorGridToRuler(grid, ruler, 256, 459);
+    expect(a.rowStart).toBe(342);          // first row 343
+    expect(a.rows).toBe(108);              // ending at 450, as the PDF states
+    expect(a.colStart).toBe(0);
+  });
+});

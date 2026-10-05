@@ -162,7 +162,7 @@
   function labelsOf(run) {
     return run.values.map(function (v, i) {
       var it = run.items[i] || {};
-      return { value: v, x: it.x, y: it.y, width: it.width || 0, height: it.height || 0 };
+      return { value: v, x: it.x, y: it.y, width: it.width || 0, height: it.height || 0, rotated: !!it.rotated };
     });
   }
 
