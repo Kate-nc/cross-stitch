@@ -1311,9 +1311,54 @@ class PatternKeeperImporter {
      return linked;
   }
 
+  /**
+   * Bounding box of the stitched cells, used to trim the blank margin a chart's
+   * ruling leaves around the design.
+   *
+   * Returns the full grid when nothing is stitched (so an empty import still
+   * produces a sane canvas) and when the margin is negligible, so charts that
+   * are already tight are passed through untouched.
+   *
+   * @returns {{offsetCol:number, offsetRow:number, width:number, height:number}}
+   */
+  stitchedBounds(linked, gridWidth, gridHeight) {
+    const full = { offsetCol: 0, offsetRow: 0, width: gridWidth, height: gridHeight };
+    let c0 = Infinity, c1 = -Infinity, r0 = Infinity, r1 = -Infinity;
+    for (const cell of linked) {
+      if (cell.isEmpty || !cell.thread) continue;
+      // Skip anything outside the grid rather than clamping it in, so a stray
+      // cell cannot drag the design's edge out to meet it.
+      if (cell.col < 0 || cell.col >= gridWidth) continue;
+      if (cell.row < 0 || cell.row >= gridHeight) continue;
+      if (cell.col < c0) c0 = cell.col;
+      if (cell.col > c1) c1 = cell.col;
+      if (cell.row < r0) r0 = cell.row;
+      if (cell.row > r1) r1 = cell.row;
+    }
+    if (!isFinite(c0) || !isFinite(r0) || c1 < c0 || r1 < r0) return full;
+
+    return {
+      offsetCol: c0,
+      offsetRow: r0,
+      width: c1 - c0 + 1,
+      height: r1 - r0 + 1,
+    };
+  }
+
   convertToPattern(chartLayout, linked, legend) {
-     const width = chartLayout.totalColumns || 50;
-     const height = chartLayout.totalRows || 50;
+     const gridWidth = chartLayout.totalColumns || 50;
+     const gridHeight = chartLayout.totalRows || 50;
+
+     // Charts are routinely ruled larger than the design they carry, leaving a
+     // blank margin of grid cells all round. Importing the ruled area would
+     // overstate the finished size and surround the work with empty canvas, so
+     // the pattern is trimmed to the stitches themselves — which is the size
+     // the designer quotes. On PAT2171_2 that is the difference between the
+     // 92x98 ruled grid and the 73x72 design, against a stated 14x13 cm at
+     // 5.5 stitches/cm (about 77x72).
+     const trim = this.stitchedBounds(linked, gridWidth, gridHeight);
+     const width = trim.width;
+     const height = trim.height;
 
      const pattern = new Array(width * height).fill(null).map(() => ({
         type: "skip", id: "__skip__", rgb: [255, 255, 255], lab: [100, 0, 0]
@@ -1323,8 +1368,10 @@ class PatternKeeperImporter {
      const paletteMap = new Set();
 
      linked.forEach(cell => {
-        if (!cell.isEmpty && cell.thread && cell.col >= 0 && cell.col < width && cell.row >= 0 && cell.row < height) {
-           const idx = cell.row * width + cell.col;
+        const col = cell.col - trim.offsetCol;
+        const row = cell.row - trim.offsetRow;
+        if (!cell.isEmpty && cell.thread && col >= 0 && col < width && row >= 0 && row < height) {
+           const idx = row * width + col;
            pattern[idx] = {
               type: "solid",
               id: cell.thread.id,
