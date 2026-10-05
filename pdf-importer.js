@@ -120,7 +120,10 @@ class PatternKeeperImporter {
     const linked = this.linkSymbolsToThreads(symbols, legend);
     await yieldToBrowser();
 
-    return this.convertToPattern(chartLayout, linked, legend);
+    const bsLines = this.collectBackstitch(classified.chartPages, chartLayout);
+    await yieldToBrowser();
+
+    return this.convertToPattern(chartLayout, linked, legend, bsLines);
   }
 
   /**
@@ -205,6 +208,8 @@ class PatternKeeperImporter {
 
     let currentPath = [];
     let currentRGB = null;
+    let currentStrokeRGB = null;
+    let currentLineWidth = 1;
     let currentTransform = [1, 0, 0, 1, 0, 0];
     // Graphics-state stack for q/Q (PDF 1.7 §8.4.2). `transform` ops multiply
     // into currentTransform cumulatively, so Q has to restore the matrix that
@@ -241,7 +246,8 @@ class PatternKeeperImporter {
              b1 * e + d1 * f + f1
           ];
       } else if (fn === pdfjsLib.OPS.save) {
-          gsStack.push({ transform: currentTransform.slice(), rgb: currentRGB });
+              gsStack.push({ transform: currentTransform.slice(), rgb: currentRGB,
+                         strokeRgb: currentStrokeRGB, lineWidth: currentLineWidth });
           currentPath = [];
       } else if (fn === pdfjsLib.OPS.restore) {
           currentPath = [];
@@ -251,12 +257,26 @@ class PatternKeeperImporter {
           if (prev) {
             currentTransform = prev.transform;
             currentRGB = prev.rgb;
+            currentStrokeRGB = prev.strokeRgb;
+            currentLineWidth = prev.lineWidth;
           }
       }
 
       // Track RGB fills
       if (fn === pdfjsLib.OPS.setFillRGBColor || fn === 59) {
          currentRGB = args;
+      }
+
+      // Stroke colour and width. Backstitch is drawn as stroked line work, so
+      // without these a backstitch line has no thread colour to match against —
+      // only fills were being recorded.
+      if (fn === pdfjsLib.OPS.setStrokeRGBColor) {
+         currentStrokeRGB = args;
+      } else if (fn === pdfjsLib.OPS.setStrokeGray) {
+         const gray = Math.round((args && args[0] || 0) * 255);
+         currentStrokeRGB = [gray, gray, gray];
+      } else if (fn === pdfjsLib.OPS.setLineWidth) {
+         currentLineWidth = (args && args[0]) || 1;
       }
 
       if (fn === pdfjsLib.OPS.constructPath) {
@@ -354,9 +374,13 @@ class PatternKeeperImporter {
                 }
             }
         } else {
-            // It was a stroke, just clear pending flags
+            // A stroke: record the pen that drew it, so backstitch line work can
+            // be told apart from grid rules and matched to a thread colour.
             for (let k = paths.length - 1; k >= 0; k--) {
                 if (paths[k].pendingFill) {
+                    paths[k].strokeColor = currentStrokeRGB ? Array.from(currentStrokeRGB) : null;
+                    paths[k].lineWidth = currentLineWidth;
+                    paths[k].stroked = true;
                     delete paths[k].pendingFill;
                 } else {
                     break;
@@ -1312,6 +1336,132 @@ class PatternKeeperImporter {
   }
 
   /**
+   * Gather backstitch from every chart page, shifted into design coordinates by
+   * each page's placement so a multi-page chart's outlines join up across the
+   * page breaks.
+   */
+  collectBackstitch(chartPages, chartLayout) {
+    const all = [];
+    for (const pInfo of chartLayout.pages) {
+      const pageData = chartPages.find(p => p.pageIndex === pInfo.pageIndex);
+      if (!pageData) continue;
+      const grid = pInfo.ruler
+        ? this.gridFromRuler(pInfo.ruler, pInfo.rulerSpan, pInfo.grid)
+        : pInfo.grid;
+      let lines;
+      try {
+        lines = this.extractBackstitch(pageData, grid);
+      } catch (e) {
+        continue;
+      }
+      for (const ln of lines) {
+        all.push({
+          x1: ln.x1 + pInfo.globalOffsetCol, y1: ln.y1 + pInfo.globalOffsetRow,
+          x2: ln.x2 + pInfo.globalOffsetCol, y2: ln.y2 + pInfo.globalOffsetRow,
+          rgb: ln.rgb,
+        });
+      }
+    }
+    return all;
+  }
+
+  /**
+   * Extract backstitch line work from a chart page.
+   *
+   * Backstitch is outline stitching drawn over the grid rather than inside
+   * cells, so it never appears in the cell sampling and was simply discarded —
+   * patterns imported with their outlines missing and `bsLines` always empty.
+   *
+   * It is separated from the rest of the page's line work by the pen that drew
+   * it. A chart is ruled, and its symbols drawn, in a single ink; backstitch is
+   * drawn in thread colours and with a heavier pen. On PAT2171_2 that divides
+   * 1448 stroked segments into 1394 in the ink [44,46,53] and 52 in the two
+   * colours its key lists for backstitch, B5200 (white) and D225 (pink).
+   *
+   * Endpoints are snapped to the lattice — backstitch runs corner to corner, so
+   * its coordinates are grid intersections, which is also the space bsLines use.
+   *
+   * @returns {{x1:number,y1:number,x2:number,y2:number,rgb:number[]}[]} in
+   *          page-local lattice coordinates
+   */
+  extractBackstitch(page, grid) {
+    if (!grid || !(grid.cellWidth > 0) || !(grid.cellHeight > 0)) return [];
+
+    const x0 = grid.originX, y0 = grid.originY;
+    const x1 = x0 + grid.columns * grid.cellWidth;
+    const y1 = y0 + grid.rows * grid.cellHeight;
+    const pad = Math.max(grid.cellWidth, grid.cellHeight);
+
+    const segments = [];
+    for (const p of page.vectorPaths) {
+      if (!p.stroked || p.type !== 'line' || !p.points || p.points.length !== 2) continue;
+      const a = p.points[0], b = p.points[1];
+      if (a.x < x0 - pad || a.x > x1 + pad || b.x < x0 - pad || b.x > x1 + pad) continue;
+      if (a.y < y0 - pad || a.y > y1 + pad || b.y < y0 - pad || b.y > y1 + pad) continue;
+      segments.push(p);
+    }
+    if (!segments.length) return [];
+
+    // The ink: the stroke colour used for the most segments. Rules and symbols
+    // vastly outnumber backstitch, so the mode is the chart's own ink.
+    const tally = new Map();
+    for (const s of segments) {
+      const key = s.strokeColor ? s.strokeColor.join(',') : 'none';
+      tally.set(key, (tally.get(key) || 0) + 1);
+    }
+    let inkKey = null, inkCount = -1;
+    for (const [k, n] of tally) {
+      if (n > inkCount) { inkCount = n; inkKey = k; }
+    }
+    // Typical pen width for the ink, to catch backstitch drawn in the same
+    // colour — common on charts with no coloured outlining.
+    const inkWidths = segments
+      .filter(s => (s.strokeColor ? s.strokeColor.join(',') : 'none') === inkKey)
+      .map(s => s.lineWidth || 1)
+      .sort((a, b) => a - b);
+    const inkWidth = inkWidths.length ? inkWidths[Math.floor(inkWidths.length / 2)] : 1;
+
+    const out = [];
+    const seen = new Set();
+    for (const s of segments) {
+      const a = s.points[0], b = s.points[1];
+      const lenCells = Math.hypot(a.x - b.x, a.y - b.y) /
+        Math.max(1e-6, Math.min(grid.cellWidth, grid.cellHeight));
+      // Shorter than most of a cell is a mark inside one — part of a symbol,
+      // not a stitch between two corners. Longer than a dozen cells in a
+      // straight line is a rule or a border.
+      if (lenCells < 0.6 || lenCells > 12) continue;
+
+      const key = s.strokeColor ? s.strokeColor.join(',') : 'none';
+      const colouredDifferently = key !== inkKey;
+      const heavierPen = (s.lineWidth || 1) > inkWidth * 1.4;
+      if (!colouredDifferently && !heavierPen) continue;
+
+      // Snap to the lattice: 0 is the grid's leading edge, 1 the first line in.
+      const lx1 = Math.round((a.x - x0) / grid.cellWidth);
+      const ly1 = Math.round((a.y - y0) / grid.cellHeight);
+      const lx2 = Math.round((b.x - x0) / grid.cellWidth);
+      const ly2 = Math.round((b.y - y0) / grid.cellHeight);
+      if (lx1 === lx2 && ly1 === ly2) continue;        // collapsed to a point
+      if (lx1 < 0 || ly1 < 0 || lx2 < 0 || ly2 < 0) continue;
+      if (lx1 > grid.columns || lx2 > grid.columns) continue;
+      if (ly1 > grid.rows || ly2 > grid.rows) continue;
+
+      // Deduplicate, including the same stitch drawn in reverse.
+      const fwd = lx1 + ',' + ly1 + ',' + lx2 + ',' + ly2;
+      const rev = lx2 + ',' + ly2 + ',' + lx1 + ',' + ly1;
+      if (seen.has(fwd) || seen.has(rev)) continue;
+      seen.add(fwd);
+
+      out.push({
+        x1: lx1, y1: ly1, x2: lx2, y2: ly2,
+        rgb: s.strokeColor ? Array.from(s.strokeColor) : null,
+      });
+    }
+    return out;
+  }
+
+  /**
    * Bounding box of the stitched cells, used to trim the blank margin a chart's
    * ruling leaves around the design.
    *
@@ -1345,7 +1495,7 @@ class PatternKeeperImporter {
     };
   }
 
-  convertToPattern(chartLayout, linked, legend) {
+  convertToPattern(chartLayout, linked, legend, bsLines) {
      const gridWidth = chartLayout.totalColumns || 50;
      const gridHeight = chartLayout.totalRows || 50;
 
@@ -1363,6 +1513,17 @@ class PatternKeeperImporter {
      const pattern = new Array(width * height).fill(null).map(() => ({
         type: "skip", id: "__skip__", rgb: [255, 255, 255], lab: [100, 0, 0]
      }));
+
+     // Backstitch sits on the lattice, so it shifts with the trim and is kept
+     // only where it still falls inside the trimmed design.
+     const trimmedBs = (bsLines || []).map(ln => ({
+        x1: ln.x1 - trim.offsetCol, y1: ln.y1 - trim.offsetRow,
+        x2: ln.x2 - trim.offsetCol, y2: ln.y2 - trim.offsetRow,
+        rgb: ln.rgb,
+     })).filter(ln =>
+        ln.x1 >= 0 && ln.x1 <= width && ln.x2 >= 0 && ln.x2 <= width &&
+        ln.y1 >= 0 && ln.y1 <= height && ln.y2 >= 0 && ln.y2 <= height
+     );
 
      let stitchCount = 0;
      const paletteMap = new Set();
@@ -1392,7 +1553,7 @@ class PatternKeeperImporter {
         h: height,
         settings: { sW: width, sH: height, fabricCt: 14 },
         pattern: pattern,
-        bsLines: [],
+        bsLines: trimmedBs,
         done: null,
         parkMarkers: [],
         totalTime: 0,
