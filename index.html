@@ -153,7 +153,7 @@ window.loadPdfStack = function() {
   return window.loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', { integrity: 'sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e' })
     .then(function() {
       if (typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
-      return window.loadScript('pdf-axis-labels.js').then(function() { return window.loadScript('pdf-importer.js'); });
+      return window.loadScript('pdf-axis-labels.js').then(function() { return window.loadScript('pdf-raster-chart.js'); }).then(function() { return window.loadScript('pdf-importer.js'); });
     });
 };
 /* Cat C perf split: ImportWizard + useImportWizard (~30 KB) live in their

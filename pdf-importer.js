@@ -82,7 +82,12 @@ class PdfLoader {
 }
 
 class PatternKeeperImporter {
-  constructor() {
+  /**
+   * @param {{canvasFactory?: {create: function(number, number): {canvas, context}}}} [options]
+   *   canvasFactory renders a scanned page to pixels; browsers need none.
+   */
+  constructor(options) {
+    this.options = options || {};
     this.pdfLoader = new PdfLoader();
   }
 
@@ -105,6 +110,10 @@ class PatternKeeperImporter {
     await yieldToBrowser();
 
     if (classified.chartPages.length === 0) {
+       // No vector chart. A scanned chart, or one printed to an image, is a
+       // page that is mostly a single picture: read the picture instead.
+       const scanned = this.scannedChartPages(pages);
+       if (scanned.length) return this.importScanned(scanned, pages);
        throw new Error("No chart pages detected in the PDF.");
     }
 
@@ -199,14 +208,20 @@ class PatternKeeperImporter {
 
       const fonts = [];
 
-      return {
+      const record = {
         pageIndex: i,
         width: viewport.width,
         height: viewport.height,
         vectorPaths,
         textItems,
-        fonts
+        fonts,
+        // Images painted on the page: a scanned chart is one big one.
+        images: this.findPageImages(opList, viewport)
       };
+      // Kept for rendering a scanned page to pixels; not enumerable, so it
+      // never travels with anything that copies or serialises the page.
+      Object.defineProperty(record, '_pdfPage', { value: page, enumerable: false });
+      return record;
     }));
     return pages;
   }
@@ -1030,6 +1045,180 @@ class PatternKeeperImporter {
 
     if (!seen || !isFinite(x0) || !isFinite(y0)) return null;
     return { x0, y0, x1, y1 };
+  }
+
+  /**
+   * Where images are painted on a page, as viewport boxes with their size in
+   * pixels. An image is drawn into the unit square under the current matrix, so
+   * its box is that square mapped through it.
+   */
+  findPageImages(opList, viewport) {
+    const OPS = pdfjsLib.OPS || {};
+    const paintOps = new Set([OPS.paintImageXObject, OPS.paintInlineImageXObject,
+                              OPS.paintImageMaskXObject, OPS.paintJpegXObject].filter(v => v !== undefined));
+    const out = [];
+    let m = [1, 0, 0, 1, 0, 0];
+    const stack = [];
+    for (let i = 0; i < opList.fnArray.length; i++) {
+      const fn = opList.fnArray[i], args = opList.argsArray[i];
+      if (fn === OPS.save) stack.push(m.slice());
+      else if (fn === OPS.restore) { const p = stack.pop(); if (p) m = p; }
+      else if (fn === OPS.transform) {
+        const [a, b, c, d, e, f] = args;
+        m = [m[0] * a + m[2] * b, m[1] * a + m[3] * b, m[0] * c + m[2] * d, m[1] * c + m[3] * d,
+             m[0] * e + m[2] * f + m[4], m[1] * e + m[3] * f + m[5]];
+      } else if (paintOps.has(fn)) {
+        const corners = [[0, 0], [1, 0], [0, 1], [1, 1]].map(([u, v]) =>
+          viewport.convertToViewportPoint(m[0] * u + m[2] * v + m[4], m[1] * u + m[3] * v + m[5]));
+        const xs = corners.map(p => p[0]), ys = corners.map(p => p[1]);
+        out.push({
+          x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys),
+          pxW: (args && typeof args[1] === 'number') ? args[1] : 0,
+          pxH: (args && typeof args[2] === 'number') ? args[2] : 0,
+        });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Pages that are mostly one picture — a scan, or a chart printed to an image.
+   * Ordered largest picture first.
+   */
+  scannedChartPages(pages) {
+    return (pages || [])
+      .map(p => {
+        let best = null;
+        for (const im of p.images || []) {
+          const area = (im.x1 - im.x0) * (im.y1 - im.y0);
+          if (!best || area > best.area) best = Object.assign({ area }, im);
+        }
+        return { page: p, image: best };
+      })
+      .filter(e => e.image && e.image.area >= e.page.width * e.page.height * 0.4)
+      .sort((a, b) => b.image.area - a.image.area);
+  }
+
+  /** Render a page to RGBA pixels at the given scale. */
+  async renderPagePixels(pdfPage, scale) {
+    const viewport = pdfPage.getViewport({ scale });
+    const w = Math.ceil(viewport.width), h = Math.ceil(viewport.height);
+    let canvas, context;
+    if (this.options.canvasFactory) {
+      ({ canvas, context } = this.options.canvasFactory.create(w, h));
+    } else if (typeof OffscreenCanvas !== 'undefined') {
+      canvas = new OffscreenCanvas(w, h); context = canvas.getContext('2d');
+    } else {
+      canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+      context = canvas.getContext('2d');
+    }
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, w, h);
+    const renderOpts = { canvasContext: context, viewport };
+    if (this.options.canvasFactory) renderOpts.canvasFactory = this.options.canvasFactory;
+    await pdfPage.render(renderOpts).promise;
+    return context.getImageData(0, 0, w, h);
+  }
+
+  /**
+   * Import a chart that exists only as a picture (pdf-raster-chart.js).
+   *
+   * The picture is rendered at its own resolution — finer adds nothing a scan
+   * did not capture, coarser loses lines — and read for its grid and cells.
+   * Coloured cells take the nearest DMC colour, since a scanned key cannot be
+   * read; symbol cells are grouped by the shape of their symbol and each group
+   * becomes a placeholder thread, so the stitcher has a correct chart and
+   * assigns each symbol once rather than re-charting by hand.
+   *
+   * Only the largest scanned page is read: without readable rulers a scan
+   * gives no way to place several pages, so the others are named as skipped.
+   */
+  async importScanned(scanned, pages) {
+    const RC = (typeof window !== 'undefined' && window.PdfRasterChart) ||
+               (typeof PdfRasterChart !== 'undefined' ? PdfRasterChart : null);
+    if (!RC) throw new Error("This PDF is a scanned image, and the scanned-chart reader is not loaded.");
+    const first = scanned[0];
+    if (!first.page._pdfPage) throw new Error("No chart pages detected in the PDF.");
+
+    const im = first.image;
+    const ptW = Math.max(1, im.x1 - im.x0);
+    const native = im.pxW ? im.pxW / ptW : 2.5;
+    const scale = Math.max(1.5, Math.min(4, native));
+    const pixels = await this.renderPagePixels(first.page._pdfPage, scale);
+    const read = RC.read(pixels);
+    if (!read) {
+      throw new Error("This PDF is a scanned image, but no chart grid could be found in it. " +
+        "Try a sharper scan, or import the chart as a photo instead.");
+    }
+
+    const threads = this.scannedThreads(read);
+    const linked = read.cells.map(c => {
+      const thread = c.kind === 'colour' ? threads.colour[c.group]
+                   : c.kind === 'symbol' ? threads.symbol[c.group] : null;
+      return { col: c.col, row: c.row, isEmpty: !thread, thread: thread || null,
+               symbol: thread && thread.symbol ? thread.symbol : '' };
+    });
+    const layout = {
+      totalColumns: read.grid.columns, totalRows: read.grid.rows,
+      pages: [], layoutSource: 'scanned-image', warnings: [],
+    };
+    const colourCells = read.cells.filter(c => c.kind === 'colour').length;
+    const symbolCells = read.cells.filter(c => c.kind === 'symbol').length;
+    if (colourCells) {
+      layout.warnings.push('This chart is a scanned image. Its colours were estimated from the scan and ' +
+        'matched to the nearest DMC colour, so check them against the printed key.');
+    }
+    if (symbolCells) {
+      layout.warnings.push('This chart is a scanned image. ' + threads.symbol.length + ' different symbols were ' +
+        'found and imported as placeholders (Symbol 1 to Symbol ' + threads.symbol.length + ') to be matched to ' +
+        'threads from the printed key.');
+    }
+    if (scanned.length > 1) {
+      layout.warnings.push('Only page ' + first.page.pageIndex + ' was read; scanned pages ' +
+        scanned.slice(1).map(s => s.page.pageIndex).join(', ') + ' could not be placed alongside it.');
+    }
+    const legend = { entries: [], matchReport: {
+      symbol: 0, swatch: 0, nearest: 0, catalogue: colourCells, unresolved: 0, unresolvedSymbols: {},
+    } };
+    return this.convertToPattern(layout, linked, legend, [], this.readStatedFacts(pages));
+  }
+
+  /**
+   * Threads for a scanned chart's groups: nearest DMC colour for colour groups
+   * (groups that land on the same DMC colour become one thread), and distinct
+   * placeholder threads for symbol groups, most-used first.
+   */
+  scannedThreads(read) {
+    const colour = [];
+    const byId = new Map();
+    for (const g of read.colours) {
+      let t = null;
+      if (typeof DMC !== 'undefined' && typeof rgbToLab === 'function' && typeof dE === 'function') {
+        const lab = rgbToLab(g.rgb[0], g.rgb[1], g.rgb[2]);
+        let bestD = Infinity;
+        for (const d of DMC) { const dd = dE(lab, d.lab); if (dd < bestD) { bestD = dd; t = d; } }
+      }
+      if (!t) t = { id: 'C' + (colour.length + 1), rgb: g.rgb.slice(), lab: [50, 0, 0], name: 'Scanned colour ' + (colour.length + 1) };
+      if (!byId.has(t.id)) byId.set(t.id, t);
+      colour.push(byId.get(t.id));
+    }
+    const symbol = read.symbols.map((g, i) => {
+      // Well-separated hues, so neighbouring placeholders are easy to tell apart.
+      const hue = (i * 137.508) % 360;
+      const rgb = this.hslToRgb(hue / 360, 0.55, 0.5);
+      return { id: 'S' + (i + 1), rgb, lab: (typeof rgbToLab === 'function') ? rgbToLab(rgb[0], rgb[1], rgb[2]) : [50, 0, 0],
+               name: 'Symbol ' + (i + 1) + ' (unassigned)', symbol: String(i + 1) };
+    });
+    return { colour, symbol };
+  }
+
+  hslToRgb(h, s, l) {
+    const f = (n) => {
+      const k = (n + h * 12) % 12;
+      const a = s * Math.min(l, 1 - l);
+      return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))));
+    };
+    return [f(0), f(8), f(4)];
   }
 
   /**
@@ -2565,7 +2754,10 @@ class PatternKeeperImporter {
      const m = (legend && legend.matchReport) || {};
      const warnings = [].concat((chartLayout && chartLayout.warnings) || []);
      const guessed = (m.nearest || 0) + (m.catalogue || 0);
-     if (!entries.filter(e => e.kind !== 'backstitch').length) {
+     // A scanned chart has already said how its colours were found; the
+     // generic key warnings would only repeat it.
+     const scannedImport = chartLayout && chartLayout.layoutSource === 'scanned-image';
+     if (!scannedImport && !entries.filter(e => e.kind !== 'backstitch').length) {
         warnings.push('No colour key was found, so thread colours were estimated from the chart.');
      }
      if (m.unresolved) {
@@ -2576,7 +2768,7 @@ class PatternKeeperImporter {
      // Matching by similarity is only a risk when the key has colours close
      // enough to mistake for one another — choosing among PAT1968_2's seven
      // well-separated colours is not guesswork, and saying so would be noise.
-     if (guessed && stitchCount && guessed / stitchCount > 0.05) {
+     if (!scannedImport && guessed && stitchCount && guessed / stitchCount > 0.05) {
         const close = this.closestKeyPair(entries);
         if (!close || close.dE < 10) {
            warnings.push(Math.round(100 * guessed / stitchCount) + '% of stitches were matched by colour ' +

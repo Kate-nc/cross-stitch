@@ -74,6 +74,7 @@ var PRECACHE_URLS = [
 
   // Lazy-loaded local assets
   './pdf-axis-labels.js',
+  './pdf-raster-chart.js',
   './pdf-importer.js',
   // pdf.worker.min.js (~1 MB) and assets/fontkit.umd.min.js are intentionally
   // omitted from PRECACHE_URLS. They are only needed when the user opens the
