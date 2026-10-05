@@ -75,12 +75,12 @@
       var placed = false;
       for (var b = 0; b < buckets.length; b++) {
         if (Math.abs(buckets[b].key - key) <= ALIGN_TOL) {
-          buckets[b].members.push({ v: v, pos: posFn(items[i]) });
+          buckets[b].members.push({ v: v, pos: posFn(items[i]), item: items[i] });
           placed = true;
           break;
         }
       }
-      if (!placed) buckets.push({ key: key, members: [{ v: v, pos: posFn(items[i]) }] });
+      if (!placed) buckets.push({ key: key, members: [{ v: v, pos: posFn(items[i]), item: items[i] }] });
     }
 
     var runs = [];
@@ -97,6 +97,7 @@
         key: buckets[j].key,
         values: m.map(function (e) { return e.v; }),
         positions: m.map(function (e) { return e.pos; }),
+        items: m.map(function (e) { return e.item; }),
       });
     }
     // Longest run first — the real scale beats an accidental ascending pair.
@@ -154,6 +155,13 @@
     return best;
   }
 
+  function labelsOf(run) {
+    return run.values.map(function (v, i) {
+      var it = run.items[i] || {};
+      return { value: v, x: it.x, y: it.y, width: it.width || 0, height: it.height || 0 };
+    });
+  }
+
   /* Read one page's rulers.
    *
    * `textItems` is [{ str|s, x, y }, ...]. Set `yDown: true` when y grows
@@ -200,6 +208,11 @@
       lastLabelRow: vRun.values[vRun.values.length - 1],
       colValues: hRun.values,
       rowValues: vRun.values,
+      // The labels themselves, so a caller holding a measured grid can place
+      // each one in a column by its centre instead of trusting the fit's
+      // intercept (see readRulerLayout in pdf-importer.js).
+      colLabels: labelsOf(hRun),
+      rowLabels: labelsOf(vRun),
       confidence: confidence,
     };
   }
@@ -277,6 +290,8 @@
           lastLabelCol: r.lastLabelCol,
           firstLabelRow: r.firstLabelRow,
           lastLabelRow: r.lastLabelRow,
+          colLabels: r.colLabels,
+          rowLabels: r.rowLabels,
           confidence: r.confidence,
         },
       });

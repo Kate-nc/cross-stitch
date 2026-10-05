@@ -111,10 +111,13 @@ class PatternKeeperImporter {
     const chartLayout = this.detectChartLayout(classified.chartPages);
     await yieldToBrowser();
 
-    const symbols = await this.extractSymbols(classified.chartPages, chartLayout);
+    // The key is read before the chart so cell reading can recognise the key's
+    // own swatch colours — BLANC's [252,252,248] is otherwise indistinguishable
+    // from bare paper.
+    const legend = this.parseLegend(classified.legendPages, classified.chartPages);
     await yieldToBrowser();
 
-    const legend = this.parseLegend(classified.legendPages);
+    const symbols = await this.extractSymbols(classified.chartPages, chartLayout, legend);
     await yieldToBrowser();
 
     const linked = this.linkSymbolsToThreads(symbols, legend);
@@ -177,7 +180,11 @@ class PatternKeeperImporter {
           width: item.width * (viewport.scale || 1),
           height: item.height * (viewport.scale || 1),
           fontName: item.fontName,
-          fontSize: fontSize
+          fontSize: fontSize,
+          // Text set at an angle — DMC prints its copyright up the page margin.
+          // Its width is measured along the baseline, so read as level text a
+          // vertical line of it appears to span half the chart.
+          rotated: Math.abs(item.transform[1]) > 1e-3 || Math.abs(item.transform[2]) > 1e-3
         };
       });
 
@@ -352,6 +359,31 @@ class PatternKeeperImporter {
           pendingFill: true
         });
         currentPath = [];
+      } else if (fn === pdfjsLib.OPS.endPath) {
+        // "n": end the path WITHOUT painting it — how a clipping path is
+        // closed off ("re W n"). Left pending, the shape was painted by the
+        // next fill to come along: DMC's page-sized clip rectangles turned into
+        // page-sized fills in their brand blue, which then covered every cell.
+        if (currentPath.length > 0) currentPath = [];
+        for (let k = paths.length - 1; k >= 0; k--) {
+          if (!paths[k].pendingFill) break;
+          paths.splice(k, 1);
+        }
+      } else if (fn === pdfjsLib.OPS.fillStroke || fn === pdfjsLib.OPS.eoFillStroke ||
+                 fn === pdfjsLib.OPS.closeFillStroke || fn === pdfjsLib.OPS.closeEOFillStroke) {
+        // "B", "B*", "b", "b*": fill and stroke in one operator.
+        if (currentPath.length > 0) {
+          paths.push({ type: currentPath.length === 2 ? 'line' : 'path', points: currentPath, lineWidth: 1, pendingFill: true });
+          currentPath = [];
+        }
+        for (let k = paths.length - 1; k >= 0; k--) {
+          if (!paths[k].pendingFill) break;
+          paths[k].fillColor = currentRGB ? Array.from(currentRGB) : null;
+          paths[k].strokeColor = currentStrokeRGB ? Array.from(currentStrokeRGB) : null;
+          paths[k].lineWidth = currentLineWidth;
+          paths[k].stroked = true;
+          delete paths[k].pendingFill;
+        }
       } else if (fn === pdfjsLib.OPS.stroke || fn === pdfjsLib.OPS.fill || fn === pdfjsLib.OPS.eoFill || fn === 20 || fn === 22 || fn === 23) {
         if (currentPath.length > 0) {
           paths.push({
@@ -461,6 +493,16 @@ class PatternKeeperImporter {
     const rulerLayout = this.readRulerLayout(pages);
     if (rulerLayout) return rulerLayout;
 
+    // Publishers often print one design twice — a colour chart and a
+    // black-and-white symbol chart — and laying those side by side doubles the
+    // design. When the pages are alternates rather than tiles, import one.
+    const alternates = this.findAlternateRenderings(pages);
+    if (alternates) {
+      for (const p of pages) if (p !== alternates.keep) delete p.rawPage;
+      pages.length = 0;
+      pages.push(alternates.keep);
+    }
+
     // Initial naive layout: just put them in a row
     // A more advanced heuristic: Check text items for overlapping row/col numbers
     // For now, we'll try to guess based on standard width.
@@ -512,11 +554,75 @@ class PatternKeeperImporter {
       delete p.rawPage;
     });
 
-    return {
+    const out = {
       totalColumns: totalCols,
       totalRows: totalRows,
       pages: pages
     };
+    if (alternates) {
+      out.layoutSource = 'alternate-renderings';
+      out.droppedAlternates = alternates.dropped;
+      out.warnings = ['Pages ' + alternates.dropped.join(', ') + ' repeat page ' +
+        alternates.keep.pageIndex + ' in another style and were not imported.'];
+    }
+    return out;
+  }
+
+  /**
+   * Are these chart pages the same design printed in different styles, rather
+   * than tiles of one larger design?
+   *
+   * DMC prints "Moonlight" (PAT1968_2) as a colour chart and again as a
+   * black-and-white symbol chart; tiling them side by side imported the design
+   * at double width. The two are recognisable without reading any content:
+   *   • their grids match in size and sit in the same place on the sheet, and
+   *   • one paints many colours inside its grid while the others paint almost
+   *     none — PAT1968_2's colour chart paints 9, its symbol chart 3 (ink,
+   *     paper and a blue centre marker).
+   * Genuine tiles of one design are rendered alike, so they never show that
+   * one-rich-the-rest-plain split, and gen1's tiles (one colour each) are left
+   * alone.
+   *
+   * Only reached when the pages carry no axis rulers; ruler-placed tiles have
+   * already been laid out.
+   *
+   * @returns {{keep:Object, dropped:number[]}|null}
+   */
+  findAlternateRenderings(pages) {
+    if (!pages || pages.length < 2) return null;
+    const info = pages.map(p => {
+      const g = p.grid;
+      if (!g || !(g.cellWidth > 0) || !p.rawPage) return null;
+      const x0 = g.originX, x1 = x0 + g.columns * g.cellWidth;
+      const y0 = g.originY, y1 = y0 + g.rows * g.cellHeight;
+      const colours = new Set();
+      for (const v of p.rawPage.vectorPaths || []) {
+        if (!v.fillColor || !v.points || !v.points.length) continue;
+        let sx = 0, sy = 0;
+        for (const q of v.points) { sx += q.x; sy += q.y; }
+        sx /= v.points.length; sy /= v.points.length;
+        if (sx < x0 || sx > x1 || sy < y0 || sy > y1) continue;
+        colours.add(Math.round(v.fillColor[0]) + ',' + Math.round(v.fillColor[1]) + ',' + Math.round(v.fillColor[2]));
+      }
+      return { p, g, colours: colours.size };
+    });
+    if (info.some(i => !i)) return null;
+
+    const ref = info[0].g;
+    const near = (a, b, tol) => Math.abs(a - b) <= tol;
+    const alike = info.every(i =>
+      near(i.g.columns, ref.columns, Math.max(4, ref.columns * 0.08)) &&
+      near(i.g.rows, ref.rows, Math.max(4, ref.rows * 0.08)) &&
+      near(i.g.originX, ref.originX, 4 * ref.cellWidth) &&
+      near(i.g.originY, ref.originY, 4 * ref.cellHeight));
+    if (!alike) return null;
+
+    const richest = info.reduce((a, b) => (b.colours > a.colours ? b : a));
+    const others = info.filter(i => i !== richest);
+    if (richest.colours < 5) return null;
+    if (!others.every(i => i.colours <= 3)) return null;
+
+    return { keep: richest.p, dropped: others.map(i => i.p.pageIndex) };
   }
 
   /**
@@ -663,7 +769,15 @@ class PatternKeeperImporter {
       // Absolute 0-based cell span this page covers, derived from the page's own
       // ruler rather than from detectGrid, whose pitch and origin are unreliable
       // on glyph-style charts.
-      const span = this.rulerCellSpan(p.rawPage, r, limitCols, limitRows);
+      // Prefer the grid actually drawn on the page, with the ruler used only to
+      // say which absolute column and row it starts at. A grid rebuilt from the
+      // ruler's fit is shifted by up to half a cell — label text is positioned
+      // by its left edge, not its centre — and on gen-3 that put every cell
+      // centre near its right-hand edge, so the text lookup missed most
+      // symbols by a fraction of a point.
+      const anchored = this.anchorGridToRuler(p.grid, r, limitCols, limitRows);
+      const span = anchored || this.rulerCellSpan(p.rawPage, r, limitCols, limitRows);
+      p.anchoredToGrid = !!anchored;
       p.globalOffsetCol = span.colStart;
       p.globalOffsetRow = span.rowStart;
       p.rulerSpan = span;
@@ -685,6 +799,50 @@ class PatternKeeperImporter {
   }
 
   /**
+   * Give a page's measured grid its absolute position from the ruler labels.
+   *
+   * Each label is placed in the measured column (or row) under its centre, and
+   * the label's value minus that index is a vote for the grid's first column.
+   * The most common vote wins, so a stray or misread label cannot move it.
+   *
+   * Only used when the measured grid agrees with the ruler on cell pitch to
+   * within 4% — otherwise the measurement is suspect and the ruler-derived
+   * span is used instead.
+   *
+   * @returns {{colStart,rowStart,columns,rows}|null} 0-based span
+   */
+  anchorGridToRuler(grid, ruler, limitCols, limitRows) {
+    if (!grid || !ruler || !(grid.cellWidth > 0) || !(grid.cellHeight > 0)) return null;
+    if (!ruler.colLabels || !ruler.rowLabels) return null;
+    if (Math.abs(grid.cellWidth / ruler.pitchX - 1) > 0.04) return null;
+    if (Math.abs(grid.cellHeight / ruler.pitchY - 1) > 0.04) return null;
+
+    const vote = (labels, centreOf, origin, pitch, count) => {
+      const tally = new Map();
+      for (const l of labels) {
+        const c = centreOf(l);
+        if (!isFinite(c)) continue;
+        const idx = Math.floor((c - origin) / pitch);
+        if (idx < 0 || idx >= count) continue;      // a label outside the grid votes for nothing
+        const first = l.value - idx;                 // 1-based absolute index of column/row 0
+        tally.set(first, (tally.get(first) || 0) + 1);
+      }
+      let best = null, bestN = 0;
+      for (const [k, n] of tally) if (n > bestN) { bestN = n; best = k; }
+      return bestN >= 2 ? best : null;
+    };
+
+    const firstCol = vote(ruler.colLabels, l => l.x + l.width / 2, grid.originX, grid.cellWidth, grid.columns);
+    const firstRow = vote(ruler.rowLabels, l => l.y - l.height / 2, grid.originY, grid.cellHeight, grid.rows);
+    if (firstCol === null || firstRow === null || firstCol < 1 || firstRow < 1) return null;
+
+    const colStart = firstCol - 1, rowStart = firstRow - 1;
+    const columns = Math.max(1, Math.min(grid.columns, limitCols - colStart));
+    const rows = Math.max(1, Math.min(grid.rows, limitRows - rowStart));
+    return { colStart, rowStart, columns, rows };
+  }
+
+  /**
    * Work out which absolute cells a ruler-bearing page covers, by mapping the
    * page's drawable area through the ruler and clamping to cells that exist.
    * Coordinates returned are 0-based; the ruler's own labels are 1-based.
@@ -696,7 +854,7 @@ class PatternKeeperImporter {
     // Bound the span by the chart's CONTENT, not the sheet. Mapping the whole
     // page box in would pull in margins, rulers and headers — which inflates the
     // finished size and shifts every page's start.
-    const box = this.chartContentBox(page);
+    const box = this.chartContentBox(page, ruler.pitchX, ruler.pitchY);
     const x0 = box ? box.x0 : 0;
     const x1 = box ? box.x1 : (page.width || 612);
     const y0 = box ? box.y0 : 0;
@@ -728,16 +886,35 @@ class PatternKeeperImporter {
    * carries no data, so a tight box loses nothing and keeps the derived finished
    * size honest.
    *
+   * Ruler furniture is kept out as well. gen-3 prints each ruler on a pale
+   * band one cell thick running the full length of the chart, with its numbers
+   * in white on top; counting the band and the single-digit label "1" as
+   * content stretched the sampled grid a column and a row over the rulers,
+   * where the band read as 6,499 stitches of DMC 415 and the labels as digits.
+   * So a fill one cell thick and twenty or more long is skipped, and a lone
+   * digit only counts when it lies among the rest of the content. pitchX and
+   * pitchY are optional; without them the band test is skipped.
+   *
    * @returns {{x0:number,x1:number,y0:number,y1:number}|null}
    */
-  chartContentBox(page) {
+  chartContentBox(page, pitchX, pitchY) {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     let seen = 0;
+    const digits = [];
 
     const paths = page.vectorPaths || [];
     for (let i = 0; i < paths.length; i++) {
       const pa = paths[i];
       if (!pa.fillColor || !pa.points || !pa.points.length) continue;
+      if (pitchX > 0 && pitchY > 0) {
+        let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+        for (const pt of pa.points) {
+          if (pt.x < bx0) bx0 = pt.x; if (pt.x > bx1) bx1 = pt.x;
+          if (pt.y < by0) by0 = pt.y; if (pt.y > by1) by1 = pt.y;
+        }
+        const bw = bx1 - bx0, bh = by1 - by0;
+        if ((bh <= pitchY * 1.5 && bw >= pitchX * 20) || (bw <= pitchX * 1.5 && bh >= pitchY * 20)) continue;
+      }
       for (let q = 0; q < pa.points.length; q++) {
         const pt = pa.points[q];
         if (pt.x < x0) x0 = pt.x;
@@ -752,18 +929,49 @@ class PatternKeeperImporter {
     for (let j = 0; j < texts.length; j++) {
       const t = texts[j];
       const s = (t.str || '').trim();
-      // A chart symbol is one glyph. Two-digit ruler labels and prose are not.
+      // A chart symbol is one glyph. Two-digit ruler labels and prose are not,
+      // A lone digit is held back for now: it may be a ruler's "1", or a
+      // symbol (gen1 uses digits as symbols).
       if (s.length !== 1) continue;
+      const cy = t.y - (t.height || 0) / 2;
+      if (/^\d$/.test(s)) { digits.push({ x: t.x, cy }); continue; }
       if (t.x < x0) x0 = t.x;
       if (t.x > x1) x1 = t.x;
-      const cy = t.y - (t.height || 0) / 2;
       if (cy < y0) y0 = cy;
       if (cy > y1) y1 = cy;
       seen++;
     }
 
+    // A digit counts as content only if it falls within what everything else
+    // already marks out as the chart. A ruler's "1" sits outside, on its band;
+    // a digit symbol sits among the other symbols. With nothing else to go by,
+    // every digit counts.
+    const haveBox = seen > 0 && isFinite(x0) && isFinite(y0);
+    const slackX = pitchX > 0 ? pitchX : 0, slackY = pitchY > 0 ? pitchY : 0;
+    for (const d of digits) {
+      if (haveBox && (d.x < x0 - slackX || d.x > x1 + slackX || d.cy < y0 - slackY || d.cy > y1 + slackY)) continue;
+      if (d.x < x0) x0 = d.x;
+      if (d.x > x1) x1 = d.x;
+      if (d.cy < y0) y0 = d.cy;
+      if (d.cy > y1) y1 = d.cy;
+      seen++;
+    }
+
     if (!seen || !isFinite(x0) || !isFinite(y0)) return null;
     return { x0, y0, x1, y1 };
+  }
+
+  /**
+   * The grid to read a placed page through: the measured grid when the ruler
+   * anchored it (trimmed to the design's extent), the ruler-derived grid when
+   * only the ruler could be trusted, and otherwise the measured grid as is.
+   */
+  samplingGrid(pInfo) {
+    if (pInfo.ruler && pInfo.anchoredToGrid && pInfo.rulerSpan) {
+      return Object.assign({}, pInfo.grid, { columns: pInfo.rulerSpan.columns, rows: pInfo.rulerSpan.rows });
+    }
+    if (pInfo.ruler) return this.gridFromRuler(pInfo.ruler, pInfo.rulerSpan, pInfo.grid);
+    return pInfo.grid;
   }
 
   /**
@@ -945,6 +1153,24 @@ class PatternKeeperImporter {
      return { originX, originY, cellWidth, cellHeight, columns: cols, rows: rows, boldLineInterval: 10 };
   }
 
+  /** Is this closed point list an axis-aligned rectangle? */
+  isAxisRect(pts) {
+    if (!pts || pts.length < 4) return false;
+    const xs = new Set(), ys = new Set();
+    for (const p of pts) { xs.add(Math.round(p.x * 10)); ys.add(Math.round(p.y * 10)); }
+    return xs.size <= 2 && ys.size <= 2;
+  }
+
+  /** Even-odd point-in-polygon test (ray casting). */
+  pointInPolygon(x, y, pts) {
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const xi = pts[i].x, yi = pts[i].y, xj = pts[j].x, yj = pts[j].y;
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-12) + xi) inside = !inside;
+    }
+    return inside;
+  }
+
   /**
    * Build a Y-bucket index for fast row-band lookup. Each item is indexed
    * into bucket k AND its neighbours k-1, k+1 so border-of-row lookups
@@ -976,8 +1202,14 @@ class PatternKeeperImporter {
     };
   }
 
-  async extractSymbols(chartPages, chartLayout) {
+  async extractSymbols(chartPages, chartLayout, legend) {
      const symbols = [];
+     // Exact key swatch colours. A near-white that the key itself lists (BLANC,
+     // 3865 winter white) is a thread, not paper.
+     const swatchKeys = new Set();
+     for (const e of ((legend && legend.entries) || [])) {
+       if (e.swatchRgb) swatchKeys.add(e.swatchRgb.map(v => Math.round(v)).join(","));
+     }
      // PERF (Cat B-lite): yield once between pages for very large patterns
      // so the browser can repaint between bursts of synchronous work.
      const yieldToBrowser = () => new Promise(r => setTimeout(r, 0));
@@ -992,9 +1224,7 @@ class PatternKeeperImporter {
         // be out by a third on pitch and can even return a negative origin,
         // because it is clustering stroked furniture rather than cells. The
         // ruler is an explicit statement of scale, so prefer it.
-        const grid = pInfo.ruler
-          ? this.gridFromRuler(pInfo.ruler, pInfo.rulerSpan, pInfo.grid)
-          : pInfo.grid;
+        const grid = this.samplingGrid(pInfo);
 
         // PERF (Cat B-lite): pre-build Y-bucket indices for textItems and
         // colour-filled vector paths. Each cell now scans a ~1-row slice
@@ -1012,10 +1242,116 @@ class PatternKeeperImporter {
           const pa = pageData.vectorPaths[pIdx];
           if (!pa.fillColor || !pa.points || pa.points.length === 0) continue;
           let sx = 0, sy = 0;
-          for (let q = 0; q < pa.points.length; q++) { sx += pa.points[q].x; sy += pa.points[q].y; }
-          fillPaths.push({ ref: pa, bx: sx / pa.points.length, by: sy / pa.points.length });
+          let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+          for (let q = 0; q < pa.points.length; q++) {
+            const pt = pa.points[q];
+            sx += pt.x; sy += pt.y;
+            if (pt.x < x0) x0 = pt.x; if (pt.x > x1) x1 = pt.x;
+            if (pt.y < y0) y0 = pt.y; if (pt.y > y1) y1 = pt.y;
+          }
+          fillPaths.push({ ref: pa, bx: sx / pa.points.length, by: sy / pa.points.length,
+                           w: x1 - x0, h: y1 - y0 });
         }
-        const fillBuckets = this._buildYBuckets(fillPaths, fp => fp.by, grid.cellHeight);
+
+        /* What is painted in each cell, worked out once up front for EVERY cell
+         * — not only those without a text symbol — because a glyph chart paints
+         * each stitch's cell in its thread colour too, and that colour is the
+         * only link to a key entry whose symbol is artwork rather than text (84
+         * of gen-3's 102).
+         *
+         * A cell's colour is the colour covering most of it, measured by AREA.
+         * Nothing simpler survives real files:
+         *   • Counting fills under the cell centre credits a merged polygon —
+         *     one shape for a whole run of same-coloured cells — to one cell.
+         *   • Splitting fills into "cell-sized" and "marks" fails on charts
+         *     printed through "Microsoft: Print To PDF", which paint colour as
+         *     half-cell-high strips (gen-3: 7.1 x 3.6, 21.2 x 3.6 ...).
+         *   • Taking every fill alike lets symbol ink pass as a thread: gen-3
+         *     draws its symbols in black or white, and this read black ink as
+         *     DMC 310 and white as BLANC — 310 came out 27,390 stitches over the
+         *     count printed in its own key and BLANC 19,944 over.
+         * Ink covers a fraction of a cell; its thread colour covers all of it.
+         * The minority colours are kept as "marks": evidence a symbol is drawn
+         * there even when it is artwork rather than text. */
+        const cellArea = grid.cellWidth * grid.cellHeight;
+        const gridW = grid.columns * grid.cellWidth, gridH = grid.rows * grid.cellHeight;
+        const coverage = new Map();           // cellKey -> Map(colourKey -> {col, area})
+        const addCover = (key, col, area) => {
+          let m = coverage.get(key);
+          if (!m) { m = new Map(); coverage.set(key, m); }
+          const ck = Math.round(col[0]) + ',' + Math.round(col[1]) + ',' + Math.round(col[2]);
+          const e = m.get(ck);
+          if (e) e.area += area; else m.set(ck, { col, area });
+        };
+        for (let fi = 0; fi < fillPaths.length; fi++) {
+          const fp = fillPaths[fi];
+          const pts = fp.ref.points;
+          if (!pts || pts.length < 3 || fp.w <= 0 || fp.h <= 0) continue;   // degenerate
+          let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+          for (const p of pts) {
+            if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x;
+            if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
+          }
+          // A backdrop spanning a large share of the grid in BOTH directions is
+          // ground, not stitching — PAT2171_2 lays a pale blue-grey square under
+          // its whole chart. Runs of colour are long in one direction only. It
+          // must also span several cells each way, or on a small grid a single
+          // filled cell would count as a backdrop.
+          if (x1 - x0 >= Math.max(gridW * 0.3, grid.cellWidth * 4) &&
+              y1 - y0 >= Math.max(gridH * 0.3, grid.cellHeight * 4)) continue;
+          const c0 = Math.max(0, Math.floor((x0 - grid.originX) / grid.cellWidth));
+          const c1 = Math.min(grid.columns - 1, Math.floor((x1 - grid.originX) / grid.cellWidth));
+          const r0 = Math.max(0, Math.floor((y0 - grid.originY) / grid.cellHeight));
+          const r1 = Math.min(grid.rows - 1, Math.floor((y1 - grid.originY) / grid.cellHeight));
+          if (c1 < c0 || r1 < r0) continue;
+          const rect = this.isAxisRect(pts);
+          for (let rr = r0; rr <= r1; rr++) {
+            const cy0 = grid.originY + rr * grid.cellHeight, cy1 = cy0 + grid.cellHeight;
+            for (let cc = c0; cc <= c1; cc++) {
+              const cx0 = grid.originX + cc * grid.cellWidth, cx1 = cx0 + grid.cellWidth;
+              let area;
+              if (rect) {
+                const ow = Math.min(x1, cx1) - Math.max(x0, cx0);
+                const oh = Math.min(y1, cy1) - Math.max(y0, cy0);
+                if (ow <= 0 || oh <= 0) continue;
+                area = ow * oh;
+              } else {
+                // A non-rectangular shape: sample the cell on a 3x3 lattice.
+                let hit = 0;
+                for (let sy = 0; sy < 3; sy++) {
+                  const py = cy0 + (sy + 0.5) * grid.cellHeight / 3;
+                  if (py < y0 || py > y1) continue;
+                  for (let sx = 0; sx < 3; sx++) {
+                    const px = cx0 + (sx + 0.5) * grid.cellWidth / 3;
+                    if (px < x0 || px > x1) continue;
+                    if (this.pointInPolygon(px, py, pts)) hit++;
+                  }
+                }
+                if (!hit) continue;
+                area = hit / 9 * cellArea;
+              }
+              addCover(rr * grid.columns + cc, fp.ref.fillColor, area);
+            }
+          }
+        }
+        // Paper-white: a cell painted only this, with no symbol or mark on it,
+        // is unstitched ground, not a white stitch.
+        const isPaper = (c) => c[0] >= 248 && c[1] >= 248 && c[2] >= 248 &&
+          !swatchKeys.has(Math.round(c[0]) + "," + Math.round(c[1]) + "," + Math.round(c[2]));
+        // Per cell: colours by area (largest first), and the strongest
+        // minority colour if one covers enough of the cell to be a drawn mark.
+        const cellPaint = (key) => {
+          const m = coverage.get(key);
+          if (!m) return null;
+          const list = Array.from(m.values()).sort((a, b) => b.area - a.area);
+          const dominant = list[0];
+          const mark = list.slice(1).find(e => e.area >= cellArea * 0.03) || null;
+          return {
+            colours: list.slice(0, 4).map(e => e.col),
+            dominant: dominant.area >= cellArea * 0.4 ? dominant.col : null,
+            mark: mark ? mark.col : null,
+          };
+        };
 
         for (let r = 0; r < grid.rows; r++) {
            for (let c = 0; c < grid.columns; c++) {
@@ -1030,6 +1366,11 @@ class PatternKeeperImporter {
               let item = null;
               for (let ti = 0; ti < textCands.length; ti++) {
                  const t = textCands[ti];
+                 // A number of two or more digits is a ruler label, never a
+                 // symbol; read one character at a time it became "1" and "0"
+                 // stitches along gen-3's page edges.
+                 if (/^\d{2,}$/.test(t.str.trim())) continue;
+                 if (t.rotated) continue;
                  if (t.str.trim().length > 0 &&
                     cx >= t.x - (grid.cellWidth * 0.2) && cx <= (t.x + t.width + grid.cellWidth * 0.2) &&
                     Math.abs((t.y - t.height/2) - cy) < grid.cellHeight / 2) {
@@ -1051,27 +1392,44 @@ class PatternKeeperImporter {
                   item = { ...item, str: singleChar.trim() };
               }
 
+              const cellKey = r * grid.columns + c;
+              const paint = cellPaint(cellKey);
+              // The colours swatch matching may consider. When one colour covers
+              // most of the cell, only that one: the symbol drawn on top can
+              // exactly equal some OTHER key swatch — DMC draws its symbols in
+              // white, which is B5200's swatch, and that claimed every 3860 and
+              // E825 cell on PAT2171_2. With no dominant colour, all of them,
+              // largest first and paper last.
+              let fillColors = paint
+                ? (paint.dominant ? [paint.dominant]
+                   : paint.colours.filter(f => !isPaper(f)).concat(paint.colours.filter(isPaper)))
+                : null;
+              if (fillColors && !fillColors.length) fillColors = null;
+
+              // A cell with no text symbol is a stitch when a real colour covers
+              // most of it. Covered by paper-white with nothing drawn on it, it
+              // is unstitched ground. A drawn mark on bare paper is a symbol-only
+              // chart drawn as artwork: its ink is the only colour there is, as
+              // before.
+              // A symbol cell carries its colours only for EXACT swatch
+              // matching, so an unrecognised symbol on a white mono chart is
+              // not pulled towards whichever key colour is nearest to white.
               let fillColor = null;
-              if (!item) {
-                 // Check if the cell is filled with a vector path color instead of a text symbol
-                 const fillCands = fillBuckets.lookup(cy);
-                 for (let fi = 0; fi < fillCands.length; fi++) {
-                    const fp = fillCands[fi];
-                    if (Math.abs(fp.bx - cx) < grid.cellWidth / 2 && Math.abs(fp.by - cy) < grid.cellHeight / 2) {
-                       fillColor = fp.ref.fillColor;
-                       break;
-                    }
-                 }
+              if (!item && paint) {
+                 if (paint.dominant && !isPaper(paint.dominant)) fillColor = paint.dominant;
+                 else if (paint.mark && !isPaper(paint.mark)) fillColor = paint.mark;
               }
 
               if (item) {
-                 symbols.push({
+                 const sym = {
                    col: pInfo.globalOffsetCol + c,
                    row: pInfo.globalOffsetRow + r,
                    symbol: item.str.trim(),
                    fontName: item.fontName,
                    isEmpty: false
-                 });
+                 };
+                 if (fillColors) sym.fillColors = fillColors;
+                 symbols.push(sym);
               } else if (fillColor) {
                  symbols.push({
                    col: pInfo.globalOffsetCol + c,
@@ -1079,7 +1437,8 @@ class PatternKeeperImporter {
                    symbol: "",
                    fontName: "",
                    isEmpty: false,
-                   fillColor: fillColor
+                   fillColor: fillColor,
+                   fillColors: fillColors
                  });
               } else {
                  symbols.push({
@@ -1096,7 +1455,250 @@ class PatternKeeperImporter {
      return symbols;
   }
 
-  parseLegend(legendPages) {
+  /**
+   * Read the colour key.
+   *
+   * Each key page is read twice — by the code-anchored reader below, and by the
+   * original row/column heuristics — and the reading with more entries wins, so
+   * layouts the old reader handled keep working while multi-column keys stop
+   * losing most of their entries.
+   *
+   * A key printed on the same page as the chart (DMC does this) is also read
+   * from each chart page, with the chart itself masked out so ruler labels and
+   * callouts inside the grid cannot pose as entries.
+   */
+  parseLegend(legendPages, chartPages) {
+     const legend = { entries: [], brand: "DMC" };
+     const seen = new Set();
+     const add = (entries) => {
+       for (const e of entries) {
+         const k = [e.kind || 'cross', String(e.threadCode).toLowerCase(), e.symbol || '',
+                    e.swatchRgb ? e.swatchRgb.join(',') : ''].join('|');
+         if (seen.has(k)) continue;
+         seen.add(k);
+         legend.entries.push(e);
+       }
+     };
+
+     const readings = (legendPages || []).map(page => {
+       const anchored = this.parseKeyEntries(page, null);
+       return {
+         anchored,
+         anchoredCross: anchored.filter(e => e.kind !== 'backstitch').length,
+         legacy: this.parseLegendLegacy([page]).entries,
+       };
+     });
+
+     for (const page of chartPages || []) {
+       const g = this.gridOf(page);
+       if (!g || !(g.cellWidth > 0)) continue;
+       // Mask the chart and a margin round it: ruler labels sit right against
+       // the grid, and a filled cell beside one looks exactly like a swatch.
+       const m = Math.max(g.cellWidth, g.cellHeight) * 3;
+       const exclude = {
+         x0: g.originX - m, y0: g.originY - m,
+         x1: g.originX + g.columns * g.cellWidth + m,
+         y1: g.originY + g.rows * g.cellHeight + m,
+       };
+       const found = this.parseKeyEntries(page, exclude);
+       const cross = found.filter(e => e.kind !== 'backstitch').length;
+       if (cross >= 2) readings.push({ anchored: found, anchoredCross: cross, legacy: [] });
+     }
+
+     // Once the code-anchored reader has found a real key anywhere in the
+     // document, a page where it found nothing is not a key page, and the old
+     // reader's guesses there are noise — on PAT2171_2 it read a product
+     // reference on the materials page as a thread.
+     const anchoredTotal = readings.reduce((n, r) => n + r.anchoredCross, 0);
+     for (const r of readings) {
+       if (r.anchoredCross >= 2 && r.anchoredCross >= r.legacy.length) add(r.anchored);
+       else if (anchoredTotal >= 2 && r.anchoredCross < 2) continue;
+       else add(r.legacy.length >= r.anchoredCross ? r.legacy : r.anchored);
+     }
+
+     return legend;
+  }
+
+  /**
+   * Code-anchored key reader.
+   *
+   * Every key entry, whatever the publisher's layout, has a thread code, and
+   * almost every one has a swatch or a symbol immediately to its left. So rather
+   * than treating each printed line as one entry — which is what silently
+   * discarded most of a multi-column key — this finds each code and builds its
+   * entry from what sits around it:
+   *
+   *   swatch   the filled square just left of the code. Its exact fill colour
+   *            is what the chart's cells are painted with, so it links cells to
+   *            threads even when the symbol is drawn as vector art rather than
+   *            text — true of 84 of gen-3's 102 key symbols.
+   *   symbol   a text glyph inside the swatch, or the nearest one to the left.
+   *   sample   for a backstitch entry, the stroked line drawn instead of a swatch.
+   *   name     the first descriptive text to the right, before the next entry.
+   *   count    "(10511 ct)" or similar, kept apart from the name.
+   *
+   * A code with none of swatch, symbol or sample beside it is not an entry —
+   * which is what rejects page numbers, quantities like "x1" and stray numbers.
+   *
+   * @param {Object} page
+   * @param {{x0:number,y0:number,x1:number,y1:number}|null} exclude region to ignore
+   * @returns {Array<Object>} entries
+   */
+  parseKeyEntries(page, exclude) {
+    const inside = (x, y) => !!exclude &&
+      x >= exclude.x0 && x <= exclude.x1 && y >= exclude.y0 && y <= exclude.y1;
+
+    // At least two characters: DMC writes its low numbers as 01-09, so a lone
+    // digit is always a symbol. gen1 uses digits as symbols, and treating "4"
+    // as a code made it block the very entry it belongs to.
+    const CODE_RE = /^(?:DMC\s*)?([A-Z]{1,2}\d{1,4}|\d{2,4}|B5200|BLANC|ECRU)$/i;
+    const COUNT_RE = /^\(?\s*(\d[\d,.]*)\s*(?:ct|sts?|stitches|pts?)\.?\s*\)?$/i;
+    const STRANDS_RE = /^\[(\d)\]$/;
+    const SKEIN_RE = /^x\s*\d+$/i;
+
+    const texts = [];
+    for (const t of page.textItems || []) {
+      const s = (t.str || '').trim();
+      if (!s) continue;
+      const h = t.height || t.fontSize || 8;
+      const cy = t.y - h / 2;
+      if (inside(t.x, cy)) continue;
+      texts.push({ s, x: t.x, y: t.y, w: t.width || 0, h, cy, font: t.fontName });
+    }
+    if (!texts.length) return [];
+
+    const boxOf = (pts) => {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const p of pts) {
+        if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x;
+        if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
+      }
+      return { x0, y0, x1, y1, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, w: x1 - x0, h: y1 - y0 };
+    };
+
+    const swatches = [];
+    const samples = [];
+    for (const p of page.vectorPaths || []) {
+      if (!p.points || p.points.length < 2) continue;
+      const b = boxOf(p.points);
+      if (inside(b.cx, b.cy)) continue;
+      if (p.fillColor && p.points.length >= 3) {
+        const rgb = Array.from(p.fillColor).map(v => Math.round(v));
+        // A thin wide bar is a backstitch sample drawn as a filled shape (DMC
+        // draws them this way, with rounded ends that leave only 3 points once
+        // curves are dropped), not a swatch.
+        if (b.h <= 4 && b.w >= 8 && b.w <= 70) { samples.push(Object.assign(b, { rgb })); continue; }
+        if (p.points.length < 4) continue;
+        if (b.w < 3 || b.h < 3 || b.w > 30 || b.h > 30) continue;
+        if (b.w / b.h > 2.2 || b.h / b.w > 2.2) continue;
+        swatches.push(Object.assign(b, { rgb }));
+      } else if (p.stroked && p.strokeColor && p.points.length === 2) {
+        // A key's backstitch sample is a short horizontal stroke.
+        if (b.h > 3 || b.w < 8 || b.w > 70) continue;
+        samples.push(Object.assign(b, { rgb: Array.from(p.strokeColor).map(v => Math.round(v)) }));
+      }
+    }
+
+    const sameLine = (a, cy) => Math.abs(a - cy) <= 7;
+    const codes = texts.filter(t => CODE_RE.test(t.s));
+    const anchored = [];
+
+    for (const c of codes) {
+      const onLine = codes.filter(o => o !== c && sameLine(o.cy, c.cy));
+      const prevX = onLine.filter(o => o.x < c.x).reduce((m, o) => Math.max(m, o.x + o.w), -Infinity);
+
+      // Swatch: the filled square whose right edge is nearest the code, between
+      // the previous code on this line and this one. Publishers space these
+      // differently — KG-Chart leaves ~6pt, DMC ~45pt — and the reach is safe to
+      // widen because nothing past the previous code can be chosen.
+      let swatch = null;
+      for (const s of swatches) {
+        if (s.x1 > c.x + 1 || s.x0 <= prevX) continue;
+        if (c.x - s.x1 > 80) continue;
+        if (!sameLine(s.cy, c.cy)) continue;
+        if (!swatch || s.x1 > swatch.x1 + 0.5 ||
+            (Math.abs(s.x1 - swatch.x1) <= 0.5 && s.w * s.h > swatch.w * swatch.h)) {
+          swatch = s;
+        }
+      }
+
+      // Symbol: a glyph drawn inside the swatch, else the nearest one to the left.
+      const glyphs = texts.filter(t => (t.s.length === 1 || /^U\+[0-9A-F]{4}$/.test(t.s)) &&
+        t.x < c.x && t.x > prevX && sameLine(t.cy, c.cy));
+      // gen1 prints its symbol beside the swatch rather than in it, and its
+      // chart is drawn in text alone, so the symbol is the only link for those
+      // cells — it must be kept even when a swatch is found.
+      let symbol = null;
+      if (swatch) {
+        symbol = glyphs.find(t => t.x + t.w / 2 >= swatch.x0 - 1 && t.x + t.w / 2 <= swatch.x1 + 1) || null;
+      }
+      if (!symbol) {
+        symbol = glyphs.filter(t => c.x - t.x <= 90).sort((a, b) => b.x - a.x)[0] || null;
+      }
+
+      let sample = null;
+      if (!swatch && !symbol) {
+        sample = samples
+          .filter(s => s.x1 <= c.x + 1 && c.x - s.x1 <= 40 && s.x0 > prevX && sameLine(s.cy, c.cy))
+          .sort((a, b) => b.x1 - a.x1)[0] || null;
+        if (!sample) continue;
+      }
+
+      const code = c.s.replace(/^DMC\s*/i, '');
+      anchored.push({
+        c, code, swatch, symbol, sample,
+        prefixX: Math.min(c.x, swatch ? swatch.x0 : Infinity, symbol ? symbol.x : Infinity,
+                          sample ? sample.x0 : Infinity),
+      });
+    }
+
+    const entries = [];
+    for (const a of anchored) {
+      const next = anchored
+        .filter(o => o !== a && sameLine(o.c.cy, a.c.cy) && o.prefixX > a.c.x)
+        .reduce((m, o) => Math.min(m, o.prefixX), Infinity);
+
+      let name = null, count = null, strands = null;
+      const right = texts
+        .filter(t => t !== a.c && t.x > a.c.x && t.x < next && sameLine(t.cy, a.c.cy))
+        .sort((p, q) => p.x - q.x);
+      for (const t of right) {
+        const cm = t.s.match(COUNT_RE);
+        if (cm) { if (count === null) count = parseInt(cm[1].replace(/[,.]/g, ''), 10); continue; }
+        const sm = t.s.match(STRANDS_RE);
+        if (sm) { if (strands === null) strands = parseInt(sm[1], 10); continue; }
+        if (SKEIN_RE.test(t.s) || CODE_RE.test(t.s) || /^dmc$/i.test(t.s) || t.s.length === 1) continue;
+        if (name === null && t.s.length > 1) name = t.s;
+      }
+      // Strands are sometimes printed before the code, as in "Ø [2] DMC 155".
+      if (strands === null) {
+        const before = texts.find(t => STRANDS_RE.test(t.s) && t.x < a.c.x && t.x > a.prefixX - 1 &&
+          sameLine(t.cy, a.c.cy));
+        if (before) strands = parseInt(before.s.match(STRANDS_RE)[1], 10);
+      }
+
+      entries.push({
+        kind: a.sample ? 'backstitch' : 'cross',
+        symbol: a.symbol ? a.symbol.s : null,
+        symbolFontName: a.symbol ? (a.symbol.font || 'Unknown') : null,
+        threadCode: a.code,
+        colorName: name,
+        stitchCount: count,
+        strands: strands,
+        swatchRgb: a.swatch ? a.swatch.rgb : null,
+        lineRgb: a.sample ? a.sample.rgb : null,
+      });
+    }
+    return entries;
+  }
+
+  /**
+   * The original key reader: one entry per printed line, with header-driven and
+   * proximity fallbacks for keys whose lines are broken up. Kept for layouts it
+   * already handles; parseLegend prefers the code-anchored reader whenever that
+   * finds more.
+   */
+  parseLegendLegacy(legendPages) {
      const legend = { entries: [], brand: "DMC" };
      if (legendPages.length === 0) return legend;
 
@@ -1251,8 +1853,125 @@ class PatternKeeperImporter {
      return legend;
   }
 
+  /**
+   * Resolve each chart cell to a thread from the key.
+   *
+   * In order of trust:
+   *   1. symbol  the cell's glyph matches exactly one key entry (or one in the
+   *              same font, when a glyph is reused across fonts);
+   *   2. swatch  a colour painted in the cell is EXACTLY a key swatch colour —
+   *              the same PDF painted both, so this is identity, not similarity,
+   *              and it covers key symbols drawn as artwork that no string can
+   *              match;
+   *   3. nearest a blank coloured cell takes the key entry nearest in colour,
+   *              comparing against the swatch actually printed in the key where
+   *              there is one;
+   *   4. catalogue only when there is NO key at all, the nearest colour in the
+   *              whole DMC range — otherwise this invents codes the key never
+   *              lists, which is how gen-3 came to use 70 threads absent from
+   *              its key;
+   *   5. unresolved the previous placeholder, now counted rather than silent.
+   *
+   * Tallies of how each cell was resolved are left on legend.matchReport so the
+   * import can say how much of the result is read rather than guessed.
+   */
   linkSymbolsToThreads(symbols, legend) {
      const linked = [];
+     const entries = ((legend && legend.entries) || []).filter(e => e.kind !== 'backstitch');
+     const report = { symbol: 0, swatch: 0, nearest: 0, catalogue: 0, unresolved: 0, unresolvedSymbols: {} };
+     if (legend) legend.matchReport = report;
+
+     const rgbKey = (c) => Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]);
+     const hasDmc = typeof DMC !== 'undefined';
+     const lookup = (code) => !hasDmc ? null
+       : (typeof getDmcByIdCI === 'function') ? getDmcByIdCI(code)
+       : DMC.find(d => String(d.id).toLowerCase() === String(code).toLowerCase());
+     const toLab = (rgb) => (typeof rgbToLab === 'function') ? rgbToLab(rgb[0], rgb[1], rgb[2]) : [50, 0, 0];
+
+     // A thread per key entry, built once. Codes outside the stranded-cotton
+     // table (Light Effects E334, Diamant D225, perlé metallics) take the colour
+     // the key actually printed rather than a grey placeholder.
+     const threadCache = new Map();
+     const threadFor = (entry) => {
+        if (threadCache.has(entry)) return threadCache.get(entry);
+        let t = lookup(entry.threadCode);
+        if (!t) {
+           const rgb = entry.swatchRgb || entry.lineRgb || [128, 128, 128];
+           t = { id: entry.threadCode, rgb: rgb.slice(), lab: toLab(rgb),
+                 name: entry.colorName || ('DMC ' + entry.threadCode) };
+        }
+        threadCache.set(entry, t);
+        return t;
+     };
+
+     // Swatch index. A colour shared by two different codes is ambiguous and
+     // is left out rather than resolved arbitrarily.
+     const bySwatch = new Map();
+     for (const e of entries) {
+        if (!e.swatchRgb) continue;
+        const k = rgbKey(e.swatchRgb);
+        const prev = bySwatch.get(k);
+        if (prev === undefined) bySwatch.set(k, e);
+        else if (prev && String(prev.threadCode).toLowerCase() !== String(e.threadCode).toLowerCase()) bySwatch.set(k, null);
+     }
+     const bySymbol = new Map();
+     for (const e of entries) {
+        if (!e.symbol) continue;
+        if (!bySymbol.has(e.symbol)) bySymbol.set(e.symbol, []);
+        bySymbol.get(e.symbol).push(e);
+     }
+     // Same colour, allowing for rounding: DMC prints its key swatches one step
+     // off the chart's own cells (3860 is 133,110,113 in the key and
+     // 134,111,113 on the chart). Within 2 on every channel is the same ink;
+     // the nearest such swatch wins, and a tie between different codes is left
+     // unresolved here rather than guessed.
+     const swatchList = Array.from(bySwatch.entries()).filter(([, e]) => e)
+        .map(([k, e]) => ({ e, rgb: k.split(',').map(Number) }));
+     const tolerantCache = new Map();
+     const swatchFor = (c) => {
+        const k = rgbKey(c);
+        const exact = bySwatch.get(k);
+        if (exact) return exact;
+        if (tolerantCache.has(k)) return tolerantCache.get(k);
+        let best = null, bestD = Infinity, tie = false;
+        for (const s of swatchList) {
+           const d = Math.max(Math.abs(s.rgb[0] - c[0]), Math.abs(s.rgb[1] - c[1]), Math.abs(s.rgb[2] - c[2]));
+           if (d > 2) continue;
+           if (d < bestD) { bestD = d; best = s.e; tie = false; }
+           else if (d === bestD && best && String(best.threadCode) !== String(s.e.threadCode)) tie = true;
+        }
+        const out = tie ? null : best;
+        tolerantCache.set(k, out);
+        return out;
+     };
+     const swatchEntryOf = (cell) => {
+        const cols = cell.fillColors || (cell.fillColor ? [cell.fillColor] : null);
+        if (!cols) return null;
+        for (const c of cols) {
+           const e = swatchFor(c);
+           if (e) return e;
+        }
+        return null;
+     };
+
+     // Comparison colours for nearest matching: the printed swatch when the key
+     // has one, else the catalogue colour of the code.
+     let nearestTargets = null;
+     const nearestEntry = (lab) => {
+        if (!nearestTargets) {
+           nearestTargets = [];
+           for (const e of entries) {
+              const rgb = e.swatchRgb || (threadFor(e) && threadFor(e).rgb);
+              if (rgb) nearestTargets.push({ e, lab: toLab(rgb) });
+           }
+        }
+        let best = null, bestDist = Infinity;
+        for (const t of nearestTargets) {
+           const d = (typeof dE === 'function') ? dE(lab, t.lab) : Infinity;
+           if (d < bestDist) { bestDist = d; best = t.e; }
+        }
+        return best && bestDist < 15 ? best : null;
+     };
 
      symbols.forEach(cell => {
         if (cell.isEmpty) {
@@ -1261,72 +1980,58 @@ class PatternKeeperImporter {
         }
 
         let thread = null;
-
-        // 1. Match by exact text symbol first
         let entry = null;
-        if (cell.symbol) {
-            entry = legend.entries.find(e => e.symbol === cell.symbol);
+
+        // 1. Symbol.
+        const cands = cell.symbol ? bySymbol.get(cell.symbol) : null;
+        if (cands && cands.length) {
+           const sameFont = cell.fontName ? cands.filter(e => e.symbolFontName === cell.fontName) : [];
+           const pool = sameFont.length ? sameFont : cands;
+           if (pool.length === 1) entry = pool[0];
+           else {
+              // Several entries share the glyph: let the cell's colour decide.
+              const sw = swatchEntryOf(cell);
+              entry = (sw && pool.indexOf(sw) >= 0) ? sw : pool[0];
+           }
+           if (entry) report.symbol++;
         }
 
-        if (entry && typeof DMC !== 'undefined') {
-            // PERF (perf-4 #1): O(1) cached lookup
-            thread = (typeof getDmcByIdCI === 'function') ? getDmcByIdCI(entry.threadCode) : DMC.find(d => String(d.id).toLowerCase() === String(entry.threadCode).toLowerCase());
-            if (!thread) {
-                thread = { id: entry.threadCode, rgb: [128,128,128], lab: [50,0,0], name: entry.colorName };
-            }
+        // 2. Exact swatch colour.
+        if (!entry) {
+           entry = swatchEntryOf(cell);
+           if (entry) report.swatch++;
         }
 
-        // 2. Fallback: If no symbol text matches, match by color proximity to legend threads
-        if (!thread && cell.fillColor && typeof rgbToLab !== 'undefined' && typeof dE !== 'undefined' && typeof DMC !== 'undefined') {
-            const lab = rgbToLab(cell.fillColor[0], cell.fillColor[1], cell.fillColor[2]);
-            let bestDist = Infinity;
-            let bestThread = null;
+        if (entry) thread = threadFor(entry);
 
-            let matchedEntry = null;
-            if (legend.entries && legend.entries.length > 0) {
-                for (const legEntry of legend.entries) {
-                    // PERF (perf-4 #1): O(1) cached lookup inside per-legend loop
-                    const dmcThread = (typeof getDmcByIdCI === 'function') ? getDmcByIdCI(legEntry.threadCode) : DMC.find(d => String(d.id).toLowerCase() === String(legEntry.threadCode).toLowerCase());
-                    if (dmcThread) {
-                        const dist = dE(lab, dmcThread.lab);
-                        if (dist < bestDist) {
-                            bestDist = dist;
-                            bestThread = dmcThread;
-                            matchedEntry = legEntry;
-                        }
-                    }
-                }
-            }
-
-            // Allow matching if it's visually close
-            if (bestThread && bestDist < 15) {
-                thread = bestThread;
-                if (matchedEntry) {
-                    cell.symbol = matchedEntry.symbol || cell.symbol;
-                }
-            } else {
-                // Second pass: Match against any DMC color (sometimes the legend parsing failed, but we still have colors)
-                bestDist = Infinity;
-                bestThread = null;
-                for (let i = 0; i < DMC.length; i++) {
-                    const dmc = DMC[i];
-                    const dist = dE(lab, dmc.lab);
-                    if (dist < bestDist) {
-                        bestDist = dist;
-                        bestThread = dmc;
-                    }
-                }
-                thread = bestThread;
-                // Since this isn't in the legend natively, assign a proxy symbol if it has none
-                if (!cell.symbol) {
-                    cell.symbol = bestThread ? bestThread.id : "■";
-                }
-            }
+        // 3/4. Colour for blank coloured cells.
+        if (!thread && cell.fillColor && typeof rgbToLab !== 'undefined' && typeof dE !== 'undefined' && hasDmc) {
+           const lab = rgbToLab(cell.fillColor[0], cell.fillColor[1], cell.fillColor[2]);
+           if (entries.length) {
+              const near = nearestEntry(lab);
+              if (near) {
+                 thread = threadFor(near);
+                 cell.symbol = near.symbol || cell.symbol;
+                 report.nearest++;
+              }
+           } else {
+              let bestDist = Infinity, bestThread = null;
+              for (let i = 0; i < DMC.length; i++) {
+                 const d = dE(lab, DMC[i].lab);
+                 if (d < bestDist) { bestDist = d; bestThread = DMC[i]; }
+              }
+              thread = bestThread;
+              if (!cell.symbol) cell.symbol = bestThread ? bestThread.id : "■";
+              if (thread) report.catalogue++;
+           }
         }
 
-        // 3. Last resort fallback
+        // 5. Unresolved: keep the stitch visible, but count it.
         if (!thread) {
            thread = { id: "310", rgb: [0,0,0], lab: [0,0,0], name: "Unknown" };
+           report.unresolved++;
+           const s = cell.symbol || '(colour)';
+           report.unresolvedSymbols[s] = (report.unresolvedSymbols[s] || 0) + 1;
         }
 
         linked.push({ ...cell, thread });
@@ -1345,9 +2050,7 @@ class PatternKeeperImporter {
     for (const pInfo of chartLayout.pages) {
       const pageData = chartPages.find(p => p.pageIndex === pInfo.pageIndex);
       if (!pageData) continue;
-      const grid = pInfo.ruler
-        ? this.gridFromRuler(pInfo.ruler, pInfo.rulerSpan, pInfo.grid)
-        : pInfo.grid;
+      const grid = this.samplingGrid(pInfo);
       let lines;
       try {
         lines = this.extractBackstitch(pageData, grid);
@@ -1516,11 +2219,17 @@ class PatternKeeperImporter {
 
      // Backstitch sits on the lattice, so it shifts with the trim and is kept
      // only where it still falls inside the trimmed design.
-     const trimmedBs = (bsLines || []).map(ln => ({
-        x1: ln.x1 - trim.offsetCol, y1: ln.y1 - trim.offsetRow,
-        x2: ln.x2 - trim.offsetCol, y2: ln.y2 - trim.offsetRow,
-        rgb: ln.rgb,
-     })).filter(ln =>
+     const bsKey = ((legend && legend.entries) || []).filter(e => e.kind === 'backstitch' && e.lineRgb);
+     const trimmedBs = (bsLines || []).map(ln => {
+        const out = {
+           x1: ln.x1 - trim.offsetCol, y1: ln.y1 - trim.offsetRow,
+           x2: ln.x2 - trim.offsetCol, y2: ln.y2 - trim.offsetRow,
+           rgb: ln.rgb,
+        };
+        const id = this.backstitchThreadFor(ln.rgb, bsKey);
+        if (id) out.id = id;
+        return out;
+     }).filter(ln =>
         ln.x1 >= 0 && ln.x1 <= width && ln.x2 >= 0 && ln.x2 <= width &&
         ln.y1 >= 0 && ln.y1 <= height && ln.y2 >= 0 && ln.y2 <= height
      );
@@ -1558,7 +2267,101 @@ class PatternKeeperImporter {
         parkMarkers: [],
         totalTime: 0,
         sessions: [],
-        threadOwned: {}
+        threadOwned: {},
+        importReport: this.buildImportReport(chartLayout, legend, width, height, stitchCount, paletteMap.size)
+     };
+  }
+
+  /**
+   * The backstitch key entry a chart stroke belongs to, by nearest colour.
+   *
+   * Exact matching does not work here the way it does for swatches: a key may
+   * draw its sample in a slightly different shade from the chart's stroke (on
+   * PAT2171_2 the B5200 sample is a light grey so it shows on white paper,
+   * while the chart strokes it pure white). Nearest within a generous bound is
+   * enough, because a key lists only a handful of backstitch threads.
+   *
+   * @returns {string|null} thread code
+   */
+  backstitchThreadFor(rgb, bsKey) {
+     if (!rgb || !bsKey || !bsKey.length) return null;
+     let best = null, bestD = Infinity;
+     for (const e of bsKey) {
+        const d = Math.hypot(rgb[0] - e.lineRgb[0], rgb[1] - e.lineRgb[1], rgb[2] - e.lineRgb[2]);
+        if (d < bestD) { bestD = d; best = e; }
+     }
+     return best && bestD <= 80 ? String(best.threadCode) : null;
+  }
+
+  /**
+   * The two key colours nearest to each other, by CIE delta-E, or null when the
+   * colour helpers are unavailable or the key has fewer than two colours.
+   */
+  closestKeyPair(entries) {
+     if (typeof rgbToLab !== 'function' || typeof dE !== 'function') return null;
+     const cols = [];
+     for (const e of entries || []) {
+        if (e.kind === 'backstitch') continue;
+        let rgb = e.swatchRgb;
+        if (!rgb && typeof getDmcByIdCI === 'function') {
+           const t = getDmcByIdCI(e.threadCode);
+           if (t) rgb = t.rgb;
+        }
+        if (rgb) cols.push({ code: String(e.threadCode), lab: rgbToLab(rgb[0], rgb[1], rgb[2]) });
+     }
+     if (cols.length < 2) return null;
+     let best = null;
+     for (let i = 0; i < cols.length; i++) {
+        for (let j = i + 1; j < cols.length; j++) {
+           const d = dE(cols[i].lab, cols[j].lab);
+           if (!best || d < best.dE) best = { a: cols[i].code, b: cols[j].code, dE: d };
+        }
+     }
+     return best;
+  }
+
+  /**
+   * A short account of how the import was assembled — what was read from the
+   * PDF and what had to be guessed — so the result can be reviewed rather than
+   * trusted blindly. Kept small: it travels with the project.
+   */
+  buildImportReport(chartLayout, legend, width, height, stitchCount, colourCount) {
+     const entries = (legend && legend.entries) || [];
+     const m = (legend && legend.matchReport) || {};
+     const warnings = [].concat((chartLayout && chartLayout.warnings) || []);
+     const guessed = (m.nearest || 0) + (m.catalogue || 0);
+     if (!entries.filter(e => e.kind !== 'backstitch').length) {
+        warnings.push('No colour key was found, so thread colours were estimated from the chart.');
+     }
+     if (m.unresolved) {
+        const syms = Object.keys(m.unresolvedSymbols || {}).slice(0, 8).join(' ');
+        warnings.push(m.unresolved + ' stitches use a symbol missing from the key (' + syms +
+          ') and were imported as a placeholder colour.');
+     }
+     // Matching by similarity is only a risk when the key has colours close
+     // enough to mistake for one another — choosing among PAT1968_2's seven
+     // well-separated colours is not guesswork, and saying so would be noise.
+     if (guessed && stitchCount && guessed / stitchCount > 0.05) {
+        const close = this.closestKeyPair(entries);
+        if (!close || close.dE < 10) {
+           warnings.push(Math.round(100 * guessed / stitchCount) + '% of stitches were matched by colour ' +
+             'similarity rather than read from the key' +
+             (close ? ', and the key lists ' + close.a + ' and ' + close.b + ', which are easily confused.' : '.'));
+        }
+     }
+     return {
+        layout: (chartLayout && chartLayout.layoutSource) || 'sequential',
+        tiling: (chartLayout && chartLayout.tiling) || null,
+        size: { w: width, h: height },
+        keyEntries: entries.filter(e => e.kind !== 'backstitch').length,
+        backstitchKeyEntries: entries.filter(e => e.kind === 'backstitch').length,
+        stitches: stitchCount,
+        colours: colourCount,
+        matched: {
+           symbol: m.symbol || 0, swatch: m.swatch || 0, nearest: m.nearest || 0,
+           catalogue: m.catalogue || 0, unresolved: m.unresolved || 0,
+        },
+        warnings: warnings,
      };
   }
 }
