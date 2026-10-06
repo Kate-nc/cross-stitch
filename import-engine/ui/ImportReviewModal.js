@@ -646,13 +646,31 @@
     // A PDF chart of several pages arrives with its per-page readings, so the
     // pages can be rearranged here before anything is saved.
     var LM = window.ImportEngine && window.ImportEngine.pageLayout;
-    var session = LM && props.layoutSession && props.layoutSession.pages && props.layoutSession.pages.length > 1
-      ? props.layoutSession : null;
-    var hasPlaceholders = !!(props.project && props.project.importReport &&
-      props.project.importReport.placeholders && props.project.importReport.placeholders.length);
-    var _t = React.useState((session && LM && LM.needsReview(session)) ? 'pages' : (hasPlaceholders ? 'palette' : 'preview'));
+    // A PDF holding several designs arrives as one session per design; the
+    // stitcher picks which to import. The project passed in is the first.
+    var designs = props.layoutSession && props.layoutSession.designs && props.layoutSession.designs.length > 1
+      ? props.layoutSession.designs : null;
+    var firstDesign = (props.layoutSession && props.layoutSession.designIndex) || 0;
+    var _d = React.useState(firstDesign); var designIndex = _d[0], setDesignIndex = _d[1];
+    var active = designs ? designs[designIndex].session : props.layoutSession;
+    var baseProject = (!designs || designIndex === firstDesign) ? props.project : memoBuild(active, active.placement);
+    var session = LM && active && active.pages && active.pages.length > 1 ? active : null;
+    function firstTab(sess, project) {
+      var pending = project && project.importReport && project.importReport.placeholders && project.importReport.placeholders.length;
+      var pagesFirst = sess && sess.pages && sess.pages.length > 1 && LM && LM.needsReview(sess);
+      return pagesFirst ? 'pages' : (pending ? 'palette' : 'preview');
+    }
+    var _t = React.useState(function () { return firstTab(session, baseProject); });
     var tab = _t[0], setTab = _t[1];
     var _p = React.useState(session ? session.placement : null); var placement = _p[0], setPlacement = _p[1];
+    function chooseDesign(i) {
+      if (!designs || i === designIndex) return;
+      var s = designs[i].session;
+      setDesignIndex(i);
+      setPlacement(s.pages && s.pages.length > 1 ? s.placement : null);
+      setEdits({});
+      setTab(firstTab(s, i === firstDesign ? props.project : memoBuild(s, s.placement)));
+    }
     var _e = React.useState({}); var edits = _e[0], setEdits = _e[1];
     var _c = React.useState(true); var showConfidence = _c[0], setShowConfidence = _c[1];
 
@@ -690,10 +708,10 @@
     }
     // What each colour was called as imported, for the list of choices made.
     var threadLabels = {};
-    ((props.project && props.project.importReport && props.project.importReport.placeholders) || [])
+    ((baseProject && baseProject.importReport && baseProject.importReport.placeholders) || [])
       .forEach(function (p) { threadLabels[p.id] = p.symbol ? 'Symbol ' + p.symbol : p.name; });
     // Rebuild only when the arrangement differs from the one imported.
-    var arranged = props.project;
+    var arranged = baseProject;
     if (session && placement && placement.manual && !(LM && LM.samePlacement(placement, session.placement))) {
       arranged = memoBuild(session, placement);
     }
@@ -721,6 +739,16 @@
           h('div', { className: 'import-review-coverage', title: summary.detail || null }, coverageIcon, h('span', null, summary.label)),
           h('button', { className: 'import-review-close', onClick: function () { props.onClose && props.onClose('cancel'); }, 'aria-label': 'Close' }, I('x'))
         ),
+        designs && h('div', { className: 'import-design-picker' },
+          h('label', { htmlFor: 'import-design-select' }, 'Design'),
+          h('select', { id: 'import-design-select', value: String(designIndex),
+              onChange: function (e) { chooseDesign(parseInt(e.target.value, 10)); } },
+            designs.map(function (d, i) {
+              var n = d.pageIndexes.length;
+              return h('option', { key: i, value: String(i) }, d.title + ' (' + n + (n === 1 ? ' page)' : ' pages)'));
+            })),
+          h('span', { className: 'import-design-note' },
+            'This PDF holds ' + designs.length + ' designs. Each is imported on its own; import the PDF again for another.')),
         h('nav', { className: 'import-review-tabs', role: 'tablist' },
           tabs.map(function (t) {
             return h('button', {
@@ -731,12 +759,12 @@
           })
         ),
         h('section', { className: 'import-review-body' },
-          tab === 'pages'    && session && h(PageLayoutPanel, { session: session, placement: placement, project: working,
+          tab === 'pages'    && session && h(PageLayoutPanel, { key: 'layout' + designIndex, session: session, placement: placement, project: working,
                                                 onPlacement: setPlacement }),
           tab === 'preview'  && h(ImportPreviewPane, { project: working, showConfidence: showConfidence }),
           tab === 'palette'  && h(ImportPaletteList, { project: working, assignments: edits.threads || {},
-                                                samples: (props.layoutSession && props.layoutSession.glyphSamples) || null,
-                                                lookAlikes: (props.layoutSession && props.layoutSession.lookAlikes) || null,
+                                                samples: (active && active.glyphSamples) || null,
+                                                lookAlikes: (active && active.lookAlikes) || null,
                                                 labels: threadLabels, onAssign: assignThread, onUnassign: unassignThread }),
           tab === 'metadata' && h(ImportMetadataForm, { project: working, onEdit: applyEdit }),
           tab === 'compare'  && h(ImportSideBySide, { project: working, originalFileUrl: props.originalFileUrl })
@@ -765,13 +793,19 @@
   }
 
   // Rebuilding a large chart takes a moment, and React re-renders often; keep
-  // the last build per session and arrangement.
-  var lastBuild = { session: null, key: null, project: null };
+  // the last few builds of each session (one per design, when a PDF holds
+  // several), by arrangement.
+  var builds = typeof WeakMap === 'function' ? new WeakMap() : null;
   function memoBuild(session, placement) {
-    var key = JSON.stringify(placement.pages);
-    if (lastBuild.session === session && lastBuild.key === key) return lastBuild.project;
+    var key = JSON.stringify([placement.pages, placement.overlap || null]);
+    var cache = builds && builds.get(session);
+    if (cache && cache.has(key)) return cache.get(key);
     var project = session.build(placement);
-    lastBuild = { session: session, key: key, project: project };
+    if (builds) {
+      if (!cache) { cache = new Map(); builds.set(session, cache); }
+      if (cache.size >= 4) cache.delete(cache.keys().next().value);
+      cache.set(key, project);
+    }
     return project;
   }
 

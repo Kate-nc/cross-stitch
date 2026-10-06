@@ -164,14 +164,43 @@ class PatternKeeperImporter {
        throw new Error("No chart pages detected in the PDF.");
     }
 
-    const chartLayout = this.detectChartLayout(classified.chartPages);
+    // A booklet of several designs is read as several charts, each with its
+    // own key: designs reuse symbols for different threads, so one shared key
+    // would mix them up. The review can switch between them.
+    const designs = this.splitDesigns(classified.chartPages, classified.legendPages);
+    if (designs.length < 2) return this.analyseChart(pages, classified.chartPages, classified.legendPages);
+    const sessions = [];
+    for (let i = 0; i < designs.length; i++) {
+      this.progress('Reading design ' + (i + 1) + ' of ' + designs.length + ': ' + designs[i].title);
+      sessions.push(await this.analyseChart(pages, designs[i].chartPages, designs[i].legendPages, designs[i].title));
+    }
+    const list = designs.map((d, i) => ({ title: d.title, pageIndexes: d.chartPages.map(pg => pg.pageIndex), session: sessions[i] }));
+    const names = designs.map(d => d.title);
+    const named = names.length === 2 ? names.join(' and ') : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+    sessions.forEach((sess, i) => {
+      sess.designs = list;
+      sess.designIndex = i;
+      sess.layoutWarnings.push('This PDF holds ' + designs.length + ' designs: ' + named + '. Only ' + names[i] + ' was imported.');
+    });
+    return sessions[0];
+  }
+
+  /**
+   * The part of analyse() that reads one chart: its chart pages and the key
+   * pages that go with it. A title, when given, names the design (one of
+   * several in the PDF) in place of the PDF's own title.
+   */
+  async analyseChart(pages, chartPages, legendPages, title) {
+    const yieldToBrowser = () => new Promise(r => setTimeout(r, 0));
+
+    const chartLayout = this.detectChartLayout(chartPages);
     await yieldToBrowser();
 
     // The key is read before the chart so cell reading can recognise the key's
     // own swatch colours — BLANC's [252,252,248] is otherwise indistinguishable
     // from bare paper.
     this.progress('Reading the colour key');
-    const legend = this.parseLegend(classified.legendPages, classified.chartPages);
+    const legend = this.parseLegend(legendPages, chartPages);
     await yieldToBrowser();
 
     // Each page read at page-local coordinates: the same sampling grid as the
@@ -179,7 +208,7 @@ class PatternKeeperImporter {
     const placedIdx = new Set(chartLayout.pages.map(p => p.pageIndex));
     const duplicates = new Set(chartLayout.droppedAlternates || []);
     const entries = chartLayout.pages.map(pInfo => ({ pInfo, initial: { col: pInfo.globalOffsetCol, row: pInfo.globalOffsetRow }, reason: null }));
-    for (const page of classified.chartPages) {
+    for (const page of chartPages) {
       if (placedIdx.has(page.pageIndex)) continue;
       entries.push({
         pInfo: { pageIndex: page.pageIndex, grid: this.gridOf(page), globalOffsetCol: 0, globalOffsetRow: 0 },
@@ -195,11 +224,11 @@ class PatternKeeperImporter {
       const local = Object.assign({}, e.pInfo, { globalOffsetCol: 0, globalOffsetRow: 0 });
       const grid = this.samplingGrid(local);
       if (!grid || !(grid.columns > 0) || !(grid.rows > 0)) continue;
-      const cells = await this.extractSymbols(classified.chartPages, { pages: [local] }, legend);
+      const cells = await this.extractSymbols(chartPages, { pages: [local] }, legend);
       for (const c of cells) { c._page = e.pInfo.pageIndex; tagged.push(c); }
       sessionPages.push({
         pageIndex: e.pInfo.pageIndex, cols: grid.columns, rows: grid.rows,
-        cells: null, bs: this.collectBackstitch(classified.chartPages, { pages: [local] }),
+        cells: null, bs: this.collectBackstitch(chartPages, { pages: [local] }),
         initial: e.initial, reason: e.reason,
       });
       await yieldToBrowser();
@@ -237,7 +266,7 @@ class PatternKeeperImporter {
       kind: 'pdf-pages',
       pages: sessionPages,
       legend,
-      stated: Object.assign(this.readStatedFacts(pages), this.readTitleAndDesigner(pages, this._docInfo)),
+      stated: Object.assign(this.readStatedFacts(pages), this.readTitleAndDesigner(pages, this._docInfo), title ? { title } : {}),
       layoutSource,
       tiling,
       guess,
@@ -3512,19 +3541,82 @@ class PatternKeeperImporter {
   }
 
   /**
-   * What the PDF says about itself: its size in stitches, its physical size,
-   * the fabric count, and how many colours it uses. Publishers print these on
-   * the cover, materials or key page, and they are the only ground truth an
-   * import can be checked against.
-   *
-   * Recognised (all case-insensitive):
-   *   stitches   "Stitch Count: 309w x 467h", "256W x 450H", "220 x 300 stitches"
-   *   physical   "14 x 13 cm", "5.51 x 5.11 in"
-   *   fabric     "14 ct", "14 count", "Aida 14", "5,5 pts/cm" (= 14 per inch)
-   *   colours    "# of colors: 102", "102 colours"
-   *
-   * @returns {{stitches?:{w,h}, physicalCm?:{w,h}, fabricCount?:number, colours?:number}}
+   * The heading a page prints: its largest text of 9pt or more, top first,
+   * leaving out page numbers, copyright lines and web addresses. Null when it
+   * has none.
    */
+  pageHeading(page) {
+    const furniture = /©|\(c\)|copyright|www\.|https?:|\.com\b|all rights|^page\b|^\d+\s*(?:\/|of)\s*\d+$/i;
+    const items = (page.textItems || [])
+      .map(t => ({ s: String(t.str || '').replace(/\s+/g, ' ').trim(), h: t.height || 0, x: t.x || 0, y: t.y || 0 }))
+      .filter(t => t.s.length >= 3 && /[a-z]/i.test(t.s) && !furniture.test(t.s));
+    if (!items.length) return null;
+    const top = Math.max(...items.map(t => t.h));
+    if (top < 9) return null;
+    return items.filter(t => t.h >= top - 0.5).sort((a, b) => a.y - b.y || a.x - b.x)[0].s;
+  }
+
+  /** A heading reduced to the words that name a design. */
+  headingKey(s) {
+    return String(s || '').toLowerCase()
+      .replace(/\b(?:colou?r|key|legend|chart|pattern|cross|stitch(?:es)?|thread|floss|list|symbols?|page|part|of)\b/g, ' ')
+      .replace(/[^a-zÀ-ɏ]+/g, ' ').trim();
+  }
+
+  /**
+   * Split the chart pages into designs, when the PDF holds more than one.
+   *
+   * A booklet repeats each design's title at the top of its pages, and gives
+   * each design its own key. So chart pages are grouped by the heading they
+   * print (pages with none go with the design before them), and the PDF is
+   * only taken as several designs when at least two of those groups have a
+   * key page carrying their title too. A single chart whose pages are headed
+   * "Top left", "Top right" has one key, and stays one chart. Key pages that
+   * name no design are shared by all of them.
+   *
+   * Returns [{ title, chartPages, legendPages }], a single entry (title null)
+   * when the PDF is one design.
+   */
+  splitDesigns(chartPages, legendPages) {
+    const one = [{ title: null, chartPages, legendPages }];
+    if (chartPages.length < 2) return one;
+    const groups = [];
+    let current = null;
+    for (const p of chartPages.slice().sort((a, b) => a.pageIndex - b.pageIndex)) {
+      const h = this.pageHeading(p);
+      const k = h ? this.headingKey(h) : '';
+      if (k.length >= 3) {
+        let g = groups.find(x => x.key === k);
+        if (!g) { g = { key: k, title: h, chartPages: [], legendPages: [] }; groups.push(g); }
+        current = g;
+      }
+      if (!current) { current = { key: '', title: null, chartPages: [], legendPages: [] }; groups.push(current); }
+      current.chartPages.push(p);
+    }
+    // Pages before the first heading belong to the design that follows.
+    if (groups.length > 1 && !groups[0].key) {
+      groups[1].chartPages = groups[0].chartPages.concat(groups[1].chartPages);
+      groups.shift();
+    }
+    if (groups.filter(g => g.key).length < 2) return one;
+
+    const shared = [];
+    for (const lp of legendPages) {
+      const h = this.pageHeading(lp);
+      const k = h ? this.headingKey(h) : '';
+      const words = new Set(k.split(' ').filter(Boolean));
+      const g = k && groups.find(x => x.key === k ||
+        (x.key.split(' ').every(w => words.has(w))));
+      if (g) g.legendPages.push(lp); else shared.push(lp);
+    }
+    if (groups.filter(g => g.legendPages.length).length < 2) return one;
+    return groups.map(g => ({
+      title: g.title.replace(/\s*[-–:]?\s*(?:counted\s+)?cross[\s-]*stitch\s+(?:pattern|chart)\s*$/i, '').trim() || g.title,
+      chartPages: g.chartPages,
+      legendPages: g.legendPages.concat(shared),
+    }));
+  }
+
   /**
    * The pattern's title and designer, as the PDF prints them.
    *
@@ -3604,6 +3696,20 @@ class PatternKeeperImporter {
      return out;
   }
 
+  /**
+   * What the PDF says about itself: its size in stitches, its physical size,
+   * the fabric count, and how many colours it uses. Publishers print these on
+   * the cover, materials or key page, and they are the only ground truth an
+   * import can be checked against.
+   *
+   * Recognised (all case-insensitive):
+   *   stitches   "Stitch Count: 309w x 467h", "256W x 450H", "220 x 300 stitches"
+   *   physical   "14 x 13 cm", "5.51 x 5.11 in"
+   *   fabric     "14 ct", "14 count", "Aida 14", "5,5 pts/cm" (= 14 per inch)
+   *   colours    "# of colors: 102", "102 colours"
+   *
+   * @returns {{stitches?:{w,h}, physicalCm?:{w,h}, fabricCount?:number, colours?:number}}
+   */
   readStatedFacts(pages) {
      const out = {};
      const num = (s) => parseFloat(String(s).replace(',', '.'));
