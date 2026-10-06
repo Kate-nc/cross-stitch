@@ -525,10 +525,90 @@
       setDrag(null);
     }
 
+    // Dragging with a finger. A browser's drag and drop does not start from a
+    // touch, so on a touch screen holding a page for a moment picks it up; it
+    // then follows the finger and drops where the finger lifts — on a place,
+    // or on the tray to leave it out. Moving straight away is a scroll, as it
+    // always was, and tapping still selects.
+    var _td = React.useState(null); var touchDrag = _td[0], setTouchDrag = _td[1];
+    var touchRef = React.useRef(null);
+    var suppressClick = React.useRef(false);
+    function targetAt(x, y) {
+      var el = typeof document !== 'undefined' && document.elementFromPoint ? document.elementFromPoint(x, y) : null;
+      if (!el || !el.closest) return null;
+      var slotEl = el.closest('[data-slot]');
+      if (slotEl) return { slot: parseInt(slotEl.getAttribute('data-slot'), 10) };
+      if (el.closest('.page-layout-tray')) return { tray: true };
+      return null;
+    }
+    function dropTouch(info, target) {
+      if (!target) return;
+      if (target.tray) { if (info.from === 'slot') commit(M.toTray(slots, info.page)); return; }
+      if (info.from === 'slot') { if (info.slot !== target.slot) commit(M.swap(slots, info.slot, target.slot)); }
+      else commit(M.fromTray(slots, info.page, target.slot));
+    }
+    function touchStart(e, info) {
+      // A new touch is a new gesture: only the click that follows a drop is
+      // the drop's own, and is ignored.
+      suppressClick.current = false;
+      if (!e.touches || e.touches.length !== 1) return;
+      var t = e.touches[0];
+      var st = { startX: t.clientX, startY: t.clientY, info: info, active: false, timer: null };
+      st.timer = setTimeout(function () {
+        st.active = true;
+        setSel(null);
+        setTouchDrag({ info: info, x: st.startX, y: st.startY, over: targetAt(st.startX, st.startY) });
+        try { if (navigator.vibrate) navigator.vibrate(10); } catch (_) {}
+      }, 350);
+      touchRef.current = st;
+    }
+    React.useEffect(function () {
+      if (typeof document === 'undefined') return;
+      function move(e) {
+        var st = touchRef.current;
+        var t = e.touches && e.touches[0];
+        if (!st || !t) return;
+        if (!st.active) {
+          if (Math.abs(t.clientX - st.startX) > 10 || Math.abs(t.clientY - st.startY) > 10) {
+            clearTimeout(st.timer);
+            touchRef.current = null;
+          }
+          return;
+        }
+        e.preventDefault();                       // the page, not the panel, moves
+        setTouchDrag({ info: st.info, x: t.clientX, y: t.clientY, over: targetAt(t.clientX, t.clientY) });
+      }
+      function end(e) {
+        var st = touchRef.current;
+        if (!st) return;
+        clearTimeout(st.timer);
+        touchRef.current = null;
+        if (!st.active) return;
+        if (e.cancelable) e.preventDefault();     // and no tap after the drop
+        suppressClick.current = true;
+        var t = e.changedTouches && e.changedTouches[0];
+        setTouchDrag(null);
+        if (e.type === 'touchend' && t) dropTouch(st.info, targetAt(t.clientX, t.clientY));
+      }
+      document.addEventListener('touchmove', move, { passive: false });
+      document.addEventListener('touchend', end, { passive: false });
+      document.addEventListener('touchcancel', end, { passive: false });
+      return function () {
+        document.removeEventListener('touchmove', move);
+        document.removeEventListener('touchend', end);
+        document.removeEventListener('touchcancel', end);
+      };
+    }, [slots]);
+    var overSlot = touchDrag && touchDrag.over && touchDrag.over.slot;
+    // Browser drag and drop only where the main pointer is a mouse or trackpad:
+    // on an iPad, Safari's own long-press drag would fight the one above.
+    var finePointer = typeof window === 'undefined' || !window.matchMedia || window.matchMedia('(pointer: fine)').matches;
+    var overTray = !!(touchDrag && touchDrag.over && touchDrag.over.tray);
+
     // While a page is being moved, one empty row past the last, so it can go
     // down a row; otherwise the spare row is only clutter.
     var shown = slots.order.slice();
-    if (sel || drag) for (var e = 0; e < slots.across; e++) shown.push(null);
+    if (sel || drag || touchDrag) for (var e = 0; e < slots.across; e++) shown.push(null);
 
     var across = slots.across;
     var maxAcross = Math.max(1, session.pages.length);
@@ -569,24 +649,28 @@
           I('undo'), h('span', null, resetLabel))
       ),
       h('p', { className: 'page-layout-hint' },
-        sel ? 'Now choose where page ' + sel.page + ' should go.' : 'Select a page, then the place it should go. You can also drag pages.'),
+        touchDrag ? 'Move page ' + touchDrag.info.page + ' to where it should go, and let go.'
+          : sel ? 'Now choose where page ' + sel.page + ' should go.'
+          : 'Select a page, then the place it should go. You can also drag pages, or hold one to pick it up.'),
       h('div', { className: 'page-layout-grid', role: 'list',
                  style: { gridTemplateColumns: 'repeat(' + across + ', minmax(0, 1fr))' } },
         shown.map(function (pi, k) {
           var page = (pi === null || pi === undefined) ? null : byIndex[pi];
           var row = Math.floor(k / across) + 1, col = (k % across) + 1;
           var selected = sel && sel.from === 'slot' && sel.slot === k;
-          return h('div', { key: 'slot' + k, role: 'listitem', className: 'page-layout-slot',
+          return h('div', { key: 'slot' + k, role: 'listitem', 'data-slot': k,
+              className: 'page-layout-slot' + (overSlot === k ? ' drop-target' : ''),
               onDragOver: function (ev) { ev.preventDefault(); },
               onDrop: function (ev) { ev.preventDefault(); dropOn(k); } },
             h('button', {
               type: 'button',
-              className: 'page-layout-tile' + (page ? '' : ' empty') + (selected ? ' selected' : ''),
+              className: 'page-layout-tile' + (page ? '' : ' empty') + (selected ? ' selected' : '') +
+                (touchDrag && touchDrag.info.from === 'slot' && touchDrag.info.slot === k ? ' lifted' : ''),
               'aria-pressed': selected ? 'true' : 'false',
               'aria-label': page
                 ? 'Page ' + pi + ', ' + page.cols + ' by ' + page.rows + ' stitches, row ' + row + ' column ' + col
                 : 'Empty place, row ' + row + ' column ' + col,
-              draggable: !!page,
+              draggable: finePointer && !!page,
               onDragStart: function (ev) {
                 if (!page) return;
                 ev.dataTransfer.setData('text/plain', String(pi));
@@ -594,7 +678,8 @@
                 setDrag({ from: 'slot', slot: k, page: pi });
               },
               onDragEnd: function () { setDrag(null); },
-              onClick: function () { chooseSlot(k); }
+              onTouchStart: page ? function (ev) { touchStart(ev, { from: 'slot', slot: k, page: pi }); } : null,
+              onClick: function () { if (!suppressClick.current) chooseSlot(k); }
             },
               page ? h(PageThumb, { page: page, size: 96 }) : h('span', { className: 'page-layout-empty' }, 'Empty'),
               page && h('span', { className: 'page-layout-label' }, 'Page ' + pi),
@@ -607,8 +692,10 @@
         h('button', { type: 'button', className: 'g-btn', onClick: function () { commit(M.toTray(slots, sel.page)); } },
           I('archive'), h('span', null, 'Leave page ' + sel.page + ' out'))
       ),
-      slots.tray.length > 0 && h('section', { className: 'page-layout-tray', 'aria-label': 'Pages not in the chart' },
+      (slots.tray.length > 0 || (touchDrag && touchDrag.info.from === 'slot')) &&
+      h('section', { className: 'page-layout-tray' + (overTray ? ' drop-target' : ''), 'aria-label': 'Pages not in the chart' },
         h('h3', null, 'Not in the chart'),
+        slots.tray.length === 0 && h('p', { className: 'page-layout-tray-hint' }, 'Drop a page here to leave it out.'),
         h('div', { className: 'page-layout-tray-list' },
           slots.tray.map(function (pi) {
             var page = byIndex[pi];
@@ -617,14 +704,15 @@
               key: 'tray' + pi, type: 'button',
               className: 'page-layout-tile tray' + (selected ? ' selected' : ''),
               'aria-pressed': selected ? 'true' : 'false',
-              draggable: true,
+              draggable: finePointer,
               onDragStart: function (ev) {
                 ev.dataTransfer.setData('text/plain', String(pi));
                 ev.dataTransfer.effectAllowed = 'move';
                 setDrag({ from: 'tray', page: pi });
               },
               onDragEnd: function () { setDrag(null); },
-              onClick: function () { chooseTray(pi); }
+              onTouchStart: function (ev) { touchStart(ev, { from: 'tray', page: pi }); },
+              onClick: function () { if (!suppressClick.current) chooseTray(pi); }
             },
               page && h(PageThumb, { page: page, size: 64 }),
               h('span', { className: 'page-layout-label' }, 'Page ' + pi),
@@ -633,6 +721,9 @@
           })
         )
       ),
+      touchDrag && h('div', { className: 'page-layout-ghost', 'aria-hidden': 'true',
+          style: { left: touchDrag.x + 'px', top: touchDrag.y + 'px' } },
+        'Page ' + touchDrag.info.page),
       h('div', { className: 'page-layout-result' },
         h('h3', null, 'Assembled chart'),
         h(ImportPreviewPane, { project: props.project, showConfidence: false, maxPx: 320 })
