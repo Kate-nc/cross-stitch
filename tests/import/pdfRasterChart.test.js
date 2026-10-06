@@ -136,3 +136,81 @@ describe('read — symbol charts', () => {
     for (const set of byGroup.values()) expect(set.size).toBe(1);
   });
 });
+
+describe('read — telling threads apart on a scan', () => {
+  it('joins one thread the scan printed in two shades, when its symbol says so', () => {
+    // Thread A appears as two shades 18 apart, as a scan renders a small
+    // patch of saturated colour; thread B is as close to A but carries a
+    // different symbol, so it stays a thread of its own.
+    const A1 = [20, 120, 190], A2 = [30, 130, 200], B = [45, 140, 175];
+    const cells = (c, r) => {
+      if ((c + r) % 5 === 0) return null;
+      if (c < 10) return { rgb: A1, glyph: 0, ink: [255, 255, 255] };
+      if (c < 20) return { rgb: A2, glyph: 0, ink: [255, 255, 255] };
+      return { rgb: B, glyph: 2, ink: [255, 255, 255] };
+    };
+    const out = RC.read(chart({ cells, ground: [226, 236, 236] }));
+    expect(out.colours).toHaveLength(2);
+    const groupOf = (c, r) => out.cells.find(x => x.col === c && x.row === r).group;
+    expect(groupOf(1, 0)).toBe(groupOf(11, 0));
+    expect(groupOf(1, 0)).not.toBe(groupOf(21, 0));
+  });
+
+  it('keeps pale stitches with a symbol as a thread, not as placeholder symbols', () => {
+    const cells = (c, r) => (c < 15 ? { rgb: [220, 120, 120], glyph: 1, ink: [255, 255, 255] } : { glyph: 0 });
+    const out = RC.read(chart({ cells, ground: [255, 255, 255], lineRgb: [30, 30, 30] }));
+    expect(out.symbols).toHaveLength(0);
+    expect(out.colours).toHaveLength(2);
+  });
+
+  it('separates boxed symbols that differ only in the shape left white inside', () => {
+    // Two glyphs: a black box with a white dot, and a black box with a white
+    // bar — alike in all but the small white shape. Drawn anti-aliased on a
+    // pitch that is not a whole number of pixels, as a scanner sees them, so
+    // each cell's copy differs from the next by a fraction of a pixel.
+    const paint = (img, x0, y0, x1, y1, v) => {
+      for (let y = Math.floor(y0); y < Math.ceil(y1); y++) {
+        for (let x = Math.floor(x0); x < Math.ceil(x1); x++) {
+          const cover = Math.max(0, Math.min(x + 1, x1) - Math.max(x, x0)) * Math.max(0, Math.min(y + 1, y1) - Math.max(y, y0));
+          const i = (y * img.width + x) * 4;
+          for (let k = 0; k < 3; k++) img.data[i + k] = Math.round(img.data[i + k] * (1 - cover) + v * cover);
+        }
+      }
+    };
+    const boxDot = (img, x, y, s) => { paint(img, x + s * 0.2, y + s * 0.2, x + s * 0.8, y + s * 0.8, 0); paint(img, x + s * 0.36, y + s * 0.36, x + s * 0.64, y + s * 0.64, 255); };
+    const boxBar = (img, x, y, s) => { paint(img, x + s * 0.2, y + s * 0.2, x + s * 0.8, y + s * 0.8, 0); paint(img, x + s * 0.28, y + s * 0.44, x + s * 0.72, y + s * 0.56, 255); };
+    const pitch = 17.3, cols = 30, rows = 20, x0 = 60, y0 = 80;
+    const img = blank(Math.ceil(x0 + cols * pitch + 60), Math.ceil(y0 + rows * pitch + 60));
+    const which = (c, r) => (c * 7 + r * 3) % 2;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) (which(c, r) ? boxBar : boxDot)(img, x0 + c * pitch, y0 + r * pitch, pitch);
+    for (let c = 0; c <= cols; c++) fill(img, x0 + c * pitch, y0, x0 + c * pitch + 1, y0 + rows * pitch + 1, [70, 70, 70]);
+    for (let r = 0; r <= rows; r++) fill(img, x0, y0 + r * pitch, x0 + cols * pitch + 1, y0 + r * pitch + 1, [70, 70, 70]);
+    const out = RC.read(img);
+    // Mostly two groups. A cell caught at an awkward fraction of a pixel may
+    // start a small group of its own: more to assign, but never a wrong stitch.
+    const sizes = out.symbols.map(g => g.count).sort((x, y) => y - x);
+    expect(sizes[0] + sizes[1]).toBeGreaterThanOrEqual(0.9 * rows * cols);
+    const byGroup = new Map();
+    for (const c of out.cells) {
+      if (c.kind !== 'symbol') continue;
+      if (!byGroup.has(c.group)) byGroup.set(c.group, new Set());
+      byGroup.get(c.group).add(which(c.col, c.row));
+    }
+    for (const set of byGroup.values()) expect(set.size).toBe(1);
+  });
+});
+
+describe('cluster — stray cells', () => {
+  const dist1 = (a, b) => Math.abs(a[0] - b[0]);
+  const items = [].concat(
+    Array.from({ length: 20 }, () => [0]), Array.from({ length: 20 }, () => [10]),
+    [[2.5], [7.5]],          // strays near the two groups
+    [[40], [40]]);           // a rare but distinct value
+  it('folds a few stray items into the nearest group, but keeps a distinct rare one', () => {
+    const res = RC._cluster(items, x => x, dist1, 2, { minSize: 3, farApart: 8 });
+    expect(res.groups.map(g => g.members.length).sort((a, b) => b - a)).toEqual([21, 21, 2]);
+  });
+  it('leaves strays alone without the option', () => {
+    expect(RC._cluster(items, x => x, dist1, 2).groups.length).toBeGreaterThan(3);
+  });
+});

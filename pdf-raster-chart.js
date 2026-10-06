@@ -267,7 +267,7 @@
     return a[Math.floor(a.length / 2)];
   }
 
-  var SIG = 8;   // glyph descriptor is SIG x SIG ink densities
+  var SIG_DEFAULT = 12;   // glyph descriptor is SIG x SIG soft ink samples
 
   /* Read one cell.
    *
@@ -276,50 +276,92 @@
    * the middle — as a first version did — let dark or light symbols drag the
    * colour off, splitting each thread into several shades.
    *
-   * Glyph: where the ink lies, as SIG x SIG densities around the ink's own
-   * centre, each pixel shared between the four nearest bins. Ink is any pixel
-   * far from the cell's colour, so a white symbol on a dark cell counts the
-   * same as a black one on a pale cell. */
-  function readCell(img, x0, y0, x1, y1) {
+   * Glyph: SIG x SIG samples of soft ink around the ink's own centre. Ink is
+   * distance from the cell's colour, so a white symbol on a dark cell counts
+   * the same as a black one on a pale cell. opts.sig sets SIG. */
+  function readCell(img, x0, y0, x1, y1, opts) {
+    var SIG = (opts && opts.sig) || SIG_DEFAULT;
     var W = img.width, d = img.data;
     var w = x1 - x0, h = y1 - y0, x, y, i;
-    var rs = [], gs = [], bs = [];
+    var rs = [], gs = [], bs = [], edge = [];
     for (y = Math.round(y0 + h * 0.1); y < Math.round(y1 - h * 0.1); y++) {
       for (x = Math.round(x0 + w * 0.1); x < Math.round(x1 - w * 0.1); x++) {
         var e = Math.min((x - x0) / w, (x1 - x) / w, (y - y0) / h, (y1 - y) / h);
         if (e > 0.28) continue;
         i = (y * W + x) * 4; rs.push(d[i]); gs.push(d[i + 1]); bs.push(d[i + 2]);
+        edge.push(lum(d, i));
       }
     }
     var rgb = [median(rs), median(gs), median(bs)];
     var base = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
+    // What the symbol is drawn on: the commonest shade in the ring, not its
+    // median. A large symbol — a filled box — reaches into the ring, and a
+    // heavy grid line can fill its outer edge; either is a minority there,
+    // but enough to flip the median between paper and ink from one cell to
+    // the next, which inverted how the symbol read.
+    var glyphBase = base;
+    if (edge.length) {
+      var hist = new Array(17).fill(0);
+      edge.forEach(function (v) { hist[Math.min(16, v >> 4)]++; });
+      var top = 0;
+      for (var hb = 1; hb < 17; hb++) if (hist[hb] > hist[top]) top = hb;
+      var near = edge.filter(function (v) { return Math.abs((v >> 4) - top) <= 1; });
+      glyphBase = median(near);
+    }
 
+    // How much of the cell is ink: pixels far from the cell's own colour.
     var gx0 = x0 + w * 0.12, gx1 = x1 - w * 0.12, gy0 = y0 + h * 0.12, gy1 = y1 - h * 0.12;
-    var inkPx = [], all = 0, mx = 0, my = 0;
+    var all = 0, nInk = 0;
     for (y = Math.round(gy0); y < Math.round(gy1); y++) {
       for (x = Math.round(gx0); x < Math.round(gx1); x++) {
-        i = (y * W + x) * 4;
         all++;
-        if (Math.abs(lum(d, i) - base) > 60) { inkPx.push(x, y); mx += x; my += y; }
+        if (Math.abs(lum(d, (y * W + x) * 4) - base) > 60) nInk++;
       }
     }
-    var nInk = inkPx.length / 2;
+
+    // The glyph, as soft ink: how far each pixel is from the cell's colour,
+    // on a sliding scale rather than ink-or-not. A scan draws one symbol a
+    // fraction of a pixel differently in each cell, and a hard threshold turned
+    // that into whole pixels gained or lost, which hid the small differences
+    // between symbols — the white shape inside a black box, the 8 and the 5.
+    // Sampled around the ink's own centre, between pixels, so it does not
+    // matter where in the cell the glyph landed.
+    var X0 = Math.round(x0), Y0 = Math.round(y0);
+    var cw = Math.max(1, Math.round(x1) - X0), ch = Math.max(1, Math.round(y1) - Y0);
+    var soft = new Float64Array(cw * ch);
+    var m = Math.round(Math.min(cw, ch) * 0.1);
+    var sx = 0, sy = 0, sw = 0;
+    for (y = 0; y < ch; y++) {
+      for (x = 0; x < cw; x++) {
+        var px = X0 + x, py = Y0 + y;
+        if (px < 0 || py < 0 || px >= W || py >= img.height) continue;
+        var v = (Math.abs(lum(d, (py * W + px) * 4) - glyphBase) - 15) / 105;
+        v = v < 0 ? 0 : v > 1 ? 1 : v;
+        soft[y * cw + x] = v;
+        if (x >= m && y >= m && x < cw - m && y < ch - m) { sx += v * x; sy += v * y; sw += v; }
+      }
+    }
     var sig = new Float64Array(SIG * SIG);
-    if (nInk) {
-      mx /= nInk; my /= nInk;
-      var sw = gx1 - gx0, sh = gy1 - gy0;
-      for (var k = 0; k < inkPx.length; k += 2) {
-        var fx = ((inkPx[k] - mx) / sw + 0.5) * SIG - 0.5;
-        var fy = ((inkPx[k + 1] - my) / sh + 0.5) * SIG - 0.5;
+    if (sw > 0) {
+      // The true cell size, not the whole pixels cropped: a 17.3-pixel pitch
+      // crops to 17 or 18, and scaling by that varied every glyph by 6%.
+      var cx = sx / sw, cy = sy / sw, step = Math.min(w, h) * 0.8 / SIG;
+      var at = function (fx, fy) {
+        if (fx < 0 || fy < 0 || fx > cw - 1 || fy > ch - 1) return 0;
         var ix = Math.floor(fx), iy = Math.floor(fy), tx = fx - ix, ty = fy - iy;
-        for (var oy = 0; oy <= 1; oy++) for (var ox = 0; ox <= 1; ox++) {
-          var bx = ix + ox, by = iy + oy;
-          if (bx < 0 || by < 0 || bx >= SIG || by >= SIG) continue;
-          sig[by * SIG + bx] += (ox ? tx : 1 - tx) * (oy ? ty : 1 - ty);
+        var ix1 = Math.min(cw - 1, ix + 1), iy1 = Math.min(ch - 1, iy + 1);
+        return soft[iy * cw + ix] * (1 - tx) * (1 - ty) + soft[iy * cw + ix1] * tx * (1 - ty) +
+               soft[iy1 * cw + ix] * (1 - tx) * ty + soft[iy1 * cw + ix1] * tx * ty;
+      };
+      for (var by = 0; by < SIG; by++) {
+        for (var bx = 0; bx < SIG; bx++) {
+          var s = 0;
+          for (var q = 0; q < 4; q++) {
+            s += at(cx + (bx - SIG / 2 + ((q & 1) + 0.5) / 2) * step, cy + (by - SIG / 2 + ((q >> 1) + 0.5) / 2) * step);
+          }
+          sig[by * SIG + bx] = s / 4;
         }
       }
-      var perBin = (sw / SIG) * (sh / SIG);
-      for (i = 0; i < sig.length; i++) sig[i] = Math.min(1, sig[i] / perBin);
     }
     return { rgb: rgb, ink: all ? nInk / all : 0, sig: sig };
   }
@@ -342,8 +384,9 @@
    * members can pull two halves of one group apart; then every item is
    * reassigned to its nearest group a few times over, so one that joined
    * early, before its group's mean settled, ends up where it belongs.
+   * opts.minSize and opts.farApart fold away groups of a few stray cells.
    * Returns { groups: [{mean, members}], of: Map(item -> group index) }. */
-  function cluster(items, featureOf, distFn, spread) {
+  function cluster(items, featureOf, distFn, spread, opts) {
     var groups = [];
     var add = function (g, f) {
       var n = g.members.length;
@@ -393,10 +436,78 @@
         return { mean: mean, members: m };
       }).filter(Boolean);
     }
+    // A handful of cells that formed a group of their own are usually copies
+    // of a common symbol drawn badly — touched by a heavy grid line, or
+    // blurred — and each one is a thread the stitcher would have to assign.
+    // They join the nearest real group, cell by cell, unless they are far from
+    // every one: a symbol a design uses only once or twice is still its own.
+    if (opts && opts.minSize > 1) {
+      var big = groups.filter(function (g) { return g.members.length >= opts.minSize; });
+      if (big.length) {
+        var keep = big.slice();
+        groups.forEach(function (g) {
+          if (g.members.length >= opts.minSize) return;
+          var near = Infinity;
+          big.forEach(function (b) { var dd = distFn(g.mean, b.mean); if (dd < near) near = dd; });
+          if (near > opts.farApart) { keep.push(g); return; }
+          g.members.forEach(function (it) {
+            var f = featureOf(it), bi = 0, bd = Infinity;
+            big.forEach(function (b, i) { var dd = distFn(f, b.mean); if (dd < bd) { bd = dd; bi = i; } });
+            big[bi].members.push(it);
+          });
+        });
+        groups = keep;
+      }
+    }
     groups.sort(function (x, y) { return y.members.length - x.members.length; });
     var of = new Map();
     groups.forEach(function (g, gi) { g.members.forEach(function (it) { of.set(it, gi); }); });
     return { groups: groups, of: of };
+  }
+
+  /* Join colour groups that are one thread split by the scan.
+   *
+   * A scan does not reproduce a colour evenly: a small patch of a saturated
+   * blue comes out ten or twenty units off the large patches, and became a
+   * thread of its own (PAT2171_2 scanned gave 16 colour groups for 9 threads).
+   * Distance alone cannot join them, because two real threads can be as close
+   * (453 and D225 are). But on a chart with symbols, one thread carries one
+   * symbol: groups whose colours are near and whose symbols match are one
+   * thread, and groups whose colours are all but identical are one regardless.
+   * Splitting by symbol is not attempted — backstitch drawn across pale cells
+   * changes how their symbols read. */
+  function mergeBySymbol(res, inkMin) {
+    var groups = res.groups;
+    if (groups.length < 2) return res;
+    var glyphOf = groups.map(function (g) {
+      var inked = g.members.filter(function (cl) { return cl.ink >= inkMin; });
+      if (inked.length < 3) return null;
+      var m = new Float64Array(inked[0].sig.length);
+      inked.forEach(function (cl) { for (var i = 0; i < m.length; i++) m[i] += cl.sig[i] / inked.length; });
+      return m;
+    });
+    var parent = groups.map(function (_, i) { return i; });
+    var find = function (i) { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+    for (var a = 0; a < groups.length; a++) {
+      for (var b = a + 1; b < groups.length; b++) {
+        var cd = dist(groups[a].mean, groups[b].mean);
+        var same = cd <= 10 ||
+          (cd <= 35 && glyphOf[a] && glyphOf[b] && glyphDist(glyphOf[a], glyphOf[b]) <= 0.08);
+        if (same) parent[find(a)] = find(b);
+      }
+    }
+    var joined = new Map();
+    groups.forEach(function (g, i) {
+      var r = find(i), j = joined.get(r);
+      if (!j) { joined.set(r, { mean: Float64Array.from(g.mean), members: g.members.slice() }); return; }
+      var na = j.members.length, nb = g.members.length;
+      for (var k = 0; k < j.mean.length; k++) j.mean[k] = (j.mean[k] * na + g.mean[k] * nb) / (na + nb);
+      j.members = j.members.concat(g.members);
+    });
+    var out = Array.from(joined.values()).sort(function (x, y) { return y.members.length - x.members.length; });
+    var of = new Map();
+    out.forEach(function (g, gi) { g.members.forEach(function (it) { of.set(it, gi); }); });
+    return { groups: out, of: of };
   }
 
   /* Read a chart from a picture of it.
@@ -463,14 +574,17 @@
       if (mono) return (differs || cl.ink >= inkMin) ? 'symbol' : 'empty';
       if (differs) return 'colour';
       // On a colour chart a stitch is coloured; ink on bare ground is usually
-      // a backstitch line crossing it. Only a substantial mark counts.
-      return cl.ink >= 0.25 ? 'symbol' : 'empty';
+      // a backstitch line crossing it. Only a substantial mark counts, and it
+      // is a stitch in a thread close to the paper — white, or a pale cream —
+      // so it is grouped by colour like the rest. Grouped by symbol, PAT2171_2's
+      // white stitches came apart into twenty placeholder symbols.
+      return cl.ink >= 0.25 ? 'colour' : 'empty';
     });
 
-    var colourGroups = cluster(raw.filter(function (cl, i) { return kinds[i] === 'colour'; }),
-      function (cl) { return cl.rgb; }, dist, opts.colourSpread || 18);
+    var colourGroups = mergeBySymbol(cluster(raw.filter(function (cl, i) { return kinds[i] === 'colour'; }),
+      function (cl) { return cl.rgb; }, dist, opts.colourSpread || 18, { minSize: 3, farApart: 40 }), inkMin);
     var symbolGroups = cluster(raw.filter(function (cl, i) { return kinds[i] === 'symbol'; }),
-      function (cl) { return cl.sig; }, glyphDist, opts.glyphSpread || 0.12);
+      function (cl) { return cl.sig; }, glyphDist, opts.glyphSpread || 0.10, { minSize: 5, farApart: 0.2 });
 
     var cells = raw.map(function (cl, i) {
       var k = kinds[i];
@@ -484,6 +598,8 @@
       cells: cells,
       colours: colourGroups.groups.map(function (g) { return { rgb: Array.from(g.mean).map(Math.round), count: g.members.length }; }),
       symbols: symbolGroups.groups.map(function (g) { return { count: g.members.length }; }),
+      // Each cell as read, for diagnosing a scan that groups badly.
+      _raw: opts.keepRaw ? { raw: raw, kinds: kinds } : undefined,
     };
   }
 
@@ -495,6 +611,8 @@
     _period: period,
     _walkLines: walkLines,
     _readCell: readCell,
+    _cluster: cluster,
+    _glyphDist: glyphDist,
   };
 
   if (typeof window !== 'undefined') window.PdfRasterChart = api;
