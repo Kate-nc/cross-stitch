@@ -102,3 +102,44 @@ describe('reading fractional stitches from a chart', () => {
     expect(project.pattern[0].id).toBe('321');
   });
 });
+
+/* Half stitches drawn as a heavy diagonal line, not a filled triangle. */
+describe('half stitches drawn as lines', () => {
+  const line = (a, b, rgb, penWidth) => ({ type: 'line', points: [a, b], stroked: true, strokeColor: rgb, lineWidth: penWidth, penWidth });
+  const GREEN = [40, 150, 60];
+
+  it('reads a heavy corner-to-corner stroke as a half stitch, in either direction', () => {
+    // Page y runs down: bottom-left to top-right rises, a forward half.
+    expect(imp.halfStitchStroke(line(at(1, 1, 0, 1), at(1, 1, 1, 0), RED, 3), grid)).toEqual({ key: 5, quads: ['BL', 'TR'] });
+    expect(imp.halfStitchStroke(line(at(2, 0, 0, 0), at(2, 0, 1, 1), RED, 3), grid)).toEqual({ key: 2, quads: ['TL', 'BR'] });
+  });
+
+  it('accepts a line that stops short of the corners, as many charts draw it', () => {
+    expect(imp.halfStitchStroke(line(at(0, 0, 0.15, 0.85), at(0, 0, 0.85, 0.15), RED, 2.5), grid)).toEqual({ key: 0, quads: ['BL', 'TR'] });
+  });
+
+  it('leaves a fine line as backstitch', () => {
+    expect(imp.halfStitchStroke(line(at(1, 1, 0, 1), at(1, 1, 1, 0), RED, 0.8), grid)).toBeNull();
+  });
+
+  it('leaves lines that are not one cell\'s diagonal', () => {
+    expect(imp.halfStitchStroke(line(at(0, 0, 0, 0), at(0, 0, 2, 2), RED, 3), grid)).toBeNull();     // two cells
+    expect(imp.halfStitchStroke(line(at(0, 0, 0, 0.5), at(0, 0, 1, 0.5), RED, 3), grid)).toBeNull(); // across
+    expect(imp.halfStitchStroke(line(at(0, 0, 0.5, 0), at(0, 0, 1.5, 1), RED, 3), grid)).toBeNull(); // between cells
+  });
+
+  it('stores a half stitch as two quarters of the cell, and keeps it out of the backstitch', async () => {
+    const layout = { totalColumns: 4, totalRows: 3, pages: [{ pageIndex: 1, grid, globalOffsetCol: 0, globalOffsetRow: 0 }] };
+    const p = { pageIndex: 1, width: 612, height: 792, textItems: [], fonts: [], vectorPaths: [
+      line(at(1, 1, 0, 1), at(1, 1, 1, 0), GREEN, 3),                       // forward half, green
+      line(at(2, 1, 0, 0), at(2, 1, 1, 1), BLUE, 3),                        // backward half, blue
+      line(at(0, 0, 0, 0), at(0, 0, 3, 0), [20, 20, 20], 0.5),              // a rule
+      line(at(0, 2, 0, 0), at(0, 2, 1, 1), RED, 0.9),                       // fine: backstitch
+    ] };
+    const syms = await imp.extractSymbols([p], layout, null);
+    expect(syms.find(s => s.col === 1 && s.row === 1).partial).toEqual({ TL: null, TR: GREEN, BL: GREEN, BR: null });
+    expect(syms.find(s => s.col === 2 && s.row === 1).partial).toEqual({ TL: BLUE, TR: null, BL: null, BR: BLUE });
+    const bs = imp.extractBackstitch(p, grid);
+    expect(bs.map(l => [l.x1, l.y1, l.x2, l.y2])).toEqual([[0, 2, 1, 3]]);
+  });
+});

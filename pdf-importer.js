@@ -412,6 +412,11 @@ class PatternKeeperImporter {
     // points off the sheet.
     const gsStack = [];
 
+    // The pen's width on the page: the width set, scaled by the transform in
+    // force (lineWidth keeps the width as set, which the backstitch reader
+    // compares between strokes).
+    const penWidth = () => currentLineWidth * Math.sqrt(Math.abs(currentTransform[0] * currentTransform[3] - currentTransform[1] * currentTransform[2]));
+
     const addPoint = (x, y) => {
       // Apply current transform before viewport conversion
       const tx = x * currentTransform[0] + y * currentTransform[2] + currentTransform[4];
@@ -565,6 +570,7 @@ class PatternKeeperImporter {
           paths[k].fillColor = currentRGB ? Array.from(currentRGB) : null;
           paths[k].strokeColor = currentStrokeRGB ? Array.from(currentStrokeRGB) : null;
           paths[k].lineWidth = currentLineWidth;
+          paths[k].penWidth = penWidth();
           paths[k].stroked = true;
           delete paths[k].pendingFill;
         }
@@ -596,6 +602,7 @@ class PatternKeeperImporter {
                 if (paths[k].pendingFill) {
                     paths[k].strokeColor = currentStrokeRGB ? Array.from(currentStrokeRGB) : null;
                     paths[k].lineWidth = currentLineWidth;
+                    paths[k].penWidth = penWidth();
                     paths[k].stroked = true;
                     delete paths[k].pendingFill;
                 } else {
@@ -2052,6 +2059,36 @@ class PatternKeeperImporter {
   }
 
   /**
+   * A half stitch drawn as a line: one heavy stroke from a corner of a cell to
+   * the opposite corner, in the thread's colour. Charts that do not fill half
+   * the cell draw it this way, and it was read as a short backstitch.
+   * Backstitch uses a fine pen; a half stitch's pen is a good share of the
+   * cell's width (at least 18%), and it spans exactly one cell, centred on it.
+   * Page y runs downwards, so a stroke rising to the right is a forward half.
+   *
+   * Returns { key, quads } as fractionalShape() does, or null. A forward half
+   * is the bottom-left and top-right quarters and a backward half the other
+   * two, as the Creator stores them.
+   */
+  halfStitchStroke(p, grid) {
+    if (!p || !p.stroked || !p.strokeColor || !p.points || p.points.length !== 2) return null;
+    const unit = Math.min(grid.cellWidth, grid.cellHeight);
+    if (!(unit > 0) || !(p.penWidth >= unit * 0.18)) return null;
+    const a = p.points[0], b = p.points[1];
+    const ax = (a.x - grid.originX) / grid.cellWidth, ay = (a.y - grid.originY) / grid.cellHeight;
+    const bx = (b.x - grid.originX) / grid.cellWidth, by = (b.y - grid.originY) / grid.cellHeight;
+    const dx = bx - ax, dy = by - ay;
+    if (Math.abs(Math.abs(dx) - Math.abs(dy)) > 0.2) return null;        // 45 degrees
+    if (Math.abs(dx) < 0.45 || Math.abs(dx) > 1.1) return null;           // within one cell
+    const cx = (ax + bx) / 2, cy = (ay + by) / 2;
+    const col = Math.floor(cx), row = Math.floor(cy);
+    if (Math.abs(cx - col - 0.5) > 0.15 || Math.abs(cy - row - 0.5) > 0.15) return null;
+    if (col < 0 || row < 0 || col >= grid.columns || row >= grid.rows) return null;
+    const rising = (dx > 0) === (dy < 0);
+    return { key: row * grid.columns + col, quads: rising ? ['BL', 'TR'] : ['TL', 'BR'] };
+  }
+
+  /**
    * Is this filled shape a fractional stitch, and which quarters of which cell
    * does it cover?
    *
@@ -2233,6 +2270,14 @@ class PatternKeeperImporter {
         const gridW = grid.columns * grid.cellWidth, gridH = grid.rows * grid.cellHeight;
         const coverage = new Map();           // cellKey -> Map(colourKey -> {col, area})
         const cellParts = new Map();          // cellKey -> [{quads, col}] fractional stitches
+        // Half stitches drawn as a heavy diagonal line rather than a filled
+        // triangle (halfStitchStroke): two quarters each, in the line's colour.
+        for (const pa of pageData.vectorPaths) {
+          const half = this.halfStitchStroke(pa, grid);
+          if (!half) continue;
+          if (!cellParts.has(half.key)) cellParts.set(half.key, []);
+          cellParts.get(half.key).push({ quads: half.quads, col: pa.strokeColor });
+        }
         const addCover = (key, col, area) => {
           let m = coverage.get(key);
           // Fills are visited in paint order. One covering the whole cell hides
@@ -3137,6 +3182,8 @@ class PatternKeeperImporter {
     for (const p of page.vectorPaths) {
       if (!p.stroked || !p.points || p.points.length < 2) continue;
       if (p.type !== 'line' && p.points.length > 64) continue;
+      // A half stitch drawn as a line is a stitch in a cell, not backstitch.
+      if (this.halfStitchStroke(p, grid)) continue;
       for (let i = 1; i < p.points.length; i++) {
         const a = p.points[i - 1], b = p.points[i];
         if (!inBox(a) || !inBox(b)) continue;
