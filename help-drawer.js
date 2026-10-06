@@ -69,10 +69,24 @@
           heading: "Importing images and designs",
           body: "The import wizard walks you through preparing an image for conversion. Open it via File > Import or drop a file directly on the canvas.",
           bullets: [
-            ["Supported formats", "PNG, JPG, GIF, WebP for new patterns. .json and .oxs files restore an existing pattern. A compatible .pdf cross-stitch chart can also be imported."],
+            ["Supported formats", "PNG, JPG, GIF, WebP for new patterns. .json and .oxs files restore an existing pattern. A .pdf cross-stitch chart can also be imported — see Importing a PDF chart."],
             ["Crop step", "Draw a crop box to focus on the most important part of the image. Cropping reduces background noise and improves colour-matching quality."],
             ["Scale step", "Set the target stitch dimensions by dragging the resize handles or typing values. The preview shows estimated physical size at your chosen fabric count."],
             ["Palette step", "Choose the max number of colours, whether to restrict to stash threads, and which threads to exclude. These settings are applied when the generator runs."]
+          ]
+        },
+        {
+          heading: "Importing a PDF chart",
+          body: "A PDF chart is read into a pattern you can track or edit: its stitches, colour key, backstitch, and ¾, ¼ and half stitches. Before it is saved, a review screen shows what was read so you can put right anything that was not. Scanned charts and charts saved as pictures can be imported too.",
+          bullets: [
+            ["How far to trust it", "The top of the review says how many stitches were matched to the PDF’s own colour key. A scan says ‘Read from a scan’: check its colours against the printed key."],
+            ["Pages tab", "A chart printed over several pages is put together from the row and column numbers on each page. Without numbers, the arrangement is worked out from the pages’ sizes and edges. Change how many pages go across, or how many rows and columns each page repeats from the next, and select a page then its place to move it. With a mouse you can drag pages; on a tablet, hold a page until it lifts, then move it."],
+            ["Pages left out", "A page that could not be placed, or that repeats another in a different style, waits under ‘Not in the chart’. Put it back by selecting it and then a place."],
+            ["Palette tab", "Symbols the key does not list, and symbols read from a scan, come first, each needing a thread. Enter its DMC or Anchor number, or choose a colour: one already in the chart, one close to it, or any DMC thread by colour family. Any other colour can be changed the same way."],
+            ["Symbols that look alike", "A scan can split one symbol into two. The Palette tab shows pairs that may be the same side by side: choose Same symbol to merge them, so there are fewer to look up."],
+            ["Several designs in one PDF", "A booklet of designs is read as separate charts. Choose which design to import at the top of the review, and import the PDF again for another."],
+            ["Details tab", "The pattern’s name and designer are taken from the PDF where it prints them, and can be changed here with the fabric count."],
+            ["Large files", "A large chart or a scan can take a while. A card shows each step as it goes, with a Cancel button."]
           ]
         },
         {
