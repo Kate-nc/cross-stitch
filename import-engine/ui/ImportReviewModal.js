@@ -926,7 +926,8 @@
    * say anything was happening.
    *
    * Returns { update(message), close() }; a message is the engine's progress
-   * message, { stage, label?, page?, total? }. */
+   * message, { stage, label?, page?, total? }. opts.onCancel, when given, adds
+   * a Cancel button that calls it. */
   function showImportProgress(opts) {
     opts = opts || {};
     if (typeof document === 'undefined') return { update: function () {}, close: function () {} };
@@ -946,10 +947,25 @@
     bar.className = 'import-busy-bar indeterminate';
     track.appendChild(bar);
     host.appendChild(title); host.appendChild(label); host.appendChild(track);
+    var cancelled = false;
+    if (typeof opts.onCancel === 'function') {
+      var cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.className = 'g-btn import-busy-cancel';
+      cancel.textContent = 'Cancel';
+      cancel.addEventListener('click', function () {
+        if (cancelled) return;
+        cancelled = true;
+        cancel.disabled = true;
+        label.textContent = 'Stopping…';
+        opts.onCancel();
+      });
+      host.appendChild(cancel);
+    }
     document.body.appendChild(host);
     return {
       update: function (m) {
-        if (!m) return;
+        if (!m || cancelled) return;
         if (m.label) label.textContent = m.label;
         if (m.total > 0 && m.page > 0) {
           bar.classList.remove('indeterminate');

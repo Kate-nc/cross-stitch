@@ -91,11 +91,27 @@ class PatternKeeperImporter {
   }
 
   /**
+   * Stop if the stitcher has cancelled: options.cancelToken is the import
+   * engine's, { aborted }. Checked each time progress is reported — once a
+   * page — since a large chart or a scan takes long enough to change one's
+   * mind about. Throws the engine's ImportAbortedError.
+   */
+  checkCancelled() {
+    const t = this.options.cancelToken;
+    if (t && t.aborted) {
+      const e = new Error('Import cancelled.');
+      e.name = 'ImportAbortedError';
+      throw e;
+    }
+  }
+
+  /**
    * Say how far the import has got, through options.onProgress, as the import
    * engine's progress messages: { stage, label, page?, total? }. A large chart
    * or a scan takes long enough that the stitcher needs to see it moving.
    */
   progress(label, page, total) {
+    this.checkCancelled();
     const cb = this.options.onProgress;
     if (typeof cb !== 'function') return;
     try { cb({ stage: 'extract', label, page, total }); } catch (_) {}
@@ -1779,6 +1795,22 @@ class PatternKeeperImporter {
       waiting.set(id, { resolve, reject });
       worker.postMessage(Object.assign({ id }, msg));
     });
+    // Grouping a large scan takes seconds with nothing in between to check;
+    // a cancel stops the worker rather than waiting for it.
+    const token = this.options.cancelToken;
+    const watched = (msg) => {
+      if (!token) return call(msg);
+      let timer = null;
+      const stop = new Promise((_, reject) => {
+        timer = setInterval(() => {
+          if (!token.aborted) return;
+          clearInterval(timer);
+          worker.terminate();
+          try { this.checkCancelled(); } catch (e) { reject(e); }
+        }, 150);
+      });
+      return Promise.race([call(msg), stop]).finally(() => clearInterval(timer));
+    };
     // A worker that cannot start — its script missing offline, say — reports
     // only by not answering, so ask first and fall back if it stays quiet.
     const alive = await Promise.race([
@@ -1787,8 +1819,8 @@ class PatternKeeperImporter {
     ]);
     if (!alive) { worker.terminate(); return inline(); }
     return {
-      read: (px) => call({ type: 'read', width: px.width, height: px.height, data: px.data }),
-      group: (indices) => call({ type: 'group', indices }),
+      read: (px) => watched({ type: 'read', width: px.width, height: px.height, data: px.data }),
+      group: (indices) => watched({ type: 'group', indices }),
       close: () => { failAll('The scan reader was closed.'); worker.terminate(); },
     };
   }

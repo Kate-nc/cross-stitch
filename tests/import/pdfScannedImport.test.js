@@ -322,3 +322,42 @@ describe('reading scanned pages in a worker', () => {
     }
   });
 });
+
+describe('cancelling an import', () => {
+  jest.setTimeout(120000);
+  afterEach(() => { delete global.Worker; });
+
+  it('stops at the next page when the stitcher cancels', async () => {
+    const token = { aborted: false };
+    const seen = [];
+    const imp = new PatternKeeperImporter({ canvasFactory, cancelToken: token, onProgress: m => {
+      seen.push(m.label);
+      if (/Reading scanned page 1/.test(m.label)) token.aborted = true;     // cancel during page 1
+    } });
+    pdfjs.GlobalWorkerOptions.workerSrc = path.join(ROOT, 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs');
+    const buffer = await scannedBook([drawChartPage(20, 15, () => ({ glyph: 0 })), drawChartPage(20, 15, () => ({ glyph: 1 }))]);
+    await expect(imp.analyse(buffer)).rejects.toMatchObject({ name: 'ImportAbortedError' });
+    expect(seen.some(l => /Reading scanned page 2/.test(l))).toBe(false);
+  });
+
+  it('stops the scan worker rather than waiting for it', async () => {
+    const log = [];
+    // A worker that answers a ping but never finishes grouping.
+    global.Worker = class Slow {
+      constructor() { log.push('started'); }
+      postMessage(m) {
+        log.push(m.type);
+        if (m.type === 'ping' || m.type === 'read') setTimeout(() => this.onmessage({ data: { id: m.id, ok: true, result: m.type === 'ping' ? true : { index: 0, grid: {} } } }), 0);
+      }
+      terminate() { log.push('terminated'); }
+    };
+    const token = { aborted: false };
+    const imp = new PatternKeeperImporter({ canvasFactory, cancelToken: token });
+    const RC = require(path.join(ROOT, 'pdf-raster-chart.js'));
+    const reader = await imp.rasterReader(RC);
+    const grouping = reader.group([0]);
+    setTimeout(() => { token.aborted = true; }, 50);
+    await expect(grouping).rejects.toMatchObject({ name: 'ImportAbortedError' });
+    expect(log).toContain('terminated');
+  });
+});

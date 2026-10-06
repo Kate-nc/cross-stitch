@@ -2652,7 +2652,7 @@
           throw new Error('PatternKeeperImporter is not loaded.');
         }
         // Page-by-page progress, for a large chart or a scan.
-        var importer = new Ctor({ onProgress: ctx && ctx.reportProgress });
+        var importer = new Ctor({ onProgress: ctx && ctx.reportProgress, cancelToken: ctx && ctx.cancelToken });
         // Prefer the original File when present; fall back to bytes so the
         // strategy still works for synthetic probes.
         var input = (probe && probe.originalFile)
@@ -3954,7 +3954,8 @@
    * say anything was happening.
    *
    * Returns { update(message), close() }; a message is the engine's progress
-   * message, { stage, label?, page?, total? }. */
+   * message, { stage, label?, page?, total? }. opts.onCancel, when given, adds
+   * a Cancel button that calls it. */
   function showImportProgress(opts) {
     opts = opts || {};
     if (typeof document === 'undefined') return { update: function () {}, close: function () {} };
@@ -3974,10 +3975,25 @@
     bar.className = 'import-busy-bar indeterminate';
     track.appendChild(bar);
     host.appendChild(title); host.appendChild(label); host.appendChild(track);
+    var cancelled = false;
+    if (typeof opts.onCancel === 'function') {
+      var cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.className = 'g-btn import-busy-cancel';
+      cancel.textContent = 'Cancel';
+      cancel.addEventListener('click', function () {
+        if (cancelled) return;
+        cancelled = true;
+        cancel.disabled = true;
+        label.textContent = 'Stopping…';
+        opts.onCancel();
+      });
+      host.appendChild(cancel);
+    }
     document.body.appendChild(host);
     return {
       update: function (m) {
-        if (!m) return;
+        if (!m || cancelled) return;
         if (m.label) label.textContent = m.label;
         if (m.total > 0 && m.page > 0) {
           bar.classList.remove('indeterminate');
@@ -4063,7 +4079,7 @@
   // user can verify (in the browser console) that they're running the
   // current bundle and not a stale service-worker copy. If you don't see
   // this log on page load, the SW is serving an old cache.
-  var BUILD = 'wireApp v6 (2026-10-06 — import progress card)';
+  var BUILD = 'wireApp v7 (2026-10-06 — cancel an import)';
   try { console.info('[ImportEngine]', BUILD); } catch (_) {}
   // Also expose it for assertion in DevTools: `window.ImportEngine.__build`.
   try {
@@ -4141,10 +4157,12 @@
     }
     // Say what is happening while the file is read: a large PDF or a scan
     // takes long enough to look stuck otherwise.
+    var token = opts.cancelToken || (typeof ENGINE.makeAbortToken === 'function' ? ENGINE.makeAbortToken() : null);
     var busy = typeof ENGINE.showImportProgress === 'function'
-      ? ENGINE.showImportProgress({ fileName: file && file.name }) : null;
+      ? ENGINE.showImportProgress({ fileName: file && file.name, onCancel: token ? function () { token.abort(); } : null }) : null;
     var callerProgress = opts.onProgress;
     var runOpts = Object.assign({}, opts, {
+      cancelToken: token || undefined,
       onProgress: function (m) {
         if (busy) busy.update(m);
         if (typeof callerProgress === 'function') { try { callerProgress(m); } catch (_) {} }
@@ -4153,6 +4171,10 @@
     var done = function () { if (busy) { busy.close(); busy = null; } };
     return ENGINE.importPattern(file, runOpts).then(function (result) {
       done();
+      // Cancelled from the progress card: nothing went wrong, so say nothing.
+      if (!result.ok && result.error && result.error.name === 'ImportAbortedError') {
+        return { action: 'cancel', cancelled: true };
+      }
       if (!result.ok) {
         var msg = (result.error && result.error.message) || 'Import failed.';
         console.error('[import] pipeline returned not-ok:', result);

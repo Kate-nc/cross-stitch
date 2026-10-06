@@ -15,7 +15,7 @@
   // user can verify (in the browser console) that they're running the
   // current bundle and not a stale service-worker copy. If you don't see
   // this log on page load, the SW is serving an old cache.
-  var BUILD = 'wireApp v6 (2026-10-06 — import progress card)';
+  var BUILD = 'wireApp v7 (2026-10-06 — cancel an import)';
   try { console.info('[ImportEngine]', BUILD); } catch (_) {}
   // Also expose it for assertion in DevTools: `window.ImportEngine.__build`.
   try {
@@ -93,10 +93,12 @@
     }
     // Say what is happening while the file is read: a large PDF or a scan
     // takes long enough to look stuck otherwise.
+    var token = opts.cancelToken || (typeof ENGINE.makeAbortToken === 'function' ? ENGINE.makeAbortToken() : null);
     var busy = typeof ENGINE.showImportProgress === 'function'
-      ? ENGINE.showImportProgress({ fileName: file && file.name }) : null;
+      ? ENGINE.showImportProgress({ fileName: file && file.name, onCancel: token ? function () { token.abort(); } : null }) : null;
     var callerProgress = opts.onProgress;
     var runOpts = Object.assign({}, opts, {
+      cancelToken: token || undefined,
       onProgress: function (m) {
         if (busy) busy.update(m);
         if (typeof callerProgress === 'function') { try { callerProgress(m); } catch (_) {} }
@@ -105,6 +107,10 @@
     var done = function () { if (busy) { busy.close(); busy = null; } };
     return ENGINE.importPattern(file, runOpts).then(function (result) {
       done();
+      // Cancelled from the progress card: nothing went wrong, so say nothing.
+      if (!result.ok && result.error && result.error.name === 'ImportAbortedError') {
+        return { action: 'cancel', cancelled: true };
+      }
       if (!result.ok) {
         var msg = (result.error && result.error.message) || 'Import failed.';
         console.error('[import] pipeline returned not-ok:', result);

@@ -85,7 +85,7 @@
           throw new Error('PatternKeeperImporter is not loaded.');
         }
         // Page-by-page progress, for a large chart or a scan.
-        var importer = new Ctor({ onProgress: ctx && ctx.reportProgress });
+        var importer = new Ctor({ onProgress: ctx && ctx.reportProgress, cancelToken: ctx && ctx.cancelToken });
         // Prefer the original File when present; fall back to bytes so the
         // strategy still works for synthetic probes.
         var input = (probe && probe.originalFile)
