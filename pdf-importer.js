@@ -105,7 +105,6 @@ class PatternKeeperImporter {
    */
   async import(file) {
     const session = await this.analyse(file);
-    if (session.project) return session.project;           // a scanned chart
     const project = this.buildFromLayout(session, session.placement);
     Object.defineProperty(project, '_layoutSession', { value: session, enumerable: false });
     return project;
@@ -125,7 +124,8 @@ class PatternKeeperImporter {
    *               reason: null | 'unplaced' | 'duplicate' }
    *   placement the automatic layout, { pages: { [pageIndex]: {col,row} } }
    *   build(placement) -> project
-   * or { project } for a scanned chart, which has a single page.
+   * A scanned chart's session also carries glyphSamples, a picture of each
+   * symbol, and scanned: true.
    */
   async analyse(file) {
     // PERF (Cat B-lite): yield to the event loop between heavy stages so the
@@ -145,7 +145,7 @@ class PatternKeeperImporter {
        // No vector chart. A scanned chart, or one printed to an image, is a
        // page that is mostly a single picture: read the picture instead.
        const scanned = this.scannedChartPages(pages);
-       if (scanned.length) return { project: await this.importScanned(scanned, pages) };
+       if (scanned.length) return this.importScanned(scanned, pages);
        throw new Error("No chart pages detected in the PDF.");
     }
 
@@ -282,6 +282,7 @@ class PatternKeeperImporter {
 
     const layout = {
       totalColumns: totalCols || 1, totalRows: totalRows || 1, pages: [],
+      scanned: !!session.scanned,
       layoutSource: manual ? 'manual' : session.layoutSource,
       tiling: manual ? null : session.tiling,
       warnings,
@@ -1548,66 +1549,161 @@ class PatternKeeperImporter {
   }
 
   /**
-   * Import a chart that exists only as a picture (pdf-raster-chart.js).
+   * Import a chart that exists only as pictures (pdf-raster-chart.js).
    *
-   * The picture is rendered at its own resolution — finer adds nothing a scan
-   * did not capture, coarser loses lines — and read for its grid and cells.
+   * Each scanned page is rendered at its own resolution — finer adds nothing a
+   * scan did not capture, coarser loses lines — and read for its grid and
+   * cells. Pages whose cells are the size of the largest page's are the chart;
+   * a scanned cover or key is not. The chart pages' cells are grouped together,
+   * so a thread is one group on every page, and the pages are then arranged as
+   * any chart without printed row and column numbers is (guessPageArrangement),
+   * for the stitcher to check on the review's Pages tab.
+   *
    * Coloured cells take the nearest DMC colour, since a scanned key cannot be
    * read; symbol cells are grouped by the shape of their symbol and each group
    * becomes a placeholder thread, so the stitcher has a correct chart and
-   * assigns each symbol once rather than re-charting by hand.
+   * assigns each symbol once rather than re-charting by hand. A picture of each
+   * symbol, cut from the scan, goes with the session for the review to show.
    *
-   * Only the largest scanned page is read: without readable rulers a scan
-   * gives no way to place several pages, so the others are named as skipped.
+   * Returns a session, as analyse() does.
    */
   async importScanned(scanned, pages) {
     const RC = (typeof window !== 'undefined' && window.PdfRasterChart) ||
                (typeof PdfRasterChart !== 'undefined' ? PdfRasterChart : null);
     if (!RC) throw new Error("This PDF is a scanned image, and the scanned-chart reader is not loaded.");
-    const first = scanned[0];
-    if (!first.page._pdfPage) throw new Error("No chart pages detected in the PDF.");
+    const yieldToBrowser = () => new Promise(r => setTimeout(r, 0));
+    const scaleFor = (im) => {
+      const native = im.pxW ? im.pxW / Math.max(1, im.x1 - im.x0) : 2.5;
+      return Math.max(1.5, Math.min(4, native));
+    };
 
-    const im = first.image;
-    const ptW = Math.max(1, im.x1 - im.x0);
-    const native = im.pxW ? im.pxW / ptW : 2.5;
-    const scale = Math.max(1.5, Math.min(4, native));
-    const pixels = await this.renderPagePixels(first.page._pdfPage, scale);
-    const read = RC.read(pixels);
-    if (!read) {
+    // Read each page, keeping only the largest one's pixels — the others are
+    // rendered again if a symbol's picture has to come from them.
+    const read = [];
+    let keptPixels = null;
+    for (const s of scanned) {
+      if (!s.page._pdfPage) continue;
+      const scale = scaleFor(s.image);
+      const pixels = await this.renderPagePixels(s.page._pdfPage, scale);
+      const cells = RC.readCells(pixels);
+      if (!keptPixels && cells) keptPixels = { pageIndex: s.page.pageIndex, pixels };
+      read.push({ s, scale, cells });
+      await yieldToBrowser();
+    }
+    const ref = read.find(e => e.cells);
+    if (!ref) {
       throw new Error("This PDF is a scanned image, but no chart grid could be found in it. " +
         "Try a sharper scan, or import the chart as a photo instead.");
     }
+    const refPitch = ref.cells.grid.pitchX / ref.scale;
+    const chart = read.filter(e => {
+      const g = e.cells && e.cells.grid;
+      return g && g.columns >= 8 && g.rows >= 8 && Math.abs(g.pitchX / e.scale - refPitch) <= refPitch * 0.15;
+    }).sort((a, b) => a.s.page.pageIndex - b.s.page.pageIndex);
+    const notChart = read.filter(e => chart.indexOf(e) < 0).map(e => e.s.page.pageIndex).sort((a, b) => a - b);
 
-    const threads = this.scannedThreads(read);
-    const linked = read.cells.map(c => {
-      const thread = c.kind === 'colour' ? threads.colour[c.group]
-                   : c.kind === 'symbol' ? threads.symbol[c.group] : null;
-      return { col: c.col, row: c.row, isEmpty: !thread, thread: thread || null,
-               symbol: thread && thread.symbol ? thread.symbol : '' };
+    const grouped = RC.groupPages(chart.map(e => e.cells));
+    const threads = this.scannedThreads(grouped);
+    let colourCells = 0, symbolCells = 0;
+    const sessionPages = chart.map((e, i) => {
+      const pg = grouped.pages[i];
+      const cells = pg.cells.map(c => {
+        const thread = c.kind === 'colour' ? threads.colour[c.group]
+                     : c.kind === 'symbol' ? threads.symbol[c.group] : null;
+        if (c.kind === 'colour') colourCells++;
+        if (c.kind === 'symbol') symbolCells++;
+        return { col: c.col, row: c.row, isEmpty: !thread, thread: thread || null,
+                 symbol: thread && thread.symbol ? thread.symbol : '' };
+      });
+      return { pageIndex: e.s.page.pageIndex, cols: pg.grid.columns, rows: pg.grid.rows,
+               cells, bs: [], initial: null, reason: null };
     });
-    const layout = {
-      totalColumns: read.grid.columns, totalRows: read.grid.rows,
-      pages: [], layoutSource: 'scanned-image', warnings: [],
-    };
-    const colourCells = read.cells.filter(c => c.kind === 'colour').length;
-    const symbolCells = read.cells.filter(c => c.kind === 'symbol').length;
+
+    const glyphSamples = await this.scannedSamples(chart, grouped, threads, keptPixels);
+
+    let placement = { pages: {}, manual: false };
+    let layoutSource = 'scanned-image', tiling = null, guess = null;
+    if (sessionPages.length === 1) {
+      placement.pages[sessionPages[0].pageIndex] = { col: 0, row: 0 };
+    } else {
+      guess = this.guessPageArrangement(sessionPages);
+      if (guess) {
+        placement = this.placementFromArrangement(sessionPages, guess);
+        layoutSource = 'guessed';
+        tiling = { across: guess.across, down: guess.down };
+      } else {
+        let col = 0;
+        for (const p of sessionPages) { placement.pages[p.pageIndex] = { col, row: 0 }; col += p.cols; }
+        layoutSource = 'sequential';
+      }
+    }
+    for (const p of sessionPages) p.initial = placement.pages[p.pageIndex] || null;
+
+    const warnings = [];
     if (colourCells) {
-      layout.warnings.push('This chart is a scanned image. Its colours were estimated from the scan and ' +
+      warnings.push('This chart is a scanned image. Its colours were estimated from the scan and ' +
         'matched to the nearest DMC colour, so check them against the printed key.');
     }
     if (symbolCells) {
-      layout.warnings.push('This chart is a scanned image. ' + threads.symbol.length + ' different symbols were ' +
+      warnings.push('This chart is a scanned image. ' + threads.symbol.length + ' different symbols were ' +
         'found and imported as placeholders (Symbol 1 to Symbol ' + threads.symbol.length + ') to be matched to ' +
         'threads from the printed key.');
     }
-    if (scanned.length > 1) {
-      layout.warnings.push('Only page ' + first.page.pageIndex + ' was read; scanned pages ' +
-        scanned.slice(1).map(s => s.page.pageIndex).join(', ') + ' could not be placed alongside it.');
+    if (notChart.length) {
+      warnings.push((notChart.length > 1 ? 'Scanned pages ' + notChart.join(', ') + ' were' : 'Scanned page ' + notChart[0] + ' was') +
+        ' not read as part of the chart.');
     }
-    const legend = { entries: [], matchReport: {
-      symbol: 0, swatch: 0, nearest: 0, catalogue: colourCells, unresolved: 0, unresolvedSymbols: {},
-    } };
-    return this.convertToPattern(layout, linked, legend, [], this.readStatedFacts(pages));
+
+    const session = {
+      kind: 'pdf-pages',
+      scanned: true,
+      pages: sessionPages,
+      legend: { entries: [], matchReport: {
+        symbol: 0, swatch: 0, nearest: 0, catalogue: colourCells, unresolved: 0, unresolvedSymbols: {},
+      } },
+      stated: this.readStatedFacts(pages),
+      layoutSource, tiling, guess,
+      layoutWarnings: warnings,
+      placement,
+      glyphSamples,
+      build: (pl) => this.buildFromLayout(session, pl),
+    };
+    return session;
+  }
+
+  /**
+   * A picture of each scanned symbol — the cell that shows it best, cut from
+   * the scan — keyed by its placeholder thread's id, as { w, h, data } RGBA.
+   * Pages other than the one already in memory are rendered again, one at a
+   * time, only if a symbol's best cell is on them.
+   */
+  async scannedSamples(chart, grouped, threads, keptPixels) {
+    const out = {};
+    const byPage = new Map();
+    grouped.symbols.forEach((g, gi) => {
+      if (!g.sample || !threads.symbol[gi]) return;
+      const e = chart[g.sample.page];
+      if (!e) return;
+      if (!byPage.has(e)) byPage.set(e, []);
+      byPage.get(e).push({ id: threads.symbol[gi].id, box: g.sample.box });
+    });
+    for (const [e, list] of byPage) {
+      const pixels = keptPixels && keptPixels.pageIndex === e.s.page.pageIndex
+        ? keptPixels.pixels : await this.renderPagePixels(e.s.page._pdfPage, e.scale);
+      for (const { id, box } of list) {
+        const x0 = Math.max(0, Math.floor(box[0]) - 1), y0 = Math.max(0, Math.floor(box[1]) - 1);
+        const x1 = Math.min(pixels.width, Math.ceil(box[2]) + 1), y1 = Math.min(pixels.height, Math.ceil(box[3]) + 1);
+        const w = x1 - x0, h = y1 - y0;
+        if (w <= 0 || h <= 0) continue;
+        const data = new Uint8ClampedArray(w * h * 4);
+        for (let y = 0; y < h; y++) {
+          const from = ((y0 + y) * pixels.width + x0) * 4;
+          data.set(pixels.data.subarray(from, from + w * 4), y * w * 4);
+        }
+        out[id] = { w, h, data };
+      }
+    }
+    return out;
   }
 
   /**
@@ -3342,7 +3438,7 @@ class PatternKeeperImporter {
      const guessed = (m.nearest || 0) + (m.catalogue || 0);
      // A scanned chart has already said how its colours were found; the
      // generic key warnings would only repeat it.
-     const scannedImport = chartLayout && chartLayout.layoutSource === 'scanned-image';
+     const scannedImport = !!(chartLayout && (chartLayout.scanned || chartLayout.layoutSource === 'scanned-image'));
      if (!scannedImport && !entries.filter(e => e.kind !== 'backstitch').length) {
         warnings.push('No colour key was found, so thread colours were estimated from the chart.');
      }

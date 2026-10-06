@@ -132,3 +132,102 @@ describe('importing a scanned chart end to end', () => {
       .rejects.toThrow(/No chart pages detected/);
   });
 });
+
+/* ── several scanned pages ────────────────────────────────────────────────── */
+
+/* One scanned page: a cols x rows chart, `cell(c, r)` giving
+ * { rgb?, glyph? } or null, drawn as a scanner would see it. */
+function drawChartPage(cols, rows, cell) {
+  const pitch = 18, x0 = 60, y0 = 90;
+  const w = x0 * 2 + cols * pitch, h = y0 * 2 + rows * pitch;
+  const cv = createCanvas(w, h);
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const v = cell(c, r);
+      if (!v) continue;
+      const x = x0 + c * pitch, y = y0 + r * pitch;
+      if (v.rgb) { ctx.fillStyle = 'rgb(' + v.rgb.join(',') + ')'; ctx.fillRect(x, y, pitch, pitch); }
+      ctx.fillStyle = v.rgb ? '#fff' : '#000';
+      if (v.glyph === 1) ctx.fillRect(x + 4, y + 8, 10, 3);                // a bar
+      else if (v.glyph === 2) ctx.fillRect(x + 8, y + 3, 3, 12);           // a stem
+      else ctx.fillRect(x + 6, y + 6, 6, 6);                               // a square
+    }
+  }
+  ctx.fillStyle = '#444';
+  for (let c = 0; c <= cols; c++) ctx.fillRect(x0 + c * pitch, y0, 1, rows * pitch + 1);
+  for (let r = 0; r <= rows; r++) ctx.fillRect(x0, y0 + r * pitch, cols * pitch + 1, 1);
+  return cv;
+}
+
+/* A page of a printed key, scanned: swatches and lines of text, no grid. */
+function drawKeyPage() {
+  const cv = createCanvas(700, 900);
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, 700, 900);
+  for (let i = 0; i < 12; i++) {
+    ctx.fillStyle = 'rgb(' + [(i * 70) % 255, (i * 130) % 255, (i * 40) % 255].join(',') + ')';
+    ctx.fillRect(60, 80 + i * 50, 30, 30);
+    ctx.fillStyle = '#222';
+    ctx.fillRect(110, 92 + i * 50, 200 + (i * 37) % 150, 6);
+  }
+  return cv;
+}
+
+async function scannedBook(canvases) {
+  const pdf = await PDFDocument.create();
+  for (const cv of canvases) {
+    const img = await pdf.embedPng(cv.toBuffer('image/png'));
+    const page = pdf.addPage([cv.width / 2, cv.height / 2]);
+    page.drawImage(img, { x: 0, y: 0, width: cv.width / 2, height: cv.height / 2 });
+  }
+  const bytes = await pdf.save();
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+}
+
+describe('importing a chart scanned across several pages', () => {
+  jest.setTimeout(120000);
+
+  // A 40 x 30 design in four colours, in smooth regions so that stitching
+  // runs on across the page breaks, cut into four 20 x 15 pages.
+  const PALETTE = [[200, 40, 40], [40, 90, 190], [60, 160, 80], [230, 180, 40]];
+  const design = (c, r) => {
+    const v = Math.floor(2 + 1.4 * Math.sin(c / 5.3 + 0.3) + 1.2 * Math.cos(r / 4.1 + 0.8));
+    return { rgb: PALETTE[Math.max(0, Math.min(3, v))], glyph: 0 };
+  };
+  const tile = (tc, tr) => drawChartPage(20, 15, (c, r) => design(tc * 20 + c, tr * 15 + r));
+
+  it('reads every chart page, sets the key page aside, and arranges the pages', async () => {
+    const buffer = await scannedBook([tile(0, 0), tile(1, 0), tile(0, 1), tile(1, 1), drawKeyPage()]);
+    const session = await newImporter().analyse(buffer);
+    expect(session.scanned).toBe(true);
+    expect(session.pages.map(p => p.pageIndex)).toEqual([1, 2, 3, 4]);
+    expect(session.layoutSource).toBe('guessed');
+    expect(session.placement.pages).toEqual({ 1: { col: 0, row: 0 }, 2: { col: 20, row: 0 }, 3: { col: 0, row: 15 }, 4: { col: 20, row: 15 } });
+
+    const p = session.build(session.placement);
+    expect([p.w, p.h]).toEqual([40, 30]);
+    expect(p.importReport.warnings.join(' ')).toMatch(/Scanned page 5 was not read as part of the chart/);
+    expect(p.importReport.warnings.join(' ')).toMatch(/scanned image/);
+    // The same thread on every page: four colours, not four per page.
+    expect(new Set(p.pattern.filter(m => m.id !== '__skip__').map(m => m.id)).size).toBe(4);
+  });
+
+  it('cuts a picture of each scanned symbol for the review to show', async () => {
+    const glyphAt = (c, r) => ({ glyph: (c * 2 + r) % 3 });
+    const buffer = await scannedBook([drawChartPage(24, 16, glyphAt)]);
+    const session = await newImporter().analyse(buffer);
+    const p = session.build(session.placement);
+    const ids = p.importReport.placeholders.map(x => x.id);
+    expect(ids).toHaveLength(3);
+    for (const id of ids) {
+      const s = session.glyphSamples[id];
+      expect(s).toBeTruthy();
+      expect(s.w).toBeGreaterThan(10);
+      expect(s.data).toHaveLength(s.w * s.h * 4);
+    }
+    // Not saved with the project.
+    expect(JSON.stringify(p)).not.toMatch(/glyphSamples/);
+  });
+});

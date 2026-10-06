@@ -465,6 +465,41 @@
     return { groups: groups, of: of };
   }
 
+  /* cluster() for more items than it handles well.
+   *
+   * Its cost grows with items times groups, and over many pages so does the
+   * number of stray groups: all twelve scanned pages of gen1 (117,000 cells)
+   * took 24 seconds and made 252 groups for 104 symbols. So beyond
+   * `sampleSize` items an evenly spread sample of that size is grouped, and
+   * every item then joins the group whose mean it is nearest: 194 groups in
+   * 8 seconds, with as many stitches in the right group (94%). Items near no
+   * group — a symbol the sample missed, or one too rare for it — are grouped
+   * among themselves. */
+  function clusterMany(items, featureOf, distFn, spread, opts, sampleSize) {
+    if (items.length <= sampleSize) return cluster(items, featureOf, distFn, spread, opts);
+    var step = items.length / sampleSize, sample = [];
+    for (var k = 0; k < sampleSize; k++) sample.push(items[Math.floor(k * step)]);
+    var base = cluster(sample, featureOf, distFn, spread, opts);
+    var groups = base.groups.map(function (g) { return { mean: g.mean, members: [] }; });
+    var strays = [];
+    items.forEach(function (it) {
+      var f = featureOf(it), best = -1, bd = Infinity;
+      for (var i = 0; i < groups.length; i++) {
+        var dd = distFn(f, groups[i].mean);
+        if (dd < bd) { bd = dd; best = i; }
+      }
+      if (best < 0 || bd > opts.farApart) strays.push(it); else groups[best].members.push(it);
+    });
+    if (strays.length) {
+      cluster(strays, featureOf, distFn, spread, opts).groups.forEach(function (g) { groups.push(g); });
+    }
+    groups = groups.filter(function (g) { return g.members.length; });
+    groups.sort(function (x, y) { return y.members.length - x.members.length; });
+    var of = new Map();
+    groups.forEach(function (g, gi) { g.members.forEach(function (it) { of.set(it, gi); }); });
+    return { groups: groups, of: of };
+  }
+
   /* Join colour groups that are one thread split by the scan.
    *
    * A scan does not reproduce a colour evenly: a small patch of a saturated
@@ -510,18 +545,10 @@
     return { groups: out, of: of };
   }
 
-  /* Read a chart from a picture of it.
-   *
-   * Returns null when no grid can be found, else
-   *   { grid, ground, cells: [{col,row,kind,group}], colours: [{rgb,count}],
-   *     symbols: [{count}] }
-   * where kind is 'colour', 'symbol' or 'empty', and group indexes colours or
-   * symbols accordingly. */
-  function read(img, opts) {
-    opts = opts || {};
-    var grid = findGrid(img, opts);
+  /* Every cell of one page, as read: colour, ink, glyph, and where it lies. */
+  function readCells(img, opts) {
+    var grid = findGrid(img, opts || {});
     if (!grid) return null;
-
     var raw = [], c, r;
     for (r = 0; r < grid.rows; r++) {
       var y0 = grid.lineY[r] !== undefined ? grid.lineY[r] : grid.originY + r * grid.pitchY;
@@ -531,9 +558,36 @@
         var x1 = grid.lineX[c + 1] !== undefined ? grid.lineX[c + 1] : x0 + grid.pitchX;
         var cell = readCell(img, x0, y0, x1, y1);
         cell.col = c; cell.row = r;
+        cell.box = [x0, y0, x1, y1];
         raw.push(cell);
       }
     }
+    return { grid: grid, raw: raw };
+  }
+
+  /* Read a chart from pictures of its pages.
+   *
+   * Each page is read for its own grid and cells; the cells of all of them are
+   * then grouped together, so a thread or symbol is one group on every page
+   * and the pages can be put side by side.
+   *
+   * Returns null when no page has a grid, else
+   *   { ground, colours: [{rgb,count}], symbols: [{count, sample}],
+   *     pages: [{ index, grid, cells: [{col,row,kind,group}] } | null] }
+   * where kind is 'colour', 'symbol' or 'empty', group indexes colours or
+   * symbols accordingly, and a symbol's sample — { page, col, row, box } — is
+   * the cell that best shows it. A page with no grid is null. */
+  function readPages(imgs, opts) {
+    return groupPages(imgs.map(function (img) { return img ? readCells(img, opts) : null; }), opts);
+  }
+
+  /* The grouping half of readPages(), over pages already read by readCells()
+   * — so a caller can read one page at a time and let its pixels go. */
+  function groupPages(read, opts) {
+    opts = opts || {};
+    var raw = [];
+    read.forEach(function (p, pi) { if (p) p.raw.forEach(function (cl) { cl.page = pi; raw.push(cl); }); });
+    if (!raw.length) return null;
 
     /* The ground: what an unstitched cell looks like. Not simply the commonest
      * cell colour — in a dense design that is a thread, and every stitch in it
@@ -569,42 +623,74 @@
     raw.forEach(function (cl) { if (dist(cl.rgb, ground) >= colourGap && chroma(cl.rgb) >= 20) chromatic++; });
     var mono = chromatic < raw.length * 0.03;
 
-    var kinds = raw.map(function (cl) {
+    raw.forEach(function (cl) {
       var differs = dist(cl.rgb, ground) >= colourGap;
-      if (mono) return (differs || cl.ink >= inkMin) ? 'symbol' : 'empty';
-      if (differs) return 'colour';
+      if (mono) { cl.kind = (differs || cl.ink >= inkMin) ? 'symbol' : 'empty'; return; }
+      if (differs) { cl.kind = 'colour'; return; }
       // On a colour chart a stitch is coloured; ink on bare ground is usually
       // a backstitch line crossing it. Only a substantial mark counts, and it
       // is a stitch in a thread close to the paper — white, or a pale cream —
       // so it is grouped by colour like the rest. Grouped by symbol, PAT2171_2's
       // white stitches came apart into twenty placeholder symbols.
-      return cl.ink >= 0.25 ? 'colour' : 'empty';
+      cl.kind = cl.ink >= 0.25 ? 'colour' : 'empty';
     });
 
-    var colourGroups = mergeBySymbol(cluster(raw.filter(function (cl, i) { return kinds[i] === 'colour'; }),
+    var colourGroups = mergeBySymbol(cluster(raw.filter(function (cl) { return cl.kind === 'colour'; }),
       function (cl) { return cl.rgb; }, dist, opts.colourSpread || 18, { minSize: 3, farApart: 40 }), inkMin);
-    var symbolGroups = cluster(raw.filter(function (cl, i) { return kinds[i] === 'symbol'; }),
-      function (cl) { return cl.sig; }, glyphDist, opts.glyphSpread || 0.10, { minSize: 5, farApart: 0.2 });
+    var symbolGroups = clusterMany(raw.filter(function (cl) { return cl.kind === 'symbol'; }),
+      function (cl) { return cl.sig; }, glyphDist, opts.glyphSpread || 0.10, { minSize: 5, farApart: 0.2 },
+      opts.sampleSize || 24000);
 
-    var cells = raw.map(function (cl, i) {
-      var k = kinds[i];
-      return { col: cl.col, row: cl.row, kind: k,
-               group: k === 'colour' ? colourGroups.of.get(cl) : k === 'symbol' ? symbolGroups.of.get(cl) : -1 };
+    // The cell that best shows each symbol: the one nearest its group's
+    // average, which a stitcher can match against the printed key.
+    var samples = symbolGroups.groups.map(function (g) {
+      var best = null, bd = Infinity;
+      g.members.forEach(function (cl) { var dd = glyphDist(cl.sig, g.mean); if (dd < bd) { bd = dd; best = cl; } });
+      return best ? { page: best.page, col: best.col, row: best.row, box: best.box } : null;
     });
 
     return {
-      grid: grid,
       ground: ground.map(Math.round),
-      cells: cells,
       colours: colourGroups.groups.map(function (g) { return { rgb: Array.from(g.mean).map(Math.round), count: g.members.length }; }),
-      symbols: symbolGroups.groups.map(function (g) { return { count: g.members.length }; }),
-      // Each cell as read, for diagnosing a scan that groups badly.
-      _raw: opts.keepRaw ? { raw: raw, kinds: kinds } : undefined,
+      symbols: symbolGroups.groups.map(function (g, gi) { return { count: g.members.length, sample: samples[gi] }; }),
+      pages: read.map(function (p, pi) {
+        if (!p) return null;
+        return {
+          index: pi,
+          grid: p.grid,
+          cells: p.raw.map(function (cl) {
+            return { col: cl.col, row: cl.row, kind: cl.kind,
+                     group: cl.kind === 'colour' ? colourGroups.of.get(cl) : cl.kind === 'symbol' ? symbolGroups.of.get(cl) : -1 };
+          }),
+          // Each cell as read, for diagnosing a scan that groups badly.
+          _raw: opts.keepRaw ? p.raw : undefined,
+        };
+      }),
     };
+  }
+
+  /* Read a chart from a picture of one page of it.
+   *
+   * Returns null when no grid can be found, else
+   *   { grid, ground, cells: [{col,row,kind,group}], colours: [{rgb,count}],
+   *     symbols: [{count, sample}] }
+   * as readPages() does for several. */
+  function read(img, opts) {
+    var res = readPages([img], opts);
+    if (!res || !res.pages[0]) return null;
+    var page = res.pages[0];
+    var out = { grid: page.grid, ground: res.ground, cells: page.cells, colours: res.colours, symbols: res.symbols };
+    if (opts && opts.keepRaw) {
+      out._raw = { raw: page._raw, kinds: page._raw.map(function (cl) { return cl.kind; }) };
+    }
+    return out;
   }
 
   var api = {
     read: read,
+    readPages: readPages,
+    readCells: readCells,
+    groupPages: groupPages,
     findGrid: findGrid,
     // exposed for tests
     _lineProfile: lineProfile,

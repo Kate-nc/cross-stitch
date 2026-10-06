@@ -2973,6 +2973,20 @@
     return null;
   }
 
+  /* A symbol as the scan shows it — a few dozen pixels cut from the page — so
+   * "Symbol 12" can be found in the printed key. */
+  function GlyphSample(props) {
+    var ref = React.useRef(null);
+    var s = props.sample;
+    React.useEffect(function () {
+      var canvas = ref.current;
+      if (!canvas || !s || typeof ImageData === 'undefined') return;
+      try { canvas.getContext('2d').putImageData(new ImageData(s.data, s.w, s.h), 0, 0); } catch (_) {}
+    }, [s]);
+    return h('canvas', { ref: ref, width: s.w, height: s.h, className: 'import-glyph-sample',
+      role: 'img', 'aria-label': props.label });
+  }
+
   /* Choose the thread for one palette entry by typing its DMC number. */
   function ThreadChooser(props) {
     var _v = React.useState(''); var value = _v[0], setValue = _v[1];
@@ -3040,11 +3054,13 @@
       ids.slice(0, 200).map(function (id) {
         var m = rows[id];
         var rgb = m.rgb || [0, 0, 0];
-        var label = pending[id] ? (pending[id].name || id) : (id + (m.name && m.name !== id ? ' ' + m.name : ''));
+        var label = pending[id] ? (m.symbol ? 'Symbol ' + m.symbol : (pending[id].name || id)) : (id + (m.name && m.name !== id ? ' ' + m.name : ''));
         var choosing = canChoose && (pending[id] || open === id);
         return h('div', { key: id, className: 'import-palette-row' + (pending[id] ? ' pending' : '') },
-          h('span', { className: 'import-palette-swatch',
-            style: { background: 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')' } }),
+          props.samples && props.samples[id]
+            ? h(GlyphSample, { sample: props.samples[id], label: 'How ' + label + ' looks in the scan' })
+            : h('span', { className: 'import-palette-swatch',
+                style: { background: 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')' } }),
           h('span', { className: 'import-palette-name' },
             h('span', { className: 'import-palette-id' }, pending[id] ? (m.symbol ? 'Symbol ' + m.symbol : id) : id),
             pending[id] ? h('span', { className: 'import-palette-note' },
@@ -3063,6 +3079,7 @@
         h('h3', null, 'Threads you chose'),
         assigned.map(function (from) {
           return h('div', { key: from, className: 'import-palette-assigned-row' },
+            props.samples && props.samples[from] && h(GlyphSample, { sample: props.samples[from], label: 'How ' + ((props.labels && props.labels[from]) || from) + ' looks in the scan' }),
             h('span', null, (props.labels && props.labels[from]) || from),
             h('span', { className: 'import-palette-arrow', 'aria-hidden': 'true' }, I('chevronRight')),
             h('span', { className: 'import-palette-id' }, props.assignments[from]),
@@ -3397,6 +3414,7 @@
                                                 onPlacement: setPlacement }),
           tab === 'preview'  && h(ImportPreviewPane, { project: working, showConfidence: showConfidence }),
           tab === 'palette'  && h(ImportPaletteList, { project: working, assignments: edits.threads || {},
+                                                samples: (props.layoutSession && props.layoutSession.glyphSamples) || null,
                                                 labels: threadLabels, onAssign: assignThread, onUnassign: unassignThread }),
           tab === 'metadata' && h(ImportMetadataForm, { project: working, onEdit: applyEdit }),
           tab === 'compare'  && h(ImportSideBySide, { project: working, originalFileUrl: props.originalFileUrl })
