@@ -197,16 +197,33 @@ class PatternKeeperImporter {
     // Layout warnings that are about pages left out are rebuilt for whatever
     // arrangement is finally chosen; the rest stand.
     const leftOutMsg = /could not be placed|repeat page \d+ in another style/;
-    const placement = { pages: {}, manual: false };
+    let placement = { pages: {}, manual: false };
     for (const p of sessionPages) if (p.initial) placement.pages[p.pageIndex] = p.initial;
+    let layoutSource = chartLayout.layoutSource || 'sequential';
+    let tiling = chartLayout.tiling || null;
+
+    // No rulers to say where the pages go: rather than leave them in one long
+    // strip, work the arrangement out from their sizes and edges.
+    let guess = null;
+    if (layoutSource === 'sequential') {
+      const placed = sessionPages.filter(p => p.initial).sort((a, b) => a.pageIndex - b.pageIndex);
+      guess = this.guessPageArrangement(placed);
+      if (guess) {
+        placement = this.placementFromArrangement(placed, guess);
+        layoutSource = 'guessed';
+        tiling = { across: guess.across, down: guess.down };
+        for (const p of sessionPages) if (placement.pages[p.pageIndex]) p.initial = placement.pages[p.pageIndex];
+      }
+    }
 
     const session = {
       kind: 'pdf-pages',
       pages: sessionPages,
       legend,
       stated: this.readStatedFacts(pages),
-      layoutSource: chartLayout.layoutSource || 'sequential',
-      tiling: chartLayout.tiling || null,
+      layoutSource,
+      tiling,
+      guess,
       layoutWarnings: (chartLayout.warnings || []).filter(w => !leftOutMsg.test(w)),
       placement,
       build: (pl) => this.buildFromLayout(session, pl),
@@ -261,6 +278,7 @@ class PatternKeeperImporter {
         : 'Page ' + missing[0] + ' looked like a chart page but was not placed, and was not imported.');
     }
     if (manual) warnings.push('The page layout was arranged by hand.');
+    else if (session.guess) warnings.push(this.describeGuess(session.guess));
 
     const layout = {
       totalColumns: totalCols || 1, totalRows: totalRows || 1, pages: [],
@@ -720,6 +738,279 @@ class PatternKeeperImporter {
         alternates.keep.pageIndex + ' in another style and were not imported.'];
     }
     return out;
+  }
+
+  /**
+   * Work out how the pages of a chart with no printed row and column numbers
+   * fit together, from their sizes and from what lies along their edges.
+   *
+   * Two things give the arrangement away:
+   *
+   *  - Sizes. A design rarely divides evenly into pages, so the last page of
+   *    each row is narrower than the rest and the pages of the last row are
+   *    shorter. Pages sharing a column of the arrangement share a width, and
+   *    pages sharing a row share a height; most arrangements break that.
+   *  - Edges. Stitching runs on across a page break, so a page's last column
+   *    resembles its right-hand neighbour's first column far more than it does
+   *    an unrelated page's. Charts that repeat a few rows or columns at each
+   *    break are plainer still: the repeat matches exactly, and its width is
+   *    the overlap to remove.
+   *
+   * Arrangements considered are complete grids in reading order, along rows or
+   * down columns. Returns null when nothing beats page order clearly, so the
+   * importer keeps it and the stitcher arranges the pages by hand. Otherwise:
+   *   { across, down, byColumns, slots: [pageIndex in row-major order],
+   *     overlap: { cols, rows }, basis: 'sizes' | 'edges' }
+   *
+   * @param {Array<{pageIndex:number, cols:number, rows:number, cells:Array}>} pages
+   */
+  guessPageArrangement(pages) {
+    const n = pages.length;
+    if (n < 2) return null;
+    const MAX_OVERLAP = 6;
+
+    // Each page as thread ids ('' where unstitched) and their colours.
+    const grids = pages.map(p => {
+      const id = new Array(p.cols * p.rows).fill('');
+      const rgb = new Array(p.cols * p.rows).fill(null);
+      for (const c of p.cells || []) {
+        if (c.isEmpty || !c.thread || c.col < 0 || c.row < 0 || c.col >= p.cols || c.row >= p.rows) continue;
+        const k = c.row * p.cols + c.col;
+        id[k] = String(c.thread.id);
+        rgb[k] = c.thread.rgb || null;
+      }
+      return { w: p.cols, h: p.rows, id, rgb };
+    });
+
+    // Compare line a of page A with line b of page B — columns when `byCol`,
+    // otherwise rows — along the length they share. Places where both are
+    // unstitched say nothing and are not counted.
+    const compare = (A, a, B, b, byCol) => {
+      const len = byCol ? Math.min(A.h, B.h) : Math.min(A.w, B.w);
+      let same = 0, close = 0, seen = 0;
+      for (let t = 0; t < len; t++) {
+        const ka = byCol ? t * A.w + a : a * A.w + t;
+        const kb = byCol ? t * B.w + b : b * B.w + t;
+        const ia = A.id[ka], ib = B.id[kb];
+        if (!ia && !ib) continue;
+        seen++;
+        if (ia === ib) { same++; continue; }
+        const ca = A.rgb[ka], cb = B.rgb[kb];
+        if (ca && cb) {
+          const d = Math.hypot(ca[0] - cb[0], ca[1] - cb[1], ca[2] - cb[2]);
+          if (d < 40) close++;
+        }
+      }
+      return { same, close, seen };
+    };
+
+    // How alike neighbouring columns (and rows) are inside the pages: the
+    // yardstick for telling a repeated line from one that merely continues.
+    const inside = (byCol) => {
+      let same = 0, seen = 0;
+      for (const g of grids) {
+        const lines = byCol ? g.w : g.h;
+        for (let a = 0; a + 1 < lines; a++) {
+          const s = compare(g, a, g, a + 1, byCol);
+          same += s.same; seen += s.seen;
+        }
+      }
+      return seen ? same / seen : 1;
+    };
+
+    // fit[dir][i][j][k]: page j placed after page i (right of it, or below),
+    // the two sharing k lines (k = 0: none shared, the edges merely meet).
+    const edgeFits = (byCol) => {
+      const out = [];
+      for (let i = 0; i < n; i++) {
+        out.push([]);
+        for (let j = 0; j < n; j++) {
+          if (i === j) { out[i].push(null); continue; }
+          const A = grids[i], B = grids[j];
+          const lines = byCol ? Math.min(A.w, B.w) : Math.min(A.h, B.h);
+          const ks = [];
+          const meet = compare(A, (byCol ? A.w : A.h) - 1, B, 0, byCol);
+          ks.push({ fit: meet.same + 0.5 * meet.close, seen: meet.seen });
+          for (let k = 1; k <= MAX_OVERLAP && k * 4 <= lines; k++) {
+            let same = 0, seen = 0;
+            for (let t = 0; t < k; t++) {
+              const s = compare(A, (byCol ? A.w : A.h) - k + t, B, t, byCol);
+              same += s.same; seen += s.seen;
+            }
+            ks.push({ fit: same, seen });
+          }
+          out[i].push(ks);
+        }
+      }
+      return out;
+    };
+    const fitH = edgeFits(true), fitV = edgeFits(false);
+    const baseH = inside(true), baseV = inside(false);
+
+    // Every complete grid, along rows and down columns, once per distinct
+    // geometry (a single row reads the same either way).
+    const candidates = [];
+    const seenShape = new Set();
+    for (let across = 1; across <= n; across++) {
+      if (n % across) continue;
+      const down = n / across;
+      for (const byColumns of [false, true]) {
+        const slots = new Array(n);
+        for (let s = 0; s < n; s++) {
+          const col = byColumns ? Math.floor(s / down) : s % across;
+          const row = byColumns ? s % down : Math.floor(s / across);
+          slots[row * across + col] = s;
+        }
+        const key = across + ':' + slots.join(',');
+        if (seenShape.has(key)) continue;
+        seenShape.add(key);
+        candidates.push({ across, down, byColumns, slots });
+      }
+    }
+
+    const sizesFit = (cand) => {
+      const { across, down, slots } = cand;
+      for (let c = 0; c < across; c++) {
+        const ws = [];
+        for (let r = 0; r < down; r++) ws.push(grids[slots[r * across + c]].w);
+        if (Math.max(...ws) - Math.min(...ws) > 1) return false;
+      }
+      for (let r = 0; r < down; r++) {
+        const hs = [];
+        for (let c = 0; c < across; c++) hs.push(grids[slots[r * across + c]].h);
+        if (Math.max(...hs) - Math.min(...hs) > 1) return false;
+      }
+      return true;
+    };
+
+    // How alike two unrelated pages' edges are: the level a true neighbour
+    // has to rise above.
+    const MIN_SEEN = 8;
+    const chanceOf = (fits) => {
+      let sum = 0, count = 0;
+      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+        const f = fits[i][j] && fits[i][j][0];
+        if (f && f.seen >= MIN_SEEN) { sum += f.fit / f.seen; count++; }
+      }
+      return count ? sum / count : 0;
+    };
+
+    // The evidence for an arrangement along one direction, and the overlap it
+    // implies. Each pair of neighbours adds how far its edges agree beyond
+    // chance, so the arrangement that puts the most true neighbours together
+    // wins — a single strip of pages holds most of the side-by-side pairs of
+    // the real grid, and judged on average agreement alone it ties with it.
+    //
+    // A repeat is believed only when it matches almost exactly and far better
+    // than neighbouring lines inside a page do, since some designs have long
+    // runs of one colour. A single repeated line is not believed at all: a
+    // design that is mirror-symmetric about a page break matches itself
+    // exactly there. The stitcher can still set one.
+    const scoreDirection = (pairs, fits, base, chance) => {
+      let overlap = 0;
+      let best = null;
+      for (let k = 2; k <= MAX_OVERLAP; k++) {
+        let same = 0, seen = 0, ok = true;
+        for (const [i, j] of pairs) {
+          const f = fits[i][j][k];
+          if (!f) { ok = false; break; }
+          same += f.fit; seen += f.seen;
+        }
+        if (!ok || seen < 12) continue;
+        const e = same / seen;
+        if (!best || e > best.e) best = { k, e };
+      }
+      if (best && best.e >= 0.97 && (1 - best.e) <= (1 - base) / 3) overlap = best.k;
+      let evidence = 0, seen = 0;
+      for (const [i, j] of pairs) {
+        const f = fits[i][j][overlap];
+        seen += f.seen;
+        if (f.seen >= MIN_SEEN) evidence += f.fit / f.seen - chance;
+      }
+      return { overlap, evidence, seen };
+    };
+
+    const chanceH = chanceOf(fitH), chanceV = chanceOf(fitV);
+    for (const cand of candidates) {
+      const { across, down, slots } = cand;
+      const hPairs = [], vPairs = [];
+      for (let r = 0; r < down; r++) {
+        for (let c = 0; c < across; c++) {
+          const here = slots[r * across + c];
+          if (c + 1 < across) hPairs.push([here, slots[r * across + c + 1]]);
+          if (r + 1 < down) vPairs.push([here, slots[(r + 1) * across + c]]);
+        }
+      }
+      const h = scoreDirection(hPairs, fitH, baseH, chanceH);
+      const v = scoreDirection(vPairs, fitV, baseV, chanceV);
+      cand.overlap = { cols: h.overlap, rows: v.overlap };
+      cand.seen = h.seen + v.seen;
+      cand.score = cand.seen >= 12 ? h.evidence + v.evidence : null;
+      cand.sizesFit = sizesFit(cand);
+    }
+
+    const strip = candidates.find(c => c.across === n);
+    const fitting = candidates.filter(c => c.sizesFit);
+    const answer = (cand, basis) => (cand === strip && !cand.overlap.cols ? null : {
+      across: cand.across, down: cand.down, byColumns: cand.byColumns,
+      slots: cand.slots.map(s => pages[s].pageIndex),
+      overlap: cand.overlap, basis,
+    });
+
+    // The sizes alone may allow only one arrangement.
+    if (fitting.length === 1) return answer(fitting[0], 'sizes');
+
+    // Otherwise the edges decide, among the arrangements the sizes allow (or
+    // all of them, when a page was cut oddly and none fits exactly). The
+    // winner needs real evidence, and must stand clear of the runner-up by
+    // about one more pair of neighbours that agree.
+    const pool = (fitting.length ? fitting : candidates).filter(c => c.score !== null);
+    if (!pool.length) return null;
+    pool.sort((a, b) => b.score - a.score);
+    const top = pool[0], next = pool[1];
+    const margin = Math.max(0.3, top.score * 0.1);
+    if (top.score < margin) return null;
+    if (next && top.score - next.score < margin) return null;
+    return answer(top, 'edges');
+  }
+
+  /**
+   * Absolute offsets for a guessed arrangement: each column as wide as its
+   * widest page and each row as tall as its tallest, less any overlap.
+   */
+  placementFromArrangement(pages, arr) {
+    const size = new Map(pages.map(p => [p.pageIndex, p]));
+    const colW = new Array(arr.across).fill(0), rowH = new Array(arr.down).fill(0);
+    arr.slots.forEach((pi, k) => {
+      const p = size.get(pi);
+      const c = k % arr.across, r = Math.floor(k / arr.across);
+      colW[c] = Math.max(colW[c], p.cols);
+      rowH[r] = Math.max(rowH[r], p.rows);
+    });
+    const colOff = [], rowOff = [];
+    let acc = 0;
+    for (let c = 0; c < arr.across; c++) { colOff[c] = acc; acc += colW[c] - arr.overlap.cols; }
+    acc = 0;
+    for (let r = 0; r < arr.down; r++) { rowOff[r] = acc; acc += rowH[r] - arr.overlap.rows; }
+    const at = {};
+    arr.slots.forEach((pi, k) => { at[pi] = { col: colOff[k % arr.across], row: rowOff[Math.floor(k / arr.across)] }; });
+    return { pages: at, manual: false, overlap: { cols: arr.overlap.cols, rows: arr.overlap.rows } };
+  }
+
+  /** The import report's account of a guessed arrangement. */
+  describeGuess(arr) {
+    const plural = (k, one, many) => k + ' ' + (k === 1 ? one : many);
+    const how = arr.basis === 'sizes' ? 'from their sizes' : 'by matching their edges';
+    let msg = 'The pages carry no row or column numbers, so they were arranged ' +
+      plural(arr.across, 'page', 'pages') + ' across ' + how + '.';
+    const { cols, rows } = arr.overlap;
+    if (cols || rows) {
+      const parts = [];
+      if (cols) parts.push(plural(cols, 'column', 'columns'));
+      if (rows) parts.push(plural(rows, 'row', 'rows'));
+      msg += ' Each page repeats ' + parts.join(' and ') + ' of the next, and the repeats were merged.';
+    }
+    return msg + ' Check that the pages line up.';
   }
 
   /**

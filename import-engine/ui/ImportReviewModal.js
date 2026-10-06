@@ -187,7 +187,9 @@
     var leftOut = {};
     session.pages.forEach(function (p) { if (p.reason) leftOut[p.pageIndex] = p.reason; });
     var fromRulers = session.layoutSource === 'axis-rulers';
-    var edited = !!(props.placement && props.placement.manual);
+    var guessed = session.layoutSource === 'guessed';
+    var edited = !!(props.placement && props.placement.manual) &&
+      !M.samePlacement(props.placement, session.placement);
 
     function commit(next) {
       setSlots(next);
@@ -233,34 +235,41 @@
 
     var across = slots.across;
     var maxAcross = Math.max(1, session.pages.length);
-    var overlap = (slots.overlap && slots.overlap.cols) || 0;
+    var ovCols = (slots.overlap && slots.overlap.cols) || 0;
+    var ovRows = (slots.overlap && slots.overlap.rows) || 0;
+
+    var intro = fromRulers
+      ? 'Each page was placed using the row and column numbers printed on it. Check the pages line up, and move any that do not.'
+      : guessed
+        ? 'These pages have no row and column numbers, so their arrangement was worked out from their sizes and edges. Check the pages line up, and move any that do not.'
+        : 'These pages have no row and column numbers, so they were laid out in page order. Set how many pages go across, then move any that are in the wrong place.';
+    if (edited) intro = fromRulers ? 'You have changed the layout read from the PDF.' : 'You have changed the layout.';
+    var resetLabel = fromRulers ? 'Use the PDF’s layout' : (guessed ? 'Use the suggested layout' : 'Back to page order');
+
+    function stepper(id, label, value, min, max, fewer, more, onChange) {
+      return h('div', { className: 'page-layout-stepper' },
+        h('span', { id: id }, label),
+        h('button', { type: 'button', className: 'g-btn icon-only', 'aria-label': fewer,
+          disabled: value <= min, onClick: function () { onChange(value - 1); } }, I('minus')),
+        h('output', { 'aria-labelledby': id, className: 'page-layout-value' }, String(value)),
+        h('button', { type: 'button', className: 'g-btn icon-only', 'aria-label': more,
+          disabled: value >= max, onClick: function () { onChange(value + 1); } }, I('plus'))
+      );
+    }
 
     return h('div', { className: 'page-layout' },
-      h('p', { className: 'page-layout-intro' + (fromRulers && !edited ? '' : ' attention') },
-        fromRulers
-          ? (edited
-              ? 'You have changed the layout read from the PDF.'
-              : 'Each page was placed using the row and column numbers printed on it. Check the pages line up, and move any that do not.')
-          : 'These pages have no row and column numbers, so they were laid out in page order. Set how many pages go across, then move any that are in the wrong place.'),
+      h('p', { className: 'page-layout-intro' + (fromRulers && !edited ? '' : ' attention') }, intro),
       h('div', { className: 'page-layout-controls' },
-        h('div', { className: 'page-layout-stepper' },
-          h('span', { id: 'page-layout-across' }, 'Pages across'),
-          h('button', { type: 'button', className: 'g-btn icon-only', 'aria-label': 'Fewer pages across',
-            disabled: across <= 1, onClick: function () { commit(M.setAcross(slots, across - 1)); } }, I('minus')),
-          h('output', { 'aria-labelledby': 'page-layout-across', className: 'page-layout-value' }, String(across)),
-          h('button', { type: 'button', className: 'g-btn icon-only', 'aria-label': 'More pages across',
-            disabled: across >= maxAcross, onClick: function () { commit(M.setAcross(slots, across + 1)); } }, I('plus'))
-        ),
-        h('div', { className: 'page-layout-stepper' },
-          h('span', { id: 'page-layout-overlap' }, 'Rows repeated at page edges'),
-          h('button', { type: 'button', className: 'g-btn icon-only', 'aria-label': 'Fewer repeated rows',
-            disabled: overlap <= 0, onClick: function () { commit(M.setOverlap(slots, overlap - 1, overlap - 1)); } }, I('minus')),
-          h('output', { 'aria-labelledby': 'page-layout-overlap', className: 'page-layout-value' }, String(overlap)),
-          h('button', { type: 'button', className: 'g-btn icon-only', 'aria-label': 'More repeated rows',
-            disabled: overlap >= 10, onClick: function () { commit(M.setOverlap(slots, overlap + 1, overlap + 1)); } }, I('plus'))
-        ),
-        fromRulers && edited && h('button', { type: 'button', className: 'g-btn', onClick: reset },
-          I('undo'), h('span', null, 'Use the PDF’s layout'))
+        stepper('page-layout-across', 'Pages across', across, 1, maxAcross, 'Fewer pages across', 'More pages across',
+          function (v) { commit(M.setAcross(slots, v)); }),
+        stepper('page-layout-overlap-cols', 'Columns repeated at page edges', ovCols, 0, 10,
+          'Fewer repeated columns', 'More repeated columns',
+          function (v) { commit(M.setOverlap(slots, v, ovRows)); }),
+        stepper('page-layout-overlap-rows', 'Rows repeated at page edges', ovRows, 0, 10,
+          'Fewer repeated rows', 'More repeated rows',
+          function (v) { commit(M.setOverlap(slots, ovCols, v)); }),
+        edited && h('button', { type: 'button', className: 'g-btn', onClick: reset },
+          I('undo'), h('span', null, resetLabel))
       ),
       h('p', { className: 'page-layout-hint' },
         sel ? 'Now choose where page ' + sel.page + ' should go.' : 'Select a page, then the place it should go. You can also drag pages.'),

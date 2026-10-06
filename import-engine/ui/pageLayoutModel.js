@@ -2,9 +2,9 @@
  * review dialog's Pages tab, as pure functions.
  *
  * A multi-page PDF chart is a set of page tiles. pdf-importer places them
- * itself — exactly, when the pages print their row and column numbers, and in
- * reading order when they do not — but the stitcher must be able to check that
- * and put it right. This models the arrangement as slots in a grid:
+ * itself — exactly, when the pages print their row and column numbers, and by
+ * a guess from their sizes and edges when they do not — but the stitcher must
+ * be able to check that and put it right. This models the arrangement as slots in a grid:
  *
  *   { across, order: [pageIndex | null, ...], tray: [pageIndex, ...],
  *     overlap: { cols, rows } }
@@ -71,7 +71,10 @@
       across: across,
       order: padded(order, across),
       tray: session.pages.filter(function (p) { return !at[p.pageIndex]; }).map(function (p) { return p.pageIndex; }),
-      overlap: { cols: 0, rows: 0 },
+      overlap: {
+        cols: (placement && placement.overlap && placement.overlap.cols) || 0,
+        rows: (placement && placement.overlap && placement.overlap.rows) || 0,
+      },
     };
   }
 
@@ -108,7 +111,7 @@
       if (pi === null || pi === undefined) return;
       pages[pi] = { col: Math.max(0, colOff[k % across]), row: Math.max(0, rowOff[Math.floor(k / across)]) };
     });
-    return { pages: pages, manual: true };
+    return { pages: pages, manual: true, overlap: { cols: ov.cols || 0, rows: ov.rows || 0 } };
   }
 
   /* Change how many pages go across, keeping reading order. Trailing empty
@@ -153,8 +156,9 @@
   }
 
   /* Should the review open on the page layout? Yes when the importer could not
-   * read where the pages go — no rulers, so they were put in reading order — or
-   * when it left a page out that was not a recognised duplicate. */
+   * read where the pages go — no rulers, so they were guessed at or left in
+   * page order — or when it left a page out that was not a recognised
+   * duplicate. */
   function needsReview(session) {
     if (!session || !session.pages || session.pages.length < 2) return false;
     if (session.layoutSource !== 'axis-rulers' && session.layoutSource !== 'alternate-renderings') return true;
