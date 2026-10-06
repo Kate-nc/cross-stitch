@@ -3533,11 +3533,18 @@ function loadProject(e){
     }).then(project => {
       // A chart printed across several pages goes through the review dialog
       // first, so the stitcher can check each page sits in the right place and
-      // move any that do not. Single-page charts import straight away, as
-      // before; so does everything if the dialog is unavailable.
+      // move any that do not. So does any chart the importer has something to
+      // say about — a symbol it could not match, a size that differs from what
+      // the PDF states — so it can be put right before it is saved. A clean
+      // single-page chart imports straight away, as before; so does everything
+      // if the dialog is unavailable.
       const session = project && project._layoutSession;
+      const report = (project && project.importReport) || {};
       const engine = window.ImportEngine;
-      if (session && session.pages && session.pages.length > 1 && engine && typeof engine.openReview === 'function') {
+      const multiPage = !!(session && session.pages && session.pages.length > 1);
+      const needsLook = (report.warnings && report.warnings.length > 0) ||
+        (report.placeholders && report.placeholders.length > 0);
+      if ((multiPage || needsLook) && engine && typeof engine.openReview === 'function') {
         setLoadError(null);
         return engine.openReview({ project, layoutSession: session, warnings: [], coverage: 1, reviewMode: 'standard' })
           .then(out => (out && out.action === 'confirm' && out.project) ? out.project : null);

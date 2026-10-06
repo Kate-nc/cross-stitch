@@ -3418,8 +3418,8 @@
       .map(function (m) { return { message: m, severity: 'medium' }; });
     var allWarnings = (props.warnings || []).concat(reportWarnings);
 
-    var coveragePct = Math.round((props.coverage || 0) * 100);
-    var coverageIcon = props.coverage >= 0.95 ? I('confidenceHigh') : (props.coverage >= 0.8 ? I('info') : I('confidenceLow'));
+    var summary = importSummary(working, props.coverage);
+    var coverageIcon = summary.level === 'high' ? I('confidenceHigh') : (summary.level === 'medium' ? I('info') : I('confidenceLow'));
 
     var tabs = [].concat(session ? [{ id: 'pages', label: 'Pages', icon: I('layers') }] : [], [
       { id: 'preview',  label: 'Preview',  icon: I('magnifier') },
@@ -3432,7 +3432,7 @@
       h('div', { className: 'import-review-modal' },
         h('header', { className: 'import-review-header' },
           h('h2', null, 'Review imported pattern'),
-          h('div', { className: 'import-review-coverage' }, coverageIcon, h('span', null, coveragePct + '% confidence')),
+          h('div', { className: 'import-review-coverage', title: summary.detail || null }, coverageIcon, h('span', null, summary.label)),
           h('button', { className: 'import-review-close', onClick: function () { props.onClose && props.onClose('cancel'); }, 'aria-label': 'Close' }, I('x'))
         ),
         h('nav', { className: 'import-review-tabs', role: 'tablist' },
@@ -3496,6 +3496,45 @@
     if ('fabricCt' in edits) next.settings = Object.assign({}, next.settings, { fabricCt: edits.fabricCt });
     if (edits.threads && Object.keys(edits.threads).length) next = assignThreads(next, edits.threads);
     return next;
+  }
+
+  /* The figure in the review's header: how far to trust the import.
+   *
+   * A PDF chart says what it is — its colour key — so the honest figure is how
+   * many stitches were matched to that key, by symbol or by swatch, rather than
+   * by the nearest colour. The engine's own confidence is 100% for every PDF,
+   * since the importer hands over a finished pattern, which said nothing.
+   * A scan, and a chart with no key, have nothing to match to and say so. Other
+   * formats keep the engine's figure. */
+  function importSummary(project, coverage) {
+    var r = project && project.importReport;
+    var m = r && r.matched;
+    var left = (r && r.placeholders && r.placeholders.length) || 0;
+    var needs = left ? ' ' + left + (left === 1 ? ' symbol needs' : ' symbols need') + ' a thread.' : '';
+    if (m) {
+      if (r.scanned) {
+        return { level: 'low', label: 'Read from a scan',
+          detail: 'Colours and symbols were read from a picture of the chart, so check them against the printed key.' + needs };
+      }
+      if (!r.keyEntries) {
+        return { level: 'low', label: 'No colour key found',
+          detail: 'Thread colours were estimated from the chart.' + needs };
+      }
+      // Nearest key colour counts as a match when the key's colours are too
+      // far apart to mistake (PAT1968_2's seven), not when two are close.
+      var read = (m.symbol || 0) + (m.swatch || 0) + (r.keyColoursDistinct ? (m.nearest || 0) : 0);
+      var total = (m.symbol || 0) + (m.swatch || 0) + (m.nearest || 0) + (m.catalogue || 0) + (m.unresolved || 0);
+      if (total) {
+        var share = read / total;
+        var pct = Math.floor(share * 100);
+        return { level: left ? 'low' : share >= 0.98 ? 'high' : share >= 0.85 ? 'medium' : 'low',
+          label: pct + '% matched to the key',
+          detail: read + ' of ' + total + ' stitches were matched to the PDF’s colour key' +
+            (read < total ? '; the rest were matched by colour similarity or not at all.' : '.') + needs };
+      }
+    }
+    var c = coverage || 0;
+    return { level: c >= 0.95 ? 'high' : c >= 0.8 ? 'medium' : 'low', label: Math.round(c * 100) + '% confidence' };
   }
 
   /* Give colours the threads the stitcher chose: `threads` maps a colour's id
@@ -3594,6 +3633,7 @@
     ImportProgress: ImportProgress,
     WarningList: WarningList,
     mergeEdits: mergeEdits,
+    importSummary: importSummary,
   };
   window.ImportEngine = Object.assign(window.ImportEngine || {}, api);
 })();

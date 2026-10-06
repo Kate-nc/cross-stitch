@@ -3449,9 +3449,12 @@ class PatternKeeperImporter {
      // Matching by similarity is only a risk when the key has colours close
      // enough to mistake for one another — choosing among PAT1968_2's seven
      // well-separated colours is not guesswork, and saying so would be noise.
+     // Whether the key's colours are far enough apart for nearest-colour
+     // matching to be safe, which the review counts as matched to the key.
+     const close = this.closestKeyPair(entries);
+     const keyColoursDistinct = !!entries.length && (!close || close.dE >= 10);
      if (!scannedImport && guessed && stitchCount && guessed / stitchCount > 0.05) {
-        const close = this.closestKeyPair(entries);
-        if (!close || close.dE < 10) {
+        if (!keyColoursDistinct) {
            warnings.push(Math.round(100 * guessed / stitchCount) + '% of stitches were matched by colour ' +
              'similarity rather than read from the key' +
              (close ? ', and the key lists ' + close.a + ' and ' + close.b + ', which are easily confused.' : '.'));
@@ -3460,6 +3463,8 @@ class PatternKeeperImporter {
      if (validation && validation.warnings) warnings.push(...validation.warnings);
      return {
         layout: (chartLayout && chartLayout.layoutSource) || 'sequential',
+        scanned: scannedImport,
+        keyColoursDistinct: keyColoursDistinct,
         tiling: (chartLayout && chartLayout.tiling) || null,
         size: { w: width, h: height },
         keyEntries: entries.filter(e => e.kind !== 'backstitch').length,

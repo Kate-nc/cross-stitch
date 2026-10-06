@@ -125,3 +125,42 @@ describe('mergeEdits — choosing threads for placeholders', () => {
     expect(p.importReport.placeholders).toHaveLength(2);
   });
 });
+
+describe('importSummary — the review header', () => {
+  const { importSummary } = window.ImportEngine;
+  const report = (over) => ({ importReport: Object.assign({
+    keyEntries: 9, scanned: false, keyColoursDistinct: false, placeholders: [],
+    matched: { symbol: 900, swatch: 95, nearest: 5, catalogue: 0, unresolved: 0 },
+  }, over) });
+
+  it('gives the share of stitches matched to the PDF key', () => {
+    expect(importSummary(report(), 1)).toEqual(expect.objectContaining({ label: '99% matched to the key', level: 'high' }));
+  });
+
+  it('counts nearest-colour matches when the key colours cannot be confused', () => {
+    const r = report({ matched: { symbol: 0, swatch: 455, nearest: 4890, catalogue: 0, unresolved: 2 } });
+    expect(importSummary(r, 1).label).toBe('8% matched to the key');
+    r.importReport.keyColoursDistinct = true;
+    expect(importSummary(r, 1).label).toBe('99% matched to the key');
+  });
+
+  it('never rounds up to 100% while something is unmatched', () => {
+    const r = report({ matched: { symbol: 999, swatch: 0, nearest: 0, catalogue: 0, unresolved: 1 } });
+    expect(importSummary(r, 1).label).toBe('99% matched to the key');
+  });
+
+  it('says so for a scan, or a chart with no key', () => {
+    expect(importSummary(report({ scanned: true }), 1).label).toBe('Read from a scan');
+    expect(importSummary(report({ keyEntries: 0 }), 1).label).toBe('No colour key found');
+  });
+
+  it('marks the import low while symbols still need a thread', () => {
+    const s = importSummary(report({ placeholders: [{ id: 'U1' }, { id: 'U2' }] }), 1);
+    expect(s.level).toBe('low');
+    expect(s.detail).toMatch(/2 symbols need a thread/);
+  });
+
+  it('keeps the engine figure for formats without an import report', () => {
+    expect(importSummary({ pattern: [] }, 0.87)).toEqual(expect.objectContaining({ label: '87% confidence', level: 'medium' }));
+  });
+});
