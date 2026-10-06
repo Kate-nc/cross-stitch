@@ -6935,6 +6935,33 @@ button[aria-disabled="true"] {
   background: var(--surface); color: var(--text-primary); font: inherit;
 }
 .import-thread-input[aria-invalid="true"] { border-color: var(--danger); }
+.import-thread-brand {
+  padding: var(--s-1); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text-primary); font: inherit;
+}
+.import-colour-picker {
+  grid-column: 1 / -1;
+  display: flex; flex-direction: column; gap: var(--s-3);
+  padding: var(--s-3); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.import-picker-section h4 { margin: 0 0 var(--s-2); font-size: var(--text-sm); color: var(--text-secondary); font-weight: 600; }
+.import-picker-swatches { display: flex; flex-wrap: wrap; gap: var(--s-1); }
+.import-swatch-btn {
+  display: inline-flex; flex-direction: column; align-items: center; gap: 2px;
+  min-width: 2.75em; padding: var(--s-1); border: 1px solid transparent; border-radius: var(--radius-sm);
+  background: none; color: var(--text-secondary); font: inherit; font-size: var(--text-sm); cursor: pointer;
+}
+.import-swatch-btn:hover, .import-swatch-btn:focus-visible { border-color: var(--accent); color: var(--text-primary); }
+.import-swatch-chip { display: block; width: 1.8em; height: 1.8em; border: 1px solid var(--line); border-radius: 2px; }
+.import-swatch-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.import-picker-families { display: flex; flex-wrap: wrap; gap: var(--s-1); margin-bottom: var(--s-2); }
+.import-family-btn {
+  padding: var(--s-1) var(--s-2); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text-secondary); font: inherit; font-size: var(--text-sm); cursor: pointer;
+}
+.import-family-btn.active { border-color: var(--accent); color: var(--text-primary); background: var(--accent-soft); }
+.import-picker-actions { display: flex; justify-content: flex-end; }
 .import-thread-match { display: inline-flex; align-items: center; gap: var(--s-1); color: var(--text-secondary); font-size: var(--text-sm); }
 .import-thread-error { flex-basis: 100%; color: var(--danger); font-size: var(--text-sm); }
 .import-palette-assigned { margin-top: var(--s-4); border-top: 1px solid var(--line); padding-top: var(--s-3); }

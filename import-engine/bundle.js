@@ -2889,6 +2889,140 @@
 })();
 
 
+/* ────── ui/threadPicker.js ────── */
+
+/* import-engine/ui/threadPicker.js — finding a thread for a colour in the
+ * import review, as pure functions.
+ *
+ * The review's Palette tab lets the stitcher give any colour a thread: by
+ * typing its number, by picking a colour already in the chart, by picking one
+ * of the threads nearest the colour, or by browsing DMC's colour families.
+ * Charts and patterns store DMC numbers, so an Anchor number is converted to
+ * its DMC equivalent — the published conversion where there is one, else the
+ * nearest DMC colour — and the stitcher is told which.
+ *
+ * The thread tables are the app's own globals (DMC from dmc-data.js; ANCHOR and
+ * getOfficialMatch from anchor-data.js and thread-conversions.js, which load on
+ * demand). Each function takes them as an optional last argument instead, so
+ * it is tested directly (tests/import/threadPicker.test.js).
+ */
+
+(function () {
+  'use strict';
+
+  var root = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : {});
+
+  /* dmc-data.js declares its table with a top-level const, which is a global
+   * but not a property of window. */
+  function globalDmc() {
+    if (root.DMC) return root.DMC;
+    // eslint-disable-next-line no-undef
+    return typeof DMC !== 'undefined' ? DMC : null;
+  }
+
+  function tables(cat) {
+    cat = cat || {};
+    return {
+      dmc: ('dmc' in cat ? cat.dmc : globalDmc()) || [],
+      anchor: ('anchor' in cat ? cat.anchor : root.ANCHOR) || null,
+      match: ('match' in cat ? cat.match : root.getOfficialMatch) || null,
+    };
+  }
+
+  /* DMC's colour families, in the order dmc-data.js numbers them. */
+  var FAMILIES = [
+    { id: 1, name: 'Reds' }, { id: 2, name: 'Pinks' }, { id: 3, name: 'Roses' },
+    { id: 4, name: 'Mauves' }, { id: 5, name: 'Purples' }, { id: 6, name: 'Blues' },
+    { id: 7, name: 'Pale blues' }, { id: 8, name: 'Teals' }, { id: 9, name: 'Sea greens' },
+    { id: 10, name: 'Greens' }, { id: 11, name: 'Yellow greens' }, { id: 12, name: 'Olives' },
+    { id: 13, name: 'Golds' }, { id: 14, name: 'Yellows and oranges' }, { id: 15, name: 'Coppers' },
+    { id: 16, name: 'Peaches' }, { id: 17, name: 'Browns' }, { id: 18, name: 'Whites and beiges' },
+    { id: 19, name: 'Greys' },
+  ];
+
+  function labOf(t) {
+    if (t.lab) return t.lab;
+    if (typeof root.rgbToLab === 'function') return root.rgbToLab(t.rgb[0], t.rgb[1], t.rgb[2]);
+    return [0.3 * t.rgb[0] + 0.59 * t.rgb[1] + 0.11 * t.rgb[2], t.rgb[0] - t.rgb[1], t.rgb[1] - t.rgb[2]];
+  }
+  function labDist(a, b) {
+    var d0 = a[0] - b[0], d1 = a[1] - b[1], d2 = a[2] - b[2];
+    return Math.sqrt(d0 * d0 + d1 * d1 + d2 * d2);
+  }
+
+  /* A DMC thread by its number, ignoring case and leading spaces. */
+  function findDmc(code, cat) {
+    var c = String(code == null ? '' : code).trim().toLowerCase();
+    if (!c) return null;
+    var dmc = tables(cat).dmc;
+    for (var i = 0; i < dmc.length; i++) if (String(dmc[i].id).toLowerCase() === c) return dmc[i];
+    return null;
+  }
+
+  /* The `n` DMC threads nearest an RGB colour, nearest first, leaving out the
+   * ids in `exclude`. */
+  function nearestDmc(rgb, n, exclude, cat) {
+    var dmc = tables(cat).dmc;
+    var target = labOf({ rgb: rgb });
+    var skip = {};
+    (exclude || []).forEach(function (id) { skip[String(id).toLowerCase()] = true; });
+    return dmc
+      .filter(function (t) { return !skip[String(t.id).toLowerCase()]; })
+      .map(function (t) { return { t: t, d: labDist(labOf(t), target) }; })
+      .sort(function (a, b) { return a.d - b.d; })
+      .slice(0, n)
+      .map(function (x) { return x.t; });
+  }
+
+  /* The DMC family a colour belongs to: its nearest thread's. */
+  function familyOf(rgb, cat) {
+    var near = nearestDmc(rgb, 1, null, cat)[0];
+    return (near && near.fam) || 1;
+  }
+
+  /* One family's threads, lightest first. */
+  function familyThreads(fam, cat) {
+    return tables(cat).dmc
+      .filter(function (t) { return t.fam === fam; })
+      .slice()
+      .sort(function (a, b) { return labOf(b)[0] - labOf(a)[0]; });
+  }
+
+  /* An Anchor number as a DMC thread.
+   * Returns null when the Anchor table has no such number, else
+   *   { anchor, dmc, how } where how is the conversion's confidence
+   *   ('official', 'reconciled', 'single-source') or 'nearest' colour. */
+  function fromAnchor(code, cat) {
+    var T = tables(cat);
+    var c = String(code == null ? '' : code).trim();
+    if (!c || !T.anchor) return null;
+    var anchor = null;
+    for (var i = 0; i < T.anchor.length; i++) if (String(T.anchor[i].id) === c) { anchor = T.anchor[i]; break; }
+    if (!anchor) return null;
+    var m = T.match ? T.match('anchor', anchor.id, 'dmc') : null;
+    var dmc = m ? findDmc(m.id, cat) : null;
+    if (dmc) return { anchor: anchor, dmc: dmc, how: m.confidence || 'official' };
+    var near = nearestDmc(anchor.rgb, 1, null, cat)[0];
+    return near ? { anchor: anchor, dmc: near, how: 'nearest' } : null;
+  }
+
+  var api = {
+    FAMILIES: FAMILIES,
+    dmcList: function () { return globalDmc() || []; },
+    findDmc: findDmc,
+    nearestDmc: nearestDmc,
+    familyOf: familyOf,
+    familyThreads: familyThreads,
+    fromAnchor: fromAnchor,
+  };
+
+  if (typeof window !== 'undefined') {
+    window.ImportEngine = Object.assign(window.ImportEngine || {}, { threadPicker: api });
+  }
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})();
+
+
 /* ────── ui/ImportReviewModal.js ────── */
 
 /* import-engine/ui/ImportReviewModal.js — Review pane for import results.
@@ -2968,12 +3102,21 @@
     );
   }
 
+  /* The DMC table. dmc-data.js declares it with a top-level const, a global
+   * that is not a property of window, so window.DMC is always undefined. */
+  function dmcAll() {
+    var TP = window.ImportEngine && window.ImportEngine.threadPicker;
+    if (TP) return TP.dmcList();
+    // eslint-disable-next-line no-undef
+    return typeof DMC !== 'undefined' ? DMC : [];
+  }
+
   /* A DMC thread by its number, from the thread table the PDF importer loads. */
   function dmcThread(code) {
     code = String(code || '').trim();
     if (!code) return null;
     if (typeof window.getDmcByIdCI === 'function') return window.getDmcByIdCI(code) || null;
-    var all = window.DMC || [];
+    var all = dmcAll();
     for (var i = 0; i < all.length; i++) {
       if (String(all[i].id).toLowerCase() === code.toLowerCase()) return all[i];
     }
@@ -2994,38 +3137,125 @@
       role: 'img', 'aria-label': props.label });
   }
 
-  /* Choose the thread for one palette entry by typing its DMC number. */
+  function picker() { return (window.ImportEngine && window.ImportEngine.threadPicker) || null; }
+  function rgbCss(rgb) { return 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')'; }
+
+  /* Anchor's table and its DMC conversions load on demand; ask for them once,
+   * and say when they arrive. */
+  function useAnchorTables(wanted) {
+    var _r = React.useState(!!window.ANCHOR); var ready = _r[0], setReady = _r[1];
+    React.useEffect(function () {
+      if (!wanted || ready) return;
+      var load = typeof window.loadThreadData === 'function' ? window.loadThreadData() : null;
+      if (!load) return;
+      var live = true;
+      load.then(function () { if (live) setReady(!!window.ANCHOR); }, function () {});
+      return function () { live = false; };
+    }, [wanted, ready]);
+    return ready;
+  }
+
+  /* Choose the thread for one palette entry by typing its number — DMC's, or
+   * Anchor's, which becomes its DMC equivalent since patterns hold DMC. */
   function ThreadChooser(props) {
     var _v = React.useState(''); var value = _v[0], setValue = _v[1];
     var _e = React.useState(null); var error = _e[0], setError = _e[1];
-    var match = dmcThread(value);
+    var _b = React.useState('dmc'); var brand = _b[0], setBrand = _b[1];
+    var anchorReady = useAnchorTables(brand === 'anchor');
+    var TP = picker();
+    var conv = brand === 'anchor' && anchorReady && TP ? TP.fromAnchor(value) : null;
+    var match = brand === 'anchor' ? (conv && conv.dmc) : dmcThread(value);
     function submit(ev) {
       if (ev) ev.preventDefault();
-      if (!value.trim()) return;
-      if (!match) { setError('No DMC thread numbered ' + value.trim() + '.'); return; }
+      var v = value.trim();
+      if (!v) return;
+      if (!match) {
+        setError(brand === 'anchor'
+          ? (anchorReady ? 'No Anchor thread numbered ' + v + '.' : 'Anchor’s colours are still loading.')
+          : 'No DMC thread numbered ' + v + '.');
+        return;
+      }
       if (props.onChoose(match.id) === false) {
-        setError('That choice would create a cycle.');
+        setError('That would undo another choice: two colours cannot each become the other.');
       } else {
         setValue(''); setError(null);
       }
     }
     return h('form', { className: 'import-thread-chooser', onSubmit: submit },
+      h('select', { className: 'import-thread-brand', value: brand, 'aria-label': 'Thread brand',
+        onChange: function (e) { setBrand(e.target.value); setError(null); } },
+        h('option', { value: 'dmc' }, 'DMC'),
+        h('option', { value: 'anchor' }, 'Anchor')),
       h('input', {
-        type: 'text', inputMode: 'text', autoComplete: 'off', list: 'import-dmc-codes',
-        className: 'import-thread-input', placeholder: 'DMC no.', value: value,
+        type: 'text', inputMode: 'text', autoComplete: 'off',
+        list: brand === 'anchor' ? 'import-anchor-codes' : 'import-dmc-codes',
+        className: 'import-thread-input', placeholder: brand === 'anchor' ? 'Anchor no.' : 'DMC no.', value: value,
         autoFocus: !!props.autoFocus,
-        'aria-label': 'DMC thread for ' + props.label,
+        'aria-label': (brand === 'anchor' ? 'Anchor' : 'DMC') + ' thread for ' + props.label,
         'aria-invalid': error ? 'true' : 'false',
         onChange: function (e) { setValue(e.target.value); setError(null); }
       }),
+      brand === 'anchor' && anchorReady && h('datalist', { id: 'import-anchor-codes' },
+        (window.ANCHOR || []).map(function (d) { return h('option', { key: d.id, value: d.id }, d.name); })),
       match && h('span', { className: 'import-thread-match' },
-        h('span', { className: 'import-palette-swatch',
-          style: { background: 'rgb(' + match.rgb[0] + ',' + match.rgb[1] + ',' + match.rgb[2] + ')' } }),
-        match.name),
+        h('span', { className: 'import-palette-swatch', style: { background: rgbCss(match.rgb) } }),
+        conv
+          ? 'DMC ' + match.id + ' ' + match.name + (conv.how === 'nearest' ? ' (nearest colour)' : ' (Anchor’s equivalent)')
+          : match.name),
       h('button', { type: 'submit', className: 'g-btn', disabled: !value.trim() }, 'Use'),
+      props.onBrowse && h('button', { type: 'button', className: 'g-btn icon-only',
+        'aria-label': 'Choose a colour for ' + props.label, 'aria-expanded': props.browsing ? 'true' : 'false',
+        onClick: props.onBrowse }, I('palette')),
       props.onCancel && h('button', { type: 'button', className: 'g-btn icon-only', 'aria-label': 'Cancel',
         onClick: props.onCancel }, I('x')),
       error && h('span', { className: 'import-thread-error', role: 'alert' }, error)
+    );
+  }
+
+  function SwatchButton(props) {
+    var t = props.thread;
+    var prefix = props.prefix == null ? 'DMC ' : props.prefix;
+    var label = prefix + t.id + (t.name && t.name !== t.id ? ' ' + t.name : '');
+    return h('button', { type: 'button', className: 'import-swatch-btn', title: label, 'aria-label': label,
+        onClick: function () { props.onChoose(t.id); } },
+      h('span', { className: 'import-swatch-chip', style: { background: rgbCss(t.rgb) } }),
+      h('span', { className: 'import-swatch-code' }, t.id));
+  }
+
+  /* Choose a thread by eye: a colour already in the chart (the usual answer
+   * when the scan split one thread in two), one of the threads nearest this
+   * colour (when the importer landed on a neighbouring shade), or any DMC
+   * thread, family by family. A placeholder's colour is invented, so it has
+   * no nearest threads to offer. */
+  function ColourPicker(props) {
+    var TP = picker();
+    var _f = React.useState(function () { return (!props.placeholder && TP) ? TP.familyOf(props.rgb) : 1; });
+    var fam = _f[0], setFam = _f[1];
+    if (!TP) return null;
+    var near = props.placeholder ? [] : TP.nearestDmc(props.rgb, 12, [props.id]);
+    var section = function (title, threads, prefix) {
+      if (!threads.length) return null;
+      return h('section', { className: 'import-picker-section' },
+        h('h4', null, title),
+        h('div', { className: 'import-picker-swatches' }, threads.map(function (t) {
+          return h(SwatchButton, { key: t.id, thread: t, prefix: prefix, onChoose: props.onChoose });
+        })));
+    };
+    return h('div', { className: 'import-colour-picker', role: 'region', 'aria-label': 'Choose a colour for ' + props.label },
+      section('In this chart', props.chartColours, ''),
+      section('Close to this colour', near),
+      h('section', { className: 'import-picker-section' },
+        h('h4', null, 'All DMC colours'),
+        h('div', { className: 'import-picker-families', role: 'group', 'aria-label': 'Colour family' },
+          TP.FAMILIES.map(function (f) {
+            return h('button', { key: f.id, type: 'button', className: 'import-family-btn' + (f.id === fam ? ' active' : ''),
+              'aria-pressed': f.id === fam ? 'true' : 'false', onClick: function () { setFam(f.id); } }, f.name);
+          })),
+        h('div', { className: 'import-picker-swatches' }, TP.familyThreads(fam).map(function (t) {
+          return h(SwatchButton, { key: t.id, thread: t, onChoose: props.onChoose });
+        }))),
+      h('div', { className: 'import-picker-actions' },
+        h('button', { type: 'button', className: 'g-btn', onClick: props.onClose }, 'Close'))
     );
   }
 
@@ -3059,16 +3289,26 @@
       return pa - pb || counts[b] - counts[a];
     });
     var assigned = Object.keys(props.assignments || {});
-    var canChoose = !!props.onAssign && (typeof window.getDmcByIdCI === 'function' || !!window.DMC);
+    var canChoose = !!props.onAssign && (typeof window.getDmcByIdCI === 'function' || dmcAll().length > 0);
+    var _p = React.useState(null); var picking = _p[0], setPicking = _p[1];
+    // The chart's own threads, for "same as" — never a placeholder, whose
+    // colour is invented.
+    var chartColours = ids.filter(function (id) { return !pending[id]; })
+      .map(function (id) { return { id: id, name: rows[id].name, rgb: rows[id].rgb || [0, 0, 0] }; });
+    function choose(id, to) {
+      var ok = props.onAssign(id, to);
+      if (ok !== false) { setOpen(null); setPicking(null); }
+      return ok;
+    }
 
     return h('div', { className: 'import-palette-list' },
       h('div', { className: 'import-palette-header' }, ids.length + ' colours'),
       pendingIds.length > 0 && h('p', { className: 'import-palette-pending' }, I('warning'),
         h('span', null, pendingIds.length === 1
-          ? '1 symbol has no thread yet. Find it in the printed key and enter its DMC number.'
-          : pendingIds.length + ' symbols have no thread yet. Find each in the printed key and enter its DMC number. Two symbols given the same number become one colour.')),
+          ? '1 symbol has no thread yet. Find it in the printed key, then enter its number or choose its colour.'
+          : pendingIds.length + ' symbols have no thread yet. Find each in the printed key, then enter its number or choose its colour. Two symbols given the same thread become one colour.')),
       canChoose && h('datalist', { id: 'import-dmc-codes' },
-        (window.DMC || []).map(function (d) { return h('option', { key: d.id, value: d.id }, d.name); })),
+        dmcAll().map(function (d) { return h('option', { key: d.id, value: d.id }, d.name); })),
       ids.slice(0, 200).map(function (id) {
         var m = rows[id];
         var rgb = m.rgb || [0, 0, 0];
@@ -3087,10 +3327,16 @@
           h('span', { className: 'import-palette-count' }, counts[id]),
           choosing
             ? h(ThreadChooser, { label: label, autoFocus: open === id,
-                onChoose: function (to) { setOpen(null); props.onAssign(id, to); },
-                onCancel: pending[id] ? null : function () { setOpen(null); } })
+                onChoose: function (to) { return choose(id, to); },
+                browsing: picking === id,
+                onBrowse: function () { setPicking(picking === id ? null : id); },
+                onCancel: pending[id] ? null : function () { setOpen(null); setPicking(null); } })
             : (canChoose && h('button', { type: 'button', className: 'g-btn icon-only',
-                'aria-label': 'Change the thread for ' + id, onClick: function () { setOpen(id); } }, I('pencil')))
+                'aria-label': 'Change the thread for ' + id, onClick: function () { setOpen(id); } }, I('pencil'))),
+          picking === id && h(ColourPicker, { id: id, label: label, rgb: rgb, placeholder: !!pending[id],
+            chartColours: chartColours.filter(function (c) { return c.id !== id; }),
+            onChoose: function (to) { return choose(id, to); },
+            onClose: function () { setPicking(null); } })
         );
       }),
       assigned.length > 0 && h('section', { className: 'import-palette-assigned', 'aria-label': 'Threads you chose' },
