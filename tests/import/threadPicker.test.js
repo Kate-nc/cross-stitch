@@ -88,3 +88,16 @@ describe('the DMC table as the browser has it', () => {
     expect(TP.familyThreads(19).map(t => t.id)).toEqual(['310']);
   });
 });
+
+describe('the DMC table', () => {
+  it('has every thread its colour families list, and a family for every thread', () => {
+    const { DMC_FAM } = require(path.join(ROOT, 'dmc-data.js'));
+    const ids = new Set(DMC.map(t => t.id));
+    expect([].concat(...Object.values(DMC_FAM)).filter(id => !ids.has(id))).toEqual([]);
+    expect(DMC.filter(t => !t.fam).map(t => t.id)).toEqual([]);
+  });
+  it('has the Golden Olive range, 829 to 834', () => {
+    expect(['829', '830', '831', '832', '833', '834'].map(id => P.findDmc(id, cat) && P.findDmc(id, cat).name))
+      .toEqual(['Golden Olive VDk', 'Golden Olive Dk', 'Golden Olive Med', 'Golden Olive', 'Golden Olive Lt', 'Golden Olive VLt']);
+  });
+});
