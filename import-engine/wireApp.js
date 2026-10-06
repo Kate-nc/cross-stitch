@@ -117,6 +117,11 @@
         }
         return { action: 'cancel', error: result.error };
       }
+      // A chart that prints no title is named after its file, not 'Imported
+      // pattern'; the review's Details tab can change either.
+      if (result.project && !result.project.name && file && file.name) {
+        result.project.name = String(file.name).replace(/\.[a-z0-9]+$/i, '');
+      }
       // Always show the review modal in v1 (no auto-import).
       var url = null;
       try { url = URL.createObjectURL(file); } catch (_) {}

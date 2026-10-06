@@ -3426,6 +3426,9 @@
       h('label', null, 'Pattern name',
         h('input', { type: 'text', value: p.name || '',
           onChange: function (e) { props.onEdit('name', e.target.value); } })),
+      h('label', null, 'Designer',
+        h('input', { type: 'text', value: p.designer || '',
+          onChange: function (e) { props.onEdit('designer', e.target.value); } })),
       h('label', null, 'Fabric count',
         h('input', { type: 'number', min: 6, max: 40, value: (p.settings && p.settings.fabricCt) || 14,
           onChange: function (e) { props.onEdit('fabricCt', parseInt(e.target.value, 10) || 14); } })),
@@ -3805,6 +3808,7 @@
     if (!edits || !Object.keys(edits).length) return project;
     var next = Object.assign({}, project);
     if ('name' in edits) next.name = edits.name;
+    if ('designer' in edits) next.designer = edits.designer;
     if ('fabricCt' in edits) next.settings = Object.assign({}, next.settings, { fabricCt: edits.fabricCt });
     if (edits.threads && Object.keys(edits.threads).length) next = assignThreads(next, edits.threads);
     return next;
@@ -4126,6 +4130,11 @@
           alert('Import failed: ' + msg);
         }
         return { action: 'cancel', error: result.error };
+      }
+      // A chart that prints no title is named after its file, not 'Imported
+      // pattern'; the review's Details tab can change either.
+      if (result.project && !result.project.name && file && file.name) {
+        result.project.name = String(file.name).replace(/\.[a-z0-9]+$/i, '');
       }
       // Always show the review modal in v1 (no auto-import).
       var url = null;

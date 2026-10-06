@@ -146,6 +146,9 @@ class PatternKeeperImporter {
 
     this.progress('Opening the PDF');
     const pdfData = await this.pdfLoader.load(file);
+    // The document's own Title and Author, for readTitleAndDesigner().
+    this._docInfo = await Promise.resolve(pdfData.getMetadata ? pdfData.getMetadata() : null)
+      .then(m => (m && m.info) || null, () => null);
     this.progress('Reading ' + pdfData.numPages + (pdfData.numPages === 1 ? ' page' : ' pages'));
     const pages = await this.extractAllPages(pdfData);
     await yieldToBrowser();
@@ -234,7 +237,7 @@ class PatternKeeperImporter {
       kind: 'pdf-pages',
       pages: sessionPages,
       legend,
-      stated: this.readStatedFacts(pages),
+      stated: Object.assign(this.readStatedFacts(pages), this.readTitleAndDesigner(pages, this._docInfo)),
       layoutSource,
       tiling,
       guess,
@@ -1691,7 +1694,7 @@ class PatternKeeperImporter {
       legend: { entries: [], matchReport: {
         symbol: 0, swatch: 0, nearest: 0, catalogue: colourCells, unresolved: 0, unresolvedSymbols: {},
       } },
-      stated: this.readStatedFacts(pages),
+      stated: Object.assign(this.readStatedFacts(pages), this.readTitleAndDesigner(pages, this._docInfo)),
       layoutSource, tiling, guess,
       layoutWarnings: warnings,
       placement,
@@ -3394,6 +3397,9 @@ class PatternKeeperImporter {
      // Threads the importer had to invent — a symbol missing from the key, or
      // a scanned symbol — for the review to offer up for assignment.
      project.importReport.placeholders = Array.from(placeholders.values());
+     // The title and designer the PDF prints, where it prints them.
+     if (stated && stated.title) project.name = stated.title;
+     if (stated && stated.designer) project.designer = stated.designer;
      return project;
   }
 
@@ -3432,6 +3438,85 @@ class PatternKeeperImporter {
    *
    * @returns {{stitches?:{w,h}, physicalCm?:{w,h}, fabricCount?:number, colours?:number}}
    */
+  /**
+   * The pattern's title and designer, as the PDF prints them.
+   *
+   * Title: the largest heading on the first pages, ignoring page numbers,
+   * copyright lines and web addresses. Publishers print a title in two
+   * languages side by side at the same size (DMC: "moonlight" and "fleurs
+   * lunaires"), and both are kept, joined with " / ". A trailing "Cross Stitch
+   * Pattern" is dropped. Nothing under 11pt counts: gen1's largest text is its
+   * 8pt "Page: 1" and ruler numbers, and it has no title to find.
+   *
+   * Designer: a "designed by" credit, else the name in a copyright line
+   * ("Copyright (C) 2021 Shadow__Nova"), where a web address stands for its
+   * owner ("www.dmc.com" is DMC). The document's Author is used only when the
+   * text names no one, as it is often whoever made the PDF.
+   *
+   * Returns { title?, designer? }.
+   */
+  readTitleAndDesigner(pages, info) {
+     const out = {};
+     const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+     const furniture = /©|\(c\)|copyright|www\.|https?:|\.com\b|all rights|page\s*:?\s*\d|^\d+\s*\/\s*\d+$/i;
+
+     for (const p of (pages || []).slice(0, 3)) {
+        const items = (p.textItems || [])
+           .map(t => ({ s: clean(t.str), h: t.height || 0, x: t.x || 0, y: t.y || 0 }))
+           .filter(t => t.s.length >= 3 && /[a-z]/i.test(t.s) && !furniture.test(t.s));
+        if (!items.length) continue;
+        const top = Math.max(...items.map(t => t.h));
+        if (top < 11) continue;
+        const heads = items.filter(t => t.h >= top - 0.5).sort((a, b) => a.y - b.y || a.x - b.x);
+        const names = [];
+        for (const t of heads) {
+           if (names.length < 2 && names.indexOf(t.s) < 0 && t.s.length <= 80 && t.s.split(' ').length <= 10) names.push(t.s);
+        }
+        if (!names.length) continue;
+        const title = names.join(' / ')
+           .replace(/\s*[-–:]?\s*(?:counted\s+)?cross[\s-]*stitch\s+(?:pattern|chart)\s*$/i, '').trim();
+        out.title = title || names[0];
+        break;
+     }
+
+     const brand = (host) => host.length <= 4 ? host.toUpperCase() : host.charAt(0).toUpperCase() + host.slice(1);
+     const nameIn = (s) => {
+        const web = s.match(/(?:www\.)?([a-z0-9-]+)\.(?:com|co\.uk|net|org|de|fr|nl|it|es|eu)\b/i);
+        let n = s.replace(/https?:\/\/\S+|www\.\S+/ig, ' ')
+           .replace(/©|\(c\)|copyright|all rights reserved.*$/ig, ' ')
+           .replace(/\b(19|20)\d{2}\b/g, ' ')
+           .trim()
+           .split(/\s[\/|–-]\s|\s{2,}/)[0]
+           .replace(/^[\s.,:;\/|–-]+|[\s.,:;\/|–-]+$/g, '').trim();
+        if (n.length >= 2 && n.length <= 40 && /[a-z]/i.test(n)) return n;
+        return web ? brand(web[1].toLowerCase()) : null;
+     };
+     const credit = /(?:designed|design|charted|pattern|stitched)\s+by\s*:?\s*(.{2,60})|designer\s*:\s*(.{2,60})/i;
+     outer:
+     for (const pass of ['credit', 'copyright']) {
+        for (const p of pages || []) {
+           for (const t of p.textItems || []) {
+              const s = clean(t.str);
+              if (pass === 'credit') {
+                 const m = s.match(credit);
+                 const n = m && nameIn(m[1] || m[2]);
+                 if (n) { out.designer = n; break outer; }
+              } else if (/©|\(c\)|copyright/i.test(s)) {
+                 const n = nameIn(s);
+                 if (n) { out.designer = n; break outer; }
+              }
+           }
+        }
+     }
+     if (!out.designer && info && info.Author) {
+        const a = clean(info.Author);
+        if (a.length >= 2 && a.length <= 40 && !/^(user|admin|administrator|owner|unknown|author|microsoft|windows)$/i.test(a)) {
+           out.designer = a;
+        }
+     }
+     return out;
+  }
+
   readStatedFacts(pages) {
      const out = {};
      const num = (s) => parseFloat(String(s).replace(',', '.'));
