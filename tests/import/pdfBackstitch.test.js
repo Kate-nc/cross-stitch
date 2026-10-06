@@ -269,3 +269,42 @@ describe('extractBackstitch — line work variety', () => {
     expect(out).toHaveLength(0);
   });
 });
+
+describe('extractBackstitch — half-cell positions', () => {
+  const page = (paths) => ({ pageIndex: 1, width: 612, height: 792, vectorPaths: inkFurniture().concat(paths), textItems: [] });
+  const ends = (lines) => lines.map(l => [l.x1, l.y1, l.x2, l.y2]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+
+  it('keeps a line that runs to the middle of a cell\'s side, or its centre', () => {
+    const lines = imp.extractBackstitch(page([
+      seg(2, 2, 4, 2, THREAD),            // corner to corner
+      seg(5, 3, 6.5, 3, THREAD),          // to the middle of a side
+      seg(8.5, 8.5, 10, 10, THREAD),      // from a cell's centre
+    ]), grid);
+    expect(ends(lines)).toEqual([[2, 2, 4, 2], [5, 3, 6.5, 3], [8.5, 8.5, 10, 10]]);
+  });
+
+  it('takes out a shift between the measured grid and the line work before snapping', () => {
+    // Every end a third of a cell below its corner, as on DMC's charts: the
+    // lines belong on the corners, not at half points or a row lower.
+    const shifted = (c1, r1, c2, r2) => seg(c1, r1 + 0.33, c2, r2 + 0.33, THREAD);
+    const lines = imp.extractBackstitch(page([
+      shifted(2, 2, 4, 2), shifted(4, 2, 4, 5), shifted(4, 5, 7, 5), shifted(7, 5, 9, 7),
+    ]), grid);
+    expect(ends(lines)).toEqual([[2, 2, 4, 2], [4, 2, 4, 5], [4, 5, 7, 5], [7, 5, 9, 7]]);
+  });
+
+  it('takes a shift of 0.7 as one of -0.3, as rounding to the nearest corner did', () => {
+    const shifted = (c1, r1, c2, r2) => seg(c1 + 0.7, r1, c2 + 0.7, r2, THREAD);
+    const lines = imp.extractBackstitch(page([
+      shifted(2, 2, 4, 2), shifted(4, 2, 4, 5), shifted(4, 5, 7, 5), shifted(7, 5, 9, 7),
+    ]), grid);
+    expect(ends(lines)).toEqual([[3, 2, 5, 2], [5, 2, 5, 5], [5, 5, 8, 5], [8, 5, 10, 7]]);
+  });
+});
+
+describe('stitchedBounds — half-cell backstitch', () => {
+  it('trims to whole cells around a line that ends halfway across one', () => {
+    const b = imp.stitchedBounds([], 20, 20, [{ x1: 3.5, y1: 4, x2: 6, y2: 7.5 }]);
+    expect(b).toEqual({ offsetCol: 3, offsetRow: 4, width: 3, height: 4 });
+  });
+});

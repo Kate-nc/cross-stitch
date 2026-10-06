@@ -3225,6 +3225,7 @@ class PatternKeeperImporter {
 
     const out = [];
     const seen = new Set();
+    const kept = [];
     for (const s of segments) {
       const a = s.points[0], b = s.points[1];
       const lenCells = lenOf(s);
@@ -3248,11 +3249,49 @@ class PatternKeeperImporter {
       const heavierPen = (s.lineWidth || 1) > inkWidth * 1.4;
       if (!colouredDifferently && !heavierPen) continue;
 
-      // Snap to the lattice: 0 is the grid's leading edge, 1 the first line in.
-      const lx1 = Math.round((a.x - x0) / grid.cellWidth);
-      const ly1 = Math.round((a.y - y0) / grid.cellHeight);
-      const lx2 = Math.round((b.x - x0) / grid.cellWidth);
-      const ly2 = Math.round((b.y - y0) / grid.cellHeight);
+      // In lattice units: 0 is the grid's leading edge, 1 the first line in.
+      kept.push({ s, ax: (a.x - x0) / grid.cellWidth, ay: (a.y - y0) / grid.cellHeight,
+                     bx: (b.x - x0) / grid.cellWidth, by: (b.y - y0) / grid.cellHeight });
+    }
+
+    // How far the backstitch sits off the measured lattice, along each axis.
+    // Backstitch runs corner to corner, so its ends gather at one fraction of
+    // a cell; where that is not zero, the grid as measured is shifted against
+    // the line work (DMC's charts: a third of a cell on one axis), and the
+    // shift comes out before snapping.
+    const offsetOf = (vals) => {
+      if (vals.length < 6) return 0;
+      const bins = new Array(20).fill(0);
+      for (const v of vals) bins[Math.floor((((v % 1) + 1) % 1) * 20) % 20]++;
+      let top = 0;
+      for (let i = 1; i < 20; i++) if (bins[i] > bins[top]) top = i;
+      const f = (top + 0.5) / 20;
+      // Near a corner, or at a half point (which may be real half-cell
+      // stitching rather than a shift): leave alone.
+      if (f < 0.1 || f > 0.9 || Math.abs(f - 0.5) < 0.1) return 0;
+      // The mode's own members give a finer estimate than the bin. A shift of
+      // 0.7 is one of -0.3: the smaller is taken, as rounding to the nearest
+      // corner always did.
+      const near = vals.map(v => ((v % 1) + 1) % 1).filter(v => Math.abs(v - f) <= 0.06);
+      const mean = near.reduce((t, v) => t + v, 0) / near.length;
+      return mean > 0.5 ? mean - 1 : mean;
+    };
+    const offX = offsetOf(kept.flatMap(k => [k.ax, k.bx]));
+    const offY = offsetOf(kept.flatMap(k => [k.ay, k.by]));
+
+    // Snap to a cell's corners, or to a half point — backstitch can run to
+    // the middle of a cell's side or its centre, and rounding those to a
+    // corner moved the line half a stitch. The app draws and stores half-cell
+    // positions (OXS files carry them too). Only an end clearly at a half
+    // point stays there.
+    const snap = (v) => {
+      const f = v - Math.floor(v);
+      return Math.abs(f - 0.5) <= 0.15 ? Math.floor(v) + 0.5 : Math.round(v);
+    };
+    for (const k of kept) {
+      const s = k.s;
+      const lx1 = snap(k.ax - offX), ly1 = snap(k.ay - offY);
+      const lx2 = snap(k.bx - offX), ly2 = snap(k.by - offY);
       if (lx1 === lx2 && ly1 === ly2) continue;        // collapsed to a point
       if (lx1 < 0 || ly1 < 0 || lx2 < 0 || ly2 < 0) continue;
       if (lx1 > grid.columns || lx2 > grid.columns) continue;
@@ -3305,8 +3344,9 @@ class PatternKeeperImporter {
       const lx0 = Math.min(ln.x1, ln.x2), lx1 = Math.max(ln.x1, ln.x2);
       const ly0 = Math.min(ln.y1, ln.y2), ly1 = Math.max(ln.y1, ln.y2);
       if (lx0 < 0 || ly0 < 0 || lx1 > gridWidth || ly1 > gridHeight) continue;
-      const a = Math.min(lx0, gridWidth - 1), b = Math.max(a, lx1 - 1);
-      const c = Math.min(ly0, gridHeight - 1), d = Math.max(c, ly1 - 1);
+      // Whole cells: a line can end halfway across one.
+      const a = Math.min(Math.floor(lx0), gridWidth - 1), b = Math.max(a, Math.ceil(lx1) - 1);
+      const c = Math.min(Math.floor(ly0), gridHeight - 1), d = Math.max(c, Math.ceil(ly1) - 1);
       if (a < c0) c0 = a; if (b > c1) c1 = b;
       if (c < r0) r0 = c; if (d > r1) r1 = d;
     }
