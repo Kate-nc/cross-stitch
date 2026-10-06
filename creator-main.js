@@ -399,6 +399,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const stableHandleOpenInTracker = React.useCallback(function()  {_ioRef.current.handleOpenInTracker();}, []);
 
   const stableUndoEdit = React.useCallback(function(){_histRef.current.undoEdit();}, []);
+  // Latest edit history, read by toast actions that outlive the render they
+  // were created in (e.g. the colour-replace "Undo" button).
+  const _editHistoryRef = React.useRef(null); _editHistoryRef.current = state.editHistory;
   const stableRedoEdit = React.useCallback(function(){_histRef.current.redoEdit();}, []);
 
   // Request to switch from Edit → Convert tab.  Fires the confirmation
@@ -933,7 +936,24 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       {state.colourReplaceModal&&typeof window.ColourReplaceModal!=='undefined'&&React.createElement(window.ColourReplaceModal,{
         modal:state.colourReplaceModal,
         onClose:()=>state.setColourReplaceModal(null),
-        onApply:function(dstThread){state.applyGlobalColourReplacement(state.colourReplaceModal.srcId,dstThread.id);state.setColourReplaceModal(null);}
+        pat:state.pat, sW:state.sW, sH:state.sH,
+        selectionMask:state.selectionMask,
+        onApply:function(dstThread){
+          var src=state.colourReplaceModal;
+          var res=state.applyGlobalColourReplacement(src.srcId,dstThread.id);
+          state.setColourReplaceModal(null);
+          if(!res||!state.addToast)return;
+          state.addToast("Replaced DMC "+src.srcId+" with DMC "+res.dst.id+" ("+res.count.toLocaleString()+" stitch"+(res.count===1?"":"es")+")",{
+            type:"success", duration:6000,
+            action:{label:"Undo", onClick:function(){
+              // Only undo while this replacement is still the newest edit, so
+              // a late click never reverts something the user did afterwards.
+              var hist=_editHistoryRef.current;
+              if(hist&&hist.length&&hist[hist.length-1]===res.entry) stableUndoEdit();
+              else state.addToast("Can't undo the replacement from here \u2014 the pattern has changed since. Use Undo in the toolbar.",{type:"info",duration:3500});
+            }}
+          });
+        }
       })}
       {state.resizeCanvasOpen&&typeof window.ResizeCanvasModal!=='undefined'&&React.createElement(window.ResizeCanvasModal,{
         sW:state.sW, sH:state.sH,

@@ -44,6 +44,8 @@ const ORDER = [
   'canvasRenderer.js',
   'PreviewCanvas.js',
   'RealisticCanvas.js',
+  // Pure colour-replace helpers used by useMagicWand + ColourReplaceModal.
+  'colourReplace.js',
   'useMagicWand.js',
   'useLassoSelect.js',
   'useMoveSelection.js',

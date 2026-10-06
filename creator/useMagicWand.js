@@ -500,9 +500,9 @@ window.useMagicWand = function useMagicWand(state) {
 
   // ─── Direct global colour replacement (whole pattern or active selection) ────
 
-  function applyGlobalColourReplacement(srcId, dstId) {
+  function applyGlobalColourReplacement(srcId, dstId, opts) {
     var pat = state.pat, cmap = state.cmap;
-    if (!pat || !cmap || !srcId || !dstId || srcId === dstId) return;
+    if (!pat || !cmap || !srcId || !dstId || srcId === dstId) return null;
     var dstEntry = cmap[dstId];
     if (!dstEntry) {
       if (typeof findThreadInCatalog === 'function') dstEntry = findThreadInCatalog('dmc', dstId);
@@ -515,26 +515,22 @@ window.useMagicWand = function useMagicWand(state) {
       // when a future entry point passes a non-DMC id (e.g. 'anchor:403') or if
       // the DMC catalog data is corrupt at runtime.
       if (state.addToast) state.addToast("Replacement colour not found.", {type: "error", duration: 3500});
-      return;
+      return null;
     }
-    var np = pat.slice();
-    var changes = [];
-    for (var i = 0; i < np.length; i++) {
-      if (selectionMask && !selectionMask[i]) continue;
-      var cell = np[i];
-      if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
-      if (cell.id !== srcId) continue;
-      changes.push({ idx: i, old: Object.assign({}, cell) });
-      np[i] = Object.assign({}, dstEntry);
-    }
+    // Callers pass { scope: 'all' } to ignore an active selection; by default
+    // the replacement is limited to the selection (when there is one).
+    var mask = (opts && opts.scope === 'all') ? null : selectionMask;
+    var res = window.ColourReplace.replaceInPattern(pat, srcId, dstEntry, mask);
+    var np = res.pat, changes = res.changes;
     if (!changes.length) {
       // DEFECT-002 (related): selection mask may have hidden every match.
       if (state.addToast) state.addToast("No matching cells to replace.", {type: "info", duration: 2500});
-      return;
+      return null;
     }
+    var entry = { type: 'colourReplace', changes: changes };
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     state.setEditHistory(function(prev) {
-      var n = prev.concat([{ type: 'colourReplace', changes: changes }]);
+      var n = prev.concat([entry]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
       return n;
     });
@@ -542,6 +538,9 @@ window.useMagicWand = function useMagicWand(state) {
     state.setPat(np);
     var r = state.buildPaletteWithScratch(np);
     state.setPal(r.pal); state.setCmap(r.cmap);
+    // Returned so callers can offer a guarded "Undo" (only while this entry
+    // is still the newest edit).
+    return { entry: entry, count: changes.length, dst: dstEntry };
   }
 
   // ─── Phase 3.1: Selection stats ─────────────────────────────────────────────
