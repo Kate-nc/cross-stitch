@@ -151,3 +151,55 @@ describe('ColourReplaceModal', () => {
     expect(container.querySelector('.colour-replace-preview')).toBeNull();
   });
 });
+
+describe('ColourReplaceModal scope', () => {
+  // Pattern: 310, 321, 310, skip  → two 310 stitches (cells 0 and 2).
+  const scopeText = () => container.querySelector('.colour-replace-scope').textContent;
+  const seg = v => container.querySelector('[data-scope="' + v + '"]');
+
+  test('without a selection it says the whole pattern is affected', () => {
+    const props = render();
+    expect(scopeText()).toMatch(/whole pattern \(2 stitches\)/);
+    expect(seg('selection')).toBeNull();
+    click(row('321'));
+    click(applyBtn());
+    expect(props.onApply.mock.calls[0][1]).toEqual({ scope: 'all' });
+  });
+
+  test('with a selection it defaults to the selection and shows both counts', () => {
+    const props = render({ selectionMask: new Uint8Array([1, 0, 0, 0]) });
+    expect(seg('selection').getAttribute('aria-checked')).toBe('true');
+    expect(seg('selection').textContent).toBe('Selection (1)');
+    expect(seg('all').textContent).toBe('Whole pattern (2)');
+    expect(summary()).toMatch(/1 stitch will change/);
+    click(row('321'));
+    click(applyBtn());
+    expect(props.onApply.mock.calls[0][1]).toEqual({ scope: 'selection' });
+  });
+
+  test('switching to whole pattern updates the count and the applied scope', () => {
+    const props = render({ selectionMask: new Uint8Array([1, 0, 0, 0]) });
+    click(seg('all'));
+    expect(seg('all').getAttribute('aria-checked')).toBe('true');
+    expect(summary()).toMatch(/2 stitches will change/);
+    click(row('321'));
+    click(applyBtn());
+    expect(props.onApply.mock.calls[0][1]).toEqual({ scope: 'all' });
+  });
+
+  test('a selection with no matching stitches defaults to whole pattern and explains why', () => {
+    render({ selectionMask: new Uint8Array([0, 1, 0, 0]) });
+    expect(seg('all').getAttribute('aria-checked')).toBe('true');
+    expect(scopeText()).toMatch(/None of your selected stitches use this colour/);
+  });
+
+  test('Apply stays disabled when the chosen scope has nothing to change', () => {
+    const props = render({ selectionMask: new Uint8Array([0, 1, 0, 0]) });
+    click(seg('selection'));
+    click(row('321'));
+    expect(summary()).toMatch(/nothing to change/);
+    expect(applyBtn().disabled).toBe(true);
+    act(() => { row('321').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); });
+    expect(props.onApply).not.toHaveBeenCalled();
+  });
+});

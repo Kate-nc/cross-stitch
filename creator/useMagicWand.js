@@ -517,8 +517,8 @@ window.useMagicWand = function useMagicWand(state) {
       if (state.addToast) state.addToast("Replacement colour not found.", {type: "error", duration: 3500});
       return null;
     }
-    // Callers pass { scope: 'all' } to ignore an active selection; by default
-    // the replacement is limited to the selection (when there is one).
+    // opts.scope: 'all' ignores any selection; 'selection' (or omitted, the
+    // legacy default) limits the change to the active selection if any.
     var mask = (opts && opts.scope === 'all') ? null : selectionMask;
     var res = window.ColourReplace.replaceInPattern(pat, srcId, dstEntry, mask);
     var np = res.pat, changes = res.changes;

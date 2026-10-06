@@ -937,13 +937,13 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         modal:state.colourReplaceModal,
         onClose:()=>state.setColourReplaceModal(null),
         pat:state.pat, sW:state.sW, sH:state.sH,
-        selectionMask:state.selectionMask,
-        onApply:function(dstThread){
+        selectionMask:state.hasSelection?state.selectionMask:null,
+        onApply:function(dstThread,opts){
           var src=state.colourReplaceModal;
-          var res=state.applyGlobalColourReplacement(src.srcId,dstThread.id);
+          var res=state.applyGlobalColourReplacement(src.srcId,dstThread.id,{scope:opts&&opts.scope==='selection'?'selection':'all'});
           state.setColourReplaceModal(null);
           if(!res||!state.addToast)return;
-          state.addToast("Replaced DMC "+src.srcId+" with DMC "+res.dst.id+" ("+res.count.toLocaleString()+" stitch"+(res.count===1?"":"es")+")",{
+          state.addToast("Replaced DMC "+src.srcId+" with DMC "+res.dst.id+" ("+res.count.toLocaleString()+" stitch"+(res.count===1?"":"es")+(opts&&opts.scope==='selection'?" in selection":"")+")",{
             type:"success", duration:6000,
             action:{label:"Undo", onClick:function(){
               // Only undo while this replacement is still the newest edit, so

@@ -3587,8 +3587,8 @@ window.useMagicWand = function useMagicWand(state) {
       if (state.addToast) state.addToast("Replacement colour not found.", {type: "error", duration: 3500});
       return null;
     }
-    // Callers pass { scope: 'all' } to ignore an active selection; by default
-    // the replacement is limited to the selection (when there is one).
+    // opts.scope: 'all' ignores any selection; 'selection' (or omitted, the
+    // legacy default) limits the change to the active selection if any.
     var mask = (opts && opts.scope === 'all') ? null : selectionMask;
     var res = window.ColourReplace.replaceInPattern(pat, srcId, dstEntry, mask);
     var np = res.pat, changes = res.changes;
@@ -16276,8 +16276,9 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
   window.ColourReplaceModal = function ColourReplaceModal(props) {
     var modal = props.modal;     // { srcId, srcName, srcRgb }
     var onClose = props.onClose;
-    var onApply = props.onApply; // called with a DMC thread object {id, name, rgb, ...}
+    var onApply = props.onApply; // called with (thread {id, name, rgb, ...}, { scope: 'selection' | 'all' })
     var pat = props.pat, sW = props.sW, sH = props.sH;
+    // Pass the selection mask only when something is selected.
     var selectionMask = props.selectionMask || null;
 
     var h = React.createElement;
@@ -16300,11 +16301,21 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
       if (!window.ColourReplace) return null;
       return window.ColourReplace.countMatches(pat, srcId, selectionMask);
     }, [pat, srcId, selectionMask]);
-    var affected = counts ? (selectionMask ? counts.inSelection : counts.total) : null;
+
+    // Scope: with an active selection, default to "selection" (the previous
+    // behaviour) unless none of the selected stitches use this colour, in
+    // which case the whole pattern is the only useful choice.
+    var hasSel = !!selectionMask;
+    var _scope = React.useState(function() {
+      return hasSel && counts && counts.inSelection > 0 ? 'selection' : 'all';
+    });
+    var scope = hasSel ? _scope[0] : 'all', setScope = _scope[1];
+    var previewMask = scope === 'selection' ? selectionMask : null;
+    var affected = counts ? (scope === 'selection' ? counts.inSelection : counts.total) : null;
 
     function apply(t) {
-      if (!t || t.id === srcId) return;
-      onApply(t);
+      if (!t || t.id === srcId || affected === 0) return;
+      onApply(t, { scope: scope });
     }
 
     function handleKey(e) {
@@ -16336,8 +16347,43 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
 
     var srcLabel = 'DMC ' + (srcId || '') +
       (modal && modal.srcName && modal.srcName !== srcId ? ' · ' + modal.srcName : '');
+    var plural = function(n) { return n.toLocaleString() + ' stitch' + (n === 1 ? '' : 'es'); };
     var countText = affected == null ? null
-      : affected.toLocaleString() + ' stitch' + (affected === 1 ? '' : 'es') + ' will change';
+      : (affected === 0 ? 'nothing to change' : plural(affected) + ' will change');
+
+    // ── Scope line: what the replacement will touch ──
+    var scopeRow = null;
+    if (counts && hasSel) {
+      var seg = function(value, label) {
+        var on = scope === value;
+        return h('button', {
+          key: value, type: 'button', role: 'radio', 'aria-checked': on ? 'true' : 'false',
+          className: 'lp-seg' + (on ? ' lp-seg--on' : ''),
+          'data-scope': value,
+          onClick: function() { setScope(value); },
+          style: { padding: '4px 10px', whiteSpace: 'nowrap' }
+        }, label);
+      };
+      scopeRow = h('div', { className: 'colour-replace-scope', style: { marginBottom: 12 } },
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
+          h('span', { id: 'colour-replace-scope-label', style: { fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' } }, 'Replace in'),
+          h('div', { className: 'lp-segmented', role: 'radiogroup', 'aria-labelledby': 'colour-replace-scope-label' },
+            seg('selection', 'Selection (' + counts.inSelection.toLocaleString() + ')'),
+            seg('all', 'Whole pattern (' + counts.total.toLocaleString() + ')')
+          )
+        ),
+        counts.inSelection === 0 && h('div', {
+          style: { marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }
+        },
+          h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex' } }, window.Icons && window.Icons.info ? window.Icons.info() : null),
+          'None of your selected stitches use this colour.')
+      );
+    } else if (counts) {
+      scopeRow = h('div', {
+        className: 'colour-replace-scope',
+        style: { marginBottom: 12, fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }
+      }, 'Replaces this colour across the whole pattern (' + plural(counts.total) + ').');
+    }
 
     var hasThumb = !!(pat && sW > 0 && sH > 0);
 
@@ -16360,6 +16406,8 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
           }, 'Replace ' + srcLabel + ' with…')
         ),
 
+        scopeRow,
+
         // ── Preview ──
         hasThumb && h('div', {
           className: 'colour-replace-preview',
@@ -16369,7 +16417,7 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
           h('span', { 'aria-hidden': 'true', style: { color: 'var(--text-tertiary)', display: 'inline-flex', flexShrink: 0 } },
             window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
           h(PatternThumb, {
-            pat: pat, sW: sW, sH: sH, srcId: srcId, dst: picked, mask: selectionMask,
+            pat: pat, sW: sW, sH: sH, srcId: srcId, dst: picked, mask: previewMask,
             dimmed: !picked,
             caption: picked ? 'After' : 'Pick a thread to preview',
             ariaLabel: picked ? 'Pattern after replacing with DMC ' + picked.id : 'Pattern preview, no replacement chosen'
