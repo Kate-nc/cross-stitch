@@ -98,6 +98,8 @@ describe('scannedThreads', () => {
     expect(t.symbol.map(s => s.id)).toEqual(['S1', 'S2', 'S3']);
     expect(t.symbol[0].name).toMatch(/Symbol 1/);
     expect(new Set(t.symbol.map(s => s.rgb.join(','))).size).toBe(3);
+    // Marked, so the review offers each one up for a thread.
+    expect(t.symbol.every(s => s.placeholder === 'scanned')).toBe(true);
   });
 });
 

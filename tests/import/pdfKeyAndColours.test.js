@@ -325,6 +325,31 @@ describe('linkSymbolsToThreads', () => {
     expect(legend.matchReport.unresolvedSymbols).toEqual({ q: 1 });
   });
 
+  it('gives each symbol missing from the key its own placeholder thread', () => {
+    const legend = key([{ threadCode: '310', symbol: 'x' }]);
+    const out = imp.linkSymbolsToThreads([
+      { col: 0, row: 0, symbol: 'q', isEmpty: false },
+      { col: 1, row: 0, symbol: 'r', isEmpty: false },
+      { col: 2, row: 0, symbol: 'q', isEmpty: false },
+    ], legend);
+    expect(out.map(c => c.thread.id)).toEqual(['U1', 'U2', 'U1']);
+    expect(out[0].thread).toEqual(expect.objectContaining({ placeholder: 'not-in-key', name: 'Symbol q (not in key)' }));
+    expect(out[0].thread.rgb).not.toEqual(out[1].thread.rgb);
+  });
+
+  it('lists the placeholders in the import report', () => {
+    const legend = key([{ threadCode: '310', symbol: 'x' }]);
+    const linked = imp.linkSymbolsToThreads([
+      { col: 0, row: 0, symbol: 'q', isEmpty: false },
+      { col: 1, row: 0, symbol: 'q', isEmpty: false },
+      { col: 2, row: 0, symbol: 'x', isEmpty: false },
+    ], legend);
+    const p = imp.convertToPattern({ totalColumns: 3, totalRows: 1, pages: [] }, linked, legend, [], {});
+    expect(p.importReport.placeholders).toEqual([
+      { id: 'U1', name: 'Symbol q (not in key)', symbol: 'q', reason: 'not-in-key', count: 2 },
+    ]);
+  });
+
   it('leaves empty cells empty', () => {
     const out = imp.linkSymbolsToThreads([{ col: 0, row: 0, isEmpty: true }], key([]));
     expect(out[0].thread).toBeNull();

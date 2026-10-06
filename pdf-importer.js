@@ -1634,7 +1634,7 @@ class PatternKeeperImporter {
       const hue = (i * 137.508) % 360;
       const rgb = this.hslToRgb(hue / 360, 0.55, 0.5);
       return { id: 'S' + (i + 1), rgb, lab: (typeof rgbToLab === 'function') ? rgbToLab(rgb[0], rgb[1], rgb[2]) : [50, 0, 0],
-               name: 'Symbol ' + (i + 1) + ' (unassigned)', symbol: String(i + 1) };
+               name: 'Symbol ' + (i + 1) + ' (unassigned)', symbol: String(i + 1), placeholder: 'scanned' };
     });
     return { colour, symbol };
   }
@@ -2681,6 +2681,19 @@ class PatternKeeperImporter {
         return t;
      };
 
+     const placeholders = new Map();
+     const placeholderFor = (sym) => {
+        if (!placeholders.has(sym)) {
+           const i = placeholders.size;
+           const rgb = this.hslToRgb(((i * 137.508) % 360) / 360, 0.55, 0.5);
+           placeholders.set(sym, {
+              id: 'U' + (i + 1), rgb, lab: toLab(rgb), placeholder: 'not-in-key',
+              name: (sym === '(colour)' ? 'Unmatched colour' : 'Symbol ' + sym) + ' (not in key)',
+           });
+        }
+        return placeholders.get(sym);
+     };
+
      // Swatch index. A colour shared by two different codes is ambiguous and
      // is left out rather than resolved arbitrarily.
      const bySwatch = new Map();
@@ -2833,11 +2846,14 @@ class PatternKeeperImporter {
            }
         }
 
-        // 5. Unresolved: keep the stitch visible, but count it.
+        // 5. Unresolved: keep the stitch visible, but count it. Each symbol
+        //    the key does not list becomes its own placeholder thread, so the
+        //    stitcher can assign it in the review; one shared black "Unknown"
+        //    merged them past telling apart.
         if (!thread) {
-           thread = { id: "310", rgb: [0,0,0], lab: [0,0,0], name: "Unknown" };
-           report.unresolved++;
            const s = cell.symbol || '(colour)';
+           thread = placeholderFor(s);
+           report.unresolved++;
            report.unresolvedSymbols[s] = (report.unresolvedSymbols[s] || 0) + 1;
         }
 
@@ -3104,6 +3120,7 @@ class PatternKeeperImporter {
      // with the cell itself left blank: the app fills any quarter it is not
      // given from the full stitch beneath.
      const partialStitches = [];
+     const placeholders = new Map();
 
      linked.forEach(cell => {
         const col = cell.col - trim.offsetCol;
@@ -3134,10 +3151,16 @@ class PatternKeeperImporter {
            paletteMap.add(cell.thread.id);
            const tk = String(cell.thread.id).toLowerCase();
            perThread.set(tk, (perThread.get(tk) || 0) + 1);
+           if (cell.thread.placeholder) {
+              const ph = placeholders.get(cell.thread.id) ||
+                 { id: cell.thread.id, name: cell.thread.name, symbol: cell.symbol || '', reason: cell.thread.placeholder, count: 0 };
+              ph.count++;
+              placeholders.set(cell.thread.id, ph);
+           }
         }
      });
 
-     return {
+     const project = {
         v: 7, // Not 8, because 8 expects compressed array format (['310', 's']) in Tracker
         w: width,
         h: height,
@@ -3160,6 +3183,10 @@ class PatternKeeperImporter {
                            imported: perThread.get(String(e.threadCode).toLowerCase()) || 0 })),
           }), stated)
      };
+     // Threads the importer had to invent — a symbol missing from the key, or
+     // a scanned symbol — for the review to offer up for assignment.
+     project.importReport.placeholders = Array.from(placeholders.values());
+     return project;
   }
 
   /**
@@ -3322,7 +3349,7 @@ class PatternKeeperImporter {
      if (m.unresolved) {
         const syms = Object.keys(m.unresolvedSymbols || {}).slice(0, 8).join(' ');
         warnings.push(m.unresolved + ' stitches use a symbol missing from the key (' + syms +
-          ') and were imported as a placeholder colour.');
+          ') and were imported as placeholders, one per symbol, to be given a thread.');
      }
      // Matching by similarity is only a risk when the key has colours close
      // enough to mistake for one another — choosing among PAT1968_2's seven
