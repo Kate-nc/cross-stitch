@@ -15,7 +15,7 @@
   // user can verify (in the browser console) that they're running the
   // current bundle and not a stale service-worker copy. If you don't see
   // this log on page load, the SW is serving an old cache.
-  var BUILD = 'wireApp v5 (2026-10-05 — PDF page layout review)';
+  var BUILD = 'wireApp v6 (2026-10-06 — import progress card)';
   try { console.info('[ImportEngine]', BUILD); } catch (_) {}
   // Also expose it for assertion in DevTools: `window.ImportEngine.__build`.
   try {
@@ -91,7 +91,20 @@
       }
       return Promise.reject(new Error(notLoaded));
     }
-    return ENGINE.importPattern(file, opts).then(function (result) {
+    // Say what is happening while the file is read: a large PDF or a scan
+    // takes long enough to look stuck otherwise.
+    var busy = typeof ENGINE.showImportProgress === 'function'
+      ? ENGINE.showImportProgress({ fileName: file && file.name }) : null;
+    var callerProgress = opts.onProgress;
+    var runOpts = Object.assign({}, opts, {
+      onProgress: function (m) {
+        if (busy) busy.update(m);
+        if (typeof callerProgress === 'function') { try { callerProgress(m); } catch (_) {} }
+      },
+    });
+    var done = function () { if (busy) { busy.close(); busy = null; } };
+    return ENGINE.importPattern(file, runOpts).then(function (result) {
+      done();
       if (!result.ok) {
         var msg = (result.error && result.error.message) || 'Import failed.';
         console.error('[import] pipeline returned not-ok:', result);
@@ -123,6 +136,7 @@
         return out;
       });
     }).catch(function (err) {
+      done();
       // Final safety net: anything thrown by importPattern, openReview, or
       // saveAndNavigate that wasn't already handled lands here.
       console.error('[import] unhandled error in importAndReview:', err);

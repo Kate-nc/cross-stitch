@@ -882,6 +882,49 @@
 
   // ── Imperative API ────────────────────────────────────────────────────
 
+  /* The card shown while a file is being read, before the review opens: what
+   * the importer is doing, and how far through the pages it is. A scanned
+   * chart of a dozen pages takes half a minute, and nothing on screen used to
+   * say anything was happening.
+   *
+   * Returns { update(message), close() }; a message is the engine's progress
+   * message, { stage, label?, page?, total? }. */
+  function showImportProgress(opts) {
+    opts = opts || {};
+    if (typeof document === 'undefined') return { update: function () {}, close: function () {} };
+    var host = document.createElement('div');
+    host.className = 'import-busy';
+    host.setAttribute('role', 'status');
+    host.setAttribute('aria-live', 'polite');
+    var title = document.createElement('div');
+    title.className = 'import-busy-title';
+    title.textContent = opts.fileName ? 'Importing ' + opts.fileName : 'Importing pattern';
+    var label = document.createElement('div');
+    label.className = 'import-busy-label';
+    label.textContent = 'Starting…';
+    var track = document.createElement('div');
+    track.className = 'import-busy-track';
+    var bar = document.createElement('div');
+    bar.className = 'import-busy-bar indeterminate';
+    track.appendChild(bar);
+    host.appendChild(title); host.appendChild(label); host.appendChild(track);
+    document.body.appendChild(host);
+    return {
+      update: function (m) {
+        if (!m) return;
+        if (m.label) label.textContent = m.label;
+        if (m.total > 0 && m.page > 0) {
+          bar.classList.remove('indeterminate');
+          bar.style.width = Math.round(100 * Math.min(1, m.page / m.total)) + '%';
+        } else {
+          bar.classList.add('indeterminate');
+          bar.style.width = '';
+        }
+      },
+      close: function () { if (host.parentNode) host.parentNode.removeChild(host); },
+    };
+  }
+
   function openReview(opts) {
     try {
       sessionStorage.setItem('__import_trace_openReview', JSON.stringify({ at: Date.now(), patternLen: opts && opts.project && opts.project.pattern && opts.project.pattern.length }));
@@ -919,6 +962,7 @@
 
   var api = {
     openReview: openReview,
+    showImportProgress: showImportProgress,
     ImportReviewModal: ImportReviewModal,
     ImportPreviewPane: ImportPreviewPane,
     ImportPaletteList: ImportPaletteList,

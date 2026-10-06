@@ -2651,7 +2651,8 @@
         if (typeof Ctor !== 'function') {
           throw new Error('PatternKeeperImporter is not loaded.');
         }
-        var importer = new Ctor();
+        // Page-by-page progress, for a large chart or a scan.
+        var importer = new Ctor({ onProgress: ctx && ctx.reportProgress });
         // Prefer the original File when present; fall back to bytes so the
         // strategy still works for synthetic probes.
         var input = (probe && probe.originalFile)
@@ -3909,6 +3910,49 @@
 
   // ── Imperative API ────────────────────────────────────────────────────
 
+  /* The card shown while a file is being read, before the review opens: what
+   * the importer is doing, and how far through the pages it is. A scanned
+   * chart of a dozen pages takes half a minute, and nothing on screen used to
+   * say anything was happening.
+   *
+   * Returns { update(message), close() }; a message is the engine's progress
+   * message, { stage, label?, page?, total? }. */
+  function showImportProgress(opts) {
+    opts = opts || {};
+    if (typeof document === 'undefined') return { update: function () {}, close: function () {} };
+    var host = document.createElement('div');
+    host.className = 'import-busy';
+    host.setAttribute('role', 'status');
+    host.setAttribute('aria-live', 'polite');
+    var title = document.createElement('div');
+    title.className = 'import-busy-title';
+    title.textContent = opts.fileName ? 'Importing ' + opts.fileName : 'Importing pattern';
+    var label = document.createElement('div');
+    label.className = 'import-busy-label';
+    label.textContent = 'Starting…';
+    var track = document.createElement('div');
+    track.className = 'import-busy-track';
+    var bar = document.createElement('div');
+    bar.className = 'import-busy-bar indeterminate';
+    track.appendChild(bar);
+    host.appendChild(title); host.appendChild(label); host.appendChild(track);
+    document.body.appendChild(host);
+    return {
+      update: function (m) {
+        if (!m) return;
+        if (m.label) label.textContent = m.label;
+        if (m.total > 0 && m.page > 0) {
+          bar.classList.remove('indeterminate');
+          bar.style.width = Math.round(100 * Math.min(1, m.page / m.total)) + '%';
+        } else {
+          bar.classList.add('indeterminate');
+          bar.style.width = '';
+        }
+      },
+      close: function () { if (host.parentNode) host.parentNode.removeChild(host); },
+    };
+  }
+
   function openReview(opts) {
     try {
       sessionStorage.setItem('__import_trace_openReview', JSON.stringify({ at: Date.now(), patternLen: opts && opts.project && opts.project.pattern && opts.project.pattern.length }));
@@ -3946,6 +3990,7 @@
 
   var api = {
     openReview: openReview,
+    showImportProgress: showImportProgress,
     ImportReviewModal: ImportReviewModal,
     ImportPreviewPane: ImportPreviewPane,
     ImportPaletteList: ImportPaletteList,
@@ -3980,7 +4025,7 @@
   // user can verify (in the browser console) that they're running the
   // current bundle and not a stale service-worker copy. If you don't see
   // this log on page load, the SW is serving an old cache.
-  var BUILD = 'wireApp v5 (2026-10-05 — PDF page layout review)';
+  var BUILD = 'wireApp v6 (2026-10-06 — import progress card)';
   try { console.info('[ImportEngine]', BUILD); } catch (_) {}
   // Also expose it for assertion in DevTools: `window.ImportEngine.__build`.
   try {
@@ -4056,7 +4101,20 @@
       }
       return Promise.reject(new Error(notLoaded));
     }
-    return ENGINE.importPattern(file, opts).then(function (result) {
+    // Say what is happening while the file is read: a large PDF or a scan
+    // takes long enough to look stuck otherwise.
+    var busy = typeof ENGINE.showImportProgress === 'function'
+      ? ENGINE.showImportProgress({ fileName: file && file.name }) : null;
+    var callerProgress = opts.onProgress;
+    var runOpts = Object.assign({}, opts, {
+      onProgress: function (m) {
+        if (busy) busy.update(m);
+        if (typeof callerProgress === 'function') { try { callerProgress(m); } catch (_) {} }
+      },
+    });
+    var done = function () { if (busy) { busy.close(); busy = null; } };
+    return ENGINE.importPattern(file, runOpts).then(function (result) {
+      done();
       if (!result.ok) {
         var msg = (result.error && result.error.message) || 'Import failed.';
         console.error('[import] pipeline returned not-ok:', result);
@@ -4088,6 +4146,7 @@
         return out;
       });
     }).catch(function (err) {
+      done();
       // Final safety net: anything thrown by importPattern, openReview, or
       // saveAndNavigate that wasn't already handled lands here.
       console.error('[import] unhandled error in importAndReview:', err);

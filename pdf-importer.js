@@ -91,6 +91,17 @@ class PatternKeeperImporter {
   }
 
   /**
+   * Say how far the import has got, through options.onProgress, as the import
+   * engine's progress messages: { stage, label, page?, total? }. A large chart
+   * or a scan takes long enough that the stitcher needs to see it moving.
+   */
+  progress(label, page, total) {
+    const cb = this.options.onProgress;
+    if (typeof cb !== 'function') return;
+    try { cb({ stage: 'extract', label, page, total }); } catch (_) {}
+  }
+
+  /**
    * Import a PDF chart.
    *
    * The finished project also carries, as a non-enumerable `_layoutSession`,
@@ -133,7 +144,9 @@ class PatternKeeperImporter {
     // The cost is ~10–20 ms total — negligible vs the work being done.
     const yieldToBrowser = () => new Promise(r => setTimeout(r, 0));
 
+    this.progress('Opening the PDF');
     const pdfData = await this.pdfLoader.load(file);
+    this.progress('Reading ' + pdfData.numPages + (pdfData.numPages === 1 ? ' page' : ' pages'));
     const pages = await this.extractAllPages(pdfData);
     await yieldToBrowser();
 
@@ -154,6 +167,7 @@ class PatternKeeperImporter {
     // The key is read before the chart so cell reading can recognise the key's
     // own swatch colours — BLANC's [252,252,248] is otherwise indistinguishable
     // from bare paper.
+    this.progress('Reading the colour key');
     const legend = this.parseLegend(classified.legendPages, classified.chartPages);
     await yieldToBrowser();
 
@@ -174,6 +188,7 @@ class PatternKeeperImporter {
     const tagged = [];
     const sessionPages = [];
     for (const e of entries) {
+      this.progress('Reading chart page ' + (sessionPages.length + 1) + ' of ' + entries.length, sessionPages.length + 1, entries.length);
       const local = Object.assign({}, e.pInfo, { globalOffsetCol: 0, globalOffsetRow: 0 });
       const grid = this.samplingGrid(local);
       if (!grid || !(grid.columns > 0) || !(grid.rows > 0)) continue;
@@ -1578,19 +1593,28 @@ class PatternKeeperImporter {
 
     // Read each page, keeping only the largest one's pixels — the others are
     // rendered again if a symbol's picture has to come from them.
+    const reader = await this.rasterReader(RC);
     const read = [];
     let keptPixels = null;
-    for (const s of scanned) {
-      if (!s.page._pdfPage) continue;
-      const scale = scaleFor(s.image);
-      const pixels = await this.renderPagePixels(s.page._pdfPage, scale);
-      const cells = RC.readCells(pixels);
-      if (!keptPixels && cells) keptPixels = { pageIndex: s.page.pageIndex, pixels };
-      read.push({ s, scale, cells });
-      await yieldToBrowser();
+    try {
+      for (let k = 0; k < scanned.length; k++) {
+        const s = scanned[k];
+        if (!s.page._pdfPage) continue;
+        this.progress('Reading scanned page ' + (k + 1) + ' of ' + scanned.length, k + 1, scanned.length);
+        const scale = scaleFor(s.image);
+        const pixels = await this.renderPagePixels(s.page._pdfPage, scale);
+        const cells = await reader.read(pixels);
+        if (!keptPixels && cells) keptPixels = { pageIndex: s.page.pageIndex, pixels };
+        read.push({ s, scale, cells });
+        await yieldToBrowser();
+      }
+    } catch (err) {
+      reader.close();
+      throw err;
     }
     const ref = read.find(e => e.cells);
     if (!ref) {
+      reader.close();
       throw new Error("This PDF is a scanned image, but no chart grid could be found in it. " +
         "Try a sharper scan, or import the chart as a photo instead.");
     }
@@ -1601,7 +1625,13 @@ class PatternKeeperImporter {
     }).sort((a, b) => a.s.page.pageIndex - b.s.page.pageIndex);
     const notChart = read.filter(e => chart.indexOf(e) < 0).map(e => e.s.page.pageIndex).sort((a, b) => a - b);
 
-    const grouped = RC.groupPages(chart.map(e => e.cells));
+    this.progress('Grouping the stitches by colour and symbol');
+    let grouped;
+    try {
+      grouped = await reader.group(chart.map(e => e.cells.index));
+    } finally {
+      reader.close();
+    }
     const threads = this.scannedThreads(grouped);
     let colourCells = 0, symbolCells = 0;
     const sessionPages = chart.map((e, i) => {
@@ -1670,6 +1700,58 @@ class PatternKeeperImporter {
       build: (pl) => this.buildFromLayout(session, pl),
     };
     return session;
+  }
+
+  /**
+   * Somewhere to read scanned pages: pdf-raster-worker.js, off the main thread,
+   * where Web Workers exist and the worker answers; otherwise right here.
+   * Reading a page takes a second or two and grouping a large scan several, so
+   * the worker keeps the page responsive while they run.
+   *
+   *   read(pixels) -> { index, grid } | null   (null: no chart grid found)
+   *   group(indices) -> the groupPages() result for those pages, in order
+   *   close()
+   */
+  async rasterReader(RC) {
+    const inline = () => {
+      const reads = [];
+      return {
+        read: async (px) => { const r = RC.readCells(px); if (!r) return null; reads.push(r); return { index: reads.length - 1, grid: r.grid }; },
+        group: async (indices) => RC.groupPages(indices.map(i => reads[i])),
+        close: () => {},
+      };
+    };
+    if (this.options.rasterWorker === false || typeof Worker === 'undefined') return inline();
+    let worker;
+    try { worker = new Worker(this.options.rasterWorkerUrl || 'pdf-raster-worker.js'); } catch (_) { return inline(); }
+    let seq = 0;
+    const waiting = new Map();
+    const failAll = (msg) => { for (const w of waiting.values()) w.reject(new Error(msg)); waiting.clear(); };
+    worker.onmessage = (e) => {
+      const m = e.data || {};
+      const w = waiting.get(m.id);
+      if (!w) return;
+      waiting.delete(m.id);
+      if (m.ok) w.resolve(m.result); else w.reject(new Error(m.error || 'The scan reader failed.'));
+    };
+    worker.onerror = (e) => { if (e && e.preventDefault) e.preventDefault(); failAll('The scan reader stopped working.'); };
+    const call = (msg) => new Promise((resolve, reject) => {
+      const id = ++seq;
+      waiting.set(id, { resolve, reject });
+      worker.postMessage(Object.assign({ id }, msg));
+    });
+    // A worker that cannot start — its script missing offline, say — reports
+    // only by not answering, so ask first and fall back if it stays quiet.
+    const alive = await Promise.race([
+      call({ type: 'ping' }).then(() => true, () => false),
+      new Promise(r => setTimeout(() => r(false), 4000)),
+    ]);
+    if (!alive) { worker.terminate(); return inline(); }
+    return {
+      read: (px) => call({ type: 'read', width: px.width, height: px.height, data: px.data }),
+      group: (indices) => call({ type: 'group', indices }),
+      close: () => { failAll('The scan reader was closed.'); worker.terminate(); },
+    };
   }
 
   /**

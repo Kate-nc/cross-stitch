@@ -7049,6 +7049,27 @@ button[aria-disabled="true"] {
 .import-progress-bar { height: 4px; background: var(--accent); border-radius: 2px; transition: width 200ms; }
 .import-progress-label { color: var(--text-secondary); font-size: var(--text-md); }
 
+/* While a file is read, before the review opens (showImportProgress). */
+.import-busy {
+  position: fixed; left: 50%; bottom: var(--s-5); transform: translateX(-50%);
+  z-index: var(--z-toast);
+  width: min(360px, calc(100vw - 32px));
+  display: flex; flex-direction: column; gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line); border-radius: var(--radius-md);
+  background: var(--surface); box-shadow: var(--shadow-md);
+  color: var(--text-primary);
+}
+.import-busy-title { font-weight: 600; font-size: var(--text-md); overflow-wrap: anywhere; }
+.import-busy-label { color: var(--text-secondary); font-size: var(--text-sm); }
+.import-busy-track { position: relative; height: 4px; overflow: hidden; border-radius: 2px; background: var(--line); }
+.import-busy-bar { height: 100%; width: 0; background: var(--accent); border-radius: 2px; transition: width var(--motion, 200ms); }
+.import-busy-bar.indeterminate { width: 35%; animation: import-busy-slide 1.2s ease-in-out infinite; }
+@keyframes import-busy-slide { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+@media (prefers-reduced-motion: reduce) {
+  .import-busy-bar.indeterminate { animation: none; width: 100%; opacity: 0.5; }
+}
+
 /* Mobile: collapse the side rail under the body so neither pane gets
    squashed below 720px wide. */
 @media (max-width: 720px) {

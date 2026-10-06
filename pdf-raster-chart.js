@@ -703,5 +703,6 @@
   };
 
   if (typeof window !== 'undefined') window.PdfRasterChart = api;
+  else if (typeof self !== 'undefined') self.PdfRasterChart = api;    // in pdf-raster-worker.js
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

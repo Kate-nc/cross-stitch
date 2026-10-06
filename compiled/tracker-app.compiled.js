@@ -5998,7 +5998,12 @@ function TrackerApp({
       const pdfReady = typeof window.loadPdfStack === 'function' ? window.loadPdfStack() : Promise.resolve();
       pdfReady.then(() => {
         setLoadError("Parsing PDF chart\u2026 This may take a moment.");
-        const importer = new PatternKeeperImporter();
+        const importer = new PatternKeeperImporter({
+          // A large chart or a scan takes a while: say which page it is on.
+          onProgress: m => {
+            if (m && m.label) setLoadError(m.label + "…");
+          }
+        });
         return importer.import(f);
       }).then(project => {
         // A chart printed across several pages goes through the review dialog
