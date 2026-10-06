@@ -572,11 +572,12 @@
    * and the pages can be put side by side.
    *
    * Returns null when no page has a grid, else
-   *   { ground, colours: [{rgb,count}], symbols: [{count, sample}],
+   *   { ground, colours: [{rgb,count}], symbols: [{count, sample, mean}],
    *     pages: [{ index, grid, cells: [{col,row,kind,group}] } | null] }
    * where kind is 'colour', 'symbol' or 'empty', group indexes colours or
    * symbols accordingly, and a symbol's sample — { page, col, row, box } — is
-   * the cell that best shows it. A page with no grid is null. */
+   * the cell that best shows it, and its mean the group's average glyph. A
+   * page with no grid is null. */
   function readPages(imgs, opts) {
     return groupPages(imgs.map(function (img) { return img ? readCells(img, opts) : null; }), opts);
   }
@@ -652,7 +653,7 @@
     return {
       ground: ground.map(Math.round),
       colours: colourGroups.groups.map(function (g) { return { rgb: Array.from(g.mean).map(Math.round), count: g.members.length }; }),
-      symbols: symbolGroups.groups.map(function (g, gi) { return { count: g.members.length, sample: samples[gi] }; }),
+      symbols: symbolGroups.groups.map(function (g, gi) { return { count: g.members.length, sample: samples[gi], mean: g.mean }; }),
       pages: read.map(function (p, pi) {
         if (!p) return null;
         return {
@@ -673,7 +674,7 @@
    *
    * Returns null when no grid can be found, else
    *   { grid, ground, cells: [{col,row,kind,group}], colours: [{rgb,count}],
-   *     symbols: [{count, sample}] }
+   *     symbols: [{count, sample, mean}] }
    * as readPages() does for several. */
   function read(img, opts) {
     var res = readPages([img], opts);

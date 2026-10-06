@@ -237,3 +237,19 @@ describe('importing a chart scanned across several pages', () => {
     expect(JSON.stringify(p)).not.toMatch(/glyphSamples/);
   });
 });
+
+describe('scannedLookAlikes', () => {
+  it('pairs groups whose average glyphs are near, closest first, at most three each', () => {
+    const imp = newImporter();
+    const RC = require(path.join(ROOT, 'pdf-raster-chart.js'));
+    const glyph = (v) => new Float64Array(144).fill(v);           // distance = difference in v
+    const grouped = { symbols: [0.5, 0.52, 0.56, 0.95, 0.2].map(v => ({ count: 10, mean: glyph(v) })) };
+    const threads = { symbol: grouped.symbols.map((_, i) => ({ id: 'S' + (i + 1) })) };
+    const pairs = imp.scannedLookAlikes(grouped, threads, RC);
+    expect(pairs[0]).toEqual(expect.objectContaining({ a: 'S1', b: 'S2' }));
+    expect(pairs.map(p => p.a + p.b)).toEqual(expect.arrayContaining(['S1S3', 'S2S3']));
+    // Far apart: never suggested.
+    expect(pairs.some(p => p.a === 'S4' || p.b === 'S4' || p.a === 'S5' || p.b === 'S5')).toBe(false);
+    for (let i = 1; i < pairs.length; i++) expect(pairs[i].d).toBeGreaterThanOrEqual(pairs[i - 1].d);
+  });
+});

@@ -164,3 +164,55 @@ describe('importSummary — the review header', () => {
     expect(importSummary({ pattern: [] }, 0.87)).toEqual(expect.objectContaining({ label: '87% confidence', level: 'medium' }));
   });
 });
+
+describe('merging look-alike scanned symbols', () => {
+  const { openLookAlikes } = window.ImportEngine;
+  const TABLE = { '310': { id: '310', name: 'Black', rgb: [0, 0, 0], lab: [0, 0, 0] },
+                  '321': { id: '321', name: 'Christmas Red', rgb: [199, 43, 59], lab: [43, 63, 30] } };
+  beforeAll(() => { window.getDmcByIdCI = (id) => TABLE[String(id)] || null; });
+  afterAll(() => { delete window.getDmcByIdCI; });
+
+  const cell = (id, symbol) => ({ type: 'solid', id, name: 'Symbol ' + symbol + ' (unassigned)', rgb: [9, 9, 9], lab: [1, 1, 1], symbol });
+  const project = () => ({
+    w: 3, h: 1,
+    pattern: [cell('S1', '1'), cell('S2', '2'), cell('S3', '3')],
+    importReport: {
+      placeholders: ['S1', 'S2', 'S3'].map((id, i) => ({ id, symbol: String(i + 1), reason: 'scanned', count: 1 })),
+      warnings: ['This chart is a scanned image. 3 different symbols were found and imported as placeholders.'],
+    },
+  });
+
+  it('merges one placeholder into another, symbol and all', () => {
+    const out = mergeEdits(project(), { threads: { S2: 'S1' } });
+    expect(out.pattern[1]).toEqual(expect.objectContaining({ id: 'S1', symbol: '1' }));
+    expect(out.importReport.placeholders.map(p => p.id)).toEqual(['S1', 'S3']);
+  });
+
+  it('gives merged symbols the thread later chosen for either', () => {
+    const out = mergeEdits(project(), { threads: { S2: 'S1', S1: '310' } });
+    expect(out.pattern.slice(0, 2).map(m => m.id)).toEqual(['310', '310']);
+    expect(out.importReport.placeholders.map(p => p.id)).toEqual(['S3']);
+  });
+
+  const pairs = [{ a: 'S1', b: 'S2', d: 0.05 }, { a: 'S1', b: 'S3', d: 0.09 }, { a: 'S2', b: 'S3', d: 0.11 }];
+
+  it('asks about every pair at first', () => {
+    expect(openLookAlikes(pairs, {}, {}).map(p => p.key)).toEqual(['S1|S2', 'S1|S3', 'S2|S3']);
+  });
+
+  it('stops asking about a pair once its symbols are one', () => {
+    // S2 merged into S1, then S3 into S1: every pair is now one colour.
+    expect(openLookAlikes(pairs, { S2: 'S1' }, {}).map(p => p.key)).toEqual(['S1|S3', 'S2|S3']);
+    expect(openLookAlikes(pairs, { S2: 'S1', S3: 'S1' }, {})).toEqual([]);
+  });
+
+  it('stops asking about a pair dismissed as different, or both already given threads', () => {
+    expect(openLookAlikes(pairs, {}, { 'S1|S2': true }).map(p => p.key)).toEqual(['S1|S3', 'S2|S3']);
+    expect(openLookAlikes(pairs, { S1: '310', S2: '321' }, {}).map(p => p.key)).toEqual(['S1|S3', 'S2|S3']);
+  });
+
+  it('reports which colours a pair would now join', () => {
+    const p = openLookAlikes(pairs, { S1: '310' }, {})[0];
+    expect([p.rootA, p.rootB]).toEqual(['310', 'S2']);
+  });
+});

@@ -6962,6 +6962,18 @@ button[aria-disabled="true"] {
 }
 .import-family-btn.active { border-color: var(--accent); color: var(--text-primary); background: var(--accent-soft); }
 .import-picker-actions { display: flex; justify-content: flex-end; }
+.import-lookalikes {
+  display: flex; flex-direction: column; gap: var(--s-2);
+  margin-bottom: var(--s-3); padding: var(--s-3);
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface);
+}
+.import-lookalikes h3 { margin: 0; font-size: var(--text-md); }
+.import-lookalikes-intro, .import-lookalikes-more { margin: 0; color: var(--text-secondary); font-size: var(--text-sm); }
+.import-lookalike { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); }
+.import-lookalike-pair { display: inline-flex; gap: var(--s-1); }
+.import-lookalike-pair .import-glyph-sample { width: 2.6em; height: 2.6em; }
+.import-lookalike-names { flex: 1 1 10em; font-size: var(--text-md); }
+.import-lookalike-actions { display: inline-flex; gap: var(--s-2); }
 .import-thread-match { display: inline-flex; align-items: center; gap: var(--s-1); color: var(--text-secondary); font-size: var(--text-sm); }
 .import-thread-error { flex-basis: 100%; color: var(--danger); font-size: var(--text-sm); }
 .import-palette-assigned { margin-top: var(--s-4); border-top: 1px solid var(--line); padding-top: var(--s-3); }

@@ -1619,6 +1619,7 @@ class PatternKeeperImporter {
     });
 
     const glyphSamples = await this.scannedSamples(chart, grouped, threads, keptPixels);
+    const lookAlikes = this.scannedLookAlikes(grouped, threads, RC);
 
     let placement = { pages: {}, manual: false };
     let layoutSource = 'scanned-image', tiling = null, guess = null;
@@ -1665,9 +1666,39 @@ class PatternKeeperImporter {
       layoutWarnings: warnings,
       placement,
       glyphSamples,
+      lookAlikes,
       build: (pl) => this.buildFromLayout(session, pl),
     };
     return session;
+  }
+
+  /**
+   * Pairs of scanned symbol groups that may be one symbol, for the review to
+   * offer: the reader errs towards splitting a symbol rather than mixing two,
+   * so a big scan comes out with more groups than symbols. Each group is paired
+   * with up to three groups whose average glyphs are nearest, closest pairs
+   * first, the larger group first in each pair. On the twelve-page gen1 scan,
+   * 0.12 suggests 155 pairs for its 194 groups; the 99 that are right bring it
+   * to 116, against 96 symbols. The stitcher judges each by eye.
+   */
+  scannedLookAlikes(grouped, threads, RC) {
+    const G = grouped.symbols;
+    const dist = (RC && RC._glyphDist) || null;
+    if (!dist || G.length < 2) return [];
+    const near = G.map(() => []);
+    for (let i = 0; i < G.length; i++) {
+      if (!G[i].mean || !threads.symbol[i]) continue;
+      for (let j = i + 1; j < G.length; j++) {
+        if (!G[j].mean || !threads.symbol[j]) continue;
+        const d = dist(G[i].mean, G[j].mean);
+        if (d > 0.12) continue;
+        near[i].push({ i, j, d }); near[j].push({ i, j, d });
+      }
+    }
+    const keep = new Map();
+    near.forEach(list => list.sort((a, b) => a.d - b.d).slice(0, 3).forEach(p => keep.set(p.i + ',' + p.j, p)));
+    return Array.from(keep.values()).sort((a, b) => a.d - b.d)
+      .map(p => ({ a: threads.symbol[p.i].id, b: threads.symbol[p.j].id, d: Math.round(p.d * 1000) / 1000 }));
   }
 
   /**

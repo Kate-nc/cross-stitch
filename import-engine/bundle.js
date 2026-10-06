@@ -3259,6 +3259,62 @@
     );
   }
 
+  /* Where a colour ends up after the stitcher's choices, following the chain. */
+  function rootOf(id, assignments) {
+    var seen = {};
+    while (assignments && assignments[id] && !seen[id]) { seen[id] = true; id = assignments[id]; }
+    return id;
+  }
+
+  /* The look-alike pairs still worth asking about: not yet one colour, not
+   * dismissed, and not both already given a thread of their own. Each comes
+   * with the two colours it would now join, `a` and `b`. */
+  function openLookAlikes(pairs, assignments, dismissed) {
+    var out = [];
+    (pairs || []).forEach(function (p) {
+      var key = p.a + '|' + p.b;
+      if (dismissed && dismissed[key]) return;
+      var ra = rootOf(p.a, assignments), rb = rootOf(p.b, assignments);
+      if (ra === rb) return;
+      if (dmcThread(ra) && dmcThread(rb)) return;
+      out.push({ key: key, a: p.a, b: p.b, rootA: ra, rootB: rb, d: p.d });
+    });
+    return out;
+  }
+
+  /* Pairs of scanned symbols that may be one symbol, shown side by side, for
+   * the stitcher to merge or set apart. Fewer groups means fewer symbols to
+   * look up in the printed key. */
+  function LookAlikes(props) {
+    var open = openLookAlikes(props.pairs, props.assignments, props.dismissed);
+    if (!open.length) return null;
+    var label = function (id) { return (props.labels && props.labels[id]) || id; };
+    var sample = function (id) {
+      return props.samples && props.samples[id]
+        ? h(GlyphSample, { sample: props.samples[id], label: 'How ' + label(id) + ' looks in the scan' })
+        : null;
+    };
+    var shown = open.slice(0, 5);
+    return h('section', { className: 'import-lookalikes', 'aria-label': 'Symbols that look alike' },
+      h('h3', null, 'These look alike'),
+      h('p', { className: 'import-lookalikes-intro' },
+        'The scan may have split one symbol into two. Merge any that are the same, and there are fewer to look up.'),
+      shown.map(function (p) {
+        return h('div', { key: p.key, className: 'import-lookalike' },
+          h('span', { className: 'import-lookalike-pair' }, sample(p.a), sample(p.b)),
+          h('span', { className: 'import-lookalike-names' }, label(p.a) + ' and ' + label(p.b)),
+          h('span', { className: 'import-lookalike-actions' },
+            h('button', { type: 'button', className: 'g-btn', onClick: function () { props.onSame(p); } },
+              I('check'), h('span', null, 'Same symbol')),
+            h('button', { type: 'button', className: 'g-btn', onClick: function () { props.onDifferent(p); } },
+              I('x'), h('span', null, 'Different')))
+        );
+      }),
+      open.length > shown.length && h('p', { className: 'import-lookalikes-more' },
+        (open.length - shown.length) + ' more ' + (open.length - shown.length === 1 ? 'pair' : 'pairs') + ' to check.')
+    );
+  }
+
   /* The colours of the imported pattern, with a way to set the thread of any
    * of them. Placeholders — symbols the key does not list, or symbols read
    * from a scan — come first, each waiting for a thread. Choosing a thread
@@ -3291,6 +3347,7 @@
     var assigned = Object.keys(props.assignments || {});
     var canChoose = !!props.onAssign && (typeof window.getDmcByIdCI === 'function' || dmcAll().length > 0);
     var _p = React.useState(null); var picking = _p[0], setPicking = _p[1];
+    var _d = React.useState({}); var dismissed = _d[0], setDismissed = _d[1];
     // The chart's own threads, for "same as" — never a placeholder, whose
     // colour is invented.
     var chartColours = ids.filter(function (id) { return !pending[id]; })
@@ -3307,6 +3364,13 @@
         h('span', null, pendingIds.length === 1
           ? '1 symbol has no thread yet. Find it in the printed key, then enter its number or choose its colour.'
           : pendingIds.length + ' symbols have no thread yet. Find each in the printed key, then enter its number or choose its colour. Two symbols given the same thread become one colour.')),
+      canChoose && props.lookAlikes && h(LookAlikes, { pairs: props.lookAlikes, assignments: props.assignments,
+        dismissed: dismissed, samples: props.samples, labels: props.labels,
+        onSame: function (p) {
+          // The one still without a thread joins the other.
+          if (!dmcThread(p.rootB)) props.onAssign(p.rootB, p.rootA); else props.onAssign(p.rootA, p.rootB);
+        },
+        onDifferent: function (p) { var next = Object.assign({}, dismissed); next[p.key] = true; setDismissed(next); } }),
       canChoose && h('datalist', { id: 'import-dmc-codes' },
         dmcAll().map(function (d) { return h('option', { key: d.id, value: d.id }, d.name); })),
       ids.slice(0, 200).map(function (id) {
@@ -3346,7 +3410,7 @@
             props.samples && props.samples[from] && h(GlyphSample, { sample: props.samples[from], label: 'How ' + ((props.labels && props.labels[from]) || from) + ' looks in the scan' }),
             h('span', null, (props.labels && props.labels[from]) || from),
             h('span', { className: 'import-palette-arrow', 'aria-hidden': 'true' }, I('chevronRight')),
-            h('span', { className: 'import-palette-id' }, props.assignments[from]),
+            h('span', { className: 'import-palette-id' }, (props.labels && props.labels[props.assignments[from]]) || props.assignments[from]),
             h('button', { type: 'button', className: 'g-btn', onClick: function () { props.onUnassign(from); } },
               I('undo'), h('span', null, 'Undo'))
           );
@@ -3696,6 +3760,7 @@
           tab === 'preview'  && h(ImportPreviewPane, { project: working, showConfidence: showConfidence }),
           tab === 'palette'  && h(ImportPaletteList, { project: working, assignments: edits.threads || {},
                                                 samples: (props.layoutSession && props.layoutSession.glyphSamples) || null,
+                                                lookAlikes: (props.layoutSession && props.layoutSession.lookAlikes) || null,
                                                 labels: threadLabels, onAssign: assignThread, onUnassign: unassignThread }),
           tab === 'metadata' && h(ImportMetadataForm, { project: working, onEdit: applyEdit }),
           tab === 'compare'  && h(ImportSideBySide, { project: working, originalFileUrl: props.originalFileUrl })
@@ -3784,10 +3849,18 @@
   }
 
   /* Give colours the threads the stitcher chose: `threads` maps a colour's id
-   * to a DMC number. Choices chain — a placeholder set to 310, and 310 then
-   * changed to 3371, ends as 3371. */
+   * to a DMC number, or to another colour in the chart. Choices chain — a
+   * placeholder set to 310, and 310 then changed to 3371, ends as 3371. */
   function assignThreads(project, threads) {
     var memo = {};
+    // A colour can also become another colour already in the chart: two
+    // scanned symbols that are one symbol, merged before either has a thread.
+    var own = {};
+    (project.pattern || []).forEach(function (m) {
+      if (m && m.id && m.id !== '__skip__' && m.id !== '__empty__' && !own[m.id]) {
+        own[m.id] = { id: m.id, name: m.name, rgb: m.rgb, lab: m.lab, symbol: m.symbol };
+      }
+    });
     function target(id) {
       if (id in memo) return memo[id];
       var to = id, seen = {};
@@ -3796,7 +3869,7 @@
         seen[to] = true;
         to = threads[to];
       }
-      var t = to === id ? null : dmcThread(to);
+      var t = to === id ? null : (dmcThread(to) || own[to] || null);
       memo[id] = t;
       return t;
     }
@@ -3804,7 +3877,9 @@
       if (!m || m.id === '__skip__' || m.id === '__empty__') return m;
       var t = target(m.id);
       if (!t) return m;
-      return Object.assign({}, m, { id: t.id, name: t.name, rgb: t.rgb.slice(), lab: t.lab ? t.lab.slice() : m.lab });
+      var out = Object.assign({}, m, { id: t.id, name: t.name, rgb: t.rgb.slice(), lab: t.lab ? t.lab.slice() : m.lab });
+      if (t.symbol !== undefined) out.symbol = t.symbol;
+      return out;
     }
     var next = Object.assign({}, project, { pattern: (project.pattern || []).map(remap) });
     if (project.partialStitches) {
@@ -3880,6 +3955,7 @@
     WarningList: WarningList,
     mergeEdits: mergeEdits,
     importSummary: importSummary,
+    openLookAlikes: openLookAlikes,
   };
   window.ImportEngine = Object.assign(window.ImportEngine || {}, api);
 })();
