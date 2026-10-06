@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const pdfjs = require(path.join(ROOT, 'node_modules/pdfjs-dist/legacy/build/pdf.js'));
+let pdfjs;
 const { createCanvas } = require('canvas');
 const { PDFDocument } = require('pdf-lib');
 
@@ -23,7 +23,11 @@ function loadImporter() {
   eval(raw + '\nthis.PatternKeeperImporter = PatternKeeperImporter;');
   return this.PatternKeeperImporter;
 }
-const PatternKeeperImporter = loadImporter();
+let PatternKeeperImporter;
+beforeAll(async () => {
+  pdfjs = await import(path.join(ROOT, 'node_modules/pdfjs-dist/legacy/build/pdf.mjs'));
+  PatternKeeperImporter = loadImporter();
+});
 const canvasFactory = {
   create: (w, h) => { const c = createCanvas(w, h); return { canvas: c, context: c.getContext('2d') }; },
   reset: (cc, w, h) => { cc.canvas.width = w; cc.canvas.height = h; },
@@ -32,7 +36,7 @@ const canvasFactory = {
 const newImporter = () => {
   const imp = new PatternKeeperImporter({ canvasFactory });
   // The loader points pdf.js at the browser worker; run it in-process here.
-  pdfjs.GlobalWorkerOptions.workerSrc = path.join(ROOT, 'node_modules/pdfjs-dist/legacy/build/pdf.worker.js');
+  pdfjs.GlobalWorkerOptions.workerSrc = path.join(ROOT, 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs');
   return imp;
 };
 
@@ -80,7 +84,8 @@ describe('findPageImages', () => {
 });
 
 describe('scannedChartPages', () => {
-  const imp = newImporter();
+  let imp;
+  beforeEach(() => { imp = newImporter(); });
   it('picks pages that are mostly one picture', () => {
     const pages = [
       { pageIndex: 1, width: 600, height: 800, images: [{ x0: 0, y0: 0, x1: 600, y1: 800 }] },
@@ -92,7 +97,8 @@ describe('scannedChartPages', () => {
 });
 
 describe('scannedThreads', () => {
-  const imp = newImporter();
+  let imp;
+  beforeEach(() => { imp = newImporter(); });
   it('makes a distinct placeholder thread for each symbol', () => {
     const t = imp.scannedThreads({ colours: [], symbols: [{ count: 9 }, { count: 4 }, { count: 2 }] });
     expect(t.symbol.map(s => s.id)).toEqual(['S1', 'S2', 'S3']);

@@ -30,8 +30,7 @@ describe('sw.js precache (UX-12 Phase 7 PR #13)', () => {
   // Bumped to v43 when components.js was split into core + components-stats.js
   // (action plan headline H1 = 2A.1) so home/manager skip the stats half.
   // Bumped to v44 when pdf.worker.min.js (~1 MB) and assets/fontkit.umd.min.js
-  // were dropped from PRECACHE_URLS (action plan headline H2 = 2A.3); both
-  // are runtime-cached on first use so the SW install stays light.
+  // were dropped from PRECACHE_URLS (action plan headline H2 = 2A.3).
   // Bumped to v46 when cross-tab-coord.js was added (INT-7 visibility tier).
   // Bumped to v47 when cross-tab-resolution.js was added (INT-7 Phase B-3).
   // Bumped to v48 when cross-tab-lock.js was added (INT-7 Phase C).
@@ -51,11 +50,12 @@ describe('sw.js precache (UX-12 Phase 7 PR #13)', () => {
     expect(Number(match[1])).toBeGreaterThanOrEqual(55);
   });
 
-  test('PRECACHE_URLS does NOT include heavy lazy vendor blobs', () => {
-    // Guard for action plan H2 (2A.3): keep pdf.worker.min.js and
-    // fontkit.umd.min.js out of the install-time precache. They are still
-    // cached at runtime by the local-asset fetch handler in sw.js.
-    expect(SW).not.toMatch(/['"]\.\/pdf\.worker\.min\.js['"]/);
+  test('PRECACHE_URLS includes the patched PDF.js modules', () => {
+    expect(SW).toMatch(/pdf\.js\/4\.2\.67\/pdf\.min\.mjs/);
+    expect(SW).toMatch(/pdf\.js\/4\.2\.67\/pdf\.worker\.min\.mjs/);
+  });
+
+  test('PRECACHE_URLS does NOT include the heavy local fontkit blob', () => {
     expect(SW).not.toMatch(/['"]\.\/assets\/fontkit\.umd\.min\.js['"]/);
   });
 

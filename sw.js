@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v57';
+var CACHE_NAME = 'cross-stitch-cache-v58';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -76,11 +76,9 @@ var PRECACHE_URLS = [
   './pdf-axis-labels.js',
   './pdf-raster-chart.js',
   './pdf-importer.js',
-  // pdf.worker.min.js (~1 MB) and assets/fontkit.umd.min.js are intentionally
-  // omitted from PRECACHE_URLS. They are only needed when the user opens the
-  // PDF importer or exports a Pattern Keeper PDF; the local-asset fetch
-  // handler below caches them on first use, so they remain available offline
-  // afterwards without bloating the initial SW install.
+  // assets/fontkit.umd.min.js is intentionally omitted from PRECACHE_URLS.
+  // It is only needed when the user exports a Pattern Keeper PDF; the
+  // local-asset fetch handler below caches it on first use.
   './backup-restore.js',
   // help-drawer.js is loaded on demand by lazy-modules.js rather than by a
   // <script> tag. It used to be runtime-cached as a side effect of every page
@@ -96,7 +94,8 @@ var PRECACHE_URLS = [
   'https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs',
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.mjs'
 ];
 
 // Install: pre-cache all assets individually so one failure doesn't block the rest.

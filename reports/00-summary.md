@@ -38,7 +38,7 @@ These 6 issues together explain why pattern creation is broken or severely degra
 
 ### ROOT CAUSE 5 — OffscreenCanvas in PDF Worker (Safari <16.4)
 **Reports**: [05-file-io-blobs-downloads.md](05-file-io-blobs-downloads.md), F-04; [06-fonts-media-codecs.md](06-fonts-media-codecs.md), F-02  
-**File**: [pdf.worker.min.js](../pdf.worker.min.js)  
+**File**: PDF.js CDN worker
 **What happens**: `OffscreenCanvas` and `convertToBlob()` are used in the bundled pdf.js worker. Safari <16.4 does not support `OffscreenCanvas`. PDF export fails entirely. The error propagates from the worker but is not surfaced to the user.  
 **Likely occurrence frequency**: Every PDF export on Safari <16.4 (most users on macOS 12 or iOS 15).
 

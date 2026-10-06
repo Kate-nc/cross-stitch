@@ -57,11 +57,14 @@
       if (typeof window.loadPdfStack === 'function') {
         ready = window.loadPdfStack();
       } else {
-        ready = loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js')
-          .then(function () {
-            if (typeof window.pdfjsLib !== 'undefined') {
-              window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
-            }
+        ready = window.pdfjsLib ? Promise.resolve(window.pdfjsLib) : (window.__pdfjsLoadPromise ||
+          (window.__pdfjsLoadPromise = import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs')
+            .then(function (pdfjs) {
+              window.pdfjsLib = pdfjs;
+              pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.mjs';
+              return pdfjs;
+            })));
+        ready = ready.then(function () {
             return loadScript('pdf-axis-labels.js')
               .then(function () { return loadScript('pdf-raster-chart.js'); })
               .then(function () { return loadScript('pdf-importer.js'); });

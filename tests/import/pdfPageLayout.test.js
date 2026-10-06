@@ -9,7 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..', '..');
-const pdfjs = require(path.join(ROOT, 'node_modules/pdfjs-dist/legacy/build/pdf.js'));
+let pdfjs;
 const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
 const M = require(path.join(ROOT, 'import-engine', 'ui', 'pageLayoutModel.js'));
 
@@ -22,10 +22,14 @@ function loadImporter() {
   eval(raw + '\nthis.PatternKeeperImporter = PatternKeeperImporter;');
   return this.PatternKeeperImporter;
 }
-const PatternKeeperImporter = loadImporter();
+let PatternKeeperImporter;
+beforeAll(async () => {
+  pdfjs = await import(path.join(ROOT, 'node_modules/pdfjs-dist/legacy/build/pdf.mjs'));
+  PatternKeeperImporter = loadImporter();
+});
 const newImporter = () => {
   const imp = new PatternKeeperImporter();
-  pdfjs.GlobalWorkerOptions.workerSrc = path.join(ROOT, 'node_modules/pdfjs-dist/legacy/build/pdf.worker.js');
+  pdfjs.GlobalWorkerOptions.workerSrc = path.join(ROOT, 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs');
   return imp;
 };
 

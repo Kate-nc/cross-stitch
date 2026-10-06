@@ -36,8 +36,7 @@
 class PdfLoader {
   constructor() {
     if (typeof pdfjsLib !== 'undefined') {
-      // Use local bundled worker instead of CDN to avoid CSP/CORS blocks during complex off-main-thread parsing
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.mjs';
     }
   }
 
