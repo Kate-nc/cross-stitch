@@ -24,7 +24,7 @@ global.DMC = [
 
 // Minimal Overlay stub: render children inside a dialog element.
 function Overlay(props) {
-  return React.createElement('div', { role: 'dialog', onKeyDown: props.onKeyDown }, props.children);
+  return React.createElement('div', Object.assign({ role: 'dialog', onKeyDown: props.onKeyDown }, props.panelProps || {}), props.children);
 }
 Overlay.CloseButton = function(props) {
   return React.createElement('button', { type: 'button', 'aria-label': 'Close', onClick: props.onClose });
@@ -157,6 +157,15 @@ describe('ColourReplaceModal', () => {
   test('renders before/after preview thumbnails', () => {
     render();
     expect(container.querySelectorAll('.colour-replace-preview canvas').length).toBe(2);
+  });
+
+  test('opts out of the legacy dark-mode button override', () => {
+    // html.pref-dark button:not([data-pref-modal] *) would otherwise hide the
+    // picked row, the active scope segment and the Apply button colours.
+    render();
+    expect(container.querySelector('[role="dialog"]').hasAttribute('data-pref-modal')).toBe(true);
+    const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
+    expect(css).toMatch(/html\.pref-dark button:not\(\.btn-primary\):not\(\[data-pref-modal\] \*\)/);
   });
 
   test('omits the preview when there is no pattern', () => {

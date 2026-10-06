@@ -55,7 +55,9 @@
         ref: ref, width: sW, height: sH,
         role: 'img', 'aria-label': props.ariaLabel,
         style: {
-          width: Math.max(1, Math.round(sW * scale)), height: Math.max(1, Math.round(sH * scale)),
+          // height:auto keeps the aspect ratio (from the width/height
+          // attributes) when maxWidth shrinks a wide pattern on narrow screens.
+          width: Math.max(1, Math.round(sW * scale)), maxWidth: '100%', height: 'auto',
           imageRendering: 'pixelated', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
           opacity: props.dimmed ? 0.45 : 1, transition: 'opacity var(--motion)'
         }
@@ -267,6 +269,10 @@
       variant: 'dialog',
       labelledBy: 'colour-replace-title',
       onKeyDown: handleKey,
+      // Opt out of the legacy html.pref-dark button override in styles.css:
+      // every control here is themed with tokens, and the override would
+      // hide the picked row, the active scope segment and the Apply button.
+      panelProps: { 'data-pref-modal': true },
       // position:relative anchors Overlay.CloseButton (absolutely positioned)
       // to the dialog instead of the page corner.
       style: { position: 'relative', maxWidth: 460, width: '100%', display: 'flex', flexDirection: 'column', maxHeight: '85vh' }

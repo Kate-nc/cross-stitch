@@ -948,8 +948,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             action:{label:"Undo", onClick:function(){
               // Only undo while this replacement is still the newest edit, so
               // a late click never reverts something the user did afterwards.
-              var hist=_editHistoryRef.current;
-              if(hist&&hist.length&&hist[hist.length-1]===res.entry) stableUndoEdit();
+              var hist=_editHistoryRef.current||[];
+              if(hist.length&&hist[hist.length-1]===res.entry) stableUndoEdit();
+              else if(hist.indexOf(res.entry)===-1) state.addToast("That replacement has already been undone.",{type:"info",duration:2500});
               else state.addToast("Can't undo the replacement from here \u2014 the pattern has changed since. Use Undo in the toolbar.",{type:"info",duration:3500});
             }}
           });
