@@ -69,6 +69,7 @@
     var onClose = props.onClose;
     var onApply = props.onApply; // called with (thread {id, name, rgb, ...}, { scope: 'selection' | 'all' })
     var pat = props.pat, sW = props.sW, sH = props.sH;
+    var pal = props.pal || null;  // current palette entries ({ id, name, rgb, count, ... })
     // Pass the selection mask only when something is selected.
     var selectionMask = props.selectionMask || null;
 
@@ -79,14 +80,50 @@
     var srcId = modal ? modal.srcId : null;
     var srcRgb = modal && modal.srcRgb ? modal.srcRgb : [128, 128, 128];
 
-    var filteredThreads = React.useMemo(function() {
-      if (typeof DMC === 'undefined') return [];
-      var q = search.trim().toLowerCase();
-      if (!q) return DMC;
-      return DMC.filter(function(t) {
-        return t.id.toLowerCase().indexOf(q) !== -1 || t.name.toLowerCase().indexOf(q) !== -1;
+    var CR = window.ColourReplace;
+    var dmcList = typeof DMC !== 'undefined' ? DMC : [];
+
+    // Colours already in the pattern (excluding the source). Picking one
+    // merges the two colours, so they're listed first and flagged.
+    var palEntries = React.useMemo(function() {
+      if (!pal) return [];
+      return pal.filter(function(p) {
+        return p && p.rgb && p.id !== srcId && p.id !== '__skip__' && p.id !== '__empty__';
       });
-    }, [search]);
+    }, [pal, srcId]);
+    var palIds = React.useMemo(function() {
+      return new Set(palEntries.map(function(p) { return p.id; }));
+    }, [palEntries]);
+
+    // Thread list sections. With an empty search: In your palette, Closest
+    // matches, All threads. With a search: one flat list of matches.
+    var sections = React.useMemo(function() {
+      var q = search.trim().toLowerCase();
+      var rank = function(list, opts) { return CR && CR.rankBySimilarity ? CR.rankBySimilarity(srcRgb, list, opts) : list.map(function(t) { return { thread: t, dE: null }; }); };
+      if (q) {
+        var match = function(t) { return t.id.toLowerCase().indexOf(q) !== -1 || (t.name || '').toLowerCase().indexOf(q) !== -1; };
+        // Palette-only entries (e.g. blends) aren't in DMC, so search them too.
+        var extra = palEntries.filter(function(p) { return match(p) && !dmcList.some(function(d) { return d.id === p.id; }); });
+        var items = extra.concat(dmcList.filter(match)).map(function(t) { return { thread: t, dE: null }; });
+        return [{ key: 'results', title: null, items: items }];
+      }
+      var out = [];
+      if (palEntries.length) out.push({ key: 'palette', title: 'In your palette', items: rank(palEntries) });
+      var exclude = new Set(palIds); if (srcId) exclude.add(srcId);
+      var closest = rank(dmcList, { limit: 8, excludeIds: exclude });
+      if (closest.length) out.push({ key: 'closest', title: 'Closest matches', items: closest });
+      out.push({ key: 'all', title: 'All DMC threads', items: dmcList.map(function(t) { return { thread: t, dE: null }; }) });
+      return out;
+    }, [search, palEntries, palIds, srcId, srcRgb && srcRgb.join(','), dmcList]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // First selectable thread, used by Enter in the search box.
+    var topThread = null;
+    for (var si = 0; si < sections.length && !topThread; si++) {
+      for (var ii = 0; ii < sections[si].items.length; ii++) {
+        if (sections[si].items[ii].thread.id !== srcId) { topThread = sections[si].items[ii].thread; break; }
+      }
+    }
+    var anyThreads = sections.some(function(sec) { return sec.items.length > 0; });
 
     var counts = React.useMemo(function() {
       if (!window.ColourReplace) return null;
@@ -117,10 +154,7 @@
       if (e.key !== 'Enter') return;
       e.preventDefault();
       // First Enter picks the top result; a second Enter applies it.
-      var top = null;
-      for (var i = 0; i < filteredThreads.length; i++) {
-        if (filteredThreads[i].id !== srcId) { top = filteredThreads[i]; break; }
-      }
+      var top = topThread;
       if (!top) return;
       if (picked && picked.id === top.id) apply(picked);
       else setPicked(top);
@@ -176,6 +210,56 @@
       }, 'Replaces this colour across the whole pattern (' + plural(counts.total) + ').');
     }
 
+    function threadRow(item, sectionKey) {
+      var t = item.thread;
+      var isSrc = t.id === srcId;
+      var isPicked = !!picked && picked.id === t.id;
+      var inPal = palIds.has(t.id);
+      var simLabel = CR && CR.similarityLabel && item.dE != null ? CR.similarityLabel(item.dE) : null;
+      var tag = function(text, title) {
+        return h('span', {
+          title: title || null,
+          style: { fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', flexShrink: 0, whiteSpace: 'nowrap' }
+        }, text);
+      };
+      return h('button', {
+        key: sectionKey + ':' + t.id,
+        type: 'button',
+        onClick: function() { if (!isSrc) setPicked(t); },
+        onDoubleClick: function() { if (!isSrc) apply(t); },
+        disabled: isSrc,
+        'aria-pressed': isPicked ? 'true' : 'false',
+        'data-thread-id': t.id,
+        style: {
+          display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+          padding: '7px 12px', border: 'none', borderBottom: '1px solid var(--surface-secondary)',
+          boxShadow: isPicked ? 'inset 3px 0 0 var(--accent)' : 'none',
+          background: isPicked ? 'var(--accent-light)' : (isSrc ? 'var(--surface-secondary)' : 'transparent'),
+          cursor: isSrc ? 'default' : 'pointer', textAlign: 'left', fontFamily: 'inherit'
+        },
+        onMouseEnter: function(e) { if (!isSrc && !isPicked) e.currentTarget.style.background = 'var(--surface-secondary)'; },
+        onMouseLeave: function(e) { if (!isSrc && !isPicked) e.currentTarget.style.background = 'transparent'; }
+      },
+        swatch(t.rgb, 18),
+        h('span', { style: { fontFamily: 'monospace', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', flexShrink: 0, minWidth: 35 } }, t.id),
+        h('span', { style: { fontSize: 'var(--text-sm)', color: 'var(--text-primary)', flex: 1, textAlign: 'left', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, t.name || t.id),
+        isSrc && tag('current'),
+        !isSrc && simLabel && tag(simLabel, '\u0394E ' + item.dE.toFixed(1)),
+        !isSrc && inPal && sectionKey !== 'palette' && tag('in palette'),
+        isPicked && h('span', { 'aria-hidden': 'true', style: { color: 'var(--accent)', display: 'inline-flex', flexShrink: 0 } },
+          window.Icons && window.Icons.check ? window.Icons.check() : null)
+      );
+    }
+
+    // Picking a colour that's already in the pattern merges the two.
+    var mergeNote = picked && palIds.has(picked.id) && affected > 0 ? h('div', {
+      className: 'colour-replace-merge',
+      style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }
+    },
+      h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex', color: 'var(--text-tertiary)' } }, window.Icons && window.Icons.info ? window.Icons.info() : null),
+      'DMC ' + picked.id + ' is already in your palette, so these stitches will merge into it.'
+    ) : null;
+
     var hasThumb = !!(pat && sW > 0 && sH > 0);
 
     return h(window.Overlay, {
@@ -230,36 +314,23 @@
             background: 'var(--surface)', color: 'var(--text-primary)', outline: 'none'
           }
         }),
-        h('div', { style: { flex: 1, minHeight: 120, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' } },
-          filteredThreads.length === 0
+        h('div', {
+          className: 'colour-replace-list',
+          style: { flex: 1, minHeight: 120, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }
+        },
+          !anyThreads
             ? h('div', { style: { padding: 20, textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 'var(--text-sm)' } }, 'No colours found')
-            : filteredThreads.map(function(t) {
-                var isSrc = t.id === srcId;
-                var isPicked = !!picked && picked.id === t.id;
-                return h('button', {
-                  key: t.id,
-                  type: 'button',
-                  onClick: function() { if (!isSrc) setPicked(t); },
-                  onDoubleClick: function() { if (!isSrc) apply(t); },
-                  disabled: isSrc,
-                  'aria-pressed': isPicked ? 'true' : 'false',
-                  'data-thread-id': t.id,
-                  style: {
-                    display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                    padding: '7px 12px', border: 'none', borderBottom: '1px solid var(--surface-secondary)',
-                    boxShadow: isPicked ? 'inset 3px 0 0 var(--accent)' : 'none',
-                    background: isPicked ? 'var(--accent-light)' : (isSrc ? 'var(--surface-secondary)' : 'transparent'),
-                    cursor: isSrc ? 'default' : 'pointer', textAlign: 'left', fontFamily: 'inherit'
-                  },
-                  onMouseEnter: function(e) { if (!isSrc && !isPicked) e.currentTarget.style.background = 'var(--surface-secondary)'; },
-                  onMouseLeave: function(e) { if (!isSrc && !isPicked) e.currentTarget.style.background = 'transparent'; }
-                },
-                  swatch(t.rgb, 18),
-                  h('span', { style: { fontFamily: 'monospace', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', flexShrink: 0, minWidth: 35 } }, t.id),
-                  h('span', { style: { fontSize: 'var(--text-sm)', color: 'var(--text-primary)', flex: 1, textAlign: 'left' } }, t.name),
-                  isSrc && h('span', { style: { fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', flexShrink: 0 } }, 'current'),
-                  isPicked && h('span', { 'aria-hidden': 'true', style: { color: 'var(--accent)', display: 'inline-flex', flexShrink: 0 } },
-                    window.Icons && window.Icons.check ? window.Icons.check() : null)
+            : sections.map(function(sec) {
+                if (!sec.items.length) return null;
+                return h('div', { key: sec.key, role: 'group', 'aria-label': sec.title || 'Search results', 'data-section': sec.key },
+                  sec.title && h('div', {
+                    style: {
+                      position: 'sticky', top: 0, zIndex: 1, padding: '6px 12px', background: 'var(--surface-secondary)',
+                      fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-tertiary)',
+                      textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid var(--border)'
+                    }
+                  }, sec.title),
+                  sec.items.map(function(item) { return threadRow(item, sec.key); })
                 );
               })
         ),
@@ -281,6 +352,7 @@
             picked ? h('strong', { style: { color: 'var(--text-primary)', fontWeight: 600 } }, 'DMC ' + picked.id + ' ' + picked.name) : 'Pick a thread',
             countText ? ' \u00B7 ' + countText : '')
         ),
+        mergeNote,
         h('div', { style: { marginTop: 10, display: 'flex', justifyContent: 'flex-end', gap: 8 } },
           h('button', {
             type: 'button',

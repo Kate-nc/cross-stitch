@@ -78,3 +78,49 @@ describe('ColourReplace.replaceInPattern', () => {
     expect(res.changes).toEqual([]);
   });
 });
+
+describe('ColourReplace.rankBySimilarity', () => {
+  // Use the app's real colour maths (CIEDE2000 on CIE Lab).
+  const { rgbToLab, dE00, DMC } = require('../dmc-data.js');
+  const opts = extra => Object.assign({ labOf: rgb => rgbToLab(rgb[0], rgb[1], rgb[2]), distance: dE00 }, extra);
+
+  test('ranks DMC threads nearest first', () => {
+    const ranked = CR.rankBySimilarity([0, 0, 0], DMC, opts({ limit: 3, excludeIds: ['310'] }));
+    expect(ranked).toHaveLength(3);
+    expect(ranked[0].thread.id).toBe('3371');
+    expect(ranked[0].dE).toBeLessThanOrEqual(ranked[1].dE);
+    expect(ranked[1].dE).toBeLessThanOrEqual(ranked[2].dE);
+  });
+
+  test('honours excludeIds as an array or a Set', () => {
+    const a = CR.rankBySimilarity([0, 0, 0], DMC, opts({ limit: 1, excludeIds: ['310', '3371'] }));
+    const b = CR.rankBySimilarity([0, 0, 0], DMC, opts({ limit: 1, excludeIds: new Set(['310', '3371']) }));
+    expect(a[0].thread.id).not.toBe('3371');
+    expect(a[0].thread.id).toBe(b[0].thread.id);
+  });
+
+  test('without a limit returns every thread', () => {
+    expect(CR.rankBySimilarity([10, 20, 30], DMC, opts()).length).toBe(DMC.length);
+  });
+
+  test('skips entries without rgb and handles empty input', () => {
+    expect(CR.rankBySimilarity([0, 0, 0], [{ id: 'x' }, null], opts())).toEqual([]);
+    expect(CR.rankBySimilarity(null, DMC, opts())).toEqual([]);
+    expect(CR.rankBySimilarity([0, 0, 0], [], opts())).toEqual([]);
+  });
+
+  test('falls back to Euclidean distance when no colour maths is supplied', () => {
+    const ranked = CR.rankBySimilarity([0, 0, 0], [{ id: 'a', rgb: [50, 50, 50] }, { id: 'b', rgb: [5, 5, 5] }]);
+    expect(ranked.map(r => r.thread.id)).toEqual(['b', 'a']);
+  });
+});
+
+describe('ColourReplace.similarityLabel', () => {
+  test.each([
+    [0, 'Near-identical'], [2, 'Near-identical'], [4.9, 'Very close'],
+    [9, 'Close'], [15, 'Similar'], [25, null], [null, null], [NaN, null]
+  ])('dE %p → %p', (dE, label) => {
+    expect(CR.similarityLabel(dE)).toBe(label);
+  });
+});
+

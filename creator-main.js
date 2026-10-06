@@ -936,7 +936,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       {state.colourReplaceModal&&typeof window.ColourReplaceModal!=='undefined'&&React.createElement(window.ColourReplaceModal,{
         modal:state.colourReplaceModal,
         onClose:()=>state.setColourReplaceModal(null),
-        pat:state.pat, sW:state.sW, sH:state.sH,
+        pat:state.pat, sW:state.sW, sH:state.sH, pal:state.pal,
         selectionMask:state.hasSelection?state.selectionMask:null,
         onApply:function(dstThread,opts){
           var src=state.colourReplaceModal;

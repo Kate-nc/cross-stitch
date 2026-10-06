@@ -133,12 +133,25 @@ describe('ColourReplaceModal', () => {
       input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     });
     enter();
-    // Top result skips the source colour (310), so 321 is picked.
-    expect(row('321').getAttribute('aria-pressed')).toBe('true');
+    // With no search, the top result is the closest match to black (3371).
+    expect(row('3371').getAttribute('aria-pressed')).toBe('true');
     expect(props.onApply).not.toHaveBeenCalled();
     enter();
     expect(props.onApply).toHaveBeenCalledTimes(1);
-    expect(props.onApply.mock.calls[0][0].id).toBe('321');
+    expect(props.onApply.mock.calls[0][0].id).toBe('3371');
+  });
+
+  test('Enter after typing picks the top search match', () => {
+    const props = render();
+    const input = container.querySelector('input[type="text"]');
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      setter.call(input, 'red');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    act(() => { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+    expect(row('321').getAttribute('aria-pressed')).toBe('true');
+    expect(props.onApply).not.toHaveBeenCalled();
   });
 
   test('renders before/after preview thumbnails', () => {
@@ -201,5 +214,63 @@ describe('ColourReplaceModal scope', () => {
     expect(applyBtn().disabled).toBe(true);
     act(() => { row('321').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); });
     expect(props.onApply).not.toHaveBeenCalled();
+  });
+});
+
+describe('ColourReplaceModal suggestions', () => {
+  const sectionIds = key => Array.from(container.querySelectorAll('[data-section="' + key + '"] [data-thread-id]'))
+    .map(el => el.getAttribute('data-thread-id'));
+  const PAL = [
+    { id: '310', name: 'Black', rgb: [0, 0, 0], count: 2 },
+    { id: '321', name: 'Red', rgb: [199, 43, 59], count: 1 },
+    { id: '310+321', name: 'Black + Red', rgb: [100, 21, 30], type: 'blend', count: 0 }
+  ];
+
+  test('lists palette colours first, then closest matches, then all threads', () => {
+    render({ pal: PAL });
+    const order = Array.from(container.querySelectorAll('[data-section]')).map(el => el.getAttribute('data-section'));
+    expect(order).toEqual(['palette', 'closest', 'all']);
+    // Source colour is not offered as its own replacement in the palette list.
+    expect(sectionIds('palette')).not.toContain('310');
+    expect(sectionIds('palette')).toEqual(expect.arrayContaining(['321', '310+321']));
+  });
+
+  test('closest matches exclude the source and palette colours and are nearest first', () => {
+    render({ pal: PAL });
+    const ids = sectionIds('closest');
+    expect(ids).not.toContain('310');
+    expect(ids).not.toContain('321');
+    expect(ids[0]).toBe('3371');
+  });
+
+  test('without a palette the list starts with closest matches', () => {
+    render();
+    expect(container.querySelector('[data-section]').getAttribute('data-section')).toBe('closest');
+  });
+
+  test('picking a palette colour warns that the colours will merge', () => {
+    render({ pal: PAL });
+    expect(container.querySelector('.colour-replace-merge')).toBeNull();
+    click(container.querySelector('[data-section="palette"] [data-thread-id="321"]'));
+    expect(container.querySelector('.colour-replace-merge').textContent).toMatch(/already in your palette/);
+  });
+
+  test('picking a colour not in the palette shows no merge warning', () => {
+    render({ pal: PAL });
+    click(container.querySelector('[data-section="closest"] [data-thread-id="3371"]'));
+    expect(container.querySelector('.colour-replace-merge')).toBeNull();
+  });
+
+  test('searching shows one flat result list, including palette-only blends', () => {
+    render({ pal: PAL });
+    const input = container.querySelector('input[type="text"]');
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      setter.call(input, 'black');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const order = Array.from(container.querySelectorAll('[data-section]')).map(el => el.getAttribute('data-section'));
+    expect(order).toEqual(['results']);
+    expect(sectionIds('results')).toEqual(expect.arrayContaining(['310+321', '310', '3371']));
   });
 });
