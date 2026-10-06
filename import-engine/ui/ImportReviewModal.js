@@ -110,8 +110,11 @@
       if (ev) ev.preventDefault();
       if (!value.trim()) return;
       if (!match) { setError('No DMC thread numbered ' + value.trim() + '.'); return; }
-      props.onChoose(match.id);
-      setValue(''); setError(null);
+      if (props.onChoose(match.id) === false) {
+        setError('That choice would create a cycle.');
+      } else {
+        setValue(''); setError(null);
+      }
     }
     return h('form', { className: 'import-thread-chooser', onSubmit: submit },
       h('input', {
@@ -145,6 +148,14 @@
       if (!m || m.id === '__skip__' || m.id === '__empty__') return;
       counts[m.id] = (counts[m.id] || 0) + 1;
       if (!rows[m.id]) rows[m.id] = m;
+    });
+    (props.project.partialStitches || []).forEach(function (entry) {
+      Object.keys(entry[1] || {}).forEach(function (corner) {
+        var m = entry[1][corner];
+        if (!m || !m.id || m.id === '__skip__' || m.id === '__empty__') return;
+        counts[m.id] = (counts[m.id] || 0) + 1;
+        if (!rows[m.id]) rows[m.id] = m;
+      });
     });
     var report = props.project.importReport || {};
     var pending = {};
@@ -397,7 +408,13 @@
                 ? 'Page ' + pi + ', ' + page.cols + ' by ' + page.rows + ' stitches, row ' + row + ' column ' + col
                 : 'Empty place, row ' + row + ' column ' + col,
               draggable: !!page,
-              onDragStart: function () { if (page) setDrag({ from: 'slot', slot: k, page: pi }); },
+              onDragStart: function (ev) {
+                if (!page) return;
+                ev.dataTransfer.setData('text/plain', String(pi));
+                ev.dataTransfer.effectAllowed = 'move';
+                setDrag({ from: 'slot', slot: k, page: pi });
+              },
+              onDragEnd: function () { setDrag(null); },
               onClick: function () { chooseSlot(k); }
             },
               page ? h(PageThumb, { page: page, size: 96 }) : h('span', { className: 'page-layout-empty' }, 'Empty'),
@@ -422,7 +439,12 @@
               className: 'page-layout-tile tray' + (selected ? ' selected' : ''),
               'aria-pressed': selected ? 'true' : 'false',
               draggable: true,
-              onDragStart: function () { setDrag({ from: 'tray', page: pi }); },
+              onDragStart: function (ev) {
+                ev.dataTransfer.setData('text/plain', String(pi));
+                ev.dataTransfer.effectAllowed = 'move';
+                setDrag({ from: 'tray', page: pi });
+              },
+              onDragEnd: function () { setDrag(null); },
               onClick: function () { chooseTray(pi); }
             },
               page && h(PageThumb, { page: page, size: 64 }),
@@ -444,9 +466,9 @@
   function ImportReviewModal(props) {
     // A PDF chart of several pages arrives with its per-page readings, so the
     // pages can be rearranged here before anything is saved.
-    var session = props.layoutSession && props.layoutSession.pages && props.layoutSession.pages.length > 1
-      ? props.layoutSession : null;
     var LM = window.ImportEngine && window.ImportEngine.pageLayout;
+    var session = LM && props.layoutSession && props.layoutSession.pages && props.layoutSession.pages.length > 1
+      ? props.layoutSession : null;
     var hasPlaceholders = !!(props.project && props.project.importReport &&
       props.project.importReport.placeholders && props.project.importReport.placeholders.length);
     var _t = React.useState((session && LM && LM.needsReview(session)) ? 'pages' : (hasPlaceholders ? 'palette' : 'preview'));
@@ -471,10 +493,16 @@
       setEdits(next);
     }
     function assignThread(from, to) {
-      if (from === to) return;
+      if (from === to) return true;
       var threads = Object.assign({}, edits.threads || {});
+      var seen = {};
+      for (var id = to; threads[id]; id = threads[id]) {
+        if (id === from || seen[id]) return false;
+        seen[id] = true;
+      }
       threads[from] = to;
       applyEdit('threads', threads);
+      return true;
     }
     function unassignThread(from) {
       var threads = Object.assign({}, edits.threads || {});
@@ -584,8 +612,12 @@
     var memo = {};
     function target(id) {
       if (id in memo) return memo[id];
-      var to = id, hops = 0;
-      while (threads[to] && threads[to] !== to && hops++ < 32) to = threads[to];
+      var to = id, seen = {};
+      while (threads[to] && threads[to] !== to) {
+        if (seen[to]) { memo[id] = null; return null; }
+        seen[to] = true;
+        to = threads[to];
+      }
       var t = to === id ? null : dmcThread(to);
       memo[id] = t;
       return t;

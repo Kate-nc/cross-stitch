@@ -50,6 +50,16 @@ describe('processLoadedProject null guard', () => {
     expect(guardCode).toMatch(/return/);
   });
 
+  describe('PDF fractional stitch handling', () => {
+    it('restores, renders, and persists partial stitches', () => {
+      expect(src).toMatch(/const\[partialStitches,setPartialStitches\]=useState\(new Map\(\)\)/);
+      expect(src).toMatch(/project\.partialStitches/);
+      expect(src).toMatch(/setPartialStitches\(partialMap\)/);
+      expect(src).toMatch(/partialStitches: psArr/);
+      expect(src).toMatch(/drawPartial\(partialStitches\.get\(idx\),m,px,py\)/);
+    });
+  });
+
   it('guard fires before accessing project.settings', () => {
     // Verify the guard appears BEFORE the first .settings access
     const guardIdx = src.indexOf('if(!project){console.error');

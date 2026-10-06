@@ -113,6 +113,11 @@ describe('mergeEdits — choosing threads for placeholders', () => {
     expect(out.pattern[0].id).toBe('U1');
   });
 
+  it('does not apply malformed cyclic assignments', () => {
+    const out = mergeEdits(project(), { threads: { U1: '310', 310: '3371', 3371: '310' } });
+    expect(out.pattern[0].id).toBe('U1');
+  });
+
   it('does not touch the project it was given', () => {
     const p = project();
     mergeEdits(p, { threads: { U1: '310' } });

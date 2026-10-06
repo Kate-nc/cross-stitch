@@ -1042,6 +1042,7 @@ const lastClickedRef=useRef(null); // { idx, row, col, val } for shift+click ran
 const[halfStitches,setHalfStitches]=useState(new Map());
 // Sparse map: cellIdx → { fwd?: 0|1, bck?: 0|1 }
 const[halfDone,setHalfDone]=useState(new Map());
+const[partialStitches,setPartialStitches]=useState(new Map());
 const[halfDisambig,setHalfDisambig]=useState(null); // {x, y, idx} for popup
 
 const[hoverInfo,setHoverInfo]=useState(null);
@@ -2449,6 +2450,7 @@ function doSaveProject(finalName){
     bck: hs.bck ? { id: hs.bck.id, rgb: hs.bck.rgb } : undefined
   }]);
   const hdArr = [...halfDone.entries()];
+  const psArr = [...partialStitches.entries()];
   let project={
     version:11,
     id:projectIdRef.current||undefined,
@@ -2469,6 +2471,7 @@ function doSaveProject(finalName){
     singleStitchEdits: sseArr,
     halfStitches: hsArr,
     halfDone: hdArr,
+    partialStitches: psArr,
     statsSessions,
     statsSettings,
     achievedMilestones,
@@ -3006,7 +3009,8 @@ function handleEditInCreator(){
   const sseArrH=[...singleStitchEdits.entries()];
   const hsArrH=[...halfStitches.entries()].map(([idx,hs])=>[idx,{fwd:hs.fwd?{id:hs.fwd.id,rgb:hs.fwd.rgb}:undefined,bck:hs.bck?{id:hs.bck.id,rgb:hs.bck.rgb}:undefined}]);
   const hdArrH=[...halfDone.entries()];
-  let project={version:11,id:projectIdRef.current||undefined,page:"tracker",name:projectName,createdAt:createdAtRef.current||new Date().toISOString(),updatedAt:new Date().toISOString(),settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"var(--surface)",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice,stitchSpeed,smooth:0,smoothType:"median",orphans:0,wastePrefs},pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,hlRow,hlCol,threadOwned,imgData:null,originalPaletteState,singleStitchEdits:sseArrH,halfStitches:hsArrH,halfDone:hdArrH,statsSessions,statsSettings,achievedMilestones,doneSnapshots,breadcrumbs,stitchingStyle,blockW,blockH,focusBlock,startCorner,colourSequence};
+  const psArrH=[...partialStitches.entries()];
+  let project={version:11,id:projectIdRef.current||undefined,page:"tracker",name:projectName,createdAt:createdAtRef.current||new Date().toISOString(),updatedAt:new Date().toISOString(),settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"var(--surface)",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice,stitchSpeed,smooth:0,smoothType:"median",orphans:0,wastePrefs},pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,hlRow,hlCol,threadOwned,imgData:null,originalPaletteState,singleStitchEdits:sseArrH,halfStitches:hsArrH,halfDone:hdArrH,partialStitches:psArrH,statsSessions,statsSettings,achievedMilestones,doneSnapshots,breadcrumbs,stitchingStyle,blockW,blockH,focusBlock,startCorner,colourSequence};
   try{
     // T-3 / INT-4: wrap the handoff in an envelope with a wall-clock
     // timestamp. The Creator drops envelopes older than HANDOFF_TTL_MS so a
@@ -3174,8 +3178,22 @@ function processLoadedProject(project){
     restored=p.map(restoreStitch);
   }
 
-  let{pal:newPal,cmap:newCmap}=buildPalette(restored);
+  const partialMap = new Map();
+  const partialCells = [];
+  (project.partialStitches || []).forEach(([idx, quarters]) => {
+    const restoredQuarters = {};
+    Object.keys(quarters || {}).forEach(corner => {
+      const quarter = quarters[corner];
+      if (!quarter || !quarter.id) return;
+      const stitch = restoreStitch({ id: quarter.id, type: quarter.id.includes('+') ? 'blend' : 'solid', rgb: quarter.rgb });
+      restoredQuarters[corner] = { id: stitch.id, rgb: stitch.rgb, lab: stitch.lab, name: stitch.name, type: stitch.type };
+      partialCells.push(stitch);
+    });
+    if (Object.keys(restoredQuarters).length) partialMap.set(Number(idx), restoredQuarters);
+  });
+  let{pal:newPal,cmap:newCmap}=buildPalette(restored.concat(partialCells));
   setPat(restored);setPal(newPal);setCmap(newCmap);
+  setPartialStitches(partialMap);
   if (project.originalPaletteState) {
     setOriginalPaletteState(project.originalPaletteState);
   } else {
@@ -3758,6 +3776,7 @@ const buildSnapshot = () => {
     bck: hs.bck ? { id: hs.bck.id, rgb: hs.bck.rgb } : undefined
   }]);
   const hdArr = [...halfDone.entries()];
+  const psArr = [...partialStitches.entries()];
   // Derive stitchLog from statsSessions (single source of truth).
   // Groups netStitches by date so stitchLog always matches what statsSessions says.
   const _logMap = {};
@@ -3778,7 +3797,7 @@ const buildSnapshot = () => {
     pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb })),
     bsLines, done: done ? Array.from(done) : null, parkMarkers,
     hlRow, hlCol, threadOwned, originalPaletteState,
-    singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr,
+    singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr, partialStitches: psArr,
     statsSessions, statsSettings, achievedMilestones, doneSnapshots,
     savedZoom: stitchZoom,
     savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null,
@@ -3933,12 +3952,14 @@ useEffect(() => {
       bck: hs.bck ? { id: hs.bck.id, rgb: hs.bck.rgb } : undefined
     }]);
     const hdArr = [...halfDone.entries()];
+    const psArr = [...partialStitches.entries()];
     const project = {
       ...(lastSnapshotRef.current || {}),
       version: 11, id: projectIdRef.current, page: "tracker", name: projectName,
       createdAt: createdAtRef.current,
       updatedAt: new Date().toISOString(),
       settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs },
+      partialStitches: psArr,
       // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
       breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence
     };
@@ -3963,7 +3984,7 @@ useEffect(() => {
     };
   };
 }, [projectName, sW, sH, fabricCt, skeinPrice, stitchSpeed, pat, pal, bsLines, done,
-    halfStitches, halfDone, parkMarkers, totalTime, liveAutoElapsed, hlRow, hlCol,
+    halfStitches, halfDone, partialStitches, parkMarkers, totalTime, liveAutoElapsed, hlRow, hlCol,
     threadOwned, originalPaletteState, singleStitchEdits, statsSessions, statsSettings, achievedMilestones, stitchZoom, doneSnapshots,
     breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence]);
 
@@ -4102,6 +4123,23 @@ function drawStitch(ctx,cSz,viewportRect){
   const hsLowZoom=tier===2;   // Tier 2: triangle fill only
   const hsMedZoom=tier===3;   // Tier 3: triangle + diagonal line
   const hsHighZoom=tier>=4;   // Tier 4: full detail (tri + line + symbol)
+  function drawPartial(entry, base, px, py) {
+    if (!entry) return;
+    analysePartialStitches(entry, base).forEach(function (instruction) {
+      var colour = instruction.colour;
+      var paletteEntry = cmap && cmap[colour.id];
+      var symbol = paletteEntry && paletteEntry.symbol;
+      var view = stitchView === 'symbol' ? 'symbol' : 'both';
+      if (instruction.type === 'three-quarter') {
+        drawThreeQuarterStitch(ctx, px, py, cSz, colour, instruction.emptyCorner, 0.8, view, symbol);
+      } else if (instruction.type === 'quarter') {
+        drawQuarterStitch(ctx, px, py, cSz, colour, instruction.corner, 0.8, view, symbol);
+      } else {
+        drawHalfTriangle(ctx, px, py, cSz, instruction.direction, colour.rgb, 0.8);
+        drawHalfLine(ctx, px, py, cSz, instruction.direction, colour.rgb, 0.8);
+      }
+    });
+  }
 
   for(let y=startY;y<endY;y++){
     for(let x=startX;x<endX;x++){
@@ -4111,7 +4149,7 @@ function drawStitch(ctx,cSz,viewportRect){
       let isDn=done&&done[idx];
 
       // ── Tier 1 fast path: flat color blocks, no symbols, no cell borders ──
-      if(tier===1){
+      if(tier===1&&!partialStitches.has(idx)){
         if(m.id==="__skip__"||m.id==="__empty__"){ctx.fillStyle="#f0f4f8";ctx.fillRect(px,py,cSz,cSz);continue;}
         if(isDn||lowZoomFade<=0){ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
         else{const f=lowZoomFade,inv=1-f,r2=Math.round(m.rgb[0]*inv+255*f),g2=Math.round(m.rgb[1]*inv+255*f),b2=Math.round(m.rgb[2]*inv+255*f);ctx.fillStyle=`rgb(${r2},${g2},${b2})`;ctx.fillRect(px,py,cSz,cSz);}
@@ -4130,6 +4168,7 @@ function drawStitch(ctx,cSz,viewportRect){
           _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,false,hsLowZoom,hsMedZoom,hsHighZoom);
           ctx.restore();
         }
+        drawPartial(partialStitches.get(idx),m,px,py);
         continue;
       }
       if(layerVis.full){
@@ -4174,6 +4213,7 @@ function drawStitch(ctx,cSz,viewportRect){
         _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,layerVis.full?effectiveDimmed:false,hsLowZoom,hsMedZoom,hsHighZoom);
         ctx.restore();
       }
+      drawPartial(partialStitches.get(idx),m,px,py);
       if(cSz>=4){ctx.strokeStyle=(effectiveDimmed&&layerVis.full)?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
     }
     // R11: dim rows outside the current row — one pass per row covers all tiers.

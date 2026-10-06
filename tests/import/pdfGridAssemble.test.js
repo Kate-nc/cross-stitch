@@ -257,6 +257,17 @@ describe('assembleTiles — layout source', () => {
     const tiles = [tileOf(2, 2, [1, 0, 0]), tileOf(2, 2, [2, 0, 0]), tileOf(2, 2, [3, 0, 0])];
     const out = assembleTiles(tiles, { layout: { rows: 1, cols: 2 } });
     expect(out.warnings.join(' ')).toMatch(/fewer cells than the 3 tiles/);
+    expect(out.layout).toEqual({ rows: 2, cols: 2 });
+    expect(out.height).toBe(4);
+  });
+
+  it('uses declared tile geometry when sparse cells omit an edge', () => {
+    const out = assembleTiles([{
+      grid: { cols: 4, rows: 3 },
+      cells: [{ col: 0, row: 0, color: [1, 0, 0] }]
+    }]);
+    expect(out.width).toBe(4);
+    expect(out.height).toBe(3);
   });
 
   it('returns an empty result for no tiles', () => {

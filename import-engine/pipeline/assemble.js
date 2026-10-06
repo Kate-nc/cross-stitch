@@ -113,7 +113,8 @@
       layoutSource = 'explicit';
       if (layout.rows * layout.cols < total) {
         warnings.push('The given ' + layout.cols + 'x' + layout.rows +
-          ' layout has fewer cells than the ' + total + ' tiles to place.');
+          ' layout has fewer cells than the ' + total + ' tiles to place; expanding it.');
+        layout.rows = Math.ceil(total / layout.cols);
       }
     } else {
       const sampleAspect = tiles[0].grid.cols / Math.max(1, tiles[0].grid.rows);
@@ -174,7 +175,10 @@
   function placeCells(placements, layout, layoutSource, warnings) {
     const byKey = new Map();
     let maxCol = -1, maxRow = -1;
+    let width = 0, height = 0;
     for (const p of placements) {
+      width = Math.max(width, p.offsetCol + ((p.tile.grid && p.tile.grid.cols) || 0));
+      height = Math.max(height, p.offsetRow + ((p.tile.grid && p.tile.grid.rows) || 0));
       for (const c of p.tile.cells) {
         const col = c.col + p.offsetCol;
         const row = c.row + p.offsetRow;
@@ -188,8 +192,8 @@
       }
     }
     return {
-      width: maxCol + 1,
-      height: maxRow + 1,
+      width: Math.max(width, maxCol + 1),
+      height: Math.max(height, maxRow + 1),
       cells: Array.from(byKey.values()),
       layout: layout,
       layoutSource: layoutSource,
