@@ -22,5 +22,4 @@ creator/extras-bundle.js                     linguist-generated=true -diff
 creator/import-wizard-bundle.js              linguist-generated=true -diff
 import-engine/bundle.js                      linguist-generated=true -diff
 assets/fonts/CrossStitchSymbols.base64.js    linguist-generated=true -diff
-pdf.worker.min.js                            linguist-vendored=true -diff
 assets/fontkit.umd.min.js                    linguist-vendored=true -diff

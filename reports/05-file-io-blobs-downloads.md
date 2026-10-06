@@ -49,13 +49,13 @@ Critical issues include:
 - **Severity**: high
 
 ### F-04: OffscreenCanvas in PDF Worker (Safari <16.4) — BLOCKER
-- **File**: [pdf.worker.min.js](../pdf.worker.min.js#L22), line 22 (bundled pdf.js)
+- **File**: PDF.js CDN worker
 - **Code**: `new OffscreenCanvas(width, height)` and `convertToBlob()` in the PDF worker
 - **Issue**: OffscreenCanvas was added in Safari 16.4 (March 2023). Earlier versions lack it entirely. The PDF worker does `isOffscreenCanvasSupported` detection but does not gracefully fallback when `convertToBlob()` is missing (a separate API from OffscreenCanvas itself). PDF export fails on Safari <16.4.
 - **Severity**: blocker
 
 ### F-05: createImageBitmap in PDF Worker — HIGH
-- **File**: [pdf.worker.min.js](../pdf.worker.min.js#L22)
+- **File**: PDF.js CDN worker
 - **Code**: `await createImageBitmap(t)` where `t` is a Blob
 - **Issue**: `createImageBitmap` polyfill not loaded for Safari <15.4. Async image processing in worker will throw `ReferenceError`. PDFs with images will fail to export.
 - **Severity**: high

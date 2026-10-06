@@ -5972,6 +5972,28 @@ function TrackerApp({
         const importer = new PatternKeeperImporter();
         return importer.import(f);
       }).then(project => {
+        // A chart printed across several pages goes through the review dialog
+        // first, so the stitcher can check each page sits in the right place and
+        // move any that do not. Single-page charts import straight away, as
+        // before; so does everything if the dialog is unavailable.
+        const session = project && project._layoutSession;
+        const engine = window.ImportEngine;
+        if (session && session.pages && session.pages.length > 1 && engine && typeof engine.openReview === 'function') {
+          setLoadError(null);
+          return engine.openReview({
+            project,
+            layoutSession: session,
+            warnings: [],
+            coverage: 1,
+            reviewMode: 'standard'
+          }).then(out => out && out.action === 'confirm' && out.project ? out.project : null);
+        }
+        return project;
+      }).then(project => {
+        if (!project) {
+          setLoadError(null);
+          return;
+        } // review cancelled
         if (!project.name) project.name = baseName;
         if (!project.id) project.id = ProjectStorage.newId();
         if (!project.createdAt) project.createdAt = new Date().toISOString();

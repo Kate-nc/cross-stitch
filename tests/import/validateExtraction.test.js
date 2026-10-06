@@ -67,3 +67,14 @@ describe('countsByCode', () => {
     expect(m.size).toBe(2);
   });
 });
+
+describe('validateExtraction — finished projects', () => {
+  it('does not report colour coverage for a strategy that hands over a finished project', () => {
+    // PDF imports arrive as a finished project with no cell list; checking the
+    // empty list told every one of them "0% of stitches matched a colour".
+    const out = ENGINE.validateExtraction({ width: 10, height: 10, cells: [], _legacyProject: { w: 10, h: 10 } });
+    expect(out.warnings).toEqual([]);
+    expect(out.errors).toEqual([]);
+    expect(out.coverage).toBe(1);
+  });
+});

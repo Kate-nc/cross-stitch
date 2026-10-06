@@ -15,7 +15,7 @@
   // user can verify (in the browser console) that they're running the
   // current bundle and not a stale service-worker copy. If you don't see
   // this log on page load, the SW is serving an old cache.
-  var BUILD = 'wireApp v4 (2026-04-30 — modal trace + session breadcrumbs)';
+  var BUILD = 'wireApp v5 (2026-10-05 — PDF page layout review)';
   try { console.info('[ImportEngine]', BUILD); } catch (_) {}
   // Also expose it for assertion in DevTools: `window.ImportEngine.__build`.
   try {
@@ -114,6 +114,7 @@
         coverage: result.confidence && result.confidence.overall,
         reviewMode: result.reviewMode,
         originalFileUrl: url,
+        layoutSession: result.layoutSession || null,
       }).then(function (out) {
         if (url) try { URL.revokeObjectURL(url); } catch (_) {}
         if (out.action === 'confirm' && out.project) {

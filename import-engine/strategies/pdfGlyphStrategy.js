@@ -57,12 +57,17 @@
       if (typeof window.loadPdfStack === 'function') {
         ready = window.loadPdfStack();
       } else {
-        ready = loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js')
-          .then(function () {
-            if (typeof window.pdfjsLib !== 'undefined') {
-              window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
-            }
-            return loadScript('pdf-importer.js');
+        ready = window.pdfjsLib ? Promise.resolve(window.pdfjsLib) : (window.__pdfjsLoadPromise ||
+          (window.__pdfjsLoadPromise = import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs')
+            .then(function (pdfjs) {
+              window.pdfjsLib = pdfjs;
+              pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.mjs';
+              return pdfjs;
+            })));
+        ready = ready.then(function () {
+            return loadScript('pdf-axis-labels.js')
+              .then(function () { return loadScript('pdf-raster-chart.js'); })
+              .then(function () { return loadScript('pdf-importer.js'); });
           });
       }
       return ready.then(function () {
@@ -102,6 +107,8 @@
             legend: { rows: [], codes: new Set(), byGlyph: new Map() },
             confidence: { format: 0.85, palette: [], grid: 0.85 },
             _legacyProject: project,
+            // Lets the review dialog rearrange the pages (pdf-importer analyse()).
+            _layoutSession: project._layoutSession || null,
           };
         });
       });

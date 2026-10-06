@@ -20,14 +20,14 @@ Good practices: No external font CDNs (uses `system-ui`), no WebGL, no WebCodecs
 - **Severity**: medium
 
 ### F-02: OffscreenCanvas and convertToBlob() Without Graceful Degradation — HIGH
-- **File**: [pdf.worker.min.js](../pdf.worker.min.js#L22), line 22 (bundled pdf.js)
+- **File**: PDF.js CDN worker
 - **Code**: `const i = new OffscreenCanvas(a, n)` then `i.convertToBlob({type: "image/jpeg", quality: 1}).then(...)`
 - **Issue**: The PDF worker uses `OffscreenCanvas` and calls `convertToBlob()` and `transferToImageBitmap()`. While the library includes `isOffscreenCanvasSupported` detection, it does NOT detect the availability of `convertToBlob()` specifically, which arrived in Safari 16.4. On Safari <16.4, `OffscreenCanvas` exists but `convertToBlob()` will throw.
 - **Safari Behaviour**: OffscreenCanvas added in Safari 16.4 (March 2023). Versions 12–16.3 lack this API entirely.
 - **Severity**: high
 
 ### F-03: Excessive OffscreenCanvas Dimension in PDF Worker — MEDIUM
-- **File**: [pdf.worker.min.js](../pdf.worker.min.js#L22)
+- **File**: PDF.js CDN worker
 - **Code**: `static get MAX_DIM() { return shadow(this, "MAX_DIM", this._guessMax(2048, 65537, 0, 1)) }`
 - **Issue**: The `ImageResizer` class attempts to allocate OffscreenCanvas up to 65536×65536 pixels. iOS Safari has a documented limit of ~16384 pixels per dimension. Large PDF imports may cause out-of-memory errors on iOS.
 - **Severity**: medium
@@ -39,7 +39,7 @@ Good practices: No external font CDNs (uses `system-ui`), no WebGL, no WebCodecs
 - **Severity**: low (no issue)
 
 ### F-05: createImageBitmap() Without Error Handling — MEDIUM
-- **File**: [pdf.worker.min.js](../pdf.worker.min.js#L22)
+- **File**: PDF.js CDN worker
 - **Code**: `const a = createImageBitmap(t);`
 - **Issue**: Not wrapped in try/catch. Safari 15.0+ supports it but with limited option support. A failure would propagate uncaught.
 - **Severity**: medium
