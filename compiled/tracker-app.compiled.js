@@ -1702,6 +1702,9 @@ function TrackerApp({
     maxZoom
   } = canvas;
   const [loadError, setLoadError] = useState(null);
+  // A PDF being read: what the importer is doing, and a way to stop it.
+  // { label, stopping, cancel } while busy, else null.
+  const [importBusy, setImportBusy] = useState(null);
   const [copied, setCopied] = useState(null);
   const [modal, setModal] = useState(null);
   // ── Mobile: bottom action bar + colour quick-switcher state ──
@@ -5994,18 +5997,47 @@ function TrackerApp({
       };
       rd.readAsDataURL(f);
     } else if (format === "pdf") {
-      setLoadError("Loading PDF library\u2026");
+      // A large chart or a scan takes a while: say which page it is on, and
+      // let the stitcher stop it. The importer checks the token once a page.
+      const token = {
+        aborted: false
+      };
+      const cancel = () => {
+        token.aborted = true;
+        setImportBusy(b => b ? {
+          ...b,
+          label: "Stopping\u2026",
+          stopping: true
+        } : b);
+      };
+      const title = "Importing " + (f.name || "PDF chart");
+      const show = (label, page, total) => setImportBusy(b => b && b.stopping ? b : {
+        title,
+        label,
+        page,
+        total,
+        stopping: false,
+        cancel
+      });
+      setLoadError(null);
+      show("Loading PDF library\u2026");
       const pdfReady = typeof window.loadPdfStack === 'function' ? window.loadPdfStack() : Promise.resolve();
       pdfReady.then(() => {
-        setLoadError("Parsing PDF chart\u2026 This may take a moment.");
+        if (token.aborted) {
+          const e = new Error("Import cancelled.");
+          e.name = "ImportAbortedError";
+          throw e;
+        }
+        show("Reading the PDF\u2026");
         const importer = new PatternKeeperImporter({
-          // A large chart or a scan takes a while: say which page it is on.
           onProgress: m => {
-            if (m && m.label) setLoadError(m.label + "…");
-          }
+            if (m && m.label) show(m.label + "…", m.page, m.total);
+          },
+          cancelToken: token
         });
         return importer.import(f);
       }).then(project => {
+        setImportBusy(null);
         // A chart printed across several pages goes through the review dialog
         // first, so the stitcher can check each page sits in the right place and
         // move any that do not. So does any chart the importer has something to
@@ -6019,7 +6051,6 @@ function TrackerApp({
         const multiPage = !!(session && session.pages && session.pages.length > 1);
         const needsLook = report.warnings && report.warnings.length > 0 || report.placeholders && report.placeholders.length > 0;
         if ((multiPage || needsLook) && engine && typeof engine.openReview === 'function') {
-          setLoadError(null);
           return engine.openReview({
             project,
             layoutSession: session,
@@ -6045,8 +6076,17 @@ function TrackerApp({
         const stitchCount = project.pattern ? project.pattern.filter(m => m && m.id !== '__skip__' && m.id !== '__empty__').length : 0;
         setImportSuccess(`Imported "${baseName || 'PDF chart'}" \u2014 ${s.sW || '?'}\u00d7${s.sH || '?'}, ${palCount} colours, ${stitchCount} stitches`);
       }).catch(err => {
+        setImportBusy(null);
+        if (err && err.name === "ImportAbortedError") return; // cancelled: nothing went wrong
         console.error(err);
         setLoadError("Could not load PDF: " + err.message);
+        // The line above sits under the sidebar while a chart is open; a toast
+        // is seen whatever is on screen.
+        if (window.Toast && window.Toast.show) window.Toast.show({
+          message: "Could not load PDF: " + err.message,
+          type: "error",
+          duration: 8000
+        });
         setTimeout(() => setLoadError(null), 4000);
       });
     } else {
@@ -10033,7 +10073,27 @@ function TrackerApp({
       margin: !statsView && pat && pal ? 0 : "0 auto",
       padding: !statsView && pat && pal ? 0 : "20px 16px"
     }
-  }, loadError && /*#__PURE__*/React.createElement("div", {
+  }, importBusy && /*#__PURE__*/React.createElement("div", {
+    className: "import-busy",
+    role: "status",
+    "aria-live": "polite"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "import-busy-title"
+  }, importBusy.title), /*#__PURE__*/React.createElement("div", {
+    className: "import-busy-label"
+  }, importBusy.label), /*#__PURE__*/React.createElement("div", {
+    className: "import-busy-track"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "import-busy-bar" + (importBusy.total > 0 && importBusy.page > 0 ? "" : " indeterminate"),
+    style: importBusy.total > 0 && importBusy.page > 0 ? {
+      width: Math.round(100 * Math.min(1, importBusy.page / importBusy.total)) + "%"
+    } : undefined
+  })), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "g-btn import-busy-cancel",
+    onClick: importBusy.cancel,
+    disabled: importBusy.stopping
+  }, "Cancel")), loadError && /*#__PURE__*/React.createElement("div", {
     style: {
       background: "var(--danger-soft)",
       border: "1px solid var(--danger-soft)",
