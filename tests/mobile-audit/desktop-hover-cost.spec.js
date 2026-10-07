@@ -7,7 +7,13 @@
    reconcile per stitch crossed.
 
    The sweep is 600 px in 60 steps at the default 20 px cell size: 30 cells.
-   Reported as elements per cell crossed. Baseline only. */
+   Reported as elements per cell crossed.
+
+   F4 (fixed): measured 1 176 elements per cell (35 287 for the sweep). The
+   bar's text is now written directly from refs, so the sweep must not
+   re-render at all — and, since "renders nothing" would also be true of a
+   bar that stopped updating, the bar must still name the cell and thread
+   under the pointer. */
 const { test, expect } = require('@playwright/test');
 const { fixtureFor } = require('../_helpers/trackerFixture');
 const { suppressOnboarding } = require('../_helpers/deviceEmulation');
@@ -57,4 +63,29 @@ test('hover sweep across the large chart', async ({ page }) => {
 
   expect(r.reactWrapped, 'React.createElement was never wrapped').toBe(true);
   expect(cellPx, 'could not read the cell size from the ruler').toBeGreaterThan(0);
+  // Was 35 287. Anything per-cell would be thousands; a little headroom for
+  // unrelated timers.
+  expect(r.elements, 'hovering re-rendered the tracker').toBeLessThan(200);
+
+  // The bar names the stitch under the pointer: the last position of the
+  // sweep, converted through the chart's own geometry.
+  const expected = await page.evaluate(({ x, y }) => {
+    const chart = document.querySelector('canvas[aria-label="Cross stitch pattern grid"]');
+    const ruler = document.querySelector('.tracker-chart-scroll > div');
+    const cell = ruler.children[1].getBoundingClientRect();
+    const col = Math.floor((x - cell.left) / cell.width) + 1;
+    const rowCell = document.querySelector('.tracker-chart-scroll > div:nth-child(2)').firstElementChild.children[0].getBoundingClientRect();
+    const row = Math.floor((y - rowCell.top) / rowCell.height) + 1;
+    return { row, col, chart: !!chart };
+  }, { x: x0 + SWEEP_PX, y });
+  const bar = (await page.locator('.tracker-hover-bar').textContent()).replace(/ /g, ' ');
+  console.log('HOVER_BAR ' + JSON.stringify({ bar, expected }));
+  expect(bar).toContain(`Row: ${expected.row} `);
+  expect(bar).toContain(`Col: ${expected.col}`);
+  expect(bar).toMatch(/DMC \S+/);
+
+  // Leaving the chart clears it.
+  await page.mouse.move(5, 5);
+  await page.waitForTimeout(200);
+  expect(await page.locator('.tracker-hover-bar').textContent()).toBe('—');
 });

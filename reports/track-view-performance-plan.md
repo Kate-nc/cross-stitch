@@ -31,7 +31,7 @@ So **drawing is no longer proportional to pattern size**. What still is:
 | Marching-ants highlight: 10 full repaints + 10 reconciles per second | viewport | F1 **fixed**: was 11 920 elements/s and 48 980 fills/s idle, now 0 |
 | Analysis worker re-post on every progress change | **pattern** | F2 **fixed**: was 352 ms per tap on 600×800, now 0.4 ms |
 | Stats "sections" memo when the stats view opens | **pattern** | F3: **downgraded** — not per-tap, see below |
-| Desktop hover: state update per cell crossed | component size | measured (F4): **1 176 elements per cell** |
+| Desktop hover: state update per cell crossed | component size | F4 **fixed**: was 1 176 elements per cell, now 0 |
 | `pat` as one JS object per cell (R10) | **pattern** (memory + GC) | open |
 | Autosave writes whole snapshot (R7 proper) | **pattern** | open — 564 ms save on the large fixture ([perf-results/interactions.json](perf-results/interactions.json)) |
 | Static/dynamic layer split (R5 proper) | viewport | open, low priority since §9.3 |
@@ -199,7 +199,7 @@ revertible.
 
 1. **F2 analysis payload** — **done.** See [F2 result](#f2-result) below.
 2. **F1 ants off React** — **done.** See [F1 result](#f1-result) below.
-3. **F4 hover via direct DOM.** Target: 0 elements per stitch crossed. ~0.5 day.
+3. **F4 hover via direct DOM** — **done.** See [F4 result](#f4-result) below.
 
 F3 is dropped from Phase 1.
 
@@ -291,6 +291,22 @@ reduced motion leaves it drawn but still.
 path to exactly the edges the old per-cell loop drew.
 [chartCanvasSizeCap.test.js](../tests/chartCanvasSizeCap.test.js) now forbids
 `antsOffset` and any interval driving the ants.
+
+#### F4 result
+
+**What changed.** The read-out under the chart ("Row: 14  Col: 33 — DMC 355
+Terra Cotta Dk") was two pieces of React state, `hoverInfoCell` and
+`hoverInfo`. Each stitch the pointer entered re-rendered all of
+`TrackerApp` to change that one line. Both now live in refs, and
+`renderHoverBar()` writes the line's text directly, the way the crosshair
+above it already worked. The text is unchanged.
+
+**Measured** (desktop, 30-stitch sweep): **35 287 → 7 elements**, i.e. from
+1 176 per stitch to 0.
+
+**Guard.** [desktop-hover-cost.spec.js](../tests/mobile-audit/desktop-hover-cost.spec.js)
+fails if the sweep re-renders the tracker. It also checks the bar names the
+row, column and thread under the pointer, and clears when the pointer leaves.
 
 ### Phase 2 — Per-tap reconcile (3–5 days, only if the device pass says so)
 

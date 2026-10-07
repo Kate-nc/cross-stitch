@@ -2239,13 +2239,35 @@ function TrackerApp({
   const [partialStitches, setPartialStitches] = useState(new Map());
   const [halfDisambig, setHalfDisambig] = useState(null); // {x, y, idx} for popup
 
-  const [hoverInfo, setHoverInfo] = useState(null);
   const hoverRefs = useRef({
     row: null,
     col: null
   });
-  const hoverCellRef = useRef(null);
-  const [hoverInfoCell, setHoverInfoCell] = useState(null);
+  // Hover read-out under the chart (F4, reports/track-view-performance-plan.md).
+  // The hovered cell and its thread live in refs and the bar's text is written
+  // directly, like the crosshair above it. As React state, every stitch the
+  // pointer crossed re-rendered all of TrackerApp — ~1 200 elements per cell.
+  const hoverCellRef = useRef(null); // {row, col}, 0-based, or null
+  const hoverInfoRef = useRef(null); // {row, col, id, name}, 1-based, or null
+  const hoverBarRef = useRef(null);
+  function renderHoverBar() {
+    const el = hoverBarRef.current;
+    if (!el) return;
+    const c = hoverCellRef.current,
+      info = hoverInfoRef.current;
+    let text = "—";
+    if (c) {
+      text = "Row: " + (c.row + 1) + "   Col: " + (c.col + 1);
+      if (info && info.row === c.row + 1 && info.col === c.col + 1) text += "  —   DMC " + info.id + " " + info.name;
+    }
+    if (el.textContent !== text) el.textContent = text;
+  }
+  function setHoverInfo(info) {
+    const prev = hoverInfoRef.current;
+    if (prev === info) return;
+    hoverInfoRef.current = info;
+    renderHoverBar();
+  }
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef({
     x: 0,
@@ -8203,17 +8225,14 @@ function TrackerApp({
           row: gc.gy,
           col: gc.gx
         };
-        setHoverInfoCell({
-          row: gc.gy,
-          col: gc.gx
-        }); // For bottom bar
+        renderHoverBar();
       }
     } else {
       if (hoverRefs.current.row) hoverRefs.current.row.style.display = 'none';
       if (hoverRefs.current.col) hoverRefs.current.col.style.display = 'none';
       if (hoverCellRef.current) {
         hoverCellRef.current = null;
-        setHoverInfoCell(null);
+        renderHoverBar();
       }
     }
   };
@@ -8637,20 +8656,21 @@ function TrackerApp({
   function handleStitchMouseMove(e) {
     if (isPanning) {
       doPan(e);
-      if (hoverInfo) setHoverInfo(null);
+      setHoverInfo(null);
       updateHoverOverlay(null);
       return;
     }
     let gc = gridCoord(stitchRef, e, scs, G, false, chartTileRef.current);
     updateHoverOverlay(gc);
     if (dragStateRef.current.isDragging) {
-      if (hoverInfo) setHoverInfo(null);
+      setHoverInfo(null);
     } else if (stitchMode === "track" && pat && gc && gc.gx >= 0 && gc.gx < sW && gc.gy >= 0 && gc.gy < sH) {
       let idx = gc.gy * sW + gc.gx;
       let cell = pat[idx];
       if (cell && cell.id !== "__skip__" && cell.id !== "__empty__") {
         // Only update state if the hovered cell actually changed
-        if (!hoverInfo || hoverInfo.row !== gc.gy + 1 || hoverInfo.col !== gc.gx + 1) {
+        const hi = hoverInfoRef.current;
+        if (!hi || hi.row !== gc.gy + 1 || hi.col !== gc.gx + 1) {
           let name = "";
           if (cell.type === "blend") {
             name = cell.threads[0].name + "+" + cell.threads[1].name;
@@ -8662,15 +8682,13 @@ function TrackerApp({
             row: gc.gy + 1,
             col: gc.gx + 1,
             id: cell.id,
-            name: name,
-            x: e.clientX,
-            y: e.clientY
+            name: name
           });
         }
       } else {
         setHoverInfo(null);
       }
-    } else if (!dragStateRef.current.isDragging && hoverInfo) {
+    } else if (!dragStateRef.current.isDragging) {
       setHoverInfo(null);
     }
 
@@ -11291,7 +11309,10 @@ function TrackerApp({
       minHeight: 30,
       marginBottom: 'var(--s-3)'
     }
-  }, hoverInfoCell ? /*#__PURE__*/React.createElement(React.Fragment, null, "Row: ", hoverInfoCell.row + 1, " \xA0\xA0 Col: ", hoverInfoCell.col + 1, hoverInfo && hoverInfo.row === hoverInfoCell.row + 1 && hoverInfo.col === hoverInfoCell.col + 1 && /*#__PURE__*/React.createElement(React.Fragment, null, "\xA0\xA0\u2014\xA0\xA0 DMC ", hoverInfo.id, " ", hoverInfo.name)) : /*#__PURE__*/React.createElement(React.Fragment, null, "\u2014")), doneCount === 0 && totalStitchable > 0 && stitchMode === "track" && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("span", {
+    ref: hoverBarRef,
+    className: "tracker-hover-bar"
+  }, "—")), doneCount === 0 && totalStitchable > 0 && stitchMode === "track" && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 'var(--text-xs)',
       color: "var(--accent-ink)",
