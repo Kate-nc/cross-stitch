@@ -6,18 +6,23 @@
 
      immediate   the TrackerApp reconcile that setDone() triggers — counted in
                  the first 400 ms after the tap
-     deferred    500 ms later, the analysis effect re-posts the pattern to its
+     deferred    500 ms later, the analysis effect posts progress to its
                  worker (tracker-app.js "Re-run analysis whenever pattern or
                  progress changes"), and the worker's reply re-renders again —
                  counted from 400 ms to 1 500 ms
-     post cost   the synchronous structured clone inside postMessage, which
-                 copies one {id} object per stitch on the main thread
+     post cost   the synchronous structured clone inside postMessage
 
    Taps are spaced 1.5 s apart, a realistic tap-look-tap cadence that lets
    the 500 ms analysis debounce fire after each one. CPU is throttled 4x.
 
-   This is a baseline, so it asserts that the measurement is real, not a
-   budget. Phase 1 turns the numbers into ceilings. */
+   F2 (fixed): the analysis post used to carry the whole pattern as one {id}
+   object per stitch — 352 ms of main-thread clone per tap on the huge
+   fixture, and 11 of 12 steady-rhythm taps over 200 ms. The worker now holds
+   the pattern (sent once, transferred) and a tap posts only `done`: 0.4 ms.
+   The deterministic guards are that no analyse post carries a pattern and
+   that no pattern is re-sent while tapping; the wall-time ceilings are set
+   loose enough (this harness varies 4-5x) to catch only a return to cloning
+   the pattern. */
 const { test, expect } = require('@playwright/test');
 const { fixtureFor, patternCells } = require('../_helpers/trackerFixture');
 const { suppressOnboarding } = require('../_helpers/deviceEmulation');
@@ -99,6 +104,16 @@ for (const size of ['large', 'huge']) {
       'taps did not trigger analysis — they probably did not mark a stitch').toBeGreaterThanOrEqual(TAPS - 1);
     expect(stats(perTap.map(t => t.immediateElements)).median,
       'a tap re-rendered nothing — setDone did not run').toBeGreaterThan(0);
+
+    // F2 guards. Deterministic first: the pattern lives in the worker.
+    expect(analysePosts.filter(p => p.keys.includes('pat')),
+      'an analyse post carries the pattern again — every tap is cloning it on the main thread').toHaveLength(0);
+    expect(r.posts.filter(p => p.type === 'setPattern'),
+      'the pattern was re-sent while only progress changed').toHaveLength(0);
+    // Then a loose ceiling on the clone itself. Was 124 ms (large) and
+    // 352 ms (huge) median; now under 1 ms.
+    expect(out.analysePostMs.max,
+      `analysis post took ${out.analysePostMs.max} ms on the main thread`).toBeLessThan(25);
   });
 }
 
@@ -141,5 +156,10 @@ for (const size of ['large', 'huge']) {
     expect(r.reactWrapped, 'React.createElement was never wrapped').toBe(true);
     expect(out.analysePosts, 'no analysis posts — the taps did not mark').toBeGreaterThan(0);
     expect(taps.length, 'Event Timing saw no taps').toBeGreaterThan(0);
+    // The user-visible F2 symptom: was 11 of 12 over 200 ms on the huge
+    // fixture, 0 now. Two allowed for harness noise; a return of the
+    // per-tap pattern clone puts nearly every tap back over.
+    expect(out.over200ms,
+      `${out.over200ms} of ${RHYTHM_TAPS} steady taps took over 200 ms`).toBeLessThanOrEqual(2);
   });
 }

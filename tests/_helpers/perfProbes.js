@@ -48,7 +48,10 @@ async function installProbes(page) {
     wp.postMessage = function (msg) {
       const t0 = performance.now();
       try { return op.apply(this, arguments); }
-      finally { P.posts.push({ t: t0, ms: performance.now() - t0, type: msg && msg.type }); }
+      finally {
+        P.posts.push({ t: t0, ms: performance.now() - t0, type: msg && msg.type,
+          keys: msg && typeof msg === 'object' ? Object.keys(msg) : [] });
+      }
     };
     try {
       new PerformanceObserver((l) => { for (const e of l.getEntries()) P.longTasks.push({ t: e.startTime, d: e.duration }); })

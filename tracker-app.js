@@ -14,6 +14,22 @@ const deepClone=typeof structuredClone==='function'?structuredClone:(x)=>JSON.pa
 // the two cannot drift apart.
 function chartOverdraw(cSz){return Math.max(40,20*cSz);}
 
+// The analysis worker's view of the pattern: one Uint16 per stitch indexing
+// `ids`, with 0xFFFF for __skip__/__empty__. Mirrors toModel() in
+// analysis-worker.js (tests/analysisWorkerProtocol.test.js holds them to the
+// same output). Sent once per pattern with its buffer transferred.
+function encodeAnalysisPattern(pat){
+  const n=pat.length,codes=new Uint16Array(n),ids=[],map=new Map();
+  for(let i=0;i<n;i++){
+    const id=pat[i]&&pat[i].id;
+    if(id==null||id==="__skip__"||id==="__empty__"){codes[i]=0xFFFF;continue;}
+    let c=map.get(id);
+    if(c===undefined){c=ids.length;ids.push(id);map.set(id,c);}
+    codes[i]=c;
+  }
+  return{codes,ids};
+}
+
 /* ── Viewport tiling ───────────────────────────────────────────────────────
    The chart and its overlays used to size their backing store to the whole
    pattern at the current zoom: `canvas.width = sW*scs + G + 2`. That is
@@ -1156,12 +1172,16 @@ const[analysisRunning,setAnalysisRunning]=useState(false);
 const analysisWorkerRef=useRef(null);
 const analysisRequestIdRef=useRef(0);
 const analysisThrottleRef=useRef(null);
-// PERF: cache the minimal-size pat payload sent to the analysis worker, keyed
-// on `pat`'s identity. The analyse effect below also depends on `done` (which
-// changes on every single stitch mark), so without this cache we'd reallocate
-// a full pat.length-sized array of {id} objects on almost every debounce tick
-// even though the pattern itself hadn't changed since the last one.
-const analysisMinPatCacheRef=useRef({pat:null,minPat:null});
+// PERF (F2, reports/track-view-performance-plan.md): the worker holds the
+// pattern. It is sent once per `pat` identity — and per worker instance — as a
+// transferred Uint16Array (see encodeAnalysisPattern), so a stitch mark posts
+// only `done`. Previously every mark structured-cloned one {id} object per
+// stitch on the main thread: 352 ms per tap on a 600x800 chart at 4x CPU.
+const analysisPatternRef=useRef({pat:null,worker:null,id:0,sW:0,sH:0});
+// Pattern-only per-stitch arrays (clusterSize, nearestDist, ...) arrive once
+// per pattern id, transferred, and are re-attached to every later result.
+const analysisStaticsRef=useRef({id:-1,perStitch:null});
+const analysisPostedDoneRef=useRef(null);
 // Thread usage visualisation: null | "distance" | "cluster"
 const[threadUsageMode,setThreadUsageMode]=useState(null);
 const threadUsageRafRef=useRef(null);
@@ -2019,8 +2039,21 @@ useEffect(()=>{
     analysisWorkerRef.current=w;
     w.onmessage=function(e){
       const msg=e.data;
-      if(msg.type==="result"&&msg.requestId===analysisRequestIdRef.current){
-        setAnalysisResult(msg.result);
+      if(msg.type==="result"){
+        const result=msg.result;
+        // Keep the statics even from a superseded request: they are sent only
+        // once per pattern, so dropping them here would lose them for good.
+        if(result&&result.perStitch&&msg.patternId===analysisPatternRef.current.id){
+          analysisStaticsRef.current={id:msg.patternId,perStitch:result.perStitch};
+        }
+        if(msg.requestId!==analysisRequestIdRef.current)return;
+        const st=analysisStaticsRef.current;
+        if(result&&st.id===msg.patternId){
+          result.perStitch=Object.assign({},st.perStitch,{isCompleted:analysisPostedDoneRef.current});
+        }
+        setAnalysisResult(result);
+        setAnalysisRunning(false);
+      }else if(msg.type==="error"&&msg.requestId===analysisRequestIdRef.current){
         setAnalysisRunning(false);
       }
     };
@@ -2039,22 +2072,26 @@ useEffect(()=>{
   if(!pat||!sW||!sH||!analysisWorkerRef.current)return;
   clearTimeout(analysisThrottleRef.current);
   analysisThrottleRef.current=setTimeout(()=>{
+    const w=analysisWorkerRef.current;
+    if(!w)return;
     const reqId=++analysisRequestIdRef.current;
     setAnalysisRunning(true);
-    // Send minimal-size pat objects — only need the id field. Reuse the cached
-    // array when `pat` hasn't changed since the last build (see PERF comment above).
-    let minPat=analysisMinPatCacheRef.current.pat===pat?analysisMinPatCacheRef.current.minPat:null;
-    if(!minPat){
-      minPat=new Array(pat.length);
-      for(let i=0;i<pat.length;i++)minPat[i]={id:pat[i].id};
-      analysisMinPatCacheRef.current={pat,minPat};
+    // Send the pattern only when it (or the worker) has changed since the last
+    // post. Transferring the buffer makes the post itself free.
+    const pr=analysisPatternRef.current;
+    if(pr.pat!==pat||pr.worker!==w||pr.sW!==sW||pr.sH!==sH){
+      const enc=encodeAnalysisPattern(pat);
+      const id=pr.id+1;
+      analysisPatternRef.current={pat,worker:w,id,sW,sH};
+      w.postMessage({type:"setPattern",patternId:id,codes:enc.codes,ids:enc.ids,sW,sH},[enc.codes.buffer]);
     }
     // PERF: postMessage's structured clone copies a Uint8Array with a single
     // memcpy; Array.from(done) instead boxed every byte into a JS number and
     // built a full-size plain Array — much more expensive for large patterns,
     // for no benefit since the worker immediately does `new Uint8Array(done)`
     // on the other side regardless of which one it receives.
-    analysisWorkerRef.current.postMessage({type:"analyse",pat:minPat,done:done||null,sW,sH,requestId:reqId,blockSize:blockW});
+    analysisPostedDoneRef.current=done||null;
+    w.postMessage({type:"analyse",patternId:analysisPatternRef.current.id,done:done||null,sW,sH,requestId:reqId,blockSize:blockW});
   },500);
   return()=>clearTimeout(analysisThrottleRef.current);
 },[pat,done,sW,sH,blockW]);

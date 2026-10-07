@@ -8,11 +8,10 @@ const path = require("path");
 const { loadSource } = require('./_helpers/loadSource');
 const workerSrc = loadSource('analysis-worker.js');
 
-// Extract and define the pure functions without the self.onmessage handler
-// Strip the self.onmessage block so we can eval in Node
-const stripped = workerSrc.replace(/self\.onmessage\s*=.*$/ms, "");
+// The worker only installs self.onmessage when `self` exists, so the source
+// evaluates as-is in Node and just defines the pure functions.
 /* global computeClusters, computeNeighbourCounts, computeNearestSameColour, runAnalysis, REGION_SIZE */
-eval(stripped); // eslint-disable-line no-eval
+eval(workerSrc); // eslint-disable-line no-eval
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function makePat(ids) {

@@ -29,7 +29,7 @@ So **drawing is no longer proportional to pattern size**. What still is:
 | --- | --- | --- |
 | Per-tap React reconcile of `TrackerApp` (~7 500 lines) | component size, not pattern | measured: ~550 elements, 48 ms tap-to-paint at 4× — **acceptable** |
 | Marching-ants highlight: 10 full repaints + 10 reconciles per second | viewport | measured (F1): **11 920 elements/s, 48 980 fills/s idle** |
-| Analysis worker re-post on every progress change | **pattern** | measured (F2): **352 ms per tap on 600×800; steady tapping lags 224 ms** |
+| Analysis worker re-post on every progress change | **pattern** | F2 **fixed**: was 352 ms per tap on 600×800, now 0.4 ms |
 | Stats "sections" memo when the stats view opens | **pattern** | F3: **downgraded** — not per-tap, see below |
 | Desktop hover: state update per cell crossed | component size | measured (F4): **1 176 elements per cell** |
 | `pat` as one JS object per cell (R10) | **pattern** (memory + GC) | open |
@@ -197,11 +197,7 @@ previous tap's analysis post starts):
 Reordered by the Phase 0 numbers. Each is small, local and independently
 revertible.
 
-1. **F2 analysis payload** — the user-visible lag. Send the pattern to the
-   worker once per `pat` change as a transferable `Uint16Array` of palette
-   indices; on progress changes send only `done`. Target: analysis post
-   under 5 ms on huge, and no steady-rhythm tap over 100 ms. ~1 day. Also a
-   stepping stone to R10.
+1. **F2 analysis payload** — **done.** See [F2 result](#f2-result) below.
 2. **F1 ants off React.** Overlay canvas + `requestAnimationFrame` + a cached
    `Path2D`. Target: 0 elements/s idle in outline mode, and fills only for the
    outline. ~0.5 day.
@@ -211,6 +207,49 @@ F3 is dropped from Phase 1.
 
 **Verify:** re-run the Phase 0 specs and turn their measurements into
 ceilings, the same way §9 pinned its fixes, so they can't regress silently.
+
+#### F2 result
+
+**What changed.** [analysis-worker.js](../analysis-worker.js) now holds the
+pattern. The tracker sends it once per pattern (and per worker instance) as
+`setPattern`: a `Uint16Array` of colour indices with its buffer transferred,
+so nothing is cloned. A stitch mark posts only `done`. The worker caches
+everything that depends on the pattern alone — clusters, neighbour counts,
+nearest-same-colour distances, per-colour shape metrics, per-region colour
+make-up — so a progress change is one pass over `done`. The per-stitch arrays
+(`clusterSize`, `nearestDist`, ...) go back once per pattern, transferred,
+and the tracker re-attaches them to every later result. `clusterSize` is now
+an `Int32Array` rather than a plain array.
+
+Output is unchanged. A one-off comparison of the old and new worker on
+1 800 random cases (mixed DMC/blend/text ids, skip cells, ties, block sizes
+5–20, both message paths) found no differences. That includes the
+dominant-colour tie-break, which follows the old `Object.keys` order exactly.
+
+**Measured** (same specs, Pixel 5 emulation, 4× CPU):
+
+| | before | after |
+| --- | ---: | ---: |
+| Analysis post, main thread, huge (median / max) | 352 / 436 ms | **0.4 / 0.6 ms** |
+| Analysis post, main thread, large (median / max) | 124 / 149 ms | **0.2 / 0.4 ms** |
+| Steady tapping, huge: taps over 200 ms | 11 of 12 | **0 of 12** |
+| Steady tapping, huge: tap to next paint (median) | 224 ms | **48 ms** |
+| Total blocking, 8 taps, huge | 3 150 ms | 309 ms |
+| Total blocking, 8 taps, large | 675 ms | 71 ms |
+
+The remaining blocking is a single long task per run, which this change did
+not produce. The likeliest source is the 5 s debounced autosave (R7 proper,
+Phase 4); that's not yet confirmed.
+
+**Guards.** [tap-cost.spec.js](../tests/mobile-audit/tap-cost.spec.js) now
+fails if an analyse post carries the pattern, if the pattern is re-sent while
+tapping, if the post exceeds 25 ms, or if more than 2 of 12 steady taps exceed
+200 ms. The first and last were confirmed to fail against the pre-fix code.
+[analysisWorkerProtocol.test.js](../tests/analysisWorkerProtocol.test.js)
+holds the cached message path to a full `runAnalysis` and pins the
+once-per-pattern contract.
+[desktop-analysis-protocol.spec.js](../tests/mobile-audit/desktop-analysis-protocol.spec.js)
+checks the tracker's side in the real app.
 
 ### Phase 2 — Per-tap reconcile (3–5 days, only if the device pass says so)
 
