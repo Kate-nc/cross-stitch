@@ -3292,7 +3292,7 @@
     var label = function (id) { return (props.labels && props.labels[id]) || id; };
     var sample = function (id) {
       return props.samples && props.samples[id]
-        ? h(GlyphSample, { sample: props.samples[id], label: 'How ' + label(id) + ' looks in the scan' })
+        ? h(GlyphSample, { sample: props.samples[id], label: 'How ' + label(id) + ' looks in the chart' })
         : null;
     };
     var shown = open.slice(0, 5);
@@ -3381,7 +3381,7 @@
         var choosing = canChoose && (pending[id] || open === id);
         return h('div', { key: id, className: 'import-palette-row' + (pending[id] ? ' pending' : '') },
           props.samples && props.samples[id]
-            ? h(GlyphSample, { sample: props.samples[id], label: 'How ' + label + ' looks in the scan' })
+            ? h(GlyphSample, { sample: props.samples[id], label: 'How ' + label + ' looks in the chart' })
             : h('span', { className: 'import-palette-swatch',
                 style: { background: 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')' } }),
           h('span', { className: 'import-palette-name' },
@@ -3408,7 +3408,7 @@
         h('h3', null, 'Threads you chose'),
         assigned.map(function (from) {
           return h('div', { key: from, className: 'import-palette-assigned-row' },
-            props.samples && props.samples[from] && h(GlyphSample, { sample: props.samples[from], label: 'How ' + ((props.labels && props.labels[from]) || from) + ' looks in the scan' }),
+            props.samples && props.samples[from] && h(GlyphSample, { sample: props.samples[from], label: 'How ' + ((props.labels && props.labels[from]) || from) + ' looks in the chart' }),
             h('span', null, (props.labels && props.labels[from]) || from),
             h('span', { className: 'import-palette-arrow', 'aria-hidden': 'true' }, I('chevronRight')),
             h('span', { className: 'import-palette-id' }, (props.labels && props.labels[props.assignments[from]]) || props.assignments[from]),

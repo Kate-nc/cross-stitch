@@ -191,3 +191,110 @@ describe('importing a chart printed as MacStitch prints it', () => {
     expect(counts.reduce((a, b) => a + b)).toBe(W * H);
   });
 });
+
+/* ── symbols drawn as pictures ────────────────────────────────────────────── */
+
+/* MacStitch draws every symbol, in the chart and in the key, as a small
+ * picture. The colour copy's pictures are the key's own, pixel for pixel; the
+ * black-and-white copy redraws them in black on white, so on a chart printed
+ * only in black and white the picture's shape is the one link to the key.
+ * A 40 x 40 chart, ruled every ten, with three threads in the key and a fourth
+ * symbol (a filled block) the key does not list. */
+async function pictureChart({ colour, mono }) {
+  const { createCanvas } = require('canvas');
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const THREADS = [['321', [204, 26, 38]], ['797', [26, 64, 191]], ['725', [242, 191, 38]]];
+  const W = 40, H = 40, pitch = 9, gx = 60, gyTop = 100;
+  const threadAt = (c, r) => (c === 5 && r < 4) ? 3 : (c + 2 * r) % 7 < 3 ? 0 : (c * r) % 5 === 0 ? 1 : 2;
+  const counts = [0, 0, 0, 0];
+  for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) counts[threadAt(c, r)]++;
+  // A symbol picture: a cross, a ring, a zigzag or a block, in black on the
+  // thread's colour (the key and colour chart) or on white with a heavier pen.
+  const picture = async (t, bg, pen) => {
+    const cv = createCanvas(32, 32), g = cv.getContext('2d');
+    g.fillStyle = bg; g.fillRect(0, 0, 32, 32);
+    g.strokeStyle = '#000'; g.fillStyle = '#000'; g.lineWidth = pen;
+    g.beginPath();
+    if (t === 0) { g.moveTo(6, 6); g.lineTo(26, 26); g.moveTo(26, 6); g.lineTo(6, 26); g.stroke(); }
+    else if (t === 1) { g.arc(16, 16, 10, 0, Math.PI * 2); g.stroke(); }
+    else if (t === 2) { g.moveTo(6, 7); g.lineTo(26, 7); g.lineTo(6, 25); g.lineTo(26, 25); g.stroke(); }
+    else g.fillRect(8, 8, 16, 16);
+    return pdf.embedPng(cv.toBuffer('image/png'));
+  };
+  const css = ([r, g, b]) => 'rgb(' + r + ',' + g + ',' + b + ')';
+  const colourPics = [], monoPics = [];
+  for (let t = 0; t < 4; t++) {
+    colourPics.push(await picture(t, t < 3 ? css(THREADS[t][1]) : '#888', 3));
+    monoPics.push(await picture(t, '#fff', 4));
+  }
+  const chartPage = (inColour) => {
+    const page = pdf.addPage([595, 842]);
+    const X = (c) => gx + c * pitch, Y = (r) => 842 - (gyTop + r * pitch);
+    for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
+      const t = threadAt(c, r);
+      if (inColour && t < 3) page.drawRectangle({ x: X(c), y: Y(r + 1), width: pitch, height: pitch, color: rgb(...THREADS[t][1].map(v => v / 255)) });
+      page.drawImage((inColour ? colourPics : monoPics)[t], { x: X(c), y: Y(r + 1), width: pitch, height: pitch });
+    }
+    for (let c = 0; c <= W; c++) page.drawLine({ start: { x: X(c), y: Y(0) }, end: { x: X(c), y: Y(H) }, thickness: 0.2, color: rgb(0, 0, 0) });
+    for (let r = 0; r <= H; r++) page.drawLine({ start: { x: X(0), y: Y(r) }, end: { x: X(W), y: Y(r) }, thickness: 0.2, color: rgb(0, 0, 0) });
+    for (let c = 1; c <= W; c++) if (c % 10 === 0) page.drawText(String(c), { x: X(c - 1), y: Y(0) + 4, size: 7, font });
+    for (let r = 1; r <= H; r++) if (r % 10 === 0) page.drawText(String(r), { x: gx - 16, y: Y(r) + 1, size: 7, font });
+  };
+  if (colour) chartPage(true);
+  if (mono) chartPage(false);
+  const key = pdf.addPage([595, 842]);
+  key.drawText('Symbol', { x: 14, y: 800, size: 9, font });
+  key.drawText('Number', { x: 118, y: 800, size: 9, font });
+  key.drawText('Stitches', { x: 417, y: 800, size: 9, font });
+  THREADS.forEach(([code, col], i) => {
+    const y = 780 - i * 18;
+    key.drawRectangle({ x: 12, y: y - 4, width: 98, height: 16, color: rgb(...col.map(v => v / 255)) });
+    key.drawImage(colourPics[i], { x: 55, y: y - 2, width: 12, height: 12 });
+    key.drawText('DMC ' + code, { x: 118, y, size: 9, font });
+    key.drawText(String(counts[i]), { x: 480, y, size: 9, font });
+  });
+  const bytes = await pdf.save();
+  return { buffer: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), counts, threadAt, W, H };
+}
+
+describe('importing a chart whose symbols are pictures', () => {
+  jest.setTimeout(90000);
+  const ids = ['321', '797', '725'];
+
+  it('reads a black-and-white chart by the shape of its pictures', async () => {
+    const { buffer, counts, threadAt, W, H } = await pictureChart({ colour: false, mono: true });
+    const project = await newImporter().import(buffer);
+    const r = project.importReport;
+    expect([project.w, project.h]).toEqual([W, H]);
+    // Each picture is matched to the key picture of the same shape...
+    expect(r.matched.symbol).toBe(counts[0] + counts[1] + counts[2]);
+    expect(r.matched.swatch).toBe(0);
+    for (let row = 0; row < H; row++) for (let c = 0; c < W; c++) {
+      const t = threadAt(c, row);
+      if (t < 3) expect(project.pattern[row * W + c].id).toBe(ids[t]);
+    }
+    // ...and the one the key does not list is left for the stitcher, named
+    // and shown as a picture rather than by its internal key.
+    expect(r.matched.unresolved).toBe(counts[3]);
+    const cell = project.pattern[0 * W + 5];
+    expect(cell.name).toBe('Picture symbol 1 (not in key)');
+    expect(r.warnings.join(' ')).toMatch(/missing from the key \(picture 1\)/);
+    const samples = project._layoutSession.glyphSamples;
+    expect(samples && samples[cell.id] && [samples[cell.id].w, samples[cell.id].h]).toEqual([32, 32]);
+  });
+
+  it('reads a colour chart\'s pictures as exactly the key\'s', async () => {
+    const { buffer, counts, threadAt, W, H } = await pictureChart({ colour: true, mono: true });
+    const project = await newImporter().import(buffer);
+    const s = project._layoutSession;
+    const r = project.importReport;
+    expect([project.w, project.h]).toEqual([W, H]);
+    expect(s.pages.filter(p => p.reason === 'duplicate').map(p => p.pageIndex)).toEqual([2]);
+    expect(r.matched.symbol).toBe(counts[0] + counts[1] + counts[2]);
+    expect(project.pattern[3 * W + 5].name).toBe('Picture symbol 1 (not in key)');
+    for (const [c, row] of [[0, 0], [11, 7], [39, 39], [20, 12]]) {
+      expect(project.pattern[row * W + c].id).toBe(ids[threadAt(c, row)]);
+    }
+  });
+});

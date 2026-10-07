@@ -254,6 +254,17 @@ class PatternKeeperImporter {
     const byPage = new Map(sessionPages.map(p => [p.pageIndex, p]));
     for (const p of sessionPages) p.cells = [];
     for (const c of linked) { const p = byPage.get(c._page); if (p) p.cells.push(c); }
+    // A picture symbol missing from the key has no character to show in the
+    // review, so it shows the picture itself.
+    let glyphSamples = null;
+    for (const c of linked) {
+      if (!c.picture || !c.thread || !c.thread.placeholder) continue;
+      if (glyphSamples && glyphSamples[c.thread.id]) continue;
+      const pic = this._pictures && this._pictures.get(c.picture);
+      if (!pic) continue;
+      if (!glyphSamples) glyphSamples = {};
+      glyphSamples[c.thread.id] = { w: pic.w, h: pic.h, data: pic.data };
+    }
     await yieldToBrowser();
 
     // Layout warnings that are about pages left out are rebuilt for whatever
@@ -290,6 +301,7 @@ class PatternKeeperImporter {
       placement,
       build: (pl) => this.buildFromLayout(session, pl),
     };
+    if (glyphSamples) session.glyphSamples = glyphSamples;
     return session;
   }
 
@@ -462,8 +474,10 @@ class PatternKeeperImporter {
       // Kept for rendering a scanned page to pixels; not enumerable, so it
       // never travels with anything that copies or serialises the page.
       Object.defineProperty(record, '_pdfPage', { value: page, enumerable: false });
+      await this.readSymbolPictures(page, record.images);
       return record;
     };
+    this._pictures = new Map();
     const worker = async () => {
       while (nextPage < pdfData.numPages) {
         this.checkCancelled();
@@ -713,7 +727,10 @@ class PatternKeeperImporter {
       const numLines = page.vectorPaths.filter(p => p.type === 'line' || p.type === 'rect').length;
       // Filled cells drawn as general paths rather than rectangles (pdf-lib and
       // several charting programs draw them that way) count as shapes too.
-      const numShapes = numLines + page.vectorPaths.filter(p => p.type === 'path' && p.fillColor).length;
+      // So do symbols drawn as pictures (readSymbolPictures): a black-and-white
+      // MacStitch page is little else.
+      const numShapes = numLines + page.vectorPaths.filter(p => p.type === 'path' && p.fillColor).length +
+        (page.images || []).filter(im => im.pic).length;
       const numTexts = page.textItems.length;
       const numSingleChars = page.textItems.filter(t => t.str.trim().length === 1).length;
       const hasDMC = page.textItems.some(t => t.str.toLowerCase().includes('dmc'));
@@ -1675,6 +1692,16 @@ class PatternKeeperImporter {
       seen++;
     }
 
+    // Symbols drawn as pictures (readSymbolPictures) fill their cells.
+    for (const im of page.images || []) {
+      if (!im.pic) continue;
+      if (im.x0 < x0) x0 = im.x0;
+      if (im.x1 > x1) x1 = im.x1;
+      if (im.y0 < y0) y0 = im.y0;
+      if (im.y1 > y1) y1 = im.y1;
+      seen++;
+    }
+
     const texts = page.textItems || [];
     for (let j = 0; j < texts.length; j++) {
       const t = texts[j];
@@ -1739,8 +1766,187 @@ class PatternKeeperImporter {
           x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys),
           pxW: (args && typeof args[1] === 'number') ? args[1] : 0,
           pxH: (args && typeof args[2] === 'number') ? args[2] : 0,
+          name: (args && typeof args[0] === 'string') ? args[0] : null,
         });
       }
+    }
+    return out;
+  }
+
+  /**
+   * Symbols drawn as small pictures rather than as text. MacStitch places a
+   * 64 x 64 picture in every chart cell and beside every key entry, so on a
+   * black-and-white chart, with no cell colour to go on, the picture is the
+   * only link between a cell and its thread.
+   *
+   * Each distinct picture is decoded once and named by its exact pixels, so the
+   * same picture is the same symbol on every page and in the key ('pic:' key).
+   * Its shape (pictureShape) is kept too, for a black-and-white chart whose
+   * pictures are drawn without the key's colours.
+   */
+  async readSymbolPictures(page, images) {
+    const small = (images || []).filter(im => im.name && im.pxW > 0 && im.pxW <= 256 && im.pxH > 0 && im.pxH <= 256 &&
+      im.x1 - im.x0 <= 30 && im.y1 - im.y0 <= 30);
+    if (!small.length) return;
+    if (!this._pictures) this._pictures = new Map();
+    const byName = new Map();
+    for (const im of small) {
+      if (!byName.has(im.name)) {
+        this.checkCancelled();
+        const px = this.pictureRgba(await this.decodePicture(page, im.name));
+        let key = null;
+        if (px) {
+          let h = 2166136261 >>> 0;
+          for (let i = 0; i < px.data.length; i++) { h ^= px.data[i]; h = Math.imul(h, 16777619) >>> 0; }
+          key = 'pic:' + px.w + 'x' + px.h + ':' + h.toString(16);
+          if (!this._pictures.has(key)) this._pictures.set(key, { w: px.w, h: px.h, data: px.data, shape: this.pictureShape(px) });
+        }
+        byName.set(im.name, key);
+      }
+      const key = byName.get(im.name);
+      if (key) im.pic = key;
+    }
+  }
+
+  /** A painted image's decoded object from pdf.js, or null if it never arrives. */
+  async decodePicture(page, name) {
+    const store = name.startsWith('g_') ? page.commonObjs : page.objs;
+    if (!store || typeof store.get !== 'function') return null;
+    let timer = null;
+    try {
+      return await Promise.race([
+        new Promise(res => store.get(name, res)),
+        new Promise(res => { timer = setTimeout(() => res(null), 3000); }),
+      ]);
+    } catch (e) {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * A decoded image as RGBA on white: pdf.js hands over raw bytes (1-bit grey,
+   * RGB or RGBA) in Node and an ImageBitmap in browsers.
+   */
+  pictureRgba(img) {
+    if (!img) return null;
+    const w = img.width, h = img.height;
+    if (!(w > 0) || !(h > 0)) return null;
+    let src = null;
+    if (img.data) {
+      const d = img.data, n = w * h;
+      src = new Uint8ClampedArray(n * 4);
+      if (img.kind === 1) {
+        // 1 bit per pixel, rows padded to whole bytes; a set bit is white.
+        const rowBytes = (w + 7) >> 3;
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+          const v = (d[y * rowBytes + (x >> 3)] >> (7 - (x & 7))) & 1 ? 255 : 0;
+          const o = (y * w + x) * 4;
+          src[o] = src[o + 1] = src[o + 2] = v; src[o + 3] = 255;
+        }
+      } else {
+        const ch = img.kind === 3 ? 4 : img.kind === 2 ? 3 : Math.round(d.length / n);
+        if (!(ch >= 1 && ch <= 4) || d.length < n * ch) return null;
+        for (let i = 0; i < n; i++) {
+          src[i * 4] = d[i * ch];
+          src[i * 4 + 1] = d[i * ch + Math.min(1, ch - 1)];
+          src[i * 4 + 2] = d[i * ch + Math.min(2, ch - 1)];
+          src[i * 4 + 3] = ch === 4 ? d[i * ch + 3] : 255;
+        }
+      }
+    } else if (img.bitmap) {
+      let canvas, context;
+      try {
+        if (this.options && this.options.canvasFactory) ({ canvas, context } = this.options.canvasFactory.create(w, h));
+        else if (typeof OffscreenCanvas !== 'undefined') { canvas = new OffscreenCanvas(w, h); context = canvas.getContext('2d'); }
+        else if (typeof document !== 'undefined') { canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h; context = canvas.getContext('2d'); }
+        if (!context) return null;
+        context.drawImage(img.bitmap, 0, 0);
+        src = context.getImageData(0, 0, w, h).data;
+      } catch (e) {
+        return null;
+      }
+    } else {
+      return null;
+    }
+    // Transparency shows the paper: composite onto white.
+    const data = new Uint8ClampedArray(w * h * 4);
+    for (let i = 0; i < w * h; i++) {
+      const a = src[i * 4 + 3] / 255;
+      for (let k = 0; k < 3; k++) data[i * 4 + k] = Math.round(src[i * 4 + k] * a + 255 * (1 - a));
+      data[i * 4 + 3] = 255;
+    }
+    return { w, h, data };
+  }
+
+  /**
+   * A picture's shape regardless of its colours: on a 16 x 16 lattice, how far
+   * each part differs from the corner (the picture's background), as a share
+   * of the largest difference anywhere in it. MacStitch's black-and-white
+   * pictures are its colour ones redrawn in black on white, so they share this
+   * shape though not a single pixel.
+   */
+  pictureShape(px) {
+    const N = 16, w = px.w, h = px.h, d = px.data;
+    const bg = [d[0], d[1], d[2]];
+    const diff = new Float64Array(w * h);
+    let max = 0;
+    for (let i = 0; i < w * h; i++) {
+      const v = Math.abs(d[i * 4] - bg[0]) + Math.abs(d[i * 4 + 1] - bg[1]) + Math.abs(d[i * 4 + 2] - bg[2]);
+      diff[i] = v;
+      if (v > max) max = v;
+    }
+    const out = new Float64Array(N * N);
+    const cnt = new Float64Array(N * N);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const k = Math.floor(y * N / h) * N + Math.floor(x * N / w);
+      out[k] += max ? diff[y * w + x] / max : 0;
+      cnt[k]++;
+    }
+    for (let i = 0; i < out.length; i++) if (cnt[i]) out[i] /= cnt[i];
+    return out;
+  }
+
+  /**
+   * Which key picture each chart picture shows, for chart pictures that are
+   * not exactly a key picture: by shape, one to one, closest pairs first.
+   *
+   * One to one because each thread has one symbol. On MacStitch's
+   * black-and-white copy, nearest-by-shape alone was right for 104 of 105
+   * pictures, but two of them were nearly as close to another symbol as to
+   * their own (0.130 against 0.132), and one symbol is redrawn so differently
+   * that its nearest is another thread's. Taking the closest pairs first and
+   * never giving a key picture twice matched all 105 correctly. Pairs further
+   * apart than 0.2 are not the same symbol, and are left unmatched.
+   *
+   * @param {string[]} chartPics 'pic:' keys found in the chart, not in the key
+   * @param {string[]} keyPics   'pic:' keys of the key's entries
+   * @returns {Map<string,string>} chart picture -> key picture
+   */
+  matchPictures(chartPics, keyPics) {
+    const pics = this._pictures;
+    const out = new Map();
+    if (!pics || !chartPics.length || !keyPics.length) return out;
+    const pairs = [];
+    for (const u of chartPics) {
+      const p = pics.get(u);
+      if (!p) continue;
+      for (const k of keyPics) {
+        const q = pics.get(k);
+        if (!q) continue;
+        let t = 0;
+        for (let i = 0; i < p.shape.length; i++) t += Math.abs(p.shape[i] - q.shape[i]);
+        const d = t / p.shape.length;
+        if (d <= 0.2) pairs.push({ u, k, d });
+      }
+    }
+    pairs.sort((a, b) => a.d - b.d);
+    const taken = new Set();
+    for (const { u, k } of pairs) {
+      if (out.has(u) || taken.has(k)) continue;
+      out.set(u, k);
+      taken.add(k);
     }
     return out;
   }
@@ -2464,6 +2670,20 @@ class PatternKeeperImporter {
           t => t.y - t.height / 2,
           grid.cellHeight
         );
+        // Symbols drawn as pictures (readSymbolPictures), by their centres.
+        const pictureBuckets = this._buildYBuckets(
+          (pageData.images || []).filter(im => im.pic &&
+            im.x1 - im.x0 <= grid.cellWidth * 1.5 && im.y1 - im.y0 <= grid.cellHeight * 1.5),
+          im => (im.y0 + im.y1) / 2,
+          grid.cellHeight
+        );
+        const pictureAt = (cx, cy) => {
+          for (const im of pictureBuckets.lookup(cy)) {
+            if (Math.abs((im.x0 + im.x1) / 2 - cx) < grid.cellWidth / 2 &&
+                Math.abs((im.y0 + im.y1) / 2 - cy) < grid.cellHeight / 2) return im.pic;
+          }
+          return null;
+        };
         // Pre-compute centroids for fill paths to avoid recomputing inside
         // the inner loop (and so the bucket index can use the centroid Y).
         const fillPaths = [];
@@ -2636,6 +2856,10 @@ class PatternKeeperImporter {
 
                   // Clone it so we don't modify the original pageData reference and can assign the single char
                   item = { ...item, str: singleChar.trim() };
+              }
+              if (!item) {
+                  const pic = pictureAt(cx, cy);
+                  if (pic) item = { str: pic, fontName: '' };
               }
 
               const cellKey = r * grid.columns + c;
@@ -2874,6 +3098,15 @@ class PatternKeeperImporter {
       }
     }
 
+    // Symbols drawn as pictures (readSymbolPictures), placed as glyphs are.
+    const pictures = [];
+    for (const im of page.images || []) {
+      if (!im.pic) continue;
+      const cx = (im.x0 + im.x1) / 2, cy = (im.y0 + im.y1) / 2;
+      if (inside(cx, cy)) continue;
+      pictures.push({ s: im.pic, x: im.x0, y: im.y1, w: im.x1 - im.x0, h: im.y1 - im.y0, cy, font: '', picture: true });
+    }
+
     const sameLine = (a, cy) => Math.abs(a - cy) <= 7;
     const codes = texts.filter(t => CODE_RE.test(t.s));
     const anchored = [];
@@ -2899,7 +3132,8 @@ class PatternKeeperImporter {
 
       // Symbol: a glyph drawn inside the swatch, else the nearest one to the left.
       const glyphs = texts.filter(t => (t.s.length === 1 || /^U\+[0-9A-F]{4}$/.test(t.s)) &&
-        t.x < c.x && t.x > prevX && sameLine(t.cy, c.cy));
+        t.x < c.x && t.x > prevX && sameLine(t.cy, c.cy))
+        .concat(pictures.filter(t => t.x < c.x && t.x > prevX && sameLine(t.cy, c.cy)));
       // gen1 prints its symbol beside the swatch rather than in it, and its
       // chart is drawn in text alone, so the symbol is the only link for those
       // cells — it must be kept even when a swatch is found.
@@ -2981,7 +3215,7 @@ class PatternKeeperImporter {
       entries.push({
         kind: a.sample ? 'backstitch' : 'cross',
         symbol: a.symbol ? a.symbol.s : null,
-        symbolFontName: a.symbol ? (a.symbol.font || 'Unknown') : null,
+        symbolFontName: a.symbol ? (a.symbol.picture ? '' : (a.symbol.font || 'Unknown')) : null,
         threadCode: a.code,
         colorName: name,
         stitchCount: count,
@@ -3212,7 +3446,8 @@ class PatternKeeperImporter {
            const rgb = this.hslToRgb(((i * 137.508) % 360) / 360, 0.55, 0.5);
            placeholders.set(sym, {
               id: 'U' + (i + 1), rgb, lab: toLab(rgb), placeholder: 'not-in-key',
-              name: (sym === '(colour)' ? 'Unmatched colour' : 'Symbol ' + sym) + ' (not in key)',
+              name: (sym === '(colour)' ? 'Unmatched colour'
+                     : /^picture \d+$/.test(sym) ? 'Picture symbol ' + sym.slice(8) : 'Symbol ' + sym) + ' (not in key)',
            });
         }
         return placeholders.get(sym);
@@ -3234,6 +3469,21 @@ class PatternKeeperImporter {
         if (!bySymbol.has(e.symbol)) bySymbol.set(e.symbol, []);
         bySymbol.get(e.symbol).push(e);
      }
+     const isPicture = (s) => typeof s === 'string' && s.startsWith('pic:');
+     const keyPictures = Array.from(bySymbol.keys()).filter(s => isPicture(s) && bySymbol.get(s).length === 1);
+     const chartPictures = Array.from(new Set(symbols.filter(c => isPicture(c.symbol) && !bySymbol.has(c.symbol)).map(c => c.symbol)));
+     const pictureMatch = this.matchPictures(chartPictures, keyPictures);
+     const pictureEntry = (s) => {
+        const k = pictureMatch.get(s);
+        return k ? bySymbol.get(k)[0] : null;
+     };
+     // Picture symbols have no character to show, so unmatched ones are
+     // numbered instead: "picture 1", "picture 2".
+     const pictureLabels = new Map();
+     const pictureLabel = (s) => {
+        if (!pictureLabels.has(s)) pictureLabels.set(s, 'picture ' + (pictureLabels.size + 1));
+        return pictureLabels.get(s);
+     };
      // Same colour, allowing for rounding: DMC prints its key swatches one step
      // off the chart's own cells (3860 is 133,110,113 in the key and
      // 134,111,113 on the chart). Within 2 on every channel is the same ink;
@@ -3350,6 +3600,13 @@ class PatternKeeperImporter {
            }
            if (entry) { report.symbol++; how = 'symbol'; }
         }
+        // A picture symbol drawn differently from the key's (a black-and-white
+        // copy of a colour chart): the key picture of the same shape. Tried
+        // before the cell's colour, which on such a chart is only paper.
+        if (!entry && isPicture(cell.symbol)) {
+           const near = pictureEntry(cell.symbol);
+           if (near) { entry = near; report.symbol++; how = 'symbol'; }
+        }
 
         // 2. Exact swatch colour.
         if (!entry) {
@@ -3387,13 +3644,20 @@ class PatternKeeperImporter {
         //    stitcher can assign it in the review; one shared black "Unknown"
         //    merged them past telling apart.
         if (!thread) {
-           const s = cell.symbol || '(colour)';
+           const s = isPicture(cell.symbol) ? pictureLabel(cell.symbol) : (cell.symbol || '(colour)');
            thread = placeholderFor(s);
            report.unresolved++;
            report.unresolvedSymbols[s] = (report.unresolvedSymbols[s] || 0) + 1;
            how = 'unresolved';
         }
 
+        // A picture symbol is kept aside as `picture`; the pattern's symbol
+        // is text, so a matched one has none and an unmatched one its label.
+        if (isPicture(cell.symbol)) {
+           linked.push({ ...cell, symbol: how === 'unresolved' ? pictureLabel(cell.symbol) : '',
+                         picture: cell.symbol, thread, matchedBy: how });
+           return;
+        }
         linked.push({ ...cell, thread, matchedBy: how });
      });
 
