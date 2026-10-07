@@ -3963,8 +3963,12 @@
       }
       // Nearest key colour counts as a match when the key's colours are too
       // far apart to mistake (PAT1968_2's seven), not when two are close.
-      var read = (m.symbol || 0) + (m.swatch || 0) + (r.keyColoursDistinct ? (m.nearest || 0) : 0);
-      var total = (m.symbol || 0) + (m.swatch || 0) + (m.nearest || 0) + (m.catalogue || 0) + (m.unresolved || 0);
+      var partialSwatch = typeof m.partialSwatch === 'number' ? m.partialSwatch : (m.partial || 0);
+      var partialNearest = typeof m.partialNearest === 'number' ? m.partialNearest : 0;
+      var read = (m.symbol || 0) + (m.swatch || 0) + partialSwatch +
+        (r.keyColoursDistinct ? (m.nearest || 0) + partialNearest : 0);
+      var total = (m.symbol || 0) + (m.swatch || 0) + (m.nearest || 0) +
+        partialSwatch + partialNearest + (m.catalogue || 0) + (m.unresolved || 0);
       if (total) {
         var share = read / total;
         var pct = Math.floor(share * 100);
