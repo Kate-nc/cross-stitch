@@ -43,16 +43,6 @@ window.useMagicWand = function useMagicWand(state) {
     if (reducePreview !== null) setReducePreviewStale(true);
   }, [reduceMode, reduceTarget, reduceThreshold]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // sub-state for colour replacement
-  var _repSrc     = React.useState(null);    // color id
-  var replaceSource = _repSrc[0], setReplaceSource = _repSrc[1];
-  var _repDst     = React.useState(null);    // color id
-  var replaceDest = _repDst[0], setReplaceDest = _repDst[1];
-  var _repFuzz    = React.useState(false);
-  var replaceFuzzy = _repFuzz[0], setReplaceFuzzy = _repFuzz[1];
-  var _repFuzzTol = React.useState(5);
-  var replaceFuzzyTol = _repFuzzTol[0], setReplaceFuzzyTol = _repFuzzTol[1];
-
   // sub-state for outline generation
   var _outlineColor = React.useState("310");
   var outlineColor  = _outlineColor[0], setOutlineColor = _outlineColor[1];
@@ -444,65 +434,11 @@ window.useMagicWand = function useMagicWand(state) {
     setReducePreview(null);
   }
 
-  // ─── Phase 2.3: Colour replacement in selection ──────────────────────────────
-
-  var selectionReplaceColorCount = useMemo(function() {
-    var pat = state.pat, cmap = state.cmap;
-    if (!pat || !selectionMask || !replaceSource || !cmap) return 0;
-    var srcEntry = cmap[replaceSource];
-    if (!srcEntry) return 0;
-    var srcLab = labFromEntry(srcEntry);
-    var tol = replaceFuzzy ? replaceFuzzyTol : 0;
-    var c = 0;
-    for (var i = 0; i < pat.length; i++) {
-      if (!selectionMask[i]) continue;
-      var cell = pat[i];
-      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
-      var lab = getCellLab(i, pat, cmap);
-      if (!lab) continue;
-      if (deltaE(srcLab, lab) <= tol) c++;
-    }
-    return c;
-  }, [selectionMask, replaceSource, replaceFuzzy, replaceFuzzyTol, state.pat, state.cmap]);
-
-  function applyColorReplacement() {
-    var pat = state.pat, cmap = state.cmap;
-    if (!pat || !cmap || !selectionMask || !replaceSource || !replaceDest) return;
-    var srcEntry = cmap[replaceSource], dstEntry = cmap[replaceDest];
-    if (!srcEntry || !dstEntry) return;
-    var srcLab = labFromEntry(srcEntry);
-    var tol = replaceFuzzy ? replaceFuzzyTol : 0;
-    var np = pat.slice();
-    var changes = [];
-    for (var i = 0; i < np.length; i++) {
-      if (!selectionMask[i]) continue;
-      var cell = np[i];
-      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
-      var lab = getCellLab(i, pat, cmap);
-      if (!lab) continue;
-      if (deltaE(srcLab, lab) <= tol) {
-        changes.push({ idx: i, old: Object.assign({}, cell) });
-        np[i] = Object.assign({}, dstEntry);
-      }
-    }
-    if (!changes.length) return;
-    var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
-    state.setEditHistory(function(prev) {
-      var n = prev.concat([{ type: "colorReplace", changes: changes }]);
-      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
-      return n;
-    });
-    state.setRedoHistory([]);
-    state.setPat(np);
-    var r = state.buildPaletteWithScratch(np);
-    state.setPal(r.pal); state.setCmap(r.cmap);
-  }
-
   // ─── Direct global colour replacement (whole pattern or active selection) ────
 
-  function applyGlobalColourReplacement(srcId, dstId) {
+  function applyGlobalColourReplacement(srcId, dstId, opts) {
     var pat = state.pat, cmap = state.cmap;
-    if (!pat || !cmap || !srcId || !dstId || srcId === dstId) return;
+    if (!pat || !cmap || !srcId || !dstId || srcId === dstId) return null;
     var dstEntry = cmap[dstId];
     if (!dstEntry) {
       if (typeof findThreadInCatalog === 'function') dstEntry = findThreadInCatalog('dmc', dstId);
@@ -515,33 +451,76 @@ window.useMagicWand = function useMagicWand(state) {
       // when a future entry point passes a non-DMC id (e.g. 'anchor:403') or if
       // the DMC catalog data is corrupt at runtime.
       if (state.addToast) state.addToast("Replacement colour not found.", {type: "error", duration: 3500});
-      return;
+      return null;
     }
-    var np = pat.slice();
-    var changes = [];
-    for (var i = 0; i < np.length; i++) {
-      if (selectionMask && !selectionMask[i]) continue;
-      var cell = np[i];
-      if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
-      if (cell.id !== srcId) continue;
-      changes.push({ idx: i, old: Object.assign({}, cell) });
-      np[i] = Object.assign({}, dstEntry);
+    // opts.scope: 'all' ignores any selection; 'selection' (or omitted, the
+    // legacy default) limits the change to the active selection if any.
+    // opts.alsoIds: similar shades replaced along with srcId.
+    var mask = (opts && opts.scope === 'all') ? null : selectionMask;
+    var srcIds = [srcId].concat((opts && opts.alsoIds) || []);
+    var CR = window.ColourReplace;
+    // opts.swap: exchange the two colours instead of merging src into dst
+    // (exact colours only; similar shades don't apply).
+    var mapping;
+    if (opts && opts.swap) {
+      var srcEntry = cmap[srcId];
+      if (!srcEntry) {
+        if (state.addToast) state.addToast("Can't swap: DMC " + srcId + " isn't in the palette.", {type: "error", duration: 3500});
+        return null;
+      }
+      mapping = CR.swapMapping(srcEntry, dstEntry);
+    } else {
+      mapping = CR.replaceMapping(srcIds, dstEntry);
     }
-    if (!changes.length) {
+    var res = CR.remapPattern(pat, mapping, mask);
+    var np = res.pat, changes = res.changes;
+    // Half/quarter stitches and backstitch lines in the same colour change too.
+    var psRes = CR.remapPartials(state.partialStitches, mapping, mask);
+    var bsRes = CR.remapBackstitch(state.bsLines, mapping, mask, state.sW, state.sH);
+    if (!changes.length && !psRes.psChanges.length && !bsRes.count) {
       // DEFECT-002 (related): selection mask may have hidden every match.
       if (state.addToast) state.addToast("No matching cells to replace.", {type: "info", duration: 2500});
-      return;
+      return null;
     }
+    var entry = { type: 'colourReplace', changes: changes };
+    // Generic undo/redo in useEditHistory restores psChanges and bsLines.
+    if (psRes.psChanges.length) entry.psChanges = psRes.psChanges;
+    if (bsRes.count) entry.bsLines = state.bsLines.slice();
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     state.setEditHistory(function(prev) {
-      var n = prev.concat([{ type: 'colourReplace', changes: changes }]);
+      var n = prev.concat([entry]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
       return n;
     });
     state.setRedoHistory([]);
     state.setPat(np);
+    if (psRes.psChanges.length) state.setPartialStitches(psRes.map);
+    if (bsRes.count) state.setBsLines(bsRes.lines);
     var r = state.buildPaletteWithScratch(np);
+    // The palette is rebuilt from full stitches only. If the new colour is
+    // used just by part stitches / backstitch, keep it in the scratch palette
+    // so it keeps its palette entry and symbol.
+    if ((psRes.psChanges.length || bsRes.count) && !r.cmap[dstEntry.id]) {
+      var usedSyms = new Set(r.pal.map(function(p) { return p.symbol; }));
+      var SY = typeof SYMS !== 'undefined' ? SYMS : [];
+      var sym = SY.find(function(x) { return !usedSyms.has(x); }) || (SY.length ? SY[r.pal.length % SY.length] : undefined);
+      var keep = { id: dstEntry.id, type: dstEntry.type || 'solid', name: dstEntry.name || dstEntry.id,
+        rgb: dstEntry.rgb, lab: dstEntry.lab, count: 0, symbol: sym };
+      if (dstEntry.threads) keep.threads = dstEntry.threads;
+      if (state.setScratchPalette) {
+        state.setScratchPalette(function(prev) { return prev.filter(function(p) { return p.id !== keep.id; }).concat([keep]); });
+      }
+      var keepMap = {}; keepMap[keep.id] = keep;
+      r = { pal: r.pal.concat([keep]), cmap: Object.assign({}, r.cmap, keepMap) };
+    }
     state.setPal(r.pal); state.setCmap(r.cmap);
+    // Returned so callers can offer a guarded "Undo" (only while this entry
+    // is still the newest edit).
+    return {
+      entry: entry, dst: dstEntry,
+      count: changes.length + psRes.psChanges.length + bsRes.count,
+      counts: { full: changes.length, partial: psRes.psChanges.length, backstitch: bsRes.count }
+    };
   }
 
   // ─── Phase 3.1: Selection stats ─────────────────────────────────────────────
@@ -634,17 +613,12 @@ window.useMagicWand = function useMagicWand(state) {
     reduceThreshold, setReduceThreshold,
     reducePreview, setReducePreview,
     reducePreviewStale, setReducePreviewStale,
-    replaceSource, setReplaceSource,
-    replaceDest, setReplaceDest,
-    replaceFuzzy, setReplaceFuzzy,
-    replaceFuzzyTol, setReplaceFuzzyTol,
     outlineColor, setOutlineColor,
     // Actions
     applyWandSelect, clearSelection, invertSelection, selectAll, selectAllOfColorId,
     // Phase 2
     previewConfettiCleanup, applyConfettiCleanup,
     previewColorReduction, applyColorReduction,
-    selectionReplaceColorCount, applyColorReplacement,
     applyGlobalColourReplacement,
     // Back-compat alias for any external caller still using the misspelled name.
     applyGlobalColorReplacement: applyGlobalColourReplacement,

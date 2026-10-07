@@ -130,6 +130,16 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         if (state.activeTool === "magicWand") { state.setActiveTool(null); }
         else { state.setActiveTool("magicWand"); state.setPartialStitchTool(null); state.setBsStart(null); }
       } },
+    { id: "creator.tool.replace", keys: "r", scope: "creator.design",
+      description: "Replace colour (click a stitch to replace every stitch of its colour)",
+      when: function () { return !!state.pat; },
+      run: function () {
+        if (state.activeTool === "colourReplace") { state.setActiveTool(null); }
+        else {
+          state.setActiveTool("colourReplace"); state.setPartialStitchTool(null); state.setBsStart(null);
+          if (state.cancelLasso) state.cancelLasso();
+        }
+      } },
     { id: "creator.tool.paint", keys: "p", scope: "creator.design",
       description: "Paint brush",
       when: function () { return !!state.pat && !state.partialStitchTool && state.activeTool !== "backstitch"; },

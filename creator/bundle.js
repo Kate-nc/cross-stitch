@@ -3016,6 +3016,277 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
 };
 
 
+/* ─── colourReplace.js ─── */
+/* creator/colourReplace.js ────────────────────────────────────────────────
+   Pure helpers behind the Replace colour modal (ColourReplaceModal.js) and
+   useMagicWand.applyGlobalColourReplacement. No DOM, no React.
+
+   Exposed as window.ColourReplace:
+     countMatches(pat, srcIds, mask)
+       → { total, inSelection }   inSelection is null when mask is falsy.
+     replaceInPattern(pat, srcIds, dstEntry, mask)
+       → { pat: newPat, changes: [{ idx, old }] }
+         mask (Uint8Array | null) limits the change to selected cells.
+         srcIds is one id or an array / Set of ids (similar shades).
+     countPartials(partials, srcIds, mask) / countBackstitch(lines, srcIds, mask, sW, sH)
+       → { total, inSelection } (quarter/half stitch cells; backstitch lines)
+     replacePartials(partials, srcIds, dstEntry, mask)
+       → { map, psChanges: [{ idx, old }] }   map is a new Map only if changed
+     replaceBackstitch(lines, srcIds, dstEntry, mask, sW, sH)
+       → { lines, count }   lines is a new array only if changed
+         Backstitch colour lives in line.colorId (and line.color as hex).
+     describeCounts({ full, partial, backstitch }) → "N stitches, …"
+     replaceMapping(srcIds, dstEntry) / swapMapping(aEntry, bEntry)
+       → { fromId: toEntry } for remapPattern / remapPartials /
+         remapBackstitch(…, mapping, mask[, sW, sH]), which the replace*
+         helpers wrap. A swap exchanges two colours in one pass.
+     similarIds(srcEntry, palette, tol, opts)
+       → ids of palette entries within dE <= tol of srcEntry (always
+         including srcEntry.id), closest first. opts: { labOf, distance }.
+     rankBySimilarity(srcRgb, threads, opts)
+       → [{ thread, dE }] sorted closest first.
+         opts: { limit, excludeIds (Set|array), labOf(rgb), distance(labA, labB) }
+         labOf/distance default to the globals rgbToLab / dE00 (dmc-data.js).
+     similarityLabel(dE) → 'Near-identical' | 'Very close' | 'Close' |
+                           'Similar' | null
+   ────────────────────────────────────────────────────────────────────────── */
+
+window.ColourReplace = (function() {
+  function isStitch(cell) {
+    return !!cell && cell.id !== '__skip__' && cell.id !== '__empty__';
+  }
+
+  function toIdSet(ids) {
+    if (ids instanceof Set) return ids;
+    if (Array.isArray(ids)) return new Set(ids.filter(Boolean));
+    return new Set(ids ? [ids] : []);
+  }
+
+  function countMatches(pat, srcIds, mask) {
+    var total = 0, inSel = 0;
+    var src = toIdSet(srcIds);
+    if (!pat || !src.size) return { total: 0, inSelection: mask ? 0 : null };
+    for (var i = 0; i < pat.length; i++) {
+      var cell = pat[i];
+      if (!isStitch(cell) || !src.has(cell.id)) continue;
+      total++;
+      if (mask && mask[i]) inSel++;
+    }
+    return { total: total, inSelection: mask ? inSel : null };
+  }
+
+  // ── Core remapping. `mapping` is { fromId: toEntry }; every helper below
+  // (replace and swap) is built on these. Cells / quadrants / lines whose
+  // colour maps to itself are left alone.
+  function replaceMapping(srcIds, dstEntry) {
+    var m = {};
+    if (!dstEntry) return m;
+    toIdSet(srcIds).forEach(function(id) { if (id !== dstEntry.id) m[id] = dstEntry; });
+    return m;
+  }
+  function swapMapping(aEntry, bEntry) {
+    var m = {};
+    if (!aEntry || !bEntry || aEntry.id === bEntry.id) return m;
+    m[aEntry.id] = bEntry; m[bEntry.id] = aEntry;
+    return m;
+  }
+  function target(mapping, id) {
+    var t = Object.prototype.hasOwnProperty.call(mapping, id) ? mapping[id] : null;
+    return t && t.id !== id ? t : null;
+  }
+
+  function remapPattern(pat, mapping, mask) {
+    var np = pat.slice();
+    var changes = [];
+    for (var i = 0; i < np.length; i++) {
+      if (mask && !mask[i]) continue;
+      var cell = np[i];
+      var t = isStitch(cell) ? target(mapping, cell.id) : null;
+      if (!t) continue;
+      changes.push({ idx: i, old: Object.assign({}, cell) });
+      np[i] = Object.assign({}, t);
+    }
+    return { pat: np, changes: changes };
+  }
+
+  function replaceInPattern(pat, srcIds, dstEntry, mask) {
+    return remapPattern(pat, replaceMapping(srcIds, dstEntry), mask);
+  }
+
+
+  // ── Partial (half / quarter) stitches: Map idx → { TL, TR, BL, BR: { id, rgb } }
+  var QUADS = ['TL', 'TR', 'BL', 'BR'];
+  function partialHasAny(entry, src) {
+    if (!entry) return false;
+    for (var q = 0; q < QUADS.length; q++) {
+      var part = entry[QUADS[q]];
+      if (part && src.has(part.id)) return true;
+    }
+    return false;
+  }
+  function eachPartial(partials, fn) {
+    if (!partials || typeof partials.forEach !== 'function') return;
+    partials.forEach(function(entry, idx) { fn(entry, Number(idx)); });
+  }
+  function countPartials(partials, srcIds, mask) {
+    var src = toIdSet(srcIds), total = 0, inSel = 0;
+    if (src.size) eachPartial(partials, function(entry, idx) {
+      if (!partialHasAny(entry, src)) return;
+      total++;
+      if (mask && mask[idx]) inSel++;
+    });
+    return { total: total, inSelection: mask ? inSel : null };
+  }
+  function remapPartials(partials, mapping, mask) {
+    var psChanges = [], next = null;
+    eachPartial(partials, function(entry, idx) {
+      if (mask && !mask[idx]) return;
+      if (!entry) return;
+      var updated = null;
+      QUADS.forEach(function(q) {
+        var t = entry[q] ? target(mapping, entry[q].id) : null;
+        if (!t) return;
+        if (!updated) updated = Object.assign({}, entry);
+        updated[q] = { id: t.id, rgb: t.rgb };
+      });
+      if (!updated) return;
+      if (!next) next = new Map(partials);
+      psChanges.push({ idx: idx, old: Object.assign({}, entry) });
+      next.set(idx, updated);
+    });
+    return { map: next || partials, psChanges: psChanges };
+  }
+  function replacePartials(partials, srcIds, dstEntry, mask) {
+    return remapPartials(partials, replaceMapping(srcIds, dstEntry), mask);
+  }
+
+
+  // ── Backstitch lines: { x1, y1, x2, y2, colorId?, color? } on the grid lattice.
+  // A line counts as "in the selection" when a cell touching its midpoint is
+  // selected (lines run along cell edges, so the midpoint borders 1-4 cells).
+  function lineInMask(ln, mask, sW, sH) {
+    if (!mask) return true;
+    var mx = (ln.x1 + ln.x2) / 2, my = (ln.y1 + ln.y2) / 2, e = 1e-6;
+    var xs = [Math.floor(mx - e), Math.floor(mx + e)], ys = [Math.floor(my - e), Math.floor(my + e)];
+    for (var a = 0; a < 2; a++) for (var b = 0; b < 2; b++) {
+      var cx = xs[a], cy = ys[b];
+      if (cx >= 0 && cx < sW && cy >= 0 && cy < sH && mask[cy * sW + cx]) return true;
+    }
+    return false;
+  }
+  function countBackstitch(lines, srcIds, mask, sW, sH) {
+    var src = toIdSet(srcIds), total = 0, inSel = 0;
+    if (src.size && lines) for (var i = 0; i < lines.length; i++) {
+      var ln = lines[i];
+      if (!ln || !src.has(ln.colorId)) continue;
+      total++;
+      if (mask && lineInMask(ln, mask, sW, sH)) inSel++;
+    }
+    return { total: total, inSelection: mask ? inSel : null };
+  }
+  function rgbHex(rgb) {
+    return '#' + rgb.map(function(v) { var h = Math.max(0, Math.min(255, Math.round(v))).toString(16); return h.length < 2 ? '0' + h : h; }).join('');
+  }
+  function remapBackstitch(lines, mapping, mask, sW, sH) {
+    var next = null, count = 0;
+    if (!lines) return { lines: lines, count: 0 };
+    for (var i = 0; i < lines.length; i++) {
+      var ln = lines[i];
+      var t = ln && ln.colorId != null ? target(mapping, ln.colorId) : null;
+      if (!t || !lineInMask(ln, mask, sW, sH)) continue;
+      if (!next) next = lines.slice();
+      var out = Object.assign({}, ln, { colorId: t.id });
+      if (ln.color !== undefined && t.rgb) out.color = rgbHex(t.rgb);
+      next[i] = out;
+      count++;
+    }
+    return { lines: next || lines, count: count };
+  }
+  function replaceBackstitch(lines, srcIds, dstEntry, mask, sW, sH) {
+    return remapBackstitch(lines, replaceMapping(srcIds, dstEntry), mask, sW, sH);
+  }
+
+
+  function describeCounts(c) {
+    var parts = [];
+    var n = function(x, one, many) { return x.toLocaleString() + ' ' + (x === 1 ? one : many); };
+    if (c.full) parts.push(n(c.full, 'stitch', 'stitches'));
+    if (c.partial) parts.push(n(c.partial, 'part stitch', 'part stitches'));
+    if (c.backstitch) parts.push(n(c.backstitch, 'backstitch line', 'backstitch lines'));
+    if (!parts.length) return '0 stitches';
+    if (parts.length === 1) return parts[0];
+    return parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
+  }
+
+  function defaultLabOf(rgb) {
+    if (typeof rgbToLab === 'function') return rgbToLab(rgb[0], rgb[1], rgb[2]);
+    return rgb;
+  }
+  function defaultDistance(a, b) {
+    if (typeof dE00 === 'function') return dE00(a, b);
+    return Math.sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) + (a[2] - b[2]) * (a[2] - b[2]));
+  }
+
+  function rankBySimilarity(srcRgb, threads, opts) {
+    opts = opts || {};
+    if (!srcRgb || !threads || !threads.length) return [];
+    var labOf = opts.labOf || defaultLabOf;
+    var distance = opts.distance || defaultDistance;
+    var exclude = opts.excludeIds instanceof Set ? opts.excludeIds : new Set(opts.excludeIds || []);
+    var srcLab = labOf(srcRgb);
+    var out = [];
+    for (var i = 0; i < threads.length; i++) {
+      var t = threads[i];
+      if (!t || !t.rgb || exclude.has(t.id)) continue;
+      out.push({ thread: t, dE: distance(srcLab, labOf(t.rgb)) });
+    }
+    out.sort(function(a, b) { return a.dE - b.dE; });
+    return opts.limit > 0 ? out.slice(0, opts.limit) : out;
+  }
+
+  function similarIds(srcEntry, palette, tol, opts) {
+    if (!srcEntry || !srcEntry.id) return [];
+    var ids = [srcEntry.id];
+    if (!srcEntry.rgb || !palette || !(tol > 0)) return ids;
+    var near = rankBySimilarity(srcEntry.rgb, palette, Object.assign({}, opts || {}, { excludeIds: [srcEntry.id] }));
+    for (var i = 0; i < near.length && near[i].dE <= tol; i++) {
+      var id = near[i].thread.id;
+      if (id !== '__skip__' && id !== '__empty__' && ids.indexOf(id) === -1) ids.push(id);
+    }
+    return ids;
+  }
+
+  // Plain-language bands for CIEDE2000 distances (~2.3 is a just-noticeable
+  // difference). Beyond "Similar" the label adds nothing, so return null.
+  function similarityLabel(dE) {
+    if (dE == null || isNaN(dE)) return null;
+    if (dE <= 2) return 'Near-identical';
+    if (dE <= 5) return 'Very close';
+    if (dE <= 10) return 'Close';
+    if (dE <= 20) return 'Similar';
+    return null;
+  }
+
+  return {
+    countMatches: countMatches,
+    replaceInPattern: replaceInPattern,
+    replaceMapping: replaceMapping,
+    swapMapping: swapMapping,
+    remapPattern: remapPattern,
+    remapPartials: remapPartials,
+    remapBackstitch: remapBackstitch,
+    countPartials: countPartials,
+    replacePartials: replacePartials,
+    countBackstitch: countBackstitch,
+    replaceBackstitch: replaceBackstitch,
+    describeCounts: describeCounts,
+    rankBySimilarity: rankBySimilarity,
+    similarIds: similarIds,
+    similarityLabel: similarityLabel
+  };
+})();
+
+
 /* ─── useMagicWand.js ─── */
 /* creator/useMagicWand.js — Magic Wand selection engine.
    Provides flood-fill + global colour selection, modifier key modes,
@@ -3061,16 +3332,6 @@ window.useMagicWand = function useMagicWand(state) {
   React.useEffect(function() {
     if (reducePreview !== null) setReducePreviewStale(true);
   }, [reduceMode, reduceTarget, reduceThreshold]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // sub-state for colour replacement
-  var _repSrc     = React.useState(null);    // color id
-  var replaceSource = _repSrc[0], setReplaceSource = _repSrc[1];
-  var _repDst     = React.useState(null);    // color id
-  var replaceDest = _repDst[0], setReplaceDest = _repDst[1];
-  var _repFuzz    = React.useState(false);
-  var replaceFuzzy = _repFuzz[0], setReplaceFuzzy = _repFuzz[1];
-  var _repFuzzTol = React.useState(5);
-  var replaceFuzzyTol = _repFuzzTol[0], setReplaceFuzzyTol = _repFuzzTol[1];
 
   // sub-state for outline generation
   var _outlineColor = React.useState("310");
@@ -3463,65 +3724,11 @@ window.useMagicWand = function useMagicWand(state) {
     setReducePreview(null);
   }
 
-  // ─── Phase 2.3: Colour replacement in selection ──────────────────────────────
-
-  var selectionReplaceColorCount = useMemo(function() {
-    var pat = state.pat, cmap = state.cmap;
-    if (!pat || !selectionMask || !replaceSource || !cmap) return 0;
-    var srcEntry = cmap[replaceSource];
-    if (!srcEntry) return 0;
-    var srcLab = labFromEntry(srcEntry);
-    var tol = replaceFuzzy ? replaceFuzzyTol : 0;
-    var c = 0;
-    for (var i = 0; i < pat.length; i++) {
-      if (!selectionMask[i]) continue;
-      var cell = pat[i];
-      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
-      var lab = getCellLab(i, pat, cmap);
-      if (!lab) continue;
-      if (deltaE(srcLab, lab) <= tol) c++;
-    }
-    return c;
-  }, [selectionMask, replaceSource, replaceFuzzy, replaceFuzzyTol, state.pat, state.cmap]);
-
-  function applyColorReplacement() {
-    var pat = state.pat, cmap = state.cmap;
-    if (!pat || !cmap || !selectionMask || !replaceSource || !replaceDest) return;
-    var srcEntry = cmap[replaceSource], dstEntry = cmap[replaceDest];
-    if (!srcEntry || !dstEntry) return;
-    var srcLab = labFromEntry(srcEntry);
-    var tol = replaceFuzzy ? replaceFuzzyTol : 0;
-    var np = pat.slice();
-    var changes = [];
-    for (var i = 0; i < np.length; i++) {
-      if (!selectionMask[i]) continue;
-      var cell = np[i];
-      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
-      var lab = getCellLab(i, pat, cmap);
-      if (!lab) continue;
-      if (deltaE(srcLab, lab) <= tol) {
-        changes.push({ idx: i, old: Object.assign({}, cell) });
-        np[i] = Object.assign({}, dstEntry);
-      }
-    }
-    if (!changes.length) return;
-    var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
-    state.setEditHistory(function(prev) {
-      var n = prev.concat([{ type: "colorReplace", changes: changes }]);
-      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
-      return n;
-    });
-    state.setRedoHistory([]);
-    state.setPat(np);
-    var r = state.buildPaletteWithScratch(np);
-    state.setPal(r.pal); state.setCmap(r.cmap);
-  }
-
   // ─── Direct global colour replacement (whole pattern or active selection) ────
 
-  function applyGlobalColourReplacement(srcId, dstId) {
+  function applyGlobalColourReplacement(srcId, dstId, opts) {
     var pat = state.pat, cmap = state.cmap;
-    if (!pat || !cmap || !srcId || !dstId || srcId === dstId) return;
+    if (!pat || !cmap || !srcId || !dstId || srcId === dstId) return null;
     var dstEntry = cmap[dstId];
     if (!dstEntry) {
       if (typeof findThreadInCatalog === 'function') dstEntry = findThreadInCatalog('dmc', dstId);
@@ -3534,33 +3741,76 @@ window.useMagicWand = function useMagicWand(state) {
       // when a future entry point passes a non-DMC id (e.g. 'anchor:403') or if
       // the DMC catalog data is corrupt at runtime.
       if (state.addToast) state.addToast("Replacement colour not found.", {type: "error", duration: 3500});
-      return;
+      return null;
     }
-    var np = pat.slice();
-    var changes = [];
-    for (var i = 0; i < np.length; i++) {
-      if (selectionMask && !selectionMask[i]) continue;
-      var cell = np[i];
-      if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
-      if (cell.id !== srcId) continue;
-      changes.push({ idx: i, old: Object.assign({}, cell) });
-      np[i] = Object.assign({}, dstEntry);
+    // opts.scope: 'all' ignores any selection; 'selection' (or omitted, the
+    // legacy default) limits the change to the active selection if any.
+    // opts.alsoIds: similar shades replaced along with srcId.
+    var mask = (opts && opts.scope === 'all') ? null : selectionMask;
+    var srcIds = [srcId].concat((opts && opts.alsoIds) || []);
+    var CR = window.ColourReplace;
+    // opts.swap: exchange the two colours instead of merging src into dst
+    // (exact colours only; similar shades don't apply).
+    var mapping;
+    if (opts && opts.swap) {
+      var srcEntry = cmap[srcId];
+      if (!srcEntry) {
+        if (state.addToast) state.addToast("Can't swap: DMC " + srcId + " isn't in the palette.", {type: "error", duration: 3500});
+        return null;
+      }
+      mapping = CR.swapMapping(srcEntry, dstEntry);
+    } else {
+      mapping = CR.replaceMapping(srcIds, dstEntry);
     }
-    if (!changes.length) {
+    var res = CR.remapPattern(pat, mapping, mask);
+    var np = res.pat, changes = res.changes;
+    // Half/quarter stitches and backstitch lines in the same colour change too.
+    var psRes = CR.remapPartials(state.partialStitches, mapping, mask);
+    var bsRes = CR.remapBackstitch(state.bsLines, mapping, mask, state.sW, state.sH);
+    if (!changes.length && !psRes.psChanges.length && !bsRes.count) {
       // DEFECT-002 (related): selection mask may have hidden every match.
       if (state.addToast) state.addToast("No matching cells to replace.", {type: "info", duration: 2500});
-      return;
+      return null;
     }
+    var entry = { type: 'colourReplace', changes: changes };
+    // Generic undo/redo in useEditHistory restores psChanges and bsLines.
+    if (psRes.psChanges.length) entry.psChanges = psRes.psChanges;
+    if (bsRes.count) entry.bsLines = state.bsLines.slice();
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     state.setEditHistory(function(prev) {
-      var n = prev.concat([{ type: 'colourReplace', changes: changes }]);
+      var n = prev.concat([entry]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
       return n;
     });
     state.setRedoHistory([]);
     state.setPat(np);
+    if (psRes.psChanges.length) state.setPartialStitches(psRes.map);
+    if (bsRes.count) state.setBsLines(bsRes.lines);
     var r = state.buildPaletteWithScratch(np);
+    // The palette is rebuilt from full stitches only. If the new colour is
+    // used just by part stitches / backstitch, keep it in the scratch palette
+    // so it keeps its palette entry and symbol.
+    if ((psRes.psChanges.length || bsRes.count) && !r.cmap[dstEntry.id]) {
+      var usedSyms = new Set(r.pal.map(function(p) { return p.symbol; }));
+      var SY = typeof SYMS !== 'undefined' ? SYMS : [];
+      var sym = SY.find(function(x) { return !usedSyms.has(x); }) || (SY.length ? SY[r.pal.length % SY.length] : undefined);
+      var keep = { id: dstEntry.id, type: dstEntry.type || 'solid', name: dstEntry.name || dstEntry.id,
+        rgb: dstEntry.rgb, lab: dstEntry.lab, count: 0, symbol: sym };
+      if (dstEntry.threads) keep.threads = dstEntry.threads;
+      if (state.setScratchPalette) {
+        state.setScratchPalette(function(prev) { return prev.filter(function(p) { return p.id !== keep.id; }).concat([keep]); });
+      }
+      var keepMap = {}; keepMap[keep.id] = keep;
+      r = { pal: r.pal.concat([keep]), cmap: Object.assign({}, r.cmap, keepMap) };
+    }
     state.setPal(r.pal); state.setCmap(r.cmap);
+    // Returned so callers can offer a guarded "Undo" (only while this entry
+    // is still the newest edit).
+    return {
+      entry: entry, dst: dstEntry,
+      count: changes.length + psRes.psChanges.length + bsRes.count,
+      counts: { full: changes.length, partial: psRes.psChanges.length, backstitch: bsRes.count }
+    };
   }
 
   // ─── Phase 3.1: Selection stats ─────────────────────────────────────────────
@@ -3653,17 +3903,12 @@ window.useMagicWand = function useMagicWand(state) {
     reduceThreshold, setReduceThreshold,
     reducePreview, setReducePreview,
     reducePreviewStale, setReducePreviewStale,
-    replaceSource, setReplaceSource,
-    replaceDest, setReplaceDest,
-    replaceFuzzy, setReplaceFuzzy,
-    replaceFuzzyTol, setReplaceFuzzyTol,
     outlineColor, setOutlineColor,
     // Actions
     applyWandSelect, clearSelection, invertSelection, selectAll, selectAllOfColorId,
     // Phase 2
     previewConfettiCleanup, applyConfettiCleanup,
     previewColorReduction, applyColorReduction,
-    selectionReplaceColorCount, applyColorReplacement,
     applyGlobalColourReplacement,
     // Back-compat alias for any external caller still using the misspelled name.
     applyGlobalColorReplacement: applyGlobalColourReplacement,
@@ -6089,6 +6334,9 @@ window.useCreatorState = function useCreatorState() {
   var wand = useMagicWand({
     pat: pat, cmap: cmap, sW: sW, sH: sH, fabricCt: fabricCt,
     bsLines: bsLines, setBsLines: setBsLines,
+    // Colour replacement also recolours half/quarter stitches.
+    partialStitches: partialStitches, setPartialStitches: setPartialStitches,
+    setScratchPalette: setScratchPalette,
     editHistory: editHistory, setEditHistory: setEditHistory,
     setRedoHistory: setRedoHistory, EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
     setPat: setPat, setPal: setPal, setCmap: setCmap,
@@ -6387,10 +6635,6 @@ window.useCreatorState = function useCreatorState() {
     confettiPreview: wand.confettiPreview, setConfettiPreview: wand.setConfettiPreview,
     reduceTarget: wand.reduceTarget, setReduceTarget: wand.setReduceTarget,
     reducePreview: wand.reducePreview, setReducePreview: wand.setReducePreview,
-    replaceSource: wand.replaceSource, setReplaceSource: wand.setReplaceSource,
-    replaceDest: wand.replaceDest, setReplaceDest: wand.setReplaceDest,
-    replaceFuzzy: wand.replaceFuzzy, setReplaceFuzzy: wand.setReplaceFuzzy,
-    replaceFuzzyTol: wand.replaceFuzzyTol, setReplaceFuzzyTol: wand.setReplaceFuzzyTol,
     outlineColor: wand.outlineColor, setOutlineColor: wand.setOutlineColor,
     applyWandSelect: wand.applyWandSelect, clearSelection: wand.clearSelection,
     invertSelection: wand.invertSelection, selectAll: wand.selectAll,
@@ -6399,8 +6643,6 @@ window.useCreatorState = function useCreatorState() {
     applyConfettiCleanup: wand.applyConfettiCleanup,
     previewColorReduction: wand.previewColorReduction,
     applyColorReduction: wand.applyColorReduction,
-    selectionReplaceColorCount: wand.selectionReplaceColorCount,
-    applyColorReplacement: wand.applyColorReplacement,
     applyGlobalColourReplacement: wand.applyGlobalColourReplacement,
     applyGlobalColorReplacement: wand.applyGlobalColourReplacement,
     colourReplaceModal, setColourReplaceModal,
@@ -8294,6 +8536,9 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       if (cell0 && cell0.id !== '__skip__' && cell0.id !== '__empty__' && cmap && cmap[cell0.id]) {
         var entry0 = cmap[cell0.id];
         state.setColourReplaceModal({ srcId: cell0.id, srcName: entry0.name || cell0.id, srcRgb: entry0.rgb || cell0.rgb });
+      } else if (state.addToast) {
+        // Without this, clicking an unstitched cell silently does nothing.
+        state.addToast("That cell has no stitch \u2014 click a stitched cell to choose the colour to replace.", { type: "info", duration: 2500 });
       }
       return;
     }
@@ -9117,6 +9362,16 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       run: function () {
         if (state.activeTool === "magicWand") { state.setActiveTool(null); }
         else { state.setActiveTool("magicWand"); state.setPartialStitchTool(null); state.setBsStart(null); }
+      } },
+    { id: "creator.tool.replace", keys: "r", scope: "creator.design",
+      description: "Replace colour (click a stitch to replace every stitch of its colour)",
+      when: function () { return !!state.pat; },
+      run: function () {
+        if (state.activeTool === "colourReplace") { state.setActiveTool(null); }
+        else {
+          state.setActiveTool("colourReplace"); state.setPartialStitchTool(null); state.setBsStart(null);
+          if (state.cancelLasso) state.cancelLasso();
+        }
       } },
     { id: "creator.tool.paint", keys: "p", scope: "creator.design",
       description: "Paint brush",
@@ -10441,7 +10696,17 @@ window.PatternCanvas = function PatternCanvas() {
   // Must be the MERGED snapshot across all 4 contexts because drawPatternBaseOnCanvas
   // and drawPatternOverlayOnCanvas expect the pre-refactor merged state shape.
   var ctxRef = React.useRef({});
-  ctxRef.current = Object.assign({}, ctx, cv, gen, hov, { G: G, pcRef: app.pcRef, tab: app.tab, fabricColour: app.fabricColour, canvasTexture: app.canvasTexture });
+  // Replace-colour tool: while hovering a stitch, isolate-highlight every
+  // stitch of that colour so users see exactly what a click would replace.
+  // Overrides the user's own highlight only while the cursor is on a stitch.
+  var replaceHoverId = null;
+  if (cv.activeTool === "colourReplace" && hov.hoverCoords && ctx.pat) {
+    var rhc = hov.hoverCoords;
+    var rhCell = (rhc.gx >= 0 && rhc.gx < ctx.sW && rhc.gy >= 0 && rhc.gy < ctx.sH) ? ctx.pat[rhc.gy * ctx.sW + rhc.gx] : null;
+    if (rhCell && rhCell.id !== "__skip__" && rhCell.id !== "__empty__") replaceHoverId = rhCell.id;
+  }
+  ctxRef.current = Object.assign({}, ctx, cv, gen, hov, { G: G, pcRef: app.pcRef, tab: app.tab, fabricColour: app.fabricColour, canvasTexture: app.canvasTexture },
+    replaceHoverId ? { hiId: replaceHoverId, dimHiId: replaceHoverId, dimFraction: 1, highlightMode: "isolate" } : null);
 
   // ── Effect: Animated marching ants for highlight outline mode
   var hlAntsRef = React.useRef(null);
@@ -10530,7 +10795,7 @@ window.PatternCanvas = function PatternCanvas() {
     gen.showCleanupDiff, gen.cleanupDiff,
     cv.dimFraction, cv.dimHiId, cv.bgDimOpacity, cv.bgDimDesaturation,
     cv.highlightMode, cv.tintColor, cv.tintOpacity, cv.spotDimOpacity,
-    app.fabricColour, app.canvasTexture
+    app.fabricColour, app.canvasTexture, replaceHoverId
   ]);
 
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).
@@ -11599,35 +11864,38 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   // Active tool indicator badge — tooltip surfaces the selected colour
   // since the toolbar no longer carries a colour chip.
   var badgeLabel, badgeBg, badgeColor, badgeDot;
+  // Active tools (eyedropper to cleanup) must be checked before stitch type /
+  // brush mode: brushMode is always "paint" or "fill", so any branch after it
+  // never runs.
   if (cv.activeTool === "eyedropper") {
-    badgeLabel = "Eyedropper"; badgeBg = "#fef9c3"; badgeColor = "#854d0e"; badgeDot = "#B59230";
+    badgeLabel = "Eyedropper"; badgeBg = "var(--warning-soft)"; badgeColor = "var(--text-primary)"; badgeDot = "var(--warning)";
   } else if (cv.activeTool === "magicWand") {
     badgeLabel = "Magic Wand"; badgeBg = "var(--surface-secondary)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
   } else if (cv.activeTool === "lasso") {
     var lm = cv.lassoMode === "polygon" ? "Polygon" : cv.lassoMode === "magnetic" ? "Magnetic" : "Freehand";
-    badgeLabel = "Lasso \xB7 " + lm; badgeBg = "#F8EFD8"; badgeColor = "var(--accent-hover)"; badgeDot = "#f97316";
-  } else if (cv.stitchType === "erase" || cv.activeTool === "eraseAll" || cv.activeTool === "eraseBs") {
-    badgeLabel = "Erase"; badgeBg = "var(--danger-soft)"; badgeColor = "var(--danger)"; badgeDot = "#B85555";
-  } else if (cv.stitchType === "backstitch") {
-    badgeLabel = "Backstitch"; badgeBg = "var(--surface-secondary)"; badgeColor = "#404040"; badgeDot = "#737373";
-  } else if (cv.stitchType === "half-fwd") {
-    badgeLabel = "Half /"; badgeBg = "#e0f2fe"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
-  } else if (cv.stitchType === "half-bck") {
-    badgeLabel = "Half \\"; badgeBg = "#e0f2fe"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
-  } else if (cv.brushMode === "fill") {
-    badgeLabel = "Fill"; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "#5C8E4A";
-  } else if (cv.brushMode === "paint") {
-    var szTxt = cv.brushSize > 1 ? " " + cv.brushSize + "\xD7" + cv.brushSize : "";
-    badgeLabel = "Paint" + szTxt; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "#5C8E4A";
+    badgeLabel = "Lasso \xB7 " + lm; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent-hover)"; badgeDot = "var(--accent)";
   } else if (cv.activeTool === "move") {
     badgeLabel = "Move"; badgeBg = "var(--surface-secondary)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
   } else if (cv.activeTool === "colourReplace") {
-    badgeLabel = "Replace"; badgeBg = "#ede9fe"; badgeColor = "#7c3aed"; badgeDot = "#7c3aed";
+    badgeLabel = "Replace"; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent-ink)"; badgeDot = "var(--accent)";
   } else if (cv.activeTool === "cleanup") {
     var pendingCount = 0;
     if (cv.cleanupPendingMask) { for (var ci2 = 0; ci2 < cv.cleanupPendingMask.length; ci2++) { if (cv.cleanupPendingMask[ci2]) pendingCount++; } }
     badgeLabel = "Cleanup" + (pendingCount > 0 ? " \xb7 " + pendingCount.toLocaleString() + " sel" : "");
-    badgeBg = "#fff7ed"; badgeColor = "#c2410c"; badgeDot = "#ea580c";
+    badgeBg = "var(--warning-soft)"; badgeColor = "var(--text-primary)"; badgeDot = "var(--warning)";
+  } else if (cv.stitchType === "erase" || cv.activeTool === "eraseAll" || cv.activeTool === "eraseBs") {
+    badgeLabel = "Erase"; badgeBg = "var(--danger-soft)"; badgeColor = "var(--danger)"; badgeDot = "var(--danger)";
+  } else if (cv.stitchType === "backstitch") {
+    badgeLabel = "Backstitch"; badgeBg = "var(--surface-secondary)"; badgeColor = "var(--text-primary)"; badgeDot = "var(--text-tertiary)";
+  } else if (cv.stitchType === "half-fwd") {
+    badgeLabel = "Half /"; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
+  } else if (cv.stitchType === "half-bck") {
+    badgeLabel = "Half \\"; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
+  } else if (cv.brushMode === "fill") {
+    badgeLabel = "Fill"; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "var(--success)";
+  } else if (cv.brushMode === "paint") {
+    var szTxt = cv.brushSize > 1 ? " " + cv.brushSize + "\xD7" + cv.brushSize : "";
+    badgeLabel = "Paint" + szTxt; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "var(--success)";
   } else {
     badgeLabel = null;
   }
@@ -11777,7 +12045,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             else { cv.setActiveTool("colourReplace"); cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); }
             setMorePanelOpen(false);
           },
-          title:"Replace colour \u2014 click a stitch to replace all instances", "aria-label":"Replace colour tool",
+          title:"Replace colour (R) \u2014 click a stitch to replace every stitch of that colour", "aria-label":"Replace colour tool",
           "aria-pressed": cv.activeTool==="colourReplace"?"true":"false"
         }, window.Icons.colourSwap(), " Replace")
       )
@@ -11923,6 +12191,20 @@ window.MagicWandPanel = function MagicWandPanel() {
   var hasSelection = cv.hasSelection;
   var panel = cv.wandPanel;
 
+  // "Replace Colour…" opens the shared Replace colour modal for the most
+  // common colour in the selection (its scope defaults to Selection). This
+  // replaced a separate, more limited replace panel here.
+  function openReplaceModal() {
+    var rows = cv.selectionStats && cv.selectionStats.rows;
+    cv.setWandPanel(null);
+    if (!rows || !rows.length) {
+      if (app && app.addToast) app.addToast("Select some stitches first.", { type: "info", duration: 2500 });
+      return;
+    }
+    var top = rows[0];
+    cv.setColourReplaceModal({ srcId: top.id, srcName: top.name || top.id, srcRgb: top.rgb });
+  }
+
   // ─── Helpers ─────────────────────────────────────────────────────────────────
   function btn(label, onClick, opts) {
     opts = opts || {};
@@ -11938,7 +12220,7 @@ window.MagicWandPanel = function MagicWandPanel() {
   function swatch(rgb) {
     return h("span", {
       style: { display: "inline-block", width: 12, height: 12, borderRadius: 2,
-        background: "rgb(" + (rgb || [128,128,128]) + ")", border: "1px solid #CFC4AC",
+        background: "rgb(" + (rgb || [128,128,128]) + ")", border: "1px solid var(--border)",
         verticalAlign: "middle", marginRight: 3 }
     });
   }
@@ -11979,10 +12261,10 @@ window.MagicWandPanel = function MagicWandPanel() {
       style: { position: "relative" }
     }, icon, label,
       isModifier && h("span", {
-        style: { position: "absolute", top: -4, right: -4, background: "#C0883A",
-          color: "#fff", borderRadius: 99, fontSize: 8, width: 12, height: 12,
+        style: { position: "absolute", top: -4, right: -4, background: "var(--warning)",
+          color: "var(--surface)", borderRadius: 99, fontSize: 8, width: 12, height: 12,
           display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1,
-          boxShadow: "0 0 0 1px #fff", pointerEvents: "none" }
+          boxShadow: "0 0 0 1px var(--surface)", pointerEvents: "none" }
       }, "\u2022")
     );
   }
@@ -12039,7 +12321,7 @@ window.MagicWandPanel = function MagicWandPanel() {
       h("div", { className: "tb-grp" },
         btn("Confetti\u2026",       function() { cv.setWandPanel(panel === "confetti" ? null : "confetti"); }, { active: panel === "confetti" }),
         btn("Reduce Colours\u2026", function() { cv.setWandPanel(panel === "reduce"   ? null : "reduce");    }, { active: panel === "reduce" }),
-        btn("Replace Colour\u2026", function() { cv.setWandPanel(panel === "replace"  ? null : "replace");   }, { active: panel === "replace" }),
+        btn("Replace Colour\u2026", openReplaceModal, { title: "Replace the most common colour in the selection" }),
         btn("Stitch Info\u2026",    function() { cv.setWandPanel(panel === "info"     ? null : "info");      }, { active: panel === "info" }),
         btn("Outline\u2026",        function() { cv.setWandPanel(panel === "outline"  ? null : "outline");   }, { active: panel === "outline" })
       )
@@ -12048,10 +12330,10 @@ window.MagicWandPanel = function MagicWandPanel() {
 
   // ─── Confetti panel ──────────────────────────────────────────────────────────
   var confettiPanel = (panel === "confetti" && hasSelection) ? h("div", {
-    style: { padding: "10px 14px", background: "#F8EFD8", borderBottom: "1px solid #E5C97D",
+    style: { padding: "10px 14px", background: "var(--warning-soft)", borderBottom: "1px solid var(--border)",
       display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 11 }
   },
-    h("strong", { style: { color: "#7c2d12" } }, "Confetti Cleanup in Selection"),
+    h("strong", { style: { color: "var(--text-primary)" } }, "Confetti Cleanup in Selection"),
     h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
       "Min cluster size:",
       h("input", {
@@ -12062,7 +12344,7 @@ window.MagicWandPanel = function MagicWandPanel() {
       h("span", { style: { minWidth: 14 } }, cv.confettiThreshold)
     ),
     cv.confettiPreview
-      ? h("span", { style: { color: "#8A5C26" } }, cv.confettiPreview.size + " stitches flagged")
+      ? h("span", { style: { color: "var(--warning)" } }, cv.confettiPreview.size + " stitches flagged")
       : null,
     btn("Preview", cv.previewConfettiCleanup, { style: { fontSize: 10 } }),
     btn("Apply", cv.applyConfettiCleanup, {
@@ -12075,12 +12357,12 @@ window.MagicWandPanel = function MagicWandPanel() {
   // ─── Reduce colours panel ────────────────────────────────────────────────────
   var selColors = cv.selectionStats ? cv.selectionStats.colors : 0;
   var reducePanel = (panel === "reduce" && hasSelection) ? h("div", {
-    style: { padding: "10px 14px", background: "#DEE7D2", borderBottom: "1px solid #C4DCB6",
+    style: { padding: "10px 14px", background: "var(--success-soft)", borderBottom: "1px solid var(--border)",
       fontSize: 11 }
   },
     h("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 } },
-      h("strong", { style: { color: "#2E4824" } }, "Simplify Colours in Selection"),
-      h("span", { style: { color: "#3F6432" } }, selColors + " colours in selection"),
+      h("strong", { style: { color: "var(--text-primary)" } }, "Simplify Colours in Selection"),
+      h("span", { style: { color: "var(--success)" } }, selColors + " colours in selection"),
       // Mode toggle: target count vs ΔE threshold
       h("div", { className: "tb-grp" },
         btn("Target count", function() { cv.setReduceMode("count"); cv.setReducePreview(null); },
@@ -12117,22 +12399,22 @@ window.MagicWandPanel = function MagicWandPanel() {
       btn("\u00D7", function() { cv.setWandPanel(null); cv.setReducePreview(null); }, { style: { fontSize: 10 } })
     ),
     cv.reducePreviewStale && cv.reducePreview !== null && h("div", {
-      style: { fontSize: 9, color: "#B45309", padding: "2px 4px", marginBottom: 2 }
+      style: { fontSize: 9, color: "var(--warning)", padding: "2px 4px", marginBottom: 2 }
     }, "Settings changed \u2014 run Preview merges to update"),
     cv.reducePreview && cv.reducePreview.length ? h("div", {
-      style: { maxHeight: 120, overflowY: "auto", borderTop: "1px solid #C4DCB6", paddingTop: 6 }
+      style: { maxHeight: 120, overflowY: "auto", borderTop: "1px solid var(--border)", paddingTop: 6 }
     },
       cv.reducePreview.map(function(m, i) {
         var fromE = ctx.cmap && ctx.cmap[m.from];
         var toE   = ctx.cmap && ctx.cmap[m.to];
         // Colour-code ΔE badge: green ≤ 3, amber ≤ 8, red > 8
         var de = m.de != null ? m.de : null;
-        var deBadgeColor = de == null ? "#6b7280" : de <= 3 ? "#16a34a" : de <= 8 ? "#d97706" : "#dc2626";
+        var deBadgeColor = de == null ? "var(--text-tertiary)" : de <= 3 ? "var(--success)" : de <= 8 ? "var(--warning)" : "var(--danger)";
         return h("div", { key: i, style: { display: "flex", alignItems: "center", gap: 5, marginBottom: 2 } },
           swatch(fromE ? fromE.rgb : null), h("span", null, m.from + " " + m.fromName),
-          h("span", { "aria-hidden":"true", style: { color: "#6b7280", display:"inline-flex" } }, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
+          h("span", { "aria-hidden":"true", style: { color: "var(--text-tertiary)", display:"inline-flex" } }, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
           swatch(toE ? toE.rgb : null), h("span", null, m.to + " " + m.toName),
-          h("span", { style: { color: "#6b7280" } }, "(" + m.count + " stitches)"),
+          h("span", { style: { color: "var(--text-tertiary)" } }, "(" + m.count + " stitches)"),
           de != null && h("span", {
             title: "CIEDE2000 colour distance between these two threads",
             style: { fontSize: 9, fontWeight: 600, color: deBadgeColor,
@@ -12141,68 +12423,14 @@ window.MagicWandPanel = function MagicWandPanel() {
         );
       })
     ) : cv.reducePreview && cv.reducePreview.length === 0 ? h("div", {
-      style: { paddingTop: 6, color: "#3F6432", fontStyle: "italic" }
+      style: { paddingTop: 6, color: "var(--success)", fontStyle: "italic" }
     }, cv.reduceMode === "threshold" ? "No colour pairs are within this \u0394E threshold." : "Already at target — no merges needed.")
     : null
   ) : null;
 
-  // ─── Replace colour panel ────────────────────────────────────────────────────
-  var replacePanel = (panel === "replace" && hasSelection) ? (function() {
-    var srcEntry = ctx.cmap && cv.replaceSource ? ctx.cmap[cv.replaceSource] : null;
-    var dstEntry = ctx.cmap && cv.replaceDest   ? ctx.cmap[cv.replaceDest]   : null;
-    var affectedCount = cv.selectionReplaceColorCount;
-
-    // Color picker options from current palette
-    var palOpts = ctx.pal ? ctx.pal.map(function(p) {
-      return h("option", { key: p.id, value: p.id }, p.id + " " + p.name);
-    }) : [];
-
-    return h("div", {
-      style: { padding: "10px 14px", background: "#fdf4ff", borderBottom: "1px solid #e9d5ff",
-        display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 11 }
-    },
-      h("strong", { style: { color: "#4a044e" } }, "Replace Colour in Selection"),
-      h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
-        "Source:", srcEntry ? swatch(srcEntry.rgb) : null,
-        h("select", {
-          value: cv.replaceSource || "",
-          onChange: function(e) { cv.setReplaceSource(e.target.value || null); },
-          style: { fontSize: 11 }
-        }, [h("option", { key: "", value: "" }, "— pick —")].concat(palOpts))
-      ),
-      h("span", { "aria-hidden":"true", style: { color: "#6b7280", display:"inline-flex" } }, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
-      h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
-        "Target:", dstEntry ? swatch(dstEntry.rgb) : null,
-        h("select", {
-          value: cv.replaceDest || "",
-          onChange: function(e) { cv.setReplaceDest(e.target.value || null); },
-          style: { fontSize: 11 }
-        }, [h("option", { key: "", value: "" }, "— pick —")].concat(palOpts))
-      ),
-      h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
-        h("input", {
-          type: "checkbox", checked: cv.replaceFuzzy,
-          onChange: function(e) { cv.setReplaceFuzzy(e.target.checked); }
-        }), "Fuzzy",
-        cv.replaceFuzzy ? [
-          h("input", { key: "tol", type: "range", min: 0, max: 20, step: 1, value: cv.replaceFuzzyTol,
-            onChange: function(e) { cv.setReplaceFuzzyTol(Number(e.target.value)); },
-            style: { width: 50 } }),
-          h("span", { key: "v" }, "\u0394E\u2264" + cv.replaceFuzzyTol)
-        ] : null
-      ),
-      affectedCount > 0 ? h("span", { style: { color: "#7e22ce" } }, affectedCount + " stitches affected") : null,
-      btn("Apply", cv.applyColorReplacement, {
-        green: true, disabled: !cv.replaceSource || !cv.replaceDest || !affectedCount,
-        style: { fontSize: 10 }
-      }),
-      btn("\u00D7", function() { cv.setWandPanel(null); }, { style: { fontSize: 10 } })
-    );
-  })() : null;
-
   // ─── Stitch info panel ───────────────────────────────────────────────────────
-  var headStyle = { textAlign: "left", padding: "2px 6px", borderBottom: "1px solid #bae6fd",
-    fontWeight: 600, color: "#0369a1", fontSize: 10, whiteSpace: "nowrap" };
+  var headStyle = { textAlign: "left", padding: "2px 6px", borderBottom: "1px solid var(--border)",
+    fontWeight: 600, color: "var(--accent)", fontSize: 10, whiteSpace: "nowrap" };
   var cellStyle = { padding: "2px 6px", fontSize: 11 };
   var infoPanel = (panel === "info") ? (function() {
     var stats = cv.selectionStats;
@@ -12221,11 +12449,11 @@ window.MagicWandPanel = function MagicWandPanel() {
       URL.revokeObjectURL(a.href);
     };
     return h("div", {
-      style: { padding: "10px 14px", background: "#f0f9ff", borderBottom: "1px solid #bae6fd", fontSize: 11 }
+      style: { padding: "10px 14px", background: "var(--surface-secondary)", borderBottom: "1px solid var(--border)", fontSize: 11 }
     },
       h("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 6 } },
-        h("strong", { style: { color: "#0c4a6e" } }, hasSelection ? "Selection Info" : "Pattern Info"),
-        h("span", { style: { color: "#0369a1" } },
+        h("strong", { style: { color: "var(--text-primary)" } }, hasSelection ? "Selection Info" : "Pattern Info"),
+        h("span", { style: { color: "var(--accent)" } },
           stats.total.toLocaleString() + " stitches, " + stats.colors + " colours, ~" + stats.totalSkeins.toFixed(1) + " skeins"),
         btn("Export CSV", exportCSV, { style: { fontSize: 10 } }),
         btn("\u00D7", function() { cv.setWandPanel(null); }, { style: { fontSize: 10 } })
@@ -12241,7 +12469,7 @@ window.MagicWandPanel = function MagicWandPanel() {
           )),
           h("tbody", null,
             stats.rows.map(function(r, i) {
-              return h("tr", { key: r.id, style: { background: i % 2 ? "#f8fafc" : "#fff" } },
+              return h("tr", { key: r.id, style: { background: i % 2 ? "var(--surface-secondary)" : "var(--surface)" } },
                 h("td", { style: cellStyle }, swatch(r.rgb)),
                 h("td", { style: cellStyle }, r.id),
                 h("td", { style: cellStyle }, r.name),
@@ -12249,7 +12477,7 @@ window.MagicWandPanel = function MagicWandPanel() {
                 h("td", { style: { ...cellStyle, textAlign: "right" } }, r.skeins.toFixed(2))
               );
             }),
-            h("tr", { style: { fontWeight: 700, borderTop: "1px solid #bae6fd" } },
+            h("tr", { style: { fontWeight: 700, borderTop: "1px solid var(--border)" } },
               h("td", { style: cellStyle, colSpan: 3 }, "Total"),
               h("td", { style: { ...cellStyle, textAlign: "right" } }, stats.total.toLocaleString()),
               h("td", { style: { ...cellStyle, textAlign: "right" } }, stats.totalSkeins.toFixed(2))
@@ -12262,10 +12490,10 @@ window.MagicWandPanel = function MagicWandPanel() {
 
   // ─── Outline panel ───────────────────────────────────────────────────────────
   var outlinePanel = (panel === "outline" && hasSelection) ? h("div", {
-    style: { padding: "10px 14px", background: "#f8fafc", borderBottom: "1px solid #E5DCCB",
+    style: { padding: "10px 14px", background: "var(--surface-secondary)", borderBottom: "1px solid var(--border)",
       display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 11 }
   },
-    h("strong", { style: { color: "#1B1814" } }, "Generate Backstitch Outline"),
+    h("strong", { style: { color: "var(--text-primary)" } }, "Generate Backstitch Outline"),
     h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
       "Outline thread (DMC):",
       h("input", {
@@ -12277,8 +12505,8 @@ window.MagicWandPanel = function MagicWandPanel() {
     (function() {
       var dmcEntry = findThreadInCatalog('dmc', cv.outlineColor);
       return dmcEntry ? h("span", { style: { display: "flex", alignItems: "center", gap: 3 } },
-        swatch(dmcEntry.rgb), h("span", { style: { color: "#334155" } }, dmcEntry.name)
-      ) : h("span", { style: { color: "#B85555" } }, "Unknown DMC");
+        swatch(dmcEntry.rgb), h("span", { style: { color: "var(--text-secondary)" } }, dmcEntry.name)
+      ) : h("span", { style: { color: "var(--danger)" } }, "Unknown DMC");
     })(),
     btn("Generate", cv.applyOutlineGeneration, {
       green: true,
@@ -12352,7 +12580,11 @@ window.MagicWandPanel = function MagicWandPanel() {
             return h("button", {
               key: item.key,
               className: "tb-ovf-item" + (panel === item.key ? " tb-ovf-item--on" : ""),
-              onClick: function() { cv.setWandPanel(panel === item.key ? null : item.key); setPanelMenuOpen(false); }
+              onClick: function() {
+                setPanelMenuOpen(false);
+                if (item.key === "replace") { openReplaceModal(); return; }
+                cv.setWandPanel(panel === item.key ? null : item.key);
+              }
             }, item.label);
           })
         )
@@ -12368,7 +12600,6 @@ window.MagicWandPanel = function MagicWandPanel() {
     topRows,
     confettiPanel,
     reducePanel,
-    replacePanel,
     infoPanel,
     outlinePanel
   );
@@ -15245,6 +15476,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     statusText = "That cell is empty \u2014 no colour to sample.";
   } else if (cv.activeTool === "eyedropper") {
     statusText = "Eyedropper \u2014 click a cell to sample its colour.";
+  } else if (cv.activeTool === "colourReplace") {
+    statusText = "Replace colour \u2014 hover to see every stitch of a colour, click one to replace it. Press R to exit.";
   } else if (cv.activeTool === "magicWand") {
     var wModLabel = cv.selectionModifier === "add" ? "[+] Add" : cv.selectionModifier === "subtract" ? "[\u2212] Subtract" : cv.selectionModifier === "intersect" ? "[\u2229] Intersect" : null;
     statusText = "Magic Wand \u2014 click to select by colour" + (wModLabel ? " \u2022 " + wModLabel : ". Shift=add, Alt=subtract.");
@@ -16161,114 +16394,588 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
    creator/ColourReplaceModal.js — Direct colour replacement modal.
    Opens when the user right-clicks a stitch → "Replace this colour",
    clicks the swap button on a palette chip, or uses the Replace tool.
+
+   Flow: pick a thread (single click) → the preview and stitch count update →
+   press Apply. Double-clicking a thread applies it straight away.
+
    Depends on: React (global), window.Overlay (components.js),
-               window.Icons (icons.js), window.DMC (dmc-data.js)
+               window.Icons (icons.js), window.DMC (dmc-data.js),
+               window.ColourReplace (creator/colourReplace.js)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-window.ColourReplaceModal = function ColourReplaceModal(props) {
-  var modal = props.modal;     // { srcId, srcName, srcRgb }
-  var onClose = props.onClose;
-  var onApply = props.onApply; // called with a DMC thread object {id, name, rgb, ...}
+(function() {
+  var THUMB_MAX_W = 190, THUMB_MAX_H = 130;
 
-  var h = React.createElement;
-  var _search = React.useState(''); var search = _search[0], setSearch = _search[1];
-
-  var filteredThreads = React.useMemo(function() {
-    if (typeof DMC === 'undefined') return [];
-    var q = search.trim().toLowerCase();
-    if (!q) return DMC;
-    return DMC.filter(function(t) {
-      return t.id.toLowerCase().indexOf(q) !== -1 || t.name.toLowerCase().indexOf(q) !== -1;
-    });
-  }, [search]);
-
-  var srcRgb = modal && modal.srcRgb ? modal.srcRgb : [128, 128, 128];
-
-  function handleKey(e) {
-    if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
+  function rgbCss(rgb) { return 'rgb(' + (rgb || [128, 128, 128]) + ')'; }
+  function fabricRgb(fabricColour) {
+    var value = typeof fabricColour === 'string' && fabricColour.charCodeAt(0) === 35
+      ? fabricColour.slice(1) : '';
+    if (!/^[0-9a-fA-F]{6}$/.test(value)) return [255, 255, 255];
+    return [parseInt(value.slice(0, 2), 16), parseInt(value.slice(2, 4), 16), parseInt(value.slice(4, 6), 16)];
   }
 
-  return h(window.Overlay, {
-    onClose: onClose,
-    variant: 'dialog',
-    labelledBy: 'colour-replace-title',
-    onKeyDown: handleKey,
-    style: { maxWidth: 460, width: '100%', display: 'flex', flexDirection: 'column', maxHeight: '80vh' }
-  },
-    h(window.Overlay.CloseButton, { onClose: onClose }),
-    h('div', { style: { padding: 20, display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 } },
-      h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 } },
-        h('span', {
-          style: {
-            width: 20, height: 20, borderRadius: 4, flexShrink: 0, display: 'inline-block',
-            background: 'rgb(' + srcRgb + ')', border: '1px solid var(--border)'
-          }
-        }),
-        h('h3', {
-          id: 'colour-replace-title',
-          style: { margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: 'var(--text-primary)' }
-        },
-          'Replace DMC ' + (modal ? modal.srcId : '') +
-          (modal && modal.srcName && modal.srcName !== modal.srcId ? ' \u00B7 ' + modal.srcName : '') +
-          ' with\u2026'
-        )
-      ),
-      h('input', {
-        type: 'text',
-        placeholder: 'Search by DMC code or colour name\u2026',
-        value: search,
-        onChange: function(e) { setSearch(e.target.value); },
-        autoFocus: true,
+  // Small 1-pixel-per-stitch rendering of the pattern, optionally with the
+  // pending replacement applied, so users can judge the change in context.
+  function PatternThumb(props) {
+    var h = React.createElement;
+    var ref = React.useRef(null);
+    var pat = props.pat, sW = props.sW, sH = props.sH;
+    var srcIds = props.srcIds || [], dst = props.dst, mask = props.mask;
+    var fabric = fabricRgb(props.fabricColour);
+    // swapRgb: when swapping, cells in the destination colour take this colour.
+    var swapRgb = props.swapRgb || null;
+    var srcKey = srcIds.join('|');
+    var valid = !!(pat && sW > 0 && sH > 0 && pat.length >= sW * sH);
+
+    React.useEffect(function() {
+      var c = ref.current;
+      if (!c || !valid) return;
+      var ctx = null;
+      try { ctx = c.getContext('2d'); } catch (e) { ctx = null; }
+      if (!ctx || typeof ctx.createImageData !== 'function') return;
+      var img = ctx.createImageData(sW, sH);
+      var d = img.data;
+      var dstRgb = dst && dst.rgb ? dst.rgb : null;
+      var srcSet = new Set(srcIds);
+      for (var i = 0; i < sW * sH; i++) {
+        var cell = pat[i];
+        var rgb;
+        if (!cell || cell.id === '__skip__' || cell.id === '__empty__' || !cell.rgb) rgb = fabric;
+        else if (dstRgb && srcSet.has(cell.id) && (!mask || mask[i])) rgb = dstRgb;
+        else if (swapRgb && dst && cell.id === dst.id && (!mask || mask[i])) rgb = swapRgb;
+        else rgb = cell.rgb;
+        var o = i * 4;
+        d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2]; d[o + 3] = 255;
+      }
+      ctx.putImageData(img, 0, 0);
+    }, [pat, sW, sH, srcKey, dst, mask, valid, props.fabricColour, swapRgb && swapRgb.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    if (!valid) return null;
+    var scale = Math.min(THUMB_MAX_W / sW, THUMB_MAX_H / sH);
+    return h('figure', { style: { margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flex: 1, minWidth: 0 } },
+      h('canvas', {
+        ref: ref, width: sW, height: sH,
+        role: 'img', 'aria-label': props.ariaLabel,
         style: {
-          width: '100%', padding: '8px 10px', borderRadius: 'var(--radius-sm)',
-          border: '1px solid var(--border)', fontSize: 'var(--text-sm)',
-          fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 10,
-          background: 'var(--surface)', color: 'var(--text-primary)', outline: 'none'
+          // height:auto keeps the aspect ratio (from the width/height
+          // attributes) when maxWidth shrinks a wide pattern on narrow screens.
+          width: Math.max(1, Math.round(sW * scale)), maxWidth: '100%', height: 'auto',
+          imageRendering: 'pixelated', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+          opacity: props.dimmed ? 0.45 : 1, transition: 'opacity var(--motion)'
         }
       }),
-      h('div', { style: { flex: 1, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' } },
-        filteredThreads.length === 0
-          ? h('div', { style: { padding: 20, textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 'var(--text-sm)' } }, 'No colours found')
-          : filteredThreads.map(function(t) {
-              var isSrc = modal && t.id === modal.srcId;
-              return h('button', {
-                key: t.id,
-                onClick: function() { if (!isSrc) onApply(t); },
-                disabled: isSrc,
-                style: {
-                  display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                  padding: '7px 12px', border: 'none', borderBottom: '1px solid var(--surface-secondary)',
-                  background: isSrc ? 'var(--surface-secondary)' : 'transparent',
-                  cursor: isSrc ? 'default' : 'pointer', textAlign: 'left', fontFamily: 'inherit'
-                },
-                onMouseEnter: function(e) { if (!isSrc) e.currentTarget.style.background = 'var(--surface-secondary)'; },
-                onMouseLeave: function(e) { if (!isSrc) e.currentTarget.style.background = 'transparent'; }
-              },
-                h('span', {
-                  style: {
-                    width: 18, height: 18, borderRadius: 3, flexShrink: 0, display: 'inline-block',
-                    background: 'rgb(' + t.rgb + ')', border: '1px solid var(--border)'
-                  }
-                }),
-                h('span', { style: { fontFamily: 'monospace', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', flexShrink: 0, minWidth: 35 } }, t.id),
-                h('span', { style: { fontSize: 'var(--text-sm)', color: 'var(--text-primary)', flex: 1, textAlign: 'left' } }, t.name),
-                isSrc && h('span', { style: { fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', flexShrink: 0 } }, 'current')
-              );
-            })
+      h('figcaption', { style: { fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' } }, props.caption)
+    );
+  }
+
+  window.ColourReplaceModal = function ColourReplaceModal(props) {
+    var modal = props.modal;     // { srcId, srcName, srcRgb }
+    var onClose = props.onClose;
+    var onApply = props.onApply; // called with (thread {id, name, rgb, ...}, { scope: 'selection' | 'all' })
+    var pat = props.pat, sW = props.sW, sH = props.sH;
+    var pal = props.pal || null;  // current palette entries ({ id, name, rgb, count, ... })
+    var partialStitches = props.partialStitches || null;  // Map idx -> { TL, TR, BL, BR }
+    var bsLines = props.bsLines || null;
+    // Pass the selection mask only when something is selected.
+    var selectionMask = props.selectionMask || null;
+
+    var h = React.createElement;
+    var _search = React.useState(''); var search = _search[0], setSearch = _search[1];
+    var _picked = React.useState(null); var picked = _picked[0], setPicked = _picked[1];
+    // Keyboard-active option ('section:id'). Selection follows it, so arrowing
+    // through the list updates the preview. Cleared when the search changes.
+    var _active = React.useState(null); var activeKey = _active[0], setActiveKey = _active[1];
+    var listRef = React.useRef(null);
+
+    var srcId = modal ? modal.srcId : null;
+    var srcRgb = modal && modal.srcRgb ? modal.srcRgb : [128, 128, 128];
+
+    var CR = window.ColourReplace;
+    var dmcList = typeof DMC !== 'undefined' ? DMC : [];
+
+    // Colours already in the pattern (excluding the source). Picking one
+    // merges the two colours, so they're listed first and flagged.
+    var palEntries = React.useMemo(function() {
+      if (!pal) return [];
+      return pal.filter(function(p) {
+        return p && p.rgb && p.id !== srcId && p.id !== '__skip__' && p.id !== '__empty__';
+      });
+    }, [pal, srcId]);
+    var palIds = React.useMemo(function() {
+      return new Set(palEntries.map(function(p) { return p.id; }));
+    }, [palEntries]);
+
+    // Thread list sections. With an empty search: In your palette, Closest
+    // matches, All threads. With a search: one flat list of matches.
+    var sections = React.useMemo(function() {
+      var q = search.trim().toLowerCase();
+      var rank = function(list, opts) { return CR && CR.rankBySimilarity ? CR.rankBySimilarity(srcRgb, list, opts) : list.map(function(t) { return { thread: t, dE: null }; }); };
+      if (q) {
+        var match = function(t) { return t.id.toLowerCase().indexOf(q) !== -1 || (t.name || '').toLowerCase().indexOf(q) !== -1; };
+        // Palette-only entries (e.g. blends) aren't in DMC, so search them too.
+        var extra = palEntries.filter(function(p) { return match(p) && !dmcList.some(function(d) { return d.id === p.id; }); });
+        var items = extra.concat(dmcList.filter(match)).map(function(t) { return { thread: t, dE: null }; });
+        return [{ key: 'results', title: null, items: items }];
+      }
+      var out = [];
+      if (palEntries.length) out.push({ key: 'palette', title: 'In your palette', items: rank(palEntries) });
+      var exclude = new Set(palIds); if (srcId) exclude.add(srcId);
+      var closest = rank(dmcList, { limit: 8, excludeIds: exclude });
+      if (closest.length) out.push({ key: 'closest', title: 'Closest matches', items: closest });
+      out.push({ key: 'all', title: 'All DMC threads', items: dmcList.map(function(t) { return { thread: t, dE: null }; }) });
+      return out;
+    }, [search, palEntries, palIds, srcId, srcRgb && srcRgb.join(','), dmcList]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Flat list of selectable options in display order (the source colour is
+    // skipped). A thread can appear in two sections (Closest + All), so options
+    // are keyed by section as well as id.
+    var options = React.useMemo(function() {
+      var out = [];
+      sections.forEach(function(sec) {
+        sec.items.forEach(function(item) {
+          if (item.thread.id !== srcId) out.push({ key: sec.key + ':' + item.thread.id, thread: item.thread });
+        });
+      });
+      return out;
+    }, [sections, srcId]);
+    var anyThreads = sections.some(function(sec) { return sec.items.length > 0; });
+    // A thread can be listed twice (Closest + All), but a single-select
+    // listbox must mark one option selected: the active one if it shows the
+    // picked thread, else the first option that does.
+    var selectedKey = null;
+    if (picked) {
+      for (var oi = 0; oi < options.length; oi++) {
+        if (options[oi].thread.id !== picked.id) continue;
+        if (options[oi].key === activeKey) { selectedKey = activeKey; break; }
+        if (selectedKey === null) selectedKey = options[oi].key;
+      }
+    }
+    var optionDomId = function(key) { return 'crm-opt-' + key.replace(/[^A-Za-z0-9_-]/g, '_'); };
+
+    function activate(opt) {
+      setActiveKey(opt.key);
+      setPicked(opt.thread);
+    }
+
+    // Keep the active option scrolled into view.
+    React.useEffect(function() {
+      if (!activeKey || !listRef.current) return;
+      var el = listRef.current.querySelector('#' + optionDomId(activeKey));
+      if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest' });
+    }, [activeKey]);
+
+    // "Also replace similar shades": palette colours within dE <= fuzzyTol of
+    // the source are replaced too (replaces the old Magic Wand fuzzy panel).
+    var _fuzzy = React.useState(false); var fuzzy = _fuzzy[0], setFuzzy = _fuzzy[1];
+    var _fuzzyTol = React.useState(5); var fuzzyTol = _fuzzyTol[0], setFuzzyTol = _fuzzyTol[1];
+    var pickedId = picked ? picked.id : null;
+    // Picking a colour already in the palette: merge into it (default) or
+    // swap the two colours. Swapping uses exact colours only.
+    var _mode = React.useState('merge'); var mode = _mode[0], setMode = _mode[1];
+    var canSwap = !!pickedId && palIds.has(pickedId);
+    var swapping = canSwap && mode === 'swap';
+    var srcIds = React.useMemo(function() {
+      if (swapping) return [srcId];
+      var ids = fuzzy && CR && CR.similarIds
+        ? CR.similarIds({ id: srcId, rgb: srcRgb }, palEntries, fuzzyTol)
+        : [srcId];
+      // The destination is never also a source (those stitches stay put).
+      return ids.filter(function(id) { return id && id !== pickedId; });
+    }, [swapping, fuzzy, fuzzyTol, srcId, srcRgb && srcRgb.join(','), palEntries, pickedId]); // eslint-disable-line react-hooks/exhaustive-deps
+    var extraIds = srcIds.filter(function(id) { return id !== srcId; });
+    // Colours whose stitches change: a swap changes both.
+    var countIds = React.useMemo(function() {
+      return swapping ? [srcId, pickedId] : srcIds;
+    }, [swapping, srcId, pickedId, srcIds]);
+
+    // Full stitches + half/quarter stitches + backstitch lines in the source
+    // colour(s). total / inSelection are the sums used for scope and Apply.
+    var counts = React.useMemo(function() {
+      var R = window.ColourReplace;
+      if (!R) return null;
+      var full = R.countMatches(pat, countIds, selectionMask);
+      var part = R.countPartials ? R.countPartials(partialStitches, countIds, selectionMask) : { total: 0, inSelection: selectionMask ? 0 : null };
+      var bs = R.countBackstitch ? R.countBackstitch(bsLines, countIds, selectionMask, sW, sH) : { total: 0, inSelection: selectionMask ? 0 : null };
+      return {
+        total: full.total + part.total + bs.total,
+        inSelection: selectionMask ? full.inSelection + part.inSelection + bs.inSelection : null,
+        all: { full: full.total, partial: part.total, backstitch: bs.total },
+        sel: selectionMask ? { full: full.inSelection, partial: part.inSelection, backstitch: bs.inSelection } : null
+      };
+    }, [pat, countIds, selectionMask, partialStitches, bsLines, sW, sH]);
+    var describe = function(c) {
+      var R = window.ColourReplace;
+      return R && R.describeCounts ? R.describeCounts(c) : String((c.full || 0) + (c.partial || 0) + (c.backstitch || 0)) + ' stitches';
+    };
+
+    // Scope: with an active selection, default to "selection" (the previous
+    // behaviour) unless none of the selected stitches use this colour, in
+    // which case the whole pattern is the only useful choice.
+    var hasSel = !!selectionMask;
+    var _scope = React.useState(function() {
+      return hasSel && counts && counts.inSelection > 0 ? 'selection' : 'all';
+    });
+    var scope = hasSel ? _scope[0] : 'all', setScope = _scope[1];
+    var previewMask = scope === 'selection' ? selectionMask : null;
+    var affected = counts ? (scope === 'selection' ? counts.inSelection : counts.total) : null;
+
+    function apply(t) {
+      if (!t || t.id === srcId || affected === 0) return;
+      var opts = { scope: scope, alsoIds: extraIds };
+      if (swapping && t.id === pickedId) opts.swap = true;
+      onApply(t, opts);
+    }
+
+    function handleSearchKey(e) {
+      var idx = -1;
+      for (var i = 0; i < options.length; i++) { if (options[i].key === activeKey) { idx = i; break; } }
+      var last = options.length - 1;
+      var step = null;
+      switch (e.key) {
+        case 'ArrowDown': step = idx < 0 ? 0 : Math.min(last, idx + 1); break;
+        case 'ArrowUp':   step = idx < 0 ? 0 : Math.max(0, idx - 1); break;
+        case 'PageDown':  step = idx < 0 ? 0 : Math.min(last, idx + 8); break;
+        case 'PageUp':    step = idx < 0 ? 0 : Math.max(0, idx - 8); break;
+        case 'Enter':
+          e.preventDefault();
+          // Enter applies the active option; with nothing active yet it
+          // picks the top result (a second Enter then applies it).
+          if (idx >= 0 && picked) apply(picked);
+          else if (options.length) activate(options[0]);
+          return;
+        default: return;
+      }
+      e.preventDefault();
+      if (options.length) activate(options[step]);
+    }
+
+    var swatch = function(rgb, size) {
+      return h('span', {
+        'aria-hidden': 'true',
+        style: {
+          width: size, height: size, borderRadius: 4, flexShrink: 0, display: 'inline-block',
+          background: rgbCss(rgb), border: '1px solid var(--border)'
+        }
+      });
+    };
+
+    var srcLabel = 'DMC ' + (srcId || '') +
+      (modal && modal.srcName && modal.srcName !== srcId ? ' · ' + modal.srcName : '');
+    var countText = affected == null ? null
+      : (affected === 0 ? 'nothing to change'
+        : describe(scope === 'selection' ? counts.sel : counts.all) + ' will change');
+
+    // ── Scope line: what the replacement will touch ──
+    var scopeRow = null;
+    if (counts && hasSel) {
+      var seg = function(value, label) {
+        var on = scope === value;
+        return h('button', {
+          key: value, type: 'button', role: 'radio', 'aria-checked': on ? 'true' : 'false',
+          className: 'lp-seg' + (on ? ' lp-seg--on' : ''),
+          'data-scope': value,
+          tabIndex: on ? 0 : -1,
+          onClick: function() { setScope(value); },
+          onKeyDown: function(e) {
+            if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].indexOf(e.key) === -1) return;
+            e.preventDefault();
+            var next = value === 'selection' ? 'all' : 'selection';
+            setScope(next);
+            var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-scope="' + next + '"]');
+            if (sib) sib.focus();
+          },
+          style: { padding: '4px 10px', whiteSpace: 'nowrap' }
+        }, label);
+      };
+      scopeRow = h('div', { className: 'colour-replace-scope', style: { marginBottom: 12 } },
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
+          h('span', { id: 'colour-replace-scope-label', style: { fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' } }, 'Replace in'),
+          h('div', { className: 'lp-segmented', role: 'radiogroup', 'aria-labelledby': 'colour-replace-scope-label' },
+            seg('selection', 'Selection (' + counts.inSelection.toLocaleString() + ')'),
+            seg('all', 'Whole pattern (' + counts.total.toLocaleString() + ')')
+          )
+        ),
+        counts.inSelection === 0 && h('div', {
+          style: { marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }
+        },
+          h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex' } }, window.Icons && window.Icons.info ? window.Icons.info() : null),
+          'None of your selected stitches use this colour.')
+      );
+    } else if (counts) {
+      scopeRow = h('div', {
+        className: 'colour-replace-scope',
+        style: { marginBottom: 12, fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }
+      }, (swapping ? 'Swaps these two colours across the whole pattern (' : 'Replaces this colour across the whole pattern (') + describe(counts.all) + ').');
+    }
+
+    // ── Similar shades row ──
+    var palById = {};
+    palEntries.forEach(function(p) { palById[p.id] = p; });
+    var fuzzyRow = palEntries.length ? h('div', { className: 'colour-replace-fuzzy', style: { marginBottom: 12, fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' } },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
+        h('label', { style: { display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' } },
+          h('input', {
+            type: 'checkbox', checked: fuzzy && !swapping, 'data-fuzzy-toggle': true,
+            disabled: swapping,
+            title: swapping ? 'Not available when swapping two colours' : null,
+            onChange: function(e) { setFuzzy(e.target.checked); }
+          }),
+          'Also replace similar shades'),
+        fuzzy && !swapping && h('input', {
+          type: 'range', min: 1, max: 20, step: 1, value: fuzzyTol,
+          'aria-label': 'How similar (colour difference)',
+          'aria-valuetext': 'Colour difference up to ' + fuzzyTol,
+          'data-fuzzy-tol': true,
+          onChange: function(e) { setFuzzyTol(Number(e.target.value)); },
+          style: { width: 90 }
+        }),
+        fuzzy && !swapping && h('span', { style: { fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' } }, '\u0394E \u2264 ' + fuzzyTol)
       ),
-      h('div', { style: { marginTop: 12, display: 'flex', justifyContent: 'flex-end' } },
-        h('button', {
-          onClick: onClose,
+      fuzzy && !swapping && h('div', {
+        className: 'colour-replace-fuzzy-list',
+        style: { marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }
+      },
+        extraIds.length
+          ? ['Also replacing:'].concat(extraIds.map(function(id) {
+              var p = palById[id] || { id: id };
+              return h('span', { key: id, 'data-extra-id': id, style: { display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--text-secondary)' } },
+                swatch(p.rgb, 12), id + (p.name && p.name !== id ? ' ' + p.name : ''));
+            }))
+          : 'No other colours in your palette are that close. Drag the slider right to include more.')
+    ) : null;
+
+    function threadRow(item, sectionKey) {
+      var t = item.thread;
+      var isSrc = t.id === srcId;
+      var isPicked = (sectionKey + ':' + t.id) === selectedKey;
+      var inPal = palIds.has(t.id);
+      var simLabel = CR && CR.similarityLabel && item.dE != null ? CR.similarityLabel(item.dE) : null;
+      var tag = function(text, title) {
+        return h('span', {
+          title: title || null,
+          style: { fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', flexShrink: 0, whiteSpace: 'nowrap' }
+        }, text);
+      };
+      var key = sectionKey + ':' + t.id;
+      var isActive = activeKey === key;
+      // role=option rows inside a listbox; focus stays in the search box
+      // (combobox pattern) and aria-activedescendant points here.
+      return h('div', {
+        key: key,
+        id: optionDomId(key),
+        role: 'option',
+        // isPicked follows selectedKey: exactly one option, and still the
+        // picked thread after a new search clears the active option.
+        'aria-selected': isPicked ? 'true' : 'false',
+        'aria-disabled': isSrc ? 'true' : null,
+        onClick: function() { if (!isSrc) activate({ key: key, thread: t }); },
+        onDoubleClick: function() { if (!isSrc) apply(t); },
+        'data-thread-id': t.id,
+        'data-active': isActive ? 'true' : null,
+        style: {
+          outline: isActive ? '2px solid var(--accent)' : 'none', outlineOffset: -2,
+          display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+          padding: '7px 12px', border: 'none', borderBottom: '1px solid var(--surface-secondary)',
+          boxShadow: isPicked ? 'inset 3px 0 0 var(--accent)' : 'none',
+          background: isPicked ? 'var(--accent-light)' : (isSrc ? 'var(--surface-secondary)' : 'transparent'),
+          cursor: isSrc ? 'default' : 'pointer', textAlign: 'left', fontFamily: 'inherit'
+        },
+        onMouseEnter: function(e) { if (!isSrc && !isPicked) e.currentTarget.style.background = 'var(--surface-secondary)'; },
+        onMouseLeave: function(e) { if (!isSrc && !isPicked) e.currentTarget.style.background = 'transparent'; }
+      },
+        swatch(t.rgb, 18),
+        h('span', { style: { fontFamily: 'monospace', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', flexShrink: 0, minWidth: 35 } }, t.id),
+        h('span', { style: { fontSize: 'var(--text-sm)', color: 'var(--text-primary)', flex: 1, textAlign: 'left', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, t.name || t.id),
+        isSrc && tag('current'),
+        !isSrc && simLabel && tag(simLabel, '\u0394E ' + item.dE.toFixed(1)),
+        !isSrc && inPal && sectionKey !== 'palette' && tag('in palette'),
+        isPicked && h('span', { 'aria-hidden': 'true', style: { color: 'var(--accent)', display: 'inline-flex', flexShrink: 0 } },
+          window.Icons && window.Icons.check ? window.Icons.check() : null)
+      );
+    }
+
+    // Picking a colour that's already in the palette: merge into it, or swap.
+    var modeSeg = function(value, label) {
+      var on = mode === value;
+      return h('button', {
+        key: value, type: 'button', role: 'radio', 'aria-checked': on ? 'true' : 'false',
+        className: 'lp-seg' + (on ? ' lp-seg--on' : ''),
+        'data-mode': value,
+        tabIndex: on ? 0 : -1,
+        onClick: function() { setMode(value); },
+        onKeyDown: function(e) {
+          if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].indexOf(e.key) === -1) return;
+          e.preventDefault();
+          var next = value === 'merge' ? 'swap' : 'merge';
+          setMode(next);
+          var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-mode="' + next + '"]');
+          if (sib) sib.focus();
+        },
+        style: { padding: '3px 10px', whiteSpace: 'nowrap' }
+      }, label);
+    };
+    var mergeNote = canSwap ? h('div', {
+      className: 'colour-replace-merge',
+      style: { marginTop: 8, fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }
+    },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
+        h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex', color: 'var(--text-tertiary)' } }, window.Icons && window.Icons.info ? window.Icons.info() : null),
+        h('span', { id: 'colour-replace-mode-label' }, 'DMC ' + pickedId + ' is already in your palette.'),
+        h('div', { className: 'lp-segmented', role: 'radiogroup', 'aria-labelledby': 'colour-replace-mode-label' },
+          modeSeg('merge', 'Merge into it'),
+          modeSeg('swap', 'Swap the two colours'))
+      ),
+      h('div', { className: 'colour-replace-mode-help', style: { marginTop: 4, color: 'var(--text-tertiary)' } },
+        swapping
+          ? 'Every DMC ' + srcId + ' stitch becomes DMC ' + pickedId + ', and every DMC ' + pickedId + ' stitch becomes DMC ' + srcId + '.'
+          : 'These stitches will merge into it, leaving one colour where there were two.')
+    ) : null;
+
+    var hasThumb = !!(pat && sW > 0 && sH > 0);
+
+    return h(window.Overlay, {
+      onClose: onClose,
+      variant: 'dialog',
+      labelledBy: 'colour-replace-title',
+      // Focus lives in the search box, and Overlay's Escape handler skips
+      // text inputs by default, so opt in or Esc would never close the modal.
+      escapeOptions: { skipWhenEditingTextField: false },
+      // Opt out of the legacy html.pref-dark button override in styles.css:
+      // every control here is themed with tokens, and the override would
+      // hide the picked row, the active scope segment and the Apply button.
+      panelProps: { 'data-pref-modal': true },
+      // position:relative anchors Overlay.CloseButton (absolutely positioned)
+      // to the dialog instead of the page corner.
+      style: { position: 'relative', maxWidth: 460, width: '100%', display: 'flex', flexDirection: 'column', maxHeight: '85vh' }
+    },
+      h(window.Overlay.CloseButton, { onClose: onClose }),
+      h('div', { style: { padding: 20, display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 } },
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, paddingRight: 24 } },
+          swatch(srcRgb, 20),
+          h('h3', {
+            id: 'colour-replace-title',
+            style: { margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: 'var(--text-primary)' }
+          }, 'Replace ' + srcLabel + ' with…')
+        ),
+
+        scopeRow,
+        fuzzyRow,
+
+        // ── Preview ──
+        hasThumb && h('div', {
+          className: 'colour-replace-preview',
+          style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }
+        },
+          h(PatternThumb, { pat: pat, sW: sW, sH: sH, fabricColour: props.fabricColour, caption: 'Before', ariaLabel: 'Pattern before replacement' }),
+          h('span', { 'aria-hidden': 'true', style: { color: 'var(--text-tertiary)', display: 'inline-flex', flexShrink: 0 } },
+            window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
+          h(PatternThumb, {
+            pat: pat, sW: sW, sH: sH, srcIds: srcIds, dst: picked, mask: previewMask,
+            fabricColour: props.fabricColour,
+            swapRgb: swapping ? srcRgb : null,
+            dimmed: !picked,
+            caption: picked ? 'After' : 'Pick a thread to preview',
+            ariaLabel: picked ? 'Pattern after replacing with DMC ' + picked.id : 'Pattern preview, no replacement chosen'
+          })
+        ),
+
+        h('input', {
+          type: 'text',
+          role: 'combobox',
+          'aria-expanded': 'true',
+          'aria-controls': 'colour-replace-listbox',
+          'aria-autocomplete': 'list',
+          'aria-activedescendant': activeKey ? optionDomId(activeKey) : null,
+          placeholder: 'Search by DMC code or colour name…',
+          'aria-label': 'Search threads',
+          value: search,
+          onChange: function(e) { setSearch(e.target.value); setActiveKey(null); },
+          onKeyDown: handleSearchKey,
+          autoFocus: true,
+          // Overlay focuses [data-autofocus] on open (otherwise the close
+          // button), so typing and arrow keys work straight away.
+          'data-autofocus': true,
           style: {
-            padding: '7px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
-            background: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit',
-            fontSize: 'var(--text-sm)', color: 'var(--text-primary)'
+            width: '100%', padding: '8px 10px', borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--border)', fontSize: 'var(--text-sm)',
+            fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 10,
+            background: 'var(--surface)', color: 'var(--text-primary)', outline: 'none'
           }
-        }, 'Cancel')
+        }),
+        h('div', {
+          className: 'colour-replace-list',
+          id: 'colour-replace-listbox',
+          role: 'listbox',
+          'aria-label': 'Threads',
+          ref: listRef,
+          style: { flex: 1, minHeight: 120, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }
+        },
+          !anyThreads
+            ? h('div', { style: { padding: 20, textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 'var(--text-sm)' } }, 'No colours found')
+            : sections.map(function(sec) {
+                if (!sec.items.length) return null;
+                return h('div', { key: sec.key, role: 'group', 'aria-label': sec.title || 'Search results', 'data-section': sec.key },
+                  sec.title && h('div', {
+                    role: 'presentation',
+                    style: {
+                      position: 'sticky', top: 0, zIndex: 1, padding: '6px 12px', background: 'var(--surface-secondary)',
+                      fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-tertiary)',
+                      textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid var(--border)'
+                    }
+                  }, sec.title),
+                  sec.items.map(function(item) { return threadRow(item, sec.key); })
+                );
+              })
+        ),
+
+        // ── Summary + actions ──
+        h('div', {
+          className: 'colour-replace-summary',
+          'aria-live': 'polite',
+          style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 12, fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', flexWrap: 'wrap' }
+        },
+          swatch(srcRgb, 16),
+          h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex', color: 'var(--text-tertiary)' } },
+            swapping
+              ? (window.Icons && window.Icons.colourSwap ? window.Icons.colourSwap() : null)
+              : (window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null)),
+          picked ? swatch(picked.rgb, 16) : h('span', {
+            'aria-hidden': 'true',
+            style: { width: 16, height: 16, borderRadius: 4, flexShrink: 0, display: 'inline-block', border: '1px dashed var(--text-tertiary)' }
+          }),
+          h('span', null,
+            picked ? h('strong', { style: { color: 'var(--text-primary)', fontWeight: 600 } }, 'DMC ' + picked.id + ' ' + picked.name) : 'Pick a thread',
+            countText ? ' \u00B7 ' + countText : '')
+        ),
+        mergeNote,
+        h('div', { style: { marginTop: 10, display: 'flex', justifyContent: 'flex-end', gap: 8 } },
+          h('button', {
+            type: 'button',
+            onClick: onClose,
+            style: {
+              padding: '7px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
+              background: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit',
+              fontSize: 'var(--text-sm)', color: 'var(--text-primary)'
+            }
+          }, 'Cancel'),
+          h('button', {
+            type: 'button',
+            className: 'colour-replace-apply',
+            onClick: function() { apply(picked); },
+            disabled: !picked || affected === 0,
+            style: {
+              padding: '7px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--accent)',
+              background: 'var(--accent)', color: 'var(--text-on-accent)', fontWeight: 600,
+              cursor: (!picked || affected === 0) ? 'not-allowed' : 'pointer',
+              opacity: (!picked || affected === 0) ? 0.5 : 1,
+              fontFamily: 'inherit', fontSize: 'var(--text-sm)'
+            }
+          }, swapping ? 'Swap' : 'Apply')
+        )
       )
-    )
-  );
-};
+    );
+  };
+})();
 
 
 /* ─── canvasResize.js ─── */

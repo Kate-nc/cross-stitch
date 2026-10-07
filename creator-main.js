@@ -399,6 +399,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const stableHandleOpenInTracker = React.useCallback(function()  {_ioRef.current.handleOpenInTracker();}, []);
 
   const stableUndoEdit = React.useCallback(function(){_histRef.current.undoEdit();}, []);
+  // Latest edit history, read by toast actions that outlive the render they
+  // were created in (e.g. the colour-replace "Undo" button).
+  const _editHistoryRef = React.useRef(null); _editHistoryRef.current = state.editHistory;
   const stableRedoEdit = React.useCallback(function(){_histRef.current.redoEdit();}, []);
 
   // Request to switch from Edit → Convert tab.  Fires the confirmation
@@ -636,10 +639,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     confettiPreview: state.confettiPreview, setConfettiPreview: state.setConfettiPreview,
     reduceTarget: state.reduceTarget, setReduceTarget: state.setReduceTarget,
     reducePreview: state.reducePreview, setReducePreview: state.setReducePreview,
-    replaceSource: state.replaceSource, setReplaceSource: state.setReplaceSource,
-    replaceDest: state.replaceDest, setReplaceDest: state.setReplaceDest,
-    replaceFuzzy: state.replaceFuzzy, setReplaceFuzzy: state.setReplaceFuzzy,
-    replaceFuzzyTol: state.replaceFuzzyTol, setReplaceFuzzyTol: state.setReplaceFuzzyTol,
     outlineColor: state.outlineColor, setOutlineColor: state.setOutlineColor,
     applyWandSelect: state.applyWandSelect, clearSelection: state.clearSelection,
     invertSelection: state.invertSelection, selectAll: state.selectAll,
@@ -648,8 +647,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     applyConfettiCleanup: state.applyConfettiCleanup,
     previewColorReduction: state.previewColorReduction,
     applyColorReduction: state.applyColorReduction,
-    selectionReplaceColorCount: state.selectionReplaceColorCount,
-    applyColorReplacement: state.applyColorReplacement,
     applyGlobalColourReplacement: state.applyGlobalColourReplacement,
     colourReplaceModal: state.colourReplaceModal, setColourReplaceModal: state.setColourReplaceModal,
     selectionStats: state.selectionStats,
@@ -721,9 +718,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.wandOpMode, state.wandPanel,
     state.confettiThreshold, state.confettiPreview,
     state.reduceTarget, state.reducePreview,
-    state.replaceSource, state.replaceDest, state.replaceFuzzy, state.replaceFuzzyTol,
     state.outlineColor, state.selectionCount, state.hasSelection,
-    state.selectionStats, state.selectionReplaceColorCount,
+    state.selectionStats,
     state.lassoMode, state.lassoPoints, state.lassoActive, state.lassoCursor,
     state.lassoPreviewMask, state.lassoOpMode, state.lassoPointCount, state.lassoInProgress,
     state.colourReplaceModal,
@@ -933,7 +929,28 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       {state.colourReplaceModal&&typeof window.ColourReplaceModal!=='undefined'&&React.createElement(window.ColourReplaceModal,{
         modal:state.colourReplaceModal,
         onClose:()=>state.setColourReplaceModal(null),
-        onApply:function(dstThread){state.applyGlobalColourReplacement(state.colourReplaceModal.srcId,dstThread.id);state.setColourReplaceModal(null);}
+        pat:state.pat, sW:state.sW, sH:state.sH, pal:state.pal,
+        partialStitches:state.partialStitches, bsLines:state.bsLines, fabricColour:state.fabricColour,
+        selectionMask:state.hasSelection?state.selectionMask:null,
+        onApply:function(dstThread,opts){
+          var src=state.colourReplaceModal;
+          var alsoIds=(opts&&opts.alsoIds)||[];
+          var swap=!!(opts&&opts.swap);
+          var res=state.applyGlobalColourReplacement(src.srcId,dstThread.id,{scope:opts&&opts.scope==='selection'?'selection':'all',alsoIds:swap?[]:alsoIds,swap:swap});
+          state.setColourReplaceModal(null);
+          if(!res||!state.addToast)return;
+          state.addToast((swap?"Swapped DMC "+src.srcId+" and DMC "+res.dst.id:"Replaced DMC "+src.srcId+(alsoIds.length?" and "+alsoIds.length+" similar shade"+(alsoIds.length===1?"":"s"):"")+" with DMC "+res.dst.id)+" ("+(window.ColourReplace&&res.counts?window.ColourReplace.describeCounts(res.counts):res.count.toLocaleString()+" stitches")+(opts&&opts.scope==='selection'?" in selection":"")+")",{
+            type:"success", duration:6000,
+            action:{label:"Undo", onClick:function(){
+              // Only undo while this replacement is still the newest edit, so
+              // a late click never reverts something the user did afterwards.
+              var hist=_editHistoryRef.current||[];
+              if(hist.length&&hist[hist.length-1]===res.entry) stableUndoEdit();
+              else if(hist.indexOf(res.entry)===-1) state.addToast("That replacement has already been undone.",{type:"info",duration:2500});
+              else state.addToast("Can't undo the replacement from here \u2014 the pattern has changed since. Use Undo in the toolbar.",{type:"info",duration:3500});
+            }}
+          });
+        }
       })}
       {state.resizeCanvasOpen&&typeof window.ResizeCanvasModal!=='undefined'&&React.createElement(window.ResizeCanvasModal,{
         sW:state.sW, sH:state.sH,

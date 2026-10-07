@@ -32,7 +32,17 @@ window.PatternCanvas = function PatternCanvas() {
   // Must be the MERGED snapshot across all 4 contexts because drawPatternBaseOnCanvas
   // and drawPatternOverlayOnCanvas expect the pre-refactor merged state shape.
   var ctxRef = React.useRef({});
-  ctxRef.current = Object.assign({}, ctx, cv, gen, hov, { G: G, pcRef: app.pcRef, tab: app.tab, fabricColour: app.fabricColour, canvasTexture: app.canvasTexture });
+  // Replace-colour tool: while hovering a stitch, isolate-highlight every
+  // stitch of that colour so users see exactly what a click would replace.
+  // Overrides the user's own highlight only while the cursor is on a stitch.
+  var replaceHoverId = null;
+  if (cv.activeTool === "colourReplace" && hov.hoverCoords && ctx.pat) {
+    var rhc = hov.hoverCoords;
+    var rhCell = (rhc.gx >= 0 && rhc.gx < ctx.sW && rhc.gy >= 0 && rhc.gy < ctx.sH) ? ctx.pat[rhc.gy * ctx.sW + rhc.gx] : null;
+    if (rhCell && rhCell.id !== "__skip__" && rhCell.id !== "__empty__") replaceHoverId = rhCell.id;
+  }
+  ctxRef.current = Object.assign({}, ctx, cv, gen, hov, { G: G, pcRef: app.pcRef, tab: app.tab, fabricColour: app.fabricColour, canvasTexture: app.canvasTexture },
+    replaceHoverId ? { hiId: replaceHoverId, dimHiId: replaceHoverId, dimFraction: 1, highlightMode: "isolate" } : null);
 
   // ── Effect: Animated marching ants for highlight outline mode
   var hlAntsRef = React.useRef(null);
@@ -121,7 +131,7 @@ window.PatternCanvas = function PatternCanvas() {
     gen.showCleanupDiff, gen.cleanupDiff,
     cv.dimFraction, cv.dimHiId, cv.bgDimOpacity, cv.bgDimDesaturation,
     cv.highlightMode, cv.tintColor, cv.tintOpacity, cv.spotDimOpacity,
-    app.fabricColour, app.canvasTexture
+    app.fabricColour, app.canvasTexture, replaceHoverId
   ]);
 
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).
