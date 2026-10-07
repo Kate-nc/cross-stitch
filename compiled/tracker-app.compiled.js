@@ -2060,6 +2060,10 @@ function TrackerApp({
   const [blockW, setBlockW] = useState(10);
   const [blockH, setBlockH] = useState(10);
   const [focusBlock, setFocusBlock] = useState(null); // {bx,by} | null
+  // Work area: the group of Spotlight sections the chart is clipped to. Saved
+  // on the project and synced (newer setAt wins); see work-area.js.
+  // null | {active,x0,y0,x1,y1,bw,bh,setAt}
+  const [workArea, setWorkArea] = useState(null);
   const [focusEnabled, setFocusEnabled] = useState(() => {
     try {
       return localStorage.getItem("cs_focusEnabled") === "1";
@@ -4675,6 +4679,7 @@ function TrackerApp({
       focusBlock,
       startCorner,
       colourSequence,
+      workArea,
       savedZoom: stitchZoom,
       savedScroll: stitchScrollRef.current ? {
         left: stitchScrollRef.current.scrollLeft,
@@ -5382,6 +5387,7 @@ function TrackerApp({
               blockW: project.blockW,
               blockH: project.blockH,
               focusBlock: project.focusBlock,
+              workArea: project.workArea,
               startCorner: project.startCorner,
               colourSequence: project.colourSequence,
               originalPaletteState: project.originalPaletteState,
@@ -5473,7 +5479,8 @@ function TrackerApp({
       blockH,
       focusBlock,
       startCorner,
-      colourSequence
+      colourSequence,
+      workArea
     };
     try {
       // T-3 / INT-4: wrap the handoff in an envelope with a wall-clock
@@ -5811,6 +5818,9 @@ function TrackerApp({
     setBlockW(_resolveBlock(project.blockW, _lsW, _fbW));
     setBlockH(_resolveBlock(project.blockH, _lsH, _fbH));
     if (project.focusBlock) setFocusBlock(project.focusBlock);else setFocusBlock(null);
+    // Validated against this pattern's size: the file may come from another
+    // device, an older build, or a pattern since resized in the Creator.
+    setWorkArea(window.WorkArea ? window.WorkArea.normalise(project.workArea, nextW, nextH) : null);
     setStartCorner(project.startCorner || _lsCorner || window.UserPrefs && window.UserPrefs.get("trackerStartCorner") || "TL");
     if (project.colourSequence) setColourSequence(project.colourSequence);
     // Legacy migration: if no statsSessions but totalTime exists, create a synthetic session
@@ -6561,6 +6571,7 @@ function TrackerApp({
       focusBlock,
       startCorner,
       colourSequence,
+      workArea,
       ...v3FieldsRef.current
     };
   };
@@ -6596,6 +6607,7 @@ function TrackerApp({
                 blockW: project.blockW,
                 blockH: project.blockH,
                 focusBlock: project.focusBlock,
+                workArea: project.workArea,
                 startCorner: project.startCorner,
                 colourSequence: project.colourSequence,
                 originalPaletteState: project.originalPaletteState,
@@ -6767,7 +6779,8 @@ function TrackerApp({
         blockH,
         focusBlock,
         startCorner,
-        colourSequence
+        colourSequence,
+        workArea
       };
       lastSnapshotRef.current = project;
       const saveResult = await persistProjectRecord(project);
@@ -6805,7 +6818,7 @@ function TrackerApp({
         }
       };
     };
-  }, [projectName, sW, sH, fabricCt, skeinPrice, stitchSpeed, pat, pal, bsLines, done, halfStitches, halfDone, partialStitches, parkMarkers, totalTime, liveAutoElapsed, hlRow, hlCol, threadOwned, originalPaletteState, singleStitchEdits, statsSessions, statsSettings, achievedMilestones, stitchZoom, doneSnapshots, breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence]);
+  }, [projectName, sW, sH, fabricCt, skeinPrice, stitchSpeed, pat, pal, bsLines, done, halfStitches, halfDone, partialStitches, parkMarkers, totalTime, liveAutoElapsed, hlRow, hlCol, threadOwned, originalPaletteState, singleStitchEdits, statsSessions, statsSettings, achievedMilestones, stitchZoom, doneSnapshots, breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea]);
 
   // ── Zoom-adaptive tier helpers ──
   // Compute rendering tier (1–4) from cell size with hysteresis.

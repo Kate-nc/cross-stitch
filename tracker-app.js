@@ -995,6 +995,10 @@ const[stitchingStyle,setStitchingStyle]=useState(()=>{try{var ls=localStorage.ge
 const[blockW,setBlockW]=useState(10);
 const[blockH,setBlockH]=useState(10);
 const[focusBlock,setFocusBlock]=useState(null); // {bx,by} | null
+// Work area: the group of Spotlight sections the chart is clipped to. Saved
+// on the project and synced (newer setAt wins); see work-area.js.
+// null | {active,x0,y0,x1,y1,bw,bh,setAt}
+const[workArea,setWorkArea]=useState(null);
 const[focusEnabled,setFocusEnabled]=useState(()=>{try{return localStorage.getItem("cs_focusEnabled")==="1";}catch(_){return false;}});
 const[colourSequence,setColourSequence]=useState(()=>{try{return localStorage.getItem("cs_colourSeq")||"fewest";}catch(_){return"fewest";}});
 const[startCorner,setStartCorner]=useState("TL");
@@ -2573,7 +2577,7 @@ function doSaveProject(finalName){
     achievedMilestones,
     doneSnapshots,
     breadcrumbs,
-    stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence,
+    stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea,
     savedZoom: stitchZoom,
     savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null
   };
@@ -3085,7 +3089,7 @@ function handleEditInCreator(){
             statsSessions:project.statsSessions, statsSettings:project.statsSettings,
             achievedMilestones:project.achievedMilestones, doneSnapshots:project.doneSnapshots,
             breadcrumbs:project.breadcrumbs, stitchingStyle:project.stitchingStyle,
-            blockW:project.blockW, blockH:project.blockH, focusBlock:project.focusBlock,
+            blockW:project.blockW, blockH:project.blockH, focusBlock:project.focusBlock, workArea:project.workArea,
             startCorner:project.startCorner, colourSequence:project.colourSequence,
             originalPaletteState:project.originalPaletteState,
             singleStitchEdits:project.singleStitchEdits,
@@ -3106,7 +3110,7 @@ function handleEditInCreator(){
   const hsArrH=[...halfStitches.entries()].map(([idx,hs])=>[idx,{fwd:hs.fwd?{id:hs.fwd.id,rgb:hs.fwd.rgb}:undefined,bck:hs.bck?{id:hs.bck.id,rgb:hs.bck.rgb}:undefined}]);
   const hdArrH=[...halfDone.entries()];
   const psArrH=[...partialStitches.entries()];
-  let project={version:11,id:projectIdRef.current||undefined,page:"tracker",name:projectName,createdAt:createdAtRef.current||new Date().toISOString(),updatedAt:new Date().toISOString(),settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"var(--surface)",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice,stitchSpeed,smooth:0,smoothType:"median",orphans:0,wastePrefs},pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,hlRow,hlCol,threadOwned,imgData:null,originalPaletteState,singleStitchEdits:sseArrH,halfStitches:hsArrH,halfDone:hdArrH,partialStitches:psArrH,statsSessions,statsSettings,achievedMilestones,doneSnapshots,breadcrumbs,stitchingStyle,blockW,blockH,focusBlock,startCorner,colourSequence};
+  let project={version:11,id:projectIdRef.current||undefined,page:"tracker",name:projectName,createdAt:createdAtRef.current||new Date().toISOString(),updatedAt:new Date().toISOString(),settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"var(--surface)",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice,stitchSpeed,smooth:0,smoothType:"median",orphans:0,wastePrefs},pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,hlRow,hlCol,threadOwned,imgData:null,originalPaletteState,singleStitchEdits:sseArrH,halfStitches:hsArrH,halfDone:hdArrH,partialStitches:psArrH,statsSessions,statsSettings,achievedMilestones,doneSnapshots,breadcrumbs,stitchingStyle,blockW,blockH,focusBlock,startCorner,colourSequence,workArea};
   try{
     // T-3 / INT-4: wrap the handoff in an envelope with a wall-clock
     // timestamp. The Creator drops envelopes older than HANDOFF_TTL_MS so a
@@ -3368,6 +3372,9 @@ function processLoadedProject(project){
   setBlockW(_resolveBlock(project.blockW, _lsW, _fbW));
   setBlockH(_resolveBlock(project.blockH, _lsH, _fbH));
   if(project.focusBlock)setFocusBlock(project.focusBlock);else setFocusBlock(null);
+  // Validated against this pattern's size: the file may come from another
+  // device, an older build, or a pattern since resized in the Creator.
+  setWorkArea(window.WorkArea?window.WorkArea.normalise(project.workArea,nextW,nextH):null);
   setStartCorner(project.startCorner || _lsCorner || (window.UserPrefs && window.UserPrefs.get("trackerStartCorner")) || "TL");
   if(project.colourSequence)setColourSequence(project.colourSequence);
   // Legacy migration: if no statsSessions but totalTime exists, create a synthetic session
@@ -3938,7 +3945,7 @@ const buildSnapshot = () => {
     statsSessions, statsSettings, achievedMilestones, doneSnapshots,
     savedZoom: stitchZoom,
     savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null,
-    breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence,
+    breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea,
     ...v3FieldsRef.current
   };
 };
@@ -3966,7 +3973,7 @@ useEffect(() => {
               statsSessions:project.statsSessions, statsSettings:project.statsSettings,
               achievedMilestones:project.achievedMilestones, doneSnapshots:project.doneSnapshots,
               breadcrumbs:project.breadcrumbs, stitchingStyle:project.stitchingStyle,
-              blockW:project.blockW, blockH:project.blockH, focusBlock:project.focusBlock,
+              blockW:project.blockW, blockH:project.blockH, focusBlock:project.focusBlock, workArea:project.workArea,
               startCorner:project.startCorner, colourSequence:project.colourSequence,
               originalPaletteState:project.originalPaletteState,
               singleStitchEdits:project.singleStitchEdits,
@@ -4098,7 +4105,7 @@ useEffect(() => {
       settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs },
       partialStitches: psArr,
       // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
-      breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence
+      breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea
     };
     lastSnapshotRef.current = project;
     const saveResult = await persistProjectRecord(project);
@@ -4123,7 +4130,7 @@ useEffect(() => {
 }, [projectName, sW, sH, fabricCt, skeinPrice, stitchSpeed, pat, pal, bsLines, done,
     halfStitches, halfDone, partialStitches, parkMarkers, totalTime, liveAutoElapsed, hlRow, hlCol,
     threadOwned, originalPaletteState, singleStitchEdits, statsSessions, statsSettings, achievedMilestones, stitchZoom, doneSnapshots,
-    breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence]);
+    breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea]);
 
 // ── Zoom-adaptive tier helpers ──
 // Compute rendering tier (1–4) from cell size with hysteresis.

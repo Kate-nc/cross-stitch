@@ -187,7 +187,7 @@ describe('Complete field inventory: Creator trackerFieldsRef preservation', () =
   const TRACKER_ONLY_FIELDS = [
     'statsSessions', 'statsSettings', 'achievedMilestones', 'doneSnapshots',
     'breadcrumbs', 'stitchingStyle', 'blockW', 'blockH',
-    'focusBlock', 'startCorner', 'colourSequence', 'originalPaletteState',
+    'focusBlock', 'startCorner', 'colourSequence', 'originalPaletteState', 'workArea',
     'finishStatus', 'startedAt', 'lastTouchedAt', 'completedAt', 'stitchLog'
   ];
 

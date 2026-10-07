@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v59';
+var CACHE_NAME = 'cross-stitch-cache-v60';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -69,6 +69,7 @@ var PRECACHE_URLS = [
   './useAutoSession.js',
   './useStitchCounts.js',
   './useDragMark.js',
+  './work-area.js',
   './tracker-app.js',
   './manager-app.js',
 

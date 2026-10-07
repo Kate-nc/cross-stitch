@@ -20,7 +20,7 @@ const SNAPSHOT_FIELDS = [
   'statsSessions', 'statsSettings', 'achievedMilestones', 'doneSnapshots',
   'savedZoom', 'savedScroll',
   'breadcrumbs', 'stitchingStyle', 'blockW', 'blockH',
-  'focusBlock', 'startCorner', 'colourSequence'
+  'focusBlock', 'startCorner', 'colourSequence', 'workArea'
 ];
 
 // Fields that JSON export (doSaveProject) should include
@@ -32,7 +32,7 @@ const JSON_EXPORT_FIELDS = [
   'statsSessions', 'statsSettings',
   'achievedMilestones', 'doneSnapshots',
   'breadcrumbs', 'stitchingStyle', 'blockW', 'blockH',
-  'focusBlock', 'startCorner', 'colourSequence',
+  'focusBlock', 'startCorner', 'colourSequence', 'workArea',
   'savedZoom', 'savedScroll'
 ];
 
@@ -45,7 +45,7 @@ const HANDOFF_FIELDS = [
   'statsSessions', 'statsSettings',
   'achievedMilestones', 'doneSnapshots',
   'breadcrumbs', 'stitchingStyle', 'blockW', 'blockH',
-  'focusBlock', 'startCorner', 'colourSequence'
+  'focusBlock', 'startCorner', 'colourSequence', 'workArea'
 ];
 
 describe('Persistence field coverage', () => {
@@ -115,7 +115,7 @@ describe('Persistence field coverage', () => {
     expect(flushMatch).not.toBeNull();
     const flushBody = flushMatch[1];
 
-    const requiredFields = ['breadcrumbs', 'stitchingStyle', 'blockW', 'blockH', 'focusBlock', 'startCorner', 'colourSequence'];
+    const requiredFields = ['breadcrumbs', 'stitchingStyle', 'blockW', 'blockH', 'focusBlock', 'startCorner', 'colourSequence', 'workArea'];
     for (const field of requiredFields) {
       expect(flushBody).toMatch(new RegExp('\\b' + field + '\\b'));
     }
