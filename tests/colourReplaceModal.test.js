@@ -14,6 +14,10 @@ const { act } = require('react-dom/test-utils');
 
 global.IS_REACT_ACT_ENVIRONMENT = true;
 global.React = React;
+// The app's real colour maths (globals in the browser via dmc-data.js).
+const dmcData = require('../dmc-data.js');
+global.rgbToLab = dmcData.rgbToLab;
+global.dE00 = dmcData.dE00;
 
 global.DMC = [
   { id: '310', name: 'Black', rgb: [0, 0, 0] },
@@ -185,7 +189,7 @@ describe('ColourReplaceModal scope', () => {
     expect(seg('selection')).toBeNull();
     click(row('321'));
     click(applyBtn());
-    expect(props.onApply.mock.calls[0][1]).toEqual({ scope: 'all' });
+    expect(props.onApply.mock.calls[0][1]).toEqual({ scope: 'all', alsoIds: [] });
   });
 
   test('with a selection it defaults to the selection and shows both counts', () => {
@@ -196,7 +200,7 @@ describe('ColourReplaceModal scope', () => {
     expect(summary()).toMatch(/1 stitch will change/);
     click(row('321'));
     click(applyBtn());
-    expect(props.onApply.mock.calls[0][1]).toEqual({ scope: 'selection' });
+    expect(props.onApply.mock.calls[0][1]).toEqual({ scope: 'selection', alsoIds: [] });
   });
 
   test('switching to whole pattern updates the count and the applied scope', () => {
@@ -206,7 +210,7 @@ describe('ColourReplaceModal scope', () => {
     expect(summary()).toMatch(/2 stitches will change/);
     click(row('321'));
     click(applyBtn());
-    expect(props.onApply.mock.calls[0][1]).toEqual({ scope: 'all' });
+    expect(props.onApply.mock.calls[0][1]).toEqual({ scope: 'all', alsoIds: [] });
   });
 
   test('a selection with no matching stitches defaults to whole pattern and explains why', () => {
@@ -364,6 +368,72 @@ describe('ColourReplaceModal keyboard and screen-reader support', () => {
     act(() => { sel.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); });
     expect(container.querySelector('[data-scope="all"]').getAttribute('aria-checked')).toBe('true');
     expect(container.querySelector('[data-scope="all"]').tabIndex).toBe(0);
+  });
+});
+
+describe('ColourReplaceModal similar shades', () => {
+  // 310 black ×2, 3371 black-brown ×1, 321 red ×1
+  const PAT = [
+    { id: '310', rgb: [0, 0, 0] }, { id: '3371', rgb: [30, 17, 8] },
+    { id: '310', rgb: [0, 0, 0] }, { id: '321', rgb: [199, 43, 59] }
+  ];
+  const PAL = [
+    { id: '310', name: 'Black', rgb: [0, 0, 0], count: 2 },
+    { id: '3371', name: 'Black Brown', rgb: [30, 17, 8], count: 1 },
+    { id: '321', name: 'Red', rgb: [199, 43, 59], count: 1 }
+  ];
+  const toggle = () => container.querySelector('[data-fuzzy-toggle]');
+  const extras = () => Array.from(container.querySelectorAll('[data-extra-id]')).map(e => e.getAttribute('data-extra-id'));
+  const setTol = v => act(() => {
+    const el = container.querySelector('[data-fuzzy-tol]');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, String(v));
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+
+  test('is off by default and hidden without other palette colours', () => {
+    render({ pat: PAT, pal: PAL });
+    expect(toggle().checked).toBe(false);
+    act(() => { root.unmount(); });
+    root = ReactDOMClient.createRoot(container);
+    render({ pat: PAT, pal: [PAL[0]] });
+    expect(toggle()).toBeNull();
+  });
+
+  test('turning it on lists nearby palette shades and raises the count', () => {
+    render({ pat: PAT, pal: PAL });
+    expect(summary()).toMatch(/2 stitches will change/);
+    click(toggle());
+    setTol(20);
+    expect(extras()).toEqual(['3371']);
+    expect(summary()).toMatch(/3 stitches will change/);
+  });
+
+  test('Apply passes the extra shades to onApply', () => {
+    const props = render({ pat: PAT, pal: PAL });
+    click(toggle());
+    setTol(20);
+    click(container.querySelector('[data-section="closest"] [data-thread-id]'));
+    click(applyBtn());
+    expect(props.onApply.mock.calls[0][1]).toEqual({ scope: 'all', alsoIds: ['3371'] });
+  });
+
+  test('the picked destination is never also replaced', () => {
+    const props = render({ pat: PAT, pal: PAL });
+    click(toggle());
+    setTol(20);
+    click(container.querySelector('[data-section="palette"] [data-thread-id="3371"]'));
+    expect(extras()).toEqual([]);
+    expect(summary()).toMatch(/2 stitches will change/);
+    click(applyBtn());
+    expect(props.onApply.mock.calls[0][1].alsoIds).toEqual([]);
+  });
+
+  test('without the option, onApply gets no extra shades', () => {
+    const props = render({ pat: PAT, pal: PAL });
+    click(row('3371'));
+    click(applyBtn());
+    expect(props.onApply.mock.calls[0][1]).toEqual({ scope: 'all', alsoIds: [] });
   });
 });
 

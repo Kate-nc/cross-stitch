@@ -79,3 +79,24 @@ describe('Replace colour guidance', () => {
     expect(src).toMatch(/app\.fabricColour, app\.canvasTexture, replaceHoverId\s*\]/);
   });
 });
+
+describe('Magic Wand "Replace Colour…" uses the shared modal', () => {
+  const src = read('creator/MagicWandPanel.js');
+
+  test('both entry points open the Replace colour modal', () => {
+    expect(src).toMatch(/btn\("Replace Colour\\u2026", openReplaceModal/);
+    expect(src).toMatch(/if \(item\.key === "replace"\) \{ openReplaceModal\(\); return; \}/);
+    expect(src).toMatch(/cv\.setColourReplaceModal\(\{ srcId: top\.id/);
+  });
+
+  test('the old in-panel replace UI and its state are gone', () => {
+    expect(src).not.toMatch(/replacePanel/);
+    for (const f of ['creator/useMagicWand.js', 'creator/useCreatorState.js', 'creator-main.js']) {
+      expect(read(f)).not.toMatch(/replaceSource|replaceFuzzy|selectionReplaceColorCount|applyColorReplacement\b/);
+    }
+  });
+
+  test('applyGlobalColourReplacement accepts similar shades', () => {
+    expect(read('creator/useMagicWand.js')).toMatch(/var srcIds = \[srcId\]\.concat\(\(opts && opts\.alsoIds\) \|\| \[\]\);/);
+  });
+});

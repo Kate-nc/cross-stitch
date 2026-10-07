@@ -124,3 +124,56 @@ describe('ColourReplace.similarityLabel', () => {
   });
 });
 
+describe('ColourReplace with several source colours', () => {
+  const D = { id: '3371', name: 'Black Brown', rgb: [30, 17, 8] };
+
+  test('countMatches and replaceInPattern accept an array or Set of ids', () => {
+    // pattern(): 310, 321, 310, skip, empty, 310
+    expect(CR.countMatches(pattern(), ['310', '321'], null).total).toBe(4);
+    expect(CR.countMatches(pattern(), new Set(['321']), null).total).toBe(1);
+    const res = CR.replaceInPattern(pattern(), ['310', '321'], D, null);
+    expect(res.changes.map(c => c.idx)).toEqual([0, 1, 2, 5]);
+    expect(res.pat.filter(c => c.id === '3371')).toHaveLength(4);
+  });
+
+  test('cells already in the destination colour are left alone', () => {
+    const res = CR.replaceInPattern(pattern(), ['310', '321'], { id: '321', rgb: [199, 43, 59] }, null);
+    expect(res.changes.map(c => c.idx)).toEqual([0, 2, 5]);
+  });
+
+  test('empty id lists change nothing', () => {
+    expect(CR.countMatches(pattern(), [], null).total).toBe(0);
+    expect(CR.replaceInPattern(pattern(), [], D, null).changes).toEqual([]);
+  });
+});
+
+describe('ColourReplace.similarIds', () => {
+  const { rgbToLab, dE00 } = require('../dmc-data.js');
+  const opts = { labOf: rgb => rgbToLab(rgb[0], rgb[1], rgb[2]), distance: dE00 };
+  const src = { id: '310', rgb: [0, 0, 0] };
+  const palette = [
+    { id: '3371', rgb: [30, 17, 8] },      // very dark brown — close to black
+    { id: '939', rgb: [27, 40, 83] },      // dark navy — further
+    { id: '321', rgb: [199, 43, 59] },     // red — far
+    { id: '__skip__', rgb: [0, 0, 0] }
+  ];
+
+  test('always includes the source, closest shades next, within tolerance', () => {
+    const near = CR.similarIds(src, palette, 12, opts);
+    expect(near[0]).toBe('310');
+    expect(near).toContain('3371');
+    expect(near).not.toContain('321');
+    expect(near).not.toContain('__skip__');
+  });
+
+  test('a wider tolerance includes more shades', () => {
+    expect(CR.similarIds(src, palette, 30, opts).length).toBeGreaterThan(CR.similarIds(src, palette, 12, opts).length);
+  });
+
+  test('zero tolerance or no palette returns only the source', () => {
+    expect(CR.similarIds(src, palette, 0, opts)).toEqual(['310']);
+    expect(CR.similarIds(src, null, 10, opts)).toEqual(['310']);
+    expect(CR.similarIds(null, palette, 10, opts)).toEqual([]);
+  });
+});
+

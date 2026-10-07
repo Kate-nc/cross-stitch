@@ -43,16 +43,6 @@ window.useMagicWand = function useMagicWand(state) {
     if (reducePreview !== null) setReducePreviewStale(true);
   }, [reduceMode, reduceTarget, reduceThreshold]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // sub-state for colour replacement
-  var _repSrc     = React.useState(null);    // color id
-  var replaceSource = _repSrc[0], setReplaceSource = _repSrc[1];
-  var _repDst     = React.useState(null);    // color id
-  var replaceDest = _repDst[0], setReplaceDest = _repDst[1];
-  var _repFuzz    = React.useState(false);
-  var replaceFuzzy = _repFuzz[0], setReplaceFuzzy = _repFuzz[1];
-  var _repFuzzTol = React.useState(5);
-  var replaceFuzzyTol = _repFuzzTol[0], setReplaceFuzzyTol = _repFuzzTol[1];
-
   // sub-state for outline generation
   var _outlineColor = React.useState("310");
   var outlineColor  = _outlineColor[0], setOutlineColor = _outlineColor[1];
@@ -444,60 +434,6 @@ window.useMagicWand = function useMagicWand(state) {
     setReducePreview(null);
   }
 
-  // ─── Phase 2.3: Colour replacement in selection ──────────────────────────────
-
-  var selectionReplaceColorCount = useMemo(function() {
-    var pat = state.pat, cmap = state.cmap;
-    if (!pat || !selectionMask || !replaceSource || !cmap) return 0;
-    var srcEntry = cmap[replaceSource];
-    if (!srcEntry) return 0;
-    var srcLab = labFromEntry(srcEntry);
-    var tol = replaceFuzzy ? replaceFuzzyTol : 0;
-    var c = 0;
-    for (var i = 0; i < pat.length; i++) {
-      if (!selectionMask[i]) continue;
-      var cell = pat[i];
-      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
-      var lab = getCellLab(i, pat, cmap);
-      if (!lab) continue;
-      if (deltaE(srcLab, lab) <= tol) c++;
-    }
-    return c;
-  }, [selectionMask, replaceSource, replaceFuzzy, replaceFuzzyTol, state.pat, state.cmap]);
-
-  function applyColorReplacement() {
-    var pat = state.pat, cmap = state.cmap;
-    if (!pat || !cmap || !selectionMask || !replaceSource || !replaceDest) return;
-    var srcEntry = cmap[replaceSource], dstEntry = cmap[replaceDest];
-    if (!srcEntry || !dstEntry) return;
-    var srcLab = labFromEntry(srcEntry);
-    var tol = replaceFuzzy ? replaceFuzzyTol : 0;
-    var np = pat.slice();
-    var changes = [];
-    for (var i = 0; i < np.length; i++) {
-      if (!selectionMask[i]) continue;
-      var cell = np[i];
-      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
-      var lab = getCellLab(i, pat, cmap);
-      if (!lab) continue;
-      if (deltaE(srcLab, lab) <= tol) {
-        changes.push({ idx: i, old: Object.assign({}, cell) });
-        np[i] = Object.assign({}, dstEntry);
-      }
-    }
-    if (!changes.length) return;
-    var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
-    state.setEditHistory(function(prev) {
-      var n = prev.concat([{ type: "colorReplace", changes: changes }]);
-      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
-      return n;
-    });
-    state.setRedoHistory([]);
-    state.setPat(np);
-    var r = state.buildPaletteWithScratch(np);
-    state.setPal(r.pal); state.setCmap(r.cmap);
-  }
-
   // ─── Direct global colour replacement (whole pattern or active selection) ────
 
   function applyGlobalColourReplacement(srcId, dstId, opts) {
@@ -519,8 +455,10 @@ window.useMagicWand = function useMagicWand(state) {
     }
     // opts.scope: 'all' ignores any selection; 'selection' (or omitted, the
     // legacy default) limits the change to the active selection if any.
+    // opts.alsoIds: similar shades replaced along with srcId.
     var mask = (opts && opts.scope === 'all') ? null : selectionMask;
-    var res = window.ColourReplace.replaceInPattern(pat, srcId, dstEntry, mask);
+    var srcIds = [srcId].concat((opts && opts.alsoIds) || []);
+    var res = window.ColourReplace.replaceInPattern(pat, srcIds, dstEntry, mask);
     var np = res.pat, changes = res.changes;
     if (!changes.length) {
       // DEFECT-002 (related): selection mask may have hidden every match.
@@ -633,17 +571,12 @@ window.useMagicWand = function useMagicWand(state) {
     reduceThreshold, setReduceThreshold,
     reducePreview, setReducePreview,
     reducePreviewStale, setReducePreviewStale,
-    replaceSource, setReplaceSource,
-    replaceDest, setReplaceDest,
-    replaceFuzzy, setReplaceFuzzy,
-    replaceFuzzyTol, setReplaceFuzzyTol,
     outlineColor, setOutlineColor,
     // Actions
     applyWandSelect, clearSelection, invertSelection, selectAll, selectAllOfColorId,
     // Phase 2
     previewConfettiCleanup, applyConfettiCleanup,
     previewColorReduction, applyColorReduction,
-    selectionReplaceColorCount, applyColorReplacement,
     applyGlobalColourReplacement,
     // Back-compat alias for any external caller still using the misspelled name.
     applyGlobalColorReplacement: applyGlobalColourReplacement,

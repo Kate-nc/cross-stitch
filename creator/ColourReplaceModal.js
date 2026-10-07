@@ -24,7 +24,8 @@
     var h = React.createElement;
     var ref = React.useRef(null);
     var pat = props.pat, sW = props.sW, sH = props.sH;
-    var srcId = props.srcId, dst = props.dst, mask = props.mask;
+    var srcIds = props.srcIds || [], dst = props.dst, mask = props.mask;
+    var srcKey = srcIds.join('|');
     var valid = !!(pat && sW > 0 && sH > 0 && pat.length >= sW * sH);
 
     React.useEffect(function() {
@@ -36,17 +37,18 @@
       var img = ctx.createImageData(sW, sH);
       var d = img.data;
       var dstRgb = dst && dst.rgb ? dst.rgb : null;
+      var srcSet = new Set(srcIds);
       for (var i = 0; i < sW * sH; i++) {
         var cell = pat[i];
         var rgb;
         if (!cell || cell.id === '__skip__' || cell.id === '__empty__' || !cell.rgb) rgb = FABRIC_RGB;
-        else if (dstRgb && cell.id === srcId && (!mask || mask[i])) rgb = dstRgb;
+        else if (dstRgb && srcSet.has(cell.id) && (!mask || mask[i])) rgb = dstRgb;
         else rgb = cell.rgb;
         var o = i * 4;
         d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2]; d[o + 3] = 255;
       }
       ctx.putImageData(img, 0, 0);
-    }, [pat, sW, sH, srcId, dst, mask, valid]);
+    }, [pat, sW, sH, srcKey, dst, mask, valid]); // eslint-disable-line react-hooks/exhaustive-deps
 
     if (!valid) return null;
     var scale = Math.min(THUMB_MAX_W / sW, THUMB_MAX_H / sH);
@@ -149,10 +151,24 @@
       if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest' });
     }, [activeKey]);
 
+    // "Also replace similar shades": palette colours within dE <= fuzzyTol of
+    // the source are replaced too (replaces the old Magic Wand fuzzy panel).
+    var _fuzzy = React.useState(false); var fuzzy = _fuzzy[0], setFuzzy = _fuzzy[1];
+    var _fuzzyTol = React.useState(5); var fuzzyTol = _fuzzyTol[0], setFuzzyTol = _fuzzyTol[1];
+    var pickedId = picked ? picked.id : null;
+    var srcIds = React.useMemo(function() {
+      var ids = fuzzy && CR && CR.similarIds
+        ? CR.similarIds({ id: srcId, rgb: srcRgb }, palEntries, fuzzyTol)
+        : [srcId];
+      // The destination is never also a source (those stitches stay put).
+      return ids.filter(function(id) { return id && id !== pickedId; });
+    }, [fuzzy, fuzzyTol, srcId, srcRgb && srcRgb.join(','), palEntries, pickedId]); // eslint-disable-line react-hooks/exhaustive-deps
+    var extraIds = srcIds.filter(function(id) { return id !== srcId; });
+
     var counts = React.useMemo(function() {
       if (!window.ColourReplace) return null;
-      return window.ColourReplace.countMatches(pat, srcId, selectionMask);
-    }, [pat, srcId, selectionMask]);
+      return window.ColourReplace.countMatches(pat, srcIds, selectionMask);
+    }, [pat, srcIds, selectionMask]);
 
     // Scope: with an active selection, default to "selection" (the previous
     // behaviour) unless none of the selected stitches use this colour, in
@@ -167,7 +183,7 @@
 
     function apply(t) {
       if (!t || t.id === srcId || affected === 0) return;
-      onApply(t, { scope: scope });
+      onApply(t, { scope: scope, alsoIds: extraIds });
     }
 
     function handleKey(e) {
@@ -256,6 +272,40 @@
       }, 'Replaces this colour across the whole pattern (' + plural(counts.total) + ').');
     }
 
+    // ── Similar shades row ──
+    var palById = {};
+    palEntries.forEach(function(p) { palById[p.id] = p; });
+    var fuzzyRow = palEntries.length ? h('div', { className: 'colour-replace-fuzzy', style: { marginBottom: 12, fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' } },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
+        h('label', { style: { display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' } },
+          h('input', {
+            type: 'checkbox', checked: fuzzy, 'data-fuzzy-toggle': true,
+            onChange: function(e) { setFuzzy(e.target.checked); }
+          }),
+          'Also replace similar shades'),
+        fuzzy && h('input', {
+          type: 'range', min: 1, max: 20, step: 1, value: fuzzyTol,
+          'aria-label': 'How similar (colour difference)',
+          'aria-valuetext': 'Colour difference up to ' + fuzzyTol,
+          'data-fuzzy-tol': true,
+          onChange: function(e) { setFuzzyTol(Number(e.target.value)); },
+          style: { width: 90 }
+        }),
+        fuzzy && h('span', { style: { fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' } }, '\u0394E \u2264 ' + fuzzyTol)
+      ),
+      fuzzy && h('div', {
+        className: 'colour-replace-fuzzy-list',
+        style: { marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }
+      },
+        extraIds.length
+          ? ['Also replacing:'].concat(extraIds.map(function(id) {
+              var p = palById[id] || { id: id };
+              return h('span', { key: id, 'data-extra-id': id, style: { display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--text-secondary)' } },
+                swatch(p.rgb, 12), id + (p.name && p.name !== id ? ' ' + p.name : ''));
+            }))
+          : 'No other colours in your palette are that close. Drag the slider right to include more.')
+    ) : null;
+
     function threadRow(item, sectionKey) {
       var t = item.thread;
       var isSrc = t.id === srcId;
@@ -339,6 +389,7 @@
         ),
 
         scopeRow,
+        fuzzyRow,
 
         // ── Preview ──
         hasThumb && h('div', {
@@ -349,7 +400,7 @@
           h('span', { 'aria-hidden': 'true', style: { color: 'var(--text-tertiary)', display: 'inline-flex', flexShrink: 0 } },
             window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
           h(PatternThumb, {
-            pat: pat, sW: sW, sH: sH, srcId: srcId, dst: picked, mask: previewMask,
+            pat: pat, sW: sW, sH: sH, srcIds: srcIds, dst: picked, mask: previewMask,
             dimmed: !picked,
             caption: picked ? 'After' : 'Pick a thread to preview',
             ariaLabel: picked ? 'Pattern after replacing with DMC ' + picked.id : 'Pattern preview, no replacement chosen'

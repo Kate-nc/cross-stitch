@@ -1212,14 +1212,6 @@ function CreatorApp({
       setReduceTarget: state.setReduceTarget,
       reducePreview: state.reducePreview,
       setReducePreview: state.setReducePreview,
-      replaceSource: state.replaceSource,
-      setReplaceSource: state.setReplaceSource,
-      replaceDest: state.replaceDest,
-      setReplaceDest: state.setReplaceDest,
-      replaceFuzzy: state.replaceFuzzy,
-      setReplaceFuzzy: state.setReplaceFuzzy,
-      replaceFuzzyTol: state.replaceFuzzyTol,
-      setReplaceFuzzyTol: state.setReplaceFuzzyTol,
       outlineColor: state.outlineColor,
       setOutlineColor: state.setOutlineColor,
       applyWandSelect: state.applyWandSelect,
@@ -1231,8 +1223,6 @@ function CreatorApp({
       applyConfettiCleanup: state.applyConfettiCleanup,
       previewColorReduction: state.previewColorReduction,
       applyColorReduction: state.applyColorReduction,
-      selectionReplaceColorCount: state.selectionReplaceColorCount,
-      applyColorReplacement: state.applyColorReplacement,
       applyGlobalColourReplacement: state.applyGlobalColourReplacement,
       colourReplaceModal: state.colourReplaceModal,
       setColourReplaceModal: state.setColourReplaceModal,
@@ -1309,7 +1299,7 @@ function CreatorApp({
       handleDenoisePointerMove: denoiseMode ? denoiseMode.handleDenoisePointerMove : null,
       handleDenoisePointerUp: denoiseMode ? denoiseMode.handleDenoisePointerUp : null
     };
-  }, [state.activeTool, state.brushMode, state.brushSize, state.selectedColorId, state.view, state.zoom, state.hiId, state.showCtr, state.showOverlay, state.overlayOpacity, state.highlightMode, state.bgDimOpacity, state.hiAdvanced, state.bgDimDesaturation, state.dimFraction, state.dimHiId, state.tintColor, state.tintOpacity, state.spotDimOpacity, state.antsOffset, state.contextMenu, state.selectionModifier, state.bsLines, state.bsStart, state.bsContinuous, state.editHistory, state.redoHistory, state.stitchType, state.cs, state.paletteSwap, state.pat, state.cmap, state.sW, state.sH, state.selectionMask, state.wandTolerance, state.wandContiguous, state.wandOpMode, state.wandPanel, state.confettiThreshold, state.confettiPreview, state.reduceTarget, state.reducePreview, state.replaceSource, state.replaceDest, state.replaceFuzzy, state.replaceFuzzyTol, state.outlineColor, state.selectionCount, state.hasSelection, state.selectionStats, state.selectionReplaceColorCount, state.lassoMode, state.lassoPoints, state.lassoActive, state.lassoCursor, state.lassoPreviewMask, state.lassoOpMode, state.lassoPointCount, state.lassoInProgress, state.colourReplaceModal, state.cleanupTargetColorId, state.cleanupTolerance, state.cleanupSelTool, state.cleanupBrushSize, state.cleanupPendingMask, state.cleanupAutoRunning, state.cleanupAutoError, cleanupMode, state.denoisePendingMask, state.denoiseAutoRunning, state.denoiseAutoError, state.denoiseSelTool, state.denoiseBrushSize, state.denoiseThreshold, state.denoiseOps, state.denoisePreviewReport, state.denoiseDitherWarning, denoiseMode]);
+  }, [state.activeTool, state.brushMode, state.brushSize, state.selectedColorId, state.view, state.zoom, state.hiId, state.showCtr, state.showOverlay, state.overlayOpacity, state.highlightMode, state.bgDimOpacity, state.hiAdvanced, state.bgDimDesaturation, state.dimFraction, state.dimHiId, state.tintColor, state.tintOpacity, state.spotDimOpacity, state.antsOffset, state.contextMenu, state.selectionModifier, state.bsLines, state.bsStart, state.bsContinuous, state.editHistory, state.redoHistory, state.stitchType, state.cs, state.paletteSwap, state.pat, state.cmap, state.sW, state.sH, state.selectionMask, state.wandTolerance, state.wandContiguous, state.wandOpMode, state.wandPanel, state.confettiThreshold, state.confettiPreview, state.reduceTarget, state.reducePreview, state.outlineColor, state.selectionCount, state.hasSelection, state.selectionStats, state.lassoMode, state.lassoPoints, state.lassoActive, state.lassoCursor, state.lassoPreviewMask, state.lassoOpMode, state.lassoPointCount, state.lassoInProgress, state.colourReplaceModal, state.cleanupTargetColorId, state.cleanupTolerance, state.cleanupSelTool, state.cleanupBrushSize, state.cleanupPendingMask, state.cleanupAutoRunning, state.cleanupAutoError, cleanupMode, state.denoisePendingMask, state.denoiseAutoRunning, state.denoiseAutoError, state.denoiseSelTool, state.denoiseBrushSize, state.denoiseThreshold, state.denoiseOps, state.denoisePreviewReport, state.denoiseDitherWarning, denoiseMode]);
 
   // ── HoverContext value (pointer hover coords only) ──
   // Action plan headline H5 (=2B.1). hoverCoords ticks at ~60 fps during a
@@ -1561,12 +1551,14 @@ function CreatorApp({
     selectionMask: state.hasSelection ? state.selectionMask : null,
     onApply: function (dstThread, opts) {
       var src = state.colourReplaceModal;
+      var alsoIds = opts && opts.alsoIds || [];
       var res = state.applyGlobalColourReplacement(src.srcId, dstThread.id, {
-        scope: opts && opts.scope === 'selection' ? 'selection' : 'all'
+        scope: opts && opts.scope === 'selection' ? 'selection' : 'all',
+        alsoIds: alsoIds
       });
       state.setColourReplaceModal(null);
       if (!res || !state.addToast) return;
-      state.addToast("Replaced DMC " + src.srcId + " with DMC " + res.dst.id + " (" + res.count.toLocaleString() + " stitch" + (res.count === 1 ? "" : "es") + (opts && opts.scope === 'selection' ? " in selection" : "") + ")", {
+      state.addToast("Replaced DMC " + src.srcId + (alsoIds.length ? " and " + alsoIds.length + " similar shade" + (alsoIds.length === 1 ? "" : "s") : "") + " with DMC " + res.dst.id + " (" + res.count.toLocaleString() + " stitch" + (res.count === 1 ? "" : "es") + (opts && opts.scope === 'selection' ? " in selection" : "") + ")", {
         type: "success",
         duration: 6000,
         action: {

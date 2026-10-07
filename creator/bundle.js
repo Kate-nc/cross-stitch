@@ -3022,11 +3022,15 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
    useMagicWand.applyGlobalColourReplacement. No DOM, no React.
 
    Exposed as window.ColourReplace:
-     countMatches(pat, srcId, mask)
+     countMatches(pat, srcIds, mask)
        → { total, inSelection }   inSelection is null when mask is falsy.
-     replaceInPattern(pat, srcId, dstEntry, mask)
+     replaceInPattern(pat, srcIds, dstEntry, mask)
        → { pat: newPat, changes: [{ idx, old }] }
          mask (Uint8Array | null) limits the change to selected cells.
+         srcIds is one id or an array / Set of ids (similar shades).
+     similarIds(srcEntry, palette, tol, opts)
+       → ids of palette entries within dE <= tol of srcEntry (always
+         including srcEntry.id), closest first. opts: { labOf, distance }.
      rankBySimilarity(srcRgb, threads, opts)
        → [{ thread, dE }] sorted closest first.
          opts: { limit, excludeIds (Set|array), labOf(rgb), distance(labA, labB) }
@@ -3040,26 +3044,36 @@ window.ColourReplace = (function() {
     return !!cell && cell.id !== '__skip__' && cell.id !== '__empty__';
   }
 
-  function countMatches(pat, srcId, mask) {
+  function toIdSet(ids) {
+    if (ids instanceof Set) return ids;
+    if (Array.isArray(ids)) return new Set(ids.filter(Boolean));
+    return new Set(ids ? [ids] : []);
+  }
+
+  function countMatches(pat, srcIds, mask) {
     var total = 0, inSel = 0;
-    if (!pat || !srcId) return { total: 0, inSelection: mask ? 0 : null };
+    var src = toIdSet(srcIds);
+    if (!pat || !src.size) return { total: 0, inSelection: mask ? 0 : null };
     for (var i = 0; i < pat.length; i++) {
       var cell = pat[i];
-      if (!isStitch(cell) || cell.id !== srcId) continue;
+      if (!isStitch(cell) || !src.has(cell.id)) continue;
       total++;
       if (mask && mask[i]) inSel++;
     }
     return { total: total, inSelection: mask ? inSel : null };
   }
 
-  function replaceInPattern(pat, srcId, dstEntry, mask) {
+  function replaceInPattern(pat, srcIds, dstEntry, mask) {
     var np = pat.slice();
     var changes = [];
-    if (!srcId || !dstEntry || srcId === dstEntry.id) return { pat: np, changes: changes };
+    var src = toIdSet(srcIds);
+    if (!src.size || !dstEntry) return { pat: np, changes: changes };
     for (var i = 0; i < np.length; i++) {
       if (mask && !mask[i]) continue;
       var cell = np[i];
-      if (!isStitch(cell) || cell.id !== srcId) continue;
+      // Cells already in the destination colour are left alone (it can be
+      // inside the similar-shades set).
+      if (!isStitch(cell) || !src.has(cell.id) || cell.id === dstEntry.id) continue;
       changes.push({ idx: i, old: Object.assign({}, cell) });
       np[i] = Object.assign({}, dstEntry);
     }
@@ -3092,6 +3106,18 @@ window.ColourReplace = (function() {
     return opts.limit > 0 ? out.slice(0, opts.limit) : out;
   }
 
+  function similarIds(srcEntry, palette, tol, opts) {
+    if (!srcEntry || !srcEntry.id) return [];
+    var ids = [srcEntry.id];
+    if (!srcEntry.rgb || !palette || !(tol > 0)) return ids;
+    var near = rankBySimilarity(srcEntry.rgb, palette, Object.assign({}, opts || {}, { excludeIds: [srcEntry.id] }));
+    for (var i = 0; i < near.length && near[i].dE <= tol; i++) {
+      var id = near[i].thread.id;
+      if (id !== '__skip__' && id !== '__empty__' && ids.indexOf(id) === -1) ids.push(id);
+    }
+    return ids;
+  }
+
   // Plain-language bands for CIEDE2000 distances (~2.3 is a just-noticeable
   // difference). Beyond "Similar" the label adds nothing, so return null.
   function similarityLabel(dE) {
@@ -3107,6 +3133,7 @@ window.ColourReplace = (function() {
     countMatches: countMatches,
     replaceInPattern: replaceInPattern,
     rankBySimilarity: rankBySimilarity,
+    similarIds: similarIds,
     similarityLabel: similarityLabel
   };
 })();
@@ -3157,16 +3184,6 @@ window.useMagicWand = function useMagicWand(state) {
   React.useEffect(function() {
     if (reducePreview !== null) setReducePreviewStale(true);
   }, [reduceMode, reduceTarget, reduceThreshold]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // sub-state for colour replacement
-  var _repSrc     = React.useState(null);    // color id
-  var replaceSource = _repSrc[0], setReplaceSource = _repSrc[1];
-  var _repDst     = React.useState(null);    // color id
-  var replaceDest = _repDst[0], setReplaceDest = _repDst[1];
-  var _repFuzz    = React.useState(false);
-  var replaceFuzzy = _repFuzz[0], setReplaceFuzzy = _repFuzz[1];
-  var _repFuzzTol = React.useState(5);
-  var replaceFuzzyTol = _repFuzzTol[0], setReplaceFuzzyTol = _repFuzzTol[1];
 
   // sub-state for outline generation
   var _outlineColor = React.useState("310");
@@ -3559,60 +3576,6 @@ window.useMagicWand = function useMagicWand(state) {
     setReducePreview(null);
   }
 
-  // ─── Phase 2.3: Colour replacement in selection ──────────────────────────────
-
-  var selectionReplaceColorCount = useMemo(function() {
-    var pat = state.pat, cmap = state.cmap;
-    if (!pat || !selectionMask || !replaceSource || !cmap) return 0;
-    var srcEntry = cmap[replaceSource];
-    if (!srcEntry) return 0;
-    var srcLab = labFromEntry(srcEntry);
-    var tol = replaceFuzzy ? replaceFuzzyTol : 0;
-    var c = 0;
-    for (var i = 0; i < pat.length; i++) {
-      if (!selectionMask[i]) continue;
-      var cell = pat[i];
-      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
-      var lab = getCellLab(i, pat, cmap);
-      if (!lab) continue;
-      if (deltaE(srcLab, lab) <= tol) c++;
-    }
-    return c;
-  }, [selectionMask, replaceSource, replaceFuzzy, replaceFuzzyTol, state.pat, state.cmap]);
-
-  function applyColorReplacement() {
-    var pat = state.pat, cmap = state.cmap;
-    if (!pat || !cmap || !selectionMask || !replaceSource || !replaceDest) return;
-    var srcEntry = cmap[replaceSource], dstEntry = cmap[replaceDest];
-    if (!srcEntry || !dstEntry) return;
-    var srcLab = labFromEntry(srcEntry);
-    var tol = replaceFuzzy ? replaceFuzzyTol : 0;
-    var np = pat.slice();
-    var changes = [];
-    for (var i = 0; i < np.length; i++) {
-      if (!selectionMask[i]) continue;
-      var cell = np[i];
-      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
-      var lab = getCellLab(i, pat, cmap);
-      if (!lab) continue;
-      if (deltaE(srcLab, lab) <= tol) {
-        changes.push({ idx: i, old: Object.assign({}, cell) });
-        np[i] = Object.assign({}, dstEntry);
-      }
-    }
-    if (!changes.length) return;
-    var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
-    state.setEditHistory(function(prev) {
-      var n = prev.concat([{ type: "colorReplace", changes: changes }]);
-      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
-      return n;
-    });
-    state.setRedoHistory([]);
-    state.setPat(np);
-    var r = state.buildPaletteWithScratch(np);
-    state.setPal(r.pal); state.setCmap(r.cmap);
-  }
-
   // ─── Direct global colour replacement (whole pattern or active selection) ────
 
   function applyGlobalColourReplacement(srcId, dstId, opts) {
@@ -3634,8 +3597,10 @@ window.useMagicWand = function useMagicWand(state) {
     }
     // opts.scope: 'all' ignores any selection; 'selection' (or omitted, the
     // legacy default) limits the change to the active selection if any.
+    // opts.alsoIds: similar shades replaced along with srcId.
     var mask = (opts && opts.scope === 'all') ? null : selectionMask;
-    var res = window.ColourReplace.replaceInPattern(pat, srcId, dstEntry, mask);
+    var srcIds = [srcId].concat((opts && opts.alsoIds) || []);
+    var res = window.ColourReplace.replaceInPattern(pat, srcIds, dstEntry, mask);
     var np = res.pat, changes = res.changes;
     if (!changes.length) {
       // DEFECT-002 (related): selection mask may have hidden every match.
@@ -3748,17 +3713,12 @@ window.useMagicWand = function useMagicWand(state) {
     reduceThreshold, setReduceThreshold,
     reducePreview, setReducePreview,
     reducePreviewStale, setReducePreviewStale,
-    replaceSource, setReplaceSource,
-    replaceDest, setReplaceDest,
-    replaceFuzzy, setReplaceFuzzy,
-    replaceFuzzyTol, setReplaceFuzzyTol,
     outlineColor, setOutlineColor,
     // Actions
     applyWandSelect, clearSelection, invertSelection, selectAll, selectAllOfColorId,
     // Phase 2
     previewConfettiCleanup, applyConfettiCleanup,
     previewColorReduction, applyColorReduction,
-    selectionReplaceColorCount, applyColorReplacement,
     applyGlobalColourReplacement,
     // Back-compat alias for any external caller still using the misspelled name.
     applyGlobalColorReplacement: applyGlobalColourReplacement,
@@ -6482,10 +6442,6 @@ window.useCreatorState = function useCreatorState() {
     confettiPreview: wand.confettiPreview, setConfettiPreview: wand.setConfettiPreview,
     reduceTarget: wand.reduceTarget, setReduceTarget: wand.setReduceTarget,
     reducePreview: wand.reducePreview, setReducePreview: wand.setReducePreview,
-    replaceSource: wand.replaceSource, setReplaceSource: wand.setReplaceSource,
-    replaceDest: wand.replaceDest, setReplaceDest: wand.setReplaceDest,
-    replaceFuzzy: wand.replaceFuzzy, setReplaceFuzzy: wand.setReplaceFuzzy,
-    replaceFuzzyTol: wand.replaceFuzzyTol, setReplaceFuzzyTol: wand.setReplaceFuzzyTol,
     outlineColor: wand.outlineColor, setOutlineColor: wand.setOutlineColor,
     applyWandSelect: wand.applyWandSelect, clearSelection: wand.clearSelection,
     invertSelection: wand.invertSelection, selectAll: wand.selectAll,
@@ -6494,8 +6450,6 @@ window.useCreatorState = function useCreatorState() {
     applyConfettiCleanup: wand.applyConfettiCleanup,
     previewColorReduction: wand.previewColorReduction,
     applyColorReduction: wand.applyColorReduction,
-    selectionReplaceColorCount: wand.selectionReplaceColorCount,
-    applyColorReplacement: wand.applyColorReplacement,
     applyGlobalColourReplacement: wand.applyGlobalColourReplacement,
     applyGlobalColorReplacement: wand.applyGlobalColourReplacement,
     colourReplaceModal, setColourReplaceModal,
@@ -12041,6 +11995,20 @@ window.MagicWandPanel = function MagicWandPanel() {
   var hasSelection = cv.hasSelection;
   var panel = cv.wandPanel;
 
+  // "Replace Colour…" opens the shared Replace colour modal for the most
+  // common colour in the selection (its scope defaults to Selection). This
+  // replaced a separate, more limited replace panel here.
+  function openReplaceModal() {
+    var rows = cv.selectionStats && cv.selectionStats.rows;
+    cv.setWandPanel(null);
+    if (!rows || !rows.length) {
+      if (app && app.addToast) app.addToast("Select some stitches first.", { type: "info", duration: 2500 });
+      return;
+    }
+    var top = rows[0];
+    cv.setColourReplaceModal({ srcId: top.id, srcName: top.name || top.id, srcRgb: top.rgb });
+  }
+
   // ─── Helpers ─────────────────────────────────────────────────────────────────
   function btn(label, onClick, opts) {
     opts = opts || {};
@@ -12157,7 +12125,7 @@ window.MagicWandPanel = function MagicWandPanel() {
       h("div", { className: "tb-grp" },
         btn("Confetti\u2026",       function() { cv.setWandPanel(panel === "confetti" ? null : "confetti"); }, { active: panel === "confetti" }),
         btn("Reduce Colours\u2026", function() { cv.setWandPanel(panel === "reduce"   ? null : "reduce");    }, { active: panel === "reduce" }),
-        btn("Replace Colour\u2026", function() { cv.setWandPanel(panel === "replace"  ? null : "replace");   }, { active: panel === "replace" }),
+        btn("Replace Colour\u2026", openReplaceModal, { title: "Replace the most common colour in the selection" }),
         btn("Stitch Info\u2026",    function() { cv.setWandPanel(panel === "info"     ? null : "info");      }, { active: panel === "info" }),
         btn("Outline\u2026",        function() { cv.setWandPanel(panel === "outline"  ? null : "outline");   }, { active: panel === "outline" })
       )
@@ -12263,60 +12231,6 @@ window.MagicWandPanel = function MagicWandPanel() {
     }, cv.reduceMode === "threshold" ? "No colour pairs are within this \u0394E threshold." : "Already at target — no merges needed.")
     : null
   ) : null;
-
-  // ─── Replace colour panel ────────────────────────────────────────────────────
-  var replacePanel = (panel === "replace" && hasSelection) ? (function() {
-    var srcEntry = ctx.cmap && cv.replaceSource ? ctx.cmap[cv.replaceSource] : null;
-    var dstEntry = ctx.cmap && cv.replaceDest   ? ctx.cmap[cv.replaceDest]   : null;
-    var affectedCount = cv.selectionReplaceColorCount;
-
-    // Color picker options from current palette
-    var palOpts = ctx.pal ? ctx.pal.map(function(p) {
-      return h("option", { key: p.id, value: p.id }, p.id + " " + p.name);
-    }) : [];
-
-    return h("div", {
-      style: { padding: "10px 14px", background: "#fdf4ff", borderBottom: "1px solid #e9d5ff",
-        display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 11 }
-    },
-      h("strong", { style: { color: "#4a044e" } }, "Replace Colour in Selection"),
-      h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
-        "Source:", srcEntry ? swatch(srcEntry.rgb) : null,
-        h("select", {
-          value: cv.replaceSource || "",
-          onChange: function(e) { cv.setReplaceSource(e.target.value || null); },
-          style: { fontSize: 11 }
-        }, [h("option", { key: "", value: "" }, "— pick —")].concat(palOpts))
-      ),
-      h("span", { "aria-hidden":"true", style: { color: "#6b7280", display:"inline-flex" } }, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
-      h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
-        "Target:", dstEntry ? swatch(dstEntry.rgb) : null,
-        h("select", {
-          value: cv.replaceDest || "",
-          onChange: function(e) { cv.setReplaceDest(e.target.value || null); },
-          style: { fontSize: 11 }
-        }, [h("option", { key: "", value: "" }, "— pick —")].concat(palOpts))
-      ),
-      h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
-        h("input", {
-          type: "checkbox", checked: cv.replaceFuzzy,
-          onChange: function(e) { cv.setReplaceFuzzy(e.target.checked); }
-        }), "Fuzzy",
-        cv.replaceFuzzy ? [
-          h("input", { key: "tol", type: "range", min: 0, max: 20, step: 1, value: cv.replaceFuzzyTol,
-            onChange: function(e) { cv.setReplaceFuzzyTol(Number(e.target.value)); },
-            style: { width: 50 } }),
-          h("span", { key: "v" }, "\u0394E\u2264" + cv.replaceFuzzyTol)
-        ] : null
-      ),
-      affectedCount > 0 ? h("span", { style: { color: "#7e22ce" } }, affectedCount + " stitches affected") : null,
-      btn("Apply", cv.applyColorReplacement, {
-        green: true, disabled: !cv.replaceSource || !cv.replaceDest || !affectedCount,
-        style: { fontSize: 10 }
-      }),
-      btn("\u00D7", function() { cv.setWandPanel(null); }, { style: { fontSize: 10 } })
-    );
-  })() : null;
 
   // ─── Stitch info panel ───────────────────────────────────────────────────────
   var headStyle = { textAlign: "left", padding: "2px 6px", borderBottom: "1px solid #bae6fd",
@@ -12470,7 +12384,11 @@ window.MagicWandPanel = function MagicWandPanel() {
             return h("button", {
               key: item.key,
               className: "tb-ovf-item" + (panel === item.key ? " tb-ovf-item--on" : ""),
-              onClick: function() { cv.setWandPanel(panel === item.key ? null : item.key); setPanelMenuOpen(false); }
+              onClick: function() {
+                setPanelMenuOpen(false);
+                if (item.key === "replace") { openReplaceModal(); return; }
+                cv.setWandPanel(panel === item.key ? null : item.key);
+              }
             }, item.label);
           })
         )
@@ -12486,7 +12404,6 @@ window.MagicWandPanel = function MagicWandPanel() {
     topRows,
     confettiPanel,
     reducePanel,
-    replacePanel,
     infoPanel,
     outlinePanel
   );
@@ -16303,7 +16220,8 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
     var h = React.createElement;
     var ref = React.useRef(null);
     var pat = props.pat, sW = props.sW, sH = props.sH;
-    var srcId = props.srcId, dst = props.dst, mask = props.mask;
+    var srcIds = props.srcIds || [], dst = props.dst, mask = props.mask;
+    var srcKey = srcIds.join('|');
     var valid = !!(pat && sW > 0 && sH > 0 && pat.length >= sW * sH);
 
     React.useEffect(function() {
@@ -16315,17 +16233,18 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
       var img = ctx.createImageData(sW, sH);
       var d = img.data;
       var dstRgb = dst && dst.rgb ? dst.rgb : null;
+      var srcSet = new Set(srcIds);
       for (var i = 0; i < sW * sH; i++) {
         var cell = pat[i];
         var rgb;
         if (!cell || cell.id === '__skip__' || cell.id === '__empty__' || !cell.rgb) rgb = FABRIC_RGB;
-        else if (dstRgb && cell.id === srcId && (!mask || mask[i])) rgb = dstRgb;
+        else if (dstRgb && srcSet.has(cell.id) && (!mask || mask[i])) rgb = dstRgb;
         else rgb = cell.rgb;
         var o = i * 4;
         d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2]; d[o + 3] = 255;
       }
       ctx.putImageData(img, 0, 0);
-    }, [pat, sW, sH, srcId, dst, mask, valid]);
+    }, [pat, sW, sH, srcKey, dst, mask, valid]); // eslint-disable-line react-hooks/exhaustive-deps
 
     if (!valid) return null;
     var scale = Math.min(THUMB_MAX_W / sW, THUMB_MAX_H / sH);
@@ -16428,10 +16347,24 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
       if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest' });
     }, [activeKey]);
 
+    // "Also replace similar shades": palette colours within dE <= fuzzyTol of
+    // the source are replaced too (replaces the old Magic Wand fuzzy panel).
+    var _fuzzy = React.useState(false); var fuzzy = _fuzzy[0], setFuzzy = _fuzzy[1];
+    var _fuzzyTol = React.useState(5); var fuzzyTol = _fuzzyTol[0], setFuzzyTol = _fuzzyTol[1];
+    var pickedId = picked ? picked.id : null;
+    var srcIds = React.useMemo(function() {
+      var ids = fuzzy && CR && CR.similarIds
+        ? CR.similarIds({ id: srcId, rgb: srcRgb }, palEntries, fuzzyTol)
+        : [srcId];
+      // The destination is never also a source (those stitches stay put).
+      return ids.filter(function(id) { return id && id !== pickedId; });
+    }, [fuzzy, fuzzyTol, srcId, srcRgb && srcRgb.join(','), palEntries, pickedId]); // eslint-disable-line react-hooks/exhaustive-deps
+    var extraIds = srcIds.filter(function(id) { return id !== srcId; });
+
     var counts = React.useMemo(function() {
       if (!window.ColourReplace) return null;
-      return window.ColourReplace.countMatches(pat, srcId, selectionMask);
-    }, [pat, srcId, selectionMask]);
+      return window.ColourReplace.countMatches(pat, srcIds, selectionMask);
+    }, [pat, srcIds, selectionMask]);
 
     // Scope: with an active selection, default to "selection" (the previous
     // behaviour) unless none of the selected stitches use this colour, in
@@ -16446,7 +16379,7 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
 
     function apply(t) {
       if (!t || t.id === srcId || affected === 0) return;
-      onApply(t, { scope: scope });
+      onApply(t, { scope: scope, alsoIds: extraIds });
     }
 
     function handleKey(e) {
@@ -16535,6 +16468,40 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
       }, 'Replaces this colour across the whole pattern (' + plural(counts.total) + ').');
     }
 
+    // ── Similar shades row ──
+    var palById = {};
+    palEntries.forEach(function(p) { palById[p.id] = p; });
+    var fuzzyRow = palEntries.length ? h('div', { className: 'colour-replace-fuzzy', style: { marginBottom: 12, fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' } },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
+        h('label', { style: { display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' } },
+          h('input', {
+            type: 'checkbox', checked: fuzzy, 'data-fuzzy-toggle': true,
+            onChange: function(e) { setFuzzy(e.target.checked); }
+          }),
+          'Also replace similar shades'),
+        fuzzy && h('input', {
+          type: 'range', min: 1, max: 20, step: 1, value: fuzzyTol,
+          'aria-label': 'How similar (colour difference)',
+          'aria-valuetext': 'Colour difference up to ' + fuzzyTol,
+          'data-fuzzy-tol': true,
+          onChange: function(e) { setFuzzyTol(Number(e.target.value)); },
+          style: { width: 90 }
+        }),
+        fuzzy && h('span', { style: { fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' } }, '\u0394E \u2264 ' + fuzzyTol)
+      ),
+      fuzzy && h('div', {
+        className: 'colour-replace-fuzzy-list',
+        style: { marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }
+      },
+        extraIds.length
+          ? ['Also replacing:'].concat(extraIds.map(function(id) {
+              var p = palById[id] || { id: id };
+              return h('span', { key: id, 'data-extra-id': id, style: { display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--text-secondary)' } },
+                swatch(p.rgb, 12), id + (p.name && p.name !== id ? ' ' + p.name : ''));
+            }))
+          : 'No other colours in your palette are that close. Drag the slider right to include more.')
+    ) : null;
+
     function threadRow(item, sectionKey) {
       var t = item.thread;
       var isSrc = t.id === srcId;
@@ -16618,6 +16585,7 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
         ),
 
         scopeRow,
+        fuzzyRow,
 
         // ── Preview ──
         hasThumb && h('div', {
@@ -16628,7 +16596,7 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
           h('span', { 'aria-hidden': 'true', style: { color: 'var(--text-tertiary)', display: 'inline-flex', flexShrink: 0 } },
             window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
           h(PatternThumb, {
-            pat: pat, sW: sW, sH: sH, srcId: srcId, dst: picked, mask: previewMask,
+            pat: pat, sW: sW, sH: sH, srcIds: srcIds, dst: picked, mask: previewMask,
             dimmed: !picked,
             caption: picked ? 'After' : 'Pick a thread to preview',
             ariaLabel: picked ? 'Pattern after replacing with DMC ' + picked.id : 'Pattern preview, no replacement chosen'

@@ -27,6 +27,20 @@ window.MagicWandPanel = function MagicWandPanel() {
   var hasSelection = cv.hasSelection;
   var panel = cv.wandPanel;
 
+  // "Replace Colour…" opens the shared Replace colour modal for the most
+  // common colour in the selection (its scope defaults to Selection). This
+  // replaced a separate, more limited replace panel here.
+  function openReplaceModal() {
+    var rows = cv.selectionStats && cv.selectionStats.rows;
+    cv.setWandPanel(null);
+    if (!rows || !rows.length) {
+      if (app && app.addToast) app.addToast("Select some stitches first.", { type: "info", duration: 2500 });
+      return;
+    }
+    var top = rows[0];
+    cv.setColourReplaceModal({ srcId: top.id, srcName: top.name || top.id, srcRgb: top.rgb });
+  }
+
   // ─── Helpers ─────────────────────────────────────────────────────────────────
   function btn(label, onClick, opts) {
     opts = opts || {};
@@ -143,7 +157,7 @@ window.MagicWandPanel = function MagicWandPanel() {
       h("div", { className: "tb-grp" },
         btn("Confetti\u2026",       function() { cv.setWandPanel(panel === "confetti" ? null : "confetti"); }, { active: panel === "confetti" }),
         btn("Reduce Colours\u2026", function() { cv.setWandPanel(panel === "reduce"   ? null : "reduce");    }, { active: panel === "reduce" }),
-        btn("Replace Colour\u2026", function() { cv.setWandPanel(panel === "replace"  ? null : "replace");   }, { active: panel === "replace" }),
+        btn("Replace Colour\u2026", openReplaceModal, { title: "Replace the most common colour in the selection" }),
         btn("Stitch Info\u2026",    function() { cv.setWandPanel(panel === "info"     ? null : "info");      }, { active: panel === "info" }),
         btn("Outline\u2026",        function() { cv.setWandPanel(panel === "outline"  ? null : "outline");   }, { active: panel === "outline" })
       )
@@ -249,60 +263,6 @@ window.MagicWandPanel = function MagicWandPanel() {
     }, cv.reduceMode === "threshold" ? "No colour pairs are within this \u0394E threshold." : "Already at target — no merges needed.")
     : null
   ) : null;
-
-  // ─── Replace colour panel ────────────────────────────────────────────────────
-  var replacePanel = (panel === "replace" && hasSelection) ? (function() {
-    var srcEntry = ctx.cmap && cv.replaceSource ? ctx.cmap[cv.replaceSource] : null;
-    var dstEntry = ctx.cmap && cv.replaceDest   ? ctx.cmap[cv.replaceDest]   : null;
-    var affectedCount = cv.selectionReplaceColorCount;
-
-    // Color picker options from current palette
-    var palOpts = ctx.pal ? ctx.pal.map(function(p) {
-      return h("option", { key: p.id, value: p.id }, p.id + " " + p.name);
-    }) : [];
-
-    return h("div", {
-      style: { padding: "10px 14px", background: "#fdf4ff", borderBottom: "1px solid #e9d5ff",
-        display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 11 }
-    },
-      h("strong", { style: { color: "#4a044e" } }, "Replace Colour in Selection"),
-      h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
-        "Source:", srcEntry ? swatch(srcEntry.rgb) : null,
-        h("select", {
-          value: cv.replaceSource || "",
-          onChange: function(e) { cv.setReplaceSource(e.target.value || null); },
-          style: { fontSize: 11 }
-        }, [h("option", { key: "", value: "" }, "— pick —")].concat(palOpts))
-      ),
-      h("span", { "aria-hidden":"true", style: { color: "#6b7280", display:"inline-flex" } }, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
-      h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
-        "Target:", dstEntry ? swatch(dstEntry.rgb) : null,
-        h("select", {
-          value: cv.replaceDest || "",
-          onChange: function(e) { cv.setReplaceDest(e.target.value || null); },
-          style: { fontSize: 11 }
-        }, [h("option", { key: "", value: "" }, "— pick —")].concat(palOpts))
-      ),
-      h("label", { style: { display: "flex", alignItems: "center", gap: 3 } },
-        h("input", {
-          type: "checkbox", checked: cv.replaceFuzzy,
-          onChange: function(e) { cv.setReplaceFuzzy(e.target.checked); }
-        }), "Fuzzy",
-        cv.replaceFuzzy ? [
-          h("input", { key: "tol", type: "range", min: 0, max: 20, step: 1, value: cv.replaceFuzzyTol,
-            onChange: function(e) { cv.setReplaceFuzzyTol(Number(e.target.value)); },
-            style: { width: 50 } }),
-          h("span", { key: "v" }, "\u0394E\u2264" + cv.replaceFuzzyTol)
-        ] : null
-      ),
-      affectedCount > 0 ? h("span", { style: { color: "#7e22ce" } }, affectedCount + " stitches affected") : null,
-      btn("Apply", cv.applyColorReplacement, {
-        green: true, disabled: !cv.replaceSource || !cv.replaceDest || !affectedCount,
-        style: { fontSize: 10 }
-      }),
-      btn("\u00D7", function() { cv.setWandPanel(null); }, { style: { fontSize: 10 } })
-    );
-  })() : null;
 
   // ─── Stitch info panel ───────────────────────────────────────────────────────
   var headStyle = { textAlign: "left", padding: "2px 6px", borderBottom: "1px solid #bae6fd",
@@ -456,7 +416,11 @@ window.MagicWandPanel = function MagicWandPanel() {
             return h("button", {
               key: item.key,
               className: "tb-ovf-item" + (panel === item.key ? " tb-ovf-item--on" : ""),
-              onClick: function() { cv.setWandPanel(panel === item.key ? null : item.key); setPanelMenuOpen(false); }
+              onClick: function() {
+                setPanelMenuOpen(false);
+                if (item.key === "replace") { openReplaceModal(); return; }
+                cv.setWandPanel(panel === item.key ? null : item.key);
+              }
             }, item.label);
           })
         )
@@ -472,7 +436,6 @@ window.MagicWandPanel = function MagicWandPanel() {
     topRows,
     confettiPanel,
     reducePanel,
-    replacePanel,
     infoPanel,
     outlinePanel
   );

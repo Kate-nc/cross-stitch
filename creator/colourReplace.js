@@ -3,11 +3,15 @@
    useMagicWand.applyGlobalColourReplacement. No DOM, no React.
 
    Exposed as window.ColourReplace:
-     countMatches(pat, srcId, mask)
+     countMatches(pat, srcIds, mask)
        → { total, inSelection }   inSelection is null when mask is falsy.
-     replaceInPattern(pat, srcId, dstEntry, mask)
+     replaceInPattern(pat, srcIds, dstEntry, mask)
        → { pat: newPat, changes: [{ idx, old }] }
          mask (Uint8Array | null) limits the change to selected cells.
+         srcIds is one id or an array / Set of ids (similar shades).
+     similarIds(srcEntry, palette, tol, opts)
+       → ids of palette entries within dE <= tol of srcEntry (always
+         including srcEntry.id), closest first. opts: { labOf, distance }.
      rankBySimilarity(srcRgb, threads, opts)
        → [{ thread, dE }] sorted closest first.
          opts: { limit, excludeIds (Set|array), labOf(rgb), distance(labA, labB) }
@@ -21,26 +25,36 @@ window.ColourReplace = (function() {
     return !!cell && cell.id !== '__skip__' && cell.id !== '__empty__';
   }
 
-  function countMatches(pat, srcId, mask) {
+  function toIdSet(ids) {
+    if (ids instanceof Set) return ids;
+    if (Array.isArray(ids)) return new Set(ids.filter(Boolean));
+    return new Set(ids ? [ids] : []);
+  }
+
+  function countMatches(pat, srcIds, mask) {
     var total = 0, inSel = 0;
-    if (!pat || !srcId) return { total: 0, inSelection: mask ? 0 : null };
+    var src = toIdSet(srcIds);
+    if (!pat || !src.size) return { total: 0, inSelection: mask ? 0 : null };
     for (var i = 0; i < pat.length; i++) {
       var cell = pat[i];
-      if (!isStitch(cell) || cell.id !== srcId) continue;
+      if (!isStitch(cell) || !src.has(cell.id)) continue;
       total++;
       if (mask && mask[i]) inSel++;
     }
     return { total: total, inSelection: mask ? inSel : null };
   }
 
-  function replaceInPattern(pat, srcId, dstEntry, mask) {
+  function replaceInPattern(pat, srcIds, dstEntry, mask) {
     var np = pat.slice();
     var changes = [];
-    if (!srcId || !dstEntry || srcId === dstEntry.id) return { pat: np, changes: changes };
+    var src = toIdSet(srcIds);
+    if (!src.size || !dstEntry) return { pat: np, changes: changes };
     for (var i = 0; i < np.length; i++) {
       if (mask && !mask[i]) continue;
       var cell = np[i];
-      if (!isStitch(cell) || cell.id !== srcId) continue;
+      // Cells already in the destination colour are left alone (it can be
+      // inside the similar-shades set).
+      if (!isStitch(cell) || !src.has(cell.id) || cell.id === dstEntry.id) continue;
       changes.push({ idx: i, old: Object.assign({}, cell) });
       np[i] = Object.assign({}, dstEntry);
     }
@@ -73,6 +87,18 @@ window.ColourReplace = (function() {
     return opts.limit > 0 ? out.slice(0, opts.limit) : out;
   }
 
+  function similarIds(srcEntry, palette, tol, opts) {
+    if (!srcEntry || !srcEntry.id) return [];
+    var ids = [srcEntry.id];
+    if (!srcEntry.rgb || !palette || !(tol > 0)) return ids;
+    var near = rankBySimilarity(srcEntry.rgb, palette, Object.assign({}, opts || {}, { excludeIds: [srcEntry.id] }));
+    for (var i = 0; i < near.length && near[i].dE <= tol; i++) {
+      var id = near[i].thread.id;
+      if (id !== '__skip__' && id !== '__empty__' && ids.indexOf(id) === -1) ids.push(id);
+    }
+    return ids;
+  }
+
   // Plain-language bands for CIEDE2000 distances (~2.3 is a just-noticeable
   // difference). Beyond "Similar" the label adds nothing, so return null.
   function similarityLabel(dE) {
@@ -88,6 +114,7 @@ window.ColourReplace = (function() {
     countMatches: countMatches,
     replaceInPattern: replaceInPattern,
     rankBySimilarity: rankBySimilarity,
+    similarIds: similarIds,
     similarityLabel: similarityLabel
   };
 })();
