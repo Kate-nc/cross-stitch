@@ -3782,13 +3782,39 @@
     var _t = React.useState(function () { return firstTab(session, baseProject); });
     var tab = _t[0], setTab = _t[1];
     var _p = React.useState(session ? session.placement : null); var placement = _p[0], setPlacement = _p[1];
+    // Each design keeps its own arrangement and thread choices while the
+    // stitcher moves between them, so importing all of them keeps every one.
+    var kept = React.useRef({});
+    function baseOf(i) {
+      var s = designs[i].session;
+      return i === firstDesign ? props.project : memoBuild(s, s.placement);
+    }
     function chooseDesign(i) {
       if (!designs || i === designIndex) return;
+      kept.current[designIndex] = { placement: placement, edits: edits, tab: tab };
       var s = designs[i].session;
+      var back = kept.current[i];
       setDesignIndex(i);
-      setPlacement(s.pages && s.pages.length > 1 ? s.placement : null);
-      setEdits({});
-      setTab(firstTab(s, i === firstDesign ? props.project : memoBuild(s, s.placement)));
+      setPlacement(back ? back.placement : (s.pages && s.pages.length > 1 ? s.placement : null));
+      setEdits(back ? back.edits : {});
+      setTab(back ? back.tab : firstTab(s, baseOf(i)));
+    }
+    // Design i as it would be imported: its own arrangement and edits.
+    function designProject(i) {
+      if (i === designIndex) return working;
+      var s = designs[i].session;
+      var st = kept.current[i] || {};
+      var arranged = baseOf(i);
+      if (st.placement && st.placement.manual && !(LM && LM.samePlacement(st.placement, s.placement))) {
+        arranged = memoBuild(s, st.placement);
+      }
+      return mergeEdits(arranged, st.edits || {});
+    }
+    function importAll() {
+      // The one on screen first: it is the one opened after the import.
+      var order = [designIndex].concat(designs.map(function (_, i) { return i; }).filter(function (i) { return i !== designIndex; }));
+      var projects = order.map(designProject);
+      props.onClose && props.onClose('confirm', { project: projects[0], projects: projects, edits: edits });
     }
     var _e = React.useState({}); var edits = _e[0], setEdits = _e[1];
     var _c = React.useState(true); var showConfidence = _c[0], setShowConfidence = _c[1];
@@ -3867,7 +3893,9 @@
               return h('option', { key: i, value: String(i) }, d.title + ' (' + n + (n === 1 ? ' page)' : ' pages)'));
             })),
           h('span', { className: 'import-design-note' },
-            'This PDF holds ' + designs.length + ' designs. Each is imported on its own; import the PDF again for another.')),
+            'This PDF holds ' + designs.length + ' designs. ‘Use this pattern’ imports the one shown; each design keeps its own changes.'),
+          h('button', { type: 'button', className: 'g-btn', onClick: importAll },
+            I('layers'), h('span', null, 'Import all ' + designs.length + ' designs'))),
         h('nav', { className: 'import-review-tabs', role: 'tablist' },
           tabs.map(function (t) {
             return h('button', {
@@ -4174,7 +4202,7 @@
   // user can verify (in the browser console) that they're running the
   // current bundle and not a stale service-worker copy. If you don't see
   // this log on page load, the SW is serving an old cache.
-  var BUILD = 'wireApp v7 (2026-10-06 — cancel an import)';
+  var BUILD = 'wireApp v8 (2026-10-07 — import every design in a booklet)';
   try { console.info('[ImportEngine]', BUILD); } catch (_) {}
   // Also expose it for assertion in DevTools: `window.ImportEngine.__build`.
   try {
@@ -4300,6 +4328,9 @@
         layoutSession: result.layoutSession || null,
       }).then(function (out) {
         if (url) try { URL.revokeObjectURL(url); } catch (_) {}
+        if (out.action === 'confirm' && out.project && out.projects && out.projects.length > 1) {
+          return saveAll(out.project, out.projects, opts);
+        }
         if (out.action === 'confirm' && out.project) {
           return saveAndNavigate(out.project, opts);
         }
@@ -4341,12 +4372,12 @@
     } catch (_) { return false; }
   }
 
-  function showImportToast(project) {
+  function showImportToast(project, message) {
     try {
       if (window.Toast && typeof window.Toast.show === 'function') {
         var name = (project && project.name) ? project.name : 'pattern';
         window.Toast.show({
-          message: 'Imported "' + name + '".',
+          message: message || ('Imported "' + name + '".'),
           type: 'success',
           duration: 5000,
         });
@@ -4365,6 +4396,22 @@
       }
     } catch (_) {}
     if (typeof alert === 'function') alert(msg);
+  }
+
+  /* A booklet imported whole: every design saved as its own pattern. The
+   * others are saved first, quietly and without navigating, so the one shown
+   * in the review is saved last and becomes the one opened, as before. */
+  function saveAll(first, projects, opts) {
+    var others = projects.filter(function (p) { return p !== first; });
+    var names = projects.map(function (p) { return p.name || 'pattern'; });
+    var quiet = Object.assign({}, opts, { navigate: false, quiet: true });
+    return others.reduce(function (chain, p) {
+      return chain.then(function () { return saveAndNavigate(p, quiet); });
+    }, Promise.resolve()).then(function () {
+      var msg = 'Imported ' + projects.length + ' designs: ' +
+        (names.length === 2 ? names.join(' and ') : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]) + '.';
+      return saveAndNavigate(first, Object.assign({}, opts, { toastMessage: msg }));
+    }).then(function (res) { return Object.assign({}, res, { projects: projects }); });
   }
 
   function saveAndNavigate(project, opts) {
@@ -4386,7 +4433,7 @@
       if (typeof window.saveProjectToDB === 'function') {
         console.warn('[import] ProjectStorage unavailable — using legacy auto_save key. Pattern will not appear in the library.');
         return Promise.resolve(window.saveProjectToDB('auto_save', project)).then(function () {
-          showImportToast(project);
+          if (!opts.quiet) showImportToast(project, opts.toastMessage);
           if (nav) window.location.href = destination;
           return { action: 'confirm', project: project };
         });
@@ -4455,7 +4502,7 @@
             }
           } catch (_) {}
         } else {
-          showImportToast(project);
+          if (!opts.quiet) showImportToast(project, opts.toastMessage);
         }
         // Set the active-project pointer now that the project is confirmed in
         // storage. Setting it before save() resolves triggered a race on
@@ -4501,6 +4548,7 @@
     openImportPicker: openImportPicker,
     importAndReview: importAndReview,
     saveAndNavigate: saveAndNavigate,
+    saveAll: saveAll,
     _isCurrentPage: isCurrentPage,
   });
 })();

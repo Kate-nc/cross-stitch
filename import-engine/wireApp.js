@@ -15,7 +15,7 @@
   // user can verify (in the browser console) that they're running the
   // current bundle and not a stale service-worker copy. If you don't see
   // this log on page load, the SW is serving an old cache.
-  var BUILD = 'wireApp v7 (2026-10-06 — cancel an import)';
+  var BUILD = 'wireApp v8 (2026-10-07 — import every design in a booklet)';
   try { console.info('[ImportEngine]', BUILD); } catch (_) {}
   // Also expose it for assertion in DevTools: `window.ImportEngine.__build`.
   try {
@@ -141,6 +141,9 @@
         layoutSession: result.layoutSession || null,
       }).then(function (out) {
         if (url) try { URL.revokeObjectURL(url); } catch (_) {}
+        if (out.action === 'confirm' && out.project && out.projects && out.projects.length > 1) {
+          return saveAll(out.project, out.projects, opts);
+        }
         if (out.action === 'confirm' && out.project) {
           return saveAndNavigate(out.project, opts);
         }
@@ -182,12 +185,12 @@
     } catch (_) { return false; }
   }
 
-  function showImportToast(project) {
+  function showImportToast(project, message) {
     try {
       if (window.Toast && typeof window.Toast.show === 'function') {
         var name = (project && project.name) ? project.name : 'pattern';
         window.Toast.show({
-          message: 'Imported "' + name + '".',
+          message: message || ('Imported "' + name + '".'),
           type: 'success',
           duration: 5000,
         });
@@ -206,6 +209,22 @@
       }
     } catch (_) {}
     if (typeof alert === 'function') alert(msg);
+  }
+
+  /* A booklet imported whole: every design saved as its own pattern. The
+   * others are saved first, quietly and without navigating, so the one shown
+   * in the review is saved last and becomes the one opened, as before. */
+  function saveAll(first, projects, opts) {
+    var others = projects.filter(function (p) { return p !== first; });
+    var names = projects.map(function (p) { return p.name || 'pattern'; });
+    var quiet = Object.assign({}, opts, { navigate: false, quiet: true });
+    return others.reduce(function (chain, p) {
+      return chain.then(function () { return saveAndNavigate(p, quiet); });
+    }, Promise.resolve()).then(function () {
+      var msg = 'Imported ' + projects.length + ' designs: ' +
+        (names.length === 2 ? names.join(' and ') : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]) + '.';
+      return saveAndNavigate(first, Object.assign({}, opts, { toastMessage: msg }));
+    }).then(function (res) { return Object.assign({}, res, { projects: projects }); });
   }
 
   function saveAndNavigate(project, opts) {
@@ -227,7 +246,7 @@
       if (typeof window.saveProjectToDB === 'function') {
         console.warn('[import] ProjectStorage unavailable — using legacy auto_save key. Pattern will not appear in the library.');
         return Promise.resolve(window.saveProjectToDB('auto_save', project)).then(function () {
-          showImportToast(project);
+          if (!opts.quiet) showImportToast(project, opts.toastMessage);
           if (nav) window.location.href = destination;
           return { action: 'confirm', project: project };
         });
@@ -296,7 +315,7 @@
             }
           } catch (_) {}
         } else {
-          showImportToast(project);
+          if (!opts.quiet) showImportToast(project, opts.toastMessage);
         }
         // Set the active-project pointer now that the project is confirmed in
         // storage. Setting it before save() resolves triggered a race on
@@ -342,6 +361,7 @@
     openImportPicker: openImportPicker,
     importAndReview: importAndReview,
     saveAndNavigate: saveAndNavigate,
+    saveAll: saveAll,
     _isCurrentPage: isCurrentPage,
   });
 })();

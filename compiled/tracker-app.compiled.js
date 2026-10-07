@@ -6057,7 +6057,26 @@ function TrackerApp({
             warnings: [],
             coverage: 1,
             reviewMode: 'standard'
-          }).then(out => out && out.action === 'confirm' && out.project ? out.project : null);
+          }).then(out => {
+            if (!(out && out.action === 'confirm' && out.project)) return null;
+            // A booklet imported whole: the other designs go to the library,
+            // and the one shown in the review opens here.
+            const others = (out.projects || []).filter(p => p !== out.project);
+            return Promise.all(others.map(p => {
+              if (!p.id) p.id = ProjectStorage.newId();
+              if (!p.createdAt) p.createdAt = new Date().toISOString();
+              return ProjectStorage.save(p);
+            })).then(() => {
+              if (others.length && window.Toast && window.Toast.show) {
+                window.Toast.show({
+                  message: "Also saved to your library: " + others.map(p => p.name || "pattern").join(", ") + ".",
+                  type: "success",
+                  duration: 6000
+                });
+              }
+              return out.project;
+            });
+          });
         }
         return project;
       }).then(project => {

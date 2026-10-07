@@ -754,13 +754,39 @@
     var _t = React.useState(function () { return firstTab(session, baseProject); });
     var tab = _t[0], setTab = _t[1];
     var _p = React.useState(session ? session.placement : null); var placement = _p[0], setPlacement = _p[1];
+    // Each design keeps its own arrangement and thread choices while the
+    // stitcher moves between them, so importing all of them keeps every one.
+    var kept = React.useRef({});
+    function baseOf(i) {
+      var s = designs[i].session;
+      return i === firstDesign ? props.project : memoBuild(s, s.placement);
+    }
     function chooseDesign(i) {
       if (!designs || i === designIndex) return;
+      kept.current[designIndex] = { placement: placement, edits: edits, tab: tab };
       var s = designs[i].session;
+      var back = kept.current[i];
       setDesignIndex(i);
-      setPlacement(s.pages && s.pages.length > 1 ? s.placement : null);
-      setEdits({});
-      setTab(firstTab(s, i === firstDesign ? props.project : memoBuild(s, s.placement)));
+      setPlacement(back ? back.placement : (s.pages && s.pages.length > 1 ? s.placement : null));
+      setEdits(back ? back.edits : {});
+      setTab(back ? back.tab : firstTab(s, baseOf(i)));
+    }
+    // Design i as it would be imported: its own arrangement and edits.
+    function designProject(i) {
+      if (i === designIndex) return working;
+      var s = designs[i].session;
+      var st = kept.current[i] || {};
+      var arranged = baseOf(i);
+      if (st.placement && st.placement.manual && !(LM && LM.samePlacement(st.placement, s.placement))) {
+        arranged = memoBuild(s, st.placement);
+      }
+      return mergeEdits(arranged, st.edits || {});
+    }
+    function importAll() {
+      // The one on screen first: it is the one opened after the import.
+      var order = [designIndex].concat(designs.map(function (_, i) { return i; }).filter(function (i) { return i !== designIndex; }));
+      var projects = order.map(designProject);
+      props.onClose && props.onClose('confirm', { project: projects[0], projects: projects, edits: edits });
     }
     var _e = React.useState({}); var edits = _e[0], setEdits = _e[1];
     var _c = React.useState(true); var showConfidence = _c[0], setShowConfidence = _c[1];
@@ -839,7 +865,9 @@
               return h('option', { key: i, value: String(i) }, d.title + ' (' + n + (n === 1 ? ' page)' : ' pages)'));
             })),
           h('span', { className: 'import-design-note' },
-            'This PDF holds ' + designs.length + ' designs. Each is imported on its own; import the PDF again for another.')),
+            'This PDF holds ' + designs.length + ' designs. ‘Use this pattern’ imports the one shown; each design keeps its own changes.'),
+          h('button', { type: 'button', className: 'g-btn', onClick: importAll },
+            I('layers'), h('span', null, 'Import all ' + designs.length + ' designs'))),
         h('nav', { className: 'import-review-tabs', role: 'tablist' },
           tabs.map(function (t) {
             return h('button', {
