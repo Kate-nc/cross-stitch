@@ -118,7 +118,8 @@ test.describe('iPad (WebKit) tracker chart', () => {
       const rect = c.getBoundingClientRect();
       const all = [...document.querySelectorAll('canvas')].filter(x => x.width > 0);
       return {
-        scale: window.chartRenderScale(),
+        // The scale the chart actually rendered at (budgeted per tile).
+        scale: c.__chartTile ? c.__chartTile.scale : null,
         backing: [c.width, c.height],
         css: [Math.round(rect.width), Math.round(rect.height)],
         biggestPx: Math.max(...all.map(x => x.width * x.height)),

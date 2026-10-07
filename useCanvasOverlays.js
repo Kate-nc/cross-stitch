@@ -177,9 +177,20 @@
      Capped at 2: beyond that the extra memory buys very little on a grid of
      flat cells, and phones commonly report 2.625-3. Returns 1 when the budget
      will not carry it, so this can only ever improve sharpness — never
-     reintroduce the memory problem. */
-  function chartRenderScale() {
-    var tile = maxTileArea();
+     reintroduce the memory problem.
+
+     `tileCssArea` is the tile the chart is about to allocate, in CSS px. The
+     tracker passes it on every render, so the check is against the real
+     tile, not the window-sized upper bound maxTileArea() has to assume when
+     nothing is measured. The window is the scroller's ceiling, not its size:
+     on an iPad (810x1080) the chart's tile is 1.88 Mpx while the window
+     estimate is 2.37 Mpx, and that difference alone decided 1x versus a
+     sharper chart. The overlays share the chart's tile, so the projection
+     stays exact; and since this runs on every render, a scroller that grows
+     is re-checked before it is painted at the larger size. */
+  function chartRenderScale(tileCssArea) {
+    var tile = (typeof tileCssArea === 'number' && isFinite(tileCssArea) && tileCssArea > 0)
+      ? tileCssArea : maxTileArea();
     if (tile === null) return 1;
     var budget = canvasLimits().area;
     var mem = (typeof navigator !== 'undefined' && navigator.deviceMemory) || 0;

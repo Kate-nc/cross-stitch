@@ -7734,7 +7734,8 @@ function TrackerApp({
       return;
     }
     let tile = chartTileFor(el, scs, sW, sH, G, viewBoundsRef.current);
-    const chartScale = typeof window.chartRenderScale === "function" ? window.chartRenderScale() : 1;
+    // Budgeted against this tile, not the window-sized worst case.
+    const chartScale = typeof window.chartRenderScale === "function" ? window.chartRenderScale(tile.w * tile.h) : 1;
     let ctx = applyChartTile(canvas, tile, G, {
       blankOnMove: false,
       scale: chartScale
