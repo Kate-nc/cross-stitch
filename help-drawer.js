@@ -395,6 +395,7 @@
     { id: "c.fill",  scope: "creator", keys: ["F"], description: "Fill bucket" },
     { id: "c.wand",  scope: "creator", keys: ["W"], description: "Magic wand (toggle)" },
     { id: "c.eye",   scope: "creator", keys: ["I"], description: "Eyedropper" },
+    { id: "c.replace", scope: "creator", keys: ["R"], description: "Replace colour (toggle) \u2014 click a stitch to replace every stitch of that colour" },
     { id: "c.view",  scope: "creator", keys: ["V"], description: "Cycle view: colour / symbol / both" },
     { id: "c.split", scope: "creator", keys: ["\\"], description: "Toggle split-pane preview" },
     { id: "c.zoomIn",  scope: "creator", keys: ["+", "="], description: "Zoom in" },

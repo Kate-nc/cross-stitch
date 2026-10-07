@@ -359,6 +359,9 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       if (cell0 && cell0.id !== '__skip__' && cell0.id !== '__empty__' && cmap && cmap[cell0.id]) {
         var entry0 = cmap[cell0.id];
         state.setColourReplaceModal({ srcId: cell0.id, srcName: entry0.name || cell0.id, srcRgb: entry0.rgb || cell0.rgb });
+      } else if (state.addToast) {
+        // Without this, clicking an unstitched cell silently does nothing.
+        state.addToast("That cell has no stitch \u2014 click a stitched cell to choose the colour to replace.", { type: "info", duration: 2500 });
       }
       return;
     }

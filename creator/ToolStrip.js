@@ -799,7 +799,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             else { cv.setActiveTool("colourReplace"); cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); }
             setMorePanelOpen(false);
           },
-          title:"Replace colour \u2014 click a stitch to replace all instances", "aria-label":"Replace colour tool",
+          title:"Replace colour (R) \u2014 click a stitch to replace every stitch of that colour", "aria-label":"Replace colour tool",
           "aria-pressed": cv.activeTool==="colourReplace"?"true":"false"
         }, window.Icons.colourSwap(), " Replace")
       )

@@ -8389,6 +8389,9 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       if (cell0 && cell0.id !== '__skip__' && cell0.id !== '__empty__' && cmap && cmap[cell0.id]) {
         var entry0 = cmap[cell0.id];
         state.setColourReplaceModal({ srcId: cell0.id, srcName: entry0.name || cell0.id, srcRgb: entry0.rgb || cell0.rgb });
+      } else if (state.addToast) {
+        // Without this, clicking an unstitched cell silently does nothing.
+        state.addToast("That cell has no stitch \u2014 click a stitched cell to choose the colour to replace.", { type: "info", duration: 2500 });
       }
       return;
     }
@@ -9212,6 +9215,16 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       run: function () {
         if (state.activeTool === "magicWand") { state.setActiveTool(null); }
         else { state.setActiveTool("magicWand"); state.setPartialStitchTool(null); state.setBsStart(null); }
+      } },
+    { id: "creator.tool.replace", keys: "r", scope: "creator.design",
+      description: "Replace colour (click a stitch to replace every stitch of its colour)",
+      when: function () { return !!state.pat; },
+      run: function () {
+        if (state.activeTool === "colourReplace") { state.setActiveTool(null); }
+        else {
+          state.setActiveTool("colourReplace"); state.setPartialStitchTool(null); state.setBsStart(null);
+          if (state.cancelLasso) state.cancelLasso();
+        }
       } },
     { id: "creator.tool.paint", keys: "p", scope: "creator.design",
       description: "Paint brush",
@@ -10536,7 +10549,17 @@ window.PatternCanvas = function PatternCanvas() {
   // Must be the MERGED snapshot across all 4 contexts because drawPatternBaseOnCanvas
   // and drawPatternOverlayOnCanvas expect the pre-refactor merged state shape.
   var ctxRef = React.useRef({});
-  ctxRef.current = Object.assign({}, ctx, cv, gen, hov, { G: G, pcRef: app.pcRef, tab: app.tab, fabricColour: app.fabricColour, canvasTexture: app.canvasTexture });
+  // Replace-colour tool: while hovering a stitch, isolate-highlight every
+  // stitch of that colour so users see exactly what a click would replace.
+  // Overrides the user's own highlight only while the cursor is on a stitch.
+  var replaceHoverId = null;
+  if (cv.activeTool === "colourReplace" && hov.hoverCoords && ctx.pat) {
+    var rhc = hov.hoverCoords;
+    var rhCell = (rhc.gx >= 0 && rhc.gx < ctx.sW && rhc.gy >= 0 && rhc.gy < ctx.sH) ? ctx.pat[rhc.gy * ctx.sW + rhc.gx] : null;
+    if (rhCell && rhCell.id !== "__skip__" && rhCell.id !== "__empty__") replaceHoverId = rhCell.id;
+  }
+  ctxRef.current = Object.assign({}, ctx, cv, gen, hov, { G: G, pcRef: app.pcRef, tab: app.tab, fabricColour: app.fabricColour, canvasTexture: app.canvasTexture },
+    replaceHoverId ? { hiId: replaceHoverId, dimHiId: replaceHoverId, dimFraction: 1, highlightMode: "isolate" } : null);
 
   // ── Effect: Animated marching ants for highlight outline mode
   var hlAntsRef = React.useRef(null);
@@ -10625,7 +10648,7 @@ window.PatternCanvas = function PatternCanvas() {
     gen.showCleanupDiff, gen.cleanupDiff,
     cv.dimFraction, cv.dimHiId, cv.bgDimOpacity, cv.bgDimDesaturation,
     cv.highlightMode, cv.tintColor, cv.tintOpacity, cv.spotDimOpacity,
-    app.fabricColour, app.canvasTexture
+    app.fabricColour, app.canvasTexture, replaceHoverId
   ]);
 
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).
@@ -11872,7 +11895,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             else { cv.setActiveTool("colourReplace"); cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); }
             setMorePanelOpen(false);
           },
-          title:"Replace colour \u2014 click a stitch to replace all instances", "aria-label":"Replace colour tool",
+          title:"Replace colour (R) \u2014 click a stitch to replace every stitch of that colour", "aria-label":"Replace colour tool",
           "aria-pressed": cv.activeTool==="colourReplace"?"true":"false"
         }, window.Icons.colourSwap(), " Replace")
       )
@@ -15340,6 +15363,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     statusText = "That cell is empty \u2014 no colour to sample.";
   } else if (cv.activeTool === "eyedropper") {
     statusText = "Eyedropper \u2014 click a cell to sample its colour.";
+  } else if (cv.activeTool === "colourReplace") {
+    statusText = "Replace colour \u2014 hover to see every stitch of a colour, click one to replace it. Press R or Esc to exit.";
   } else if (cv.activeTool === "magicWand") {
     var wModLabel = cv.selectionModifier === "add" ? "[+] Add" : cv.selectionModifier === "subtract" ? "[\u2212] Subtract" : cv.selectionModifier === "intersect" ? "[\u2229] Intersect" : null;
     statusText = "Magic Wand \u2014 click to select by colour" + (wModLabel ? " \u2022 " + wModLabel : ". Shift=add, Alt=subtract.");
