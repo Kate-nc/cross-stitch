@@ -110,6 +110,17 @@ test('the ants are drawn on the focus colour, follow the tile, and move', async 
   expect(b.offset, 'the dash offset did not move').not.toBe(a.offset);
 });
 
+test('the ants redraw after returning from Stats', async ({ page }) => {
+  test.setTimeout(180000);
+  await openWithHighlight(page, 'outline');
+  await page.evaluate(() => window.__openTrackerStats());
+  await expect(page.locator('.stats-container')).toBeVisible();
+  await page.getByRole('button', { name: /Back to grid/ }).click();
+  const foreground = page.locator('svg.tracker-ants path').nth(1);
+  await expect(foreground).toBeVisible();
+  await expect.poll(async () => foreground.getAttribute('d')).not.toBe('');
+});
+
 test('under reduced motion the ants are drawn but not animated', async ({ browser }) => {
   test.setTimeout(180000);
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });

@@ -5006,7 +5006,7 @@ useEffect(()=>{
 // animated under prefers-reduced-motion; browsers already stop animations in
 // hidden tabs.
 const antsSvgRef=useRef(null);
-const antsOn=stitchView==="highlight"&&!!focusColour&&highlightMode==="outline"&&!!pat;
+const antsOn=!statsView&&stitchView==="highlight"&&!!focusColour&&highlightMode==="outline"&&!!pat;
 useEffect(()=>{
   const svg=antsSvgRef.current;
   if(!antsOn||!svg)return;
