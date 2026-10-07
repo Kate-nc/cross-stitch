@@ -28,7 +28,8 @@ global.DMC = [
 
 // Minimal Overlay stub: render children inside a dialog element.
 function Overlay(props) {
-  return React.createElement('div', Object.assign({ role: 'dialog', onKeyDown: props.onKeyDown }, props.panelProps || {}), props.children);
+  Overlay.lastProps = props;
+  return React.createElement('div', Object.assign({ role: 'dialog' }, props.panelProps || {}), props.children);
 }
 Overlay.CloseButton = function(props) {
   return React.createElement('button', { type: 'button', 'aria-label': 'Close', onClick: props.onClose });
@@ -297,6 +298,13 @@ describe('ColourReplaceModal keyboard and screen-reader support', () => {
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
     setter.call(input(), text);
     input().dispatchEvent(new Event('input', { bubbles: true }));
+  });
+
+  test('Escape closes the modal even while typing in the search box', () => {
+    // Overlay's central Escape handler skips focused text inputs unless the
+    // modal opts in; focus starts in the search box.
+    render();
+    expect(Overlay.lastProps.escapeOptions).toEqual({ skipWhenEditingTextField: false });
   });
 
   test('search box is marked for Overlay autofocus', () => {

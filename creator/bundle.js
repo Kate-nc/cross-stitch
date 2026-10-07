@@ -16593,10 +16593,6 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
       onApply(t, opts);
     }
 
-    function handleKey(e) {
-      if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
-    }
-
     function handleSearchKey(e) {
       var idx = -1;
       for (var i = 0; i < options.length; i++) { if (options[i].key === activeKey) { idx = i; break; } }
@@ -16806,7 +16802,9 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
       onClose: onClose,
       variant: 'dialog',
       labelledBy: 'colour-replace-title',
-      onKeyDown: handleKey,
+      // Focus lives in the search box, and Overlay's Escape handler skips
+      // text inputs by default, so opt in or Esc would never close the modal.
+      escapeOptions: { skipWhenEditingTextField: false },
       // Opt out of the legacy html.pref-dark button override in styles.css:
       // every control here is themed with tokens, and the override would
       // hide the picked row, the active scope segment and the Apply button.
