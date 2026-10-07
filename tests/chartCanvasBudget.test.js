@@ -278,3 +278,39 @@ describe('§1.1 — the budget must include the whole visible overlay stack', ()
     expect(areaAt(600, 800, scs)).toBeLessThanOrEqual(win.chartPerCanvasBudget());
   });
 });
+
+describe('render scale is budgeted against the real tile', () => {
+  // The iPad case (tests/ipad/ipad-chart.spec.js): an 810x1080 window whose
+  // chart tile is 1371x1373. Budgeted against the window-sized worst case
+  // the projection (chart at s^2 plus five 1x overlays) never fits iOS's
+  // 16.8 Mpx, so the chart fell back to 1x. The tracker now passes the tile
+  // it is about to allocate.
+  const OVERLAYS = TYPICAL_CONCURRENT_CANVASES - 1;
+  function ipad() {
+    const win = loadWith({ isIOS: true, coarse: true, maxSide: 65536, innerWidth: 810, innerHeight: 1080 });
+    win.devicePixelRatio = 2;
+    return win;
+  }
+
+  test('the window-sized estimate alone leaves an iPad at 1x', () => {
+    expect(ipad().chartRenderScale()).toBe(1);
+  });
+
+  test('the real tile gets a sharper chart, and still fits', () => {
+    const win = ipad();
+    const tile = 1371 * 1373;
+    const s = win.chartRenderScale(tile);
+    expect(s).toBeGreaterThan(1);
+    expect(tile * s * s + tile * OVERLAYS).toBeLessThanOrEqual(win.canvasSizeLimits().area);
+  });
+
+  test('a tile too big for any scale above 1 still gets 1', () => {
+    const win = ipad();
+    expect(win.chartRenderScale(4000 * 4000)).toBe(1);
+  });
+
+  test('a missing or nonsense tile area falls back to the window estimate', () => {
+    const win = ipad();
+    for (const v of [undefined, 0, -5, NaN, Infinity, '1882383']) expect(win.chartRenderScale(v)).toBe(1);
+  });
+});

@@ -41,7 +41,8 @@ const chartGeometry = (page) => page.evaluate(() => {
     backing: [c.width, c.height],
     cssAttr: [c.style.width, c.style.height],
     rect: [Math.round(r.width), Math.round(r.height)],
-    scale: window.chartRenderScale ? window.chartRenderScale() : null,
+    // The scale the chart actually rendered at (budgeted per tile).
+    scale: c.__chartTile ? c.__chartTile.scale : null,
     dpr: window.devicePixelRatio,
   };
 });
@@ -126,7 +127,7 @@ test('a tap still lands on the cell under it at DPR > 1', async ({ page }) => {
       px, py,
       gx: Math.floor((el.scrollLeft + (px - sr.left) - G) / scs),
       gy: Math.floor((el.scrollTop + (py - sr.top) - G) / scs),
-      scale: window.chartRenderScale(),
+      scale: (document.querySelector('canvas').__chartTile || {}).scale,
     };
   }, SCROLLER_FN.toString());
 

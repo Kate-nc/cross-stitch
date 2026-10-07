@@ -86,24 +86,32 @@ function outlinePathData(pat,sW,sH,id,r,cSz,gut){
 const CHART_TILE_OVERSCAN=(typeof window!=='undefined'&&window.chartTileOverscan)||300;
 
 // Geometry of the tile that should be showing for a given scroller position.
-// `x`/`y` are in chart-content coordinates — the same space viewportRect and
-// scrollLeft/scrollTop use — and name the chart pixel that lands on canvas
-// pixel 0.
-function chartTileFor(scroller,cSz,sW,sH,gutter){
-  const fullW=gutter+sW*cSz+2, fullH=gutter+sH*cSz+2;
+// `x`/`y` are in chart coordinates and name the chart pixel that lands on
+// canvas pixel 0.
+//
+// `view` is the part of the pattern the scroller shows, in cells: the whole
+// pattern, or a work area plus its margin (see work-area.js). The scroller's
+// extent covers only the view, so scrollLeft/scrollTop are relative to its
+// top-left corner and chart coordinates are scroll + view.x0/y0 * cSz. With no
+// view, or the whole pattern, the offset is 0 and this is exactly the old
+// geometry.
+function chartTileFor(scroller,cSz,sW,sH,gutter,view){
+  const v=view||{x0:0,y0:0,x1:sW,y1:sH};
+  const offX=v.x0*cSz, offY=v.y0*cSz;
+  const fullW=gutter+(v.x1-v.x0)*cSz+2, fullH=gutter+(v.y1-v.y0)*cSz+2;
   if(!scroller){
-    return{x:0,y:0,w:fullW,h:fullH,full:true};
+    return{x:offX,y:offY,w:fullW,h:fullH,full:true};
   }
   if(!scroller.clientWidth||!scroller.clientHeight){
-    return{x:0,y:0,w:0,h:0,full:false};
+    return{x:offX,y:offY,w:0,h:0,full:false};
   }
   const w=Math.min(fullW,scroller.clientWidth+CHART_TILE_OVERSCAN*2);
   const h=Math.min(fullH,scroller.clientHeight+CHART_TILE_OVERSCAN*2);
-  if(w>=fullW&&h>=fullH)return{x:0,y:0,w:fullW,h:fullH,full:true};
-  // Clamped to the chart so the tile never hangs off an edge, which would
+  if(w>=fullW&&h>=fullH)return{x:offX,y:offY,w:fullW,h:fullH,full:true};
+  // Clamped to the view so the tile never hangs off an edge, which would
   // waste backing store on blank space and leave the opposite edge unpainted.
-  const x=Math.max(0,Math.min(fullW-w,Math.round(scroller.scrollLeft-CHART_TILE_OVERSCAN)));
-  const y=Math.max(0,Math.min(fullH-h,Math.round(scroller.scrollTop -CHART_TILE_OVERSCAN)));
+  const x=offX+Math.max(0,Math.min(fullW-w,Math.round(scroller.scrollLeft-CHART_TILE_OVERSCAN)));
+  const y=offY+Math.max(0,Math.min(fullH-h,Math.round(scroller.scrollTop -CHART_TILE_OVERSCAN)));
   return{x,y,w,h,full:false};
 }
 
@@ -995,6 +1003,37 @@ const[stitchingStyle,setStitchingStyle]=useState(()=>{try{var ls=localStorage.ge
 const[blockW,setBlockW]=useState(10);
 const[blockH,setBlockH]=useState(10);
 const[focusBlock,setFocusBlock]=useState(null); // {bx,by} | null
+// Work area: the group of Spotlight sections the chart is clipped to. Saved
+// on the project and synced (newer setAt wins); see work-area.js.
+// null | {active,x0,y0,x1,y1,bw,bh,gridW,gridH,setAt}
+const[workArea,setWorkArea]=useState(null);
+// Stitches of faded context shown around the area (a per-stitcher
+// preference, not part of the project).
+const[workAreaMargin,setWorkAreaMarginState]=useState(()=>{
+  try{const v=window.UserPrefs&&window.UserPrefs.get("trackerWorkAreaMargin");if(typeof v==="number"&&v>=0&&v<=20)return v;}catch(_){}
+  return(window.WorkArea&&window.WorkArea.DEFAULT_MARGIN)||3;
+});
+const setWorkAreaMargin=useCallback(v=>{
+  setWorkAreaMarginState(v);
+  try{if(window.UserPrefs)window.UserPrefs.set("trackerWorkAreaMargin",v);}catch(_){}
+},[]);
+const areaOn=!!(workArea&&workArea.active);
+useEffect(()=>{
+  if(!workArea||!window.WorkArea||(workArea.gridW===blockW&&workArea.gridH===blockH))return;
+  const snapped=window.WorkArea.snapToSections(workArea,blockW,blockH,sW,sH);
+  setWorkArea(Object.assign(snapped,{active:workArea.active,setAt:workArea.setAt,gridW:blockW,gridH:blockH}));
+},[workArea,blockW,blockH,sW,sH]);
+// The cells the chart shows: the work area plus its margin, or the whole
+// pattern. The scroller's extent and the rulers cover only this, so scroll
+// positions are relative to its corner; chartScrollOffset() converts.
+const viewBounds=useMemo(()=>(areaOn&&window.WorkArea)
+  ?window.WorkArea.bounds(workArea,workAreaMargin,sW,sH)
+  :{x0:0,y0:0,x1:sW,y1:sH},[areaOn,workArea,workAreaMargin,sW,sH]);
+const viewBoundsRef=useRef(viewBounds);
+viewBoundsRef.current=viewBounds;
+// Chart pixels hidden off the scroller's top-left by the view: add to a
+// scroll position to get chart coordinates, subtract to go back.
+function chartScrollOffset(cSz){const v=viewBoundsRef.current;const c=cSz||scs;return{x:v.x0*c,y:v.y0*c};}
 const[focusEnabled,setFocusEnabled]=useState(()=>{try{return localStorage.getItem("cs_focusEnabled")==="1";}catch(_){return false;}});
 const[colourSequence,setColourSequence]=useState(()=>{try{return localStorage.getItem("cs_colourSeq")||"fewest";}catch(_){return"fewest";}});
 const[startCorner,setStartCorner]=useState("TL");
@@ -1067,7 +1106,7 @@ function prepareOverlayTile(canvas){
   // pan frame move and blank the overlay, which is what pushed cleared pixels
   // up rather than down. Overlays now move only when the chart moves.
   const ref=chartTileRef.current;
-  const tile=(ref&&ref.w>0)?ref:chartTileFor(stitchScrollRef.current,scs,sW,sH,G);
+  const tile=(ref&&ref.w>0)?ref:chartTileFor(stitchScrollRef.current,scs,sW,sH,G,viewBoundsRef.current);
   // A zero-sized tile means the scroller has not been measured yet; there is
   // nothing to draw into and no geometry to draw it at.
   if(!tile||!tile.w||!tile.h)return null;
@@ -1128,6 +1167,143 @@ function setHoverInfo(info){
 const[isPanning,setIsPanning]=useState(false);
 const panStart=useRef({x:0,y:0,scrollX:0,scrollY:0});
 const stitchScrollRef=useRef(null);
+
+// ═══ Work area: enter / leave, and keeping the view steady ═══
+// What to do with the scroll position once the next view has rendered:
+// {kind:"fit"} after entering, {kind:"centre",cx,cy} after leaving.
+const workAreaViewPendingRef=useRef(null);
+function enterWorkArea(rect){
+  if(!rect||!window.WorkArea)return false;
+  const next=window.WorkArea.normalise(Object.assign({},rect,{active:true,gridW:blockW,gridH:blockH,setAt:Date.now()}),sW,sH);
+  if(!next)return false;
+  workAreaViewPendingRef.current={kind:"fit"};
+  setWorkArea(next);
+  return true;
+}
+function exitWorkArea(){
+  const a=workArea;
+  if(!a||!a.active)return;
+  workAreaViewPendingRef.current={kind:"centre",cx:(a.x0+a.x1)/2,cy:(a.y0+a.y1)/2};
+  setWorkArea(Object.assign({},a,{active:false,setAt:Date.now()}));
+}
+// Runs after the scroller has its new extent. A view change nobody asked to
+// reposition for (the margin, a synced area arriving) keeps the same stitches
+// under the same screen position by shifting the scroll by the change in
+// offset; entering fits the area to the chart; leaving centres on it.
+const prevViewRef=useRef(null);
+React.useLayoutEffect(()=>{
+  const el=stitchScrollRef.current;
+  const prev=prevViewRef.current;
+  prevViewRef.current={vb:viewBounds,scs};
+  const pending=workAreaViewPendingRef.current;
+  if(!el)return;
+  if(pending&&pending.kind==="fit"){
+    workAreaViewPendingRef.current=null;
+    // The zoom lands on the next render; the corner of the view is 0,0 at
+    // any zoom, so the scroll can be set now and again once the size settles.
+    fitWorkAreaView();
+    return;
+  }
+  if(pending&&pending.kind==="centre"){
+    workAreaViewPendingRef.current=null;
+    const off=chartScrollOffset();
+    el.scrollLeft=Math.max(0,G+pending.cx*scs-off.x-el.clientWidth/2);
+    el.scrollTop=Math.max(0,G+pending.cy*scs-off.y-el.clientHeight/2);
+    return;
+  }
+  if(prev&&prev.scs===scs&&(prev.vb.x0!==viewBounds.x0||prev.vb.y0!==viewBounds.y0)){
+    el.scrollLeft+= (prev.vb.x0-viewBounds.x0)*scs;
+    el.scrollTop += (prev.vb.y0-viewBounds.y0)*scs;
+  }
+},[viewBounds,scs]);
+// Exposed for the browser specs (tests/mobile-audit/*work-area*) and
+// automation, like __flushProjectToIDB. Reassigned every render so it always
+// closes over current state.
+useEffect(()=>{
+  window.__workArea={enter:enterWorkArea,exit:exitWorkArea,get:()=>workArea,view:()=>viewBoundsRef.current,openPicker:()=>setAreaPickerOpen(true)};
+});
+const[areaPickerOpen,setAreaPickerOpen]=useState(false);
+// Stitches and done stitches inside a rectangle of the pattern. O(area):
+// cheap enough per tap for any area a stitcher would choose.
+function countRect(r){
+  let total=0,dn=0;
+  if(!pat||!r)return{total,done:dn};
+  const d=doneRef.current||done;
+  for(let y=r.y0;y<r.y1;y++){const base=y*sW;for(let x=r.x0;x<r.x1;x++){const m=pat[base+x];if(!m||m.id==="__skip__"||m.id==="__empty__")continue;total++;if(d&&d[base+x])dn++;}}
+  if(halfStitches&&halfStitches.size)halfStitches.forEach((hs,idx)=>{
+    if(!window.WorkArea.containsIndex(r,idx,sW))return;
+    const hd=halfDone&&halfDone.get(idx);
+    if(hs.fwd){total+=0.5;if(hd&&hd.fwd)dn+=0.5;}
+    if(hs.bck){total+=0.5;if(hd&&hd.bck)dn+=0.5;}
+  });
+  return{total,done:dn};
+}
+const areaStats=useMemo(()=>areaOn?countRect(workArea):null,[areaOn,workArea,pat,done,halfStitches,halfDone,sW]);
+// Per-colour counts inside the work area, in the same shape as the whole-
+// pattern counts (colourDoneCountsRef): the colour list, highlight cycling and
+// "mark all" use these while an area is active. O(area) per change.
+const areaColourCounts=useMemo(()=>{
+  if(!areaOn||!pat||!workArea)return null;
+  const out={},a=workArea,d=doneRef.current||done;
+  const get=id=>out[id]||(out[id]={total:0,done:0,halfTotal:0,halfDone:0});
+  for(let y=a.y0;y<a.y1;y++){const base=y*sW;for(let x=a.x0;x<a.x1;x++){
+    const m=pat[base+x];if(!m||m.id==="__skip__"||m.id==="__empty__")continue;
+    const c=get(m.id);c.total++;if(d&&d[base+x])c.done++;
+  }}
+  if(halfStitches&&halfStitches.size){
+    halfStitches.forEach((hs,idx)=>{
+      if(!window.WorkArea.containsIndex(a,idx,sW))return;
+      const hd=halfDone&&halfDone.get(idx);
+      if(hs.fwd){const c=get(hs.fwd.id);c.halfTotal++;if(hd&&hd.fwd)c.halfDone++;}
+      if(hs.bck){const c=get(hs.bck.id);c.halfTotal++;if(hd&&hd.bck)c.halfDone++;}
+    });
+  }
+  return out;
+},[areaOn,workArea,pat,done,halfStitches,halfDone,sW]);
+// The neighbouring area in reading order: any (for enabling the buttons,
+// cheap) or the nearest unfinished one (on click — it may scan many areas).
+function neighbourArea(dir,unfinishedOnly){
+  if(!areaOn||!window.WorkArea)return null;
+  return window.WorkArea.step(workArea,dir,blockW,blockH,sW,sH,
+    unfinishedOnly?(r=>{const c=countRect(r);return c.total===0||c.done>=c.total;}):null);
+}
+function stepWorkArea(dir){
+  const a=neighbourArea(dir,true);
+  if(a){enterWorkArea(a);return;}
+  try{window.Toast&&window.Toast.show&&window.Toast.show({message:dir>0?"No unfinished areas after this one":"No unfinished areas before this one",type:"info"});}catch(_){}
+}
+// The next unfinished area after this one, or failing that before it.
+function nextUnfinishedArea(){return neighbourArea(1,true)||neighbourArea(-1,true);}
+// Finishing the area's last stitch offers the next one. Keyed on the area,
+// so moving to an already-finished area (or loading one) does not announce.
+const areaDoneRef=useRef(null);
+useEffect(()=>{
+  if(!areaOn||!areaStats||!workArea){areaDoneRef.current=null;return;}
+  const key=workArea.x0+","+workArea.y0+","+workArea.x1+","+workArea.y1;
+  const finished=areaStats.total>0&&areaStats.done>=areaStats.total;
+  const prev=areaDoneRef.current;
+  areaDoneRef.current={key,finished};
+  if(!prev||prev.key!==key||prev.finished||!finished)return;
+  const next=nextUnfinishedArea();
+  try{
+    if(window.Toast&&window.Toast.show)window.Toast.show(next
+      ?{message:"Work area finished",type:"success",action:()=>enterWorkArea(next),actionLabel:"Next area",duration:10000}
+      :{message:"Work area finished. Every area of this size is done.",type:"success"});
+  }catch(_){}
+},[areaOn,areaStats,workArea]);
+// Fit the current view (area + margin) to the chart and show its corner.
+function fitWorkAreaView(){
+  const el=stitchScrollRef.current;
+  if(!el)return;
+  const vb=viewBoundsRef.current;
+  const w=vb.x1-vb.x0,h=vb.y1-vb.y0;
+  const fit=Math.min((el.clientWidth-G-8)/(w*20),(el.clientHeight-G-8)/(h*20));
+  setStitchZoom(+Math.max(0.05,Math.min(maxZoom,fit)).toFixed(3));
+  el.scrollLeft=0;el.scrollTop=0;
+  requestAnimationFrame(()=>{const e2=stitchScrollRef.current;if(e2){e2.scrollLeft=0;e2.scrollTop=0;}});
+}
+// "Fit" fits the work area while one is active, the whole pattern otherwise.
+function fitChart(){if(areaOn)fitWorkAreaView();else fitSZ();}
 const isSpaceDownRef=useRef(false);
 const spaceDownTimeRef=useRef(0);
 const spacePannedRef=useRef(false);
@@ -1602,6 +1778,16 @@ const [progressInfoOpen,setProgressInfoOpen]=useState(false);
 const progressChipRef=useRef(null);
 
 const colourDoneCounts=countsVer>=0?colourDoneCountsRef.current:{};
+// The counts that "which colours are left" questions should use: the work
+// area's while one is active, the whole pattern's otherwise.
+const scopedColourCounts=areaColourCounts||colourDoneCounts;
+useEffect(()=>{
+  if(!areaColourCounts)return;
+  const current=areaColourCounts[focusColour];
+  if(current&&(current.total+current.halfTotal)>0)return;
+  const next=pal&&pal.find(p=>{const c=areaColourCounts[p.id];return c&&(c.total+c.halfTotal)>0;});
+  setFocusColour(next?next.id:null);
+},[areaColourCounts,focusColour,pal]);
 const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total,backstitch:bsLines.length,quarter:0,petite:0,french_knot:0,long_stitch:0}),[totalStitchable,halfStitchCounts.total,bsLines.length]);
 // PERF: the palette legend tile list (rendered below) used to be rebuilt and
 // re-sorted from `pal` on every single render of this component — including
@@ -1611,8 +1797,11 @@ const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total
 // itself — is the correct "did the counts actually change" signal here.
 const legendRows=useMemo(()=>{
   if(!pal)return null;
-  const rows=pal.map(p=>{
-    const dc=colourDoneCountsRef.current[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
+  // In a work area: only the colours it contains, with its counts.
+  const src=areaColourCounts||colourDoneCountsRef.current;
+  const shown=areaColourCounts?pal.filter(p=>{const c=areaColourCounts[p.id];return c&&(c.total+c.halfTotal)>0;}):pal;
+  const rows=shown.map(p=>{
+    const dc=src[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
     const totalWH=dc.total+dc.halfTotal*0.5;
     const doneWH=dc.done+dc.halfDone*0.5;
     const pct=totalWH>0?Math.round(doneWH/totalWH*100):0;
@@ -1624,7 +1813,7 @@ const legendRows=useMemo(()=>{
   else if(legendSort==="count")rows.sort((a,b)=>b.remaining-a.remaining);
   else rows.sort((a,b)=>{const ai=String(a.p.id),bi=String(b.p.id);const an=parseInt(ai,10),bn=parseInt(bi,10);if(isFinite(an)&&isFinite(bn)&&String(an)===ai&&String(bn)===bi)return an-bn;return ai.localeCompare(bi);});
   return rows;
-},[pal,countsVer,legendSort]);
+},[pal,countsVer,legendSort,areaColourCounts]);
 // After recomputeAllCounts has run post-load, snap prevAutoCountRef to the real
 // counts so the auto-detect effect below never sees a spurious delta.
 useEffect(()=>{if(justLoadedRef.current){prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||0};justLoadedRef.current=false;}},[countsVer]);
@@ -1650,12 +1839,15 @@ const skipNextFullRedrawRef=useRef(false);
 
 const focusableColors=useMemo(()=>{
   if(!pal)return[];
-  let list=pal;
-  if(onlyStarted){const started=pal.filter(p=>{const dc=colourDoneCounts[p.id];return dc&&dc.done>0;});if(started.length>0)list=started;}
+  const cc=scopedColourCounts;
+  // In a work area, only the colours it contains.
+  let list=areaColourCounts?pal.filter(p=>{const c=areaColourCounts[p.id];return c&&c.total>0;}):pal;
+  if(!list.length)list=pal;
+  if(onlyStarted){const started=list.filter(p=>{const dc=cc[p.id];return dc&&dc.done>0;});if(started.length>0)list=started;}
   if(!highlightSkipDone)return list;
-  const incomplete=list.filter(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;});
+  const incomplete=list.filter(p=>{const dc=cc[p.id];return !dc||dc.done<dc.total;});
   return incomplete.length>0?incomplete:list;
-},[pal,countsVer,highlightSkipDone,onlyStarted]);
+},[pal,countsVer,highlightSkipDone,onlyStarted,areaColourCounts]);
 
 const sections=useMemo(()=>{
   if(!statsView||!pat||!done)return[];
@@ -1676,8 +1868,8 @@ const sections=useMemo(()=>{
 const prevFocusIdRef=useRef(null);
 const prevFocusDoneRef=useRef(null);
 useEffect(()=>{
-  if(!focusColour||stitchView!=="highlight"||!highlightSkipDone||!colourDoneCounts||!pal)return;
-  const dc=colourDoneCounts[focusColour];
+  if(!focusColour||stitchView!=="highlight"||!highlightSkipDone||!scopedColourCounts||!pal)return;
+  const dc=scopedColourCounts[focusColour];
   const isNowComplete=dc&&dc.total>0&&dc.done>=dc.total;
   if(prevFocusIdRef.current!==focusColour){
     prevFocusIdRef.current=focusColour;
@@ -1687,7 +1879,8 @@ useEffect(()=>{
   if(prevFocusDoneRef.current===false&&isNowComplete){
     const nextColor=pal.find(p=>{
       if(p.id===focusColour)return false;
-      const dc2=colourDoneCounts[p.id];
+      const dc2=scopedColourCounts[p.id];
+      if(areaColourCounts&&!dc2)return false;
       return !dc2||dc2.done<dc2.total;
     });
     if(nextColor){
@@ -1699,7 +1892,7 @@ useEffect(()=>{
     }
   }
   prevFocusDoneRef.current=isNowComplete;
-},[countsVer,focusColour,stitchView,highlightSkipDone,pal]);
+},[countsVer,focusColour,stitchView,highlightSkipDone,pal,areaColourCounts]);
 
 const estCompletion=useMemo(()=>{let t=totalTime+liveAutoElapsed;if(doneCount<1||t<60)return null;return Math.round((totalStitchable-doneCount)*(t/doneCount));},[totalTime,liveAutoElapsed,doneCount,totalStitchable]);
 
@@ -2157,17 +2350,23 @@ const recommendations=useMemo(()=>{
   if(!analysisResult||!pat)return null;
   const pr=analysisResult.perRegion;
   if(!pr)return null;
+  // Regions are Spotlight sections (the worker's blockSize is blockW): in a
+  // work area, recommend only the ones inside it.
+  const _recCols=analysisResult.regionCols||1;
+  const _recSize=analysisResult.regionSize||blockW;
+  const _recArea=(areaOn&&window.WorkArea)?window.WorkArea.sectionRange(workArea,_recSize,_recSize):null;
   const scored=[];
   for(let i=0;i<pr.length;i++){
     const reg=pr[i];
     if(!reg||reg.totalStitches===0||reg.completionPercentage>=1)continue;
+    if(_recArea){const rc=i%_recCols,rr=Math.floor(i/_recCols);if(rc<_recArea.bx0||rc>=_recArea.bx1||rr<_recArea.by0||rr>=_recArea.by1)continue;}
     if(!recDismissed.has(i))scored.push({idx:i,reg,score:reg.impactScore||0});
   }
   scored.sort((a,b)=>b.score-a.score);
   const pc=analysisResult.perColour;
   const quickWins=pc?Object.values(pc).filter(c=>c.totalStitches>0&&c.completedStitches<c.totalStitches).map(c=>({...c,remaining:c.totalStitches-c.completedStitches})).sort((a,b)=>a.remaining-b.remaining).slice(0,3):[];
   return{top:scored.slice(0,3),quickWins};
-},[analysisResult,pat,recDismissed]);
+},[analysisResult,pat,recDismissed,areaOn,workArea,blockW,blockH]);
 
 // ── Focus block helper functions ──
 function _isFocusBlockComplete(bx,by){
@@ -2186,20 +2385,39 @@ function _getBlockStitchCount(bx,by){
   const x0=bx*blockW,y0=by*blockH,x1=Math.min(x0+blockW,sW),y1=Math.min(y0+blockH,sH);
   let c=0;for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++){const m=pat[y*sW+x];if(m&&m.id!=="__skip__"&&m.id!=="__empty__")c++;}return c;
 }
+// The sections Spotlight may visit, as a section-grid rectangle (exclusive
+// ends): the whole grid, or only the sections of the active work area — the
+// area is a group of sections, and Spotlight works through them in turn.
+function _spotRange(){
+  const bCols=Math.ceil(sW/blockW),bRows=Math.ceil(sH/blockH);
+  if(areaOn&&workArea&&window.WorkArea){
+    const r=window.WorkArea.sectionRange(workArea,blockW,blockH);
+    return{bx0:Math.max(0,r.bx0),by0:Math.max(0,r.by0),bx1:Math.min(bCols,r.bx1),by1:Math.min(bRows,r.by1)};
+  }
+  return{bx0:0,by0:0,bx1:bCols,by1:bRows};
+}
+function _inSpotRange(b){const r=_spotRange();return !!b&&b.bx>=r.bx0&&b.bx<r.bx1&&b.by>=r.by0&&b.by<r.by1;}
+// With Spotlight on, a work area that does not contain the spotlit section
+// moves Spotlight to the area's starting section.
+useEffect(()=>{
+  if(!areaOn||!focusEnabled||stitchingStyle==="crosscountry"||!sW||!sH)return;
+  if(focusBlock&&_inSpotRange(focusBlock))return;
+  setFocusBlock(_getStartBlock());
+},[areaOn,workArea,focusEnabled,stitchingStyle,blockW,blockH,sW,sH]);
 function _getStartBlock(){
   if(!sW||!sH)return{bx:0,by:0};
-  const bCols=Math.ceil(sW/blockW),bRows=Math.ceil(sH/blockH);
-  if(startCorner==="TR")return{bx:bCols-1,by:0};
-  if(startCorner==="BL")return{bx:0,by:bRows-1};
-  if(startCorner==="BR")return{bx:bCols-1,by:bRows-1};
-  if(startCorner==="C")return{bx:Math.floor(bCols/2),by:Math.floor(bRows/2)};
-  return{bx:0,by:0};
+  const r=_spotRange();
+  if(startCorner==="TR")return{bx:r.bx1-1,by:r.by0};
+  if(startCorner==="BL")return{bx:r.bx0,by:r.by1-1};
+  if(startCorner==="BR")return{bx:r.bx1-1,by:r.by1-1};
+  if(startCorner==="C")return{bx:Math.floor((r.bx0+r.bx1-1)/2),by:Math.floor((r.by0+r.by1-1)/2)};
+  return{bx:r.bx0,by:r.by0};
 }
 function _getRoyalRowsNext(bx,by){
   if(!sW||!sH)return null;
-  const bCols=Math.ceil(sW/blockW),bRows=Math.ceil(sH/blockH);
-  if(bx+1<bCols)return{bx:bx+1,by};
-  if(by+1<bRows)return{bx:0,by:by+1};
+  const r=_spotRange();
+  if(bx+1<r.bx1)return{bx:bx+1,by};
+  if(by+1<r.by1)return{bx:r.bx0,by:by+1};
   return null;
 }
 // Move the spotlight focus block by one block in (dx,dy). No-op when spotlight
@@ -2207,10 +2425,10 @@ function _getRoyalRowsNext(bx,by){
 // spatial blocks). If no focus block is set yet, falls back to the start block.
 function _stepFocusBlock(dx,dy){
   if(!focusEnabled||stitchingStyle==="crosscountry"||!sW||!sH)return;
-  const bCols=Math.ceil(sW/blockW),bRows=Math.ceil(sH/blockH);
+  const r=_spotRange();
   const cur=focusBlock||_getStartBlock();
-  const bx=Math.max(0,Math.min(bCols-1,cur.bx+dx));
-  const by=Math.max(0,Math.min(bRows-1,cur.by+dy));
+  const bx=Math.max(r.bx0,Math.min(r.bx1-1,cur.bx+dx));
+  const by=Math.max(r.by0,Math.min(r.by1-1,cur.by+dy));
   if(bx===cur.bx&&by===cur.by&&focusBlock)return;
   setFocusBlock({bx,by});
 }
@@ -2293,7 +2511,10 @@ const threadUsageSummary=useMemo(()=>{
   return{isolated,small,medium,large,total,estChanges,mostScattered,mostClustered};
 },[analysisResult,pat]);
 
-function markColourDone(cid,md){const cur=doneRef.current;if(!pat||!cur)return;let changes=[];let nd=new Uint8Array(cur);for(let i=0;i<pat.length;i++)if(pat[i].id===cid){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0){pushTrackHistory(changes);applyDoneCountsDelta(changes,pat,nd);const _nv=md?1:0;for(let i=0;i<changes.length;i++)drawCellDirectly(changes[i].idx,_nv);skipNextFullRedrawRef.current=true;}doneRef.current=nd;setDone(nd);}
+function markColourDone(cid,md){const cur=doneRef.current;if(!pat||!cur)return;let changes=[];let nd=new Uint8Array(cur);
+  // In a work area "all" means all of this colour inside the area.
+  const _a=areaOn?workArea:null;
+  for(let i=0;i<pat.length;i++)if(pat[i].id===cid&&(!_a||window.WorkArea.containsIndex(_a,i,sW))){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0){pushTrackHistory(changes);applyDoneCountsDelta(changes,pat,nd);const _nv=md?1:0;for(let i=0;i<changes.length;i++)drawCellDirectly(changes[i].idx,_nv);skipNextFullRedrawRef.current=true;}doneRef.current=nd;setDone(nd);}
 function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);setTimeout(()=>setCopied(null),2000);}).catch(()=>{});}
 function copyProgressSummary(){
   let t=totalTime+liveAutoElapsed;
@@ -2573,9 +2794,9 @@ function doSaveProject(finalName){
     achievedMilestones,
     doneSnapshots,
     breadcrumbs,
-    stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence,
+    stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea,
     savedZoom: stitchZoom,
-    savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null
+    savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft + chartScrollOffset().x, top: stitchScrollRef.current.scrollTop + chartScrollOffset().y } : null
   };
   let blob=new Blob([JSON.stringify(project)],{type:"application/json"});
   let url=URL.createObjectURL(blob);
@@ -3085,7 +3306,7 @@ function handleEditInCreator(){
             statsSessions:project.statsSessions, statsSettings:project.statsSettings,
             achievedMilestones:project.achievedMilestones, doneSnapshots:project.doneSnapshots,
             breadcrumbs:project.breadcrumbs, stitchingStyle:project.stitchingStyle,
-            blockW:project.blockW, blockH:project.blockH, focusBlock:project.focusBlock,
+            blockW:project.blockW, blockH:project.blockH, focusBlock:project.focusBlock, workArea:project.workArea,
             startCorner:project.startCorner, colourSequence:project.colourSequence,
             originalPaletteState:project.originalPaletteState,
             singleStitchEdits:project.singleStitchEdits,
@@ -3106,7 +3327,7 @@ function handleEditInCreator(){
   const hsArrH=[...halfStitches.entries()].map(([idx,hs])=>[idx,{fwd:hs.fwd?{id:hs.fwd.id,rgb:hs.fwd.rgb}:undefined,bck:hs.bck?{id:hs.bck.id,rgb:hs.bck.rgb}:undefined}]);
   const hdArrH=[...halfDone.entries()];
   const psArrH=[...partialStitches.entries()];
-  let project={version:11,id:projectIdRef.current||undefined,page:"tracker",name:projectName,createdAt:createdAtRef.current||new Date().toISOString(),updatedAt:new Date().toISOString(),settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"var(--surface)",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice,stitchSpeed,smooth:0,smoothType:"median",orphans:0,wastePrefs},pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,hlRow,hlCol,threadOwned,imgData:null,originalPaletteState,singleStitchEdits:sseArrH,halfStitches:hsArrH,halfDone:hdArrH,partialStitches:psArrH,statsSessions,statsSettings,achievedMilestones,doneSnapshots,breadcrumbs,stitchingStyle,blockW,blockH,focusBlock,startCorner,colourSequence};
+  let project={version:11,id:projectIdRef.current||undefined,page:"tracker",name:projectName,createdAt:createdAtRef.current||new Date().toISOString(),updatedAt:new Date().toISOString(),settings:{sW,sH,maxC:pal.length,bri:0,con:0,sat:0,dith:false,skipBg:false,bgTh:15,bgCol:"var(--surface)",minSt:0,arLock:true,ar:1,fabricCt,skeinPrice,stitchSpeed,smooth:0,smoothType:"median",orphans:0,wastePrefs},pattern:pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb}),bsLines,done:done?Array.from(done):null,parkMarkers,hlRow,hlCol,threadOwned,imgData:null,originalPaletteState,singleStitchEdits:sseArrH,halfStitches:hsArrH,halfDone:hdArrH,partialStitches:psArrH,statsSessions,statsSettings,achievedMilestones,doneSnapshots,breadcrumbs,stitchingStyle,blockW,blockH,focusBlock,startCorner,colourSequence,workArea};
   try{
     // T-3 / INT-4: wrap the handoff in an envelope with a wall-clock
     // timestamp. The Creator drops envelopes older than HANDOFF_TTL_MS so a
@@ -3368,6 +3589,9 @@ function processLoadedProject(project){
   setBlockW(_resolveBlock(project.blockW, _lsW, _fbW));
   setBlockH(_resolveBlock(project.blockH, _lsH, _fbH));
   if(project.focusBlock)setFocusBlock(project.focusBlock);else setFocusBlock(null);
+  // Validated against this pattern's size: the file may come from another
+  // device, an older build, or a pattern since resized in the Creator.
+  setWorkArea(window.WorkArea?window.WorkArea.normalise(project.workArea,nextW,nextH):null);
   setStartCorner(project.startCorner || _lsCorner || (window.UserPrefs && window.UserPrefs.get("trackerStartCorner")) || "TL");
   if(project.colourSequence)setColourSequence(project.colourSequence);
   // Legacy migration: if no statsSessions but totalTime exists, create a synthetic session
@@ -3537,8 +3761,10 @@ function processLoadedProject(project){
       if(project.savedScroll&&stitchScrollRef.current){
         requestAnimationFrame(()=>{
           if(!stitchScrollRef.current)return;
-          stitchScrollRef.current.scrollLeft=project.savedScroll.left;
-          stitchScrollRef.current.scrollTop=project.savedScroll.top;
+          // Saved in chart coordinates; the scroller may be showing a work area.
+          const off=chartScrollOffset();
+          stitchScrollRef.current.scrollLeft=project.savedScroll.left-off.x;
+          stitchScrollRef.current.scrollTop=project.savedScroll.top-off.y;
         });
       }
     },100);
@@ -3937,8 +4163,8 @@ const buildSnapshot = () => {
     singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr, partialStitches: psArr,
     statsSessions, statsSettings, achievedMilestones, doneSnapshots,
     savedZoom: stitchZoom,
-    savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null,
-    breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence,
+    savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft + chartScrollOffset().x, top: stitchScrollRef.current.scrollTop + chartScrollOffset().y } : null,
+    breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea,
     ...v3FieldsRef.current
   };
 };
@@ -3966,7 +4192,7 @@ useEffect(() => {
               statsSessions:project.statsSessions, statsSettings:project.statsSettings,
               achievedMilestones:project.achievedMilestones, doneSnapshots:project.doneSnapshots,
               breadcrumbs:project.breadcrumbs, stitchingStyle:project.stitchingStyle,
-              blockW:project.blockW, blockH:project.blockH, focusBlock:project.focusBlock,
+              blockW:project.blockW, blockH:project.blockH, focusBlock:project.focusBlock, workArea:project.workArea,
               startCorner:project.startCorner, colourSequence:project.colourSequence,
               originalPaletteState:project.originalPaletteState,
               singleStitchEdits:project.singleStitchEdits,
@@ -4098,7 +4324,7 @@ useEffect(() => {
       settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs },
       partialStitches: psArr,
       // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
-      breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence
+      breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea
     };
     lastSnapshotRef.current = project;
     const saveResult = await persistProjectRecord(project);
@@ -4123,7 +4349,7 @@ useEffect(() => {
 }, [projectName, sW, sH, fabricCt, skeinPrice, stitchSpeed, pat, pal, bsLines, done,
     halfStitches, halfDone, partialStitches, parkMarkers, totalTime, liveAutoElapsed, hlRow, hlCol,
     threadOwned, originalPaletteState, singleStitchEdits, statsSessions, statsSettings, achievedMilestones, stitchZoom, doneSnapshots,
-    breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence]);
+    breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea]);
 
 // ── Zoom-adaptive tier helpers ──
 // Compute rendering tier (1–4) from cell size with hysteresis.
@@ -4247,6 +4473,10 @@ function drawStitch(ctx,cSz,viewportRect){
     endX=Math.min(dW,Math.ceil((viewportRect.right-gut+OVERDRAW)/cSz));
     endY=Math.min(dH,Math.ceil((viewportRect.bottom-gut+OVERDRAW)/cSz));
   }
+  // A work area clips the chart to its view: nothing outside is visible, so
+  // nothing outside is drawn.
+  const vb=viewBoundsRef.current;
+  if(vb){startX=Math.max(startX,vb.x0);startY=Math.max(startY,vb.y0);endX=Math.min(endX,vb.x1);endY=Math.min(endY,vb.y1);}
 
   // Tier-aware font sizes
   const symPx=tierSymFontSz(cSz);
@@ -4428,6 +4658,24 @@ function drawStitch(ctx,cSz,viewportRect){
     ctx.fill();ctx.stroke();
   });}
   ctx.strokeStyle="rgba(0,0,0,0.4)";ctx.lineWidth=2;ctx.strokeRect(gut,gut,dW*cSz,dH*cSz);ctx.lineWidth=1;
+  // Work area: fade the margin (context only — it cannot be marked) and
+  // outline the area. The outline sits entirely outside the area, on margin
+  // cells, so the single-cell repaint of a tap inside it never erases it.
+  if(areaOn&&workArea&&startX<endX&&startY<endY){
+    const a=workArea;
+    const ax0=gut+a.x0*cSz,ay0=gut+a.y0*cSz,ax1=gut+a.x1*cSz,ay1=gut+a.y1*cSz;
+    const vx0=gut+startX*cSz,vy0=gut+startY*cSz,vx1=gut+endX*cSz,vy1=gut+endY*cSz;
+    ctx.fillStyle="rgba(239,231,214,0.72)";
+    if(ay0>vy0)ctx.fillRect(vx0,vy0,vx1-vx0,ay0-vy0);
+    if(vy1>ay1)ctx.fillRect(vx0,ay1,vx1-vx0,vy1-ay1);
+    const my0=Math.max(vy0,ay0),my1=Math.min(vy1,ay1);
+    if(my1>my0){
+      if(ax0>vx0)ctx.fillRect(vx0,my0,ax0-vx0,my1-my0);
+      if(vx1>ax1)ctx.fillRect(ax1,my0,vx1-ax1,my1-my0);
+    }
+    ctx.strokeStyle="rgba(27,24,20,0.75)";ctx.lineWidth=2;
+    ctx.strokeRect(ax0-1,ay0-1,ax1-ax0+2,ay1-ay0+2);ctx.lineWidth=1;
+  }
 }
 
 const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
@@ -4438,8 +4686,9 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
     paintedRectRef.current=null;
     return;
   }
-  let tile = chartTileFor(el,scs,sW,sH,G);
-  const chartScale = (typeof window.chartRenderScale==="function")?window.chartRenderScale():1;
+  let tile = chartTileFor(el,scs,sW,sH,G,viewBoundsRef.current);
+  // Budgeted against this tile, not the window-sized worst case.
+  const chartScale = (typeof window.chartRenderScale==="function")?window.chartRenderScale(tile.w*tile.h):1;
   let ctx = applyChartTile(canvas,tile,G,{blankOnMove:false,scale:chartScale}).ctx;
   // R3 — if the browser refused or discarded this backing store, shrink the
   // tile and try once more before painting into a surface that will never
@@ -4466,13 +4715,14 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
 
   let viewportRect = null;
   if (el) {
+    const off = chartScrollOffset(scs);
     viewportRect = {
-      left: el.scrollLeft,
-      top: el.scrollTop,
+      left: el.scrollLeft + off.x,
+      top: el.scrollTop + off.y,
       width: el.clientWidth,
       height: el.clientHeight,
-      right: el.scrollLeft + el.clientWidth,
-      bottom: el.scrollTop + el.clientHeight
+      right: el.scrollLeft + off.x + el.clientWidth,
+      bottom: el.scrollTop + off.y + el.clientHeight
     };
   }
   // On a tile, the paintable region *is* the tile, so ask drawStitch for
@@ -4505,7 +4755,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
   // Overlays share the chart's geometry, so a tile move invalidates them too.
   const tileChanged = !prevTile || prevTile.x!==tile.x || prevTile.y!==tile.y || prevTile.w!==tile.w || prevTile.h!==tile.h || prevTile.full!==tile.full;
   if(tileChanged)redrawChartOverlays();
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,parkLayers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,rowModeActive,currentRow,trackerFabricColour,trackerCanvasTexture]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,parkLayers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,rowModeActive,currentRow,trackerFabricColour,trackerCanvasTexture,viewBounds,areaOn,workArea]);
 
 // Scroll-driven repaint. Previously every scroll frame ran a full
 // renderStitch, which repainted the visible slice plus a 20-cell margin from
@@ -4519,7 +4769,8 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
 const renderStitchIfScrolledOut=useCallback(()=>{
   const painted=paintedRectRef.current, el=stitchScrollRef.current;
   if(painted&&el&&painted.scs===scs){
-    const l=el.scrollLeft, t=el.scrollTop;
+    const off=chartScrollOffset(scs);
+    const l=el.scrollLeft+off.x, t=el.scrollTop+off.y;
     const r=l+el.clientWidth, b=t+el.clientHeight;
     if(l>=painted.left&&t>=painted.top&&r<=painted.right&&b<=painted.bottom)return;
   }
@@ -5016,7 +5267,7 @@ useEffect(()=>{
   let anims=[],animKey="";
   const draw=()=>{
     const ref=chartTileRef.current;
-    const tile=(ref&&ref.w>0)?ref:chartTileFor(stitchScrollRef.current,scs,sW,sH,G);
+    const tile=(ref&&ref.w>0)?ref:chartTileFor(stitchScrollRef.current,scs,sW,sH,G,viewBoundsRef.current);
     if(!tile||!tile.w||!tile.h)return;
     svg.style.left=(tile.x-G)+"px";svg.style.top=(tile.y-G)+"px";
     svg.setAttribute("width",tile.w);svg.setAttribute("height",tile.h);
@@ -5241,7 +5492,8 @@ function handleStitchMouseDown(e){
       const bCols=Math.ceil(sW/blockW),bRows=Math.ceil(sH/blockH);
       const bx=Math.max(0,Math.min(bCols-1,Math.floor(gcA.gx/blockW)));
       const by=Math.max(0,Math.min(bRows-1,Math.floor(gcA.gy/blockH)));
-      setFocusBlock({bx,by});
+      // In a work area Spotlight stays among the area's sections.
+      if(_inSpotRange({bx,by}))setFocusBlock({bx,by});
       return;
     }
   }
@@ -5286,6 +5538,7 @@ function handleStitchMouseDown(e){
     return;
   }
   if(gx<0||gx>=sW||gy<0||gy>=sH||!done)return;
+  if(areaOn&&!window.WorkArea.contains(workArea,gx,gy))return;
   let idx=gy*sW+gx;
 
   // ═══ Tracker: Marking half stitches as done (track mode) ═══
@@ -5597,7 +5850,7 @@ function cycleFocusColour(direction){
   setFocusColour(prev=>{
     if(!focusableColors.length)return prev;
     if(!prev){
-      const first=focusableColors.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];
+      const first=focusableColors.find(p=>{const dc=scopedColourCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];
       return first?first.id:prev;
     }
     const idx=focusableColors.findIndex(p=>p.id===prev);
@@ -5611,7 +5864,7 @@ function cycleFocusColour(direction){
 // as the V key transition.
 function ensureFocusColour(){
   if(focusColour)return;
-  const first=focusableColors.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];
+  const first=focusableColors.find(p=>{const dc=scopedColourCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];
   if(first)setFocusColour(first.id);
 }
 
@@ -5629,7 +5882,7 @@ function jumpToNextStitch(){
   if(!pat||!sW||!sH)return;
   let target=focusColour;
   if(!target){
-    const first=focusableColors.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];
+    const first=focusableColors.find(p=>{const dc=scopedColourCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];
     if(!first)return;
     target=first.id;
     setFocusColour(first.id);
@@ -5644,7 +5897,8 @@ function jumpToNextStitch(){
     }
     return false;
   }
-  function _isOpen(idx){return !cur||!cur[idx];}
+  // In a work area, only its stitches count as somewhere to jump to.
+  function _isOpen(idx){if(areaOn&&!window.WorkArea.containsIndex(workArea,idx,sW))return false;return !cur||!cur[idx];}
   let foundX=-1,foundY=-1;
   if(startCorner==="C"){
     // Nearest unmarked stitch of focus colour to the chart centre.
@@ -5693,13 +5947,14 @@ function jumpToNextStitch(){
     }
   }
   if(foundX<0||foundY<0){
-    try{if(window.Toast&&window.Toast.show)window.Toast.show({message:"No remaining stitches for DMC "+target,type:"info"});}catch(_){}
+    try{if(window.Toast&&window.Toast.show)window.Toast.show({message:"No remaining stitches for DMC "+target+(areaOn?" in this work area":""),type:"info"});}catch(_){}
     return;
   }
   setHlRow(foundY);setHlCol(foundX);
   if(stitchScrollRef.current){
     const el=stitchScrollRef.current;
-    const px=G+foundX*scs+scs/2,py=G+foundY*scs+scs/2;
+    const off=chartScrollOffset();
+    const px=G+foundX*scs+scs/2-off.x,py=G+foundY*scs+scs/2-off.y;
     try{el.scrollTo({left:Math.max(0,px-el.clientWidth/2),top:Math.max(0,py-el.clientHeight/2),behavior:'smooth'});}
     catch(_){el.scrollLeft=Math.max(0,px-el.clientWidth/2);el.scrollTop=Math.max(0,py-el.clientHeight/2);}
   }
@@ -5764,7 +6019,7 @@ useShortcuts(!isActive ? [] : [
       const nextView=stitchView==="symbol"?"colour":stitchView==="colour"?"highlight":"symbol";
       setStitchView(nextView);
       if(nextView==="highlight"&&!focusColour){
-        const first=focusableColors.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];
+        const first=focusableColors.find(p=>{const dc=scopedColourCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];
         if(first)setFocusColour(first.id);
       }
     } },
@@ -5848,7 +6103,10 @@ useShortcuts(!isActive ? [] : [
     run: () => setStitchZoom(z=>Math.max(0.3,+(z-0.1).toFixed(2))) },
   { id: "tracker.zoom.fit", keys: "0", scope: "tracker",
     description: "Zoom to fit",
-    run: () => fitSZ() },
+    run: () => fitChart() },
+  { id: "tracker.workArea.pick", keys: "w", scope: "tracker",
+    description: "Pick a work area",
+    run: () => setAreaPickerOpen(true) },
 
   // Highlight-view-only: focus-colour cycling and highlight modes.
   { id: "tracker.hl.next", keys: ["]", "arrowright"], scope: "tracker.view.highlight",
@@ -5952,8 +6210,11 @@ const _dragMarkCellAtPoint=useCallback(function(cx,cy){
   const gc=gridCoord(stitchRef,{clientX:cx,clientY:cy},scs,G,false,chartTileRef.current);
   if(!gc)return -1;
   if(gc.gx<0||gc.gx>=sW||gc.gy<0||gc.gy>=sH)return -1;
+  // Margin stitches around a work area are context, not part of it: no tap,
+  // drag or range can mark them.
+  if(areaOn&&!window.WorkArea.contains(workArea,gc.gx,gc.gy))return -1;
   return gc.gy*sW+gc.gx;
-},[pat,sW,sH,scs]);
+},[pat,sW,sH,scs,areaOn,workArea]);
 
 const _pulseCells=useCallback(function(idxList){
   // Briefly add a pulse class on overlay cells. The overlay re-renders from
@@ -6524,9 +6785,9 @@ return(
         )}
       </div>
       {/* ─ Active colour tile ─ */}
-      {focusColour&&cmap&&cmap[focusColour]?(()=>{
+      {focusColour&&cmap&&cmap[focusColour]&&(!areaColourCounts||((scopedColourCounts[focusColour]||{}).total+(scopedColourCounts[focusColour]||{}).halfTotal>0))?(()=>{
         const fc=cmap[focusColour];
-        const dc=colourDoneCounts[focusColour]||{total:0,done:0,halfTotal:0,halfDone:0};
+        const dc=scopedColourCounts[focusColour]||{total:0,done:0,halfTotal:0,halfDone:0};
         const totalWH=dc.total+dc.halfTotal*0.5;
         const doneWH=dc.done+dc.halfDone*0.5;
         const pct=totalWH>0?Math.round(doneWH/totalWH*100):0;
@@ -6584,7 +6845,7 @@ return(
                     >P{parkCountsByColour[p.id]>1?"\u00D7"+parkCountsByColour[p.id]:""}</button>}
                     <button
                       className="ppal-tile-done-btn"
-                      onClick={e=>{e.stopPropagation();if(!complete){const u=dc.total-dc.done;if(u>50&&!confirm("Mark all "+u+" stitches of DMC "+p.id+" as done?"))return;}markColourDone(p.id,!complete);}}
+                      onClick={e=>{e.stopPropagation();if(!complete){const u=dc.total-dc.done;if(u>50&&!confirm("Mark all "+u+" stitches of DMC "+p.id+(areaOn?" in this work area":"")+" as done?"))return;}markColourDone(p.id,!complete);}}
                       style={{borderColor:complete?"var(--danger-soft)":"var(--success-soft)",background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)"}}
                       title={complete?"Mark as not done":"Mark all as done"}
                     >{complete?<>{Icons.undo?Icons.undo():null}{" Undo"}</>:<>{Icons.check?Icons.check():null}{" Done"}</>}</button>
@@ -6655,6 +6916,36 @@ return(
       return null;
     })()}
 
+    {/* Work area bar: which part of the pattern the chart is showing, its
+        progress, and stepping to the next unfinished area. */}
+    {areaOn&&areaStats&&(()=>{
+      const pct=areaStats.total?Math.floor(areaStats.done/areaStats.total*1000)/10:100;
+      const hasPrev=!!neighbourArea(-1,false),hasNext=!!neighbourArea(1,false);
+      const finished=areaStats.total>0&&areaStats.done>=areaStats.total;
+      return <div className="work-area-bar" role="region" aria-label="Work area">
+        <span className="work-area-bar__title">{Icons.crop()}<span>Work area</span><span className="work-area-bar__range">{window.WorkArea.describe(workArea)}</span></span>
+        <span className="work-area-bar__progress">
+          <span className="work-area-bar__track" aria-hidden="true"><span className="work-area-bar__fill" style={{display:"block",width:pct+"%"}}/></span>
+          <span className="work-area-bar__pct" aria-label={"Work area "+pct+"% done, "+(areaStats.total-areaStats.done).toLocaleString("en-GB")+" stitches left"}>{pct%1===0?pct.toFixed(0):pct.toFixed(1)}%</span>
+        </span>
+        {finished&&<button type="button" className="g-btn g-btn--primary" onClick={()=>{const n=nextUnfinishedArea();if(n)enterWorkArea(n);else{try{window.Toast&&window.Toast.show&&window.Toast.show({message:"Every area of this size is done",type:"success"});}catch(_){}}}}>{Icons.check()} Finished: next area</button>}
+        <span className="work-area-bar__actions">
+          <span className="work-area-seg" role="group" aria-label="Margin around the area">
+            <span className="work-area-seg__label">Margin</span>
+            {[0,3,10].map(m=><button key={m} type="button" aria-pressed={workAreaMargin===m} onClick={()=>setWorkAreaMargin(m)}>{m}</button>)}
+          </span>
+          <button type="button" className="work-area-bar__icon-btn" disabled={!hasPrev} onClick={()=>stepWorkArea(-1)} aria-label="Previous unfinished area" title="Previous unfinished area">{Icons.chevronLeft()}</button>
+          <button type="button" className="work-area-bar__icon-btn" disabled={!hasNext} onClick={()=>stepWorkArea(1)} aria-label="Next unfinished area" title="Next unfinished area">{Icons.chevronRight()}</button>
+          <button type="button" className="g-btn" onClick={()=>setAreaPickerOpen(true)}>Change</button>
+          <button type="button" className="g-btn" onClick={exitWorkArea}>{Icons.focusExit()} Show whole pattern</button>
+        </span>
+      </div>;
+    })()}
+    {areaPickerOpen&&pat&&window.WorkAreaPicker&&React.createElement(window.WorkAreaPicker,{
+      pat,done,halfStitches,halfDone,sW,sH,blockW,blockH,current:workArea,
+      onClose:()=>setAreaPickerOpen(false),
+      onConfirm:(rect)=>{setAreaPickerOpen(false);enterWorkArea(rect);}
+    })}
     {/* Height lives in CSS (.tracker-chart-scroll), not inline. It used to be
         an inline max-height of 600px, which no media query could override, so
         a tablet with 1300 CSS px of height showed the chart through the same
@@ -6662,18 +6953,25 @@ return(
     <div ref={stitchScrollRef} className={"tracker-chart-scroll"+(drawer?" is-drawer":"")} onScroll={()=>{if(!scrollRafRef.current){scrollRafRef.current=requestAnimationFrame(()=>{renderStitchIfScrolledOut();scrollRafRef.current=null;})}}} style={{overflow:"auto",border:"0.5px solid var(--border)",borderRadius:"8px 8px 0 0",background:"var(--surface-tertiary)",cursor:isPanning?"grabbing":isSpaceDownRef.current?"grab":(!isEditMode&&stitchMode==="track"?(isShiftDown&&_dragMarkActive?"cell":"crosshair"):"default"),transition:"max-height 0.3s",position:"relative"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}>
       <div style={{ position: 'sticky', top: 0, zIndex: 3, display: 'flex', width: 'max-content', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ width: G, height: G, flexShrink: 0, position: 'sticky', left: 0, background: 'var(--surface)', borderRight: '1px solid var(--border)', zIndex: 4 }}></div>
-        {colRuler}
+        {areaOn?colRuler.slice(viewBounds.x0,viewBounds.x1):colRuler}
       </div>
       <div style={{ display: 'flex', width: 'max-content' }}>
         <div style={{ position: 'sticky', left: 0, zIndex: 3, width: G, background: 'var(--surface)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
-          {rowRuler}
+          {areaOn?rowRuler.slice(viewBounds.y0,viewBounds.y1):rowRuler}
         </div>
         {/* Explicit size: the chart canvas is absolutely positioned now that it
             is a viewport-sized tile, so it no longer gives this box its
             dimensions. These are exactly what the full-size canvas used to
             contribute (its width less the -G margin), which is what keeps the
             scroller's extent — and every saved scroll position — unchanged. */}
-        <div style={{ position: 'relative', width: sW*scs+2, height: sH*scs+2 }}>
+        {/* Sized to the view: the whole pattern, or a work area plus its
+            margin. The inner layer keeps every child in whole-chart
+            coordinates and is shifted so the view's corner sits at this box's
+            corner; overflow is hidden so nothing outside the view adds to the
+            scroller's extent. With no work area the shift is 0 and the
+            geometry is exactly as before. */}
+        <div className="tracker-chart-view" style={{ position: 'relative', width: (viewBounds.x1-viewBounds.x0)*scs+2, height: (viewBounds.y1-viewBounds.y0)*scs+2, overflow: areaOn ? 'hidden' : undefined }}>
+        <div className="tracker-chart-layer" style={{ position: 'absolute', left: -viewBounds.x0*scs, top: -viewBounds.y0*scs, width: sW*scs+2, height: sH*scs+2 }}>
           <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid" style={{display:"block",position:"absolute",zIndex:2, left: -G, top: -G, touchAction:_dragMarkActive?"none":"pan-x pan-y"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} {...dragMarkHandlers}/>
 
           {/* B2 — drag-mark / range-select visual overlay (touch) */}
@@ -6739,6 +7037,7 @@ return(
             }} />
           </>
         </div>
+        </div>
       </div>
     </div>
 
@@ -6775,9 +7074,13 @@ return(
         <span className="ppal-mode-btn-icon">{Icons.parkFlag()}</span>
         <span className="ppal-mode-btn-label">Nav</span>
       </button>
-      <button className="ppal-mode-btn" onClick={fitSZ} title="Fit to screen (0)">
+      <button className="ppal-mode-btn" onClick={fitChart} title={areaOn?"Fit the work area (0)":"Fit to screen (0)"}>
         <span className="ppal-mode-btn-icon">{Icons.focus()}</span>
         <span className="ppal-mode-btn-label">Fit</span>
+      </button>
+      <button className={"ppal-mode-btn"+(areaOn?" ppal-mode-btn--on":"")} onClick={()=>setAreaPickerOpen(true)} aria-pressed={areaOn} title={areaOn?"Change work area (W)":"Pick a work area (W)"}>
+        <span className="ppal-mode-btn-icon">{Icons.crop()}</span>
+        <span className="ppal-mode-btn-label">Area</span>
       </button>
       <button className="ppal-mode-btn" onClick={undoTrack} disabled={!trackHistory.length} title="Undo (Ctrl+Z)" aria-label={trackHistory.length>0?"Undo "+trackHistory.length+" steps":"Nothing to undo"}>
         <span className="ppal-mode-btn-icon">{Icons.undo()}</span>
@@ -7228,7 +7531,7 @@ return(
     const activeSessionIdx=statsSessions?statsSessions.length:0;
     const sessionBreadcrumbs=(breadcrumbs||[]).filter(b=>b&&b.sessionIdx===activeSessionIdx);
     const firstSessionBreadcrumb=sessionBreadcrumbs.length>0?sessionBreadcrumbs[0]:null;
-    return <SessionSummaryModal data={sessionSummaryData} prevAvgSpeed={statsSessions&&statsSessions.length>1?Math.round(statsSessions.slice(0,-1).reduce((s,sess)=>s+(typeof sess.netStitches==='number'?sess.netStitches:(sess.stitchesCompleted||0)),0)/Math.max(1,statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.durationSeconds||0),0))*3600):0} hasBreadcrumbs={sessionBreadcrumbs.length>0} onViewBreadcrumbs={()=>{setBreadcrumbVisible(true);setSessionSummaryData(null);if(firstSessionBreadcrumb&&stitchScrollRef.current){const b=firstSessionBreadcrumb;const cx=G+b.bx*blockW*scs+blockW*scs/2;const cy=G+b.by*blockH*scs+blockH*scs/2;const el=stitchScrollRef.current;el.scrollLeft=Math.max(0,cx-el.clientWidth/2);el.scrollTop=Math.max(0,cy-el.clientHeight/2);}}} onClose={()=>setSessionSummaryData(null)}/>;
+    return <SessionSummaryModal data={sessionSummaryData} prevAvgSpeed={statsSessions&&statsSessions.length>1?Math.round(statsSessions.slice(0,-1).reduce((s,sess)=>s+(typeof sess.netStitches==='number'?sess.netStitches:(sess.stitchesCompleted||0)),0)/Math.max(1,statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.durationSeconds||0),0))*3600):0} hasBreadcrumbs={sessionBreadcrumbs.length>0} onViewBreadcrumbs={()=>{setBreadcrumbVisible(true);setSessionSummaryData(null);if(firstSessionBreadcrumb&&stitchScrollRef.current){const b=firstSessionBreadcrumb;const off=chartScrollOffset();const cx=G+b.bx*blockW*scs+blockW*scs/2-off.x;const cy=G+b.by*blockH*scs+blockH*scs/2-off.y;const el=stitchScrollRef.current;el.scrollLeft=Math.max(0,cx-el.clientWidth/2);el.scrollTop=Math.max(0,cy-el.clientHeight/2);}}} onClose={()=>setSessionSummaryData(null)}/>;
   })()}
   {resumeRecap&&(()=>{
     // A3: Resume recap modal — fires once per project load when prior sessions exist.

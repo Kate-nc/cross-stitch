@@ -118,13 +118,17 @@ function makeTrackerFixture(opts) {
   const name = opts.name || `Fixture ${sW}x${sH}`;
 
   ensureTmp();
+  const cols = fixturePalette(nColours);
   // Signature in the filename, so changing any parameter yields a new file
-  // instead of silently reusing a stale one.
-  const sig = `${sW}x${sH}-c${nColours}-d${Math.round(doneFraction * 100)}`;
+  // instead of silently reusing a stale one. That includes the palette: it
+  // comes from dmc-data.js, and a file cached before the catalogue changed
+  // would otherwise disagree with fixturePalette() — so specs that locate a
+  // colour through it would look in the wrong cells.
+  let h = 5381;
+  for (const c of cols) for (let i = 0; i < c.id.length; i++) h = ((h * 33) ^ c.id.charCodeAt(i)) >>> 0;
+  const sig = `${sW}x${sH}-c${nColours}-d${Math.round(doneFraction * 100)}-p${h.toString(16)}`;
   const file = path.join(TMP, `tracker-${sig}.json`);
   if (fs.existsSync(file)) return file;
-
-  const cols = fixturePalette(nColours);
 
   const total = sW * sH;
   // One shared object per colour: JSON.stringify expands each reference anyway,

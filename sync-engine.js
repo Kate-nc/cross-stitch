@@ -1327,6 +1327,16 @@ const SyncEngine = (() => {
     return (new Date(a).getTime() >= new Date(b).getTime()) ? a : b;
   }
 
+  // Newer `setAt` wins; null means "never used" and loses to any value. A
+  // tie keeps local so repeated merges are a no-op.
+  function mergeWorkArea(local, remote) {
+    if (!remote || typeof remote !== "object") return local || null;
+    if (!local || typeof local !== "object") return remote;
+    var lt = typeof local.setAt === "number" && isFinite(local.setAt) ? local.setAt : 0;
+    var rt = typeof remote.setAt === "number" && isFinite(remote.setAt) ? remote.setAt : 0;
+    return rt > lt ? remote : local;
+  }
+
   function mergeTrackingProgress(local, remote, metaOverrides) {
     // Merge a project where the chart structure is identical but tracking differs.
     // Take the LOCAL project as base, deep-clone mutable sub-objects to avoid
@@ -1487,6 +1497,14 @@ const SyncEngine = (() => {
     for (var mpi = 0; mpi < META_PREFER_PRESENT.length; mpi++) {
       resolveMetaField(META_PREFER_PRESENT[mpi], true);
     }
+
+    // Work area (tracker): the section of the chart the stitcher is focused
+    // on. Resolved by its own `setAt` rather than the project's updatedAt —
+    // stitching on one device bumps updatedAt without the stitcher having
+    // chosen anything, which must not undo an area picked on the other. Same
+    // rule as WorkArea.merge in work-area.js; kept inline because this file
+    // loads on pages that do not load that one.
+    merged.workArea = mergeWorkArea(local.workArea, remote.workArea);
 
     return merged;
   }
