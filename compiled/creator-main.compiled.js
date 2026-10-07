@@ -1548,9 +1548,9 @@ function CreatorApp({
     sW: state.sW,
     sH: state.sH,
     pal: state.pal,
-    fabricColour: state.fabricColour,
     partialStitches: state.partialStitches,
     bsLines: state.bsLines,
+    fabricColour: state.fabricColour,
     selectionMask: state.hasSelection ? state.selectionMask : null,
     onApply: function (dstThread, opts) {
       var src = state.colourReplaceModal;

@@ -3787,15 +3787,21 @@ window.useMagicWand = function useMagicWand(state) {
     if (psRes.psChanges.length) state.setPartialStitches(psRes.map);
     if (bsRes.count) state.setBsLines(bsRes.lines);
     var r = state.buildPaletteWithScratch(np);
-    if (!r.cmap[dstEntry.id]) {
-      var scratchEntry = Object.assign({ type: "solid", count: 0 }, dstEntry);
-      state.setScratchPalette(function(prev) {
-        return prev.some(function(entry) { return entry.id === dstEntry.id; }) ? prev : prev.concat([scratchEntry]);
-      });
-      r = {
-        pal: r.pal.concat([scratchEntry]),
-        cmap: Object.assign({}, r.cmap, { [dstEntry.id]: scratchEntry })
-      };
+    // The palette is rebuilt from full stitches only. If the new colour is
+    // used just by part stitches / backstitch, keep it in the scratch palette
+    // so it keeps its palette entry and symbol.
+    if ((psRes.psChanges.length || bsRes.count) && !r.cmap[dstEntry.id]) {
+      var usedSyms = new Set(r.pal.map(function(p) { return p.symbol; }));
+      var SY = typeof SYMS !== 'undefined' ? SYMS : [];
+      var sym = SY.find(function(x) { return !usedSyms.has(x); }) || (SY.length ? SY[r.pal.length % SY.length] : undefined);
+      var keep = { id: dstEntry.id, type: dstEntry.type || 'solid', name: dstEntry.name || dstEntry.id,
+        rgb: dstEntry.rgb, lab: dstEntry.lab, count: 0, symbol: sym };
+      if (dstEntry.threads) keep.threads = dstEntry.threads;
+      if (state.setScratchPalette) {
+        state.setScratchPalette(function(prev) { return prev.filter(function(p) { return p.id !== keep.id; }).concat([keep]); });
+      }
+      var keepMap = {}; keepMap[keep.id] = keep;
+      r = { pal: r.pal.concat([keep]), cmap: Object.assign({}, r.cmap, keepMap) };
     }
     state.setPal(r.pal); state.setCmap(r.cmap);
     // Returned so callers can offer a guarded "Undo" (only while this entry
@@ -6330,6 +6336,7 @@ window.useCreatorState = function useCreatorState() {
     bsLines: bsLines, setBsLines: setBsLines,
     // Colour replacement also recolours half/quarter stitches.
     partialStitches: partialStitches, setPartialStitches: setPartialStitches,
+    setScratchPalette: setScratchPalette,
     editHistory: editHistory, setEditHistory: setEditHistory,
     setRedoHistory: setRedoHistory, EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
     setPat: setPat, setPal: setPal, setCmap: setCmap,
@@ -16533,6 +16540,17 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
       return out;
     }, [sections, srcId]);
     var anyThreads = sections.some(function(sec) { return sec.items.length > 0; });
+    // A thread can be listed twice (Closest + All), but a single-select
+    // listbox must mark one option selected: the active one if it shows the
+    // picked thread, else the first option that does.
+    var selectedKey = null;
+    if (picked) {
+      for (var oi = 0; oi < options.length; oi++) {
+        if (options[oi].thread.id !== picked.id) continue;
+        if (options[oi].key === activeKey) { selectedKey = activeKey; break; }
+        if (selectedKey === null) selectedKey = options[oi].key;
+      }
+    }
     var optionDomId = function(key) { return 'crm-opt-' + key.replace(/[^A-Za-z0-9_-]/g, '_'); };
 
     function activate(opt) {
@@ -16730,7 +16748,7 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
     function threadRow(item, sectionKey) {
       var t = item.thread;
       var isSrc = t.id === srcId;
-      var isPicked = !!picked && picked.id === t.id;
+      var isPicked = (sectionKey + ':' + t.id) === selectedKey;
       var inPal = palIds.has(t.id);
       var simLabel = CR && CR.similarityLabel && item.dE != null ? CR.similarityLabel(item.dE) : null;
       var tag = function(text, title) {
@@ -16851,7 +16869,8 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
           h('span', { 'aria-hidden': 'true', style: { color: 'var(--text-tertiary)', display: 'inline-flex', flexShrink: 0 } },
             window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
           h(PatternThumb, {
-            pat: pat, sW: sW, sH: sH, fabricColour: props.fabricColour, srcIds: srcIds, dst: picked, mask: previewMask,
+            pat: pat, sW: sW, sH: sH, srcIds: srcIds, dst: picked, mask: previewMask,
+            fabricColour: props.fabricColour,
             swapRgb: swapping ? srcRgb : null,
             dimmed: !picked,
             caption: picked ? 'After' : 'Pick a thread to preview',

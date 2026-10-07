@@ -147,6 +147,17 @@
       return out;
     }, [sections, srcId]);
     var anyThreads = sections.some(function(sec) { return sec.items.length > 0; });
+    // A thread can be listed twice (Closest + All), but a single-select
+    // listbox must mark one option selected: the active one if it shows the
+    // picked thread, else the first option that does.
+    var selectedKey = null;
+    if (picked) {
+      for (var oi = 0; oi < options.length; oi++) {
+        if (options[oi].thread.id !== picked.id) continue;
+        if (options[oi].key === activeKey) { selectedKey = activeKey; break; }
+        if (selectedKey === null) selectedKey = options[oi].key;
+      }
+    }
     var optionDomId = function(key) { return 'crm-opt-' + key.replace(/[^A-Za-z0-9_-]/g, '_'); };
 
     function activate(opt) {
@@ -344,7 +355,7 @@
     function threadRow(item, sectionKey) {
       var t = item.thread;
       var isSrc = t.id === srcId;
-      var isPicked = !!picked && picked.id === t.id;
+      var isPicked = (sectionKey + ':' + t.id) === selectedKey;
       var inPal = palIds.has(t.id);
       var simLabel = CR && CR.similarityLabel && item.dE != null ? CR.similarityLabel(item.dE) : null;
       var tag = function(text, title) {
@@ -465,7 +476,8 @@
           h('span', { 'aria-hidden': 'true', style: { color: 'var(--text-tertiary)', display: 'inline-flex', flexShrink: 0 } },
             window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
           h(PatternThumb, {
-            pat: pat, sW: sW, sH: sH, fabricColour: props.fabricColour, srcIds: srcIds, dst: picked, mask: previewMask,
+            pat: pat, sW: sW, sH: sH, srcIds: srcIds, dst: picked, mask: previewMask,
+            fabricColour: props.fabricColour,
             swapRgb: swapping ? srcRgb : null,
             dimmed: !picked,
             caption: picked ? 'After' : 'Pick a thread to preview',
