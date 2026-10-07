@@ -49,7 +49,7 @@ A digital replacement for a printed chart while you stitch.
 
 - **Tracking:** Click, tap, or drag to mark full stitches and half-stitches as done. Full undo history.
 - **Views:** Symbol, Colour + Symbol, or Highlight mode (isolate, outline, tint, or spotlight a single active colour).
-- **Navigation:** Place a guide crosshair on the canvas. In navigate mode, clicking sets per-colour parking markers.
+- **Navigation:** Place a guide crosshair on the canvas. Right-click a stitch (or press and hold it in navigate mode on touch) to mark a parked thread in that stitch's colour.
 - **Colours drawer:** Per-colour progress percentages and stitch counts. Click a colour to highlight only those stitches.
 - **Session timer:** Records the start/end of each stitching session and estimates your completion date based on actual stitching speed.
 - **Import:** Load projects from `.oxs` (KG-Chart / Pattern Keeper XML), `.json` project files, pixel-art images (`.png`, `.jpg`), or extracted PDF patterns.

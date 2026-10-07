@@ -138,3 +138,38 @@ describe('Park placement — cell under the pointer', () => {
     for (const c of calls) expect(c).toMatch(/,\s*G\s*,\s*false$/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Parking takes its colour from the stitch. The colour picker that used to
+// feed `selectedColorId` was removed from the tracker, which left parking
+// unreachable; the marker now belongs to the stitch it is placed on.
+// ---------------------------------------------------------------------------
+describe('Parking gestures — colour from the stitch', () => {
+  test('toggleParkAt reads the colour from the cell, not a picker', () => {
+    expect(src).toMatch(/function toggleParkAt\(gx,gy\)/);
+    expect(src).toMatch(/const colorId=cell\.id;/);
+    expect(src).not.toMatch(/colorId:selectedColorId/);
+  });
+
+  test('a finished stitch cannot be parked on', () => {
+    expect(src).toMatch(/const cur=doneRef\.current\|\|done;\s*if\(cur&&cur\[idx\]\)\{/);
+  });
+
+  test('canvas wires right-click and the Nav-mode press-and-hold', () => {
+    expect(src).toMatch(/\{\.\.\.dragMarkHandlers\} onContextMenu=\{handleStitchContextMenu\}/);
+    expect(src).toMatch(/onPointerDownCapture=\{handleCanvasPointerDownCapture\}/);
+    expect(src).toMatch(/onPointerCancelCapture=\{clearNavHold\}/);
+  });
+
+  test('a touch long-press contextmenu never parks (Mark mode owns it for rectangle select)', () => {
+    expect(src).toMatch(/if\(lastPointerTypeRef\.current!=="mouse"\)\{\s*if\(stitchMode==="navigate"\)e\.preventDefault\(\);\s*return;\s*\}/);
+  });
+
+  test('right mouse button does not fall through to the mousedown handlers', () => {
+    expect(src).toMatch(/function handleStitchMouseDown\(e\)\{[\s\S]{0,400}if\(e\.button===2\)return;/);
+  });
+
+  test('a click straight after a fired hold is ignored in Nav mode', () => {
+    expect(src).toMatch(/if\(Date\.now\(\)<suppressNavClickUntilRef\.current\)return;/);
+  });
+});

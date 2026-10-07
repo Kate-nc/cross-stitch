@@ -148,14 +148,13 @@ Place a guide crosshair on the chart to help you find your spot.
 
 Mark where you "parked" so you know exactly where to pick up next time.
 
-**Set a marker:**
-1. Click **Navigate mode** in the toolbar
-2. Click on the chart where you want to mark
-3. A circle appears on that stitch
+**Set a marker:** right-click the stitch where the thread is parked (in Mark or Navigate mode). On a touch screen, switch to **Navigate mode** and press and hold the stitch. A small triangle in the stitch's colour appears in its corner. The marker always takes the colour of the stitch it sits on, so there is no colour to pick first.
 
-**Multiple markers:** You can place multiple parking markers (one per colour you're actively stitching).
+**Remove a marker:** right-click (or press and hold) the same stitch again.
 
-**Clear markers:** Click **Clear all markers** to remove them.
+**Multiple markers:** You can park as many threads as you like, one marker per stitch.
+
+**Hide or clear markers:** The **Park markers** section of the sidebar lists every parked colour with a checkbox to hide it, plus **Clear all**.
 
 ## Session Timer & Completion Estimates
 

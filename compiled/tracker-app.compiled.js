@@ -2627,6 +2627,13 @@ function TrackerApp({
     pinchAnchorScreen: null
   });
   const hasTouchRef = useRef(typeof window !== "undefined" && "ontouchstart" in window);
+  // Parking gestures (see toggleParkAt): the pointer type behind the latest
+  // press, so a contextmenu event can tell a right-click from a touch
+  // long-press; the pending Nav-mode press-and-hold; and the time until which
+  // the compatibility mousedown that follows a fired hold is ignored.
+  const lastPointerTypeRef = useRef("mouse");
+  const navHoldRef = useRef(null);
+  const suppressNavClickUntilRef = useRef(0);
   // Stable handler refs — point to latest function each render; listeners attach once
   const touchStartHandlerRef = useRef(null);
   const touchMoveHandlerRef = useRef(null);
@@ -8911,6 +8918,132 @@ function TrackerApp({
     const hs = halfStitches.get(idx);
     return hs && hs[dir] && hs[dir].id === focusColour;
   }
+
+  // ═══ Parking ═══
+  // A park marker shows where a thread is waiting on the front of the fabric.
+  // The thread parked on a stitch is that stitch's colour, so the marker takes
+  // its colour from the stitch and there is nothing to pick first (Pattern
+  // Keeper and Markup R-XP work the same way). Parking a stitch that already
+  // holds its marker removes it. Reached by right-click (desktop, any mode) or
+  // press-and-hold in Navigate mode (touch). Returns true if anything changed.
+  function toggleParkAt(gx, gy) {
+    if (!pat || !cmap || gx < 0 || gx >= sW || gy < 0 || gy >= sH) return false;
+    const idx = gy * sW + gx;
+    const cell = pat[idx];
+    if (!cell || cell.id === "__skip__" || cell.id === "__empty__") return false;
+    const info = cmap[cell.id];
+    if (!info) return false;
+    const cur = doneRef.current || done;
+    if (cur && cur[idx]) {
+      try {
+        if (window.Toast && window.Toast.show) window.Toast.show({
+          message: "That stitch is already done. Park on the next stitch you'll make in this colour.",
+          type: "info",
+          duration: 3000
+        });
+      } catch (_) {}
+      return false;
+    }
+    const colorId = cell.id;
+    setParkMarkers(prev => {
+      const existing = prev.findIndex(m => m.x === gx && m.y === gy && m.colorId === colorId);
+      if (existing >= 0) return prev.filter((_, i) => i !== existing);
+      // Multi-colour parking — Option A: auto-rotate corners.
+      // Pick the next free corner at this cell in [BL, BR, TR, TL]
+      // order so markers already on the cell (e.g. synced from an older
+      // version that parked any colour anywhere) are not overdrawn. If all
+      // four are taken, replace the OLDEST marker at this cell (FIFO).
+      const ORDER = ["BL", "BR", "TR", "TL"];
+      const atCell = prev.filter(m => m.x === gx && m.y === gy);
+      const used = new Set(atCell.map(m => m.corner || "BL"));
+      let corner = ORDER.find(c => !used.has(c));
+      let next = prev;
+      if (!corner) {
+        // All four corners occupied — evict the oldest at this cell.
+        const oldestIdx = prev.findIndex(m => m === atCell[0]);
+        if (oldestIdx >= 0) next = prev.filter((_, i) => i !== oldestIdx);
+        corner = atCell[0].corner || "BL";
+      }
+      return [...next, {
+        x: gx,
+        y: gy,
+        colorId,
+        rgb: info.rgb,
+        corner
+      }];
+    });
+    return true;
+  }
+
+  // Desktop: right-click a stitch to park / unpark it, in Mark or Navigate
+  // mode. A touch long-press also raises contextmenu; in Mark mode that
+  // gesture belongs to useDragMark's rectangle select, and in Navigate mode
+  // the press-and-hold recogniser below does the parking, so for touch we
+  // only keep the browser's own menu out of the way.
+  function handleStitchContextMenu(e) {
+    if (dragMarkHandlers.onContextMenu) dragMarkHandlers.onContextMenu(e);
+    if (e.defaultPrevented || isEditMode || !pat) return;
+    if (lastPointerTypeRef.current !== "mouse") {
+      if (stitchMode === "navigate") e.preventDefault();
+      return;
+    }
+    const gc = gridCoord(stitchRef, e, scs, G, false, chartTileRef.current);
+    // Off the chart (the gutter): leave the browser menu alone.
+    if (!gc || gc.gx < 0 || gc.gx >= sW || gc.gy < 0 || gc.gy >= sH) return;
+    e.preventDefault();
+    toggleParkAt(gc.gx, gc.gy);
+  }
+
+  // Touch / pen press-and-hold in Navigate mode parks the stitch. Capture-
+  // phase handlers so they sit alongside useDragMark's (idle in this mode)
+  // rather than replacing them. The hold is abandoned if the finger moves
+  // past the tap slop, a second finger lands (pinch), or the browser takes
+  // the gesture over for a native pan (pointercancel).
+  function clearNavHold() {
+    const h = navHoldRef.current;
+    if (h) {
+      clearTimeout(h.timer);
+      navHoldRef.current = null;
+    }
+  }
+  function handleCanvasPointerDownCapture(e) {
+    lastPointerTypeRef.current = e.pointerType || "mouse";
+    clearNavHold();
+    if (stitchMode !== "navigate" || isEditMode || !pat) return;
+    if (!e.pointerType || e.pointerType === "mouse" || e.isPrimary === false) return;
+    const x = e.clientX,
+      y = e.clientY;
+    const ms = window.TouchConstants && window.TouchConstants.LONG_PRESS_MS || 500;
+    const timer = setTimeout(() => {
+      navHoldRef.current = null;
+      const gc = gridCoord(stitchRef, {
+        clientX: x,
+        clientY: y
+      }, scs, G, false, chartTileRef.current);
+      if (!gc) return;
+      // The finger lifting after a hold can still produce a compatibility
+      // mousedown, which would move the guide crosshair onto the stitch.
+      suppressNavClickUntilRef.current = Date.now() + 800;
+      if (toggleParkAt(gc.gx, gc.gy)) {
+        try {
+          if (navigator.vibrate) navigator.vibrate(10);
+        } catch (_) {}
+      }
+    }, ms);
+    navHoldRef.current = {
+      timer,
+      x,
+      y,
+      id: e.pointerId
+    };
+  }
+  function handleCanvasPointerMoveCapture(e) {
+    const h = navHoldRef.current;
+    if (!h || e.pointerId !== h.id) return;
+    const slop = window.TouchConstants && window.TouchConstants.TAP_SLOP_PX || 10;
+    if (Math.abs(e.clientX - h.x) > slop || Math.abs(e.clientY - h.y) > slop) clearNavHold();
+  }
+  useEffect(() => clearNavHold, []);
   function handleStitchMouseDown(e) {
     if (!stitchRef.current || !pat) return;
     if (e.button === 1 || isSpaceDownRef.current) {
@@ -8918,6 +9051,9 @@ function TrackerApp({
       startPan(e);
       return;
     }
+    // Right-click parks (handleStitchContextMenu). Without this a right-click
+    // also moved the guide in Navigate mode and toggled half stitches in Mark.
+    if (e.button === 2) return;
     // Alt+click: relocate the spotlight focus block to the clicked cell's block.
     // Works in both Mark and Navigate modes; bypasses edit-mode cell editor too.
     // No-op when spotlight is off or the stitching style has no spatial blocks.
@@ -8968,40 +9104,12 @@ function TrackerApp({
       gy
     } = gc;
     if (stitchMode === "navigate") {
-      if (e.shiftKey || !selectedColorId || !cmap || !cmap[selectedColorId]) {
-        if (gx >= 0 && gx < sW && gy >= 0 && gy < sH) {
-          setHlRow(gy);
-          setHlCol(gx);
-        }
-      } else {
-        if (gx >= 0 && gx < sW && gy >= 0 && gy < sH) {
-          let existing = parkMarkers.findIndex(m => m.x === gx && m.y === gy && m.colorId === selectedColorId);
-          if (existing >= 0) setParkMarkers(prev => prev.filter((_, i) => i !== existing));else setParkMarkers(prev => {
-            // Multi-colour parking — Option A: auto-rotate corners.
-            // Pick the next free corner at this cell in [BL, BR, TR, TL]
-            // order so up to 4 colours can be parked on the same cell
-            // without visually overwriting each other. If all four are
-            // taken, replace the OLDEST marker at this cell (FIFO).
-            const ORDER = ["BL", "BR", "TR", "TL"];
-            const atCell = prev.filter(m => m.x === gx && m.y === gy);
-            const used = new Set(atCell.map(m => m.corner || "BL"));
-            let corner = ORDER.find(c => !used.has(c));
-            let next = prev;
-            if (!corner) {
-              // All four corners occupied — evict the oldest at this cell.
-              const oldestIdx = prev.findIndex(m => m === atCell[0]);
-              if (oldestIdx >= 0) next = prev.filter((_, i) => i !== oldestIdx);
-              corner = atCell[0].corner || "BL";
-            }
-            return [...next, {
-              x: gx,
-              y: gy,
-              colorId: selectedColorId,
-              rgb: cmap[selectedColorId].rgb,
-              corner
-            }];
-          });
-        }
+      // A click drops the guide crosshair; parking is right-click or
+      // press-and-hold (toggleParkAt).
+      if (Date.now() < suppressNavClickUntilRef.current) return;
+      if (gx >= 0 && gx < sW && gy >= 0 && gy < sH) {
+        setHlRow(gy);
+        setHlCol(gx);
       }
       return;
     }
@@ -11326,7 +11434,7 @@ function TrackerApp({
         gridTemplateColumns: "1fr 1fr",
         gap: "6px 24px"
       }
-    }, [["Pan", isTouch ? "Drag one finger across the canvas" : "Hold Space + drag  ·  or middle-click drag"], ["Zoom in / out", isTouch ? "Pinch two fingers apart / together" : "Ctrl + scroll  ·  or use − / + buttons"], ["Zoom to fit", "Tap the Fit button"], ["Mark a stitch", isTouch ? "Tap a cell" : "Click a cell"], ["Mark multiple", isTouch ? "Tap, then drag across cells" : "Click + drag across cells — all set to same state"], ["Select a rectangle", isTouch ? "Long-press a cell, then tap another" : "Hold Shift + click another cell"], ["Undo last marks", "Undo button (top right)"], stitchView === "highlight" ? ["Cycle colours", isTouch ? "Open the Highlight tab in the sidebar" : "[ or ] keys"] : null, stitchView === "highlight" ? ["Clear focus", "Tap the colour pill to show all colours"] : null, stitchMode === "navigate" ? ["Place crosshair", "Click on any cell to drop a guide"] : null, stitchMode === "navigate" ? ["Park marker", "Select a colour, then click to place a marker"] : null].filter(Boolean).map(([label, tip], i) => /*#__PURE__*/React.createElement("div", {
+    }, [["Pan", isTouch ? "Drag one finger across the canvas" : "Hold Space + drag  ·  or middle-click drag"], ["Zoom in / out", isTouch ? "Pinch two fingers apart / together" : "Ctrl + scroll  ·  or use − / + buttons"], ["Zoom to fit", "Tap the Fit button"], ["Mark a stitch", isTouch ? "Tap a cell" : "Click a cell"], ["Mark multiple", isTouch ? "Tap, then drag across cells" : "Click + drag across cells — all set to same state"], ["Select a rectangle", isTouch ? "Long-press a cell, then tap another" : "Hold Shift + click another cell"], ["Undo last marks", "Undo button (top right)"], stitchView === "highlight" ? ["Cycle colours", isTouch ? "Open the Highlight tab in the sidebar" : "[ or ] keys"] : null, stitchView === "highlight" ? ["Clear focus", "Tap the colour pill to show all colours"] : null, stitchMode === "navigate" ? ["Place a guide", isTouch ? "Tap any cell to drop a crosshair" : "Click any cell to drop a crosshair"] : null, ["Park a thread", isTouch ? "In Nav mode, press and hold a stitch. Do it again to remove the marker" : "Right-click a stitch. Right-click again to remove the marker"]].filter(Boolean).map(([label, tip], i) => /*#__PURE__*/React.createElement("div", {
       key: i,
       style: {
         display: "contents"
@@ -11467,7 +11575,7 @@ function TrackerApp({
         marginBottom: 6,
         border: "0.5px solid var(--border)"
       }
-    }, selectedColorId ? "Click to park. Shift+click to move guide." : "Click to place guide crosshair", hasTouchRef.current ? "" : " · T for track mode");
+    }, hasTouchRef.current ? "Tap to place a guide · Press and hold a stitch to park its thread" : "Click to place a guide · Right-click a stitch to park its thread · T for track mode");
     if (!shortcutsHintDismissed && pat && trackerLoadCount >= 3) return /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 'var(--text-sm)',
@@ -11679,11 +11787,18 @@ function TrackerApp({
       zIndex: 2,
       left: -G,
       top: -G,
-      touchAction: _dragMarkActive ? "none" : "pan-x pan-y"
+      touchAction: _dragMarkActive ? "none" : "pan-x pan-y",
+      WebkitTouchCallout: "none"
     },
     onMouseDown: handleStitchMouseDown,
     onMouseMove: handleStitchMouseMove
-  }, dragMarkHandlers)), _dragMarkActive && dragMarkState && (dragMarkState.path.size > 0 || dragMarkState.anchor != null || dragMarkPulse) && /*#__PURE__*/React.createElement("div", {
+  }, dragMarkHandlers, {
+    onContextMenu: handleStitchContextMenu,
+    onPointerDownCapture: handleCanvasPointerDownCapture,
+    onPointerMoveCapture: handleCanvasPointerMoveCapture,
+    onPointerUpCapture: clearNavHold,
+    onPointerCancelCapture: clearNavHold
+  })), _dragMarkActive && dragMarkState && (dragMarkState.path.size > 0 || dragMarkState.anchor != null || dragMarkPulse) && /*#__PURE__*/React.createElement("div", {
     className: "drag-mark-overlay drag-mark-overlay--" + (dragMarkState.intent || 'mark'),
     style: {
       position: "absolute",
