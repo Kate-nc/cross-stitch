@@ -1228,6 +1228,27 @@ function countRect(r){
   return{total,done:dn};
 }
 const areaStats=useMemo(()=>areaOn?countRect(workArea):null,[areaOn,workArea,pat,done,sW]);
+// Per-colour counts inside the work area, in the same shape as the whole-
+// pattern counts (colourDoneCountsRef): the colour list, highlight cycling and
+// "mark all" use these while an area is active. O(area) per change.
+const areaColourCounts=useMemo(()=>{
+  if(!areaOn||!pat||!workArea)return null;
+  const out={},a=workArea,d=doneRef.current||done;
+  const get=id=>out[id]||(out[id]={total:0,done:0,halfTotal:0,halfDone:0});
+  for(let y=a.y0;y<a.y1;y++){const base=y*sW;for(let x=a.x0;x<a.x1;x++){
+    const m=pat[base+x];if(!m||m.id==="__skip__"||m.id==="__empty__")continue;
+    const c=get(m.id);c.total++;if(d&&d[base+x])c.done++;
+  }}
+  if(halfStitches&&halfStitches.size){
+    halfStitches.forEach((hs,idx)=>{
+      if(!window.WorkArea.containsIndex(a,idx,sW))return;
+      const hd=halfDone&&halfDone.get(idx);
+      if(hs.fwd){const c=get(hs.fwd.id);c.halfTotal++;if(hd&&hd.fwd)c.halfDone++;}
+      if(hs.bck){const c=get(hs.bck.id);c.halfTotal++;if(hd&&hd.bck)c.halfDone++;}
+    });
+  }
+  return out;
+},[areaOn,workArea,pat,done,halfStitches,halfDone,sW]);
 // The neighbouring area in reading order: any (for enabling the buttons,
 // cheap) or the nearest unfinished one (on click — it may scan many areas).
 function neighbourArea(dir,unfinishedOnly){
@@ -1240,6 +1261,25 @@ function stepWorkArea(dir){
   if(a){enterWorkArea(a);return;}
   try{window.Toast&&window.Toast.show&&window.Toast.show({message:dir>0?"No unfinished areas after this one":"No unfinished areas before this one",type:"info"});}catch(_){}
 }
+// The next unfinished area after this one, or failing that before it.
+function nextUnfinishedArea(){return neighbourArea(1,true)||neighbourArea(-1,true);}
+// Finishing the area's last stitch offers the next one. Keyed on the area,
+// so moving to an already-finished area (or loading one) does not announce.
+const areaDoneRef=useRef(null);
+useEffect(()=>{
+  if(!areaOn||!areaStats||!workArea){areaDoneRef.current=null;return;}
+  const key=workArea.x0+","+workArea.y0+","+workArea.x1+","+workArea.y1;
+  const finished=areaStats.total>0&&areaStats.done>=areaStats.total;
+  const prev=areaDoneRef.current;
+  areaDoneRef.current={key,finished};
+  if(!prev||prev.key!==key||prev.finished||!finished)return;
+  const next=nextUnfinishedArea();
+  try{
+    if(window.Toast&&window.Toast.show)window.Toast.show(next
+      ?{message:"Work area finished",type:"success",action:()=>enterWorkArea(next),actionLabel:"Next area",duration:10000}
+      :{message:"Work area finished. Every area of this size is done.",type:"success"});
+  }catch(_){}
+},[areaOn,areaStats,workArea]);
 // Fit the current view (area + margin) to the chart and show its corner.
 function fitWorkAreaView(){
   const el=stitchScrollRef.current;
@@ -1727,6 +1767,9 @@ const [progressInfoOpen,setProgressInfoOpen]=useState(false);
 const progressChipRef=useRef(null);
 
 const colourDoneCounts=countsVer>=0?colourDoneCountsRef.current:{};
+// The counts that "which colours are left" questions should use: the work
+// area's while one is active, the whole pattern's otherwise.
+const scopedColourCounts=areaColourCounts||colourDoneCounts;
 const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total,backstitch:bsLines.length,quarter:0,petite:0,french_knot:0,long_stitch:0}),[totalStitchable,halfStitchCounts.total,bsLines.length]);
 // PERF: the palette legend tile list (rendered below) used to be rebuilt and
 // re-sorted from `pal` on every single render of this component — including
@@ -1736,8 +1779,11 @@ const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total
 // itself — is the correct "did the counts actually change" signal here.
 const legendRows=useMemo(()=>{
   if(!pal)return null;
-  const rows=pal.map(p=>{
-    const dc=colourDoneCountsRef.current[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
+  // In a work area: only the colours it contains, with its counts.
+  const src=areaColourCounts||colourDoneCountsRef.current;
+  const shown=areaColourCounts?pal.filter(p=>{const c=areaColourCounts[p.id];return c&&(c.total+c.halfTotal)>0;}):pal;
+  const rows=shown.map(p=>{
+    const dc=src[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
     const totalWH=dc.total+dc.halfTotal*0.5;
     const doneWH=dc.done+dc.halfDone*0.5;
     const pct=totalWH>0?Math.round(doneWH/totalWH*100):0;
@@ -1749,7 +1795,7 @@ const legendRows=useMemo(()=>{
   else if(legendSort==="count")rows.sort((a,b)=>b.remaining-a.remaining);
   else rows.sort((a,b)=>{const ai=String(a.p.id),bi=String(b.p.id);const an=parseInt(ai,10),bn=parseInt(bi,10);if(isFinite(an)&&isFinite(bn)&&String(an)===ai&&String(bn)===bi)return an-bn;return ai.localeCompare(bi);});
   return rows;
-},[pal,countsVer,legendSort]);
+},[pal,countsVer,legendSort,areaColourCounts]);
 // After recomputeAllCounts has run post-load, snap prevAutoCountRef to the real
 // counts so the auto-detect effect below never sees a spurious delta.
 useEffect(()=>{if(justLoadedRef.current){prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||0};justLoadedRef.current=false;}},[countsVer]);
@@ -1775,12 +1821,15 @@ const skipNextFullRedrawRef=useRef(false);
 
 const focusableColors=useMemo(()=>{
   if(!pal)return[];
-  let list=pal;
-  if(onlyStarted){const started=pal.filter(p=>{const dc=colourDoneCounts[p.id];return dc&&dc.done>0;});if(started.length>0)list=started;}
+  const cc=scopedColourCounts;
+  // In a work area, only the colours it contains.
+  let list=areaColourCounts?pal.filter(p=>{const c=areaColourCounts[p.id];return c&&c.total>0;}):pal;
+  if(!list.length)list=pal;
+  if(onlyStarted){const started=list.filter(p=>{const dc=cc[p.id];return dc&&dc.done>0;});if(started.length>0)list=started;}
   if(!highlightSkipDone)return list;
-  const incomplete=list.filter(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;});
+  const incomplete=list.filter(p=>{const dc=cc[p.id];return !dc||dc.done<dc.total;});
   return incomplete.length>0?incomplete:list;
-},[pal,countsVer,highlightSkipDone,onlyStarted]);
+},[pal,countsVer,highlightSkipDone,onlyStarted,areaColourCounts]);
 
 const sections=useMemo(()=>{
   if(!statsView||!pat||!done)return[];
@@ -1801,8 +1850,8 @@ const sections=useMemo(()=>{
 const prevFocusIdRef=useRef(null);
 const prevFocusDoneRef=useRef(null);
 useEffect(()=>{
-  if(!focusColour||stitchView!=="highlight"||!highlightSkipDone||!colourDoneCounts||!pal)return;
-  const dc=colourDoneCounts[focusColour];
+  if(!focusColour||stitchView!=="highlight"||!highlightSkipDone||!scopedColourCounts||!pal)return;
+  const dc=scopedColourCounts[focusColour];
   const isNowComplete=dc&&dc.total>0&&dc.done>=dc.total;
   if(prevFocusIdRef.current!==focusColour){
     prevFocusIdRef.current=focusColour;
@@ -1812,7 +1861,8 @@ useEffect(()=>{
   if(prevFocusDoneRef.current===false&&isNowComplete){
     const nextColor=pal.find(p=>{
       if(p.id===focusColour)return false;
-      const dc2=colourDoneCounts[p.id];
+      const dc2=scopedColourCounts[p.id];
+      if(areaColourCounts&&!dc2)return false;
       return !dc2||dc2.done<dc2.total;
     });
     if(nextColor){
@@ -1824,7 +1874,7 @@ useEffect(()=>{
     }
   }
   prevFocusDoneRef.current=isNowComplete;
-},[countsVer,focusColour,stitchView,highlightSkipDone,pal]);
+},[countsVer,focusColour,stitchView,highlightSkipDone,pal,areaColourCounts]);
 
 const estCompletion=useMemo(()=>{let t=totalTime+liveAutoElapsed;if(doneCount<1||t<60)return null;return Math.round((totalStitchable-doneCount)*(t/doneCount));},[totalTime,liveAutoElapsed,doneCount,totalStitchable]);
 
@@ -2282,17 +2332,22 @@ const recommendations=useMemo(()=>{
   if(!analysisResult||!pat)return null;
   const pr=analysisResult.perRegion;
   if(!pr)return null;
+  // Regions are Spotlight sections (the worker's blockSize is blockW): in a
+  // work area, recommend only the ones inside it.
+  const _recCols=analysisResult.regionCols||1;
+  const _recArea=(areaOn&&window.WorkArea&&(analysisResult.regionSize||blockW)===blockW)?window.WorkArea.sectionRange(workArea,blockW,blockH):null;
   const scored=[];
   for(let i=0;i<pr.length;i++){
     const reg=pr[i];
     if(!reg||reg.totalStitches===0||reg.completionPercentage>=1)continue;
+    if(_recArea){const rc=i%_recCols,rr=Math.floor(i/_recCols);if(rc<_recArea.bx0||rc>=_recArea.bx1||rr<_recArea.by0||rr>=_recArea.by1)continue;}
     if(!recDismissed.has(i))scored.push({idx:i,reg,score:reg.impactScore||0});
   }
   scored.sort((a,b)=>b.score-a.score);
   const pc=analysisResult.perColour;
   const quickWins=pc?Object.values(pc).filter(c=>c.totalStitches>0&&c.completedStitches<c.totalStitches).map(c=>({...c,remaining:c.totalStitches-c.completedStitches})).sort((a,b)=>a.remaining-b.remaining).slice(0,3):[];
   return{top:scored.slice(0,3),quickWins};
-},[analysisResult,pat,recDismissed]);
+},[analysisResult,pat,recDismissed,areaOn,workArea,blockW,blockH]);
 
 // ── Focus block helper functions ──
 function _isFocusBlockComplete(bx,by){
@@ -2311,20 +2366,39 @@ function _getBlockStitchCount(bx,by){
   const x0=bx*blockW,y0=by*blockH,x1=Math.min(x0+blockW,sW),y1=Math.min(y0+blockH,sH);
   let c=0;for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++){const m=pat[y*sW+x];if(m&&m.id!=="__skip__"&&m.id!=="__empty__")c++;}return c;
 }
+// The sections Spotlight may visit, as a section-grid rectangle (exclusive
+// ends): the whole grid, or only the sections of the active work area — the
+// area is a group of sections, and Spotlight works through them in turn.
+function _spotRange(){
+  const bCols=Math.ceil(sW/blockW),bRows=Math.ceil(sH/blockH);
+  if(areaOn&&workArea&&window.WorkArea){
+    const r=window.WorkArea.sectionRange(workArea,blockW,blockH);
+    return{bx0:Math.max(0,r.bx0),by0:Math.max(0,r.by0),bx1:Math.min(bCols,r.bx1),by1:Math.min(bRows,r.by1)};
+  }
+  return{bx0:0,by0:0,bx1:bCols,by1:bRows};
+}
+function _inSpotRange(b){const r=_spotRange();return !!b&&b.bx>=r.bx0&&b.bx<r.bx1&&b.by>=r.by0&&b.by<r.by1;}
+// With Spotlight on, a work area that does not contain the spotlit section
+// moves Spotlight to the area's starting section.
+useEffect(()=>{
+  if(!areaOn||!focusEnabled||stitchingStyle==="crosscountry"||!sW||!sH)return;
+  if(focusBlock&&_inSpotRange(focusBlock))return;
+  setFocusBlock(_getStartBlock());
+},[areaOn,workArea,focusEnabled,stitchingStyle,blockW,blockH,sW,sH]);
 function _getStartBlock(){
   if(!sW||!sH)return{bx:0,by:0};
-  const bCols=Math.ceil(sW/blockW),bRows=Math.ceil(sH/blockH);
-  if(startCorner==="TR")return{bx:bCols-1,by:0};
-  if(startCorner==="BL")return{bx:0,by:bRows-1};
-  if(startCorner==="BR")return{bx:bCols-1,by:bRows-1};
-  if(startCorner==="C")return{bx:Math.floor(bCols/2),by:Math.floor(bRows/2)};
-  return{bx:0,by:0};
+  const r=_spotRange();
+  if(startCorner==="TR")return{bx:r.bx1-1,by:r.by0};
+  if(startCorner==="BL")return{bx:r.bx0,by:r.by1-1};
+  if(startCorner==="BR")return{bx:r.bx1-1,by:r.by1-1};
+  if(startCorner==="C")return{bx:Math.floor((r.bx0+r.bx1-1)/2),by:Math.floor((r.by0+r.by1-1)/2)};
+  return{bx:r.bx0,by:r.by0};
 }
 function _getRoyalRowsNext(bx,by){
   if(!sW||!sH)return null;
-  const bCols=Math.ceil(sW/blockW),bRows=Math.ceil(sH/blockH);
-  if(bx+1<bCols)return{bx:bx+1,by};
-  if(by+1<bRows)return{bx:0,by:by+1};
+  const r=_spotRange();
+  if(bx+1<r.bx1)return{bx:bx+1,by};
+  if(by+1<r.by1)return{bx:r.bx0,by:by+1};
   return null;
 }
 // Move the spotlight focus block by one block in (dx,dy). No-op when spotlight
@@ -2332,10 +2406,10 @@ function _getRoyalRowsNext(bx,by){
 // spatial blocks). If no focus block is set yet, falls back to the start block.
 function _stepFocusBlock(dx,dy){
   if(!focusEnabled||stitchingStyle==="crosscountry"||!sW||!sH)return;
-  const bCols=Math.ceil(sW/blockW),bRows=Math.ceil(sH/blockH);
+  const r=_spotRange();
   const cur=focusBlock||_getStartBlock();
-  const bx=Math.max(0,Math.min(bCols-1,cur.bx+dx));
-  const by=Math.max(0,Math.min(bRows-1,cur.by+dy));
+  const bx=Math.max(r.bx0,Math.min(r.bx1-1,cur.bx+dx));
+  const by=Math.max(r.by0,Math.min(r.by1-1,cur.by+dy));
   if(bx===cur.bx&&by===cur.by&&focusBlock)return;
   setFocusBlock({bx,by});
 }
@@ -2418,7 +2492,10 @@ const threadUsageSummary=useMemo(()=>{
   return{isolated,small,medium,large,total,estChanges,mostScattered,mostClustered};
 },[analysisResult,pat]);
 
-function markColourDone(cid,md){const cur=doneRef.current;if(!pat||!cur)return;let changes=[];let nd=new Uint8Array(cur);for(let i=0;i<pat.length;i++)if(pat[i].id===cid){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0){pushTrackHistory(changes);applyDoneCountsDelta(changes,pat,nd);const _nv=md?1:0;for(let i=0;i<changes.length;i++)drawCellDirectly(changes[i].idx,_nv);skipNextFullRedrawRef.current=true;}doneRef.current=nd;setDone(nd);}
+function markColourDone(cid,md){const cur=doneRef.current;if(!pat||!cur)return;let changes=[];let nd=new Uint8Array(cur);
+  // In a work area "all" means all of this colour inside the area.
+  const _a=areaOn?workArea:null;
+  for(let i=0;i<pat.length;i++)if(pat[i].id===cid&&(!_a||window.WorkArea.containsIndex(_a,i,sW))){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0){pushTrackHistory(changes);applyDoneCountsDelta(changes,pat,nd);const _nv=md?1:0;for(let i=0;i<changes.length;i++)drawCellDirectly(changes[i].idx,_nv);skipNextFullRedrawRef.current=true;}doneRef.current=nd;setDone(nd);}
 function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);setTimeout(()=>setCopied(null),2000);}).catch(()=>{});}
 function copyProgressSummary(){
   let t=totalTime+liveAutoElapsed;
@@ -5395,7 +5472,8 @@ function handleStitchMouseDown(e){
       const bCols=Math.ceil(sW/blockW),bRows=Math.ceil(sH/blockH);
       const bx=Math.max(0,Math.min(bCols-1,Math.floor(gcA.gx/blockW)));
       const by=Math.max(0,Math.min(bRows-1,Math.floor(gcA.gy/blockH)));
-      setFocusBlock({bx,by});
+      // In a work area Spotlight stays among the area's sections.
+      if(_inSpotRange({bx,by}))setFocusBlock({bx,by});
       return;
     }
   }
@@ -5751,7 +5829,7 @@ function cycleFocusColour(direction){
   setFocusColour(prev=>{
     if(!focusableColors.length)return prev;
     if(!prev){
-      const first=focusableColors.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];
+      const first=focusableColors.find(p=>{const dc=scopedColourCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];
       return first?first.id:prev;
     }
     const idx=focusableColors.findIndex(p=>p.id===prev);
@@ -5765,7 +5843,7 @@ function cycleFocusColour(direction){
 // as the V key transition.
 function ensureFocusColour(){
   if(focusColour)return;
-  const first=focusableColors.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];
+  const first=focusableColors.find(p=>{const dc=scopedColourCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];
   if(first)setFocusColour(first.id);
 }
 
@@ -5783,7 +5861,7 @@ function jumpToNextStitch(){
   if(!pat||!sW||!sH)return;
   let target=focusColour;
   if(!target){
-    const first=focusableColors.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];
+    const first=focusableColors.find(p=>{const dc=scopedColourCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];
     if(!first)return;
     target=first.id;
     setFocusColour(first.id);
@@ -5798,7 +5876,8 @@ function jumpToNextStitch(){
     }
     return false;
   }
-  function _isOpen(idx){return !cur||!cur[idx];}
+  // In a work area, only its stitches count as somewhere to jump to.
+  function _isOpen(idx){if(areaOn&&!window.WorkArea.containsIndex(workArea,idx,sW))return false;return !cur||!cur[idx];}
   let foundX=-1,foundY=-1;
   if(startCorner==="C"){
     // Nearest unmarked stitch of focus colour to the chart centre.
@@ -5847,7 +5926,7 @@ function jumpToNextStitch(){
     }
   }
   if(foundX<0||foundY<0){
-    try{if(window.Toast&&window.Toast.show)window.Toast.show({message:"No remaining stitches for DMC "+target,type:"info"});}catch(_){}
+    try{if(window.Toast&&window.Toast.show)window.Toast.show({message:"No remaining stitches for DMC "+target+(areaOn?" in this work area":""),type:"info"});}catch(_){}
     return;
   }
   setHlRow(foundY);setHlCol(foundX);
@@ -5919,7 +5998,7 @@ useShortcuts(!isActive ? [] : [
       const nextView=stitchView==="symbol"?"colour":stitchView==="colour"?"highlight":"symbol";
       setStitchView(nextView);
       if(nextView==="highlight"&&!focusColour){
-        const first=focusableColors.find(p=>{const dc=colourDoneCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];
+        const first=focusableColors.find(p=>{const dc=scopedColourCounts[p.id];return !dc||dc.done<dc.total;})||focusableColors[0];
         if(first)setFocusColour(first.id);
       }
     } },
@@ -6745,7 +6824,7 @@ return(
                     >P{parkCountsByColour[p.id]>1?"\u00D7"+parkCountsByColour[p.id]:""}</button>}
                     <button
                       className="ppal-tile-done-btn"
-                      onClick={e=>{e.stopPropagation();if(!complete){const u=dc.total-dc.done;if(u>50&&!confirm("Mark all "+u+" stitches of DMC "+p.id+" as done?"))return;}markColourDone(p.id,!complete);}}
+                      onClick={e=>{e.stopPropagation();if(!complete){const u=dc.total-dc.done;if(u>50&&!confirm("Mark all "+u+" stitches of DMC "+p.id+(areaOn?" in this work area":"")+" as done?"))return;}markColourDone(p.id,!complete);}}
                       style={{borderColor:complete?"var(--danger-soft)":"var(--success-soft)",background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)"}}
                       title={complete?"Mark as not done":"Mark all as done"}
                     >{complete?<>{Icons.undo?Icons.undo():null}{" Undo"}</>:<>{Icons.check?Icons.check():null}{" Done"}</>}</button>
@@ -6821,12 +6900,14 @@ return(
     {areaOn&&areaStats&&(()=>{
       const pct=areaStats.total?Math.floor(areaStats.done/areaStats.total*1000)/10:100;
       const hasPrev=!!neighbourArea(-1,false),hasNext=!!neighbourArea(1,false);
+      const finished=areaStats.total>0&&areaStats.done>=areaStats.total;
       return <div className="work-area-bar" role="region" aria-label="Work area">
         <span className="work-area-bar__title">{Icons.crop()}<span>Work area</span><span className="work-area-bar__range">{window.WorkArea.describe(workArea)}</span></span>
         <span className="work-area-bar__progress">
           <span className="work-area-bar__track" aria-hidden="true"><span className="work-area-bar__fill" style={{display:"block",width:pct+"%"}}/></span>
           <span className="work-area-bar__pct" aria-label={"Work area "+pct+"% done, "+(areaStats.total-areaStats.done).toLocaleString("en-GB")+" stitches left"}>{pct%1===0?pct.toFixed(0):pct.toFixed(1)}%</span>
         </span>
+        {finished&&<button type="button" className="g-btn g-btn--primary" onClick={()=>{const n=nextUnfinishedArea();if(n)enterWorkArea(n);else{try{window.Toast&&window.Toast.show&&window.Toast.show({message:"Every area of this size is done",type:"success"});}catch(_){}}}}>{Icons.check()} Finished: next area</button>}
         <span className="work-area-bar__actions">
           <span className="work-area-seg" role="group" aria-label="Margin around the area">
             <span className="work-area-seg__label">Margin</span>

@@ -225,3 +225,83 @@ test('W opens the picker; Fit fits the area, not the pattern', async ({ page }) 
   await page.keyboard.press('w');
   await expect(page.locator('.work-area-picker__canvas')).toBeVisible();
 });
+
+// ── Scoping: the colour list, "mark all", Spotlight, finishing ────────────
+
+const { fixturePalette, SIZES } = require('../_helpers/trackerFixture');
+// One 10x10 section: columns 101-110, rows 151-160.
+const ONE = { x0: 100, y0: 150, x1: 110, y1: 160, bw: 1, bh: 1 };
+/** Colour ids the fixture puts in a rectangle (cell i has colour i % n). */
+function coloursIn(r) {
+  const { sW, nColours } = SIZES.large, pal = fixturePalette(nColours), ids = new Set();
+  for (let y = r.y0; y < r.y1; y++) for (let x = r.x0; x < r.x1; x++) ids.add(pal[(y * sW + x) % nColours].id);
+  return ids;
+}
+const tileIds = (page) => page.$$eval('.ppal-tile .ppal-tile-id', els => els.map(e => e.textContent.trim()));
+
+test('the colour list shows only the area\'s colours, with the area\'s counts', async ({ page }) => {
+  await openTracker(page);
+  expect((await tileIds(page)).length).toBe(60);
+  await page.evaluate((a) => window.__workArea.enter(a), ONE);
+  await page.waitForTimeout(800);
+  const want = coloursIn(ONE);
+  const got = await tileIds(page);
+  expect(new Set(got)).toEqual(want);
+  // Counts are the area's: 100 stitches shared among the colours present.
+  const totals = await page.$$eval('.ppal-tile .ppal-tile-count', els => els.map(e => +e.textContent.split('/')[1]));
+  expect(totals.reduce((a, b) => a + b, 0)).toBe(100);
+  await page.evaluate(() => window.__workArea.exit());
+  await page.waitForTimeout(500);
+  expect((await tileIds(page)).length).toBe(60);
+});
+
+test('"mark all done" marks only the stitches inside the area', async ({ page }) => {
+  await openTracker(page);
+  await page.evaluate((a) => window.__workArea.enter(a), ONE);
+  await page.waitForTimeout(800);
+  const tile = page.locator('.ppal-tile').first();
+  const id = (await tile.locator('.ppal-tile-id').textContent()).trim();
+  const areaTotal = +(await tile.locator('.ppal-tile-count').textContent()).split('/')[1];
+  page.on('dialog', d => d.accept());
+  await tile.locator('.ppal-tile-done-btn').click();
+  await page.waitForTimeout(500);
+  expect((await tile.locator('.ppal-tile-count').textContent()).trim()).toBe(`${areaTotal}/${areaTotal}`);
+  // Back on the whole pattern, that colour has exactly the area's stitches done.
+  await page.evaluate(() => window.__workArea.exit());
+  await page.waitForTimeout(500);
+  const whole = page.locator('.ppal-tile', { has: page.locator('.ppal-tile-id', { hasText: new RegExp('^' + id + '$') }) });
+  const [doneN, totalN] = (await whole.locator('.ppal-tile-count').textContent()).trim().split('/').map(Number);
+  expect(doneN).toBe(areaTotal);
+  expect(totalN).toBeGreaterThan(areaTotal);
+});
+
+test('Spotlight starts inside the area and stays among its sections', async ({ page }) => {
+  await page.addInitScript(() => { try { localStorage.setItem('cs_focusEnabled', '1'); } catch (_) {} });
+  await openTracker(page);
+  await page.evaluate((a) => window.__workArea.enter(a), AREA);   // sections 10-14 x 15-19
+  await page.waitForTimeout(800);
+  // Top-left start corner: the area's first section, row 16, column 11.
+  await expect(page.locator('.focus-block-chip')).toContainText('16,11');
+  // Stepping right four times reaches the area's last column and stops there.
+  await page.locator('canvas[aria-label="Cross stitch pattern grid"]').focus();
+  for (let i = 0; i < 7; i++) { await page.keyboard.press('Alt+ArrowRight'); await page.waitForTimeout(40); }
+  await expect(page.locator('.focus-block-chip')).toContainText('16,15');
+});
+
+test('finishing the area says so and offers the next one', async ({ page }) => {
+  await openTracker(page);
+  await page.evaluate((a) => window.__workArea.enter(a), ONE);
+  await page.waitForTimeout(800);
+  page.on('dialog', d => d.accept());
+  const buttons = page.locator('.ppal-tile:not(.ppal-tile--done) .ppal-tile-done-btn');
+  for (let guard = 0; guard < 80 && await buttons.count() > 0; guard++) {
+    await buttons.first().click();
+    await page.waitForTimeout(80);
+  }
+  await expect(page.locator('.work-area-bar')).toContainText('100%');
+  await expect(page.getByRole('button', { name: /Finished: next area/ })).toBeVisible();
+  await expect(page.getByText('Work area finished')).toBeVisible();
+  await page.getByRole('button', { name: /Finished: next area/ }).click();
+  await page.waitForTimeout(600);
+  expect(await page.evaluate(() => window.__workArea.get())).toMatchObject({ x0: 110, y0: 150, x1: 120, y1: 160 });
+});
