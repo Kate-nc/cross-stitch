@@ -14,7 +14,7 @@
 
    Counted work, not wall time (see §H of mobile-experience-audit.md). */
 const { test, expect } = require('@playwright/test');
-const { fixtureFor } = require('../_helpers/trackerFixture');
+const { fixtureFor, fixturePalette, SIZES } = require('../_helpers/trackerFixture');
 const { suppressOnboarding, SCROLLER_FN } = require('../_helpers/deviceEmulation');
 
 async function openTracker(page) {
@@ -73,50 +73,63 @@ test('marking a whole colour does not paint thousands of off-screen cells', asyn
 test('cells marked off-screen still appear when scrolled to', async ({ page }) => {
   // The other half of the claim. Skipping off-tile draws is only correct if
   // the region repaints from `done` when it comes into view.
+  //
+  // Pixels are read through the chart's tile origin: the canvas covers only
+  // the visible slice plus overscan, so chart pixel P sits at canvas pixel
+  // (P - tile.x/y) * scale. An earlier version sampled whole-chart
+  // coordinates, which since tiling lie past the canvas edge and read as
+  // transparent both before and after — so it failed whatever the app drew.
   await suppressOnboarding(page);
   await openTracker(page);
 
   const { btn, count } = await markFirstColourDone(page);
   test.skip(count === 0, 'no per-colour complete control found in this build');
 
-  const target = { x: 0, y: 300 };
-  const before = await page.evaluate(({ x, y }) => {
-    const c = document.querySelector('canvas');
-    const ctx = c.getContext('2d');
-    const G = 28, scs = 20;
-    const scale = window.chartRenderScale ? window.chartRenderScale() : 1;
-    const px = Math.round((G + x * scs + scs / 2) * scale);
-    const py = Math.round((G + y * scs + scs / 2) * scale);
-    const d = ctx.getImageData(px, py, 1, 1).data;
-    return Array.from(d);
-  }, target);
+  // The colour that button completes, and a cell of it far down the chart
+  // (the fixture cycles its palette: cell i has colour i % nColours).
+  const id = (await page.locator('.ppal-tile').first().locator('.ppal-tile-id').textContent()).trim();
+  const { sW, nColours } = SIZES.large;
+  const k = fixturePalette(nColours).findIndex(c => c.id === id);
+  expect(k, `DMC ${id} is not in the fixture palette`).toBeGreaterThanOrEqual(0);
+  const y = 300;
+  let x = 0;
+  while ((y * sW + x) % nColours !== k) x++;
 
+  const G = 28, scs = 20;
+  const scrollTo = (top, left) => page.evaluate(({ fn, top, left }) => {
+    const el = eval('(' + fn + ')')();
+    el.scrollLeft = left; el.scrollTop = top;
+    el.dispatchEvent(new Event('scroll'));
+  }, { fn: SCROLLER_FN.toString(), top, left });
+  const showTarget = () => scrollTo(G + y * scs - 200, Math.max(0, G + x * scs - 200));
+  // A few pixels in from the cell's corner: clear of the grid line and of the
+  // symbol glyph at the centre, so the sample is the cell's fill.
+  const sample = () => page.evaluate(({ x, y, G, scs }) => {
+    const c = document.querySelector('canvas[aria-label="Cross stitch pattern grid"]');
+    const t = c.__chartTile;
+    const px = Math.round((G + x * scs + 4 - t.x) * t.scale);
+    const py = Math.round((G + y * scs + 4 - t.y) * t.scale);
+    if (px < 0 || py < 0 || px >= c.width || py >= c.height) return null;
+    return Array.from(c.getContext('2d').getImageData(px, py, 1, 1).data);
+  }, { x, y, G, scs });
+
+  await showTarget();
+  await page.waitForTimeout(1200);
+  const before = await sample();
+
+  // Off-tile again, then mark the colour: the target is now drawn by no one.
+  await scrollTo(0, 0);
+  await page.waitForTimeout(1200);
   await btn.click({ force: true });
   await page.waitForTimeout(2000);
 
-  // Scroll to a cell whose colour is the one just marked done. Because the
-  // fixture cycles through a stable palette, (0,300) is a known first-colour
-  // cell and was definitely off-tile before the scroll.
-  await page.evaluate((fn) => {
-    const el = eval('(' + fn + ')')();
-    const G = 28, scs = 20;
-    el.scrollLeft = 0;
-    el.scrollTop = 300 * scs + G - 80;
-    el.dispatchEvent(new Event('scroll'));
-  }, SCROLLER_FN.toString());
+  await showTarget();
   await page.waitForTimeout(1500);
+  const after = await sample();
 
-  const after = await page.evaluate(({ x, y }) => {
-    const c = document.querySelector('canvas');
-    const ctx = c.getContext('2d');
-    const G = 28, scs = 20;
-    const scale = window.chartRenderScale ? window.chartRenderScale() : 1;
-    const px = Math.round((G + x * scs + scs / 2) * scale);
-    const py = Math.round((G + y * scs + scs / 2) * scale);
-    const d = ctx.getImageData(px, py, 1, 1).data;
-    return Array.from(d);
-  }, target);
-
-  console.log('BULK_MARK_SCROLLED before=' + before + ' after=' + after);
+  console.log('BULK_MARK_SCROLLED ' + JSON.stringify({ id, cell: { x, y }, before, after }));
+  expect(before, 'the target cell was not on the tile when sampled').not.toBeNull();
+  expect(after, 'the target cell was not on the tile after scrolling back').not.toBeNull();
+  expect(before[3], 'sampled a transparent pixel — the coordinates are wrong').toBe(255);
   expect(after.join(','), 'the scrolled-to cell did not repaint from its done state').not.toBe(before.join(','));
 });

@@ -80,6 +80,21 @@ function patternCells(size) {
   return s.sW * s.sH;
 }
 
+/** The palette a fixture with `nColours` colours uses, in fixture order: cell
+ *  `i` has colour `palette[i % nColours]`. Specs use this to find a cell of a
+ *  given colour without hard-coding coordinates. */
+function fixturePalette(nColours) {
+  const threads = dmcThreads();
+  if (nColours > threads.length) throw new Error(`trackerFixture: only ${threads.length} DMC threads available`);
+  // Stride through the catalogue so the palette is visually varied rather than
+  // 80 neighbouring shades of the same hue — closer to a real converted image,
+  // and it keeps the symbol/colour views legible when a run is eyeballed.
+  const stride = Math.max(1, Math.floor(threads.length / nColours));
+  const cols = [];
+  for (let i = 0; i < nColours; i++) cols.push(threads[(i * stride) % threads.length]);
+  return cols;
+}
+
 function ensureTmp() { if (!fs.existsSync(TMP)) fs.mkdirSync(TMP, { recursive: true }); }
 
 /**
@@ -109,14 +124,7 @@ function makeTrackerFixture(opts) {
   const file = path.join(TMP, `tracker-${sig}.json`);
   if (fs.existsSync(file)) return file;
 
-  const threads = dmcThreads();
-  if (nColours > threads.length) throw new Error(`trackerFixture: only ${threads.length} DMC threads available`);
-  // Stride through the catalogue so the palette is visually varied rather than
-  // 80 neighbouring shades of the same hue — closer to a real converted image,
-  // and it keeps the symbol/colour views legible when a run is eyeballed.
-  const stride = Math.max(1, Math.floor(threads.length / nColours));
-  const cols = [];
-  for (let i = 0; i < nColours; i++) cols.push(threads[(i * stride) % threads.length]);
+  const cols = fixturePalette(nColours);
 
   const total = sW * sH;
   // One shared object per colour: JSON.stringify expands each reference anyway,
@@ -159,4 +167,4 @@ function fixtureFor(sizeName, extra) {
   return makeTrackerFixture(Object.assign({}, s, extra || {}));
 }
 
-module.exports = { makeTrackerFixture, fixtureFor, SIZES, patternCells, dmcThreads, TMP };
+module.exports = { makeTrackerFixture, fixtureFor, fixturePalette, SIZES, patternCells, dmcThreads, TMP };
