@@ -47,6 +47,10 @@ describe('normalise', () => {
     expect(WA.normalise({ x0: 0, y0: 0, x1: 5, y1: 5 }, 10, 10)).toEqual(area(0, 0, 5, 5, 0, false));
     expect(WA.normalise({ x0: 0, y0: 0, x1: 5, y1: 5, setAt: -3, active: 1 }, 10, 10)).toEqual(area(0, 0, 5, 5, 0, true));
   });
+  test('preserves the section geometry that created an area', () => {
+    expect(WA.normalise({ active: true, x0: 0, y0: 0, x1: 10, y1: 20, bw: 1, bh: 1, gridW: 10, gridH: 20, setAt: 1 }, 100, 100))
+      .toMatchObject({ bw: 1, bh: 1, gridW: 10, gridH: 20 });
+  });
 });
 
 describe('sections', () => {

@@ -13,7 +13,7 @@
  * Overlay dialog. Exposes window.WorkAreaPicker.
  *
  * Props:
- *   pat, done, sW, sH, blockW, blockH  the pattern and its section grid
+ *   pat, done, halfStitches, halfDone, sW, sH, blockW, blockH  the pattern and its section grid
  *   current     the project's workArea (active or not) to start from, or null
  *   onConfirm(rect)  rect = {x0,y0,x1,y1,bw,bh}
  *   onClose()
@@ -29,9 +29,9 @@
   function isStitch(m) { return !!m && m.id !== "__skip__" && m.id !== "__empty__"; }
 
   /* Per-section stitch and done counts, computed once per open. */
-  function sectionCounts(pat, done, sW, sH, blockW, blockH) {
+  function sectionCounts(pat, done, halfStitches, halfDone, sW, sH, blockW, blockH) {
     var cols = Math.ceil(sW / blockW), rows = Math.ceil(sH / blockH);
-    var total = new Int32Array(cols * rows), dn = new Int32Array(cols * rows);
+    var total = new Float64Array(cols * rows), dn = new Float64Array(cols * rows);
     for (var y = 0; y < sH; y++) {
       var by = (y / blockH) | 0, base = y * sW;
       for (var x = 0; x < sW; x++) {
@@ -40,6 +40,16 @@
         total[k]++;
         if (done && done[base + x]) dn[k]++;
       }
+    }
+    if (halfStitches && halfStitches.size) {
+      halfStitches.forEach(function (hs, i) {
+        var x = i % sW, y = (i / sW) | 0;
+        if (x >= sW || y >= sH) return;
+        var k = ((y / blockH) | 0) * cols + ((x / blockW) | 0);
+        var hd = halfDone && halfDone.get(i);
+        if (hs.fwd) { total[k] += 0.5; if (hd && hd.fwd) dn[k] += 0.5; }
+        if (hs.bck) { total[k] += 0.5; if (hd && hd.bck) dn[k] += 0.5; }
+      });
     }
     return { cols: cols, rows: rows, total: total, done: dn };
   }
@@ -69,11 +79,11 @@
   }
 
   function WorkAreaPicker(props) {
-    var pat = props.pat, done = props.done, sW = props.sW, sH = props.sH;
+    var pat = props.pat, done = props.done, halfStitches = props.halfStitches, halfDone = props.halfDone, sW = props.sW, sH = props.sH;
     var blockW = props.blockW, blockH = props.blockH;
     var WA = window.WorkArea;
 
-    var sc = useMemo(function () { return sectionCounts(pat, done, sW, sH, blockW, blockH); }, [pat, done, sW, sH, blockW, blockH]);
+    var sc = useMemo(function () { return sectionCounts(pat, done, halfStitches, halfDone, sW, sH, blockW, blockH); }, [pat, done, halfStitches, halfDone, sW, sH, blockW, blockH]);
     var sizes = useMemo(function () { return sizeOptions(blockW, blockH); }, [blockW, blockH]);
 
     // Starting point: the current (or last) area, else the first unfinished
@@ -121,11 +131,17 @@
     // One pixel per stitch: done stitches in full colour, the rest tinted
     // toward the fabric, so progress reads at a glance. Released on close.
     useEffect(function () {
+      var limits = window.canvasSizeLimits ? window.canvasSizeLimits() : { side: 4096, area: 16777216 };
+      var scale = Math.min(1, limits.side / sW, limits.side / sH, Math.sqrt(limits.area / (sW * sH)));
+      var tw = Math.max(1, Math.floor(sW * scale)), th = Math.max(1, Math.floor(sH * scale));
       var c = document.createElement("canvas");
-      c.width = sW; c.height = sH;
-      var ctx = c.getContext("2d"), img = ctx.createImageData(sW, sH), d = img.data;
-      for (var i = 0; i < sW * sH; i++) {
-        var m = pat[i], o = i * 4;
+      c.width = tw; c.height = th;
+      var ctx = c.getContext("2d");
+      if (!ctx) return;
+      var img = ctx.createImageData(tw, th), d = img.data;
+      for (var y = 0; y < th; y++) for (var x = 0; x < tw; x++) {
+        var i = Math.min(sH - 1, Math.floor((y + 0.5) * sH / th)) * sW + Math.min(sW - 1, Math.floor((x + 0.5) * sW / tw));
+        var m = pat[i], o = (y * tw + x) * 4;
         if (!isStitch(m) || !m.rgb) { d[o] = FABRIC[0]; d[o + 1] = FABRIC[1]; d[o + 2] = FABRIC[2]; d[o + 3] = 255; continue; }
         if (done && done[i]) { d[o] = m.rgb[0]; d[o + 1] = m.rgb[1]; d[o + 2] = m.rgb[2]; }
         else { d[o] = (m.rgb[0] + FABRIC[0] * 1.6) / 2.6; d[o + 1] = (m.rgb[1] + FABRIC[1] * 1.6) / 2.6; d[o + 2] = (m.rgb[2] + FABRIC[2] * 1.6) / 2.6; }
@@ -221,6 +237,17 @@
         bw: Math.abs(p.bx - d.start.bx) + 1, bh: Math.abs(p.by - d.start.by) + 1 });
     }
     function onPointerUp() { dragRef.current = null; }
+    function onKeyDown(e) {
+      if (!sel) return;
+      var dx = 0, dy = 0, bw = size ? size.bw : 1, bh = size ? size.bh : 1;
+      if (e.key === "ArrowLeft") dx = -bw;
+      else if (e.key === "ArrowRight") dx = bw;
+      else if (e.key === "ArrowUp") dy = -bh;
+      else if (e.key === "ArrowDown") dy = bh;
+      else return;
+      e.preventDefault();
+      setSel({ bx0: Math.max(0, Math.min(Math.floor((sc.cols - 1) / bw) * bw, sel.bx0 + dx)), by0: Math.max(0, Math.min(Math.floor((sc.rows - 1) / bh) * bh, sel.by0 + dy)), bw: bw, bh: bh });
+    }
 
     function chooseSize(s) {
       setSizeKey(s.key);
@@ -280,9 +307,10 @@
           dim ? h("canvas", {
             ref: canvasRef, className: "work-area-picker__canvas",
             style: { width: dim.w, height: dim.h },
-            role: "img", "aria-label": "Pattern overview divided into sections",
+            role: "grid", tabIndex: 0, "aria-label": "Pattern overview. " + (rect ? WA.describe(rect) : "No area selected"),
             onPointerDown: onPointerDown, onPointerMove: onPointerMove,
             onPointerUp: onPointerUp, onPointerCancel: onPointerUp,
+            onKeyDown: onKeyDown,
             onDoubleClick: confirm
           }) : null
         ),

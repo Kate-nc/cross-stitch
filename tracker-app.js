@@ -1005,7 +1005,7 @@ const[blockH,setBlockH]=useState(10);
 const[focusBlock,setFocusBlock]=useState(null); // {bx,by} | null
 // Work area: the group of Spotlight sections the chart is clipped to. Saved
 // on the project and synced (newer setAt wins); see work-area.js.
-// null | {active,x0,y0,x1,y1,bw,bh,setAt}
+// null | {active,x0,y0,x1,y1,bw,bh,gridW,gridH,setAt}
 const[workArea,setWorkArea]=useState(null);
 // Stitches of faded context shown around the area (a per-stitcher
 // preference, not part of the project).
@@ -1018,6 +1018,11 @@ const setWorkAreaMargin=useCallback(v=>{
   try{if(window.UserPrefs)window.UserPrefs.set("trackerWorkAreaMargin",v);}catch(_){}
 },[]);
 const areaOn=!!(workArea&&workArea.active);
+useEffect(()=>{
+  if(!workArea||!window.WorkArea||(workArea.gridW===blockW&&workArea.gridH===blockH))return;
+  const snapped=window.WorkArea.snapToSections(workArea,blockW,blockH,sW,sH);
+  setWorkArea(Object.assign(snapped,{active:workArea.active,setAt:workArea.setAt,gridW:blockW,gridH:blockH}));
+},[workArea,blockW,blockH,sW,sH]);
 // The cells the chart shows: the work area plus its margin, or the whole
 // pattern. The scroller's extent and the rulers cover only this, so scroll
 // positions are relative to its corner; chartScrollOffset() converts.
@@ -1169,7 +1174,7 @@ const stitchScrollRef=useRef(null);
 const workAreaViewPendingRef=useRef(null);
 function enterWorkArea(rect){
   if(!rect||!window.WorkArea)return false;
-  const next=window.WorkArea.normalise(Object.assign({},rect,{active:true,setAt:Date.now()}),sW,sH);
+  const next=window.WorkArea.normalise(Object.assign({},rect,{active:true,gridW:blockW,gridH:blockH,setAt:Date.now()}),sW,sH);
   if(!next)return false;
   workAreaViewPendingRef.current={kind:"fit"};
   setWorkArea(next);
@@ -1225,9 +1230,15 @@ function countRect(r){
   if(!pat||!r)return{total,done:dn};
   const d=doneRef.current||done;
   for(let y=r.y0;y<r.y1;y++){const base=y*sW;for(let x=r.x0;x<r.x1;x++){const m=pat[base+x];if(!m||m.id==="__skip__"||m.id==="__empty__")continue;total++;if(d&&d[base+x])dn++;}}
+  if(halfStitches&&halfStitches.size)halfStitches.forEach((hs,idx)=>{
+    if(!window.WorkArea.containsIndex(r,idx,sW))return;
+    const hd=halfDone&&halfDone.get(idx);
+    if(hs.fwd){total+=0.5;if(hd&&hd.fwd)dn+=0.5;}
+    if(hs.bck){total+=0.5;if(hd&&hd.bck)dn+=0.5;}
+  });
   return{total,done:dn};
 }
-const areaStats=useMemo(()=>areaOn?countRect(workArea):null,[areaOn,workArea,pat,done,sW]);
+const areaStats=useMemo(()=>areaOn?countRect(workArea):null,[areaOn,workArea,pat,done,halfStitches,halfDone,sW]);
 // Per-colour counts inside the work area, in the same shape as the whole-
 // pattern counts (colourDoneCountsRef): the colour list, highlight cycling and
 // "mark all" use these while an area is active. O(area) per change.
@@ -1770,6 +1781,13 @@ const colourDoneCounts=countsVer>=0?colourDoneCountsRef.current:{};
 // The counts that "which colours are left" questions should use: the work
 // area's while one is active, the whole pattern's otherwise.
 const scopedColourCounts=areaColourCounts||colourDoneCounts;
+useEffect(()=>{
+  if(!areaColourCounts)return;
+  const current=areaColourCounts[focusColour];
+  if(current&&(current.total+current.halfTotal)>0)return;
+  const next=pal&&pal.find(p=>{const c=areaColourCounts[p.id];return c&&(c.total+c.halfTotal)>0;});
+  setFocusColour(next?next.id:null);
+},[areaColourCounts,focusColour,pal]);
 const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total,backstitch:bsLines.length,quarter:0,petite:0,french_knot:0,long_stitch:0}),[totalStitchable,halfStitchCounts.total,bsLines.length]);
 // PERF: the palette legend tile list (rendered below) used to be rebuilt and
 // re-sorted from `pal` on every single render of this component — including
@@ -2335,7 +2353,8 @@ const recommendations=useMemo(()=>{
   // Regions are Spotlight sections (the worker's blockSize is blockW): in a
   // work area, recommend only the ones inside it.
   const _recCols=analysisResult.regionCols||1;
-  const _recArea=(areaOn&&window.WorkArea&&(analysisResult.regionSize||blockW)===blockW)?window.WorkArea.sectionRange(workArea,blockW,blockH):null;
+  const _recSize=analysisResult.regionSize||blockW;
+  const _recArea=(areaOn&&window.WorkArea)?window.WorkArea.sectionRange(workArea,_recSize,_recSize):null;
   const scored=[];
   for(let i=0;i<pr.length;i++){
     const reg=pr[i];
@@ -5519,6 +5538,7 @@ function handleStitchMouseDown(e){
     return;
   }
   if(gx<0||gx>=sW||gy<0||gy>=sH||!done)return;
+  if(areaOn&&!window.WorkArea.contains(workArea,gx,gy))return;
   let idx=gy*sW+gx;
 
   // ═══ Tracker: Marking half stitches as done (track mode) ═══
@@ -6765,9 +6785,9 @@ return(
         )}
       </div>
       {/* ─ Active colour tile ─ */}
-      {focusColour&&cmap&&cmap[focusColour]?(()=>{
+      {focusColour&&cmap&&cmap[focusColour]&&(!areaColourCounts||((scopedColourCounts[focusColour]||{}).total+(scopedColourCounts[focusColour]||{}).halfTotal>0))?(()=>{
         const fc=cmap[focusColour];
-        const dc=colourDoneCounts[focusColour]||{total:0,done:0,halfTotal:0,halfDone:0};
+        const dc=scopedColourCounts[focusColour]||{total:0,done:0,halfTotal:0,halfDone:0};
         const totalWH=dc.total+dc.halfTotal*0.5;
         const doneWH=dc.done+dc.halfDone*0.5;
         const pct=totalWH>0?Math.round(doneWH/totalWH*100):0;
@@ -6922,7 +6942,7 @@ return(
       </div>;
     })()}
     {areaPickerOpen&&pat&&window.WorkAreaPicker&&React.createElement(window.WorkAreaPicker,{
-      pat,done,sW,sH,blockW,blockH,current:workArea,
+      pat,done,halfStitches,halfDone,sW,sH,blockW,blockH,current:workArea,
       onClose:()=>setAreaPickerOpen(false),
       onConfirm:(rect)=>{setAreaPickerOpen(false);enterWorkArea(rect);}
     })}

@@ -10,7 +10,7 @@
    Stored on the project, saved and synced:
 
      workArea: null                       never used on this project
-             | { active, x0, y0, x1, y1, bw, bh, setAt }
+             | { active, x0, y0, x1, y1, bw, bh, gridW, gridH, setAt }
 
    Cell coordinates, x1/y1 exclusive. bw/bh are the area's size in sections
    as chosen: an area at the right or bottom edge is clipped by the pattern,
@@ -41,6 +41,7 @@
       setAt: isInt(raw.setAt) && raw.setAt > 0 ? raw.setAt : 0
     };
     if (isInt(raw.bw) && raw.bw > 0 && isInt(raw.bh) && raw.bh > 0) { out.bw = raw.bw; out.bh = raw.bh; }
+    if (isInt(raw.gridW) && raw.gridW > 0 && isInt(raw.gridH) && raw.gridH > 0) { out.gridW = raw.gridW; out.gridH = raw.gridH; }
     return out;
   }
 
