@@ -70,6 +70,7 @@ var PRECACHE_URLS = [
   './useStitchCounts.js',
   './useDragMark.js',
   './work-area.js',
+  './components/WorkAreaPicker.js',
   './tracker-app.js',
   './manager-app.js',
 

@@ -148,3 +148,80 @@ test('the area is saved with the project and restored on reload', async ({ page 
   expect(s.area).toMatchObject({ active: true, x0: 100, y0: 150, x1: 150, y1: 200 });
   expect(s.rulerCells).toBe(56);
 });
+
+// ── Controls ──────────────────────────────────────────────────────────────
+
+test('picking an area: the Area button, a tap on the overview, and confirm', async ({ page }) => {
+  await openTracker(page);
+  await page.locator('.ppal-mode-btn', { hasText: 'Area' }).click();
+  const canvas = page.locator('.work-area-picker__canvas');
+  await expect(canvas).toBeVisible();
+  // 50x50 is the default size on 10x10 sections; tap inside the third area
+  // across, second down (columns 101-150, rows 51-100).
+  await page.locator('.work-area-seg button', { hasText: '50\u00d750' }).click();
+  const box = await canvas.boundingBox();
+  const s = box.width / 400;
+  await page.mouse.click(box.x + 125 * s, box.y + 75 * s);
+  await expect(page.locator('.work-area-picker__summary strong')).toHaveText('Columns 101\u2013150 \u00b7 Rows 51\u2013100');
+  await page.getByRole('button', { name: /Work on this area/ }).click();
+  await expect(canvas).toHaveCount(0);
+  const a = await page.evaluate(() => window.__workArea.get());
+  expect(a).toMatchObject({ active: true, x0: 100, y0: 50, x1: 150, y1: 100, bw: 5, bh: 5 });
+  await expect(page.locator('.work-area-bar')).toContainText('Columns 101\u2013150 \u00b7 Rows 51\u2013100');
+});
+
+test('dragging across the overview selects exactly the sections covered', async ({ page }) => {
+  await openTracker(page);
+  await page.evaluate(() => window.__workArea.openPicker());
+  const canvas = page.locator('.work-area-picker__canvas');
+  const box = await canvas.boundingBox();
+  const s = box.width / 400;
+  await page.mouse.move(box.x + 15 * s, box.y + 15 * s);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 45 * s, box.y + 25 * s, { steps: 6 });
+  await page.mouse.up();
+  await expect(page.locator('.work-area-seg__custom')).toBeVisible();
+  await expect(page.locator('.work-area-picker__summary strong')).toHaveText('Columns 11\u201350 \u00b7 Rows 11\u201330');
+});
+
+test('the area bar: next and previous, margin, and showing the whole pattern', async ({ page }) => {
+  await openTracker(page);
+  await page.evaluate((a) => window.__workArea.enter(a), { x0: 50, y0: 0, x1: 100, y1: 50, bw: 5, bh: 5 });
+  await page.waitForTimeout(800);
+  await page.getByRole('button', { name: 'Next unfinished area' }).click();
+  await page.waitForTimeout(500);
+  expect(await page.evaluate(() => window.__workArea.get())).toMatchObject({ x0: 100, y0: 0, x1: 150, y1: 50 });
+  await page.getByRole('button', { name: 'Previous unfinished area' }).click();
+  await page.waitForTimeout(500);
+  expect(await page.evaluate(() => window.__workArea.get())).toMatchObject({ x0: 50, y0: 0, x1: 100, y1: 50 });
+
+  await page.locator('.work-area-seg button', { hasText: /^10$/ }).click();
+  await page.waitForTimeout(400);
+  expect(await page.evaluate(() => window.__workArea.view())).toEqual({ x0: 40, y0: 0, x1: 110, y1: 60 });
+  await page.locator('.work-area-seg button', { hasText: /^0$/ }).click();
+  await page.waitForTimeout(400);
+  expect(await page.evaluate(() => window.__workArea.view())).toEqual({ x0: 50, y0: 0, x1: 100, y1: 50 });
+
+  await page.getByRole('button', { name: /Show whole pattern/ }).click();
+  await page.waitForTimeout(500);
+  await expect(page.locator('.work-area-bar')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__workArea.get().active)).toBe(false);
+});
+
+test('W opens the picker; Fit fits the area, not the pattern', async ({ page }) => {
+  await openTracker(page);
+  await page.evaluate((a) => window.__workArea.enter(a), AREA);
+  await page.waitForTimeout(800);
+  // Zoom in so Fit has something to undo.
+  await page.locator('canvas[aria-label="Cross stitch pattern grid"]').focus();
+  for (let i = 0; i < 4; i++) { await page.keyboard.press('='); await page.waitForTimeout(60); }
+  await page.waitForTimeout(400);
+  await page.locator('.ppal-mode-btn', { hasText: 'Fit' }).click();
+  await page.waitForTimeout(800);
+  const fitted = await page.evaluate(() => { const el = document.querySelector('.tracker-chart-scroll'); return { sw: el.scrollWidth, cw: el.clientWidth, sh: el.scrollHeight, ch: el.clientHeight }; });
+  expect(fitted.sw).toBeLessThanOrEqual(fitted.cw + 1);
+  expect(fitted.sh).toBeLessThanOrEqual(fitted.ch + 1);
+
+  await page.keyboard.press('w');
+  await expect(page.locator('.work-area-picker__canvas')).toBeVisible();
+});

@@ -1194,14 +1194,9 @@ React.useLayoutEffect(()=>{
   if(!el)return;
   if(pending&&pending.kind==="fit"){
     workAreaViewPendingRef.current=null;
-    const w=viewBounds.x1-viewBounds.x0,h=viewBounds.y1-viewBounds.y0;
-    const fit=Math.min((el.clientWidth-G-8)/(w*20),(el.clientHeight-G-8)/(h*20));
-    const z=Math.max(0.05,Math.min(maxZoom,fit));
-    setStitchZoom(+z.toFixed(3));
     // The zoom lands on the next render; the corner of the view is 0,0 at
-    // any zoom, so this can be set now and again once the size settles.
-    el.scrollLeft=0;el.scrollTop=0;
-    requestAnimationFrame(()=>{const e2=stitchScrollRef.current;if(e2){e2.scrollLeft=0;e2.scrollTop=0;}});
+    // any zoom, so the scroll can be set now and again once the size settles.
+    fitWorkAreaView();
     return;
   }
   if(pending&&pending.kind==="centre"){
@@ -1220,8 +1215,44 @@ React.useLayoutEffect(()=>{
 // automation, like __flushProjectToIDB. Reassigned every render so it always
 // closes over current state.
 useEffect(()=>{
-  window.__workArea={enter:enterWorkArea,exit:exitWorkArea,get:()=>workArea,view:()=>viewBoundsRef.current};
+  window.__workArea={enter:enterWorkArea,exit:exitWorkArea,get:()=>workArea,view:()=>viewBoundsRef.current,openPicker:()=>setAreaPickerOpen(true)};
 });
+const[areaPickerOpen,setAreaPickerOpen]=useState(false);
+// Stitches and done stitches inside a rectangle of the pattern. O(area):
+// cheap enough per tap for any area a stitcher would choose.
+function countRect(r){
+  let total=0,dn=0;
+  if(!pat||!r)return{total,done:dn};
+  const d=doneRef.current||done;
+  for(let y=r.y0;y<r.y1;y++){const base=y*sW;for(let x=r.x0;x<r.x1;x++){const m=pat[base+x];if(!m||m.id==="__skip__"||m.id==="__empty__")continue;total++;if(d&&d[base+x])dn++;}}
+  return{total,done:dn};
+}
+const areaStats=useMemo(()=>areaOn?countRect(workArea):null,[areaOn,workArea,pat,done,sW]);
+// The neighbouring area in reading order: any (for enabling the buttons,
+// cheap) or the nearest unfinished one (on click — it may scan many areas).
+function neighbourArea(dir,unfinishedOnly){
+  if(!areaOn||!window.WorkArea)return null;
+  return window.WorkArea.step(workArea,dir,blockW,blockH,sW,sH,
+    unfinishedOnly?(r=>{const c=countRect(r);return c.total===0||c.done>=c.total;}):null);
+}
+function stepWorkArea(dir){
+  const a=neighbourArea(dir,true);
+  if(a){enterWorkArea(a);return;}
+  try{window.Toast&&window.Toast.show&&window.Toast.show({message:dir>0?"No unfinished areas after this one":"No unfinished areas before this one",type:"info"});}catch(_){}
+}
+// Fit the current view (area + margin) to the chart and show its corner.
+function fitWorkAreaView(){
+  const el=stitchScrollRef.current;
+  if(!el)return;
+  const vb=viewBoundsRef.current;
+  const w=vb.x1-vb.x0,h=vb.y1-vb.y0;
+  const fit=Math.min((el.clientWidth-G-8)/(w*20),(el.clientHeight-G-8)/(h*20));
+  setStitchZoom(+Math.max(0.05,Math.min(maxZoom,fit)).toFixed(3));
+  el.scrollLeft=0;el.scrollTop=0;
+  requestAnimationFrame(()=>{const e2=stitchScrollRef.current;if(e2){e2.scrollLeft=0;e2.scrollTop=0;}});
+}
+// "Fit" fits the work area while one is active, the whole pattern otherwise.
+function fitChart(){if(areaOn)fitWorkAreaView();else fitSZ();}
 const isSpaceDownRef=useRef(false);
 const spaceDownTimeRef=useRef(0);
 const spacePannedRef=useRef(false);
@@ -5972,7 +6003,10 @@ useShortcuts(!isActive ? [] : [
     run: () => setStitchZoom(z=>Math.max(0.3,+(z-0.1).toFixed(2))) },
   { id: "tracker.zoom.fit", keys: "0", scope: "tracker",
     description: "Zoom to fit",
-    run: () => fitSZ() },
+    run: () => fitChart() },
+  { id: "tracker.workArea.pick", keys: "w", scope: "tracker",
+    description: "Pick a work area",
+    run: () => setAreaPickerOpen(true) },
 
   // Highlight-view-only: focus-colour cycling and highlight modes.
   { id: "tracker.hl.next", keys: ["]", "arrowright"], scope: "tracker.view.highlight",
@@ -6782,6 +6816,34 @@ return(
       return null;
     })()}
 
+    {/* Work area bar: which part of the pattern the chart is showing, its
+        progress, and stepping to the next unfinished area. */}
+    {areaOn&&areaStats&&(()=>{
+      const pct=areaStats.total?Math.floor(areaStats.done/areaStats.total*1000)/10:100;
+      const hasPrev=!!neighbourArea(-1,false),hasNext=!!neighbourArea(1,false);
+      return <div className="work-area-bar" role="region" aria-label="Work area">
+        <span className="work-area-bar__title">{Icons.crop()}<span>Work area</span><span className="work-area-bar__range">{window.WorkArea.describe(workArea)}</span></span>
+        <span className="work-area-bar__progress">
+          <span className="work-area-bar__track" aria-hidden="true"><span className="work-area-bar__fill" style={{display:"block",width:pct+"%"}}/></span>
+          <span className="work-area-bar__pct" aria-label={"Work area "+pct+"% done, "+(areaStats.total-areaStats.done).toLocaleString("en-GB")+" stitches left"}>{pct%1===0?pct.toFixed(0):pct.toFixed(1)}%</span>
+        </span>
+        <span className="work-area-bar__actions">
+          <span className="work-area-seg" role="group" aria-label="Margin around the area">
+            <span className="work-area-seg__label">Margin</span>
+            {[0,3,10].map(m=><button key={m} type="button" aria-pressed={workAreaMargin===m} onClick={()=>setWorkAreaMargin(m)}>{m}</button>)}
+          </span>
+          <button type="button" className="work-area-bar__icon-btn" disabled={!hasPrev} onClick={()=>stepWorkArea(-1)} aria-label="Previous unfinished area" title="Previous unfinished area">{Icons.chevronLeft()}</button>
+          <button type="button" className="work-area-bar__icon-btn" disabled={!hasNext} onClick={()=>stepWorkArea(1)} aria-label="Next unfinished area" title="Next unfinished area">{Icons.chevronRight()}</button>
+          <button type="button" className="g-btn" onClick={()=>setAreaPickerOpen(true)}>Change</button>
+          <button type="button" className="g-btn" onClick={exitWorkArea}>{Icons.focusExit()} Show whole pattern</button>
+        </span>
+      </div>;
+    })()}
+    {areaPickerOpen&&pat&&window.WorkAreaPicker&&React.createElement(window.WorkAreaPicker,{
+      pat,done,sW,sH,blockW,blockH,current:workArea,
+      onClose:()=>setAreaPickerOpen(false),
+      onConfirm:(rect)=>{setAreaPickerOpen(false);enterWorkArea(rect);}
+    })}
     {/* Height lives in CSS (.tracker-chart-scroll), not inline. It used to be
         an inline max-height of 600px, which no media query could override, so
         a tablet with 1300 CSS px of height showed the chart through the same
@@ -6910,9 +6972,13 @@ return(
         <span className="ppal-mode-btn-icon">{Icons.parkFlag()}</span>
         <span className="ppal-mode-btn-label">Nav</span>
       </button>
-      <button className="ppal-mode-btn" onClick={fitSZ} title="Fit to screen (0)">
+      <button className="ppal-mode-btn" onClick={fitChart} title={areaOn?"Fit the work area (0)":"Fit to screen (0)"}>
         <span className="ppal-mode-btn-icon">{Icons.focus()}</span>
         <span className="ppal-mode-btn-label">Fit</span>
+      </button>
+      <button className={"ppal-mode-btn"+(areaOn?" ppal-mode-btn--on":"")} onClick={()=>setAreaPickerOpen(true)} aria-pressed={areaOn} title={areaOn?"Change work area (W)":"Pick a work area (W)"}>
+        <span className="ppal-mode-btn-icon">{Icons.crop()}</span>
+        <span className="ppal-mode-btn-label">Area</span>
       </button>
       <button className="ppal-mode-btn" onClick={undoTrack} disabled={!trackHistory.length} title="Undo (Ctrl+Z)" aria-label={trackHistory.length>0?"Undo "+trackHistory.length+" steps":"Nothing to undo"}>
         <span className="ppal-mode-btn-icon">{Icons.undo()}</span>

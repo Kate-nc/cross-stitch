@@ -2378,22 +2378,9 @@ function TrackerApp({
     if (!el) return;
     if (pending && pending.kind === "fit") {
       workAreaViewPendingRef.current = null;
-      const w = viewBounds.x1 - viewBounds.x0,
-        h = viewBounds.y1 - viewBounds.y0;
-      const fit = Math.min((el.clientWidth - G - 8) / (w * 20), (el.clientHeight - G - 8) / (h * 20));
-      const z = Math.max(0.05, Math.min(maxZoom, fit));
-      setStitchZoom(+z.toFixed(3));
       // The zoom lands on the next render; the corner of the view is 0,0 at
-      // any zoom, so this can be set now and again once the size settles.
-      el.scrollLeft = 0;
-      el.scrollTop = 0;
-      requestAnimationFrame(() => {
-        const e2 = stitchScrollRef.current;
-        if (e2) {
-          e2.scrollLeft = 0;
-          e2.scrollTop = 0;
-        }
-      });
+      // any zoom, so the scroll can be set now and again once the size settles.
+      fitWorkAreaView();
       return;
     }
     if (pending && pending.kind === "centre") {
@@ -2416,9 +2403,81 @@ function TrackerApp({
       enter: enterWorkArea,
       exit: exitWorkArea,
       get: () => workArea,
-      view: () => viewBoundsRef.current
+      view: () => viewBoundsRef.current,
+      openPicker: () => setAreaPickerOpen(true)
     };
   });
+  const [areaPickerOpen, setAreaPickerOpen] = useState(false);
+  // Stitches and done stitches inside a rectangle of the pattern. O(area):
+  // cheap enough per tap for any area a stitcher would choose.
+  function countRect(r) {
+    let total = 0,
+      dn = 0;
+    if (!pat || !r) return {
+      total,
+      done: dn
+    };
+    const d = doneRef.current || done;
+    for (let y = r.y0; y < r.y1; y++) {
+      const base = y * sW;
+      for (let x = r.x0; x < r.x1; x++) {
+        const m = pat[base + x];
+        if (!m || m.id === "__skip__" || m.id === "__empty__") continue;
+        total++;
+        if (d && d[base + x]) dn++;
+      }
+    }
+    return {
+      total,
+      done: dn
+    };
+  }
+  const areaStats = useMemo(() => areaOn ? countRect(workArea) : null, [areaOn, workArea, pat, done, sW]);
+  // The neighbouring area in reading order: any (for enabling the buttons,
+  // cheap) or the nearest unfinished one (on click — it may scan many areas).
+  function neighbourArea(dir, unfinishedOnly) {
+    if (!areaOn || !window.WorkArea) return null;
+    return window.WorkArea.step(workArea, dir, blockW, blockH, sW, sH, unfinishedOnly ? r => {
+      const c = countRect(r);
+      return c.total === 0 || c.done >= c.total;
+    } : null);
+  }
+  function stepWorkArea(dir) {
+    const a = neighbourArea(dir, true);
+    if (a) {
+      enterWorkArea(a);
+      return;
+    }
+    try {
+      window.Toast && window.Toast.show && window.Toast.show({
+        message: dir > 0 ? "No unfinished areas after this one" : "No unfinished areas before this one",
+        type: "info"
+      });
+    } catch (_) {}
+  }
+  // Fit the current view (area + margin) to the chart and show its corner.
+  function fitWorkAreaView() {
+    const el = stitchScrollRef.current;
+    if (!el) return;
+    const vb = viewBoundsRef.current;
+    const w = vb.x1 - vb.x0,
+      h = vb.y1 - vb.y0;
+    const fit = Math.min((el.clientWidth - G - 8) / (w * 20), (el.clientHeight - G - 8) / (h * 20));
+    setStitchZoom(+Math.max(0.05, Math.min(maxZoom, fit)).toFixed(3));
+    el.scrollLeft = 0;
+    el.scrollTop = 0;
+    requestAnimationFrame(() => {
+      const e2 = stitchScrollRef.current;
+      if (e2) {
+        e2.scrollLeft = 0;
+        e2.scrollTop = 0;
+      }
+    });
+  }
+  // "Fit" fits the work area while one is active, the whole pattern otherwise.
+  function fitChart() {
+    if (areaOn) fitWorkAreaView();else fitSZ();
+  }
   const isSpaceDownRef = useRef(false);
   const spaceDownTimeRef = useRef(0);
   const spacePannedRef = useRef(false);
@@ -9593,7 +9652,13 @@ function TrackerApp({
     keys: "0",
     scope: "tracker",
     description: "Zoom to fit",
-    run: () => fitSZ()
+    run: () => fitChart()
+  }, {
+    id: "tracker.workArea.pick",
+    keys: "w",
+    scope: "tracker",
+    description: "Pick a work area",
+    run: () => setAreaPickerOpen(true)
   },
   // Highlight-view-only: focus-colour cycling and highlight modes.
   {
@@ -11257,7 +11322,82 @@ function TrackerApp({
       }
     }, Icons.x ? Icons.x() : null));
     return null;
-  })(), /*#__PURE__*/React.createElement("div", {
+  })(), areaOn && areaStats && (() => {
+    const pct = areaStats.total ? Math.floor(areaStats.done / areaStats.total * 1000) / 10 : 100;
+    const hasPrev = !!neighbourArea(-1, false),
+      hasNext = !!neighbourArea(1, false);
+    return /*#__PURE__*/React.createElement("div", {
+      className: "work-area-bar",
+      role: "region",
+      "aria-label": "Work area"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "work-area-bar__title"
+    }, Icons.crop(), /*#__PURE__*/React.createElement("span", null, "Work area"), /*#__PURE__*/React.createElement("span", {
+      className: "work-area-bar__range"
+    }, window.WorkArea.describe(workArea))), /*#__PURE__*/React.createElement("span", {
+      className: "work-area-bar__progress"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "work-area-bar__track",
+      "aria-hidden": "true"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "work-area-bar__fill",
+      style: {
+        display: "block",
+        width: pct + "%"
+      }
+    })), /*#__PURE__*/React.createElement("span", {
+      className: "work-area-bar__pct",
+      "aria-label": "Work area " + pct + "% done, " + (areaStats.total - areaStats.done).toLocaleString("en-GB") + " stitches left"
+    }, pct % 1 === 0 ? pct.toFixed(0) : pct.toFixed(1), "%")), /*#__PURE__*/React.createElement("span", {
+      className: "work-area-bar__actions"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "work-area-seg",
+      role: "group",
+      "aria-label": "Margin around the area"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "work-area-seg__label"
+    }, "Margin"), [0, 3, 10].map(m => /*#__PURE__*/React.createElement("button", {
+      key: m,
+      type: "button",
+      "aria-pressed": workAreaMargin === m,
+      onClick: () => setWorkAreaMargin(m)
+    }, m))), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "work-area-bar__icon-btn",
+      disabled: !hasPrev,
+      onClick: () => stepWorkArea(-1),
+      "aria-label": "Previous unfinished area",
+      title: "Previous unfinished area"
+    }, Icons.chevronLeft()), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "work-area-bar__icon-btn",
+      disabled: !hasNext,
+      onClick: () => stepWorkArea(1),
+      "aria-label": "Next unfinished area",
+      title: "Next unfinished area"
+    }, Icons.chevronRight()), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "g-btn",
+      onClick: () => setAreaPickerOpen(true)
+    }, "Change"), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "g-btn",
+      onClick: exitWorkArea
+    }, Icons.focusExit(), " Show whole pattern")));
+  })(), areaPickerOpen && pat && window.WorkAreaPicker && React.createElement(window.WorkAreaPicker, {
+    pat,
+    done,
+    sW,
+    sH,
+    blockW,
+    blockH,
+    current: workArea,
+    onClose: () => setAreaPickerOpen(false),
+    onConfirm: rect => {
+      setAreaPickerOpen(false);
+      enterWorkArea(rect);
+    }
+  }), /*#__PURE__*/React.createElement("div", {
     ref: stitchScrollRef,
     className: "tracker-chart-scroll" + (drawer ? " is-drawer" : ""),
     onScroll: () => {
@@ -11577,13 +11717,22 @@ function TrackerApp({
     className: "ppal-mode-btn-label"
   }, "Nav")), /*#__PURE__*/React.createElement("button", {
     className: "ppal-mode-btn",
-    onClick: fitSZ,
-    title: "Fit to screen (0)"
+    onClick: fitChart,
+    title: areaOn ? "Fit the work area (0)" : "Fit to screen (0)"
   }, /*#__PURE__*/React.createElement("span", {
     className: "ppal-mode-btn-icon"
   }, Icons.focus()), /*#__PURE__*/React.createElement("span", {
     className: "ppal-mode-btn-label"
   }, "Fit")), /*#__PURE__*/React.createElement("button", {
+    className: "ppal-mode-btn" + (areaOn ? " ppal-mode-btn--on" : ""),
+    onClick: () => setAreaPickerOpen(true),
+    "aria-pressed": areaOn,
+    title: areaOn ? "Change work area (W)" : "Pick a work area (W)"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "ppal-mode-btn-icon"
+  }, Icons.crop()), /*#__PURE__*/React.createElement("span", {
+    className: "ppal-mode-btn-label"
+  }, "Area")), /*#__PURE__*/React.createElement("button", {
     className: "ppal-mode-btn",
     onClick: undoTrack,
     disabled: !trackHistory.length,
