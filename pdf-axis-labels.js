@@ -203,7 +203,20 @@
       v = fitRuler(vRuns[b].values, vRuns[b].positions, minRun, opts.expectPitchY);
       if (v) vRun = vRuns[b];
     }
-    if (!h || !v) return null;
+    if (!h || !v) {
+      // A caller placing a page by other means can use one axis on its own:
+      // the last page of each row often prints row numbers only, its few
+      // columns holding no multiple of ten (MacStitch, 9 columns of 299).
+      if (!opts.allowOneAxis || (!h && !v)) return null;
+      return {
+        h: h, v: v, oneAxis: true,
+        colValues: h ? hRun.values : [], rowValues: v ? vRun.values : [],
+        colLabels: h ? labelsOf(hRun) : [], rowLabels: v ? labelsOf(vRun) : [],
+        firstLabelRow: v ? vRun.values[0] : null, lastLabelRow: v ? vRun.values[vRun.values.length - 1] : null,
+        firstLabelCol: h ? hRun.values[0] : null, lastLabelCol: h ? hRun.values[hRun.values.length - 1] : null,
+        confidence: 0.4,
+      };
+    }
 
     // Confidence rises with the evidence on the weaker axis. Charts typically
     // print 6-10 labels per axis per page; treat 8 as full marks.

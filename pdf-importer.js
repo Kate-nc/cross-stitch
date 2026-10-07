@@ -330,13 +330,24 @@ class PatternKeeperImporter {
     const out = session.pages.filter(p => !at[p.pageIndex]);
     const dup = out.filter(p => p.reason === 'duplicate').map(p => p.pageIndex);
     const missing = out.filter(p => p.reason !== 'duplicate').map(p => p.pageIndex);
+    // Page lists as runs: "38–42, 44–48" rather than thirty numbers.
+    const runsOf = (list) => {
+      const xs = list.slice().sort((a, b) => a - b), out = [];
+      for (let i = 0; i < xs.length; i++) {
+        let j = i;
+        while (j + 1 < xs.length && xs[j + 1] === xs[j] + 1) j++;
+        out.push(j > i ? xs[i] + '–' + xs[j] : String(xs[i]));
+        i = j;
+      }
+      return out.join(', ');
+    };
     if (dup.length) {
-      warnings.push((dup.length > 1 ? 'Pages ' + dup.join(', ') + ' repeat' : 'Page ' + dup[0] + ' repeats') +
+      warnings.push((dup.length > 1 ? 'Pages ' + runsOf(dup) + ' repeat' : 'Page ' + dup[0] + ' repeats') +
         ' another page in a different style and ' + (dup.length > 1 ? 'were' : 'was') + ' not imported.');
     }
     if (missing.length) {
       warnings.push(missing.length > 1
-        ? 'Pages ' + missing.join(', ') + ' looked like chart pages but were not placed, and were not imported.'
+        ? 'Pages ' + runsOf(missing) + ' looked like chart pages but were not placed, and were not imported.'
         : 'Page ' + missing[0] + ' looked like a chart page but was not placed, and was not imported.');
     }
     if (manual) warnings.push('The page layout was arranged by hand.');
@@ -349,7 +360,26 @@ class PatternKeeperImporter {
       tiling: manual ? null : session.tiling,
       warnings,
     };
-    return this.convertToPattern(layout, Array.from(byKey.values()), session.legend, bsLines, session.stated);
+    // How the stitches were matched to the key, counted over the stitches this
+    // arrangement places. Every page is linked in one pass, set-aside copies
+    // included, and counting those reported a black-and-white copy's symbols
+    // as missing from the key in a chart that never uses them.
+    const placed = Array.from(byKey.values());
+    let legend = session.legend;
+    if (placed.some(c => c.matchedBy)) {
+      const m = { symbol: 0, swatch: 0, nearest: 0, catalogue: 0, unresolved: 0, partial: 0, partialSwatch: 0, partialNearest: 0, unresolvedSymbols: {} };
+      for (const c of placed) {
+        if (!c.matchedBy) continue;
+        m[c.matchedBy] = (m[c.matchedBy] || 0) + 1;
+        if (c.matchedBy === 'partial') m[c.partialBy === 'nearest' ? 'partialNearest' : 'partialSwatch']++;
+        if (c.matchedBy === 'unresolved') {
+          const sym = c.symbol || '(colour)';
+          m.unresolvedSymbols[sym] = (m.unresolvedSymbols[sym] || 0) + 1;
+        }
+      }
+      legend = Object.assign({}, session.legend, { matchReport: m });
+    }
+    return this.convertToPattern(layout, placed, legend, bsLines, session.stated);
   }
 
   /**
@@ -1094,6 +1124,26 @@ class PatternKeeperImporter {
   }
 
   /**
+   * How many colours a page paints its chart in: distinct fill colours, not
+   * counting a fill over the whole sheet. A colour chart paints dozens; the
+   * same chart in black and white, one or two.
+   */
+  inkColourCount(page) {
+    const w = (page && page.width) || 0, h = (page && page.height) || 0;
+    const colours = new Set();
+    for (const v of (page && page.vectorPaths) || []) {
+      if (!v.fillColor || !v.points || v.points.length < 3) continue;
+      if (w > 0 && h > 0) {
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for (const q of v.points) { if (q.x < x0) x0 = q.x; if (q.x > x1) x1 = q.x; if (q.y < y0) y0 = q.y; if (q.y > y1) y1 = q.y; }
+        if (x1 - x0 >= w * 0.9 && y1 - y0 >= h * 0.9) continue;
+      }
+      colours.add(Math.round(v.fillColor[0]) + ',' + Math.round(v.fillColor[1]) + ',' + Math.round(v.fillColor[2]));
+    }
+    return colours.size;
+  }
+
+  /**
    * Are these chart pages the same design printed in different styles, rather
    * than tiles of one larger design?
    *
@@ -1305,10 +1355,17 @@ class PatternKeeperImporter {
     const placedPages = pages.filter(p => byIndex.has(p.pageIndex));
     if (placedPages.length < 2) return null;
     const ratio = placedPages.length / pages.length;
+    // Counted by tile, not by page: a chart printed twice (in colour, then in
+    // black and white) puts two pages on every tile.
+    const tiles = new Set(placedPages.map(p => {
+      const o = byIndex.get(p.pageIndex);
+      return o.colGroup + ',' + o.rowGroup;
+    }));
     const fillsRectangle = layout.tiling &&
-      placedPages.length === layout.tiling.across * layout.tiling.down;
+      tiles.size === layout.tiling.across * layout.tiling.down;
     if (!fillsRectangle && ratio < 0.8) return null;
-    const leftOut = pages.filter(p => !byIndex.has(p.pageIndex)).map(p => p.pageIndex);
+    const leftOutPages = pages.filter(p => !byIndex.has(p.pageIndex));
+    let leftOut = leftOutPages.map(p => p.pageIndex);
     pages = placedPages;
 
     // The rulers bound the design: `total*` is exact when they label their own
@@ -1342,18 +1399,90 @@ class PatternKeeperImporter {
       p.rulerSpan = span;
       if (span.colStart + span.columns > totalCols) totalCols = span.colStart + span.columns;
       if (span.rowStart + span.rows > totalRows) totalRows = span.rowStart + span.rows;
+      p.inkColours = this.inkColourCount(p.rawPage);
       delete p.rawPage;
     }
 
     if (!totalCols || !totalRows) return null;
 
+    // The last page of each row may print row numbers but no column numbers:
+    // MacStitch's 299-wide chart ends in a page of 9 columns, none of them a
+    // multiple of ten. Such a page continues its row, so it starts where the
+    // rightmost page beside it ends, and is as wide as its own content.
+    for (const p of leftOutPages) {
+      const one = AX.readPageRulers ? AX.readPageRulers(p.rawPage.textItems, { yDown: true, minRun: 2, allowOneAxis: true }) : null;
+      if (!one || !one.v || one.h) continue;
+      // Only fully ruled pages say where the row ends: a copy of this page
+      // (the chart printed again in black and white) belongs on the same cells.
+      const mates = pages.filter(q => q.ruler && !q.ruler.oneAxis && q.ruler.firstLabelRow === one.firstLabelRow && q.rulerSpan);
+      if (!mates.length) continue;
+      const pitchX = mates[0].ruler.pitchX, pitchY = mates[0].ruler.pitchY;
+      const box = this.chartContentBox(p.rawPage, pitchX, pitchY);
+      if (!box) continue;
+      const colStart = Math.max(...mates.map(q => q.rulerSpan.colStart + q.rulerSpan.columns));
+      const columns = Math.min(Math.max(1, Math.round((box.x1 - box.x0) / pitchX)), limitCols - colStart);
+      if (!(columns > 0)) continue;
+      const rowStart = mates[0].rulerSpan.rowStart, rows = mates[0].rulerSpan.rows;
+      const span = { colStart, rowStart, columns, rows };
+      // A ruler that maps this page's content onto that span, for the grid.
+      p.ruler = {
+        pitchX, pitchY,
+        colBase: colStart + 1 - (box.x0 + pitchX / 2) / pitchX,
+        rowBase: rowStart + 1 - (box.y0 + pitchY / 2) / pitchY,
+        firstLabelRow: one.firstLabelRow, lastLabelRow: one.lastLabelRow, oneAxis: true,
+      };
+      p.anchoredToGrid = false;
+      p.rulerSpan = span;
+      p.globalOffsetCol = colStart;
+      p.globalOffsetRow = rowStart;
+      p.inkColours = this.inkColourCount(p.rawPage);
+      delete p.rawPage;
+      pages.push(p);
+      leftOut = leftOut.filter(i => i !== p.pageIndex);
+      if (colStart + columns > totalCols) totalCols = colStart + columns;
+      if (rowStart + rows > totalRows) totalRows = rowStart + rows;
+    }
+
+    // A chart printed twice — in colour, then again in black and white — puts
+    // two pages over every tile (MacStitch's 76-page Pokémon chart: pages 2-37
+    // in colour, 38-73 in symbols). The rulers place both copies on the same
+    // cells, which is the evidence: pages sharing most of their cells, one in
+    // colour and the rest plain, are one tile drawn twice, and only the
+    // colour one is read. The rulers placing both on the same cells is strong
+    // evidence, so the colour page need only show three colours, the copy two.
+    const droppedAlternates = [];
+    const cellsOf = (q) => q.rulerSpan.columns * q.rulerSpan.rows;
+    const shared = (a, b) => {
+      const sa = a.rulerSpan, sb = b.rulerSpan;
+      const w = Math.min(sa.colStart + sa.columns, sb.colStart + sb.columns) - Math.max(sa.colStart, sb.colStart);
+      const h = Math.min(sa.rowStart + sa.rows, sb.rowStart + sb.rows) - Math.max(sa.rowStart, sb.rowStart);
+      return w > 0 && h > 0 ? w * h : 0;
+    };
+    for (const q of pages) {
+      if (droppedAlternates.indexOf(q.pageIndex) >= 0 || !(q.inkColours >= 3)) continue;
+      for (const o of pages) {
+        if (o === q || droppedAlternates.indexOf(o.pageIndex) >= 0 || !(o.inkColours <= 2) || !(o.inkColours < q.inkColours)) continue;
+        if (shared(q, o) >= 0.6 * Math.min(cellsOf(q), cellsOf(o))) droppedAlternates.push(o.pageIndex);
+      }
+    }
+    if (droppedAlternates.length) {
+      for (let i = pages.length - 1; i >= 0; i--) if (droppedAlternates.indexOf(pages[i].pageIndex) >= 0) pages.splice(i, 1);
+    }
+
+    // Pages placed above no longer count against the rulers: the warnings
+    // about them, and the tiling, describe what was finally placed.
+    const across = new Set(pages.map(q => q.globalOffsetCol)).size;
+    const down = new Set(pages.map(q => q.globalOffsetRow)).size;
+    const rulerWarnings = (layout.warnings || []).filter(w =>
+      !/carry no readable ruler|rulers describe an/.test(w) || leftOut.length);
     return {
       totalColumns: totalCols,
       totalRows: totalRows,
       pages: pages,
-      tiling: layout.tiling,
+      tiling: { across, down },
       layoutSource: 'axis-rulers',
-      warnings: (layout.warnings || []).concat(leftOut.length
+      droppedAlternates: droppedAlternates,
+      warnings: rulerWarnings.concat(leftOut.length
         ? [(leftOut.length > 1
             ? 'Pages ' + leftOut.join(', ') + ' looked like chart pages but could not be placed, and were not imported.'
             : 'Page ' + leftOut[0] + ' looked like a chart page but could not be placed, and was not imported.')]
@@ -1496,16 +1625,44 @@ class PatternKeeperImporter {
     const digits = [];
 
     const paths = page.vectorPaths || [];
+    const pageW = page.width || 0, pageH = page.height || 0;
     for (let i = 0; i < paths.length; i++) {
       const pa = paths[i];
       if (!pa.fillColor || !pa.points || !pa.points.length) continue;
-      if (pitchX > 0 && pitchY > 0) {
-        let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
-        for (const pt of pa.points) {
-          if (pt.x < bx0) bx0 = pt.x; if (pt.x > bx1) bx1 = pt.x;
-          if (pt.y < by0) by0 = pt.y; if (pt.y > by1) by1 = pt.y;
+      let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+      for (const pt of pa.points) {
+        if (pt.x < bx0) bx0 = pt.x; if (pt.x > bx1) bx1 = pt.x;
+        if (pt.y < by0) by0 = pt.y; if (pt.y > by1) by1 = pt.y;
+      }
+      const bw = bx1 - bx0, bh = by1 - by0;
+      // The sheet itself, and anything reaching its edge: MacStitch paints the
+      // whole page white, then masks the margins with white strips running to
+      // the paper's edge, which put every chart's edge at the paper's. A chart
+      // never touches the edge of the sheet.
+      if (pageW > 0 && pageH > 0 && bw >= pageW * 0.9 && bh >= pageH * 0.9) continue;
+      if (pageW > 0 && pageH > 0 && (bx0 <= 1 || by0 <= 1 || bx1 >= pageW - 1 || by1 >= pageH - 1)) continue;
+      // A white backdrop under the grid is paper, not stitches: a white
+      // stitch fills one cell, not many. MacStitch lays one under every page's
+      // full-size grid, even a page of nine columns.
+      const fc = pa.fillColor;
+      if (fc[0] >= 245 && fc[1] >= 245 && fc[2] >= 245 && pitchX > 0 && pitchY > 0 &&
+          bw > pitchX * 4 && bh > pitchY * 4) continue;
+      // A triangle is a ¾ or ¼ stitch only if it has a right angle, two sides
+      // along the grid. The arrowheads marking a chart's centre row sit just
+      // outside it, with one straight side, and widened the chart by a column.
+      if (pa.points.length <= 4) {
+        const corners = [];
+        for (const pt of pa.points) if (!corners.some(q => Math.abs(q.x - pt.x) < 0.2 && Math.abs(q.y - pt.y) < 0.2)) corners.push(pt);
+        if (corners.length === 3) {
+          let straight = 0;
+          for (let k = 0; k < 3; k++) {
+            const a = corners[k], b = corners[(k + 1) % 3];
+            if (Math.abs(a.x - b.x) < 0.3 || Math.abs(a.y - b.y) < 0.3) straight++;
+          }
+          if (straight < 2) continue;
         }
-        const bw = bx1 - bx0, bh = by1 - by0;
+      }
+      if (pitchX > 0 && pitchY > 0) {
         if ((bh <= pitchY * 1.5 && bw >= pitchX * 20) || (bw <= pitchX * 1.5 && bh >= pitchY * 20)) continue;
       }
       for (let q = 0; q < pa.points.length; q++) {
@@ -2014,6 +2171,14 @@ class PatternKeeperImporter {
            const h = Math.abs(p.points[0].y - p.points[2].y);
            // Skip page-bounding rectangles entirely.
            if (w > pw * fullSpanFrac && h > ph * fullSpanFrac) return;
+           // And anything that reaches the edge of the sheet: MacStitch masks
+           // its margins with white rectangles running to the paper's edge,
+           // whose edges fell about three cells from the chart's and so passed
+           // for missing grid lines, stretching the grid across the page. A
+           // chart's grid never touches the paper's edge.
+           const rx0 = Math.min(p.points[0].x, p.points[2].x), rx1 = Math.max(p.points[0].x, p.points[2].x);
+           const ry0 = Math.min(p.points[0].y, p.points[2].y), ry1 = Math.max(p.points[0].y, p.points[2].y);
+           if (rx0 <= 1 || ry0 <= 1 || rx1 >= pw - 1 || ry1 >= ph - 1) return;
            // Only count large rectangles as grid layout elements (ignore 2x2px cell fills)
            if (w > 20 || h > 20) {
                hLines.push(p.points[0].y, p.points[2].y);
@@ -2693,9 +2858,15 @@ class PatternKeeperImporter {
         // curves are dropped), not a swatch.
         if (b.h <= 4 && b.w >= 8 && b.w <= 70) { samples.push(Object.assign(b, { rgb })); continue; }
         if (p.points.length < 4) continue;
-        if (b.w < 3 || b.h < 3 || b.w > 30 || b.h > 30) continue;
-        if (b.w / b.h > 2.2 || b.h / b.w > 2.2) continue;
-        swatches.push(Object.assign(b, { rgb }));
+        if (b.w < 3 || b.h < 3 || b.h > 30) continue;
+        // A square swatch, or a whole table cell filled with the thread's
+        // colour (MacStitch: a cell some 100pt wide). A wide fill is only a
+        // swatch if it ends before the code it belongs to; row striping runs
+        // across the code and is ruled out below.
+        const wide = b.w > 30 || b.w / b.h > 2.2;
+        if (wide && b.w > 160) continue;
+        if (!wide && b.h / b.w > 2.2) continue;
+        swatches.push(Object.assign(b, { rgb, wide }));
       } else if (p.stroked && p.strokeColor && p.points.length === 2) {
         // A key's backstitch sample is a short horizontal stroke.
         if (b.h > 3 || b.w < 8 || b.w > 70) continue;
@@ -2756,6 +2927,27 @@ class PatternKeeperImporter {
       });
     }
 
+    // A key laid out as a table names its columns. Values are then read by
+    // the column they sit under: MacStitch prints strands, length and stitch
+    // count as bare numbers ("2", "0.2 Skeins", "947"), and read by position
+    // alone the strands passed for a symbol and the length for a name.
+    const HEADS = [
+      { re: /^(?:stitches|stitch\s*count|count|sts\.?)$/i, col: 'count' },
+      { re: /^strands?$/i, col: 'strands' },
+      { re: /^(?:length|skeins?|amount|qty|quantity|metres|meters|yards)$/i, col: 'skip' },
+      { re: /^(?:name|description|colou?r\s*name)$/i, col: 'name' },
+    ];
+    const heads = [];
+    for (const t of texts) for (const hd of HEADS) if (hd.re.test(t.s)) heads.push({ x: t.x, cy: t.cy, col: hd.col });
+    const columnOf = (t, rowCy) => {
+      const above = heads.filter(hd => hd.cy < rowCy - 2);
+      if (!above.length) return null;
+      const rowY = Math.max(...above.map(hd => hd.cy));
+      const row = above.filter(hd => Math.abs(hd.cy - rowY) <= 3 && hd.x <= t.x + 4);
+      if (!row.length) return null;
+      return row.reduce((m, hd) => (hd.x > m.x ? hd : m)).col;
+    };
+
     const entries = [];
     for (const a of anchored) {
       const next = anchored
@@ -2767,6 +2959,11 @@ class PatternKeeperImporter {
         .filter(t => t !== a.c && t.x > a.c.x && t.x < next && sameLine(t.cy, a.c.cy))
         .sort((p, q) => p.x - q.x);
       for (const t of right) {
+        const col = heads.length ? columnOf(t, a.c.cy) : null;
+        if (col === 'skip') continue;
+        if (col === 'count' && /^\d[\d,.]*$/.test(t.s)) { if (count === null) count = parseInt(t.s.replace(/[,.]/g, ''), 10); continue; }
+        if (col === 'strands' && /^\d$/.test(t.s)) { if (strands === null) strands = parseInt(t.s, 10); continue; }
+        if (col === 'name') { if (name === null && /[a-z]/i.test(t.s)) name = t.s; continue; }
         const cm = t.s.match(COUNT_RE);
         if (cm) { if (count === null) count = parseInt(cm[1].replace(/[,.]/g, ''), 10); continue; }
         const sm = t.s.match(STRANDS_RE);
@@ -3130,13 +3327,15 @@ class PatternKeeperImporter {
            if (first) {
               report.partial = (report.partial || 0) + 1;
               report[matchKind === 'nearest' ? 'partialNearest' : 'partialSwatch']++;
-              linked.push({ ...cell, thread: first, partialThreads: quarters });
+              linked.push({ ...cell, thread: first, partialThreads: quarters, matchedBy: 'partial',
+                            partialBy: matchKind === 'nearest' ? 'nearest' : 'swatch' });
               return;
            }
         }
 
         let thread = null;
         let entry = null;
+        let how = null;
 
         // 1. Symbol.
         const cands = cell.symbol ? bySymbol.get(cell.symbol) : null;
@@ -3149,13 +3348,13 @@ class PatternKeeperImporter {
               const sw = swatchEntryOf(cell);
               entry = (sw && pool.indexOf(sw) >= 0) ? sw : pool[0];
            }
-           if (entry) report.symbol++;
+           if (entry) { report.symbol++; how = 'symbol'; }
         }
 
         // 2. Exact swatch colour.
         if (!entry) {
            entry = swatchEntryOf(cell);
-           if (entry) report.swatch++;
+           if (entry) { report.swatch++; how = 'swatch'; }
         }
 
         if (entry) thread = threadFor(entry);
@@ -3169,6 +3368,7 @@ class PatternKeeperImporter {
                  thread = threadFor(near);
                  cell.symbol = near.symbol || cell.symbol;
                  report.nearest++;
+                 how = 'nearest';
               }
            } else {
               let bestDist = Infinity, bestThread = null;
@@ -3178,7 +3378,7 @@ class PatternKeeperImporter {
               }
               thread = bestThread;
               if (!cell.symbol) cell.symbol = bestThread ? bestThread.id : "■";
-              if (thread) report.catalogue++;
+              if (thread) { report.catalogue++; how = 'catalogue'; }
            }
         }
 
@@ -3191,9 +3391,10 @@ class PatternKeeperImporter {
            thread = placeholderFor(s);
            report.unresolved++;
            report.unresolvedSymbols[s] = (report.unresolvedSymbols[s] || 0) + 1;
+           how = 'unresolved';
         }
 
-        linked.push({ ...cell, thread });
+        linked.push({ ...cell, thread, matchedBy: how });
      });
 
      return linked;
@@ -3319,6 +3520,13 @@ class PatternKeeperImporter {
       if (lenCells < 0.6) continue;
       const axisAligned = Math.abs(a.x - b.x) < unit * 0.1 || Math.abs(a.y - b.y) < unit * 0.1;
       if (lenCells > 12 && (axisAligned || key === inkKey)) continue;
+      // So is one running the whole width or height of the page's grid, however
+      // short: on a nine-column remainder page every tenth row's bold rule is
+      // only nine cells long (MacStitch).
+      if (axisAligned) {
+        const across = Math.abs(a.y - b.y) < unit * 0.1;
+        if (lenCells >= (across ? grid.columns : grid.rows) - 0.5) continue;
+      }
       // A polyline is only stitching if its vertices sit on the stitching
       // lattice — cell corners, or the half-cell points fractional backstitch
       // uses. Symbol outlines are polylines too (DMC draws its symbols as white
@@ -3736,6 +3944,16 @@ class PatternKeeperImporter {
                  if (n) { out.designer = n; break outer; }
               }
            }
+        }
+     }
+     // The document's own Title, when the pages print none and it is a real
+     // name: MacStitch stores the pattern's ("pokemon gen 1 ext"), where other
+     // software stores its own name ("KG-Chart") or a placeholder ("document").
+     if (!out.title && info && info.Title) {
+        const t = clean(info.Title);
+        const generic = /^(?:document|untitled.*|kg-?chart(?:\s*pro)?|macstitch|winstitch|pcstitch|pattern\s*maker|chart|pattern|cross\s*stitch(?:\s*pattern)?|microsoft\s+word.*|print)$/i;
+        if (t.length >= 3 && t.length <= 80 && /[a-z]/i.test(t) && !generic.test(t) && !/\.(?:pdf|docx?|xlsx?|png|jpe?g|xps)$/i.test(t)) {
+           out.title = t;
         }
      }
      if (!out.designer && info && info.Author) {
