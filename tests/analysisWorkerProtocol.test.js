@@ -61,6 +61,14 @@ function setPattern(s, pat, sW, sH, id) {
 }
 
 describe('setPattern + analyse matches a full runAnalysis', () => {
+  test('dominant-colour ties preserve Object.keys order for DMC ids', () => {
+    const pat = ['x', '10', '2', 'alpha', '01'].map(id => ({ id }));
+    const result = runAnalysis(pat, null, 5, 1, 10);
+    expect(result.perRegion[0].dominantColour).toBe('2');
+    const nonNumeric = runAnalysis([{ id: 'alpha' }, { id: 'x' }], null, 2, 1, 10);
+    expect(nonNumeric.perRegion[0].dominantColour).toBe('alpha');
+  });
+
   test('across changing progress and block sizes on one pattern', () => {
     const sW = 23, sH = 17, pat = makePattern(sW, sH, 7);
     const s = session();

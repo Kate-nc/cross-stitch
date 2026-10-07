@@ -231,9 +231,9 @@
   function render() {
     build();
     if (!body) return;
+    var s = summary();
     body.style.display = collapsed ? 'none' : '';
     if (collapsed) return;
-    var s = summary();
     body.textContent =
       row('Frames/s', s.fps) +
       row('Worst frame 10s', s.worstFrameMs + ' ms') +
@@ -248,13 +248,13 @@
   }
   function copy(btn) {
     var text = JSON.stringify(snapshot(), null, 2);
-    var done = function (ok) {
-      btn.textContent = ok ? 'Copied' : 'Copy failed';
+    var done = function (status) {
+      btn.textContent = status;
       setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
     };
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(function () { done(true); }, function () { fallback(text); done(true); });
-    } else { fallback(text); done(true); }
+      navigator.clipboard.writeText(text).then(function () { done('Copied'); }, function () { fallback(text); done('Copy manually'); });
+    } else { fallback(text); done('Copy manually'); }
   }
   // Clipboard API refused (e.g. not a secure context): show the text selected
   // in a box so it can be copied by hand.

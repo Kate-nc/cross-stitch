@@ -217,8 +217,7 @@ function regionStatics(model, statics, bs) {
   var cols = Math.ceil(sW / bs), rows = Math.ceil(sH / bs), nRegions = cols * rows;
   var regionOf = new Int32Array(n);
   var total = new Int32Array(nRegions);
-  var counts = new Int32Array(nRegions * nIds);
-  var firstSeen = new Int32Array(nRegions * nIds);
+  var countsByRegion = new Array(nRegions);
   for (var i = 0; i < n; i++) {
     var x = i % sW, y = (i - x) / sW;
     var r = Math.floor(y / bs) * cols + Math.floor(x / bs);
@@ -226,7 +225,11 @@ function regionStatics(model, statics, bs) {
     var code = codes[i];
     if (code === SKIP) continue;
     total[r]++;
-    if (counts[r * nIds + code]++ === 0) firstSeen[r * nIds + code] = i;
+    var regionCounts = countsByRegion[r];
+    if (!regionCounts) regionCounts = countsByRegion[r] = new Map();
+    var colour = regionCounts.get(code);
+    if (colour) colour.count++;
+    else regionCounts.set(code, { count: 1, firstSeen: i });
   }
   // Ties go to whichever colour came first in the order the previous
   // implementation iterated, Object.keys() of a per-region map: integer-like
@@ -237,22 +240,24 @@ function regionStatics(model, statics, bs) {
     var s = String(model.ids[c0]), v = Number(s);
     intKey[c0] = (/^(0|[1-9]\d*)$/.test(s) && v < 4294967295) ? v : -1;
   }
-  function before(a, b, base) {
+  function before(a, b, regionCounts) {
     var ka = intKey[a], kb = intKey[b];
     if (ka >= 0 && kb >= 0) return ka < kb;
     if (ka >= 0 || kb >= 0) return ka >= 0;
-    return firstSeen[base + a] < firstSeen[base + b];
+    return regionCounts.get(a).firstSeen < regionCounts.get(b).firstSeen;
   }
   var dominant = new Array(nRegions), dominantCount = new Int32Array(nRegions), colourCount = new Int32Array(nRegions);
   for (var r2 = 0; r2 < nRegions; r2++) {
-    var best = 0, domCode = -1, nc = 0, base = r2 * nIds;
-    for (var c = 0; c < nIds; c++) {
-      var k = counts[base + c];
-      if (!k) continue;
-      nc++;
-      if (k > best || (k === best && before(c, domCode, base))) { best = k; domCode = c; }
+    var best = 0, domCode = -1, regionCounts = countsByRegion[r2];
+    if (regionCounts) {
+      regionCounts.forEach(function (colour, code) {
+        if (colour.count > best || (colour.count === best && before(code, domCode, regionCounts))) {
+          best = colour.count;
+          domCode = code;
+        }
+      });
     }
-    dominant[r2] = domCode >= 0 ? model.ids[domCode] : null; dominantCount[r2] = best; colourCount[r2] = nc;
+    dominant[r2] = domCode >= 0 ? model.ids[domCode] : null; dominantCount[r2] = best; colourCount[r2] = regionCounts ? regionCounts.size : 0;
   }
   hit = { bs: bs, cols: cols, rows: rows, regionOf: regionOf, total: total, dominant: dominant, dominantCount: dominantCount, colourCount: colourCount };
   statics.regionsByBs[bs] = hit;
