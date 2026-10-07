@@ -282,7 +282,7 @@ class PatternKeeperImporter {
       kind: 'pdf-pages',
       pages: sessionPages,
       legend,
-      stated: Object.assign(this.readStatedFacts(pages), this.readTitleAndDesigner(pages, this._docInfo), title ? { title } : {}),
+      stated: Object.assign(this.readStatedFacts(chartPages.concat(legendPages)), this.readTitleAndDesigner(chartPages.concat(legendPages), this._docInfo), title ? { title } : {}),
       layoutSource,
       tiling,
       guess,
@@ -357,18 +357,18 @@ class PatternKeeperImporter {
    * @returns {Promise<PdfPageData[]>}
    */
   async extractAllPages(pdfData) {
-    // PERF (perf-5 #2): fetch all pages in parallel and run getTextContent + getOperatorList per page concurrently.
-    // Sequential await previously cost ~200-500ms per page; parallel cuts a 10-page PDF from 2-5s to ~200-500ms.
-    const pageObjects = await Promise.all(
-      Array.from({ length: pdfData.numPages }, (_, idx) => pdfData.getPage(idx + 1))
-    );
-    const pages = await Promise.all(pageObjects.map(async (page, idx) => {
+    // Fetch a few pages at a time so cancelling prevents later pages from
+    // being scheduled while retaining parallel extraction for large PDFs.
+    const pages = new Array(pdfData.numPages);
+    let nextPage = 0;
+    const extractPage = async (page, idx) => {
       const i = idx + 1;
       const viewport = page.getViewport({ scale: 1.0 });
       const [textContent, opList] = await Promise.all([
         page.getTextContent({ disableCombineTextItems: true }),
         page.getOperatorList()
       ]);
+      this.checkCancelled();
       const textItems = textContent.items.map(item => {
         // PDF coordinates are bottom-up, and can have an arbitrary transform.
         // We'll use the viewport transform to normalize everything to top-down viewport space.
@@ -433,7 +433,17 @@ class PatternKeeperImporter {
       // never travels with anything that copies or serialises the page.
       Object.defineProperty(record, '_pdfPage', { value: page, enumerable: false });
       return record;
-    }));
+    };
+    const worker = async () => {
+      while (nextPage < pdfData.numPages) {
+        this.checkCancelled();
+        const idx = nextPage++;
+        const page = await pdfData.getPage(idx + 1);
+        this.checkCancelled();
+        pages[idx] = await extractPage(page, idx);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(4, pdfData.numPages) }, worker));
     return pages;
   }
 
@@ -2972,7 +2982,7 @@ class PatternKeeperImporter {
   linkSymbolsToThreads(symbols, legend) {
      const linked = [];
      const entries = ((legend && legend.entries) || []).filter(e => e.kind !== 'backstitch');
-     const report = { symbol: 0, swatch: 0, nearest: 0, catalogue: 0, unresolved: 0, partial: 0, unresolvedSymbols: {} };
+     const report = { symbol: 0, swatch: 0, nearest: 0, catalogue: 0, unresolved: 0, partial: 0, partialSwatch: 0, partialNearest: 0, unresolvedSymbols: {} };
      if (legend) legend.matchReport = report;
 
      const rgbKey = (c) => Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]);
@@ -3085,14 +3095,17 @@ class PatternKeeperImporter {
      // of a fractional stitch, which carry a colour but no symbol of their own.
      const threadForColour = (rgb) => {
         const sw = swatchFor(rgb);
-        if (sw) return threadFor(sw);
+        if (sw) return { thread: threadFor(sw), kind: 'swatch' };
         if (typeof rgbToLab !== 'function' || typeof dE !== 'function') return null;
         const lab = rgbToLab(rgb[0], rgb[1], rgb[2]);
-        if (entries.length) { const near = nearestEntry(lab); return near ? threadFor(near) : null; }
+        if (entries.length) {
+           const near = nearestEntry(lab);
+           return near ? { thread: threadFor(near), kind: 'nearest' } : null;
+        }
         if (!hasDmc) return null;
         let best = null, bestD = Infinity;
         for (const d of DMC) { const dd = dE(lab, d.lab); if (dd < bestD) { bestD = dd; best = d; } }
-        return best;
+        return best ? { thread: best, kind: 'catalogue' } : null;
      };
 
      symbols.forEach(cell => {
@@ -3104,13 +3117,19 @@ class PatternKeeperImporter {
         if (cell.partial) {
            const quarters = {};
            let first = null;
+           let matchKind = 'swatch';
            for (const q of ['TL', 'TR', 'BL', 'BR']) {
               if (!cell.partial[q]) continue;
-              const t = threadForColour(cell.partial[q]);
-              if (t) { quarters[q] = t; if (!first) first = t; }
+              const match = threadForColour(cell.partial[q]);
+              if (match) {
+                 quarters[q] = match.thread;
+                 if (!first) first = match.thread;
+                 if (match.kind === 'nearest') matchKind = 'nearest';
+              }
            }
            if (first) {
               report.partial = (report.partial || 0) + 1;
+              report[matchKind === 'nearest' ? 'partialNearest' : 'partialSwatch']++;
               linked.push({ ...cell, thread: first, partialThreads: quarters });
               return;
            }
@@ -3897,6 +3916,7 @@ class PatternKeeperImporter {
         matched: {
            symbol: m.symbol || 0, swatch: m.swatch || 0, nearest: m.nearest || 0,
            catalogue: m.catalogue || 0, unresolved: m.unresolved || 0, partial: m.partial || 0,
+           partialSwatch: m.partialSwatch || 0, partialNearest: m.partialNearest || 0,
         },
         stated: stated || {},
         checks: (validation && validation.checks) || [],

@@ -79,9 +79,10 @@ async function booklet() {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const RED = rgb(0.8, 0.1, 0.15), BLUE = rgb(0.1, 0.25, 0.75), GREEN = rgb(0.15, 0.6, 0.25), YELLOW = rgb(0.95, 0.8, 0.15);
-  const chartPage = (title, colourAt) => {
+  const chartPage = (title, colourAt, details) => {
     const page = pdf.addPage([612, 792]);
     page.drawText(title, { x: 60, y: 740, size: 18, font });
+    (details || []).forEach((detail, i) => page.drawText(detail, { x: 60, y: 710 - i * 12, size: 9, font }));
     const pitch = 12, x0 = 100, y0 = 300, cols = 20, rows = 16;
     for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
       page.drawRectangle({ x: x0 + c * pitch, y: y0 + (rows - 1 - r) * pitch, width: pitch, height: pitch, color: colourAt(c, r) });
@@ -98,10 +99,10 @@ async function booklet() {
       page.drawText(code, { x: 80, y: 641 - i * 20, size: 10, font });
     });
   };
-  chartPage('Winter Fox', (c, r) => ((c + r) % 3 ? RED : BLUE));
+  chartPage('Winter Fox', (c, r) => ((c + r) % 3 ? RED : BLUE), ['14 ct', 'Designed by Winter Artist']);
   chartPage('Winter Fox', (c, r) => ((c * r) % 4 ? BLUE : RED));
   keyPage('Winter Fox - Colour Key', [['321', RED], ['797', BLUE]]);
-  chartPage('Summer Owl', (c, r) => (r < 8 ? GREEN : YELLOW));
+  chartPage('Summer Owl', (c, r) => (r < 8 ? GREEN : YELLOW), ['18 ct', 'Designed by Summer Artist']);
   keyPage('Summer Owl - Colour Key', [['699', GREEN], ['725', YELLOW]]);
   const bytes = await pdf.save();
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
@@ -123,6 +124,8 @@ describe('importing a booklet of two designs', () => {
     expect(ids(owl)).toEqual(['699', '725']);
     expect(fox.name).toBe('Winter Fox');
     expect(owl.name).toBe('Summer Owl');
+    expect(owl.settings.fabricCt).toBe(18);
+    expect(owl.designer).toBe('Summer Artist');
     expect([owl.w, owl.h]).toEqual([20, 16]);
     expect(fox.importReport.warnings).toContain('This PDF holds 2 designs: Winter Fox and Summer Owl. Only Winter Fox was imported.');
     expect(owl.importReport.warnings).toContain('This PDF holds 2 designs: Winter Fox and Summer Owl. Only Summer Owl was imported.');

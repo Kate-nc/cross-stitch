@@ -144,6 +144,13 @@ describe('importSummary — the review header', () => {
     expect(importSummary(r, 1).label).toBe('99% matched to the key');
   });
 
+  it('counts fractional stitches by whether their colours match the key exactly or by proximity', () => {
+    const r = report({ matched: { symbol: 0, swatch: 0, nearest: 0, catalogue: 0, unresolved: 0, partial: 2, partialSwatch: 1, partialNearest: 1 } });
+    expect(importSummary(r, 1).label).toBe('50% matched to the key');
+    r.importReport.keyColoursDistinct = true;
+    expect(importSummary(r, 1).label).toBe('100% matched to the key');
+  });
+
   it('never rounds up to 100% while something is unmatched', () => {
     const r = report({ matched: { symbol: 999, swatch: 0, nearest: 0, catalogue: 0, unresolved: 1 } });
     expect(importSummary(r, 1).label).toBe('99% matched to the key');

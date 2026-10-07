@@ -103,6 +103,29 @@ describe('reading fractional stitches from a chart', () => {
   });
 });
 
+describe('extractAllPages cancellation', () => {
+  it('does not start later pages after cancellation during extraction', async () => {
+    const token = { aborted: false };
+    const calls = [];
+    const importer = new PatternKeeperImporter({ cancelToken: token });
+    const page = (n) => ({
+      getViewport: () => ({ scale: 1, width: 1, height: 1, convertToViewportPoint: (x, y) => [x, y] }),
+      getTextContent: async () => {
+        if (n === 1) token.aborted = true;
+        return { items: [] };
+      },
+      getOperatorList: async () => ({ fnArray: [], argsArray: [] }),
+    });
+    const pdf = {
+      numPages: 5,
+      getPage: async (n) => { calls.push(n); return page(n); },
+    };
+
+    await expect(importer.extractAllPages(pdf)).rejects.toMatchObject({ name: 'ImportAbortedError' });
+    expect(calls).toEqual([1, 2, 3, 4]);
+  });
+});
+
 /* Half stitches drawn as a heavy diagonal line, not a filled triangle. */
 describe('half stitches drawn as lines', () => {
   const line = (a, b, rgb, penWidth) => ({ type: 'line', points: [a, b], stroked: true, strokeColor: rgb, lineWidth: penWidth, penWidth });
