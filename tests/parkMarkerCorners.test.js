@@ -46,8 +46,10 @@ describe('Multi-colour parking — source assertions', () => {
     expect(src).toMatch(/localStorage\.getItem\('cs_parkLayers_'\+\(project\.id\|\|''\)\)/);
   });
 
-  test('Option C: renderStitch deps include parkLayers so toggling repaints', () => {
-    expect(src).toMatch(/done,parkMarkers,parkLayers,/);
+  test('Option C: toggling a colour layer repaints the cells it changes', () => {
+    // Markers are repainted incrementally, not through renderStitch's deps.
+    expect(src).toMatch(/\},\[parkMarkers,parkLayers\]\);/);
+    expect(src).toMatch(/\(layers\[pm\.colorId\]!==false\)/);
   });
 
   test('Option C: per-colour pip toggles via toggleParkLayer(p.id)', () => {
@@ -186,8 +188,9 @@ describe('Spent park markers', () => {
     expect(src).toMatch(/function isParkSpent\(pm,doneArr\)\{return !!\(doneArr&&doneArr\[pm\.y\*sW\+pm\.x\]\);\}/);
   });
 
-  test('full repaint skips spent markers', () => {
-    expect(src).toMatch(/if\(parkLayers\[pm\.colorId\]===false\)return;\s*if\(isParkSpent\(pm,done\)\)return;\s*drawParkMarker\(ctx,pm,gut,cSz\);/);
+  test('drawStitch skips spent markers, using the same done source as the cells', () => {
+    expect(src).toMatch(/if\(isDone\(pm\.y\*sW\+pm\.x\)\)return; \/\/ spent/);
+    expect(src).toMatch(/const isDone=isDoneAt\|\|\(i=>!!\(done&&done\[i\]\)\);/);
   });
 
   test('legend counts skip spent markers and recompute when done changes', () => {
@@ -195,11 +198,11 @@ describe('Spent park markers', () => {
     expect(src).toMatch(/\},\[parkMarkers,done,sW\]\);/);
   });
 
-  test('single-cell repaint restores live markers at both exits', () => {
-    const body = src.slice(src.indexOf('function drawCellDirectly('), src.indexOf('function hitTestHalfStitch('));
-    expect(body).toMatch(/const paintParks=\(\)=>\{\s*if\(isDn\)return;/);
-    expect((body.match(/paintParks\(\);/g) || []).length).toBe(2);
-    expect(body).toMatch(/parkMarkersRef\.current/);
+  test('toggled stitches repaint through the clipped full renderer with the new done state', () => {
+    const body = src.slice(src.indexOf('function paintDoneChanges('), src.indexOf('function hitTestHalfStitch('));
+    expect(body).toMatch(/const isDoneAt=i=>!!nd\[i\];/);
+    expect(body).toMatch(/repaintChartCells\(x,y,x\+1,y\+1,isDoneAt\)/);
+    expect(body).not.toMatch(/clearRect/);
   });
 
   test('load prunes markers on finished stitches without counting them as removed colours', () => {
