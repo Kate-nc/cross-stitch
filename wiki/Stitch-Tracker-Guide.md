@@ -150,7 +150,7 @@ Mark where you "parked" so you know exactly where to pick up next time.
 
 **Set a marker:** right-click the stitch where the thread is parked (in Mark or Navigate mode). On a touch screen, switch to **Navigate mode** and press and hold the stitch. A small triangle in the stitch's colour appears in its corner. The marker always takes the colour of the stitch it sits on, so there is no colour to pick first.
 
-**Remove a marker:** right-click (or press and hold) the same stitch again.
+**Remove a marker:** right-click (or press and hold) the same stitch again. You rarely need to: when you mark the parked stitch as done, its marker clears itself (undo brings it back).
 
 **Multiple markers:** You can park as many threads as you like, one marker per stitch.
 

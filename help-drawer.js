@@ -160,7 +160,7 @@
           bullets: [
             ["Track Mode", "Click or drag across the pattern to mark stitches as complete. Use the timer to estimate your completion date."],
             ["Navigate Mode", "Click a cell to place a guide crosshair."],
-            ["Parking", "Right-click a stitch (or press and hold it in Navigate mode on a touch screen) to mark a parked thread in that stitch's colour. Do it again to remove the marker."],
+            ["Parking", "Right-click a stitch (or press and hold it in Navigate mode on a touch screen) to mark a parked thread in that stitch's colour. The marker clears itself when you mark that stitch done."],
             ["Colours Drawer", "Open the drawer at the bottom to see your progress per colour. Click a colour to highlight only those stitches on the canvas."]
           ]
         },

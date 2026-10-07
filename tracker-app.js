@@ -993,6 +993,14 @@ const[parkMarkers,setParkMarkers]=useState([]);
 const[parkLayers,setParkLayers]=useState({});
 // Convenience: a marker is visible iff parkLayers[colourId] !== false.
 function isParkLayerVisible(cid){return parkLayers[cid]!==false;}
+// A marker is spent once its stitch is done — the parked thread was used to
+// make it (Pattern Keeper clears it the same way). Spent markers are hidden
+// rather than deleted, so undoing the mark brings the marker back; they are
+// pruned when the project is next loaded (processLoadedProject).
+function isParkSpent(pm,doneArr){return !!(doneArr&&doneArr[pm.y*sW+pm.x]);}
+// Read by drawCellDirectly, whose callers are memoised on narrower deps.
+const parkMarkersRef=useRef(parkMarkers);parkMarkersRef.current=parkMarkers;
+const parkLayersRef=useRef(parkLayers);parkLayersRef.current=parkLayers;
 // ── Stitching Style & Spatial Focus Area ──
 const[stitchingStyle,setStitchingStyle]=useState(()=>{try{var ls=localStorage.getItem("cs_stitchStyle");if(ls)return ls;var p=window.UserPrefs&&window.UserPrefs.get("trackerStitchingStyle");return p||"block";}catch(_){return"block";}});
 // T-2: default to 10/10/TL on mount and let processLoadedProject
@@ -1742,15 +1750,17 @@ const progressPct=effectiveCombinedTotal>0?Math.round(effectiveCombinedDone/effe
 // Today's stitches for progress bar accent segment
 const todayStitchesForBar=useMemo(()=>{if(!statsSessions)return 0;const deh=(statsSettings&&statsSettings.dayEndHour)||0;return getStatsTodayStitches(statsSessions,deh)+liveAutoStitches;},[statsSessions,liveAutoStitches,statsSettings]);
 // Multi-colour parking — per-colour count for the legend "park" pip.
+// Spent markers (on finished stitches, see isParkSpent) are not counted.
 const parkCountsByColour=useMemo(()=>{
   const out={};
   if(!parkMarkers||!parkMarkers.length)return out;
   for(let i=0;i<parkMarkers.length;i++){
+    if(isParkSpent(parkMarkers[i],done))continue;
     const id=parkMarkers[i].colorId;
     if(id)out[id]=(out[id]||0)+1;
   }
   return out;
-},[parkMarkers]);
+},[parkMarkers,done,sW]);
 const totalParkedColours=useMemo(()=>Object.keys(parkCountsByColour).length,[parkCountsByColour]);
 const allParkLayersHidden=useMemo(()=>{
   if(totalParkedColours===0)return false;
@@ -3574,6 +3584,12 @@ function processLoadedProject(project){
       }
     } catch (_) {}
   }
+  // A marker on a finished stitch is spent: the parked thread was used to
+  // make it. During a session such markers are only hidden (so undoing a
+  // stray tap brings them back); drop them silently here so they do not
+  // pile up in the saved project.
+  var loadedDone = (project.done && project.done.length === restored.length) ? project.done : null;
+  if (loadedDone) liveParkMarkers = liveParkMarkers.filter(function(m) { return !loadedDone[m.y * nextW + m.x]; });
   setParkMarkers(liveParkMarkers);
   setBreadcrumbs(project.breadcrumbs||[]);
   // Preserve v3 stats fields through auto-save round-trips
@@ -4458,6 +4474,24 @@ function _drawHalfStitchCell(ctx, px, py, cSz, hs, hd, cmap, view, focusColour, 
   }
 }
 
+// One park marker: a triangle in its corner of the cell, in the thread colour.
+// Shared by the full repaint (drawStitch) and the single-cell fast path
+// (drawCellDirectly) so the two cannot drift apart.
+function drawParkMarker(ctx,pm,gut,cSz){
+  const corner=pm.corner||"BL";
+  const px2=gut+pm.x*cSz,py2=gut+pm.y*cSz;
+  const ts=Math.max(3,Math.min(cSz*0.4,10));
+  let pts;
+  if(corner==="TL")pts=[[px2,py2],[px2+ts,py2],[px2,py2+ts]];
+  else if(corner==="TR")pts=[[px2+cSz,py2],[px2+cSz-ts,py2],[px2+cSz,py2+ts]];
+  else if(corner==="BR")pts=[[px2+cSz,py2+cSz],[px2+cSz-ts,py2+cSz],[px2+cSz,py2+cSz-ts]];
+  else pts=[[px2,py2+cSz],[px2+ts,py2+cSz],[px2,py2+cSz-ts]];
+  ctx.fillStyle=`rgb(${pm.rgb[0]},${pm.rgb[1]},${pm.rgb[2]})`;
+  ctx.strokeStyle="rgba(0,0,0,0.7)";ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);ctx.lineTo(pts[1][0],pts[1][1]);ctx.lineTo(pts[2][0],pts[2][1]);ctx.closePath();
+  ctx.fill();ctx.stroke();
+}
+
 function drawStitch(ctx,cSz,viewportRect){
   let gut=G,dW=sW,dH=sH;
 
@@ -4651,18 +4685,8 @@ function drawStitch(ctx,cSz,viewportRect){
     // Multi-colour parking — Option C: skip markers whose colour layer
     // is hidden via the legend toggle.
     if(parkLayers[pm.colorId]===false)return;
-    const corner=pm.corner||"BL";
-    const px2=gut+pm.x*cSz,py2=gut+pm.y*cSz;
-    const ts=Math.max(3,Math.min(cSz*0.4,10));
-    let pts;
-    if(corner==="TL")pts=[[px2,py2],[px2+ts,py2],[px2,py2+ts]];
-    else if(corner==="TR")pts=[[px2+cSz,py2],[px2+cSz-ts,py2],[px2+cSz,py2+ts]];
-    else if(corner==="BR")pts=[[px2+cSz,py2+cSz],[px2+cSz-ts,py2+cSz],[px2+cSz,py2+cSz-ts]];
-    else pts=[[px2,py2+cSz],[px2+ts,py2+cSz],[px2,py2+cSz-ts]];
-    ctx.fillStyle=`rgb(${pm.rgb[0]},${pm.rgb[1]},${pm.rgb[2]})`;
-    ctx.strokeStyle="rgba(0,0,0,0.7)";ctx.lineWidth=1;
-    ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);ctx.lineTo(pts[1][0],pts[1][1]);ctx.lineTo(pts[2][0],pts[2][1]);ctx.closePath();
-    ctx.fill();ctx.stroke();
+    if(isParkSpent(pm,done))return;
+    drawParkMarker(ctx,pm,gut,cSz);
   });}
   ctx.strokeStyle="rgba(0,0,0,0.4)";ctx.lineWidth=2;ctx.strokeRect(gut,gut,dW*cSz,dH*cSz);ctx.lineWidth=1;
   // Work area: fade the margin (context only — it cannot be marked) and
@@ -5374,6 +5398,14 @@ function drawCellDirectly(idx, nv) {
   const effectiveDimmed2=dimmed&&highlightMode!=="outline"&&highlightMode!=="tint";
 
   ctx.clearRect(px, py, cSz, cSz);
+  // Park markers sit inside the cell, so the clearRect above erased any on
+  // it. Put back the live ones once the cell is drawn; on a done stitch the
+  // marker is spent and stays hidden (isParkSpent).
+  const paintParks=()=>{
+    if(isDn)return;
+    const pms=parkMarkersRef.current,lay=parkLayersRef.current;
+    for(let i=0;i<pms.length;i++){const pm=pms[i];if(pm.x===gx&&pm.y===gy&&lay[pm.colorId]!==false)drawParkMarker(ctx,pm,G,cSz);}
+  };
 
   // Tier 1 fast path: flat color fill only
   if(tier===1){
@@ -5382,6 +5414,7 @@ function drawCellDirectly(idx, nv) {
       if(isDn){ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
       else{const r2=Math.round(m.rgb[0]*0.45+255*0.55),g2=Math.round(m.rgb[1]*0.45+255*0.55),b2=Math.round(m.rgb[2]*0.45+255*0.55);ctx.fillStyle=`rgb(${r2},${g2},${b2})`;ctx.fillRect(px,py,cSz,cSz);}
     }
+    paintParks();
     return;
   }
 
@@ -5436,6 +5469,7 @@ function drawCellDirectly(idx, nv) {
     ctx.restore();
   }
   if(cSz>=4){ctx.strokeStyle=(effectiveDimmed2&&layerVis.full)?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
+  paintParks();
 }
 
 // ═══ Half-stitch marking helpers ═══

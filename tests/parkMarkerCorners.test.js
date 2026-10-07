@@ -173,3 +173,57 @@ describe('Parking gestures — colour from the stitch', () => {
     expect(src).toMatch(/if\(Date\.now\(\)<suppressNavClickUntilRef\.current\)return;/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// A marker is spent once its stitch is done (Pattern Keeper behaves the same
+// way). It is hidden, not deleted, so undo brings it back, and it is pruned
+// on the next load. The single-cell repaint must put live markers back after
+// its clearRect, otherwise unmarking a parked stitch loses the marker until
+// the next full redraw.
+// ---------------------------------------------------------------------------
+describe('Spent park markers', () => {
+  test('isParkSpent tests the done array at the marker cell', () => {
+    expect(src).toMatch(/function isParkSpent\(pm,doneArr\)\{return !!\(doneArr&&doneArr\[pm\.y\*sW\+pm\.x\]\);\}/);
+  });
+
+  test('full repaint skips spent markers', () => {
+    expect(src).toMatch(/if\(parkLayers\[pm\.colorId\]===false\)return;\s*if\(isParkSpent\(pm,done\)\)return;\s*drawParkMarker\(ctx,pm,gut,cSz\);/);
+  });
+
+  test('legend counts skip spent markers and recompute when done changes', () => {
+    expect(src).toMatch(/if\(isParkSpent\(parkMarkers\[i\],done\)\)continue;/);
+    expect(src).toMatch(/\},\[parkMarkers,done,sW\]\);/);
+  });
+
+  test('single-cell repaint restores live markers at both exits', () => {
+    const body = src.slice(src.indexOf('function drawCellDirectly('), src.indexOf('function hitTestHalfStitch('));
+    expect(body).toMatch(/const paintParks=\(\)=>\{\s*if\(isDn\)return;/);
+    expect((body.match(/paintParks\(\);/g) || []).length).toBe(2);
+    expect(body).toMatch(/parkMarkersRef\.current/);
+  });
+
+  test('load prunes markers on finished stitches without counting them as removed colours', () => {
+    const toastAt = src.indexOf('for colours no longer in the palette');
+    const pruneAt = src.indexOf('liveParkMarkers.filter(function(m) { return !loadedDone[m.y * nextW + m.x]; })');
+    expect(toastAt).toBeGreaterThan(0);
+    expect(pruneAt).toBeGreaterThan(toastAt);
+  });
+});
+
+// Behavioural: the spent rule itself.
+describe('isParkSpent — behavioural', () => {
+  const sW = 10;
+  function isParkSpent(pm, doneArr) { return !!(doneArr && doneArr[pm.y * sW + pm.x]); }
+  test('live while the stitch is open, spent once done, live again after undo', () => {
+    const done = new Uint8Array(100);
+    const pm = { x: 3, y: 4 };
+    expect(isParkSpent(pm, done)).toBe(false);
+    done[43] = 1;
+    expect(isParkSpent(pm, done)).toBe(true);
+    done[43] = 0;
+    expect(isParkSpent(pm, done)).toBe(false);
+  });
+  test('no done array (pattern still loading) never hides markers', () => {
+    expect(isParkSpent({ x: 0, y: 0 }, null)).toBe(false);
+  });
+});
