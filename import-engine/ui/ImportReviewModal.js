@@ -75,12 +75,21 @@
     );
   }
 
+  /* The DMC table. dmc-data.js declares it with a top-level const, a global
+   * that is not a property of window, so window.DMC is always undefined. */
+  function dmcAll() {
+    var TP = window.ImportEngine && window.ImportEngine.threadPicker;
+    if (TP) return TP.dmcList();
+    // eslint-disable-next-line no-undef
+    return typeof DMC !== 'undefined' ? DMC : [];
+  }
+
   /* A DMC thread by its number, from the thread table the PDF importer loads. */
   function dmcThread(code) {
     code = String(code || '').trim();
     if (!code) return null;
     if (typeof window.getDmcByIdCI === 'function') return window.getDmcByIdCI(code) || null;
-    var all = window.DMC || [];
+    var all = dmcAll();
     for (var i = 0; i < all.length; i++) {
       if (String(all[i].id).toLowerCase() === code.toLowerCase()) return all[i];
     }
@@ -101,38 +110,181 @@
       role: 'img', 'aria-label': props.label });
   }
 
-  /* Choose the thread for one palette entry by typing its DMC number. */
+  function picker() { return (window.ImportEngine && window.ImportEngine.threadPicker) || null; }
+  function rgbCss(rgb) { return 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')'; }
+
+  /* Anchor's table and its DMC conversions load on demand; ask for them once,
+   * and say when they arrive. */
+  function useAnchorTables(wanted) {
+    var _r = React.useState(!!window.ANCHOR); var ready = _r[0], setReady = _r[1];
+    React.useEffect(function () {
+      if (!wanted || ready) return;
+      var load = typeof window.loadThreadData === 'function' ? window.loadThreadData() : null;
+      if (!load) return;
+      var live = true;
+      load.then(function () { if (live) setReady(!!window.ANCHOR); }, function () {});
+      return function () { live = false; };
+    }, [wanted, ready]);
+    return ready;
+  }
+
+  /* Choose the thread for one palette entry by typing its number — DMC's, or
+   * Anchor's, which becomes its DMC equivalent since patterns hold DMC. */
   function ThreadChooser(props) {
     var _v = React.useState(''); var value = _v[0], setValue = _v[1];
     var _e = React.useState(null); var error = _e[0], setError = _e[1];
-    var match = dmcThread(value);
+    var _b = React.useState('dmc'); var brand = _b[0], setBrand = _b[1];
+    var anchorReady = useAnchorTables(brand === 'anchor');
+    var TP = picker();
+    var conv = brand === 'anchor' && anchorReady && TP ? TP.fromAnchor(value) : null;
+    var match = brand === 'anchor' ? (conv && conv.dmc) : dmcThread(value);
     function submit(ev) {
       if (ev) ev.preventDefault();
-      if (!value.trim()) return;
-      if (!match) { setError('No DMC thread numbered ' + value.trim() + '.'); return; }
+      var v = value.trim();
+      if (!v) return;
+      if (!match) {
+        setError(brand === 'anchor'
+          ? (anchorReady ? 'No Anchor thread numbered ' + v + '.' : 'Anchor’s colours are still loading.')
+          : 'No DMC thread numbered ' + v + '.');
+        return;
+      }
       if (props.onChoose(match.id) === false) {
-        setError('That choice would create a cycle.');
+        setError('That would undo another choice: two colours cannot each become the other.');
       } else {
         setValue(''); setError(null);
       }
     }
     return h('form', { className: 'import-thread-chooser', onSubmit: submit },
+      h('select', { className: 'import-thread-brand', value: brand, 'aria-label': 'Thread brand',
+        onChange: function (e) { setBrand(e.target.value); setError(null); } },
+        h('option', { value: 'dmc' }, 'DMC'),
+        h('option', { value: 'anchor' }, 'Anchor')),
       h('input', {
-        type: 'text', inputMode: 'text', autoComplete: 'off', list: 'import-dmc-codes',
-        className: 'import-thread-input', placeholder: 'DMC no.', value: value,
+        type: 'text', inputMode: 'text', autoComplete: 'off',
+        list: brand === 'anchor' ? 'import-anchor-codes' : 'import-dmc-codes',
+        className: 'import-thread-input', placeholder: brand === 'anchor' ? 'Anchor no.' : 'DMC no.', value: value,
         autoFocus: !!props.autoFocus,
-        'aria-label': 'DMC thread for ' + props.label,
+        'aria-label': (brand === 'anchor' ? 'Anchor' : 'DMC') + ' thread for ' + props.label,
         'aria-invalid': error ? 'true' : 'false',
         onChange: function (e) { setValue(e.target.value); setError(null); }
       }),
+      brand === 'anchor' && anchorReady && h('datalist', { id: 'import-anchor-codes' },
+        (window.ANCHOR || []).map(function (d) { return h('option', { key: d.id, value: d.id }, d.name); })),
       match && h('span', { className: 'import-thread-match' },
-        h('span', { className: 'import-palette-swatch',
-          style: { background: 'rgb(' + match.rgb[0] + ',' + match.rgb[1] + ',' + match.rgb[2] + ')' } }),
-        match.name),
+        h('span', { className: 'import-palette-swatch', style: { background: rgbCss(match.rgb) } }),
+        conv
+          ? 'DMC ' + match.id + ' ' + match.name + (conv.how === 'nearest' ? ' (nearest colour)' : ' (Anchor’s equivalent)')
+          : match.name),
       h('button', { type: 'submit', className: 'g-btn', disabled: !value.trim() }, 'Use'),
+      props.onBrowse && h('button', { type: 'button', className: 'g-btn icon-only',
+        'aria-label': 'Choose a colour for ' + props.label, 'aria-expanded': props.browsing ? 'true' : 'false',
+        onClick: props.onBrowse }, I('palette')),
       props.onCancel && h('button', { type: 'button', className: 'g-btn icon-only', 'aria-label': 'Cancel',
         onClick: props.onCancel }, I('x')),
       error && h('span', { className: 'import-thread-error', role: 'alert' }, error)
+    );
+  }
+
+  function SwatchButton(props) {
+    var t = props.thread;
+    var prefix = props.prefix == null ? 'DMC ' : props.prefix;
+    var label = prefix + t.id + (t.name && t.name !== t.id ? ' ' + t.name : '');
+    return h('button', { type: 'button', className: 'import-swatch-btn', title: label, 'aria-label': label,
+        onClick: function () { props.onChoose(t.id); } },
+      h('span', { className: 'import-swatch-chip', style: { background: rgbCss(t.rgb) } }),
+      h('span', { className: 'import-swatch-code' }, t.id));
+  }
+
+  /* Choose a thread by eye: a colour already in the chart (the usual answer
+   * when the scan split one thread in two), one of the threads nearest this
+   * colour (when the importer landed on a neighbouring shade), or any DMC
+   * thread, family by family. A placeholder's colour is invented, so it has
+   * no nearest threads to offer. */
+  function ColourPicker(props) {
+    var TP = picker();
+    var _f = React.useState(function () { return (!props.placeholder && TP) ? TP.familyOf(props.rgb) : 1; });
+    var fam = _f[0], setFam = _f[1];
+    if (!TP) return null;
+    var near = props.placeholder ? [] : TP.nearestDmc(props.rgb, 12, [props.id]);
+    var section = function (title, threads, prefix) {
+      if (!threads.length) return null;
+      return h('section', { className: 'import-picker-section' },
+        h('h4', null, title),
+        h('div', { className: 'import-picker-swatches' }, threads.map(function (t) {
+          return h(SwatchButton, { key: t.id, thread: t, prefix: prefix, onChoose: props.onChoose });
+        })));
+    };
+    return h('div', { className: 'import-colour-picker', role: 'region', 'aria-label': 'Choose a colour for ' + props.label },
+      section('In this chart', props.chartColours, ''),
+      section('Close to this colour', near),
+      h('section', { className: 'import-picker-section' },
+        h('h4', null, 'All DMC colours'),
+        h('div', { className: 'import-picker-families', role: 'group', 'aria-label': 'Colour family' },
+          TP.FAMILIES.map(function (f) {
+            return h('button', { key: f.id, type: 'button', className: 'import-family-btn' + (f.id === fam ? ' active' : ''),
+              'aria-pressed': f.id === fam ? 'true' : 'false', onClick: function () { setFam(f.id); } }, f.name);
+          })),
+        h('div', { className: 'import-picker-swatches' }, TP.familyThreads(fam).map(function (t) {
+          return h(SwatchButton, { key: t.id, thread: t, onChoose: props.onChoose });
+        }))),
+      h('div', { className: 'import-picker-actions' },
+        h('button', { type: 'button', className: 'g-btn', onClick: props.onClose }, 'Close'))
+    );
+  }
+
+  /* Where a colour ends up after the stitcher's choices, following the chain. */
+  function rootOf(id, assignments) {
+    var seen = {};
+    while (assignments && assignments[id] && !seen[id]) { seen[id] = true; id = assignments[id]; }
+    return id;
+  }
+
+  /* The look-alike pairs still worth asking about: not yet one colour, not
+   * dismissed, and not both already given a thread of their own. Each comes
+   * with the two colours it would now join, `a` and `b`. */
+  function openLookAlikes(pairs, assignments, dismissed) {
+    var out = [];
+    (pairs || []).forEach(function (p) {
+      var key = p.a + '|' + p.b;
+      if (dismissed && dismissed[key]) return;
+      var ra = rootOf(p.a, assignments), rb = rootOf(p.b, assignments);
+      if (ra === rb) return;
+      if (dmcThread(ra) && dmcThread(rb)) return;
+      out.push({ key: key, a: p.a, b: p.b, rootA: ra, rootB: rb, d: p.d });
+    });
+    return out;
+  }
+
+  /* Pairs of scanned symbols that may be one symbol, shown side by side, for
+   * the stitcher to merge or set apart. Fewer groups means fewer symbols to
+   * look up in the printed key. */
+  function LookAlikes(props) {
+    var open = openLookAlikes(props.pairs, props.assignments, props.dismissed);
+    if (!open.length) return null;
+    var label = function (id) { return (props.labels && props.labels[id]) || id; };
+    var sample = function (id) {
+      return props.samples && props.samples[id]
+        ? h(GlyphSample, { sample: props.samples[id], label: 'How ' + label(id) + ' looks in the chart' })
+        : null;
+    };
+    var shown = open.slice(0, 5);
+    return h('section', { className: 'import-lookalikes', 'aria-label': 'Symbols that look alike' },
+      h('h3', null, 'These look alike'),
+      h('p', { className: 'import-lookalikes-intro' },
+        'The scan may have split one symbol into two. Merge any that are the same, and there are fewer to look up.'),
+      shown.map(function (p) {
+        return h('div', { key: p.key, className: 'import-lookalike' },
+          h('span', { className: 'import-lookalike-pair' }, sample(p.a), sample(p.b)),
+          h('span', { className: 'import-lookalike-names' }, label(p.a) + ' and ' + label(p.b)),
+          h('span', { className: 'import-lookalike-actions' },
+            h('button', { type: 'button', className: 'g-btn', onClick: function () { props.onSame(p); } },
+              I('check'), h('span', null, 'Same symbol')),
+            h('button', { type: 'button', className: 'g-btn', onClick: function () { props.onDifferent(p); } },
+              I('x'), h('span', null, 'Different')))
+        );
+      }),
+      open.length > shown.length && h('p', { className: 'import-lookalikes-more' },
+        (open.length - shown.length) + ' more ' + (open.length - shown.length === 1 ? 'pair' : 'pairs') + ' to check.')
     );
   }
 
@@ -166,16 +318,34 @@
       return pa - pb || counts[b] - counts[a];
     });
     var assigned = Object.keys(props.assignments || {});
-    var canChoose = !!props.onAssign && (typeof window.getDmcByIdCI === 'function' || !!window.DMC);
+    var canChoose = !!props.onAssign && (typeof window.getDmcByIdCI === 'function' || dmcAll().length > 0);
+    var _p = React.useState(null); var picking = _p[0], setPicking = _p[1];
+    var _d = React.useState({}); var dismissed = _d[0], setDismissed = _d[1];
+    // The chart's own threads, for "same as" — never a placeholder, whose
+    // colour is invented.
+    var chartColours = ids.filter(function (id) { return !pending[id]; })
+      .map(function (id) { return { id: id, name: rows[id].name, rgb: rows[id].rgb || [0, 0, 0] }; });
+    function choose(id, to) {
+      var ok = props.onAssign(id, to);
+      if (ok !== false) { setOpen(null); setPicking(null); }
+      return ok;
+    }
 
     return h('div', { className: 'import-palette-list' },
       h('div', { className: 'import-palette-header' }, ids.length + ' colours'),
       pendingIds.length > 0 && h('p', { className: 'import-palette-pending' }, I('warning'),
         h('span', null, pendingIds.length === 1
-          ? '1 symbol has no thread yet. Find it in the printed key and enter its DMC number.'
-          : pendingIds.length + ' symbols have no thread yet. Find each in the printed key and enter its DMC number. Two symbols given the same number become one colour.')),
+          ? '1 symbol has no thread yet. Find it in the printed key, then enter its number or choose its colour.'
+          : pendingIds.length + ' symbols have no thread yet. Find each in the printed key, then enter its number or choose its colour. Two symbols given the same thread become one colour.')),
+      canChoose && props.lookAlikes && h(LookAlikes, { pairs: props.lookAlikes, assignments: props.assignments,
+        dismissed: dismissed, samples: props.samples, labels: props.labels,
+        onSame: function (p) {
+          // The one still without a thread joins the other.
+          if (!dmcThread(p.rootB)) props.onAssign(p.rootB, p.rootA); else props.onAssign(p.rootA, p.rootB);
+        },
+        onDifferent: function (p) { var next = Object.assign({}, dismissed); next[p.key] = true; setDismissed(next); } }),
       canChoose && h('datalist', { id: 'import-dmc-codes' },
-        (window.DMC || []).map(function (d) { return h('option', { key: d.id, value: d.id }, d.name); })),
+        dmcAll().map(function (d) { return h('option', { key: d.id, value: d.id }, d.name); })),
       ids.slice(0, 200).map(function (id) {
         var m = rows[id];
         var rgb = m.rgb || [0, 0, 0];
@@ -183,7 +353,7 @@
         var choosing = canChoose && (pending[id] || open === id);
         return h('div', { key: id, className: 'import-palette-row' + (pending[id] ? ' pending' : '') },
           props.samples && props.samples[id]
-            ? h(GlyphSample, { sample: props.samples[id], label: 'How ' + label + ' looks in the scan' })
+            ? h(GlyphSample, { sample: props.samples[id], label: 'How ' + label + ' looks in the chart' })
             : h('span', { className: 'import-palette-swatch',
                 style: { background: 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')' } }),
           h('span', { className: 'import-palette-name' },
@@ -194,20 +364,26 @@
           h('span', { className: 'import-palette-count' }, counts[id]),
           choosing
             ? h(ThreadChooser, { label: label, autoFocus: open === id,
-                onChoose: function (to) { setOpen(null); props.onAssign(id, to); },
-                onCancel: pending[id] ? null : function () { setOpen(null); } })
+                onChoose: function (to) { return choose(id, to); },
+                browsing: picking === id,
+                onBrowse: function () { setPicking(picking === id ? null : id); },
+                onCancel: pending[id] ? null : function () { setOpen(null); setPicking(null); } })
             : (canChoose && h('button', { type: 'button', className: 'g-btn icon-only',
-                'aria-label': 'Change the thread for ' + id, onClick: function () { setOpen(id); } }, I('pencil')))
+                'aria-label': 'Change the thread for ' + id, onClick: function () { setOpen(id); } }, I('pencil'))),
+          picking === id && h(ColourPicker, { id: id, label: label, rgb: rgb, placeholder: !!pending[id],
+            chartColours: chartColours.filter(function (c) { return c.id !== id; }),
+            onChoose: function (to) { return choose(id, to); },
+            onClose: function () { setPicking(null); } })
         );
       }),
       assigned.length > 0 && h('section', { className: 'import-palette-assigned', 'aria-label': 'Threads you chose' },
         h('h3', null, 'Threads you chose'),
         assigned.map(function (from) {
           return h('div', { key: from, className: 'import-palette-assigned-row' },
-            props.samples && props.samples[from] && h(GlyphSample, { sample: props.samples[from], label: 'How ' + ((props.labels && props.labels[from]) || from) + ' looks in the scan' }),
+            props.samples && props.samples[from] && h(GlyphSample, { sample: props.samples[from], label: 'How ' + ((props.labels && props.labels[from]) || from) + ' looks in the chart' }),
             h('span', null, (props.labels && props.labels[from]) || from),
             h('span', { className: 'import-palette-arrow', 'aria-hidden': 'true' }, I('chevronRight')),
-            h('span', { className: 'import-palette-id' }, props.assignments[from]),
+            h('span', { className: 'import-palette-id' }, (props.labels && props.labels[props.assignments[from]]) || props.assignments[from]),
             h('button', { type: 'button', className: 'g-btn', onClick: function () { props.onUnassign(from); } },
               I('undo'), h('span', null, 'Undo'))
           );
@@ -222,6 +398,9 @@
       h('label', null, 'Pattern name',
         h('input', { type: 'text', value: p.name || '',
           onChange: function (e) { props.onEdit('name', e.target.value); } })),
+      h('label', null, 'Designer',
+        h('input', { type: 'text', value: p.designer || '',
+          onChange: function (e) { props.onEdit('designer', e.target.value); } })),
       h('label', null, 'Fabric count',
         h('input', { type: 'number', min: 6, max: 40, value: (p.settings && p.settings.fabricCt) || 14,
           onChange: function (e) { props.onEdit('fabricCt', parseInt(e.target.value, 10) || 14); } })),
@@ -346,10 +525,90 @@
       setDrag(null);
     }
 
+    // Dragging with a finger. A browser's drag and drop does not start from a
+    // touch, so on a touch screen holding a page for a moment picks it up; it
+    // then follows the finger and drops where the finger lifts — on a place,
+    // or on the tray to leave it out. Moving straight away is a scroll, as it
+    // always was, and tapping still selects.
+    var _td = React.useState(null); var touchDrag = _td[0], setTouchDrag = _td[1];
+    var touchRef = React.useRef(null);
+    var suppressClick = React.useRef(false);
+    function targetAt(x, y) {
+      var el = typeof document !== 'undefined' && document.elementFromPoint ? document.elementFromPoint(x, y) : null;
+      if (!el || !el.closest) return null;
+      var slotEl = el.closest('[data-slot]');
+      if (slotEl) return { slot: parseInt(slotEl.getAttribute('data-slot'), 10) };
+      if (el.closest('.page-layout-tray')) return { tray: true };
+      return null;
+    }
+    function dropTouch(info, target) {
+      if (!target) return;
+      if (target.tray) { if (info.from === 'slot') commit(M.toTray(slots, info.page)); return; }
+      if (info.from === 'slot') { if (info.slot !== target.slot) commit(M.swap(slots, info.slot, target.slot)); }
+      else commit(M.fromTray(slots, info.page, target.slot));
+    }
+    function touchStart(e, info) {
+      // A new touch is a new gesture: only the click that follows a drop is
+      // the drop's own, and is ignored.
+      suppressClick.current = false;
+      if (!e.touches || e.touches.length !== 1) return;
+      var t = e.touches[0];
+      var st = { startX: t.clientX, startY: t.clientY, info: info, active: false, timer: null };
+      st.timer = setTimeout(function () {
+        st.active = true;
+        setSel(null);
+        setTouchDrag({ info: info, x: st.startX, y: st.startY, over: targetAt(st.startX, st.startY) });
+        try { if (navigator.vibrate) navigator.vibrate(10); } catch (_) {}
+      }, 350);
+      touchRef.current = st;
+    }
+    React.useEffect(function () {
+      if (typeof document === 'undefined') return;
+      function move(e) {
+        var st = touchRef.current;
+        var t = e.touches && e.touches[0];
+        if (!st || !t) return;
+        if (!st.active) {
+          if (Math.abs(t.clientX - st.startX) > 10 || Math.abs(t.clientY - st.startY) > 10) {
+            clearTimeout(st.timer);
+            touchRef.current = null;
+          }
+          return;
+        }
+        e.preventDefault();                       // the page, not the panel, moves
+        setTouchDrag({ info: st.info, x: t.clientX, y: t.clientY, over: targetAt(t.clientX, t.clientY) });
+      }
+      function end(e) {
+        var st = touchRef.current;
+        if (!st) return;
+        clearTimeout(st.timer);
+        touchRef.current = null;
+        if (!st.active) return;
+        if (e.cancelable) e.preventDefault();     // and no tap after the drop
+        suppressClick.current = true;
+        var t = e.changedTouches && e.changedTouches[0];
+        setTouchDrag(null);
+        if (e.type === 'touchend' && t) dropTouch(st.info, targetAt(t.clientX, t.clientY));
+      }
+      document.addEventListener('touchmove', move, { passive: false });
+      document.addEventListener('touchend', end, { passive: false });
+      document.addEventListener('touchcancel', end, { passive: false });
+      return function () {
+        document.removeEventListener('touchmove', move);
+        document.removeEventListener('touchend', end);
+        document.removeEventListener('touchcancel', end);
+      };
+    }, [slots]);
+    var overSlot = touchDrag && touchDrag.over && touchDrag.over.slot;
+    // Browser drag and drop only where the main pointer is a mouse or trackpad:
+    // on an iPad, Safari's own long-press drag would fight the one above.
+    var finePointer = typeof window === 'undefined' || !window.matchMedia || window.matchMedia('(pointer: fine)').matches;
+    var overTray = !!(touchDrag && touchDrag.over && touchDrag.over.tray);
+
     // While a page is being moved, one empty row past the last, so it can go
     // down a row; otherwise the spare row is only clutter.
     var shown = slots.order.slice();
-    if (sel || drag) for (var e = 0; e < slots.across; e++) shown.push(null);
+    if (sel || drag || touchDrag) for (var e = 0; e < slots.across; e++) shown.push(null);
 
     var across = slots.across;
     var maxAcross = Math.max(1, session.pages.length);
@@ -390,24 +649,28 @@
           I('undo'), h('span', null, resetLabel))
       ),
       h('p', { className: 'page-layout-hint' },
-        sel ? 'Now choose where page ' + sel.page + ' should go.' : 'Select a page, then the place it should go. You can also drag pages.'),
+        touchDrag ? 'Move page ' + touchDrag.info.page + ' to where it should go, and let go.'
+          : sel ? 'Now choose where page ' + sel.page + ' should go.'
+          : 'Select a page, then the place it should go. You can also drag pages, or hold one to pick it up.'),
       h('div', { className: 'page-layout-grid', role: 'list',
                  style: { gridTemplateColumns: 'repeat(' + across + ', minmax(0, 1fr))' } },
         shown.map(function (pi, k) {
           var page = (pi === null || pi === undefined) ? null : byIndex[pi];
           var row = Math.floor(k / across) + 1, col = (k % across) + 1;
           var selected = sel && sel.from === 'slot' && sel.slot === k;
-          return h('div', { key: 'slot' + k, role: 'listitem', className: 'page-layout-slot',
+          return h('div', { key: 'slot' + k, role: 'listitem', 'data-slot': k,
+              className: 'page-layout-slot' + (overSlot === k ? ' drop-target' : ''),
               onDragOver: function (ev) { ev.preventDefault(); },
               onDrop: function (ev) { ev.preventDefault(); dropOn(k); } },
             h('button', {
               type: 'button',
-              className: 'page-layout-tile' + (page ? '' : ' empty') + (selected ? ' selected' : ''),
+              className: 'page-layout-tile' + (page ? '' : ' empty') + (selected ? ' selected' : '') +
+                (touchDrag && touchDrag.info.from === 'slot' && touchDrag.info.slot === k ? ' lifted' : ''),
               'aria-pressed': selected ? 'true' : 'false',
               'aria-label': page
                 ? 'Page ' + pi + ', ' + page.cols + ' by ' + page.rows + ' stitches, row ' + row + ' column ' + col
                 : 'Empty place, row ' + row + ' column ' + col,
-              draggable: !!page,
+              draggable: finePointer && !!page,
               onDragStart: function (ev) {
                 if (!page) return;
                 ev.dataTransfer.setData('text/plain', String(pi));
@@ -415,7 +678,8 @@
                 setDrag({ from: 'slot', slot: k, page: pi });
               },
               onDragEnd: function () { setDrag(null); },
-              onClick: function () { chooseSlot(k); }
+              onTouchStart: page ? function (ev) { touchStart(ev, { from: 'slot', slot: k, page: pi }); } : null,
+              onClick: function () { if (!suppressClick.current) chooseSlot(k); }
             },
               page ? h(PageThumb, { page: page, size: 96 }) : h('span', { className: 'page-layout-empty' }, 'Empty'),
               page && h('span', { className: 'page-layout-label' }, 'Page ' + pi),
@@ -428,8 +692,10 @@
         h('button', { type: 'button', className: 'g-btn', onClick: function () { commit(M.toTray(slots, sel.page)); } },
           I('archive'), h('span', null, 'Leave page ' + sel.page + ' out'))
       ),
-      slots.tray.length > 0 && h('section', { className: 'page-layout-tray', 'aria-label': 'Pages not in the chart' },
+      (slots.tray.length > 0 || (touchDrag && touchDrag.info.from === 'slot')) &&
+      h('section', { className: 'page-layout-tray' + (overTray ? ' drop-target' : ''), 'aria-label': 'Pages not in the chart' },
         h('h3', null, 'Not in the chart'),
+        slots.tray.length === 0 && h('p', { className: 'page-layout-tray-hint' }, 'Drop a page here to leave it out.'),
         h('div', { className: 'page-layout-tray-list' },
           slots.tray.map(function (pi) {
             var page = byIndex[pi];
@@ -438,14 +704,15 @@
               key: 'tray' + pi, type: 'button',
               className: 'page-layout-tile tray' + (selected ? ' selected' : ''),
               'aria-pressed': selected ? 'true' : 'false',
-              draggable: true,
+              draggable: finePointer,
               onDragStart: function (ev) {
                 ev.dataTransfer.setData('text/plain', String(pi));
                 ev.dataTransfer.effectAllowed = 'move';
                 setDrag({ from: 'tray', page: pi });
               },
               onDragEnd: function () { setDrag(null); },
-              onClick: function () { chooseTray(pi); }
+              onTouchStart: function (ev) { touchStart(ev, { from: 'tray', page: pi }); },
+              onClick: function () { if (!suppressClick.current) chooseTray(pi); }
             },
               page && h(PageThumb, { page: page, size: 64 }),
               h('span', { className: 'page-layout-label' }, 'Page ' + pi),
@@ -454,6 +721,9 @@
           })
         )
       ),
+      touchDrag && h('div', { className: 'page-layout-ghost', 'aria-hidden': 'true',
+          style: { left: touchDrag.x + 'px', top: touchDrag.y + 'px' } },
+        'Page ' + touchDrag.info.page),
       h('div', { className: 'page-layout-result' },
         h('h3', null, 'Assembled chart'),
         h(ImportPreviewPane, { project: props.project, showConfidence: false, maxPx: 320 })
@@ -467,13 +737,57 @@
     // A PDF chart of several pages arrives with its per-page readings, so the
     // pages can be rearranged here before anything is saved.
     var LM = window.ImportEngine && window.ImportEngine.pageLayout;
-    var session = LM && props.layoutSession && props.layoutSession.pages && props.layoutSession.pages.length > 1
-      ? props.layoutSession : null;
-    var hasPlaceholders = !!(props.project && props.project.importReport &&
-      props.project.importReport.placeholders && props.project.importReport.placeholders.length);
-    var _t = React.useState((session && LM && LM.needsReview(session)) ? 'pages' : (hasPlaceholders ? 'palette' : 'preview'));
+    // A PDF holding several designs arrives as one session per design; the
+    // stitcher picks which to import. The project passed in is the first.
+    var designs = props.layoutSession && props.layoutSession.designs && props.layoutSession.designs.length > 1
+      ? props.layoutSession.designs : null;
+    var firstDesign = (props.layoutSession && props.layoutSession.designIndex) || 0;
+    var _d = React.useState(firstDesign); var designIndex = _d[0], setDesignIndex = _d[1];
+    var active = designs ? designs[designIndex].session : props.layoutSession;
+    var baseProject = (!designs || designIndex === firstDesign) ? props.project : memoBuild(active, active.placement);
+    var session = LM && active && active.pages && active.pages.length > 1 ? active : null;
+    function firstTab(sess, project) {
+      var pending = project && project.importReport && project.importReport.placeholders && project.importReport.placeholders.length;
+      var pagesFirst = sess && sess.pages && sess.pages.length > 1 && LM && LM.needsReview(sess);
+      return pagesFirst ? 'pages' : (pending ? 'palette' : 'preview');
+    }
+    var _t = React.useState(function () { return firstTab(session, baseProject); });
     var tab = _t[0], setTab = _t[1];
     var _p = React.useState(session ? session.placement : null); var placement = _p[0], setPlacement = _p[1];
+    // Each design keeps its own arrangement and thread choices while the
+    // stitcher moves between them, so importing all of them keeps every one.
+    var kept = React.useRef({});
+    function baseOf(i) {
+      var s = designs[i].session;
+      return i === firstDesign ? props.project : memoBuild(s, s.placement);
+    }
+    function chooseDesign(i) {
+      if (!designs || i === designIndex) return;
+      kept.current[designIndex] = { placement: placement, edits: edits, tab: tab };
+      var s = designs[i].session;
+      var back = kept.current[i];
+      setDesignIndex(i);
+      setPlacement(back ? back.placement : (s.pages && s.pages.length > 1 ? s.placement : null));
+      setEdits(back ? back.edits : {});
+      setTab(back ? back.tab : firstTab(s, baseOf(i)));
+    }
+    // Design i as it would be imported: its own arrangement and edits.
+    function designProject(i) {
+      if (i === designIndex) return working;
+      var s = designs[i].session;
+      var st = kept.current[i] || {};
+      var arranged = baseOf(i);
+      if (st.placement && st.placement.manual && !(LM && LM.samePlacement(st.placement, s.placement))) {
+        arranged = memoBuild(s, st.placement);
+      }
+      return mergeEdits(arranged, st.edits || {});
+    }
+    function importAll() {
+      // The one on screen first: it is the one opened after the import.
+      var order = [designIndex].concat(designs.map(function (_, i) { return i; }).filter(function (i) { return i !== designIndex; }));
+      var projects = order.map(designProject);
+      props.onClose && props.onClose('confirm', { project: projects[0], projects: projects, edits: edits });
+    }
     var _e = React.useState({}); var edits = _e[0], setEdits = _e[1];
     var _c = React.useState(true); var showConfidence = _c[0], setShowConfidence = _c[1];
 
@@ -511,10 +825,10 @@
     }
     // What each colour was called as imported, for the list of choices made.
     var threadLabels = {};
-    ((props.project && props.project.importReport && props.project.importReport.placeholders) || [])
+    ((baseProject && baseProject.importReport && baseProject.importReport.placeholders) || [])
       .forEach(function (p) { threadLabels[p.id] = p.symbol ? 'Symbol ' + p.symbol : p.name; });
     // Rebuild only when the arrangement differs from the one imported.
-    var arranged = props.project;
+    var arranged = baseProject;
     if (session && placement && placement.manual && !(LM && LM.samePlacement(placement, session.placement))) {
       arranged = memoBuild(session, placement);
     }
@@ -525,8 +839,8 @@
       .map(function (m) { return { message: m, severity: 'medium' }; });
     var allWarnings = (props.warnings || []).concat(reportWarnings);
 
-    var coveragePct = Math.round((props.coverage || 0) * 100);
-    var coverageIcon = props.coverage >= 0.95 ? I('confidenceHigh') : (props.coverage >= 0.8 ? I('info') : I('confidenceLow'));
+    var summary = importSummary(working, props.coverage);
+    var coverageIcon = summary.level === 'high' ? I('confidenceHigh') : (summary.level === 'medium' ? I('info') : I('confidenceLow'));
 
     var tabs = [].concat(session ? [{ id: 'pages', label: 'Pages', icon: I('layers') }] : [], [
       { id: 'preview',  label: 'Preview',  icon: I('magnifier') },
@@ -539,9 +853,21 @@
       h('div', { className: 'import-review-modal' },
         h('header', { className: 'import-review-header' },
           h('h2', null, 'Review imported pattern'),
-          h('div', { className: 'import-review-coverage' }, coverageIcon, h('span', null, coveragePct + '% confidence')),
+          h('div', { className: 'import-review-coverage', title: summary.detail || null }, coverageIcon, h('span', null, summary.label)),
           h('button', { className: 'import-review-close', onClick: function () { props.onClose && props.onClose('cancel'); }, 'aria-label': 'Close' }, I('x'))
         ),
+        designs && h('div', { className: 'import-design-picker' },
+          h('label', { htmlFor: 'import-design-select' }, 'Design'),
+          h('select', { id: 'import-design-select', value: String(designIndex),
+              onChange: function (e) { chooseDesign(parseInt(e.target.value, 10)); } },
+            designs.map(function (d, i) {
+              var n = d.pageIndexes.length;
+              return h('option', { key: i, value: String(i) }, d.title + ' (' + n + (n === 1 ? ' page)' : ' pages)'));
+            })),
+          h('span', { className: 'import-design-note' },
+            'This PDF holds ' + designs.length + ' designs. ‘Use this pattern’ imports the one shown; each design keeps its own changes.'),
+          h('button', { type: 'button', className: 'g-btn', onClick: importAll },
+            I('layers'), h('span', null, 'Import all ' + designs.length + ' designs'))),
         h('nav', { className: 'import-review-tabs', role: 'tablist' },
           tabs.map(function (t) {
             return h('button', {
@@ -552,11 +878,12 @@
           })
         ),
         h('section', { className: 'import-review-body' },
-          tab === 'pages'    && session && h(PageLayoutPanel, { session: session, placement: placement, project: working,
+          tab === 'pages'    && session && h(PageLayoutPanel, { key: 'layout' + designIndex, session: session, placement: placement, project: working,
                                                 onPlacement: setPlacement }),
           tab === 'preview'  && h(ImportPreviewPane, { project: working, showConfidence: showConfidence }),
           tab === 'palette'  && h(ImportPaletteList, { project: working, assignments: edits.threads || {},
-                                                samples: (props.layoutSession && props.layoutSession.glyphSamples) || null,
+                                                samples: (active && active.glyphSamples) || null,
+                                                lookAlikes: (active && active.lookAlikes) || null,
                                                 labels: threadLabels, onAssign: assignThread, onUnassign: unassignThread }),
           tab === 'metadata' && h(ImportMetadataForm, { project: working, onEdit: applyEdit }),
           tab === 'compare'  && h(ImportSideBySide, { project: working, originalFileUrl: props.originalFileUrl })
@@ -585,13 +912,19 @@
   }
 
   // Rebuilding a large chart takes a moment, and React re-renders often; keep
-  // the last build per session and arrangement.
-  var lastBuild = { session: null, key: null, project: null };
+  // the last few builds of each session (one per design, when a PDF holds
+  // several), by arrangement.
+  var builds = typeof WeakMap === 'function' ? new WeakMap() : null;
   function memoBuild(session, placement) {
-    var key = JSON.stringify(placement.pages);
-    if (lastBuild.session === session && lastBuild.key === key) return lastBuild.project;
+    var key = JSON.stringify([placement.pages, placement.overlap || null]);
+    var cache = builds && builds.get(session);
+    if (cache && cache.has(key)) return cache.get(key);
     var project = session.build(placement);
-    lastBuild = { session: session, key: key, project: project };
+    if (builds) {
+      if (!cache) { cache = new Map(); builds.set(session, cache); }
+      if (cache.size >= 4) cache.delete(cache.keys().next().value);
+      cache.set(key, project);
+    }
     return project;
   }
 
@@ -600,16 +933,76 @@
     if (!edits || !Object.keys(edits).length) return project;
     var next = Object.assign({}, project);
     if ('name' in edits) next.name = edits.name;
+    if ('designer' in edits) next.designer = edits.designer;
     if ('fabricCt' in edits) next.settings = Object.assign({}, next.settings, { fabricCt: edits.fabricCt });
     if (edits.threads && Object.keys(edits.threads).length) next = assignThreads(next, edits.threads);
     return next;
   }
 
+  /* The figure in the review's header: how far to trust the import.
+   *
+   * A PDF chart says what it is — its colour key — so the honest figure is how
+   * many stitches were matched to that key, by symbol or by swatch, rather than
+   * by the nearest colour. The engine's own confidence is 100% for every PDF,
+   * since the importer hands over a finished pattern, which said nothing.
+   * A scan, and a chart with no key, have nothing to match to and say so. Other
+   * formats keep the engine's figure. */
+  function importSummary(project, coverage) {
+    var r = project && project.importReport;
+    var m = r && r.matched;
+    var left = (r && r.placeholders && r.placeholders.length) || 0;
+    var needs = left ? ' ' + left + (left === 1 ? ' symbol needs' : ' symbols need') + ' a thread.' : '';
+    if (m) {
+      if (r.scanned) {
+        return { level: 'low', label: 'Read from a scan',
+          detail: 'Colours and symbols were read from a picture of the chart, so check them against the printed key.' + needs };
+      }
+      if (!r.keyEntries) {
+        return { level: 'low', label: 'No colour key found',
+          detail: 'Thread colours were estimated from the chart.' + needs };
+      }
+      // Nearest key colour counts as a match when the key's colours are too
+      // far apart to mistake (PAT1968_2's seven), not when two are close.
+      var partialSwatch = typeof m.partialSwatch === 'number' ? m.partialSwatch : (m.partial || 0);
+      var partialNearest = typeof m.partialNearest === 'number' ? m.partialNearest : 0;
+      var read = (m.symbol || 0) + (m.swatch || 0) + partialSwatch +
+        (r.keyColoursDistinct ? (m.nearest || 0) + partialNearest : 0);
+      var total = (m.symbol || 0) + (m.swatch || 0) + (m.nearest || 0) +
+        partialSwatch + partialNearest + (m.catalogue || 0) + (m.unresolved || 0);
+      if (total) {
+        var share = read / total;
+        var pct = Math.floor(share * 100);
+        return { level: left ? 'low' : share >= 0.98 ? 'high' : share >= 0.85 ? 'medium' : 'low',
+          label: pct + '% matched to the key',
+          detail: read + ' of ' + total + ' stitches were matched to the PDF’s colour key' +
+            (read < total ? '; the rest were matched by colour similarity or not at all.' : '.') + needs };
+      }
+    }
+    var c = coverage || 0;
+    return { level: c >= 0.95 ? 'high' : c >= 0.8 ? 'medium' : 'low', label: Math.round(c * 100) + '% confidence' };
+  }
+
   /* Give colours the threads the stitcher chose: `threads` maps a colour's id
-   * to a DMC number. Choices chain — a placeholder set to 310, and 310 then
-   * changed to 3371, ends as 3371. */
+   * to a DMC number, or to another colour in the chart. Choices chain — a
+   * placeholder set to 310, and 310 then changed to 3371, ends as 3371. */
   function assignThreads(project, threads) {
     var memo = {};
+    // A colour can also become another colour already in the chart: two
+    // scanned symbols that are one symbol, merged before either has a thread.
+    var own = {};
+    (project.pattern || []).forEach(function (m) {
+      if (m && m.id && m.id !== '__skip__' && m.id !== '__empty__' && !own[m.id]) {
+        own[m.id] = { id: m.id, name: m.name, rgb: m.rgb, lab: m.lab, symbol: m.symbol };
+      }
+    });
+    (project.partialStitches || []).forEach(function (e) {
+      Object.keys(e[1] || {}).forEach(function (k) {
+        var m = e[1][k];
+        if (m && m.id && m.id !== '__skip__' && m.id !== '__empty__' && !own[m.id]) {
+          own[m.id] = { id: m.id, name: m.name, rgb: m.rgb, lab: m.lab, symbol: m.symbol };
+        }
+      });
+    });
     function target(id) {
       if (id in memo) return memo[id];
       var to = id, seen = {};
@@ -618,7 +1011,7 @@
         seen[to] = true;
         to = threads[to];
       }
-      var t = to === id ? null : dmcThread(to);
+      var t = to === id ? null : (dmcThread(to) || own[to] || null);
       memo[id] = t;
       return t;
     }
@@ -626,7 +1019,9 @@
       if (!m || m.id === '__skip__' || m.id === '__empty__') return m;
       var t = target(m.id);
       if (!t) return m;
-      return Object.assign({}, m, { id: t.id, name: t.name, rgb: t.rgb.slice(), lab: t.lab ? t.lab.slice() : m.lab });
+      var out = Object.assign({}, m, { id: t.id, name: t.name, rgb: t.rgb.slice(), lab: t.lab ? t.lab.slice() : m.lab });
+      if (t.symbol !== undefined) out.symbol = t.symbol;
+      return out;
     }
     var next = Object.assign({}, project, { pattern: (project.pattern || []).map(remap) });
     if (project.partialStitches) {
@@ -655,6 +1050,65 @@
   }
 
   // ── Imperative API ────────────────────────────────────────────────────
+
+  /* The card shown while a file is being read, before the review opens: what
+   * the importer is doing, and how far through the pages it is. A scanned
+   * chart of a dozen pages takes half a minute, and nothing on screen used to
+   * say anything was happening.
+   *
+   * Returns { update(message), close() }; a message is the engine's progress
+   * message, { stage, label?, page?, total? }. opts.onCancel, when given, adds
+   * a Cancel button that calls it. */
+  function showImportProgress(opts) {
+    opts = opts || {};
+    if (typeof document === 'undefined') return { update: function () {}, close: function () {} };
+    var host = document.createElement('div');
+    host.className = 'import-busy';
+    host.setAttribute('role', 'status');
+    host.setAttribute('aria-live', 'polite');
+    var title = document.createElement('div');
+    title.className = 'import-busy-title';
+    title.textContent = opts.fileName ? 'Importing ' + opts.fileName : 'Importing pattern';
+    var label = document.createElement('div');
+    label.className = 'import-busy-label';
+    label.textContent = 'Starting…';
+    var track = document.createElement('div');
+    track.className = 'import-busy-track';
+    var bar = document.createElement('div');
+    bar.className = 'import-busy-bar indeterminate';
+    track.appendChild(bar);
+    host.appendChild(title); host.appendChild(label); host.appendChild(track);
+    var cancelled = false;
+    if (typeof opts.onCancel === 'function') {
+      var cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.className = 'g-btn import-busy-cancel';
+      cancel.textContent = 'Cancel';
+      cancel.addEventListener('click', function () {
+        if (cancelled) return;
+        cancelled = true;
+        cancel.disabled = true;
+        label.textContent = 'Stopping…';
+        opts.onCancel();
+      });
+      host.appendChild(cancel);
+    }
+    document.body.appendChild(host);
+    return {
+      update: function (m) {
+        if (!m || cancelled) return;
+        if (m.label) label.textContent = m.label;
+        if (m.total > 0 && m.page > 0) {
+          bar.classList.remove('indeterminate');
+          bar.style.width = Math.round(100 * Math.min(1, m.page / m.total)) + '%';
+        } else {
+          bar.classList.add('indeterminate');
+          bar.style.width = '';
+        }
+      },
+      close: function () { if (host.parentNode) host.parentNode.removeChild(host); },
+    };
+  }
 
   function openReview(opts) {
     try {
@@ -693,6 +1147,7 @@
 
   var api = {
     openReview: openReview,
+    showImportProgress: showImportProgress,
     ImportReviewModal: ImportReviewModal,
     ImportPreviewPane: ImportPreviewPane,
     ImportPaletteList: ImportPaletteList,
@@ -701,6 +1156,8 @@
     ImportProgress: ImportProgress,
     WarningList: WarningList,
     mergeEdits: mergeEdits,
+    importSummary: importSummary,
+    openLookAlikes: openLookAlikes,
   };
   window.ImportEngine = Object.assign(window.ImportEngine || {}, api);
 })();

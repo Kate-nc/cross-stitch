@@ -108,6 +108,13 @@ describe('mergeEdits — choosing threads for placeholders', () => {
     expect(out.pattern[0].id).toBe('3371');
   });
 
+  it('merges into a colour used only by a fractional stitch', () => {
+    const p = project();
+    p.partialStitches = [[3, { TL: { id: 'P1', rgb: [4, 5, 6], name: 'Partial colour' } }]];
+    const out = mergeEdits(p, { threads: { U1: 'P1' } });
+    expect(out.pattern[0]).toEqual(expect.objectContaining({ id: 'P1', name: 'Partial colour', rgb: [4, 5, 6] }));
+  });
+
   it('leaves a colour alone when the chosen number is not a thread', () => {
     const out = mergeEdits(project(), { threads: { U1: '99999' } });
     expect(out.pattern[0].id).toBe('U1');
@@ -123,5 +130,103 @@ describe('mergeEdits — choosing threads for placeholders', () => {
     mergeEdits(p, { threads: { U1: '310' } });
     expect(p.pattern[0].id).toBe('U1');
     expect(p.importReport.placeholders).toHaveLength(2);
+  });
+});
+
+describe('importSummary — the review header', () => {
+  const { importSummary } = window.ImportEngine;
+  const report = (over) => ({ importReport: Object.assign({
+    keyEntries: 9, scanned: false, keyColoursDistinct: false, placeholders: [],
+    matched: { symbol: 900, swatch: 95, nearest: 5, catalogue: 0, unresolved: 0 },
+  }, over) });
+
+  it('gives the share of stitches matched to the PDF key', () => {
+    expect(importSummary(report(), 1)).toEqual(expect.objectContaining({ label: '99% matched to the key', level: 'high' }));
+  });
+
+  it('counts nearest-colour matches when the key colours cannot be confused', () => {
+    const r = report({ matched: { symbol: 0, swatch: 455, nearest: 4890, catalogue: 0, unresolved: 2 } });
+    expect(importSummary(r, 1).label).toBe('8% matched to the key');
+    r.importReport.keyColoursDistinct = true;
+    expect(importSummary(r, 1).label).toBe('99% matched to the key');
+  });
+
+  it('counts fractional stitches by whether their colours match the key exactly or by proximity', () => {
+    const r = report({ matched: { symbol: 0, swatch: 0, nearest: 0, catalogue: 0, unresolved: 0, partial: 2, partialSwatch: 1, partialNearest: 1 } });
+    expect(importSummary(r, 1).label).toBe('50% matched to the key');
+    r.importReport.keyColoursDistinct = true;
+    expect(importSummary(r, 1).label).toBe('100% matched to the key');
+  });
+
+  it('never rounds up to 100% while something is unmatched', () => {
+    const r = report({ matched: { symbol: 999, swatch: 0, nearest: 0, catalogue: 0, unresolved: 1 } });
+    expect(importSummary(r, 1).label).toBe('99% matched to the key');
+  });
+
+  it('says so for a scan, or a chart with no key', () => {
+    expect(importSummary(report({ scanned: true }), 1).label).toBe('Read from a scan');
+    expect(importSummary(report({ keyEntries: 0 }), 1).label).toBe('No colour key found');
+  });
+
+  it('marks the import low while symbols still need a thread', () => {
+    const s = importSummary(report({ placeholders: [{ id: 'U1' }, { id: 'U2' }] }), 1);
+    expect(s.level).toBe('low');
+    expect(s.detail).toMatch(/2 symbols need a thread/);
+  });
+
+  it('keeps the engine figure for formats without an import report', () => {
+    expect(importSummary({ pattern: [] }, 0.87)).toEqual(expect.objectContaining({ label: '87% confidence', level: 'medium' }));
+  });
+});
+
+describe('merging look-alike scanned symbols', () => {
+  const { openLookAlikes } = window.ImportEngine;
+  const TABLE = { '310': { id: '310', name: 'Black', rgb: [0, 0, 0], lab: [0, 0, 0] },
+                  '321': { id: '321', name: 'Christmas Red', rgb: [199, 43, 59], lab: [43, 63, 30] } };
+  beforeAll(() => { window.getDmcByIdCI = (id) => TABLE[String(id)] || null; });
+  afterAll(() => { delete window.getDmcByIdCI; });
+
+  const cell = (id, symbol) => ({ type: 'solid', id, name: 'Symbol ' + symbol + ' (unassigned)', rgb: [9, 9, 9], lab: [1, 1, 1], symbol });
+  const project = () => ({
+    w: 3, h: 1,
+    pattern: [cell('S1', '1'), cell('S2', '2'), cell('S3', '3')],
+    importReport: {
+      placeholders: ['S1', 'S2', 'S3'].map((id, i) => ({ id, symbol: String(i + 1), reason: 'scanned', count: 1 })),
+      warnings: ['This chart is a scanned image. 3 different symbols were found and imported as placeholders.'],
+    },
+  });
+
+  it('merges one placeholder into another, symbol and all', () => {
+    const out = mergeEdits(project(), { threads: { S2: 'S1' } });
+    expect(out.pattern[1]).toEqual(expect.objectContaining({ id: 'S1', symbol: '1' }));
+    expect(out.importReport.placeholders.map(p => p.id)).toEqual(['S1', 'S3']);
+  });
+
+  it('gives merged symbols the thread later chosen for either', () => {
+    const out = mergeEdits(project(), { threads: { S2: 'S1', S1: '310' } });
+    expect(out.pattern.slice(0, 2).map(m => m.id)).toEqual(['310', '310']);
+    expect(out.importReport.placeholders.map(p => p.id)).toEqual(['S3']);
+  });
+
+  const pairs = [{ a: 'S1', b: 'S2', d: 0.05 }, { a: 'S1', b: 'S3', d: 0.09 }, { a: 'S2', b: 'S3', d: 0.11 }];
+
+  it('asks about every pair at first', () => {
+    expect(openLookAlikes(pairs, {}, {}).map(p => p.key)).toEqual(['S1|S2', 'S1|S3', 'S2|S3']);
+  });
+
+  it('stops asking about a pair once its symbols are one', () => {
+    // S2 merged into S1, then S3 into S1: every pair is now one colour.
+    expect(openLookAlikes(pairs, { S2: 'S1' }, {}).map(p => p.key)).toEqual(['S1|S3', 'S2|S3']);
+    expect(openLookAlikes(pairs, { S2: 'S1', S3: 'S1' }, {})).toEqual([]);
+  });
+
+  it('stops asking about a pair dismissed as different, or both already given threads', () => {
+    expect(openLookAlikes(pairs, {}, { 'S1|S2': true }).map(p => p.key)).toEqual(['S1|S3', 'S2|S3']);
+    expect(openLookAlikes(pairs, { S1: '310', S2: '321' }, {}).map(p => p.key)).toEqual(['S1|S3', 'S2|S3']);
+  });
+
+  it('reports which colours a pair would now join', () => {
+    const p = openLookAlikes(pairs, { S1: '310' }, {})[0];
+    expect([p.rootA, p.rootB]).toEqual(['310', 'S2']);
   });
 });

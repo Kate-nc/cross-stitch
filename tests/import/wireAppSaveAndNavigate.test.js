@@ -136,3 +136,23 @@ describe('wireApp.saveAndNavigate', () => {
     expect(ctx.win.ProjectStorage.clearActiveProject).toHaveBeenCalled();
   });
 });
+
+describe('wireApp.saveAll — a booklet imported whole', () => {
+  const design = (name) => ({
+    v: 8, w: 1, h: 1, name,
+    pattern: [{ id: '310', type: 'solid', rgb: [0, 0, 0] }],
+    settings: { sW: 1, sH: 1, fabricCt: 14 },
+  });
+
+  it('saves every design, the one shown last so it is the one opened, with one message', async () => {
+    const ctx = loadWireApp('home.html');
+    const fox = design('Winter Fox'), owl = design('Summer Owl'), hare = design('Snow Hare');
+    const out = await ctx.win.ImportEngine.saveAll(owl, [owl, fox, hare], { navigateTo: 'create.html' });
+    expect(ctx.saved.map(p => p.name)).toEqual(['Winter Fox', 'Snow Hare', 'Summer Owl']);
+    const active = ctx.win.ProjectStorage.setActiveProject.mock.calls.map(c => c[0]);
+    expect(active[active.length - 1]).toBe(owl.id);
+    expect(ctx.toastCalls.map(t => t.message)).toEqual(['Imported 3 designs: Summer Owl, Winter Fox and Snow Hare.']);
+    expect(ctx.getAssigned()).toMatch(/create\.html/);
+    expect(out.projects).toHaveLength(3);
+  });
+});

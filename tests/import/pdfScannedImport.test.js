@@ -237,3 +237,127 @@ describe('importing a chart scanned across several pages', () => {
     expect(JSON.stringify(p)).not.toMatch(/glyphSamples/);
   });
 });
+
+describe('scannedLookAlikes', () => {
+  it('pairs groups whose average glyphs are near, closest first, at most three each', () => {
+    const imp = newImporter();
+    const RC = require(path.join(ROOT, 'pdf-raster-chart.js'));
+    const glyph = (v) => new Float64Array(144).fill(v);           // distance = difference in v
+    const grouped = { symbols: [0.5, 0.52, 0.56, 0.95, 0.2].map(v => ({ count: 10, mean: glyph(v) })) };
+    const threads = { symbol: grouped.symbols.map((_, i) => ({ id: 'S' + (i + 1) })) };
+    const pairs = imp.scannedLookAlikes(grouped, threads, RC);
+    expect(pairs[0]).toEqual(expect.objectContaining({ a: 'S1', b: 'S2' }));
+    expect(pairs.map(p => p.a + p.b)).toEqual(expect.arrayContaining(['S1S3', 'S2S3']));
+    // Far apart: never suggested.
+    expect(pairs.some(p => p.a === 'S4' || p.b === 'S4' || p.a === 'S5' || p.b === 'S5')).toBe(false);
+    for (let i = 1; i < pairs.length; i++) expect(pairs[i].d).toBeGreaterThanOrEqual(pairs[i - 1].d);
+  });
+});
+
+/* ── reading off the main thread ──────────────────────────────────────────── */
+
+/* A stand-in for the browser's Worker: runs pdf-raster-worker.js in its own
+ * context and passes messages asynchronously, cloned, as a real one would. */
+function fakeWorkerClass(log) {
+  const vm = require('vm');
+  return class FakeWorker {
+    constructor(url) {
+      log.push('started ' + url);
+      const ctx = vm.createContext({ console, Float64Array, Uint8ClampedArray, Map, Set, Math, Array, Object, JSON, Error, String, Number });
+      ctx.self = ctx;
+      ctx.importScripts = (f) => vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx);
+      ctx.postMessage = (m) => setTimeout(() => this.onmessage && this.onmessage({ data: structuredClone(m) }), 0);
+      vm.runInContext(fs.readFileSync(path.join(ROOT, 'pdf-raster-worker.js'), 'utf8'), ctx);
+      this.ctx = ctx;
+    }
+    postMessage(m) { log.push(m.type); setTimeout(() => this.ctx.onmessage({ data: structuredClone(m) }), 0); }
+    terminate() { log.push('terminated'); }
+  };
+}
+
+describe('reading scanned pages in a worker', () => {
+  jest.setTimeout(120000);
+  const PALETTE = [[200, 40, 40], [40, 90, 190], [60, 160, 80], [230, 180, 40]];
+  const design = (c, r) => ({ rgb: PALETTE[Math.max(0, Math.min(3, Math.floor(2 + 1.4 * Math.sin(c / 5.3 + 0.3) + 1.2 * Math.cos(r / 4.1 + 0.8))))], glyph: (c + r) % 3 });
+  const book = () => scannedBook([0, 1].map(t => drawChartPage(20, 15, (c, r) => design(t * 20 + c, r))));
+
+  afterEach(() => { delete global.Worker; });
+
+  it('gives the same chart as reading on the main thread, and says how far it has got', async () => {
+    const buffer = await book();
+    const inline = await newImporter().analyse(buffer.slice(0));
+
+    const log = [];
+    global.Worker = fakeWorkerClass(log);
+    const progress = [];
+    const imp = new PatternKeeperImporter({ canvasFactory, onProgress: m => progress.push(m.label) });
+    pdfjs.GlobalWorkerOptions.workerSrc = path.join(ROOT, 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs');
+    const viaWorker = await imp.analyse(buffer.slice(0));
+
+    expect(log).toEqual(['started pdf-raster-worker.js', 'ping', 'read', 'read', 'group', 'terminated']);
+    const sig = (s) => JSON.stringify(s.pages.map(p => [p.pageIndex, p.cols, p.rows, p.cells.map(c => c.thread && c.thread.id)]));
+    expect(sig(viaWorker)).toEqual(sig(inline));
+    expect(Object.keys(viaWorker.glyphSamples)).toEqual(Object.keys(inline.glyphSamples));
+    expect(progress).toEqual(expect.arrayContaining([
+      'Opening the PDF', 'Reading scanned page 1 of 2', 'Reading scanned page 2 of 2', 'Grouping the stitches by colour and symbol',
+    ]));
+  });
+
+  it('reads on the main thread when the worker never answers', async () => {
+    const log = [];
+    global.Worker = class Silent { constructor() { log.push('started'); } postMessage() {} terminate() { log.push('terminated'); } };
+    jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick', 'queueMicrotask'] });
+    try {
+      const imp = new PatternKeeperImporter({ canvasFactory });
+      const RC = require(path.join(ROOT, 'pdf-raster-chart.js'));
+      const pending = imp.rasterReader(RC);
+      jest.advanceTimersByTime(5000);
+      const reader = await pending;
+      expect(log).toEqual(['started', 'terminated']);
+      // The fallback reads for itself.
+      const img = { width: 40, height: 40, data: new Uint8ClampedArray(40 * 40 * 4).fill(255) };
+      expect(await reader.read(img)).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
+
+describe('cancelling an import', () => {
+  jest.setTimeout(120000);
+  afterEach(() => { delete global.Worker; });
+
+  it('stops at the next page when the stitcher cancels', async () => {
+    const token = { aborted: false };
+    const seen = [];
+    const imp = new PatternKeeperImporter({ canvasFactory, cancelToken: token, onProgress: m => {
+      seen.push(m.label);
+      if (/Reading scanned page 1/.test(m.label)) token.aborted = true;     // cancel during page 1
+    } });
+    pdfjs.GlobalWorkerOptions.workerSrc = path.join(ROOT, 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs');
+    const buffer = await scannedBook([drawChartPage(20, 15, () => ({ glyph: 0 })), drawChartPage(20, 15, () => ({ glyph: 1 }))]);
+    await expect(imp.analyse(buffer)).rejects.toMatchObject({ name: 'ImportAbortedError' });
+    expect(seen.some(l => /Reading scanned page 2/.test(l))).toBe(false);
+  });
+
+  it('stops the scan worker rather than waiting for it', async () => {
+    const log = [];
+    // A worker that answers a ping but never finishes grouping.
+    global.Worker = class Slow {
+      constructor() { log.push('started'); }
+      postMessage(m) {
+        log.push(m.type);
+        if (m.type === 'ping' || m.type === 'read') setTimeout(() => this.onmessage({ data: { id: m.id, ok: true, result: m.type === 'ping' ? true : { index: 0, grid: {} } } }), 0);
+      }
+      terminate() { log.push('terminated'); }
+    };
+    const token = { aborted: false };
+    const imp = new PatternKeeperImporter({ canvasFactory, cancelToken: token });
+    const RC = require(path.join(ROOT, 'pdf-raster-chart.js'));
+    const reader = await imp.rasterReader(RC);
+    const grouping = reader.group([0]);
+    setTimeout(() => { token.aborted = true; }, 50);
+    await expect(grouping).rejects.toMatchObject({ name: 'ImportAbortedError' });
+    expect(log).toContain('terminated');
+  });
+});

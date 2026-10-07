@@ -28,6 +28,7 @@ const ORDER = [
   'strategies/imageStrategy.js',
   'strategies/pdfGlyphStrategy.js',
   'ui/pageLayoutModel.js',
+  'ui/threadPicker.js',
   'ui/ImportReviewModal.js',
   'wireApp.js',
   'index.js',

@@ -6711,6 +6711,7 @@ button[aria-disabled="true"] {
   display: grid;
   grid-template:
     "header header" auto
+    "design design" auto
     "tabs   tabs"   auto
     "body   warn"   1fr
     "footer footer" auto / 1fr 280px;
@@ -6879,6 +6880,21 @@ button[aria-disabled="true"] {
 .page-layout-tray-list { display: flex; flex-wrap: wrap; gap: var(--s-2); }
 .page-layout-tray-list .page-layout-tile { width: auto; min-width: 120px; min-height: 0; }
 .page-layout-result .import-preview-pane { height: auto; }
+/* Dragging with a finger: holding a page must not select text or open the
+   long-press menu, the page held fades, and where it would land is marked. */
+.page-layout-tile { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.page-layout-tile.lifted { opacity: 0.4; }
+.page-layout-slot.drop-target .page-layout-tile,
+.page-layout-tray.drop-target { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.page-layout-tray.drop-target { border-radius: var(--radius-md); }
+.page-layout-tray-hint { margin: 0; color: var(--text-tertiary); font-size: var(--text-sm); }
+.page-layout-ghost {
+  position: fixed; z-index: var(--z-toast); pointer-events: none;
+  transform: translate(-50%, -120%);
+  padding: var(--s-1) var(--s-3); border-radius: var(--radius-md);
+  background: var(--accent); color: var(--surface); font-weight: 600; font-size: var(--text-md);
+  box-shadow: var(--shadow-md);
+}
 
 /* The footer buttons are plain `.g-btn` instances — no per-modal overrides. */
 
@@ -6935,6 +6951,45 @@ button[aria-disabled="true"] {
   background: var(--surface); color: var(--text-primary); font: inherit;
 }
 .import-thread-input[aria-invalid="true"] { border-color: var(--danger); }
+.import-thread-brand {
+  padding: var(--s-1); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text-primary); font: inherit;
+}
+.import-colour-picker {
+  grid-column: 1 / -1;
+  display: flex; flex-direction: column; gap: var(--s-3);
+  padding: var(--s-3); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.import-picker-section h4 { margin: 0 0 var(--s-2); font-size: var(--text-sm); color: var(--text-secondary); font-weight: 600; }
+.import-picker-swatches { display: flex; flex-wrap: wrap; gap: var(--s-1); }
+.import-swatch-btn {
+  display: inline-flex; flex-direction: column; align-items: center; gap: 2px;
+  min-width: 2.75em; padding: var(--s-1); border: 1px solid transparent; border-radius: var(--radius-sm);
+  background: none; color: var(--text-secondary); font: inherit; font-size: var(--text-sm); cursor: pointer;
+}
+.import-swatch-btn:hover, .import-swatch-btn:focus-visible { border-color: var(--accent); color: var(--text-primary); }
+.import-swatch-chip { display: block; width: 1.8em; height: 1.8em; border: 1px solid var(--line); border-radius: 2px; }
+.import-swatch-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.import-picker-families { display: flex; flex-wrap: wrap; gap: var(--s-1); margin-bottom: var(--s-2); }
+.import-family-btn {
+  padding: var(--s-1) var(--s-2); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text-secondary); font: inherit; font-size: var(--text-sm); cursor: pointer;
+}
+.import-family-btn.active { border-color: var(--accent); color: var(--text-primary); background: var(--accent-soft); }
+.import-picker-actions { display: flex; justify-content: flex-end; }
+.import-lookalikes {
+  display: flex; flex-direction: column; gap: var(--s-2);
+  margin-bottom: var(--s-3); padding: var(--s-3);
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface);
+}
+.import-lookalikes h3 { margin: 0; font-size: var(--text-md); }
+.import-lookalikes-intro, .import-lookalikes-more { margin: 0; color: var(--text-secondary); font-size: var(--text-sm); }
+.import-lookalike { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); }
+.import-lookalike-pair { display: inline-flex; gap: var(--s-1); }
+.import-lookalike-pair .import-glyph-sample { width: 2.6em; height: 2.6em; }
+.import-lookalike-names { flex: 1 1 10em; font-size: var(--text-md); }
+.import-lookalike-actions { display: inline-flex; gap: var(--s-2); }
 .import-thread-match { display: inline-flex; align-items: center; gap: var(--s-1); color: var(--text-secondary); font-size: var(--text-sm); }
 .import-thread-error { flex-basis: 100%; color: var(--danger); font-size: var(--text-sm); }
 .import-palette-assigned { margin-top: var(--s-4); border-top: 1px solid var(--line); padding-top: var(--s-3); }
@@ -7010,6 +7065,42 @@ button[aria-disabled="true"] {
 .import-progress-bar { height: 4px; background: var(--accent); border-radius: 2px; transition: width 200ms; }
 .import-progress-label { color: var(--text-secondary); font-size: var(--text-md); }
 
+/* A PDF holding several designs: which one to import. */
+.import-design-picker {
+  grid-area: design;
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3);
+  padding: var(--s-2) var(--s-4); border-bottom: 1px solid var(--line);
+  font-size: var(--text-md);
+}
+.import-design-picker label { font-weight: 600; }
+.import-design-picker select {
+  padding: var(--s-1) var(--s-2); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text-primary); font: inherit; max-width: 100%;
+}
+.import-design-note { color: var(--text-secondary); font-size: var(--text-sm); }
+
+/* While a file is read, before the review opens (showImportProgress). */
+.import-busy {
+  position: fixed; left: 50%; bottom: var(--s-5); transform: translateX(-50%);
+  z-index: var(--z-toast);
+  width: min(360px, calc(100vw - 32px));
+  display: flex; flex-direction: column; gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line); border-radius: var(--radius-md);
+  background: var(--surface); box-shadow: var(--shadow-md);
+  color: var(--text-primary);
+}
+.import-busy-title { font-weight: 600; font-size: var(--text-md); overflow-wrap: anywhere; }
+.import-busy-label { color: var(--text-secondary); font-size: var(--text-sm); }
+.import-busy-cancel { align-self: flex-end; }
+.import-busy-track { position: relative; height: 4px; overflow: hidden; border-radius: 2px; background: var(--line); }
+.import-busy-bar { height: 100%; width: 0; background: var(--accent); border-radius: 2px; transition: width var(--motion, 200ms); }
+.import-busy-bar.indeterminate { width: 35%; animation: import-busy-slide 1.2s ease-in-out infinite; }
+@keyframes import-busy-slide { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+@media (prefers-reduced-motion: reduce) {
+  .import-busy-bar.indeterminate { animation: none; width: 100%; opacity: 0.5; }
+}
+
 /* Mobile: collapse the side rail under the body so neither pane gets
    squashed below 720px wide. */
 @media (max-width: 720px) {
@@ -7021,6 +7112,7 @@ button[aria-disabled="true"] {
     border-left: none; border-right: none;
     grid-template:
       "header" auto
+      "design" auto
       "tabs"   auto
       "body"   1fr
       "warn"   auto

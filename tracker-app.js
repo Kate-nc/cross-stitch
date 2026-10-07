@@ -759,6 +759,9 @@ const { stitchView, setStitchView, stitchZoom, setStitchZoom, stitchZoomRef,
   scs, fitSZ, maxZoom } = canvas;
 
 const[loadError,setLoadError]=useState(null);
+// A PDF being read: what the importer is doing, and a way to stop it.
+// { label, stopping, cancel } while busy, else null.
+const[importBusy,setImportBusy]=useState(null);
 const[copied,setCopied]=useState(null);
 const[modal,setModal]=useState(null);
 // ── Mobile: bottom action bar + colour quick-switcher state ──
@@ -3524,23 +3527,59 @@ function loadProject(e){
     };
     rd.readAsDataURL(f);
   } else if (format === "pdf") {
-    setLoadError("Loading PDF library\u2026");
+    // A large chart or a scan takes a while: say which page it is on, and
+    // let the stitcher stop it. The importer checks the token once a page.
+    const token = { aborted: false };
+    const cancel = () => {
+      token.aborted = true;
+      setImportBusy(b => b ? { ...b, label: "Stopping\u2026", stopping: true } : b);
+    };
+    const title = "Importing " + (f.name || "PDF chart");
+    const show = (label, page, total) => setImportBusy(b => (b && b.stopping) ? b : { title, label, page, total, stopping: false, cancel });
+    setLoadError(null);
+    show("Loading PDF library\u2026");
     const pdfReady = typeof window.loadPdfStack === 'function' ? window.loadPdfStack() : Promise.resolve();
     pdfReady.then(() => {
-      setLoadError("Parsing PDF chart\u2026 This may take a moment.");
-      const importer = new PatternKeeperImporter();
+      if (token.aborted) { const e = new Error("Import cancelled."); e.name = "ImportAbortedError"; throw e; }
+      show("Reading the PDF\u2026");
+      const importer = new PatternKeeperImporter({
+        onProgress: m => { if (m && m.label) show(m.label + "…", m.page, m.total); },
+        cancelToken: token,
+      });
       return importer.import(f);
     }).then(project => {
+      setImportBusy(null);
       // A chart printed across several pages goes through the review dialog
       // first, so the stitcher can check each page sits in the right place and
-      // move any that do not. Single-page charts import straight away, as
-      // before; so does everything if the dialog is unavailable.
+      // move any that do not. So does any chart the importer has something to
+      // say about — a symbol it could not match, a size that differs from what
+      // the PDF states — so it can be put right before it is saved. A clean
+      // single-page chart imports straight away, as before; so does everything
+      // if the dialog is unavailable.
       const session = project && project._layoutSession;
+      const report = (project && project.importReport) || {};
       const engine = window.ImportEngine;
-      if (session && session.pages && session.pages.length > 1 && engine && typeof engine.openReview === 'function') {
-        setLoadError(null);
+      const multiPage = !!(session && session.pages && session.pages.length > 1);
+      const needsLook = (report.warnings && report.warnings.length > 0) ||
+        (report.placeholders && report.placeholders.length > 0);
+      if ((multiPage || needsLook) && engine && typeof engine.openReview === 'function') {
         return engine.openReview({ project, layoutSession: session, warnings: [], coverage: 1, reviewMode: 'standard' })
-          .then(out => (out && out.action === 'confirm' && out.project) ? out.project : null);
+          .then(out => {
+            if (!(out && out.action === 'confirm' && out.project)) return null;
+            // A booklet imported whole: the other designs go to the library,
+            // and the one shown in the review opens here.
+            const others = (out.projects || []).filter(p => p !== out.project);
+            return Promise.all(others.map(p => {
+              if (!p.id) p.id = ProjectStorage.newId();
+              if (!p.createdAt) p.createdAt = new Date().toISOString();
+              return ProjectStorage.save(p);
+            })).then(() => {
+              if (others.length && window.Toast && window.Toast.show) {
+                window.Toast.show({ message: "Also saved to your library: " + others.map(p => p.name || "pattern").join(", ") + ".", type: "success", duration: 6000 });
+              }
+              return out.project;
+            });
+          });
       }
       return project;
     }).then(project => {
@@ -3556,8 +3595,13 @@ function loadProject(e){
       const stitchCount = project.pattern ? project.pattern.filter(m => m && m.id !== '__skip__' && m.id !== '__empty__').length : 0;
       setImportSuccess(`Imported "${baseName || 'PDF chart'}" \u2014 ${s.sW||'?'}\u00d7${s.sH||'?'}, ${palCount} colours, ${stitchCount} stitches`);
     }).catch(err => {
+      setImportBusy(null);
+      if (err && err.name === "ImportAbortedError") return;   // cancelled: nothing went wrong
       console.error(err);
       setLoadError("Could not load PDF: " + err.message);
+      // The line above sits under the sidebar while a chart is open; a toast
+      // is seen whatever is on screen.
+      if (window.Toast && window.Toast.show) window.Toast.show({ message: "Could not load PDF: " + err.message, type: "error", duration: 8000 });
       setTimeout(()=>setLoadError(null),4000);
     });
   } else {
@@ -6221,6 +6265,18 @@ return(
 )}
 </>}
 <div className="cs-page-content" style={{maxWidth:(!statsView&&pat&&pal)?'none':1100,margin:(!statsView&&pat&&pal)?0:"0 auto",padding:(!statsView&&pat&&pal)?0:"20px 16px"}}>
+  {/* The same floating card the home screen's import shows (styles.css
+      .import-busy): above the chart and sidebar, where a line in the page
+      would sit under the sidebar. */}
+  {importBusy&&<div className="import-busy" role="status" aria-live="polite">
+    <div className="import-busy-title">{importBusy.title}</div>
+    <div className="import-busy-label">{importBusy.label}</div>
+    <div className="import-busy-track">
+      <div className={"import-busy-bar"+(importBusy.total>0&&importBusy.page>0?"":" indeterminate")}
+        style={importBusy.total>0&&importBusy.page>0?{width:Math.round(100*Math.min(1,importBusy.page/importBusy.total))+"%"}:undefined}/>
+    </div>
+    <button type="button" className="g-btn import-busy-cancel" onClick={importBusy.cancel} disabled={importBusy.stopping}>Cancel</button>
+  </div>}
   {loadError&&<div style={{background:"var(--danger-soft)",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-md)',padding:"8px 14px",fontSize:'var(--text-sm)',color:"var(--danger)",marginBottom:'var(--s-3)'}}>{loadError}</div>}
   {copied==="progress"&&<div style={{background:"var(--success-soft)",border:"1px solid var(--success-soft)",borderRadius:'var(--radius-md)',padding:"8px 14px",fontSize:'var(--text-sm)',color:"var(--success)",fontWeight:600,marginBottom:'var(--s-3)',display:'inline-flex',alignItems:'center',gap:6}}>{Icons.check?Icons.check():null} Progress summary copied to clipboard!</div>}
   {importSuccess && (

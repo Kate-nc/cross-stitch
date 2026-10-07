@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v58';
+var CACHE_NAME = 'cross-stitch-cache-v59';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -75,6 +75,7 @@ var PRECACHE_URLS = [
   // Lazy-loaded local assets
   './pdf-axis-labels.js',
   './pdf-raster-chart.js',
+  './pdf-raster-worker.js',
   './pdf-importer.js',
   // assets/fontkit.umd.min.js is intentionally omitted from PRECACHE_URLS.
   // It is only needed when the user exports a Pattern Keeper PDF; the

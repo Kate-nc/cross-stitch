@@ -1702,6 +1702,9 @@ function TrackerApp({
     maxZoom
   } = canvas;
   const [loadError, setLoadError] = useState(null);
+  // A PDF being read: what the importer is doing, and a way to stop it.
+  // { label, stopping, cancel } while busy, else null.
+  const [importBusy, setImportBusy] = useState(null);
   const [copied, setCopied] = useState(null);
   const [modal, setModal] = useState(null);
   // ── Mobile: bottom action bar + colour quick-switcher state ──
@@ -2160,6 +2163,7 @@ function TrackerApp({
   const [halfStitches, setHalfStitches] = useState(new Map());
   // Sparse map: cellIdx → { fwd?: 0|1, bck?: 0|1 }
   const [halfDone, setHalfDone] = useState(new Map());
+  const [partialStitches, setPartialStitches] = useState(new Map());
   const [halfDisambig, setHalfDisambig] = useState(null); // {x, y, idx} for popup
 
   const [hoverInfo, setHoverInfo] = useState(null);
@@ -4490,6 +4494,7 @@ function TrackerApp({
       } : undefined
     }]);
     const hdArr = [...halfDone.entries()];
+    const psArr = [...partialStitches.entries()];
     let project = {
       version: 11,
       id: projectIdRef.current || undefined,
@@ -4523,6 +4528,7 @@ function TrackerApp({
       singleStitchEdits: sseArr,
       halfStitches: hsArr,
       halfDone: hdArr,
+      partialStitches: psArr,
       statsSessions,
       statsSettings,
       achievedMilestones,
@@ -5273,6 +5279,7 @@ function TrackerApp({
       } : undefined
     }]);
     const hdArrH = [...halfDone.entries()];
+    const psArrH = [...partialStitches.entries()];
     let project = {
       version: 11,
       id: projectIdRef.current || undefined,
@@ -5320,6 +5327,7 @@ function TrackerApp({
       singleStitchEdits: sseArrH,
       halfStitches: hsArrH,
       halfDone: hdArrH,
+      partialStitches: psArrH,
       statsSessions,
       statsSettings,
       achievedMilestones,
@@ -5520,13 +5528,37 @@ function TrackerApp({
       // Normal JSON format
       restored = p.map(restoreStitch);
     }
+    const partialMap = new Map();
+    const partialCells = [];
+    (project.partialStitches || []).forEach(([idx, quarters]) => {
+      const restoredQuarters = {};
+      Object.keys(quarters || {}).forEach(corner => {
+        const quarter = quarters[corner];
+        if (!quarter || !quarter.id) return;
+        const stitch = restoreStitch({
+          id: quarter.id,
+          type: quarter.id.includes('+') ? 'blend' : 'solid',
+          rgb: quarter.rgb
+        });
+        restoredQuarters[corner] = {
+          id: stitch.id,
+          rgb: stitch.rgb,
+          lab: stitch.lab,
+          name: stitch.name,
+          type: stitch.type
+        };
+        partialCells.push(stitch);
+      });
+      if (Object.keys(restoredQuarters).length) partialMap.set(Number(idx), restoredQuarters);
+    });
     let {
       pal: newPal,
       cmap: newCmap
-    } = buildPalette(restored);
+    } = buildPalette(restored.concat(partialCells));
     setPat(restored);
     setPal(newPal);
     setCmap(newCmap);
+    setPartialStitches(partialMap);
     if (project.originalPaletteState) {
       setOriginalPaletteState(project.originalPaletteState);
     } else {
@@ -5965,28 +5997,86 @@ function TrackerApp({
       };
       rd.readAsDataURL(f);
     } else if (format === "pdf") {
-      setLoadError("Loading PDF library\u2026");
+      // A large chart or a scan takes a while: say which page it is on, and
+      // let the stitcher stop it. The importer checks the token once a page.
+      const token = {
+        aborted: false
+      };
+      const cancel = () => {
+        token.aborted = true;
+        setImportBusy(b => b ? {
+          ...b,
+          label: "Stopping\u2026",
+          stopping: true
+        } : b);
+      };
+      const title = "Importing " + (f.name || "PDF chart");
+      const show = (label, page, total) => setImportBusy(b => b && b.stopping ? b : {
+        title,
+        label,
+        page,
+        total,
+        stopping: false,
+        cancel
+      });
+      setLoadError(null);
+      show("Loading PDF library\u2026");
       const pdfReady = typeof window.loadPdfStack === 'function' ? window.loadPdfStack() : Promise.resolve();
       pdfReady.then(() => {
-        setLoadError("Parsing PDF chart\u2026 This may take a moment.");
-        const importer = new PatternKeeperImporter();
+        if (token.aborted) {
+          const e = new Error("Import cancelled.");
+          e.name = "ImportAbortedError";
+          throw e;
+        }
+        show("Reading the PDF\u2026");
+        const importer = new PatternKeeperImporter({
+          onProgress: m => {
+            if (m && m.label) show(m.label + "…", m.page, m.total);
+          },
+          cancelToken: token
+        });
         return importer.import(f);
       }).then(project => {
+        setImportBusy(null);
         // A chart printed across several pages goes through the review dialog
         // first, so the stitcher can check each page sits in the right place and
-        // move any that do not. Single-page charts import straight away, as
-        // before; so does everything if the dialog is unavailable.
+        // move any that do not. So does any chart the importer has something to
+        // say about — a symbol it could not match, a size that differs from what
+        // the PDF states — so it can be put right before it is saved. A clean
+        // single-page chart imports straight away, as before; so does everything
+        // if the dialog is unavailable.
         const session = project && project._layoutSession;
+        const report = project && project.importReport || {};
         const engine = window.ImportEngine;
-        if (session && session.pages && session.pages.length > 1 && engine && typeof engine.openReview === 'function') {
-          setLoadError(null);
+        const multiPage = !!(session && session.pages && session.pages.length > 1);
+        const needsLook = report.warnings && report.warnings.length > 0 || report.placeholders && report.placeholders.length > 0;
+        if ((multiPage || needsLook) && engine && typeof engine.openReview === 'function') {
           return engine.openReview({
             project,
             layoutSession: session,
             warnings: [],
             coverage: 1,
             reviewMode: 'standard'
-          }).then(out => out && out.action === 'confirm' && out.project ? out.project : null);
+          }).then(out => {
+            if (!(out && out.action === 'confirm' && out.project)) return null;
+            // A booklet imported whole: the other designs go to the library,
+            // and the one shown in the review opens here.
+            const others = (out.projects || []).filter(p => p !== out.project);
+            return Promise.all(others.map(p => {
+              if (!p.id) p.id = ProjectStorage.newId();
+              if (!p.createdAt) p.createdAt = new Date().toISOString();
+              return ProjectStorage.save(p);
+            })).then(() => {
+              if (others.length && window.Toast && window.Toast.show) {
+                window.Toast.show({
+                  message: "Also saved to your library: " + others.map(p => p.name || "pattern").join(", ") + ".",
+                  type: "success",
+                  duration: 6000
+                });
+              }
+              return out.project;
+            });
+          });
         }
         return project;
       }).then(project => {
@@ -6005,8 +6095,17 @@ function TrackerApp({
         const stitchCount = project.pattern ? project.pattern.filter(m => m && m.id !== '__skip__' && m.id !== '__empty__').length : 0;
         setImportSuccess(`Imported "${baseName || 'PDF chart'}" \u2014 ${s.sW || '?'}\u00d7${s.sH || '?'}, ${palCount} colours, ${stitchCount} stitches`);
       }).catch(err => {
+        setImportBusy(null);
+        if (err && err.name === "ImportAbortedError") return; // cancelled: nothing went wrong
         console.error(err);
         setLoadError("Could not load PDF: " + err.message);
+        // The line above sits under the sidebar while a chart is open; a toast
+        // is seen whatever is on screen.
+        if (window.Toast && window.Toast.show) window.Toast.show({
+          message: "Could not load PDF: " + err.message,
+          type: "error",
+          duration: 8000
+        });
         setTimeout(() => setLoadError(null), 4000);
       });
     } else {
@@ -6263,6 +6362,7 @@ function TrackerApp({
       } : undefined
     }]);
     const hdArr = [...halfDone.entries()];
+    const psArr = [...partialStitches.entries()];
     // Derive stitchLog from statsSessions (single source of truth).
     // Groups netStitches by date so stitchLog always matches what statsSessions says.
     const _logMap = {};
@@ -6309,6 +6409,7 @@ function TrackerApp({
       singleStitchEdits: sseArr,
       halfStitches: hsArr,
       halfDone: hdArr,
+      partialStitches: psArr,
       statsSessions,
       statsSettings,
       achievedMilestones,
@@ -6506,6 +6607,7 @@ function TrackerApp({
         } : undefined
       }]);
       const hdArr = [...halfDone.entries()];
+      const psArr = [...partialStitches.entries()];
       const project = {
         ...(lastSnapshotRef.current || {}),
         version: 11,
@@ -6522,6 +6624,7 @@ function TrackerApp({
           stitchSpeed,
           wastePrefs
         },
+        partialStitches: psArr,
         // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
         breadcrumbs,
         stitchingStyle,
@@ -6567,7 +6670,7 @@ function TrackerApp({
         }
       };
     };
-  }, [projectName, sW, sH, fabricCt, skeinPrice, stitchSpeed, pat, pal, bsLines, done, halfStitches, halfDone, parkMarkers, totalTime, liveAutoElapsed, hlRow, hlCol, threadOwned, originalPaletteState, singleStitchEdits, statsSessions, statsSettings, achievedMilestones, stitchZoom, doneSnapshots, breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence]);
+  }, [projectName, sW, sH, fabricCt, skeinPrice, stitchSpeed, pat, pal, bsLines, done, halfStitches, halfDone, partialStitches, parkMarkers, totalTime, liveAutoElapsed, hlRow, hlCol, threadOwned, originalPaletteState, singleStitchEdits, statsSessions, statsSettings, achievedMilestones, stitchZoom, doneSnapshots, breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence]);
 
   // ── Zoom-adaptive tier helpers ──
   // Compute rendering tier (1–4) from cell size with hysteresis.
@@ -6720,7 +6823,23 @@ function TrackerApp({
     const hsLowZoom = tier === 2; // Tier 2: triangle fill only
     const hsMedZoom = tier === 3; // Tier 3: triangle + diagonal line
     const hsHighZoom = tier >= 4; // Tier 4: full detail (tri + line + symbol)
-
+    function drawPartial(entry, base, px, py) {
+      if (!entry) return;
+      analysePartialStitches(entry, base).forEach(function (instruction) {
+        var colour = instruction.colour;
+        var paletteEntry = cmap && cmap[colour.id];
+        var symbol = paletteEntry && paletteEntry.symbol;
+        var view = stitchView === 'symbol' ? 'symbol' : 'both';
+        if (instruction.type === 'three-quarter') {
+          drawThreeQuarterStitch(ctx, px, py, cSz, colour, instruction.emptyCorner, 0.8, view, symbol);
+        } else if (instruction.type === 'quarter') {
+          drawQuarterStitch(ctx, px, py, cSz, colour, instruction.corner, 0.8, view, symbol);
+        } else {
+          drawHalfTriangle(ctx, px, py, cSz, instruction.direction, colour.rgb, 0.8);
+          drawHalfLine(ctx, px, py, cSz, instruction.direction, colour.rgb, 0.8);
+        }
+      });
+    }
     for (let y = startY; y < endY; y++) {
       for (let x = startX; x < endX; x++) {
         let idx = y * sW + x,
@@ -6732,7 +6851,7 @@ function TrackerApp({
         let isDn = done && done[idx];
 
         // ── Tier 1 fast path: flat color blocks, no symbols, no cell borders ──
-        if (tier === 1) {
+        if (tier === 1 && !partialStitches.has(idx)) {
           if (m.id === "__skip__" || m.id === "__empty__") {
             ctx.fillStyle = "#f0f4f8";
             ctx.fillRect(px, py, cSz, cSz);
@@ -6772,6 +6891,7 @@ function TrackerApp({
             _drawHalfStitchCell(ctx, px, py, cSz, hs, hd, cmap, stitchView, focusColour, false, hsLowZoom, hsMedZoom, hsHighZoom);
             ctx.restore();
           }
+          drawPartial(partialStitches.get(idx), m, px, py);
           continue;
         }
         if (layerVis.full) {
@@ -6916,6 +7036,7 @@ function TrackerApp({
           _drawHalfStitchCell(ctx, px, py, cSz, hs, hd, cmap, stitchView, focusColour, layerVis.full ? effectiveDimmed : false, hsLowZoom, hsMedZoom, hsHighZoom);
           ctx.restore();
         }
+        drawPartial(partialStitches.get(idx), m, px, py);
         if (cSz >= 4) {
           ctx.strokeStyle = effectiveDimmed && layerVis.full ? "rgba(0,0,0,0.03)" : "rgba(0,0,0,0.08)";
           ctx.strokeRect(px, py, cSz, cSz);
@@ -9971,7 +10092,27 @@ function TrackerApp({
       margin: !statsView && pat && pal ? 0 : "0 auto",
       padding: !statsView && pat && pal ? 0 : "20px 16px"
     }
-  }, loadError && /*#__PURE__*/React.createElement("div", {
+  }, importBusy && /*#__PURE__*/React.createElement("div", {
+    className: "import-busy",
+    role: "status",
+    "aria-live": "polite"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "import-busy-title"
+  }, importBusy.title), /*#__PURE__*/React.createElement("div", {
+    className: "import-busy-label"
+  }, importBusy.label), /*#__PURE__*/React.createElement("div", {
+    className: "import-busy-track"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "import-busy-bar" + (importBusy.total > 0 && importBusy.page > 0 ? "" : " indeterminate"),
+    style: importBusy.total > 0 && importBusy.page > 0 ? {
+      width: Math.round(100 * Math.min(1, importBusy.page / importBusy.total)) + "%"
+    } : undefined
+  })), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "g-btn import-busy-cancel",
+    onClick: importBusy.cancel,
+    disabled: importBusy.stopping
+  }, "Cancel")), loadError && /*#__PURE__*/React.createElement("div", {
     style: {
       background: "var(--danger-soft)",
       border: "1px solid var(--danger-soft)",

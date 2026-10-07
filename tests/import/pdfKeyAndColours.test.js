@@ -590,3 +590,30 @@ describe('anchorGridToRuler — label styles', () => {
     expect(a.colStart).toBe(0);
   });
 });
+
+describe('readTitleAndDesigner', () => {
+  const page = (items) => ({ pageIndex: 1, textItems: items.map(([str, height, y, x]) => ({ str, height, y: y || 0, x: x || 0 })) });
+
+  it('takes the largest heading, without page numbers or copyright lines', () => {
+    const r = imp.readTitleAndDesigner([page([['Gen 3 Extended', 14, 20], ['Copyright (C) 2021 Shadow__Nova', 9, 40], ['1 / 38', 9, 40]])]);
+    expect(r).toEqual({ title: 'Gen 3 Extended', designer: 'Shadow__Nova' });
+  });
+
+  it('keeps a title printed in two languages, and drops "Cross Stitch Pattern"', () => {
+    expect(imp.readTitleAndDesigner([page([['moonlight', 17, 20, 10], ['fleurs lunaires', 17, 40, 10], ['www.dmc.com © 2023', 7, 700]])]))
+      .toEqual({ title: 'moonlight / fleurs lunaires', designer: 'DMC' });
+    expect(imp.readTitleAndDesigner([page([['Books and Blossoms Cross Stitch Pattern', 14, 20], ['©2026 Copyright littlethingsbyjoe', 8, 700]])]))
+      .toEqual({ title: 'Books and Blossoms', designer: 'littlethingsbyjoe' });
+  });
+
+  it('prefers a "designed by" credit to a copyright line', () => {
+    const r = imp.readTitleAndDesigner([page([['Winter Fox', 18, 10], ['© 2024 Stitch Co. All rights reserved', 7, 700], ['Designed by Ana Ruiz', 9, 600]])]);
+    expect(r.designer).toBe('Ana Ruiz');
+  });
+
+  it('finds no title in small text, and uses the document Author only as a last resort', () => {
+    expect(imp.readTitleAndDesigner([page([['Page: 1', 8], ['10', 8], ['Legend', 8]])], { Author: 'Gyureksz' }))
+      .toEqual({ designer: 'Gyureksz' });
+    expect(imp.readTitleAndDesigner([page([['Legend', 8]])], { Author: 'Administrator' })).toEqual({});
+  });
+});
