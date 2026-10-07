@@ -11847,6 +11847,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   // Active tool indicator badge — tooltip surfaces the selected colour
   // since the toolbar no longer carries a colour chip.
   var badgeLabel, badgeBg, badgeColor, badgeDot;
+  // Active tools (eyedropper to cleanup) must be checked before stitch type /
+  // brush mode: brushMode is always "paint" or "fill", so any branch after it
+  // never runs.
   if (cv.activeTool === "eyedropper") {
     badgeLabel = "Eyedropper"; badgeBg = "var(--warning-soft)"; badgeColor = "var(--text-primary)"; badgeDot = "var(--warning)";
   } else if (cv.activeTool === "magicWand") {
@@ -11854,6 +11857,15 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   } else if (cv.activeTool === "lasso") {
     var lm = cv.lassoMode === "polygon" ? "Polygon" : cv.lassoMode === "magnetic" ? "Magnetic" : "Freehand";
     badgeLabel = "Lasso \xB7 " + lm; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent-hover)"; badgeDot = "var(--accent)";
+  } else if (cv.activeTool === "move") {
+    badgeLabel = "Move"; badgeBg = "var(--surface-secondary)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
+  } else if (cv.activeTool === "colourReplace") {
+    badgeLabel = "Replace"; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent-ink)"; badgeDot = "var(--accent)";
+  } else if (cv.activeTool === "cleanup") {
+    var pendingCount = 0;
+    if (cv.cleanupPendingMask) { for (var ci2 = 0; ci2 < cv.cleanupPendingMask.length; ci2++) { if (cv.cleanupPendingMask[ci2]) pendingCount++; } }
+    badgeLabel = "Cleanup" + (pendingCount > 0 ? " \xb7 " + pendingCount.toLocaleString() + " sel" : "");
+    badgeBg = "var(--warning-soft)"; badgeColor = "var(--text-primary)"; badgeDot = "var(--warning)";
   } else if (cv.stitchType === "erase" || cv.activeTool === "eraseAll" || cv.activeTool === "eraseBs") {
     badgeLabel = "Erase"; badgeBg = "var(--danger-soft)"; badgeColor = "var(--danger)"; badgeDot = "var(--danger)";
   } else if (cv.stitchType === "backstitch") {
@@ -11867,15 +11879,6 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   } else if (cv.brushMode === "paint") {
     var szTxt = cv.brushSize > 1 ? " " + cv.brushSize + "\xD7" + cv.brushSize : "";
     badgeLabel = "Paint" + szTxt; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "var(--success)";
-  } else if (cv.activeTool === "move") {
-    badgeLabel = "Move"; badgeBg = "var(--surface-secondary)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
-  } else if (cv.activeTool === "colourReplace") {
-    badgeLabel = "Replace"; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent-ink)"; badgeDot = "var(--accent)";
-  } else if (cv.activeTool === "cleanup") {
-    var pendingCount = 0;
-    if (cv.cleanupPendingMask) { for (var ci2 = 0; ci2 < cv.cleanupPendingMask.length; ci2++) { if (cv.cleanupPendingMask[ci2]) pendingCount++; } }
-    badgeLabel = "Cleanup" + (pendingCount > 0 ? " \xb7 " + pendingCount.toLocaleString() + " sel" : "");
-    badgeBg = "var(--warning-soft)"; badgeColor = "var(--text-primary)"; badgeDot = "var(--warning)";
   } else {
     badgeLabel = null;
   }

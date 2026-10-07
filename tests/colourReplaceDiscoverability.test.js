@@ -100,3 +100,16 @@ describe('Magic Wand "Replace Colour…" uses the shared modal', () => {
     expect(read('creator/useMagicWand.js')).toMatch(/var srcIds = \[srcId\]\.concat\(\(opts && opts\.alsoIds\) \|\| \[\]\);/);
   });
 });
+
+describe('toolbar badge', () => {
+  test('tool badges (Move / Replace / Cleanup) are checked before brush mode', () => {
+    const src = read('creator/ToolStrip.js');
+    const block = src.slice(src.indexOf('var badgeLabel'), src.indexOf('badgeLabel = null'));
+    const at = s => block.indexOf(s);
+    expect(at('cv.activeTool === "colourReplace"')).toBeGreaterThan(-1);
+    // brushMode is always "paint" or "fill", so anything after it is unreachable.
+    expect(at('cv.activeTool === "colourReplace"')).toBeLessThan(at('cv.brushMode === "paint"'));
+    expect(at('cv.activeTool === "move"')).toBeLessThan(at('cv.brushMode === "paint"'));
+    expect(at('cv.activeTool === "cleanup"')).toBeLessThan(at('cv.brushMode === "paint"'));
+  });
+});
