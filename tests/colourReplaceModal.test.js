@@ -458,3 +458,54 @@ describe('ColourReplaceModal counts part stitches and backstitch', () => {
     expect(props.onApply).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('ColourReplaceModal swap', () => {
+  const PAT = [BLACK, RED, BLACK, { id: '__skip__' }];
+  const PAL = [
+    { id: '310', name: 'Black', rgb: [0, 0, 0], count: 2 },
+    { id: '321', name: 'Red', rgb: [199, 43, 59], count: 1 }
+  ];
+  const modeSeg = v => container.querySelector('[data-mode="' + v + '"]');
+  const pickRed = () => click(container.querySelector('[data-section="palette"] [data-thread-id="321"]'));
+
+  test('merge / swap choice appears only for colours already in the palette', () => {
+    render({ pat: PAT, pal: PAL });
+    click(row('3371'));
+    expect(modeSeg('swap')).toBeNull();
+    pickRed();
+    expect(modeSeg('merge').getAttribute('aria-checked')).toBe('true');
+    expect(modeSeg('swap').getAttribute('aria-checked')).toBe('false');
+  });
+
+  test('choosing Swap counts both colours, relabels Apply and passes swap: true', () => {
+    const props = render({ pat: PAT, pal: PAL });
+    pickRed();
+    expect(summary()).toMatch(/2 stitches will change/);
+    click(modeSeg('swap'));
+    expect(summary()).toMatch(/3 stitches will change/);
+    expect(applyBtn().textContent).toBe('Swap');
+    expect(container.querySelector('.colour-replace-scope').textContent).toMatch(/^Swaps these two colours across the whole pattern \(3 stitches\)/);
+    expect(container.querySelector('.colour-replace-mode-help').textContent).toMatch(/every DMC 321 stitch becomes DMC 310/);
+    click(applyBtn());
+    expect(props.onApply.mock.calls[0][1]).toEqual({ scope: 'all', alsoIds: [], swap: true });
+  });
+
+  test('similar shades are disabled while swapping', () => {
+    render({ pat: PAT, pal: PAL.concat([{ id: '3371', name: 'Black Brown', rgb: [30, 17, 8], count: 0 }]) });
+    click(container.querySelector('[data-fuzzy-toggle]'));
+    pickRed();
+    click(modeSeg('swap'));
+    expect(container.querySelector('[data-fuzzy-toggle]').disabled).toBe(true);
+    expect(container.querySelector('[data-fuzzy-tol]')).toBeNull();
+  });
+
+  test('switching back to Merge restores normal apply', () => {
+    const props = render({ pat: PAT, pal: PAL });
+    pickRed();
+    click(modeSeg('swap'));
+    click(modeSeg('merge'));
+    expect(applyBtn().textContent).toBe('Apply');
+    click(applyBtn());
+    expect(props.onApply.mock.calls[0][1]).toEqual({ scope: 'all', alsoIds: [] });
+  });
+});

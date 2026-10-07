@@ -25,6 +25,8 @@
     var ref = React.useRef(null);
     var pat = props.pat, sW = props.sW, sH = props.sH;
     var srcIds = props.srcIds || [], dst = props.dst, mask = props.mask;
+    // swapRgb: when swapping, cells in the destination colour take this colour.
+    var swapRgb = props.swapRgb || null;
     var srcKey = srcIds.join('|');
     var valid = !!(pat && sW > 0 && sH > 0 && pat.length >= sW * sH);
 
@@ -43,12 +45,13 @@
         var rgb;
         if (!cell || cell.id === '__skip__' || cell.id === '__empty__' || !cell.rgb) rgb = FABRIC_RGB;
         else if (dstRgb && srcSet.has(cell.id) && (!mask || mask[i])) rgb = dstRgb;
+        else if (swapRgb && dst && cell.id === dst.id && (!mask || mask[i])) rgb = swapRgb;
         else rgb = cell.rgb;
         var o = i * 4;
         d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2]; d[o + 3] = 255;
       }
       ctx.putImageData(img, 0, 0);
-    }, [pat, sW, sH, srcKey, dst, mask, valid]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [pat, sW, sH, srcKey, dst, mask, valid, swapRgb && swapRgb.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
     if (!valid) return null;
     var scale = Math.min(THUMB_MAX_W / sW, THUMB_MAX_H / sH);
@@ -158,30 +161,40 @@
     var _fuzzy = React.useState(false); var fuzzy = _fuzzy[0], setFuzzy = _fuzzy[1];
     var _fuzzyTol = React.useState(5); var fuzzyTol = _fuzzyTol[0], setFuzzyTol = _fuzzyTol[1];
     var pickedId = picked ? picked.id : null;
+    // Picking a colour already in the palette: merge into it (default) or
+    // swap the two colours. Swapping uses exact colours only.
+    var _mode = React.useState('merge'); var mode = _mode[0], setMode = _mode[1];
+    var canSwap = !!pickedId && palIds.has(pickedId);
+    var swapping = canSwap && mode === 'swap';
     var srcIds = React.useMemo(function() {
+      if (swapping) return [srcId];
       var ids = fuzzy && CR && CR.similarIds
         ? CR.similarIds({ id: srcId, rgb: srcRgb }, palEntries, fuzzyTol)
         : [srcId];
       // The destination is never also a source (those stitches stay put).
       return ids.filter(function(id) { return id && id !== pickedId; });
-    }, [fuzzy, fuzzyTol, srcId, srcRgb && srcRgb.join(','), palEntries, pickedId]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [swapping, fuzzy, fuzzyTol, srcId, srcRgb && srcRgb.join(','), palEntries, pickedId]); // eslint-disable-line react-hooks/exhaustive-deps
     var extraIds = srcIds.filter(function(id) { return id !== srcId; });
+    // Colours whose stitches change: a swap changes both.
+    var countIds = React.useMemo(function() {
+      return swapping ? [srcId, pickedId] : srcIds;
+    }, [swapping, srcId, pickedId, srcIds]);
 
     // Full stitches + half/quarter stitches + backstitch lines in the source
     // colour(s). total / inSelection are the sums used for scope and Apply.
     var counts = React.useMemo(function() {
       var R = window.ColourReplace;
       if (!R) return null;
-      var full = R.countMatches(pat, srcIds, selectionMask);
-      var part = R.countPartials ? R.countPartials(partialStitches, srcIds, selectionMask) : { total: 0, inSelection: selectionMask ? 0 : null };
-      var bs = R.countBackstitch ? R.countBackstitch(bsLines, srcIds, selectionMask, sW, sH) : { total: 0, inSelection: selectionMask ? 0 : null };
+      var full = R.countMatches(pat, countIds, selectionMask);
+      var part = R.countPartials ? R.countPartials(partialStitches, countIds, selectionMask) : { total: 0, inSelection: selectionMask ? 0 : null };
+      var bs = R.countBackstitch ? R.countBackstitch(bsLines, countIds, selectionMask, sW, sH) : { total: 0, inSelection: selectionMask ? 0 : null };
       return {
         total: full.total + part.total + bs.total,
         inSelection: selectionMask ? full.inSelection + part.inSelection + bs.inSelection : null,
         all: { full: full.total, partial: part.total, backstitch: bs.total },
         sel: selectionMask ? { full: full.inSelection, partial: part.inSelection, backstitch: bs.inSelection } : null
       };
-    }, [pat, srcIds, selectionMask, partialStitches, bsLines, sW, sH]);
+    }, [pat, countIds, selectionMask, partialStitches, bsLines, sW, sH]);
     var describe = function(c) {
       var R = window.ColourReplace;
       return R && R.describeCounts ? R.describeCounts(c) : String((c.full || 0) + (c.partial || 0) + (c.backstitch || 0)) + ' stitches';
@@ -200,7 +213,9 @@
 
     function apply(t) {
       if (!t || t.id === srcId || affected === 0) return;
-      onApply(t, { scope: scope, alsoIds: extraIds });
+      var opts = { scope: scope, alsoIds: extraIds };
+      if (swapping && t.id === pickedId) opts.swap = true;
+      onApply(t, opts);
     }
 
     function handleKey(e) {
@@ -286,7 +301,7 @@
       scopeRow = h('div', {
         className: 'colour-replace-scope',
         style: { marginBottom: 12, fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }
-      }, 'Replaces this colour across the whole pattern (' + describe(counts.all) + ').');
+      }, (swapping ? 'Swaps these two colours across the whole pattern (' : 'Replaces this colour across the whole pattern (') + describe(counts.all) + ').');
     }
 
     // ── Similar shades row ──
@@ -296,11 +311,13 @@
       h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
         h('label', { style: { display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' } },
           h('input', {
-            type: 'checkbox', checked: fuzzy, 'data-fuzzy-toggle': true,
+            type: 'checkbox', checked: fuzzy && !swapping, 'data-fuzzy-toggle': true,
+            disabled: swapping,
+            title: swapping ? 'Not available when swapping two colours' : null,
             onChange: function(e) { setFuzzy(e.target.checked); }
           }),
           'Also replace similar shades'),
-        fuzzy && h('input', {
+        fuzzy && !swapping && h('input', {
           type: 'range', min: 1, max: 20, step: 1, value: fuzzyTol,
           'aria-label': 'How similar (colour difference)',
           'aria-valuetext': 'Colour difference up to ' + fuzzyTol,
@@ -308,9 +325,9 @@
           onChange: function(e) { setFuzzyTol(Number(e.target.value)); },
           style: { width: 90 }
         }),
-        fuzzy && h('span', { style: { fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' } }, '\u0394E \u2264 ' + fuzzyTol)
+        fuzzy && !swapping && h('span', { style: { fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' } }, '\u0394E \u2264 ' + fuzzyTol)
       ),
-      fuzzy && h('div', {
+      fuzzy && !swapping && h('div', {
         className: 'colour-replace-fuzzy-list',
         style: { marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }
       },
@@ -371,13 +388,41 @@
       );
     }
 
-    // Picking a colour that's already in the pattern merges the two.
-    var mergeNote = picked && palIds.has(picked.id) && affected > 0 ? h('div', {
+    // Picking a colour that's already in the palette: merge into it, or swap.
+    var modeSeg = function(value, label) {
+      var on = mode === value;
+      return h('button', {
+        key: value, type: 'button', role: 'radio', 'aria-checked': on ? 'true' : 'false',
+        className: 'lp-seg' + (on ? ' lp-seg--on' : ''),
+        'data-mode': value,
+        tabIndex: on ? 0 : -1,
+        onClick: function() { setMode(value); },
+        onKeyDown: function(e) {
+          if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].indexOf(e.key) === -1) return;
+          e.preventDefault();
+          var next = value === 'merge' ? 'swap' : 'merge';
+          setMode(next);
+          var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-mode="' + next + '"]');
+          if (sib) sib.focus();
+        },
+        style: { padding: '3px 10px', whiteSpace: 'nowrap' }
+      }, label);
+    };
+    var mergeNote = canSwap ? h('div', {
       className: 'colour-replace-merge',
-      style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }
+      style: { marginTop: 8, fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }
     },
-      h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex', color: 'var(--text-tertiary)' } }, window.Icons && window.Icons.info ? window.Icons.info() : null),
-      'DMC ' + picked.id + ' is already in your palette, so these stitches will merge into it.'
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
+        h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex', color: 'var(--text-tertiary)' } }, window.Icons && window.Icons.info ? window.Icons.info() : null),
+        h('span', { id: 'colour-replace-mode-label' }, 'DMC ' + pickedId + ' is already in your palette.'),
+        h('div', { className: 'lp-segmented', role: 'radiogroup', 'aria-labelledby': 'colour-replace-mode-label' },
+          modeSeg('merge', 'Merge into it'),
+          modeSeg('swap', 'Swap the two colours'))
+      ),
+      h('div', { className: 'colour-replace-mode-help', style: { marginTop: 4, color: 'var(--text-tertiary)' } },
+        swapping
+          ? 'Every DMC ' + srcId + ' stitch becomes DMC ' + pickedId + ', and every DMC ' + pickedId + ' stitch becomes DMC ' + srcId + '.'
+          : 'These stitches will merge into it, leaving one colour where there were two.')
     ) : null;
 
     var hasThumb = !!(pat && sW > 0 && sH > 0);
@@ -418,6 +463,7 @@
             window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
           h(PatternThumb, {
             pat: pat, sW: sW, sH: sH, srcIds: srcIds, dst: picked, mask: previewMask,
+            swapRgb: swapping ? srcRgb : null,
             dimmed: !picked,
             caption: picked ? 'After' : 'Pick a thread to preview',
             ariaLabel: picked ? 'Pattern after replacing with DMC ' + picked.id : 'Pattern preview, no replacement chosen'
@@ -481,7 +527,9 @@
         },
           swatch(srcRgb, 16),
           h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex', color: 'var(--text-tertiary)' } },
-            window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
+            swapping
+              ? (window.Icons && window.Icons.colourSwap ? window.Icons.colourSwap() : null)
+              : (window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null)),
           picked ? swatch(picked.rgb, 16) : h('span', {
             'aria-hidden': 'true',
             style: { width: 16, height: 16, borderRadius: 4, flexShrink: 0, display: 'inline-block', border: '1px dashed var(--text-tertiary)' }
@@ -513,7 +561,7 @@
               opacity: (!picked || affected === 0) ? 0.5 : 1,
               fontFamily: 'inherit', fontSize: 'var(--text-sm)'
             }
-          }, 'Apply')
+          }, swapping ? 'Swap' : 'Apply')
         )
       )
     );

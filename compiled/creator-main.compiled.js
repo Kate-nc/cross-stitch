@@ -1554,13 +1554,15 @@ function CreatorApp({
     onApply: function (dstThread, opts) {
       var src = state.colourReplaceModal;
       var alsoIds = opts && opts.alsoIds || [];
+      var swap = !!(opts && opts.swap);
       var res = state.applyGlobalColourReplacement(src.srcId, dstThread.id, {
         scope: opts && opts.scope === 'selection' ? 'selection' : 'all',
-        alsoIds: alsoIds
+        alsoIds: swap ? [] : alsoIds,
+        swap: swap
       });
       state.setColourReplaceModal(null);
       if (!res || !state.addToast) return;
-      state.addToast("Replaced DMC " + src.srcId + (alsoIds.length ? " and " + alsoIds.length + " similar shade" + (alsoIds.length === 1 ? "" : "s") : "") + " with DMC " + res.dst.id + " (" + (window.ColourReplace && res.counts ? window.ColourReplace.describeCounts(res.counts) : res.count.toLocaleString() + " stitches") + (opts && opts.scope === 'selection' ? " in selection" : "") + ")", {
+      state.addToast((swap ? "Swapped DMC " + src.srcId + " and DMC " + res.dst.id : "Replaced DMC " + src.srcId + (alsoIds.length ? " and " + alsoIds.length + " similar shade" + (alsoIds.length === 1 ? "" : "s") : "") + " with DMC " + res.dst.id) + " (" + (window.ColourReplace && res.counts ? window.ColourReplace.describeCounts(res.counts) : res.count.toLocaleString() + " stitches") + (opts && opts.scope === 'selection' ? " in selection" : "") + ")", {
         type: "success",
         duration: 6000,
         action: {

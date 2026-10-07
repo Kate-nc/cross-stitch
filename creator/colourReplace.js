@@ -17,6 +17,10 @@
        → { lines, count }   lines is a new array only if changed
          Backstitch colour lives in line.colorId (and line.color as hex).
      describeCounts({ full, partial, backstitch }) → "N stitches, …"
+     replaceMapping(srcIds, dstEntry) / swapMapping(aEntry, bEntry)
+       → { fromId: toEntry } for remapPattern / remapPartials /
+         remapBackstitch(…, mapping, mask[, sW, sH]), which the replace*
+         helpers wrap. A swap exchanges two colours in one pass.
      similarIds(srcEntry, palette, tol, opts)
        → ids of palette entries within dE <= tol of srcEntry (always
          including srcEntry.id), closest first. opts: { labOf, distance }.
@@ -52,22 +56,44 @@ window.ColourReplace = (function() {
     return { total: total, inSelection: mask ? inSel : null };
   }
 
-  function replaceInPattern(pat, srcIds, dstEntry, mask) {
+  // ── Core remapping. `mapping` is { fromId: toEntry }; every helper below
+  // (replace and swap) is built on these. Cells / quadrants / lines whose
+  // colour maps to itself are left alone.
+  function replaceMapping(srcIds, dstEntry) {
+    var m = {};
+    if (!dstEntry) return m;
+    toIdSet(srcIds).forEach(function(id) { if (id !== dstEntry.id) m[id] = dstEntry; });
+    return m;
+  }
+  function swapMapping(aEntry, bEntry) {
+    var m = {};
+    if (!aEntry || !bEntry || aEntry.id === bEntry.id) return m;
+    m[aEntry.id] = bEntry; m[bEntry.id] = aEntry;
+    return m;
+  }
+  function target(mapping, id) {
+    var t = Object.prototype.hasOwnProperty.call(mapping, id) ? mapping[id] : null;
+    return t && t.id !== id ? t : null;
+  }
+
+  function remapPattern(pat, mapping, mask) {
     var np = pat.slice();
     var changes = [];
-    var src = toIdSet(srcIds);
-    if (!src.size || !dstEntry) return { pat: np, changes: changes };
     for (var i = 0; i < np.length; i++) {
       if (mask && !mask[i]) continue;
       var cell = np[i];
-      // Cells already in the destination colour are left alone (it can be
-      // inside the similar-shades set).
-      if (!isStitch(cell) || !src.has(cell.id) || cell.id === dstEntry.id) continue;
+      var t = isStitch(cell) ? target(mapping, cell.id) : null;
+      if (!t) continue;
       changes.push({ idx: i, old: Object.assign({}, cell) });
-      np[i] = Object.assign({}, dstEntry);
+      np[i] = Object.assign({}, t);
     }
     return { pat: np, changes: changes };
   }
+
+  function replaceInPattern(pat, srcIds, dstEntry, mask) {
+    return remapPattern(pat, replaceMapping(srcIds, dstEntry), mask);
+  }
+
 
   // ── Partial (half / quarter) stitches: Map idx → { TL, TR, BL, BR: { id, rgb } }
   var QUADS = ['TL', 'TR', 'BL', 'BR'];
@@ -92,22 +118,29 @@ window.ColourReplace = (function() {
     });
     return { total: total, inSelection: mask ? inSel : null };
   }
-  function replacePartials(partials, srcIds, dstEntry, mask) {
-    var src = toIdSet(srcIds), psChanges = [], next = null;
-    if (!src.size || !dstEntry) return { map: partials, psChanges: psChanges };
+  function remapPartials(partials, mapping, mask) {
+    var psChanges = [], next = null;
     eachPartial(partials, function(entry, idx) {
       if (mask && !mask[idx]) return;
-      if (!partialHasAny(entry, src)) return;
-      var updated = Object.assign({}, entry);
+      if (!entry) return;
+      var updated = null;
       QUADS.forEach(function(q) {
-        if (updated[q] && src.has(updated[q].id)) updated[q] = { id: dstEntry.id, rgb: dstEntry.rgb };
+        var t = entry[q] ? target(mapping, entry[q].id) : null;
+        if (!t) return;
+        if (!updated) updated = Object.assign({}, entry);
+        updated[q] = { id: t.id, rgb: t.rgb };
       });
+      if (!updated) return;
       if (!next) next = new Map(partials);
       psChanges.push({ idx: idx, old: Object.assign({}, entry) });
       next.set(idx, updated);
     });
     return { map: next || partials, psChanges: psChanges };
   }
+  function replacePartials(partials, srcIds, dstEntry, mask) {
+    return remapPartials(partials, replaceMapping(srcIds, dstEntry), mask);
+  }
+
 
   // ── Backstitch lines: { x1, y1, x2, y2, colorId?, color? } on the grid lattice.
   // A line counts as "in the selection" when a cell touching its midpoint is
@@ -135,20 +168,25 @@ window.ColourReplace = (function() {
   function rgbHex(rgb) {
     return '#' + rgb.map(function(v) { var h = Math.max(0, Math.min(255, Math.round(v))).toString(16); return h.length < 2 ? '0' + h : h; }).join('');
   }
-  function replaceBackstitch(lines, srcIds, dstEntry, mask, sW, sH) {
-    var src = toIdSet(srcIds), next = null, count = 0;
-    if (!src.size || !dstEntry || !lines) return { lines: lines, count: 0 };
+  function remapBackstitch(lines, mapping, mask, sW, sH) {
+    var next = null, count = 0;
+    if (!lines) return { lines: lines, count: 0 };
     for (var i = 0; i < lines.length; i++) {
       var ln = lines[i];
-      if (!ln || !src.has(ln.colorId) || !lineInMask(ln, mask, sW, sH)) continue;
+      var t = ln && ln.colorId != null ? target(mapping, ln.colorId) : null;
+      if (!t || !lineInMask(ln, mask, sW, sH)) continue;
       if (!next) next = lines.slice();
-      var out = Object.assign({}, ln, { colorId: dstEntry.id });
-      if (ln.color !== undefined && dstEntry.rgb) out.color = rgbHex(dstEntry.rgb);
+      var out = Object.assign({}, ln, { colorId: t.id });
+      if (ln.color !== undefined && t.rgb) out.color = rgbHex(t.rgb);
       next[i] = out;
       count++;
     }
     return { lines: next || lines, count: count };
   }
+  function replaceBackstitch(lines, srcIds, dstEntry, mask, sW, sH) {
+    return remapBackstitch(lines, replaceMapping(srcIds, dstEntry), mask, sW, sH);
+  }
+
 
   function describeCounts(c) {
     var parts = [];
@@ -213,6 +251,11 @@ window.ColourReplace = (function() {
   return {
     countMatches: countMatches,
     replaceInPattern: replaceInPattern,
+    replaceMapping: replaceMapping,
+    swapMapping: swapMapping,
+    remapPattern: remapPattern,
+    remapPartials: remapPartials,
+    remapBackstitch: remapBackstitch,
     countPartials: countPartials,
     replacePartials: replacePartials,
     countBackstitch: countBackstitch,

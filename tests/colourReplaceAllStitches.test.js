@@ -143,13 +143,62 @@ describe('wiring', () => {
   const read = rel => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
   test('applyGlobalColourReplacement records psChanges and bsLines', () => {
     const src = read('creator/useMagicWand.js');
-    expect(src).toMatch(/CR\.replacePartials\(state\.partialStitches, srcIds, dstEntry, mask\)/);
-    expect(src).toMatch(/CR\.replaceBackstitch\(state\.bsLines, srcIds, dstEntry, mask, state\.sW, state\.sH\)/);
+    expect(src).toMatch(/CR\.remapPartials\(state\.partialStitches, mapping, mask\)/);
+    expect(src).toMatch(/CR\.remapBackstitch\(state\.bsLines, mapping, mask, state\.sW, state\.sH\)/);
     expect(src).toMatch(/if \(psRes\.psChanges\.length\) entry\.psChanges = psRes\.psChanges;/);
     expect(src).toMatch(/if \(bsRes\.count\) entry\.bsLines = state\.bsLines\.slice\(\);/);
   });
   test('useMagicWand receives partial stitches; modal receives both', () => {
     expect(read('creator/useCreatorState.js')).toMatch(/partialStitches: partialStitches, setPartialStitches: setPartialStitches,\n    editHistory/);
     expect(read('creator-main.js')).toMatch(/partialStitches:state\.partialStitches, bsLines:state\.bsLines,/);
+  });
+});
+
+describe('swapping two colours', () => {
+  const A = { id: '310', rgb: [0, 0, 0] };
+  const B = { id: '321', rgb: [199, 43, 59] };
+
+  test('swapMapping exchanges the two ids; same colour gives an empty mapping', () => {
+    const m = CR.swapMapping(A, B);
+    expect(m['310']).toBe(B);
+    expect(m['321']).toBe(A);
+    expect(CR.swapMapping(A, A)).toEqual({});
+    expect(CR.swapMapping(A, null)).toEqual({});
+  });
+
+  test('full stitches, part stitches and backstitch all swap in one pass', () => {
+    const pat = [A, B, A, B, A, B].map(c => Object.assign({}, c));
+    const m = CR.swapMapping(A, B);
+    const r = CR.remapPattern(pat, m, null);
+    expect(r.pat.map(c => c.id)).toEqual(['321', '310', '321', '310', '321', '310']);
+    expect(r.changes).toHaveLength(6);
+
+    const p = CR.remapPartials(partials(), m, null);
+    expect(p.map.get(1).TL.id).toBe('321');
+    expect(p.map.get(1).BR.id).toBe('310');
+    expect(p.map.get(4).BL.id).toBe('310');
+
+    const b = CR.remapBackstitch(lines(), m, null, 3, 2);
+    expect(b.lines.map(l => l.colorId)).toEqual(['321', '321', '310', undefined]);
+    expect(b.lines[2].color).toBe('#000000');
+  });
+
+  test('swapping twice restores the original', () => {
+    const pat = [A, B, A].map(c => Object.assign({}, c));
+    const m = CR.swapMapping(A, B);
+    const once = CR.remapPattern(pat, m, null).pat;
+    const twice = CR.remapPattern(once, m, null).pat;
+    expect(twice.map(c => c.id)).toEqual(['310', '321', '310']);
+  });
+
+  test('respects the selection mask', () => {
+    const pat = [A, B, A, B].map(c => Object.assign({}, c));
+    const r = CR.remapPattern(pat, CR.swapMapping(A, B), new Uint8Array([1, 1, 0, 0]));
+    expect(r.pat.map(c => c.id)).toEqual(['321', '310', '310', '321']);
+  });
+
+  test('applyGlobalColourReplacement supports opts.swap', () => {
+    const src = fs.readFileSync(path.join(__dirname, '..', 'creator', 'useMagicWand.js'), 'utf8');
+    expect(src).toMatch(/if \(opts && opts\.swap\) \{[\s\S]*?mapping = CR\.swapMapping\(srcEntry, dstEntry\);/);
   });
 });

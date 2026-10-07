@@ -459,11 +459,24 @@ window.useMagicWand = function useMagicWand(state) {
     var mask = (opts && opts.scope === 'all') ? null : selectionMask;
     var srcIds = [srcId].concat((opts && opts.alsoIds) || []);
     var CR = window.ColourReplace;
-    var res = CR.replaceInPattern(pat, srcIds, dstEntry, mask);
+    // opts.swap: exchange the two colours instead of merging src into dst
+    // (exact colours only; similar shades don't apply).
+    var mapping;
+    if (opts && opts.swap) {
+      var srcEntry = cmap[srcId];
+      if (!srcEntry) {
+        if (state.addToast) state.addToast("Can't swap: DMC " + srcId + " isn't in the palette.", {type: "error", duration: 3500});
+        return null;
+      }
+      mapping = CR.swapMapping(srcEntry, dstEntry);
+    } else {
+      mapping = CR.replaceMapping(srcIds, dstEntry);
+    }
+    var res = CR.remapPattern(pat, mapping, mask);
     var np = res.pat, changes = res.changes;
     // Half/quarter stitches and backstitch lines in the same colour change too.
-    var psRes = CR.replacePartials(state.partialStitches, srcIds, dstEntry, mask);
-    var bsRes = CR.replaceBackstitch(state.bsLines, srcIds, dstEntry, mask, state.sW, state.sH);
+    var psRes = CR.remapPartials(state.partialStitches, mapping, mask);
+    var bsRes = CR.remapBackstitch(state.bsLines, mapping, mask, state.sW, state.sH);
     if (!changes.length && !psRes.psChanges.length && !bsRes.count) {
       // DEFECT-002 (related): selection mask may have hidden every match.
       if (state.addToast) state.addToast("No matching cells to replace.", {type: "info", duration: 2500});

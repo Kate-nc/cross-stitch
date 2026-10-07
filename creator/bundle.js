@@ -3036,6 +3036,10 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
        → { lines, count }   lines is a new array only if changed
          Backstitch colour lives in line.colorId (and line.color as hex).
      describeCounts({ full, partial, backstitch }) → "N stitches, …"
+     replaceMapping(srcIds, dstEntry) / swapMapping(aEntry, bEntry)
+       → { fromId: toEntry } for remapPattern / remapPartials /
+         remapBackstitch(…, mapping, mask[, sW, sH]), which the replace*
+         helpers wrap. A swap exchanges two colours in one pass.
      similarIds(srcEntry, palette, tol, opts)
        → ids of palette entries within dE <= tol of srcEntry (always
          including srcEntry.id), closest first. opts: { labOf, distance }.
@@ -3071,22 +3075,44 @@ window.ColourReplace = (function() {
     return { total: total, inSelection: mask ? inSel : null };
   }
 
-  function replaceInPattern(pat, srcIds, dstEntry, mask) {
+  // ── Core remapping. `mapping` is { fromId: toEntry }; every helper below
+  // (replace and swap) is built on these. Cells / quadrants / lines whose
+  // colour maps to itself are left alone.
+  function replaceMapping(srcIds, dstEntry) {
+    var m = {};
+    if (!dstEntry) return m;
+    toIdSet(srcIds).forEach(function(id) { if (id !== dstEntry.id) m[id] = dstEntry; });
+    return m;
+  }
+  function swapMapping(aEntry, bEntry) {
+    var m = {};
+    if (!aEntry || !bEntry || aEntry.id === bEntry.id) return m;
+    m[aEntry.id] = bEntry; m[bEntry.id] = aEntry;
+    return m;
+  }
+  function target(mapping, id) {
+    var t = Object.prototype.hasOwnProperty.call(mapping, id) ? mapping[id] : null;
+    return t && t.id !== id ? t : null;
+  }
+
+  function remapPattern(pat, mapping, mask) {
     var np = pat.slice();
     var changes = [];
-    var src = toIdSet(srcIds);
-    if (!src.size || !dstEntry) return { pat: np, changes: changes };
     for (var i = 0; i < np.length; i++) {
       if (mask && !mask[i]) continue;
       var cell = np[i];
-      // Cells already in the destination colour are left alone (it can be
-      // inside the similar-shades set).
-      if (!isStitch(cell) || !src.has(cell.id) || cell.id === dstEntry.id) continue;
+      var t = isStitch(cell) ? target(mapping, cell.id) : null;
+      if (!t) continue;
       changes.push({ idx: i, old: Object.assign({}, cell) });
-      np[i] = Object.assign({}, dstEntry);
+      np[i] = Object.assign({}, t);
     }
     return { pat: np, changes: changes };
   }
+
+  function replaceInPattern(pat, srcIds, dstEntry, mask) {
+    return remapPattern(pat, replaceMapping(srcIds, dstEntry), mask);
+  }
+
 
   // ── Partial (half / quarter) stitches: Map idx → { TL, TR, BL, BR: { id, rgb } }
   var QUADS = ['TL', 'TR', 'BL', 'BR'];
@@ -3111,22 +3137,29 @@ window.ColourReplace = (function() {
     });
     return { total: total, inSelection: mask ? inSel : null };
   }
-  function replacePartials(partials, srcIds, dstEntry, mask) {
-    var src = toIdSet(srcIds), psChanges = [], next = null;
-    if (!src.size || !dstEntry) return { map: partials, psChanges: psChanges };
+  function remapPartials(partials, mapping, mask) {
+    var psChanges = [], next = null;
     eachPartial(partials, function(entry, idx) {
       if (mask && !mask[idx]) return;
-      if (!partialHasAny(entry, src)) return;
-      var updated = Object.assign({}, entry);
+      if (!entry) return;
+      var updated = null;
       QUADS.forEach(function(q) {
-        if (updated[q] && src.has(updated[q].id)) updated[q] = { id: dstEntry.id, rgb: dstEntry.rgb };
+        var t = entry[q] ? target(mapping, entry[q].id) : null;
+        if (!t) return;
+        if (!updated) updated = Object.assign({}, entry);
+        updated[q] = { id: t.id, rgb: t.rgb };
       });
+      if (!updated) return;
       if (!next) next = new Map(partials);
       psChanges.push({ idx: idx, old: Object.assign({}, entry) });
       next.set(idx, updated);
     });
     return { map: next || partials, psChanges: psChanges };
   }
+  function replacePartials(partials, srcIds, dstEntry, mask) {
+    return remapPartials(partials, replaceMapping(srcIds, dstEntry), mask);
+  }
+
 
   // ── Backstitch lines: { x1, y1, x2, y2, colorId?, color? } on the grid lattice.
   // A line counts as "in the selection" when a cell touching its midpoint is
@@ -3154,20 +3187,25 @@ window.ColourReplace = (function() {
   function rgbHex(rgb) {
     return '#' + rgb.map(function(v) { var h = Math.max(0, Math.min(255, Math.round(v))).toString(16); return h.length < 2 ? '0' + h : h; }).join('');
   }
-  function replaceBackstitch(lines, srcIds, dstEntry, mask, sW, sH) {
-    var src = toIdSet(srcIds), next = null, count = 0;
-    if (!src.size || !dstEntry || !lines) return { lines: lines, count: 0 };
+  function remapBackstitch(lines, mapping, mask, sW, sH) {
+    var next = null, count = 0;
+    if (!lines) return { lines: lines, count: 0 };
     for (var i = 0; i < lines.length; i++) {
       var ln = lines[i];
-      if (!ln || !src.has(ln.colorId) || !lineInMask(ln, mask, sW, sH)) continue;
+      var t = ln && ln.colorId != null ? target(mapping, ln.colorId) : null;
+      if (!t || !lineInMask(ln, mask, sW, sH)) continue;
       if (!next) next = lines.slice();
-      var out = Object.assign({}, ln, { colorId: dstEntry.id });
-      if (ln.color !== undefined && dstEntry.rgb) out.color = rgbHex(dstEntry.rgb);
+      var out = Object.assign({}, ln, { colorId: t.id });
+      if (ln.color !== undefined && t.rgb) out.color = rgbHex(t.rgb);
       next[i] = out;
       count++;
     }
     return { lines: next || lines, count: count };
   }
+  function replaceBackstitch(lines, srcIds, dstEntry, mask, sW, sH) {
+    return remapBackstitch(lines, replaceMapping(srcIds, dstEntry), mask, sW, sH);
+  }
+
 
   function describeCounts(c) {
     var parts = [];
@@ -3232,6 +3270,11 @@ window.ColourReplace = (function() {
   return {
     countMatches: countMatches,
     replaceInPattern: replaceInPattern,
+    replaceMapping: replaceMapping,
+    swapMapping: swapMapping,
+    remapPattern: remapPattern,
+    remapPartials: remapPartials,
+    remapBackstitch: remapBackstitch,
     countPartials: countPartials,
     replacePartials: replacePartials,
     countBackstitch: countBackstitch,
@@ -3706,11 +3749,24 @@ window.useMagicWand = function useMagicWand(state) {
     var mask = (opts && opts.scope === 'all') ? null : selectionMask;
     var srcIds = [srcId].concat((opts && opts.alsoIds) || []);
     var CR = window.ColourReplace;
-    var res = CR.replaceInPattern(pat, srcIds, dstEntry, mask);
+    // opts.swap: exchange the two colours instead of merging src into dst
+    // (exact colours only; similar shades don't apply).
+    var mapping;
+    if (opts && opts.swap) {
+      var srcEntry = cmap[srcId];
+      if (!srcEntry) {
+        if (state.addToast) state.addToast("Can't swap: DMC " + srcId + " isn't in the palette.", {type: "error", duration: 3500});
+        return null;
+      }
+      mapping = CR.swapMapping(srcEntry, dstEntry);
+    } else {
+      mapping = CR.replaceMapping(srcIds, dstEntry);
+    }
+    var res = CR.remapPattern(pat, mapping, mask);
     var np = res.pat, changes = res.changes;
     // Half/quarter stitches and backstitch lines in the same colour change too.
-    var psRes = CR.replacePartials(state.partialStitches, srcIds, dstEntry, mask);
-    var bsRes = CR.replaceBackstitch(state.bsLines, srcIds, dstEntry, mask, state.sW, state.sH);
+    var psRes = CR.remapPartials(state.partialStitches, mapping, mask);
+    var bsRes = CR.remapBackstitch(state.bsLines, mapping, mask, state.sW, state.sH);
     if (!changes.length && !psRes.psChanges.length && !bsRes.count) {
       // DEFECT-002 (related): selection mask may have hidden every match.
       if (state.addToast) state.addToast("No matching cells to replace.", {type: "info", duration: 2500});
@@ -16341,6 +16397,8 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
     var ref = React.useRef(null);
     var pat = props.pat, sW = props.sW, sH = props.sH;
     var srcIds = props.srcIds || [], dst = props.dst, mask = props.mask;
+    // swapRgb: when swapping, cells in the destination colour take this colour.
+    var swapRgb = props.swapRgb || null;
     var srcKey = srcIds.join('|');
     var valid = !!(pat && sW > 0 && sH > 0 && pat.length >= sW * sH);
 
@@ -16359,12 +16417,13 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
         var rgb;
         if (!cell || cell.id === '__skip__' || cell.id === '__empty__' || !cell.rgb) rgb = FABRIC_RGB;
         else if (dstRgb && srcSet.has(cell.id) && (!mask || mask[i])) rgb = dstRgb;
+        else if (swapRgb && dst && cell.id === dst.id && (!mask || mask[i])) rgb = swapRgb;
         else rgb = cell.rgb;
         var o = i * 4;
         d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2]; d[o + 3] = 255;
       }
       ctx.putImageData(img, 0, 0);
-    }, [pat, sW, sH, srcKey, dst, mask, valid]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [pat, sW, sH, srcKey, dst, mask, valid, swapRgb && swapRgb.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
     if (!valid) return null;
     var scale = Math.min(THUMB_MAX_W / sW, THUMB_MAX_H / sH);
@@ -16474,30 +16533,40 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
     var _fuzzy = React.useState(false); var fuzzy = _fuzzy[0], setFuzzy = _fuzzy[1];
     var _fuzzyTol = React.useState(5); var fuzzyTol = _fuzzyTol[0], setFuzzyTol = _fuzzyTol[1];
     var pickedId = picked ? picked.id : null;
+    // Picking a colour already in the palette: merge into it (default) or
+    // swap the two colours. Swapping uses exact colours only.
+    var _mode = React.useState('merge'); var mode = _mode[0], setMode = _mode[1];
+    var canSwap = !!pickedId && palIds.has(pickedId);
+    var swapping = canSwap && mode === 'swap';
     var srcIds = React.useMemo(function() {
+      if (swapping) return [srcId];
       var ids = fuzzy && CR && CR.similarIds
         ? CR.similarIds({ id: srcId, rgb: srcRgb }, palEntries, fuzzyTol)
         : [srcId];
       // The destination is never also a source (those stitches stay put).
       return ids.filter(function(id) { return id && id !== pickedId; });
-    }, [fuzzy, fuzzyTol, srcId, srcRgb && srcRgb.join(','), palEntries, pickedId]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [swapping, fuzzy, fuzzyTol, srcId, srcRgb && srcRgb.join(','), palEntries, pickedId]); // eslint-disable-line react-hooks/exhaustive-deps
     var extraIds = srcIds.filter(function(id) { return id !== srcId; });
+    // Colours whose stitches change: a swap changes both.
+    var countIds = React.useMemo(function() {
+      return swapping ? [srcId, pickedId] : srcIds;
+    }, [swapping, srcId, pickedId, srcIds]);
 
     // Full stitches + half/quarter stitches + backstitch lines in the source
     // colour(s). total / inSelection are the sums used for scope and Apply.
     var counts = React.useMemo(function() {
       var R = window.ColourReplace;
       if (!R) return null;
-      var full = R.countMatches(pat, srcIds, selectionMask);
-      var part = R.countPartials ? R.countPartials(partialStitches, srcIds, selectionMask) : { total: 0, inSelection: selectionMask ? 0 : null };
-      var bs = R.countBackstitch ? R.countBackstitch(bsLines, srcIds, selectionMask, sW, sH) : { total: 0, inSelection: selectionMask ? 0 : null };
+      var full = R.countMatches(pat, countIds, selectionMask);
+      var part = R.countPartials ? R.countPartials(partialStitches, countIds, selectionMask) : { total: 0, inSelection: selectionMask ? 0 : null };
+      var bs = R.countBackstitch ? R.countBackstitch(bsLines, countIds, selectionMask, sW, sH) : { total: 0, inSelection: selectionMask ? 0 : null };
       return {
         total: full.total + part.total + bs.total,
         inSelection: selectionMask ? full.inSelection + part.inSelection + bs.inSelection : null,
         all: { full: full.total, partial: part.total, backstitch: bs.total },
         sel: selectionMask ? { full: full.inSelection, partial: part.inSelection, backstitch: bs.inSelection } : null
       };
-    }, [pat, srcIds, selectionMask, partialStitches, bsLines, sW, sH]);
+    }, [pat, countIds, selectionMask, partialStitches, bsLines, sW, sH]);
     var describe = function(c) {
       var R = window.ColourReplace;
       return R && R.describeCounts ? R.describeCounts(c) : String((c.full || 0) + (c.partial || 0) + (c.backstitch || 0)) + ' stitches';
@@ -16516,7 +16585,9 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
 
     function apply(t) {
       if (!t || t.id === srcId || affected === 0) return;
-      onApply(t, { scope: scope, alsoIds: extraIds });
+      var opts = { scope: scope, alsoIds: extraIds };
+      if (swapping && t.id === pickedId) opts.swap = true;
+      onApply(t, opts);
     }
 
     function handleKey(e) {
@@ -16602,7 +16673,7 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
       scopeRow = h('div', {
         className: 'colour-replace-scope',
         style: { marginBottom: 12, fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }
-      }, 'Replaces this colour across the whole pattern (' + describe(counts.all) + ').');
+      }, (swapping ? 'Swaps these two colours across the whole pattern (' : 'Replaces this colour across the whole pattern (') + describe(counts.all) + ').');
     }
 
     // ── Similar shades row ──
@@ -16612,11 +16683,13 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
       h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
         h('label', { style: { display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' } },
           h('input', {
-            type: 'checkbox', checked: fuzzy, 'data-fuzzy-toggle': true,
+            type: 'checkbox', checked: fuzzy && !swapping, 'data-fuzzy-toggle': true,
+            disabled: swapping,
+            title: swapping ? 'Not available when swapping two colours' : null,
             onChange: function(e) { setFuzzy(e.target.checked); }
           }),
           'Also replace similar shades'),
-        fuzzy && h('input', {
+        fuzzy && !swapping && h('input', {
           type: 'range', min: 1, max: 20, step: 1, value: fuzzyTol,
           'aria-label': 'How similar (colour difference)',
           'aria-valuetext': 'Colour difference up to ' + fuzzyTol,
@@ -16624,9 +16697,9 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
           onChange: function(e) { setFuzzyTol(Number(e.target.value)); },
           style: { width: 90 }
         }),
-        fuzzy && h('span', { style: { fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' } }, '\u0394E \u2264 ' + fuzzyTol)
+        fuzzy && !swapping && h('span', { style: { fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' } }, '\u0394E \u2264 ' + fuzzyTol)
       ),
-      fuzzy && h('div', {
+      fuzzy && !swapping && h('div', {
         className: 'colour-replace-fuzzy-list',
         style: { marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }
       },
@@ -16687,13 +16760,41 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
       );
     }
 
-    // Picking a colour that's already in the pattern merges the two.
-    var mergeNote = picked && palIds.has(picked.id) && affected > 0 ? h('div', {
+    // Picking a colour that's already in the palette: merge into it, or swap.
+    var modeSeg = function(value, label) {
+      var on = mode === value;
+      return h('button', {
+        key: value, type: 'button', role: 'radio', 'aria-checked': on ? 'true' : 'false',
+        className: 'lp-seg' + (on ? ' lp-seg--on' : ''),
+        'data-mode': value,
+        tabIndex: on ? 0 : -1,
+        onClick: function() { setMode(value); },
+        onKeyDown: function(e) {
+          if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].indexOf(e.key) === -1) return;
+          e.preventDefault();
+          var next = value === 'merge' ? 'swap' : 'merge';
+          setMode(next);
+          var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-mode="' + next + '"]');
+          if (sib) sib.focus();
+        },
+        style: { padding: '3px 10px', whiteSpace: 'nowrap' }
+      }, label);
+    };
+    var mergeNote = canSwap ? h('div', {
       className: 'colour-replace-merge',
-      style: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }
+      style: { marginTop: 8, fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }
     },
-      h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex', color: 'var(--text-tertiary)' } }, window.Icons && window.Icons.info ? window.Icons.info() : null),
-      'DMC ' + picked.id + ' is already in your palette, so these stitches will merge into it.'
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
+        h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex', color: 'var(--text-tertiary)' } }, window.Icons && window.Icons.info ? window.Icons.info() : null),
+        h('span', { id: 'colour-replace-mode-label' }, 'DMC ' + pickedId + ' is already in your palette.'),
+        h('div', { className: 'lp-segmented', role: 'radiogroup', 'aria-labelledby': 'colour-replace-mode-label' },
+          modeSeg('merge', 'Merge into it'),
+          modeSeg('swap', 'Swap the two colours'))
+      ),
+      h('div', { className: 'colour-replace-mode-help', style: { marginTop: 4, color: 'var(--text-tertiary)' } },
+        swapping
+          ? 'Every DMC ' + srcId + ' stitch becomes DMC ' + pickedId + ', and every DMC ' + pickedId + ' stitch becomes DMC ' + srcId + '.'
+          : 'These stitches will merge into it, leaving one colour where there were two.')
     ) : null;
 
     var hasThumb = !!(pat && sW > 0 && sH > 0);
@@ -16734,6 +16835,7 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
             window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
           h(PatternThumb, {
             pat: pat, sW: sW, sH: sH, srcIds: srcIds, dst: picked, mask: previewMask,
+            swapRgb: swapping ? srcRgb : null,
             dimmed: !picked,
             caption: picked ? 'After' : 'Pick a thread to preview',
             ariaLabel: picked ? 'Pattern after replacing with DMC ' + picked.id : 'Pattern preview, no replacement chosen'
@@ -16797,7 +16899,9 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
         },
           swatch(srcRgb, 16),
           h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex', color: 'var(--text-tertiary)' } },
-            window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
+            swapping
+              ? (window.Icons && window.Icons.colourSwap ? window.Icons.colourSwap() : null)
+              : (window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null)),
           picked ? swatch(picked.rgb, 16) : h('span', {
             'aria-hidden': 'true',
             style: { width: 16, height: 16, borderRadius: 4, flexShrink: 0, display: 'inline-block', border: '1px dashed var(--text-tertiary)' }
@@ -16829,7 +16933,7 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
               opacity: (!picked || affected === 0) ? 0.5 : 1,
               fontFamily: 'inherit', fontSize: 'var(--text-sm)'
             }
-          }, 'Apply')
+          }, swapping ? 'Swap' : 'Apply')
         )
       )
     );
