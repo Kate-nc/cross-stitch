@@ -308,6 +308,44 @@ above it already worked. The text is unchanged.
 fails if the sweep re-renders the tracker. It also checks the bar names the
 row, column and thread under the pointer, and clears when the pointer leaves.
 
+### After Phase 1: the autosave is now the biggest stall
+
+With F2 fixed, one long task per run remained in `tap-cost` on the huge
+fixture. Attributed by timing the storage calls (Pixel 5 emulation, 4× CPU,
+600×800, 4 taps then idle). It is the tracker autosave, 5 s after the last
+tap:
+
+| Step | Main thread |
+| --- | ---: |
+| Build the save snapshot (`buildSnapshot`: pattern map, `Array.from(done)`, ...) | ~430 ms |
+| `put` to `projects` under the project id (structured clone of the record) | ~350 ms |
+| `put` to `projects` under the legacy `auto_save` key, the same record again | ~350 ms |
+| **Total, one autosave** | **~1.3 s** |
+
+A stitcher who pauses for five seconds and then taps again can land in that
+window. Each `put` clones a record holding one object per stitch (`pattern`)
+and one boxed number per stitch (`done` as a plain array).
+
+**Options, cheapest first** (each needs a decision, since they touch storage
+other pages read, or sync):
+
+1. **Drop the duplicate `auto_save` write from the tracker autosave.** Halves
+   the write cost. The key is still read as a fallback by the Creator's resume
+   path ([creator/useProjectIO.js:656](../creator/useProjectIO.js#L656)) and
+   the Stash Manager ([manager-app.js:386](../manager-app.js#L386)). Both prefer
+   the active-project pointer first, so the fallback should only matter for
+   data from before `ProjectStorage` existed. Needs confirming that nothing
+   else depends on it being fresh.
+2. **Store `done` as a `Uint8Array` in the record.** It clones as one memcpy
+   instead of 480 000 boxed numbers. But every path that JSON-serialises a
+   project (sync export, backups, downloads) would need converting, since
+   `JSON.stringify` turns a typed array into an object.
+3. **R7 proper:** `done` as its own record, written as deltas, so an autosave
+   during stitching never touches the pattern. The real fix. Interacts with
+   `exportSync` / `prepareImport` and needs the sync test plan.
+4. **R10:** typed-array pattern. It removes the per-stitch objects
+   everywhere, including from this clone, and is the largest change.
+
 ### Phase 2 — Per-tap reconcile (3–5 days, only if the device pass says so)
 
 If `tap-cost` shows the `TrackerApp` reconcile is a large share of a tap, the
