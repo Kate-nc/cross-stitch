@@ -517,3 +517,42 @@ describe('ColourReplaceModal swap', () => {
     expect(props.onApply.mock.calls[0][1]).toEqual({ scope: 'all', alsoIds: [] });
   });
 });
+
+describe('ColourReplaceModal review fixes', () => {
+  test('only one option is aria-selected when a thread is listed twice', () => {
+    render();
+    // 3371 is both a Closest match and in All DMC threads.
+    click(container.querySelector('[data-section="closest"] [data-thread-id="3371"]'));
+    const selected = container.querySelectorAll('[role="option"][aria-selected="true"]');
+    expect(selected).toHaveLength(1);
+    expect(selected[0].closest('[data-section]').getAttribute('data-section')).toBe('closest');
+    // Picking the copy under All DMC threads moves the selection there.
+    click(container.querySelector('[data-section="all"] [data-thread-id="3371"]'));
+    const again = container.querySelectorAll('[role="option"][aria-selected="true"]');
+    expect(again).toHaveLength(1);
+    expect(again[0].closest('[data-section]').getAttribute('data-section')).toBe('all');
+  });
+
+  test('preview thumbnails paint unstitched cells in the fabric colour', () => {
+    const painted = [];
+    const orig = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function() {
+      return {
+        createImageData: (w, h) => ({ data: new Uint8ClampedArray(w * h * 4) }),
+        putImageData: img => painted.push(Array.from(img.data.slice(12, 15)))  // cell 3 = __skip__
+      };
+    };
+    try {
+      render({ fabricColour: '#102030' });
+      expect(painted.length).toBeGreaterThan(0);
+      painted.forEach(px => expect(px).toEqual([16, 32, 48]));
+      painted.length = 0;
+      act(() => { root.unmount(); });
+      root = ReactDOMClient.createRoot(container);
+      render({ fabricColour: 'not-a-colour' });
+      painted.forEach(px => expect(px).toEqual([255, 255, 255]));
+    } finally {
+      HTMLCanvasElement.prototype.getContext = orig;
+    }
+  });
+});

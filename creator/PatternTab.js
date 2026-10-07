@@ -61,7 +61,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   } else if (cv.activeTool === "eyedropper") {
     statusText = "Eyedropper \u2014 click a cell to sample its colour.";
   } else if (cv.activeTool === "colourReplace") {
-    statusText = "Replace colour \u2014 hover to see every stitch of a colour, click one to replace it. Press R or Esc to exit.";
+    statusText = "Replace colour \u2014 hover to see every stitch of a colour, click one to replace it. Press R to exit.";
   } else if (cv.activeTool === "magicWand") {
     var wModLabel = cv.selectionModifier === "add" ? "[+] Add" : cv.selectionModifier === "subtract" ? "[\u2212] Subtract" : cv.selectionModifier === "intersect" ? "[\u2229] Intersect" : null;
     statusText = "Magic Wand \u2014 click to select by colour" + (wModLabel ? " \u2022 " + wModLabel : ". Shift=add, Alt=subtract.");

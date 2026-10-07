@@ -12,8 +12,12 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 (function() {
-  // Unstitched cells in the preview thumbnails. Canvas pixel data, not CSS.
-  var FABRIC_RGB = [246, 242, 234];
+  // Unstitched cells in the preview thumbnails: the user's fabric colour
+  // (#RRGGBB, as PreviewCanvas reads it), white when unset or malformed.
+  function fabricRgb(hex) {
+    var m = /^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/.exec(hex || '');
+    return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : [255, 255, 255];
+  }
   var THUMB_MAX_W = 190, THUMB_MAX_H = 130;
 
   function rgbCss(rgb) { return 'rgb(' + (rgb || [128, 128, 128]) + ')'; }
@@ -40,6 +44,7 @@
       var d = img.data;
       var dstRgb = dst && dst.rgb ? dst.rgb : null;
       var srcSet = new Set(srcIds);
+      var FABRIC_RGB = fabricRgb(props.fabricColour);
       for (var i = 0; i < sW * sH; i++) {
         var cell = pat[i];
         var rgb;
@@ -51,7 +56,7 @@
         d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2]; d[o + 3] = 255;
       }
       ctx.putImageData(img, 0, 0);
-    }, [pat, sW, sH, srcKey, dst, mask, valid, swapRgb && swapRgb.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [pat, sW, sH, srcKey, dst, mask, valid, swapRgb && swapRgb.join(','), props.fabricColour]); // eslint-disable-line react-hooks/exhaustive-deps
 
     if (!valid) return null;
     var scale = Math.min(THUMB_MAX_W / sW, THUMB_MAX_H / sH);
@@ -142,6 +147,17 @@
       return out;
     }, [sections, srcId]);
     var anyThreads = sections.some(function(sec) { return sec.items.length > 0; });
+    // A thread can be listed twice (Closest + All), but a single-select
+    // listbox must mark one option selected: the active one if it shows the
+    // picked thread, else the first option that does.
+    var selectedKey = null;
+    if (picked) {
+      for (var oi = 0; oi < options.length; oi++) {
+        if (options[oi].thread.id !== picked.id) continue;
+        if (options[oi].key === activeKey) { selectedKey = activeKey; break; }
+        if (selectedKey === null) selectedKey = options[oi].key;
+      }
+    }
     var optionDomId = function(key) { return 'crm-opt-' + key.replace(/[^A-Za-z0-9_-]/g, '_'); };
 
     function activate(opt) {
@@ -339,7 +355,7 @@
     function threadRow(item, sectionKey) {
       var t = item.thread;
       var isSrc = t.id === srcId;
-      var isPicked = !!picked && picked.id === t.id;
+      var isPicked = (sectionKey + ':' + t.id) === selectedKey;
       var inPal = palIds.has(t.id);
       var simLabel = CR && CR.similarityLabel && item.dE != null ? CR.similarityLabel(item.dE) : null;
       var tag = function(text, title) {
@@ -456,11 +472,12 @@
           className: 'colour-replace-preview',
           style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }
         },
-          h(PatternThumb, { pat: pat, sW: sW, sH: sH, caption: 'Before', ariaLabel: 'Pattern before replacement' }),
+          h(PatternThumb, { pat: pat, sW: sW, sH: sH, fabricColour: props.fabricColour, caption: 'Before', ariaLabel: 'Pattern before replacement' }),
           h('span', { 'aria-hidden': 'true', style: { color: 'var(--text-tertiary)', display: 'inline-flex', flexShrink: 0 } },
             window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
           h(PatternThumb, {
             pat: pat, sW: sW, sH: sH, srcIds: srcIds, dst: picked, mask: previewMask,
+            fabricColour: props.fabricColour,
             swapRgb: swapping ? srcRgb : null,
             dimmed: !picked,
             caption: picked ? 'After' : 'Pick a thread to preview',

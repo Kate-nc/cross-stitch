@@ -497,6 +497,22 @@ window.useMagicWand = function useMagicWand(state) {
     if (psRes.psChanges.length) state.setPartialStitches(psRes.map);
     if (bsRes.count) state.setBsLines(bsRes.lines);
     var r = state.buildPaletteWithScratch(np);
+    // The palette is rebuilt from full stitches only. If the new colour is
+    // used just by part stitches / backstitch, keep it in the scratch palette
+    // so it keeps its palette entry and symbol.
+    if ((psRes.psChanges.length || bsRes.count) && !r.cmap[dstEntry.id]) {
+      var usedSyms = new Set(r.pal.map(function(p) { return p.symbol; }));
+      var SY = typeof SYMS !== 'undefined' ? SYMS : [];
+      var sym = SY.find(function(x) { return !usedSyms.has(x); }) || (SY.length ? SY[r.pal.length % SY.length] : undefined);
+      var keep = { id: dstEntry.id, type: dstEntry.type || 'solid', name: dstEntry.name || dstEntry.id,
+        rgb: dstEntry.rgb, lab: dstEntry.lab, count: 0, symbol: sym };
+      if (dstEntry.threads) keep.threads = dstEntry.threads;
+      if (state.setScratchPalette) {
+        state.setScratchPalette(function(prev) { return prev.filter(function(p) { return p.id !== keep.id; }).concat([keep]); });
+      }
+      var keepMap = {}; keepMap[keep.id] = keep;
+      r = { pal: r.pal.concat([keep]), cmap: Object.assign({}, r.cmap, keepMap) };
+    }
     state.setPal(r.pal); state.setCmap(r.cmap);
     // Returned so callers can offer a guarded "Undo" (only while this entry
     // is still the newest edit).

@@ -113,3 +113,23 @@ describe('toolbar badge', () => {
     expect(at('cv.activeTool === "cleanup"')).toBeLessThan(at('cv.brushMode === "paint"'));
   });
 });
+
+describe('review fixes', () => {
+  test('status text does not promise Esc exits the tool (Esc clears a selection first)', () => {
+    const src = read('creator/PatternTab.js');
+    const line = src.split('\n').find(l => l.includes('statusText = "Replace colour'));
+    expect(line).toMatch(/Press R to exit\./);
+    expect(line).not.toMatch(/Esc/);
+  });
+
+  test('a new colour used only by part stitches / backstitch is kept in the scratch palette', () => {
+    const src = read('creator/useMagicWand.js');
+    expect(src).toMatch(/if \(\(psRes\.psChanges\.length \|\| bsRes\.count\) && !r\.cmap\[dstEntry\.id\]\)/);
+    expect(src).toMatch(/state\.setScratchPalette\(function\(prev\)/);
+    expect(read('creator/useCreatorState.js')).toMatch(/setScratchPalette: setScratchPalette,\n    editHistory/);
+  });
+
+  test('creator-main passes the fabric colour to the modal', () => {
+    expect(read('creator-main.js')).toMatch(/fabricColour:state\.fabricColour,/);
+  });
+});

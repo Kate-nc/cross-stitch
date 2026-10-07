@@ -1552,6 +1552,7 @@ window.useCreatorState = function useCreatorState() {
     bsLines: bsLines, setBsLines: setBsLines,
     // Colour replacement also recolours half/quarter stitches.
     partialStitches: partialStitches, setPartialStitches: setPartialStitches,
+    setScratchPalette: setScratchPalette,
     editHistory: editHistory, setEditHistory: setEditHistory,
     setRedoHistory: setRedoHistory, EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
     setPat: setPat, setPal: setPal, setCmap: setCmap,

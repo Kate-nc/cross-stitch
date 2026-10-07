@@ -149,7 +149,7 @@ describe('wiring', () => {
     expect(src).toMatch(/if \(bsRes\.count\) entry\.bsLines = state\.bsLines\.slice\(\);/);
   });
   test('useMagicWand receives partial stitches; modal receives both', () => {
-    expect(read('creator/useCreatorState.js')).toMatch(/partialStitches: partialStitches, setPartialStitches: setPartialStitches,\n    editHistory/);
+    expect(read('creator/useCreatorState.js')).toMatch(/useMagicWand\(\{[\s\S]*?partialStitches: partialStitches, setPartialStitches: setPartialStitches,/);
     expect(read('creator-main.js')).toMatch(/partialStitches:state\.partialStitches, bsLines:state\.bsLines,/);
   });
 });
