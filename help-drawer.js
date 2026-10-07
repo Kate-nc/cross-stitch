@@ -181,6 +181,17 @@
           ]
         },
         {
+          heading: "Work area",
+          body: "On a large pattern, a work area shows just the part you are stitching. The colour list, counts and “Mark all done” then cover only that part.",
+          bullets: [
+            ["Pick an area (W)", "Tap Area in the toolbar or press W. Choose an area size and tap the overview, or drag across sections for a custom area. Areas are made of whole sections, the same ones Spotlight uses."],
+            ["Margin", "A few stitches around the area stay visible, faded, so you can line up its edges. They cannot be marked while you are in the area."],
+            ["Next area", "The arrows in the work area bar move to the previous or next unfinished area. When you finish an area, you are offered the next one."],
+            ["Spotlight", "With Spotlight on, it works through the sections inside the area before moving on."],
+            ["Saved and synced", "The area is saved with the project, so it is still selected when you come back or open the project on another device."]
+          ]
+        },
+        {
           heading: "Counting aids",
           body: "Counting aids overlay reference markers to help you count stitches accurately \u2014 essential when navigating a large pattern without a printed chart.",
           bullets: [

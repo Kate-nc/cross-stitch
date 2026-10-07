@@ -362,7 +362,37 @@ This is the riskiest item in the plan because `done` is read in many effects
 (sync merge, undo history, autosave). Do it behind the Phase 0 numbers, not
 ahead of them.
 
-### Phase 3 — Work-area mode (product feature, ~1–2 weeks after prototype sign-off)
+### Phase 3 — Work-area mode · **built on `feat/work-area`**
+
+**Status (2026-10-07).** Built in four commits on `feat/work-area` (cut
+from `perf/track-phase0`, which must merge first):
+
+| Commit | What |
+| --- | --- |
+| Data model, persistence, sync | `work-area.js` (pure geometry and rules); `workArea` project field saved, exported, kept through Creator saves, validated on load; sync merge by the area's own `setAt` |
+| Clipping | Scroller extent, rulers and tile cover only the area plus margin, via one coordinate offset; margin faded and unmarkable; area outlined; enter fits, exit re-centres |
+| Picker and controls | `components/WorkAreaPicker.js` (section-grid overview; tap an area or drag sections); work area bar (progress, previous/next unfinished, margin, Change, Show whole pattern); Area button, `W`, Fit fits the area |
+| Scoping | Colour list, counts, highlight cycling, jump, "mark all", recommendations and Spotlight all confined to the area; finishing offers the next area |
+
+As decided: an area is a group of whole Spotlight sections, Spotlight steps
+through the sections inside it, the default margin is 3, and the area is
+saved and synced.
+
+**Not built.** The prototype's always-visible mini overview map. The picker
+already shows the whole pattern with progress, and the work area bar names
+the range, so it was left as a follow-up rather than a fifth canvas.
+
+**Tests.** [workArea.test.js](../tests/workArea.test.js) covers the module
+and sync merge (24 cases).
+[desktop-work-area.spec.js](../tests/mobile-audit/desktop-work-area.spec.js)
+has 12 browser checks: clipping, marking, leaving, reload, the picker, the
+bar, `W`/Fit, the colour list, "mark all", Spotlight and finishing.
+[work-area-phone.spec.js](../tests/mobile-audit/work-area-phone.spec.js)
+covers the phone sheet. Persistence and Creator round-trip field lists
+include `workArea`.
+
+The original plan text follows.
+
 
 See the prototype. The performance case is honest but specific: hiding the
 rest of the chart **doesn't make drawing faster**, because drawing is
