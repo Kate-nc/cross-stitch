@@ -1548,6 +1548,7 @@ function CreatorApp({
     sW: state.sW,
     sH: state.sH,
     pal: state.pal,
+    fabricColour: state.fabricColour,
     partialStitches: state.partialStitches,
     bsLines: state.bsLines,
     selectionMask: state.hasSelection ? state.selectionMask : null,

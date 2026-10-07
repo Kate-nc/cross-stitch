@@ -929,7 +929,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       {state.colourReplaceModal&&typeof window.ColourReplaceModal!=='undefined'&&React.createElement(window.ColourReplaceModal,{
         modal:state.colourReplaceModal,
         onClose:()=>state.setColourReplaceModal(null),
-        pat:state.pat, sW:state.sW, sH:state.sH, pal:state.pal,
+        pat:state.pat, sW:state.sW, sH:state.sH, pal:state.pal, fabricColour:state.fabricColour,
         partialStitches:state.partialStitches, bsLines:state.bsLines,
         selectionMask:state.hasSelection?state.selectionMask:null,
         onApply:function(dstThread,opts){

@@ -497,6 +497,16 @@ window.useMagicWand = function useMagicWand(state) {
     if (psRes.psChanges.length) state.setPartialStitches(psRes.map);
     if (bsRes.count) state.setBsLines(bsRes.lines);
     var r = state.buildPaletteWithScratch(np);
+    if (!r.cmap[dstEntry.id]) {
+      var scratchEntry = Object.assign({ type: "solid", count: 0 }, dstEntry);
+      state.setScratchPalette(function(prev) {
+        return prev.some(function(entry) { return entry.id === dstEntry.id; }) ? prev : prev.concat([scratchEntry]);
+      });
+      r = {
+        pal: r.pal.concat([scratchEntry]),
+        cmap: Object.assign({}, r.cmap, { [dstEntry.id]: scratchEntry })
+      };
+    }
     state.setPal(r.pal); state.setCmap(r.cmap);
     // Returned so callers can offer a guarded "Undo" (only while this entry
     // is still the newest edit).

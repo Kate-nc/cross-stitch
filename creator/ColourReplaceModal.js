@@ -12,11 +12,15 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 (function() {
-  // Unstitched cells in the preview thumbnails. Canvas pixel data, not CSS.
-  var FABRIC_RGB = [246, 242, 234];
   var THUMB_MAX_W = 190, THUMB_MAX_H = 130;
 
   function rgbCss(rgb) { return 'rgb(' + (rgb || [128, 128, 128]) + ')'; }
+  function fabricRgb(fabricColour) {
+    var value = typeof fabricColour === 'string' && fabricColour.charCodeAt(0) === 35
+      ? fabricColour.slice(1) : '';
+    if (!/^[0-9a-fA-F]{6}$/.test(value)) return [255, 255, 255];
+    return [parseInt(value.slice(0, 2), 16), parseInt(value.slice(2, 4), 16), parseInt(value.slice(4, 6), 16)];
+  }
 
   // Small 1-pixel-per-stitch rendering of the pattern, optionally with the
   // pending replacement applied, so users can judge the change in context.
@@ -25,6 +29,7 @@
     var ref = React.useRef(null);
     var pat = props.pat, sW = props.sW, sH = props.sH;
     var srcIds = props.srcIds || [], dst = props.dst, mask = props.mask;
+    var fabric = fabricRgb(props.fabricColour);
     // swapRgb: when swapping, cells in the destination colour take this colour.
     var swapRgb = props.swapRgb || null;
     var srcKey = srcIds.join('|');
@@ -43,7 +48,7 @@
       for (var i = 0; i < sW * sH; i++) {
         var cell = pat[i];
         var rgb;
-        if (!cell || cell.id === '__skip__' || cell.id === '__empty__' || !cell.rgb) rgb = FABRIC_RGB;
+        if (!cell || cell.id === '__skip__' || cell.id === '__empty__' || !cell.rgb) rgb = fabric;
         else if (dstRgb && srcSet.has(cell.id) && (!mask || mask[i])) rgb = dstRgb;
         else if (swapRgb && dst && cell.id === dst.id && (!mask || mask[i])) rgb = swapRgb;
         else rgb = cell.rgb;
@@ -51,7 +56,7 @@
         d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2]; d[o + 3] = 255;
       }
       ctx.putImageData(img, 0, 0);
-    }, [pat, sW, sH, srcKey, dst, mask, valid, swapRgb && swapRgb.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [pat, sW, sH, srcKey, dst, mask, valid, props.fabricColour, swapRgb && swapRgb.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
     if (!valid) return null;
     var scale = Math.min(THUMB_MAX_W / sW, THUMB_MAX_H / sH);
@@ -356,7 +361,7 @@
         key: key,
         id: optionDomId(key),
         role: 'option',
-        'aria-selected': isPicked ? 'true' : 'false',
+        'aria-selected': isActive ? 'true' : 'false',
         'aria-disabled': isSrc ? 'true' : null,
         onClick: function() { if (!isSrc) activate({ key: key, thread: t }); },
         onDoubleClick: function() { if (!isSrc) apply(t); },
@@ -456,11 +461,11 @@
           className: 'colour-replace-preview',
           style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }
         },
-          h(PatternThumb, { pat: pat, sW: sW, sH: sH, caption: 'Before', ariaLabel: 'Pattern before replacement' }),
+          h(PatternThumb, { pat: pat, sW: sW, sH: sH, fabricColour: props.fabricColour, caption: 'Before', ariaLabel: 'Pattern before replacement' }),
           h('span', { 'aria-hidden': 'true', style: { color: 'var(--text-tertiary)', display: 'inline-flex', flexShrink: 0 } },
             window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
           h(PatternThumb, {
-            pat: pat, sW: sW, sH: sH, srcIds: srcIds, dst: picked, mask: previewMask,
+            pat: pat, sW: sW, sH: sH, fabricColour: props.fabricColour, srcIds: srcIds, dst: picked, mask: previewMask,
             swapRgb: swapping ? srcRgb : null,
             dimmed: !picked,
             caption: picked ? 'After' : 'Pick a thread to preview',

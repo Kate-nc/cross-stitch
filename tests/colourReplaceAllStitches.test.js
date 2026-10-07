@@ -150,7 +150,12 @@ describe('wiring', () => {
   });
   test('useMagicWand receives partial stitches; modal receives both', () => {
     expect(read('creator/useCreatorState.js')).toMatch(/partialStitches: partialStitches, setPartialStitches: setPartialStitches,\n    editHistory/);
+    expect(read('creator/useCreatorState.js')).toMatch(/setScratchPalette: setScratchPalette,/);
     expect(read('creator-main.js')).toMatch(/partialStitches:state\.partialStitches, bsLines:state\.bsLines,/);
+  });
+  test('partial-only and backstitch-only replacements retain their destination metadata', () => {
+    const src = read('creator/useMagicWand.js');
+    expect(src).toMatch(/if \(!r\.cmap\[dstEntry\.id\]\) \{[\s\S]*?state\.setScratchPalette/);
   });
 });
 

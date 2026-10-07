@@ -1555,6 +1555,7 @@ window.useCreatorState = function useCreatorState() {
     editHistory: editHistory, setEditHistory: setEditHistory,
     setRedoHistory: setRedoHistory, EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
     setPat: setPat, setPal: setPal, setCmap: setCmap,
+    setScratchPalette: setScratchPalette,
     addToast: addToast,
     buildPaletteWithScratch: buildPaletteWithScratch,
   });

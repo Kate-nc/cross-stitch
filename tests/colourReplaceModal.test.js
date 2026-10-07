@@ -269,6 +269,15 @@ describe('ColourReplaceModal suggestions', () => {
     expect(container.querySelector('.colour-replace-merge').textContent).toMatch(/already in your palette/);
   });
 
+  test('marks only the active duplicate option as selected', () => {
+    render({ pal: PAL });
+    click(container.querySelector('[data-section="palette"] [data-thread-id="321"]'));
+    const selected = Array.from(container.querySelectorAll('[role="option"]'))
+      .filter(el => el.getAttribute('aria-selected') === 'true');
+    expect(selected).toHaveLength(1);
+    expect(selected[0].getAttribute('data-thread-id')).toBe('321');
+  });
+
   test('picking a colour not in the palette shows no merge warning', () => {
     render({ pal: PAL });
     click(container.querySelector('[data-section="closest"] [data-thread-id="3371"]'));
