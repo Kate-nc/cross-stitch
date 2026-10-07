@@ -123,3 +123,18 @@ describe('Corner-rotation algorithm — behavioural', () => {
     expect(m[1].corner).toBe("BL");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Placement hits the cell under the pointer. Markers are drawn inside a cell,
+// so the tracker must never ask gridCoord to snap (round) to the nearest grid
+// line — that moved a marker onto the neighbouring column/row whenever the
+// click landed in the right or bottom half of a cell, and silently dropped
+// clicks in the right half of the last column.
+// ---------------------------------------------------------------------------
+describe('Park placement — cell under the pointer', () => {
+  test('every tracker gridCoord call passes snap=false', () => {
+    const calls = src.match(/gridCoord\(stitchRef,[^;]*?,\s*G\s*,\s*[^,)]+/g) || [];
+    expect(calls.length).toBeGreaterThan(0);
+    for (const c of calls) expect(c).toMatch(/,\s*G\s*,\s*false$/);
+  });
+});

@@ -5509,11 +5509,14 @@ function handleStitchMouseDown(e){
     }
     return;
   }
-  let gc=gridCoord(stitchRef,e,scs,G,stitchMode==="navigate"&&selectedColorId,chartTileRef.current);
+  // Always the cell under the pointer. Park markers are drawn inside a cell
+  // (a corner triangle), so placing them must not round to the nearest grid
+  // line — that put three clicks in four on a neighbouring cell.
+  let gc=gridCoord(stitchRef,e,scs,G,false,chartTileRef.current);
   if(!gc)return;let{gx,gy}=gc;
   if(stitchMode==="navigate"){
     if(e.shiftKey||!selectedColorId||!cmap||!cmap[selectedColorId]){
-      let gc2=gridCoord(stitchRef,e,scs,G,false,chartTileRef.current);if(gc2&&gc2.gx>=0&&gc2.gx<sW&&gc2.gy>=0&&gc2.gy<sH){setHlRow(gc2.gy);setHlCol(gc2.gx);}
+      if(gx>=0&&gx<sW&&gy>=0&&gy<sH){setHlRow(gy);setHlCol(gx);}
     }else{
       if(gx>=0&&gx<sW&&gy>=0&&gy<sH){let existing=parkMarkers.findIndex(m=>m.x===gx&&m.y===gy&&m.colorId===selectedColorId);if(existing>=0)setParkMarkers(prev=>prev.filter((_,i)=>i!==existing));else setParkMarkers(prev=>{
         // Multi-colour parking — Option A: auto-rotate corners.
