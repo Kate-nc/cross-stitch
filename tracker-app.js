@@ -86,24 +86,32 @@ function outlinePathData(pat,sW,sH,id,r,cSz,gut){
 const CHART_TILE_OVERSCAN=(typeof window!=='undefined'&&window.chartTileOverscan)||300;
 
 // Geometry of the tile that should be showing for a given scroller position.
-// `x`/`y` are in chart-content coordinates — the same space viewportRect and
-// scrollLeft/scrollTop use — and name the chart pixel that lands on canvas
-// pixel 0.
-function chartTileFor(scroller,cSz,sW,sH,gutter){
-  const fullW=gutter+sW*cSz+2, fullH=gutter+sH*cSz+2;
+// `x`/`y` are in chart coordinates and name the chart pixel that lands on
+// canvas pixel 0.
+//
+// `view` is the part of the pattern the scroller shows, in cells: the whole
+// pattern, or a work area plus its margin (see work-area.js). The scroller's
+// extent covers only the view, so scrollLeft/scrollTop are relative to its
+// top-left corner and chart coordinates are scroll + view.x0/y0 * cSz. With no
+// view, or the whole pattern, the offset is 0 and this is exactly the old
+// geometry.
+function chartTileFor(scroller,cSz,sW,sH,gutter,view){
+  const v=view||{x0:0,y0:0,x1:sW,y1:sH};
+  const offX=v.x0*cSz, offY=v.y0*cSz;
+  const fullW=gutter+(v.x1-v.x0)*cSz+2, fullH=gutter+(v.y1-v.y0)*cSz+2;
   if(!scroller){
-    return{x:0,y:0,w:fullW,h:fullH,full:true};
+    return{x:offX,y:offY,w:fullW,h:fullH,full:true};
   }
   if(!scroller.clientWidth||!scroller.clientHeight){
-    return{x:0,y:0,w:0,h:0,full:false};
+    return{x:offX,y:offY,w:0,h:0,full:false};
   }
   const w=Math.min(fullW,scroller.clientWidth+CHART_TILE_OVERSCAN*2);
   const h=Math.min(fullH,scroller.clientHeight+CHART_TILE_OVERSCAN*2);
-  if(w>=fullW&&h>=fullH)return{x:0,y:0,w:fullW,h:fullH,full:true};
-  // Clamped to the chart so the tile never hangs off an edge, which would
+  if(w>=fullW&&h>=fullH)return{x:offX,y:offY,w:fullW,h:fullH,full:true};
+  // Clamped to the view so the tile never hangs off an edge, which would
   // waste backing store on blank space and leave the opposite edge unpainted.
-  const x=Math.max(0,Math.min(fullW-w,Math.round(scroller.scrollLeft-CHART_TILE_OVERSCAN)));
-  const y=Math.max(0,Math.min(fullH-h,Math.round(scroller.scrollTop -CHART_TILE_OVERSCAN)));
+  const x=offX+Math.max(0,Math.min(fullW-w,Math.round(scroller.scrollLeft-CHART_TILE_OVERSCAN)));
+  const y=offY+Math.max(0,Math.min(fullH-h,Math.round(scroller.scrollTop -CHART_TILE_OVERSCAN)));
   return{x,y,w,h,full:false};
 }
 
@@ -999,6 +1007,28 @@ const[focusBlock,setFocusBlock]=useState(null); // {bx,by} | null
 // on the project and synced (newer setAt wins); see work-area.js.
 // null | {active,x0,y0,x1,y1,bw,bh,setAt}
 const[workArea,setWorkArea]=useState(null);
+// Stitches of faded context shown around the area (a per-stitcher
+// preference, not part of the project).
+const[workAreaMargin,setWorkAreaMarginState]=useState(()=>{
+  try{const v=window.UserPrefs&&window.UserPrefs.get("trackerWorkAreaMargin");if(typeof v==="number"&&v>=0&&v<=20)return v;}catch(_){}
+  return(window.WorkArea&&window.WorkArea.DEFAULT_MARGIN)||3;
+});
+const setWorkAreaMargin=useCallback(v=>{
+  setWorkAreaMarginState(v);
+  try{if(window.UserPrefs)window.UserPrefs.set("trackerWorkAreaMargin",v);}catch(_){}
+},[]);
+const areaOn=!!(workArea&&workArea.active);
+// The cells the chart shows: the work area plus its margin, or the whole
+// pattern. The scroller's extent and the rulers cover only this, so scroll
+// positions are relative to its corner; chartScrollOffset() converts.
+const viewBounds=useMemo(()=>(areaOn&&window.WorkArea)
+  ?window.WorkArea.bounds(workArea,workAreaMargin,sW,sH)
+  :{x0:0,y0:0,x1:sW,y1:sH},[areaOn,workArea,workAreaMargin,sW,sH]);
+const viewBoundsRef=useRef(viewBounds);
+viewBoundsRef.current=viewBounds;
+// Chart pixels hidden off the scroller's top-left by the view: add to a
+// scroll position to get chart coordinates, subtract to go back.
+function chartScrollOffset(cSz){const v=viewBoundsRef.current;const c=cSz||scs;return{x:v.x0*c,y:v.y0*c};}
 const[focusEnabled,setFocusEnabled]=useState(()=>{try{return localStorage.getItem("cs_focusEnabled")==="1";}catch(_){return false;}});
 const[colourSequence,setColourSequence]=useState(()=>{try{return localStorage.getItem("cs_colourSeq")||"fewest";}catch(_){return"fewest";}});
 const[startCorner,setStartCorner]=useState("TL");
@@ -1071,7 +1101,7 @@ function prepareOverlayTile(canvas){
   // pan frame move and blank the overlay, which is what pushed cleared pixels
   // up rather than down. Overlays now move only when the chart moves.
   const ref=chartTileRef.current;
-  const tile=(ref&&ref.w>0)?ref:chartTileFor(stitchScrollRef.current,scs,sW,sH,G);
+  const tile=(ref&&ref.w>0)?ref:chartTileFor(stitchScrollRef.current,scs,sW,sH,G,viewBoundsRef.current);
   // A zero-sized tile means the scroller has not been measured yet; there is
   // nothing to draw into and no geometry to draw it at.
   if(!tile||!tile.w||!tile.h)return null;
@@ -1132,6 +1162,66 @@ function setHoverInfo(info){
 const[isPanning,setIsPanning]=useState(false);
 const panStart=useRef({x:0,y:0,scrollX:0,scrollY:0});
 const stitchScrollRef=useRef(null);
+
+// ═══ Work area: enter / leave, and keeping the view steady ═══
+// What to do with the scroll position once the next view has rendered:
+// {kind:"fit"} after entering, {kind:"centre",cx,cy} after leaving.
+const workAreaViewPendingRef=useRef(null);
+function enterWorkArea(rect){
+  if(!rect||!window.WorkArea)return false;
+  const next=window.WorkArea.normalise(Object.assign({},rect,{active:true,setAt:Date.now()}),sW,sH);
+  if(!next)return false;
+  workAreaViewPendingRef.current={kind:"fit"};
+  setWorkArea(next);
+  return true;
+}
+function exitWorkArea(){
+  const a=workArea;
+  if(!a||!a.active)return;
+  workAreaViewPendingRef.current={kind:"centre",cx:(a.x0+a.x1)/2,cy:(a.y0+a.y1)/2};
+  setWorkArea(Object.assign({},a,{active:false,setAt:Date.now()}));
+}
+// Runs after the scroller has its new extent. A view change nobody asked to
+// reposition for (the margin, a synced area arriving) keeps the same stitches
+// under the same screen position by shifting the scroll by the change in
+// offset; entering fits the area to the chart; leaving centres on it.
+const prevViewRef=useRef(null);
+React.useLayoutEffect(()=>{
+  const el=stitchScrollRef.current;
+  const prev=prevViewRef.current;
+  prevViewRef.current={vb:viewBounds,scs};
+  const pending=workAreaViewPendingRef.current;
+  if(!el)return;
+  if(pending&&pending.kind==="fit"){
+    workAreaViewPendingRef.current=null;
+    const w=viewBounds.x1-viewBounds.x0,h=viewBounds.y1-viewBounds.y0;
+    const fit=Math.min((el.clientWidth-G-8)/(w*20),(el.clientHeight-G-8)/(h*20));
+    const z=Math.max(0.05,Math.min(maxZoom,fit));
+    setStitchZoom(+z.toFixed(3));
+    // The zoom lands on the next render; the corner of the view is 0,0 at
+    // any zoom, so this can be set now and again once the size settles.
+    el.scrollLeft=0;el.scrollTop=0;
+    requestAnimationFrame(()=>{const e2=stitchScrollRef.current;if(e2){e2.scrollLeft=0;e2.scrollTop=0;}});
+    return;
+  }
+  if(pending&&pending.kind==="centre"){
+    workAreaViewPendingRef.current=null;
+    const off=chartScrollOffset();
+    el.scrollLeft=Math.max(0,G+pending.cx*scs-off.x-el.clientWidth/2);
+    el.scrollTop=Math.max(0,G+pending.cy*scs-off.y-el.clientHeight/2);
+    return;
+  }
+  if(prev&&prev.scs===scs&&(prev.vb.x0!==viewBounds.x0||prev.vb.y0!==viewBounds.y0)){
+    el.scrollLeft+= (prev.vb.x0-viewBounds.x0)*scs;
+    el.scrollTop += (prev.vb.y0-viewBounds.y0)*scs;
+  }
+},[viewBounds,scs]);
+// Exposed for the browser specs (tests/mobile-audit/*work-area*) and
+// automation, like __flushProjectToIDB. Reassigned every render so it always
+// closes over current state.
+useEffect(()=>{
+  window.__workArea={enter:enterWorkArea,exit:exitWorkArea,get:()=>workArea,view:()=>viewBoundsRef.current};
+});
 const isSpaceDownRef=useRef(false);
 const spaceDownTimeRef=useRef(0);
 const spacePannedRef=useRef(false);
@@ -2579,7 +2669,7 @@ function doSaveProject(finalName){
     breadcrumbs,
     stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea,
     savedZoom: stitchZoom,
-    savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null
+    savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft + chartScrollOffset().x, top: stitchScrollRef.current.scrollTop + chartScrollOffset().y } : null
   };
   let blob=new Blob([JSON.stringify(project)],{type:"application/json"});
   let url=URL.createObjectURL(blob);
@@ -3544,8 +3634,10 @@ function processLoadedProject(project){
       if(project.savedScroll&&stitchScrollRef.current){
         requestAnimationFrame(()=>{
           if(!stitchScrollRef.current)return;
-          stitchScrollRef.current.scrollLeft=project.savedScroll.left;
-          stitchScrollRef.current.scrollTop=project.savedScroll.top;
+          // Saved in chart coordinates; the scroller may be showing a work area.
+          const off=chartScrollOffset();
+          stitchScrollRef.current.scrollLeft=project.savedScroll.left-off.x;
+          stitchScrollRef.current.scrollTop=project.savedScroll.top-off.y;
         });
       }
     },100);
@@ -3944,7 +4036,7 @@ const buildSnapshot = () => {
     singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr, partialStitches: psArr,
     statsSessions, statsSettings, achievedMilestones, doneSnapshots,
     savedZoom: stitchZoom,
-    savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft, top: stitchScrollRef.current.scrollTop } : null,
+    savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft + chartScrollOffset().x, top: stitchScrollRef.current.scrollTop + chartScrollOffset().y } : null,
     breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea,
     ...v3FieldsRef.current
   };
@@ -4254,6 +4346,10 @@ function drawStitch(ctx,cSz,viewportRect){
     endX=Math.min(dW,Math.ceil((viewportRect.right-gut+OVERDRAW)/cSz));
     endY=Math.min(dH,Math.ceil((viewportRect.bottom-gut+OVERDRAW)/cSz));
   }
+  // A work area clips the chart to its view: nothing outside is visible, so
+  // nothing outside is drawn.
+  const vb=viewBoundsRef.current;
+  if(vb){startX=Math.max(startX,vb.x0);startY=Math.max(startY,vb.y0);endX=Math.min(endX,vb.x1);endY=Math.min(endY,vb.y1);}
 
   // Tier-aware font sizes
   const symPx=tierSymFontSz(cSz);
@@ -4435,6 +4531,24 @@ function drawStitch(ctx,cSz,viewportRect){
     ctx.fill();ctx.stroke();
   });}
   ctx.strokeStyle="rgba(0,0,0,0.4)";ctx.lineWidth=2;ctx.strokeRect(gut,gut,dW*cSz,dH*cSz);ctx.lineWidth=1;
+  // Work area: fade the margin (context only — it cannot be marked) and
+  // outline the area. The outline sits entirely outside the area, on margin
+  // cells, so the single-cell repaint of a tap inside it never erases it.
+  if(areaOn&&workArea&&startX<endX&&startY<endY){
+    const a=workArea;
+    const ax0=gut+a.x0*cSz,ay0=gut+a.y0*cSz,ax1=gut+a.x1*cSz,ay1=gut+a.y1*cSz;
+    const vx0=gut+startX*cSz,vy0=gut+startY*cSz,vx1=gut+endX*cSz,vy1=gut+endY*cSz;
+    ctx.fillStyle="rgba(239,231,214,0.72)";
+    if(ay0>vy0)ctx.fillRect(vx0,vy0,vx1-vx0,ay0-vy0);
+    if(vy1>ay1)ctx.fillRect(vx0,ay1,vx1-vx0,vy1-ay1);
+    const my0=Math.max(vy0,ay0),my1=Math.min(vy1,ay1);
+    if(my1>my0){
+      if(ax0>vx0)ctx.fillRect(vx0,my0,ax0-vx0,my1-my0);
+      if(vx1>ax1)ctx.fillRect(ax1,my0,vx1-ax1,my1-my0);
+    }
+    ctx.strokeStyle="rgba(27,24,20,0.75)";ctx.lineWidth=2;
+    ctx.strokeRect(ax0-1,ay0-1,ax1-ax0+2,ay1-ay0+2);ctx.lineWidth=1;
+  }
 }
 
 const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
@@ -4445,7 +4559,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
     paintedRectRef.current=null;
     return;
   }
-  let tile = chartTileFor(el,scs,sW,sH,G);
+  let tile = chartTileFor(el,scs,sW,sH,G,viewBoundsRef.current);
   const chartScale = (typeof window.chartRenderScale==="function")?window.chartRenderScale():1;
   let ctx = applyChartTile(canvas,tile,G,{blankOnMove:false,scale:chartScale}).ctx;
   // R3 — if the browser refused or discarded this backing store, shrink the
@@ -4473,13 +4587,14 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
 
   let viewportRect = null;
   if (el) {
+    const off = chartScrollOffset(scs);
     viewportRect = {
-      left: el.scrollLeft,
-      top: el.scrollTop,
+      left: el.scrollLeft + off.x,
+      top: el.scrollTop + off.y,
       width: el.clientWidth,
       height: el.clientHeight,
-      right: el.scrollLeft + el.clientWidth,
-      bottom: el.scrollTop + el.clientHeight
+      right: el.scrollLeft + off.x + el.clientWidth,
+      bottom: el.scrollTop + off.y + el.clientHeight
     };
   }
   // On a tile, the paintable region *is* the tile, so ask drawStitch for
@@ -4512,7 +4627,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
   // Overlays share the chart's geometry, so a tile move invalidates them too.
   const tileChanged = !prevTile || prevTile.x!==tile.x || prevTile.y!==tile.y || prevTile.w!==tile.w || prevTile.h!==tile.h || prevTile.full!==tile.full;
   if(tileChanged)redrawChartOverlays();
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,parkLayers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,rowModeActive,currentRow,trackerFabricColour,trackerCanvasTexture]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,parkMarkers,parkLayers,hlRow,hlCol,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,rowModeActive,currentRow,trackerFabricColour,trackerCanvasTexture,viewBounds,areaOn,workArea]);
 
 // Scroll-driven repaint. Previously every scroll frame ran a full
 // renderStitch, which repainted the visible slice plus a 20-cell margin from
@@ -4526,7 +4641,8 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
 const renderStitchIfScrolledOut=useCallback(()=>{
   const painted=paintedRectRef.current, el=stitchScrollRef.current;
   if(painted&&el&&painted.scs===scs){
-    const l=el.scrollLeft, t=el.scrollTop;
+    const off=chartScrollOffset(scs);
+    const l=el.scrollLeft+off.x, t=el.scrollTop+off.y;
     const r=l+el.clientWidth, b=t+el.clientHeight;
     if(l>=painted.left&&t>=painted.top&&r<=painted.right&&b<=painted.bottom)return;
   }
@@ -5023,7 +5139,7 @@ useEffect(()=>{
   let anims=[],animKey="";
   const draw=()=>{
     const ref=chartTileRef.current;
-    const tile=(ref&&ref.w>0)?ref:chartTileFor(stitchScrollRef.current,scs,sW,sH,G);
+    const tile=(ref&&ref.w>0)?ref:chartTileFor(stitchScrollRef.current,scs,sW,sH,G,viewBoundsRef.current);
     if(!tile||!tile.w||!tile.h)return;
     svg.style.left=(tile.x-G)+"px";svg.style.top=(tile.y-G)+"px";
     svg.setAttribute("width",tile.w);svg.setAttribute("height",tile.h);
@@ -5706,7 +5822,8 @@ function jumpToNextStitch(){
   setHlRow(foundY);setHlCol(foundX);
   if(stitchScrollRef.current){
     const el=stitchScrollRef.current;
-    const px=G+foundX*scs+scs/2,py=G+foundY*scs+scs/2;
+    const off=chartScrollOffset();
+    const px=G+foundX*scs+scs/2-off.x,py=G+foundY*scs+scs/2-off.y;
     try{el.scrollTo({left:Math.max(0,px-el.clientWidth/2),top:Math.max(0,py-el.clientHeight/2),behavior:'smooth'});}
     catch(_){el.scrollLeft=Math.max(0,px-el.clientWidth/2);el.scrollTop=Math.max(0,py-el.clientHeight/2);}
   }
@@ -5959,8 +6076,11 @@ const _dragMarkCellAtPoint=useCallback(function(cx,cy){
   const gc=gridCoord(stitchRef,{clientX:cx,clientY:cy},scs,G,false,chartTileRef.current);
   if(!gc)return -1;
   if(gc.gx<0||gc.gx>=sW||gc.gy<0||gc.gy>=sH)return -1;
+  // Margin stitches around a work area are context, not part of it: no tap,
+  // drag or range can mark them.
+  if(areaOn&&!window.WorkArea.contains(workArea,gc.gx,gc.gy))return -1;
   return gc.gy*sW+gc.gx;
-},[pat,sW,sH,scs]);
+},[pat,sW,sH,scs,areaOn,workArea]);
 
 const _pulseCells=useCallback(function(idxList){
   // Briefly add a pulse class on overlay cells. The overlay re-renders from
@@ -6669,18 +6789,25 @@ return(
     <div ref={stitchScrollRef} className={"tracker-chart-scroll"+(drawer?" is-drawer":"")} onScroll={()=>{if(!scrollRafRef.current){scrollRafRef.current=requestAnimationFrame(()=>{renderStitchIfScrolledOut();scrollRafRef.current=null;})}}} style={{overflow:"auto",border:"0.5px solid var(--border)",borderRadius:"8px 8px 0 0",background:"var(--surface-tertiary)",cursor:isPanning?"grabbing":isSpaceDownRef.current?"grab":(!isEditMode&&stitchMode==="track"?(isShiftDown&&_dragMarkActive?"cell":"crosshair"):"default"),transition:"max-height 0.3s",position:"relative"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}>
       <div style={{ position: 'sticky', top: 0, zIndex: 3, display: 'flex', width: 'max-content', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ width: G, height: G, flexShrink: 0, position: 'sticky', left: 0, background: 'var(--surface)', borderRight: '1px solid var(--border)', zIndex: 4 }}></div>
-        {colRuler}
+        {areaOn?colRuler.slice(viewBounds.x0,viewBounds.x1):colRuler}
       </div>
       <div style={{ display: 'flex', width: 'max-content' }}>
         <div style={{ position: 'sticky', left: 0, zIndex: 3, width: G, background: 'var(--surface)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
-          {rowRuler}
+          {areaOn?rowRuler.slice(viewBounds.y0,viewBounds.y1):rowRuler}
         </div>
         {/* Explicit size: the chart canvas is absolutely positioned now that it
             is a viewport-sized tile, so it no longer gives this box its
             dimensions. These are exactly what the full-size canvas used to
             contribute (its width less the -G margin), which is what keeps the
             scroller's extent — and every saved scroll position — unchanged. */}
-        <div style={{ position: 'relative', width: sW*scs+2, height: sH*scs+2 }}>
+        {/* Sized to the view: the whole pattern, or a work area plus its
+            margin. The inner layer keeps every child in whole-chart
+            coordinates and is shifted so the view's corner sits at this box's
+            corner; overflow is hidden so nothing outside the view adds to the
+            scroller's extent. With no work area the shift is 0 and the
+            geometry is exactly as before. */}
+        <div className="tracker-chart-view" style={{ position: 'relative', width: (viewBounds.x1-viewBounds.x0)*scs+2, height: (viewBounds.y1-viewBounds.y0)*scs+2, overflow: areaOn ? 'hidden' : undefined }}>
+        <div className="tracker-chart-layer" style={{ position: 'absolute', left: -viewBounds.x0*scs, top: -viewBounds.y0*scs, width: sW*scs+2, height: sH*scs+2 }}>
           <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid" style={{display:"block",position:"absolute",zIndex:2, left: -G, top: -G, touchAction:_dragMarkActive?"none":"pan-x pan-y"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} {...dragMarkHandlers}/>
 
           {/* B2 — drag-mark / range-select visual overlay (touch) */}
@@ -6745,6 +6872,7 @@ return(
               willChange: 'transform'
             }} />
           </>
+        </div>
         </div>
       </div>
     </div>
@@ -7235,7 +7363,7 @@ return(
     const activeSessionIdx=statsSessions?statsSessions.length:0;
     const sessionBreadcrumbs=(breadcrumbs||[]).filter(b=>b&&b.sessionIdx===activeSessionIdx);
     const firstSessionBreadcrumb=sessionBreadcrumbs.length>0?sessionBreadcrumbs[0]:null;
-    return <SessionSummaryModal data={sessionSummaryData} prevAvgSpeed={statsSessions&&statsSessions.length>1?Math.round(statsSessions.slice(0,-1).reduce((s,sess)=>s+(typeof sess.netStitches==='number'?sess.netStitches:(sess.stitchesCompleted||0)),0)/Math.max(1,statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.durationSeconds||0),0))*3600):0} hasBreadcrumbs={sessionBreadcrumbs.length>0} onViewBreadcrumbs={()=>{setBreadcrumbVisible(true);setSessionSummaryData(null);if(firstSessionBreadcrumb&&stitchScrollRef.current){const b=firstSessionBreadcrumb;const cx=G+b.bx*blockW*scs+blockW*scs/2;const cy=G+b.by*blockH*scs+blockH*scs/2;const el=stitchScrollRef.current;el.scrollLeft=Math.max(0,cx-el.clientWidth/2);el.scrollTop=Math.max(0,cy-el.clientHeight/2);}}} onClose={()=>setSessionSummaryData(null)}/>;
+    return <SessionSummaryModal data={sessionSummaryData} prevAvgSpeed={statsSessions&&statsSessions.length>1?Math.round(statsSessions.slice(0,-1).reduce((s,sess)=>s+(typeof sess.netStitches==='number'?sess.netStitches:(sess.stitchesCompleted||0)),0)/Math.max(1,statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.durationSeconds||0),0))*3600):0} hasBreadcrumbs={sessionBreadcrumbs.length>0} onViewBreadcrumbs={()=>{setBreadcrumbVisible(true);setSessionSummaryData(null);if(firstSessionBreadcrumb&&stitchScrollRef.current){const b=firstSessionBreadcrumb;const off=chartScrollOffset();const cx=G+b.bx*blockW*scs+blockW*scs/2-off.x;const cy=G+b.by*blockH*scs+blockH*scs/2-off.y;const el=stitchScrollRef.current;el.scrollLeft=Math.max(0,cx-el.clientWidth/2);el.scrollTop=Math.max(0,cy-el.clientHeight/2);}}} onClose={()=>setSessionSummaryData(null)}/>;
   })()}
   {resumeRecap&&(()=>{
     // A3: Resume recap modal — fires once per project load when prior sessions exist.
