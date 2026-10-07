@@ -78,6 +78,10 @@
     var h = React.createElement;
     var _search = React.useState(''); var search = _search[0], setSearch = _search[1];
     var _picked = React.useState(null); var picked = _picked[0], setPicked = _picked[1];
+    // Keyboard-active option ('section:id'). Selection follows it, so arrowing
+    // through the list updates the preview. Cleared when the search changes.
+    var _active = React.useState(null); var activeKey = _active[0], setActiveKey = _active[1];
+    var listRef = React.useRef(null);
 
     var srcId = modal ? modal.srcId : null;
     var srcRgb = modal && modal.srcRgb ? modal.srcRgb : [128, 128, 128];
@@ -118,14 +122,32 @@
       return out;
     }, [search, palEntries, palIds, srcId, srcRgb && srcRgb.join(','), dmcList]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // First selectable thread, used by Enter in the search box.
-    var topThread = null;
-    for (var si = 0; si < sections.length && !topThread; si++) {
-      for (var ii = 0; ii < sections[si].items.length; ii++) {
-        if (sections[si].items[ii].thread.id !== srcId) { topThread = sections[si].items[ii].thread; break; }
-      }
-    }
+    // Flat list of selectable options in display order (the source colour is
+    // skipped). A thread can appear in two sections (Closest + All), so options
+    // are keyed by section as well as id.
+    var options = React.useMemo(function() {
+      var out = [];
+      sections.forEach(function(sec) {
+        sec.items.forEach(function(item) {
+          if (item.thread.id !== srcId) out.push({ key: sec.key + ':' + item.thread.id, thread: item.thread });
+        });
+      });
+      return out;
+    }, [sections, srcId]);
     var anyThreads = sections.some(function(sec) { return sec.items.length > 0; });
+    var optionDomId = function(key) { return 'crm-opt-' + key.replace(/[^A-Za-z0-9_-]/g, '_'); };
+
+    function activate(opt) {
+      setActiveKey(opt.key);
+      setPicked(opt.thread);
+    }
+
+    // Keep the active option scrolled into view.
+    React.useEffect(function() {
+      if (!activeKey || !listRef.current) return;
+      var el = listRef.current.querySelector('#' + optionDomId(activeKey));
+      if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest' });
+    }, [activeKey]);
 
     var counts = React.useMemo(function() {
       if (!window.ColourReplace) return null;
@@ -153,13 +175,26 @@
     }
 
     function handleSearchKey(e) {
-      if (e.key !== 'Enter') return;
+      var idx = -1;
+      for (var i = 0; i < options.length; i++) { if (options[i].key === activeKey) { idx = i; break; } }
+      var last = options.length - 1;
+      var step = null;
+      switch (e.key) {
+        case 'ArrowDown': step = idx < 0 ? 0 : Math.min(last, idx + 1); break;
+        case 'ArrowUp':   step = idx < 0 ? 0 : Math.max(0, idx - 1); break;
+        case 'PageDown':  step = idx < 0 ? 0 : Math.min(last, idx + 8); break;
+        case 'PageUp':    step = idx < 0 ? 0 : Math.max(0, idx - 8); break;
+        case 'Enter':
+          e.preventDefault();
+          // Enter applies the active option; with nothing active yet it
+          // picks the top result (a second Enter then applies it).
+          if (idx >= 0 && picked) apply(picked);
+          else if (options.length) activate(options[0]);
+          return;
+        default: return;
+      }
       e.preventDefault();
-      // First Enter picks the top result; a second Enter applies it.
-      var top = topThread;
-      if (!top) return;
-      if (picked && picked.id === top.id) apply(picked);
-      else setPicked(top);
+      if (options.length) activate(options[step]);
     }
 
     var swatch = function(rgb, size) {
@@ -187,7 +222,16 @@
           key: value, type: 'button', role: 'radio', 'aria-checked': on ? 'true' : 'false',
           className: 'lp-seg' + (on ? ' lp-seg--on' : ''),
           'data-scope': value,
+          tabIndex: on ? 0 : -1,
           onClick: function() { setScope(value); },
+          onKeyDown: function(e) {
+            if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].indexOf(e.key) === -1) return;
+            e.preventDefault();
+            var next = value === 'selection' ? 'all' : 'selection';
+            setScope(next);
+            var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-scope="' + next + '"]');
+            if (sib) sib.focus();
+          },
           style: { padding: '4px 10px', whiteSpace: 'nowrap' }
         }, label);
       };
@@ -224,15 +268,22 @@
           style: { fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', flexShrink: 0, whiteSpace: 'nowrap' }
         }, text);
       };
-      return h('button', {
-        key: sectionKey + ':' + t.id,
-        type: 'button',
-        onClick: function() { if (!isSrc) setPicked(t); },
+      var key = sectionKey + ':' + t.id;
+      var isActive = activeKey === key;
+      // role=option rows inside a listbox; focus stays in the search box
+      // (combobox pattern) and aria-activedescendant points here.
+      return h('div', {
+        key: key,
+        id: optionDomId(key),
+        role: 'option',
+        'aria-selected': isPicked ? 'true' : 'false',
+        'aria-disabled': isSrc ? 'true' : null,
+        onClick: function() { if (!isSrc) activate({ key: key, thread: t }); },
         onDoubleClick: function() { if (!isSrc) apply(t); },
-        disabled: isSrc,
-        'aria-pressed': isPicked ? 'true' : 'false',
         'data-thread-id': t.id,
+        'data-active': isActive ? 'true' : null,
         style: {
+          outline: isActive ? '2px solid var(--accent)' : 'none', outlineOffset: -2,
           display: 'flex', alignItems: 'center', gap: 10, width: '100%',
           padding: '7px 12px', border: 'none', borderBottom: '1px solid var(--surface-secondary)',
           boxShadow: isPicked ? 'inset 3px 0 0 var(--accent)' : 'none',
@@ -307,12 +358,20 @@
 
         h('input', {
           type: 'text',
+          role: 'combobox',
+          'aria-expanded': 'true',
+          'aria-controls': 'colour-replace-listbox',
+          'aria-autocomplete': 'list',
+          'aria-activedescendant': activeKey ? optionDomId(activeKey) : null,
           placeholder: 'Search by DMC code or colour name…',
           'aria-label': 'Search threads',
           value: search,
-          onChange: function(e) { setSearch(e.target.value); },
+          onChange: function(e) { setSearch(e.target.value); setActiveKey(null); },
           onKeyDown: handleSearchKey,
           autoFocus: true,
+          // Overlay focuses [data-autofocus] on open (otherwise the close
+          // button), so typing and arrow keys work straight away.
+          'data-autofocus': true,
           style: {
             width: '100%', padding: '8px 10px', borderRadius: 'var(--radius-sm)',
             border: '1px solid var(--border)', fontSize: 'var(--text-sm)',
@@ -322,6 +381,10 @@
         }),
         h('div', {
           className: 'colour-replace-list',
+          id: 'colour-replace-listbox',
+          role: 'listbox',
+          'aria-label': 'Threads',
+          ref: listRef,
           style: { flex: 1, minHeight: 120, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }
         },
           !anyThreads
@@ -330,6 +393,7 @@
                 if (!sec.items.length) return null;
                 return h('div', { key: sec.key, role: 'group', 'aria-label': sec.title || 'Search results', 'data-section': sec.key },
                   sec.title && h('div', {
+                    role: 'presentation',
                     style: {
                       position: 'sticky', top: 0, zIndex: 1, padding: '6px 12px', background: 'var(--surface-secondary)',
                       fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-tertiary)',

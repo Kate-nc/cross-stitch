@@ -89,7 +89,7 @@ describe('ColourReplaceModal', () => {
     const props = render();
     click(row('3371'));
     expect(props.onApply).not.toHaveBeenCalled();
-    expect(row('3371').getAttribute('aria-pressed')).toBe('true');
+    expect(row('3371').getAttribute('aria-selected')).toBe('true');
     expect(summary()).toMatch(/DMC 3371/);
     expect(applyBtn().disabled).toBe(false);
   });
@@ -106,7 +106,7 @@ describe('ColourReplaceModal', () => {
     const props = render();
     click(row('3371'));
     click(row('321'));
-    expect(row('3371').getAttribute('aria-pressed')).toBe('false');
+    expect(row('3371').getAttribute('aria-selected')).toBe('false');
     click(applyBtn());
     expect(props.onApply.mock.calls[0][0].id).toBe('321');
   });
@@ -120,7 +120,7 @@ describe('ColourReplaceModal', () => {
 
   test('the source colour cannot be picked', () => {
     const props = render();
-    expect(row('310').disabled).toBe(true);
+    expect(row('310').getAttribute('aria-disabled')).toBe('true');
     click(row('310'));
     expect(applyBtn().disabled).toBe(true);
     expect(props.onApply).not.toHaveBeenCalled();
@@ -134,7 +134,7 @@ describe('ColourReplaceModal', () => {
     });
     enter();
     // With no search, the top result is the closest match to black (3371).
-    expect(row('3371').getAttribute('aria-pressed')).toBe('true');
+    expect(row('3371').getAttribute('aria-selected')).toBe('true');
     expect(props.onApply).not.toHaveBeenCalled();
     enter();
     expect(props.onApply).toHaveBeenCalledTimes(1);
@@ -150,7 +150,7 @@ describe('ColourReplaceModal', () => {
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
     act(() => { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
-    expect(row('321').getAttribute('aria-pressed')).toBe('true');
+    expect(row('321').getAttribute('aria-selected')).toBe('true');
     expect(props.onApply).not.toHaveBeenCalled();
   });
 
@@ -283,3 +283,87 @@ describe('ColourReplaceModal suggestions', () => {
     expect(sectionIds('results')).toEqual(expect.arrayContaining(['310+321', '310', '3371']));
   });
 });
+
+describe('ColourReplaceModal keyboard and screen-reader support', () => {
+  const input = () => container.querySelector('input[role="combobox"]');
+  const key = k => act(() => { input().dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true })); });
+  const activeId = () => input().getAttribute('aria-activedescendant');
+  const activeRow = () => container.querySelector('#' + activeId());
+  const type = text => act(() => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    setter.call(input(), text);
+    input().dispatchEvent(new Event('input', { bubbles: true }));
+  });
+
+  test('search box is marked for Overlay autofocus', () => {
+    render();
+    expect(input().hasAttribute('data-autofocus')).toBe(true);
+  });
+
+  test('search box is a combobox that controls the thread listbox', () => {
+    render();
+    const list = container.querySelector('[role="listbox"]');
+    expect(list).not.toBeNull();
+    expect(input().getAttribute('aria-controls')).toBe(list.id);
+    expect(container.querySelectorAll('[role="option"]').length).toBeGreaterThan(0);
+    expect(activeId()).toBeNull();
+  });
+
+  test('ArrowDown moves through options and picks each one (preview follows)', () => {
+    const props = render();
+    key('ArrowDown');
+    expect(activeRow().getAttribute('data-thread-id')).toBe('3371'); // closest match first
+    expect(activeRow().getAttribute('aria-selected')).toBe('true');
+    key('ArrowDown');
+    const second = activeRow().getAttribute('data-thread-id');
+    expect(second).not.toBe('3371');
+    expect(summary()).toMatch(new RegExp('DMC ' + second));
+    key('ArrowUp');
+    expect(activeRow().getAttribute('data-thread-id')).toBe('3371');
+    expect(props.onApply).not.toHaveBeenCalled();
+  });
+
+  test('Enter applies the active option', () => {
+    const props = render();
+    key('ArrowDown');
+    key('ArrowDown');
+    const id = activeRow().getAttribute('data-thread-id');
+    key('Enter');
+    expect(props.onApply).toHaveBeenCalledTimes(1);
+    expect(props.onApply.mock.calls[0][0].id).toBe(id);
+  });
+
+  test('the source colour is skipped by arrow navigation', () => {
+    render();
+    for (let i = 0; i < 20; i++) key('ArrowDown');
+    expect(activeRow().getAttribute('data-thread-id')).not.toBe('310');
+    for (let i = 0; i < 20; i++) key('ArrowUp');
+    expect(activeRow().getAttribute('data-thread-id')).not.toBe('310');
+  });
+
+  test('typing a new search clears the active option', () => {
+    render();
+    key('ArrowDown');
+    expect(activeId()).not.toBeNull();
+    type('red');
+    expect(activeId()).toBeNull();
+  });
+
+  test('clicking an option makes it the active descendant', () => {
+    render();
+    click(row('321'));
+    expect(activeRow().getAttribute('data-thread-id')).toBe('321');
+  });
+
+  test('scope radios support arrow keys and roving tabindex', () => {
+    render({ selectionMask: new Uint8Array([1, 0, 0, 0]) });
+    const sel = container.querySelector('[data-scope="selection"]');
+    const all = container.querySelector('[data-scope="all"]');
+    expect(sel.tabIndex).toBe(0);
+    expect(all.tabIndex).toBe(-1);
+    act(() => { sel.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); });
+    expect(container.querySelector('[data-scope="all"]').getAttribute('aria-checked')).toBe('true');
+    expect(container.querySelector('[data-scope="all"]').tabIndex).toBe(0);
+  });
+});
+
