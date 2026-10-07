@@ -355,7 +355,6 @@
     useEffect(()=>{try{localStorage.setItem("cs_tintColor",tintColor);}catch(_){}try{if(window.UserPrefs)window.UserPrefs.set("trackerTintColour",tintColor);}catch(_){}},[tintColor]);
     useEffect(()=>{try{localStorage.setItem("cs_tintOp",String(tintOpacity));}catch(_){}try{if(window.UserPrefs)window.UserPrefs.set("trackerTintOpacity",tintOpacity);}catch(_){}},[tintOpacity]);
     useEffect(()=>{try{localStorage.setItem("cs_spotDimOp",String(spotDimOpacity));}catch(_){}try{if(window.UserPrefs)window.UserPrefs.set("trackerSpotDimOpacity",spotDimOpacity);}catch(_){}},[spotDimOpacity]);
-    const[antsOffset,setAntsOffset]=useState(0);
     useEffect(()=>{
       try{localStorage.setItem("cs_hlMode",highlightMode);}catch(_){}
       try{if(window.UserPrefs)window.UserPrefs.set("trackerDefaultHighlightMode",highlightMode);}catch(_){}
@@ -413,7 +412,6 @@
       tintColor, setTintColor,
       tintOpacity, setTintOpacity,
       spotDimOpacity, setSpotDimOpacity,
-      antsOffset, setAntsOffset,
       hlIntroSeen, setHlIntroSeen,
       hlIntroBannerVisible, setHlIntroBannerVisible, hlIntroTimerRef,
       countingAidsEnabled, setCountingAidsEnabled,

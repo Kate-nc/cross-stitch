@@ -54,6 +54,52 @@ function encodeAnalysisPattern(pat) {
   };
 }
 
+// Boundary of every cell of colour `id` inside cell range `r`, as SVG path
+// data in chart pixels (`gut` + cell * `cSz`), plus the average luminance of
+// those cells for picking a contrasting ant colour. An edge is boundary when
+// exactly one of the two cells it separates is the colour — the same edges the
+// old per-cell canvas loop drew — and collinear edges are merged into one run,
+// so a straight boundary is a single segment and its dashes flow unbroken.
+function outlinePathData(pat, sW, sH, id, r, cSz, gut) {
+  const is = (x, y) => x >= 0 && y >= 0 && x < sW && y < sH && !!pat[y * sW + x] && pat[y * sW + x].id === id;
+  const parts = [];
+  let lumSum = 0,
+    lumCnt = 0;
+  for (let y = r.y0; y < r.y1; y++) for (let x = r.x0; x < r.x1; x++) {
+    const m = pat[y * sW + x];
+    if (m && m.id === id && m.rgb) {
+      lumSum += luminance(m.rgb);
+      lumCnt++;
+    }
+  }
+  // Horizontal boundaries: grid line y sits between rows y-1 and y.
+  for (let y = r.y0; y <= r.y1; y++) {
+    let run = -1;
+    for (let x = r.x0; x <= r.x1; x++) {
+      const edge = x < r.x1 && is(x, y) !== is(x, y - 1);
+      if (edge && run < 0) run = x;else if (!edge && run >= 0) {
+        parts.push("M" + (gut + run * cSz) + " " + (gut + y * cSz) + "H" + (gut + x * cSz));
+        run = -1;
+      }
+    }
+  }
+  // Vertical boundaries: grid line x sits between columns x-1 and x.
+  for (let x = r.x0; x <= r.x1; x++) {
+    let run = -1;
+    for (let y = r.y0; y <= r.y1; y++) {
+      const edge = y < r.y1 && is(x, y) !== is(x - 1, y);
+      if (edge && run < 0) run = y;else if (!edge && run >= 0) {
+        parts.push("M" + (gut + x * cSz) + " " + (gut + run * cSz) + "V" + (gut + y * cSz));
+        run = -1;
+      }
+    }
+  }
+  return {
+    d: parts.join(""),
+    avgLum: lumCnt > 0 ? lumSum / lumCnt : 128
+  };
+}
+
 /* ── Viewport tiling ───────────────────────────────────────────────────────
    The chart and its overlays used to size their backing store to the whole
    pattern at the current zoom: `canvas.width = sW*scs + G + 2`. That is
@@ -1700,8 +1746,6 @@ function TrackerApp({
     setTintOpacity,
     spotDimOpacity,
     setSpotDimOpacity,
-    antsOffset,
-    setAntsOffset,
     hlIntroSeen,
     setHlIntroSeen,
     hlIntroBannerVisible,
@@ -7142,63 +7186,9 @@ function TrackerApp({
       }
     }
 
-    // Marching ants for "outline" highlight mode
-    if (stitchView === "highlight" && focusColour && highlightMode === "outline" && pat) {
-      ctx.save();
-      let lumSum = 0,
-        lumCnt = 0;
-      for (let ay = startY; ay < endY; ay++) {
-        for (let ax = startX; ax < endX; ax++) {
-          const am = pat[ay * sW + ax];
-          if (am && am.id === focusColour) {
-            lumSum += luminance(am.rgb);
-            lumCnt++;
-          }
-        }
-      }
-      const avgLum = lumCnt > 0 ? lumSum / lumCnt : 128;
-      const antColor = avgLum > 140 ? "#1A1A2E" : "#FFFFFF";
-      const antBg = avgLum > 140 ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.4)";
-      const antsDash = Math.max(2, cSz * 0.3),
-        antsGap = Math.max(2, cSz * 0.2);
-      ctx.lineWidth = 2;
-      ctx.setLineDash([antsDash, antsGap]);
-      const drawAntsPath = offv => {
-        ctx.lineDashOffset = offv;
-        ctx.beginPath();
-        for (let ay = startY; ay < endY; ay++) {
-          for (let ax = startX; ax < endX; ax++) {
-            const am = pat[ay * sW + ax];
-            if (!am || am.id !== focusColour) continue;
-            const apx = gut + ax * cSz,
-              apy = gut + ay * cSz;
-            if (ay === 0 || !pat[(ay - 1) * sW + ax] || pat[(ay - 1) * sW + ax].id !== focusColour) {
-              ctx.moveTo(apx, apy);
-              ctx.lineTo(apx + cSz, apy);
-            }
-            if (ay === sH - 1 || !pat[(ay + 1) * sW + ax] || pat[(ay + 1) * sW + ax].id !== focusColour) {
-              ctx.moveTo(apx, apy + cSz);
-              ctx.lineTo(apx + cSz, apy + cSz);
-            }
-            if (ax === 0 || !pat[ay * sW + ax - 1] || pat[ay * sW + ax - 1].id !== focusColour) {
-              ctx.moveTo(apx, apy);
-              ctx.lineTo(apx, apy + cSz);
-            }
-            if (ax === sW - 1 || !pat[ay * sW + ax + 1] || pat[ay * sW + ax + 1].id !== focusColour) {
-              ctx.moveTo(apx + cSz, apy);
-              ctx.lineTo(apx + cSz, apy + cSz);
-            }
-          }
-        }
-        ctx.stroke();
-      };
-      ctx.strokeStyle = antBg;
-      drawAntsPath(-antsOffset);
-      ctx.strokeStyle = antColor;
-      drawAntsPath(-antsOffset + Math.floor(antsDash));
-      ctx.setLineDash([]);
-      ctx.restore();
-    }
+    // The "outline" highlight's marching ants are no longer drawn here: they
+    // are an SVG overlay the browser animates (see antsSvgRef), so animating
+    // them never repaints the chart.
 
     // Grid lines — tier-adaptive
     if (tier === 1) {
@@ -7443,7 +7433,7 @@ function TrackerApp({
     // Overlays share the chart's geometry, so a tile move invalidates them too.
     const tileChanged = !prevTile || prevTile.x !== tile.x || prevTile.y !== tile.y || prevTile.w !== tile.w || prevTile.h !== tile.h || prevTile.full !== tile.full;
     if (tileChanged) redrawChartOverlays();
-  }, [pat, cmap, scs, sW, sH, showCtr, bsLines, done, parkMarkers, parkLayers, hlRow, hlCol, stitchView, focusColour, halfStitches, halfDone, stitchZoom, highlightMode, tintColor, tintOpacity, spotDimOpacity, antsOffset, trackerDimLevel, layerVis, bsThickness, lockDetailLevel, lowZoomFade, rowModeActive, currentRow, trackerFabricColour, trackerCanvasTexture]);
+  }, [pat, cmap, scs, sW, sH, showCtr, bsLines, done, parkMarkers, parkLayers, hlRow, hlCol, stitchView, focusColour, halfStitches, halfDone, stitchZoom, highlightMode, tintColor, tintOpacity, spotDimOpacity, trackerDimLevel, layerVis, bsThickness, lockDetailLevel, lowZoomFade, rowModeActive, currentRow, trackerFabricColour, trackerCanvasTexture]);
 
   // Scroll-driven repaint. Previously every scroll frame ran a full
   // renderStitch, which repainted the visible slice plus a 20-cell margin from
@@ -8118,43 +8108,80 @@ function TrackerApp({
     };
   }, [pat, done, sW, sH, scs, focusColour, stitchView, countingAidsEnabled, countRunMin, countRunDir, countNinjaEnabled, blockW, blockH, focusBlock, countsVer, analysisResult, lockDetailLevel]);
 
-  // Marching-ants outline animation. Each tick is a React state update, so it
-  // re-renders the (very large) tracker component and repaints the visible slice
-  // of the chart 10x a second — cheap enough on a desktop, a meaningful share of
-  // a phone's frame budget. It now stops when it cannot be seen (tab hidden) and
-  // is not started at all under prefers-reduced-motion, matching how the rest of
-  // the app treats continuous animation.
-  const hlAntsIntervalRef = useRef(null);
+  // Marching-ants outline for the "outline" highlight — F1 of
+  // reports/track-view-performance-plan.md.
+  //
+  // An SVG overlay whose dash offset the browser animates (Web Animations API,
+  // stepped to 10 updates a second as before). It used to be a 100 ms interval
+  // setting React state that sat in renderStitch's dependencies, so every tick
+  // re-rendered all of TrackerApp and repainted the whole chart tile: ~12 000
+  // elements and ~49 000 fills a second with nobody touching anything. Now a
+  // tick runs no script at all, and the path is rebuilt only when the tile,
+  // zoom, pattern or colour changes.
+  //
+  // SVG rather than another overlay canvas so it adds nothing to the canvas
+  // memory budget (CONCURRENT_CHART_CANVASES in useCanvasOverlays.js). Not
+  // animated under prefers-reduced-motion; browsers already stop animations in
+  // hidden tabs.
+  const antsSvgRef = useRef(null);
+  const antsOn = stitchView === "highlight" && !!focusColour && highlightMode === "outline" && !!pat;
   useEffect(() => {
-    const needAnts = stitchView === "highlight" && !!focusColour && highlightMode === "outline";
-    const stop = () => {
-      if (hlAntsIntervalRef.current) {
-        clearInterval(hlAntsIntervalRef.current);
-        hlAntsIntervalRef.current = null;
-      }
-    };
+    const svg = antsSvgRef.current;
+    if (!antsOn || !svg) return;
     let reduced = false;
     try {
       reduced = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
     } catch (_) {}
-    if (!needAnts || reduced) {
-      stop();
-      return;
-    }
-    const start = () => {
-      if (hlAntsIntervalRef.current) return;
-      hlAntsIntervalRef.current = setInterval(() => setAntsOffset(p => (p + 1) % 20), 100);
+    const [bg, fg] = svg.querySelectorAll("path");
+    let anims = [],
+      animKey = "";
+    const draw = () => {
+      const ref = chartTileRef.current;
+      const tile = ref && ref.w > 0 ? ref : chartTileFor(stitchScrollRef.current, scs, sW, sH, G);
+      if (!tile || !tile.w || !tile.h) return;
+      svg.style.left = tile.x - G + "px";
+      svg.style.top = tile.y - G + "px";
+      svg.setAttribute("width", tile.w);
+      svg.setAttribute("height", tile.h);
+      svg.setAttribute("viewBox", tile.x + " " + tile.y + " " + tile.w + " " + tile.h);
+      const o = outlinePathData(pat, sW, sH, focusColour, tileCellRange(tile, scs), scs, G);
+      const antColor = o.avgLum > 140 ? "#1A1A2E" : "#FFFFFF";
+      const antBg = o.avgLum > 140 ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.4)";
+      const dash = Math.max(2, scs * 0.3),
+        gap = Math.max(2, scs * 0.2),
+        lead = Math.floor(dash);
+      [[bg, antBg, 0], [fg, antColor, lead]].forEach(([p, colour, offset]) => {
+        p.setAttribute("d", o.d);
+        p.setAttribute("stroke", colour);
+        p.setAttribute("stroke-dasharray", dash + " " + gap);
+        p.setAttribute("stroke-dashoffset", offset);
+      });
+      // One period of the dash pattern at 1 px per 100 ms, the old speed, so the
+      // loop is seamless. Restarted only when the dash geometry changes; moving
+      // the tile just swaps the path data under the running animation.
+      const key = dash + "/" + gap;
+      if (reduced || key === animKey || typeof bg.animate !== "function") return;
+      anims.forEach(a => a.cancel());
+      animKey = key;
+      const period = dash + gap,
+        steps = Math.max(1, Math.round(period));
+      anims = [[bg, 0], [fg, lead]].map(([p, offset]) => p.animate([{
+        strokeDashoffset: offset + "px"
+      }, {
+        strokeDashoffset: offset - period + "px"
+      }], {
+        duration: period * 100,
+        iterations: Infinity,
+        easing: "steps(" + steps + ")"
+      }));
     };
-    const onVis = () => {
-      if (document.visibilityState === "visible") start();else stop();
-    };
-    document.addEventListener("visibilitychange", onVis);
-    if (document.visibilityState === "visible") start();
+    draw();
+    const unregister = registerChartOverlay("ants", draw);
     return () => {
-      document.removeEventListener("visibilitychange", onVis);
-      stop();
+      unregister();
+      anims.forEach(a => a.cancel());
     };
-  }, [stitchView, focusColour, highlightMode, setAntsOffset]);
+  }, [antsOn, pat, focusColour, scs, sW, sH]);
   const updateHoverOverlay = gc => {
     if (gc && gc.gx >= 0 && gc.gx < sW && gc.gy >= 0 && gc.gy < sH) {
       if (hoverRefs.current.row) {
@@ -11147,6 +11174,26 @@ function TrackerApp({
         height: scs
       }
     });
+  })), antsOn && /*#__PURE__*/React.createElement("svg", {
+    ref: antsSvgRef,
+    className: "tracker-ants",
+    "aria-hidden": "true",
+    focusable: "false",
+    style: {
+      display: "block",
+      position: "absolute",
+      top: -G,
+      left: -G,
+      zIndex: 3,
+      pointerEvents: "none",
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement("path", {
+    fill: "none",
+    strokeWidth: "2"
+  }), /*#__PURE__*/React.createElement("path", {
+    fill: "none",
+    strokeWidth: "2"
   })), threadUsageMode && /*#__PURE__*/React.createElement("canvas", {
     ref: threadUsageCanvasRef,
     style: {

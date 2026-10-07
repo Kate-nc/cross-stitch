@@ -194,10 +194,17 @@ describe('animation loops release the main thread', () => {
     expect(block).toMatch(/if\(prefersReducedMotion\)\{draw\(true\);return unregister;\}/);
   });
 
-  test('the marching-ants timer respects reduced motion and tab visibility', () => {
-    const block = trackerSrc.slice(trackerSrc.indexOf('const hlAntsIntervalRef'), trackerSrc.indexOf('const updateHoverOverlay'));
+  test('the marching ants are browser-animated, respect reduced motion, and never drive React', () => {
+    // F1 (reports/track-view-performance-plan.md): the ants used to be a
+    // 100 ms setInterval setting React state in renderStitch's deps, which
+    // re-rendered the tracker and repainted the chart ten times a second.
+    const block = trackerSrc.slice(trackerSrc.indexOf('const antsSvgRef'), trackerSrc.indexOf('const updateHoverOverlay'));
+    expect(block.length).toBeGreaterThan(0);
     expect(block).toMatch(/prefers-reduced-motion: reduce/);
-    expect(block).toMatch(/visibilitychange/);
-    expect(block).toMatch(/setInterval\(\(\)=>setAntsOffset/);
+    expect(block).toMatch(/if\(reduced\|\|/);
+    expect(block).toMatch(/\.animate\(/);
+    expect(block).not.toMatch(/setInterval|setAntsOffset/);
+    // ...and nothing anywhere else may bring the state back.
+    expect(trackerSrc).not.toMatch(/antsOffset/);
   });
 });

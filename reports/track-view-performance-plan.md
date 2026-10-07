@@ -28,7 +28,7 @@ So **drawing is no longer proportional to pattern size**. What still is:
 | Cost | Scales with | Status |
 | --- | --- | --- |
 | Per-tap React reconcile of `TrackerApp` (~7 500 lines) | component size, not pattern | measured: ~550 elements, 48 ms tap-to-paint at 4× — **acceptable** |
-| Marching-ants highlight: 10 full repaints + 10 reconciles per second | viewport | measured (F1): **11 920 elements/s, 48 980 fills/s idle** |
+| Marching-ants highlight: 10 full repaints + 10 reconciles per second | viewport | F1 **fixed**: was 11 920 elements/s and 48 980 fills/s idle, now 0 |
 | Analysis worker re-post on every progress change | **pattern** | F2 **fixed**: was 352 ms per tap on 600×800, now 0.4 ms |
 | Stats "sections" memo when the stats view opens | **pattern** | F3: **downgraded** — not per-tap, see below |
 | Desktop hover: state update per cell crossed | component size | measured (F4): **1 176 elements per cell** |
@@ -198,9 +198,7 @@ Reordered by the Phase 0 numbers. Each is small, local and independently
 revertible.
 
 1. **F2 analysis payload** — **done.** See [F2 result](#f2-result) below.
-2. **F1 ants off React.** Overlay canvas + `requestAnimationFrame` + a cached
-   `Path2D`. Target: 0 elements/s idle in outline mode, and fills only for the
-   outline. ~0.5 day.
+2. **F1 ants off React** — **done.** See [F1 result](#f1-result) below.
 3. **F4 hover via direct DOM.** Target: 0 elements per stitch crossed. ~0.5 day.
 
 F3 is dropped from Phase 1.
@@ -250,6 +248,49 @@ holds the cached message path to a full `runAnalysis` and pins the
 once-per-pattern contract.
 [desktop-analysis-protocol.spec.js](../tests/mobile-audit/desktop-analysis-protocol.spec.js)
 checks the tracker's side in the real app.
+
+#### F1 result
+
+**What changed.** The ants are no longer drawn into the chart canvas. They
+are an SVG overlay (`svg.tracker-ants`) that follows the chart tile like the
+other overlays. Its dash offset is animated by the browser through the Web
+Animations API, stepped to 10 updates a second at the old speed of 1 px per
+100 ms. `antsOffset` state, the 100 ms interval and the chart repaint it
+forced are gone. The outline path is rebuilt only when the tile, zoom,
+pattern or colour changes.
+
+An SVG was chosen over the planned overlay canvas because a sixth overlay
+canvas would raise `CONCURRENT_CHART_CANVASES` to 7. On an iPad that budget
+is tight enough to drop the chart from 2× to 1.5× sharpness. SVG doesn't
+count against Safari's canvas memory limit.
+
+Two small visual differences, both deliberate:
+- Straight boundaries are one merged segment, so the dashes flow along an
+  edge instead of restarting at every stitch.
+- The loop is seamless: the old offset jumped from 19 back to 0 every 2 s
+  regardless of the dash length.
+
+Under reduced motion the ants are drawn but not animated, as before. Taps no
+longer briefly erase the ants on the tapped cell, because the ants are no
+longer in the chart canvas.
+
+**Measured** (desktop, 5 s idle, outline highlight):
+
+| | before | after | isolate control |
+| --- | ---: | ---: | ---: |
+| React elements / s | 11 920 | **0** | 0 |
+| Canvas fills / s | 48 980 | **0** | 0 |
+
+**Guards.**
+[desktop-highlight-idle-cost.spec.js](../tests/mobile-audit/desktop-highlight-idle-cost.spec.js)
+fails if outline mode re-renders or repaints while idle. Because "costs
+nothing" would also be true of ants that stopped drawing, it also checks that
+the overlay is present, sits on the chart tile, and is animating, and that
+reduced motion leaves it drawn but still.
+[trackerOutlinePath.test.js](../tests/trackerOutlinePath.test.js) holds the
+path to exactly the edges the old per-cell loop drew.
+[chartCanvasSizeCap.test.js](../tests/chartCanvasSizeCap.test.js) now forbids
+`antsOffset` and any interval driving the ants.
 
 ### Phase 2 — Per-tap reconcile (3–5 days, only if the device pass says so)
 
