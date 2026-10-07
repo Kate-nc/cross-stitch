@@ -25,6 +25,81 @@ function chartOverdraw(cSz) {
   return Math.max(40, 20 * cSz);
 }
 
+// The analysis worker's view of the pattern: one Uint16 per stitch indexing
+// `ids`, with 0xFFFF for __skip__/__empty__. Mirrors toModel() in
+// analysis-worker.js (tests/analysisWorkerProtocol.test.js holds them to the
+// same output). Sent once per pattern with its buffer transferred.
+function encodeAnalysisPattern(pat) {
+  const n = pat.length,
+    codes = new Uint16Array(n),
+    ids = [],
+    map = new Map();
+  for (let i = 0; i < n; i++) {
+    const id = pat[i] && pat[i].id;
+    if (id == null || id === "__skip__" || id === "__empty__") {
+      codes[i] = 0xFFFF;
+      continue;
+    }
+    let c = map.get(id);
+    if (c === undefined) {
+      c = ids.length;
+      ids.push(id);
+      map.set(id, c);
+    }
+    codes[i] = c;
+  }
+  return {
+    codes,
+    ids
+  };
+}
+
+// Boundary of every cell of colour `id` inside cell range `r`, as SVG path
+// data in chart pixels (`gut` + cell * `cSz`), plus the average luminance of
+// those cells for picking a contrasting ant colour. An edge is boundary when
+// exactly one of the two cells it separates is the colour — the same edges the
+// old per-cell canvas loop drew — and collinear edges are merged into one run,
+// so a straight boundary is a single segment and its dashes flow unbroken.
+function outlinePathData(pat, sW, sH, id, r, cSz, gut) {
+  const is = (x, y) => x >= 0 && y >= 0 && x < sW && y < sH && !!pat[y * sW + x] && pat[y * sW + x].id === id;
+  const parts = [];
+  let lumSum = 0,
+    lumCnt = 0;
+  for (let y = r.y0; y < r.y1; y++) for (let x = r.x0; x < r.x1; x++) {
+    const m = pat[y * sW + x];
+    if (m && m.id === id && m.rgb) {
+      lumSum += luminance(m.rgb);
+      lumCnt++;
+    }
+  }
+  // Horizontal boundaries: grid line y sits between rows y-1 and y.
+  for (let y = r.y0; y <= r.y1; y++) {
+    let run = -1;
+    for (let x = r.x0; x <= r.x1; x++) {
+      const edge = x < r.x1 && is(x, y) !== is(x, y - 1);
+      if (edge && run < 0) run = x;else if (!edge && run >= 0) {
+        parts.push("M" + (gut + run * cSz) + " " + (gut + y * cSz) + "H" + (gut + x * cSz));
+        run = -1;
+      }
+    }
+  }
+  // Vertical boundaries: grid line x sits between columns x-1 and x.
+  for (let x = r.x0; x <= r.x1; x++) {
+    let run = -1;
+    for (let y = r.y0; y <= r.y1; y++) {
+      const edge = y < r.y1 && is(x, y) !== is(x - 1, y);
+      if (edge && run < 0) run = y;else if (!edge && run >= 0) {
+        parts.push("M" + (gut + x * cSz) + " " + (gut + run * cSz) + "V" + (gut + y * cSz));
+        run = -1;
+      }
+    }
+  }
+  return {
+    d: parts.join(""),
+    avgLum: lumCnt > 0 ? lumSum / lumCnt : 128
+  };
+}
+
 /* ── Viewport tiling ───────────────────────────────────────────────────────
    The chart and its overlays used to size their backing store to the whole
    pattern at the current zoom: `canvas.width = sW*scs + G + 2`. That is
@@ -1671,8 +1746,6 @@ function TrackerApp({
     setTintOpacity,
     spotDimOpacity,
     setSpotDimOpacity,
-    antsOffset,
-    setAntsOffset,
     hlIntroSeen,
     setHlIntroSeen,
     hlIntroBannerVisible,
@@ -2166,13 +2239,35 @@ function TrackerApp({
   const [partialStitches, setPartialStitches] = useState(new Map());
   const [halfDisambig, setHalfDisambig] = useState(null); // {x, y, idx} for popup
 
-  const [hoverInfo, setHoverInfo] = useState(null);
   const hoverRefs = useRef({
     row: null,
     col: null
   });
-  const hoverCellRef = useRef(null);
-  const [hoverInfoCell, setHoverInfoCell] = useState(null);
+  // Hover read-out under the chart (F4, reports/track-view-performance-plan.md).
+  // The hovered cell and its thread live in refs and the bar's text is written
+  // directly, like the crosshair above it. As React state, every stitch the
+  // pointer crossed re-rendered all of TrackerApp — ~1 200 elements per cell.
+  const hoverCellRef = useRef(null); // {row, col}, 0-based, or null
+  const hoverInfoRef = useRef(null); // {row, col, id, name}, 1-based, or null
+  const hoverBarRef = useRef(null);
+  function renderHoverBar() {
+    const el = hoverBarRef.current;
+    if (!el) return;
+    const c = hoverCellRef.current,
+      info = hoverInfoRef.current;
+    let text = "—";
+    if (c) {
+      text = "Row: " + (c.row + 1) + "   Col: " + (c.col + 1);
+      if (info && info.row === c.row + 1 && info.col === c.col + 1) text += "  —   DMC " + info.id + " " + info.name;
+    }
+    if (el.textContent !== text) el.textContent = text;
+  }
+  function setHoverInfo(info) {
+    const prev = hoverInfoRef.current;
+    if (prev === info) return;
+    hoverInfoRef.current = info;
+    renderHoverBar();
+  }
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef({
     x: 0,
@@ -2312,15 +2407,25 @@ function TrackerApp({
   const analysisWorkerRef = useRef(null);
   const analysisRequestIdRef = useRef(0);
   const analysisThrottleRef = useRef(null);
-  // PERF: cache the minimal-size pat payload sent to the analysis worker, keyed
-  // on `pat`'s identity. The analyse effect below also depends on `done` (which
-  // changes on every single stitch mark), so without this cache we'd reallocate
-  // a full pat.length-sized array of {id} objects on almost every debounce tick
-  // even though the pattern itself hadn't changed since the last one.
-  const analysisMinPatCacheRef = useRef({
+  // PERF (F2, reports/track-view-performance-plan.md): the worker holds the
+  // pattern. It is sent once per `pat` identity — and per worker instance — as a
+  // transferred Uint16Array (see encodeAnalysisPattern), so a stitch mark posts
+  // only `done`. Previously every mark structured-cloned one {id} object per
+  // stitch on the main thread: 352 ms per tap on a 600x800 chart at 4x CPU.
+  const analysisPatternRef = useRef({
     pat: null,
-    minPat: null
+    worker: null,
+    id: 0,
+    sW: 0,
+    sH: 0
   });
+  // Pattern-only per-stitch arrays (clusterSize, nearestDist, ...) arrive once
+  // per pattern id, transferred, and are re-attached to every later result.
+  const analysisStaticsRef = useRef({
+    id: -1,
+    perStitch: null
+  });
+  const analysisPostedDoneRef = useRef(null);
   // Thread usage visualisation: null | "distance" | "cluster"
   const [threadUsageMode, setThreadUsageMode] = useState(null);
   const threadUsageRafRef = useRef(null);
@@ -3702,8 +3807,26 @@ function TrackerApp({
       analysisWorkerRef.current = w;
       w.onmessage = function (e) {
         const msg = e.data;
-        if (msg.type === "result" && msg.requestId === analysisRequestIdRef.current) {
-          setAnalysisResult(msg.result);
+        if (msg.type === "result") {
+          const result = msg.result;
+          // Keep the statics even from a superseded request: they are sent only
+          // once per pattern, so dropping them here would lose them for good.
+          if (result && result.perStitch && msg.patternId === analysisPatternRef.current.id) {
+            analysisStaticsRef.current = {
+              id: msg.patternId,
+              perStitch: result.perStitch
+            };
+          }
+          if (msg.requestId !== analysisRequestIdRef.current) return;
+          const st = analysisStaticsRef.current;
+          if (result && st.id === msg.patternId) {
+            result.perStitch = Object.assign({}, st.perStitch, {
+              isCompleted: analysisPostedDoneRef.current
+            });
+          }
+          setAnalysisResult(result);
+          setAnalysisRunning(false);
+        } else if (msg.type === "error" && msg.requestId === analysisRequestIdRef.current) {
           setAnalysisRunning(false);
         }
       };
@@ -3733,29 +3856,41 @@ function TrackerApp({
     if (!pat || !sW || !sH || !analysisWorkerRef.current) return;
     clearTimeout(analysisThrottleRef.current);
     analysisThrottleRef.current = setTimeout(() => {
+      const w = analysisWorkerRef.current;
+      if (!w) return;
       const reqId = ++analysisRequestIdRef.current;
       setAnalysisRunning(true);
-      // Send minimal-size pat objects — only need the id field. Reuse the cached
-      // array when `pat` hasn't changed since the last build (see PERF comment above).
-      let minPat = analysisMinPatCacheRef.current.pat === pat ? analysisMinPatCacheRef.current.minPat : null;
-      if (!minPat) {
-        minPat = new Array(pat.length);
-        for (let i = 0; i < pat.length; i++) minPat[i] = {
-          id: pat[i].id
-        };
-        analysisMinPatCacheRef.current = {
+      // Send the pattern only when it (or the worker) has changed since the last
+      // post. Transferring the buffer makes the post itself free.
+      const pr = analysisPatternRef.current;
+      if (pr.pat !== pat || pr.worker !== w || pr.sW !== sW || pr.sH !== sH) {
+        const enc = encodeAnalysisPattern(pat);
+        const id = pr.id + 1;
+        analysisPatternRef.current = {
           pat,
-          minPat
+          worker: w,
+          id,
+          sW,
+          sH
         };
+        w.postMessage({
+          type: "setPattern",
+          patternId: id,
+          codes: enc.codes,
+          ids: enc.ids,
+          sW,
+          sH
+        }, [enc.codes.buffer]);
       }
       // PERF: postMessage's structured clone copies a Uint8Array with a single
       // memcpy; Array.from(done) instead boxed every byte into a JS number and
       // built a full-size plain Array — much more expensive for large patterns,
       // for no benefit since the worker immediately does `new Uint8Array(done)`
       // on the other side regardless of which one it receives.
-      analysisWorkerRef.current.postMessage({
+      analysisPostedDoneRef.current = done || null;
+      w.postMessage({
         type: "analyse",
-        pat: minPat,
+        patternId: analysisPatternRef.current.id,
         done: done || null,
         sW,
         sH,
@@ -7073,63 +7208,9 @@ function TrackerApp({
       }
     }
 
-    // Marching ants for "outline" highlight mode
-    if (stitchView === "highlight" && focusColour && highlightMode === "outline" && pat) {
-      ctx.save();
-      let lumSum = 0,
-        lumCnt = 0;
-      for (let ay = startY; ay < endY; ay++) {
-        for (let ax = startX; ax < endX; ax++) {
-          const am = pat[ay * sW + ax];
-          if (am && am.id === focusColour) {
-            lumSum += luminance(am.rgb);
-            lumCnt++;
-          }
-        }
-      }
-      const avgLum = lumCnt > 0 ? lumSum / lumCnt : 128;
-      const antColor = avgLum > 140 ? "#1A1A2E" : "#FFFFFF";
-      const antBg = avgLum > 140 ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.4)";
-      const antsDash = Math.max(2, cSz * 0.3),
-        antsGap = Math.max(2, cSz * 0.2);
-      ctx.lineWidth = 2;
-      ctx.setLineDash([antsDash, antsGap]);
-      const drawAntsPath = offv => {
-        ctx.lineDashOffset = offv;
-        ctx.beginPath();
-        for (let ay = startY; ay < endY; ay++) {
-          for (let ax = startX; ax < endX; ax++) {
-            const am = pat[ay * sW + ax];
-            if (!am || am.id !== focusColour) continue;
-            const apx = gut + ax * cSz,
-              apy = gut + ay * cSz;
-            if (ay === 0 || !pat[(ay - 1) * sW + ax] || pat[(ay - 1) * sW + ax].id !== focusColour) {
-              ctx.moveTo(apx, apy);
-              ctx.lineTo(apx + cSz, apy);
-            }
-            if (ay === sH - 1 || !pat[(ay + 1) * sW + ax] || pat[(ay + 1) * sW + ax].id !== focusColour) {
-              ctx.moveTo(apx, apy + cSz);
-              ctx.lineTo(apx + cSz, apy + cSz);
-            }
-            if (ax === 0 || !pat[ay * sW + ax - 1] || pat[ay * sW + ax - 1].id !== focusColour) {
-              ctx.moveTo(apx, apy);
-              ctx.lineTo(apx, apy + cSz);
-            }
-            if (ax === sW - 1 || !pat[ay * sW + ax + 1] || pat[ay * sW + ax + 1].id !== focusColour) {
-              ctx.moveTo(apx + cSz, apy);
-              ctx.lineTo(apx + cSz, apy + cSz);
-            }
-          }
-        }
-        ctx.stroke();
-      };
-      ctx.strokeStyle = antBg;
-      drawAntsPath(-antsOffset);
-      ctx.strokeStyle = antColor;
-      drawAntsPath(-antsOffset + Math.floor(antsDash));
-      ctx.setLineDash([]);
-      ctx.restore();
-    }
+    // The "outline" highlight's marching ants are no longer drawn here: they
+    // are an SVG overlay the browser animates (see antsSvgRef), so animating
+    // them never repaints the chart.
 
     // Grid lines — tier-adaptive
     if (tier === 1) {
@@ -7374,7 +7455,7 @@ function TrackerApp({
     // Overlays share the chart's geometry, so a tile move invalidates them too.
     const tileChanged = !prevTile || prevTile.x !== tile.x || prevTile.y !== tile.y || prevTile.w !== tile.w || prevTile.h !== tile.h || prevTile.full !== tile.full;
     if (tileChanged) redrawChartOverlays();
-  }, [pat, cmap, scs, sW, sH, showCtr, bsLines, done, parkMarkers, parkLayers, hlRow, hlCol, stitchView, focusColour, halfStitches, halfDone, stitchZoom, highlightMode, tintColor, tintOpacity, spotDimOpacity, antsOffset, trackerDimLevel, layerVis, bsThickness, lockDetailLevel, lowZoomFade, rowModeActive, currentRow, trackerFabricColour, trackerCanvasTexture]);
+  }, [pat, cmap, scs, sW, sH, showCtr, bsLines, done, parkMarkers, parkLayers, hlRow, hlCol, stitchView, focusColour, halfStitches, halfDone, stitchZoom, highlightMode, tintColor, tintOpacity, spotDimOpacity, trackerDimLevel, layerVis, bsThickness, lockDetailLevel, lowZoomFade, rowModeActive, currentRow, trackerFabricColour, trackerCanvasTexture]);
 
   // Scroll-driven repaint. Previously every scroll frame ran a full
   // renderStitch, which repainted the visible slice plus a 20-cell margin from
@@ -8049,43 +8130,80 @@ function TrackerApp({
     };
   }, [pat, done, sW, sH, scs, focusColour, stitchView, countingAidsEnabled, countRunMin, countRunDir, countNinjaEnabled, blockW, blockH, focusBlock, countsVer, analysisResult, lockDetailLevel]);
 
-  // Marching-ants outline animation. Each tick is a React state update, so it
-  // re-renders the (very large) tracker component and repaints the visible slice
-  // of the chart 10x a second — cheap enough on a desktop, a meaningful share of
-  // a phone's frame budget. It now stops when it cannot be seen (tab hidden) and
-  // is not started at all under prefers-reduced-motion, matching how the rest of
-  // the app treats continuous animation.
-  const hlAntsIntervalRef = useRef(null);
+  // Marching-ants outline for the "outline" highlight — F1 of
+  // reports/track-view-performance-plan.md.
+  //
+  // An SVG overlay whose dash offset the browser animates (Web Animations API,
+  // stepped to 10 updates a second as before). It used to be a 100 ms interval
+  // setting React state that sat in renderStitch's dependencies, so every tick
+  // re-rendered all of TrackerApp and repainted the whole chart tile: ~12 000
+  // elements and ~49 000 fills a second with nobody touching anything. Now a
+  // tick runs no script at all, and the path is rebuilt only when the tile,
+  // zoom, pattern or colour changes.
+  //
+  // SVG rather than another overlay canvas so it adds nothing to the canvas
+  // memory budget (CONCURRENT_CHART_CANVASES in useCanvasOverlays.js). Not
+  // animated under prefers-reduced-motion; browsers already stop animations in
+  // hidden tabs.
+  const antsSvgRef = useRef(null);
+  const antsOn = !statsView && stitchView === "highlight" && !!focusColour && highlightMode === "outline" && !!pat;
   useEffect(() => {
-    const needAnts = stitchView === "highlight" && !!focusColour && highlightMode === "outline";
-    const stop = () => {
-      if (hlAntsIntervalRef.current) {
-        clearInterval(hlAntsIntervalRef.current);
-        hlAntsIntervalRef.current = null;
-      }
-    };
+    const svg = antsSvgRef.current;
+    if (!antsOn || !svg) return;
     let reduced = false;
     try {
       reduced = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
     } catch (_) {}
-    if (!needAnts || reduced) {
-      stop();
-      return;
-    }
-    const start = () => {
-      if (hlAntsIntervalRef.current) return;
-      hlAntsIntervalRef.current = setInterval(() => setAntsOffset(p => (p + 1) % 20), 100);
+    const [bg, fg] = svg.querySelectorAll("path");
+    let anims = [],
+      animKey = "";
+    const draw = () => {
+      const ref = chartTileRef.current;
+      const tile = ref && ref.w > 0 ? ref : chartTileFor(stitchScrollRef.current, scs, sW, sH, G);
+      if (!tile || !tile.w || !tile.h) return;
+      svg.style.left = tile.x - G + "px";
+      svg.style.top = tile.y - G + "px";
+      svg.setAttribute("width", tile.w);
+      svg.setAttribute("height", tile.h);
+      svg.setAttribute("viewBox", tile.x + " " + tile.y + " " + tile.w + " " + tile.h);
+      const o = outlinePathData(pat, sW, sH, focusColour, tileCellRange(tile, scs), scs, G);
+      const antColor = o.avgLum > 140 ? "#1A1A2E" : "#FFFFFF";
+      const antBg = o.avgLum > 140 ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.4)";
+      const dash = Math.max(2, scs * 0.3),
+        gap = Math.max(2, scs * 0.2),
+        lead = Math.floor(dash);
+      [[bg, antBg, 0], [fg, antColor, lead]].forEach(([p, colour, offset]) => {
+        p.setAttribute("d", o.d);
+        p.setAttribute("stroke", colour);
+        p.setAttribute("stroke-dasharray", dash + " " + gap);
+        p.setAttribute("stroke-dashoffset", offset);
+      });
+      // One period of the dash pattern at 1 px per 100 ms, the old speed, so the
+      // loop is seamless. Restarted only when the dash geometry changes; moving
+      // the tile just swaps the path data under the running animation.
+      const key = dash + "/" + gap;
+      if (reduced || key === animKey || typeof bg.animate !== "function") return;
+      anims.forEach(a => a.cancel());
+      animKey = key;
+      const period = dash + gap,
+        steps = Math.max(1, Math.round(period));
+      anims = [[bg, 0], [fg, lead]].map(([p, offset]) => p.animate([{
+        strokeDashoffset: offset + "px"
+      }, {
+        strokeDashoffset: offset - period + "px"
+      }], {
+        duration: period * 100,
+        iterations: Infinity,
+        easing: "steps(" + steps + ")"
+      }));
     };
-    const onVis = () => {
-      if (document.visibilityState === "visible") start();else stop();
-    };
-    document.addEventListener("visibilitychange", onVis);
-    if (document.visibilityState === "visible") start();
+    draw();
+    const unregister = registerChartOverlay("ants", draw);
     return () => {
-      document.removeEventListener("visibilitychange", onVis);
-      stop();
+      unregister();
+      anims.forEach(a => a.cancel());
     };
-  }, [stitchView, focusColour, highlightMode, setAntsOffset]);
+  }, [antsOn, pat, focusColour, scs, sW, sH]);
   const updateHoverOverlay = gc => {
     if (gc && gc.gx >= 0 && gc.gx < sW && gc.gy >= 0 && gc.gy < sH) {
       if (hoverRefs.current.row) {
@@ -8107,17 +8225,14 @@ function TrackerApp({
           row: gc.gy,
           col: gc.gx
         };
-        setHoverInfoCell({
-          row: gc.gy,
-          col: gc.gx
-        }); // For bottom bar
+        renderHoverBar();
       }
     } else {
       if (hoverRefs.current.row) hoverRefs.current.row.style.display = 'none';
       if (hoverRefs.current.col) hoverRefs.current.col.style.display = 'none';
       if (hoverCellRef.current) {
         hoverCellRef.current = null;
-        setHoverInfoCell(null);
+        renderHoverBar();
       }
     }
   };
@@ -8541,20 +8656,21 @@ function TrackerApp({
   function handleStitchMouseMove(e) {
     if (isPanning) {
       doPan(e);
-      if (hoverInfo) setHoverInfo(null);
+      setHoverInfo(null);
       updateHoverOverlay(null);
       return;
     }
     let gc = gridCoord(stitchRef, e, scs, G, false, chartTileRef.current);
     updateHoverOverlay(gc);
     if (dragStateRef.current.isDragging) {
-      if (hoverInfo) setHoverInfo(null);
+      setHoverInfo(null);
     } else if (stitchMode === "track" && pat && gc && gc.gx >= 0 && gc.gx < sW && gc.gy >= 0 && gc.gy < sH) {
       let idx = gc.gy * sW + gc.gx;
       let cell = pat[idx];
       if (cell && cell.id !== "__skip__" && cell.id !== "__empty__") {
         // Only update state if the hovered cell actually changed
-        if (!hoverInfo || hoverInfo.row !== gc.gy + 1 || hoverInfo.col !== gc.gx + 1) {
+        const hi = hoverInfoRef.current;
+        if (!hi || hi.row !== gc.gy + 1 || hi.col !== gc.gx + 1) {
           let name = "";
           if (cell.type === "blend") {
             name = cell.threads[0].name + "+" + cell.threads[1].name;
@@ -8566,15 +8682,13 @@ function TrackerApp({
             row: gc.gy + 1,
             col: gc.gx + 1,
             id: cell.id,
-            name: name,
-            x: e.clientX,
-            y: e.clientY
+            name: name
           });
         }
       } else {
         setHoverInfo(null);
       }
-    } else if (!dragStateRef.current.isDragging && hoverInfo) {
+    } else if (!dragStateRef.current.isDragging) {
       setHoverInfo(null);
     }
 
@@ -11078,6 +11192,26 @@ function TrackerApp({
         height: scs
       }
     });
+  })), antsOn && /*#__PURE__*/React.createElement("svg", {
+    ref: antsSvgRef,
+    className: "tracker-ants",
+    "aria-hidden": "true",
+    focusable: "false",
+    style: {
+      display: "block",
+      position: "absolute",
+      top: -G,
+      left: -G,
+      zIndex: 3,
+      pointerEvents: "none",
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement("path", {
+    fill: "none",
+    strokeWidth: "2"
+  }), /*#__PURE__*/React.createElement("path", {
+    fill: "none",
+    strokeWidth: "2"
   })), threadUsageMode && /*#__PURE__*/React.createElement("canvas", {
     ref: threadUsageCanvasRef,
     style: {
@@ -11175,7 +11309,10 @@ function TrackerApp({
       minHeight: 30,
       marginBottom: 'var(--s-3)'
     }
-  }, hoverInfoCell ? /*#__PURE__*/React.createElement(React.Fragment, null, "Row: ", hoverInfoCell.row + 1, " \xA0\xA0 Col: ", hoverInfoCell.col + 1, hoverInfo && hoverInfo.row === hoverInfoCell.row + 1 && hoverInfo.col === hoverInfoCell.col + 1 && /*#__PURE__*/React.createElement(React.Fragment, null, "\xA0\xA0\u2014\xA0\xA0 DMC ", hoverInfo.id, " ", hoverInfo.name)) : /*#__PURE__*/React.createElement(React.Fragment, null, "\u2014")), doneCount === 0 && totalStitchable > 0 && stitchMode === "track" && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("span", {
+    ref: hoverBarRef,
+    className: "tracker-hover-bar"
+  }, "—")), doneCount === 0 && totalStitchable > 0 && stitchMode === "track" && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 'var(--text-xs)',
       color: "var(--accent-ink)",

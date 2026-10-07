@@ -1,0 +1,1528 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Work Area Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ════════════════════════════════════════════════════════════════
+   Workshop tokens, mirrored from styles.css (light on :root, dark
+   under prefers-color-scheme and [data-theme="dark"]).
+   ════════════════════════════════════════════════════════════════ */
+:root {
+  --accent: #B85C38;
+  --accent-hover: #944526;
+  --accent-soft: #F4DDCF;
+  --accent-ink: #5C2A14;
+  --text-on-accent: #FFF8F0;
+  --text-primary: #1B1814;
+  --text-secondary: #5C5448;
+  --text-muted: #8A8270;
+  --surface: #FFFFFF;
+  --surface-secondary: #FBF8F3;
+  --surface-tertiary: #EFE7D6;
+  --line: #E5DCCB;
+  --line-2: #D8CDB6;
+  --success: #4F7D3F;
+  --success-soft: #DEE7D2;
+  --warning-soft: #F2E2BE;
+  --chart-page: #EDE3D0;
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
+  --shadow: 0 2px 8px rgba(60,40,20,.08);
+  --shadow-lg: 0 12px 28px rgba(60,40,20,.14);
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --text-xs: 11px; --text-sm: 12px; --text-md: 13px; --text-lg: 14px; --text-xl: 17px;
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px;
+  --motion: 160ms ease-out;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --accent: #E2865B; --accent-hover: #F0A07A; --accent-soft: #3A2418; --accent-ink: #F4DDCF;
+    --text-on-accent: #1B1410; --text-primary: #F4EFE7; --text-secondary: #B6AC9C; --text-muted: #847B6C;
+    --surface: #1C1A18; --surface-secondary: #14120F; --surface-tertiary: #2A2724;
+    --line: #3A352E; --line-2: #4B4339; --success: #88B077; --success-soft: #2C3A24; --warning-soft: #3A2E16;
+    --chart-page: #0F0E0C;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.32); --shadow: 0 2px 8px rgba(0,0,0,.42); --shadow-lg: 0 12px 28px rgba(0,0,0,.55);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --accent: #E2865B; --accent-hover: #F0A07A; --accent-soft: #3A2418; --accent-ink: #F4DDCF;
+  --text-on-accent: #1B1410; --text-primary: #F4EFE7; --text-secondary: #B6AC9C; --text-muted: #847B6C;
+  --surface: #1C1A18; --surface-secondary: #14120F; --surface-tertiary: #2A2724;
+  --line: #3A352E; --line-2: #4B4339; --success: #88B077; --success-soft: #2C3A24; --warning-soft: #3A2E16;
+  --chart-page: #0F0E0C;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.32); --shadow: 0 2px 8px rgba(0,0,0,.42); --shadow-lg: 0 12px 28px rgba(0,0,0,.55);
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: var(--font-ui); font-size: var(--text-md); line-height: 1.45;
+  background: var(--surface-secondary); color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+button, select { font: inherit; color: inherit; }
+.ic { width: 1.15em; height: 1.15em; flex: none; display: block; }
+kbd {
+  font-family: var(--font-ui); font-size: var(--text-xs); font-weight: 600;
+  padding: 1px 5px; border-radius: var(--radius-xs);
+  background: var(--surface); border: 1px solid var(--line-2); color: var(--text-secondary);
+}
+
+/* ── Buttons ───────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2);
+  min-height: 34px; padding: 0 var(--s-3); border-radius: var(--radius-md);
+  border: 1px solid var(--line-2); background: var(--surface); cursor: pointer;
+  font-weight: 500; white-space: nowrap;
+  transition: background-color var(--motion), border-color var(--motion), color var(--motion);
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--text-on-accent); }
+.btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn.ghost { background: transparent; border-color: transparent; }
+.btn.ghost:hover { background: var(--surface-tertiary); }
+.btn:disabled { opacity: .45; cursor: default; border-color: var(--line-2); }
+.btn:focus-visible, .icon-btn:focus-visible, .lg-row:focus-visible, .seg button:focus-visible, canvas:focus-visible, select:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.icon-btn {
+  display: inline-grid; place-items: center; width: 34px; height: 34px;
+  border-radius: var(--radius-md); border: 1px solid var(--line-2);
+  background: var(--surface); cursor: pointer; color: var(--text-secondary);
+  transition: background-color var(--motion), color var(--motion), border-color var(--motion);
+}
+.icon-btn:hover { color: var(--text-primary); border-color: var(--accent); }
+.icon-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink); border-color: var(--accent); }
+.icon-btn:disabled { opacity: .4; cursor: default; }
+
+/* ── Top bar ───────────────────────────────────────────────────── */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s-3);
+  padding: var(--s-2) var(--s-4); min-height: 56px;
+  background: var(--surface); border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.brand { display: flex; align-items: center; gap: var(--s-3); min-width: 0; }
+.brand-mark {
+  width: 34px; height: 34px; border-radius: var(--radius-md); display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent-ink); font-size: 18px;
+}
+.brand h1 { font-size: var(--text-lg); margin: 0; font-weight: 600; }
+.brand p { margin: 0; font-size: var(--text-xs); color: var(--text-muted); }
+.topbar-actions { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
+.field { display: inline-flex; align-items: center; gap: var(--s-2); font-size: var(--text-sm); color: var(--text-secondary); }
+.field select {
+  min-height: 34px; border-radius: var(--radius-md); border: 1px solid var(--line-2);
+  background: var(--surface); padding: 0 var(--s-2); color: var(--text-primary);
+}
+
+/* ── Layout ────────────────────────────────────────────────────── */
+.layout {
+  display: grid; grid-template-columns: minmax(0, 1fr) 320px;
+  height: calc(100dvh - 57px); min-height: 520px;
+}
+.chart-col { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: var(--s-3); gap: var(--s-2); }
+.rail {
+  border-left: 1px solid var(--line); background: var(--surface);
+  overflow-y: auto; padding: var(--s-3); display: flex; flex-direction: column; gap: var(--s-3);
+}
+
+/* ── Area bar / hint bar ───────────────────────────────────────── */
+.area-bar, .hint-bar {
+  display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap;
+  padding: var(--s-2) var(--s-3); border-radius: var(--radius-lg);
+  background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-sm);
+}
+.area-bar { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); }
+.area-bar[hidden], .hint-bar[hidden] { display: none; }
+.ab-title { display: flex; align-items: center; gap: var(--s-2); min-width: 0; }
+.ab-title strong { font-size: var(--text-lg); }
+.ab-range { font-size: var(--text-sm); opacity: .85; white-space: nowrap; }
+.ab-progress { display: flex; align-items: center; gap: var(--s-2); flex: 1 1 140px; min-width: 120px; }
+.ab-progress .bar { flex: 1; }
+.ab-pct { font-weight: 600; font-variant-numeric: tabular-nums; min-width: 3.2em; text-align: right; }
+.ab-actions { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; margin-left: auto; }
+.area-bar .icon-btn, .area-bar .btn:not(.primary) { background: var(--surface); }
+.hint-bar { color: var(--text-secondary); }
+.hint-bar .hint-text { flex: 1 1 220px; }
+.hint-bar .ic { color: var(--accent); }
+
+.seg { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: var(--radius-md); background: var(--surface); border: 1px solid var(--line-2); }
+.seg-label { font-size: var(--text-xs); padding: 0 var(--s-2); color: var(--text-secondary); }
+.seg button {
+  min-width: 30px; height: 28px; border: 0; border-radius: var(--radius-sm); background: transparent;
+  cursor: pointer; font-size: var(--text-sm); font-weight: 500; color: var(--text-secondary); padding: 0 var(--s-2);
+}
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--text-on-accent); }
+
+/* ── Chart ─────────────────────────────────────────────────────── */
+.chart-wrap {
+  position: relative; flex: 1; min-height: 0; border-radius: var(--radius-lg);
+  background: var(--chart-page); border: 1px solid var(--line); overflow: hidden;
+}
+#chart { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; display: block; }
+#chart.panning { cursor: grabbing; }
+.chart-tools {
+  position: absolute; top: var(--s-2); right: var(--s-2); display: flex; flex-direction: column; gap: var(--s-1);
+  padding: var(--s-1); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow); border: 1px solid var(--line);
+}
+.chart-tools .icon-btn { border-color: transparent; }
+.chart-tools hr { width: 100%; border: 0; border-top: 1px solid var(--line); margin: 2px 0; }
+.minimap {
+  position: absolute; right: var(--s-2); bottom: var(--s-2); padding: 4px; border-radius: var(--radius-md);
+  background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow);
+}
+.minimap[hidden] { display: none; }
+.minimap canvas { display: block; cursor: pointer; touch-action: none; border-radius: var(--radius-xs); }
+.perf {
+  position: absolute; left: var(--s-2); bottom: var(--s-2); max-width: calc(100% - 200px);
+  padding: 6px var(--s-2); border-radius: var(--radius-md); font-size: var(--text-xs); line-height: 1.4;
+  background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-sm); color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.perf strong { color: var(--text-primary); font-weight: 600; }
+.perf .perf-scope { color: var(--accent); font-weight: 600; }
+.statusline {
+  display: flex; justify-content: space-between; gap: var(--s-3); flex-wrap: wrap;
+  font-size: var(--text-sm); color: var(--text-secondary); min-height: 20px; padding: 0 var(--s-1);
+}
+.statusline .keys { color: var(--text-muted); }
+.statusline .msg { color: var(--accent); font-weight: 500; }
+
+/* ── Rail cards ────────────────────────────────────────────────── */
+.card { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); padding: var(--s-3); }
+.card h2 { font-size: var(--text-sm); text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin: 0 0 var(--s-2); font-weight: 600; }
+.prog-item + .prog-item { margin-top: var(--s-3); }
+.prog-row { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2); }
+.prog-row strong { font-size: var(--text-xl); font-variant-numeric: tabular-nums; }
+.prog-item small { color: var(--text-muted); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.prog-item.is-area .prog-row span { color: var(--accent); font-weight: 600; }
+.bar { height: 6px; border-radius: var(--radius-pill); background: var(--surface-tertiary); overflow: hidden; margin: 6px 0 4px; }
+.bar > i { display: block; height: 100%; background: var(--success); border-radius: inherit; transition: width var(--motion); }
+.area-bar .bar { background: var(--surface); margin: 0; }
+.cta-card { background: var(--surface-secondary); }
+.cta-card p { margin: 0 0 var(--s-2); color: var(--text-secondary); font-size: var(--text-sm); }
+
+.legend-card { display: flex; flex-direction: column; min-height: 0; }
+.legend-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); margin-bottom: var(--s-1); }
+.legend-head h2 { margin: 0; }
+.legend-scope { font-size: var(--text-xs); color: var(--text-muted); margin: 0 0 var(--s-2); }
+.legend-scope b { color: var(--accent); font-weight: 600; }
+.legend-list { display: flex; flex-direction: column; gap: 2px; }
+.lg-row {
+  display: grid; grid-template-columns: 28px minmax(0,1fr) auto; grid-template-rows: auto auto; column-gap: var(--s-2);
+  align-items: center; width: 100%; text-align: left; padding: 6px var(--s-2); border-radius: var(--radius-md);
+  border: 1px solid transparent; background: transparent; cursor: pointer;
+}
+.lg-row:hover { background: var(--surface-secondary); border-color: var(--line); }
+.lg-row[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.lg-row.is-complete { opacity: .6; }
+.sw {
+  grid-row: 1 / span 2; width: 28px; height: 28px; border-radius: var(--radius-sm);
+  display: grid; place-items: center; font-weight: 700; font-size: 13px;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.12);
+}
+.lg-main { display: flex; gap: 6px; align-items: baseline; min-width: 0; }
+.lg-id { font-weight: 600; white-space: nowrap; }
+.lg-name { color: var(--text-muted); font-size: var(--text-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lg-count { font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--text-secondary); display: inline-flex; gap: 4px; align-items: center; }
+.lg-count .ic { color: var(--success); }
+.lg-row .bar { grid-column: 2 / span 2; margin: 3px 0 0; height: 4px; }
+.legend-foot { border-top: 1px solid var(--line); margin-top: var(--s-2); padding-top: var(--s-2); display: flex; flex-direction: column; gap: var(--s-2); }
+.legend-foot[hidden] { display: none; }
+.legend-foot .btn { width: 100%; }
+.legend-foot p { margin: 0; font-size: var(--text-xs); color: var(--text-muted); }
+
+/* ── Picker sheet ──────────────────────────────────────────────── */
+.backdrop {
+  position: fixed; inset: 0; z-index: 50; background: rgba(20,16,12,.45);
+  display: grid; place-items: center; padding: var(--s-4);
+}
+.backdrop[hidden] { display: none; }
+.sheet {
+  width: min(720px, 100%); max-height: calc(100dvh - 32px); overflow: auto;
+  background: var(--surface); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg);
+  border: 1px solid var(--line); display: flex; flex-direction: column;
+}
+.sheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-3); padding: var(--s-4) var(--s-4) var(--s-2); }
+.sheet-head h2 { margin: 0; font-size: var(--text-xl); font-weight: 600; }
+.sheet-head p { margin: 4px 0 0; color: var(--text-secondary); font-size: var(--text-sm); }
+.sheet-body { padding: 0 var(--s-4); display: flex; flex-direction: column; gap: var(--s-3); }
+.sheet-controls { display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap; justify-content: space-between; }
+.overview-wrap {
+  display: grid; place-items: center; background: var(--chart-page); border-radius: var(--radius-lg);
+  border: 1px solid var(--line); padding: var(--s-3); min-height: 200px;
+}
+#overview { display: block; touch-action: none; cursor: cell; border-radius: var(--radius-xs); }
+.sel-summary {
+  display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); align-items: baseline;
+  font-size: var(--text-sm); color: var(--text-secondary);
+}
+.sel-summary strong { color: var(--text-primary); font-size: var(--text-lg); }
+.legend-key { display: flex; gap: var(--s-4); flex-wrap: wrap; font-size: var(--text-xs); color: var(--text-muted); }
+.legend-key span { display: inline-flex; align-items: center; gap: 6px; }
+.key-sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.key-sw.done { background: var(--success); opacity: .7; }
+.key-sw.sel { background: var(--accent); }
+.key-sw.part { background: linear-gradient(to top, var(--success) 30%, var(--surface-tertiary) 30%); }
+.sheet-foot {
+  display: flex; justify-content: flex-end; gap: var(--s-2); flex-wrap: wrap;
+  padding: var(--s-3) var(--s-4) var(--s-4); position: sticky; bottom: 0; background: var(--surface);
+}
+.sheet-foot .spacer { flex: 1; }
+
+/* ── Notes drawer ──────────────────────────────────────────────── */
+.notes {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(400px, 100%); z-index: 40;
+  background: var(--surface); border-left: 1px solid var(--line); box-shadow: var(--shadow-lg);
+  overflow-y: auto; padding: var(--s-4);
+}
+.notes[hidden] { display: none; }
+.notes-head { display: flex; justify-content: space-between; align-items: center; gap: var(--s-2); margin-bottom: var(--s-3); }
+.notes h2 { margin: 0; font-size: var(--text-xl); font-weight: 600; }
+.notes h3 { font-size: var(--text-sm); text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin: var(--s-4) 0 var(--s-2); }
+.notes p, .notes li { color: var(--text-secondary); font-size: var(--text-md); }
+.notes ol, .notes ul { padding-left: 1.2em; margin: 0; }
+.notes li + li { margin-top: 6px; }
+.notes strong { color: var(--text-primary); }
+.notes .callout { background: var(--warning-soft); border-radius: var(--radius-md); padding: var(--s-2) var(--s-3); color: var(--text-primary); }
+
+/* ── Toast ─────────────────────────────────────────────────────── */
+.toast {
+  position: fixed; left: 50%; bottom: var(--s-5); transform: translateX(-50%); z-index: 60;
+  display: flex; align-items: center; gap: var(--s-3); max-width: calc(100% - 32px);
+  padding: var(--s-2) var(--s-2) var(--s-2) var(--s-4); border-radius: var(--radius-lg);
+  background: var(--text-primary); color: var(--surface); box-shadow: var(--shadow-lg);
+}
+.toast[hidden] { display: none; }
+.toast .ic { color: var(--success); }
+.toast .btn.primary { min-height: 30px; }
+.toast .icon-btn { background: transparent; border-color: transparent; color: inherit; width: 30px; height: 30px; }
+
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ── Narrow screens ────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0,1fr); height: auto; }
+  .chart-wrap { flex: none; height: 62dvh; min-height: 340px; }
+  .rail { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+  .perf { max-width: calc(100% - 150px); }
+  .statusline .keys { display: none; }
+}
+@media (max-width: 560px) {
+  .topbar { padding: var(--s-2) var(--s-4); }
+  .chart-col { padding: var(--s-2) var(--s-4); }
+  .ab-range { display: none; }
+  .ab-actions { margin-left: 0; width: 100%; }
+  .perf { font-size: 10px; max-width: calc(100% - 128px); }
+  .brand p { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" data-icon="crop"></span>
+    <div>
+      <h1>Work area</h1>
+      <p>Stitch Tracker prototype</p>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <label class="field">Pattern
+      <select id="sizeSel">
+        <option value="200x250">200 × 250 (50k stitches)</option>
+        <option value="400x500" selected>400 × 500 (200k stitches)</option>
+        <option value="600x800">600 × 800 (480k stitches)</option>
+      </select>
+    </label>
+    <button id="themeBtn" class="icon-btn" type="button" aria-label="Switch to dark theme" title="Switch theme"></button>
+    <button id="notesBtn" class="btn" type="button" data-icon="info">Notes</button>
+  </div>
+</header>
+
+<main class="layout">
+  <section class="chart-col" aria-label="Chart">
+    <div id="hintBar" class="hint-bar">
+      <span data-icon="crop"></span>
+      <span class="hint-text">Working on one section? Pick a work area to show only that part of the chart.</span>
+      <button id="hintPick" class="btn primary" type="button">Pick work area</button>
+    </div>
+
+    <div id="areaBar" class="area-bar" hidden>
+      <div class="ab-title">
+        <span data-icon="crop"></span>
+        <strong id="abLabel">C4</strong>
+        <span class="ab-range" id="abRange"></span>
+      </div>
+      <div class="ab-progress">
+        <div class="bar" aria-hidden="true"><i id="abBar"></i></div>
+        <span class="ab-pct" id="abPct">0%</span>
+      </div>
+      <div class="ab-actions">
+        <div class="seg" role="group" aria-label="Context margin">
+          <span class="seg-label">Margin</span>
+          <button type="button" data-margin="0" aria-pressed="false">0</button>
+          <button type="button" data-margin="3" aria-pressed="true">3</button>
+          <button type="button" data-margin="10" aria-pressed="false">10</button>
+        </div>
+        <button id="abPrev" class="icon-btn" type="button" aria-label="Previous unfinished area" title="Previous unfinished area"></button>
+        <button id="abNext" class="icon-btn" type="button" aria-label="Next unfinished area" title="Next unfinished area"></button>
+        <button id="abChange" class="btn" type="button">Change</button>
+        <button id="abExit" class="btn" type="button" data-icon="focusExit">Exit area</button>
+      </div>
+    </div>
+
+    <div class="chart-wrap" id="chartWrap">
+      <canvas id="chart" tabindex="0" aria-label="Pattern chart. Tap a stitch to mark it done; drag to move around."></canvas>
+      <div class="chart-tools" role="toolbar" aria-label="Chart tools">
+        <button class="icon-btn" id="zoomIn" type="button" aria-label="Zoom in" title="Zoom in"></button>
+        <button class="icon-btn" id="zoomOut" type="button" aria-label="Zoom out" title="Zoom out"></button>
+        <button class="icon-btn" id="fitBtn" type="button" aria-label="Fit to screen" title="Fit to screen"></button>
+        <hr>
+        <button class="icon-btn" id="miniBtn" type="button" aria-label="Show overview map" aria-pressed="true" title="Overview map"></button>
+        <button class="icon-btn" id="undoBtn" type="button" aria-label="Undo" title="Undo" disabled></button>
+      </div>
+      <div class="minimap" id="miniBox"><canvas id="minimap" aria-label="Overview map. Tap to jump."></canvas></div>
+      <div class="perf" id="perf" aria-live="off"></div>
+    </div>
+    <div class="statusline">
+      <span id="status">&nbsp;</span>
+      <span class="keys"><kbd>+</kbd> <kbd>-</kbd> zoom · <kbd>0</kbd> fit · <kbd>[</kbd> <kbd>]</kbd> previous / next area · <kbd>Ctrl</kbd> <kbd>Z</kbd> undo</span>
+    </div>
+  </section>
+
+  <aside class="rail" aria-label="Progress and colours">
+    <div class="card">
+      <h2>Progress</h2>
+      <div class="prog-item is-area" id="progArea" hidden>
+        <div class="prog-row"><span>This area</span><strong id="paPct">0%</strong></div>
+        <div class="bar"><i id="paBar"></i></div>
+        <small id="paText"></small>
+      </div>
+      <div class="prog-item">
+        <div class="prog-row"><span>Whole pattern</span><strong id="pwPct">0%</strong></div>
+        <div class="bar"><i id="pwBar"></i></div>
+        <small id="pwText"></small>
+      </div>
+    </div>
+
+    <div class="card cta-card" id="ctaCard">
+      <p>Large pattern? A work area shows one section at a time. The colour list, counts and "mark all" then only cover that section.</p>
+      <button class="btn primary" id="ctaPick" type="button" data-icon="crop">Pick work area</button>
+    </div>
+
+    <div class="card legend-card">
+      <div class="legend-head">
+        <h2>Colours</h2>
+        <div class="seg" role="group" aria-label="Sort colours">
+          <button type="button" data-sort="number" aria-pressed="true">DMC</button>
+          <button type="button" data-sort="left" aria-pressed="false">Left</button>
+        </div>
+      </div>
+      <p class="legend-scope" id="legendScope"></p>
+      <div class="legend-list" id="legend"></div>
+      <div class="legend-foot" id="legendFoot" hidden>
+        <button class="btn primary" id="markAllBtn" type="button" data-icon="check">Mark all done</button>
+        <button class="btn" id="clearHlBtn" type="button" data-icon="x">Clear highlight</button>
+        <p id="markAllNote"></p>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<div class="backdrop" id="picker" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pickerTitle">
+    <div class="sheet-head">
+      <div>
+        <h2 id="pickerTitle">Pick a work area</h2>
+        <p>Tap a block, or drag across several. Finished blocks are shaded green.</p>
+      </div>
+      <button class="icon-btn" id="pickerClose" type="button" aria-label="Close"></button>
+    </div>
+    <div class="sheet-body">
+      <div class="sheet-controls">
+        <div class="seg" role="group" aria-label="Block size">
+          <span class="seg-label">Block size</span>
+          <button type="button" data-bs="20">20</button>
+          <button type="button" data-bs="30">30</button>
+          <button type="button" data-bs="50" aria-pressed="true">50</button>
+          <button type="button" data-bs="80">80</button>
+        </div>
+        <div class="legend-key">
+          <span><i class="key-sw sel"></i>Selected</span>
+          <span><i class="key-sw done"></i>Finished</span>
+          <span><i class="key-sw part"></i>In progress</span>
+        </div>
+      </div>
+      <div class="overview-wrap" id="overviewWrap"><canvas id="overview" aria-label="Pattern overview divided into blocks"></canvas></div>
+      <div class="sel-summary" id="selSummary"></div>
+    </div>
+    <div class="sheet-foot">
+      <button class="btn" id="firstUnfinished" type="button">First unfinished block</button>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="pickerCancel" type="button">Cancel</button>
+      <button class="btn primary" id="pickerOk" type="button" data-icon="crop">Work on this area</button>
+    </div>
+  </div>
+</div>
+
+<aside class="notes" id="notes" hidden aria-labelledby="notesTitle">
+  <div class="notes-head">
+    <h2 id="notesTitle">About this prototype</h2>
+    <button class="icon-btn" id="notesClose" type="button" aria-label="Close notes"></button>
+  </div>
+  <p>A prototype of a <strong>work area</strong> mode for the Stitch Tracker: pick one section of a large pattern and the chart, colour list, counts and bulk actions only cover that section. The pattern is generated and nothing is saved.</p>
+
+  <h3>Try this</h3>
+  <ol>
+    <li>Switch to <strong>600 × 800</strong>, zoom right out, and look at the draw readout bottom-left.</li>
+    <li>Pick a work area. The first unfinished block is already part-stitched.</li>
+    <li>Tap stitches, or highlight a colour in the list and use <strong>Mark all done</strong>. It only covers the area.</li>
+    <li>Finish the area to get the next-area prompt, or step with the arrow buttons. Finished areas are skipped.</li>
+    <li>Change the <strong>margin</strong> to see how much surrounding context helps when lining up edges.</li>
+  </ol>
+
+  <h3>Choices made here</h3>
+  <ul>
+    <li><strong>Clip, not dim.</strong> Cells beyond the margin are not drawn at all, and margin cells are view-only.</li>
+    <li><strong>Scoped colour list.</strong> Only colours in the area are listed, with area counts.</li>
+    <li><strong>Both progress figures.</strong> Area progress leads; whole-pattern progress stays visible.</li>
+    <li><strong>Stepping skips finished areas</strong> and moves in reading order.</li>
+    <li><strong>The overview map always shows the whole pattern</strong>, with the area marked, so you never lose your place.</li>
+  </ul>
+
+  <h3>Open questions</h3>
+  <ul>
+    <li>Should this replace the Spotlight focus block (which dims but does not clip), or sit alongside it?</li>
+    <li>Default margin: 0, 3 or 10 stitches?</li>
+    <li>Should the area be saved with the project and synced, as the focus block is now?</li>
+    <li>Do stitchers want free-form rectangles as well as block-aligned ones?</li>
+  </ul>
+
+  <h3>About the numbers</h3>
+  <p class="callout">The draw readout times <strong>this prototype's</strong> renderer, to compare modes. stitchx already draws only the visible part of the chart, so its gain from a work area is mostly elsewhere: colour counts, highlight searches, bulk marks and pattern analysis all shrink from the whole pattern to the area. The readout's second line shows that scope.</p>
+</aside>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ════════════════════════════════════════════════════════════════
+  //  Icons: paths copied from icons.js (24x24, 1.6 stroke, currentColor)
+  // ════════════════════════════════════════════════════════════════
+  var ICONS = {
+    crop: '<path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/>',
+    focusExit: '<path d="M9 4H4v5"/><path d="M15 4h5v5"/><path d="M9 20H4v-5"/><path d="M15 20h5v-5"/>',
+    focus: '<path d="M4 9V4h5"/><path d="M20 9V4h-5"/><path d="M4 15v5h5"/><path d="M20 15v5h-5"/>',
+    x: '<path d="M18 6L6 18M6 6l12 12"/>',
+    undo: '<path d="M3 7v6h6"/><path d="M3 13A9 9 0 1 0 6 6.7L3 13"/>',
+    check: '<polyline points="20 6 9 17 4 12"/>',
+    chevronLeft: '<polyline points="15 6 9 12 15 18"/>',
+    chevronRight: '<polyline points="9 6 15 12 9 18"/>',
+    info: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12.01" y2="8"/><line x1="12" y1="12" x2="12" y2="16"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>',
+    moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+    magnifyPlus: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/><line x1="11" y1="8" x2="11" y2="14"/>',
+    magnifyMinus: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/>',
+    compass: '<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>'
+  };
+  function icon(name) {
+    return '<svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[name] + '</svg>';
+  }
+  document.querySelectorAll('[data-icon]').forEach(function (el) { el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon)); });
+  function setIcon(id, name) { document.getElementById(id).innerHTML = icon(name); }
+  setIcon('zoomIn', 'magnifyPlus'); setIcon('zoomOut', 'magnifyMinus'); setIcon('fitBtn', 'focus');
+  setIcon('miniBtn', 'compass'); setIcon('undoBtn', 'undo');
+  setIcon('abPrev', 'chevronLeft'); setIcon('abNext', 'chevronRight');
+  setIcon('pickerClose', 'x'); setIcon('notesClose', 'x');
+
+  var $ = function (id) { return document.getElementById(id); };
+  var fmt = function (n) { return n.toLocaleString('en-GB'); };
+
+  // ════════════════════════════════════════════════════════════════
+  //  Palette (DMC numbers; display colours approximate)
+  // ════════════════════════════════════════════════════════════════
+  var PALETTE = [
+    ['B5200', 'Snow White', '#FFFFFF'], ['762', 'Pearl Grey Very Light', '#ECECEC'],
+    ['3753', 'Antique Blue Ultra Very Light', '#DBE2E9'], ['3325', 'Baby Blue Light', '#B8D2E6'],
+    ['800', 'Delft Blue Pale', '#C0CCDE'], ['799', 'Delft Blue Medium', '#748EB6'],
+    ['798', 'Delft Blue Dark', '#466A8E'], ['3750', 'Antique Blue Very Dark', '#384C5E'],
+    ['744', 'Yellow Pale', '#FFE793'], ['743', 'Yellow Medium', '#FED376'],
+    ['742', 'Tangerine Light', '#FFBF57'], ['3348', 'Yellow Green Light', '#CCD97C'],
+    ['704', 'Chartreuse Bright', '#A5CF5A'], ['702', 'Kelly Green', '#47A72F'],
+    ['700', 'Christmas Green Bright', '#07731B'], ['699', 'Christmas Green', '#056517'],
+    ['890', 'Pistachio Green Ultra Dark', '#174923'], ['433', 'Brown Medium', '#7A451F'],
+    ['838', 'Beige Brown Very Dark', '#594937'], ['841', 'Beige Brown Light', '#B69B7E'],
+    ['840', 'Beige Brown Medium', '#9A7C5C'], ['436', 'Tan', '#CB905E'],
+    ['3705', 'Melon Dark', '#FF7992'], ['666', 'Bright Red', '#E31D42'],
+    ['3708', 'Melon Light', '#FFCBD5'], ['208', 'Lavender Very Dark', '#835B8B'],
+    ['211', 'Lavender Light', '#E3CBE3'], ['415', 'Pearl Grey', '#D3D3D6']
+  ];
+  var SYMBOLS = 'ABCDEFGHJKLMNPRSTUVWXYZ2345678';
+  var I = {};
+  PALETTE.forEach(function (p, i) { I[p[0]] = i; });
+  function hexRgb(h) {
+    h = h.trim().replace('#', '');
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  }
+  var PAL_RGB = PALETTE.map(function (p) { return hexRgb(p[2]); });
+  var NP = PALETTE.length;
+  var FABRIC = [250, 247, 240];
+
+  // ════════════════════════════════════════════════════════════════
+  //  Pattern generation: a landscape, deterministic per size
+  // ════════════════════════════════════════════════════════════════
+  function hash(x, y, s) {
+    var h = (Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(s, 1442695041)) | 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  }
+  function vnoise(x, y, s) {
+    var xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    var u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    var a = hash(xi, yi, s), b = hash(xi + 1, yi, s), c = hash(xi, yi + 1, s), d = hash(xi + 1, yi + 1, s);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  }
+  function fbm(x, y, s) { return vnoise(x, y, s) * 0.55 + vnoise(x * 2.1, y * 2.1, s + 7) * 0.3 + vnoise(x * 4.3, y * 4.3, s + 13) * 0.15; }
+
+  function generate(W, H) {
+    var pat = new Uint8Array(W * H);
+    var ridgeA = new Float32Array(W), hill1A = new Float32Array(W), hill2A = new Float32Array(W), meadowA = new Float32Array(W);
+    for (var x = 0; x < W; x++) {
+      var u = x / W;
+      ridgeA[x] = 0.30 + 0.08 * fbm(u * 3.2, 0.5, 5) - 0.045 * Math.sin(u * 7.1);
+      hill1A[x] = 0.47 + 0.035 * Math.sin(u * 6.3 + 1) + 0.02 * fbm(u * 5, 1.5, 6);
+      hill2A[x] = 0.57 + 0.045 * Math.sin(u * 4.1 + 2.2) + 0.02 * fbm(u * 4, 2.5, 8);
+      meadowA[x] = 0.70 + 0.03 * Math.sin(u * 3.3 + 0.4);
+    }
+    for (var y = 0; y < H; y++) {
+      var v = y / H;
+      var rc = 0.30 + 0.11 * Math.sin(v * 8.5) + 0.04 * fbm(1.5, v * 6, 21);
+      var pc = 0.70 + 0.07 * Math.sin(v * 6 + 1);
+      for (x = 0; x < W; x++) {
+        u = x / W;
+        var n = fbm(u * 6, v * 6, 1), jit = (hash(x, y, 3) - 0.5) * 0.12, nj = n + jit;
+        var ridge = ridgeA[x], hill1 = hill1A[x], hill2 = hill2A[x], meadow = meadowA[x];
+        var id;
+        if (v < ridge) {
+          var sx = u - 0.72, sy = (v - 0.15) * H / W, d = Math.sqrt(sx * sx + sy * sy);
+          if (d < 0.055) id = d < 0.036 ? '744' : '743';
+          else if (d < 0.068 + jit * 0.05) id = '742';
+          else {
+            var cl = fbm(u * 5, v * 14, 11);
+            if (cl > 0.62 && v < 0.27) id = cl > 0.67 ? 'B5200' : '762';
+            else { var t = v / ridge + jit; id = t < 0.3 ? '799' : t < 0.55 ? '800' : t < 0.8 ? '3325' : '3753'; }
+          }
+        } else if (v < hill1) {
+          var depth = (v - ridge) / Math.max(0.001, hill1 - ridge);
+          if (ridge < 0.3 && depth < 0.16 + jit * 0.4) id = 'B5200';
+          else if (ridge < 0.3 && depth < 0.24) id = '415';
+          else id = nj > 0.58 ? '208' : nj > 0.46 ? '799' : nj > 0.36 ? '798' : '3750';
+        } else if (v < hill2) {
+          id = nj > 0.52 ? '704' : '3348';
+        } else if (v < meadow) {
+          id = nj > 0.5 ? '702' : '704';
+        } else {
+          id = nj > 0.56 ? '700' : nj > 0.4 ? '702' : '699';
+        }
+        if (v > hill2 - 0.01) {
+          var rw = 0.012 + (v - hill2) * 0.16, dx = Math.abs(u - rc);
+          if (dx < rw) id = (dx < rw * 0.35 && hash(x, y, 23) < 0.25) ? '3753' : (fbm(u * 20, v * 30, 24) > 0.5 ? '3325' : '800');
+          else if (dx < rw + 1.5 / W) id = '840';
+        }
+        if (v > meadow - 0.02) {
+          var pw = 0.008 + (v - meadow) * 0.11, pdx = Math.abs(u - pc);
+          if (pdx < pw) id = hash(x, y, 31) < 0.3 ? '436' : (n > 0.5 ? '841' : '840');
+        }
+        pat[y * W + x] = I[id];
+      }
+    }
+    // Trees on the far meadow
+    var greens = [I['704'], I['3348'], I['702'], I['700'], I['699']];
+    for (var k = 0; k < 8; k++) {
+      var tx = (0.06 + k * 0.125 + (hash(k, 1, 9) - 0.5) * 0.05) * W;
+      var base = (0.6 + hash(k, 2, 9) * 0.07) * H;
+      var ry = (0.06 + hash(k, 3, 9) * 0.04) * H, rx = ry * 0.62;
+      var cy = base - ry * 1.15, tw = Math.max(2, rx * 0.2);
+      for (y = Math.max(0, Math.floor(cy - ry)); y < Math.min(H, Math.ceil(base)); y++) {
+        for (x = Math.max(0, Math.floor(tx - rx)); x < Math.min(W, Math.ceil(tx + rx)); x++) {
+          var ex = (x - tx) / rx, ey = (y - cy) / ry, e = ex * ex + ey * ey;
+          var idx = y * W + x;
+          if (e < 1 + (hash(x, y, 41) - 0.5) * 0.25) {
+            var tn = fbm(x / 6, y / 6, 43);
+            pat[idx] = (ex < -0.1 && ey < -0.2 && tn > 0.45) ? I['702'] : tn > 0.55 ? I['700'] : tn > 0.4 ? I['699'] : I['890'];
+          } else if (y > cy && Math.abs(x - tx) < tw / 2) {
+            pat[idx] = hash(x, y, 47) < 0.35 ? I['838'] : I['433'];
+          }
+        }
+      }
+    }
+    // Flowers in the foreground: a centre and four petals
+    var step = Math.max(5, Math.round(W / 55));
+    var petals = [I['3705'], I['666'], I['3708'], I['211'], I['B5200']];
+    for (var gy = 0; gy * step < H; gy++) {
+      for (var gx = 0; gx * step < W; gx++) {
+        if (hash(gx, gy, 51) > 0.55) continue;
+        var fx = gx * step + Math.floor(hash(gx, gy, 52) * (step - 2)) + 1;
+        var fy = gy * step + Math.floor(hash(gx, gy, 53) * (step - 2)) + 1;
+        if (fx < 1 || fy < 1 || fx >= W - 1 || fy >= H - 1) continue;
+        if (fy / H < meadowA[fx] + 0.03) continue;
+        if (greens.indexOf(pat[fy * W + fx]) < 0) continue;
+        var pcol = petals[Math.floor(hash(gx, gy, 54) * petals.length)];
+        pat[fy * W + fx] = I['744'];
+        pat[(fy - 1) * W + fx] = pcol; pat[(fy + 1) * W + fx] = pcol;
+        pat[fy * W + fx - 1] = pcol; pat[fy * W + fx + 1] = pcol;
+      }
+    }
+    return pat;
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  State
+  // ════════════════════════════════════════════════════════════════
+  var S = {
+    W: 0, H: 0, pat: null, done: null,
+    colTotal: new Int32Array(NP), colDone: new Int32Array(NP),
+    areaTotal: new Int32Array(NP), areaDone: new Int32Array(NP),
+    cs: 4, ox: 0, oy: 0, focus: -1, area: null, margin: 3, blockSize: 50,
+    undo: [], minimap: true, sort: 'number'
+  };
+  var PREFILL_BS = 50;
+
+  function letters(i) { var s = ''; i++; while (i > 0) { var m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+  function blocksX(bs) { return Math.ceil(S.W / bs); }
+  function blocksY(bs) { return Math.ceil(S.H / bs); }
+  function areaFromBlocks(bx0, by0, bw, bh, bs) {
+    return { bx0: bx0, by0: by0, bw: bw, bh: bh, bs: bs,
+      c0: bx0 * bs, r0: by0 * bs, c1: Math.min(S.W, (bx0 + bw) * bs), r1: Math.min(S.H, (by0 + bh) * bs) };
+  }
+  function areaLabel(a) {
+    var first = letters(a.bx0) + (a.by0 + 1);
+    if (a.bw === 1 && a.bh === 1) return first;
+    return first + '–' + letters(a.bx0 + a.bw - 1) + (a.by0 + a.bh);
+  }
+  function areaRemaining(a) {
+    var rem = 0;
+    for (var r = a.r0; r < a.r1; r++) { var b = r * S.W; for (var c = a.c0; c < a.c1; c++) if (!S.done[b + c]) rem++; }
+    return rem;
+  }
+  function inArea(idx) {
+    var A = S.area; if (!A) return false;
+    var r = (idx / S.W) | 0, c = idx - r * S.W;
+    return r >= A.r0 && r < A.r1 && c >= A.c0 && c < A.c1;
+  }
+
+  function loadPattern(W, H) {
+    S.W = W; S.H = H;
+    S.pat = generate(W, H);
+    S.done = new Uint8Array(W * H);
+    // Pre-fill progress: the first ~30% of 50-blocks in reading order are
+    // finished, and the next one has its top 40% of rows stitched.
+    var nbx = Math.ceil(W / PREFILL_BS), nby = Math.ceil(H / PREFILL_BS), total = nbx * nby;
+    var full = Math.floor(total * 0.3);
+    for (var b = 0; b <= full && b < total; b++) {
+      var a = areaFromBlocks(b % nbx, Math.floor(b / nbx), 1, 1, PREFILL_BS);
+      var rEnd = b < full ? a.r1 : a.r0 + Math.round((a.r1 - a.r0) * 0.4);
+      for (var r = a.r0; r < rEnd; r++) for (var c = a.c0; c < a.c1; c++) S.done[r * W + c] = 1;
+    }
+    S.colTotal.fill(0); S.colDone.fill(0);
+    for (var j = 0; j < W * H; j++) { S.colTotal[S.pat[j]]++; if (S.done[j]) S.colDone[S.pat[j]]++; }
+    S.area = null; S.focus = -1; S.undo = [];
+    $('toast').hidden = true;
+    buildThumb();
+    fit();
+    renderAll();
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  Colours (recomputed on theme change)
+  // ════════════════════════════════════════════════════════════════
+  var COLOR = new Array(NP * 8), SYMCOL = new Array(NP * 8), UI = {};
+  function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+  function rgb(c) { return 'rgb(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ')'; }
+  function rgba(c, a) { return 'rgba(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ',' + a + ')'; }
+  function lum(c) { return (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) / 255; }
+  // States: 0 undone, 1 done, 2 dimmed undone, 3 dimmed done,
+  //         4 margin undone, 5 margin done, 6 highlighted done, 7 highlighted undone
+  function buildColors() {
+    var page = hexRgb(cssVar('--chart-page'));
+    UI.page = rgb(page); UI.pageRgb = page;
+    UI.accent = hexRgb(cssVar('--accent'));
+    UI.success = hexRgb(cssVar('--success'));
+    UI.ink = hexRgb(cssVar('--text-primary'));
+    UI.surface = hexRgb(cssVar('--surface'));
+    for (var p = 0; p < NP; p++) {
+      var c = PAL_RGB[p], tint = mix(c, FABRIC, 0.5);
+      var st = [tint, c, mix(c, FABRIC, 0.88), mix(c, FABRIC, 0.8), mix(tint, page, 0.6), mix(c, page, 0.55), mix(c, FABRIC, 0.62), c];
+      for (var s = 0; s < 8; s++) {
+        COLOR[p * 8 + s] = rgb(st[s]);
+        SYMCOL[p * 8 + s] = lum(st[s]) > 0.55 ? 'rgba(27,24,20,0.85)' : 'rgba(255,255,255,0.92)';
+      }
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  Thumbnail (1 px per stitch): undone tinted, done full colour.
+  //  Shared by the overview map and the picker; updated per cell.
+  // ════════════════════════════════════════════════════════════════
+  var thumb = document.createElement('canvas'), thumbCtx = thumb.getContext('2d'), thumbData = null, thumbDirty = null;
+  function buildThumb() {
+    thumb.width = S.W; thumb.height = S.H;
+    thumbData = thumbCtx.createImageData(S.W, S.H);
+    for (var i = 0; i < S.W * S.H; i++) thumbPx(i);
+    thumbCtx.putImageData(thumbData, 0, 0);
+  }
+  function thumbPx(i) {
+    var c = PAL_RGB[S.pat[i]], d = thumbData.data, o = i * 4;
+    if (S.done[i]) { d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; }
+    else { d[o] = (c[0] + FABRIC[0] * 1.6) / 2.6; d[o + 1] = (c[1] + FABRIC[1] * 1.6) / 2.6; d[o + 2] = (c[2] + FABRIC[2] * 1.6) / 2.6; }
+    d[o + 3] = 255;
+  }
+  function thumbSet(i) {
+    thumbPx(i);
+    var r = (i / S.W) | 0, c = i - r * S.W;
+    if (!thumbDirty) thumbDirty = { c0: c, r0: r, c1: c + 1, r1: r + 1 };
+    else { thumbDirty.c0 = Math.min(thumbDirty.c0, c); thumbDirty.r0 = Math.min(thumbDirty.r0, r); thumbDirty.c1 = Math.max(thumbDirty.c1, c + 1); thumbDirty.r1 = Math.max(thumbDirty.r1, r + 1); }
+  }
+  function flushThumb() {
+    if (!thumbDirty) return;
+    var d = thumbDirty; thumbDirty = null;
+    thumbCtx.putImageData(thumbData, 0, 0, d.c0, d.r0, d.c1 - d.c0, d.r1 - d.r0);
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  Chart view
+  // ════════════════════════════════════════════════════════════════
+  var chart = $('chart'), ctx = chart.getContext('2d'), wrap = $('chartWrap');
+  var vw = 0, vh = 0, dpr = 1, rafId = 0;
+
+  function bounds() {
+    if (!S.area) return { c0: 0, r0: 0, c1: S.W, r1: S.H };
+    var A = S.area, m = S.margin;
+    return { c0: Math.max(0, A.c0 - m), r0: Math.max(0, A.r0 - m), c1: Math.min(S.W, A.c1 + m), r1: Math.min(S.H, A.r1 + m) };
+  }
+  function fitCs() { var b = bounds(); return Math.min((vw - 48) / (b.c1 - b.c0), (vh - 48) / (b.r1 - b.r0)); }
+  function clampCs(cs) { return Math.max(Math.min(Math.max(0.4, fitCs() * 0.9), 56), Math.min(56, cs)); }
+  function clampView() {
+    var b = bounds(), cs = S.cs, pad = 24;
+    var x0 = b.c0 * cs, x1 = b.c1 * cs, y0 = b.r0 * cs, y1 = b.r1 * cs;
+    if (x1 - x0 + pad * 2 <= vw) S.ox = (x0 + x1) / 2 - vw / 2;
+    else S.ox = Math.min(Math.max(S.ox, x0 - pad), x1 + pad - vw);
+    if (y1 - y0 + pad * 2 <= vh) S.oy = (y0 + y1) / 2 - vh / 2;
+    else S.oy = Math.min(Math.max(S.oy, y0 - pad), y1 + pad - vh);
+  }
+  function fit() {
+    if (!vw || !vh || !S.pat) return;
+    var b = bounds();
+    S.cs = clampCs(fitCs());
+    S.ox = (b.c0 + b.c1) / 2 * S.cs - vw / 2;
+    S.oy = (b.r0 + b.r1) / 2 * S.cs - vh / 2;
+    clampView(); requestDraw();
+  }
+  function zoomAt(px, py, factor) {
+    var ncs = clampCs(S.cs * factor);
+    var cx = (px + S.ox) / S.cs, cy = (py + S.oy) / S.cs;
+    S.cs = ncs; S.ox = cx * ncs - px; S.oy = cy * ncs - py;
+    clampView(); requestDraw();
+  }
+  function centreOn(c, r) { S.ox = c * S.cs - vw / 2; S.oy = r * S.cs - vh / 2; clampView(); requestDraw(); }
+  function requestDraw() { if (!rafId) rafId = requestAnimationFrame(draw); }
+
+  function resize() {
+    var rect = wrap.getBoundingClientRect();
+    var ncw = Math.max(1, Math.floor(rect.width)), nch = Math.max(1, Math.floor(rect.height));
+    var first = !vw;
+    var cc = first ? 0 : (S.ox + vw / 2) / S.cs, cr = first ? 0 : (S.oy + vh / 2) / S.cs;
+    vw = ncw; vh = nch;
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    chart.width = Math.round(vw * dpr); chart.height = Math.round(vh * dpr);
+    if (!S.pat) return;
+    if (first) fit(); else { S.cs = clampCs(S.cs); centreOn(cc, cr); }
+  }
+
+  var hover = null, lastDraw = { ms: 0, cells: 0, fills: 0 };
+  function draw() {
+    rafId = 0;
+    if (!S.pat || !vw) return;
+    var t0 = performance.now();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = UI.page; ctx.fillRect(0, 0, vw, vh);
+    var b = bounds(), cs = S.cs, ox = S.ox, oy = S.oy, W = S.W, pat = S.pat, done = S.done, A = S.area, hl = S.focus;
+    var c0 = Math.max(b.c0, Math.floor(ox / cs)), c1 = Math.min(b.c1, Math.ceil((ox + vw) / cs));
+    var r0 = Math.max(b.r0, Math.floor(oy / cs)), r1 = Math.min(b.r1, Math.ceil((oy + vh) / cs));
+    var fills = 0, cells = 0;
+    if (c1 > c0 && r1 > r0) {
+      // Cells, merged into horizontal runs of identical colour.
+      for (var r = r0; r < r1; r++) {
+        var y0 = Math.round(r * cs - oy), y1 = Math.round((r + 1) * cs - oy), hgt = y1 - y0;
+        if (hgt <= 0) continue;
+        var rowIn = A && r >= A.r0 && r < A.r1, base = r * W, runStart = c0, runKey = -1;
+        for (var c = c0; c <= c1; c++) {
+          var key = -1;
+          if (c < c1) {
+            var idx = base + c, p = pat[idx], d = done[idx], st;
+            if (A && !(rowIn && c >= A.c0 && c < A.c1)) st = d ? 5 : 4;
+            else if (hl >= 0) st = p === hl ? (d ? 6 : 7) : (d ? 3 : 2);
+            else st = d ? 1 : 0;
+            key = p * 8 + st; cells++;
+          }
+          if (key !== runKey) {
+            if (runKey >= 0) {
+              var xs = Math.round(runStart * cs - ox), xe = Math.round(c * cs - ox);
+              if (xe > xs) { ctx.fillStyle = COLOR[runKey]; ctx.fillRect(xs, y0, xe - xs, hgt); fills++; }
+            }
+            runKey = key; runStart = c;
+          }
+        }
+      }
+      var gx0 = Math.round(c0 * cs - ox), gx1 = Math.round(c1 * cs - ox), gy0 = Math.round(r0 * cs - oy), gy1 = Math.round(r1 * cs - oy);
+      // Grid: fine lines once cells are big enough, a stronger line every 10.
+      if (cs >= 6) {
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (c = c0; c <= c1; c++) if (c % 10) { var gx = Math.round(c * cs - ox) + 0.5; ctx.moveTo(gx, gy0); ctx.lineTo(gx, gy1); }
+        for (r = r0; r <= r1; r++) if (r % 10) { var gy = Math.round(r * cs - oy) + 0.5; ctx.moveTo(gx0, gy); ctx.lineTo(gx1, gy); }
+        ctx.strokeStyle = 'rgba(27,24,20,0.13)'; ctx.stroke();
+      }
+      if (cs >= 2.5) {
+        ctx.beginPath();
+        for (c = Math.ceil(c0 / 10) * 10; c <= c1; c += 10) { gx = Math.round(c * cs - ox) + 0.5; ctx.moveTo(gx, gy0); ctx.lineTo(gx, gy1); }
+        for (r = Math.ceil(r0 / 10) * 10; r <= r1; r += 10) { gy = Math.round(r * cs - oy) + 0.5; ctx.moveTo(gx0, gy); ctx.lineTo(gx1, gy); }
+        ctx.lineWidth = cs >= 6 ? 1.25 : 1; ctx.strokeStyle = cs >= 6 ? 'rgba(27,24,20,0.42)' : 'rgba(27,24,20,0.18)'; ctx.stroke();
+      }
+      // Symbols on undone stitches when zoomed in.
+      if (cs >= 13) {
+        ctx.font = '600 ' + Math.floor(cs * 0.6) + 'px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        var sr0 = A ? Math.max(r0, A.r0) : r0, sr1 = A ? Math.min(r1, A.r1) : r1;
+        var sc0 = A ? Math.max(c0, A.c0) : c0, sc1 = A ? Math.min(c1, A.c1) : c1;
+        for (r = sr0; r < sr1; r++) {
+          var cy = Math.round(r * cs - oy) + cs / 2 + 1;
+          for (c = sc0; c < sc1; c++) {
+            idx = r * W + c;
+            if (done[idx]) continue;
+            p = pat[idx];
+            if (hl >= 0 && p !== hl) continue;
+            ctx.fillStyle = SYMCOL[p * 8 + (hl >= 0 ? 7 : 0)];
+            ctx.fillText(SYMBOLS[p], Math.round(c * cs - ox) + cs / 2, cy);
+          }
+        }
+      }
+    }
+    // Work-area outline
+    if (A) {
+      var ax = Math.round(A.c0 * cs - ox), ay = Math.round(A.r0 * cs - oy);
+      var aw = Math.round(A.c1 * cs - ox) - ax, ah = Math.round(A.r1 * cs - oy) - ay;
+      ctx.lineWidth = 2.5; ctx.strokeStyle = rgb(UI.accent);
+      ctx.strokeRect(ax - 1.25, ay - 1.25, aw + 2.5, ah + 2.5);
+    }
+    // Hovered stitch
+    if (hover && cs >= 4) {
+      ctx.lineWidth = 2; ctx.strokeStyle = rgb(UI.ink);
+      ctx.strokeRect(Math.round(hover.c * cs - ox) + 1, Math.round(hover.r * cs - oy) + 1, Math.max(1, Math.round(cs) - 2), Math.max(1, Math.round(cs) - 2));
+    }
+    lastDraw = { ms: performance.now() - t0, cells: cells, fills: fills };
+    renderPerf();
+    drawMinimap();
+  }
+
+  function renderPerf() {
+    var scope = S.area ? (S.area.c1 - S.area.c0) * (S.area.r1 - S.area.r0) : S.W * S.H;
+    $('perf').innerHTML =
+      'Draw <strong>' + lastDraw.ms.toFixed(1) + ' ms</strong> · ' + fmt(lastDraw.cells) + ' cells · ' + fmt(lastDraw.fills) + ' fills<br>' +
+      'Counts and bulk marks scan <span class="perf-scope">' + fmt(scope) + '</span> of ' + fmt(S.W * S.H) + ' stitches';
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  Overview map
+  // ════════════════════════════════════════════════════════════════
+  var mini = $('minimap'), miniCtx = mini.getContext('2d'), miniScale = 1;
+  function sizeMinimap() {
+    var max = vw < 520 ? 104 : 150;
+    miniScale = Math.min(max / S.W, max / S.H);
+    var w = Math.round(S.W * miniScale), h = Math.round(S.H * miniScale);
+    mini.style.width = w + 'px'; mini.style.height = h + 'px';
+    mini.width = Math.round(w * dpr); mini.height = Math.round(h * dpr);
+  }
+  function drawMinimap() {
+    if (!S.minimap) return;
+    var w = S.W * miniScale, h = S.H * miniScale;
+    if (Math.abs(mini.width - Math.round(w * dpr)) > 1) sizeMinimap();
+    var m = miniScale;
+    miniCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    miniCtx.imageSmoothingEnabled = true;
+    miniCtx.drawImage(thumb, 0, 0, w, h);
+    var A = S.area;
+    if (A) {
+      miniCtx.fillStyle = rgba(UI.pageRgb, 0.62);
+      miniCtx.fillRect(0, 0, w, A.r0 * m);
+      miniCtx.fillRect(0, A.r1 * m, w, h - A.r1 * m);
+      miniCtx.fillRect(0, A.r0 * m, A.c0 * m, (A.r1 - A.r0) * m);
+      miniCtx.fillRect(A.c1 * m, A.r0 * m, w - A.c1 * m, (A.r1 - A.r0) * m);
+      miniCtx.lineWidth = 2; miniCtx.strokeStyle = rgb(UI.accent);
+      miniCtx.strokeRect(A.c0 * m, A.r0 * m, (A.c1 - A.c0) * m, (A.r1 - A.r0) * m);
+    }
+    var x = S.ox / S.cs * m, y = S.oy / S.cs * m, vw2 = vw / S.cs * m, vh2 = vh / S.cs * m;
+    miniCtx.lineWidth = 1.5; miniCtx.strokeStyle = rgb(UI.ink);
+    miniCtx.strokeRect(Math.max(0.75, x), Math.max(0.75, y), Math.min(w - 1.5, vw2), Math.min(h - 1.5, vh2));
+  }
+  var miniDrag = false;
+  function miniJump(e) {
+    var rect = mini.getBoundingClientRect();
+    var c = (e.clientX - rect.left) / miniScale, r = (e.clientY - rect.top) / miniScale;
+    centreOn(c, r);
+  }
+  mini.addEventListener('pointerdown', function (e) { miniDrag = true; mini.setPointerCapture(e.pointerId); miniJump(e); });
+  mini.addEventListener('pointermove', function (e) { if (miniDrag) miniJump(e); });
+  mini.addEventListener('pointerup', function () { miniDrag = false; });
+  mini.addEventListener('pointercancel', function () { miniDrag = false; });
+
+  // ════════════════════════════════════════════════════════════════
+  //  Marking, undo
+  // ════════════════════════════════════════════════════════════════
+  var prevAreaRemaining = null;
+  function applyCell(i, val) {
+    var old = S.done[i];
+    if (old === val) return false;
+    S.done[i] = val;
+    var p = S.pat[i], dlt = val - old;
+    S.colDone[p] += dlt;
+    if (S.area && inArea(i)) S.areaDone[p] += dlt;
+    thumbSet(i);
+    return true;
+  }
+  function setCells(list, val) {
+    var changed = [], prev = [];
+    for (var k = 0; k < list.length; k++) {
+      var i = list[k], old = S.done[i];
+      if (applyCell(i, val)) { changed.push(i); prev.push(old); }
+    }
+    if (!changed.length) return 0;
+    S.undo.push({ idx: changed, prev: prev });
+    if (S.undo.length > 200) S.undo.shift();
+    afterChange();
+    return changed.length;
+  }
+  function undo() {
+    var u = S.undo.pop(); if (!u) return;
+    for (var k = 0; k < u.idx.length; k++) applyCell(u.idx[k], u.prev[k]);
+    afterChange();
+    status(u.idx.length === 1 ? 'Undid 1 stitch' : 'Undid ' + fmt(u.idx.length) + ' stitches');
+  }
+  function afterChange() {
+    flushThumb(); requestDraw(); renderLegend(); renderProgress();
+    $('undoBtn').disabled = !S.undo.length;
+    checkAreaComplete();
+  }
+  function sum(a) { var s = 0; for (var i = 0; i < a.length; i++) s += a[i]; return s; }
+  function checkAreaComplete() {
+    if (!S.area) { prevAreaRemaining = null; return; }
+    var rem = sum(S.areaTotal) - sum(S.areaDone);
+    if (rem === 0 && prevAreaRemaining > 0) {
+      var next = findArea(S.area, 1);
+      showToast('Area ' + areaLabel(S.area) + ' finished', next ? { label: 'Next: ' + areaLabel(next), fn: function () { enterArea(next); } } : null);
+    }
+    prevAreaRemaining = rem;
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  Work area
+  // ════════════════════════════════════════════════════════════════
+  function computeAreaCounts() {
+    S.areaTotal.fill(0); S.areaDone.fill(0);
+    var A = S.area; if (!A) return;
+    for (var r = A.r0; r < A.r1; r++) {
+      var b = r * S.W;
+      for (var c = A.c0; c < A.c1; c++) { var p = S.pat[b + c]; S.areaTotal[p]++; if (S.done[b + c]) S.areaDone[p]++; }
+    }
+  }
+  function enterArea(a) {
+    S.area = a;
+    computeAreaCounts();
+    if (S.focus >= 0 && !S.areaTotal[S.focus]) S.focus = -1;
+    prevAreaRemaining = sum(S.areaTotal) - sum(S.areaDone);
+    $('toast').hidden = true;
+    fit();
+    renderAll();
+    status('Working on area ' + areaLabel(a));
+  }
+  function exitArea() {
+    var A = S.area; if (!A) return;
+    S.area = null;
+    S.cs = clampCs(S.cs);
+    centreOn((A.c0 + A.c1) / 2, (A.r0 + A.r1) / 2);
+    renderAll();
+    status('Showing the whole pattern');
+  }
+  // Step through same-size areas in reading order, skipping finished ones.
+  function findArea(from, dir) {
+    var bs = from.bs, nbx = blocksX(bs), nby = blocksY(bs), bw = from.bw, bh = from.bh;
+    var colStart = from.bx0 % bw, rowStart = from.by0 % bh;
+    var cols = [], rows = [];
+    for (var x = colStart; x < nbx; x += bw) cols.push(x);
+    for (var y = rowStart; y < nby; y += bh) rows.push(y);
+    var list = [];
+    rows.forEach(function (ry) { cols.forEach(function (cx) { list.push([cx, ry]); }); });
+    var at = -1;
+    for (var i = 0; i < list.length; i++) if (list[i][0] === from.bx0 && list[i][1] === from.by0) at = i;
+    for (i = at + dir; i >= 0 && i < list.length; i += dir) {
+      var a = areaFromBlocks(list[i][0], list[i][1], bw, bh, bs);
+      if (areaRemaining(a) > 0) return a;
+    }
+    return null;
+  }
+  function stepArea(dir) {
+    if (!S.area) return;
+    var a = findArea(S.area, dir);
+    if (a) enterArea(a);
+    else status(dir > 0 ? 'No unfinished areas after this one' : 'No unfinished areas before this one');
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  UI rendering
+  // ════════════════════════════════════════════════════════════════
+  function pct(d, t) { return t ? Math.floor(d / t * 1000) / 10 : 100; }
+  function pctText(d, t) { var v = pct(d, t); return (v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)) + '%'; }
+
+  function renderProgress() {
+    var wt = S.W * S.H, wd = sum(S.colDone);
+    $('pwPct').textContent = pctText(wd, wt);
+    $('pwBar').style.width = pct(wd, wt) + '%';
+    $('pwText').textContent = fmt(wd) + ' of ' + fmt(wt) + ' stitches';
+    var A = S.area;
+    $('progArea').hidden = !A;
+    if (A) {
+      var at = sum(S.areaTotal), ad = sum(S.areaDone);
+      $('paPct').textContent = pctText(ad, at);
+      $('paBar').style.width = pct(ad, at) + '%';
+      $('paText').textContent = fmt(ad) + ' of ' + fmt(at) + ' stitches · ' + fmt(at - ad) + ' left';
+      $('abPct').textContent = pctText(ad, at);
+      $('abBar').style.width = pct(ad, at) + '%';
+    }
+  }
+
+  function renderLegend() {
+    var A = S.area, tot = A ? S.areaTotal : S.colTotal, dn = A ? S.areaDone : S.colDone;
+    var rows = [], inPattern = 0;
+    for (var p = 0; p < NP; p++) {
+      if (S.colTotal[p]) inPattern++;
+      if (tot[p]) rows.push({ p: p, total: tot[p], done: dn[p], left: tot[p] - dn[p] });
+    }
+    if (S.sort === 'left') rows.sort(function (a, b) { return b.left - a.left; });
+    else rows.sort(function (a, b) {
+      var x = PALETTE[a.p][0], y = PALETTE[b.p][0], xn = parseInt(x, 10), yn = parseInt(y, 10);
+      if (isNaN(xn) && isNaN(yn)) return x.localeCompare(y);
+      if (isNaN(xn)) return -1; if (isNaN(yn)) return 1;
+      return xn - yn;
+    });
+    $('legendScope').innerHTML = A
+      ? '<b>' + rows.length + ' of ' + inPattern + ' colours</b> appear in this area. Counts are for the area.'
+      : rows.length + ' colours · counts are for the whole pattern';
+    var html = '';
+    rows.forEach(function (r) {
+      var c = PAL_RGB[r.p], focus = S.focus === r.p, complete = r.left === 0;
+      html += '<button type="button" class="lg-row' + (complete ? ' is-complete' : '') + '" data-p="' + r.p + '" aria-pressed="' + focus + '" title="Highlight DMC ' + PALETTE[r.p][0] + '">' +
+        '<span class="sw" style="background:' + PALETTE[r.p][2] + ';color:' + (lum(c) > 0.55 ? '#1B1814' : '#FFFFFF') + '">' + SYMBOLS[r.p] + '</span>' +
+        '<span class="lg-main"><span class="lg-id">DMC ' + PALETTE[r.p][0] + '</span><span class="lg-name">' + PALETTE[r.p][1] + '</span></span>' +
+        '<span class="lg-count">' + (complete ? icon('check') + 'Done' : fmt(r.left) + ' left') + '</span>' +
+        '<span class="bar" aria-hidden="true"><i style="width:' + pct(r.done, r.total) + '%"></i></span>' +
+        '</button>';
+    });
+    $('legend').innerHTML = html;
+
+    var foot = $('legendFoot');
+    if (S.focus >= 0) {
+      foot.hidden = false;
+      var left = tot[S.focus] - dn[S.focus];
+      $('markAllBtn').lastChild.textContent = 'Mark all DMC ' + PALETTE[S.focus][0] + ' done';
+      $('markAllBtn').disabled = left === 0;
+      $('markAllNote').textContent = A
+        ? fmt(left) + ' stitches in this area. Stitches outside the area are not touched.'
+        : fmt(left) + ' stitches across the whole pattern.';
+    } else foot.hidden = true;
+  }
+
+  function renderAreaBar() {
+    var A = S.area;
+    $('areaBar').hidden = !A;
+    $('hintBar').hidden = !!A;
+    $('ctaCard').hidden = !!A;
+    if (!A) return;
+    $('abLabel').textContent = 'Area ' + areaLabel(A);
+    $('abRange').textContent = 'Columns ' + (A.c0 + 1) + '–' + A.c1 + ' · Rows ' + (A.r0 + 1) + '–' + A.r1;
+    document.querySelectorAll('[data-margin]').forEach(function (b) { b.setAttribute('aria-pressed', String(+b.dataset.margin === S.margin)); });
+  }
+  function renderAll() { renderAreaBar(); renderProgress(); renderLegend(); renderPerf(); requestDraw(); $('undoBtn').disabled = !S.undo.length; }
+
+  var statusTimer = 0;
+  function status(msg) {
+    var el = $('status');
+    el.textContent = msg; el.className = 'msg';
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(function () { el.innerHTML = '&nbsp;'; el.className = ''; }, 2600);
+  }
+  function hoverStatus() {
+    if (statusTimer && $('status').className === 'msg') return;
+    var el = $('status');
+    if (!hover) { el.innerHTML = '&nbsp;'; return; }
+    var p = S.pat[hover.r * S.W + hover.c];
+    el.className = '';
+    el.textContent = 'Column ' + (hover.c + 1) + ' · Row ' + (hover.r + 1) + ' · DMC ' + PALETTE[p][0] + ' ' + PALETTE[p][1] + (S.done[hover.r * S.W + hover.c] ? ' · done' : '');
+  }
+
+  var toastTimer = 0;
+  function showToast(msg, action) {
+    var t = $('toast');
+    t.innerHTML = icon('check') + '<span>' + msg + '</span>' +
+      (action ? '<button type="button" class="btn primary" id="toastAct">' + action.label + '</button>' : '') +
+      '<button type="button" class="icon-btn" id="toastClose" aria-label="Dismiss">' + icon('x') + '</button>';
+    t.hidden = false;
+    if (action) $('toastAct').onclick = function () { t.hidden = true; action.fn(); };
+    $('toastClose').onclick = function () { t.hidden = true; };
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.hidden = true; }, 9000);
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  Chart input: tap marks, drag pans, pinch / wheel zooms
+  // ════════════════════════════════════════════════════════════════
+  var ptrs = new Map(), gesture = null;
+  function local(e) { var r = chart.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+  function cellAt(pt) { return { c: Math.floor((pt.x + S.ox) / S.cs), r: Math.floor((pt.y + S.oy) / S.cs) }; }
+  function pinchInfo() {
+    var a = Array.from(ptrs.values());
+    return { d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) || 1, mx: (a[0].x + a[1].x) / 2, my: (a[0].y + a[1].y) / 2 };
+  }
+  chart.addEventListener('pointerdown', function (e) {
+    chart.setPointerCapture(e.pointerId);
+    var pt = local(e); ptrs.set(e.pointerId, pt);
+    if (ptrs.size === 1) gesture = { type: 'tap', sx: pt.x, sy: pt.y, ox: S.ox, oy: S.oy };
+    else if (ptrs.size === 2) {
+      var pi = pinchInfo();
+      gesture = { type: 'pinch', d0: pi.d, cs0: S.cs, cx: (pi.mx + S.ox) / S.cs, cy: (pi.my + S.oy) / S.cs };
+    }
+  });
+  chart.addEventListener('pointermove', function (e) {
+    var pt = local(e);
+    if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, pt);
+    if (gesture && gesture.type === 'tap' && Math.hypot(pt.x - gesture.sx, pt.y - gesture.sy) > 6) { gesture.type = 'pan'; chart.classList.add('panning'); }
+    if (gesture && gesture.type === 'pan') {
+      S.ox = gesture.ox - (pt.x - gesture.sx); S.oy = gesture.oy - (pt.y - gesture.sy);
+      clampView(); requestDraw();
+    } else if (gesture && gesture.type === 'pinch' && ptrs.size === 2) {
+      var pi = pinchInfo(), ncs = clampCs(gesture.cs0 * pi.d / gesture.d0);
+      S.cs = ncs; S.ox = gesture.cx * ncs - pi.mx; S.oy = gesture.cy * ncs - pi.my;
+      clampView(); requestDraw();
+    }
+    if (e.pointerType === 'mouse' && !gesture) {
+      var cell = cellAt(pt), b = bounds();
+      var h = (cell.c >= b.c0 && cell.c < b.c1 && cell.r >= b.r0 && cell.r < b.r1) ? cell : null;
+      if ((h && (!hover || h.c !== hover.c || h.r !== hover.r)) || (!h && hover)) { hover = h; hoverStatus(); requestDraw(); }
+    }
+  });
+  function endPointer(e, cancelled) {
+    if (!ptrs.has(e.pointerId)) return;
+    var pt = ptrs.get(e.pointerId);
+    ptrs.delete(e.pointerId);
+    if (!cancelled && gesture && gesture.type === 'tap' && ptrs.size === 0) tap(pt);
+    if (ptrs.size === 0) { gesture = null; chart.classList.remove('panning'); }
+    else if (gesture && gesture.type === 'pinch') gesture = { type: 'idle' };
+  }
+  chart.addEventListener('pointerup', function (e) { endPointer(e, false); });
+  chart.addEventListener('pointercancel', function (e) { endPointer(e, true); });
+  chart.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse' && hover) { hover = null; hoverStatus(); requestDraw(); } });
+  chart.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    var pt = local(e), dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+    // Trackpad pinch arrives as ctrl+wheel; a mouse wheel as whole notches.
+    // Anything else (two-finger trackpad scroll) pans.
+    var mouseWheel = e.deltaMode !== 0 || (e.deltaX === 0 && Number.isInteger(e.deltaY) && Math.abs(e.deltaY) >= 50);
+    if (e.ctrlKey) zoomAt(pt.x, pt.y, Math.exp(-dy * 0.01));
+    else if (mouseWheel && !e.shiftKey) zoomAt(pt.x, pt.y, Math.exp(-dy * 0.0015));
+    else { S.ox += e.shiftKey && !e.deltaX ? dy : e.deltaX; S.oy += e.shiftKey && !e.deltaX ? 0 : dy; clampView(); requestDraw(); }
+  }, { passive: false });
+
+  function tap(pt) {
+    var cell = cellAt(pt);
+    if (cell.c < 0 || cell.r < 0 || cell.c >= S.W || cell.r >= S.H) return;
+    var A = S.area;
+    if (A && !(cell.c >= A.c0 && cell.c < A.c1 && cell.r >= A.r0 && cell.r < A.r1)) {
+      var b = bounds();
+      if (cell.c >= b.c0 && cell.c < b.c1 && cell.r >= b.r0 && cell.r < b.r1) status('Margin stitches are for reference only. Change the area to mark them.');
+      return;
+    }
+    var i = cell.r * S.W + cell.c;
+    if (S.focus >= 0 && S.pat[i] !== S.focus && !S.done[i]) { status('Highlighting DMC ' + PALETTE[S.focus][0] + '. Clear the highlight to mark other colours.'); return; }
+    setCells([i], S.done[i] ? 0 : 1);
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  Picker
+  // ════════════════════════════════════════════════════════════════
+  var ov = $('overview'), ovCtx = ov.getContext('2d');
+  var P = { bs: 50, sel: null, scale: 1, blockTotal: null, blockDone: null, drag: null };
+  function computeBlocks() {
+    var bs = P.bs, nbx = blocksX(bs), nby = blocksY(bs);
+    P.blockTotal = new Int32Array(nbx * nby); P.blockDone = new Int32Array(nbx * nby);
+    for (var r = 0; r < S.H; r++) {
+      var by = (r / bs) | 0, base = r * S.W;
+      for (var c = 0; c < S.W; c++) { var k = by * nbx + ((c / bs) | 0); P.blockTotal[k]++; if (S.done[base + c]) P.blockDone[k]++; }
+    }
+  }
+  function firstUnfinishedBlock() {
+    var nbx = blocksX(P.bs);
+    for (var k = 0; k < P.blockTotal.length; k++) if (P.blockDone[k] < P.blockTotal[k]) return { bx0: k % nbx, by0: Math.floor(k / nbx), bw: 1, bh: 1 };
+    return { bx0: 0, by0: 0, bw: 1, bh: 1 };
+  }
+  function openPicker() {
+    P.bs = S.area ? S.area.bs : S.blockSize;
+    document.querySelectorAll('[data-bs]').forEach(function (b) { b.setAttribute('aria-pressed', String(+b.dataset.bs === P.bs)); });
+    computeBlocks();
+    P.sel = S.area ? { bx0: S.area.bx0, by0: S.area.by0, bw: S.area.bw, bh: S.area.bh } : firstUnfinishedBlock();
+    $('picker').hidden = false;
+    sizeOverview(); drawOverview(); renderSelSummary();
+    $('pickerOk').focus();
+  }
+  function closePicker() { $('picker').hidden = true; chart.focus(); }
+  function sizeOverview() {
+    var wrapEl = $('overviewWrap');
+    var availW = wrapEl.clientWidth - 24, availH = Math.max(180, Math.min(window.innerHeight * 0.5, 520));
+    P.scale = Math.min(availW / S.W, availH / S.H);
+    var w = Math.floor(S.W * P.scale), h = Math.floor(S.H * P.scale);
+    ov.style.width = w + 'px'; ov.style.height = h + 'px';
+    ov.width = Math.round(w * dpr); ov.height = Math.round(h * dpr);
+  }
+  function drawOverview() {
+    var s = P.scale, bs = P.bs, nbx = blocksX(bs), nby = blocksY(bs), w = S.W * s, h = S.H * s, bp = bs * s;
+    ovCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ovCtx.imageSmoothingEnabled = true;
+    ovCtx.drawImage(thumb, 0, 0, w, h);
+    for (var by = 0; by < nby; by++) for (var bx = 0; bx < nbx; bx++) {
+      var k = by * nbx + bx, t = P.blockTotal[k], d = P.blockDone[k];
+      var x = bx * bp, y = by * bp, bw = Math.min(bp, w - x), bh = Math.min(bp, h - y);
+      if (d >= t) {
+        ovCtx.fillStyle = rgba(UI.success, 0.42); ovCtx.fillRect(x, y, bw, bh);
+        if (bp >= 22) {
+          var cx = x + bw / 2, cy = y + bh / 2, z = Math.min(bw, bh) * 0.22;
+          ovCtx.beginPath(); ovCtx.moveTo(cx - z, cy); ovCtx.lineTo(cx - z * 0.3, cy + z * 0.7); ovCtx.lineTo(cx + z, cy - z * 0.7);
+          ovCtx.lineWidth = Math.max(2, z * 0.35); ovCtx.lineCap = 'round'; ovCtx.lineJoin = 'round'; ovCtx.strokeStyle = '#FFFFFF'; ovCtx.stroke();
+        }
+      } else if (d > 0) {
+        ovCtx.fillStyle = rgba(UI.surface, 0.85); ovCtx.fillRect(x + 3, y + bh - 7, bw - 6, 4);
+        ovCtx.fillStyle = rgb(UI.success); ovCtx.fillRect(x + 3, y + bh - 7, (bw - 6) * d / t, 4);
+      }
+      if (bp >= 30) {
+        var label = letters(bx) + (by + 1);
+        ovCtx.font = '600 10px Inter, system-ui, sans-serif'; ovCtx.textAlign = 'left'; ovCtx.textBaseline = 'top';
+        var tw = ovCtx.measureText(label).width;
+        ovCtx.fillStyle = rgba(UI.surface, 0.82); ovCtx.fillRect(x + 2, y + 2, tw + 6, 13);
+        ovCtx.fillStyle = rgb(UI.ink); ovCtx.fillText(label, x + 5, y + 4);
+      }
+    }
+    ovCtx.beginPath();
+    for (bx = 1; bx < nbx; bx++) { ovCtx.moveTo(Math.round(bx * bp) + 0.5, 0); ovCtx.lineTo(Math.round(bx * bp) + 0.5, h); }
+    for (by = 1; by < nby; by++) { ovCtx.moveTo(0, Math.round(by * bp) + 0.5); ovCtx.lineTo(w, Math.round(by * bp) + 0.5); }
+    ovCtx.lineWidth = 1; ovCtx.strokeStyle = 'rgba(27,24,20,0.45)'; ovCtx.stroke();
+    var sel = P.sel;
+    if (sel) {
+      var sx = sel.bx0 * bp, sy = sel.by0 * bp, sw = Math.min(sel.bw * bp, w - sx), sh = Math.min(sel.bh * bp, h - sy);
+      ovCtx.fillStyle = rgba(UI.accent, 0.2); ovCtx.fillRect(sx, sy, sw, sh);
+      ovCtx.lineWidth = 3; ovCtx.strokeStyle = rgb(UI.accent); ovCtx.strokeRect(sx + 1.5, sy + 1.5, sw - 3, sh - 3);
+    }
+  }
+  function renderSelSummary() {
+    var sel = P.sel; if (!sel) return;
+    var a = areaFromBlocks(sel.bx0, sel.by0, sel.bw, sel.bh, P.bs);
+    var total = (a.c1 - a.c0) * (a.r1 - a.r0), left = areaRemaining(a), cols = {}, n = 0;
+    for (var r = a.r0; r < a.r1; r++) for (var c = a.c0; c < a.c1; c++) { var p = S.pat[r * S.W + c]; if (!cols[p]) { cols[p] = 1; n++; } }
+    $('selSummary').innerHTML = '<strong>Area ' + areaLabel(a) + '</strong>' +
+      '<span>' + (a.c1 - a.c0) + ' × ' + (a.r1 - a.r0) + ' stitches</span>' +
+      '<span>' + pctText(total - left, total) + ' done · ' + fmt(left) + ' left</span>' +
+      '<span>' + n + ' colours</span>';
+    $('pickerOk').disabled = false;
+  }
+  function blockAt(e) {
+    var r = ov.getBoundingClientRect(), bp = P.bs * P.scale;
+    var bx = Math.floor((e.clientX - r.left) / bp), by = Math.floor((e.clientY - r.top) / bp);
+    return { bx: Math.max(0, Math.min(blocksX(P.bs) - 1, bx)), by: Math.max(0, Math.min(blocksY(P.bs) - 1, by)) };
+  }
+  function setSelFromDrag(a, b) {
+    P.sel = { bx0: Math.min(a.bx, b.bx), by0: Math.min(a.by, b.by), bw: Math.abs(a.bx - b.bx) + 1, bh: Math.abs(a.by - b.by) + 1 };
+    drawOverview(); renderSelSummary();
+  }
+  ov.addEventListener('pointerdown', function (e) { ov.setPointerCapture(e.pointerId); P.drag = blockAt(e); setSelFromDrag(P.drag, P.drag); });
+  ov.addEventListener('pointermove', function (e) { if (P.drag) setSelFromDrag(P.drag, blockAt(e)); });
+  ov.addEventListener('pointerup', function () { P.drag = null; });
+  ov.addEventListener('pointercancel', function () { P.drag = null; });
+  ov.addEventListener('dblclick', function () { confirmPicker(); });
+  document.querySelectorAll('[data-bs]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      P.bs = +b.dataset.bs; S.blockSize = P.bs;
+      document.querySelectorAll('[data-bs]').forEach(function (o) { o.setAttribute('aria-pressed', String(o === b)); });
+      computeBlocks(); P.sel = firstUnfinishedBlock(); drawOverview(); renderSelSummary();
+    });
+  });
+  function confirmPicker() {
+    var sel = P.sel; if (!sel) return;
+    $('picker').hidden = true;
+    enterArea(areaFromBlocks(sel.bx0, sel.by0, sel.bw, sel.bh, P.bs));
+    chart.focus();
+  }
+  $('pickerOk').addEventListener('click', confirmPicker);
+  $('pickerCancel').addEventListener('click', closePicker);
+  $('pickerClose').addEventListener('click', closePicker);
+  $('picker').addEventListener('click', function (e) { if (e.target === $('picker')) closePicker(); });
+  $('firstUnfinished').addEventListener('click', function () { P.sel = firstUnfinishedBlock(); drawOverview(); renderSelSummary(); });
+
+  // ════════════════════════════════════════════════════════════════
+  //  Controls
+  // ════════════════════════════════════════════════════════════════
+  $('hintPick').addEventListener('click', openPicker);
+  $('ctaPick').addEventListener('click', openPicker);
+  $('abChange').addEventListener('click', openPicker);
+  $('abExit').addEventListener('click', exitArea);
+  $('abPrev').addEventListener('click', function () { stepArea(-1); });
+  $('abNext').addEventListener('click', function () { stepArea(1); });
+  document.querySelectorAll('[data-margin]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      S.margin = +b.dataset.margin;
+      S.cs = clampCs(S.cs); clampView(); renderAreaBar(); requestDraw();
+    });
+  });
+  $('zoomIn').addEventListener('click', function () { zoomAt(vw / 2, vh / 2, 1.4); });
+  $('zoomOut').addEventListener('click', function () { zoomAt(vw / 2, vh / 2, 1 / 1.4); });
+  $('fitBtn').addEventListener('click', fit);
+  $('undoBtn').addEventListener('click', undo);
+  $('miniBtn').addEventListener('click', function () {
+    S.minimap = !S.minimap;
+    $('miniBtn').setAttribute('aria-pressed', String(S.minimap));
+    $('miniBox').hidden = !S.minimap;
+    requestDraw();
+  });
+  $('legend').addEventListener('click', function (e) {
+    var row = e.target.closest('.lg-row'); if (!row) return;
+    var p = +row.dataset.p;
+    S.focus = S.focus === p ? -1 : p;
+    renderLegend(); requestDraw();
+  });
+  document.querySelectorAll('[data-sort]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      S.sort = b.dataset.sort;
+      document.querySelectorAll('[data-sort]').forEach(function (o) { o.setAttribute('aria-pressed', String(o === b)); });
+      renderLegend();
+    });
+  });
+  $('clearHlBtn').addEventListener('click', function () { S.focus = -1; renderLegend(); requestDraw(); });
+  $('markAllBtn').addEventListener('click', function () {
+    var f = S.focus; if (f < 0) return;
+    var A = S.area, list = [];
+    var c0 = A ? A.c0 : 0, c1 = A ? A.c1 : S.W, r0 = A ? A.r0 : 0, r1 = A ? A.r1 : S.H;
+    for (var r = r0; r < r1; r++) for (var c = c0; c < c1; c++) { var i = r * S.W + c; if (S.pat[i] === f && !S.done[i]) list.push(i); }
+    if (!list.length) return;
+    if (!A && list.length > 1000 && !window.confirm('Mark all ' + fmt(list.length) + ' stitches of DMC ' + PALETTE[f][0] + ' done across the whole pattern?')) return;
+    var t0 = performance.now();
+    var n = setCells(list, 1);
+    status('Marked ' + fmt(n) + ' stitches done (scanned ' + fmt((c1 - c0) * (r1 - r0)) + ' stitches in ' + (performance.now() - t0).toFixed(1) + ' ms)');
+  });
+  $('sizeSel').addEventListener('change', function () {
+    var parts = this.value.split('x');
+    status('Generating pattern…');
+    setTimeout(function () { loadPattern(+parts[0], +parts[1]); sizeMinimap(); requestDraw(); }, 20);
+  });
+
+  // Notes
+  function setNotes(open) {
+    $('notes').hidden = !open;
+    try { localStorage.setItem('waProtoNotes', open ? '1' : '0'); } catch (_) {}
+    if (open) $('notesClose').focus();
+  }
+  $('notesBtn').addEventListener('click', function () { setNotes($('notes').hidden); });
+  $('notesClose').addEventListener('click', function () { setNotes(false); });
+
+  // Theme
+  function effectiveDark() {
+    var t = document.documentElement.getAttribute('data-theme');
+    if (t) return t === 'dark';
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+  function renderThemeBtn() {
+    var dark = effectiveDark();
+    $('themeBtn').innerHTML = icon(dark ? 'sun' : 'moon');
+    $('themeBtn').setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
+  }
+  function onThemeChange() { buildColors(); renderThemeBtn(); requestDraw(); if (!$('picker').hidden) drawOverview(); }
+  $('themeBtn').addEventListener('click', function () {
+    var next = effectiveDark() ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('waProtoTheme', next); } catch (_) {}
+    onThemeChange();
+  });
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', onThemeChange);
+  }
+
+  // Keyboard
+  document.addEventListener('keydown', function (e) {
+    if (e.target && (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT')) return;
+    if (e.key === 'Escape') {
+      if (!$('picker').hidden) { closePicker(); return; }
+      if (!$('notes').hidden) { setNotes(false); return; }
+    }
+    if (!$('picker').hidden) return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    switch (e.key) {
+      case '+': case '=': zoomAt(vw / 2, vh / 2, 1.4); break;
+      case '-': case '_': zoomAt(vw / 2, vh / 2, 1 / 1.4); break;
+      case '0': fit(); break;
+      case '[': stepArea(-1); break;
+      case ']': stepArea(1); break;
+      case 'ArrowLeft': S.ox -= vw * 0.2; clampView(); requestDraw(); break;
+      case 'ArrowRight': S.ox += vw * 0.2; clampView(); requestDraw(); break;
+      case 'ArrowUp': S.oy -= vh * 0.2; clampView(); requestDraw(); break;
+      case 'ArrowDown': S.oy += vh * 0.2; clampView(); requestDraw(); break;
+      default: return;
+    }
+    e.preventDefault();
+  });
+
+  // ════════════════════════════════════════════════════════════════
+  //  Boot
+  // ════════════════════════════════════════════════════════════════
+  try { var savedTheme = localStorage.getItem('waProtoTheme'); if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme); } catch (_) {}
+  buildColors(); renderThemeBtn();
+  var notesPref = null;
+  try { notesPref = localStorage.getItem('waProtoNotes'); } catch (_) {}
+  $('notes').hidden = notesPref === '0' || (notesPref === null && window.innerWidth < 1100);
+  resize();
+  loadPattern(400, 500);
+  sizeMinimap();
+  if (window.ResizeObserver) new ResizeObserver(function () { resize(); sizeMinimap(); requestDraw(); if (!$('picker').hidden) { sizeOverview(); drawOverview(); } }).observe(wrap);
+  else window.addEventListener('resize', function () { resize(); sizeMinimap(); requestDraw(); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(requestDraw);
+})();
+</script>
+</body>
+</html>

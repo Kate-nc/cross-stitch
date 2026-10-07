@@ -1,39 +1,80 @@
 /* analysis-worker.js — Spatial analysis Web Worker
-   Receives: { type: "analyse", pat, done, sW, sH }
-             { type: "analyse_incremental", pat, done, sW, sH, changedIdx }
-   Posts back: { type: "result", perStitch, perColour, perRegion, regionSize, regionCols, regionRows }
+   ═══════════════════════════════════════════════════════════════════════════
+   Protocol (current — see reports/track-view-performance-plan.md, F2):
+
+     { type: "setPattern", patternId, codes, ids, sW, sH }
+         `codes` is a Uint16Array, one entry per stitch, indexing `ids`
+         (DMC/blend ids); SKIP (0xFFFF) marks __skip__/__empty__ cells. Sent
+         once per pattern, with the buffer transferred, so the main thread
+         never structured-clones an object per stitch again.
+
+     { type: "analyse", patternId, done, sW, sH, requestId, blockSize }
+         `done` is the progress Uint8Array. Uses the stored pattern.
+
+     -> { type: "result", requestId, patternId, result }
+         `result` has perColour, perRegion, regionSize, regionCols,
+         regionRows, sW, sH. The pattern-only per-stitch arrays
+         (`result.perStitch`) are attached to the FIRST result for each
+         patternId only, with their buffers transferred; the main thread
+         keeps them. Every later result carries just the progress-dependent
+         summaries, which are small.
+
+   Everything that depends only on the pattern — clusters, neighbour counts,
+   nearest-same-colour distances, per-colour shape metrics, per-region colour
+   make-up — is computed once per pattern and cached. A progress change only
+   re-counts completions and impact scores: one pass over `done`.
+
+   Legacy: { type: "analyse", pat: [{id}], done, sW, sH, ... } still works and
+   returns the full result, perStitch included.
 */
+
+var SKIP = 0xFFFF;
+
+// ── Pattern model ─────────────────────────────────────────────────────────
+// Accepts a model ({codes, ids}) or the legacy array of {id} objects. The
+// helpers below all take either, so callers (and the unit tests) need not
+// care which they hold.
+function toModel(pat, sW, sH) {
+  if (pat && pat.codes) return pat;
+  var n = pat.length, codes = new Uint16Array(n), ids = [], map = new Map();
+  for (var i = 0; i < n; i++) {
+    var id = pat[i] && pat[i].id;
+    if (id == null || id === "__skip__" || id === "__empty__") { codes[i] = SKIP; continue; }
+    var c = map.get(id);
+    if (c === undefined) { c = ids.length; ids.push(id); map.set(id, c); }
+    codes[i] = c;
+  }
+  return { codes: codes, ids: ids, sW: sW, sH: sH };
+}
 
 // ── Connected-component flood fill (4-connected) ───────────────────────────
 function computeClusters(pat, sW, sH) {
-  var n = pat.length;
+  var codes = toModel(pat, sW, sH).codes;
+  var n = codes.length;
   var clusterLabel = new Int32Array(n);  // 0 = unvisited
   var clusterSizes = [];  // clusterSizes[label-1] = size
   var label = 0;
-  var queue = [];
+  var queue = new Int32Array(n);
 
-  for (var start2 = 0; start2 < n; start2++) {
-    if (clusterLabel[start2] !== 0) continue;
-    var id2 = pat[start2].id;
-    if (id2 === "__skip__" || id2 === "__empty__") { clusterLabel[start2] = -1; continue; }
+  for (var start = 0; start < n; start++) {
+    if (clusterLabel[start] !== 0) continue;
+    var code = codes[start];
+    if (code === SKIP) { clusterLabel[start] = -1; continue; }
 
     label++;
-    var size2 = 0;
-    queue.length = 0;
-    queue.push(start2);
-    clusterLabel[start2] = label;
+    var head = 0, tail = 0;
+    queue[tail++] = start;
+    clusterLabel[start] = label;
 
-    var qi2 = 0;
-    while (qi2 < queue.length) {
-      var idx2 = queue[qi2++];
-      size2++;
-      var x2 = idx2 % sW, y2 = Math.floor(idx2 / sW);
-      if (y2 > 0)       { var nb2 = idx2 - sW; if (clusterLabel[nb2] === 0 && pat[nb2].id === id2) { clusterLabel[nb2] = label; queue.push(nb2); } }
-      if (y2 < sH - 1)  { var nb3 = idx2 + sW; if (clusterLabel[nb3] === 0 && pat[nb3].id === id2) { clusterLabel[nb3] = label; queue.push(nb3); } }
-      if (x2 > 0)       { var nb4 = idx2 - 1;  if (clusterLabel[nb4] === 0 && pat[nb4].id === id2) { clusterLabel[nb4] = label; queue.push(nb4); } }
-      if (x2 < sW - 1)  { var nb5 = idx2 + 1;  if (clusterLabel[nb5] === 0 && pat[nb5].id === id2) { clusterLabel[nb5] = label; queue.push(nb5); } }
+    while (head < tail) {
+      var idx = queue[head++];
+      var x = idx % sW, y = (idx - x) / sW;
+      if (y > 0)      { var nb = idx - sW; if (clusterLabel[nb] === 0 && codes[nb] === code) { clusterLabel[nb] = label; queue[tail++] = nb; } }
+      if (y < sH - 1) { nb = idx + sW;     if (clusterLabel[nb] === 0 && codes[nb] === code) { clusterLabel[nb] = label; queue[tail++] = nb; } }
+      if (x > 0)      { nb = idx - 1;      if (clusterLabel[nb] === 0 && codes[nb] === code) { clusterLabel[nb] = label; queue[tail++] = nb; } }
+      if (x < sW - 1) { nb = idx + 1;      if (clusterLabel[nb] === 0 && codes[nb] === code) { clusterLabel[nb] = label; queue[tail++] = nb; } }
     }
-    clusterSizes.push(size2);
+    clusterSizes.push(tail);
   }
 
   return { clusterLabel: clusterLabel, clusterSizes: clusterSizes };
@@ -43,15 +84,15 @@ function computeClusters(pat, sW, sH) {
 // For each stitch, scan expanding shells of the 8-neighbourhood until same colour found.
 // Cap search at maxR=20 stitches for performance.
 function computeNearestSameColour(pat, sW, sH) {
-  var n = pat.length;
+  var codes = toModel(pat, sW, sH).codes;
+  var n = codes.length;
   var nearest = new Float32Array(n);
   nearest.fill(999);
 
   for (var i = 0; i < n; i++) {
-    var id = pat[i].id;
-    if (id === "__skip__" || id === "__empty__") { nearest[i] = 0; continue; }
-    var x0 = i % sW, y0 = Math.floor(i / sW);
-    var found = false;
+    var code = codes[i];
+    if (code === SKIP) { nearest[i] = 0; continue; }
+    var x0 = i % sW, y0 = (i - x0) / sW;
     outer:
     for (var r = 1; r <= 20; r++) {
       for (var dy = -r; dy <= r; dy++) {
@@ -59,35 +100,33 @@ function computeNearestSameColour(pat, sW, sH) {
           if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue; // only shell
           var nx = x0 + dx, ny = y0 + dy;
           if (nx < 0 || nx >= sW || ny < 0 || ny >= sH) continue;
-          var ni = ny * sW + nx;
-          if (pat[ni].id === id) {
+          if (codes[ny * sW + nx] === code) {
             nearest[i] = Math.sqrt(dx * dx + dy * dy);
-            found = true;
             break outer;
           }
         }
       }
     }
-    if (!found) nearest[i] = 999; // completely alone in search radius
   }
   return nearest;
 }
 
 // ── Per-stitch 8-neighbour same-colour count ──────────────────────────────
 function computeNeighbourCounts(pat, sW, sH) {
-  var n = pat.length;
+  var codes = toModel(pat, sW, sH).codes;
+  var n = codes.length;
   var counts = new Uint8Array(n);
   for (var i = 0; i < n; i++) {
-    var id = pat[i].id;
-    if (id === "__skip__" || id === "__empty__") continue;
-    var x0 = i % sW, y0 = Math.floor(i / sW);
+    var code = codes[i];
+    if (code === SKIP) continue;
+    var x0 = i % sW, y0 = (i - x0) / sW;
     var c = 0;
     for (var dy = -1; dy <= 1; dy++) {
       for (var dx = -1; dx <= 1; dx++) {
         if (dx === 0 && dy === 0) continue;
         var nx = x0 + dx, ny = y0 + dy;
         if (nx < 0 || nx >= sW || ny < 0 || ny >= sH) continue;
-        if (pat[ny * sW + nx].id === id) c++;
+        if (codes[ny * sW + nx] === code) c++;
       }
     }
     counts[i] = c;
@@ -95,132 +134,179 @@ function computeNeighbourCounts(pat, sW, sH) {
   return counts;
 }
 
-// ── Full analysis ─────────────────────────────────────────────────────────
-function runAnalysis(pat, done, sW, sH, REGION_SIZE, postProgress) {
-  if (!pat || !sW || !sH) return null;
-  var n = pat.length;
-  var noop = function() {};
-  postProgress = postProgress || noop;
+// ── Pattern-only analysis (computed once per pattern) ─────────────────────
+function computeStatics(model, postProgress) {
+  var codes = model.codes, sW = model.sW, sH = model.sH, n = codes.length, nIds = model.ids.length;
+  postProgress = postProgress || function () {};
 
-  postProgress("clusters", "Detecting clusters\u2026");
-  var cc = computeClusters(pat, sW, sH);
-  var clusterLabel = cc.clusterLabel;
-  var clusterSizes = cc.clusterSizes;
+  postProgress("clusters", "Detecting clusters…");
+  var cc = computeClusters(model, sW, sH);
+  var clusterLabel = cc.clusterLabel, clusterSizes = cc.clusterSizes;
 
-  postProgress("neighbours", "Measuring neighbours\u2026");
-  var neighbourCounts = computeNeighbourCounts(pat, sW, sH);
-  var nearestDist = computeNearestSameColour(pat, sW, sH);
+  postProgress("neighbours", "Measuring neighbours…");
+  var neighbourCounts = computeNeighbourCounts(model, sW, sH);
+  var nearestDist = computeNearestSameColour(model, sW, sH);
 
-  // Per-stitch output arrays (typed for memory efficiency)
-  // PERF (perf-3 #8 / perf-6 #6): keep typed arrays — sole consumer indexes
-  // them numerically, so Array.from() conversions wasted ~120 KB per
-  // 200×200 message and added GC pressure on every analysis pass.
-  var perStitch = {
-    neighbourCount: neighbourCounts,
-    nearestDist:    nearestDist,
-    clusterLabel:   clusterLabel,
-    clusterSize:    new Array(n),
-    isConfetti:     new Uint8Array(n),
-    isCompleted:    done ? new Uint8Array(done) : new Uint8Array(n)
-  };
+  // Typed throughout: the sole consumer indexes them numerically, and a plain
+  // Array here costs a per-element structured clone on the way back.
+  var clusterSize = new Int32Array(n);
+  var isConfetti = new Uint8Array(n);
+
+  // Per-colour shape metrics, indexed by code.
+  var total = new Int32Array(nIds), confetti = new Int32Array(nIds), largest = new Int32Array(nIds);
+  var distSum = new Float64Array(nIds), lastCluster = new Int32Array(nIds), clusterCount = new Int32Array(nIds);
+  var minX = new Int32Array(nIds).fill(sW), maxX = new Int32Array(nIds), minY = new Int32Array(nIds).fill(sH), maxY = new Int32Array(nIds);
+  // Each colour's clusters are counted by distinct label; labels are assigned
+  // in scan order, so a seen-flag per label is enough.
+  var labelSeen = new Uint8Array(clusterSizes.length + 1);
 
   for (var i = 0; i < n; i++) {
+    var code = codes[i];
+    if (code === SKIP) continue;
     var lbl = clusterLabel[i];
-    perStitch.clusterSize[i] = lbl > 0 ? clusterSizes[lbl - 1] : 0;
-    perStitch.isConfetti[i] = neighbourCounts[i] === 0 && pat[i].id !== "__skip__" && pat[i].id !== "__empty__" ? 1 : 0;
+    var sz = lbl > 0 ? clusterSizes[lbl - 1] : 0;
+    clusterSize[i] = sz;
+    var conf = neighbourCounts[i] === 0 ? 1 : 0;
+    isConfetti[i] = conf;
+
+    total[code]++;
+    confetti[code] += conf;
+    distSum[code] += nearestDist[i];
+    if (lbl > 0) {
+      if (!labelSeen[lbl]) { labelSeen[lbl] = 1; clusterCount[code]++; }
+      if (sz > largest[code]) largest[code] = sz;
+    }
+    var x = i % sW, y = (i - x) / sW;
+    if (x < minX[code]) minX[code] = x;
+    if (x > maxX[code]) maxX[code] = x;
+    if (y < minY[code]) minY[code] = y;
+    if (y > maxY[code]) maxY[code] = y;
   }
 
-  // Per-colour metrics
-  var colourMap = {};
-  for (var i2 = 0; i2 < n; i2++) {
-    var id = pat[i2].id;
-    if (id === "__skip__" || id === "__empty__") continue;
-    if (!colourMap[id]) {
-      colourMap[id] = {
-        id: id,
-        totalStitches: 0,
-        completedStitches: 0,
-        clusterSet: new Set(),
-        largestClusterSize: 0,
-        confettiCount: 0,
-        nearestDistSum: 0,
-        minX: sW, maxX: 0, minY: sH, maxY: 0
-      };
-    }
-    var c = colourMap[id];
-    c.totalStitches++;
-    if (done && done[i2]) c.completedStitches++;
-    if (perStitch.isConfetti[i2]) c.confettiCount++;
-    c.nearestDistSum += nearestDist[i2];
-
-    var cl = clusterLabel[i2];
-    if (cl > 0) {
-      c.clusterSet.add(cl);
-      var cs = clusterSizes[cl - 1];
-      if (cs > c.largestClusterSize) c.largestClusterSize = cs;
-    }
-
-    var x = i2 % sW, y = Math.floor(i2 / sW);
-    if (x < c.minX) c.minX = x;
-    if (x > c.maxX) c.maxX = x;
-    if (y < c.minY) c.minY = y;
-    if (y > c.maxY) c.maxY = y;
-  }
-
-  var perColour = {};
-  for (var id in colourMap) {
-    var c2 = colourMap[id];
-    perColour[id] = {
-      id: id,
-      totalStitches: c2.totalStitches,
-      completedStitches: c2.completedStitches,
-      clusterCount: c2.clusterSet.size,
-      largestClusterSize: c2.largestClusterSize,
-      confettiCount: c2.confettiCount,
-      averageNearestSameColour: c2.totalStitches > 0 ? c2.nearestDistSum / c2.totalStitches : 0,
-      boundingBox: { x: c2.minX, y: c2.minY, w: c2.maxX - c2.minX + 1, h: c2.maxY - c2.minY + 1 }
+  var colours = new Array(nIds);
+  for (var c = 0; c < nIds; c++) {
+    colours[c] = {
+      id: model.ids[c],
+      totalStitches: total[c],
+      clusterCount: clusterCount[c],
+      largestClusterSize: largest[c],
+      confettiCount: confetti[c],
+      averageNearestSameColour: total[c] > 0 ? distSum[c] / total[c] : 0,
+      boundingBox: { x: minX[c], y: minY[c], w: maxX[c] - minX[c] + 1, h: maxY[c] - minY[c] + 1 }
     };
   }
 
-  // Per-region metrics (10×10 blocks)
-  var regionCols = Math.ceil(sW / REGION_SIZE);
-  var regionRows = Math.ceil(sH / REGION_SIZE);
-  var nRegions = regionCols * regionRows;
-  var regions = new Array(nRegions);
-  for (var ri = 0; ri < nRegions; ri++) {
-    regions[ri] = { totalStitches: 0, completedStitches: 0, colourCounts: {}, dominantColour: null, colourCount: 0, completionPercentage: 0, impactScore: 0 };
-  }
+  return {
+    perStitch: {
+      neighbourCount: neighbourCounts,
+      nearestDist: nearestDist,
+      clusterLabel: clusterLabel,
+      clusterSize: clusterSize,
+      isConfetti: isConfetti
+    },
+    colours: colours,
+    regionsByBs: {}
+  };
+}
 
-  for (var i3 = 0; i3 < n; i3++) {
-    var id3 = pat[i3].id;
-    if (id3 === "__skip__" || id3 === "__empty__") continue;
-    var x3 = i3 % sW, y3 = Math.floor(i3 / sW);
-    var rCol = Math.floor(x3 / REGION_SIZE), rRow = Math.floor(y3 / REGION_SIZE);
-    var rIdx = rRow * regionCols + rCol;
-    var reg = regions[rIdx];
-    reg.totalStitches++;
-    if (done && done[i3]) reg.completedStitches++;
-    reg.colourCounts[id3] = (reg.colourCounts[id3] || 0) + 1;
+// Per-region colour make-up for one block size: also pattern-only, cached.
+function regionStatics(model, statics, bs) {
+  var hit = statics.regionsByBs[bs];
+  if (hit) return hit;
+  var codes = model.codes, sW = model.sW, sH = model.sH, n = codes.length, nIds = model.ids.length;
+  var cols = Math.ceil(sW / bs), rows = Math.ceil(sH / bs), nRegions = cols * rows;
+  var regionOf = new Int32Array(n);
+  var total = new Int32Array(nRegions);
+  var countsByRegion = new Array(nRegions);
+  for (var i = 0; i < n; i++) {
+    var x = i % sW, y = (i - x) / sW;
+    var r = Math.floor(y / bs) * cols + Math.floor(x / bs);
+    regionOf[i] = r;
+    var code = codes[i];
+    if (code === SKIP) continue;
+    total[r]++;
+    var regionCounts = countsByRegion[r];
+    if (!regionCounts) regionCounts = countsByRegion[r] = new Map();
+    var colour = regionCounts.get(code);
+    if (colour) colour.count++;
+    else regionCounts.set(code, { count: 1, firstSeen: i });
   }
-
-  // Resolve dominant colour and completion %
-  for (var ri2 = 0; ri2 < nRegions; ri2++) {
-    var reg2 = regions[ri2];
-    if (reg2.totalStitches === 0) continue;
-    reg2.completionPercentage = reg2.completedStitches / reg2.totalStitches;
-    var maxC = 0, dom = null;
-    var colIds = Object.keys(reg2.colourCounts);
-    reg2.colourCount = colIds.length;
-    for (var ci = 0; ci < colIds.length; ci++) {
-      var cnt = reg2.colourCounts[colIds[ci]];
-      if (cnt > maxC) { maxC = cnt; dom = colIds[ci]; }
+  // Ties go to whichever colour came first in the order the previous
+  // implementation iterated, Object.keys() of a per-region map: integer-like
+  // ids ("310") ascending first, then the rest in the order they were first
+  // seen in that region. Reproduced exactly so results are unchanged.
+  var intKey = new Array(nIds);
+  for (var c0 = 0; c0 < nIds; c0++) {
+    var s = String(model.ids[c0]), v = Number(s);
+    intKey[c0] = (/^(0|[1-9]\d*)$/.test(s) && v < 4294967295) ? v : -1;
+  }
+  function before(a, b, regionCounts) {
+    var ka = intKey[a], kb = intKey[b];
+    if (ka >= 0 && kb >= 0) return ka < kb;
+    if (ka >= 0 || kb >= 0) return ka >= 0;
+    return regionCounts.get(a).firstSeen < regionCounts.get(b).firstSeen;
+  }
+  var dominant = new Array(nRegions), dominantCount = new Int32Array(nRegions), colourCount = new Int32Array(nRegions);
+  for (var r2 = 0; r2 < nRegions; r2++) {
+    var best = 0, domCode = -1, regionCounts = countsByRegion[r2];
+    if (regionCounts) {
+      regionCounts.forEach(function (colour, code) {
+        if (colour.count > best || (colour.count === best && before(code, domCode, regionCounts))) {
+          best = colour.count;
+          domCode = code;
+        }
+      });
     }
-    reg2.dominantColour = dom;
-    reg2.dominantCount = maxC;
-    delete reg2.colourCounts; // don't send large map across wire
+    dominant[r2] = domCode >= 0 ? model.ids[domCode] : null; dominantCount[r2] = best; colourCount[r2] = regionCounts ? regionCounts.size : 0;
+  }
+  hit = { bs: bs, cols: cols, rows: rows, regionOf: regionOf, total: total, dominant: dominant, dominantCount: dominantCount, colourCount: colourCount };
+  statics.regionsByBs[bs] = hit;
+  return hit;
+}
+
+// ── Progress-dependent analysis (one pass over `done`) ────────────────────
+function analyseProgress(model, statics, done, bs) {
+  var codes = model.codes, sW = model.sW, sH = model.sH, n = codes.length, nIds = model.ids.length;
+  var reg = regionStatics(model, statics, bs);
+  var colourDone = new Int32Array(nIds);
+  var regionDone = new Int32Array(reg.total.length);
+  if (done) {
+    for (var i = 0; i < n; i++) {
+      if (!done[i]) continue;
+      var code = codes[i];
+      if (code === SKIP) continue;
+      colourDone[code]++;
+      regionDone[reg.regionOf[i]]++;
+    }
   }
 
-  // Compute impact scores
+  var perColour = {};
+  for (var c = 0; c < nIds; c++) {
+    var s = statics.colours[c];
+    if (!s.totalStitches) continue;
+    perColour[s.id] = {
+      id: s.id,
+      totalStitches: s.totalStitches,
+      completedStitches: colourDone[c],
+      clusterCount: s.clusterCount,
+      largestClusterSize: s.largestClusterSize,
+      confettiCount: s.confettiCount,
+      averageNearestSameColour: s.averageNearestSameColour,
+      boundingBox: { x: s.boundingBox.x, y: s.boundingBox.y, w: s.boundingBox.w, h: s.boundingBox.h }
+    };
+  }
+
+  var regionCols = reg.cols, regionRows = reg.rows, nRegions = regionCols * regionRows;
+  var regions = new Array(nRegions);
+  for (var r = 0; r < nRegions; r++) {
+    var t = reg.total[r];
+    regions[r] = t === 0
+      ? { totalStitches: 0, completedStitches: 0, colourCounts: {}, dominantColour: null, colourCount: 0, completionPercentage: 0, impactScore: 0 }
+      : { totalStitches: t, completedStitches: regionDone[r], dominantColour: reg.dominant[r], colourCount: reg.colourCount[r],
+          completionPercentage: regionDone[r] / t, impactScore: 0, dominantCount: reg.dominantCount[r] };
+  }
+
+  // Impact scores
   var patCentreX = sW / 2, patCentreY = sH / 2;
   var maxCentreDist = Math.sqrt(patCentreX * patCentreX + patCentreY * patCentreY);
 
@@ -229,8 +315,8 @@ function runAnalysis(pat, done, sW, sH, REGION_SIZE, postProgress) {
     if (reg3.totalStitches === 0 || reg3.completionPercentage >= 1.0) { reg3.impactScore = -1; continue; }
 
     var rCol3 = ri3 % regionCols, rRow3 = Math.floor(ri3 / regionCols);
-    var regCX = (rCol3 + 0.5) * REGION_SIZE;
-    var regCY = (rRow3 + 0.5) * REGION_SIZE;
+    var regCX = (rCol3 + 0.5) * bs;
+    var regCY = (rRow3 + 0.5) * bs;
 
     // Factor 1: border completion (avg completion of 4 adjacent regions)
     var adjTotal = 0, adjCount = 0;
@@ -263,10 +349,9 @@ function runAnalysis(pat, done, sW, sH, REGION_SIZE, postProgress) {
   }
 
   return {
-    perStitch: perStitch,
     perColour: perColour,
     perRegion: regions,
-    regionSize: REGION_SIZE,
+    regionSize: bs,
     regionCols: regionCols,
     regionRows: regionRows,
     sW: sW,
@@ -274,23 +359,73 @@ function runAnalysis(pat, done, sW, sH, REGION_SIZE, postProgress) {
   };
 }
 
+// ── Full analysis (legacy messages and tests) ─────────────────────────────
+function runAnalysis(pat, done, sW, sH, REGION_SIZE, postProgress) {
+  if (!pat || !sW || !sH) return null;
+  var model = toModel(pat, sW, sH);
+  var statics = computeStatics(model, postProgress);
+  var result = analyseProgress(model, statics, done, REGION_SIZE);
+  var ps = statics.perStitch;
+  result.perStitch = {
+    neighbourCount: ps.neighbourCount,
+    nearestDist: ps.nearestDist,
+    clusterLabel: ps.clusterLabel,
+    clusterSize: ps.clusterSize,
+    isConfetti: ps.isConfetti,
+    isCompleted: done ? new Uint8Array(done) : new Uint8Array(model.codes.length)
+  };
+  return result;
+}
+
 // ── Message handler ───────────────────────────────────────────────────────
 var REGION_SIZE = 10;
+var current = null;  // { id, model, statics, staticsSent }
 
-self.onmessage = function(e) {
-  var msg = e.data;
-  if (msg.type === "analyse" || msg.type === "analyse_incremental") {
-    try {
-      var bs = (msg.blockSize >= 5 && msg.blockSize <= 100) ? msg.blockSize : REGION_SIZE;
-      var requestId = msg.requestId;
-      function postProgress(stage, message) {
-        try { self.postMessage({ type: "progress", stage: stage, message: message, requestId: requestId }); } catch (_) {}
-      }
-      postProgress("start", "Analysing pattern\u2026");
-      var result = runAnalysis(msg.pat, msg.done, msg.sW, msg.sH, bs, postProgress);
-      self.postMessage({ type: "result", result: result, requestId: requestId });
-    } catch (err) {
-      self.postMessage({ type: "error", message: err.message, requestId: msg.requestId });
-    }
+function handleMessage(msg, post) {
+  if (msg.type === "setPattern") {
+    current = { id: msg.patternId, model: { codes: msg.codes, ids: msg.ids, sW: msg.sW, sH: msg.sH }, statics: null, staticsSent: false };
+    return;
   }
-};
+  if (msg.type !== "analyse" && msg.type !== "analyse_incremental") return;
+  var requestId = msg.requestId;
+  try {
+    var bs = (msg.blockSize >= 5 && msg.blockSize <= 100) ? msg.blockSize : REGION_SIZE;
+    var postProgress = function (stage, message) {
+      try { post({ type: "progress", stage: stage, message: message, requestId: requestId }); } catch (_) {}
+    };
+
+    if (msg.pat) {
+      postProgress("start", "Analysing pattern…");
+      post({ type: "result", result: runAnalysis(msg.pat, msg.done, msg.sW, msg.sH, bs, postProgress), requestId: requestId });
+      return;
+    }
+
+    if (!current || current.id !== msg.patternId) {
+      post({ type: "error", message: "analyse: no pattern loaded for id " + msg.patternId, requestId: requestId });
+      return;
+    }
+    if (!current.statics) {
+      postProgress("start", "Analysing pattern…");
+      current.statics = computeStatics(current.model, postProgress);
+    }
+    var result = analyseProgress(current.model, current.statics, msg.done, bs);
+    var transfer = [];
+    if (!current.staticsSent) {
+      var ps = current.statics.perStitch;
+      result.perStitch = ps;
+      transfer = [ps.neighbourCount.buffer, ps.nearestDist.buffer, ps.clusterLabel.buffer, ps.clusterSize.buffer, ps.isConfetti.buffer];
+      // Transferred, so detached here; nothing in this worker reads them again.
+      current.statics.perStitch = null;
+      current.staticsSent = true;
+    }
+    post({ type: "result", result: result, requestId: requestId, patternId: current.id }, transfer);
+  } catch (err) {
+    post({ type: "error", message: err.message, requestId: requestId });
+  }
+}
+
+if (typeof self !== "undefined" && typeof self.postMessage === "function") {
+  self.onmessage = function (e) {
+    handleMessage(e.data, function (m, transfer) { self.postMessage(m, transfer || []); });
+  };
+}
