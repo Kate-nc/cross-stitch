@@ -995,6 +995,14 @@
         own[m.id] = { id: m.id, name: m.name, rgb: m.rgb, lab: m.lab, symbol: m.symbol };
       }
     });
+    (project.partialStitches || []).forEach(function (e) {
+      Object.keys(e[1] || {}).forEach(function (k) {
+        var m = e[1][k];
+        if (m && m.id && m.id !== '__skip__' && m.id !== '__empty__' && !own[m.id]) {
+          own[m.id] = { id: m.id, name: m.name, rgb: m.rgb, lab: m.lab, symbol: m.symbol };
+        }
+      });
+    });
     function target(id) {
       if (id in memo) return memo[id];
       var to = id, seen = {};

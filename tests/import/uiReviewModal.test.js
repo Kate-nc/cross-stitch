@@ -108,6 +108,13 @@ describe('mergeEdits — choosing threads for placeholders', () => {
     expect(out.pattern[0].id).toBe('3371');
   });
 
+  it('merges into a colour used only by a fractional stitch', () => {
+    const p = project();
+    p.partialStitches = [[3, { TL: { id: 'P1', rgb: [4, 5, 6], name: 'Partial colour' } }]];
+    const out = mergeEdits(p, { threads: { U1: 'P1' } });
+    expect(out.pattern[0]).toEqual(expect.objectContaining({ id: 'P1', name: 'Partial colour', rgb: [4, 5, 6] }));
+  });
+
   it('leaves a colour alone when the chosen number is not a thread', () => {
     const out = mergeEdits(project(), { threads: { U1: '99999' } });
     expect(out.pattern[0].id).toBe('U1');

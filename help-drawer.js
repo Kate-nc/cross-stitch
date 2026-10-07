@@ -84,7 +84,7 @@
             ["Pages left out", "A page that could not be placed, or that repeats another in a different style, waits under ‘Not in the chart’. Put it back by selecting it and then a place."],
             ["Palette tab", "Symbols the key does not list, and symbols read from a scan, come first, each needing a thread. Enter its DMC or Anchor number, or choose a colour: one already in the chart, one close to it, or any DMC thread by colour family. Any other colour can be changed the same way."],
             ["Symbols that look alike", "A scan can split one symbol into two. The Palette tab shows pairs that may be the same side by side: choose Same symbol to merge them, so there are fewer to look up."],
-            ["Several designs in one PDF", "A booklet of designs is read as separate charts. Choose which design to import at the top of the review, and import the PDF again for another."],
+            ["Several designs in one PDF", "A booklet of designs is read as separate charts. Choose which design to import at the top of the review, or select Import all N designs to save every design, with its edits, at once."],
             ["Details tab", "The pattern’s name and designer are taken from the PDF where it prints them, and can be changed here with the fabric count."],
             ["Large files", "A large chart or a scan can take a while. A card shows each step as it goes, with a Cancel button."]
           ]
