@@ -1548,6 +1548,8 @@ function CreatorApp({
     sW: state.sW,
     sH: state.sH,
     pal: state.pal,
+    partialStitches: state.partialStitches,
+    bsLines: state.bsLines,
     selectionMask: state.hasSelection ? state.selectionMask : null,
     onApply: function (dstThread, opts) {
       var src = state.colourReplaceModal;
@@ -1558,7 +1560,7 @@ function CreatorApp({
       });
       state.setColourReplaceModal(null);
       if (!res || !state.addToast) return;
-      state.addToast("Replaced DMC " + src.srcId + (alsoIds.length ? " and " + alsoIds.length + " similar shade" + (alsoIds.length === 1 ? "" : "s") : "") + " with DMC " + res.dst.id + " (" + res.count.toLocaleString() + " stitch" + (res.count === 1 ? "" : "es") + (opts && opts.scope === 'selection' ? " in selection" : "") + ")", {
+      state.addToast("Replaced DMC " + src.srcId + (alsoIds.length ? " and " + alsoIds.length + " similar shade" + (alsoIds.length === 1 ? "" : "s") : "") + " with DMC " + res.dst.id + " (" + (window.ColourReplace && res.counts ? window.ColourReplace.describeCounts(res.counts) : res.count.toLocaleString() + " stitches") + (opts && opts.scope === 'selection' ? " in selection" : "") + ")", {
         type: "success",
         duration: 6000,
         action: {

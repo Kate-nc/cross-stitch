@@ -74,6 +74,8 @@
     var onApply = props.onApply; // called with (thread {id, name, rgb, ...}, { scope: 'selection' | 'all' })
     var pat = props.pat, sW = props.sW, sH = props.sH;
     var pal = props.pal || null;  // current palette entries ({ id, name, rgb, count, ... })
+    var partialStitches = props.partialStitches || null;  // Map idx -> { TL, TR, BL, BR }
+    var bsLines = props.bsLines || null;
     // Pass the selection mask only when something is selected.
     var selectionMask = props.selectionMask || null;
 
@@ -165,10 +167,25 @@
     }, [fuzzy, fuzzyTol, srcId, srcRgb && srcRgb.join(','), palEntries, pickedId]); // eslint-disable-line react-hooks/exhaustive-deps
     var extraIds = srcIds.filter(function(id) { return id !== srcId; });
 
+    // Full stitches + half/quarter stitches + backstitch lines in the source
+    // colour(s). total / inSelection are the sums used for scope and Apply.
     var counts = React.useMemo(function() {
-      if (!window.ColourReplace) return null;
-      return window.ColourReplace.countMatches(pat, srcIds, selectionMask);
-    }, [pat, srcIds, selectionMask]);
+      var R = window.ColourReplace;
+      if (!R) return null;
+      var full = R.countMatches(pat, srcIds, selectionMask);
+      var part = R.countPartials ? R.countPartials(partialStitches, srcIds, selectionMask) : { total: 0, inSelection: selectionMask ? 0 : null };
+      var bs = R.countBackstitch ? R.countBackstitch(bsLines, srcIds, selectionMask, sW, sH) : { total: 0, inSelection: selectionMask ? 0 : null };
+      return {
+        total: full.total + part.total + bs.total,
+        inSelection: selectionMask ? full.inSelection + part.inSelection + bs.inSelection : null,
+        all: { full: full.total, partial: part.total, backstitch: bs.total },
+        sel: selectionMask ? { full: full.inSelection, partial: part.inSelection, backstitch: bs.inSelection } : null
+      };
+    }, [pat, srcIds, selectionMask, partialStitches, bsLines, sW, sH]);
+    var describe = function(c) {
+      var R = window.ColourReplace;
+      return R && R.describeCounts ? R.describeCounts(c) : String((c.full || 0) + (c.partial || 0) + (c.backstitch || 0)) + ' stitches';
+    };
 
     // Scope: with an active selection, default to "selection" (the previous
     // behaviour) unless none of the selected stitches use this colour, in
@@ -225,9 +242,9 @@
 
     var srcLabel = 'DMC ' + (srcId || '') +
       (modal && modal.srcName && modal.srcName !== srcId ? ' · ' + modal.srcName : '');
-    var plural = function(n) { return n.toLocaleString() + ' stitch' + (n === 1 ? '' : 'es'); };
     var countText = affected == null ? null
-      : (affected === 0 ? 'nothing to change' : plural(affected) + ' will change');
+      : (affected === 0 ? 'nothing to change'
+        : describe(scope === 'selection' ? counts.sel : counts.all) + ' will change');
 
     // ── Scope line: what the replacement will touch ──
     var scopeRow = null;
@@ -269,7 +286,7 @@
       scopeRow = h('div', {
         className: 'colour-replace-scope',
         style: { marginBottom: 12, fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }
-      }, 'Replaces this colour across the whole pattern (' + plural(counts.total) + ').');
+      }, 'Replaces this colour across the whole pattern (' + describe(counts.all) + ').');
     }
 
     // ── Similar shades row ──

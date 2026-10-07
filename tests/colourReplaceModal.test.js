@@ -437,3 +437,24 @@ describe('ColourReplaceModal similar shades', () => {
   });
 });
 
+
+describe('ColourReplaceModal counts part stitches and backstitch', () => {
+  const PS = new Map([[1, { TL: { id: '310', rgb: [0, 0, 0] } }]]);
+  const BS = [{ x1: 0, y1: 0, x2: 1, y2: 0, colorId: '310' }, { x1: 0, y1: 1, x2: 1, y2: 1, colorId: '321' }];
+
+  test('summary and scope text break the count down by kind', () => {
+    render({ partialStitches: PS, bsLines: BS });
+    expect(container.querySelector('.colour-replace-scope').textContent)
+      .toMatch(/2 stitches, 1 part stitch and 1 backstitch line/);
+    expect(summary()).toMatch(/2 stitches, 1 part stitch and 1 backstitch line will change/);
+  });
+
+  test('a colour used only in part stitches can still be replaced', () => {
+    const props = render({ pat: [RED, RED, RED, RED], partialStitches: PS });
+    expect(summary()).toMatch(/1 part stitch will change/);
+    click(row('3371'));
+    expect(applyBtn().disabled).toBe(false);
+    click(applyBtn());
+    expect(props.onApply).toHaveBeenCalledTimes(1);
+  });
+});

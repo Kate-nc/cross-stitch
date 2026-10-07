@@ -458,14 +458,21 @@ window.useMagicWand = function useMagicWand(state) {
     // opts.alsoIds: similar shades replaced along with srcId.
     var mask = (opts && opts.scope === 'all') ? null : selectionMask;
     var srcIds = [srcId].concat((opts && opts.alsoIds) || []);
-    var res = window.ColourReplace.replaceInPattern(pat, srcIds, dstEntry, mask);
+    var CR = window.ColourReplace;
+    var res = CR.replaceInPattern(pat, srcIds, dstEntry, mask);
     var np = res.pat, changes = res.changes;
-    if (!changes.length) {
+    // Half/quarter stitches and backstitch lines in the same colour change too.
+    var psRes = CR.replacePartials(state.partialStitches, srcIds, dstEntry, mask);
+    var bsRes = CR.replaceBackstitch(state.bsLines, srcIds, dstEntry, mask, state.sW, state.sH);
+    if (!changes.length && !psRes.psChanges.length && !bsRes.count) {
       // DEFECT-002 (related): selection mask may have hidden every match.
       if (state.addToast) state.addToast("No matching cells to replace.", {type: "info", duration: 2500});
       return null;
     }
     var entry = { type: 'colourReplace', changes: changes };
+    // Generic undo/redo in useEditHistory restores psChanges and bsLines.
+    if (psRes.psChanges.length) entry.psChanges = psRes.psChanges;
+    if (bsRes.count) entry.bsLines = state.bsLines.slice();
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     state.setEditHistory(function(prev) {
       var n = prev.concat([entry]);
@@ -474,11 +481,17 @@ window.useMagicWand = function useMagicWand(state) {
     });
     state.setRedoHistory([]);
     state.setPat(np);
+    if (psRes.psChanges.length) state.setPartialStitches(psRes.map);
+    if (bsRes.count) state.setBsLines(bsRes.lines);
     var r = state.buildPaletteWithScratch(np);
     state.setPal(r.pal); state.setCmap(r.cmap);
     // Returned so callers can offer a guarded "Undo" (only while this entry
     // is still the newest edit).
-    return { entry: entry, count: changes.length, dst: dstEntry };
+    return {
+      entry: entry, dst: dstEntry,
+      count: changes.length + psRes.psChanges.length + bsRes.count,
+      counts: { full: changes.length, partial: psRes.psChanges.length, backstitch: bsRes.count }
+    };
   }
 
   // ─── Phase 3.1: Selection stats ─────────────────────────────────────────────

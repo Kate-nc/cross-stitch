@@ -3028,6 +3028,14 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
        → { pat: newPat, changes: [{ idx, old }] }
          mask (Uint8Array | null) limits the change to selected cells.
          srcIds is one id or an array / Set of ids (similar shades).
+     countPartials(partials, srcIds, mask) / countBackstitch(lines, srcIds, mask, sW, sH)
+       → { total, inSelection } (quarter/half stitch cells; backstitch lines)
+     replacePartials(partials, srcIds, dstEntry, mask)
+       → { map, psChanges: [{ idx, old }] }   map is a new Map only if changed
+     replaceBackstitch(lines, srcIds, dstEntry, mask, sW, sH)
+       → { lines, count }   lines is a new array only if changed
+         Backstitch colour lives in line.colorId (and line.color as hex).
+     describeCounts({ full, partial, backstitch }) → "N stitches, …"
      similarIds(srcEntry, palette, tol, opts)
        → ids of palette entries within dE <= tol of srcEntry (always
          including srcEntry.id), closest first. opts: { labOf, distance }.
@@ -3078,6 +3086,98 @@ window.ColourReplace = (function() {
       np[i] = Object.assign({}, dstEntry);
     }
     return { pat: np, changes: changes };
+  }
+
+  // ── Partial (half / quarter) stitches: Map idx → { TL, TR, BL, BR: { id, rgb } }
+  var QUADS = ['TL', 'TR', 'BL', 'BR'];
+  function partialHasAny(entry, src) {
+    if (!entry) return false;
+    for (var q = 0; q < QUADS.length; q++) {
+      var part = entry[QUADS[q]];
+      if (part && src.has(part.id)) return true;
+    }
+    return false;
+  }
+  function eachPartial(partials, fn) {
+    if (!partials || typeof partials.forEach !== 'function') return;
+    partials.forEach(function(entry, idx) { fn(entry, Number(idx)); });
+  }
+  function countPartials(partials, srcIds, mask) {
+    var src = toIdSet(srcIds), total = 0, inSel = 0;
+    if (src.size) eachPartial(partials, function(entry, idx) {
+      if (!partialHasAny(entry, src)) return;
+      total++;
+      if (mask && mask[idx]) inSel++;
+    });
+    return { total: total, inSelection: mask ? inSel : null };
+  }
+  function replacePartials(partials, srcIds, dstEntry, mask) {
+    var src = toIdSet(srcIds), psChanges = [], next = null;
+    if (!src.size || !dstEntry) return { map: partials, psChanges: psChanges };
+    eachPartial(partials, function(entry, idx) {
+      if (mask && !mask[idx]) return;
+      if (!partialHasAny(entry, src)) return;
+      var updated = Object.assign({}, entry);
+      QUADS.forEach(function(q) {
+        if (updated[q] && src.has(updated[q].id)) updated[q] = { id: dstEntry.id, rgb: dstEntry.rgb };
+      });
+      if (!next) next = new Map(partials);
+      psChanges.push({ idx: idx, old: Object.assign({}, entry) });
+      next.set(idx, updated);
+    });
+    return { map: next || partials, psChanges: psChanges };
+  }
+
+  // ── Backstitch lines: { x1, y1, x2, y2, colorId?, color? } on the grid lattice.
+  // A line counts as "in the selection" when a cell touching its midpoint is
+  // selected (lines run along cell edges, so the midpoint borders 1-4 cells).
+  function lineInMask(ln, mask, sW, sH) {
+    if (!mask) return true;
+    var mx = (ln.x1 + ln.x2) / 2, my = (ln.y1 + ln.y2) / 2, e = 1e-6;
+    var xs = [Math.floor(mx - e), Math.floor(mx + e)], ys = [Math.floor(my - e), Math.floor(my + e)];
+    for (var a = 0; a < 2; a++) for (var b = 0; b < 2; b++) {
+      var cx = xs[a], cy = ys[b];
+      if (cx >= 0 && cx < sW && cy >= 0 && cy < sH && mask[cy * sW + cx]) return true;
+    }
+    return false;
+  }
+  function countBackstitch(lines, srcIds, mask, sW, sH) {
+    var src = toIdSet(srcIds), total = 0, inSel = 0;
+    if (src.size && lines) for (var i = 0; i < lines.length; i++) {
+      var ln = lines[i];
+      if (!ln || !src.has(ln.colorId)) continue;
+      total++;
+      if (mask && lineInMask(ln, mask, sW, sH)) inSel++;
+    }
+    return { total: total, inSelection: mask ? inSel : null };
+  }
+  function rgbHex(rgb) {
+    return '#' + rgb.map(function(v) { var h = Math.max(0, Math.min(255, Math.round(v))).toString(16); return h.length < 2 ? '0' + h : h; }).join('');
+  }
+  function replaceBackstitch(lines, srcIds, dstEntry, mask, sW, sH) {
+    var src = toIdSet(srcIds), next = null, count = 0;
+    if (!src.size || !dstEntry || !lines) return { lines: lines, count: 0 };
+    for (var i = 0; i < lines.length; i++) {
+      var ln = lines[i];
+      if (!ln || !src.has(ln.colorId) || !lineInMask(ln, mask, sW, sH)) continue;
+      if (!next) next = lines.slice();
+      var out = Object.assign({}, ln, { colorId: dstEntry.id });
+      if (ln.color !== undefined && dstEntry.rgb) out.color = rgbHex(dstEntry.rgb);
+      next[i] = out;
+      count++;
+    }
+    return { lines: next || lines, count: count };
+  }
+
+  function describeCounts(c) {
+    var parts = [];
+    var n = function(x, one, many) { return x.toLocaleString() + ' ' + (x === 1 ? one : many); };
+    if (c.full) parts.push(n(c.full, 'stitch', 'stitches'));
+    if (c.partial) parts.push(n(c.partial, 'part stitch', 'part stitches'));
+    if (c.backstitch) parts.push(n(c.backstitch, 'backstitch line', 'backstitch lines'));
+    if (!parts.length) return '0 stitches';
+    if (parts.length === 1) return parts[0];
+    return parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
   }
 
   function defaultLabOf(rgb) {
@@ -3132,6 +3232,11 @@ window.ColourReplace = (function() {
   return {
     countMatches: countMatches,
     replaceInPattern: replaceInPattern,
+    countPartials: countPartials,
+    replacePartials: replacePartials,
+    countBackstitch: countBackstitch,
+    replaceBackstitch: replaceBackstitch,
+    describeCounts: describeCounts,
     rankBySimilarity: rankBySimilarity,
     similarIds: similarIds,
     similarityLabel: similarityLabel
@@ -3600,14 +3705,21 @@ window.useMagicWand = function useMagicWand(state) {
     // opts.alsoIds: similar shades replaced along with srcId.
     var mask = (opts && opts.scope === 'all') ? null : selectionMask;
     var srcIds = [srcId].concat((opts && opts.alsoIds) || []);
-    var res = window.ColourReplace.replaceInPattern(pat, srcIds, dstEntry, mask);
+    var CR = window.ColourReplace;
+    var res = CR.replaceInPattern(pat, srcIds, dstEntry, mask);
     var np = res.pat, changes = res.changes;
-    if (!changes.length) {
+    // Half/quarter stitches and backstitch lines in the same colour change too.
+    var psRes = CR.replacePartials(state.partialStitches, srcIds, dstEntry, mask);
+    var bsRes = CR.replaceBackstitch(state.bsLines, srcIds, dstEntry, mask, state.sW, state.sH);
+    if (!changes.length && !psRes.psChanges.length && !bsRes.count) {
       // DEFECT-002 (related): selection mask may have hidden every match.
       if (state.addToast) state.addToast("No matching cells to replace.", {type: "info", duration: 2500});
       return null;
     }
     var entry = { type: 'colourReplace', changes: changes };
+    // Generic undo/redo in useEditHistory restores psChanges and bsLines.
+    if (psRes.psChanges.length) entry.psChanges = psRes.psChanges;
+    if (bsRes.count) entry.bsLines = state.bsLines.slice();
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     state.setEditHistory(function(prev) {
       var n = prev.concat([entry]);
@@ -3616,11 +3728,17 @@ window.useMagicWand = function useMagicWand(state) {
     });
     state.setRedoHistory([]);
     state.setPat(np);
+    if (psRes.psChanges.length) state.setPartialStitches(psRes.map);
+    if (bsRes.count) state.setBsLines(bsRes.lines);
     var r = state.buildPaletteWithScratch(np);
     state.setPal(r.pal); state.setCmap(r.cmap);
     // Returned so callers can offer a guarded "Undo" (only while this entry
     // is still the newest edit).
-    return { entry: entry, count: changes.length, dst: dstEntry };
+    return {
+      entry: entry, dst: dstEntry,
+      count: changes.length + psRes.psChanges.length + bsRes.count,
+      counts: { full: changes.length, partial: psRes.psChanges.length, backstitch: bsRes.count }
+    };
   }
 
   // ─── Phase 3.1: Selection stats ─────────────────────────────────────────────
@@ -6144,6 +6262,8 @@ window.useCreatorState = function useCreatorState() {
   var wand = useMagicWand({
     pat: pat, cmap: cmap, sW: sW, sH: sH, fabricCt: fabricCt,
     bsLines: bsLines, setBsLines: setBsLines,
+    // Colour replacement also recolours half/quarter stitches.
+    partialStitches: partialStitches, setPartialStitches: setPartialStitches,
     editHistory: editHistory, setEditHistory: setEditHistory,
     setRedoHistory: setRedoHistory, EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
     setPat: setPat, setPal: setPal, setCmap: setCmap,
@@ -16270,6 +16390,8 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
     var onApply = props.onApply; // called with (thread {id, name, rgb, ...}, { scope: 'selection' | 'all' })
     var pat = props.pat, sW = props.sW, sH = props.sH;
     var pal = props.pal || null;  // current palette entries ({ id, name, rgb, count, ... })
+    var partialStitches = props.partialStitches || null;  // Map idx -> { TL, TR, BL, BR }
+    var bsLines = props.bsLines || null;
     // Pass the selection mask only when something is selected.
     var selectionMask = props.selectionMask || null;
 
@@ -16361,10 +16483,25 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
     }, [fuzzy, fuzzyTol, srcId, srcRgb && srcRgb.join(','), palEntries, pickedId]); // eslint-disable-line react-hooks/exhaustive-deps
     var extraIds = srcIds.filter(function(id) { return id !== srcId; });
 
+    // Full stitches + half/quarter stitches + backstitch lines in the source
+    // colour(s). total / inSelection are the sums used for scope and Apply.
     var counts = React.useMemo(function() {
-      if (!window.ColourReplace) return null;
-      return window.ColourReplace.countMatches(pat, srcIds, selectionMask);
-    }, [pat, srcIds, selectionMask]);
+      var R = window.ColourReplace;
+      if (!R) return null;
+      var full = R.countMatches(pat, srcIds, selectionMask);
+      var part = R.countPartials ? R.countPartials(partialStitches, srcIds, selectionMask) : { total: 0, inSelection: selectionMask ? 0 : null };
+      var bs = R.countBackstitch ? R.countBackstitch(bsLines, srcIds, selectionMask, sW, sH) : { total: 0, inSelection: selectionMask ? 0 : null };
+      return {
+        total: full.total + part.total + bs.total,
+        inSelection: selectionMask ? full.inSelection + part.inSelection + bs.inSelection : null,
+        all: { full: full.total, partial: part.total, backstitch: bs.total },
+        sel: selectionMask ? { full: full.inSelection, partial: part.inSelection, backstitch: bs.inSelection } : null
+      };
+    }, [pat, srcIds, selectionMask, partialStitches, bsLines, sW, sH]);
+    var describe = function(c) {
+      var R = window.ColourReplace;
+      return R && R.describeCounts ? R.describeCounts(c) : String((c.full || 0) + (c.partial || 0) + (c.backstitch || 0)) + ' stitches';
+    };
 
     // Scope: with an active selection, default to "selection" (the previous
     // behaviour) unless none of the selected stitches use this colour, in
@@ -16421,9 +16558,9 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
 
     var srcLabel = 'DMC ' + (srcId || '') +
       (modal && modal.srcName && modal.srcName !== srcId ? ' · ' + modal.srcName : '');
-    var plural = function(n) { return n.toLocaleString() + ' stitch' + (n === 1 ? '' : 'es'); };
     var countText = affected == null ? null
-      : (affected === 0 ? 'nothing to change' : plural(affected) + ' will change');
+      : (affected === 0 ? 'nothing to change'
+        : describe(scope === 'selection' ? counts.sel : counts.all) + ' will change');
 
     // ── Scope line: what the replacement will touch ──
     var scopeRow = null;
@@ -16465,7 +16602,7 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
       scopeRow = h('div', {
         className: 'colour-replace-scope',
         style: { marginBottom: 12, fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }
-      }, 'Replaces this colour across the whole pattern (' + plural(counts.total) + ').');
+      }, 'Replaces this colour across the whole pattern (' + describe(counts.all) + ').');
     }
 
     // ── Similar shades row ──

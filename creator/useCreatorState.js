@@ -1550,6 +1550,8 @@ window.useCreatorState = function useCreatorState() {
   var wand = useMagicWand({
     pat: pat, cmap: cmap, sW: sW, sH: sH, fabricCt: fabricCt,
     bsLines: bsLines, setBsLines: setBsLines,
+    // Colour replacement also recolours half/quarter stitches.
+    partialStitches: partialStitches, setPartialStitches: setPartialStitches,
     editHistory: editHistory, setEditHistory: setEditHistory,
     setRedoHistory: setRedoHistory, EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
     setPat: setPat, setPal: setPal, setCmap: setCmap,
