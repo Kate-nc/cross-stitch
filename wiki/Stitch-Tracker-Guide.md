@@ -138,9 +138,13 @@ The flyout shows a live estimate of thread consumed per stitch based on your set
 
 Place a guide crosshair on the chart to help you find your spot.
 
-1. Click the **Crosshair button** (target icon) in the toolbar
-2. Click on the chart where you want the crosshair
-3. The crosshair appears at that location, helping you navigate
+1. Switch to **Navigate mode** (**Nav** in the toolbar, or press **N**)
+2. Click (or tap) the cell where you want the crosshair
+3. The crosshair appears across that row and column, helping you navigate
+
+Click the same cell again, or press **Esc** in Navigate mode, to clear it.
+
+In Navigate mode, dragging the chart pans it, so you can move around without marking anything.
 
 **Use when:** Chart is zoomed in or you've had a break and need to find where you were.
 

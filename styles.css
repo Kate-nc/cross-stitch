@@ -2763,9 +2763,6 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .mini-goal-fill--done{height:100%;background:var(--success);border-radius:2px;animation:goalPulse 0.6s ease-out;}
 .goal-pace-context{font-size:11px;color:var(--text-tertiary);margin-top:6px;font-variant-numeric:tabular-nums;}
 /* ═══ Session onboarding toast ═══ */
-.session-onboarding-toast{display:flex;align-items:center;gap:10px;padding:8px 16px;background:var(--surface-secondary);border-bottom:1px solid var(--border);font-size:12px;color:var(--accent);}
-.session-onboarding-toast button{margin-left:auto;flex-shrink:0;font-size:11px;font-weight:600;padding:3px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--accent);cursor:pointer;}
-@media (hover: hover){.session-onboarding-toast button:hover{background:var(--accent-light);}}
 /* ═══ Session saved toast (note prompt) ═══ */
 .session-toast{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--success-soft);border-bottom:1px solid var(--success-soft);font-size:12px;color:var(--success);}
 .session-toast>span{flex:1;}

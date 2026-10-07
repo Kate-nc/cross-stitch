@@ -8112,6 +8112,29 @@ function TrackerApp({
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [!!pat]);
 
+  // ═══ Session onboarding hint ═══
+  // Shown once, on the first stitch of the first session, as a floating toast
+  // so it cannot move the chart. Marked as seen as soon as it is shown.
+  useEffect(() => {
+    if (sessionOnboardingShown || !(liveAutoStitches > 0) || statsSessions.length !== 0) return;
+    setSessionOnboardingShown(true);
+    try {
+      localStorage.setItem("cs_sessionOnboardingDone", "1");
+    } catch (_) {}
+    try {
+      if (window.Toast && window.Toast.show) window.Toast.show({
+        message: "Sessions are tracked automatically as you stitch. Your stats are in the Session panel.",
+        type: "info",
+        duration: 8000,
+        action: () => {
+          setLeftSidebarTab("session");
+          setMorePanelOpen(true);
+        },
+        actionLabel: "Open"
+      });
+    } catch (_) {}
+  }, [sessionOnboardingShown, liveAutoStitches, statsSessions.length]);
+
   // ═══ Thread usage overlay rendering ═══
   useEffect(() => {
     const canvas = threadUsageCanvasRef.current;
@@ -9046,6 +9069,74 @@ function TrackerApp({
     if (Math.abs(e.clientX - h.x) > slop || Math.abs(e.clientY - h.y) > slop) clearNavHold();
   }
   useEffect(() => clearNavHold, []);
+
+  // Navigate-mode press (mouse, or the compatibility mousedown after a touch
+  // tap). Tracked on window so a drag keeps panning when the pointer leaves
+  // the canvas. Past a few pixels it is a pan — the same absolute-scroll maths
+  // as startPan/doPan, so handleStitchMouseMove's doPan agrees while the
+  // pointer is over the canvas. Otherwise, on release, it toggles the guide.
+  const NAV_DRAG_PX = 4;
+  const navPressCleanupRef = useRef(null);
+  function beginNavPress(e, gx, gy) {
+    const el = stitchScrollRef.current;
+    if (!el) return;
+    if (navPressCleanupRef.current) navPressCleanupRef.current();
+    const press = {
+      x: e.clientX,
+      y: e.clientY,
+      sl: el.scrollLeft,
+      st: el.scrollTop,
+      dragging: false
+    };
+    const move = ev => {
+      const dx = ev.clientX - press.x,
+        dy = ev.clientY - press.y;
+      if (!press.dragging) {
+        if (Math.abs(dx) <= NAV_DRAG_PX && Math.abs(dy) <= NAV_DRAG_PX) return;
+        press.dragging = true;
+        panStart.current = {
+          x: press.x,
+          y: press.y,
+          scrollX: press.sl,
+          scrollY: press.st
+        };
+        setIsPanning(true);
+      }
+      el.scrollLeft = press.sl - dx;
+      el.scrollTop = press.st - dy;
+    };
+    const cleanup = () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      navPressCleanupRef.current = null;
+    };
+    const up = () => {
+      cleanup();
+      if (press.dragging) {
+        setIsPanning(false);
+        return;
+      }
+      toggleGuideAt(gx, gy);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    navPressCleanupRef.current = cleanup;
+  }
+  useEffect(() => () => {
+    if (navPressCleanupRef.current) navPressCleanupRef.current();
+  }, []);
+  // Place the guide crosshair on a cell, or clear it if it is already there.
+  function toggleGuideAt(gx, gy) {
+    if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
+    const g = guideRef.current;
+    if (g.row === gy && g.col === gx) {
+      setHlRow(-1);
+      setHlCol(-1);
+    } else {
+      setHlRow(gy);
+      setHlCol(gx);
+    }
+  }
   function handleStitchMouseDown(e) {
     if (!stitchRef.current || !pat) return;
     if (e.button === 1 || isSpaceDownRef.current) {
@@ -9106,13 +9197,13 @@ function TrackerApp({
       gy
     } = gc;
     if (stitchMode === "navigate") {
-      // A click drops the guide crosshair; parking is right-click or
-      // press-and-hold (toggleParkAt).
+      // Navigate mode is a hand tool: press and drag pans the chart; a press
+      // released without moving places the guide crosshair, or clears it if
+      // it is already on that cell. Parking is right-click or press-and-hold
+      // (toggleParkAt).
       if (Date.now() < suppressNavClickUntilRef.current) return;
-      if (gx >= 0 && gx < sW && gy >= 0 && gy < sH) {
-        setHlRow(gy);
-        setHlCol(gx);
-      }
+      e.preventDefault();
+      beginNavPress(e, gx, gy);
       return;
     }
     if (gx < 0 || gx >= sW || gy < 0 || gy >= sH || !done) return;
@@ -9698,6 +9789,12 @@ function TrackerApp({
         setLeftSidebarOpen(false);
         return;
       }
+      // Last: in Navigate mode, Esc clears the guide crosshair.
+      if (stitchMode === "navigate" && hlRow >= 0 && hlCol >= 0) {
+        setHlRow(-1);
+        setHlCol(-1);
+        return;
+      }
     }
   },
   // History / save (modified — fire from inputs by default).
@@ -10008,7 +10105,7 @@ function TrackerApp({
     scope: "tracker.notedit",
     description: "Jump to next remaining stitch of focus colour",
     run: () => jumpToNextStitch()
-  }], [stitchView, isEditMode, focusableColors, isActive, namePromptOpen, modal, showExitEditModal, cellEditPopover, importDialog, tOverflowOpen, drawer, halfDisambig, focusColour, pat, pal, undoSnapshot, countsVer, trackHistory, redoStack, highlightMode, manuallyPaused, layerVis, colourDoneCounts, focusEnabled, focusBlock, stitchingStyle, blockW, blockH, sW, sH, startCorner]);
+  }], [stitchView, isEditMode, focusableColors, isActive, namePromptOpen, modal, showExitEditModal, cellEditPopover, importDialog, tOverflowOpen, drawer, halfDisambig, focusColour, pat, pal, undoSnapshot, countsVer, trackHistory, redoStack, highlightMode, manuallyPaused, layerVis, colourDoneCounts, focusEnabled, focusBlock, stitchingStyle, blockW, blockH, sW, sH, startCorner, stitchMode, hlRow, hlCol]);
 
   // Update stable handler refs every render (cheap assignment, no DOM work)
   wheelHandlerRef.current = handleStitchWheel;
@@ -10671,28 +10768,7 @@ function TrackerApp({
       lineHeight: 1,
       display: 'inline-flex'
     }
-  }, Icons.x ? Icons.x() : null)), !sessionOnboardingShown && liveAutoStitches > 0 && statsSessions.length === 0 && /*#__PURE__*/React.createElement("div", {
-    className: "session-onboarding-toast"
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 6
-    }
-  }, Icons.info ? Icons.info() : null, " Sessions are tracked automatically as you stitch. View stats via the ", Icons.barChart ? /*#__PURE__*/React.createElement("span", {
-    "aria-hidden": "true",
-    style: {
-      display: 'inline-flex',
-      verticalAlign: '-3px'
-    }
-  }, Icons.barChart()) : null, " button in the Session panel."), /*#__PURE__*/React.createElement("button", {
-    onClick: () => {
-      setSessionOnboardingShown(true);
-      try {
-        localStorage.setItem("cs_sessionOnboardingDone", "1");
-      } catch (_) {}
-    }
-  }, "Got it")), focusEnabled && focusBlock && stitchingStyle !== "crosscountry" && /*#__PURE__*/React.createElement("div", {
+  }, Icons.x ? Icons.x() : null)), focusEnabled && focusBlock && stitchingStyle !== "crosscountry" && /*#__PURE__*/React.createElement("div", {
     className: "focus-block-nav"
   }, /*#__PURE__*/React.createElement("div", {
     className: "focus-block-chip",
@@ -11438,7 +11514,7 @@ function TrackerApp({
         gridTemplateColumns: "1fr 1fr",
         gap: "6px 24px"
       }
-    }, [["Pan", isTouch ? "Drag one finger across the canvas" : "Hold Space + drag  ·  or middle-click drag"], ["Zoom in / out", isTouch ? "Pinch two fingers apart / together" : "Ctrl + scroll  ·  or use − / + buttons"], ["Zoom to fit", "Tap the Fit button"], ["Mark a stitch", isTouch ? "Tap a cell" : "Click a cell"], ["Mark multiple", isTouch ? "Tap, then drag across cells" : "Click + drag across cells — all set to same state"], ["Select a rectangle", isTouch ? "Long-press a cell, then tap another" : "Hold Shift + click another cell"], ["Undo last marks", "Undo button (top right)"], stitchView === "highlight" ? ["Cycle colours", isTouch ? "Open the Highlight tab in the sidebar" : "[ or ] keys"] : null, stitchView === "highlight" ? ["Clear focus", "Tap the colour pill to show all colours"] : null, stitchMode === "navigate" ? ["Place a guide", isTouch ? "Tap any cell to drop a crosshair" : "Click any cell to drop a crosshair"] : null, ["Park a thread", isTouch ? "In Nav mode, press and hold a stitch. Do it again to remove the marker" : "Right-click a stitch. Right-click again to remove the marker"]].filter(Boolean).map(([label, tip], i) => /*#__PURE__*/React.createElement("div", {
+    }, [["Pan", isTouch ? "Drag one finger across the canvas" : "Drag in Nav mode  ·  or hold Space + drag  ·  or middle-click drag"], ["Zoom in / out", isTouch ? "Pinch two fingers apart / together" : "Ctrl + scroll  ·  or use − / + buttons"], ["Zoom to fit", "Tap the Fit button"], ["Mark a stitch", isTouch ? "Tap a cell" : "Click a cell"], ["Mark multiple", isTouch ? "Tap, then drag across cells" : "Click + drag across cells — all set to same state"], ["Select a rectangle", isTouch ? "Long-press a cell, then tap another" : "Hold Shift + click another cell"], ["Undo last marks", "Undo button (top right)"], stitchView === "highlight" ? ["Cycle colours", isTouch ? "Open the Highlight tab in the sidebar" : "[ or ] keys"] : null, stitchView === "highlight" ? ["Clear focus", "Tap the colour pill to show all colours"] : null, stitchMode === "navigate" ? ["Place a guide", isTouch ? "Tap a cell to drop a crosshair. Tap it again to clear it" : "Click a cell to drop a crosshair. Click it again, or press Esc, to clear it"] : null, ["Park a thread", isTouch ? "In Nav mode, press and hold a stitch. Do it again to remove the marker" : "Right-click a stitch. Right-click again to remove the marker"]].filter(Boolean).map(([label, tip], i) => /*#__PURE__*/React.createElement("div", {
       key: i,
       style: {
         display: "contents"
@@ -11579,7 +11655,7 @@ function TrackerApp({
         marginBottom: 6,
         border: "0.5px solid var(--border)"
       }
-    }, hasTouchRef.current ? "Tap to place a guide · Press and hold a stitch to park its thread" : "Click to place a guide · Right-click a stitch to park its thread · T for track mode");
+    }, hasTouchRef.current ? "Drag to pan · Tap to place or clear the guide · Press and hold a stitch to park its thread" : "Drag to pan · Click to place or clear the guide · Right-click a stitch to park its thread · T for track mode");
     if (!shortcutsHintDismissed && pat && trackerLoadCount >= 3) return /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 'var(--text-sm)',
@@ -11720,7 +11796,7 @@ function TrackerApp({
       border: "0.5px solid var(--border)",
       borderRadius: "8px 8px 0 0",
       background: "var(--surface-tertiary)",
-      cursor: isPanning ? "grabbing" : isSpaceDownRef.current ? "grab" : !isEditMode && stitchMode === "track" ? isShiftDown && _dragMarkActive ? "cell" : "crosshair" : "default",
+      cursor: isPanning ? "grabbing" : isSpaceDownRef.current ? "grab" : !isEditMode && stitchMode === "track" ? isShiftDown && _dragMarkActive ? "cell" : "crosshair" : !isEditMode && stitchMode === "navigate" ? "grab" : "default",
       transition: "max-height 0.3s",
       position: "relative"
     },
@@ -12023,7 +12099,7 @@ function TrackerApp({
   }, isEditMode ? "Modify" : "Mark")), /*#__PURE__*/React.createElement("button", {
     className: "ppal-mode-btn" + (stitchMode === "navigate" ? " ppal-mode-btn--on" : ""),
     onClick: () => setStitchMode("navigate"),
-    title: "Navigate / park (N)",
+    title: "Navigate (N)",
     "aria-pressed": stitchMode === "navigate"
   }, /*#__PURE__*/React.createElement("span", {
     className: "ppal-mode-btn-icon"
