@@ -565,3 +565,20 @@ describe('ColourReplaceModal review fixes', () => {
     }
   });
 });
+
+describe('ColourReplaceModal selection after searching', () => {
+  test('the picked thread stays aria-selected after a new search clears the active option', () => {
+    render();
+    click(container.querySelector('[data-section="closest"] [data-thread-id="3371"]'));
+    const input = container.querySelector('input[role="combobox"]');
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'black');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(input.getAttribute('aria-activedescendant')).toBeNull();
+    const selected = container.querySelectorAll('[role="option"][aria-selected="true"]');
+    expect(selected).toHaveLength(1);
+    expect(selected[0].getAttribute('data-thread-id')).toBe('3371');
+  });
+});
+

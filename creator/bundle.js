@@ -6340,7 +6340,6 @@ window.useCreatorState = function useCreatorState() {
     editHistory: editHistory, setEditHistory: setEditHistory,
     setRedoHistory: setRedoHistory, EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
     setPat: setPat, setPal: setPal, setCmap: setCmap,
-    setScratchPalette: setScratchPalette,
     addToast: addToast,
     buildPaletteWithScratch: buildPaletteWithScratch,
   });
@@ -16765,7 +16764,9 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
         key: key,
         id: optionDomId(key),
         role: 'option',
-        'aria-selected': isActive ? 'true' : 'false',
+        // isPicked follows selectedKey: exactly one option, and still the
+        // picked thread after a new search clears the active option.
+        'aria-selected': isPicked ? 'true' : 'false',
         'aria-disabled': isSrc ? 'true' : null,
         onClick: function() { if (!isSrc) activate({ key: key, thread: t }); },
         onDoubleClick: function() { if (!isSrc) apply(t); },
