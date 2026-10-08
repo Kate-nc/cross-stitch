@@ -119,14 +119,87 @@ async function loadCreatorFixture(page, projectPath) {
   }, Math.round(FIXTURE_ZOOM * 100));
 }
 
+// The tracker chart canvas. Its label grew a keyboard hint, so match the
+// stable prefix.
+const TRACKER_CANVAS = 'canvas[aria-label^="Cross stitch pattern grid"]';
+
 async function loadTrackerFixture(page, projectPath) {
-  await page.goto('/stitch.html');
+  // First-run dialogs and coachmarks would cover the chart and swallow the
+  // touches; the session hint is a toast, but keep it out of the way too.
+  await page.addInitScript(function() {
+    try {
+      ['tracker', 'creator', 'manager', 'home'].forEach(function(k) { localStorage.setItem('cs_welcome_' + k + '_done', '1'); });
+      localStorage.setItem('cs_stitchStyle', 'block');
+      localStorage.setItem('cs_sessionOnboardingDone', '1');
+      ['firstStitch_tracker', 'rectSelect_tracker', 'firstStitch_creator', 'import', 'undo', 'progress', 'save'].forEach(function(k) {
+        localStorage.setItem('cs_pref_onboarding.coached.' + k, 'true');
+      });
+    } catch (e) {}
+  });
+  // ?from=home: without an active project, stitch.html redirects to home.
+  await page.goto('/stitch.html?from=home');
   await page.locator('input[type="file"]').first().setInputFiles(projectPath || ensureTrackerProjectFixture());
-  await page.waitForSelector('.tb-progress');
-  await page.waitForFunction(function(expectedZoom) {
-    const zoomEl = document.querySelector('.tb-zoom-pct');
-    return zoomEl && zoomEl.textContent && zoomEl.textContent.includes(String(expectedZoom));
-  }, Math.round(FIXTURE_ZOOM * 100));
+  await page.waitForSelector(TRACKER_CANVAS);
+  // The fixture opens at FIXTURE_ZOOM: wait until the chart is drawn at it.
+  await page.waitForFunction(function(cell) {
+    const ruler = document.querySelector('.tracker-chart-scroll > div');
+    const c = ruler && ruler.children[1];
+    return c && Math.round(c.getBoundingClientRect().width) === cell;
+  }, FIXTURE_CELL_SIZE);
+  await page.waitForTimeout(500);
+}
+
+// Client coordinates of a point inside tracker chart cell (gx, gy). The chart
+// canvas is a tile of the chart (see chartTileFor in tracker-app.js): canvas
+// pixel 0 is chart pixel tile.x, so this cannot be read off the canvas size.
+async function trackerCellPoint(page, gx, gy, fx, fy) {
+  return page.evaluate(function(a) {
+    const c = document.querySelector(a.sel), r = c.getBoundingClientRect(), t = c.__chartTile || { x: 0, y: 0 };
+    const scs = document.querySelector('.tracker-chart-scroll > div').children[1].getBoundingClientRect().width;
+    return { x: r.left - t.x + a.G + (a.gx + a.fx) * scs, y: r.top - t.y + a.G + (a.gy + a.fy) * scs };
+  }, { sel: TRACKER_CANVAS, G: GRID_GUTTER, gx: gx, gy: gy, fx: fx == null ? 0.5 : fx, fy: fy == null ? 0.5 : fy });
+}
+
+// A CDP touch driver: real touch + pointer events, as a finger produces.
+// touch(type, points) where points are {x, y, id}.
+async function trackerTouchDriver(page) {
+  const cdp = await page.context().newCDPSession(page);
+  return function(type, points) {
+    return cdp.send('Input.dispatchTouchEvent', {
+      type: type,
+      touchPoints: (points || []).map(function(q, i) {
+        return { x: Math.round(q.x), y: Math.round(q.y), id: q.id || i + 1, radiusX: 4, radiusY: 4, force: 1 };
+      }),
+    });
+  };
+}
+
+// Stitches marked done, from the info strip ("1,234 done · ...").
+async function trackerDoneCount(page) {
+  return page.evaluate(function() {
+    const el = document.querySelector('.info-strip-counts');
+    return el ? parseInt(el.textContent.replace(/,/g, ''), 10) : NaN;
+  });
+}
+
+async function trackerScroll(page) {
+  return page.evaluate(function() {
+    const el = document.querySelector('.tracker-chart-scroll');
+    return { left: el.scrollLeft, top: el.scrollTop };
+  });
+}
+
+// Is a park marker drawn in cell (gx, gy)? Samples inside the marker's
+// triangle (bottom-left corner): the fixture's thread is black, on a white
+// symbol-view cell.
+async function trackerHasParkMarker(page, gx, gy) {
+  return page.evaluate(function(a) {
+    const c = document.querySelector(a.sel), t = c.__chartTile;
+    const scs = document.querySelector('.tracker-chart-scroll > div').children[1].getBoundingClientRect().width;
+    const x = Math.round((a.G + a.gx * scs + 6 - t.x) * t.scale), y = Math.round((a.G + (a.gy + 1) * scs - 6 - t.y) * t.scale);
+    const d = c.getContext('2d').getImageData(x, y, 1, 1).data;
+    return d[0] < 90 && d[1] < 90 && d[2] < 90;
+  }, { sel: TRACKER_CANVAS, G: GRID_GUTTER, gx: gx, gy: gy });
 }
 
 async function dispatchPointerSequence(locator, steps) {
@@ -266,4 +339,10 @@ module.exports = {
   loadCreatorFixture,
   loadTrackerFixture,
   sampleCanvasPixel,
+  TRACKER_CANVAS,
+  trackerCellPoint,
+  trackerDoneCount,
+  trackerHasParkMarker,
+  trackerScroll,
+  trackerTouchDriver,
 };
