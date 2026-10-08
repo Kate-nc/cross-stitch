@@ -8,6 +8,20 @@ window.APP_VERSION = '1.0.71';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.72',
+    date: 'October 2026',
+    notes: [
+      'Tips no longer get in the way. They don\'t cover the chart or block clicks, so you can do what a tip suggests straight away, and once you close one (any way at all) it stays closed. Skip tips turns them all off.',
+      'Skip tour in the Stitch Tracker now really skips, instead of opening the stitching-style questions. Walkthroughs wait for other windows to close, point at the right buttons, and the Pattern Creator\'s walkthrough is now about the Pattern Creator.',
+      'Fixed first-visit walkthroughs sometimes never appearing, and the "Sessions are tracked automatically" message appearing two or three times.',
+      'Restart guided tours (Help) and Reset every walkthrough (Preferences) now both reset every walkthrough and tip.',
+      'Row mode works again: a row bar shows what is left in the row, with buttons and the up and down arrow keys to move between rows. Finishing a row moves you on to the next one.',
+      'Section spotlight can now be turned on and off with S. The old F shortcut never worked because F toggles full stitches.',
+      'File > Export PDF and Print PDF now use the settings from the Export tab, and the PDF is named after your project. The Stitch Tracker now makes the same Pattern Keeper-compatible PDF as the Pattern Creator.',
+      'The Preferences window shows ×, —, £, € and … properly again, and backups (.csb files) can be chosen when restoring on iPhone, iPad and Android.',
+    ]
+  },
+  {
     version: '1.0.71',
     date: 'October 2026',
     notes: [

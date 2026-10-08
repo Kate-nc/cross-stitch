@@ -164,9 +164,10 @@ File > Preferences opens a 12-category panel (Profile & branding, Regional & uni
 
 ### Onboarding
 
-- **Welcome walkthroughs** ([`onboarding-wizard.js`](onboarding-wizard.js)): a short tour the first time you open the Creator, Tracker or Stash Manager. The Tracker's tour ends by asking how you like to stitch. Replay from Preferences > Onboarding & help or the Help drawer's Getting Started tab.
-- **Coachmarks** ([`coaching.js`](coaching.js)): one-off tips — paint your first stitch, the Tools tab unlocking, mark your first stitch, select a rectangle. Reset from Help > Getting Started > Restart guided tours.
+- **Welcome walkthroughs** ([`onboarding-wizard.js`](onboarding-wizard.js)): a short tour the first time you open the Creator, Tracker or Stash Manager. Steps highlight real controls; the tour waits behind any other open dialog. The Tracker's tour ends by asking how you like to stitch; skipping keeps the default.
+- **Coachmarks** ([`coaching.js`](coaching.js)): one-off tips — the Tools tab unlocking after you generate, painting your first stitch, marking your first stitch, marking a rectangle. They never block the page, wait for walkthroughs to finish, and are remembered however they are dismissed (Skip tips hides them all).
 - **Help hint:** a small "Press ? for help" pill after 30 seconds of idleness on a first visit.
+- **Reset:** Help > Getting Started > Restart guided tours and Preferences > Onboarding & help > Reset every walkthrough both reset all of the above.
 
 ---
 

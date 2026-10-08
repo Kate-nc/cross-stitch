@@ -36,7 +36,7 @@ The first time you open the Tracker, a short welcome tour explains Mark and Navi
 
 - **Click or tap** a stitch to mark it done; again to unmark.
 - **Drag** across stitches to mark them all.
-- **Rectangle:** hold **Shift** and drag from the last stitch you marked. On a touch screen, press and hold a stitch, then tap the opposite corner.
+- **Rectangle:** hold **Shift** and click a stitch to mark everything between it and the last stitch you marked (Shift-drag shows the rectangle first). On a touch screen, press and hold a stitch, then tap the opposite corner.
 - **On a touch screen**, one finger marks and **two fingers** pan and pinch-zoom.
 
 ### Navigate mode (`N`)

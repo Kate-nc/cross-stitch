@@ -1430,12 +1430,26 @@
       if (page === "tracker") { try { localStorage.removeItem("cs_styleOnboardingDone"); } catch (_) {} }
       msg[1]("Reset the " + friendly + " walkthrough. If that page is already open, the tour will appear now.");
     }
+    // Same reset as Help > Getting Started > Restart guided tours: every
+    // walkthrough, the style picker, the help hint AND the coachmark tips
+    // (coaching.js). Pages without coaching.js fall back to the rest.
     function clearAllTutorials() {
-      try { if (window.WelcomeWizard && window.WelcomeWizard.resetAll) window.WelcomeWizard.resetAll(); } catch (_) {}
-      try { if (window.HelpHintBanner && window.HelpHintBanner.reset) window.HelpHintBanner.reset(); } catch (_) {}
-      try { localStorage.removeItem("cs_styleOnboardingDone"); } catch (_) {}
+      if (typeof window.resetCoaching === "function") {
+        try { window.resetCoaching(); } catch (_) {}
+      } else {
+        try { if (window.WelcomeWizard && window.WelcomeWizard.resetAll) window.WelcomeWizard.resetAll(); } catch (_) {}
+        try { if (window.HelpHintBanner && window.HelpHintBanner.reset) window.HelpHintBanner.reset(); } catch (_) {}
+        try { localStorage.removeItem("cs_styleOnboardingDone"); } catch (_) {}
+        try {
+          if (window.UserPrefs && window.UserPrefs.DEFAULTS) {
+            Object.keys(window.UserPrefs.DEFAULTS).forEach(function (k) {
+              if (k.indexOf("onboarding.coached.") === 0) window.UserPrefs.set(k, false);
+            });
+          }
+        } catch (_) {}
+      }
       hint[1](false);
-      msg[1]("All walkthroughs reset. Reload any open page to see them again.");
+      msg[1]("All walkthroughs and tips reset. Walkthroughs show the next time you open each page; tips appear as you go.");
     }
     function clearHint() {
       try { if (window.HelpHintBanner && window.HelpHintBanner.reset) window.HelpHintBanner.reset(); } catch (_) {}

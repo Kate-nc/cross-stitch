@@ -152,7 +152,7 @@
           bullets: [
             ["Mark mode (T)", "Click or drag across the chart to mark stitches done. On a touch screen, drag one finger to mark and use two fingers to pan and zoom."],
             ["Navigate mode (N)", "Move around without marking anything: drag the chart to pan it. Click a cell to place a guide crosshair across its row and column; click it again, or press Esc, to clear it. On a touch screen, drag to scroll and tap to place or clear the guide."],
-            ["Marking a rectangle", "Hold Shift and drag from the last stitch you marked to mark a whole rectangle. On a touch screen, press and hold a stitch, then tap another one."],
+            ["Marking a rectangle", "Hold Shift and click a stitch to mark the whole rectangle between it and the last stitch you marked (Shift-drag shows the rectangle before you let go). On a touch screen, press and hold a stitch, then tap another one."],
             ["Parking", "Right-click a stitch (in either mode) to mark that a thread is parked there. On a touch screen, press and hold the stitch: in Navigate mode that parks straight away; in Mark mode it starts a rectangle, and the bar that appears has a Park thread here button. The marker is a small triangle in the stitch's colour, outlined so it shows on any background, and it stays visible through the Spotlight and work-area dimming. Do the same again to remove it. It also clears itself when you mark that stitch done, and comes back if you undo."],
             ["Finding a parked thread", "Tap the P on a colour in the palette to jump to where that thread is parked; the guide crosshair marks the spot. If it is parked in more than one place, tap again for the next."],
             ["Park markers list", "The Park markers list in the sidebar shows each parked colour, with a checkbox to hide its markers and a Clear all button."],
@@ -890,7 +890,7 @@
       },
         h("h4", { style: { margin: "0 0 4px 0", fontSize:'var(--text-lg)', color: "var(--text-primary)" } }, "Guided tours"),
         h("p", { style: { margin: "0 0 8px 0", color: "var(--text-secondary)", fontSize:'var(--text-md)', lineHeight: 1.55 } },
-          "Replay the in-app coachmarks the next time you start a new project."),
+          "Bring back every welcome walkthrough and tip. Walkthroughs show the next time you open each page; tips appear as you go."),
         h("button", {
           type: "button",
           "data-action": "restart-tours",

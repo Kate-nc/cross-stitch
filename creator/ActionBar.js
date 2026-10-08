@@ -305,6 +305,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     ? h("button", {
         type: "button",
         className: "creator-actionbar__btn creator-actionbar__btn--primary",
+        "data-onboard": "creator-generate",
         onClick: generating ? undefined : (typeof props.onGenerate === "function" ? props.onGenerate : undefined),
         disabled: generating,
         title: generating ? "Generating\u2026" : hasPat ? "Regenerate pattern" : "Generate pattern",

@@ -81,7 +81,7 @@ describe("Coachmark component", () => {
       onSkip: () => {}
     });
     // Expect a popover with role="alertdialog".
-    const dialog = findFirst(calls, n => n.props && n.props.role === "alertdialog");
+    const dialog = findFirst(calls, n => n.props && n.props.role === "dialog");
     expect(dialog).not.toBeNull();
     expect(dialog.props["aria-labelledby"]).toBe("cs-coach-title-test1");
     expect(dialog.props["aria-describedby"]).toBe("cs-coach-body-test1");
@@ -99,8 +99,35 @@ describe("Coachmark component", () => {
     expect(primaryBtn).not.toBeNull();
     expect(primaryBtn.children).toContain("Got it");
 
+    // Non-modal by default: no scrim, so the page (and the action the tip
+    // asks for) stays usable.
+    const scrim = findFirst(calls, n => n.props && n.props.className && String(n.props.className).indexOf("cs-coachmark-scrim") !== -1);
+    expect(scrim).toBeNull();
+    expect(dialog.props["aria-modal"]).toBe("false");
+  });
+
+  test("modal: true renders a blocking scrim that dismisses", () => {
+    const { win, calls, resetIdx } = loadCoaching();
+    resetIdx();
+    let skipped = 0;
+    win.Coachmark({ id: "m1", title: "T", body: "B", modal: true, onComplete: () => {}, onSkip: () => { skipped++; } });
+    const dialog = findFirst(calls, n => n.props && n.props.role === "alertdialog");
+    expect(dialog).not.toBeNull();
     const scrim = findFirst(calls, n => n.props && n.props.className && String(n.props.className).indexOf("cs-coachmark-scrim") !== -1);
     expect(scrim).not.toBeNull();
+    scrim.props.onClick();
+    expect(skipped).toBe(1);
+  });
+
+  test("Skip tips calls onSkipAll when given", () => {
+    const { win, calls, resetIdx } = loadCoaching();
+    resetIdx();
+    let all = 0, one = 0;
+    win.Coachmark({ id: "s1", title: "T", body: "B", onComplete: () => {}, onSkip: () => { one++; }, onSkipAll: () => { all++; } });
+    const skipBtn = findFirst(calls, n => n.type === "button" && n.children.indexOf("Skip tips") !== -1);
+    skipBtn.props.onClick();
+    expect(all).toBe(1);
+    expect(one).toBe(0);
   });
 
   test("primary button click invokes onComplete; skim/skip click invokes onSkip", () => {

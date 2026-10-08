@@ -1,6 +1,19 @@
 # Pop-up tutorials: why they feel persistent and janky
 
-*October 2026 — analysis only; no tutorial behaviour has been changed yet.*
+*October 2026.*
+
+> **Status: fixed on branch `docs/overhaul-and-tutorial-analysis`.** Sections 1–8 below describe the problems as found. What changed:
+>
+> 1. Every dismissal is remembered (`useCoachingSequence().skip` persists; **Skip tips** persists the whole sequence).
+> 2. Tips are non-modal by default — no scrim, the click that does the action reaches the page and completes the tip. Clicking elsewhere dismisses (remembered); clicking a highlighted target completes it.
+> 3. Leaving the Tracker walkthrough keeps the default stitching style instead of opening the picker; the picker has a close button, Escape and backdrop dismiss.
+> 4. Walkthroughs and the style picker register in `window.Coaching`'s overlay registry and tips wait for them; walkthroughs in turn wait behind any other modal dialog (e.g. Name Your Project). Escape goes through the shared `useEscape` stack.
+> 5. The Creator walkthrough describes the Creator and highlights the sidebar tabs, the Generate button and the page menu.
+> 6. Cards are placed from their measured size and follow their targets every frame; the highlight no longer animates its position; clicking the dimmed area closes a walkthrough.
+> 7. Tighter triggers: Tools-unlocked only right after generating; first-stitch only after generating or on a scratch grid; the rectangle tip after 4 stitches marked *this session*, shown once you pause.
+> 8. One reset (`resetCoaching()`) for walkthroughs, the style picker, tips and the help pill, used by both buttons; open pages pick it up without a reload.
+>
+> Found while testing in a browser, also fixed: `onboarding-wizard.js` was loaded with `defer`, so when the compiled app came from cache it rendered before `window.WelcomeWizard` existed and first-visit walkthroughs silently never appeared; and the "Sessions are tracked automatically" toast fired two or three times when stitches were marked quickly.
 
 There are three onboarding systems, built at different times, that don't know about each other:
 
@@ -112,11 +125,14 @@ Fixed on this branch:
 - **Sync popover and Preferences** pointed users to a Home "Sync section" that no longer exists, and said folder checking / conflict handling were "not available yet".
 - **In-app changelog** stopped at 1.0.58; entries added up to 1.0.71.
 
-Not fixed (behaviour changes — need a decision):
+Also fixed on this branch, following review:
 
-- **Tracker `F` is bound twice.** `tracker.layer.full` (scope `tracker.notedit`) and `tracker.focus.toggle` ("Toggle spotlight focus area", scope `tracker`) both use `F`; the more specific scope wins, so the spotlight toggle is unreachable from the keyboard.
-- **Tracker row mode is half-built.** `R` / Layers > Row mode highlights a "current row", but `currentRow` is only ever set to 0 — there is no way to advance it.
-- **Tracker edit mode is unreachable.** `isEditMode` has UI and undo paths but `setIsEditMode` is only ever called with `false`.
-- **File > Export PDF… ignores the Export tab.** It uses fixed settings (auto page size, all optional pages, overlap on) rather than the user's choices on Materials & Output > Export; only branding and the Workshop theme carry over.
+- **Tracker section spotlight** is now on **S** (was F, shadowed by the full-stitch layer toggle).
+- **Row mode** has a row bar again (row above/below, Next unfinished row, Exit), up/down arrow keys, starts on the first unfinished row from your start corner, moves on when a row is finished, and stays inside a work area.
+- **Every Export PDF uses the Export tab's saved settings** (`export-pdf.js`): the Creator's File menu and Print PDF, and the Tracker, whose separate non-Pattern Keeper jsPDF exporter was removed.
+
+Still open:
+
+- **Tracker edit mode is unreachable.** It was the "Correct pattern colours…" mode for imported patterns (reassign a palette colour to a different thread, fix single stitches, revert to original). Its entry points were removed in `a23f8e9` (May 2026); the logic and banner remain.
 - **`SharedModals.Shortcuts`** (registry-driven shortcuts list in `modals.js`) is no longer used anywhere.
 - **`sync.conflictBehaviour`, `sync.pollIntervalSec`, `sync.defaultConflictAction`** prefs exist in `user-prefs.js` but nothing reads them.

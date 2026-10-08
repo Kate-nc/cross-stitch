@@ -1054,18 +1054,42 @@ function StitchingStyleOnboarding({
   onDone,
   startCorner: initCorner
 }) {
+  // Closing (the X, Escape or the backdrop) keeps the current style.
+  const doneRef = useRef(onDone);
+  doneRef.current = onDone;
+  const close = useCallback(() => {
+    try {
+      localStorage.setItem("cs_styleOnboardingDone", "1");
+    } catch (_) {}
+    doneRef.current(null);
+  }, []);
+  (window.useEscape || function () {})(close);
+  // Coachmark tips wait while this is open.
+  useEffect(() => {
+    const C = window.Coaching;
+    if (C && C.overlayOpened) C.overlayOpened();
+    return () => {
+      if (C && C.overlayClosed) C.overlayClosed();
+    };
+  }, []);
   return /*#__PURE__*/React.createElement("div", {
     className: "modal-overlay",
     role: "dialog",
     "aria-modal": "true",
-    "aria-label": "Stitching style"
+    "aria-label": "Stitching style",
+    onClick: close
   }, /*#__PURE__*/React.createElement("div", {
     className: "modal-content",
     style: {
       maxWidth: 380
     },
     onClick: e => e.stopPropagation()
-  }, /*#__PURE__*/React.createElement(StitchingStyleStepBody, {
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "modal-close",
+    onClick: close,
+    "aria-label": "Close",
+    title: "Close and keep the current style"
+  }, Icons.x ? Icons.x() : null), /*#__PURE__*/React.createElement(StitchingStyleStepBody, {
     onComplete: onDone,
     startCorner: initCorner
   })));
@@ -7712,8 +7736,13 @@ function TrackerApp({
   // ═══ Session onboarding hint ═══
   // Shown once, on the first stitch of the first session, as a floating toast
   // so it cannot move the chart. Marked as seen as soon as it is shown.
+  // The ref guards against rapid marking: a click's render can commit before
+  // the setSessionOnboardingShown(true) below does, re-running this effect
+  // with the old value, and the toast used to appear two or three times.
+  const sessionHintFiredRef = useRef(false);
   useEffect(() => {
-    if (sessionOnboardingShown || !(liveAutoStitches > 0) || statsSessions.length !== 0) return;
+    if (sessionHintFiredRef.current || sessionOnboardingShown || !(liveAutoStitches > 0) || statsSessions.length !== 0) return;
+    sessionHintFiredRef.current = true;
     setSessionOnboardingShown(true);
     try {
       localStorage.setItem("cs_sessionOnboardingDone", "1");
@@ -10311,36 +10340,42 @@ function TrackerApp({
   // previous touch-only gate is no longer needed because legacy mouse
   // cell-marking has been removed from handleStitchMouseDown / Move / Up.
 
-  // ── C8 Phase 1 — first-stitch coachmark (Tracker) ─────────────────────
-  // Trigger condition: Tracker has a pattern AND the StitchingStyleOnboarding
-  // has finished AND no stitches are marked yet. Success: doneCount > 0.
-  const _trCoach = typeof window.useCoachingSequence === 'function' ? window.useCoachingSequence('tracker') : {
+  // ── Coachmark tips (Tracker) ─────────────────────────────────────────
+  // Two one-off tips. Both wait for the welcome walkthrough and style picker
+  // (coaching.js holds them back while either is open) and are remembered
+  // however they are dismissed. Neither blocks the chart: the tip asks for an
+  // action and the action itself completes it.
+  //   firstStitch_tracker  a project with nothing marked yet; done when a
+  //                        stitch is marked.
+  //   rectSelect_tracker   after a few stitches marked by hand in this
+  //                        session (not the project total, which made it pop
+  //                        up on every visit to an established project), shown
+  //                        once the stitcher pauses so it never lands mid-tap;
+  //                        done when a rectangle is marked.
+  const RECT_SELECT_COACH_THRESHOLD = 4;
+  const RECT_SELECT_COACH_IDLE_MS = 1500;
+  const _rectSelectThresholdMet = liveAutoStitches >= RECT_SELECT_COACH_THRESHOLD;
+  const _trCoach = typeof window.useCoachingSequence === 'function' ? window.useCoachingSequence('tracker', {
+    firstStitch_tracker: !!pat && doneCount === 0,
+    rectSelect_tracker: !!pat && _rectSelectThresholdMet && !_rectSelectUsed
+  }) : {
     active: null,
     complete: () => {},
-    skip: () => {}
+    skip: () => {},
+    skipAll: () => {}
   };
+  const _trCoachBlocked = !isActive || !pat || styleOnboardingOpen || welcomeOpen;
   const [_trCoachReady, _setTrCoachReady] = React.useState(false);
   React.useEffect(() => {
     _setTrCoachReady(false);
-    if (!pat || styleOnboardingOpen || welcomeOpen) return;
-    if (_trCoach.active !== 'firstStitch_tracker') return;
-    if (doneCount > 0) return;
+    if (_trCoachBlocked || _trCoach.active !== 'firstStitch_tracker') return;
     const t = setTimeout(() => _setTrCoachReady(true), 600);
     return () => clearTimeout(t);
-  }, [!!pat, styleOnboardingOpen, welcomeOpen, _trCoach.active, doneCount]);
+  }, [_trCoachBlocked, _trCoach.active]);
   React.useEffect(() => {
-    if (_trCoach.active !== 'firstStitch_tracker') return;
-    if (doneCount > 0) _trCoach.complete('firstStitch_tracker');
+    if (_trCoach.active === 'firstStitch_tracker' && doneCount > 0) _trCoach.complete('firstStitch_tracker');
   }, [doneCount, _trCoach.active]);
-  const _showTrFirstStitchCoach = _trCoachReady && _trCoach.active === 'firstStitch_tracker' && !!pat && !styleOnboardingOpen && !welcomeOpen && doneCount === 0;
-
-  // ── UX-fix — rectangle range-select coachmark (Tracker) ────────────────
-  // Rectangle-select (Shift+click on desktop, long-press+tap on touch) had no
-  // affordance until the user stumbled into Help. Trigger once the user has
-  // marked a few stitches by hand (so basic tapping is familiar) and has not
-  // yet used range-select. Auto-completes the moment `_rectSelectUsed` flips
-  // true (see _commitBulk), mirroring firstStitch's doneCount>0 pattern.
-  const RECT_SELECT_COACH_THRESHOLD = 4;
+  const _showTrFirstStitchCoach = _trCoachReady && !_trCoachBlocked && _trCoach.active === 'firstStitch_tracker';
   const [_isCoarsePointer, _setIsCoarsePointer] = React.useState(false);
   React.useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
@@ -10352,28 +10387,19 @@ function TrackerApp({
       if (mql.removeEventListener) mql.removeEventListener('change', apply);else if (mql.removeListener) mql.removeListener(apply);
     };
   }, []);
-  // BUGFIX: gate on a boolean "threshold met" flag rather than the raw,
-  // ever-incrementing doneCount. doneCount keeps changing on every stitch
-  // marked after the threshold too, so using it directly in the deps array
-  // re-ran this effect (and cancelled/restarted the 600ms timer) on every
-  // subsequent stitch — a user stitching faster than one cell per 600ms
-  // would never see `_trRectCoachReady` flip true at all.
-  const _rectSelectThresholdMet = doneCount + (halfStitchCounts && halfStitchCounts.done || 0) >= RECT_SELECT_COACH_THRESHOLD;
+  // liveAutoStitches is in the deps on purpose: each new mark restarts the
+  // timer, so the tip appears only after a pause in marking.
   const [_trRectCoachReady, _setTrRectCoachReady] = React.useState(false);
   React.useEffect(() => {
     _setTrRectCoachReady(false);
-    if (!pat || styleOnboardingOpen || welcomeOpen) return;
-    if (_trCoach.active !== 'rectSelect_tracker') return;
-    if (_rectSelectUsed) return;
-    if (!_rectSelectThresholdMet) return;
-    const t = setTimeout(() => _setTrRectCoachReady(true), 600);
+    if (_trCoachBlocked || _trCoach.active !== 'rectSelect_tracker') return;
+    const t = setTimeout(() => _setTrRectCoachReady(true), RECT_SELECT_COACH_IDLE_MS);
     return () => clearTimeout(t);
-  }, [!!pat, styleOnboardingOpen, welcomeOpen, _trCoach.active, _rectSelectThresholdMet, _rectSelectUsed]);
+  }, [_trCoachBlocked, _trCoach.active, liveAutoStitches]);
   React.useEffect(() => {
-    if (_trCoach.active !== 'rectSelect_tracker') return;
-    if (_rectSelectUsed) _trCoach.complete('rectSelect_tracker');
-  }, [_rectSelectUsed, _trCoach.active]);
-  const _showTrRectSelectCoach = _trRectCoachReady && _trCoach.active === 'rectSelect_tracker' && !!pat && !styleOnboardingOpen && !welcomeOpen && !_rectSelectUsed && _rectSelectThresholdMet;
+    if (_rectSelectUsed && window.Coaching && !window.Coaching._isCoached('rectSelect_tracker')) _trCoach.complete('rectSelect_tracker');
+  }, [_rectSelectUsed]);
+  const _showTrRectSelectCoach = _trRectCoachReady && !_trCoachBlocked && _trCoach.active === 'rectSelect_tracker';
 
   // Keep ref current on every render (function declarations are hoisted so this
   // is always defined; the ref lets the registered handler call the latest closure).
@@ -13273,11 +13299,12 @@ function TrackerApp({
     }],
     onClose: () => {
       setWelcomeOpen(false);
-      // Skip-tour exits the wizard without committing a style choice; if the
-      // user has never picked a style, fall back to the standalone modal so
-      // the helpful defaults still get applied.
+      // Leaving the tour early keeps the default stitching style. It used to
+      // open the standalone picker, which has no way out, so "Skip tour" led
+      // straight into a questionnaire. The style can be changed any time from
+      // More controls > Tools > Stitching style.
       try {
-        if (!localStorage.getItem("cs_styleOnboardingDone")) setStyleOnboardingOpen(true);
+        if (!localStorage.getItem("cs_styleOnboardingDone")) localStorage.setItem("cs_styleOnboardingDone", "1");
       } catch (_) {}
     }
   }), styleOnboardingOpen && /*#__PURE__*/React.createElement(StitchingStyleOnboarding, {
@@ -13298,21 +13325,25 @@ function TrackerApp({
   }), !onSwitchToDesign && window.HelpHintBanner && React.createElement(window.HelpHintBanner), _showTrFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {
     id: 'firstStitch_tracker',
     title: 'Mark your first stitch',
-    body: 'Tap a cell to mark it complete. Tap again to undo.',
-    placement: 'centre',
+    body: _isCoarsePointer ? 'Tap a stitch to mark it done, or drag across several. Tap it again to unmark it.' : 'Click a stitch to mark it done, or drag across several. Click it again to unmark it.',
+    placement: 'inside-bottom',
+    target: '.tracker-chart-scroll',
     showHighlight: false,
-    helpTopic: 'stitching',
+    helpTopic: 'Tracking progress',
     onComplete: () => _trCoach.complete('firstStitch_tracker'),
-    onSkip: () => _trCoach.skip('firstStitch_tracker')
+    onSkip: () => _trCoach.skip('firstStitch_tracker'),
+    onSkipAll: () => _trCoach.skipAll()
   }), _showTrRectSelectCoach && window.Coachmark && React.createElement(window.Coachmark, {
     id: 'rectSelect_tracker',
     title: 'Select a rectangle of stitches',
-    body: _isCoarsePointer ? 'Press and hold a cell, then tap another cell to mark a whole rectangle at once.' : 'Hold Shift and drag across the rectangle you want to mark, then release.',
-    placement: 'centre',
+    body: _isCoarsePointer ? 'Press and hold a cell, then tap another cell to mark a whole rectangle at once.' : 'Hold Shift and click a stitch to mark the whole rectangle between it and the last stitch you marked.',
+    placement: 'inside-bottom',
+    target: '.tracker-chart-scroll',
     showHighlight: false,
-    helpTopic: 'stitching',
+    helpTopic: 'Marking a rectangle',
     onComplete: () => _trCoach.complete('rectSelect_tracker'),
-    onSkip: () => _trCoach.skip('rectSelect_tracker')
+    onSkip: () => _trCoach.skip('rectSelect_tracker'),
+    onSkipAll: () => _trCoach.skipAll()
   }), sessionConfigOpen && /*#__PURE__*/React.createElement(SessionConfigModal, {
     liveAutoElapsed: liveAutoElapsed,
     liveAutoStitches: liveAutoStitches,
