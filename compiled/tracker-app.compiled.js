@@ -9020,8 +9020,8 @@ function TrackerApp({
     }
     const colorId = cell.id;
     setParkMarkers(prev => {
-      const existing = prev.findIndex(m => m.x === gx && m.y === gy && m.colorId === colorId);
-      if (existing >= 0) return prev.filter((_, i) => i !== existing);
+      const existing = prev.some(m => m.x === gx && m.y === gy);
+      if (existing) return prev.filter(m => m.x !== gx || m.y !== gy);
       // Multi-colour parking — Option A: auto-rotate corners.
       // Pick the next free corner at this cell in [BL, BR, TR, TL]
       // order so markers already on the cell (e.g. synced from an older
@@ -9067,6 +9067,13 @@ function TrackerApp({
     if (!gc || gc.gx < 0 || gc.gx >= sW || gc.gy < 0 || gc.gy >= sH) return;
     e.preventDefault();
     toggleParkAt(gc.gx, gc.gy);
+  }
+  function handleStitchKeyDown(e) {
+    if (e.key !== "ContextMenu" && !(e.shiftKey && e.key === "F10")) return;
+    const guide = guideRef.current;
+    if (!guide || guide.row < 0 || guide.row >= sH || guide.col < 0 || guide.col >= sW) return;
+    e.preventDefault();
+    toggleParkAt(guide.col, guide.row);
   }
 
   // Touch / pen press-and-hold in Navigate mode parks the stitch. Capture-
@@ -11916,7 +11923,7 @@ function TrackerApp({
     ref: stitchRef,
     role: "application",
     tabIndex: "0",
-    "aria-label": "Cross stitch pattern grid",
+    "aria-label": "Cross stitch pattern grid. Use Shift+F10 or Menu to park at the guide.",
     style: {
       display: "block",
       position: "absolute",
@@ -11927,7 +11934,8 @@ function TrackerApp({
       WebkitTouchCallout: "none"
     },
     onMouseDown: handleStitchMouseDown,
-    onMouseMove: handleStitchMouseMove
+    onMouseMove: handleStitchMouseMove,
+    onKeyDown: handleStitchKeyDown
   }, dragMarkHandlers, {
     onContextMenu: handleStitchContextMenu,
     onPointerDownCapture: handleCanvasPointerDownCapture,

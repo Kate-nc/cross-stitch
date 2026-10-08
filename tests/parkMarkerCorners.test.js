@@ -163,6 +163,15 @@ describe('Parking gestures — colour from the stitch', () => {
     expect(src).toMatch(/onPointerCancelCapture=\{clearNavHold\}/);
   });
 
+  test('parking a cell with a legacy marker removes every marker at that cell', () => {
+    expect(src).toMatch(/const existing=prev\.some\(m=>m\.x===gx&&m\.y===gy\);\s*if\(existing\)return prev\.filter\(m=>m\.x!==gx\|\|m\.y!==gy\);/);
+  });
+
+  test('the focused canvas supports keyboard parking at the guide cell', () => {
+    expect(src).toMatch(/function handleStitchKeyDown\(e\)\{[\s\S]*?e\.key!=="ContextMenu"&&!\(e\.shiftKey&&e\.key==="F10"\)[\s\S]*?toggleParkAt\(guide\.col,guide\.row\);/);
+    expect(src).toMatch(/onKeyDown=\{handleStitchKeyDown\}/);
+  });
+
   test('a touch long-press contextmenu never parks (Mark mode owns it for rectangle select)', () => {
     expect(src).toMatch(/if\(lastPointerTypeRef\.current!=="mouse"\)\{\s*if\(stitchMode==="navigate"\)e\.preventDefault\(\);\s*return;\s*\}/);
   });
