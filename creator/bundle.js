@@ -3813,6 +3813,112 @@ window.useMagicWand = function useMagicWand(state) {
     };
   }
 
+  // ─── Delete: clear every stitch inside the selection ─────────────────────────
+  // Full stitches become __empty__ (as the eraser leaves them), part stitches in
+  // selected cells are removed, and backstitch lines lying wholly inside the
+  // selection go too. Background (__skip__) cells are left alone. One undo step.
+  function deleteSelection() {
+    var pat = state.pat, mask = selectionMask, sW = state.sW, sH = state.sH;
+    if (!pat || !mask) return null;
+
+    var np = null, changes = [];
+    for (var i = 0; i < pat.length; i++) {
+      if (!mask[i]) continue;
+      var cell = pat[i];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      if (!np) np = pat.slice();
+      changes.push({ idx: i, old: Object.assign({}, cell) });
+      np[i] = { id: "__empty__", rgb: [255, 255, 255] };
+    }
+
+    var ps = state.partialStitches, nm = null, psChanges = [];
+    if (ps && ps.size) ps.forEach(function(entry, idx) {
+      if (!mask[idx]) return;
+      if (!nm) nm = new Map(ps);
+      psChanges.push({ idx: idx, old: Object.assign({}, entry) });
+      nm.delete(idx);
+    });
+
+    // A line is inside when every in-bounds cell the segment touches is
+    // selected (edge lines border two cells, diagonals one). The segment is
+    // walked in sub-cell steps so long lines are checked along their length.
+    function lineInside(ln) {
+      var dx = ln.x2 - ln.x1, dy = ln.y2 - ln.y1, e = 1e-6, any = false;
+      var n = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) * 4));
+      for (var s = 0; s < n; s++) {
+        var t = (s + 0.5) / n, px = ln.x1 + dx * t, py = ln.y1 + dy * t;
+        var xs = [Math.floor(px - e), Math.floor(px + e)], ys = [Math.floor(py - e), Math.floor(py + e)];
+        for (var a = 0; a < 2; a++) for (var b = 0; b < 2; b++) {
+          var cx = xs[a], cy = ys[b];
+          if (cx < 0 || cx >= sW || cy < 0 || cy >= sH) continue;
+          if (!mask[cy * sW + cx]) return false;
+          any = true;
+        }
+      }
+      return any;
+    }
+    var bsLines = state.bsLines || [];
+    var keptBs = bsLines.filter(function(ln) { return !ln || !lineInside(ln); });
+    var bsRemoved = bsLines.length - keptBs.length;
+
+    if (!changes.length && !psChanges.length && !bsRemoved) {
+      if (state.addToast) state.addToast("Nothing to delete in the selection.", {type: "info", duration: 2000});
+      return null;
+    }
+
+    var entry = { type: "deleteSelection", changes: changes };
+    if (psChanges.length) entry.psChanges = psChanges;
+    if (bsRemoved) entry.bsLines = bsLines.slice();
+    var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    state.setEditHistory(function(prev) {
+      var n = prev.concat([entry]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    state.setRedoHistory([]);
+    if (np) {
+      state.setPat(np);
+      var r = state.buildPaletteWithScratch(np);
+      // The palette is rebuilt from full stitches only. Keep entries for
+      // colours still used by remaining part stitches / backstitch lines.
+      var stillUsed = {};
+      (nm || ps || new Map()).forEach(function(entry) {
+        ['TL', 'TR', 'BL', 'BR'].forEach(function(q) { if (entry && entry[q]) stillUsed[entry[q].id] = entry[q]; });
+      });
+      keptBs.forEach(function(ln) { if (ln && ln.colorId != null && !stillUsed[ln.colorId]) stillUsed[ln.colorId] = null; });
+      var usedSyms = new Set(r.pal.map(function(p) { return p.symbol; }));
+      var SY = typeof SYMS !== 'undefined' ? SYMS : [];
+      var keeps = [];
+      Object.keys(stillUsed).forEach(function(id) {
+        if (r.cmap[id]) return;
+        var old = state.cmap && state.cmap[id];
+        if (!old) return;
+        var sym = old.symbol;
+        if (!sym || usedSyms.has(sym)) sym = SY.find(function(x) { return !usedSyms.has(x); }) || sym;
+        usedSyms.add(sym);
+        keeps.push(Object.assign({}, old, { count: 0, symbol: sym }));
+      });
+      if (keeps.length) {
+        if (state.setScratchPalette) {
+          state.setScratchPalette(function(prev) {
+            return prev.filter(function(p) { return !keeps.some(function(k) { return k.id === p.id; }); }).concat(keeps);
+          });
+        }
+        var keepMap = {}; keeps.forEach(function(k) { keepMap[k.id] = k; });
+        r = { pal: r.pal.concat(keeps), cmap: Object.assign({}, r.cmap, keepMap) };
+      }
+      state.setPal(r.pal); state.setCmap(r.cmap);
+    }
+    if (nm) state.setPartialStitches(nm);
+    if (bsRemoved) state.setBsLines(keptBs);
+
+    var counts = { full: changes.length, partial: psChanges.length, backstitch: bsRemoved };
+    var CR = window.ColourReplace;
+    var desc = CR && CR.describeCounts ? CR.describeCounts(counts) : (changes.length + " stitches");
+    if (state.addToast) state.addToast("Deleted " + desc + ".", {type: "success", duration: 2000});
+    return { entry: entry, counts: counts };
+  }
+
   // ─── Phase 3.1: Selection stats ─────────────────────────────────────────────
 
   var selectionStats = useMemo(function() {
@@ -3912,6 +4018,7 @@ window.useMagicWand = function useMagicWand(state) {
     applyGlobalColourReplacement,
     // Back-compat alias for any external caller still using the misspelled name.
     applyGlobalColorReplacement: applyGlobalColourReplacement,
+    deleteSelection,
     // Phase 3
     selectionStats, applyOutlineGeneration,
     // Derived
@@ -6652,6 +6759,15 @@ window.useCreatorState = function useCreatorState() {
     applyColorReduction: wand.applyColorReduction,
     applyGlobalColourReplacement: wand.applyGlobalColourReplacement,
     applyGlobalColorReplacement: wand.applyGlobalColourReplacement,
+    // A floating move is rebuilt from its start snapshot when it commits, so a
+    // delete made mid-move would be silently overwritten. Block it instead.
+    deleteSelection: function() {
+      if (move.floatActive) {
+        addToast("Finish the move first: switch to another tool to keep it, or press Esc to cancel it.", {type: "info", duration: 3000});
+        return null;
+      }
+      return wand.deleteSelection();
+    },
     colourReplaceModal, setColourReplaceModal,
     selectionStats: wand.selectionStats,
     applyOutlineGeneration: wand.applyOutlineGeneration,
@@ -6699,7 +6815,7 @@ window.useCreatorState = function useCreatorState() {
      - { type: "remove_unused_colours", removedFromPal, removedFromScratch }
          Specific branch in undoEdit/redoEdit. Restores palette entries.
      - { type: "colourReplace", changes }    // British spelling — see DEFECT-005.
-     - { type: "paint" | "erase" | "fill" | "rect" | "lasso" | undefined,
+     - { type: "paint" | "erase" | "fill" | "rect" | "lasso" | "deleteSelection" | undefined,
          changes, psChanges?, bsLines? }
          Generic fallthrough: handled by the same `last.changes` loop. The
          `type` string is *preserved* on the redo stack but never inspected —
@@ -9298,6 +9414,11 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       description: "Invert selection",
       run: function () { if (state.pat) state.invertSelection(); } },
 
+    { id: "creator.deleteSel", keys: ["delete", "backspace"], scope: "creator.design",
+      description: "Delete stitches in the selection",
+      when: function () { return !!state.pat && !!state.hasSelection && !state.moveActive && !state.floatActive; },
+      run: function () { state.deleteSelection(); } },
+
     // Help / shortcuts
     { id: "creator.shortcuts", keys: "?", scope: "creator.design",
       description: "Toggle shortcuts panel",
@@ -9452,7 +9573,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       state.hasSelection, state.lassoInProgress, state.highlightMode,
       state.splitPaneEnabled, state.stitchType,
       state.moveActive, state.nudgeMove, state.cancelMove,
-      state.floatActive, state.revertFloat,
+      state.floatActive, state.revertFloat, state.deleteSelection,
       history.undoEdit, history.redoEdit, io.saveProject,
     ]);
   }
@@ -12185,14 +12306,14 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     // ── Brush size ──
     h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Brush size"),
-      h("div", {className:"tb-grp"},
-        [1,2,3].map(function(sz) {
+      h("div", {className:"tb-grp", style:{flexWrap:"wrap",gap:2}},
+        [1,2,3,5,7,10].map(function(sz) {
           var isOn = (cv.brushSize||1) === sz;
           return h("button", {
             key:sz,
             className:"tb-btn"+(isOn?" tb-btn--on":""),
             onClick:function(){ cv.setBrushSize(sz); },
-            title:sz+"\xD7"+sz, "aria-label":sz+" by "+sz+" brush"
+            title:sz+"\xD7"+sz, "aria-label":sz+" by "+sz+" brush", "aria-pressed":isOn
           }, sz);
         })
       )
@@ -12406,6 +12527,8 @@ window.MagicWandPanel = function MagicWandPanel() {
         btn("Invert",   cv.invertSelection,  { title: "Invert selection (Ctrl+\u21E7+I)" }),
         btn("All",      cv.selectAll,        { title: "Select all stitches (Ctrl+A)" })
       ),
+      h("div", { className: "tb-sdiv" }),
+      btn("Delete", cv.deleteSelection, { danger: true, title: "Delete the stitches in the selection (Delete)" }),
       h("div", { className: "tb-sdiv" }),
       h("div", { className: "tb-grp" },
         btn("Confetti\u2026",       function() { cv.setWandPanel(panel === "confetti" ? null : "confetti"); }, { active: panel === "confetti" }),
@@ -12648,6 +12771,8 @@ window.MagicWandPanel = function MagicWandPanel() {
         btn("Invert",   cv.invertSelection, { title: "Invert selection (Ctrl+\u21E7+I)" }),
         btn("All",      cv.selectAll,       { title: "Select all (Ctrl+A)" })
       ),
+      h("div", { className: "tb-sdiv" }),
+      btn("Delete", cv.deleteSelection, { danger: true, title: "Delete the stitches in the selection (Delete)" }),
       h("div", { className: "tb-sdiv" }),
       // Panel operations sub-menu (collapses the 5 panel buttons)
       h("div", { ref: panelMenuRef, className: "tb-overflow-wrap" },
@@ -15029,28 +15154,31 @@ window.CreatorSidebar = function CreatorSidebar() {
   var brushSizeSection = h("div", {style:{padding:"0 12px 12px",borderTop:"1px solid var(--border)",paddingTop:12}},
     h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-2)'}},
       "Brush size"),
-    h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)'}},
-      h("input", {type:"range", min:1, max:3, step:1, value:cv.brushSize||1,
+    h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:'var(--s-2)'}},
+      h("input", {type:"range", min:1, max:10, step:1, value:cv.brushSize||1,
         onChange:function(e){ cv.setBrushSize(parseInt(e.target.value,10)); },
         "aria-label":"Brush size",
         style:{flex:1}}),
-      h("div", {style:{display:"flex",gap:3}},
-        [1,2,3].map(function(sz) {
-          var on = cv.brushSize === sz;
-          return h("button", {
-            key:sz,
-            onClick:function(){ cv.setBrushSize(sz); },
-            "aria-pressed": on ? "true" : "false",
-            style:{
-              minWidth:28,padding:"4px 8px",fontSize:'var(--text-sm)',fontWeight:on?600:400,
-              border:"1px solid "+(on?"var(--accent)":"var(--border)"),
-              background:on?"var(--accent-light)":"transparent",
-              color:on?"var(--accent)":"var(--text-secondary)",
-              borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
-            }
-          }, sz);
-        })
-      )
+      h("span", {style:{minWidth:40,textAlign:"right",fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontVariantNumeric:"tabular-nums"}},
+        (cv.brushSize||1) + "\xD7" + (cv.brushSize||1))
+    ),
+    h("div", {style:{display:"flex",flexWrap:"wrap",gap:3}},
+      [1,2,3,5,7,10].map(function(sz) {
+        var on = (cv.brushSize||1) === sz;
+        return h("button", {
+          key:sz,
+          onClick:function(){ cv.setBrushSize(sz); },
+          "aria-pressed": on ? "true" : "false",
+          "aria-label": sz + " by " + sz + " brush",
+          style:{
+            minWidth:28,padding:"4px 8px",fontSize:'var(--text-sm)',fontWeight:on?600:400,
+            border:"1px solid "+(on?"var(--accent)":"var(--border)"),
+            background:on?"var(--accent-light)":"transparent",
+            color:on?"var(--accent)":"var(--text-secondary)",
+            borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
+          }
+        }, sz);
+      })
     ),
     h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:6,lineHeight:1.4}},
       "Applies to Cross and Half stitches, and the Erase tool.")
@@ -15122,6 +15250,17 @@ window.CreatorSidebar = function CreatorSidebar() {
     ),
     h("div", {style:{fontSize:10,color:"var(--text-tertiary)",lineHeight:1.4}},
       "Modifier hint: Shift = add to selection, Alt = subtract."),
+    cv.hasSelection && h("button", {
+      onClick:function(){ if (cv.deleteSelection) cv.deleteSelection(); },
+      title:"Delete the stitches in the selection (Delete)",
+      style:{
+        marginTop:'var(--s-2)',width:"100%",padding:"6px 8px",fontSize:'var(--text-xs)',
+        display:"flex",alignItems:"center",justifyContent:"center",gap:'var(--s-1)',
+        border:"1px solid var(--danger)",borderRadius:'var(--radius-sm)',
+        background:"var(--danger-soft)",color:"var(--danger)",
+        cursor:"pointer",fontFamily:"inherit"
+      }
+    }, window.Icons && window.Icons.trash ? window.Icons.trash() : null, "Delete selected stitches"),
     (cv.hasSelection || cv.lassoInProgress) && h("button", {
       onClick:function(){ if (cv.cancelLasso) cv.cancelLasso(); if (cv.clearSelection) cv.clearSelection(); },
       style:{
@@ -15481,6 +15620,11 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     item([Icons.colourSwap(), " Replace this colour…"], function() {
       if (cellInfo) cv.setColourReplaceModal({ srcId: cellInfo.id, srcName: cellInfo.name || cellInfo.id, srcRgb: cellInfo.rgb });
     }, {disabled: !hasCellColour, k: 'replace'}),
+
+    // Delete everything in the current selection
+    cv.hasSelection && item([Icons.trash(), " Delete selected stitches"], function() {
+      cv.deleteSelection();
+    }, {k: 'deleteSel'}),
 
     sep(),
 

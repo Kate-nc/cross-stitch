@@ -523,6 +523,112 @@ window.useMagicWand = function useMagicWand(state) {
     };
   }
 
+  // ─── Delete: clear every stitch inside the selection ─────────────────────────
+  // Full stitches become __empty__ (as the eraser leaves them), part stitches in
+  // selected cells are removed, and backstitch lines lying wholly inside the
+  // selection go too. Background (__skip__) cells are left alone. One undo step.
+  function deleteSelection() {
+    var pat = state.pat, mask = selectionMask, sW = state.sW, sH = state.sH;
+    if (!pat || !mask) return null;
+
+    var np = null, changes = [];
+    for (var i = 0; i < pat.length; i++) {
+      if (!mask[i]) continue;
+      var cell = pat[i];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      if (!np) np = pat.slice();
+      changes.push({ idx: i, old: Object.assign({}, cell) });
+      np[i] = { id: "__empty__", rgb: [255, 255, 255] };
+    }
+
+    var ps = state.partialStitches, nm = null, psChanges = [];
+    if (ps && ps.size) ps.forEach(function(entry, idx) {
+      if (!mask[idx]) return;
+      if (!nm) nm = new Map(ps);
+      psChanges.push({ idx: idx, old: Object.assign({}, entry) });
+      nm.delete(idx);
+    });
+
+    // A line is inside when every in-bounds cell the segment touches is
+    // selected (edge lines border two cells, diagonals one). The segment is
+    // walked in sub-cell steps so long lines are checked along their length.
+    function lineInside(ln) {
+      var dx = ln.x2 - ln.x1, dy = ln.y2 - ln.y1, e = 1e-6, any = false;
+      var n = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) * 4));
+      for (var s = 0; s < n; s++) {
+        var t = (s + 0.5) / n, px = ln.x1 + dx * t, py = ln.y1 + dy * t;
+        var xs = [Math.floor(px - e), Math.floor(px + e)], ys = [Math.floor(py - e), Math.floor(py + e)];
+        for (var a = 0; a < 2; a++) for (var b = 0; b < 2; b++) {
+          var cx = xs[a], cy = ys[b];
+          if (cx < 0 || cx >= sW || cy < 0 || cy >= sH) continue;
+          if (!mask[cy * sW + cx]) return false;
+          any = true;
+        }
+      }
+      return any;
+    }
+    var bsLines = state.bsLines || [];
+    var keptBs = bsLines.filter(function(ln) { return !ln || !lineInside(ln); });
+    var bsRemoved = bsLines.length - keptBs.length;
+
+    if (!changes.length && !psChanges.length && !bsRemoved) {
+      if (state.addToast) state.addToast("Nothing to delete in the selection.", {type: "info", duration: 2000});
+      return null;
+    }
+
+    var entry = { type: "deleteSelection", changes: changes };
+    if (psChanges.length) entry.psChanges = psChanges;
+    if (bsRemoved) entry.bsLines = bsLines.slice();
+    var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    state.setEditHistory(function(prev) {
+      var n = prev.concat([entry]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    state.setRedoHistory([]);
+    if (np) {
+      state.setPat(np);
+      var r = state.buildPaletteWithScratch(np);
+      // The palette is rebuilt from full stitches only. Keep entries for
+      // colours still used by remaining part stitches / backstitch lines.
+      var stillUsed = {};
+      (nm || ps || new Map()).forEach(function(entry) {
+        ['TL', 'TR', 'BL', 'BR'].forEach(function(q) { if (entry && entry[q]) stillUsed[entry[q].id] = entry[q]; });
+      });
+      keptBs.forEach(function(ln) { if (ln && ln.colorId != null && !stillUsed[ln.colorId]) stillUsed[ln.colorId] = null; });
+      var usedSyms = new Set(r.pal.map(function(p) { return p.symbol; }));
+      var SY = typeof SYMS !== 'undefined' ? SYMS : [];
+      var keeps = [];
+      Object.keys(stillUsed).forEach(function(id) {
+        if (r.cmap[id]) return;
+        var old = state.cmap && state.cmap[id];
+        if (!old) return;
+        var sym = old.symbol;
+        if (!sym || usedSyms.has(sym)) sym = SY.find(function(x) { return !usedSyms.has(x); }) || sym;
+        usedSyms.add(sym);
+        keeps.push(Object.assign({}, old, { count: 0, symbol: sym }));
+      });
+      if (keeps.length) {
+        if (state.setScratchPalette) {
+          state.setScratchPalette(function(prev) {
+            return prev.filter(function(p) { return !keeps.some(function(k) { return k.id === p.id; }); }).concat(keeps);
+          });
+        }
+        var keepMap = {}; keeps.forEach(function(k) { keepMap[k.id] = k; });
+        r = { pal: r.pal.concat(keeps), cmap: Object.assign({}, r.cmap, keepMap) };
+      }
+      state.setPal(r.pal); state.setCmap(r.cmap);
+    }
+    if (nm) state.setPartialStitches(nm);
+    if (bsRemoved) state.setBsLines(keptBs);
+
+    var counts = { full: changes.length, partial: psChanges.length, backstitch: bsRemoved };
+    var CR = window.ColourReplace;
+    var desc = CR && CR.describeCounts ? CR.describeCounts(counts) : (changes.length + " stitches");
+    if (state.addToast) state.addToast("Deleted " + desc + ".", {type: "success", duration: 2000});
+    return { entry: entry, counts: counts };
+  }
+
   // ─── Phase 3.1: Selection stats ─────────────────────────────────────────────
 
   var selectionStats = useMemo(function() {
@@ -622,6 +728,7 @@ window.useMagicWand = function useMagicWand(state) {
     applyGlobalColourReplacement,
     // Back-compat alias for any external caller still using the misspelled name.
     applyGlobalColorReplacement: applyGlobalColourReplacement,
+    deleteSelection,
     // Phase 3
     selectionStats, applyOutlineGeneration,
     // Derived

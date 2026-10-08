@@ -127,6 +127,11 @@ window.CreatorContextMenu = function CreatorContextMenu() {
       if (cellInfo) cv.setColourReplaceModal({ srcId: cellInfo.id, srcName: cellInfo.name || cellInfo.id, srcRgb: cellInfo.rgb });
     }, {disabled: !hasCellColour, k: 'replace'}),
 
+    // Delete everything in the current selection
+    cv.hasSelection && item([Icons.trash(), " Delete selected stitches"], function() {
+      cv.deleteSelection();
+    }, {k: 'deleteSel'}),
+
     sep(),
 
     // Highlight this colour

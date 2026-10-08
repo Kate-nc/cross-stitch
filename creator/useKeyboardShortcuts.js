@@ -58,6 +58,11 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       description: "Invert selection",
       run: function () { if (state.pat) state.invertSelection(); } },
 
+    { id: "creator.deleteSel", keys: ["delete", "backspace"], scope: "creator.design",
+      description: "Delete stitches in the selection",
+      when: function () { return !!state.pat && !!state.hasSelection && !state.moveActive && !state.floatActive; },
+      run: function () { state.deleteSelection(); } },
+
     // Help / shortcuts
     { id: "creator.shortcuts", keys: "?", scope: "creator.design",
       description: "Toggle shortcuts panel",
@@ -212,7 +217,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       state.hasSelection, state.lassoInProgress, state.highlightMode,
       state.splitPaneEnabled, state.stitchType,
       state.moveActive, state.nudgeMove, state.cancelMove,
-      state.floatActive, state.revertFloat,
+      state.floatActive, state.revertFloat, state.deleteSelection,
       history.undoEdit, history.redoEdit, io.saveProject,
     ]);
   }

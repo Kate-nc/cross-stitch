@@ -108,6 +108,14 @@ Choose a colour in the **Palette** tab, then a tool:
 
 **More tools** in the tool strip holds Move (drag a selection, or nudge it with the arrow keys), Cleanup mode and Denoise mode.
 
+### Brush size
+
+Paint, half stitches and Erase cover a square of stitches from 1×1 up to 10×10. Set the size with the slider or the quick sizes (1, 2, 3, 5, 7, 10) in the **Tools** tab, or under **More tools > Brush size**. The outline under the cursor shows the area the brush will cover.
+
+### Deleting a selection
+
+With stitches selected (Magic Wand or Lasso), press `Delete` or `Backspace`, click **Delete** on the selection bar, or right-click and choose **Delete selected stitches**. Every stitch in the selection is cleared, along with part stitches in those cells and backstitch lines lying entirely inside the selection; lines along its edge are kept. It is one undo step, and the selection stays in place so you can paint into the cleared area.
+
 ### Stitch types
 
 Cross (`1`), Half / (`2`), Half \ (`3`), Backstitch (`4`) and Erase (`5`), plus quarter and three-quarter stitches. `T` / `Shift+T` steps through them.
