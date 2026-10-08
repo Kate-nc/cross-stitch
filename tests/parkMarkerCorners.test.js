@@ -168,7 +168,7 @@ describe('Parking gestures — colour from the stitch', () => {
   });
 
   test('right mouse button does not fall through to the mousedown handlers', () => {
-    expect(src).toMatch(/function handleStitchMouseDown\(e\)\{[\s\S]{0,400}if\(e\.button===2\)return;/);
+    expect(src).toMatch(/function handleStitchMouseDown\(e\)\{[\s\S]{0,400}if\(e\.button===2\|\|isMacSecondaryClick\(e\)\)return;/);
   });
 
   test('a click straight after a fired hold is ignored in Nav mode', () => {
@@ -228,5 +228,29 @@ describe('isParkSpent — behavioural', () => {
   });
   test('no done array (pattern still loading) never hides markers', () => {
     expect(isParkSpent({ x: 0, y: 0 }, null)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Right-click parking is only for a real secondary press on the canvas. The
+// context menu also opens from the keyboard (Menu key, Shift+F10), where no
+// cell is meant; and on a Mac, Ctrl+click is the secondary click, so it must
+// park without also marking the stitch or moving the guide.
+// ---------------------------------------------------------------------------
+describe('Secondary-click parking guards', () => {
+  const dragMarkSrc = fs.readFileSync(path.join(__dirname, '..', 'useDragMark.js'), 'utf8');
+
+  test('a contextmenu only parks right after a secondary press on the canvas', () => {
+    expect(src).toMatch(/if\(e\.button===2\|\|isMacSecondaryClick\(e\)\)lastSecondaryPressRef\.current=Date\.now\(\);/);
+    expect(src).toMatch(/if\(Date\.now\(\)-lastSecondaryPressRef\.current>1000\)return;\s*const gc=gridCoord/);
+  });
+
+  test('Mac Ctrl+click skips the mousedown handlers', () => {
+    expect(src).toMatch(/if\(e\.button===2\|\|isMacSecondaryClick\(e\)\)return;/);
+    expect(src).toMatch(/function isMacSecondaryClick\(e\)\{\s*return e\.button===0&&e\.ctrlKey&&/);
+  });
+
+  test('Mac Ctrl+click does not start a drag-mark', () => {
+    expect(dragMarkSrc).toMatch(/if \(e\.ctrlKey && e\.button === 0 && typeof window !== 'undefined'\s*&& window\.Shortcuts && window\.Shortcuts\.isMac && window\.Shortcuts\.isMac\(\)\) return;/);
   });
 });

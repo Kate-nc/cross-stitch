@@ -1360,6 +1360,10 @@ const hasTouchRef=useRef(typeof window!=="undefined"&&"ontouchstart" in window);
 // long-press; the pending Nav-mode press-and-hold; and the time until which
 // the compatibility mousedown that follows a fired hold is ignored.
 const lastPointerTypeRef=useRef("mouse");
+// When the latest secondary press (right button, or Ctrl+click on a Mac)
+// hit the canvas. Only a contextmenu right after one parks: the menu can
+// also come from the keyboard (Menu key, Shift+F10), with no cell meant.
+const lastSecondaryPressRef=useRef(0);
 const navHoldRef=useRef(null);
 const suppressNavClickUntilRef=useRef(0);
 // Stable handler refs — point to latest function each render; listeners attach once
@@ -5608,6 +5612,7 @@ function handleStitchContextMenu(e){
     if(stitchMode==="navigate")e.preventDefault();
     return;
   }
+  if(Date.now()-lastSecondaryPressRef.current>1000)return;
   const gc=gridCoord(stitchRef,e,scs,G,false,chartTileRef.current);
   // Off the chart (the gutter): leave the browser menu alone.
   if(!gc||gc.gx<0||gc.gx>=sW||gc.gy<0||gc.gy>=sH)return;
@@ -5624,8 +5629,14 @@ function clearNavHold(){
   const h=navHoldRef.current;
   if(h){clearTimeout(h.timer);navHoldRef.current=null;}
 }
+// Ctrl+click is the Mac secondary click: it parks (via contextmenu) and must
+// not also mark the stitch or move the guide.
+function isMacSecondaryClick(e){
+  return e.button===0&&e.ctrlKey&&!!(window.Shortcuts&&window.Shortcuts.isMac&&window.Shortcuts.isMac());
+}
 function handleCanvasPointerDownCapture(e){
   lastPointerTypeRef.current=e.pointerType||"mouse";
+  if(e.button===2||isMacSecondaryClick(e))lastSecondaryPressRef.current=Date.now();
   clearNavHold();
   if(stitchMode!=="navigate"||isEditMode||!pat)return;
   if(!e.pointerType||e.pointerType==="mouse"||e.isPrimary===false)return;
@@ -5696,7 +5707,7 @@ function handleStitchMouseDown(e){
   if(e.button===1||isSpaceDownRef.current){e.preventDefault();startPan(e);return;}
   // Right-click parks (handleStitchContextMenu). Without this a right-click
   // also moved the guide in Navigate mode and toggled half stitches in Mark.
-  if(e.button===2)return;
+  if(e.button===2||isMacSecondaryClick(e))return;
   // Alt+click: relocate the spotlight focus block to the clicked cell's block.
   // Works in both Mark and Navigate modes; bypasses edit-mode cell editor too.
   // No-op when spotlight is off or the stitching style has no spatial blocks.
