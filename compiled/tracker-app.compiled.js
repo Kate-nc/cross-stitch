@@ -5404,107 +5404,42 @@ function TrackerApp({
       onSwitchToDesign();
       return;
     }
-    const sseArrH = [...singleStitchEdits.entries()];
-    const hsArrH = [...halfStitches.entries()].map(([idx, hs]) => [idx, {
-      fwd: hs.fwd ? {
-        id: hs.fwd.id,
-        rgb: hs.fwd.rgb
-      } : undefined,
-      bck: hs.bck ? {
-        id: hs.bck.id,
-        rgb: hs.bck.rgb
-      } : undefined
-    }]);
-    const hdArrH = [...halfDone.entries()];
-    const psArrH = [...partialStitches.entries()];
-    let project = {
-      version: 11,
-      id: projectIdRef.current || undefined,
-      page: "tracker",
-      name: projectName,
-      createdAt: createdAtRef.current || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      settings: {
-        sW,
-        sH,
-        maxC: pal.length,
-        bri: 0,
-        con: 0,
-        sat: 0,
-        dith: false,
-        skipBg: false,
-        bgTh: 15,
-        bgCol: "var(--surface)",
-        minSt: 0,
-        arLock: true,
-        ar: 1,
-        fabricCt,
-        skeinPrice,
-        stitchSpeed,
-        smooth: 0,
-        smoothType: "median",
-        orphans: 0,
-        wastePrefs
-      },
-      pattern: pat.map(m => m.id === "__skip__" || m.id === "__empty__" ? {
-        id: m.id
-      } : {
-        id: m.id,
-        type: m.type,
-        rgb: m.rgb
-      }),
-      bsLines,
-      done: done ? Array.from(done) : null,
-      parkMarkers,
-      hlRow,
-      hlCol,
-      threadOwned,
-      imgData: null,
-      originalPaletteState,
-      singleStitchEdits: sseArrH,
-      halfStitches: hsArrH,
-      halfDone: hdArrH,
-      partialStitches: psArrH,
-      statsSessions,
-      statsSettings,
-      achievedMilestones,
-      doneSnapshots,
-      breadcrumbs,
-      stitchingStyle,
-      blockW,
-      blockH,
-      focusBlock,
-      startCorner,
-      colourSequence,
-      workArea
-    };
-    try {
-      // T-3 / INT-4: wrap the handoff in an envelope with a wall-clock
-      // timestamp. The Creator drops envelopes older than HANDOFF_TTL_MS so a
-      // back/cancel aborted nav doesn't leave a stale alert lying in wait for
-      // the user's next Creator visit (potentially hours later).
-      var _env = {
-        ts: Date.now(),
-        project: project
-      };
-      localStorage.setItem("crossstitch_handoff_to_creator", JSON.stringify(_env));
-      window.location.href = "create.html?source=tracker";
-    } catch (e) {
+    // Standalone tracker (stitch.html): save the project to IndexedDB, then let
+    // the Creator open it as the active project. The whole project used to go
+    // through localStorage, whose ~5 MB quota a large chart (100k+ stitches)
+    // overflows, leaving the user stuck on a "Pattern too large" alert.
+    const project = buildSnapshot();
+    if (!project) return;
+    lastSnapshotRef.current = project;
+    persistProjectRecord(project).then(function (saveResult) {
+      // A cross-tab conflict that the user resolved by reloading: stay here.
+      if (saveResult && saveResult.reason === 'reloaded') return;
+      if (saveResult && saveResult.ok === false) throw new Error(saveResult.reason || 'save failed');
+      // T-3 / INT-4: only a small timestamped note travels through
+      // localStorage now, so the Creator can still warn about tracking
+      // progress. It drops notes older than HANDOFF_TTL_MS so an aborted nav
+      // doesn't leave a stale alert waiting for the next Creator visit.
       try {
-        let str = JSON.stringify(project);
-        let compressed = pako.deflate(str);
-        let binaryStr = "";
-        for (let i = 0; i < compressed.length; i++) binaryStr += String.fromCharCode(compressed[i]);
-        let b64 = btoa(binaryStr).replace(/\+/g, "-").replace(/\//g, "_");
-        if (b64.length > 8000) {
-          alert("Pattern too large for direct transfer. Please use Save Project (.json) instead and load it in the Creator.");
-          return;
-        }
-        window.location.href = "index.html#p=" + b64;
-      } catch (e2) {
-        alert("Pattern is too large for direct transfer. Please save the file and open it in the Creator.");
-      }
-    }
+        var _env = {
+          ts: Date.now(),
+          projectId: project.id,
+          hasProgress: !!(project.done && project.done.some(function (v) {
+            return v === 1;
+          }))
+        };
+        localStorage.setItem("crossstitch_handoff_to_creator", JSON.stringify(_env));
+      } catch (_) {}
+      window.__navigatingAway = true;
+      window.location.href = "create.html?source=tracker";
+    }).catch(function (e) {
+      console.error('Edit in Creator: save failed:', e);
+      try {
+        window.Toast && window.Toast.show && window.Toast.show({
+          message: 'Could not save the pattern before opening it in the Creator. Please try again.',
+          type: 'error'
+        });
+      } catch (_) {}
+    });
   }
   function handleSymbolReassignment(oldColorId, newThread) {
     if (!pat || !pal || !cmap) return;

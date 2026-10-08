@@ -36,18 +36,6 @@ const JSON_EXPORT_FIELDS = [
   'savedZoom', 'savedScroll'
 ];
 
-// Fields that the cross-page handleEditInCreator handoff should include
-const HANDOFF_FIELDS = [
-  'version', 'id', 'page', 'name', 'createdAt', 'updatedAt',
-  'settings', 'pattern', 'bsLines', 'done', 'parkMarkers',
-  'hlRow', 'hlCol', 'threadOwned',
-  'originalPaletteState', 'singleStitchEdits', 'halfStitches', 'halfDone',
-  'statsSessions', 'statsSettings',
-  'achievedMilestones', 'doneSnapshots',
-  'breadcrumbs', 'stitchingStyle', 'blockW', 'blockH',
-  'focusBlock', 'startCorner', 'colourSequence', 'workArea'
-];
-
 describe('Persistence field coverage', () => {
   // Extract the buildSnapshot function body
   test('buildSnapshot includes all required fields', () => {
@@ -75,36 +63,15 @@ describe('Persistence field coverage', () => {
     }
   });
 
-  test('handleEditInCreator cross-page handoff includes id and createdAt', () => {
-    // Find the cross-page handoff object
-    const handoffMatch = trackerSrc.match(/let project=\{version:11,id:projectIdRef\.current/);
-    expect(handoffMatch).not.toBeNull();
-
-    // Extract the full line for that project object
-    const lineStart = trackerSrc.lastIndexOf('\n', handoffMatch.index) + 1;
-    const lineEnd = trackerSrc.indexOf(';\n', handoffMatch.index);
-    const handoffLine = trackerSrc.slice(lineStart, lineEnd);
-
-    for (const field of HANDOFF_FIELDS) {
-      const fieldRegex = new RegExp('\\b' + field + '\\b');
-      expect(handoffLine).toMatch(fieldRegex);
-    }
-  });
-
-  test('handleEditInCreator cross-page uses actual skeinPrice, not hardcoded', () => {
-    const handoffMatch = trackerSrc.match(/let project=\{version:11,id:projectIdRef\.current/);
-    expect(handoffMatch).not.toBeNull();
-    const lineStart = trackerSrc.lastIndexOf('\n', handoffMatch.index) + 1;
-    const lineEnd = trackerSrc.indexOf(';\n', handoffMatch.index);
-    const handoffLine = trackerSrc.slice(lineStart, lineEnd);
-
-    // Should NOT contain hardcoded skeinPrice:1.2
-    expect(handoffLine).not.toMatch(/skeinPrice:\s*1\.2/);
-    // Should NOT contain hardcoded stitchSpeed:40
-    expect(handoffLine).not.toMatch(/stitchSpeed:\s*40/);
-    // Should contain the variable references
-    expect(handoffLine).toMatch(/skeinPrice/);
-    expect(handoffLine).toMatch(/stitchSpeed/);
+  test('handleEditInCreator cross-page path saves a full buildSnapshot()', () => {
+    // The cross-page path saves the same snapshot as auto-save (whose fields
+    // are checked above) instead of hand-building its own project object.
+    const start = trackerSrc.indexOf('function handleEditInCreator(');
+    const end = trackerSrc.indexOf('\nfunction ', start + 1);
+    const fn = trackerSrc.slice(start, end);
+    const crossPage = fn.slice(fn.indexOf('onSwitchToDesign();'));
+    expect(crossPage).toMatch(/const project=buildSnapshot\(\);[\s\S]*persistProjectRecord\(project\)/);
+    expect(crossPage).not.toMatch(/let project=\{/);
   });
 
   test('__flushProjectToIDB includes breadcrumbs and stitching style fields', () => {

@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.72';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.73',
+    date: 'October 2026',
+    notes: [
+      'Edit in the Stitch Tracker now opens large patterns in the Pattern Creator, instead of stopping with "Pattern too large for direct transfer".',
+    ]
+  },
+  {
     version: '1.0.72',
     date: 'October 2026',
     notes: [
