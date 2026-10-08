@@ -88,6 +88,5 @@ describe('session onboarding hint', () => {
 describe('Nav button', () => {
   test('uses the hand icon, not the parking flag', () => {
     expect(src).toMatch(/title="Navigate \(N\)" aria-pressed=\{stitchMode==="navigate"\}>\s*<span className="ppal-mode-btn-icon">\{Icons\.hand\(\)\}<\/span>/);
-    expect(src).not.toMatch(/Icons\.parkFlag\(\)/);
   });
 });

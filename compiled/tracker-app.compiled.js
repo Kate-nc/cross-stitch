@@ -2347,8 +2347,25 @@ function TrackerApp({
     if (c) {
       text = "Row: " + (c.row + 1) + "   Col: " + (c.col + 1);
       if (info && info.row === c.row + 1 && info.col === c.col + 1) text += "  —   DMC " + info.id + " " + info.name;
+    } else {
+      // Nothing under the pointer (always the case on touch): describe the
+      // guide crosshair, if there is one.
+      const g = guideRef.current;
+      if (g && g.row >= 0 && g.col >= 0) {
+        text = "Guide   Row: " + (g.row + 1) + "   Col: " + (g.col + 1);
+        const lbl = cellThreadLabel(g.row * sW + g.col);
+        if (lbl) text += "  —   " + lbl;
+      }
     }
     if (el.textContent !== text) el.textContent = text;
+  }
+  // "DMC 310 Black" for a stitch, or "" for an empty / skipped cell.
+  function cellThreadLabel(idx) {
+    const cell = pat && pat[idx];
+    if (!cell || cell.id === "__skip__" || cell.id === "__empty__") return "";
+    if (cell.type === "blend" && cell.threads) return "DMC " + cell.id + " " + cell.threads[0].name + "+" + cell.threads[1].name;
+    const ci = cmap && cmap[cell.id];
+    return "DMC " + cell.id + (ci && ci.name ? " " + ci.name : "");
   }
   function setHoverInfo(info) {
     const prev = hoverInfoRef.current;
@@ -2655,6 +2672,8 @@ function TrackerApp({
   // hit the canvas. Only a contextmenu right after one parks: the menu can
   // also come from the keyboard (Menu key, Shift+F10), with no cell meant.
   const lastSecondaryPressRef = useRef(0);
+  // Screen-reader announcement of the guide as the arrow keys move it.
+  const guideLiveRef = useRef(null);
   const navHoldRef = useRef(null);
   const suppressNavClickUntilRef = useRef(0);
   // Stable handler refs — point to latest function each render; listeners attach once
@@ -4651,6 +4670,16 @@ function TrackerApp({
   function undoTrack() {
     if (!trackHistory.length || !done) return;
     let lastEntry = trackHistory[trackHistory.length - 1];
+    if (lastEntry && lastEntry.type === "PARK") {
+      applyParkEntry(lastEntry, false);
+      setTrackHistory(prev => prev.slice(0, -1));
+      setRedoStack(prev => {
+        let n = [...prev, lastEntry];
+        if (n.length > TRACK_HISTORY_MAX) n = n.slice(n.length - TRACK_HISTORY_MAX);
+        return n;
+      });
+      return;
+    }
     let last = _historyChanges(lastEntry);
     let nd = new Uint8Array(done);
     let redoChanges = last.map(c => ({
@@ -4677,6 +4706,16 @@ function TrackerApp({
   function redoTrack() {
     if (!redoStack.length || !done) return;
     let lastEntry = redoStack[redoStack.length - 1];
+    if (lastEntry && lastEntry.type === "PARK") {
+      applyParkEntry(lastEntry, true);
+      setRedoStack(prev => prev.slice(0, -1));
+      setTrackHistory(prev => {
+        let n = [...prev, lastEntry];
+        if (n.length > TRACK_HISTORY_MAX) n = n.slice(n.length - TRACK_HISTORY_MAX);
+        return n;
+      });
+      return;
+    }
     let last = _historyChanges(lastEntry);
     let nd = new Uint8Array(done);
     let undoChanges = last.map(c => ({
@@ -8023,6 +8062,7 @@ function TrackerApp({
       row: hlRow,
       col: hlCol
     };
+    renderHoverBar();
     if (!prev || prev.row === hlRow && prev.col === hlCol) return;
     const strips = [prev, {
       row: hlRow,
@@ -9015,7 +9055,8 @@ function TrackerApp({
       return false;
     }
     const colorId = cell.id;
-    setParkMarkers(prev => {
+    const prev = parkMarkersRef.current;
+    const next = (() => {
       const existing = prev.some(m => m.x === gx && m.y === gy);
       if (existing) return prev.filter(m => m.x !== gx || m.y !== gy);
       // Multi-colour parking — Option A: auto-rotate corners.
@@ -9041,8 +9082,44 @@ function TrackerApp({
         rgb: info.rgb,
         corner
       }];
-    });
+    })();
+    commitParkMarkers(prev, next);
     return true;
+  }
+
+  // Park changes are steps in the same undo history as stitch marks, so the
+  // Undo button and Ctrl+Z undo whatever was done last. Stored as a diff
+  // (markers added / removed) rather than a snapshot, so undoing cannot bring
+  // back markers that changed some other way since (sync, load pruning).
+  function sameParkMarker(a, b) {
+    return a.x === b.x && a.y === b.y && a.colorId === b.colorId && (a.corner || "BL") === (b.corner || "BL");
+  }
+  function commitParkMarkers(prev, next) {
+    const added = next.filter(m => !prev.some(o => sameParkMarker(o, m)));
+    const removed = prev.filter(m => !next.some(o => sameParkMarker(o, m)));
+    if (!added.length && !removed.length) return;
+    // Ahead of the render, so a second toggle in the same frame sees this one.
+    parkMarkersRef.current = next;
+    setParkMarkers(next);
+    setTrackHistory(h => {
+      let n = [...h, {
+        type: "PARK",
+        added,
+        removed
+      }];
+      if (n.length > TRACK_HISTORY_MAX) n = n.slice(n.length - TRACK_HISTORY_MAX);
+      return n;
+    });
+    setRedoStack([]);
+  }
+  // Apply a PARK history entry forwards (redo) or backwards (undo).
+  function applyParkEntry(entry, forward) {
+    const add = forward ? entry.added : entry.removed,
+      drop = forward ? entry.removed : entry.added;
+    const cur = parkMarkersRef.current;
+    const next = cur.filter(m => !drop.some(o => sameParkMarker(o, m))).concat(add.filter(m => !cur.some(o => sameParkMarker(o, m))));
+    parkMarkersRef.current = next;
+    setParkMarkers(next);
   }
 
   // Desktop: right-click a stitch to park / unpark it, in Mark or Navigate
@@ -9065,11 +9142,62 @@ function TrackerApp({
     toggleParkAt(gc.gx, gc.gy);
   }
   function handleStitchKeyDown(e) {
+    // Navigate mode, chart focused: the arrow keys move the guide crosshair
+    // (Shift: 10 stitches), so the guide — and parking at it with Menu or
+    // Shift+F10 below — works without a pointer. Claimed here, before the
+    // shortcut registry, which skips events that are already handled.
+    if (stitchMode === "navigate" && !isEditMode && !e.altKey && !e.ctrlKey && !e.metaKey && GUIDE_KEYS[e.key]) {
+      e.preventDefault();
+      moveGuideBy(GUIDE_KEYS[e.key][0] * (e.shiftKey ? 10 : 1), GUIDE_KEYS[e.key][1] * (e.shiftKey ? 10 : 1));
+      return;
+    }
     if (e.key !== "ContextMenu" && !(e.shiftKey && e.key === "F10")) return;
     const guide = guideRef.current;
     if (!guide || guide.row < 0 || guide.row >= sH || guide.col < 0 || guide.col >= sW) return;
     e.preventDefault();
     toggleParkAt(guide.col, guide.row);
+  }
+  const GUIDE_KEYS = {
+    ArrowLeft: [-1, 0],
+    ArrowRight: [1, 0],
+    ArrowUp: [0, -1],
+    ArrowDown: [0, 1]
+  };
+  // Move the guide by (dx,dy) stitches — or, with no guide yet, drop it at the
+  // middle of the view — keeping it inside the chart (or the work area's view)
+  // and on screen, and announce where it is for screen readers.
+  function moveGuideBy(dx, dy) {
+    const el = stitchScrollRef.current;
+    if (!el || !pat || !(scs > 0)) return;
+    const off = chartScrollOffset();
+    const vx0 = (el.scrollLeft + off.x - G) / scs,
+      vy0 = (el.scrollTop + off.y - G) / scs;
+    const vx1 = vx0 + el.clientWidth / scs,
+      vy1 = vy0 + el.clientHeight / scs;
+    const vb = viewBoundsRef.current;
+    const bx0 = vb ? vb.x0 : 0,
+      by0 = vb ? vb.y0 : 0,
+      bx1 = vb ? vb.x1 : sW,
+      by1 = vb ? vb.y1 : sH;
+    const g = guideRef.current;
+    let col, row;
+    if (g.row < 0 || g.col < 0) {
+      col = Math.floor((vx0 + vx1) / 2);
+      row = Math.floor((vy0 + vy1) / 2);
+    } else {
+      col = g.col + dx;
+      row = g.row + dy;
+    }
+    col = Math.max(bx0, Math.min(bx1 - 1, col));
+    row = Math.max(by0, Math.min(by1 - 1, row));
+    setHlRow(row);
+    setHlCol(col);
+    if (col < vx0 + 1 || col > vx1 - 2 || row < vy0 + 1 || row > vy1 - 2) centreOnCell(col, row);
+    const live = guideLiveRef.current;
+    if (live) {
+      const lbl = cellThreadLabel(row * sW + col);
+      live.textContent = "Guide at row " + (row + 1) + ", column " + (col + 1) + (lbl ? ", " + lbl : "");
+    }
   }
 
   // Touch / pen press-and-hold in Navigate mode parks the stitch. Capture-
@@ -9351,7 +9479,7 @@ function TrackerApp({
     updateHoverOverlay(gc);
     if (dragStateRef.current.isDragging) {
       setHoverInfo(null);
-    } else if (stitchMode === "track" && pat && gc && gc.gx >= 0 && gc.gx < sW && gc.gy >= 0 && gc.gy < sH) {
+    } else if (pat && gc && gc.gx >= 0 && gc.gx < sW && gc.gy >= 0 && gc.gy < sH) {
       let idx = gc.gy * sW + gc.gx;
       let cell = pat[idx];
       if (cell && cell.id !== "__skip__" && cell.id !== "__empty__") {
@@ -9744,22 +9872,60 @@ function TrackerApp({
     }
     setHlRow(foundY);
     setHlCol(foundX);
-    if (stitchScrollRef.current) {
-      const el = stitchScrollRef.current;
-      const off = chartScrollOffset();
-      const px = G + foundX * scs + scs / 2 - off.x,
-        py = G + foundY * scs + scs / 2 - off.y;
-      try {
-        el.scrollTo({
-          left: Math.max(0, px - el.clientWidth / 2),
-          top: Math.max(0, py - el.clientHeight / 2),
-          behavior: 'smooth'
-        });
-      } catch (_) {
-        el.scrollLeft = Math.max(0, px - el.clientWidth / 2);
-        el.scrollTop = Math.max(0, py - el.clientHeight / 2);
+    centreOnCell(foundX, foundY);
+  }
+  // Scroll the chart so a cell is in the middle of the view.
+  function centreOnCell(x, y) {
+    const el = stitchScrollRef.current;
+    if (!el) return;
+    const off = chartScrollOffset();
+    const px = G + x * scs + scs / 2 - off.x,
+      py = G + y * scs + scs / 2 - off.y;
+    try {
+      el.scrollTo({
+        left: Math.max(0, px - el.clientWidth / 2),
+        top: Math.max(0, py - el.clientHeight / 2),
+        behavior: 'smooth'
+      });
+    } catch (_) {
+      el.scrollLeft = Math.max(0, px - el.clientWidth / 2);
+      el.scrollTop = Math.max(0, py - el.clientHeight / 2);
+    }
+  }
+
+  // Where is that thread parked? The palette's P badge answers it (as Markup
+  // R-XP's symbol list does): it brings the colour's park marker into view and
+  // puts the guide on it, the way J does for the next stitch. With several
+  // markers for one colour, each press moves to the next. A hidden colour is
+  // shown first: jumping to a marker you cannot see would only confuse.
+  const parkJumpIndexRef = useRef({});
+  function goToParkedThread(colorId) {
+    const list = parkMarkersRef.current.filter(m => m.colorId === colorId && !isParkSpent(m, doneRef.current || done));
+    if (!list.length) return;
+    if (parkLayers[colorId] === false) setParkLayers(prev => {
+      const n = Object.assign({}, prev);
+      delete n[colorId];
+      return n;
+    });
+    const i = (parkJumpIndexRef.current[colorId] || 0) % list.length;
+    parkJumpIndexRef.current[colorId] = i + 1;
+    const m = list[i];
+    if (areaOn && workArea && window.WorkArea && !window.WorkArea.contains(workArea, m.x, m.y)) {
+      const vb = viewBoundsRef.current;
+      if (!vb || m.x < vb.x0 || m.x >= vb.x1 || m.y < vb.y0 || m.y >= vb.y1) {
+        try {
+          if (window.Toast && window.Toast.show) window.Toast.show({
+            message: "DMC " + colorId + " is parked outside this work area, at row " + (m.y + 1) + ", column " + (m.x + 1) + ".",
+            type: "info",
+            duration: 4000
+          });
+        } catch (_) {}
+        return;
       }
     }
+    setHlRow(m.y);
+    setHlCol(m.x);
+    centreOnCell(m.x, m.y);
   }
   useShortcuts(!isActive ? [] : [
   // Esc cascade — preserves original priority order. Listed hidden because
@@ -10386,6 +10552,7 @@ function TrackerApp({
   };
   const dragMarkHandlers = _dragMark.handlers;
   const dragMarkState = _dragMark.dragState;
+  const dragMarkReset = _dragMark.reset || (() => {});
   // Keep the keyup/blur listener (registered once, on mount, above) calling
   // into the CURRENT hook instance's notifyShiftUp — see useDragMark.js (7).
   dragMarkNotifyShiftUpRef.current = _dragMark.notifyShiftUp || null;
@@ -11438,10 +11605,10 @@ function TrackerApp({
         className: "ppal-tile-park-btn",
         onClick: e => {
           e.stopPropagation();
-          toggleParkLayer(p.id);
+          goToParkedThread(p.id);
         },
-        "aria-pressed": isParkLayerVisible(p.id),
-        title: (isParkLayerVisible(p.id) ? "Hide" : "Show") + " parked markers for DMC " + p.id,
+        title: "Go to where DMC " + p.id + " is parked" + (parkCountsByColour[p.id] > 1 ? " (" + parkCountsByColour[p.id] + " places; press again for the next)" : ""),
+        "aria-label": "Go to where DMC " + p.id + " is parked",
         style: {
           background: isParkLayerVisible(p.id) ? swRgb : undefined,
           borderColor: isParkLayerVisible(p.id) ? swRgb : "var(--border)",
@@ -11496,7 +11663,39 @@ function TrackerApp({
     style: {
       display: "inline-flex"
     }
-  }, Icons.crop ? Icons.crop() : null), /*#__PURE__*/React.createElement("span", null, dragMarkState && dragMarkState.mode === 'shiftRange' ? "Drag to select a rectangle, release to apply" : "Shift held — drag from a cell to select a rectangle")), showNavHelp && !isEditMode && (() => {
+  }, Icons.crop ? Icons.crop() : null), /*#__PURE__*/React.createElement("span", null, dragMarkState && dragMarkState.mode === 'shiftRange' ? "Drag to select a rectangle, release to apply" : "Shift held — drag from a cell to select a rectangle")), _dragMarkActive && dragMarkState && dragMarkState.mode === 'range' && dragMarkState.anchor != null && (() => {
+    const a = dragMarkState.anchor,
+      ax = a % sW,
+      ay = Math.floor(a / sW);
+    const anchorDone = !!(done && done[a]);
+    const parked = parkMarkers.some(m => m.x === ax && m.y === ay);
+    return /*#__PURE__*/React.createElement("div", {
+      className: "range-anchor-bar",
+      role: "status"
+    }, /*#__PURE__*/React.createElement("span", {
+      "aria-hidden": "true",
+      className: "range-anchor-bar__icon"
+    }, Icons.crop ? Icons.crop() : null), /*#__PURE__*/React.createElement("span", {
+      className: "range-anchor-bar__text"
+    }, "Tap the opposite corner to fill a rectangle"), !anchorDone && /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "range-anchor-bar__btn",
+      onClick: () => {
+        dragMarkReset();
+        toggleParkAt(ax, ay);
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      "aria-hidden": "true",
+      className: "range-anchor-bar__icon"
+    }, Icons.parkFlag ? Icons.parkFlag() : null), parked ? "Remove park marker" : "Park thread here"), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "range-anchor-bar__btn",
+      onClick: dragMarkReset
+    }, /*#__PURE__*/React.createElement("span", {
+      "aria-hidden": "true",
+      className: "range-anchor-bar__icon"
+    }, Icons.x ? Icons.x() : null), "Cancel"));
+  })(), showNavHelp && !isEditMode && (() => {
     const isTouch = hasTouchRef.current;
     return /*#__PURE__*/React.createElement("div", {
       style: {
@@ -11538,7 +11737,7 @@ function TrackerApp({
         gridTemplateColumns: "1fr 1fr",
         gap: "6px 24px"
       }
-    }, [["Pan", isTouch ? "Mark mode: drag with two fingers  ·  Nav mode: drag with one finger" : "Drag in Nav mode  ·  or hold Space + drag  ·  or middle-click drag"], ["Zoom in / out", isTouch ? "Pinch two fingers apart / together" : "Ctrl + scroll  ·  or use − / + buttons"], ["Zoom to fit", "Tap the Fit button"], ["Mark a stitch", isTouch ? "Tap a cell" : "Click a cell"], ["Mark multiple", isTouch ? "Drag one finger across the stitches" : "Click + drag across cells — all set to same state"], ["Select a rectangle", isTouch ? "Long-press a cell, then tap another" : "Hold Shift + click another cell"], ["Undo last marks", "Undo button (top right)"], stitchView === "highlight" ? ["Cycle colours", isTouch ? "Open the Highlight tab in the sidebar" : "[ or ] keys"] : null, stitchView === "highlight" ? ["Clear focus", "Tap the colour pill to show all colours"] : null, stitchMode === "navigate" ? ["Place a guide", isTouch ? "Tap a cell to drop a crosshair. Tap it again to clear it" : "Click a cell to drop a crosshair. Click it again, or press Esc, to clear it"] : null, ["Park a thread", isTouch ? "In Nav mode, press and hold a stitch. Do it again to remove the marker" : "Right-click a stitch. Right-click again to remove the marker"]].filter(Boolean).map(([label, tip], i) => /*#__PURE__*/React.createElement("div", {
+    }, [["Pan", isTouch ? "Mark mode: drag with two fingers  ·  Nav mode: drag with one finger" : "Drag in Nav mode  ·  or hold Space + drag  ·  or middle-click drag"], ["Zoom in / out", isTouch ? "Pinch two fingers apart / together" : "Ctrl + scroll  ·  or use − / + buttons"], ["Zoom to fit", "Tap the Fit button"], ["Mark a stitch", isTouch ? "Tap a cell" : "Click a cell"], ["Mark multiple", isTouch ? "Drag one finger across the stitches" : "Click + drag across cells — all set to same state"], ["Select a rectangle", isTouch ? "Long-press a cell, then tap another" : "Hold Shift + click another cell"], ["Undo last marks", "Undo button (top right)"], stitchView === "highlight" ? ["Cycle colours", isTouch ? "Open the Highlight tab in the sidebar" : "[ or ] keys"] : null, stitchView === "highlight" ? ["Clear focus", "Tap the colour pill to show all colours"] : null, stitchMode === "navigate" ? ["Place a guide", isTouch ? "Tap a cell to drop a crosshair. Tap it again to clear it" : "Click a cell to drop a crosshair. Click it again, or press Esc, to clear it"] : null, ["Park a thread", isTouch ? "Press and hold a stitch: Nav mode parks at once; in Mark mode tap Park thread here" : "Right-click a stitch. Right-click again to remove the marker"], ["Find a parked thread", "Tap the P on its colour in the palette"]].filter(Boolean).map(([label, tip], i) => /*#__PURE__*/React.createElement("div", {
       key: i,
       style: {
         display: "contents"
@@ -11884,7 +12083,7 @@ function TrackerApp({
     ref: stitchRef,
     role: "application",
     tabIndex: "0",
-    "aria-label": "Cross stitch pattern grid. Use Shift+F10 or Menu to park at the guide.",
+    "aria-label": "Cross stitch pattern grid. In Navigate mode the arrow keys move the guide; Menu or Shift+F10 parks a thread at the guide.",
     style: {
       display: "block",
       position: "absolute",
@@ -12074,7 +12273,25 @@ function TrackerApp({
   }, /*#__PURE__*/React.createElement("span", {
     ref: hoverBarRef,
     className: "tracker-hover-bar"
-  }, "—")), doneCount === 0 && totalStitchable > 0 && stitchMode === "track" && /*#__PURE__*/React.createElement("div", {
+  }, "—"), /*#__PURE__*/React.createElement("span", {
+    ref: guideLiveRef,
+    className: "tracker-sr-only",
+    "aria-live": "polite"
+  }), hlRow >= 0 && hlCol >= 0 && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "tracker-hover-bar__clear",
+    onClick: () => {
+      setHlRow(-1);
+      setHlCol(-1);
+    },
+    title: "Clear the guide crosshair",
+    "aria-label": "Clear the guide crosshair"
+  }, /*#__PURE__*/React.createElement("span", {
+    "aria-hidden": "true",
+    style: {
+      display: "inline-flex"
+    }
+  }, Icons.x ? Icons.x() : null), "Clear guide")), doneCount === 0 && totalStitchable > 0 && stitchMode === "track" && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 'var(--text-xs)',
       color: "var(--accent-ink)",
@@ -12699,7 +12916,7 @@ function TrackerApp({
     }
   }, p.id, " (", parkCountsByColour[p.id], ")"))), /*#__PURE__*/React.createElement("button", {
     onClick: () => {
-      setParkMarkers([]);
+      commitParkMarkers(parkMarkersRef.current, []);
       setParkLayers({});
     },
     style: {

@@ -142,9 +142,11 @@ Place a guide crosshair on the chart to help you find your spot.
 2. Click (or tap) the cell where you want the crosshair
 3. The crosshair appears across that row and column, helping you navigate
 
-Click the same cell again, or press **Esc** in Navigate mode, to clear it.
+The bar under the chart shows the guide's row, column and thread, with a **Clear guide** button. Clicking the same cell again, or pressing **Esc** in Navigate mode, also clears it.
 
-In Navigate mode, dragging the chart pans it, so you can move around without marking anything.
+With the chart focused in Navigate mode, the arrow keys move the guide (hold **Shift** to move 10 stitches), and **Menu** or **Shift+F10** parks a thread at it.
+
+**Moving around:** in Navigate mode, drag the chart to pan it. On a touch screen in Mark mode, one finger marks (tap or drag across stitches) and two fingers pan and pinch-zoom.
 
 **Use when:** Chart is zoomed in or you've had a break and need to find where you were.
 
@@ -152,13 +154,17 @@ In Navigate mode, dragging the chart pans it, so you can move around without mar
 
 Mark where you "parked" so you know exactly where to pick up next time.
 
-**Set a marker:** right-click the stitch where the thread is parked (in Mark or Navigate mode). On a touch screen, switch to **Navigate mode** and press and hold the stitch. A small triangle in the stitch's colour, outlined in white and dark so it shows on any background, appears in its corner. It stays visible through the Spotlight and work-area dimming, since threads are usually parked ahead of where you are stitching. The marker always takes the colour of the stitch it sits on, so there is no colour to pick first.
+**Set a marker:** right-click the stitch where the thread is parked (in Mark or Navigate mode). On a touch screen, press and hold the stitch: in **Navigate mode** that parks straight away; in **Mark mode** it starts a rectangle selection, and the bar that appears has a **Park thread here** button (and **Cancel**). A small triangle in the stitch's colour, outlined in white and dark so it shows on any background, appears in its corner. It stays visible through the Spotlight and work-area dimming, since threads are usually parked ahead of where you are stitching. The marker always takes the colour of the stitch it sits on, so there is no colour to pick first.
 
 **Remove a marker:** right-click (or press and hold) the same stitch again. You rarely need to: when you mark the parked stitch as done, its marker clears itself (undo brings it back).
 
 **Multiple markers:** You can park as many threads as you like, one marker per stitch.
 
+**Find a parked thread:** tap the **P** on a colour in the palette. The chart scrolls to where that thread is parked and the guide crosshair marks the spot; if it is parked in more than one place, tap again for the next.
+
 **Hide or clear markers:** The **Park markers** section of the sidebar lists every parked colour with a checkbox to hide it, plus **Clear all**.
+
+**Undo:** parking, removing a marker and **Clear all** are undo steps, like marking stitches.
 
 ## Session Timer & Completion Estimates
 

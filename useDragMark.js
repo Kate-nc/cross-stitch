@@ -460,6 +460,7 @@
         },
         dragState: { mode: 'idle', path: new Set(), anchor: null, intent: null },
         notifyShiftUp: noop,
+        reset: noop,
       };
     }
     var w = opts.w, h = opts.h;
@@ -630,6 +631,12 @@
       dispatch({ type: 'SHIFT_UP' });
     }, []);
 
+    // Exposed so the parent can drop a pending gesture — e.g. the touch
+    // long-press rectangle anchor, which otherwise has no way to cancel.
+    var reset = R.useCallback(function () {
+      dispatch({ type: 'RESET' });
+    }, []);
+
     if (isEdit) {
       return {
         handlers: {
@@ -640,6 +647,7 @@
         dragState: { mode: 'idle', path: new Set(),
                      anchor: null, intent: null },
         notifyShiftUp: noop,
+        reset: noop,
       };
     }
 
@@ -653,6 +661,7 @@
       },
       dragState: dragState,
       notifyShiftUp: notifyShiftUp,
+      reset: reset,
     };
   }
 

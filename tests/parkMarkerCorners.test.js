@@ -52,14 +52,18 @@ describe('Multi-colour parking — source assertions', () => {
     expect(src).toMatch(/\(layers\[pm\.colorId\]!==false\)/);
   });
 
-  test('Option C: per-colour pip toggles via toggleParkLayer(p.id)', () => {
-    // Pip is rendered in both legend blocks (mobile lp-section + desktop rpanel).
-    const matches = src.match(/toggleParkLayer\(p\.id\)/g) || [];
-    expect(matches.length).toBeGreaterThanOrEqual(2);
+  test('Option C: per-colour visibility is the Park markers list checkbox', () => {
+    expect(src).toMatch(/checked=\{parkLayers\[p\.id\]!==false\} onChange=\{\(\)=>toggleParkLayer\(p\.id\)\}/);
   });
 
-  test('Option C: Clear-park-markers also clears parkLayers', () => {
-    expect(src).toMatch(/setParkMarkers\(\[\]\);setParkLayers\(\{\}\)/);
+  test('the palette P badge goes to where the thread is parked', () => {
+    // A badge that looked like a status chip but hid the markers was easy
+    // to misread; Markup R-XP uses its P to say where a thread is parked.
+    expect(src).toMatch(/className="ppal-tile-park-btn"\s*onClick=\{e=>\{e\.stopPropagation\(\);goToParkedThread\(p\.id\);\}\}/);
+  });
+
+  test('Option C: Clear all removes every marker (undoably) and resets parkLayers', () => {
+    expect(src).toMatch(/commitParkMarkers\(parkMarkersRef\.current,\[\]\);setParkLayers\(\{\}\)/);
   });
 });
 
