@@ -8,10 +8,11 @@ window.APP_VERSION = '1.0.73';
 
 window.APP_CHANGELOG = [
   {
-    version: '1.0.73',
+    version: '1.0.74',
     date: 'October 2026',
     notes: [
-      'Edit in the Stitch Tracker now opens large patterns in the Pattern Creator, instead of stopping with "Pattern too large for direct transfer".',
+      'Large patterns no longer freeze the Pattern Creator\'s Edit view. Moving the mouse over a big chart stays smooth at any zoom, and the chart draws faster.',
+      'The Pattern Creator no longer opens a pattern at 100% zoom just because it was last open in the Stitch Tracker. It fits the pattern to the screen, or uses the zoom you last chose in the Creator.',
     ]
   },
   {
