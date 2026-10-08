@@ -4211,9 +4211,9 @@ html.pref-dark a { color: var(--accent); }
   .edit-mode-strip__hint { display: none; }
 }
 
-/* A3 (UX Phase 5) � Tracker resume recap modal */
+/* A3 (UX Phase 5) — Tracker resume recap modal */
 
-/* A3 (UX Phase 5) � Tracker resume recap modal
+/* A3 (UX Phase 5) — Tracker resume recap modal
    Fires once per project load when the project has prior stitching sessions.
    Mobile: full-screen below 480px (addresses G6). */
 .resume-recap-overlay {
@@ -6551,7 +6551,7 @@ button[aria-disabled="true"] {
 }
 
 
-/* --- Polish 13 (UX-12) � Sidebar tab bar redesign --------------------
+/* --- Polish 13 (UX-12) — Sidebar tab bar redesign --------------------
    Replaces the cramped 5-7 text-only tabs with icon+label pill cards
    in a flex-wrap row. Each tab has a clear hover/active/disabled
    state. Disabled tabs (Phase 1 of the consolidation plan) show a
