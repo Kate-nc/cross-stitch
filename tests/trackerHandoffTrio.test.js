@@ -13,12 +13,40 @@ function read(rel) {
 const tracker = read('tracker-app.js');
 const useProjectIO = read('creator/useProjectIO.js');
 
-describe('T-3 / INT-4: tracker writes an {ts, project} envelope', () => {
-  test('handleEditInCreator wraps the project in a timestamped envelope', () => {
-    expect(tracker).toMatch(/T-3 \/ INT-4/);
-    expect(tracker).toMatch(/var _env = \{ ts: Date\.now\(\), project: project \}/);
-    expect(tracker).toMatch(
+function handleEditInCreatorSource() {
+  const start = tracker.indexOf('function handleEditInCreator(');
+  const end = tracker.indexOf('\nfunction ', start + 1);
+  return tracker.slice(start, end);
+}
+
+describe('T-3 / INT-4: tracker saves the project and writes a {ts, projectId} envelope', () => {
+  test('handleEditInCreator saves to storage before navigating', () => {
+    const src = handleEditInCreatorSource();
+    expect(src).toMatch(/T-3 \/ INT-4/);
+    expect(src).toMatch(/persistProjectRecord\(project\)\.then\(/);
+    // Navigation happens only inside the save callback.
+    const saveAt = src.indexOf('persistProjectRecord(project).then(');
+    const navAt = src.indexOf('window.location.href = "create.html?source=tracker"');
+    expect(navAt).toBeGreaterThan(saveAt);
+  });
+  test('the envelope carries the id, not the pattern', () => {
+    // Large charts overflowed localStorage's ~5 MB quota when the whole
+    // project travelled through it ("Pattern too large for direct transfer").
+    const src = handleEditInCreatorSource();
+    expect(src).toMatch(/var _env = \{ ts: Date\.now\(\), projectId: project\.id, hasProgress: /);
+    expect(src).toMatch(
       /localStorage\.setItem\("crossstitch_handoff_to_creator", JSON\.stringify\(_env\)\)/);
+    expect(src).not.toMatch(/project: project \}/);
+    expect(src).not.toMatch(/too large for direct transfer/);
+  });
+});
+
+describe('Creator accepts the {ts, projectId} envelope', () => {
+  test('useProjectIO recognises a projectId envelope and warns about progress after load', () => {
+    expect(useProjectIO).toMatch(
+      /_raw && typeof _raw === 'object' && _raw\.projectId && typeof _raw\.ts === 'number'/);
+    expect(useProjectIO).toMatch(
+      /processLoadedProject\(project3\);\s*if \(handoffProgressId && handoffProgressId === project3\.id\)/);
   });
 });
 
