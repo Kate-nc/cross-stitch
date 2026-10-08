@@ -52,15 +52,48 @@ test('200ms multi-touch guard aborts pending drag', () => {
                       || e.type === 'COMMIT_RANGE')).toHaveLength(0);
 });
 
-test('second pointer after 200ms does NOT abort', () => {
+test('a second finger abandons the gesture however late it lands', () => {
+  // Two fingers pan / pinch in Mark mode. A drag's marks are only a preview
+  // until release, so a late second finger must drop them, not commit them.
   const ctx = makeCtx(4, 4, makePattern(4, 4));
   let s = initialState();
   const fx = [];
-  s = step(s, { type: 'POINTER_DOWN', idx: 5, time: 0,
+  s = step(s, { type: 'POINTER_DOWN', idx: 5, time: 0, x: 0, y: 0,
                 pointerId: 1, shiftKey: false, pointerType: 'touch' }, ctx, fx);
-  s = step(s, { type: 'POINTER_DOWN', idx: 6, time: 250,
+  s = step(s, { type: 'POINTER_MOVE', idx: 6, time: 300, x: 40, y: 0 }, ctx, fx);
+  expect(s.mode).toBe('drag');
+  s = step(s, { type: 'POINTER_DOWN', idx: 9, time: 600,
                 pointerId: 2, shiftKey: false, pointerType: 'touch' }, ctx, fx);
-  // First gesture still pending (second pointer ignored, not aborted).
+  expect(s.mode).toBe('idle');
+  s = step(s, { type: 'POINTER_UP', idx: 10, time: 900 }, ctx, fx);
+  expect(fx.filter(e => e.type === 'TOGGLE_CELL'
+                      || e.type === 'COMMIT_DRAG'
+                      || e.type === 'COMMIT_RANGE')).toHaveLength(0);
+});
+
+test('a second finger also clears a long-press rectangle anchor', () => {
+  // Otherwise lifting the fingers after a pinch would commit a rectangle.
+  const ctx = makeCtx(4, 4, makePattern(4, 4));
+  let s = initialState();
+  const fx = [];
+  s = step(s, { type: 'POINTER_DOWN', idx: 5, time: 0, x: 0, y: 0,
+                pointerId: 1, shiftKey: false, pointerType: 'touch' }, ctx, fx);
+  s = step(s, { type: 'LONG_PRESS_FIRED' }, ctx, fx);
+  expect(s.mode).toBe('range');
+  s = step(s, { type: 'POINTER_DOWN', idx: 10, time: 900,
+                pointerId: 2, shiftKey: false, pointerType: 'touch' }, ctx, fx);
+  expect(s.mode).toBe('idle');
+  s = step(s, { type: 'POINTER_UP', idx: 15, time: 1200 }, ctx, fx);
+  expect(fx.filter(e => e.type === 'COMMIT_RANGE')).toHaveLength(0);
+});
+
+test('the same finger never counts as a second pointer', () => {
+  const ctx = makeCtx(4, 4, makePattern(4, 4));
+  let s = initialState();
+  s = step(s, { type: 'POINTER_DOWN', idx: 5, time: 0,
+                pointerId: 1, shiftKey: false, pointerType: 'touch' }, ctx);
+  s = step(s, { type: 'POINTER_DOWN', idx: 5, time: 50,
+                pointerId: 1, shiftKey: false, pointerType: 'touch' }, ctx);
   expect(s.mode).toBe('pending');
 });
 

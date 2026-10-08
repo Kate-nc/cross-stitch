@@ -76,12 +76,14 @@ describe('C3 — legacy drag-mark plumbing removed', () => {
     expect(TRACKER).not.toMatch(/ts\.tapVal\s*=\s*done\[idx\]/);
   });
 
-  test('handleTouchStart and handleTouchMove still own pinch + pan', () => {
+  test('handleTouchStart and handleTouchMove own two-finger pan + pinch', () => {
     // Pinch (two-finger) entry point.
     expect(TRACKER).toMatch(/e\.touches\.length\s*===\s*2/);
     expect(TRACKER).toMatch(/ts\.pinchDist\s*=\s*Math\.hypot/);
-    // Pan switch (single-finger > 8px threshold).
-    expect(TRACKER).toMatch(/PAN_THRESHOLD/);
+    // No single-finger JS pan any more: in Mark mode one finger marks and
+    // two fingers pan (the pinch branch follows the midpoint); in Navigate
+    // mode the compositor pans.
+    expect(TRACKER).not.toMatch(/PAN_THRESHOLD/);
   });
 
   test('touch event listeners are still registered (pinch + pan need passive:false)', () => {

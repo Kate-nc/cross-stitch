@@ -159,7 +159,7 @@ describe('the cap is actually wired into the tracker', () => {
   test('the wheel and pinch handlers clamp to maxZoom, not the bare 4', () => {
     // Ceiling applied last so it still wins when maxZoom < the 0.3 floor.
     expect(trackerSrc).toMatch(/Math\.min\(maxZoom,Math\.max\(0\.3,oldZoom\+delta\)\)/);
-    expect(trackerSrc).toMatch(/Math\.min\(maxZoom,Math\.max\(0\.3,oldZoom\*scale\)\)/);
+    expect(trackerSrc).toMatch(/Math\.min\(maxZoom,Math\.max\(0\.3,ts\.pinchZoom\*dist\/ts\.pinchDist\)\)/);
     expect(trackerSrc).not.toMatch(/Math\.min\(4,oldZoom/);
   });
 

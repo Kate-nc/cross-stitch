@@ -1353,7 +1353,7 @@ useEffect(()=>{
     window.removeEventListener("blur",onBlur);
   };
 },[]);
-const touchStateRef=useRef({mode:"none",startX:0,startY:0,pinchDist:0,tapIdx:-1,tapVal:0,pinchAnchorCanvas:null,pinchAnchorScreen:null});
+const touchStateRef=useRef({mode:"none",pinchDist:0,pinchZoom:1,pinchAnchor:null});
 const hasTouchRef=useRef(typeof window!=="undefined"&&"ontouchstart" in window);
 // Parking gestures (see toggleParkAt): the pointer type behind the latest
 // press, so a contextmenu event can tell a right-click from a touch
@@ -5973,90 +5973,67 @@ function handleTouchStart(e){
   if(chartOwnsGesture(e))e.preventDefault();
   const ts=touchStateRef.current;
   if(e.touches.length===1){
-    // C3: single-finger TAP / DRAG-MARK / LONG-PRESS RANGE are owned by
-    // useDragMark via pointer events. We only record startX/startY/mode
-    // here so the > 8px PAN fallback in handleTouchMove can take over.
-    const t=e.touches[0];
-    ts.startX=t.clientX; ts.startY=t.clientY;
-    ts.mode="tap"; ts.tapIdx=-1;
+    // One finger: in Mark mode useDragMark owns tap / drag-mark / long-press
+    // range through pointer events; in Navigate mode the compositor pans.
+    // Nothing to track here.
+    ts.mode="tap";
   }else if(e.touches.length===2){
-    ts.mode="pinch"; ts.tapIdx=-1;
-    const dx=e.touches[1].clientX-e.touches[0].clientX;
-    const dy=e.touches[1].clientY-e.touches[0].clientY;
-    ts.pinchDist=Math.hypot(dx,dy);
+    // Two fingers pan and pinch-zoom the chart together, in every mode. The
+    // point between the fingers is recorded in zoom-independent content
+    // units, so each move can put it back under the current midpoint at the
+    // current zoom (same maths as handleStitchWheel).
+    ts.mode="pinch";
     const container=stitchScrollRef.current;
+    const t0=e.touches[0],t1=e.touches[1];
+    ts.pinchDist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
+    ts.pinchZoom=stitchZoomRef.current;
     if(container){
       const rect=container.getBoundingClientRect();
-      const midX=(e.touches[0].clientX+e.touches[1].clientX)/2-rect.left;
-      const midY=(e.touches[0].clientY+e.touches[1].clientY)/2-rect.top;
-      ts.pinchAnchorCanvas={x:container.scrollLeft+midX,y:container.scrollTop+midY};
-      ts.pinchAnchorScreen={x:midX,y:midY};
+      const midX=(t0.clientX+t1.clientX)/2-rect.left;
+      const midY=(t0.clientY+t1.clientY)/2-rect.top;
+      ts.pinchAnchor={x:(container.scrollLeft+midX)/ts.pinchZoom,y:(container.scrollTop+midY)/ts.pinchZoom};
     }
-    // End any active stitch drag
-    if(dragStateRef.current.isDragging&&dragChangesRef.current.length>0){
-      pushTrackHistory([...dragChangesRef.current]);
-      applyDoneCountsDelta(dragChangesRef.current,pat,done);
-      setDone(new Uint8Array(done)); dragChangesRef.current=[];
-    }
-    dragStateRef.current.isDragging=false;
   }
 }
 
-const PAN_THRESHOLD=8;
 function handleTouchMove(e){
   if(!pat)return;
   if(chartOwnsGesture(e))e.preventDefault();
   const ts=touchStateRef.current;
-  if(e.touches.length===1&&ts.mode!=="pinch"){
-    // When the compositor owns one-finger drags there is nothing to do here:
-    // scrolling it ourselves as well would move the chart at double speed.
-    if(_dragMarkActive){
-    const t=e.touches[0];
-    const dx=t.clientX-ts.startX, dy=t.clientY-ts.startY;
-    if(ts.mode==="tap"&&(Math.abs(dx)>PAN_THRESHOLD||Math.abs(dy)>PAN_THRESHOLD)){
-      ts.mode="pan"; ts.tapIdx=-1;
-      if(stitchScrollRef.current){
-        panStart.current={x:ts.startX,y:ts.startY,scrollX:stitchScrollRef.current.scrollLeft,scrollY:stitchScrollRef.current.scrollTop};
-      }
-    }
-    if(ts.mode==="pan"&&stitchScrollRef.current){
-      stitchScrollRef.current.scrollLeft=panStart.current.scrollX-dx;
-      stitchScrollRef.current.scrollTop=panStart.current.scrollY-dy;
-    }
-    }
-  }else if(e.touches.length===2&&ts.mode==="pinch"){
-    const dx=e.touches[1].clientX-e.touches[0].clientX;
-    const dy=e.touches[1].clientY-e.touches[0].clientY;
-    const newDist=Math.hypot(dx,dy);
-    if(ts.pinchDist>0){
-      const scale=newDist/ts.pinchDist;
-      const oldZoom=stitchZoomRef.current;
-      // maxZoom (not the bare 4) so zRatio below matches the zoom that is
-      // actually applied — otherwise the scroll jumps when the pinch is
-      // clamped at the device's canvas ceiling. Ceiling applied last, as in
-      // handleStitchWheel.
-      const newZoom=Math.min(maxZoom,Math.max(0.3,oldZoom*scale));
-      const container=stitchScrollRef.current;
-      if(container&&ts.pinchAnchorCanvas){
-        const zRatio=newZoom/oldZoom;
-        requestAnimationFrame(()=>{
-          container.scrollLeft=ts.pinchAnchorCanvas.x*zRatio-ts.pinchAnchorScreen.x;
-          container.scrollTop=ts.pinchAnchorCanvas.y*zRatio-ts.pinchAnchorScreen.y;
-        });
-      }
-      scheduleZoomUpdate(newZoom);
-    }
-    ts.pinchDist=newDist;
-  }
+  // One finger: nothing to do. In Mark mode it marks (useDragMark) and must
+  // not also pan — doing both moved the chart under the finger, so a drag
+  // panned erratically and left a few stray marks. In Navigate mode the
+  // compositor pans; scrolling here as well would double the speed.
+  if(e.touches.length!==2||ts.mode!=="pinch"||!(ts.pinchDist>0)||!ts.pinchAnchor)return;
+  const container=stitchScrollRef.current;
+  if(!container)return;
+  const t0=e.touches[0],t1=e.touches[1];
+  const dist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
+  // Absolute from the gesture start rather than compounded per move, so the
+  // anchor cannot drift. maxZoom (not the bare 4) so the scroll maths matches
+  // the zoom actually applied; ceiling last, as in handleStitchWheel.
+  const newZoom=Math.min(maxZoom,Math.max(0.3,ts.pinchZoom*dist/ts.pinchDist));
+  const rect=container.getBoundingClientRect();
+  const midX=(t0.clientX+t1.clientX)/2-rect.left;
+  const midY=(t0.clientY+t1.clientY)/2-rect.top;
+  const a=ts.pinchAnchor;
+  if(newZoom!==stitchZoomRef.current)scheduleZoomUpdate(newZoom);
+  // After the zoom render (same frame as scheduleZoomUpdate's rAF), so the
+  // content is already its new size when the scroll is clamped to it.
+  requestAnimationFrame(()=>{
+    container.scrollLeft=a.x*newZoom-midX;
+    container.scrollTop=a.y*newZoom-midY;
+  });
 }
 
 function handleTouchEnd(e){
   if(!pat)return;
-  // C3: tap toggle / range fill are owned by useDragMark. Touch handler
-  // only resets pinch + pan tracking state so the next gesture starts
-  // cleanly.
   const ts=touchStateRef.current;
-  ts.mode="none"; ts.tapIdx=-1; ts.pinchDist=0;
+  // A pinch ends when fewer than two fingers remain. A finger left on the
+  // glass does not start a new gesture (useDragMark has already abandoned
+  // the one-finger gesture the second finger interrupted).
+  if(e.touches&&e.touches.length>=2)return;
+  ts.mode="none"; ts.pinchDist=0; ts.pinchAnchor=null;
 }
 
 function toggleOwned(id){setThreadOwned(prev=>{let cur=prev[id]||"";let next=cur===""?"owned":cur==="owned"?"tobuy":"";return{...prev,[id]:next};});}
@@ -7125,11 +7102,11 @@ return(
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 24px"}}>
         {[
-          ["Pan",isTouch?"Drag one finger across the canvas":"Drag in Nav mode  ·  or hold Space + drag  ·  or middle-click drag"],
+          ["Pan",isTouch?"Mark mode: drag with two fingers  ·  Nav mode: drag with one finger":"Drag in Nav mode  ·  or hold Space + drag  ·  or middle-click drag"],
           ["Zoom in / out",isTouch?"Pinch two fingers apart / together":"Ctrl + scroll  ·  or use − / + buttons"],
           ["Zoom to fit","Tap the Fit button"],
           ["Mark a stitch",isTouch?"Tap a cell":"Click a cell"],
-          ["Mark multiple",isTouch?"Tap, then drag across cells":"Click + drag across cells — all set to same state"],
+          ["Mark multiple",isTouch?"Drag one finger across the stitches":"Click + drag across cells — all set to same state"],
           ["Select a rectangle",isTouch?"Long-press a cell, then tap another":"Hold Shift + click another cell"],
           ["Undo last marks","Undo button (top right)"],
           stitchView==="highlight"?["Cycle colours",isTouch?"Open the Highlight tab in the sidebar":"[ or ] keys"]:null,
@@ -7162,7 +7139,7 @@ return(
           <button onClick={()=>{setBlockAdvanceToast(null);setFocusBlock(null);}} style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:4,border:"none",background:"none",cursor:"pointer",color:"var(--text-tertiary)"}}>Stay</button>
         </div>
       </div>;
-      if(stitchMode==="track") return <div style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--accent-border)"}}>{hasTouchRef.current?"Tap or drag to mark · Long-press a cell, then tap the opposite corner to fill a rectangle · Pinch to zoom":"Click or drag to mark/unmark cross stitches · Shift+click or long-press for rectangle fill · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
+      if(stitchMode==="track") return <div style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--accent-border)"}}>{hasTouchRef.current?"Tap or drag to mark · Long-press for a rectangle · Two fingers to pan and zoom":"Click or drag to mark/unmark cross stitches · Shift+click or long-press for rectangle fill · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
       if(stitchMode==="navigate") return <div style={{fontSize:'var(--text-sm)',color:"var(--text-primary)",background:"var(--surface-tertiary)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)"}}>{hasTouchRef.current?"Drag to pan · Tap to place or clear the guide · Press and hold a stitch to park its thread":"Drag to pan · Click to place or clear the guide · Right-click a stitch to park its thread · T for track mode"}</div>;
       if(!shortcutsHintDismissed&&pat&&trackerLoadCount>=3) return <div style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} aria-label="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",lineHeight:1,padding:0,display:"inline-flex",alignItems:"center"}}>{Icons.x?Icons.x():null}</button></div>;
       return null;

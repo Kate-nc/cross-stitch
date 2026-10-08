@@ -138,12 +138,14 @@
 
     switch (action.type) {
       case 'POINTER_DOWN': {
-        // Multi-touch guard: a second pointer within MULTI_TOUCH_GRACE_MS
-        // aborts the in-progress 1-finger gesture so pinch / 2-finger
-        // pan can take over without committing a stray mark.
+        // Multi-touch: a second finger means pan / pinch-zoom (two fingers
+        // move the chart in Mark mode; one finger marks). It abandons the
+        // one-finger gesture without committing anything, however late it
+        // lands: a drag's marks are only a preview until release, and a
+        // rectangle anchor would otherwise commit wherever the fingers lift.
         if (s.mode !== 'idle') {
-          if (action.pointerType === 'touch'
-              && (action.time - s.startTime) < multiTouchMs()) {
+          if (action.pointerType === 'touch' && action.pointerId !== s.pointerId
+              && s.mode !== 'shiftRange') {
             effects.push({ type: 'CLEAR_LONG_PRESS' });
             return { state: idle(), effects: effects };
           }
