@@ -787,7 +787,7 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
         : React.createElement("div",{style:{display:'flex',flexDirection:'column',gap:'var(--s-1)'}},
             sectionThreads.map(function(t){
               var cm=colourMap[t.id];
-              var rgb=cm?cm.rgb:[128,128,128];
+              var rgb=(cm&&cm.rgb)||[128,128,128];
               var name=cm?cm.name:('DMC '+t.id);
               var remaining=t.total-t.doneCount;
               var pct=t.total>0?Math.round(t.doneCount/t.total*100):100;
@@ -1810,6 +1810,26 @@ class StatsErrorBoundary extends React.Component {
 }
 if (typeof window !== 'undefined') window.StatsErrorBoundary = StatsErrorBoundary;
 
+// Turn a project's stored grid back into full cells, as the tracker does on
+// load. Saved cells are stripped of rgb wherever the DMC catalogue can rebuild
+// it (see stripCellForSave), and v8/URL-shared projects keep a compact `.p`
+// grid of ["id", flag] cells instead of `.pattern`. Charts that paint done
+// stitches read cell.rgb, so raw cells crash them.
+function restoreStoredPattern(project) {
+  var raw = project && (project.pattern || project.p);
+  if (!Array.isArray(raw)) return null;
+  var restore = typeof restoreStitch === 'function' ? restoreStitch : function(m) { return m; };
+  if (raw.length > 0 && Array.isArray(raw[0])) {
+    return raw.map(function(m) {
+      if (m[1] === 'k') return restore({id: '__skip__'});
+      if (m[1] === 'b') return restore({type: 'blend', id: m[0]});
+      return restore({type: 'solid', id: m[0]});
+    });
+  }
+  return raw.map(function(m) { return m ? restore(m) : m; });
+}
+if (typeof window !== 'undefined') window.restoreStoredPattern = restoreStoredPattern;
+
 // StatsContainer: tab bar wrapping GlobalStatsDashboard or per-project StatsDashboard
 function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, statsSessions, statsSettings, onUpdateSettings, totalCompleted, totalStitches, halfStitchCounts, onEditNote, projectName, palette, colourDoneCounts, achievedMilestones, done, pat, sW, sH, doneSnapshots, setDoneSnapshots, sections, onOpenProject}) {
   var _projects = React.useState([]);
@@ -1856,7 +1876,7 @@ function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, stats
     var lpS = lp.settings || {};
     var lpSessions = lp.statsSessions || [];
     var lpDone = lp.done || null;
-    var lpPat = lp.pattern || null;
+    var lpPat = restoreStoredPattern(lp);
     var lpTotal = lpPat ? lpPat.filter(function(c) { return c && c.id !== '__skip__' && c.id !== '__empty__'; }).length : 0;
     var lpCompleted = lpDone ? (Array.isArray(lpDone) ? lpDone.reduce(function(n, v) { return n + (v === 1 ? 1 : 0); }, 0) : 0) : 0;
     var lpPal = lpPat ? (function() { var seen = {}, out = []; lpPat.forEach(function(c) { if (c && c.id && c.id !== '__skip__' && c.id !== '__empty__' && !c.id.includes('+') && !seen[c.id]) { seen[c.id] = true; out.push(c); } }); return out; })() : [];
@@ -1872,7 +1892,7 @@ function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, stats
       }
       lpCDone = lpTotals;
     }
-    content = React.createElement(StatsDashboard, {statsSessions: lpSessions, statsSettings: lp.statsSettings || {dayEndHour: 0, useActiveDays: true}, totalCompleted: lpCompleted, totalStitches: lpTotal, onEditNote: function() {}, onUpdateSettings: function() {}, onClose: onClose, projectName: lp.name || 'Untitled', palette: lpPal, colourDoneCounts: lpCDone, achievedMilestones: lp.achievedMilestones || [], done: lpDone, pat: lpPat, sW: lpS.sW || 0, sH: lpS.sH || 0, doneSnapshots: lp.doneSnapshots || [], setDoneSnapshots: function() {}, sections: lp.sections || [], currentProjectId: lp.id, onOpenProject: onOpenProject, canEdit: false});
+    content = React.createElement(StatsDashboard, {statsSessions: lpSessions, statsSettings: lp.statsSettings || {dayEndHour: 0, useActiveDays: true}, totalCompleted: lpCompleted, totalStitches: lpTotal, onEditNote: function() {}, onUpdateSettings: function() {}, onClose: onClose, projectName: lp.name || 'Untitled', palette: lpPal, colourDoneCounts: lpCDone, achievedMilestones: lp.achievedMilestones || [], done: lpDone, pat: lpPat, sW: lpS.sW || lp.w || 0, sH: lpS.sH || lp.h || 0, doneSnapshots: lp.doneSnapshots || [], setDoneSnapshots: function() {}, sections: lp.sections || [], currentProjectId: lp.id, onOpenProject: onOpenProject, canEdit: false});
   } else {
     content = React.createElement('div', {style: {padding: '40px', textAlign: 'center', color: 'var(--text-secondary)', fontSize:'var(--text-lg)'}},
       lLoading ? 'Loading\u2026' : 'Load a project in the tracker to see its stats here.');
