@@ -152,7 +152,7 @@ In Navigate mode, dragging the chart pans it, so you can move around without mar
 
 Mark where you "parked" so you know exactly where to pick up next time.
 
-**Set a marker:** right-click the stitch where the thread is parked (in Mark or Navigate mode). On a touch screen, switch to **Navigate mode** and press and hold the stitch. A small triangle in the stitch's colour appears in its corner. The marker always takes the colour of the stitch it sits on, so there is no colour to pick first.
+**Set a marker:** right-click the stitch where the thread is parked (in Mark or Navigate mode). On a touch screen, switch to **Navigate mode** and press and hold the stitch. A small triangle in the stitch's colour, outlined in white and dark so it shows on any background, appears in its corner. It stays visible through the Spotlight and work-area dimming, since threads are usually parked ahead of where you are stitching. The marker always takes the colour of the stitch it sits on, so there is no colour to pick first.
 
 **Remove a marker:** right-click (or press and hold) the same stitch again. You rarely need to: when you mark the parked stitch as done, its marker clears itself (undo brings it back).
 

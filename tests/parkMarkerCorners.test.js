@@ -254,3 +254,43 @@ describe('Secondary-click parking guards', () => {
     expect(dragMarkSrc).toMatch(/if \(e\.ctrlKey && e\.button === 0 && typeof window !== 'undefined'\s*&& window\.Shortcuts && window\.Shortcuts\.isMac && window\.Shortcuts\.isMac\(\)\) return;/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Visibility. A marker is the colour of the stitch it sits on, so without an
+// outline it vanished in Colour view (black on black). It also sat under the
+// Spotlight overlay (94% dim) and the work-area margin fade, while a thread
+// is usually parked ahead of where you are stitching — outside both.
+// ---------------------------------------------------------------------------
+describe('Park marker visibility', () => {
+  test('marker gets a dark outer ring and a white inner ring before its fill', () => {
+    const b = src.slice(src.indexOf('function drawParkMarker('), src.indexOf('function drawStitch('));
+    expect(b).toMatch(/ctx\.strokeStyle="rgba\(27,24,20,0\.9\)";ctx\.lineWidth=PARK_MARKER_RING;ctx\.stroke\(\);\s*ctx\.strokeStyle="#fff";ctx\.lineWidth=1\.5;ctx\.stroke\(\);\s*ctx\.fillStyle=`rgb\(\$\{pm\.rgb\[0\]\},\$\{pm\.rgb\[1\]\},\$\{pm\.rgb\[2\]\}\)`;ctx\.fill\(\);/);
+  });
+
+  test('marker is inset from the cell corner so its ring stays inside the cell', () => {
+    expect(src).toMatch(/const inset=Math\.min\(2,cSz\*0\.1\);/);
+    expect(src).toMatch(/const PARK_MARKER_RING=3\.5;/);
+  });
+
+  test('markers are drawn after the work-area fade', () => {
+    const fade = src.indexOf('ctx.strokeRect(ax0-1,ay0-1,ax1-ax0+2,ay1-ay0+2);');
+    const markers = src.indexOf('// Park markers last, over the work-area fade');
+    expect(fade).toBeGreaterThan(0);
+    expect(markers).toBeGreaterThan(fade);
+    expect(src.slice(markers, markers + 600)).toMatch(/drawParkMarker\(ctx,pm,gut,cSz\);/);
+  });
+
+  test('the Spotlight overlay cuts live markers out of its dimming', () => {
+    const b = src.slice(src.indexOf('// ═══ Focus area three-zone dimming overlay ═══'), src.indexOf('// ═══ Breadcrumb trail overlay ═══'));
+    expect(b).toMatch(/const lpm=liveParkMarkersRef\.current;/);
+    expect(b).toMatch(/parkMarkerPath\(ctx,lpm\[i\],G,scs\);ctx\.fill\(\);ctx\.stroke\(\);/);
+    // Still inside the destination-out block.
+    expect(b.indexOf('const lpm=')).toBeGreaterThan(b.indexOf('globalCompositeOperation="destination-out"'));
+    expect(b.indexOf('const lpm=')).toBeLessThan(b.indexOf('ctx.restore();\n  // Focus block border'));
+    expect(src).toMatch(/\},\[focusBlock,focusEnabled,stitchingStyle,scs,sW,sH,blockW,blockH,liveParkKey\]\);/);
+  });
+
+  test('live markers exclude hidden layers and spent markers', () => {
+    expect(src).toMatch(/const liveParkMarkers=useMemo\(\(\)=>\(parkMarkers\|\|\[\]\)\.filter\(pm=>parkLayers\[pm\.colorId\]!==false&&!isParkSpent\(pm,done\)\),\[parkMarkers,parkLayers,done,sW\]\);/);
+  });
+});

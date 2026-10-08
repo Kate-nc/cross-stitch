@@ -3267,6 +3267,13 @@ function TrackerApp({
     return out;
   }, [parkMarkers, done, sW]);
   const totalParkedColours = useMemo(() => Object.keys(parkCountsByColour).length, [parkCountsByColour]);
+  // Markers that are drawn: colour layer shown and not spent. The Spotlight
+  // overlay cuts these out of its dimming; it keys its effect on the string so
+  // it redraws when the set changes, not on every tap that changes `done`.
+  const liveParkMarkers = useMemo(() => (parkMarkers || []).filter(pm => parkLayers[pm.colorId] !== false && !isParkSpent(pm, done)), [parkMarkers, parkLayers, done, sW]);
+  const liveParkKey = liveParkMarkers.map(pm => pm.x + "," + pm.y + "," + (pm.corner || "BL")).join(";");
+  const liveParkMarkersRef = useRef(liveParkMarkers);
+  liveParkMarkersRef.current = liveParkMarkers;
   const allParkLayersHidden = useMemo(() => {
     if (totalParkedColours === 0) return false;
     for (const id in parkCountsByColour) {
@@ -7343,24 +7350,44 @@ function TrackerApp({
     }
   }
 
-  // One park marker: a triangle in its corner of the cell, in the thread colour.
-  function drawParkMarker(ctx, pm, gut, cSz) {
+  // Park marker geometry: a right triangle in its corner of the cell, inset so
+  // its outline (PARK_MARKER_RING wide, centred on the edge) stays inside the
+  // cell. Shared by the chart (drawParkMarker) and the Spotlight overlay, which
+  // cuts the same shape out of its dimming so markers stay at full strength.
+  const PARK_MARKER_RING = 3.5;
+  function parkMarkerPath(ctx, pm, gut, cSz) {
     const corner = pm.corner || "BL";
-    const px2 = gut + pm.x * cSz,
-      py2 = gut + pm.y * cSz;
-    const ts = Math.max(3, Math.min(cSz * 0.4, 10));
+    const inset = Math.min(2, cSz * 0.1);
+    const ts = Math.max(4, Math.min(cSz * 0.5, 14));
+    const x0 = gut + pm.x * cSz + inset,
+      y0 = gut + pm.y * cSz + inset,
+      x1 = gut + (pm.x + 1) * cSz - inset,
+      y1 = gut + (pm.y + 1) * cSz - inset;
     let pts;
-    if (corner === "TL") pts = [[px2, py2], [px2 + ts, py2], [px2, py2 + ts]];else if (corner === "TR") pts = [[px2 + cSz, py2], [px2 + cSz - ts, py2], [px2 + cSz, py2 + ts]];else if (corner === "BR") pts = [[px2 + cSz, py2 + cSz], [px2 + cSz - ts, py2 + cSz], [px2 + cSz, py2 + cSz - ts]];else pts = [[px2, py2 + cSz], [px2 + ts, py2 + cSz], [px2, py2 + cSz - ts]];
-    ctx.fillStyle = `rgb(${pm.rgb[0]},${pm.rgb[1]},${pm.rgb[2]})`;
-    ctx.strokeStyle = "rgba(0,0,0,0.7)";
-    ctx.lineWidth = 1;
+    if (corner === "TL") pts = [[x0, y0], [x0 + ts, y0], [x0, y0 + ts]];else if (corner === "TR") pts = [[x1, y0], [x1 - ts, y0], [x1, y0 + ts]];else if (corner === "BR") pts = [[x1, y1], [x1 - ts, y1], [x1, y1 - ts]];else pts = [[x0, y1], [x0 + ts, y1], [x0, y1 - ts]];
     ctx.beginPath();
     ctx.moveTo(pts[0][0], pts[0][1]);
     ctx.lineTo(pts[1][0], pts[1][1]);
     ctx.lineTo(pts[2][0], pts[2][1]);
     ctx.closePath();
-    ctx.fill();
+  }
+  // One park marker, in the thread colour. The marker is the colour of the
+  // stitch it sits on, so on its own it vanishes in Colour view (black on
+  // black); a white inner ring and a dark outer ring make it show on any
+  // background, light or dark.
+  function drawParkMarker(ctx, pm, gut, cSz) {
+    ctx.save();
+    parkMarkerPath(ctx, pm, gut, cSz);
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "rgba(27,24,20,0.9)";
+    ctx.lineWidth = PARK_MARKER_RING;
     ctx.stroke();
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = `rgb(${pm.rgb[0]},${pm.rgb[1]},${pm.rgb[2]})`;
+    ctx.fill();
+    ctx.restore();
   }
 
   // Paints the cells in viewportRect and everything drawn over them. Also the
@@ -7785,16 +7812,6 @@ function TrackerApp({
       });
       ctx.restore();
     }
-    if (parkMarkers.length > 0) {
-      parkMarkers.forEach(pm => {
-        // Multi-colour parking — Option C: skip markers whose colour layer
-        // is hidden via the legend toggle.
-        if (parkLayers[pm.colorId] === false) return;
-        if (pm.x < startX || pm.x >= endX || pm.y < startY || pm.y >= endY) return;
-        if (isDone(pm.y * sW + pm.x)) return; // spent — see isParkSpent
-        drawParkMarker(ctx, pm, gut, cSz);
-      });
-    }
     ctx.strokeStyle = "rgba(0,0,0,0.4)";
     ctx.lineWidth = 2;
     ctx.strokeRect(gut, gut, dW * cSz, dH * cSz);
@@ -7825,6 +7842,18 @@ function TrackerApp({
       ctx.lineWidth = 2;
       ctx.strokeRect(ax0 - 1, ay0 - 1, ax1 - ax0 + 2, ay1 - ay0 + 2);
       ctx.lineWidth = 1;
+    }
+    // Park markers last, over the work-area fade: a thread is usually parked
+    // ahead of where you are stitching, which is often outside the area.
+    if (parkMarkers.length > 0) {
+      parkMarkers.forEach(pm => {
+        // Multi-colour parking — Option C: skip markers whose colour layer
+        // is hidden via the legend toggle.
+        if (parkLayers[pm.colorId] === false) return;
+        if (pm.x < startX || pm.x >= endX || pm.y < startY || pm.y >= endY) return;
+        if (isDone(pm.y * sW + pm.x)) return; // spent — see isParkSpent
+        drawParkMarker(ctx, pm, gut, cSz);
+      });
     }
   }
   const renderStitch = useCallback(() => {
@@ -8394,6 +8423,22 @@ function TrackerApp({
       const fw = Math.min(blockW, sW - bx * blockW) * scs,
         fh = Math.min(blockH, sH - by * blockH) * scs;
       ctx.fillRect(fx, fy, fw, fh);
+      // Cut the live park markers out of the dimming. Parking puts a thread
+      // ahead of where you are stitching — usually the next block — and a 94%
+      // dim made those markers all but invisible.
+      const lpm = liveParkMarkersRef.current;
+      if (lpm.length) {
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = "black";
+        ctx.strokeStyle = "black";
+        ctx.lineJoin = "round";
+        ctx.lineWidth = PARK_MARKER_RING + 1;
+        for (let i = 0; i < lpm.length; i++) {
+          parkMarkerPath(ctx, lpm[i], G, scs);
+          ctx.fill();
+          ctx.stroke();
+        }
+      }
       ctx.restore();
       // Focus block border
       ctx.strokeStyle = "rgba(184, 92, 56,0.9)";
@@ -8420,7 +8465,7 @@ function TrackerApp({
     };
     draw();
     return registerChartOverlay("focusBlock", draw);
-  }, [focusBlock, focusEnabled, stitchingStyle, scs, sW, sH, blockW, blockH]);
+  }, [focusBlock, focusEnabled, stitchingStyle, scs, sW, sH, blockW, blockH, liveParkKey]);
 
   // ═══ Breadcrumb trail overlay ═══
   useEffect(() => {
