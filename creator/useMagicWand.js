@@ -523,6 +523,79 @@ window.useMagicWand = function useMagicWand(state) {
     };
   }
 
+  // ─── Delete: clear every stitch inside the selection ─────────────────────────
+  // Full stitches become __empty__ (as the eraser leaves them), part stitches in
+  // selected cells are removed, and backstitch lines lying wholly inside the
+  // selection go too. Background (__skip__) cells are left alone. One undo step.
+  function deleteSelection() {
+    var pat = state.pat, mask = selectionMask, sW = state.sW, sH = state.sH;
+    if (!pat || !mask) return null;
+
+    var np = null, changes = [];
+    for (var i = 0; i < pat.length; i++) {
+      if (!mask[i]) continue;
+      var cell = pat[i];
+      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      if (!np) np = pat.slice();
+      changes.push({ idx: i, old: Object.assign({}, cell) });
+      np[i] = { id: "__empty__", rgb: [255, 255, 255] };
+    }
+
+    var ps = state.partialStitches, nm = null, psChanges = [];
+    if (ps && ps.size) ps.forEach(function(entry, idx) {
+      if (!mask[idx]) return;
+      if (!nm) nm = new Map(ps);
+      psChanges.push({ idx: idx, old: Object.assign({}, entry) });
+      nm.delete(idx);
+    });
+
+    // A line is inside when every in-bounds cell touching its midpoint is
+    // selected (edge lines border two cells, diagonals one).
+    function lineInside(ln) {
+      var mx = (ln.x1 + ln.x2) / 2, my = (ln.y1 + ln.y2) / 2, e = 1e-6, any = false;
+      var xs = [Math.floor(mx - e), Math.floor(mx + e)], ys = [Math.floor(my - e), Math.floor(my + e)];
+      for (var a = 0; a < 2; a++) for (var b = 0; b < 2; b++) {
+        var cx = xs[a], cy = ys[b];
+        if (cx < 0 || cx >= sW || cy < 0 || cy >= sH) continue;
+        if (!mask[cy * sW + cx]) return false;
+        any = true;
+      }
+      return any;
+    }
+    var bsLines = state.bsLines || [];
+    var keptBs = bsLines.filter(function(ln) { return !ln || !lineInside(ln); });
+    var bsRemoved = bsLines.length - keptBs.length;
+
+    if (!changes.length && !psChanges.length && !bsRemoved) {
+      if (state.addToast) state.addToast("Nothing to delete in the selection.", {type: "info", duration: 2000});
+      return null;
+    }
+
+    var entry = { type: "deleteSelection", changes: changes };
+    if (psChanges.length) entry.psChanges = psChanges;
+    if (bsRemoved) entry.bsLines = bsLines.slice();
+    var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    state.setEditHistory(function(prev) {
+      var n = prev.concat([entry]);
+      if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+      return n;
+    });
+    state.setRedoHistory([]);
+    if (np) {
+      state.setPat(np);
+      var r = state.buildPaletteWithScratch(np);
+      state.setPal(r.pal); state.setCmap(r.cmap);
+    }
+    if (nm) state.setPartialStitches(nm);
+    if (bsRemoved) state.setBsLines(keptBs);
+
+    var counts = { full: changes.length, partial: psChanges.length, backstitch: bsRemoved };
+    var CR = window.ColourReplace;
+    var desc = CR && CR.describeCounts ? CR.describeCounts(counts) : (changes.length + " stitches");
+    if (state.addToast) state.addToast("Deleted " + desc + ".", {type: "success", duration: 2000});
+    return { entry: entry, counts: counts };
+  }
+
   // ─── Phase 3.1: Selection stats ─────────────────────────────────────────────
 
   var selectionStats = useMemo(function() {
@@ -622,6 +695,7 @@ window.useMagicWand = function useMagicWand(state) {
     applyGlobalColourReplacement,
     // Back-compat alias for any external caller still using the misspelled name.
     applyGlobalColorReplacement: applyGlobalColourReplacement,
+    deleteSelection,
     // Phase 3
     selectionStats, applyOutlineGeneration,
     // Derived

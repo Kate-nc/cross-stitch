@@ -1868,6 +1868,15 @@ window.useCreatorState = function useCreatorState() {
     applyColorReduction: wand.applyColorReduction,
     applyGlobalColourReplacement: wand.applyGlobalColourReplacement,
     applyGlobalColorReplacement: wand.applyGlobalColourReplacement,
+    // A floating move is rebuilt from its start snapshot when it commits, so a
+    // delete made mid-move would be silently overwritten. Block it instead.
+    deleteSelection: function() {
+      if (move.floatActive) {
+        addToast("Finish the move first: switch to another tool to keep it, or press Esc to cancel it.", {type: "info", duration: 3000});
+        return null;
+      }
+      return wand.deleteSelection();
+    },
     colourReplaceModal, setColourReplaceModal,
     selectionStats: wand.selectionStats,
     applyOutlineGeneration: wand.applyOutlineGeneration,

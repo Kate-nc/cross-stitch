@@ -853,14 +853,14 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     // ── Brush size ──
     h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Brush size"),
-      h("div", {className:"tb-grp"},
-        [1,2,3].map(function(sz) {
+      h("div", {className:"tb-grp", style:{flexWrap:"wrap",gap:2}},
+        [1,2,3,5,7,10].map(function(sz) {
           var isOn = (cv.brushSize||1) === sz;
           return h("button", {
             key:sz,
             className:"tb-btn"+(isOn?" tb-btn--on":""),
             onClick:function(){ cv.setBrushSize(sz); },
-            title:sz+"\xD7"+sz, "aria-label":sz+" by "+sz+" brush"
+            title:sz+"\xD7"+sz, "aria-label":sz+" by "+sz+" brush", "aria-pressed":isOn
           }, sz);
         })
       )

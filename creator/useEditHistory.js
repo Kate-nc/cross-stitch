@@ -11,7 +11,7 @@
      - { type: "remove_unused_colours", removedFromPal, removedFromScratch }
          Specific branch in undoEdit/redoEdit. Restores palette entries.
      - { type: "colourReplace", changes }    // British spelling — see DEFECT-005.
-     - { type: "paint" | "erase" | "fill" | "rect" | "lasso" | undefined,
+     - { type: "paint" | "erase" | "fill" | "rect" | "lasso" | "deleteSelection" | undefined,
          changes, psChanges?, bsLines? }
          Generic fallthrough: handled by the same `last.changes` loop. The
          `type` string is *preserved* on the redo stack but never inspected —

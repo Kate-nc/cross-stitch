@@ -1848,28 +1848,31 @@ window.CreatorSidebar = function CreatorSidebar() {
   var brushSizeSection = h("div", {style:{padding:"0 12px 12px",borderTop:"1px solid var(--border)",paddingTop:12}},
     h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-2)'}},
       "Brush size"),
-    h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)'}},
-      h("input", {type:"range", min:1, max:3, step:1, value:cv.brushSize||1,
+    h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:'var(--s-2)'}},
+      h("input", {type:"range", min:1, max:10, step:1, value:cv.brushSize||1,
         onChange:function(e){ cv.setBrushSize(parseInt(e.target.value,10)); },
         "aria-label":"Brush size",
         style:{flex:1}}),
-      h("div", {style:{display:"flex",gap:3}},
-        [1,2,3].map(function(sz) {
-          var on = cv.brushSize === sz;
-          return h("button", {
-            key:sz,
-            onClick:function(){ cv.setBrushSize(sz); },
-            "aria-pressed": on ? "true" : "false",
-            style:{
-              minWidth:28,padding:"4px 8px",fontSize:'var(--text-sm)',fontWeight:on?600:400,
-              border:"1px solid "+(on?"var(--accent)":"var(--border)"),
-              background:on?"var(--accent-light)":"transparent",
-              color:on?"var(--accent)":"var(--text-secondary)",
-              borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
-            }
-          }, sz);
-        })
-      )
+      h("span", {style:{minWidth:40,textAlign:"right",fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontVariantNumeric:"tabular-nums"}},
+        (cv.brushSize||1) + "\xD7" + (cv.brushSize||1))
+    ),
+    h("div", {style:{display:"flex",flexWrap:"wrap",gap:3}},
+      [1,2,3,5,7,10].map(function(sz) {
+        var on = (cv.brushSize||1) === sz;
+        return h("button", {
+          key:sz,
+          onClick:function(){ cv.setBrushSize(sz); },
+          "aria-pressed": on ? "true" : "false",
+          "aria-label": sz + " by " + sz + " brush",
+          style:{
+            minWidth:28,padding:"4px 8px",fontSize:'var(--text-sm)',fontWeight:on?600:400,
+            border:"1px solid "+(on?"var(--accent)":"var(--border)"),
+            background:on?"var(--accent-light)":"transparent",
+            color:on?"var(--accent)":"var(--text-secondary)",
+            borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
+          }
+        }, sz);
+      })
     ),
     h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:6,lineHeight:1.4}},
       "Applies to Cross and Half stitches, and the Erase tool.")
@@ -1941,6 +1944,17 @@ window.CreatorSidebar = function CreatorSidebar() {
     ),
     h("div", {style:{fontSize:10,color:"var(--text-tertiary)",lineHeight:1.4}},
       "Modifier hint: Shift = add to selection, Alt = subtract."),
+    cv.hasSelection && h("button", {
+      onClick:function(){ if (cv.deleteSelection) cv.deleteSelection(); },
+      title:"Delete the stitches in the selection (Delete)",
+      style:{
+        marginTop:'var(--s-2)',width:"100%",padding:"6px 8px",fontSize:'var(--text-xs)',
+        display:"flex",alignItems:"center",justifyContent:"center",gap:'var(--s-1)',
+        border:"1px solid var(--danger)",borderRadius:'var(--radius-sm)',
+        background:"var(--danger-soft)",color:"var(--danger)",
+        cursor:"pointer",fontFamily:"inherit"
+      }
+    }, window.Icons && window.Icons.trash ? window.Icons.trash() : null, "Delete selected stitches"),
     (cv.hasSelection || cv.lassoInProgress) && h("button", {
       onClick:function(){ if (cv.cancelLasso) cv.cancelLasso(); if (cv.clearSelection) cv.clearSelection(); },
       style:{

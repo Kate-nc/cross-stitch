@@ -62,6 +62,7 @@
             ["Stitch types", "Cross (1), Half / (2), Half \\ (3), Backstitch (4) and Erase (5), plus quarter and three-quarter stitches in the tool strip. Press T to step through the stitch types."],
             ["Paint (P) and Fill (F)", "Paint colours the stitches you click or drag across; Fill colours a whole connected area."],
             ["Backstitch", "Click one grid corner and then another to draw a line between them."],
+            ["Brush size", "Paint, half stitches and Erase cover a square up to 10 × 10 stitches. Set the size in the Tools tab or under More tools."],
             ["Erase (5)", "Clears full and part stitches under the brush, and any backstitch line you drag across."],
             ["Eyedropper (I)", "Click a stitch to make its colour the current colour."],
             ["Hand (H)", "Pan the canvas without painting."]
@@ -73,6 +74,7 @@
             ["Magic wand (W)", "Click a stitch to select every connected stitch of that colour; the side panel refines the selection and offers actions on it."],
             ["Lasso", "Draw a freehand, polygon or magnetic selection. Choose the lasso and its mode in the Tools tab."],
             ["Select all and invert", "Ctrl+A selects every stitch; Ctrl+Shift+I inverts the selection. Esc clears it."],
+            ["Deleting a selection", "Press Delete or Backspace, or choose Delete on the selection bar, to clear every stitch in the selection, including part stitches and backstitch lines that sit inside it. Ctrl+Z brings them back."],
             ["Moving a selection", "Choose Move in More tools, then drag the selection or nudge it one stitch at a time with the arrow keys."]
           ]
         },
@@ -455,6 +457,7 @@
     { id: "c.save",  scope: "creator", keys: ["Ctrl+S", "⌘S"], description: "Save project" },
     { id: "c.selAll", scope: "creator", keys: ["Ctrl+A", "⌘A"], description: "Select all stitches" },
     { id: "c.invert", scope: "creator", keys: ["Ctrl+Shift+I", "⌘⇧I"], description: "Invert selection" },
+    { id: "c.delSel", scope: "creator", keys: ["Delete", "Backspace"], description: "Delete the stitches in the selection" },
     { id: "c.move",   scope: "creator", keys: ["←", "↑", "→", "↓"], description: "Move tool: nudge the selection one stitch" },
 
     // Tracker

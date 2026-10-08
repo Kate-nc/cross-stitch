@@ -154,6 +154,8 @@ window.MagicWandPanel = function MagicWandPanel() {
         btn("All",      cv.selectAll,        { title: "Select all stitches (Ctrl+A)" })
       ),
       h("div", { className: "tb-sdiv" }),
+      btn("Delete", cv.deleteSelection, { danger: true, title: "Delete the stitches in the selection (Delete)" }),
+      h("div", { className: "tb-sdiv" }),
       h("div", { className: "tb-grp" },
         btn("Confetti\u2026",       function() { cv.setWandPanel(panel === "confetti" ? null : "confetti"); }, { active: panel === "confetti" }),
         btn("Reduce Colours\u2026", function() { cv.setWandPanel(panel === "reduce"   ? null : "reduce");    }, { active: panel === "reduce" }),
@@ -395,6 +397,8 @@ window.MagicWandPanel = function MagicWandPanel() {
         btn("Invert",   cv.invertSelection, { title: "Invert selection (Ctrl+\u21E7+I)" }),
         btn("All",      cv.selectAll,       { title: "Select all (Ctrl+A)" })
       ),
+      h("div", { className: "tb-sdiv" }),
+      btn("Delete", cv.deleteSelection, { danger: true, title: "Delete the stitches in the selection (Delete)" }),
       h("div", { className: "tb-sdiv" }),
       // Panel operations sub-menu (collapses the 5 panel buttons)
       h("div", { ref: panelMenuRef, className: "tb-overflow-wrap" },

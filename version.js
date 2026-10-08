@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.74';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.75',
+    date: 'October 2026',
+    notes: [
+      'Bigger brushes in the Pattern Creator: Paint and Erase now go up to 10 × 10 stitches, with quick sizes of 1, 2, 3, 5, 7 and 10.',
+      'You can now delete everything in a selection. Press Delete or Backspace, choose Delete on the selection bar, or right-click and choose Delete selected stitches. Undo brings it all back.',
+    ]
+  },
+  {
     version: '1.0.74',
     date: 'October 2026',
     notes: [

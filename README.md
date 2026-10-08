@@ -27,8 +27,8 @@ Convert images into stitchable charts, or design patterns from scratch.
 - Shift Colours (hue rotation) and Palette Presets (themes, harmonies, your saved palettes).
 
 **Pattern editor**
-- Cross, half (both directions), quarter, three-quarter and backstitch tools; paint, fill, erase and eyedropper.
-- Magic Wand and Lasso (freehand, polygon, magnetic) selection, with a Move tool.
+- Cross, half (both directions), quarter, three-quarter and backstitch tools; paint, fill, erase and eyedropper, with brushes up to 10×10 stitches.
+- Magic Wand and Lasso (freehand, polygon, magnetic) selection, with a Move tool and Delete to clear everything in a selection.
 - Replace colour: swap every stitch of one colour for another thread, with a preview (right-click, palette swap button, or `R`).
 - Cleanup mode for line-art borders and Denoise mode (palette merge, speckle, fringe).
 - Full undo / redo history.
