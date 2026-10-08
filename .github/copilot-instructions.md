@@ -7,18 +7,19 @@
 > - Button labels, menu items, badges, status indicators
 > - Toast and modal copy
 > - Category lists and tab headers
-> - Comments shown to end users (Markdown rendered in the help overlay)
+> - Help drawer articles ([help-drawer.js](../help-drawer.js))
 >
 > Emojis are forbidden because they render inconsistently across OS/browser,
 > can't be coloured to match the theme, and clash with the rest of the app's
 > visual language. The unicode characters ✓ ✗ → ← ▸ etc. count as emoji for
 > this rule — use [icons.js](../icons.js)'s `check`, `x`, `pointing` etc instead.
-> The only acceptable place for emoji-like characters is the box-drawing
-> separators inside source-file headers (e.g. ════ section dividers in JS).
+> Write menu paths as "File > Preferences", never with an arrow glyph.
+> Exceptions (box-drawing dividers in source headers, legacy test fixtures,
+> and key glyphs inside `<kbd>`) are listed in [AGENTS.md](../AGENTS.md).
 
 ## Project Overview
 
-A fully client-side Progressive Web App (PWA) for creating, managing, and tracking cross-stitch patterns. No build step is required to run the application — open an HTML file in a browser. The only build step in this project is bundling the `creator/` module (see below).
+A fully client-side Progressive Web App (PWA) for creating, managing, and tracking cross-stitch patterns. There is no server and no bundler: pages are plain HTML that load `<script>` globals. A few files are **generated and committed** (see [Build steps](#build-steps)) — always regenerate them after editing their sources.
 
 ## Workshop is the sole theme
 
@@ -26,154 +27,153 @@ The Workshop visual direction (UX-12) is the only theme — see [AGENTS.md](../A
 
 - All `--ws-*` aliases were removed in Phase 8. Use canonical token names directly (`--accent`, `--surface`, `--text-primary`, `--text-secondary`, `--radius-sm`, `--shadow-sm`, plus the non-conflicting Workshop tokens defined in [styles.css](../styles.css) such as `--line`, `--accent-2`, `--success`, `--motion`).
 - Light tokens live on `:root` in [styles.css](../styles.css); dark tokens on `[data-theme="dark"]`. The mirror reference is `reports/showcase/_workshop.css`.
-- `/home` ([home.html](../home.html) + [home-app.js](../home-app.js)) is the default landing. `index.html`, `stitch.html`, and `manager.html` URLs still work and skip the landing.
-- The Pattern Keeper-compatible PDF export path is bit-stable. The Workshop print theme is opt-in via the `creator.pdfWorkshopTheme` user preference. Do **not** modify [pdf-export-worker.js](../pdf-export-worker.js), [creator/pdfChartLayout.js](../creator/pdfChartLayout.js), or [creator/pdfExport.js](../creator/pdfExport.js) without an explicit PK-compat regression check.
+- `/home` ([home.html](../home.html) + [home-app.js](../home-app.js)) is the default landing. `create.html`, `index.html`, `stitch.html`, and `manager.html` URLs still work and skip the landing.
+- The Pattern Keeper-compatible PDF export path is bit-stable. The Workshop print theme is opt-in via the `creator.pdfWorkshopTheme` user preference (a checkbox on the Export tab). Do **not** modify [pdf-export-worker.js](../pdf-export-worker.js), [creator/pdfChartLayout.js](../creator/pdfChartLayout.js), or [creator/pdfExport.js](../creator/pdfExport.js) without an explicit PK-compat regression check.
 
 ## Architecture
 
-The project has **five HTML entry points**:
+### HTML entry points
 
 | File | Purpose |
 |---|---|
-| `home.html` | Home — default landing page; project dashboard and hub |
-| `index.html` | Pattern Creator (legacy URL) — redirects to / loads the same creator app as `create.html` |
-| `create.html` | Pattern Creator — convert images to cross-stitch patterns, edit them, and export |
-| `stitch.html` | Stitch Tracker — track stitching progress on an existing pattern |
-| `manager.html` | Stash Manager — manage DMC thread inventory and a personal pattern library |
+| `home.html` | Home — default landing page; project hub |
+| `create.html` | Pattern Creator — convert images to patterns, edit, export |
+| `index.html` | Legacy Creator URL — redirects to Home when no project is active; also hosts the Stats page (`?mode=stats`) |
+| `stitch.html` | Stitch Tracker |
+| `manager.html` | Stash Manager — thread inventory and pattern library |
+| `embroidery.html` | Experimental embroidery planner (behind a preference) |
 
-All pages share a common set of scripts loaded via `<script>` tags (see `create.html` for the canonical load order):
+Each page lists its own `<script>` tags — read the page's HTML for the canonical load order rather than assuming one. React 18 and ReactDOM come from cdnjs as globals; Pako (and JSZip on the Creator) load from the CDN in `<head>`.
 
-```
-constants.js → dmc-data.js → colour-utils.js → helpers.js → import-formats.js
-→ components.js → header.js → modals.js → threadCalc.js → project-storage.js
-→ stash-bridge.js → backup-restore.js → home-screen.js → palette-swap.js
-→ creator/bundle.js
-```
+### JSX and generated files
 
-React 18 and Babel Standalone are loaded from CDN. All JSX is compiled in-browser at runtime — there is no pre-compilation step for the main app files.
+There is **no in-browser Babel**. The large JSX entry files (`tracker-app.js`, `creator-main.js`, `manager-app.js`, `embroidery.js`) are precompiled to `compiled/*.compiled.js` by `build-runtime-js.js`, and pages load the compiled copy through `window.loadScript` ([runtime-loaders.js](../runtime-loaders.js)). Everything else is plain ES5/ES2015 using `React.createElement`.
 
-### Creator Module (`creator/`)
+### Build steps
 
-The Pattern Creator's logic lives in individual files inside `creator/`. These are **concatenated** (not transpiled) into `creator/bundle.js` using a custom build script:
+| Edit | Then run | Regenerates |
+|---|---|---|
+| any `creator/*.js` | `node build-creator-bundle.js` | `creator/bundle.js`, `creator/extras-bundle.js`, `creator/import-wizard-bundle.js` |
+| `tracker-app.js`, `creator-main.js`, `manager-app.js`, `embroidery.js` | `node build-runtime-js.js` | `compiled/*.compiled.js` |
+| any `import-engine/**` | `node build-import-bundle.js` | `import-engine/bundle.js` |
 
-```bash
-node build-creator-bundle.js
-```
+Never edit the generated files directly. File order for the creator bundles is defined in `build-creator-bundle.js` (`ORDER` and `EXTRAS_ORDER`). `npm test` and the pre-commit hook fail when `compiled/` is stale.
 
-**Always regenerate `creator/bundle.js` after editing any file in `creator/`.** The source files and their required concatenation order are defined in `build-creator-bundle.js`. Never edit `creator/bundle.js` directly.
+### Lazy loading
+
+[lazy-modules.js](../lazy-modules.js) installs stubs for `HelpDrawer` and `BackupRestore` and loads `help-drawer.js` / `backup-restore.js` on first use. [import-engine/lazy-shim.js](../import-engine/lazy-shim.js) does the same for `import-engine/bundle.js`. Lazily loaded files must stay in `sw.js`'s precache list (checked by `tests/swPrecacheSync.test.js`).
 
 ## Key Files and Responsibilities
 
 | File | Role |
 |---|---|
 | `constants.js` | Fabric counts, skein length (`SKEIN_LENGTH_IN = 315` inches), default price (`DEFAULT_SKEIN_PRICE = 0.95` GBP), canvas checkerboard size (`CK = 4`) |
-| `dmc-data.js` | Full DMC palette — array `DMC` of `{id, name, rgb, lab}` objects |
-| `colour-utils.js` | k-means quantisation, Floyd-Steinberg dithering, CIE ΔE colour distance, colour matching (`findSolid`, `findBest`), image filters |
-| `helpers.js` | Utility functions: `fmtTime`, `fmtTimeL`, `calcDifficulty`, `skeinEst`, `gridCoord`, IndexedDB helpers (`getDB`, `saveProjectToDB`, `loadProjectFromDB`) |
-| `project-storage.js` | Multi-project IndexedDB storage — `ProjectStorage` singleton with `save`, `get`, `listProjects`, `delete`, `getActiveProject` |
-| `stash-bridge.js` | Cross-database bridge — reads/writes the Stash Manager's `stitch_manager_db` IndexedDB from any page |
-| `tracker-app.js` | React component tree for the Stitch Tracker |
-| `manager-app.js` | React component tree for the Stash Manager |
-| `import-formats.js` | Import parsers for `.oxs` (KG-Chart XML), `.json`, image files, and `.pdf` patterns |
-| `threadCalc.js` | `stitchesToSkeins()` — calculates skeins needed from stitch count, fabric count, strand count, and waste factor |
-| `embroidery.js` | Image processing pipeline (bilateral filter, Canny edge detection, saliency map) used during pattern generation |
-| `backup-restore.js` | Full-database export/import for backup and restore |
-| `palette-swap.js` | Palette swap UI and logic |
-| `modals.js` | Shared modal components |
-| `components.js` | Shared React UI components |
-| `header.js` | Shared navigation header component |
+| `dmc-data.js` / `anchor-data.js` | Thread catalogues — `DMC` is an array of `{id, name, rgb, lab}` |
+| `colour-utils.js` | Quantisation, Atkinson / Bayer dithering, CIEDE2000, colour matching (`findSolid`, `findBest`), image filters |
+| `helpers.js` | Shared utilities (`fmtTime`, `skeinEst`, `gridCoord`…), pattern serialisation (`stripCellForSave`, `serializePattern`; the matching `restoreStitch` is in `colour-utils.js`), DB openers (`getDB`, `openManagerDB`) |
+| `project-storage.js` | Multi-project storage — `ProjectStorage` singleton (`save`, `get`, `listProjects`, `delete`, `getActiveProject`, …) |
+| `stash-bridge.js` | Reads/writes the Stash Manager's `stitch_manager_db` from any page |
+| `sync-engine.js` | `.csync` export/import, folder watching, merge and conflict review |
+| `tracker-app.js` | Stitch Tracker React tree (shortcuts are the `trackerShortcuts` array) |
+| `creator-main.js` + `creator/` | Pattern Creator — state in `creator/useCreatorState.js`, shortcuts in `creator/useKeyboardShortcuts.js` |
+| `manager-app.js` | Stash Manager React tree |
+| `home-app.js` | Home page |
+| `import-formats.js`, `import-engine/`, `pdf-importer.js` | Import parsers (`.oxs`, `.json`, images, PDF charts) |
+| `threadCalc.js` | `stitchesToSkeins()` |
+| `backup-restore.js` | Full backup (`.csb` compressed, or `.json`) and restore |
+| `header.js` | Top bar, File menu, sync status popover |
+| `help-drawer.js` | **All in-app help content**: topics, shortcut list, Getting Started |
+| `onboarding-wizard.js` / `coaching.js` | Welcome walkthroughs / coachmarks |
+| `user-prefs.js` / `preferences-modal.js` | Preference defaults (`UserPrefs.DEFAULTS`) / the Preferences panel |
+| `version.js` | `APP_VERSION` (auto-bumped) and `APP_CHANGELOG` (hand-written) |
 
 ## Data Storage
 
-There are **three separate IndexedDB databases**:
-
 | Database | Version | Object Stores | Used By |
 |---|---|---|---|
-| `CrossStitchDB` | 3 | `projects`, `project_meta`, `stats_summaries` | Creator, Tracker (generated patterns & progress) |
-| `stitch_manager_db` | 1 | `manager_state` | Stash Manager (thread inventory, pattern library) |
+| `CrossStitchDB` | 5 | `projects`, `project_meta`, `stats_summaries`, `sync_snapshots`, `importerTelemetry`, `pendingImports` | Creator, Tracker, Stats, sync, importer |
+| `stitch_manager_db` | versionless (use `openManagerDB()`) | `manager_state` | Stash Manager, stash bridge |
+| `cross_stitch_sync_meta` | 1 | `sync_state` | Sync engine |
 
-### `CrossStitchDB` details
-- `projects` store: keyed by project ID (e.g. `"proj_1712345678"`) or `"auto_save"` for the legacy single-project key
-- `project_meta` store: lightweight metadata mirrors of all `proj_*` entries
-- Active project pointer stored in `localStorage` under key `"crossstitch_active_project"`
-
-### `stitch_manager_db` details
-- `manager_state` store: all data under named keys — `"threads"` (inventory object) and `"patterns"` (pattern library array)
+- `projects` is keyed by project ID (e.g. `"proj_1712345678"`); `project_meta` mirrors lightweight metadata for listing.
+- The active project pointer is in `localStorage["crossstitch_active_project"]`.
+- `manager_state` holds `"threads"` (keyed `dmc:310` / `anchor:403`) and `"patterns"` (library array).
+- `CrossStitchDB` is opened in several files (`helpers.js`, `project-storage.js`, `sync-engine.js`) — a schema change must bump the version and upgrade path in **all** of them.
+- Never open `stitch_manager_db` with a hard-coded version; see the comment above `openManagerDB` in `helpers.js`.
 
 ## Project JSON Format
 
-A saved project object (version 8) has this shape:
+Current saves use `version: 11`:
 
 ```json
 {
-  "v": 8,
+  "version": 11,
   "id": "proj_1712345678",
+  "page": "creator",
   "name": "My Pattern",
-  "createdAt": "2024-04-05T12:00:00.000Z",
-  "updatedAt": "2024-04-05T12:00:00.000Z",
-  "w": 80,
-  "h": 80,
+  "createdAt": "2026-04-05T12:00:00.000Z",
+  "updatedAt": "2026-04-05T12:00:00.000Z",
   "settings": { "sW": 80, "sH": 80, "fabricCt": 14 },
-  "pattern": [ { "id": "310", "type": "solid", "rgb": [0, 0, 0] } ],
+  "pattern": [ { "id": "310", "type": "solid" }, { "id": "__skip__" } ],
   "bsLines": [],
   "done": null,
-  "halfStitches": {},
-  "halfDone": {},
+  "halfStitches": [],
+  "halfDone": [],
+  "partialStitches": [],
   "parkMarkers": [],
-  "totalTime": 0,
   "sessions": [],
   "threadOwned": {}
 }
 ```
 
-- `pattern` is a flat array of length `w * h`; each cell is `{ id, type, rgb }` for a solid or `{ id: "310+550", type: "blend", ... }` for a blend, or `{ id: "__skip__" }` / `{ id: "__empty__" }` for background/empty cells
-- `done` is `null` (no tracking started) or a flat `Int8Array`/plain array of same length as `pattern`, with `1` = done, `0` = not done
-- Blend IDs are two DMC IDs joined with `+` (e.g. `"310+550"`)
+- Dimensions are `settings.sW` × `settings.sH`; `pattern` is a flat array of that length.
+- Cells: `{ id, type }` for DMC solids (RGB rebuilt from the catalogue on load — always go through `serializePattern` / `restoreStitch`), `{ id, type, rgb }` when the RGB can't be rebuilt, `{ id: "310+550", type: "blend" }` for blends, `{ id: "__skip__" }` / `{ id: "__empty__" }` for background/empty.
+- `done` is `null` or an array of the same length with `1` = done.
+- Readers must still accept `v: 8` and older files, the compact `.p` grid format and imports.
 
 ## Running and Testing
 
 ```bash
-# Install dependencies (only needed for tests)
 npm install
-
-# Run Jest unit tests
-npm test
-
-# Serve locally (optional — you can also just open index.html directly)
-node serve.js          # serves on port 8000
-node serve.js 3000     # or specify a port
+npm test                    # Jest, parallel by default (~5 s)
+npm test -- --runInBand     # only when debugging cross-suite state leaks
+npm run lint:terminology
+npm run lint:css-tokens
+npm run start               # node serve.js, port 8000
 ```
+
+Playwright suites: `npm run test:e2e` (touch tablet), `npm run test:ipad` (WebKit), `npm run test:mobile-audit`, `npm run perf:baseline`.
 
 ### Test Suite (`tests/`)
 
-Tests use **Jest** with CommonJS `require`. Test files extract functions from source files by reading the raw JS with `fs.readFileSync` and calling `eval()` — there is no module system to import from. When adding tests, follow the same pattern.
-
-Key test files:
-- `helpers.test.js` — `fmtTimeL` formatting
-- `threadCalc.test.js` — skein estimation
-- `dE.test.js`, `rgbToLab.test.js` — colour maths
-- `embroidery-image-processing.test.js` — image filters (extracts functions from `embroidery.js` using regex + eval)
-- `test_frontend.py`, `test_frontend_drag.py`, `test_modals.py` — Playwright/Selenium Python tests (not run by `npm test`)
+Tests use **Jest** with CommonJS `require`. Most tests read browser source with `fs.readFileSync` and evaluate it (`eval` / `new Function`) in a stubbed environment, or assert on the source text — there is no module system to import from. `fake-indexeddb` and `jest-environment-jsdom` are available for storage and DOM tests. `tests/*.py` are legacy Selenium scripts and are not run by `npm test`.
 
 ## Code Style Conventions
 
-- **Minified-style JS** is common in older/utility files (e.g. `constants.js`, `helpers.js`): terse variable names, no whitespace, everything on one line. Match the style of the file you are editing.
-- **Modern React style** (hooks, function components, JSX) is used in `tracker-app.js`, `manager-app.js`, and all `creator/` files. These files use destructured React hooks at the top.
-- **No module system**: all files use plain `<script>` globals. Do not use `import`/`export` or `require()` in files that run in the browser.
-- **Creator files** (`creator/*.js`) expose their exports via `window.*` assignments (e.g. `window.useCreatorState = function useCreatorState() {...}`).
-- Use British English spelling in user-facing strings (e.g. "colour" not "color", "organiser" not "organizer").
-- Default skein price is in GBP (£0.95).
+- **Minified-style JS** is common in older/utility files (e.g. `constants.js`, `helpers.js`) and much of `tracker-app.js`: terse names, little whitespace. Match the style of the file you are editing.
+- **Modern React style** (hooks, function components) everywhere else. Non-compiled files use `React.createElement` (often aliased `h`), not JSX.
+- **No module system in the browser**: plain `<script>` globals. Do not use `import`/`export` or `require()` in browser files.
+- **Creator files** (`creator/*.js`) expose their exports via `window.*` assignments.
+- British English in user-facing strings ("colour", "organiser"). Default currency GBP (£0.95 per skein).
+- Keep source files UTF-8. An editor saving a file in a legacy encoding once turned every `×`, `—` and `£` in the Preferences panel into `�`.
+
+## Keeping docs in step
+
+User-visible changes need matching updates to:
+
+1. [help-drawer.js](../help-drawer.js) — the in-app help and shortcut list. `tests/helpDrawerShortcutsSync.test.js` fails if the shortcut list and the real registrations disagree.
+2. `APP_CHANGELOG` in [version.js](../version.js) — the Version history in Preferences.
+3. [README.md](../README.md) and the user guides in [wiki/](../wiki/) when a feature is added, renamed or moved.
 
 ## Common Pitfalls
 
-1. **Never edit `creator/bundle.js` directly** — regenerate it with `node build-creator-bundle.js` after modifying any `creator/*.js` file.
-2. **No build step for non-creator files** — changes to `helpers.js`, `tracker-app.js`, etc. take effect immediately in the browser.
-3. **IndexedDB is browser-only** — unit tests that touch storage must mock it or skip those code paths.
-4. **React and Babel are CDN globals** — do not add them as npm dependencies; they are available as `window.React`, `window.ReactDOM`, `window.Babel`.
-5. **`creator/bundle.js` is a pre-built concatenation** — after running the build script, verify the output is correct before committing.
-6. **`pako` is required at startup** (URL pattern compression) — it must remain in the `<head>` before any Babel scripts.
+1. **Never edit generated files** (`creator/*bundle.js`, `compiled/*`, `import-engine/bundle.js`) — rebuild them.
+2. **IndexedDB is browser-only** — tests that touch storage use `fake-indexeddb` or mock it.
+3. **React is a CDN global** — never bundle it; it is a devDependency only for tests.
+4. **Pako must load in `<head>`** before the app scripts (backups, sync files and project hand-off use it).
+5. **Shortcut scopes**: the most specific active scope wins (`tracker.notedit` beats `tracker`), so two entries bound to the same key in nested scopes shadow each other.
 
 ## Errors and Workarounds Encountered
 
-- **Local file access restrictions**: Some browsers block `fetch()` and IndexedDB when opening HTML files directly from the filesystem (`file://`). Use `node serve.js` or `python -m http.server` to serve the files over HTTP during development.
-- **Jest + browser globals**: Test files that exercise browser-only code (IndexedDB, `navigator`, `canvas`) must be excluded or mock those APIs. Existing tests avoid this by extracting pure functions with regex+eval rather than importing the module.
+- **Local file access restrictions**: some browsers block workers and IndexedDB over `file://`. Use `node serve.js` or `python -m http.server`.
+- **iOS file pickers**: `accept` values iOS can't map to a UTI (e.g. `.csync`, `.oxs`) grey out every file. Use `window.Platform.fileAccept(...)`, which drops the filter on iOS.

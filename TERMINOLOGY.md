@@ -14,9 +14,9 @@ An end-to-end stitching effort tracked by the app. A Project always has:
 - progress state (which stitches are done),
 - a history (timer sessions, optional notes).
 
-Projects are stored in `CrossStitchDB.projects`. They appear in the Pattern
-Creator's home screen, the Stitch Tracker's project picker, and the Stash
-Manager's "Your Projects" cards.
+Projects are stored in `CrossStitchDB.projects`. They appear on Home
+(Projects tab), in File > Switch Project…, and in the Stash Manager's
+Pattern Library.
 
 > Use **Project** when referring to something a user opens, edits, or stitches.
 
@@ -52,21 +52,21 @@ A single physical bundle of thread (315 inches per skein, by default).
 Write data to the app's internal storage (IndexedDB). The user keeps using
 the app afterwards; no file appears on disk.
 
-> Examples: "Save Project" (autosave to `CrossStitchDB`), "Save Pattern"
-> (Manager pattern detail editor writes to `stitch_manager_db`).
+> Examples: autosave to `CrossStitchDB`, "Save Pattern" (Manager pattern
+> detail editor writes to `stitch_manager_db`).
 
 ### Download
 Write a file to the user's device. The app does not retain a reference to
 that file.
 
-> Examples: "Download all data" (full backup `.csbackup`), "Download PDF",
-> "Download project as `.json`".
+> Examples: "Download (.json)" (File menu), "Download bundle" (`.zip`).
 
 ### Export
 A user-facing umbrella for "Download" when the output is a deliberately
 share-able artefact (PDF chart, OXS file, image).
 
-> Examples: "Export PDF", "Export as OXS".
+> Examples: "Export PDF…", "Export .oxs", "Export Backup" (full backup,
+> `.csb`).
 
 ### Open / Import
 Read data from a file or URL into the app. "Open" implies the user wants
@@ -85,12 +85,14 @@ opts in once per device.
 
 | Surface | Canonical name |
 |---|---|
-| The 3-tab manager page | **Stash Manager** |
-| The home page of `index.html` | **Home** (or "Pattern Creator home") |
+| The landing page (`home.html`) | **Home** |
+| The thread and library page (`manager.html`) | **Stash Manager** (tabs: **Thread Stash**, **Pattern Library**) |
 | The pattern-creation page | **Pattern Creator** |
 | The progress-tracking page | **Stitch Tracker** |
-| The full-app backup file (`.csbackup`) | **Backup** |
-| The autosave slot | **Active project** (singular per user) |
+| The full-app backup file (`.csb`, older `.json`) | **Backup** |
+| The project opened by default | **Active project** |
+| The Tracker's marking mode | **Mark mode** (and **Navigate mode**) |
+| The side panel opened with `?` | **Help** (the Help drawer) |
 
 ---
 
@@ -117,5 +119,5 @@ When adding a new UI string:
 4. Capitalise brand names: **DMC**, **Anchor**.
 5. Keep British spellings ("colour", "organiser", "favourite").
 
-This glossary is also surfaced in the in-app **Help Centre** under the
-**Glossary** tab so end-users see the same definitions.
+The same definitions appear in the in-app Help drawer under the
+**Glossary** topic ([help-drawer.js](help-drawer.js)) — keep the two in step.
