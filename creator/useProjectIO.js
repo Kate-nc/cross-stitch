@@ -560,6 +560,9 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       return;
     }
     var handoff = localStorage.getItem("crossstitch_handoff_to_creator");
+    // Set when the tracker saved the project to storage and only handed over
+    // its id: warn about tracking progress once the active project loads.
+    var handoffProgressId = null;
     if (handoff) {
       try {
         // T-3 / INT-4: parse the envelope first. Legacy writes were the
@@ -572,7 +575,12 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         var _raw = JSON.parse(handoff);
         localStorage.removeItem("crossstitch_handoff_to_creator");
         var projectData = null;
-        if (_raw && typeof _raw === 'object' && _raw.project && typeof _raw.ts === 'number') {
+        if (_raw && typeof _raw === 'object' && _raw.projectId && typeof _raw.ts === 'number') {
+          // Current tracker writes {ts, projectId, hasProgress}: the project
+          // itself is already in ProjectStorage as the active project, so
+          // fall through to the active-project load below.
+          if ((Date.now() - _raw.ts) <= HANDOFF_TTL_MS && _raw.hasProgress) handoffProgressId = _raw.projectId;
+        } else if (_raw && typeof _raw === 'object' && _raw.project && typeof _raw.ts === 'number') {
           if ((Date.now() - _raw.ts) > HANDOFF_TTL_MS) {
             // Stale handoff — drop it silently and continue normal fallbacks.
             try { console.info('[creator] dropped stale tracker handoff (age', (Date.now()-_raw.ts), 'ms)'); } catch(_) {}
@@ -631,6 +639,9 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           try {
             try { sessionStorage.setItem('__import_trace_creatorBoot', JSON.stringify({ at: Date.now(), step: 'loading', id: project3.id, patternLen: project3.pattern.length })); } catch(_) {}
             processLoadedProject(project3);
+            if (handoffProgressId && handoffProgressId === project3.id) {
+              alert("This pattern has tracking progress. Editing the pattern here will reset your stitching progress. Continue with caution.");
+            }
           } catch (err) {
             try { console.error('[creator-boot] processLoadedProject threw:', err); } catch(_) {}
             try {
