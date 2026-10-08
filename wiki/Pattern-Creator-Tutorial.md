@@ -110,7 +110,7 @@ Choose a colour in the **Palette** tab, then a tool:
 
 ### Brush size
 
-Paint, half stitches and Erase cover a square of stitches from 1×1 up to 10×10. Set the size with the slider or the quick sizes (1, 2, 3, 5, 7, 10) in the **Tools** tab, or under **More tools → Brush size**. The outline under the cursor shows the area the brush will cover.
+Paint, half stitches and Erase cover a square of stitches from 1×1 up to 10×10. Set the size with the slider or the quick sizes (1, 2, 3, 5, 7, 10) in the **Tools** tab, or under **More tools > Brush size**. The outline under the cursor shows the area the brush will cover.
 
 ### Deleting a selection
 
