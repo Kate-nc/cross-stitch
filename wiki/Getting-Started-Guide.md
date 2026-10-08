@@ -1,253 +1,153 @@
 # Getting Started Guide
 
-Welcome to stitchx! This guide walks you through opening the app for the first time and understanding how everything fits together.
+Welcome to stitchx! This guide walks you through opening the app for the first time and how everything fits together.
 
 ## Opening the App
 
-### First Launch
+1. **Open Home** — go to `home.html` (or your deployment's address).
+2. **No sign-in** — stitchx keeps everything in your browser's own storage on this device. No account, no login.
 
-1. **Go to the Home Screen** — Open `home.html` in your browser, or navigate to your deployment URL.
-2. **No sign-in required** — stitchx stores everything locally in your browser's IndexedDB. No account, no login.
+> **Tip:** Install the app for quicker access — the install icon in the address bar on Chrome or Edge, or Share > Add to Home Screen on iPhone and iPad. On iPhone and iPad, installing also stops Safari clearing your patterns after a week without a visit.
 
-> **Tip:** Bookmark the page or use your browser's "Add to home screen" option (iOS/Android) for quick access.
+The layout adapts to your screen: full sidebars on a desktop, and touch-sized controls with bottom sheets on phones and tablets.
 
-### Desktop vs. Mobile
+## The Home Page
 
-The app automatically adapts to your screen size:
+Home is your project hub. It has four tabs.
 
-- **Desktop/Tablet:** Full-featured interface with all menus and options visible
-- **Mobile Phone:** Touch-friendly layout with collapsible menus and optimised buttons
+### Projects
 
-## Understanding the Home Screen
+- **Active project** — the project you worked on most recently, with its progress and when you last edited it.
+- **All projects** — every other project, each with **Track** (open in the Stitch Tracker), **Edit** (open in the Pattern Creator) and **Export** actions.
 
-The Home Screen is your dashboard and project hub. It has four main tabs:
+To delete projects, use the **Pattern Library** in the Stash Manager.
 
-### 1. Projects Tab
+### Create new
 
-Shows all your stitching projects.
+- **New from pattern file** — start from an image (JPG, PNG and so on), or open a saved `.json` project, an `.oxs` file or a PDF chart.
+- **New from scratch** — start with a blank grid and draw your own design.
 
-**Active Project Card**
-- Displays your current project (if any)
-- Shows progress percentage (% complete)
-- Shows when you last worked on it ("Last edited 2 days ago")
-- Quick action buttons: **Track** (go to Stitch Tracker) and **Edit** (go to Pattern Creator)
+### Stash
 
-**Full Project List**
-- All your saved projects in a table or card view
-- Sort by name, date created, or progress
-- **Track** — Open a project in the Stitch Tracker to mark stitches
-- **Edit** — Open a project in the Pattern Creator to change the pattern
-- **Delete** — Remove a project (you'll be asked to confirm)
-- **Bulk Delete** — Select multiple projects and delete at once (checkbox on left)
+A summary of your threads: how many you own, patterns you could start with what you have ("Ready to start"), and your shopping list. **Open Stash Manager** takes you to the full inventory.
 
-### 2. Create New Tab
+### Stats
 
-Start a brand-new project.
+Lifetime stitches, recent activity and your oldest work in progress. The full **Stats** page is in the top bar.
 
-**From an Image**
-1. Click **Create from image**
-2. Upload a JPG or PNG file
-3. Follow the Pattern Creator workflow (see **Pattern Creator Tutorial** below)
+## Creating Your First Pattern
 
-**Blank Canvas**
-1. Click **Blank canvas**
-2. Enter pattern dimensions (width × height)
-3. Choose a starting colour
-4. Start editing in the Pattern Creator
+1. Go to **Home > Create new** and choose **New from pattern file**.
+2. Pick an image. Simple graphics and photos with clear subjects work best.
+3. The Pattern Creator opens with the image. Use the sidebar's **Image**, **Dimensions** and **Palette** tabs to set the size in stitches, the fabric count and the number of colours (10–20 is a good start). The preview updates as you go.
+4. Generate the pattern.
+5. The **Tools** and **View** tabs unlock so you can edit stitches by hand.
 
-### 3. Stash Tab
+Your project saves itself as you work — there is no Save button to remember.
 
-Quick overview of your thread inventory.
+### Refining your pattern
 
-- **Owned Threads** — How many unique DMC and Anchor threads you own
-- **To-Buy List** — Threads you've marked as to-buy
-- **Stash Value** — Total cost of owned threads (if you've set prices)
-- **Link to Manager** — Click to open the Stash Manager for full inventory control
+- **Paint and fill** — pick a colour in the **Palette** tab, then use Paint (`P`) or Fill (`F`).
+- **Part stitches and backstitch** — quarter, half and three-quarter stitches, and backstitch lines, from the tool strip.
+- **Replace a colour** — right-click a stitch and choose Replace this colour, or press `R`.
+- **Clean up** — Confetti Cleanup, Cleanup mode and Denoise mode remove stray stitches.
+- **Export** — **Materials & Output > Export** produces a PDF chart, PNG, `.oxs` file or a `.zip` bundle.
 
-> **What is the Stash?** Your collection of physical thread skeins that you track in the app. The Stash Manager lets you mark what you own, which affects pattern recommendations in the Creator.
-
-### 4. Stats Tab
-
-View your stitching activity and insights.
-
-- **Total Projects** — How many projects you've created
-- **Total Stitches** — Combined stitch count across all projects
-- **Stitching Time** — How much time you've spent tracking progress in the Stitch Tracker
-- **Session Breakdown** — Charts showing your activity over time
-- **Thread Usage** — Which threads you use most
-
-## Creating Your First Project
-
-### Quick Path: Image to Pattern (5 minutes)
-
-1. Go to **Home Screen** → **Create New** tab
-2. Click **Create from image**
-3. **Upload** a JPG or PNG (landscapes, portraits, simple graphics work best)
-4. **Choose colour count** (start with 10–15 colours for beginners)
-5. **Click Generate** and wait 10–30 seconds
-6. **Preview** the result in the low-resolution preview pane
-7. If you like it, click **Finalise pattern**
-8. Your project is automatically saved
-
-### Refining Your Pattern
-
-Once generated, you're in the Pattern Creator where you can:
-
-- **Paint individual stitches** — Click to change colours
-- **Fill regions** — Use the flood-fill tool (bucket icon)
-- **Add backstitches** — Draw outlines and details
-- **Place half-stitches** — Add quarter, half, or three-quarter stitches
-- **Swap colours** — Replace one thread with another across the entire pattern
-- **Export** — Download as PDF, PNG, JSON, or share via URL
-
-See **Pattern Creator Tutorial** for step-by-step details.
+See the **[Pattern Creator Tutorial](Pattern-Creator-Tutorial.md)** for details.
 
 ## Where to Find Help
 
-### In the App
+### In the app
 
-**Help Drawer** — Press `?` (or look for the help icon) to open the Help drawer:
-- In-app documentation for the current tool
-- Keyboard shortcuts
-- Frequently asked questions
-- Tips and tricks
+- **Help** — press `?` or use the **Help** button in the top bar. Help topics for every tool, a searchable shortcuts list, and Getting Started guides that replay each page's walkthrough.
+- **Command palette** — `Ctrl+K` (`Cmd+K` on Mac) to search for any action.
+- **Preferences** — **File > Preferences**: theme, defaults for each tool, PDF export, accessibility, sync and backup.
+- **Tooltips** — hover over any button for a short description.
 
-**Preferences** — Press Ctrl+, (Ctrl+Comma) to open Preferences:
-- Change theme (light/dark)
-- Adjust canvas zoom and interaction settings
-- View keyboard shortcut reference
-- Export or restore your data
-
-**Hover Tooltips** — Hover over any icon or button for a short description of what it does
-
-### Keyboard Shortcuts (All Tools)
+### Keyboard shortcuts (all tools)
 
 | Action | Shortcut |
 |--------|----------|
 | Undo | Ctrl+Z (Cmd+Z on Mac) |
-| Redo | Ctrl+Y (Cmd+Shift+Z on Mac) |
-| Open Help | ? |
-| Open Preferences | Ctrl+, (Ctrl+Comma) |
-| Search / Command Palette | Ctrl+K |
+| Redo | Ctrl+Y or Ctrl+Shift+Z |
+| Help and shortcuts | ? |
+| Command palette | Ctrl+K |
+| Download project as .json | Ctrl+S |
 
-### Online Resources
+### Online
 
-- **GitHub Issues** — Report bugs or suggest features: [github.com/Kate-nc/cross-stitch/issues](https://github.com/Kate-nc/cross-stitch/issues)
-- **Wiki Home** — Full documentation and advanced topics
-- **Community Discussions** — Ask questions and share patterns
+- **GitHub Issues** — report bugs or suggest features: [github.com/Kate-nc/cross-stitch/issues](https://github.com/Kate-nc/cross-stitch/issues)
 
-## Understanding Data Storage
+## Your Data
 
-### Where Does My Data Go?
+### Where does it go?
 
-Your data is stored **locally on your device** using IndexedDB (the browser's built-in database). Nothing is uploaded to a server.
+Your data is stored **only on your device**, in the browser's built-in database. Nothing is uploaded. The app works offline after the first visit.
 
-This means:
-- Your data is private — only you can access it
-- The app works fully offline after the initial load
-- No login or account is required
-- Saves are instant with no network delays
+### What if I close the browser?
 
-### What If I Close the Browser?
+Your projects are still there when you come back. **Exceptions:** private / incognito windows delete everything when closed, and clearing your browser's site data deletes it too. The top of the **File** menu shows whether the browser has marked your storage **Protected** or **Temporary**.
 
-Your projects are saved automatically. When you reopen the app, all your projects will still be there.
+### Backing up
 
-**Exception:** If you use **incognito/private browsing mode**, your data is deleted when you close the window. Use regular browsing for permanent storage.
+1. **File > Export Backup** (or **File > Preferences > Sync, backup & data > Download backup**) saves one file with all your projects, your stash and your settings.
+2. Keep it somewhere safe — an external drive or your cloud storage.
 
-### Backing Up Your Data
+**To restore:** **File > Restore from Backup…**, or **Preferences > Sync, backup & data > Choose file…**. Restoring replaces what is on this device.
 
-Your data only exists on your device by default. To protect against data loss:
+## Using Several Devices
 
-1. Open **Preferences** (`Ctrl+,`)
-2. Click the **Sync, backup & data** category in the left sidebar
-3. Click **Download backup** — this saves a single compressed file containing all your projects, stash, and settings
-4. Store the file somewhere safe (external drive, cloud storage, email to yourself, etc.)
+### Automatic folder sync (desktop Chrome and Edge)
 
-**To restore:** Open Preferences → **Sync, backup & data** → **Restore from a backup file**, then select your backup file.
+Uses a folder that your cloud drive already syncs (Dropbox, Google Drive, OneDrive, iCloud Drive…).
 
-See **[Backup & Restore](Backup-Restore.md)** for full details.
+1. On each device, open **File > Preferences > Sync, backup & data**, press **Choose folder…** and pick the **same** cloud folder. Allow access when the browser asks.
+2. Turn on **auto-sync**.
+3. A couple of seconds after you save, the app writes a `.csync` file to the folder (at most every 30 seconds). While the app is open and visible on another device, it checks the folder every 10 seconds and brings the changes in.
 
-## Using Across Multiple Devices
+The cloud icon in the top bar shows the sync status. If both devices changed the same project, a review screen lets you choose what to keep.
 
-stitchx supports two sync methods:
+### Sync by file (any browser, including iPhone and iPad)
 
-### Method 1: Automatic Folder Sync (Recommended)
+1. On the first device: **File > Export Sync (.csync)** (on iPhone and iPad, **Share sync file** in the cloud menu).
+2. Move the file to the other device — save it to your cloud drive, email it, or use a USB stick.
+3. On the other device: **File > Import Sync (.csync)…** (or **Import file** in the cloud menu) and choose the file.
 
-Works with cloud storage folders (Dropbox, Google Drive, OneDrive, iCloud).
+See **[Cross-Device Sync](Cross-Device-Sync.md)** for encryption, pairing codes and conflict handling.
 
-1. **Connect on Device A:**
-   - Go to Preferences → **Sync, backup & data** → **Sync folder**
-   - Click **Choose folder** and select a cloud storage folder (e.g., ~/Dropbox/cross-stitch-sync)
-   - Give permission when the browser asks
-   - Label the device (e.g., "Laptop")
+## Common Questions
 
-2. **Connect on Device B:**
-   - Go to Preferences → **Sync folder** → **Choose folder**
-   - Select the **same cloud folder** from Device A
-   - Label this device (e.g., "iPad")
+### Can I import a pattern I found online?
 
-3. **Automatic Sync:**
-   - When you make changes on Device A, they're automatically exported to the shared folder every 30 seconds
-   - Device B automatically detects and imports changes from the shared folder
-   - Projects appear on both devices with progress merged (you can stitch on one device, track on another)
-
-> **Note:** Requires the File System Access API (Chrome/Edge 86+). Firefox and Safari don't support folder watching yet.
-
-### Method 2: Manual File Transfer
-
-For older browsers or offline transfers:
-
-1. **Export from Device A:** Go to Preferences → **Backup & data** → **Download sync file** → Saves a `.csync` file
-2. **Transfer:** Send the file via email, cloud drive, USB, or any method you prefer
-3. **Import on Device B:** Go to Preferences → **Backup & data** → **Import sync file** → Select the file
-
-Your projects will now appear on Device B. See **Cross-Device Sync** for advanced workflows and conflict resolution.
-
-## Common First Questions
-
-### Q: Can I import a pattern I found online?
-
-**A:** Yes. The Stitch Tracker (and the home-screen importer) can load:
-- `.oxs` files (KG-Chart / Pattern Keeper format)
+Yes. **Home > Create new > New from pattern file** (or **File > Open…**) reads:
+- `.oxs` files (KG-Chart / Pattern Keeper / Open X-Stitch)
 - `.json` stitchx project files
-- Image files (`.png`, `.jpg`) — converted to a cross-stitch pattern
-- PDF pattern files (experimental)
+- images — converted into a pattern
+- PDF charts — including charts printed over several pages, scanned charts and booklets with several designs. A review screen lets you check pages and threads before saving.
 
-Use the import button in the Stitch Tracker toolbar.
+### Can I print my pattern?
 
-### Q: Can I export my pattern to print?
+Yes. **Materials & Output > Export** in the Pattern Creator makes a multi-page PDF chart (Pattern Keeper-compatible by default), a PNG, an `.oxs` file or a `.zip` bundle of everything. See [EXPORT_QUICKSTART.md](../EXPORT_QUICKSTART.md).
 
-**A:** Yes. The Pattern Creator has several export options:
-- **PDF Chart** — Multi-page Pattern Keeper–compatible chart, ready to print
-- **PNG Image** — Full-resolution raster image
-- **ZIP Bundle** — All formats (PDF, PNG, OXS, JSON) in one archive
+### Does it work on my phone?
 
-See **[Export Formats Explained](Export-Formats.md)** for details.
+Yes — phones, tablets and desktops. The Stitch Tracker is designed for touch: one finger marks stitches, two fingers pan and zoom.
 
-### Q: Does this work on my phone?
+### Can I undo mistakes?
 
-**A:** Yes. stitchx is responsive and works on iPhones, Android phones, and tablets. The layout adjusts for smaller screens and all core features are accessible on mobile.
+Yes — full undo / redo in both the Creator and the Tracker, including parking markers in the Tracker.
 
-### Q: Can I undo my mistakes?
+### What if I delete a project by accident?
 
-**A:** Yes — full undo/redo history in both the Creator and Tracker:
-- **Undo** — Ctrl+Z (Cmd+Z on Mac)
-- **Redo** — Ctrl+Y (Cmd+Shift+Z on Mac)
-
-### Q: What if I delete a project by accident?
-
-**A:** There is no recycle bin. If you deleted a project and do not have a backup, it cannot be recovered. This is why regular backups are important — use **Preferences** → **Sync, backup & data** → **Download backup** to export a full snapshot before doing bulk deletions.
+Press **Undo** on the message that appears straight after deleting. After it disappears, there is no recycle bin — the project can only come back from a backup. Download a backup before deleting several projects at once.
 
 ## Next Steps
 
-Now that you understand the basics, choose your next guide:
-
-- **[Pattern Creator Tutorial](Pattern-Creator-Tutorial.md)** — Learn to generate and edit patterns from images
-- **[Stitch Tracker Guide](Stitch-Tracker-Guide.md)** — Start tracking your stitching progress
-- **[Stash Manager Guide](Stash-Manager-Guide.md)** — Set up your thread inventory
+- **[Pattern Creator Tutorial](Pattern-Creator-Tutorial.md)** — make and edit patterns
+- **[Stitch Tracker Guide](Stitch-Tracker-Guide.md)** — track your stitching
+- **[Cross-Device Sync](Cross-Device-Sync.md)** — use more than one device
 
 ---
 
-**Last Updated:** May 2026  
-**Questions?** Press `?` in the app for in-app help, or visit [GitHub Issues](https://github.com/Kate-nc/cross-stitch/issues).
-
+**Last Updated:** October 2026
+**Questions?** Press `?` in the app, or visit [GitHub Issues](https://github.com/Kate-nc/cross-stitch/issues).

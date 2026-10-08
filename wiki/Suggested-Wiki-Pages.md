@@ -1,5 +1,7 @@
 # Suggested Wiki Pages for stitchx
 
+> **Status (October 2026):** this is a plan, not documentation. Written so far: Home, Getting Started Guide, Pattern Creator Tutorial, Stitch Tracker Guide and Cross-Device Sync. Developer topics (setup, testing, architecture, data model, conventions) are covered by the repository README, AGENTS.md and .github/copilot-instructions.md rather than separate wiki pages.
+
 ## Overview
 
 This document outlines 20 recommended wiki pages to create a comprehensive documentation experience for both end users and developers. These pages would complement the Home page and provide deep-dive guidance on specific features, workflows, and technical topics.
@@ -63,11 +65,10 @@ This document outlines 20 recommended wiki pages to create a comprehensive docum
 - Goal: Understand all export options
 - Content:
   - PDF charts (Pattern Keeper compatibility, image symbols, colour variants)
-  - PNG images (full resolution, A4 page layout)
+  - PNG images
   - JSON projects (loading and re-editing)
   - ZIP bundles (what's included)
   - OXS files (Pattern Keeper / KG-Chart)
-  - URL shares (compression, direct Tracker launch)
   - Choosing the right format for your needs
 - Includes: When to use each format
 
@@ -140,7 +141,7 @@ This document outlines 20 recommended wiki pages to create a comprehensive docum
 - Goal: Protect and recover your data
 - Content:
   - Manual backup workflow (full export)
-  - `.csbackup` file format
+  - `.csb` backup file format (older backups are `.json`)
   - Scheduling regular backups
   - Restoring from backup
   - Recovery after data loss

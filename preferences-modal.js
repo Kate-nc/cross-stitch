@@ -1354,7 +1354,7 @@
           })
         ),
         h(Row, { last: true, label: "Advanced sync behaviour",
-          desc: "Conflict handling and background folder checking are not available yet in this build, so these options are hidden until the sync engine supports them." },
+          desc: "While this page is open and visible, the app checks the sync folder every 10 seconds, and changes that conflict with this device always open a review screen. Choosing a different check interval or conflict rule is not available yet." },
           h("span", { style: { fontSize: 11, color: COLOURS.hint, fontStyle: "italic" } }, "Coming soon")
         )
       ),
