@@ -7315,7 +7315,7 @@ return(
         <span className="ppal-mode-btn-label">{isEditMode?"Modify":"Mark"}</span>
       </button>
       <button className={"ppal-mode-btn"+(stitchMode==="navigate"?" ppal-mode-btn--on":"")} onClick={()=>setStitchMode("navigate")} title="Navigate (N)" aria-pressed={stitchMode==="navigate"}>
-        <span className="ppal-mode-btn-icon">{Icons.parkFlag()}</span>
+        <span className="ppal-mode-btn-icon">{Icons.hand()}</span>
         <span className="ppal-mode-btn-label">Nav</span>
       </button>
       <button className="ppal-mode-btn" onClick={fitChart} title={areaOn?"Fit the work area (0)":"Fit to screen (0)"}>

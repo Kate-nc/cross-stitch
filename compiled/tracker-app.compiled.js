@@ -12159,7 +12159,7 @@ function TrackerApp({
     "aria-pressed": stitchMode === "navigate"
   }, /*#__PURE__*/React.createElement("span", {
     className: "ppal-mode-btn-icon"
-  }, Icons.parkFlag()), /*#__PURE__*/React.createElement("span", {
+  }, Icons.hand()), /*#__PURE__*/React.createElement("span", {
     className: "ppal-mode-btn-label"
   }, "Nav")), /*#__PURE__*/React.createElement("button", {
     className: "ppal-mode-btn",
