@@ -1,45 +1,45 @@
 # stitchx
 
-A fully client-side web application suite for creating, managing, and tracking cross-stitch patterns. No backend or installation required — open `home.html` in any modern browser and start stitching.
+A fully client-side web application suite for creating, managing, and tracking cross-stitch patterns. No backend, account or installation required — open it in any modern browser and start stitching. Your data stays on your device.
 
 ---
 
 ## The Suite
 
-Three integrated tools are accessible from a unified Home Screen ([`home.html`](home.html)). Each tool can also be opened directly as a standalone page.
+Three integrated tools sit behind a unified Home page ([`home.html`](home.html)). Each tool can also be opened directly.
 
-### Pattern Creator ([`index.html`](index.html))
+### Pattern Creator ([`create.html`](create.html))
 
 Convert images into stitchable charts, or design patterns from scratch.
 
 **Image conversion**
-- Upload JPG or PNG images and generate a pattern using k-means colour quantisation.
-- Optional Floyd-Steinberg dithering with four strength levels (off / weak / balanced / strong).
-- Adjust brightness, contrast, and saturation. Apply median or Gaussian smoothing before generation to reduce image noise.
-- Background removal: pick a colour from the source image to treat as empty fabric, with configurable tolerance.
-- Live low-resolution preview updates as you change settings, before committing to a full generation.
+- Start from a JPG, PNG, GIF, WebP or BMP image. Colours are matched to DMC threads with CIEDE2000 colour distance.
+- Dithering: Off, Atkinson (Subtle / Balanced / Strong) or ordered Bayer (2×2 / 4×4 / 8×8).
+- Adjust brightness, contrast and saturation, smooth or pre-sharpen the image, and treat a background colour as empty fabric (pick it from the image, with adjustable tolerance).
+- The preview updates as you change settings, before the full pattern is generated.
+- An experimental five-step guided import wizard is available under Preferences > Pattern Creator.
 
 **Palette controls**
-- Set the maximum number of colours (2–80).
-- Set a minimum stitch count per colour — colours used fewer times are automatically dropped.
-- Automatic orphan-stitch removal with four strength levels.
-- Smart two-thread blend detection: the generator suggests blends where a pair of DMC threads achieves a significantly better CIEDE2000 colour match than any single thread.
-- Stash-only mode: restricts colour matching to threads you already own.
+- Maximum number of colours: 2–100.
+- Minimum stitches per colour, Confetti Cleanup (merges isolated stitches) and Stitch Cleanup.
+- Smart two-thread blends where a pair of DMC threads matches noticeably better than any single thread.
+- Use only stash threads: restrict matching to the DMC and Anchor threads you own.
+- Shift Colours (hue rotation) and Palette Presets (themes, harmonies, your saved palettes).
 
 **Pattern editor**
-- Paint individual stitches, flood-fill regions, draw backstitch lines, and place half-stitches (quarter, half, three-quarter in all quadrants).
-- Magic Wand tool selects a colour region by clicking; refine the selection via a side panel.
-- Lasso tool for freeform selection.
-- Full undo / redo history (Ctrl+Z / Ctrl+Y).
-- Palette swap: replace one thread with another across the whole pattern.
-- Realistic canvas preview with a configurable fabric colour and mockup types (hoop, frame).
-- Split-pane view: show the realistic preview and the editable chart side by side.
+- Cross, half (both directions), quarter, three-quarter and backstitch tools; paint, fill, erase and eyedropper.
+- Magic Wand and Lasso (freehand, polygon, magnetic) selection, with a Move tool.
+- Replace colour: swap every stitch of one colour for another thread, with a preview (right-click, palette swap button, or `R`).
+- Cleanup mode for line-art borders and Denoise mode (palette merge, speckle, fringe).
+- Full undo / redo history.
+- Realistic preview from plain chart up to a hoop or frame mock-up, and a split-pane view of chart and preview side by side.
+- Stitch Score: a 0–100 stitchability rating (100 minus the percentage of confetti stitches).
 
-**Materials & thread management**
-- Materials Hub: per-colour stitch counts, skein estimates, cost totals, stash status, and Anchor conversion.
-- Substitute from stash: find the closest owned thread for any colour in the pattern.
-- Bulk add threads to stash from inside the Creator.
-- Designer branding section: embed your name, logo, copyright, and contact details in exported PDFs.
+**Materials & Output**
+- Threads: per-colour stitch counts, skein estimates and cost.
+- Stash status: what you own, what is low, what you need to buy.
+- Export: PDF, PNG, `.oxs` and a `.zip` bundle (see [Export & Sharing](#export--sharing)).
+- Adapt to my stash / Adapt to brand: make a copy of the pattern that uses threads you own, or another brand.
 
 ---
 
@@ -47,38 +47,38 @@ Convert images into stitchable charts, or design patterns from scratch.
 
 A digital replacement for a printed chart while you stitch.
 
-- **Tracking:** Click, tap, or drag to mark full stitches and half-stitches as done. Full undo history.
-- **Views:** Symbol, Colour + Symbol, or Highlight mode (isolate, outline, tint, or spotlight a single active colour).
-- **Navigation:** Place a guide crosshair on the canvas. Right-click a stitch (or press and hold it in navigate mode on touch) to mark a parked thread in that stitch's colour.
-- **Colours drawer:** Per-colour progress percentages and stitch counts. Click a colour to highlight only those stitches.
-- **Session timer:** Records the start/end of each stitching session and estimates your completion date based on actual stitching speed.
-- **Import:** Load projects from `.oxs` (KG-Chart / Pattern Keeper XML), `.json` project files, pixel-art images (`.png`, `.jpg`), or extracted PDF patterns.
+- **Marking:** Mark mode — click, tap or drag to mark stitches done; Shift+drag (or press-and-hold then tap on touch) marks a rectangle. On touch, one finger marks and two fingers pan and zoom.
+- **Navigate mode:** a hand tool — drag to move around, click to place a guide crosshair across a row and column.
+- **Parking:** right-click a stitch (or press and hold in Navigate mode) to park a thread there; jump back to parked threads from the palette.
+- **Views:** Symbol, Colour + Symbol, or Highlight (Isolate, Outline, Tint, Spotlight) to focus on one colour.
+- **Work areas:** show just one part of a large pattern; counts, Spotlight and "Mark all done" are scoped to it.
+- **Stitch layers:** show or hide full stitches, half stitches, French knots and backstitch.
+- **Row mode** and **Section spotlight:** work one row, or one block, at a time.
+- **Sessions:** start automatically when you stitch and end after a configurable idle time; three timing modes. Used to estimate your completion date and feed the Stats page.
+- **Import:** `.json` projects, `.oxs` (KG-Chart / Pattern Keeper XML), images, and PDF charts — including multi-page, scanned and booklet PDFs, with a review screen before saving.
 
 ---
 
 ### Stash Manager ([`manager.html`](manager.html))
 
-Thread inventory management and shopping planning.
+Thread inventory and pattern library.
 
-- **Inventory:** Mark DMC and Anchor skeins as owned or to-buy. Stash status is reflected in the Creator and Tracker in real time via a cross-database bridge.
-- **Skein calculator:** Estimates thread usage for single colours and blends from stitch count, fabric count, strand count, and waste factor. Includes a standalone manual calculator and a batch mode for entire patterns.
-- **Shopping list:** Copy a formatted to-buy list or full requirements to the clipboard.
-- **Cost tracking:** Set a price per skein for a running total of stash value and outstanding cost.
-- **Thread catalogue:** Browse the full DMC and Anchor palettes. Bulk-add preset starter kits (DMC Essentials, Anchor Starter) with one click.
-- **Pattern library:** Store and browse the patterns you own, separate from the projects you are actively stitching.
+- **Thread Stash:** DMC and Anchor threads with skein counts, part-used status (Mostly full / About half / Remnant / Used up), per-thread minimum stock and low-stock alerts. Stash status shows in the Creator and Tracker in real time.
+- **Bulk Add:** paste a list of thread numbers, or add a preset starter kit.
+- **Pattern Library:** every project saved in the Creator or Tracker appears automatically, plus patterns you add by hand. Shows how many of each pattern's threads you own. Projects are deleted from here (with a short Undo).
+- **Shopping and cost:** shopping lists and stash value at your skein price.
 
 ---
 
-## Home Screen ([`home.html`](home.html))
+## Home ([`home.html`](home.html))
 
-The canonical landing page and project hub.
+The default landing page and project hub.
 
-- **Projects tab:** Active project card (progress %, last updated), full project list with per-row Track and Edit actions, and multi-select bulk delete.
-- **Create new tab:** Start from an image or open a blank canvas.
-- **Stash tab:** Thread ownership summary and a link to the Stash Manager.
-- **Stats tab:** Link to the Stats dashboard.
-- Time-aware greeting, project initials avatar, and relative timestamps.
-- Live refresh on `cs:projectsChanged`, `cs:backupRestored`, `cs:stashChanged`, and `visibilitychange` events — data stays current when another tab makes changes.
+- **Projects:** greeting, the active project card (progress, last edited), and every other project with Track, Edit and Export actions.
+- **Create new:** New from pattern file (image, `.json`, `.oxs` or `.pdf`) or New from scratch (blank grid).
+- **Stash:** thread ownership summary and shopping list, linking to the Stash Manager.
+- **Stats:** lifetime stitches, recent activity and your oldest work in progress, linking to the Stats page.
+- Refreshes live on `cs:projectsChanged`, `cs:backupRestored`, `cs:stashChanged` and `visibilitychange`, so changes made in another tab show up.
 
 ---
 
@@ -86,96 +86,49 @@ The canonical landing page and project hub.
 
 | Format | Description |
 |--------|-------------|
-| `.json` | Full project save — pattern, progress, session history, parking markers, thread ownership. Reload at any time. |
-| `.zip` bundle | Single archive containing the PDF chart, `.oxs`, PNG image, and `.json`, with a `manifest.json` index. |
-| PDF chart | Multi-page, Pattern Keeper-compatible chart. Vector symbols from an embedded `CrossStitchSymbols.ttf` font. Includes a cover sheet, thread legend, finished-size table, cost and stash summary, and optional designer branding. Black-and-white and colour chart modes; configurable page sizes (A4 / Letter / auto) and grid density. |
-| PNG image | Full-resolution PNG of the pattern grid. Optional A4 page layout mode. |
-| URL share | Pako-compressed pattern encoded into a URL query string — opens directly in the Stitch Tracker with no file transfer. |
-| `.oxs` | KG-Chart / Pattern Keeper XML export for interoperability with other cross-stitch software. |
-| `.csync` | Compressed cross-device sync file. Export from one device and import on another via any cloud drive or manual file transfer (no account required). |
+| `.json` | Full project — pattern, progress, sessions, parking markers, thread ownership. File > Download (.json), or Ctrl+S. Reload at any time in the Creator or Tracker. |
+| PDF chart | Multi-page, Pattern Keeper-compatible chart using the embedded `CrossStitchSymbols.ttf` symbol font. Presets for Pattern Keeper and home printing; Auto / A4 / US Letter; four print sizes; B&W and colour chart modes; optional cover, info, chart index and mini-legend pages; 2-row overlap zone; designer branding. See [EXPORT_QUICKSTART.md](EXPORT_QUICKSTART.md). |
+| PNG image | Single image of the pattern grid. |
+| `.oxs` | Open X-Stitch XML for MacStitch, WinStitch, FlossCross and Pattern Keeper. |
+| `.zip` bundle | One archive with the PDF, `.oxs`, a PNG preview, the `.json` project and a `manifest.json`. |
+| Backup (`.csb`) | Every project, the stash and settings in one compressed file (older backups are `.json`). File > Export Backup / Restore from Backup. |
+| `.csync` | Cross-device sync file — see [Cross-device sync](#cross-device-sync). |
+
+---
+
+## Cross-device sync
+
+Optional, account-free sync through a folder your cloud drive already syncs (Dropbox, OneDrive, Google Drive, iCloud Drive…).
+
+- Set it up in Preferences > Sync, backup & data: choose the folder on each device and turn on auto-sync. The app writes `.csync` files after saves and checks the folder every 10 seconds while visible.
+- Conflicting edits open a review screen; a cloud icon in the top bar shows sync status.
+- Optional AES-GCM passphrase encryption of sync files, and pairing codes to name devices consistently.
+- iPhone and iPad browsers cannot watch folders, so they sync by sharing and importing `.csync` files by hand.
+
+See [wiki/Cross-Device-Sync.md](wiki/Cross-Device-Sync.md).
 
 ---
 
 ## Stats & Insights
 
-A dedicated Stats page aggregates data across all projects and the stash.
+A Stats page (Stats in the top bar) aggregates data across all projects and the stash, in Stitching, Stash, Showcase, Activity and Insights tabs.
 
-- Lifetime stitch count, active project count, and finished-project count.
-- Weekly streak tracker and recent stitching pace.
-- SABLE Index (Stash Acquired Beyond Life Expectancy) — how many years of stitching your current stash represents.
-- Colour-family breakdown and DMC palette coverage percentage.
-- "Ready to start" counter — projects whose required threads are all owned.
-- "Use what you have" and "Buying impact" purchasing advisors.
-- Duplicate-risk warnings and oldest WIP detector.
+- Lifetime stitch count, active and finished projects, weekly streaks and recent pace.
+- SABLE Index (Stash Acquired Beyond Life Expectancy) — how many years of stitching your stash represents.
+- Colour-family breakdown and DMC palette coverage.
+- "Ready to start" projects (all threads owned), "Use what you have" and "Buying impact" advisors, duplicate-risk warnings and an oldest-WIP detector.
 - Designer leaderboard, brand-alignment chart, difficulty vs. completion scatter plot.
-- AI-style weekly summary text that compares this week's stitching against last week.
-- All visible sections are individually toggleable via the preferences panel.
+- An activity heatmap and a weekly summary comparing this week with last.
+- Sections can be shown or hidden with the Stats page's Customise button.
 
 ---
 
 ## Thread Data
 
-- **DMC:** Full stranded-cotton catalogue — 500 colours with CIE L\*a\*b\* values pre-computed for fast CIEDE2000 matching.
-- **Anchor:** Full Anchor Stranded Cotton catalogue with reconciled RGB values sourced from the official colour card, Stitchtastic, Cross-Stitched.com, and sibalman/thread-converter. Contested colours are flagged.
-- **DMC ↔ Anchor conversions:** Bidirectional conversion table with confidence labels (`official`, `reconciled`, `single-source`). Both directions are stored independently so asymmetric mappings are preserved.
-- **Fabric counts:** 14, 16, 18, 20, 22 count Aida and 28 count evenweave (over two).
-
----
-
-## Architecture
-
-This project demonstrates what modern browsers can do with a minimal local build pipeline and no application server.
-
-### Runtime stack
-
-| Component | Detail |
-|-----------|--------|
-| **React 18** | Loaded from CDN as browser globals. |
-| **Precompiled runtime entry files** | `tracker-app.js`, `creator-main.js`, `manager-app.js`, and `embroidery.js` are transformed ahead of time into `compiled/*.compiled.js` by `build-runtime-js.js`. |
-| **pdf-lib** | Pure-JS PDF generation. Produces Pattern Keeper-compatible output. |
-| **PDF.js** | Extracts pattern data from imported PDF files. |
-| **Pako** | Deflate/inflate compression used for URL sharing and `.csync` files. |
-| **JSZip** | Packages the `.zip` bundle export (loaded lazily). |
-
-### Web Workers
-
-Two dedicated workers keep the UI responsive during heavy computation:
-
-- **`analysis-worker.js`** — image analysis: bilateral filtering, Canny edge detection, saliency mapping.
-- **`generate-worker.js`** — pattern generation pipeline: colour quantisation, dithering, orphan removal.
-
-### Storage
-
-| Database | Object stores | Used by |
-|----------|--------------|---------|
-| `CrossStitchDB` (v3) | `projects`, `project_meta`, `stats_summaries` | Creator, Tracker — patterns, progress, stats |
-| `stitch_manager_db` (v1) | `manager_state` | Stash Manager — thread inventory, pattern library |
-
-`localStorage` holds lightweight pointers: the active project ID (`crossstitch_active_project`), user preferences (`cs_pref_*`), and per-project view state (`cs_pview_*`).
-
-### Creator module (`creator/`)
-
-The Pattern Creator's logic is split across individual source files inside `creator/`. They are **concatenated** (not transpiled) into `creator/bundle.js` by a custom build script:
-
-```bash
-node build-creator-bundle.js
-```
-
-**Always regenerate `creator/bundle.js` after editing any file in `creator/`.** Never edit `creator/bundle.js` directly.
-
-### Cross-page communication
-
-Pages communicate via `CustomEvent` on `window`:
-
-| Event | Purpose |
-|-------|---------|
-| `cs:projectsChanged` | A project was saved, deleted, or renamed |
-| `cs:backupRestored` | A backup was imported |
-| `cs:stashChanged` | Thread inventory changed |
-| `cs:patternsChanged` | Pattern library changed |
-| `cs:prefsChanged` | A user preference was updated |
-| `cs:openHelp` | Open the Help drawer |
-| `cs:openShortcuts` | Open the keyboard shortcuts panel |
+- **DMC:** full stranded-cotton catalogue — 525 colours with pre-computed CIE L\*a\*b\* values for fast CIEDE2000 matching.
+- **Anchor:** full Anchor Stranded Cotton catalogue with reconciled RGB values from the official colour card, Stitchtastic, Cross-Stitched.com and sibalman/thread-converter. Contested colours are flagged.
+- **DMC ↔ Anchor conversions:** bidirectional table with confidence labels (`official`, `reconciled`, `single-source`). Both directions are stored independently so asymmetric mappings are preserved.
+- **Fabrics:** 11–22 count Aida, 25 count evenweave, and 28 / 32 count linen (worked over two).
 
 ---
 
@@ -183,258 +136,269 @@ Pages communicate via `CustomEvent` on `window`:
 
 ### Command Palette
 
-Press **Ctrl+K** (or **Cmd+K** on Mac) from any page to open the command palette. Supports fuzzy search across all available actions: navigation, project management, tool activation, help, and preferences.
+**Ctrl+K** (or **Cmd+K**) on any page opens a fuzzy-search command palette for navigation, project actions, tools, help and preferences. The hotkey can be changed or turned off in Preferences > Advanced.
 
-### Help Drawer
+### Help
 
-Press **?** from any page to open the contextual Help drawer. Contains topic-based help, a keyboard shortcuts reference, and getting-started hints. Slides in from the right; press Escape or click outside to dismiss.
+Press **?** or use the Help button in the top bar to open the Help drawer: topic articles, a searchable shortcuts reference, and Getting Started guides that can replay each page's walkthrough. All content lives in [`help-drawer.js`](help-drawer.js).
 
 ### Keyboard Shortcuts
 
-Each tool registers its own shortcuts. Common shortcuts include:
+The Help drawer's Shortcuts tab is the reference. Common ones:
 
 | Key | Action |
 |-----|--------|
-| `?` | Toggle Help drawer |
+| `?` | Help and shortcuts |
 | `Ctrl+K` | Command palette |
-| `Ctrl+Z` | Undo |
-| `Ctrl+Y` | Redo |
-| `H` | Hand (pan) tool |
-| `W` | Magic Wand tool |
-| `L` | Lasso tool |
-| `[` / `]` | Previous / next colour |
+| `Ctrl+Z` / `Ctrl+Y` | Undo / redo |
+| `Ctrl+S` | Download the project as `.json` |
+| `V` | Cycle view mode |
+| `W` | Creator: Magic Wand · Tracker: pick a work area |
+| `H` | Creator: Hand (pan) · Tracker: toggle half-stitch layer |
+| `T` / `N` | Tracker: Mark / Navigate mode |
+| `[` / `]` | Tracker highlight view: previous / next colour |
 
 ### Preferences
 
-A 12-category preferences panel (accessible from the header on every page) persists all settings via `window.UserPrefs`. Categories include:
+File > Preferences opens a 12-category panel (Profile & branding, Regional & units, Notifications, Accessibility, Pattern Creator, Stitch Tracker, Stash Manager, Preview & display, PDF export, Sync backup & data, Onboarding & help, Advanced). Settings persist via `window.UserPrefs`. The bottom of every panel shows the version history from [`version.js`](version.js).
 
-- Pattern Creator generation defaults (palette size, dithering, orphan removal, fabric count)
-- Stitch Tracker view and highlight defaults
-- PDF export presets
-- Stash and cost display options
-- Appearance (theme, accent colour, font size)
-- Accessibility options
+### Onboarding
 
-### Coaching
-
-First-use coachmarks guide new users through key actions (first pattern generation, first stitch). Each coachmark is shown once and then permanently dismissed via `UserPrefs`. The coaching sequence can be reset from Preferences.
-
-### Onboarding Wizard
-
-A multi-step wizard walks first-time users through the main workflow the first time they open the app.
+- **Welcome walkthroughs** ([`onboarding-wizard.js`](onboarding-wizard.js)): a short tour the first time you open the Creator, Tracker or Stash Manager. Steps highlight real controls; the tour waits behind any other open dialog. The Tracker's tour ends by asking how you like to stitch; skipping keeps the default.
+- **Coachmarks** ([`coaching.js`](coaching.js)): one-off tips — the Tools tab unlocking after you generate, painting your first stitch, marking your first stitch, marking a rectangle. They never block the page, wait for walkthroughs to finish, and are remembered however they are dismissed (Skip tips hides them all).
+- **Help hint:** a small "Press ? for help" pill after 30 seconds of idleness on a first visit.
+- **Reset:** Help > Getting Started > Restart guided tours and Preferences > Onboarding & help > Reset every walkthrough both reset all of the above.
 
 ---
 
 ## Progressive Web App
 
-The Service Worker (`sw.js`) pre-caches all assets on first load. The app then works entirely offline.
+The service worker ([`sw.js`](sw.js)) pre-caches the app shell on first load; the app then works offline.
 
-**Install instructions:**
-- **Desktop (Chrome / Edge):** Click the install icon in the address bar.
-- **iOS Safari:** Tap the Share button, then "Add to Home Screen".
-- **Android:** Open the browser menu and select "Install" or "Add to Home Screen".
+- **Desktop (Chrome / Edge):** click the install icon in the address bar.
+- **iOS / iPadOS Safari:** Share > Add to Home Screen. Installing also stops Safari clearing stored patterns after seven days without a visit.
+- **Android:** browser menu > Install app.
 
 ---
 
 ## Getting Started
 
-### Open locally
-
-```bash
-git clone https://github.com/Kate-nc/cross-stitch.git
-cd cross-stitch
-open home.html   # macOS
-start home.html  # Windows
-```
-
-> **Note:** Some browsers block Web Workers and IndexedDB under the `file://` protocol. If the app does not load correctly, use the local server instead.
-
 ### Serve locally
 
 ```bash
-# Node.js (included)
-npm run start        # serves on port 8000
-
-# Python
-python -m http.server 8000
+npm install          # dev dependencies: Jest, Playwright, build tooling
+npm run start        # node serve.js on port 8000
+# or: python -m http.server 8000
 ```
 
-Then open `http://localhost:8000/home.html`.
+Then open `http://localhost:8000/home.html`. Opening the HTML files from `file://` mostly works, but some browsers block Web Workers and IndexedDB there.
 
-### Direct entry points
+### Entry points
 
 | URL | Tool |
 |-----|------|
-| `home.html` | Home Screen (start here) |
-| `index.html` | Pattern Creator |
+| `home.html` | Home (start here) |
+| `create.html` | Pattern Creator |
+| `index.html` | Legacy Creator URL: redirects to Home when no project is active; also hosts the Stats page (`?mode=stats`) |
 | `stitch.html` | Stitch Tracker |
 | `manager.html` | Stash Manager |
-
-If there is no active project, the per-tool pages redirect to `home.html` automatically, so bookmarks and PWA shortcuts remain valid.
+| `embroidery.html` | Experimental embroidery planner (enable in Preferences > Pattern Creator > Experimental) |
 
 ---
 
 ## Development
 
-### Prerequisites
-
-```bash
-npm install   # installs Jest, Playwright, and build tooling
-```
-
-You can still open the HTML files directly in a browser for local use, but checked-in runtime artefacts are generated by the build scripts below.
+Requires Node.js 22 or later.
 
 ### Testing
 
 ```bash
-# Jest unit tests (recommended: run in-band for deterministic output)
-npm test -- --runInBand
-
-# With coverage
+npm test                         # Jest, parallel (~240 suites, a few seconds)
+npm test -- --runInBand          # serial, for debugging cross-suite state
 npm test -- --coverage
 
-# End-to-end browser tests (Playwright)
-npx playwright install chromium   # first time only
-npm run test:e2e
+npx playwright install chromium webkit   # first time only
+npm run test:e2e                 # touch-tablet Chromium
+npm run test:ipad                # iPad WebKit
+npm run test:mobile-audit        # phone / tablet / desktop layout audit
+npm run perf:baseline            # desktop perf (also perf:mobile)
 
-# Terminology lint (flags disallowed terms in source files)
-npm run lint:terminology
-
-# CSS design-token lint (flags raw hex and removed --ws-* aliases)
-npm run lint:css-tokens
+npm run lint:terminology         # banned terms in user-facing copy
+npm run lint:css-tokens          # raw hex / removed --ws-* aliases in CSS
 ```
 
-The test suite contains 100+ Jest test files covering colour maths, skein calculation, image processing, PDF layout, storage, UI component behaviour, and regression cases for fixed bugs.
+Tests are CommonJS and mostly load browser source with `fs.readFileSync` + `new Function`/`eval`, since the app has no module system.
 
-### Rebuilding the creator bundle
+### Build steps
 
-```bash
-npm run build:creator
-# or equivalently:
-node build-creator-bundle.js
-```
+The app runs without a bundler, but some files are generated and committed:
 
-Run this after editing any file in `creator/`. The source files and their required concatenation order are defined in `build-creator-bundle.js`.
+| Command | Output | When |
+|---|---|---|
+| `node build-creator-bundle.js` (`npm run build:creator`) | `creator/bundle.js`, `creator/extras-bundle.js`, `creator/import-wizard-bundle.js` | After editing anything in `creator/` |
+| `node build-runtime-js.js` (`npm run build:runtime-js`) | `compiled/*.compiled.js` | After editing `tracker-app.js`, `creator-main.js`, `manager-app.js` or `embroidery.js` (JSX, precompiled so there is no in-browser Babel) |
+| `node build-import-bundle.js` | `import-engine/bundle.js` | After editing anything in `import-engine/` |
+| `node build-symbol-font.js` | `assets/fonts/CrossStitchSymbols.ttf` (+ base64) | After changing the PDF symbol set |
+| `npm run build` | creator bundle + runtime JS | — |
 
-### Rebuilding runtime entry files
+Never edit generated files by hand. `npm test` and the pre-commit hook fail when `compiled/` is stale (`node build-runtime-js.js --check` says which file).
 
-```bash
-npm run build:runtime-js
-# or equivalently:
-node build-runtime-js.js
-```
+### Git hooks
 
-This precompiles the runtime JSX entry points into `compiled/*.compiled.js` so the app no longer depends on Babel Standalone at runtime.
+`npm install` points Git at `.husky/`. The pre-commit hook runs the terminology lint and, when runtime entry files are staged, the `compiled/` staleness check.
 
-### Full build
+### Versioning
 
-```bash
-npm run build
-```
+`APP_VERSION` in [`version.js`](version.js) is bumped automatically on each merge to `main`. `APP_CHANGELOG` in the same file is written by hand — add a plain-English entry for user-visible changes.
 
-This runs both the creator bundle concatenation step and the runtime JSX precompile step.
+---
+
+## Architecture
+
+### Runtime stack
+
+| Component | Detail |
+|-----------|--------|
+| **React 18** | Loaded from cdnjs as browser globals (`window.React`, `window.ReactDOM`). |
+| **Plain `<script>` globals** | No module system in the browser; files expose APIs on `window`. |
+| **Precompiled entry files** | `compiled/*.compiled.js`, loaded lazily by [`runtime-loaders.js`](runtime-loaders.js). |
+| **pdf-lib** | PDF generation in a worker. Produces Pattern Keeper-compatible output. |
+| **PDF.js** | Reads imported PDF charts. |
+| **Pako** | Compression for backups, `.csync` files and project hand-off. |
+| **JSZip** | `.zip` bundle export. |
+
+[`lazy-modules.js`](lazy-modules.js) defers `help-drawer.js` and `backup-restore.js` until first use; [`import-engine/lazy-shim.js`](import-engine/lazy-shim.js) does the same for the import engine.
+
+### Web Workers
+
+| Worker | Job |
+|---|---|
+| `generate-worker.js` | Pattern generation: quantisation, dithering, cleanup |
+| `analysis-worker.js` | Image analysis and Tracker stitch analysis |
+| `cleanup-worker.js` | Line-art Cleanup mode |
+| `noise-cleanup-worker.js` | Denoise mode |
+| `pdf-export-worker.js` | PDF chart generation (pdf-lib) |
+| `pdf-raster-worker.js` | Rasterising scanned / image PDF pages |
+| `import-engine/worker.js` | PDF and pattern import pipeline |
+
+### Storage
+
+| Database | Version | Object stores | Used by |
+|----------|---------|---------------|---------|
+| `CrossStitchDB` | 5 | `projects`, `project_meta`, `stats_summaries`, `sync_snapshots`, `importerTelemetry`, `pendingImports` | Creator, Tracker, Stats, sync, importer |
+| `stitch_manager_db` | opened without a version (see `openManagerDB` in [`helpers.js`](helpers.js)) | `manager_state` (`threads`, `patterns`) | Stash Manager and the stash bridge |
+| `cross_stitch_sync_meta` | 1 | `sync_state` | Sync engine |
+
+`localStorage` holds lightweight pointers and per-device UI state: the active project ID (`crossstitch_active_project`), user preferences (`cs_pref_*`), per-project view state (`cs_pview_*`), and onboarding flags (`cs_welcome_*_done`, `cs_styleOnboardingDone`).
+
+### Cross-page communication
+
+Pages communicate through `CustomEvent`s on `window` (and `BroadcastChannel` for cross-tab coordination — see `cross-tab-*.js`). The main ones:
+
+| Event | Purpose |
+|-------|---------|
+| `cs:projectsChanged` | A project was saved, deleted or renamed |
+| `cs:backupRestored` | A backup was restored |
+| `cs:stashChanged` | Thread inventory changed |
+| `cs:patternsChanged` | Pattern library changed |
+| `cs:prefsChanged` | A user preference changed |
+| `cs:syncStatusChanged` | Sync state changed (drives the cloud icon) |
+| `cs:openHelp`, `cs:openShortcuts`, `cs:openPreferences` | Open the Help drawer / shortcuts / Preferences |
+| `cs:showWelcome` | Replay a page's welcome walkthrough |
 
 ---
 
 ## Key File Reference
 
 ```
-home.html / home-app.js        Home Screen — project hub and landing page
-index.html / creator-main.js   Pattern Creator entry point and app mount
+home.html / home-app.js        Home — project hub and landing page
+create.html / creator-main.js  Pattern Creator entry and app mount
+index.html                     Legacy Creator URL + Stats host
 stitch.html / tracker-app.js   Stitch Tracker
 manager.html / manager-app.js  Stash Manager
+stats-page.js                  Stats page (with stats-insights.js, stats-activity.js,
+                               insights-engine.js, components-stats.js)
 
-styles.css                     Shared Workshop design-token stylesheet
+styles.css                     Workshop design tokens and shared styles
 constants.js                   Fabric counts, skein length, price defaults
-dmc-data.js                    Full DMC palette (ID, name, RGB, Lab)
-anchor-data.js                 Full Anchor palette with reconciled RGB values
-thread-conversions.js          Bidirectional DMC ↔ Anchor conversion table
-starter-kits.js                Preset thread collections for bulk import
-
-colour-utils.js                k-means quantisation, Floyd-Steinberg dithering,
-                               CIEDE2000 distance, colour matching
+dmc-data.js / anchor-data.js   Thread catalogues
+thread-conversions.js          DMC <-> Anchor conversion table
+starter-kits.js                Preset thread collections
+colour-utils.js                Quantisation, dithering, CIEDE2000, colour matching
 threadCalc.js                  Skein estimation (stitchesToSkeins)
-helpers.js                     Shared utilities: time formatting, grid maths,
-                               IndexedDB helpers (getDB, saveProjectToDB, …)
-import-formats.js              Parsers for .oxs, .json, image, and PDF imports
-embroidery.js                  Image processing pipeline: bilateral filter,
-                               Canny edges, saliency map (used by generate-worker)
+helpers.js                     Shared utilities, pattern (de)serialisation, DB openers
+import-formats.js              .oxs / .json / image parsers
+import-engine/                 PDF and pattern import pipeline (bundled)
+pdf-importer.js                Legacy PDF importer
 
-project-storage.js             Multi-project IndexedDB storage (CrossStitchDB)
-stash-bridge.js                Cross-database bridge to stitch_manager_db
-backup-restore.js              Full-database export and import
-sync-engine.js                 .csync cross-device sync (Pako-compressed)
+project-storage.js             Multi-project storage (CrossStitchDB)
+stash-bridge.js                Bridge to stitch_manager_db from any page
+project-library.js             Pattern Library (wraps home-screen.js dashboard)
+backup-restore.js              Full backup and restore
+sync-engine.js                 Folder / file sync (.csync)
+cross-tab-*.js                 Cross-tab locking and conflict resolution
 
-components.js                  Shared React UI components
-header.js                      Shared navigation header
-modals.js                      Shared modal dialogs
+header.js                      Top bar, File menu, sync popover
+components.js / modals.js      Shared React components and modals
 icons.js                       SVG icon library (window.Icons.name())
-toast.js                       Toast notification system
-command-palette.js             Global command palette (Ctrl+K)
-help-drawer.js                 Help, shortcuts, and getting-started drawer
-shortcuts.js                   Keyboard shortcut registration and display
-coaching.js                    First-use coachmark system
-onboarding-wizard.js           Multi-step onboarding wizard
-user-prefs.js                  Persistent user preferences (window.UserPrefs)
-apply-prefs.js                 Applies a11y / theme / accent classes on load
-preferences-modal.js           12-category preferences panel
-palette-swap.js                Palette swap UI and logic
+toast.js                       Toasts
+command-palette.js             Ctrl+K palette
+help-drawer.js                 Help, shortcuts and Getting Started content
+shortcuts.js / keyboard-utils.js  Shortcut registry, Esc stack, "?" key
+onboarding-wizard.js           Welcome walkthroughs
+coaching.js                    Coachmarks
+user-prefs.js / apply-prefs.js / preferences-modal.js  Preferences
+palette-swap.js                Shift Colours and Palette Presets
+work-area.js                   Tracker work areas
 
-stats-page.js                  Stats dashboard entry point
-stats-insights.js              Insights UI layer
-insights-engine.js             Pure insight-text generation functions
-stats-activity.js              Activity chart components
+creator/                       Creator components and hooks (see build-creator-bundle.js)
+creator/pdfExport.js, creator/pdfChartLayout.js, pdf-export-worker.js
+                               Pattern Keeper-compatible PDF export (bit-stable)
+sw.js / manifest.json          Service worker and PWA manifest
+version.js                     App version and in-app changelog
 
-analysis-worker.js             Web Worker: image analysis (bilateral, Canny, saliency)
-generate-worker.js             Web Worker: pattern generation pipeline
-
-creator/                       Pattern Creator sub-components (see build-creator-bundle.js)
-creator/bundle.js              Concatenated creator bundle — DO NOT edit directly
-
-pdf-export-worker.js           PDF generation worker (pdf-lib, Pattern Keeper-compatible)
-creator/pdfChartLayout.js      PDF page layout helpers
-creator/pdfExport.js           Main-thread PDF export façade
-build-creator-bundle.js        Script that concatenates creator/ into creator/bundle.js
-build-symbol-font.js           Script that builds assets/fonts/CrossStitchSymbols.ttf
-
-sw.js                          Service Worker (offline PWA caching)
-manifest.json                  PWA manifest
-
-tests/                         Jest unit test suites (100+ files)
-tests/e2e/                     Playwright end-to-end tests
+tests/                         Jest suites
+tests/e2e, tests/ipad, tests/perf, tests/mobile-audit   Playwright suites
+reports/                       Audits, plans and investigations
+wiki/                          User guides
 ```
 
 ---
 
 ## Project Data Format
 
-A saved project (schema version 8) is a plain JSON object:
+Projects are stored and downloaded as JSON (`version: 11`):
 
 ```json
 {
-  "v": 8,
+  "version": 11,
   "id": "proj_1712345678",
+  "page": "creator",
   "name": "My Pattern",
-  "createdAt": "2024-04-05T12:00:00.000Z",
-  "updatedAt": "2024-04-05T12:00:00.000Z",
-  "w": 80,
-  "h": 80,
-  "settings": { "sW": 80, "sH": 80, "fabricCt": 14 },
-  "pattern": [ { "id": "310", "type": "solid", "rgb": [0, 0, 0] }, "..." ],
+  "designer": "",
+  "description": "",
+  "createdAt": "2026-04-05T12:00:00.000Z",
+  "updatedAt": "2026-04-05T12:00:00.000Z",
+  "settings": { "sW": 80, "sH": 80, "fabricCt": 14, "maxC": 30, "...": "..." },
+  "pattern": [ { "id": "310", "type": "solid" }, { "id": "__skip__" } ],
   "bsLines": [],
   "done": null,
-  "halfStitches": {},
-  "halfDone": {},
+  "halfStitches": [],
+  "halfDone": [],
+  "partialStitches": [],
   "parkMarkers": [],
-  "totalTime": 0,
   "sessions": [],
-  "threadOwned": {}
+  "statsSessions": [],
+  "threadOwned": {},
+  "workArea": null
 }
 ```
 
-- `pattern` is a flat array of length `w × h`. Each cell is `{ id, type, rgb }` for a solid colour, `{ id: "310+550", type: "blend", … }` for a two-thread blend, or `{ id: "__skip__" }` / `{ id: "__empty__" }` for background and empty cells.
-- `done` is `null` (no tracking started) or a flat array of the same length as `pattern`, where `1` = done and `0` = not done.
-- Blend IDs are two DMC IDs joined with `+` (e.g. `"310+550"`).
+- `settings.sW` × `settings.sH` are the dimensions; `pattern` is a flat array of that length.
+- Each cell is `{ id, type }` for a solid DMC thread (the RGB is rebuilt from the catalogue on load), `{ id, type, rgb }` where it cannot be rebuilt, `{ id: "310+550", type: "blend" }` for a two-thread blend, or `{ id: "__skip__" }` / `{ id: "__empty__" }` for background and empty cells. See `stripCellForSave` in [`helpers.js`](helpers.js) and `restoreStitch` in [`colour-utils.js`](colour-utils.js).
+- `done` is `null` (not started) or an array the same length as `pattern` with `1` for done stitches.
+- The Tracker adds its own fields (`statsSessions`, `doneSnapshots`, `breadcrumbs`, `stitchingStyle`, `focusBlock`, `workArea`, …).
+- Older files (`v: 8` and earlier, `.oxs`, compact `.p` grids) are still read.
 
 ---
 
@@ -442,12 +406,13 @@ A saved project (schema version 8) is a plain JSON object:
 
 Pull requests are welcome. Before submitting:
 
-1. Run `npm test -- --runInBand` and ensure all tests pass.
-2. Run `npm run lint:terminology` and `npm run lint:css-tokens` — both must exit cleanly.
-3. If you edited any file in `creator/`, run `node build-creator-bundle.js` and commit the regenerated `creator/bundle.js`.
-4. Do not add emoji to user-facing strings. Use the SVG icons in `icons.js` via `window.Icons.name()`. If a suitable icon does not exist, add one to `icons.js` (24×24 viewBox, 1.6 stroke-width, `currentColor`).
-5. Use British English spelling in user-visible text (e.g. "colour", "organiser").
-6. Use canonical CSS design tokens (`--accent`, `--surface`, `--text-primary`, etc.) — no raw hex values in component CSS.
+1. Run `npm test` and make sure every suite passes.
+2. Run `npm run lint:terminology` and `npm run lint:css-tokens`.
+3. Rebuild and commit any generated files you affected (see [Build steps](#build-steps)).
+4. No emoji or emoji-like symbols (✓ → ⚠ …) in user-facing strings — use the SVG icons in `icons.js` via `window.Icons.name()`, adding one if needed (24×24 viewBox, 1.6 stroke-width, `currentColor`). See [AGENTS.md](AGENTS.md).
+5. British English in user-visible text ("colour", "organiser").
+6. Canonical CSS design tokens (`--accent`, `--surface`, `--text-primary`, …) — no raw hex in component CSS.
+7. If you change something users can see, update the Help drawer ([`help-drawer.js`](help-drawer.js)) and add an `APP_CHANGELOG` entry.
 
 ---
 

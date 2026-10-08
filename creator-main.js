@@ -816,6 +816,16 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   ]);
 
   // Full merged state for exportPDF (which reads a mix of pattern + derived values)
+  // File > Export PDF… and Print PDF use the Export tab's saved settings
+  // (export-pdf.js), so they make the same PDF the Export tab would.
+  const exportPdfWithSavedSettings = () => {
+    if (!window.ExportPdf) return;
+    window.ExportPdf.run(Object.assign({}, exportData, {
+      projectName: state.projectName,
+      projectDesigner: state.projectDesigner,
+      projectDescription: state.projectDescription,
+    }));
+  };
   const exportData = useMemo(function() { return {
     pat: state.pat, pal: state.pal, cmap: state.cmap,
     sW: state.sW, sH: state.sH, fabricCt: state.fabricCt,
@@ -836,54 +846,41 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.doneCount, state.totalTime, state.sessions,
   ]);
 
-  // ── C8 Phase 1 — first-stitch coachmark (Creator) ────────────────────
-  // Trigger condition: in Edit mode with a pattern loaded but no edits yet.
-  // Success signal: state.editHistory becomes non-empty (a cell received a
-  // colour). The 500ms delay lets the canvas settle so the popover anchors
-  // sensibly and avoids racing with auto-loaded projects.
+  // ── Coachmark tips (Creator) ────────────────────────────────────────
+  // One-off tips, only for a pattern made in this visit — never just for
+  // opening an existing project, which used to raise them every time:
+  //   toolsTab_unlocked    right after generating: points at the Tools tab;
+  //                        clicking the tab completes it.
+  //   firstStitch_creator  after generating, or on a blank scratch grid;
+  //                        done on the first edit.
+  // coaching.js holds both back while the welcome walkthrough is open, and
+  // remembers them however they are dismissed. Neither blocks the canvas.
+  const _freshPattern = state.patternCreatedThisVisit;
+  const _noEditsYet = !state.editHistory || state.editHistory.length === 0;
   const _coach = (typeof window.useCoachingSequence === 'function')
-    ? window.useCoachingSequence('creator')
-    : { active: null, complete: ()=>{}, skip: ()=>{} };
+    ? window.useCoachingSequence('creator', {
+        toolsTab_unlocked: state.patternGeneratedThisVisit && !!state.pat && !!state.pal,
+        firstStitch_creator: _freshPattern && !!state.pat && state.appMode === 'edit' && _noEditsYet
+      })
+    : { active: null, complete: ()=>{}, skip: ()=>{}, skipAll: ()=>{} };
+  const _coachBlocked = !isActive || !!state.namePromptOpen || !!state.busy;
+  // A short delay lets the post-generate layout settle before a tip appears.
   const [_coachReady, _setCoachReady] = React.useState(false);
   React.useEffect(()=>{
     _setCoachReady(false);
-    if (state.appMode !== 'edit' || !state.pat) return;
-    if (_coach.active !== 'firstStitch_creator') return;
-    const t = setTimeout(()=>_setCoachReady(true), 500);
+    if (_coachBlocked || !_coach.active) return;
+    const t = setTimeout(()=>_setCoachReady(true), 600);
     return ()=>clearTimeout(t);
-  }, [state.appMode, !!state.pat, _coach.active]);
-  // Auto-complete when the user makes their first edit.
+  }, [_coachBlocked, _coach.active]);
   React.useEffect(()=>{
-    if (_coach.active !== 'firstStitch_creator') return;
-    if (state.editHistory && state.editHistory.length > 0) {
-      _coach.complete('firstStitch_creator');
-    }
-  }, [state.editHistory && state.editHistory.length, _coach.active]);
-  const _showFirstStitchCoach = _coachReady
-    && _coach.active === 'firstStitch_creator'
-    && state.appMode === 'edit'
-    && !!state.pat
-    && !state.namePromptOpen
-    && (!state.editHistory || state.editHistory.length === 0);
-
-  // ── Polish 13 step 4b — Tools tab unlock coachmark ───────────────────
-  // Fires once after the first generation, anchored on the Tools tab in
-  // the right-panel sidebar. The tab strip is unified across appModes
-  // (Polish 13 step 3) so the coachmark is meaningful in either appMode.
-  // We delay 600ms so the post-generate render and the layout shift
-  // from the unlocked tabs settle before the popover anchors.
-  const [_toolsCoachReady, _setToolsCoachReady] = React.useState(false);
+    if (_coach.active === 'firstStitch_creator' && !_noEditsYet) _coach.complete('firstStitch_creator');
+  }, [_noEditsYet, _coach.active]);
+  // Opening the Tools tab counts as having seen the tip.
   React.useEffect(()=>{
-    _setToolsCoachReady(false);
-    if (!state.pat || !state.pal) return;
-    if (_coach.active !== 'toolsTab_unlocked') return;
-    const t = setTimeout(()=>_setToolsCoachReady(true), 600);
-    return ()=>clearTimeout(t);
-  }, [!!state.pat, !!state.pal, _coach.active]);
-  const _showToolsUnlockedCoach = _toolsCoachReady
-    && _coach.active === 'toolsTab_unlocked'
-    && !state.namePromptOpen
-    && !!state.pat && !!state.pal;
+    if (_coach.active === 'toolsTab_unlocked' && state.sidebarTab === 'tools') _coach.complete('toolsTab_unlocked');
+  }, [state.sidebarTab, _coach.active]);
+  const _showFirstStitchCoach = _coachReady && !_coachBlocked && _coach.active === 'firstStitch_creator';
+  const _showToolsUnlockedCoach = _coachReady && !_coachBlocked && _coach.active === 'toolsTab_unlocked';
 
   return (
     <window.GenerationContext.Provider value={genCtx}>
@@ -909,7 +906,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onOpen={()=>state.loadRef.current.click()}
         onSave={state.pat&&state.pal?io.saveProject:null}
         onTrack={state.pat&&state.pal?io.handleOpenInTracker:null}
-        onExportPDF={state.pat?()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},exportData):null}
+        onExportPDF={state.pat?exportPdfWithSavedSettings:null}
         onNewProject={()=>{if(!state.pat||confirm("Start a new project? Unsaved changes will be lost."))state.resetAll();}}
         onOpenProject={typeof window.ProjectStorage!=='undefined'?()=>{window.location.href='home.html';}:undefined}
         onPreferences={typeof window.PreferencesModal!=='undefined'?()=>state.setPreferencesOpen(true):undefined}
@@ -1060,7 +1057,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         pat={!!(state.pat&&state.pal)}
         onTabChange={function(t){state.setTab(t);}}
         onRequestBackToConvert={handleRequestBackToConvert}
-        onPrintPdf={()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},exportData)}
+        onPrintPdf={exportPdfWithSavedSettings}
         onTrackPattern={io.handleOpenInTracker}
         onSaveJson={io.saveProject}
         onMoreExports={()=>{state.setTab("materials");if(state.setMaterialsTab)state.setMaterialsTab("output");}}
@@ -1293,23 +1290,29 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       {_showFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {
         id: 'firstStitch_creator',
         title: 'Paint your first stitch',
-        body: 'Pick a colour from the palette below, then click a cell to paint.',
-        placement: 'centre',
+        body: state.isScratchMode && !(state.pal && state.pal.length)
+          ? 'Add a colour in the Palette tab on the right, then click a square on the grid to paint it.'
+          : 'Choose a colour in the Palette tab on the right, then click a square on the chart to paint it.',
+        placement: 'inside-bottom',
+        target: '.canvas-area',
         showHighlight: false,
         helpTopic: 'painting',
         onComplete: ()=>_coach.complete('firstStitch_creator'),
-        onSkip: ()=>_coach.skip('firstStitch_creator')
+        onSkip: ()=>_coach.skip('firstStitch_creator'),
+        onSkipAll: ()=>_coach.skipAll()
       })}
       {_showToolsUnlockedCoach && window.Coachmark && React.createElement(window.Coachmark, {
         id: 'toolsTab_unlocked',
         target: '.creator-sidebar-tab[data-tab-id="tools"]',
         title: 'Tools and View are now unlocked',
-        body: 'Open the Tools tab in the sidebar to brush, lasso, magic-wand, half-stitch, and add backstitch lines. Image, Dimensions, and Palette stay one click away.',
+        body: 'Open the highlighted Tools tab to paint, fill, select, add part stitches and draw backstitch. Image, Dimensions and Palette stay one click away.',
         placement: 'left',
         showHighlight: true,
-        helpTopic: 'tools',
+        completeOnTargetClick: true,
+        helpTopic: 'painting',
         onComplete: ()=>_coach.complete('toolsTab_unlocked'),
-        onSkip: ()=>_coach.skip('toolsTab_unlocked')
+        onSkip: ()=>_coach.skip('toolsTab_unlocked'),
+        onSkipAll: ()=>_coach.skipAll()
       })}
     </window.HoverContext.Provider>
     </window.PatternDataContext.Provider>

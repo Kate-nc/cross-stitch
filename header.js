@@ -796,7 +796,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
 
         // Sub-page dropdown (creator and editor modes)
         (page === 'creator' || page === 'editor') && React.createElement('div', { ref: dropRef, style: { position: 'relative', flexShrink: 0, marginLeft: 6 } },
-          React.createElement('button', { className: 'tb-page-btn', onClick: () => setPageDrop(o => !o), 'aria-haspopup': 'true', 'aria-expanded': pageDrop },
+          React.createElement('button', { className: 'tb-page-btn', 'data-onboard': 'creator-pages', onClick: () => setPageDrop(o => !o), 'aria-haspopup': 'true', 'aria-expanded': pageDrop },
             activeLabel,
             React.createElement('span', { className: 'tb-page-btn-chev', 'aria-hidden': 'true' },
               window.Icons && window.Icons.chevronDown ? window.Icons.chevronDown() : null)
@@ -952,7 +952,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                 // Describe the workflow that does work on this device instead.
                 var noFolderText = (window.Platform && window.Platform.isIOS())
                   ? 'This device syncs by file. Use "Share sync file" below, save it into the folder your computer watches, and use "Import file" to bring changes back.'
-                  : 'No sync folder connected. Set one up on the Home page to sync across devices.';
+                  : 'No sync folder connected. Set one up in Preferences > Sync, backup & data to sync across devices.';
                 rows.push(React.createElement('div', { key: 'no-folder', className: 'sync-popover-row' },
                   Icons.cloudOff(),
                   React.createElement('span', null, noFolderText)
@@ -1206,7 +1206,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               Icons.folder(), ' Restore from Backup…',
               React.createElement('input', {
                 type: 'file',
-                accept: '.json',
+                accept: window.Platform ? window.Platform.fileAccept('.json,.csb,application/json') : '.json,.csb,application/json',
                 style: { display: 'none' },
                 onChange: function(e) {
                   setFileMenuOpen(false);

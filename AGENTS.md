@@ -16,6 +16,13 @@ this file is a shorter pointer plus the most-broken house rule.
   `embroidery.js`, run `node build-runtime-js.js` and commit `compiled/`
   with it. `npm test` (and the pre-commit hook) fail when `compiled/` is
   stale; `node build-runtime-js.js --check` says which file.
+- After editing anything in `import-engine/`, run `node build-import-bundle.js`.
+- User-visible changes also need the in-app help ([help-drawer.js](help-drawer.js))
+  and the hand-written `APP_CHANGELOG` in [version.js](version.js) updated.
+  `tests/helpDrawerShortcutsSync.test.js` fails if the help's shortcut list
+  disagrees with the registered shortcuts.
+- Keep every source file UTF-8. A legacy-encoding save once corrupted every
+  `×`, `—`, `£` and `…` in the Preferences panel into `�`.
 
 ## Workshop is the sole theme
 

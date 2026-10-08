@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v60';
+var CACHE_NAME = 'cross-stitch-cache-v61';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -25,6 +25,7 @@ var PRECACHE_URLS = [
   './version.js',
   './runtime-loaders.js',
   './lazy-modules.js',
+  './export-pdf.js',
   './constants.js',
   './dmc-data.js',
   './anchor-data.js',
@@ -89,6 +90,9 @@ var PRECACHE_URLS = [
   // offline user who had never opened Help would find it missing. Precaching is
   // what keeps it available. Same reasoning as backup-restore.js above.
   './help-drawer.js',
+  // The Tracker loads the PDF exporter on demand (export-pdf.js); the Creator
+  // has it inside creator/bundle.js.
+  './creator/pdfExport.js',
   './sync-engine.js',
   './assets/fonts/CrossStitchSymbols.base64.js',
   './assets/fonts/CrossStitchSymbols.ttf',

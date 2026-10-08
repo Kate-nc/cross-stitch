@@ -62,9 +62,11 @@ describe('WelcomeWizard', () => {
     expect(window.WelcomeWizard.STEPS.tracker.length).toBeGreaterThanOrEqual(2);
   });
 
-  test('STEPS.creator[2] targets the home-from-image element', () => {
+  // The Creator walkthrough runs in the Creator, so it points at Creator
+  // controls (it used to target a Home tile that never exists there).
+  test('STEPS.creator[2] targets the Generate button', () => {
     const step = window.WelcomeWizard.STEPS.creator[2];
-    expect(step.target).toBe('[data-onboard="home-from-image"]');
+    expect(step.target).toBe('[data-onboard="creator-generate"]');
   });
 
   test('No creator step body contains stale "Start New" panel reference', () => {

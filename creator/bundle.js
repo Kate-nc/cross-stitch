@@ -4994,6 +4994,10 @@ window.useCreatorState = function useCreatorState() {
   var _pal  = useState(null);         var pal  = _pal[0],  setPal  = _pal[1];
   var _cmap = useState(null);         var cmap = _cmap[0], setCmap = _cmap[1];
   var _busy = useState(false);        var busy = _busy[0], setBusy = _busy[1];
+  var _patternCreatedThisVisit = useState(false);
+  var patternCreatedThisVisit = _patternCreatedThisVisit[0], setPatternCreatedThisVisit = _patternCreatedThisVisit[1];
+  var _patternGeneratedThisVisit = useState(false);
+  var patternGeneratedThisVisit = _patternGeneratedThisVisit[0], setPatternGeneratedThisVisit = _patternGeneratedThisVisit[1];
   var _progressMessage = useState(""); var progressMessage = _progressMessage[0], setProgressMessage = _progressMessage[1];
   var _oW   = useState(0);            var origW = _oW[0],  setOrigW = _oW[1];
   var _oH   = useState(0);            var origH = _oH[0],  setOrigH = _oH[1];
@@ -5746,6 +5750,7 @@ window.useCreatorState = function useCreatorState() {
     setImg({ src: null, w: sW, h: sH });
     prevSW.current = sW; prevSH.current = sH;
     initBlankGrid(sW, sH);
+    setPatternCreatedThisVisit(true);
     // Scratch mode bypasses Create → go straight to Edit
     setAppMode("edit");
     setSidebarTab("palette");
@@ -5855,6 +5860,8 @@ window.useCreatorState = function useCreatorState() {
     // Discard results from a superseded generation or a mismatched grid size
     if (result.reqId !== genReqIdRef.current) { setBusy(false); return; }
     if (result.mapped && result.mapped.length !== sW * sH) { setBusy(false); return; }
+    setPatternCreatedThisVisit(true);
+    setPatternGeneratedThisVisit(true);
     setConfettiData(result.confettiData);
     setPal(result.pal); setCmap(result.cmap); setPat(result.mapped);
     setDone(new Uint8Array(result.mapped.length));
@@ -6421,7 +6428,7 @@ window.useCreatorState = function useCreatorState() {
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     preSharpen, setPreSharpen, preSharpenAmount, setPreSharpenAmount,
     orphans, setOrphans, disambig, setDisambig, disambigLevel, setDisambigLevel, allowBlends, setAllowBlends,
-    pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, progressMessage, setProgressMessage,
+    pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, patternCreatedThisVisit, patternGeneratedThisVisit, progressMessage, setProgressMessage,
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
     appMode, setAppMode, confirmBackToConvert, setConfirmBackToConvert, sidebarTab, setSidebarTab,
@@ -14417,7 +14424,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("div", {"aria-hidden":"true", className:"rpanel-handle-wrap", style:{paddingTop:6,paddingBottom:2,display:"flex",justifyContent:"center"}},
       h("div", {className:"rpanel-handle-bar"})
     ),
-    h("div", {className:"creator-sidebar-tabs"},
+    h("div", {className:"creator-sidebar-tabs", "data-onboard":"creator-sidebar-tabs"},
       tabs.map(function(t) {
         var isActive = sTab === t.id;
         var isDisabled = !!t.disabled;
@@ -17888,6 +17895,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     ? h("button", {
         type: "button",
         className: "creator-actionbar__btn creator-actionbar__btn--primary",
+        "data-onboard": "creator-generate",
         onClick: generating ? undefined : (typeof props.onGenerate === "function" ? props.onGenerate : undefined),
         disabled: generating,
         title: generating ? "Generating\u2026" : hasPat ? "Regenerate pattern" : "Generate pattern",

@@ -17,33 +17,30 @@ first-time user through the workflow.
 
 ## 1. Open a pattern in the Creator
 
-1. Launch the app from `home.html` (or open `index.html` directly if you already have an active project) and switch to the **Pattern Creator**.
-2. Generate a pattern from an image, or load a saved `.json` project from the **Project** tab.
-3. Use the **Pattern**, **Legend** and other tabs to edit the chart until you're happy.
+1. Launch the app from `home.html`. Open an existing project from **Home > Projects** (choose **Edit**), or start one from **Home > Create new**.
+2. Generate the pattern and edit it until you're happy.
 
-## 2. Switch to the Export tab
+## 2. Open the Export tab
 
-Click **Export** in the Creator's tab strip. You'll see four sections, top to bottom:
+Choose **Materials & Output** in the Creator's page tabs, then the **Export** sub-tab. Settings you choose here are saved: **File > Export PDF…** and **Print PDF** in the Creator, and **File > Export PDF…** in the Stitch Tracker, all use them. From top to bottom you'll see:
 
 | Section | What it does |
 |---|---|
-| Open in Stitch Tracker | Opens the current pattern directly in the in-app tracker (no file required). |
+| Open in Stitch Tracker | Opens the current pattern in the Tracker (no file required). |
 | Quick presets | One-tap configurations for the two most common scenarios. |
-| Format & settings | Collapsible advanced controls — page size, margins, stitches per page, chart modes, optional sections. |
-| Designer branding | Your name, logo and copyright. Set once, applied to every PDF. |
-| Save / load | Save or re-open the editable `.json` project file. |
+| Format & settings | Collapsible controls — format, page size, margins, stitches per page, chart modes, optional pages, Workshop print theme. |
+| Export PDF / Export .oxs | Produce the files. |
+| Download as bundle | One `.zip` with the PDF, `.oxs`, a PNG preview, the `.json` project and a manifest. |
 
 ## 3. Set your designer branding (one-off)
 
-The first time you export, expand **Designer branding** and fill in:
+Branding lives in **File > Preferences > Profile & branding** and is applied to every PDF:
 
-- **Name** — appears on the cover and footer of every page.
-- **Contact** — optional URL or email shown under your name.
-- **Logo** — drop in a PNG/JPG. It's downscaled to ≤600 px and stored on this device only.
-- **Logo position** — top-left or top-right of the cover.
-- **Copyright notice** — printed on the info page (e.g. _© 2025 Your Name. For personal use only._).
-
-These settings are remembered locally for every future export — no need to retype them.
+- **Your name or studio name** — appears on PDF cover pages.
+- **Copyright line** — shown in the footer of every chart page (e.g. _© 2026 Your Name. For personal use only._).
+- **Contact or website** — printed on cover pages.
+- **Logo** — PNG or JPEG, up to 600 × 600 px, stored on this device only.
+- **Logo position on cover page** — top-left or top-right.
 
 ## 4. Pick a preset
 
@@ -66,7 +63,8 @@ Expand **Format & settings** for fine control:
   - _Symbols on white (B&W)_ — clean black-on-white chart, easy to photocopy.
   - _Colour blocks with symbols_ — full-colour cells with contrasting symbol overlay.
 - **2-row/column overlap zone** — repeats the last 2 rows/cols on the next page, tinted, so multi-page charts stitch together cleanly. Recommended for Pattern Keeper.
-- **Cover page / Info page / Chart index / Mini-legend** — toggle individual sections.
+- **Cover page / Info page / Chart index / Mini-legend strip** — toggle individual sections.
+- **Workshop print theme** — terracotta grid on a linen background. Off by default; leave it off for Pattern Keeper, which expects the standard black grid.
 
 The footer of the panel shows a live page-count estimate so you know what you'll get before clicking export.
 
@@ -100,7 +98,7 @@ Then:
 
 ## Where things are stored
 
-- Designer branding and last-used export settings: browser **localStorage** (per device).
+- Designer branding and last-used export settings: user preferences in browser **localStorage** (per device).
 - Patterns themselves: IndexedDB (`CrossStitchDB` → `projects`).
 - The exported PDF is **not** stored — it downloads directly to your browser's downloads folder.
 

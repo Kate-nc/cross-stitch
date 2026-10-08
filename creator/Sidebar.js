@@ -1323,7 +1323,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("div", {"aria-hidden":"true", className:"rpanel-handle-wrap", style:{paddingTop:6,paddingBottom:2,display:"flex",justifyContent:"center"}},
       h("div", {className:"rpanel-handle-bar"})
     ),
-    h("div", {className:"creator-sidebar-tabs"},
+    h("div", {className:"creator-sidebar-tabs", "data-onboard":"creator-sidebar-tabs"},
       tabs.map(function(t) {
         var isActive = sTab === t.id;
         var isDisabled = !!t.disabled;

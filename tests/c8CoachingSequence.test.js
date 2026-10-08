@@ -135,13 +135,44 @@ describe("useCoachingSequence — state machine", () => {
     expect(store["onboarding.coached.toolsTab_unlocked"]).toBe(true);
   });
 
-  test("skip() does NOT persist to UserPrefs", () => {
+  // Dismissing a tip (Escape, clicking away, Learn more) is remembered.
+  // It used not to be, so tips came back on every page load.
+  test("skip() persists the dismissed step", () => {
     const store = {};
     const { win } = loadCoaching(store);
     const r = win.useCoachingSequence("tracker");
     expect(r.active).toBe("firstStitch_tracker");
     r.skip("firstStitch_tracker");
-    expect(store["onboarding.coached.firstStitch_tracker"]).toBeUndefined();
+    expect(store["onboarding.coached.firstStitch_tracker"]).toBe(true);
+    expect(store["onboarding.coached.rectSelect_tracker"]).toBeUndefined();
+  });
+
+  test("skipAll() persists every step in the sequence", () => {
+    const store = {};
+    const { win } = loadCoaching(store);
+    win.useCoachingSequence("tracker").skipAll();
+    expect(store["onboarding.coached.firstStitch_tracker"]).toBe(true);
+    expect(store["onboarding.coached.rectSelect_tracker"]).toBe(true);
+  });
+
+  test("ineligible steps are passed over without being marked", () => {
+    const store = {};
+    const { win, reset } = loadCoaching(store);
+    const r = win.useCoachingSequence("creator", { toolsTab_unlocked: false, firstStitch_creator: true });
+    expect(r.active).toBe("firstStitch_creator");
+    expect(store["onboarding.coached.toolsTab_unlocked"]).toBeUndefined();
+    reset();
+    const none = win.useCoachingSequence("creator", { toolsTab_unlocked: false, firstStitch_creator: false });
+    expect(none.active).toBe(null);
+  });
+
+  test("tips wait while a walkthrough or the style picker is open", () => {
+    const { win } = loadCoaching({});
+    win.Coaching.overlayOpened();
+    expect(win.Coaching.isOverlayOpen()).toBe(true);
+    expect(win.useCoachingSequence("tracker").active).toBe(null);
+    win.Coaching.overlayClosed();
+    expect(win.Coaching.isOverlayOpen()).toBe(false);
   });
 
   test("unknown mode yields null active", () => {
