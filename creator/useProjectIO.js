@@ -359,22 +359,26 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.setAppMode("edit");
     state.setSidebarTab("palette");
 
+    // Zoom is set in the same batch as the pattern so the first draw already
+    // uses it: a large chart drawn first at the default 100% costs a canvas
+    // of tens of millions of pixels before being redrawn at the right size.
+    // The Tracker saves its own zoom and scroll in the same fields, on a
+    // different scale, so only a Creator save restores them; anything else
+    // fits the pattern to the view.
     var scrollRef = state.scrollRef;
-    if (project.savedZoom != null) {
-      setTimeout(function() {
-        state.setZoom(project.savedZoom);
-        if (project.savedScroll && scrollRef.current) {
+    if (project.savedZoom != null && project.page !== "tracker") {
+      state.setZoom(project.savedZoom);
+      if (project.savedScroll) {
+        setTimeout(function() {
+          if (!scrollRef.current) return;
           requestAnimationFrame(function() {
             scrollRef.current.scrollLeft = project.savedScroll.left;
             scrollRef.current.scrollTop = project.savedScroll.top;
           });
-        }
-      }, 100);
+        }, 100);
+      }
     } else {
-      setTimeout(function() {
-        var z = Math.min(3, Math.max(0.05, 750 / (s.sW * 20)));
-        state.setZoom(z);
-      }, 100);
+      state.setZoom(Math.min(3, Math.max(0.05, 750 / (s.sW * 20))));
     }
 
     // Restore per-pattern view state from UserPrefs
